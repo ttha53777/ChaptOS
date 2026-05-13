@@ -2,6 +2,8 @@
 
 export type BrotherStatus = "Good" | "Watch" | "At Risk";
 export type TaskStatus = "Upcoming" | "Due Soon" | "Urgent" | "Complete";
+export type CalEventCategory = "chapter" | "social" | "fundy" | "program" | "party" | "deadline";
+export type CalLayer = "all" | "mandatory" | "deadlines" | "parties";
 
 export interface Brother {
   id: number;
@@ -37,6 +39,17 @@ export interface PartyEvent {
   doorRevenue: number;
   attendance: number;
   notes: string;
+}
+
+export interface CalendarEvent {
+  id: number;
+  title: string;
+  date: string;
+  time?: string;
+  category: CalEventCategory;
+  mandatory: boolean;
+  description?: string;
+  location?: string;
 }
 
 // ─── Thresholds ───────────────────────────────────────────────────────────────
@@ -89,6 +102,46 @@ export const partyEvents: PartyEvent[] = [
   { id: 3, name: "LPE × KDF Collab",        date: "2026-03-15", doorRevenue: 750, attendance: 142, notes: "Best collab event of the semester"        },
   { id: 4, name: "Brotherhood Mixer",       date: "2026-04-05", doorRevenue: 320, attendance: 52,  notes: "Fundraising focus"                       },
   { id: 5, name: "Spring Formal Pre-Party", date: "2026-04-26", doorRevenue: 890, attendance: 178, notes: "Highest revenue event this semester"      },
+];
+
+export const calendarEvents: CalendarEvent[] = [
+  // ── Chapter meetings ──────────────────────────────────────────────────────
+  { id: 101, title: "Chapter Meeting",         date: "2026-05-12", time: "7:00 PM", category: "chapter",  mandatory: true,  location: "Chapter Room" },
+  { id: 102, title: "Chapter Meeting",         date: "2026-05-19", time: "7:00 PM", category: "chapter",  mandatory: true,  location: "Chapter Room" },
+  { id: 103, title: "Chapter Meeting",         date: "2026-05-26", time: "7:00 PM", category: "chapter",  mandatory: true,  location: "Chapter Room" },
+  { id: 104, title: "Chapter Meeting",         date: "2026-06-02", time: "7:00 PM", category: "chapter",  mandatory: true,  location: "Chapter Room" },
+  { id: 105, title: "Chapter Meeting",         date: "2026-06-09", time: "7:00 PM", category: "chapter",  mandatory: true,  location: "Chapter Room" },
+
+  // ── Social / mandatory ────────────────────────────────────────────────────
+  { id: 201, title: "End-of-Semester Social",  date: "2026-05-15", time: "8:00 PM",  category: "social",   mandatory: true,  location: "Campus Center",   description: "Annual end-of-semester brotherhood social" },
+  { id: 202, title: "Rush Social Night",       date: "2026-05-20", time: "7:30 PM",  category: "social",   mandatory: true,  location: "Student Lounge",  description: "Rush recruitment social" },
+  { id: 203, title: "Brotherhood Dinner",      date: "2026-06-05", time: "6:00 PM",  category: "social",   mandatory: true,  location: "Restaurant TBD",  description: "Formal brotherhood dinner" },
+
+  // ── Fundraisers ───────────────────────────────────────────────────────────
+  { id: 301, title: "Boba Fundraiser",         date: "2026-05-14", time: "12:00 PM", category: "fundy",    mandatory: true,  location: "Student Union",   description: "Boba sales fundraiser – all brothers sell" },
+  { id: 302, title: "Car Wash Fundraiser",     date: "2026-05-23", time: "11:00 AM", category: "fundy",    mandatory: true,  location: "Parking Lot B" },
+  { id: 303, title: "Alumni Donation Drive",   date: "2026-06-01", time: "All Day",  category: "fundy",    mandatory: false, description: "Virtual alumni giving day" },
+
+  // ── Programs ──────────────────────────────────────────────────────────────
+  { id: 401, title: "Academic Workshop",       date: "2026-05-16", time: "3:00 PM",  category: "program",  mandatory: true,  location: "Library Rm 204" },
+  { id: 402, title: "Spring Banquet",          date: "2026-05-30", time: "6:00 PM",  category: "program",  mandatory: true,  location: "Grand Ballroom",  description: "Annual spring banquet — formal attire" },
+  { id: 403, title: "Leadership Retreat",      date: "2026-06-07", time: "9:00 AM",  category: "program",  mandatory: true,  description: "Officer transition & planning retreat" },
+  { id: 404, title: "IFC Community Service",   date: "2026-06-12", time: "10:00 AM", category: "program",  mandatory: true,  location: "Community Center" },
+
+  // ── Parties ───────────────────────────────────────────────────────────────
+  { id: 501, title: "End-of-Year Kickback",    date: "2026-05-22", time: "9:00 PM",  category: "party",    mandatory: false, description: "End-of-year celebration" },
+  { id: 502, title: "LPE × ΔΦΕ Collab",       date: "2026-05-29", time: "9:30 PM",  category: "party",    mandatory: false, description: "Collab party with Delta Phi Epsilon" },
+  { id: 503, title: "Summer Kickoff",          date: "2026-06-13", time: "8:00 PM",  category: "party",    mandatory: false, description: "First party of summer" },
+  { id: 504, title: "Post-Finals Rager",       date: "2026-06-20", time: "9:00 PM",  category: "party",    mandatory: false },
+
+  // ── Deadlines ─────────────────────────────────────────────────────────────
+  { id: 601, title: "Academic Standing Report",      date: "2026-05-13", category: "deadline", mandatory: false, description: "Submit to nationals" },
+  { id: 602, title: "Banquet Final Submission",      date: "2026-05-14", category: "deadline", mandatory: true },
+  { id: 603, title: "Risk Management Form",          date: "2026-05-16", category: "deadline", mandatory: true },
+  { id: 604, title: "Spring Roster Update",          date: "2026-05-25", category: "deadline", mandatory: false },
+  { id: 605, title: "Nationals Chapter Fee",         date: "2026-06-01", category: "deadline", mandatory: true },
+  { id: 606, title: "Brotherhood Event Proposal",    date: "2026-06-10", category: "deadline", mandatory: false },
+  { id: 607, title: "IFC Chapter Report",            date: "2026-06-15", category: "deadline", mandatory: true },
 ];
 
 export const treasuryTrend = [

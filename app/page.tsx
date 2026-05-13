@@ -12,6 +12,8 @@ import {
   seedActivity, KPI_SPARKLINES,
   getBrotherStatus, calcHealthScore, avg, fmt$, fmtDate,
 } from "./data";
+import { Sidebar, SvgIcon, NAV_ICONS } from "./components/Sidebar";
+import { useChapter } from "./context/ChapterContext";
 
 // ─── Style maps ───────────────────────────────────────────────────────────────
 
@@ -54,25 +56,6 @@ function Card({ children, className = "", id, onClick }: { children: React.React
   );
 }
 
-function SvgIcon({ d, className = "h-4 w-4" }: { d: string; className?: string }) {
-  return (
-    <svg className={className} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-      <path strokeLinecap="round" strokeLinejoin="round" d={d} />
-    </svg>
-  );
-}
-
-// ─── Icon paths ───────────────────────────────────────────────────────────────
-
-const NAV_ICONS: Record<string, string> = {
-  Dashboard: "M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6",
-  Brothers:  "M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z",
-  Deadlines: "M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z",
-  Instagram: "M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z",
-  Treasury:  "M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z",
-  Parties:   "M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3",
-  Settings:  "M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z",
-};
 
 const KPI_ICONS: Record<string, string> = {
   attendance: "M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z",
@@ -94,58 +77,6 @@ const SECTION_IDS: Record<string, string> = {
   Parties:   "sec-parties",
   Settings:  "sec-settings",
 };
-
-// ─── Sidebar ──────────────────────────────────────────────────────────────────
-
-const NAV = ["Dashboard", "Brothers", "Deadlines", "Instagram", "Treasury", "Parties", "Settings"];
-
-function Sidebar({ open, onClose, activeSection, onNavClick }: {
-  open: boolean;
-  onClose: () => void;
-  activeSection: string;
-  onNavClick: (label: string) => void;
-}) {
-  return (
-    <>
-      {open && <div className="fixed inset-0 z-20 bg-black/60 lg:hidden" onClick={onClose} />}
-      <aside className={`fixed inset-y-0 left-0 z-30 flex w-56 flex-col bg-[#0d1117] transition-transform duration-200 ease-in-out lg:static lg:z-auto lg:translate-x-0 ${open ? "translate-x-0" : "-translate-x-full"}`}>
-        <div className="flex h-14 items-center gap-3 border-b border-white/[0.06] px-4">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-indigo-600 text-[11px] font-bold text-white">ΛΦΕ</div>
-          <div className="min-w-0">
-            <p className="truncate text-[12px] font-semibold leading-tight text-white">Lambda Phi Epsilon</p>
-            <p className="text-[10px] leading-tight text-white/35">Spring 2026</p>
-          </div>
-        </div>
-        <nav className="flex-1 overflow-y-auto px-2 py-3" aria-label="Dashboard navigation">
-          <div className="space-y-0.5">
-            {NAV.map(label => {
-              const isActive = activeSection === label;
-              return (
-                <button
-                  key={label}
-                  onClick={() => { onNavClick(label); onClose(); }}
-                  aria-current={isActive ? "page" : undefined}
-                  className={`flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] font-medium transition-colors ${
-                    isActive
-                      ? "bg-indigo-500/20 text-indigo-300"
-                      : "text-white/40 hover:bg-white/[0.05] hover:text-white/70"
-                  }`}
-                >
-                  <SvgIcon d={NAV_ICONS[label] ?? ""} className="h-4 w-4 shrink-0 opacity-75" />
-                  {label}
-                  {isActive && <span className="ml-auto h-1.5 w-1.5 rounded-full bg-indigo-400" aria-hidden="true" />}
-                </button>
-              );
-            })}
-          </div>
-        </nav>
-        <div className="border-t border-white/[0.06] px-4 py-3">
-          <p className="text-[10px] text-white/20">Chapter Ops · v1.0</p>
-        </div>
-      </aside>
-    </>
-  );
-}
 
 // ─── Modal wrapper ────────────────────────────────────────────────────────────
 
@@ -184,14 +115,15 @@ const inputCls = "w-full rounded-lg border border-white/[0.1] bg-[#0d1117] px-3 
 
 // ─── Add Deadline form ────────────────────────────────────────────────────────
 
-function AddDeadlineForm({ brotherNames, onSubmit }: {
+function AddDeadlineForm({ brotherNames, onSubmit, initial }: {
   brotherNames: string[];
   onSubmit: (d: { title: string; dueDate: string; owner: string; status: TaskStatus }) => void;
+  initial?: { title: string; dueDate: string; owner: string; status: TaskStatus };
 }) {
-  const [title,   setTitle]   = useState("");
-  const [dueDate, setDueDate] = useState("");
-  const [owner,   setOwner]   = useState(brotherNames[0] ?? "");
-  const [status,  setStatus]  = useState<TaskStatus>("Upcoming");
+  const [title,   setTitle]   = useState(initial?.title   ?? "");
+  const [dueDate, setDueDate] = useState(initial?.dueDate ?? "");
+  const [owner,   setOwner]   = useState(initial?.owner   ?? brotherNames[0] ?? "");
+  const [status,  setStatus]  = useState<TaskStatus>(initial?.status ?? "Upcoming");
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -215,7 +147,9 @@ function AddDeadlineForm({ brotherNames, onSubmit }: {
           {(["Upcoming", "Due Soon", "Urgent", "Complete"] as TaskStatus[]).map(s => <option key={s}>{s}</option>)}
         </select>
       </div>
-      <button type="submit" className="w-full rounded-lg bg-indigo-600 px-4 py-2.5 text-[13px] font-semibold text-white hover:bg-indigo-500 transition-colors">Add Deadline</button>
+      <button type="submit" className="w-full rounded-lg bg-indigo-600 px-4 py-2.5 text-[13px] font-semibold text-white hover:bg-indigo-500 transition-colors">
+        {initial ? "Save Changes" : "Add Deadline"}
+      </button>
     </form>
   );
 }
@@ -253,15 +187,16 @@ function AddRevenueForm({ onSubmit }: {
 
 // ─── Add IG Task form ─────────────────────────────────────────────────────────
 
-function AddIGTaskForm({ brotherNames, onSubmit }: {
+function AddIGTaskForm({ brotherNames, onSubmit, initial }: {
   brotherNames: string[];
   onSubmit: (t: { title: string; dueDate: string; owner: string; type: string; status: TaskStatus }) => void;
+  initial?: { title: string; dueDate: string; owner: string; type: string; status: TaskStatus };
 }) {
-  const [title,   setTitle]   = useState("");
-  const [dueDate, setDueDate] = useState("");
-  const [owner,   setOwner]   = useState(brotherNames[0] ?? "");
-  const [type,    setType]    = useState("Feed Post");
-  const [status,  setStatus]  = useState<TaskStatus>("Upcoming");
+  const [title,   setTitle]   = useState(initial?.title   ?? "");
+  const [dueDate, setDueDate] = useState(initial?.dueDate ?? "");
+  const [owner,   setOwner]   = useState(initial?.owner   ?? brotherNames[0] ?? "");
+  const [type,    setType]    = useState(initial?.type    ?? "Feed Post");
+  const [status,  setStatus]  = useState<TaskStatus>(initial?.status ?? "Upcoming");
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -293,7 +228,9 @@ function AddIGTaskForm({ brotherNames, onSubmit }: {
           </select>
         </div>
       </div>
-      <button type="submit" className="w-full rounded-lg bg-indigo-600 px-4 py-2.5 text-[13px] font-semibold text-white hover:bg-indigo-500 transition-colors">Add IG Task</button>
+      <button type="submit" className="w-full rounded-lg bg-indigo-600 px-4 py-2.5 text-[13px] font-semibold text-white hover:bg-indigo-500 transition-colors">
+        {initial ? "Save Changes" : "Add IG Task"}
+      </button>
     </form>
   );
 }
@@ -1016,6 +953,8 @@ function WidgetDetailDrawer({
   health,
   maxRevenue, bestEvent, totalDoorRev,
   onOpenModal,
+  onCompleteDeadline, onDeleteDeadline, onEditDeadline,
+  onCompleteIG, onDeleteIG, onEditIG,
 }: {
   activeKey: WidgetDrawerKey | null;
   onClose: () => void;
@@ -1030,6 +969,12 @@ function WidgetDetailDrawer({
   bestEvent: PartyEvent;
   totalDoorRev: number;
   onOpenModal: (key: "deadline" | "revenue" | "ig" | "attendance") => void;
+  onCompleteDeadline: (id: number) => void;
+  onDeleteDeadline:   (id: number) => void;
+  onEditDeadline:     (id: number) => void;
+  onCompleteIG:       (id: number) => void;
+  onDeleteIG:         (id: number) => void;
+  onEditIG:           (id: number) => void;
 }) {
   const isOpen = activeKey !== null;
 
@@ -1198,9 +1143,24 @@ function WidgetDetailDrawer({
                     <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500">{status} ({items.length})</p>
                     <div className="space-y-1.5">
                       {items.map(d => (
-                        <div key={d.id} className={`rounded-md border-l-[2.5px] px-3 py-2 ${left} ${bg}`}>
-                          <p className="text-[12px] font-medium text-white">{d.title}</p>
-                          <p className="text-[10px] text-slate-500 mt-0.5">{fmtDate(d.dueDate)} · {d.owner.split(" ")[0]}</p>
+                        <div key={d.id} className={`group flex items-start justify-between gap-2 rounded-md border-l-[2.5px] px-3 py-2 ${left} ${bg}`}>
+                          <div className="min-w-0 flex-1">
+                            <p className={`text-[12px] font-medium ${d.status === "Complete" ? "line-through text-slate-500" : "text-white"}`}>{d.title}</p>
+                            <p className="text-[10px] text-slate-500 mt-0.5">{fmtDate(d.dueDate)} · {d.owner.split(" ")[0]}</p>
+                          </div>
+                          <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                            {d.status !== "Complete" && (
+                              <button onClick={() => onCompleteDeadline(d.id)} title="Mark complete" className="flex h-6 w-6 items-center justify-center rounded hover:bg-emerald-500/20 text-slate-500 hover:text-emerald-400 transition-colors">
+                                <svg className="h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+                              </button>
+                            )}
+                            <button onClick={() => onEditDeadline(d.id)} title="Edit" className="flex h-6 w-6 items-center justify-center rounded hover:bg-indigo-500/20 text-slate-500 hover:text-indigo-400 transition-colors">
+                              <svg className="h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                            </button>
+                            <button onClick={() => onDeleteDeadline(d.id)} title="Delete" className="flex h-6 w-6 items-center justify-center rounded hover:bg-red-500/20 text-slate-500 hover:text-red-400 transition-colors">
+                              <svg className="h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                            </button>
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -1245,10 +1205,25 @@ function WidgetDetailDrawer({
                   const order = { Urgent: 0, "Due Soon": 1, Upcoming: 2, Complete: 3 };
                   return (order[a.status] ?? 99) - (order[b.status] ?? 99);
                 }).map(t => (
-                  <div key={t.id} className="rounded-lg bg-white/[0.03] border border-white/[0.06] px-3 py-2.5">
+                  <div key={t.id} className="group rounded-lg bg-white/[0.03] border border-white/[0.06] px-3 py-2.5">
                     <div className="flex items-start justify-between gap-2 mb-1">
-                      <p className="text-[12px] font-semibold text-white flex-1">{t.title}</p>
-                      <TaskBadge status={t.status} />
+                      <p className={`text-[12px] font-semibold flex-1 ${t.status === "Complete" ? "line-through text-slate-500" : "text-white"}`}>{t.title}</p>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                          {t.status !== "Complete" && (
+                            <button onClick={() => onCompleteIG(t.id)} title="Mark complete" className="flex h-6 w-6 items-center justify-center rounded hover:bg-emerald-500/20 text-slate-500 hover:text-emerald-400 transition-colors">
+                              <svg className="h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+                            </button>
+                          )}
+                          <button onClick={() => onEditIG(t.id)} title="Edit" className="flex h-6 w-6 items-center justify-center rounded hover:bg-indigo-500/20 text-slate-500 hover:text-indigo-400 transition-colors">
+                            <svg className="h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                          </button>
+                          <button onClick={() => onDeleteIG(t.id)} title="Delete" className="flex h-6 w-6 items-center justify-center rounded hover:bg-red-500/20 text-slate-500 hover:text-red-400 transition-colors">
+                            <svg className="h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                          </button>
+                        </div>
+                        <TaskBadge status={t.status} />
+                      </div>
                     </div>
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium ${typeColors[t.type] ?? "bg-slate-500/15 text-slate-400"}`}>{t.type}</span>
@@ -1388,6 +1363,285 @@ function WidgetDetailDrawer({
   );
 }
 
+// ─── Brother Detail / Edit Drawer ────────────────────────────────────────────
+
+function BrotherDrawer({
+  brotherId,
+  brotherList,
+  onClose,
+  onSave,
+  onPayDues,
+  onAddServiceHour,
+}: {
+  brotherId: number | null;
+  brotherList: Brother[];
+  onClose: () => void;
+  onSave: (id: number, updates: Omit<Brother, "id">) => void;
+  onPayDues: (b: Brother) => void;
+  onAddServiceHour: (b: Brother) => void;
+}) {
+  const isOpen = brotherId !== null;
+  const brother = brotherId !== null ? brotherList.find(b => b.id === brotherId) ?? null : null;
+
+  const [name,         setName]         = useState("");
+  const [role,         setRole]         = useState("");
+  const [gpa,          setGpa]          = useState("");
+  const [duesOwed,     setDuesOwed]     = useState("");
+  const [serviceHours, setServiceHours] = useState("");
+  const [attendance,   setAttendance]   = useState("");
+  const [dirty,        setDirty]        = useState(false);
+
+  // Sync form fields whenever a different brother is selected
+  useEffect(() => {
+    if (!brother) return;
+    setName(brother.name);
+    setRole(brother.role);
+    setGpa(String(brother.gpa));
+    setDuesOwed(String(brother.duesOwed));
+    setServiceHours(String(brother.serviceHours));
+    setAttendance(String(brother.attendance));
+    setDirty(false);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [brotherId]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [isOpen, onClose]);
+
+  function handleSave() {
+    if (!brother) return;
+    onSave(brother.id, {
+      name:         name.trim()  || brother.name,
+      role:         role.trim()  || brother.role,
+      gpa:          Math.min(4.0, Math.max(0, parseFloat(gpa)          || brother.gpa)),
+      duesOwed:     Math.max(0,              parseInt(duesOwed)         || 0),
+      serviceHours: Math.max(0,              parseInt(serviceHours)     || 0),
+      attendance:   Math.min(100, Math.max(0, parseInt(attendance)      || brother.attendance)),
+    });
+    setDirty(false);
+  }
+
+  function handleQuickPayDues() {
+    if (!brother) return;
+    onPayDues(brother);
+    setDuesOwed("0");
+  }
+
+  function handleQuickAddService() {
+    if (!brother) return;
+    onAddServiceHour(brother);
+    setServiceHours(String(brother.serviceHours + 1));
+  }
+
+  const status  = brother ? getBrotherStatus(brother) : "Good";
+  const initials = brother
+    ? brother.name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()
+    : "";
+
+  const statusRing: Record<typeof status, string> = {
+    "Good":    "ring-emerald-500/40 bg-emerald-500/15 text-emerald-400",
+    "Watch":   "ring-amber-500/40  bg-amber-500/15   text-amber-400",
+    "At Risk": "ring-red-500/40    bg-red-500/15     text-red-400",
+  };
+
+  const attColor  = brother
+    ? brother.attendance < THRESHOLDS.attendanceAtRisk ? "text-red-400"
+      : brother.attendance < THRESHOLDS.attendanceWatch ? "text-amber-400"
+      : "text-white"
+    : "text-white";
+  const attBar    = brother
+    ? brother.attendance < THRESHOLDS.attendanceAtRisk ? "bg-red-400"
+      : brother.attendance < THRESHOLDS.attendanceWatch ? "bg-amber-400"
+      : "bg-blue-400"
+    : "bg-blue-400";
+  const gpaColor  = brother
+    ? brother.gpa < THRESHOLDS.gpaAtRisk ? "text-red-400"
+      : brother.gpa < THRESHOLDS.gpaWatch ? "text-amber-400"
+      : "text-white"
+    : "text-white";
+  const gpaBar    = brother
+    ? brother.gpa < THRESHOLDS.gpaAtRisk ? "bg-red-400"
+      : brother.gpa < THRESHOLDS.gpaWatch ? "bg-amber-400"
+      : "bg-violet-400"
+    : "bg-violet-400";
+
+  const statusFactors = brother
+    ? [
+        {
+          label: "Attendance", val: `${brother.attendance}%`,
+          ok:   brother.attendance >= THRESHOLDS.attendanceWatch,
+          warn: brother.attendance >= THRESHOLDS.attendanceAtRisk && brother.attendance < THRESHOLDS.attendanceWatch,
+          tip:  `Goal ≥ ${THRESHOLDS.attendanceWatch}%`,
+        },
+        {
+          label: "GPA", val: brother.gpa.toFixed(2),
+          ok:   brother.gpa >= THRESHOLDS.gpaWatch,
+          warn: brother.gpa >= THRESHOLDS.gpaAtRisk && brother.gpa < THRESHOLDS.gpaWatch,
+          tip:  `Goal ≥ ${THRESHOLDS.gpaWatch}`,
+        },
+        {
+          label: "Dues", val: brother.duesOwed === 0 ? "Paid" : fmt$(brother.duesOwed),
+          ok:   brother.duesOwed === 0,
+          warn: false,
+          tip:  "Must be $0",
+        },
+        {
+          label: "Service", val: `${brother.serviceHours}h`,
+          ok:   brother.serviceHours >= THRESHOLDS.serviceHoursGoal,
+          warn: false,
+          tip:  `Goal ${THRESHOLDS.serviceHoursGoal}h`,
+        },
+      ]
+    : [];
+
+  return (
+    <>
+      {/* Backdrop */}
+      <div
+        className={`fixed inset-0 z-40 bg-black/40 backdrop-blur-[1px] transition-opacity duration-200 ${isOpen ? "opacity-100" : "opacity-0 pointer-events-none"}`}
+        onClick={onClose}
+      />
+      {/* Panel */}
+      <div
+        className={`fixed inset-y-0 right-0 z-50 flex w-full flex-col bg-[#131720] border-l border-white/[0.07] shadow-2xl transition-transform duration-300 ease-in-out sm:w-[420px] ${isOpen ? "translate-x-0" : "translate-x-full pointer-events-none"}`}
+      >
+        {brother && (
+          <>
+            {/* Header */}
+            <div className="flex h-14 shrink-0 items-center gap-3 border-b border-white/[0.07] px-5">
+              <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ring-2 ${statusRing[status]}`}>
+                <span className="text-[12px] font-bold">{initials}</span>
+              </div>
+              <div className="min-w-0 flex-1">
+                <h2 className="truncate text-[15px] font-semibold text-white">{brother.name}</h2>
+                <p className="truncate text-[10px] text-slate-500">{brother.role}</p>
+              </div>
+              <StatusBadge status={status} />
+              <button onClick={onClose} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-500 hover:bg-white/[0.07] hover:text-white transition-colors">
+                <svg className="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Scrollable body */}
+            <div className="flex-1 overflow-y-auto px-5 py-5 space-y-5">
+
+              {/* Live stat tiles */}
+              <div className="grid grid-cols-2 gap-2">
+                {/* Attendance */}
+                <div className={`rounded-lg px-3 py-2.5 border ${brother.attendance < THRESHOLDS.attendanceAtRisk ? "bg-red-500/10 border-red-500/20" : brother.attendance < THRESHOLDS.attendanceWatch ? "bg-amber-500/10 border-amber-500/20" : "bg-white/[0.04] border-white/[0.06]"}`}>
+                  <p className="text-[9px] font-semibold uppercase tracking-wider text-slate-500 mb-0.5">Attendance</p>
+                  <p className={`text-[20px] font-bold tabular-nums leading-none ${attColor}`}>{brother.attendance}%</p>
+                  <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-white/[0.08]">
+                    <div className={`h-full rounded-full ${attBar}`} style={{ width: `${brother.attendance}%` }} />
+                  </div>
+                </div>
+                {/* GPA */}
+                <div className={`rounded-lg px-3 py-2.5 border ${brother.gpa < THRESHOLDS.gpaAtRisk ? "bg-red-500/10 border-red-500/20" : brother.gpa < THRESHOLDS.gpaWatch ? "bg-amber-500/10 border-amber-500/20" : "bg-white/[0.04] border-white/[0.06]"}`}>
+                  <p className="text-[9px] font-semibold uppercase tracking-wider text-slate-500 mb-0.5">GPA</p>
+                  <p className={`text-[20px] font-bold tabular-nums leading-none ${gpaColor}`}>{brother.gpa.toFixed(2)}</p>
+                  <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-white/[0.08]">
+                    <div className={`h-full rounded-full ${gpaBar}`} style={{ width: `${Math.min(100, Math.max(5, ((brother.gpa - 2.0) / 2.0) * 100))}%` }} />
+                  </div>
+                </div>
+                {/* Dues */}
+                <div className={`rounded-lg px-3 py-2.5 border ${brother.duesOwed > 0 ? "bg-amber-500/10 border-amber-500/20" : "bg-white/[0.04] border-white/[0.06]"}`}>
+                  <p className="text-[9px] font-semibold uppercase tracking-wider text-slate-500 mb-0.5">Dues Owed</p>
+                  <p className={`text-[20px] font-bold tabular-nums leading-none ${brother.duesOwed > 0 ? "text-amber-400" : "text-emerald-400"}`}>
+                    {brother.duesOwed > 0 ? fmt$(brother.duesOwed) : "Clear"}
+                  </p>
+                  {brother.duesOwed > 0 && (
+                    <button onClick={handleQuickPayDues} className="mt-1.5 w-full rounded-md bg-emerald-500/15 py-0.5 text-[10px] font-semibold text-emerald-400 ring-1 ring-inset ring-emerald-500/25 hover:bg-emerald-500/25 transition-colors">
+                      Mark Paid
+                    </button>
+                  )}
+                </div>
+                {/* Service */}
+                <div className={`rounded-lg px-3 py-2.5 border ${brother.serviceHours < THRESHOLDS.serviceHoursGoal ? "bg-amber-500/10 border-amber-500/20" : "bg-white/[0.04] border-white/[0.06]"}`}>
+                  <p className="text-[9px] font-semibold uppercase tracking-wider text-slate-500 mb-0.5">Service Hours</p>
+                  <p className={`leading-none ${brother.serviceHours < THRESHOLDS.serviceHoursGoal ? "text-amber-400" : "text-emerald-400"}`}>
+                    <span className="text-[20px] font-bold tabular-nums">{brother.serviceHours}</span>
+                    <span className="text-[12px] font-medium text-slate-500"> / {THRESHOLDS.serviceHoursGoal}h</span>
+                  </p>
+                  <button onClick={handleQuickAddService} className="mt-1.5 w-full rounded-md bg-white/[0.05] py-0.5 text-[10px] font-semibold text-slate-400 ring-1 ring-inset ring-white/[0.1] hover:bg-indigo-500/15 hover:text-indigo-400 hover:ring-indigo-500/25 transition-colors">
+                    + 1h
+                  </button>
+                </div>
+              </div>
+
+              {/* Status factors */}
+              <div>
+                <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500">Status Factors</p>
+                <div className="space-y-2 rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-3">
+                  {statusFactors.map(({ label, val, ok, warn, tip }) => (
+                    <div key={label} className="flex items-center gap-3">
+                      <div className={`h-2 w-2 shrink-0 rounded-full ${ok ? "bg-emerald-400" : warn ? "bg-amber-400" : "bg-red-400"}`} />
+                      <span className="w-24 shrink-0 text-[12px] font-medium text-slate-400">{label}</span>
+                      <span className={`tabular-nums text-[12px] font-semibold ${ok ? "text-white" : warn ? "text-amber-400" : "text-red-400"}`}>{val}</span>
+                      {!ok && <span className="ml-auto shrink-0 text-[10px] text-slate-600">{tip}</span>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Edit form */}
+              <div>
+                <p className="mb-3 text-[10px] font-semibold uppercase tracking-wider text-slate-500">Edit Profile</p>
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <FieldLabel>Name</FieldLabel>
+                      <input className={inputCls} value={name} onChange={e => { setName(e.target.value); setDirty(true); }} />
+                    </div>
+                    <div>
+                      <FieldLabel>Attendance (%)</FieldLabel>
+                      <input type="number" min="0" max="100" className={inputCls} value={attendance} onChange={e => { setAttendance(e.target.value); setDirty(true); }} />
+                    </div>
+                  </div>
+                  <div>
+                    <FieldLabel>Role / Committees</FieldLabel>
+                    <input className={inputCls} value={role} onChange={e => { setRole(e.target.value); setDirty(true); }} placeholder="President · Rush · …" />
+                  </div>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div>
+                      <FieldLabel>GPA</FieldLabel>
+                      <input type="number" min="0" max="4" step="0.01" className={inputCls} value={gpa} onChange={e => { setGpa(e.target.value); setDirty(true); }} />
+                    </div>
+                    <div>
+                      <FieldLabel>Dues ($)</FieldLabel>
+                      <input type="number" min="0" className={inputCls} value={duesOwed} onChange={e => { setDuesOwed(e.target.value); setDirty(true); }} />
+                    </div>
+                    <div>
+                      <FieldLabel>Service (h)</FieldLabel>
+                      <input type="number" min="0" className={inputCls} value={serviceHours} onChange={e => { setServiceHours(e.target.value); setDirty(true); }} />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+
+            {/* Footer */}
+            <div className="shrink-0 border-t border-white/[0.07] px-5 py-4">
+              <button
+                onClick={handleSave}
+                disabled={!dirty}
+                className={`w-full rounded-lg px-4 py-2.5 text-[13px] font-semibold transition-all ${dirty ? "bg-indigo-600 text-white hover:bg-indigo-500 cursor-pointer" : "bg-white/[0.04] text-slate-600 cursor-not-allowed"}`}
+              >
+                Save Changes
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function Home() {
@@ -1397,22 +1651,21 @@ export default function Home() {
   const [sortKey,        setSortKey]        = useState<keyof Brother | null>(null);
   const [sortDir,        setSortDir]        = useState<"asc" | "desc">("asc");
   const [sidebarOpen,    setSidebarOpen]    = useState(false);
-  const [activeModal,    setActiveModal]    = useState<"deadline" | "revenue" | "ig" | "attendance" | null>(null);
+  const [activeModal,    setActiveModal]    = useState<"deadline" | "revenue" | "ig" | "attendance" | "edit-deadline" | "edit-ig" | null>(null);
+  const [editingDeadlineId, setEditingDeadlineId] = useState<number | null>(null);
+  const [editingIgId,       setEditingIgId]       = useState<number | null>(null);
   const [activeDrawer,   setActiveDrawer]   = useState<KPIDrawerKey | null>(null);
   const [widgetDrawer,   setWidgetDrawer]   = useState<WidgetDrawerKey | null>(null);
-  const [editingAttId,   setEditingAttId]   = useState<number | null>(null);
-  const [editAttVal,     setEditAttVal]     = useState("");
+  const [editingAttId,      setEditingAttId]      = useState<number | null>(null);
+  const [editAttVal,        setEditAttVal]        = useState("");
+  const [selectedBrotherId, setSelectedBrotherId] = useState<number | null>(null);
   const [healthDelta,    setHealthDelta]    = useState<number | null>(null);
   const [activeSection,  setActiveSection]  = useState("Dashboard");
   const deltaTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mainRef = useRef<HTMLElement>(null);
 
   // ── Data state ─────────────────────────────────────────────────────────────
-  const [brotherList,  setBrotherList]  = useState<Brother[]>(brothers);
-  const [deadlineList, setDeadlineList] = useState(deadlines);
-  const [igTaskList,   setIgTaskList]   = useState(instagramTasks);
-  const [partyList,    setPartyList]    = useState(partyEvents);
-  const [activityFeed, setActivityFeed] = useState<ActivityEntry[]>(seedActivity);
+  const { brotherList, setBrotherList, deadlineList, setDeadlineList, igTaskList, setIgTaskList, partyList, setPartyList, activityFeed, setActivityFeed } = useChapter();
 
   // ── Activity logger ────────────────────────────────────────────────────────
   const addActivity = useCallback((message: string, type: ActivityEntry["type"]) => {
@@ -1457,6 +1710,17 @@ export default function Home() {
     return () => mainEl.removeEventListener("scroll", updateActive);
   }, []);
 
+  // ── Scroll to section requested by sidebar cross-page nav ─────────────────
+  useEffect(() => {
+    const target = sessionStorage.getItem("scrollTo");
+    if (!target) return;
+    sessionStorage.removeItem("scrollTo");
+    // small delay so the page has painted before we scroll
+    const t = setTimeout(() => scrollToSection(target), 80);
+    return () => clearTimeout(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // ── Scroll-to helpers ──────────────────────────────────────────────────────
   function scrollToSection(label: string) {
     const id = SECTION_IDS[label];
@@ -1468,6 +1732,14 @@ export default function Home() {
     const offset   = mainRef.current.scrollTop + (elRect.top - mainRect.top) - 16;
     mainRef.current.scrollTo({ top: Math.max(0, offset), behavior: "smooth" });
     setActiveSection(label);
+  }
+
+  // ── Brother profile save ───────────────────────────────────────────────────
+  function updateBrother(id: number, updates: Omit<Brother, "id">) {
+    const prev = brotherList.find(b => b.id === id);
+    if (!prev) return;
+    setBrotherList(list => list.map(b => b.id === id ? { ...b, ...updates } : b));
+    addActivity(`${updates.name || prev.name} profile updated`, "info");
   }
 
   // ── Reset demo data ────────────────────────────────────────────────────────
@@ -1597,6 +1869,62 @@ export default function Home() {
     const newId = Math.max(...igTaskList.map(x => x.id), 0) + 1;
     setIgTaskList(prev => [...prev, { id: newId, ...t }]);
     addActivity(`IG task added: "${t.title}"`, "info");
+    setActiveModal(null);
+  }
+
+  // ── Deadline CRUD ─────────────────────────────────────────────────────────
+  function completeDeadline(id: number) {
+    const d = deadlineList.find(x => x.id === id);
+    if (!d || d.status === "Complete") return;
+    setDeadlineList(prev => prev.map(x => x.id === id ? { ...x, status: "Complete" } : x));
+    addActivity(`"${d.title}" marked complete`, "success");
+  }
+
+  function deleteDeadline(id: number) {
+    const d = deadlineList.find(x => x.id === id);
+    if (!d) return;
+    setDeadlineList(prev => prev.filter(x => x.id !== id));
+    addActivity(`Deadline removed: "${d.title}"`, "info");
+  }
+
+  function openEditDeadline(id: number) {
+    setEditingDeadlineId(id);
+    setActiveModal("edit-deadline");
+  }
+
+  function saveEditDeadline(data: { title: string; dueDate: string; owner: string; status: TaskStatus }) {
+    if (!editingDeadlineId) return;
+    setDeadlineList(prev => prev.map(x => x.id === editingDeadlineId ? { ...x, ...data } : x));
+    addActivity(`Deadline updated: "${data.title}"`, "info");
+    setEditingDeadlineId(null);
+    setActiveModal(null);
+  }
+
+  // ── IG Task CRUD ──────────────────────────────────────────────────────────
+  function completeIG(id: number) {
+    const t = igTaskList.find(x => x.id === id);
+    if (!t || t.status === "Complete") return;
+    setIgTaskList(prev => prev.map(x => x.id === id ? { ...x, status: "Complete" } : x));
+    addActivity(`IG task "${t.title}" marked complete`, "success");
+  }
+
+  function deleteIG(id: number) {
+    const t = igTaskList.find(x => x.id === id);
+    if (!t) return;
+    setIgTaskList(prev => prev.filter(x => x.id !== id));
+    addActivity(`IG task removed: "${t.title}"`, "info");
+  }
+
+  function openEditIG(id: number) {
+    setEditingIgId(id);
+    setActiveModal("edit-ig");
+  }
+
+  function saveEditIG(data: { title: string; dueDate: string; owner: string; type: string; status: TaskStatus }) {
+    if (!editingIgId) return;
+    setIgTaskList(prev => prev.map(x => x.id === editingIgId ? { ...x, ...data } : x));
+    addActivity(`IG task updated: "${data.title}"`, "info");
+    setEditingIgId(null);
     setActiveModal(null);
   }
 
@@ -1800,7 +2128,7 @@ export default function Home() {
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                     <div>
                       <h2 className="text-[14px] font-semibold text-white">Brother Tracking</h2>
-                      <p className="text-[11px] text-slate-500">Click attendance to edit · Pay dues inline · +1h service</p>
+                      <p className="text-[11px] text-slate-500">Click a row to view profile · Edit att. inline · Pay dues · +1h</p>
                     </div>
                     <div className="flex flex-wrap gap-1">
                       {(["All", "Good", "Watch", "At Risk"] as const).map(f => (
@@ -1832,7 +2160,7 @@ export default function Home() {
                         const status = getBrotherStatus(b);
                         const isEditingAtt = editingAttId === b.id;
                         return (
-                          <tr key={b.id} className="transition-colors hover:bg-white/[0.03]">
+                          <tr key={b.id} onClick={() => setSelectedBrotherId(b.id)} className="cursor-pointer transition-colors hover:bg-white/[0.03] active:bg-white/[0.06]">
                             <td className={`border-l-2 py-3 pl-4 pr-3 ${BROTHER_STYLES[status].row}`}>
                               <p className="text-[13px] font-semibold text-white">{b.name}</p>
                             </td>
@@ -1842,7 +2170,7 @@ export default function Home() {
                             {/* Attendance — inline editable */}
                             <td className="px-3 py-3">
                               {isEditingAtt ? (
-                                <div className="flex items-center gap-1.5">
+                                <div className="flex items-center gap-1.5" onClick={e => e.stopPropagation()}>
                                   <input
                                     type="number" min="0" max="100"
                                     value={editAttVal}
@@ -1855,7 +2183,7 @@ export default function Home() {
                                   <button onClick={() => setEditingAttId(null)} className="text-[11px] text-slate-500 hover:text-slate-300">✕</button>
                                 </div>
                               ) : (
-                                <button onClick={() => startAttEdit(b)} className="group flex items-center gap-1.5 rounded p-0.5 hover:bg-white/[0.05] transition-colors">
+                                <button onClick={e => { e.stopPropagation(); startAttEdit(b); }} className="group flex items-center gap-1.5 rounded p-0.5 hover:bg-white/[0.05] transition-colors">
                                   <AttBar pct={b.attendance} />
                                   <svg className="h-3 w-3 text-slate-600 opacity-0 group-hover:opacity-100 transition-opacity" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
@@ -1868,7 +2196,7 @@ export default function Home() {
                               {b.duesOwed > 0 ? (
                                 <div className="flex items-center gap-2">
                                   <span className="tabular-nums text-[13px] font-medium text-amber-400">{fmt$(b.duesOwed)}</span>
-                                  <button onClick={() => payDues(b)} className="rounded-md bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-400 ring-1 ring-inset ring-emerald-500/25 hover:bg-emerald-500/25 transition-colors">Pay</button>
+                                  <button onClick={e => { e.stopPropagation(); payDues(b); }} className="rounded-md bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-400 ring-1 ring-inset ring-emerald-500/25 hover:bg-emerald-500/25 transition-colors">Pay</button>
                                 </div>
                               ) : (
                                 <span className="tabular-nums text-[13px] font-medium text-slate-600">—</span>
@@ -1885,7 +2213,7 @@ export default function Home() {
                                 <span className={`tabular-nums text-[13px] font-medium ${b.serviceHours < THRESHOLDS.serviceHoursGoal ? "text-amber-400" : "text-white"}`}>
                                   {b.serviceHours}h
                                 </span>
-                                <button onClick={() => addServiceHour(b)} className="rounded-md bg-white/[0.05] px-1.5 py-0.5 text-[10px] font-semibold text-slate-400 ring-1 ring-inset ring-white/[0.1] hover:bg-indigo-500/15 hover:text-indigo-400 hover:ring-indigo-500/25 transition-colors">
+                                <button onClick={e => { e.stopPropagation(); addServiceHour(b); }} className="rounded-md bg-white/[0.05] px-1.5 py-0.5 text-[10px] font-semibold text-slate-400 ring-1 ring-inset ring-white/[0.1] hover:bg-indigo-500/15 hover:text-indigo-400 hover:ring-indigo-500/25 transition-colors">
                                   +1h
                                 </button>
                               </div>
@@ -1960,10 +2288,23 @@ export default function Home() {
                     {deadlineList.length === 0 ? (
                       <p className="px-4 py-6 text-center text-[12px] text-slate-500">No deadlines — click + Add to create one</p>
                     ) : deadlineList.map(d => (
-                      <div key={d.id} className="flex items-center justify-between gap-3 px-4 py-2.5 transition-colors hover:bg-white/[0.03]">
+                      <div key={d.id} onClick={e => e.stopPropagation()} className="group flex items-center gap-2 px-4 py-2.5 transition-colors hover:bg-white/[0.03]">
                         <div className="min-w-0 flex-1">
-                          <p className="truncate text-[12px] font-medium text-white">{d.title}</p>
+                          <p className={`truncate text-[12px] font-medium ${d.status === "Complete" ? "line-through text-slate-500" : "text-white"}`}>{d.title}</p>
                           <p className="text-[11px] text-slate-500">{fmtDate(d.dueDate)} · {d.owner.split(" ")[0]}</p>
+                        </div>
+                        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                          {d.status !== "Complete" && (
+                            <button onClick={() => completeDeadline(d.id)} title="Mark complete" className="flex h-6 w-6 items-center justify-center rounded hover:bg-emerald-500/20 text-slate-600 hover:text-emerald-400 transition-colors">
+                              <svg className="h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+                            </button>
+                          )}
+                          <button onClick={() => openEditDeadline(d.id)} title="Edit" className="flex h-6 w-6 items-center justify-center rounded hover:bg-indigo-500/20 text-slate-600 hover:text-indigo-400 transition-colors">
+                            <svg className="h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                          </button>
+                          <button onClick={() => deleteDeadline(d.id)} title="Delete" className="flex h-6 w-6 items-center justify-center rounded hover:bg-red-500/20 text-slate-600 hover:text-red-400 transition-colors">
+                            <svg className="h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                          </button>
                         </div>
                         <TaskBadge status={d.status} />
                       </div>
@@ -1988,10 +2329,23 @@ export default function Home() {
                     {igTaskList.length === 0 ? (
                       <p className="px-4 py-6 text-center text-[12px] text-slate-500">No IG tasks scheduled</p>
                     ) : igTaskList.map(t => (
-                      <div key={t.id} className="flex items-center justify-between gap-3 px-4 py-2.5 transition-colors hover:bg-white/[0.03]">
+                      <div key={t.id} onClick={e => e.stopPropagation()} className="group flex items-center gap-2 px-4 py-2.5 transition-colors hover:bg-white/[0.03]">
                         <div className="min-w-0 flex-1">
-                          <p className="truncate text-[12px] font-medium text-white">{t.title}</p>
+                          <p className={`truncate text-[12px] font-medium ${t.status === "Complete" ? "line-through text-slate-500" : "text-white"}`}>{t.title}</p>
                           <p className="text-[11px] text-slate-500">{fmtDate(t.dueDate)} · {t.type}</p>
+                        </div>
+                        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                          {t.status !== "Complete" && (
+                            <button onClick={() => completeIG(t.id)} title="Mark complete" className="flex h-6 w-6 items-center justify-center rounded hover:bg-emerald-500/20 text-slate-600 hover:text-emerald-400 transition-colors">
+                              <svg className="h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+                            </button>
+                          )}
+                          <button onClick={() => openEditIG(t.id)} title="Edit" className="flex h-6 w-6 items-center justify-center rounded hover:bg-indigo-500/20 text-slate-600 hover:text-indigo-400 transition-colors">
+                            <svg className="h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                          </button>
+                          <button onClick={() => deleteIG(t.id)} title="Delete" className="flex h-6 w-6 items-center justify-center rounded hover:bg-red-500/20 text-slate-600 hover:text-red-400 transition-colors">
+                            <svg className="h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                          </button>
                         </div>
                         <TaskBadge status={t.status} />
                       </div>
@@ -2124,7 +2478,7 @@ export default function Home() {
 
             {/* ── Footer ─────────────────────────────────────────────────── */}
             <div className="border-t border-white/[0.06] pt-4 text-center">
-              <p className="text-[10px] text-slate-700">Lambda Phi Epsilon · Spring 2026 · Prototype — all values are placeholder data</p>
+              <p className="text-[10px] text-slate-700">Lambda Phi Epsilon · Fall 2026 · Prototype — all values are placeholder data</p>
             </div>
 
           </div>
@@ -2152,6 +2506,24 @@ export default function Home() {
           <LogAttendanceForm bList={brotherList} onSubmit={handleLogAttendance} />
         </Modal>
       )}
+      {activeModal === "edit-deadline" && editingDeadlineId !== null && (() => {
+        const d = deadlineList.find(x => x.id === editingDeadlineId);
+        if (!d) return null;
+        return (
+          <Modal title="Edit Deadline" onClose={closeModal}>
+            <AddDeadlineForm brotherNames={brotherNames} initial={d} onSubmit={saveEditDeadline} />
+          </Modal>
+        );
+      })()}
+      {activeModal === "edit-ig" && editingIgId !== null && (() => {
+        const t = igTaskList.find(x => x.id === editingIgId);
+        if (!t) return null;
+        return (
+          <Modal title="Edit Instagram Task" onClose={closeModal}>
+            <AddIGTaskForm brotherNames={brotherNames} initial={t} onSubmit={saveEditIG} />
+          </Modal>
+        );
+      })()}
 
       {/* ── Widget Detail Drawer ────────────────────────────────────────────── */}
       <WidgetDetailDrawer
@@ -2168,6 +2540,22 @@ export default function Home() {
         bestEvent={bestEvent}
         totalDoorRev={totalDoorRev}
         onOpenModal={setActiveModal}
+        onCompleteDeadline={completeDeadline}
+        onDeleteDeadline={deleteDeadline}
+        onEditDeadline={openEditDeadline}
+        onCompleteIG={completeIG}
+        onDeleteIG={deleteIG}
+        onEditIG={openEditIG}
+      />
+
+      {/* ── Brother Detail Drawer ───────────────────────────────────────────── */}
+      <BrotherDrawer
+        brotherId={selectedBrotherId}
+        brotherList={brotherList}
+        onClose={() => setSelectedBrotherId(null)}
+        onSave={updateBrother}
+        onPayDues={payDues}
+        onAddServiceHour={addServiceHour}
       />
 
       {/* ── KPI Detail Drawer ───────────────────────────────────────────────── */}
