@@ -1,0 +1,62 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../app/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Brother {
+  id           Int    @id @default(autoincrement())
+  name         String
+  role         String
+  attendance   Float
+  duesOwed     Float
+  gpa          Float
+  serviceHours Float
+}
+
+model Deadline {
+  id      Int    @id @default(autoincrement())
+  title   String
+  dueDate String
+  owner   String
+  status  String
+}
+
+model InstagramTask {
+  id      Int    @id @default(autoincrement())
+  title   String
+  dueDate String
+  owner   String
+  status  String
+  type    String
+}
+
+model PartyEvent {
+  id          Int    @id @default(autoincrement())
+  name        String
+  date        String
+  doorRevenue Float
+  attendance  Int
+  notes       String
+}
+
+model CalendarEvent {
+  id          Int     @id @default(autoincrement())
+  title       String
+  date        String
+  time        String?
+  category    String
+  mandatory   Boolean
+  description String?
+  location    String?
+}
+
+model ActivityLog {
+  id        Int      @id @default(autoincrement())
+  message   String
+  type      String
+  timestamp DateTime @default(now())
+}

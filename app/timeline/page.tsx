@@ -1,11 +1,8 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { Sidebar } from "../components/Sidebar";
-import {
-  calendarEvents as staticEvents,
-  CalendarEvent, CalEventCategory, CalLayer,
-} from "../data";
+import { CalendarEvent, CalEventCategory, CalLayer } from "../data";
 import { useChapter } from "../context/ChapterContext";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -383,10 +380,18 @@ export default function TimelinePage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [activeLayer, setActiveLayer] = useState<CalLayer>("all");
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
+  const [apiEvents, setApiEvents] = useState<CalendarEvent[]>([]);
 
   const todayRef = React.useRef<HTMLDivElement | null>(null);
 
-  // ── Merge static events + live dashboard data ──────────────────────────────
+  useEffect(() => {
+    fetch("/api/calendar")
+      .then(r => r.json())
+      .then((data: CalendarEvent[]) => setApiEvents(data))
+      .catch(console.error);
+  }, []);
+
+  // ── Merge API calendar events + live deadline/party data ───────────────────
   const allEvents = useMemo<CalendarEvent[]>(() => {
     const live: CalendarEvent[] = [
       ...deadlineList.map(d => ({
@@ -410,14 +415,14 @@ export default function TimelinePage() {
     const liveDeadlineTitles = new Set(deadlineList.map(d => d.title));
     const livePartyTitles    = new Set(partyList.map(p => p.name));
 
-    const deduped = staticEvents.filter(e => {
+    const deduped = apiEvents.filter(e => {
       if (e.category === "deadline") return !liveDeadlineTitles.has(e.title);
       if (e.category === "party")    return !livePartyTitles.has(e.title);
       return true;
     });
 
     return [...deduped, ...live];
-  }, [deadlineList, partyList]);
+  }, [apiEvents, deadlineList, partyList]);
 
   const filtered = useMemo(() => filterByLayer(allEvents, activeLayer), [allEvents, activeLayer]);
   const groups   = useMemo(() => buildFeedGroups(filtered), [filtered]);

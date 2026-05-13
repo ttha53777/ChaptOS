@@ -7,9 +7,8 @@ import {
 } from "recharts";
 import {
   Brother, BrotherStatus, TaskStatus, ActivityEntry, PartyEvent,
-  brothers, deadlines, instagramTasks, partyEvents,
   treasuryTrend, TREASURY_BALANCE, TREASURY_PROJECTED, THRESHOLDS,
-  seedActivity, KPI_SPARKLINES,
+  KPI_SPARKLINES,
   getBrotherStatus, calcHealthScore, avg, fmt$, fmtDate,
 } from "./data";
 import { Sidebar, SvgIcon, NAV_ICONS } from "./components/Sidebar";
@@ -503,7 +502,7 @@ const tooltipStyle = {
 
 // ─── Activity ID counter (module-level, reset-safe) ───────────────────────────
 
-let _nextId = seedActivity.length + 1;
+let _nextId = Date.now();
 
 // ─── KPI Drawer ───────────────────────────────────────────────────────────────
 
@@ -540,7 +539,7 @@ function KPIDetailDrawer({
   onTrackSvc: number;
   totalDoorRev: number;
   maxRevenue: number;
-  bestEvent: PartyEvent;
+  bestEvent: PartyEvent | null;
   onOpenModal: (key: "attendance") => void;
 }) {
   const isOpen = activeKey !== null;
@@ -785,26 +784,26 @@ function KPIDetailDrawer({
       }
 
       case "treasury": {
-        const firstMonth = treasuryTrend[0];
-        const lastMonth  = treasuryTrend[treasuryTrend.length - 1];
+        const firstMonth = liveTrend[0];
+        const lastMonth  = liveTrend[liveTrend.length - 1];
         const growth = lastMonth.balance - firstMonth.balance;
         const growthPct = Math.round((growth / firstMonth.balance) * 100);
         return (
           <>
             <div className="grid grid-cols-2 gap-2 mb-5">
               <div className="rounded-lg bg-white/[0.04] px-3 py-2.5 text-center">
-                <p className="text-[18px] font-bold text-indigo-400 tabular-nums">{fmt$(TREASURY_BALANCE)}</p>
+                <p className="text-[18px] font-bold text-indigo-400 tabular-nums">{fmt$(liveBalance)}</p>
                 <p className="text-[10px] text-slate-500 mt-0.5">Current balance</p>
               </div>
               <div className="rounded-lg bg-white/[0.04] px-3 py-2.5 text-center">
-                <p className="text-[18px] font-bold text-emerald-400 tabular-nums">{fmt$(TREASURY_PROJECTED)}</p>
+                <p className="text-[18px] font-bold text-emerald-400 tabular-nums">{fmt$(liveProjected)}</p>
                 <p className="text-[10px] text-slate-500 mt-0.5">Projected end</p>
               </div>
             </div>
             <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500">Treasury Trend</p>
             <div className="mb-5">
               <ResponsiveContainer width="100%" height={110}>
-                <AreaChart data={treasuryTrend} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
+                <AreaChart data={liveTrend} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
                   <defs>
                     <linearGradient id="drawerTGrad" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="0%" stopColor="#818cf8" stopOpacity={0.3} />
@@ -821,14 +820,14 @@ function KPIDetailDrawer({
             </div>
             <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500">Monthly Breakdown</p>
             <div className="space-y-1.5 mb-5">
-              {treasuryTrend.map((t, i) => {
-                const prev = i > 0 ? treasuryTrend[i - 1].balance : t.balance;
+              {liveTrend.map((t, i) => {
+                const prev = i > 0 ? liveTrend[i - 1].balance : t.balance;
                 const delta = t.balance - prev;
                 return (
                   <div key={t.month} className="flex items-center gap-3 rounded-lg px-2 py-1.5">
                     <span className="text-[12px] font-medium text-slate-300 w-8 shrink-0">{t.month}</span>
                     <div className="flex-1 h-1 overflow-hidden rounded-full bg-white/[0.07]">
-                      <div className="h-full rounded-full bg-indigo-400" style={{ width: `${Math.round((t.balance / TREASURY_PROJECTED) * 100)}%` }} />
+                      <div className="h-full rounded-full bg-indigo-400" style={{ width: `${Math.round((t.balance / liveProjected) * 100)}%` }} />
                     </div>
                     <span className="tabular-nums text-[12px] font-semibold text-white w-14 shrink-0 text-right">{fmt$(t.balance)}</span>
                     {i > 0 && (
@@ -842,7 +841,7 @@ function KPIDetailDrawer({
             </div>
             <div className="rounded-lg bg-indigo-500/10 border border-indigo-500/20 px-3 py-2.5">
               <p className="text-[11px] text-indigo-300">
-                Treasury grew by <span className="font-semibold">{fmt$(growth)} ({growthPct}%)</span> this semester. Projected end balance: <span className="font-semibold">{fmt$(TREASURY_PROJECTED)}</span>.
+                Treasury grew by <span className="font-semibold">{fmt$(growth)} ({growthPct}%)</span> this semester. Projected end balance: <span className="font-semibold">{fmt$(liveProjected)}</span>.
               </p>
             </div>
           </>
@@ -872,7 +871,7 @@ function KPIDetailDrawer({
             <div className="space-y-2.5 mb-5">
               {sortedEvents.map(e => {
                 const barPct = maxRevenue > 0 ? Math.round((e.doorRevenue / maxRevenue) * 100) : 0;
-                const isTop = e.id === bestEvent.id;
+                const isTop = bestEvent ? e.id === bestEvent.id : false;
                 return (
                   <div key={e.id} className={`rounded-lg px-3 py-2.5 ${isTop ? "bg-pink-500/[0.08] border border-pink-500/20" : "bg-white/[0.03] border border-white/[0.05]"}`}>
                     <div className="flex items-center justify-between mb-1.5">
@@ -896,7 +895,7 @@ function KPIDetailDrawer({
             </div>
             <div className="rounded-lg bg-pink-500/10 border border-pink-500/20 px-3 py-2.5">
               <p className="text-[11px] text-pink-300">
-                Best event: <span className="font-semibold">{bestEvent.name}</span> at <span className="font-semibold">{fmt$(bestEvent.doorRevenue)}</span>. Avg per event: <span className="font-semibold">{fmt$(avgRevenue)}</span>.
+                {bestEvent ? <>Best event: <span className="font-semibold">{bestEvent.name}</span> at <span className="font-semibold">{fmt$(bestEvent.doorRevenue)}</span>. Avg per event: <span className="font-semibold">{fmt$(avgRevenue)}</span>.</> : "No events logged yet."}
               </p>
             </div>
           </>
@@ -966,7 +965,7 @@ function WidgetDetailDrawer({
   partyList: PartyEvent[];
   health: { score: number; label: "Healthy" | "Needs Attention" | "Critical"; breakdown: Record<string, number> };
   maxRevenue: number;
-  bestEvent: PartyEvent;
+  bestEvent: PartyEvent | null;
   totalDoorRev: number;
   onOpenModal: (key: "deadline" | "revenue" | "ig" | "attendance") => void;
   onCompleteDeadline: (id: number) => void;
@@ -1298,7 +1297,7 @@ function WidgetDetailDrawer({
             <div className="space-y-2.5 mb-5">
               {sorted.map(e => {
                 const barPct = maxRevenue > 0 ? Math.round((e.doorRevenue / maxRevenue) * 100) : 0;
-                const isTop = e.id === bestEvent.id;
+                const isTop = bestEvent ? e.id === bestEvent.id : false;
                 return (
                   <div key={e.id} className={`rounded-lg px-3 py-2.5 ${isTop ? "bg-indigo-500/[0.08] border border-indigo-500/20" : "bg-white/[0.03] border border-white/[0.05]"}`}>
                     <div className="flex items-center justify-between mb-1.5">
@@ -1665,12 +1664,26 @@ export default function Home() {
   const mainRef = useRef<HTMLElement>(null);
 
   // ── Data state ─────────────────────────────────────────────────────────────
-  const { brotherList, setBrotherList, deadlineList, setDeadlineList, igTaskList, setIgTaskList, partyList, setPartyList, activityFeed, setActivityFeed } = useChapter();
+  const { brotherList, setBrotherList, deadlineList, setDeadlineList, igTaskList, setIgTaskList, partyList, setPartyList, activityFeed, setActivityFeed, treasuryData, setTreasuryData } = useChapter();
+
+  // ── Treasury — live from DB, fall back to hardcoded constants while loading ─
+  const liveBalance   = treasuryData?.balance   ?? TREASURY_BALANCE;
+  const liveProjected = treasuryData?.projected ?? TREASURY_PROJECTED;
+  const liveTrend     = treasuryData?.trend     ?? treasuryTrend;
 
   // ── Activity logger ────────────────────────────────────────────────────────
   const addActivity = useCallback((message: string, type: ActivityEntry["type"]) => {
-    setActivityFeed(prev => [{ id: _nextId++, message, timestamp: "just now", type }, ...prev]);
-  }, []);
+    const optimisticId = _nextId++;
+    setActivityFeed(prev => [{ id: optimisticId, message, timestamp: "just now", type }, ...prev]);
+    fetch("/api/activity", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message, type }),
+    })
+      .then(r => r.json())
+      .then(saved => setActivityFeed(prev => prev.map(e => e.id === optimisticId ? { ...saved, timestamp: "just now" } : e)))
+      .catch(console.error);
+  }, [setActivityFeed]);
 
   // ── Health score ───────────────────────────────────────────────────────────
   const prevScoreRef = useRef<number | null>(null);
@@ -1740,16 +1753,33 @@ export default function Home() {
     if (!prev) return;
     setBrotherList(list => list.map(b => b.id === id ? { ...b, ...updates } : b));
     addActivity(`${updates.name || prev.name} profile updated`, "info");
+    fetch(`/api/brothers/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(updates),
+    }).catch(console.error);
   }
 
-  // ── Reset demo data ────────────────────────────────────────────────────────
+  // ── Refresh all data from DB ───────────────────────────────────────────────
   function resetDemoData() {
-    setBrotherList(brothers);
-    setDeadlineList(deadlines);
-    setIgTaskList(instagramTasks);
-    setPartyList(partyEvents);
-    setActivityFeed(seedActivity);
-    addActivity("Demo data reset to defaults", "info");
+    Promise.all([
+      fetch("/api/brothers").then(r => r.json()),
+      fetch("/api/deadlines").then(r => r.json()),
+      fetch("/api/instagram").then(r => r.json()),
+      fetch("/api/parties").then(r => r.json()),
+      fetch("/api/activity").then(r => r.json()),
+      fetch("/api/treasury").then(r => r.json()),
+    ])
+      .then(([b, d, ig, p, act, treas]) => {
+        setBrotherList(b);
+        setDeadlineList(d);
+        setIgTaskList(ig);
+        setPartyList(p);
+        setActivityFeed(act);
+        setTreasuryData(treas);
+        addActivity("Data refreshed from database", "info");
+      })
+      .catch(console.error);
   }
 
   // ── KPIs ──────────────────────────────────────────────────────────────────
@@ -1759,8 +1789,8 @@ export default function Home() {
   const totalServiceHrs = useMemo(() => brotherList.reduce((s, b) => s + b.serviceHours, 0), [brotherList]);
   const totalDoorRev    = useMemo(() => partyList.reduce((s, e) => s + e.doorRevenue, 0), [partyList]);
   const onTrackSvc      = useMemo(() => brotherList.filter(b => b.serviceHours >= THRESHOLDS.serviceHoursGoal).length, [brotherList]);
-  const maxRevenue      = useMemo(() => Math.max(...partyList.map(e => e.doorRevenue)), [partyList]);
-  const bestEvent       = useMemo(() => partyList.reduce((a, b) => b.doorRevenue > a.doorRevenue ? b : a), [partyList]);
+  const maxRevenue      = useMemo(() => partyList.length ? Math.max(...partyList.map(e => e.doorRevenue)) : 0, [partyList]);
+  const bestEvent       = useMemo(() => partyList.length ? partyList.reduce((a, b) => b.doorRevenue > a.doorRevenue ? b : a) : null, [partyList]);
 
   const statusCounts = useMemo(() => ({
     Good:      brotherList.filter(b => getBrotherStatus(b) === "Good").length,
@@ -1846,30 +1876,59 @@ export default function Home() {
     if (!isNaN(val) && val !== b.attendance) {
       setBrotherList(prev => prev.map(x => x.id === b.id ? { ...x, attendance: val } : x));
       addActivity(`${b.name} attendance updated to ${val}%`, "info");
+      fetch(`/api/brothers/${b.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ attendance: val }),
+      }).catch(console.error);
     }
     setEditingAttId(null);
   }
 
   // ── Quick Action handlers ──────────────────────────────────────────────────
   function handleAddDeadline(d: { title: string; dueDate: string; owner: string; status: TaskStatus }) {
-    const newId = Math.max(...deadlineList.map(x => x.id), 0) + 1;
-    setDeadlineList(prev => [...prev, { id: newId, ...d }]);
+    const tempId = Date.now();
+    setDeadlineList(prev => [...prev, { id: tempId, ...d }]);
     addActivity(`New deadline added: "${d.title}"`, "info");
     setActiveModal(null);
+    fetch("/api/deadlines", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(d),
+    })
+      .then(r => r.json())
+      .then(saved => setDeadlineList(prev => prev.map(x => x.id === tempId ? saved : x)))
+      .catch(console.error);
   }
 
   function handleAddRevenue(e: { name: string; date: string; doorRevenue: number; attendance: number; notes: string }) {
-    const newId = Math.max(...partyList.map(x => x.id), 0) + 1;
-    setPartyList(prev => [...prev, { id: newId, ...e }]);
+    const tempId = Date.now();
+    setPartyList(prev => [...prev, { id: tempId, ...e }]);
     addActivity(`Revenue logged: ${e.name} — ${fmt$(e.doorRevenue)}`, "success");
     setActiveModal(null);
+    fetch("/api/parties", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(e),
+    })
+      .then(r => r.json())
+      .then(saved => setPartyList(prev => prev.map(x => x.id === tempId ? saved : x)))
+      .catch(console.error);
   }
 
   function handleAddIGTask(t: { title: string; dueDate: string; owner: string; type: string; status: TaskStatus }) {
-    const newId = Math.max(...igTaskList.map(x => x.id), 0) + 1;
-    setIgTaskList(prev => [...prev, { id: newId, ...t }]);
+    const tempId = Date.now();
+    setIgTaskList(prev => [...prev, { id: tempId, ...t }]);
     addActivity(`IG task added: "${t.title}"`, "info");
     setActiveModal(null);
+    fetch("/api/instagram", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(t),
+    })
+      .then(r => r.json())
+      .then(saved => setIgTaskList(prev => prev.map(x => x.id === tempId ? saved : x)))
+      .catch(console.error);
   }
 
   // ── Deadline CRUD ─────────────────────────────────────────────────────────
@@ -1878,6 +1937,11 @@ export default function Home() {
     if (!d || d.status === "Complete") return;
     setDeadlineList(prev => prev.map(x => x.id === id ? { ...x, status: "Complete" } : x));
     addActivity(`"${d.title}" marked complete`, "success");
+    fetch(`/api/deadlines/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: "Complete" }),
+    }).catch(console.error);
   }
 
   function deleteDeadline(id: number) {
@@ -1885,6 +1949,7 @@ export default function Home() {
     if (!d) return;
     setDeadlineList(prev => prev.filter(x => x.id !== id));
     addActivity(`Deadline removed: "${d.title}"`, "info");
+    fetch(`/api/deadlines/${id}`, { method: "DELETE" }).catch(console.error);
   }
 
   function openEditDeadline(id: number) {
@@ -1896,6 +1961,11 @@ export default function Home() {
     if (!editingDeadlineId) return;
     setDeadlineList(prev => prev.map(x => x.id === editingDeadlineId ? { ...x, ...data } : x));
     addActivity(`Deadline updated: "${data.title}"`, "info");
+    fetch(`/api/deadlines/${editingDeadlineId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    }).catch(console.error);
     setEditingDeadlineId(null);
     setActiveModal(null);
   }
@@ -1906,6 +1976,11 @@ export default function Home() {
     if (!t || t.status === "Complete") return;
     setIgTaskList(prev => prev.map(x => x.id === id ? { ...x, status: "Complete" } : x));
     addActivity(`IG task "${t.title}" marked complete`, "success");
+    fetch(`/api/instagram/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: "Complete" }),
+    }).catch(console.error);
   }
 
   function deleteIG(id: number) {
@@ -1913,6 +1988,7 @@ export default function Home() {
     if (!t) return;
     setIgTaskList(prev => prev.filter(x => x.id !== id));
     addActivity(`IG task removed: "${t.title}"`, "info");
+    fetch(`/api/instagram/${id}`, { method: "DELETE" }).catch(console.error);
   }
 
   function openEditIG(id: number) {
@@ -1924,18 +2000,31 @@ export default function Home() {
     if (!editingIgId) return;
     setIgTaskList(prev => prev.map(x => x.id === editingIgId ? { ...x, ...data } : x));
     addActivity(`IG task updated: "${data.title}"`, "info");
+    fetch(`/api/instagram/${editingIgId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    }).catch(console.error);
     setEditingIgId(null);
     setActiveModal(null);
   }
 
   function handleLogAttendance(attended: Set<number>) {
-    setBrotherList(prev => prev.map(b => {
+    const newList = brotherList.map(b => {
       const didAttend = attended.has(b.id);
       const newAtt = Math.min(100, Math.max(0, Math.round(b.attendance + (didAttend ? 2 : -3))));
       return { ...b, attendance: newAtt };
-    }));
+    });
+    setBrotherList(newList);
     addActivity(`Attendance logged — ${attended.size} of ${brotherList.length} present`, "info");
     setActiveModal(null);
+    Promise.all(newList.map(b =>
+      fetch(`/api/brothers/${b.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ attendance: b.attendance }),
+      })
+    )).catch(console.error);
   }
 
   function closeModal() { setActiveModal(null); }
@@ -1943,12 +2032,22 @@ export default function Home() {
   function payDues(b: Brother) {
     setBrotherList(prev => prev.map(x => x.id === b.id ? { ...x, duesOwed: 0 } : x));
     addActivity(`${b.name} marked dues paid`, "success");
+    fetch(`/api/brothers/${b.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ duesOwed: 0 }),
+    }).catch(console.error);
   }
 
   function addServiceHour(b: Brother) {
     const newHrs = b.serviceHours + 1;
     setBrotherList(prev => prev.map(x => x.id === b.id ? { ...x, serviceHours: newHrs } : x));
     addActivity(`${b.name} — service hours updated to ${newHrs}h`, "info");
+    fetch(`/api/brothers/${b.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ serviceHours: newHrs }),
+    }).catch(console.error);
   }
 
   // ── Render ─────────────────────────────────────────────────────────────────
@@ -2048,13 +2147,13 @@ export default function Home() {
                 iconKey="service" sparkData={KPI_SPARKLINES.service}
                 iconBg="bg-emerald-500/10" iconColor="text-emerald-400" strokeColor="#34d399"
                 onClick={() => setActiveDrawer("service")} />
-              <KPICard label="Treasury" value={fmt$(TREASURY_BALANCE)}
-                trend={`projected ${fmt$(TREASURY_PROJECTED)}`}
+              <KPICard label="Treasury" value={fmt$(liveBalance)}
+                trend={`projected ${fmt$(liveProjected)}`}
                 iconKey="treasury" sparkData={KPI_SPARKLINES.treasury}
                 iconBg="bg-indigo-500/10" iconColor="text-indigo-400" strokeColor="#818cf8"
                 onClick={() => setActiveDrawer("treasury")} />
               <KPICard label="Door Revenue" value={fmt$(totalDoorRev)}
-                trend={`best ${fmt$(bestEvent.doorRevenue)}`}
+                trend={bestEvent ? `best ${fmt$(bestEvent.doorRevenue)}` : "—"}
                 iconKey="door" sparkData={KPI_SPARKLINES.door}
                 iconBg="bg-pink-500/10" iconColor="text-pink-400" strokeColor="#f472b6"
                 onClick={() => setActiveDrawer("door")} />
@@ -2062,9 +2161,9 @@ export default function Home() {
 
             {/* ── Charts ─────────────────────────────────────────────────── */}
             <div id="sec-treasury" className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              <ChartWidget title="Treasury Trend" stat={fmt$(TREASURY_BALANCE)} caption="Jan – May 2026">
+              <ChartWidget title="Treasury Trend" stat={fmt$(liveBalance)} caption="Jan – May 2026">
                 <ResponsiveContainer width="100%" height={96}>
-                  <AreaChart data={treasuryTrend} margin={{ top: 4, right: 4, bottom: 0, left: -22 }}>
+                  <AreaChart data={liveTrend} margin={{ top: 4, right: 4, bottom: 0, left: -22 }}>
                     <defs>
                       <linearGradient id="tGrad" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="0%"   stopColor="#818cf8" stopOpacity={0.25} />
@@ -2379,7 +2478,7 @@ export default function Home() {
                     <p className="py-4 text-center text-[12px] text-slate-500">No events logged — click + Add to log revenue</p>
                   ) : partyList.map(e => {
                     const barPct = Math.round((e.doorRevenue / maxRevenue) * 100);
-                    const isTop  = e.id === bestEvent.id;
+                    const isTop  = bestEvent ? e.id === bestEvent.id : false;
                     return (
                       <div key={e.id} className="flex items-center gap-3">
                         <div className="w-24 shrink-0">
