@@ -191,8 +191,8 @@ export function calcHealthScore(
 ): { score: number; label: "Healthy" | "Needs Attention" | "Critical"; breakdown: Record<string, number> } {
   const attScore  = avg(bList.map(b => b.attendance));
   const gpaScore  = Math.min(100, ((avg(bList.map(b => b.gpa)) - 2.0) / 2.0) * 100);
-  const duesScore = (bList.filter(b => b.duesOwed === 0).length / bList.length) * 100;
-  const svcScore  = (bList.filter(b => b.serviceHours >= THRESHOLDS.serviceHoursGoal).length / bList.length) * 100;
+  const duesScore = bList.length ? (bList.filter(b => b.duesOwed === 0).length / bList.length) * 100 : 0;
+  const svcScore  = bList.length ? (bList.filter(b => b.serviceHours >= THRESHOLDS.serviceHoursGoal).length / bList.length) * 100 : 0;
   const urgentPenalty = dList.filter(d => d.status === "Urgent").length * 15;
   const dlScore   = Math.max(0, 100 - urgentPenalty);
   const score = Math.round(attScore * 0.30 + gpaScore * 0.25 + duesScore * 0.20 + svcScore * 0.15 + dlScore * 0.10);
@@ -225,6 +225,7 @@ export function getBrotherStatus(b: Brother): BrotherStatus {
 }
 
 export function avg(values: number[]): number {
+  if (!values.length) return 0;
   return values.reduce((a, b) => a + b, 0) / values.length;
 }
 
