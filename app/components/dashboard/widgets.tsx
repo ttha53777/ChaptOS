@@ -1,0 +1,226 @@
+import React from "react";
+import { LineChart, Line, ResponsiveContainer } from "recharts";
+import type { ActivityEntry, Brother } from "../../data";
+import { THRESHOLDS } from "../../data";
+import { SvgIcon } from "../Sidebar";
+import { Card } from "./primitives";
+import { KPI_ICONS } from "./styles";
+
+export function HealthScoreWidget({ score, label, breakdown, delta, onExpand }: {
+  score: number;
+  label: "Healthy" | "Needs Attention" | "Critical";
+  breakdown: Record<string, number>;
+  delta: number | null;
+  onExpand?: () => void;
+}) {
+  const ringColor = score >= 80 ? "text-emerald-400" : score >= 60 ? "text-amber-400" : "text-red-400";
+  const circleBg  = score >= 80 ? "bg-emerald-500/15" : score >= 60 ? "bg-amber-500/15" : "bg-red-500/15";
+  const circleGlow = score >= 80 ? "shadow-[0_0_16px_rgba(16,185,129,0.14)]" : score >= 60 ? "shadow-[0_0_16px_rgba(245,158,11,0.14)]" : "shadow-[0_0_16px_rgba(239,68,68,0.14)]";
+  const accentGradient = score >= 80
+    ? "linear-gradient(90deg, transparent 0%, #10b981 20%, #34d399 50%, #10b981 80%, transparent 100%)"
+    : score >= 60
+      ? "linear-gradient(90deg, #f59e0b 0%, #fbbf24 50%, #f59e0b 100%)"
+      : "linear-gradient(90deg, transparent 0%, #ef4444 20%, #f87171 50%, #ef4444 80%, transparent 100%)";
+  const ambientGlow = score >= 80
+    ? "radial-gradient(ellipse 50% 80% at 8% 50%, rgba(16,185,129,0.04) 0%, transparent 60%), #141925"
+    : score >= 60
+      ? "radial-gradient(ellipse 50% 80% at 8% 50%, rgba(245,158,11,0.04) 0%, transparent 60%), #141925"
+      : "radial-gradient(ellipse 50% 80% at 8% 50%, rgba(239,68,68,0.04) 0%, transparent 60%), #141925";
+  const sub       = score >= 80 ? "All systems operational" : score >= 60 ? "Some areas need attention" : "Immediate action required";
+
+  return (
+    <Card style={{ background: ambientGlow }} className="overflow-hidden">
+      <div className="h-[2px]" style={{ background: accentGradient }} />
+        <div className="flex flex-wrap items-center gap-5 px-5 py-4">
+        <div className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-full ${circleBg} ${circleGlow}`}>
+          <span className={`text-[22px] font-bold tabular-nums leading-none ${ringColor}`}>{score}</span>
+        </div>
+        <div className="min-w-[140px] flex-1">
+          <div className="flex items-center gap-2">
+            <span className={`text-[15px] font-bold ${ringColor}`}>{label}</span>
+            {delta !== null && (
+              <span className={`text-[11px] font-semibold ${delta >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                {delta >= 0 ? "↑" : "↓"}{Math.abs(delta)} pts
+              </span>
+            )}
+          </div>
+          <p className="text-[11px] text-slate-400">{sub}</p>
+          <p className="mt-0.5 text-[10px] text-slate-600">Chapter health score · 0–100</p>
+        </div>
+        <div className="flex min-w-0 flex-1 flex-wrap gap-x-6 gap-y-2">
+          {Object.entries(breakdown).map(([k, v]) => (
+            <div key={k} className="min-w-[90px] flex-1">
+              <div className="mb-1 flex items-center justify-between">
+                <span className="text-[10px] font-medium text-slate-500">{k}</span>
+                <span className="text-[10px] tabular-nums text-slate-400">{v}%</span>
+              </div>
+              <div className="h-1 overflow-hidden rounded-full bg-white/[0.07]">
+                <div
+                  className={`h-full rounded-full transition-all duration-500 ${v >= 80 ? "bg-emerald-400" : v >= 60 ? "bg-amber-400" : "bg-red-400"}`}
+                  style={{ width: `${v}%` }}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+        {onExpand && (
+          <button onClick={onExpand} className="shrink-0 flex items-center gap-1 rounded-lg border border-white/[0.1] bg-white/[0.04] px-2.5 py-1.5 text-[11px] font-medium text-slate-400 hover:border-indigo-500/40 hover:bg-indigo-500/10 hover:text-indigo-300 transition-colors self-center">
+            Details
+            <svg className="h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+            </svg>
+          </button>
+        )}
+      </div>
+    </Card>
+  );
+}
+
+export function KPICard({ label, value, trend, iconKey, sparkData, accent = "text-white", iconBg = "bg-indigo-500/10", iconColor = "text-indigo-400", strokeColor = "#6366f1", glowColor, onClick }: {
+  label: string; value: string; trend: string; iconKey: string; sparkData: number[];
+  accent?: string; iconBg?: string; iconColor?: string; strokeColor?: string;
+  glowColor?: string;
+  onClick?: () => void;
+}) {
+  const chartData = sparkData.map((v, i) => ({ i, v }));
+  const gradientStyle = glowColor
+    ? { background: `radial-gradient(ellipse at 15% 15%, ${glowColor}14 0%, transparent 65%), #141925` }
+    : undefined;
+  const inner = (
+    <>
+      <div className="flex items-start gap-3">
+        <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${iconBg}`}>
+          <SvgIcon d={KPI_ICONS[iconKey] ?? ""} className={`h-4 w-4 ${iconColor}`} />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.07em] text-slate-500">{label}</p>
+          <p className={`mt-0.5 text-[22px] font-bold leading-none tracking-tight ${accent}`}>{value}</p>
+          <p className="mt-1 truncate text-[11px] leading-snug text-slate-400">{trend}</p>
+        </div>
+      </div>
+      <div className="mt-2 -mx-1">
+        <ResponsiveContainer width="100%" height={28}>
+          <LineChart data={chartData} margin={{ top: 2, right: 2, bottom: 2, left: 2 }}>
+            <Line type="monotone" dataKey="v" stroke={strokeColor} strokeWidth={1.5} dot={false} />
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+      {onClick && (
+        <div className="mt-1.5 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+          <span className="text-[10px] text-slate-600">View details</span>
+          <svg className="h-3 w-3 text-slate-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+          </svg>
+        </div>
+      )}
+    </>
+  );
+  if (onClick) {
+    return (
+      <button type="button" onClick={onClick} style={gradientStyle} className="card-premium rounded-xl border border-white/[0.06] bg-[#141925] flex flex-col p-4 w-full text-left transition-all duration-200 hover:border-white/[0.12] cursor-pointer group">
+        {inner}
+      </button>
+    );
+  }
+  return (
+    <Card style={gradientStyle} className="!rounded-xl flex flex-col p-4 transition-all duration-200 hover:border-white/[0.12] cursor-default">
+      {inner}
+    </Card>
+  );
+}
+
+export function ChartWidget({ title, stat, caption, accentColor, children }: {
+  title: string; stat: string; caption: string; accentColor?: string; children: React.ReactNode;
+}) {
+  const gradientStyle = accentColor
+    ? { background: `linear-gradient(to bottom, ${accentColor}0d 0%, #141925 55%)` }
+    : undefined;
+  return (
+    <Card style={gradientStyle} className="overflow-hidden">
+      <div className="flex items-start justify-between px-4 pt-4 pb-1">
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">{title}</p>
+          <p className="mt-0.5 text-[17px] font-bold tracking-tight text-white">{stat}</p>
+        </div>
+        <p className="mt-1 text-[10px] text-slate-500">{caption}</p>
+      </div>
+      <div className="px-1 pb-3">{children}</div>
+    </Card>
+  );
+}
+
+export function ActivityFeed({ entries, onExpand }: { entries: ActivityEntry[]; onExpand?: () => void }) {
+  const dot: Record<ActivityEntry["type"], string> = {
+    success: "bg-emerald-400",
+    warning: "bg-amber-400",
+    info:    "bg-blue-400",
+  };
+
+  return (
+    <Card style={{ background: "linear-gradient(to bottom, #10b98110 0%, #141925 50%)" }} className="overflow-hidden cursor-pointer hover:border-white/[0.14] transition-colors" onClick={onExpand}>
+      <div className="h-[3px] bg-emerald-500/50" />
+      <div className="border-b border-white/[0.07] px-5 py-3.5">
+        <div className="flex items-center justify-between">
+          <h2 className="text-[13px] font-semibold text-white">Activity Feed</h2>
+          <div className="flex items-center gap-2">
+            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold text-emerald-400">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              Live
+            </span>
+            {onExpand && (
+              <button onClick={(e) => { e.stopPropagation(); onExpand(); }} className="flex items-center gap-1 rounded-md bg-white/[0.05] px-2 py-0.5 text-[10px] font-medium text-slate-400 hover:bg-indigo-500/15 hover:text-indigo-300 transition-colors">
+                All
+                <svg className="h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                </svg>
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+      {entries.length === 0 ? (
+        <div className="px-5 py-8 text-center">
+          <p className="text-[12px] text-slate-500">No recent activity</p>
+        </div>
+      ) : (
+        <div className="max-h-[220px] overflow-y-auto divide-y divide-white/[0.04]">
+          {entries.map(e => (
+            <div key={e.id} className="flex items-start gap-3 px-5 py-2.5 transition-colors hover:bg-white/[0.03]">
+              <span className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${dot[e.type]}`} />
+              <p className="flex-1 text-[12px] leading-snug text-slate-300">{e.message}</p>
+              <span className="shrink-0 text-[10px] text-slate-500">{e.timestamp}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+export function AttBar({ pct }: { pct: number }) {
+  const bar  = pct >= THRESHOLDS.attendanceWatch ? "bg-emerald-400" : pct >= THRESHOLDS.attendanceAtRisk ? "bg-amber-400" : "bg-red-400";
+  const text = pct >= THRESHOLDS.attendanceWatch ? "text-white" : pct >= THRESHOLDS.attendanceAtRisk ? "text-amber-400" : "text-red-400";
+  return (
+    <div className="flex items-center gap-2">
+      <div className="h-1.5 w-14 overflow-hidden rounded-full bg-white/[0.08]">
+        <div className={`h-full rounded-full ${bar}`} style={{ width: `${pct}%` }} />
+      </div>
+      <span className={`tabular-nums text-[13px] font-medium ${text}`}>{pct}%</span>
+    </div>
+  );
+}
+
+export function SortTh({ label, active, dir, onClick }: {
+  label: string; colKey: keyof Brother; active: boolean; dir: "asc" | "desc"; onClick: () => void;
+}) {
+  return (
+    <th onClick={onClick} className="group cursor-pointer select-none px-3 py-2.5 text-left">
+      <span className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-[0.06em] text-slate-500 transition-colors group-hover:text-slate-300">
+        {label}
+        <span className={`transition-opacity ${active ? "opacity-100 text-slate-400" : "opacity-0 group-hover:opacity-40"}`}>
+          {dir === "asc" ? "↑" : "↓"}
+        </span>
+      </span>
+    </th>
+  );
+}

@@ -46,9 +46,9 @@ export function Sidebar({ open, onClose, activeSection, onNavClick }: {
   return (
     <>
       {open && <div className="fixed inset-0 z-20 bg-black/60 lg:hidden" onClick={onClose} />}
-      <aside className={`fixed inset-y-0 left-0 z-30 flex w-56 flex-col bg-[#0d1117] transition-transform duration-200 ease-in-out lg:static lg:z-auto lg:translate-x-0 ${open ? "translate-x-0" : "-translate-x-full"}`}>
-        <div className="flex h-14 items-center gap-3 border-b border-white/[0.06] px-4">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-indigo-600 text-[11px] font-bold text-white">ΛΦΕ</div>
+      <aside className={`fixed inset-y-0 left-0 z-30 flex w-56 flex-col border-r border-white/[0.04] bg-[#070a10] transition-transform duration-200 ease-in-out lg:static lg:z-auto lg:translate-x-0 ${open ? "translate-x-0" : "-translate-x-full"}`}>
+        <div className="flex h-14 items-center gap-3 border-b border-white/[0.05] px-4">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-indigo-700 text-[11px] font-bold text-white shadow-[0_2px_8px_rgba(99,102,241,0.3)]">ΛΦΕ</div>
           <div className="min-w-0">
             <p className="truncate text-[12px] font-semibold leading-tight text-white">Lambda Phi Epsilon</p>
             <p className="text-[10px] leading-tight text-white/35">Fall 2026</p>
@@ -70,10 +70,10 @@ export function Sidebar({ open, onClose, activeSection, onNavClick }: {
                     href="/timeline"
                     onClick={onClose}
                     aria-current={isActive ? "page" : undefined}
-                    className={`flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] font-medium transition-colors ${
+                    className={`flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] font-medium transition-all duration-150 ${
                       isActive
-                        ? "bg-indigo-500/20 text-indigo-300"
-                        : "text-white/40 hover:bg-white/[0.05] hover:text-white/70"
+                        ? "bg-gradient-to-r from-indigo-500/15 to-indigo-500/[0.04] text-indigo-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] ring-1 ring-inset ring-indigo-500/15"
+                        : "text-white/45 hover:bg-white/[0.04] hover:text-white/80"
                     }`}
                   >
                     <SvgIcon d={NAV_ICONS[label] ?? ""} className="h-4 w-4 shrink-0 opacity-75" />
@@ -98,10 +98,10 @@ export function Sidebar({ open, onClose, activeSection, onNavClick }: {
                     onClose();
                   }}
                   aria-current={isActive ? "page" : undefined}
-                  className={`flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] font-medium transition-colors ${
+                  className={`flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] font-medium transition-all duration-150 ${
                     isActive
-                      ? "bg-indigo-500/20 text-indigo-300"
-                      : "text-white/40 hover:bg-white/[0.05] hover:text-white/70"
+                      ? "bg-gradient-to-r from-indigo-500/15 to-indigo-500/[0.04] text-indigo-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] ring-1 ring-inset ring-indigo-500/15"
+                      : "text-white/45 hover:bg-white/[0.04] hover:text-white/80"
                   }`}
                 >
                   <SvgIcon d={NAV_ICONS[label] ?? ""} className="h-4 w-4 shrink-0 opacity-75" />
@@ -113,8 +113,8 @@ export function Sidebar({ open, onClose, activeSection, onNavClick }: {
           </div>
         </nav>
 
-        <div className="border-t border-white/[0.06] px-4 py-3">
-          <p className="text-[10px] text-white/20">Chapter Ops · v1.0</p>
+        <div className="border-t border-white/[0.05] px-4 py-3">
+          <p className="text-[10px] tracking-wide text-white/25">Chapter Ops · v1.0</p>
         </div>
       </aside>
     </>
