@@ -3,30 +3,46 @@ import { prisma } from "@/lib/prisma";
 const MONTH_LABELS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
 export async function GET() {
-  const parties = await prisma.partyEvent.findMany({
-    orderBy: { date: "asc" },
-    select: { date: true, doorRevenue: true },
-  });
+  const [parties, transactions] = await Promise.all([
+    prisma.partyEvent.findMany({
+      orderBy: { date: "asc" },
+      select: { date: true, doorRevenue: true },
+    }),
+    prisma.transaction.findMany({
+      where: { deletedAt: null },
+      orderBy: { date: "asc" },
+      select: { date: true, type: true, amount: true },
+    }),
+  ]);
 
-  const totalRevenue = parties.reduce((sum, p) => sum + p.doorRevenue, 0);
+  const totalDoorRevenue = parties.reduce((sum: number, p) => sum + p.doorRevenue, 0);
+  const totalIncome      = transactions.filter(t => t.type === "income").reduce((sum: number, t) => sum + t.amount, 0);
+  const totalExpenses    = transactions.filter(t => t.type === "expense").reduce((sum: number, t) => sum + t.amount, 0);
+  const netBalance       = totalDoorRevenue + totalIncome - totalExpenses;
 
-  // Group revenue by YYYY-MM, then build a cumulative monthly trend
+  // Build a combined month map: net delta per YYYY-MM
   const monthMap = new Map<string, number>();
   for (const p of parties) {
-    const month = p.date.slice(0, 7); // "2026-02"
+    const month = p.date.slice(0, 7);
     monthMap.set(month, (monthMap.get(month) ?? 0) + p.doorRevenue);
   }
+  for (const t of transactions) {
+    const month = t.date.slice(0, 7);
+    const delta = t.type === "income" ? t.amount : -t.amount;
+    monthMap.set(month, (monthMap.get(month) ?? 0) + delta);
+  }
 
+  const sortedMonths = Array.from(monthMap.keys()).sort();
   let running = 0;
-  const trend = Array.from(monthMap.entries()).map(([ym, rev]) => {
-    running += rev;
+  const trend = sortedMonths.map(ym => {
+    running += monthMap.get(ym) ?? 0;
     const [, m] = ym.split("-");
     return { month: MONTH_LABELS[Number(m) - 1], balance: running };
   });
 
   return Response.json({
-    balance: totalRevenue,
-    projected: Math.round(totalRevenue * 1.3),
+    balance:   Math.round(netBalance * 100) / 100,
+    projected: Math.round(netBalance * 1.3),
     trend,
   });
 }
