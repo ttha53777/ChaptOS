@@ -60,3 +60,18 @@ model ActivityLog {
   type      String
   timestamp DateTime @default(now())
 }
+
+model Transaction {
+  id            Int       @id @default(autoincrement())
+  type          String
+  category      String
+  amount        Float
+  date          String
+  description   String
+  paymentMethod String?
+  paidTo        String?
+  semester      String?
+  deletedAt     DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}

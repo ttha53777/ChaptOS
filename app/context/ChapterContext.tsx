@@ -2,7 +2,7 @@
 
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
 import {
-  Brother, Deadline, InstagramTask, PartyEvent, ActivityEntry,
+  Brother, Deadline, InstagramTask, PartyEvent, ActivityEntry, Transaction,
 } from "../data";
 
 export interface TreasuryData {
@@ -24,6 +24,8 @@ interface ChapterContextValue {
   setActivityFeed: React.Dispatch<React.SetStateAction<ActivityEntry[]>>;
   treasuryData: TreasuryData | null;
   setTreasuryData: React.Dispatch<React.SetStateAction<TreasuryData | null>>;
+  transactionList: Transaction[];
+  setTransactionList: React.Dispatch<React.SetStateAction<Transaction[]>>;
   isLoading: boolean;
   loadError: string | null;
   mutationError: string | null;
@@ -42,12 +44,13 @@ async function fetchJson<T>(url: string): Promise<T> {
 }
 
 export function ChapterProvider({ children }: { children: React.ReactNode }) {
-  const [brotherList,  setBrotherList]  = useState<Brother[]>([]);
-  const [deadlineList, setDeadlineList] = useState<Deadline[]>([]);
-  const [igTaskList,   setIgTaskList]   = useState<InstagramTask[]>([]);
-  const [partyList,    setPartyList]    = useState<PartyEvent[]>([]);
-  const [activityFeed, setActivityFeed] = useState<ActivityEntry[]>([]);
-  const [treasuryData, setTreasuryData] = useState<TreasuryData | null>(null);
+  const [brotherList,      setBrotherList]      = useState<Brother[]>([]);
+  const [deadlineList,     setDeadlineList]     = useState<Deadline[]>([]);
+  const [igTaskList,       setIgTaskList]       = useState<InstagramTask[]>([]);
+  const [partyList,        setPartyList]        = useState<PartyEvent[]>([]);
+  const [activityFeed,     setActivityFeed]     = useState<ActivityEntry[]>([]);
+  const [treasuryData,     setTreasuryData]     = useState<TreasuryData | null>(null);
+  const [transactionList,  setTransactionList]  = useState<Transaction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [mutationError, setMutationError] = useState<string | null>(null);
@@ -57,13 +60,14 @@ export function ChapterProvider({ children }: { children: React.ReactNode }) {
     setLoadError(null);
 
     try {
-      const [brothers, deadlines, instagram, parties, activity, treasury] = await Promise.all([
+      const [brothers, deadlines, instagram, parties, activity, treasury, transactions] = await Promise.all([
         fetchJson<Brother[]>("/api/brothers"),
         fetchJson<Deadline[]>("/api/deadlines"),
         fetchJson<InstagramTask[]>("/api/instagram"),
         fetchJson<PartyEvent[]>("/api/parties"),
         fetchJson<ActivityEntry[]>("/api/activity"),
         fetchJson<TreasuryData>("/api/treasury"),
+        fetchJson<Transaction[]>("/api/transactions"),
       ]);
 
       setBrotherList(brothers);
@@ -72,6 +76,7 @@ export function ChapterProvider({ children }: { children: React.ReactNode }) {
       setPartyList(parties);
       setActivityFeed(activity);
       setTreasuryData(treasury);
+      setTransactionList(transactions);
     } catch (error) {
       console.error(error);
       setLoadError("Could not load chapter data from the database.");
@@ -86,7 +91,7 @@ export function ChapterProvider({ children }: { children: React.ReactNode }) {
   }, [refreshChapterData]);
 
   return (
-    <ChapterContext.Provider value={{ brotherList, setBrotherList, deadlineList, setDeadlineList, igTaskList, setIgTaskList, partyList, setPartyList, activityFeed, setActivityFeed, treasuryData, setTreasuryData, isLoading, loadError, mutationError, setMutationError, refreshChapterData }}>
+    <ChapterContext.Provider value={{ brotherList, setBrotherList, deadlineList, setDeadlineList, igTaskList, setIgTaskList, partyList, setPartyList, activityFeed, setActivityFeed, treasuryData, setTreasuryData, transactionList, setTransactionList, isLoading, loadError, mutationError, setMutationError, refreshChapterData }}>
       {children}
     </ChapterContext.Provider>
   );

@@ -5,6 +5,29 @@ export type TaskStatus = "Upcoming" | "Due Soon" | "Urgent" | "Complete";
 export type CalEventCategory = "chapter" | "social" | "fundy" | "program" | "party" | "deadline";
 export type CalLayer = "all" | "mandatory" | "deadlines" | "parties";
 
+export type IncomeCategory = "Door" | "Dues" | "Fines" | "Fundraiser" | "Event" | "Alumni donation" | "External / misc";
+export type ExpenseCategory = "Reimbursement" | "Party Supplies" | "Operations" | "Brotherhood" | "Events" | "House" | "Travel" | "Misc";
+export type PaymentMethod = "venmo" | "cash" | "check" | "invoice";
+
+export const INCOME_CATEGORIES: IncomeCategory[] = ["Door", "Dues", "Fines", "Fundraiser", "Event", "Alumni donation", "External / misc"];
+export const EXPENSE_CATEGORIES: ExpenseCategory[] = ["Reimbursement", "Party Supplies", "Operations", "Brotherhood", "Events", "House", "Travel", "Misc"];
+export const PAYMENT_METHODS: PaymentMethod[] = ["venmo", "cash", "check", "invoice"];
+
+export interface Transaction {
+  id: number;
+  type: "income" | "expense";
+  category: string;
+  amount: number;
+  date: string;
+  description: string;
+  paymentMethod?: string;
+  paidTo?: string;
+  semester?: string;
+  deletedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface Brother {
   id: number;
   name: string;
