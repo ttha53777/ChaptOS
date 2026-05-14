@@ -1,36 +1,105 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# FraternityOps
+
+Chapter operations dashboard for Lambda Phi Epsilon. It tracks member health, attendance, dues, academics, service hours, deadlines, Instagram tasks, treasury metrics, party revenue, activity updates, and a shared chapter timeline.
+
+The app is built with Next.js, React, Tailwind CSS, Prisma, and PostgreSQL. It ships with seed data so the dashboard can be populated quickly in a local or hosted database.
+
+## Features
+
+- Dashboard KPI cards for attendance, dues, GPA, service hours, treasury balance, and door revenue.
+- Brother profiles with editable attendance, dues, GPA, service hours, and status indicators.
+- Deadline, Instagram, party, and activity feeds backed by API routes.
+- Treasury trend data and projected balance summaries.
+- Timeline page for chapter events, mandatory events, deadlines, and parties.
+- Prisma migrations and seed data for bootstrapping PostgreSQL.
+
+## Tech Stack
+
+- Next.js 16 App Router
+- React 19
+- Tailwind CSS 4
+- Prisma 7
+- PostgreSQL with `pg` and `@prisma/adapter-pg`
+- Recharts
 
 ## Getting Started
 
-First, run the development server:
+Install dependencies:
+
+```bash
+npm install
+```
+
+Create a local environment file:
+
+```bash
+cp .env.example .env.local
+```
+
+Set `DATABASE_URL` in `.env.local` to a PostgreSQL connection string. The example is written for Supabase Postgres, but any compatible PostgreSQL database should work.
+
+Generate the Prisma client, apply migrations, and seed the database:
+
+```bash
+npx prisma generate
+npx prisma migrate dev
+npx prisma db seed
+```
+
+Start the development server:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000) to view the dashboard.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Scripts
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+npm run dev
+npm run build
+npm run start
+```
 
-## Learn More
+- `npm run dev` starts the local Next.js development server.
+- `npm run build` creates a production build.
+- `npm run start` serves the production build.
 
-To learn more about Next.js, take a look at the following resources:
+## Project Structure
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```text
+app/
+  api/                    Next.js API routes for chapter data
+  components/             Dashboard UI components
+  context/                Shared chapter data provider
+  generated/prisma/       Generated Prisma client output
+  timeline/               Chapter timeline page
+  data.ts                 Types, thresholds, helpers, and seed data
+lib/
+  prisma.ts               Shared Prisma client
+prisma/
+  migrations/             Database migrations
+  schema.prisma           Database schema
+  seed.ts                 Database seed script
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Data Model
 
-## Deploy on Vercel
+The PostgreSQL schema includes:
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+- `Brother`
+- `Deadline`
+- `InstagramTask`
+- `PartyEvent`
+- `CalendarEvent`
+- `ActivityLog`
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Most dashboard data loads through API routes under `app/api/*`, then flows through `ChapterProvider` in `app/context/ChapterContext.tsx`.
+
+## Development Notes
+
+- The app expects `DATABASE_URL` to be present before API routes or Prisma commands run.
+- Seed data lives in `app/data.ts` and is inserted by `prisma/seed.ts`.
+- The main dashboard lives at `/`; the chapter timeline lives at `/timeline`.
+- Generated Prisma output is configured to `app/generated/prisma`.
