@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
 import {
   Brother, Deadline, InstagramTask, PartyEvent, ActivityEntry,
 } from "../data";
@@ -24,9 +24,22 @@ interface ChapterContextValue {
   setActivityFeed: React.Dispatch<React.SetStateAction<ActivityEntry[]>>;
   treasuryData: TreasuryData | null;
   setTreasuryData: React.Dispatch<React.SetStateAction<TreasuryData | null>>;
+  isLoading: boolean;
+  loadError: string | null;
+  mutationError: string | null;
+  setMutationError: React.Dispatch<React.SetStateAction<string | null>>;
+  refreshChapterData: () => Promise<void>;
 }
 
 const ChapterContext = createContext<ChapterContextValue | null>(null);
+
+async function fetchJson<T>(url: string): Promise<T> {
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`${url} returned ${response.status}`);
+  }
+  return response.json() as Promise<T>;
+}
 
 export function ChapterProvider({ children }: { children: React.ReactNode }) {
   const [brotherList,  setBrotherList]  = useState<Brother[]>([]);
@@ -35,51 +48,45 @@ export function ChapterProvider({ children }: { children: React.ReactNode }) {
   const [partyList,    setPartyList]    = useState<PartyEvent[]>([]);
   const [activityFeed, setActivityFeed] = useState<ActivityEntry[]>([]);
   const [treasuryData, setTreasuryData] = useState<TreasuryData | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [mutationError, setMutationError] = useState<string | null>(null);
 
-  useEffect(() => {
-    fetch("/api/brothers")
-      .then((r) => r.json())
-      .then(setBrotherList)
-      .catch(console.error);
+  const refreshChapterData = useCallback(async () => {
+    setIsLoading(true);
+    setLoadError(null);
+
+    try {
+      const [brothers, deadlines, instagram, parties, activity, treasury] = await Promise.all([
+        fetchJson<Brother[]>("/api/brothers"),
+        fetchJson<Deadline[]>("/api/deadlines"),
+        fetchJson<InstagramTask[]>("/api/instagram"),
+        fetchJson<PartyEvent[]>("/api/parties"),
+        fetchJson<ActivityEntry[]>("/api/activity"),
+        fetchJson<TreasuryData>("/api/treasury"),
+      ]);
+
+      setBrotherList(brothers);
+      setDeadlineList(deadlines);
+      setIgTaskList(instagram);
+      setPartyList(parties);
+      setActivityFeed(activity);
+      setTreasuryData(treasury);
+    } catch (error) {
+      console.error(error);
+      setLoadError("Could not load chapter data from the database.");
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
   }, []);
 
   useEffect(() => {
-    fetch("/api/deadlines")
-      .then((r) => r.json())
-      .then(setDeadlineList)
-      .catch(console.error);
-  }, []);
-
-  useEffect(() => {
-    fetch("/api/instagram")
-      .then((r) => r.json())
-      .then(setIgTaskList)
-      .catch(console.error);
-  }, []);
-
-  useEffect(() => {
-    fetch("/api/parties")
-      .then((r) => r.json())
-      .then(setPartyList)
-      .catch(console.error);
-  }, []);
-
-  useEffect(() => {
-    fetch("/api/activity")
-      .then((r) => r.json())
-      .then(setActivityFeed)
-      .catch(console.error);
-  }, []);
-
-  useEffect(() => {
-    fetch("/api/treasury")
-      .then((r) => r.json())
-      .then(setTreasuryData)
-      .catch(console.error);
-  }, []);
+    refreshChapterData().catch(() => undefined);
+  }, [refreshChapterData]);
 
   return (
-    <ChapterContext.Provider value={{ brotherList, setBrotherList, deadlineList, setDeadlineList, igTaskList, setIgTaskList, partyList, setPartyList, activityFeed, setActivityFeed, treasuryData, setTreasuryData }}>
+    <ChapterContext.Provider value={{ brotherList, setBrotherList, deadlineList, setDeadlineList, igTaskList, setIgTaskList, partyList, setPartyList, activityFeed, setActivityFeed, treasuryData, setTreasuryData, isLoading, loadError, mutationError, setMutationError, refreshChapterData }}>
       {children}
     </ChapterContext.Provider>
   );

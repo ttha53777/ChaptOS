@@ -2,507 +2,42 @@
 
 import React, { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import {
-  AreaChart, Area, BarChart, Bar, Cell, LineChart, Line,
+  AreaChart, Area, BarChart, Bar, Cell,
   XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
 } from "recharts";
 import {
-  Brother, BrotherStatus, TaskStatus, ActivityEntry, PartyEvent,
+  Brother, TaskStatus, ActivityEntry, PartyEvent, Deadline, InstagramTask,
   treasuryTrend, TREASURY_BALANCE, TREASURY_PROJECTED, THRESHOLDS,
   KPI_SPARKLINES,
   getBrotherStatus, calcHealthScore, avg, fmt$, fmtDate,
 } from "./data";
 import { Sidebar, SvgIcon, NAV_ICONS } from "./components/Sidebar";
 import { useChapter } from "./context/ChapterContext";
-
-// ─── Style maps ───────────────────────────────────────────────────────────────
-
-const BROTHER_STYLES: Record<BrotherStatus, { badge: string; row: string }> = {
-  "Good":    { badge: "bg-emerald-500/15 text-emerald-400 ring-1 ring-inset ring-emerald-500/25", row: "border-l-emerald-400" },
-  "Watch":   { badge: "bg-amber-500/15 text-amber-400 ring-1 ring-inset ring-amber-500/25",       row: "border-l-amber-400"   },
-  "At Risk": { badge: "bg-red-500/15 text-red-400 ring-1 ring-inset ring-red-500/25",             row: "border-l-red-500"     },
-};
-
-const TASK_STYLES: Record<TaskStatus, string> = {
-  "Urgent":   "bg-red-500/15 text-red-400 ring-1 ring-inset ring-red-500/25",
-  "Due Soon": "bg-amber-500/15 text-amber-400 ring-1 ring-inset ring-amber-500/25",
-  "Upcoming": "bg-slate-500/15 text-slate-400 ring-1 ring-inset ring-slate-500/20",
-  "Complete": "bg-emerald-500/15 text-emerald-400 ring-1 ring-inset ring-emerald-500/25",
-};
-
-// ─── Atoms ────────────────────────────────────────────────────────────────────
-
-function StatusBadge({ status }: { status: BrotherStatus }) {
-  return (
-    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium tracking-wide ${BROTHER_STYLES[status].badge}`}>
-      {status}
-    </span>
-  );
-}
-
-function TaskBadge({ status }: { status: TaskStatus }) {
-  return (
-    <span className={`inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[11px] font-medium tracking-wide ${TASK_STYLES[status]}`}>
-      {status}
-    </span>
-  );
-}
-
-function Card({ children, className = "", id, onClick }: { children: React.ReactNode; className?: string; id?: string; onClick?: () => void }) {
-  return (
-    <div id={id} onClick={onClick} className={`rounded-xl border border-white/[0.07] bg-[#161b27] ${className}`}>
-      {children}
-    </div>
-  );
-}
-
-
-const KPI_ICONS: Record<string, string> = {
-  attendance: "M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z",
-  dues:       "M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z",
-  gpa:        "M12 14l9-5-9-5-9 5 9 5z M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z",
-  service:    "M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z",
-  treasury:   "M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z",
-  door:       "M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z",
-};
-
-// ─── Section IDs ─────────────────────────────────────────────────────────────
-
-const SECTION_IDS: Record<string, string> = {
-  Dashboard: "sec-dashboard",
-  Brothers:  "sec-brothers",
-  Deadlines: "sec-deadlines",
-  Instagram: "sec-instagram",
-  Treasury:  "sec-treasury",
-  Parties:   "sec-parties",
-  Settings:  "sec-settings",
-};
-
-// ─── Modal wrapper ────────────────────────────────────────────────────────────
-
-function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
-    document.addEventListener("keydown", handler);
-    return () => document.removeEventListener("keydown", handler);
-  }, [onClose]);
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-[2px]" onClick={onClose} />
-      <div className="relative w-full max-w-md rounded-2xl border border-white/[0.08] bg-[#161b27] shadow-2xl">
-        <div className="flex items-center justify-between border-b border-white/[0.07] px-6 py-4">
-          <h3 className="text-[15px] font-semibold text-white">{title}</h3>
-          <button onClick={onClose} className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-500 hover:bg-white/[0.08] hover:text-white transition-colors">
-            <svg className="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-        <div className="p-6">{children}</div>
-      </div>
-    </div>
-  );
-}
-
-// ─── Form field primitives ────────────────────────────────────────────────────
-
-function FieldLabel({ children }: { children: React.ReactNode }) {
-  return <label className="mb-1 block text-[12px] font-medium text-slate-400">{children}</label>;
-}
-
-const inputCls = "w-full rounded-lg border border-white/[0.1] bg-[#0d1117] px-3 py-2 text-[13px] text-white placeholder:text-slate-500 focus:border-indigo-500/60 focus:outline-none focus:ring-2 focus:ring-indigo-500/15";
-
-// ─── Add Deadline form ────────────────────────────────────────────────────────
-
-function AddDeadlineForm({ brotherNames, onSubmit, initial }: {
-  brotherNames: string[];
-  onSubmit: (d: { title: string; dueDate: string; owner: string; status: TaskStatus }) => void;
-  initial?: { title: string; dueDate: string; owner: string; status: TaskStatus };
-}) {
-  const [title,   setTitle]   = useState(initial?.title   ?? "");
-  const [dueDate, setDueDate] = useState(initial?.dueDate ?? "");
-  const [owner,   setOwner]   = useState(initial?.owner   ?? brotherNames[0] ?? "");
-  const [status,  setStatus]  = useState<TaskStatus>(initial?.status ?? "Upcoming");
-
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!title.trim() || !dueDate) return;
-    onSubmit({ title: title.trim(), dueDate, owner, status });
-  }
-
-  return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <div><FieldLabel>Title</FieldLabel><input className={inputCls} value={title} onChange={e => setTitle(e.target.value)} placeholder="Deadline title…" required /></div>
-      <div><FieldLabel>Due Date</FieldLabel><input type="date" className={inputCls} value={dueDate} onChange={e => setDueDate(e.target.value)} required /></div>
-      <div>
-        <FieldLabel>Owner</FieldLabel>
-        <select className={inputCls} value={owner} onChange={e => setOwner(e.target.value)}>
-          {brotherNames.map(n => <option key={n}>{n}</option>)}
-        </select>
-      </div>
-      <div>
-        <FieldLabel>Status</FieldLabel>
-        <select className={inputCls} value={status} onChange={e => setStatus(e.target.value as TaskStatus)}>
-          {(["Upcoming", "Due Soon", "Urgent", "Complete"] as TaskStatus[]).map(s => <option key={s}>{s}</option>)}
-        </select>
-      </div>
-      <button type="submit" className="w-full rounded-lg bg-indigo-600 px-4 py-2.5 text-[13px] font-semibold text-white hover:bg-indigo-500 transition-colors">
-        {initial ? "Save Changes" : "Add Deadline"}
-      </button>
-    </form>
-  );
-}
-
-// ─── Add Revenue form ─────────────────────────────────────────────────────────
-
-function AddRevenueForm({ onSubmit }: {
-  onSubmit: (e: { name: string; date: string; doorRevenue: number; attendance: number; notes: string }) => void;
-}) {
-  const [name,        setName]        = useState("");
-  const [date,        setDate]        = useState("");
-  const [doorRevenue, setDoorRevenue] = useState("");
-  const [attendance,  setAttendance]  = useState("");
-  const [notes,       setNotes]       = useState("");
-
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!name.trim() || !date || !doorRevenue) return;
-    onSubmit({ name: name.trim(), date, doorRevenue: Number(doorRevenue), attendance: Number(attendance) || 0, notes: notes.trim() });
-  }
-
-  return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <div><FieldLabel>Event Name</FieldLabel><input className={inputCls} value={name} onChange={e => setName(e.target.value)} placeholder="Spring Kickback…" required /></div>
-      <div><FieldLabel>Date</FieldLabel><input type="date" className={inputCls} value={date} onChange={e => setDate(e.target.value)} required /></div>
-      <div className="grid grid-cols-2 gap-3">
-        <div><FieldLabel>Door Revenue ($)</FieldLabel><input type="number" min="0" className={inputCls} value={doorRevenue} onChange={e => setDoorRevenue(e.target.value)} placeholder="0" required /></div>
-        <div><FieldLabel>Attendance</FieldLabel><input type="number" min="0" className={inputCls} value={attendance} onChange={e => setAttendance(e.target.value)} placeholder="0" /></div>
-      </div>
-      <div><FieldLabel>Notes</FieldLabel><input className={inputCls} value={notes} onChange={e => setNotes(e.target.value)} placeholder="Optional notes…" /></div>
-      <button type="submit" className="w-full rounded-lg bg-indigo-600 px-4 py-2.5 text-[13px] font-semibold text-white hover:bg-indigo-500 transition-colors">Log Revenue</button>
-    </form>
-  );
-}
-
-// ─── Add IG Task form ─────────────────────────────────────────────────────────
-
-function AddIGTaskForm({ brotherNames, onSubmit, initial }: {
-  brotherNames: string[];
-  onSubmit: (t: { title: string; dueDate: string; owner: string; type: string; status: TaskStatus }) => void;
-  initial?: { title: string; dueDate: string; owner: string; type: string; status: TaskStatus };
-}) {
-  const [title,   setTitle]   = useState(initial?.title   ?? "");
-  const [dueDate, setDueDate] = useState(initial?.dueDate ?? "");
-  const [owner,   setOwner]   = useState(initial?.owner   ?? brotherNames[0] ?? "");
-  const [type,    setType]    = useState(initial?.type    ?? "Feed Post");
-  const [status,  setStatus]  = useState<TaskStatus>(initial?.status ?? "Upcoming");
-
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!title.trim() || !dueDate) return;
-    onSubmit({ title: title.trim(), dueDate, owner, type, status });
-  }
-
-  return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <div><FieldLabel>Post Title</FieldLabel><input className={inputCls} value={title} onChange={e => setTitle(e.target.value)} placeholder="Post name…" required /></div>
-      <div><FieldLabel>Due Date</FieldLabel><input type="date" className={inputCls} value={dueDate} onChange={e => setDueDate(e.target.value)} required /></div>
-      <div>
-        <FieldLabel>Owner</FieldLabel>
-        <select className={inputCls} value={owner} onChange={e => setOwner(e.target.value)}>
-          {brotherNames.map(n => <option key={n}>{n}</option>)}
-        </select>
-      </div>
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <FieldLabel>Type</FieldLabel>
-          <select className={inputCls} value={type} onChange={e => setType(e.target.value)}>
-            {["Feed Post", "Reel", "Story + Feed", "Carousel", "Story"].map(t => <option key={t}>{t}</option>)}
-          </select>
-        </div>
-        <div>
-          <FieldLabel>Status</FieldLabel>
-          <select className={inputCls} value={status} onChange={e => setStatus(e.target.value as TaskStatus)}>
-            {(["Upcoming", "Due Soon", "Urgent"] as TaskStatus[]).map(s => <option key={s}>{s}</option>)}
-          </select>
-        </div>
-      </div>
-      <button type="submit" className="w-full rounded-lg bg-indigo-600 px-4 py-2.5 text-[13px] font-semibold text-white hover:bg-indigo-500 transition-colors">
-        {initial ? "Save Changes" : "Add IG Task"}
-      </button>
-    </form>
-  );
-}
-
-// ─── Log Attendance form ──────────────────────────────────────────────────────
-
-function LogAttendanceForm({ bList, onSubmit }: {
-  bList: Brother[];
-  onSubmit: (attended: Set<number>) => void;
-}) {
-  const [attended, setAttended] = useState<Set<number>>(new Set(bList.map(b => b.id)));
-
-  function toggle(id: number) {
-    setAttended(prev => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
-    });
-  }
-
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    onSubmit(attended);
-  }
-
-  return (
-    <form onSubmit={handleSubmit}>
-      <p className="mb-4 text-[12px] text-slate-400">Check brothers who attended. Attended +2%, absent −3%.</p>
-      <div className="mb-4 max-h-64 space-y-0.5 overflow-y-auto rounded-lg border border-white/[0.07] bg-[#0d1117] p-2">
-        {bList.map(b => (
-          <label key={b.id} className="flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2 hover:bg-white/[0.05] transition-colors">
-            <input type="checkbox" checked={attended.has(b.id)} onChange={() => toggle(b.id)} className="h-4 w-4 rounded border-white/20 bg-transparent text-indigo-500 focus:ring-indigo-500/30" />
-            <span className="flex-1 text-[13px] font-medium text-white">{b.name}</span>
-            <span className="text-[11px] tabular-nums text-slate-500">{b.attendance}%</span>
-          </label>
-        ))}
-      </div>
-      <div className="mb-4 flex gap-2 text-[11px] text-slate-500">
-        <span className="font-medium text-white">{attended.size}</span> attending ·
-        <span className="font-medium text-white">{bList.length - attended.size}</span> absent
-      </div>
-      <button type="submit" className="w-full rounded-lg bg-indigo-600 px-4 py-2.5 text-[13px] font-semibold text-white hover:bg-indigo-500 transition-colors">Log Attendance</button>
-    </form>
-  );
-}
-
-// ─── Chapter Health Score ─────────────────────────────────────────────────────
-
-function HealthScoreWidget({ score, label, breakdown, delta, onExpand }: {
-  score: number;
-  label: "Healthy" | "Needs Attention" | "Critical";
-  breakdown: Record<string, number>;
-  delta: number | null;
-  onExpand?: () => void;
-}) {
-  const ringColor = score >= 80 ? "text-emerald-400" : score >= 60 ? "text-amber-400" : "text-red-400";
-  const circleBg  = score >= 80 ? "bg-emerald-500/15" : score >= 60 ? "bg-amber-500/15" : "bg-red-500/15";
-  const accentBar = score >= 80 ? "bg-emerald-500" : score >= 60 ? "bg-amber-500" : "bg-red-500";
-  const sub       = score >= 80 ? "All systems operational" : score >= 60 ? "Some areas need attention" : "Immediate action required";
-
-  return (
-    <Card className="overflow-hidden">
-      <div className={`h-[3px] ${accentBar}`} />
-        <div className="flex flex-wrap items-center gap-5 px-5 py-4">
-        <div className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-full ${circleBg}`}>
-          <span className={`text-[22px] font-bold tabular-nums leading-none ${ringColor}`}>{score}</span>
-        </div>
-        <div className="min-w-[140px] flex-1">
-          <div className="flex items-center gap-2">
-            <span className={`text-[15px] font-bold ${ringColor}`}>{label}</span>
-            {delta !== null && (
-              <span className={`text-[11px] font-semibold ${delta >= 0 ? "text-emerald-400" : "text-red-400"}`}>
-                {delta >= 0 ? "↑" : "↓"}{Math.abs(delta)} pts
-              </span>
-            )}
-          </div>
-          <p className="text-[11px] text-slate-400">{sub}</p>
-          <p className="mt-0.5 text-[10px] text-slate-600">Chapter health score · 0–100</p>
-        </div>
-        <div className="flex min-w-0 flex-1 flex-wrap gap-x-6 gap-y-2">
-          {Object.entries(breakdown).map(([k, v]) => (
-            <div key={k} className="min-w-[90px] flex-1">
-              <div className="mb-1 flex items-center justify-between">
-                <span className="text-[10px] font-medium text-slate-500">{k}</span>
-                <span className="text-[10px] tabular-nums text-slate-400">{v}%</span>
-              </div>
-              <div className="h-1 overflow-hidden rounded-full bg-white/[0.07]">
-                <div
-                  className={`h-full rounded-full transition-all duration-500 ${v >= 80 ? "bg-emerald-400" : v >= 60 ? "bg-amber-400" : "bg-red-400"}`}
-                  style={{ width: `${v}%` }}
-                />
-              </div>
-            </div>
-          ))}
-        </div>
-        {onExpand && (
-          <button onClick={onExpand} className="shrink-0 flex items-center gap-1 rounded-lg border border-white/[0.1] bg-white/[0.04] px-2.5 py-1.5 text-[11px] font-medium text-slate-400 hover:border-indigo-500/40 hover:bg-indigo-500/10 hover:text-indigo-300 transition-colors self-center">
-            Details
-            <svg className="h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-            </svg>
-          </button>
-        )}
-      </div>
-    </Card>
-  );
-}
-
-// ─── KPI Card ─────────────────────────────────────────────────────────────────
-
-function KPICard({ label, value, trend, iconKey, sparkData, accent = "text-white", iconBg = "bg-indigo-500/10", iconColor = "text-indigo-400", strokeColor = "#6366f1", onClick }: {
-  label: string; value: string; trend: string; iconKey: string; sparkData: number[];
-  accent?: string; iconBg?: string; iconColor?: string; strokeColor?: string;
-  onClick?: () => void;
-}) {
-  const chartData = sparkData.map((v, i) => ({ i, v }));
-  const inner = (
-    <>
-      <div className="flex items-start gap-3">
-        <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${iconBg}`}>
-          <SvgIcon d={KPI_ICONS[iconKey] ?? ""} className={`h-4 w-4 ${iconColor}`} />
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.07em] text-slate-500">{label}</p>
-          <p className={`mt-0.5 text-[22px] font-bold leading-none tracking-tight ${accent}`}>{value}</p>
-          <p className="mt-1 truncate text-[11px] leading-snug text-slate-400">{trend}</p>
-        </div>
-      </div>
-      <div className="mt-2 -mx-1">
-        <ResponsiveContainer width="100%" height={28}>
-          <LineChart data={chartData} margin={{ top: 2, right: 2, bottom: 2, left: 2 }}>
-            <Line type="monotone" dataKey="v" stroke={strokeColor} strokeWidth={1.5} dot={false} />
-          </LineChart>
-        </ResponsiveContainer>
-      </div>
-      {onClick && (
-        <div className="mt-1.5 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
-          <span className="text-[10px] text-slate-600">View details</span>
-          <svg className="h-3 w-3 text-slate-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-          </svg>
-        </div>
-      )}
-    </>
-  );
-  if (onClick) {
-    return (
-      <button type="button" onClick={onClick} className="rounded-xl border border-white/[0.07] bg-[#161b27] flex flex-col p-4 w-full text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-white/[0.18] cursor-pointer group hover:bg-[#1c2235]">
-        {inner}
-      </button>
-    );
-  }
-  return (
-    <Card className="flex flex-col p-4 transition-all duration-200 hover:-translate-y-0.5 hover:border-white/[0.18] cursor-default">
-      {inner}
-    </Card>
-  );
-}
-
-// ─── Chart Widget ─────────────────────────────────────────────────────────────
-
-function ChartWidget({ title, stat, caption, children }: {
-  title: string; stat: string; caption: string; children: React.ReactNode;
-}) {
-  return (
-    <Card className="overflow-hidden">
-      <div className="flex items-start justify-between px-4 pt-4 pb-1">
-        <div>
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">{title}</p>
-          <p className="mt-0.5 text-[17px] font-bold tracking-tight text-white">{stat}</p>
-        </div>
-        <p className="mt-1 text-[10px] text-slate-500">{caption}</p>
-      </div>
-      <div className="px-1 pb-3">{children}</div>
-    </Card>
-  );
-}
-
-// ─── Activity Feed ────────────────────────────────────────────────────────────
-
-function ActivityFeed({ entries, onExpand }: { entries: ActivityEntry[]; onExpand?: () => void }) {
-  const dot: Record<ActivityEntry["type"], string> = {
-    success: "bg-emerald-400",
-    warning: "bg-amber-400",
-    info:    "bg-blue-400",
-  };
-
-  return (
-    <Card className="overflow-hidden cursor-pointer hover:border-white/[0.14] transition-colors" onClick={onExpand}>
-      <div className="h-[3px] bg-emerald-500/50" />
-      <div className="border-b border-white/[0.07] px-5 py-3.5">
-        <div className="flex items-center justify-between">
-          <h2 className="text-[13px] font-semibold text-white">Activity Feed</h2>
-          <div className="flex items-center gap-2">
-            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold text-emerald-400">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              Live
-            </span>
-            {onExpand && (
-              <button onClick={(e) => { e.stopPropagation(); onExpand(); }} className="flex items-center gap-1 rounded-md bg-white/[0.05] px-2 py-0.5 text-[10px] font-medium text-slate-400 hover:bg-indigo-500/15 hover:text-indigo-300 transition-colors">
-                All
-                <svg className="h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-                </svg>
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
-      {entries.length === 0 ? (
-        <div className="px-5 py-8 text-center">
-          <p className="text-[12px] text-slate-500">No recent activity</p>
-        </div>
-      ) : (
-        <div className="max-h-[220px] overflow-y-auto divide-y divide-white/[0.04]">
-          {entries.map(e => (
-            <div key={e.id} className="flex items-start gap-3 px-5 py-2.5 transition-colors hover:bg-white/[0.03]">
-              <span className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${dot[e.type]}`} />
-              <p className="flex-1 text-[12px] leading-snug text-slate-300">{e.message}</p>
-              <span className="shrink-0 text-[10px] text-slate-500">{e.timestamp}</span>
-            </div>
-          ))}
-        </div>
-      )}
-    </Card>
-  );
-}
-
-// ─── AttBar ───────────────────────────────────────────────────────────────────
-
-function AttBar({ pct }: { pct: number }) {
-  const bar  = pct >= THRESHOLDS.attendanceWatch ? "bg-emerald-400" : pct >= THRESHOLDS.attendanceAtRisk ? "bg-amber-400" : "bg-red-400";
-  const text = pct >= THRESHOLDS.attendanceWatch ? "text-white" : pct >= THRESHOLDS.attendanceAtRisk ? "text-amber-400" : "text-red-400";
-  return (
-    <div className="flex items-center gap-2">
-      <div className="h-1.5 w-14 overflow-hidden rounded-full bg-white/[0.08]">
-        <div className={`h-full rounded-full ${bar}`} style={{ width: `${pct}%` }} />
-      </div>
-      <span className={`tabular-nums text-[13px] font-medium ${text}`}>{pct}%</span>
-    </div>
-  );
-}
-
-// ─── SortTh ───────────────────────────────────────────────────────────────────
-
-function SortTh({ label, active, dir, onClick }: {
-  label: string; colKey: keyof Brother; active: boolean; dir: "asc" | "desc"; onClick: () => void;
-}) {
-  return (
-    <th onClick={onClick} className="group cursor-pointer select-none px-3 py-2.5 text-left">
-      <span className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-[0.06em] text-slate-500 transition-colors group-hover:text-slate-300">
-        {label}
-        <span className={`transition-opacity ${active ? "opacity-100 text-slate-400" : "opacity-0 group-hover:opacity-40"}`}>
-          {dir === "asc" ? "↑" : "↓"}
-        </span>
-      </span>
-    </th>
-  );
-}
-
-// ─── Chart tooltip style (shared) ─────────────────────────────────────────────
-
-const tooltipStyle = {
-  background: "#1a2035",
-  border: "1px solid rgba(255,255,255,0.07)",
-  borderRadius: 8,
-  fontSize: 11,
-  color: "#cbd5e1",
-};
+import { AddDeadlineForm, AddIGTaskForm, AddRevenueForm, LogAttendanceForm } from "./components/dashboard/forms";
+import { BrotherDrawer } from "./components/dashboard/drawers/BrotherDrawer";
+import { Card, Modal, StatusBadge, TaskBadge } from "./components/dashboard/primitives";
+import { BROTHER_STYLES, KPI_ICONS, SECTION_IDS, tooltipStyle } from "./components/dashboard/styles";
+import { ActivityFeed, AttBar, ChartWidget, HealthScoreWidget, KPICard, SortTh } from "./components/dashboard/widgets";
 
 // ─── Activity ID counter (module-level, reset-safe) ───────────────────────────
 
 let _nextId = Date.now();
+
+async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(url, init);
+  if (!response.ok) {
+    let detail = "";
+    try {
+      const body = await response.json();
+      detail = typeof body?.error === "string" ? `: ${body.error}` : "";
+    } catch {
+      // The status code is enough when the API does not return JSON.
+    }
+    throw new Error(`${url} returned ${response.status}${detail}`);
+  }
+  if (response.status === 204) return undefined as T;
+  return response.json() as Promise<T>;
+}
 
 // ─── KPI Drawer ───────────────────────────────────────────────────────────────
 
@@ -524,6 +59,7 @@ function KPIDetailDrawer({
   avgAttendance, outstandingDues, chapterGPA,
   totalServiceHrs, onTrackSvc,
   totalDoorRev, maxRevenue, bestEvent,
+  liveBalance, liveProjected, liveTrend,
   onOpenModal,
 }: {
   activeKey: KPIDrawerKey | null;
@@ -540,6 +76,9 @@ function KPIDetailDrawer({
   totalDoorRev: number;
   maxRevenue: number;
   bestEvent: PartyEvent | null;
+  liveBalance: number;
+  liveProjected: number;
+  liveTrend: { month: string; balance: number }[];
   onOpenModal: (key: "attendance") => void;
 }) {
   const isOpen = activeKey !== null;
@@ -1362,285 +901,6 @@ function WidgetDetailDrawer({
   );
 }
 
-// ─── Brother Detail / Edit Drawer ────────────────────────────────────────────
-
-function BrotherDrawer({
-  brotherId,
-  brotherList,
-  onClose,
-  onSave,
-  onPayDues,
-  onAddServiceHour,
-}: {
-  brotherId: number | null;
-  brotherList: Brother[];
-  onClose: () => void;
-  onSave: (id: number, updates: Omit<Brother, "id">) => void;
-  onPayDues: (b: Brother) => void;
-  onAddServiceHour: (b: Brother) => void;
-}) {
-  const isOpen = brotherId !== null;
-  const brother = brotherId !== null ? brotherList.find(b => b.id === brotherId) ?? null : null;
-
-  const [name,         setName]         = useState("");
-  const [role,         setRole]         = useState("");
-  const [gpa,          setGpa]          = useState("");
-  const [duesOwed,     setDuesOwed]     = useState("");
-  const [serviceHours, setServiceHours] = useState("");
-  const [attendance,   setAttendance]   = useState("");
-  const [dirty,        setDirty]        = useState(false);
-
-  // Sync form fields whenever a different brother is selected
-  useEffect(() => {
-    if (!brother) return;
-    setName(brother.name);
-    setRole(brother.role);
-    setGpa(String(brother.gpa));
-    setDuesOwed(String(brother.duesOwed));
-    setServiceHours(String(brother.serviceHours));
-    setAttendance(String(brother.attendance));
-    setDirty(false);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [brotherId]);
-
-  useEffect(() => {
-    if (!isOpen) return;
-    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
-    document.addEventListener("keydown", handler);
-    return () => document.removeEventListener("keydown", handler);
-  }, [isOpen, onClose]);
-
-  function handleSave() {
-    if (!brother) return;
-    onSave(brother.id, {
-      name:         name.trim()  || brother.name,
-      role:         role.trim()  || brother.role,
-      gpa:          Math.min(4.0, Math.max(0, parseFloat(gpa)          || brother.gpa)),
-      duesOwed:     Math.max(0,              parseInt(duesOwed)         || 0),
-      serviceHours: Math.max(0,              parseInt(serviceHours)     || 0),
-      attendance:   Math.min(100, Math.max(0, parseInt(attendance)      || brother.attendance)),
-    });
-    setDirty(false);
-  }
-
-  function handleQuickPayDues() {
-    if (!brother) return;
-    onPayDues(brother);
-    setDuesOwed("0");
-  }
-
-  function handleQuickAddService() {
-    if (!brother) return;
-    onAddServiceHour(brother);
-    setServiceHours(String(brother.serviceHours + 1));
-  }
-
-  const status  = brother ? getBrotherStatus(brother) : "Good";
-  const initials = brother
-    ? brother.name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()
-    : "";
-
-  const statusRing: Record<typeof status, string> = {
-    "Good":    "ring-emerald-500/40 bg-emerald-500/15 text-emerald-400",
-    "Watch":   "ring-amber-500/40  bg-amber-500/15   text-amber-400",
-    "At Risk": "ring-red-500/40    bg-red-500/15     text-red-400",
-  };
-
-  const attColor  = brother
-    ? brother.attendance < THRESHOLDS.attendanceAtRisk ? "text-red-400"
-      : brother.attendance < THRESHOLDS.attendanceWatch ? "text-amber-400"
-      : "text-white"
-    : "text-white";
-  const attBar    = brother
-    ? brother.attendance < THRESHOLDS.attendanceAtRisk ? "bg-red-400"
-      : brother.attendance < THRESHOLDS.attendanceWatch ? "bg-amber-400"
-      : "bg-blue-400"
-    : "bg-blue-400";
-  const gpaColor  = brother
-    ? brother.gpa < THRESHOLDS.gpaAtRisk ? "text-red-400"
-      : brother.gpa < THRESHOLDS.gpaWatch ? "text-amber-400"
-      : "text-white"
-    : "text-white";
-  const gpaBar    = brother
-    ? brother.gpa < THRESHOLDS.gpaAtRisk ? "bg-red-400"
-      : brother.gpa < THRESHOLDS.gpaWatch ? "bg-amber-400"
-      : "bg-violet-400"
-    : "bg-violet-400";
-
-  const statusFactors = brother
-    ? [
-        {
-          label: "Attendance", val: `${brother.attendance}%`,
-          ok:   brother.attendance >= THRESHOLDS.attendanceWatch,
-          warn: brother.attendance >= THRESHOLDS.attendanceAtRisk && brother.attendance < THRESHOLDS.attendanceWatch,
-          tip:  `Goal ≥ ${THRESHOLDS.attendanceWatch}%`,
-        },
-        {
-          label: "GPA", val: brother.gpa.toFixed(2),
-          ok:   brother.gpa >= THRESHOLDS.gpaWatch,
-          warn: brother.gpa >= THRESHOLDS.gpaAtRisk && brother.gpa < THRESHOLDS.gpaWatch,
-          tip:  `Goal ≥ ${THRESHOLDS.gpaWatch}`,
-        },
-        {
-          label: "Dues", val: brother.duesOwed === 0 ? "Paid" : fmt$(brother.duesOwed),
-          ok:   brother.duesOwed === 0,
-          warn: false,
-          tip:  "Must be $0",
-        },
-        {
-          label: "Service", val: `${brother.serviceHours}h`,
-          ok:   brother.serviceHours >= THRESHOLDS.serviceHoursGoal,
-          warn: false,
-          tip:  `Goal ${THRESHOLDS.serviceHoursGoal}h`,
-        },
-      ]
-    : [];
-
-  return (
-    <>
-      {/* Backdrop */}
-      <div
-        className={`fixed inset-0 z-40 bg-black/40 backdrop-blur-[1px] transition-opacity duration-200 ${isOpen ? "opacity-100" : "opacity-0 pointer-events-none"}`}
-        onClick={onClose}
-      />
-      {/* Panel */}
-      <div
-        className={`fixed inset-y-0 right-0 z-50 flex w-full flex-col bg-[#131720] border-l border-white/[0.07] shadow-2xl transition-transform duration-300 ease-in-out sm:w-[420px] ${isOpen ? "translate-x-0" : "translate-x-full pointer-events-none"}`}
-      >
-        {brother && (
-          <>
-            {/* Header */}
-            <div className="flex h-14 shrink-0 items-center gap-3 border-b border-white/[0.07] px-5">
-              <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ring-2 ${statusRing[status]}`}>
-                <span className="text-[12px] font-bold">{initials}</span>
-              </div>
-              <div className="min-w-0 flex-1">
-                <h2 className="truncate text-[15px] font-semibold text-white">{brother.name}</h2>
-                <p className="truncate text-[10px] text-slate-500">{brother.role}</p>
-              </div>
-              <StatusBadge status={status} />
-              <button onClick={onClose} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-500 hover:bg-white/[0.07] hover:text-white transition-colors">
-                <svg className="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-
-            {/* Scrollable body */}
-            <div className="flex-1 overflow-y-auto px-5 py-5 space-y-5">
-
-              {/* Live stat tiles */}
-              <div className="grid grid-cols-2 gap-2">
-                {/* Attendance */}
-                <div className={`rounded-lg px-3 py-2.5 border ${brother.attendance < THRESHOLDS.attendanceAtRisk ? "bg-red-500/10 border-red-500/20" : brother.attendance < THRESHOLDS.attendanceWatch ? "bg-amber-500/10 border-amber-500/20" : "bg-white/[0.04] border-white/[0.06]"}`}>
-                  <p className="text-[9px] font-semibold uppercase tracking-wider text-slate-500 mb-0.5">Attendance</p>
-                  <p className={`text-[20px] font-bold tabular-nums leading-none ${attColor}`}>{brother.attendance}%</p>
-                  <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-white/[0.08]">
-                    <div className={`h-full rounded-full ${attBar}`} style={{ width: `${brother.attendance}%` }} />
-                  </div>
-                </div>
-                {/* GPA */}
-                <div className={`rounded-lg px-3 py-2.5 border ${brother.gpa < THRESHOLDS.gpaAtRisk ? "bg-red-500/10 border-red-500/20" : brother.gpa < THRESHOLDS.gpaWatch ? "bg-amber-500/10 border-amber-500/20" : "bg-white/[0.04] border-white/[0.06]"}`}>
-                  <p className="text-[9px] font-semibold uppercase tracking-wider text-slate-500 mb-0.5">GPA</p>
-                  <p className={`text-[20px] font-bold tabular-nums leading-none ${gpaColor}`}>{brother.gpa.toFixed(2)}</p>
-                  <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-white/[0.08]">
-                    <div className={`h-full rounded-full ${gpaBar}`} style={{ width: `${Math.min(100, Math.max(5, ((brother.gpa - 2.0) / 2.0) * 100))}%` }} />
-                  </div>
-                </div>
-                {/* Dues */}
-                <div className={`rounded-lg px-3 py-2.5 border ${brother.duesOwed > 0 ? "bg-amber-500/10 border-amber-500/20" : "bg-white/[0.04] border-white/[0.06]"}`}>
-                  <p className="text-[9px] font-semibold uppercase tracking-wider text-slate-500 mb-0.5">Dues Owed</p>
-                  <p className={`text-[20px] font-bold tabular-nums leading-none ${brother.duesOwed > 0 ? "text-amber-400" : "text-emerald-400"}`}>
-                    {brother.duesOwed > 0 ? fmt$(brother.duesOwed) : "Clear"}
-                  </p>
-                  {brother.duesOwed > 0 && (
-                    <button onClick={handleQuickPayDues} className="mt-1.5 w-full rounded-md bg-emerald-500/15 py-0.5 text-[10px] font-semibold text-emerald-400 ring-1 ring-inset ring-emerald-500/25 hover:bg-emerald-500/25 transition-colors">
-                      Mark Paid
-                    </button>
-                  )}
-                </div>
-                {/* Service */}
-                <div className={`rounded-lg px-3 py-2.5 border ${brother.serviceHours < THRESHOLDS.serviceHoursGoal ? "bg-amber-500/10 border-amber-500/20" : "bg-white/[0.04] border-white/[0.06]"}`}>
-                  <p className="text-[9px] font-semibold uppercase tracking-wider text-slate-500 mb-0.5">Service Hours</p>
-                  <p className={`leading-none ${brother.serviceHours < THRESHOLDS.serviceHoursGoal ? "text-amber-400" : "text-emerald-400"}`}>
-                    <span className="text-[20px] font-bold tabular-nums">{brother.serviceHours}</span>
-                    <span className="text-[12px] font-medium text-slate-500"> / {THRESHOLDS.serviceHoursGoal}h</span>
-                  </p>
-                  <button onClick={handleQuickAddService} className="mt-1.5 w-full rounded-md bg-white/[0.05] py-0.5 text-[10px] font-semibold text-slate-400 ring-1 ring-inset ring-white/[0.1] hover:bg-indigo-500/15 hover:text-indigo-400 hover:ring-indigo-500/25 transition-colors">
-                    + 1h
-                  </button>
-                </div>
-              </div>
-
-              {/* Status factors */}
-              <div>
-                <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500">Status Factors</p>
-                <div className="space-y-2 rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-3">
-                  {statusFactors.map(({ label, val, ok, warn, tip }) => (
-                    <div key={label} className="flex items-center gap-3">
-                      <div className={`h-2 w-2 shrink-0 rounded-full ${ok ? "bg-emerald-400" : warn ? "bg-amber-400" : "bg-red-400"}`} />
-                      <span className="w-24 shrink-0 text-[12px] font-medium text-slate-400">{label}</span>
-                      <span className={`tabular-nums text-[12px] font-semibold ${ok ? "text-white" : warn ? "text-amber-400" : "text-red-400"}`}>{val}</span>
-                      {!ok && <span className="ml-auto shrink-0 text-[10px] text-slate-600">{tip}</span>}
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Edit form */}
-              <div>
-                <p className="mb-3 text-[10px] font-semibold uppercase tracking-wider text-slate-500">Edit Profile</p>
-                <div className="space-y-3">
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <FieldLabel>Name</FieldLabel>
-                      <input className={inputCls} value={name} onChange={e => { setName(e.target.value); setDirty(true); }} />
-                    </div>
-                    <div>
-                      <FieldLabel>Attendance (%)</FieldLabel>
-                      <input type="number" min="0" max="100" className={inputCls} value={attendance} onChange={e => { setAttendance(e.target.value); setDirty(true); }} />
-                    </div>
-                  </div>
-                  <div>
-                    <FieldLabel>Role / Committees</FieldLabel>
-                    <input className={inputCls} value={role} onChange={e => { setRole(e.target.value); setDirty(true); }} placeholder="President · Rush · …" />
-                  </div>
-                  <div className="grid grid-cols-3 gap-3">
-                    <div>
-                      <FieldLabel>GPA</FieldLabel>
-                      <input type="number" min="0" max="4" step="0.01" className={inputCls} value={gpa} onChange={e => { setGpa(e.target.value); setDirty(true); }} />
-                    </div>
-                    <div>
-                      <FieldLabel>Dues ($)</FieldLabel>
-                      <input type="number" min="0" className={inputCls} value={duesOwed} onChange={e => { setDuesOwed(e.target.value); setDirty(true); }} />
-                    </div>
-                    <div>
-                      <FieldLabel>Service (h)</FieldLabel>
-                      <input type="number" min="0" className={inputCls} value={serviceHours} onChange={e => { setServiceHours(e.target.value); setDirty(true); }} />
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-            </div>
-
-            {/* Footer */}
-            <div className="shrink-0 border-t border-white/[0.07] px-5 py-4">
-              <button
-                onClick={handleSave}
-                disabled={!dirty}
-                className={`w-full rounded-lg px-4 py-2.5 text-[13px] font-semibold transition-all ${dirty ? "bg-indigo-600 text-white hover:bg-indigo-500 cursor-pointer" : "bg-white/[0.04] text-slate-600 cursor-not-allowed"}`}
-              >
-                Save Changes
-              </button>
-            </div>
-          </>
-        )}
-      </div>
-    </>
-  );
-}
-
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function Home() {
@@ -1664,7 +924,7 @@ export default function Home() {
   const mainRef = useRef<HTMLElement>(null);
 
   // ── Data state ─────────────────────────────────────────────────────────────
-  const { brotherList, setBrotherList, deadlineList, setDeadlineList, igTaskList, setIgTaskList, partyList, setPartyList, activityFeed, setActivityFeed, treasuryData, setTreasuryData } = useChapter();
+  const { brotherList, setBrotherList, deadlineList, setDeadlineList, igTaskList, setIgTaskList, partyList, setPartyList, activityFeed, setActivityFeed, treasuryData, isLoading, loadError, mutationError, setMutationError, refreshChapterData } = useChapter();
 
   // ── Treasury — live from DB, fall back to hardcoded constants while loading ─
   const liveBalance   = treasuryData?.balance   ?? TREASURY_BALANCE;
@@ -1675,15 +935,39 @@ export default function Home() {
   const addActivity = useCallback((message: string, type: ActivityEntry["type"]) => {
     const optimisticId = _nextId++;
     setActivityFeed(prev => [{ id: optimisticId, message, timestamp: "just now", type }, ...prev]);
-    fetch("/api/activity", {
+    requestJson<ActivityEntry>("/api/activity", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ message, type }),
     })
-      .then(r => r.json())
-      .then(saved => setActivityFeed(prev => prev.map(e => e.id === optimisticId ? { ...saved, timestamp: "just now" } : e)))
-      .catch(console.error);
-  }, [setActivityFeed]);
+      .then(saved => {
+        setMutationError(null);
+        setActivityFeed(prev => prev.map(e => e.id === optimisticId ? { ...saved, timestamp: "just now" } : e));
+      })
+      .catch(error => {
+        console.error(error);
+        setActivityFeed(prev => prev.filter(e => e.id !== optimisticId));
+        setMutationError("Activity could not be saved to the database.");
+      });
+  }, [setActivityFeed, setMutationError]);
+
+  function persistMutation<T>(
+    operation: Promise<T>,
+    errorMessage: string,
+    rollback?: () => void,
+    onSuccess?: (value: T) => void,
+  ) {
+    operation
+      .then(value => {
+        setMutationError(null);
+        onSuccess?.(value);
+      })
+      .catch(error => {
+        console.error(error);
+        rollback?.();
+        setMutationError(errorMessage);
+      });
+  }
 
   // ── Health score ───────────────────────────────────────────────────────────
   const prevScoreRef = useRef<number | null>(null);
@@ -1753,33 +1037,28 @@ export default function Home() {
     if (!prev) return;
     setBrotherList(list => list.map(b => b.id === id ? { ...b, ...updates } : b));
     addActivity(`${updates.name || prev.name} profile updated`, "info");
-    fetch(`/api/brothers/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(updates),
-    }).catch(console.error);
+    persistMutation(
+      requestJson<Brother>(`/api/brothers/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(updates),
+      }),
+      "Brother profile update failed. Local changes were reverted.",
+      () => setBrotherList(list => list.map(b => b.id === id ? prev : b)),
+    );
   }
 
   // ── Refresh all data from DB ───────────────────────────────────────────────
-  function resetDemoData() {
-    Promise.all([
-      fetch("/api/brothers").then(r => r.json()),
-      fetch("/api/deadlines").then(r => r.json()),
-      fetch("/api/instagram").then(r => r.json()),
-      fetch("/api/parties").then(r => r.json()),
-      fetch("/api/activity").then(r => r.json()),
-      fetch("/api/treasury").then(r => r.json()),
-    ])
-      .then(([b, d, ig, p, act, treas]) => {
-        setBrotherList(b);
-        setDeadlineList(d);
-        setIgTaskList(ig);
-        setPartyList(p);
-        setActivityFeed(act);
-        setTreasuryData(treas);
+  function refreshDataFromDatabase() {
+    refreshChapterData()
+      .then(() => {
+        setMutationError(null);
         addActivity("Data refreshed from database", "info");
       })
-      .catch(console.error);
+      .catch(error => {
+        console.error(error);
+        setMutationError("Could not refresh data from the database.");
+      });
   }
 
   // ── KPIs ──────────────────────────────────────────────────────────────────
@@ -1876,11 +1155,15 @@ export default function Home() {
     if (!isNaN(val) && val !== b.attendance) {
       setBrotherList(prev => prev.map(x => x.id === b.id ? { ...x, attendance: val } : x));
       addActivity(`${b.name} attendance updated to ${val}%`, "info");
-      fetch(`/api/brothers/${b.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ attendance: val }),
-      }).catch(console.error);
+      persistMutation(
+        requestJson<Brother>(`/api/brothers/${b.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ attendance: val }),
+        }),
+        "Attendance update failed. Local changes were reverted.",
+        () => setBrotherList(prev => prev.map(x => x.id === b.id ? b : x)),
+      );
     }
     setEditingAttId(null);
   }
@@ -1891,14 +1174,16 @@ export default function Home() {
     setDeadlineList(prev => [...prev, { id: tempId, ...d }]);
     addActivity(`New deadline added: "${d.title}"`, "info");
     setActiveModal(null);
-    fetch("/api/deadlines", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(d),
-    })
-      .then(r => r.json())
-      .then(saved => setDeadlineList(prev => prev.map(x => x.id === tempId ? saved : x)))
-      .catch(console.error);
+    persistMutation(
+      requestJson<Deadline>("/api/deadlines", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(d),
+      }),
+      "Deadline could not be saved. Local changes were reverted.",
+      () => setDeadlineList(prev => prev.filter(x => x.id !== tempId)),
+      saved => setDeadlineList(prev => prev.map(x => x.id === tempId ? saved : x)),
+    );
   }
 
   function handleAddRevenue(e: { name: string; date: string; doorRevenue: number; attendance: number; notes: string }) {
@@ -1906,14 +1191,16 @@ export default function Home() {
     setPartyList(prev => [...prev, { id: tempId, ...e }]);
     addActivity(`Revenue logged: ${e.name} — ${fmt$(e.doorRevenue)}`, "success");
     setActiveModal(null);
-    fetch("/api/parties", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(e),
-    })
-      .then(r => r.json())
-      .then(saved => setPartyList(prev => prev.map(x => x.id === tempId ? saved : x)))
-      .catch(console.error);
+    persistMutation(
+      requestJson<PartyEvent>("/api/parties", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(e),
+      }),
+      "Revenue entry could not be saved. Local changes were reverted.",
+      () => setPartyList(prev => prev.filter(x => x.id !== tempId)),
+      saved => setPartyList(prev => prev.map(x => x.id === tempId ? saved : x)),
+    );
   }
 
   function handleAddIGTask(t: { title: string; dueDate: string; owner: string; type: string; status: TaskStatus }) {
@@ -1921,14 +1208,16 @@ export default function Home() {
     setIgTaskList(prev => [...prev, { id: tempId, ...t }]);
     addActivity(`IG task added: "${t.title}"`, "info");
     setActiveModal(null);
-    fetch("/api/instagram", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(t),
-    })
-      .then(r => r.json())
-      .then(saved => setIgTaskList(prev => prev.map(x => x.id === tempId ? saved : x)))
-      .catch(console.error);
+    persistMutation(
+      requestJson<InstagramTask>("/api/instagram", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(t),
+      }),
+      "Instagram task could not be saved. Local changes were reverted.",
+      () => setIgTaskList(prev => prev.filter(x => x.id !== tempId)),
+      saved => setIgTaskList(prev => prev.map(x => x.id === tempId ? saved : x)),
+    );
   }
 
   // ── Deadline CRUD ─────────────────────────────────────────────────────────
@@ -1937,11 +1226,15 @@ export default function Home() {
     if (!d || d.status === "Complete") return;
     setDeadlineList(prev => prev.map(x => x.id === id ? { ...x, status: "Complete" } : x));
     addActivity(`"${d.title}" marked complete`, "success");
-    fetch(`/api/deadlines/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status: "Complete" }),
-    }).catch(console.error);
+    persistMutation(
+      requestJson<Deadline>(`/api/deadlines/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "Complete" }),
+      }),
+      "Deadline update failed. Local changes were reverted.",
+      () => setDeadlineList(prev => prev.map(x => x.id === id ? d : x)),
+    );
   }
 
   function deleteDeadline(id: number) {
@@ -1949,7 +1242,11 @@ export default function Home() {
     if (!d) return;
     setDeadlineList(prev => prev.filter(x => x.id !== id));
     addActivity(`Deadline removed: "${d.title}"`, "info");
-    fetch(`/api/deadlines/${id}`, { method: "DELETE" }).catch(console.error);
+    persistMutation(
+      requestJson<void>(`/api/deadlines/${id}`, { method: "DELETE" }),
+      "Deadline delete failed. Local changes were reverted.",
+      () => setDeadlineList(prev => [...prev, d].sort((a, b) => a.id - b.id)),
+    );
   }
 
   function openEditDeadline(id: number) {
@@ -1959,13 +1256,18 @@ export default function Home() {
 
   function saveEditDeadline(data: { title: string; dueDate: string; owner: string; status: TaskStatus }) {
     if (!editingDeadlineId) return;
+    const previous = deadlineList.find(x => x.id === editingDeadlineId);
     setDeadlineList(prev => prev.map(x => x.id === editingDeadlineId ? { ...x, ...data } : x));
     addActivity(`Deadline updated: "${data.title}"`, "info");
-    fetch(`/api/deadlines/${editingDeadlineId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-    }).catch(console.error);
+    persistMutation(
+      requestJson<Deadline>(`/api/deadlines/${editingDeadlineId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      }),
+      "Deadline update failed. Local changes were reverted.",
+      previous ? () => setDeadlineList(prev => prev.map(x => x.id === previous.id ? previous : x)) : undefined,
+    );
     setEditingDeadlineId(null);
     setActiveModal(null);
   }
@@ -1976,11 +1278,15 @@ export default function Home() {
     if (!t || t.status === "Complete") return;
     setIgTaskList(prev => prev.map(x => x.id === id ? { ...x, status: "Complete" } : x));
     addActivity(`IG task "${t.title}" marked complete`, "success");
-    fetch(`/api/instagram/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status: "Complete" }),
-    }).catch(console.error);
+    persistMutation(
+      requestJson<InstagramTask>(`/api/instagram/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "Complete" }),
+      }),
+      "Instagram task update failed. Local changes were reverted.",
+      () => setIgTaskList(prev => prev.map(x => x.id === id ? t : x)),
+    );
   }
 
   function deleteIG(id: number) {
@@ -1988,7 +1294,11 @@ export default function Home() {
     if (!t) return;
     setIgTaskList(prev => prev.filter(x => x.id !== id));
     addActivity(`IG task removed: "${t.title}"`, "info");
-    fetch(`/api/instagram/${id}`, { method: "DELETE" }).catch(console.error);
+    persistMutation(
+      requestJson<void>(`/api/instagram/${id}`, { method: "DELETE" }),
+      "Instagram task delete failed. Local changes were reverted.",
+      () => setIgTaskList(prev => [...prev, t].sort((a, b) => a.id - b.id)),
+    );
   }
 
   function openEditIG(id: number) {
@@ -1998,13 +1308,18 @@ export default function Home() {
 
   function saveEditIG(data: { title: string; dueDate: string; owner: string; type: string; status: TaskStatus }) {
     if (!editingIgId) return;
+    const previous = igTaskList.find(x => x.id === editingIgId);
     setIgTaskList(prev => prev.map(x => x.id === editingIgId ? { ...x, ...data } : x));
     addActivity(`IG task updated: "${data.title}"`, "info");
-    fetch(`/api/instagram/${editingIgId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-    }).catch(console.error);
+    persistMutation(
+      requestJson<InstagramTask>(`/api/instagram/${editingIgId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      }),
+      "Instagram task update failed. Local changes were reverted.",
+      previous ? () => setIgTaskList(prev => prev.map(x => x.id === previous.id ? previous : x)) : undefined,
+    );
     setEditingIgId(null);
     setActiveModal(null);
   }
@@ -2018,13 +1333,17 @@ export default function Home() {
     setBrotherList(newList);
     addActivity(`Attendance logged — ${attended.size} of ${brotherList.length} present`, "info");
     setActiveModal(null);
-    Promise.all(newList.map(b =>
-      fetch(`/api/brothers/${b.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ attendance: b.attendance }),
-      })
-    )).catch(console.error);
+    persistMutation(
+      Promise.all(newList.map(b =>
+        requestJson<Brother>(`/api/brothers/${b.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ attendance: b.attendance }),
+        })
+      )),
+      "Attendance log failed. Local changes were reverted.",
+      () => setBrotherList(brotherList),
+    );
   }
 
   function closeModal() { setActiveModal(null); }
@@ -2032,22 +1351,30 @@ export default function Home() {
   function payDues(b: Brother) {
     setBrotherList(prev => prev.map(x => x.id === b.id ? { ...x, duesOwed: 0 } : x));
     addActivity(`${b.name} marked dues paid`, "success");
-    fetch(`/api/brothers/${b.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ duesOwed: 0 }),
-    }).catch(console.error);
+    persistMutation(
+      requestJson<Brother>(`/api/brothers/${b.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ duesOwed: 0 }),
+      }),
+      "Dues update failed. Local changes were reverted.",
+      () => setBrotherList(prev => prev.map(x => x.id === b.id ? b : x)),
+    );
   }
 
   function addServiceHour(b: Brother) {
     const newHrs = b.serviceHours + 1;
     setBrotherList(prev => prev.map(x => x.id === b.id ? { ...x, serviceHours: newHrs } : x));
     addActivity(`${b.name} — service hours updated to ${newHrs}h`, "info");
-    fetch(`/api/brothers/${b.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ serviceHours: newHrs }),
-    }).catch(console.error);
+    persistMutation(
+      requestJson<Brother>(`/api/brothers/${b.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ serviceHours: newHrs }),
+      }),
+      "Service hour update failed. Local changes were reverted.",
+      () => setBrotherList(prev => prev.map(x => x.id === b.id ? b : x)),
+    );
   }
 
   // ── Render ─────────────────────────────────────────────────────────────────
@@ -2063,7 +1390,7 @@ export default function Home() {
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
 
         {/* ── Toolbar ─────────────────────────────────────────────────────── */}
-        <header className="flex h-14 shrink-0 items-center gap-2 border-b border-white/[0.06] bg-[#0d1117] px-3 sm:gap-3 sm:px-5">
+        <header className="toolbar-frosted relative z-10 flex h-14 shrink-0 items-center gap-2 border-b border-white/[0.05] px-3 sm:gap-3 sm:px-5">
           <button onClick={() => setSidebarOpen(true)} className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-white/[0.07] lg:hidden">
             <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
@@ -2084,7 +1411,7 @@ export default function Home() {
               ["attendance", "Log Att."  ],
             ] as const).map(([key, label]) => (
               <button key={key} onClick={() => setActiveModal(key)}
-                className="rounded-lg border border-white/[0.1] bg-white/[0.04] px-2.5 py-1.5 text-[11px] font-medium text-slate-300 transition-all hover:border-indigo-500/40 hover:bg-indigo-500/10 hover:text-indigo-300">
+                className="rounded-lg border border-white/[0.08] bg-white/[0.03] px-2.5 py-1.5 text-[11px] font-medium text-slate-300 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition-all duration-150 hover:border-indigo-500/40 hover:bg-indigo-500/10 hover:text-indigo-200">
                 {label}
               </button>
             ))}
@@ -2104,10 +1431,10 @@ export default function Home() {
               <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
             </svg>
             <input type="text" placeholder="Search brothers…" value={search} onChange={e => setSearch(e.target.value)}
-              className="w-36 rounded-lg border border-white/[0.1] bg-white/[0.04] py-1.5 pl-8 pr-3 text-[13px] text-white placeholder:text-slate-500 focus:border-indigo-500/60 focus:bg-white/[0.07] focus:outline-none focus:ring-2 focus:ring-indigo-500/15 sm:w-44" />
+              className="w-36 rounded-lg border border-white/[0.08] bg-white/[0.03] py-1.5 pl-8 pr-3 text-[13px] text-white placeholder:text-slate-500 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] transition-colors focus:border-indigo-500/60 focus:bg-white/[0.06] focus:outline-none focus:ring-2 focus:ring-indigo-500/15 sm:w-44" />
           </div>
 
-          <button onClick={() => window.print()} className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-white/[0.1] bg-white/[0.04] px-3 py-1.5 text-[12px] font-medium text-slate-300 transition-all hover:border-white/[0.2] hover:bg-white/[0.08] focus:outline-none">
+          <button onClick={() => window.print()} className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-1.5 text-[12px] font-medium text-slate-300 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition-all duration-150 hover:border-white/[0.16] hover:bg-white/[0.06] focus:outline-none">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3 text-slate-400">
               <path fillRule="evenodd" d="M11.5 4.5a3.5 3.5 0 1 1-7 0 3.5 3.5 0 0 1 7 0ZM4.25 8.5a3.25 3.25 0 0 0-3.25 3.25v.5A1.75 1.75 0 0 0 2.75 14h10.5A1.75 1.75 0 0 0 15 12.25v-.5A3.25 3.25 0 0 0 11.75 8.5h-7.5Z" clipRule="evenodd" />
             </svg>
@@ -2116,8 +1443,28 @@ export default function Home() {
         </header>
 
         {/* ── Scrollable body ──────────────────────────────────────────────── */}
-        <main ref={mainRef} className="flex-1 overflow-y-auto">
-          <div className="mx-auto max-w-[1400px] space-y-4 px-4 py-5 sm:px-5">
+        <main ref={mainRef} className="page-ambient flex-1 overflow-y-auto">
+          <div className="mx-auto max-w-[1400px] space-y-5 px-4 py-6 sm:px-6">
+            {(isLoading || loadError || mutationError) && (
+              <div className={`flex flex-wrap items-center justify-between gap-3 rounded-xl border px-4 py-3 text-[12px] ${
+                loadError || mutationError
+                  ? "border-red-500/25 bg-red-500/10 text-red-200"
+                  : "border-indigo-500/20 bg-indigo-500/10 text-indigo-200"
+              }`}>
+                <span>
+                  {loadError ?? mutationError ?? "Syncing chapter data from the database..."}
+                </span>
+                {loadError ? (
+                  <button onClick={() => void refreshChapterData()} className="rounded-lg border border-red-300/20 px-2.5 py-1 font-semibold text-red-100 hover:bg-red-500/15">
+                    Retry
+                  </button>
+                ) : mutationError ? (
+                  <button onClick={() => setMutationError(null)} className="rounded-lg border border-red-300/20 px-2.5 py-1 font-semibold text-red-100 hover:bg-red-500/15">
+                    Dismiss
+                  </button>
+                ) : null}
+              </div>
+            )}
 
             {/* ── Health Score ────────────────────────────────────────────── */}
             <section id="sec-dashboard" aria-label="Dashboard overview">
@@ -2129,39 +1476,39 @@ export default function Home() {
               <KPICard label="Avg Attendance" value={`${avgAttendance.toFixed(1)}%`}
                 trend={`${brotherList.filter(b => b.attendance < THRESHOLDS.attendanceWatch).length} below threshold`}
                 iconKey="attendance" sparkData={KPI_SPARKLINES.attendance}
-                iconBg="bg-blue-500/10" iconColor="text-blue-400" strokeColor="#60a5fa"
+                iconBg="bg-blue-500/10" iconColor="text-blue-400" strokeColor="#60a5fa" glowColor="#60a5fa"
                 onClick={() => setActiveDrawer("attendance")} />
               <KPICard label="Outstanding Dues" value={fmt$(outstandingDues)}
                 trend={`${brotherList.filter(b => b.duesOwed > 0).length} brothers owe`}
                 iconKey="dues" sparkData={KPI_SPARKLINES.dues}
                 accent={outstandingDues > 0 ? "text-amber-400" : "text-white"}
-                iconBg="bg-amber-500/10" iconColor="text-amber-400" strokeColor="#fbbf24"
+                iconBg="bg-amber-500/10" iconColor="text-amber-400" strokeColor="#fbbf24" glowColor="#fbbf24"
                 onClick={() => setActiveDrawer("dues")} />
               <KPICard label="Chapter GPA" value={chapterGPA.toFixed(2)}
                 trend={`${brotherList.filter(b => b.gpa < THRESHOLDS.gpaWatch).length} below 3.0`}
                 iconKey="gpa" sparkData={KPI_SPARKLINES.gpa}
-                iconBg="bg-violet-500/10" iconColor="text-violet-400" strokeColor="#a78bfa"
+                iconBg="bg-violet-500/10" iconColor="text-violet-400" strokeColor="#a78bfa" glowColor="#a78bfa"
                 onClick={() => setActiveDrawer("gpa")} />
               <KPICard label="Service Hours" value={`${totalServiceHrs}h`}
                 trend={`${onTrackSvc} of ${brotherList.length} on track`}
                 iconKey="service" sparkData={KPI_SPARKLINES.service}
-                iconBg="bg-emerald-500/10" iconColor="text-emerald-400" strokeColor="#34d399"
+                iconBg="bg-emerald-500/10" iconColor="text-emerald-400" strokeColor="#34d399" glowColor="#34d399"
                 onClick={() => setActiveDrawer("service")} />
               <KPICard label="Treasury" value={fmt$(liveBalance)}
                 trend={`projected ${fmt$(liveProjected)}`}
                 iconKey="treasury" sparkData={KPI_SPARKLINES.treasury}
-                iconBg="bg-indigo-500/10" iconColor="text-indigo-400" strokeColor="#818cf8"
+                iconBg="bg-indigo-500/10" iconColor="text-indigo-400" strokeColor="#818cf8" glowColor="#818cf8"
                 onClick={() => setActiveDrawer("treasury")} />
               <KPICard label="Door Revenue" value={fmt$(totalDoorRev)}
                 trend={bestEvent ? `best ${fmt$(bestEvent.doorRevenue)}` : "—"}
                 iconKey="door" sparkData={KPI_SPARKLINES.door}
-                iconBg="bg-pink-500/10" iconColor="text-pink-400" strokeColor="#f472b6"
+                iconBg="bg-pink-500/10" iconColor="text-pink-400" strokeColor="#f472b6" glowColor="#f472b6"
                 onClick={() => setActiveDrawer("door")} />
             </div>
 
             {/* ── Charts ─────────────────────────────────────────────────── */}
             <div id="sec-treasury" className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              <ChartWidget title="Treasury Trend" stat={fmt$(liveBalance)} caption="Jan – May 2026">
+              <ChartWidget title="Treasury Trend" stat={fmt$(liveBalance)} caption="Jan – May 2026" accentColor="#818cf8">
                 <ResponsiveContainer width="100%" height={96}>
                   <AreaChart data={liveTrend} margin={{ top: 4, right: 4, bottom: 0, left: -22 }}>
                     <defs>
@@ -2174,12 +1521,12 @@ export default function Home() {
                     <XAxis dataKey="month" tick={{ fontSize: 10, fill: "#475569" }} axisLine={false} tickLine={false} />
                     <YAxis tick={{ fontSize: 10, fill: "#475569" }} axisLine={false} tickLine={false} tickFormatter={(v: number) => `$${v / 1000}k`} />
                     <Tooltip formatter={(v) => [fmt$(Number(v ?? 0)), "Balance"]} contentStyle={tooltipStyle} cursor={{ stroke: "#818cf8", strokeWidth: 1, strokeDasharray: "4 4" }} />
-                    <Area type="monotone" dataKey="balance" stroke="#818cf8" strokeWidth={2} fill="url(#tGrad)" dot={false} activeDot={{ r: 4, fill: "#818cf8", stroke: "#161b27", strokeWidth: 2 }} />
+                    <Area type="monotone" dataKey="balance" stroke="#818cf8" strokeWidth={2} fill="url(#tGrad)" dot={false} activeDot={{ r: 4, fill: "#818cf8", stroke: "#141925", strokeWidth: 2 }} />
                   </AreaChart>
                 </ResponsiveContainer>
               </ChartWidget>
 
-              <ChartWidget title="Door Revenue" stat={fmt$(totalDoorRev)} caption={`${partyList.length} events`}>
+              <ChartWidget title="Door Revenue" stat={fmt$(totalDoorRev)} caption={`${partyList.length} events`} accentColor="#f472b6">
                 <ResponsiveContainer width="100%" height={96}>
                   <BarChart data={partyChartData} margin={{ top: 4, right: 4, bottom: 0, left: -22 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
@@ -2191,7 +1538,7 @@ export default function Home() {
                 </ResponsiveContainer>
               </ChartWidget>
 
-              <ChartWidget title="Status Mix" stat={`${statusCounts.Good} / ${brotherList.length} Good`} caption={`${brotherList.length} brothers`}>
+              <ChartWidget title="Status Mix" stat={`${statusCounts.Good} / ${brotherList.length} Good`} caption={`${brotherList.length} brothers`} accentColor="#34d399">
                 <ResponsiveContainer width="100%" height={96}>
                   <BarChart data={statusChartData} margin={{ top: 4, right: 8, bottom: 0, left: -22 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
@@ -2205,7 +1552,7 @@ export default function Home() {
                 </ResponsiveContainer>
               </ChartWidget>
 
-              <ChartWidget title="Service Hours" stat={`${onTrackSvc} / ${brotherList.length} on track`} caption={`Goal: ${THRESHOLDS.serviceHoursGoal}h`}>
+              <ChartWidget title="Service Hours" stat={`${onTrackSvc} / ${brotherList.length} on track`} caption={`Goal: ${THRESHOLDS.serviceHoursGoal}h`} accentColor="#34d399">
                 <ResponsiveContainer width="100%" height={96}>
                   <BarChart data={svcChartData} margin={{ top: 4, right: 4, bottom: 0, left: -22 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
@@ -2222,7 +1569,7 @@ export default function Home() {
             <div id="sec-brothers" className="grid grid-cols-1 gap-4 xl:grid-cols-3">
 
               {/* Brother Tracking Table */}
-              <Card className="overflow-hidden xl:col-span-2">
+              <Card style={{ background: "linear-gradient(to bottom, #ffffff08 0%, #141925 45%)" }} className="overflow-hidden xl:col-span-2">
                 <div className="border-b border-white/[0.07] px-5 py-3.5">
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                     <div>
@@ -2252,7 +1599,7 @@ export default function Home() {
                         <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-[0.07em] text-slate-500">Status</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-white/[0.05]">
+                    <tbody className="divide-y divide-white/[0.04]">
                       {filteredBrothers.length === 0 ? (
                         <tr><td colSpan={7} className="py-10 text-center text-sm text-slate-500">No brothers match your filters.</td></tr>
                       ) : filteredBrothers.map(b => {
@@ -2276,7 +1623,7 @@ export default function Home() {
                                     onChange={e => setEditAttVal(e.target.value)}
                                     onKeyDown={e => { if (e.key === "Enter") saveAttEdit(b); if (e.key === "Escape") setEditingAttId(null); }}
                                     autoFocus
-                                    className="w-14 rounded-md border border-indigo-500/50 bg-[#0d1117] px-2 py-1 text-[12px] text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                                    className="w-14 rounded-md border border-indigo-500/50 bg-[#0a0d14] px-2 py-1 text-[12px] text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
                                   />
                                   <button onClick={() => saveAttEdit(b)} className="rounded bg-indigo-600 px-1.5 py-0.5 text-[10px] font-semibold text-white hover:bg-indigo-500">✓</button>
                                   <button onClick={() => setEditingAttId(null)} className="text-[11px] text-slate-500 hover:text-slate-300">✕</button>
@@ -2338,7 +1685,7 @@ export default function Home() {
               {/* Right panel */}
               <div className="space-y-4 self-start sticky top-5 max-h-[calc(100vh-6rem)] overflow-y-auto">
                 {/* Needs Attention */}
-                <Card className="overflow-hidden cursor-pointer hover:border-white/[0.14] transition-colors" onClick={() => setWidgetDrawer("attention")}>
+                <Card style={{ background: "linear-gradient(to bottom, #ef444410 0%, #141925 50%)" }} className="overflow-hidden cursor-pointer hover:border-white/[0.14] transition-colors" onClick={() => setWidgetDrawer("attention")}>
                   <div className="h-[3px] bg-red-500/70" />
                   <div className="px-4 py-3">
                     <div className="mb-3 flex items-center justify-between">
@@ -2371,7 +1718,7 @@ export default function Home() {
                 </Card>
 
                 {/* Deadlines */}
-                <Card id="sec-deadlines" className="overflow-hidden cursor-pointer hover:border-white/[0.14] transition-colors" onClick={() => setWidgetDrawer("deadlines")}>
+                <Card id="sec-deadlines" style={{ background: "linear-gradient(to bottom, #818cf810 0%, #141925 50%)" }} className="overflow-hidden cursor-pointer hover:border-white/[0.14] transition-colors" onClick={() => setWidgetDrawer("deadlines")}>
                   <div className="flex items-center justify-between border-b border-white/[0.07] px-4 py-3">
                     <h2 className="text-[13px] font-semibold text-white">Deadlines</h2>
                     <div className="flex items-center gap-2">
@@ -2412,7 +1759,7 @@ export default function Home() {
                 </Card>
 
                 {/* Instagram */}
-                <Card id="sec-instagram" className="overflow-hidden cursor-pointer hover:border-white/[0.14] transition-colors" onClick={() => setWidgetDrawer("instagram")}>
+                <Card id="sec-instagram" style={{ background: "linear-gradient(to bottom, #f472b610 0%, #141925 50%)" }} className="overflow-hidden cursor-pointer hover:border-white/[0.14] transition-colors" onClick={() => setWidgetDrawer("instagram")}>
                   <div className="flex items-center justify-between border-b border-white/[0.07] px-4 py-3">
                     <h2 className="text-[13px] font-semibold text-white">Instagram</h2>
                     <div className="flex items-center gap-2">
@@ -2458,7 +1805,7 @@ export default function Home() {
             <div id="sec-parties" className="grid grid-cols-1 gap-4 lg:grid-cols-2">
               <ActivityFeed entries={activityFeed} onExpand={() => setWidgetDrawer("activity")} />
 
-              <Card className="overflow-hidden cursor-pointer hover:border-white/[0.14] transition-colors" onClick={() => setWidgetDrawer("parties")}>
+              <Card style={{ background: "linear-gradient(to bottom, #818cf810 0%, #141925 50%)" }} className="overflow-hidden cursor-pointer hover:border-white/[0.14] transition-colors" onClick={() => setWidgetDrawer("parties")}>
                 <div className="flex items-center justify-between border-b border-white/[0.07] px-5 py-3.5">
                   <div>
                     <h2 className="text-[13px] font-semibold text-white">Party Events</h2>
@@ -2505,25 +1852,25 @@ export default function Home() {
               <Card className="overflow-hidden">
                 <div className="border-b border-white/[0.07] px-5 py-4">
                   <h2 className="text-[14px] font-semibold text-white">Settings</h2>
-                  <p className="mt-0.5 text-[11px] text-slate-500">Frontend demo controls · data is in-memory only</p>
+                  <p className="mt-0.5 text-[11px] text-slate-500">Database-backed controls · optimistic UI updates</p>
                 </div>
                 <div className="divide-y divide-white/[0.06]">
-                  {/* Demo Controls */}
+                  {/* Data Controls */}
                   <div className="px-5 py-4">
-                    <p className="mb-3 text-[12px] font-semibold text-slate-300">Demo Controls</p>
+                    <p className="mb-3 text-[12px] font-semibold text-slate-300">Data Controls</p>
                     <p className="mb-3 text-[11px] text-slate-500">
-                      All data lives in React state and resets on page refresh. Use the button below to restore
-                      the original mock data without refreshing.
+                      Dashboard changes are saved through the Prisma API. Use the button below to refresh the
+                      local view from the database.
                     </p>
                     <div className="flex flex-wrap gap-2">
                       <button
-                        onClick={resetDemoData}
+                        onClick={refreshDataFromDatabase}
                         className="inline-flex items-center gap-1.5 rounded-lg border border-white/[0.1] bg-white/[0.04] px-3 py-2 text-[12px] font-medium text-slate-300 transition-all hover:border-red-500/40 hover:bg-red-500/10 hover:text-red-400 focus:outline-none"
                       >
                         <svg className="h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                           <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                         </svg>
-                        Reset demo data
+                        Refresh from database
                       </button>
                       <button
                         onClick={() => window.print()}
@@ -2577,7 +1924,7 @@ export default function Home() {
 
             {/* ── Footer ─────────────────────────────────────────────────── */}
             <div className="border-t border-white/[0.06] pt-4 text-center">
-              <p className="text-[10px] text-slate-700">Lambda Phi Epsilon · Fall 2026 · Prototype — all values are placeholder data</p>
+              <p className="text-[10px] text-slate-700">Lambda Phi Epsilon · Fall 2026 · Prototype backed by seeded chapter data</p>
             </div>
 
           </div>
@@ -2673,6 +2020,9 @@ export default function Home() {
         totalDoorRev={totalDoorRev}
         maxRevenue={maxRevenue}
         bestEvent={bestEvent}
+        liveBalance={liveBalance}
+        liveProjected={liveProjected}
+        liveTrend={liveTrend}
         onOpenModal={setActiveModal}
       />
     </div>
