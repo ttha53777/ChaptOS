@@ -5,7 +5,7 @@ config({ path: ".env.local" });
 
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../app/generated/prisma/client";
-import { brothers, deadlines, instagramTasks, partyEvents, calendarEvents, seedActivity } from "../app/data";
+import { brothers, deadlines, instagramTasks, partyEvents, calendarEvents, seedActivity, seedTransactions } from "../app/data";
 
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! });
 const prisma = new PrismaClient({ adapter });
@@ -37,6 +37,9 @@ async function main() {
   const activityData = seedActivity.map(({ id: _id, timestamp: _ts, ...rest }) => rest);
   await prisma.activityLog.createMany({ data: activityData });
   console.log(`Seeded ${activityData.length} activity entries.`);
+
+  await prisma.transaction.createMany({ data: seedTransactions });
+  console.log(`Seeded ${seedTransactions.length} transactions.`);
 }
 
 main().finally(() => prisma.$disconnect());
