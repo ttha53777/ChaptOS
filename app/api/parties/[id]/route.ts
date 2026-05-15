@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import { Prisma } from "../../../generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 
 export async function PATCH(
@@ -6,9 +7,16 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const body = await req.json();
+  const numId = Number(id);
+  if (!Number.isInteger(numId) || numId <= 0) {
+    return Response.json({ error: "Invalid ID" }, { status: 400 });
+  }
 
-  const stringFields = ["name", "date", "notes"] as const;
+  let body: Record<string, unknown>;
+  try { body = await req.json(); }
+  catch { return Response.json({ error: "Invalid JSON body" }, { status: 400 }); }
+
+  const stringFields  = ["name", "date", "notes"] as const;
   const numericFields = ["doorRevenue", "attendance"] as const;
   const data: Record<string, string | number> = {};
 
@@ -16,19 +24,29 @@ export async function PATCH(
     if (key in body) data[key] = String(body[key]);
   }
   for (const key of numericFields) {
-    if (key in body) data[key] = Number(body[key]);
+    if (key in body) {
+      const n = Number(body[key]);
+      if (isNaN(n) || n < 0) return Response.json({ error: `${key} must be a non-negative number` }, { status: 400 });
+      data[key] = n;
+    }
   }
 
   if (Object.keys(data).length === 0) {
     return Response.json({ error: "No valid fields provided" }, { status: 400 });
   }
 
-  const party = await prisma.partyEvent.update({
-    where: { id: Number(id) },
-    data,
-  });
-
-  return Response.json(party);
+  try {
+    const party = await prisma.partyEvent.update({
+      where: { id: numId },
+      data,
+    });
+    return Response.json(party);
+  } catch (e) {
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2025") {
+      return Response.json({ error: "Party event not found" }, { status: 404 });
+    }
+    return Response.json({ error: "Failed to update party event" }, { status: 500 });
+  }
 }
 
 export async function DELETE(
@@ -36,6 +54,18 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  await prisma.partyEvent.delete({ where: { id: Number(id) } });
-  return new Response(null, { status: 204 });
+  const numId = Number(id);
+  if (!Number.isInteger(numId) || numId <= 0) {
+    return Response.json({ error: "Invalid ID" }, { status: 400 });
+  }
+
+  try {
+    await prisma.partyEvent.delete({ where: { id: numId } });
+    return new Response(null, { status: 204 });
+  } catch (e) {
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2025") {
+      return Response.json({ error: "Party event not found" }, { status: 404 });
+    }
+    return Response.json({ error: "Failed to delete party event" }, { status: 500 });
+  }
 }

@@ -167,6 +167,74 @@ export const calendarEvents: CalendarEvent[] = [
   { id: 607, title: "IFC Chapter Report",            date: "2026-06-15", category: "deadline", mandatory: true },
 ];
 
+// ─── Transaction Seed Data ────────────────────────────────────────────────────
+
+export const seedTransactions: Omit<Transaction, "id" | "createdAt" | "updatedAt" | "deletedAt">[] = [
+
+  // ── January income ────────────────────────────────────────────────────────
+  { type: "income", category: "Dues",           amount: 1200, date: "2026-01-10", description: "Spring dues collection — 16 brothers paid",    paymentMethod: "venmo",   semester: "SPR26" },
+  { type: "income", category: "Fines",          amount:   75, date: "2026-01-18", description: "Late dues fine — 3 brothers",                   paymentMethod: "venmo",   semester: "SPR26" },
+  { type: "income", category: "Alumni donation",amount:  500, date: "2026-01-22", description: "Donation from class of 2020 alumnus",           paymentMethod: "check",   semester: "SPR26" },
+
+  // ── January expenses ──────────────────────────────────────────────────────
+  { type: "expense", category: "Operations",    amount:  180, date: "2026-01-08", description: "Nationals chapter fee — spring semester",       paymentMethod: "check",   semester: "SPR26" },
+  { type: "expense", category: "House",         amount:  250, date: "2026-01-12", description: "Chapter room deep clean & supply restock",      paymentMethod: "venmo",   semester: "SPR26" },
+  { type: "expense", category: "Brotherhood",   amount:   90, date: "2026-01-25", description: "New member welcome dinner at Chipotle",         paymentMethod: "cash",    semester: "SPR26", paidTo: "Bryan Lee" },
+
+  // ── February income ───────────────────────────────────────────────────────
+  { type: "income", category: "Door",           amount:  580, date: "2026-02-14", description: "Spring Rush Social — door cut",                 paymentMethod: "cash",    semester: "SPR26" },
+  { type: "income", category: "Fundraiser",     amount:  340, date: "2026-02-20", description: "Boba stand fundraiser — Student Union",         paymentMethod: "venmo",   semester: "SPR26" },
+  { type: "income", category: "Door",           amount:  420, date: "2026-02-28", description: "Kickback Night — door cut",                     paymentMethod: "cash",    semester: "SPR26" },
+  { type: "income", category: "Fines",          amount:   50, date: "2026-02-15", description: "Mandatory event absence fine — 2 brothers",    paymentMethod: "venmo",   semester: "SPR26" },
+
+  // ── February expenses ─────────────────────────────────────────────────────
+  { type: "expense", category: "Party Supplies",amount:  210, date: "2026-02-11", description: "Rush Social — cups, ice, decorations",         paymentMethod: "venmo",   semester: "SPR26", paidTo: "Issac Chong" },
+  { type: "expense", category: "Reimbursement", amount:   85, date: "2026-02-16", description: "Gas reimbursement for venue run",              paymentMethod: "venmo",   semester: "SPR26", paidTo: "Noah Kim" },
+  { type: "expense", category: "Events",        amount:  120, date: "2026-02-22", description: "Rush week flyers and printing",                paymentMethod: "cash",    semester: "SPR26" },
+  { type: "expense", category: "Brotherhood",   amount:  160, date: "2026-02-27", description: "Big-Little reveal gift fund",                  paymentMethod: "venmo",   semester: "SPR26" },
+
+  // ── March income ──────────────────────────────────────────────────────────
+  { type: "income", category: "Door",           amount:  750, date: "2026-03-15", description: "LPE × KDF Collab — door cut (50/50 split)",    paymentMethod: "cash",    semester: "SPR26" },
+  { type: "income", category: "Event",          amount:  280, date: "2026-03-21", description: "Ticketed study hall fundraiser",               paymentMethod: "venmo",   semester: "SPR26" },
+  { type: "income", category: "Dues",           amount:  150, date: "2026-03-05", description: "Late spring dues — 2 brothers",                paymentMethod: "venmo",   semester: "SPR26" },
+  { type: "income", category: "Fines",          amount:   25, date: "2026-03-12", description: "GPA probation fine",                          paymentMethod: "cash",    semester: "SPR26" },
+
+  // ── March expenses ────────────────────────────────────────────────────────
+  { type: "expense", category: "Party Supplies",amount:  185, date: "2026-03-13", description: "Collab event — supplies and mixers",          paymentMethod: "cash",    semester: "SPR26", paidTo: "Dariel Milfort" },
+  { type: "expense", category: "Travel",        amount:  240, date: "2026-03-08", description: "Van rental — regional conclave trip",         paymentMethod: "invoice", semester: "SPR26" },
+  { type: "expense", category: "Operations",    amount:   65, date: "2026-03-18", description: "IFC chapter dues payment",                    paymentMethod: "check",   semester: "SPR26" },
+  { type: "expense", category: "Reimbursement", amount:  110, date: "2026-03-22", description: "Food reimbursement — brotherhood dinner",     paymentMethod: "venmo",   semester: "SPR26", paidTo: "Rinchen Sherpalama" },
+  { type: "expense", category: "House",         amount:  200, date: "2026-03-28", description: "Chapter room projector bulb replacement",     paymentMethod: "invoice", semester: "SPR26" },
+
+  // ── April income ──────────────────────────────────────────────────────────
+  { type: "income", category: "Door",           amount:  320, date: "2026-04-05", description: "Brotherhood Mixer — door cut",                paymentMethod: "cash",    semester: "SPR26" },
+  { type: "income", category: "Fundraiser",     amount:  415, date: "2026-04-12", description: "Car wash fundraiser — Parking Lot B",         paymentMethod: "cash",    semester: "SPR26" },
+  { type: "income", category: "Door",           amount:  890, date: "2026-04-26", description: "Spring Formal Pre-Party — door cut",          paymentMethod: "cash",    semester: "SPR26" },
+  { type: "income", category: "Alumni donation",amount:  300, date: "2026-04-18", description: "Alumni donation — Spring Banquet support",    paymentMethod: "check",   semester: "SPR26" },
+  { type: "income", category: "External / misc",amount:   60, date: "2026-04-10", description: "Lost & found item reclaim fee",               paymentMethod: "cash",    semester: "SPR26" },
+
+  // ── April expenses ────────────────────────────────────────────────────────
+  { type: "expense", category: "Events",        amount:  380, date: "2026-04-20", description: "Spring Banquet venue deposit — Grand Ballroom",paymentMethod: "invoice", semester: "SPR26" },
+  { type: "expense", category: "Party Supplies",amount:  260, date: "2026-04-24", description: "Formal Pre-Party — glassware, ice, decor",   paymentMethod: "venmo",   semester: "SPR26", paidTo: "Elvin De La Cruz" },
+  { type: "expense", category: "Brotherhood",   amount:  200, date: "2026-04-08", description: "Spring Brotherhood retreat supplies",         paymentMethod: "venmo",   semester: "SPR26" },
+  { type: "expense", category: "Reimbursement", amount:  145, date: "2026-04-15", description: "Catering reimbursement — chapter meeting",   paymentMethod: "venmo",   semester: "SPR26", paidTo: "Thalha Thabish" },
+  { type: "expense", category: "Misc",          amount:   40, date: "2026-04-28", description: "Office supplies — printer ink, folders",     paymentMethod: "cash",    semester: "SPR26" },
+
+  // ── May income ────────────────────────────────────────────────────────────
+  { type: "income", category: "Fundraiser",     amount:  290, date: "2026-05-03", description: "Boba fundraiser — final push",                paymentMethod: "venmo",   semester: "SPR26" },
+  { type: "income", category: "Fines",          amount:  100, date: "2026-05-07", description: "End-of-semester attendance audit fines",      paymentMethod: "venmo",   semester: "SPR26" },
+  { type: "income", category: "Event",          amount:  150, date: "2026-05-10", description: "Academic workshop ticket sales",               paymentMethod: "venmo",   semester: "SPR26" },
+  { type: "income", category: "Dues",           amount:   75, date: "2026-05-02", description: "Remaining dues — 1 brother",                   paymentMethod: "cash",    semester: "SPR26" },
+
+  // ── May expenses ──────────────────────────────────────────────────────────
+  { type: "expense", category: "Events",        amount:  420, date: "2026-05-08", description: "Spring Banquet final payment — catering",     paymentMethod: "invoice", semester: "SPR26" },
+  { type: "expense", category: "Operations",    amount:   95, date: "2026-05-04", description: "Chapter website domain & hosting renewal",    paymentMethod: "invoice", semester: "SPR26" },
+  { type: "expense", category: "House",         amount:  175, date: "2026-05-09", description: "End-of-semester chapter room deep clean",     paymentMethod: "cash",    semester: "SPR26" },
+  { type: "expense", category: "Travel",        amount:  130, date: "2026-05-06", description: "Reimbursement — conclave travel fuel",        paymentMethod: "venmo",   semester: "SPR26", paidTo: "Jacob Hwang" },
+  { type: "expense", category: "Reimbursement", amount:   70, date: "2026-05-11", description: "Photo printing — Spring Banquet slideshow",   paymentMethod: "venmo",   semester: "SPR26", paidTo: "Arijit Das" },
+  { type: "expense", category: "Brotherhood",   amount:  115, date: "2026-05-13", description: "End-of-year gift cards for seniors",          paymentMethod: "venmo",   semester: "SPR26" },
+];
+
 export const treasuryTrend = [
   { month: "Jan", balance: 2000 },
   { month: "Feb", balance: 2800 },
@@ -212,13 +280,13 @@ export function calcHealthScore(
   bList: Brother[],
   dList: Deadline[]
 ): { score: number; label: "Healthy" | "Needs Attention" | "Critical"; breakdown: Record<string, number> } {
-  const attScore  = avg(bList.map(b => b.attendance));
-  const gpaScore  = Math.min(100, ((avg(bList.map(b => b.gpa)) - 2.0) / 2.0) * 100);
+  const attScore  = Math.min(100, avg(bList.map(b => b.attendance)));
+  const gpaScore  = Math.min(100, Math.max(0, ((avg(bList.map(b => b.gpa)) - 2.0) / 2.0) * 100));
   const duesScore = bList.length ? (bList.filter(b => b.duesOwed === 0).length / bList.length) * 100 : 0;
   const svcScore  = bList.length ? (bList.filter(b => b.serviceHours >= THRESHOLDS.serviceHoursGoal).length / bList.length) * 100 : 0;
   const urgentPenalty = dList.filter(d => d.status === "Urgent").length * 15;
   const dlScore   = Math.max(0, 100 - urgentPenalty);
-  const score = Math.round(attScore * 0.30 + gpaScore * 0.25 + duesScore * 0.20 + svcScore * 0.15 + dlScore * 0.10);
+  const score = Math.min(100, Math.max(0, Math.round(attScore * 0.30 + gpaScore * 0.25 + duesScore * 0.20 + svcScore * 0.15 + dlScore * 0.10)));
   const label = score >= 80 ? "Healthy" : score >= 60 ? "Needs Attention" : "Critical";
   return {
     score,
