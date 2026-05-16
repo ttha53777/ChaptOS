@@ -45,7 +45,7 @@ type KPIDrawerKey = "attendance" | "dues" | "gpa" | "service" | "treasury" | "do
 
 const DRAWER_CONFIGS: Record<KPIDrawerKey, { title: string; accent: string; iconKey: string; iconBg: string; iconColor: string }> = {
   attendance: { title: "Avg Attendance",   accent: "text-blue-400",    iconKey: "attendance", iconBg: "bg-blue-500/10",    iconColor: "text-blue-400"    },
-  dues:       { title: "Outstanding Dues", accent: "text-amber-400",   iconKey: "dues",       iconBg: "bg-amber-500/10",   iconColor: "text-amber-400"   },
+  dues:       { title: "Dues",             accent: "text-amber-400",   iconKey: "dues",       iconBg: "bg-amber-500/10",   iconColor: "text-amber-400"   },
   gpa:        { title: "Chapter GPA",      accent: "text-violet-400",  iconKey: "gpa",        iconBg: "bg-violet-500/10",  iconColor: "text-violet-400"  },
   service:    { title: "Service Hours",    accent: "text-emerald-400", iconKey: "service",    iconBg: "bg-emerald-500/10", iconColor: "text-emerald-400" },
   treasury:   { title: "Treasury Balance", accent: "text-indigo-400",  iconKey: "treasury",   iconBg: "bg-indigo-500/10",  iconColor: "text-indigo-400"  },
@@ -1478,7 +1478,7 @@ export default function Home() {
                 iconKey="attendance" sparkData={KPI_SPARKLINES.attendance}
                 iconBg="bg-blue-500/10" iconColor="text-blue-400" strokeColor="#60a5fa" glowColor="#60a5fa"
                 onClick={() => setActiveDrawer("attendance")} />
-              <KPICard label="Outstanding Dues" value={fmt$(outstandingDues)}
+              <KPICard label="Dues" value={fmt$(outstandingDues)}
                 trend={`${brotherList.filter(b => b.duesOwed > 0).length} brothers owe`}
                 iconKey="dues" sparkData={KPI_SPARKLINES.dues}
                 accent={outstandingDues > 0 ? "text-amber-400" : "text-white"}
