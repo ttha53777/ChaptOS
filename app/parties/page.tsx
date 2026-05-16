@@ -1,0 +1,617 @@
+"use client";
+
+import React, { useState, useMemo, useCallback } from "react";
+import {
+  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Cell,
+} from "recharts";
+import Link from "next/link";
+import { Sidebar } from "../components/Sidebar";
+import { Card, Modal, FieldLabel } from "../components/dashboard/primitives";
+import { inputCls, tooltipStyle } from "../components/dashboard/styles";
+import { useChapter } from "../context/ChapterContext";
+import { PartyEvent, fmt$, fmtDate } from "../data";
+
+// ─── helpers ──────────────────────────────────────────────────────────────────
+
+async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(url, init);
+  if (!res.ok) {
+    let detail = "";
+    try { const b = await res.json(); detail = typeof b?.error === "string" ? `: ${b.error}` : ""; } catch { /* ignore */ }
+    throw new Error(`${url} returned ${res.status}${detail}`);
+  }
+  if (res.status === 204) return undefined as T;
+  return res.json() as Promise<T>;
+}
+
+function todayStr() {
+  const d = new Date();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+function partyProfit(p: PartyEvent) { return p.doorRevenue - p.expenses; }
+
+function partyStatus(p: PartyEvent): PartyStatus {
+  return p.partyType ?? "Open";
+}
+
+type PartyStatus = "Open" | "Closed";
+type SortKey = "date" | "doorRevenue" | "expenses" | "profit" | "attendance";
+type SortDir = "asc" | "desc";
+type ModalKind = "add" | "edit";
+
+const STATUS_STYLES: Record<PartyStatus, string> = {
+  "Open":   "bg-emerald-500/15 text-emerald-400 ring-1 ring-inset ring-emerald-500/25",
+  "Closed": "bg-slate-500/15 text-slate-400 ring-1 ring-inset ring-slate-500/20",
+};
+
+const EMPTY_FORM = { name: "", date: todayStr(), doorRevenue: "", attendance: "", notes: "", theme: "", collabOrg: "", expenses: "", partyType: "Open" as PartyStatus };
+
+// ─── sub-components ───────────────────────────────────────────────────────────
+
+function SummaryCard({ label, value, sub, accent }: { label: string; value: string; sub?: string; accent: string }) {
+  return (
+    <div className="card-premium rounded-xl border border-white/[0.06] bg-[#141925] px-4 py-3.5 flex flex-col gap-0.5">
+      <p className="text-[10px] font-semibold uppercase tracking-[0.07em] text-slate-500">{label}</p>
+      <p className={`text-[22px] font-bold leading-none tracking-tight tabular-nums ${accent}`}>{value}</p>
+      {sub && <p className="text-[11px] text-slate-500 mt-0.5">{sub}</p>}
+    </div>
+  );
+}
+
+function PartyForm({
+  initial,
+  onSubmit,
+  onClose,
+  submitLabel,
+}: {
+  initial: typeof EMPTY_FORM;
+  onSubmit: (data: typeof EMPTY_FORM) => void;
+  onClose: () => void;
+  submitLabel: string;
+}) {
+  const [form, setForm] = useState(initial);
+  const set = (k: keyof typeof EMPTY_FORM) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+    setForm(f => ({ ...f, [k]: e.target.value }));
+  const setPartyType = (e: React.ChangeEvent<HTMLSelectElement>) =>
+    setForm(f => ({ ...f, partyType: e.target.value as PartyStatus }));
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    onSubmit(form);
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-3">
+      <div className="grid grid-cols-2 gap-3">
+        <div className="col-span-2">
+          <FieldLabel>Party name *</FieldLabel>
+          <input className={inputCls} required value={form.name} onChange={set("name")} placeholder="Spring Rush Social" />
+        </div>
+        <div>
+          <FieldLabel>Date *</FieldLabel>
+          <input type="date" className={inputCls} required value={form.date} onChange={set("date")} />
+        </div>
+        <div>
+          <FieldLabel>Attendance</FieldLabel>
+          <input type="number" min="0" className={inputCls} value={form.attendance} onChange={set("attendance")} placeholder="0" />
+        </div>
+        <div>
+          <FieldLabel>Door Revenue ($) *</FieldLabel>
+          <input type="number" min="0" step="0.01" className={inputCls} required value={form.doorRevenue} onChange={set("doorRevenue")} placeholder="0.00" />
+        </div>
+        <div>
+          <FieldLabel>Expenses ($)</FieldLabel>
+          <input type="number" min="0" step="0.01" className={inputCls} value={form.expenses} onChange={set("expenses")} placeholder="0.00" />
+        </div>
+        <div>
+          <FieldLabel>Theme</FieldLabel>
+          <input className={inputCls} value={form.theme} onChange={set("theme")} placeholder="All White, Black & Gold…" />
+        </div>
+        <div>
+          <FieldLabel>Collab Organization</FieldLabel>
+          <input className={inputCls} value={form.collabOrg} onChange={set("collabOrg")} placeholder="KDF, DSP…" />
+        </div>
+        <div>
+          <FieldLabel>Party Type</FieldLabel>
+          <select className={inputCls} value={form.partyType} onChange={setPartyType}>
+            <option value="Open">Open</option>
+            <option value="Closed">Closed</option>
+          </select>
+        </div>
+        <div className="col-span-2">
+          <FieldLabel>Notes</FieldLabel>
+          <textarea className={`${inputCls} resize-none`} rows={2} value={form.notes} onChange={set("notes")} placeholder="Post-event notes…" />
+        </div>
+      </div>
+      <div className="flex gap-2 justify-end pt-1">
+        <button type="button" onClick={onClose}
+          className="rounded-lg border border-white/[0.08] bg-white/[0.03] px-4 py-2 text-[13px] font-medium text-slate-300 hover:bg-white/[0.07] transition-colors">
+          Cancel
+        </button>
+        <button type="submit"
+          className="rounded-lg bg-indigo-600 px-4 py-2 text-[13px] font-semibold text-white hover:bg-indigo-500 transition-colors">
+          {submitLabel}
+        </button>
+      </div>
+    </form>
+  );
+}
+
+// ─── page ─────────────────────────────────────────────────────────────────────
+
+export default function PartiesPage() {
+  const { partyList, setPartyList } = useChapter();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [selectedId, setSelectedId]   = useState<number | null>(null);
+  const [modal, setModal]             = useState<ModalKind | null>(null);
+  const [editingId, setEditingId]     = useState<number | null>(null);
+  const [sortKey, setSortKey]         = useState<SortKey>("date");
+  const [sortDir, setSortDir]         = useState<SortDir>("desc");
+  const [statusFilter, setStatusFilter] = useState<PartyStatus | "All">("All");
+  const [error, setError]             = useState<string | null>(null);
+
+  // ── derived ─────────────────────────────────────────────────────────────────
+
+  const totalRevenue  = useMemo(() => partyList.reduce((s, p) => s + p.doorRevenue, 0), [partyList]);
+  const totalExpenses = useMemo(() => partyList.reduce((s, p) => s + p.expenses, 0), [partyList]);
+  const totalProfit   = totalRevenue - totalExpenses;
+  const avgProfit     = partyList.length > 0 ? totalProfit / partyList.length : 0;
+
+  const bestParty = useMemo(() => {
+    const past = partyList.filter(p => p.date <= todayStr());
+    if (!past.length) return null;
+    return past.reduce((a, b) => partyProfit(b) > partyProfit(a) ? b : a);
+  }, [partyList]);
+
+  const sorted = useMemo(() => {
+    const list = statusFilter === "All" ? [...partyList] : partyList.filter(p => partyStatus(p) === statusFilter);
+    list.sort((a, b) => {
+      let av: number, bv: number;
+      if (sortKey === "profit")     { av = partyProfit(a); bv = partyProfit(b); }
+      else if (sortKey === "date")  { av = a.date < b.date ? -1 : 1; bv = 0; return sortDir === "asc" ? (a.date < b.date ? -1 : 1) : (a.date > b.date ? -1 : 1); }
+      else                          { av = a[sortKey] as number; bv = b[sortKey] as number; }
+      return sortDir === "asc" ? av - bv : bv - av;
+    });
+    return list;
+  }, [partyList, sortKey, sortDir, statusFilter]);
+
+  const selected = useMemo(() => partyList.find(p => p.id === selectedId) ?? null, [partyList, selectedId]);
+
+  const chartData = useMemo(() =>
+    [...partyList]
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .map(p => ({
+        name:     p.name.length > 14 ? p.name.slice(0, 13) + "…" : p.name,
+        revenue:  p.doorRevenue,
+        expenses: p.expenses,
+        profit:   partyProfit(p),
+      })),
+  [partyList]);
+
+  // ── sort toggle ─────────────────────────────────────────────────────────────
+  function toggleSort(k: SortKey) {
+    if (sortKey === k) setSortDir(d => d === "asc" ? "desc" : "asc");
+    else { setSortKey(k); setSortDir("desc"); }
+  }
+
+  function SortTh({ label, col }: { label: string; col: SortKey }) {
+    const active = sortKey === col;
+    return (
+      <th className="cursor-pointer select-none px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-[0.07em] text-slate-500 hover:text-slate-300 transition-colors"
+          onClick={() => toggleSort(col)}>
+        {label}{active ? (sortDir === "asc" ? " ↑" : " ↓") : ""}
+      </th>
+    );
+  }
+
+  // ── mutations ────────────────────────────────────────────────────────────────
+
+  const persistMutation = useCallback((
+    promise: Promise<unknown>,
+    errMsg: string,
+    rollback: () => void,
+    onSuccess?: (r: unknown) => void,
+  ) => {
+    promise
+      .then(r => { setError(null); onSuccess?.(r); })
+      .catch(() => { setError(errMsg); rollback(); });
+  }, []);
+
+  function handleAdd(form: typeof EMPTY_FORM) {
+    const tempId = Date.now();
+    const entry: PartyEvent = {
+      id: tempId,
+      name: form.name,
+      date: form.date,
+      doorRevenue: Number(form.doorRevenue) || 0,
+      attendance:  Number(form.attendance)  || 0,
+      notes:       form.notes,
+      theme:       form.theme,
+      collabOrg:   form.collabOrg,
+      expenses:    Number(form.expenses) || 0,
+      partyType:   form.partyType,
+    };
+    setPartyList(prev => [...prev, entry]);
+    setModal(null);
+    persistMutation(
+      requestJson<PartyEvent>("/api/parties", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...entry, id: undefined }),
+      }),
+      "Could not save party. Changes reverted.",
+      () => setPartyList(prev => prev.filter(p => p.id !== tempId)),
+      saved => setPartyList(prev => prev.map(p => p.id === tempId ? saved as PartyEvent : p)),
+    );
+  }
+
+  function handleEdit(form: typeof EMPTY_FORM) {
+    if (!editingId) return;
+    const prev = partyList.find(p => p.id === editingId);
+    const updated: PartyEvent = {
+      id: editingId,
+      name:        form.name,
+      date:        form.date,
+      doorRevenue: Number(form.doorRevenue) || 0,
+      attendance:  Number(form.attendance)  || 0,
+      notes:       form.notes,
+      theme:       form.theme,
+      collabOrg:   form.collabOrg,
+      expenses:    Number(form.expenses) || 0,
+      partyType:   form.partyType,
+    };
+    setPartyList(prev2 => prev2.map(p => p.id === editingId ? updated : p));
+    if (selectedId === editingId) setSelectedId(editingId);
+    setModal(null);
+    setEditingId(null);
+    persistMutation(
+      requestJson<PartyEvent>(`/api/parties/${editingId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(updated),
+      }),
+      "Could not save changes. Changes reverted.",
+      () => { if (prev) setPartyList(prev2 => prev2.map(p => p.id === editingId ? prev : p)); },
+    );
+  }
+
+  function handleDelete(id: number) {
+    const prev = partyList.find(p => p.id === id);
+    setPartyList(list => list.filter(p => p.id !== id));
+    if (selectedId === id) setSelectedId(null);
+    persistMutation(
+      requestJson<void>(`/api/parties/${id}`, { method: "DELETE" }),
+      "Could not delete party. Changes reverted.",
+      () => { if (prev) setPartyList(list => [...list, prev].sort((a, b) => a.id - b.id)); },
+    );
+  }
+
+  function openEdit(p: PartyEvent) {
+    setEditingId(p.id);
+    setModal("edit");
+  }
+
+  const editInitial = useMemo<typeof EMPTY_FORM>(() => {
+    if (!editingId) return EMPTY_FORM;
+    const p = partyList.find(x => x.id === editingId);
+    if (!p) return EMPTY_FORM;
+    return {
+      name:        p.name,
+      date:        p.date,
+      doorRevenue: String(p.doorRevenue),
+      attendance:  String(p.attendance),
+      notes:       p.notes,
+      theme:       p.theme,
+      collabOrg:   p.collabOrg,
+      expenses:    String(p.expenses),
+      partyType:   p.partyType,
+    };
+  }, [editingId, partyList]);
+
+  // ── render ──────────────────────────────────────────────────────────────────
+  return (
+    <div className="flex h-screen overflow-hidden bg-[#0d1117]">
+      <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} activeSection="Parties" onNavClick={() => {}} />
+
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+
+        {/* toolbar */}
+        <header className="toolbar-frosted relative z-10 flex h-14 shrink-0 items-center gap-3 border-b border-white/[0.05] px-4 sm:px-6">
+          <button onClick={() => setSidebarOpen(true)} className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-white/[0.07] lg:hidden">
+            <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+          </button>
+          <div className="min-w-0 flex-1">
+            <p className="text-[14px] font-semibold leading-tight text-white">Party Dashboard</p>
+            <p className="hidden text-[11px] leading-tight text-slate-400 sm:block">Lambda Phi Epsilon · Revenue & Profit Tracker</p>
+          </div>
+          <div className="absolute bottom-0 left-0 right-0 h-px"
+               style={{ background: "linear-gradient(90deg, transparent, rgba(99,102,241,0.4) 30%, rgba(99,102,241,0.4) 70%, transparent)" }} />
+          <button onClick={() => setModal("add")}
+            className="rounded-lg border border-indigo-500/40 bg-indigo-500/10 px-3 py-1.5 text-[12px] font-semibold text-indigo-300 hover:bg-indigo-500/20 transition-colors">
+            + Add Party
+          </button>
+        </header>
+
+        {/* body */}
+        <main className="page-ambient flex-1 overflow-y-auto">
+          <div className="mx-auto max-w-[1400px] space-y-5 px-4 py-6 sm:px-6">
+
+            {/* error banner */}
+            {error && (
+              <div className="flex items-center justify-between gap-3 rounded-xl border border-red-500/25 bg-red-500/10 px-4 py-3 text-[12px] text-red-200">
+                <span>{error}</span>
+                <button onClick={() => setError(null)} className="rounded-lg border border-red-300/20 px-2.5 py-1 font-semibold text-red-100 hover:bg-red-500/15">Dismiss</button>
+              </div>
+            )}
+
+            {/* ── summary cards ─────────────────────────────────────────────── */}
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
+              <SummaryCard label="Total Revenue"    value={fmt$(totalRevenue)}  accent="text-indigo-400" sub={`${partyList.length} events`} />
+              <SummaryCard label="Total Expenses"   value={fmt$(totalExpenses)} accent="text-red-400"    sub="all parties" />
+              <SummaryCard label="Total Profit"     value={fmt$(totalProfit)}   accent={totalProfit >= 0 ? "text-emerald-400" : "text-red-400"} sub={totalProfit >= 0 ? "net positive" : "net loss"} />
+              <SummaryCard label="Avg Profit / Party" value={fmt$(Math.round(avgProfit))} accent={avgProfit >= 0 ? "text-white" : "text-amber-400"} />
+              <SummaryCard label="Best Party"       value={bestParty ? fmt$(partyProfit(bestParty)) : "—"} accent="text-pink-400" sub={bestParty?.name ?? "no past events"} />
+            </div>
+
+            {/* ── profit chart ───────────────────────────────────────────────── */}
+            {chartData.length > 0 && (
+              <Card className="overflow-hidden">
+                <div className="border-b border-white/[0.07] px-5 py-3.5 flex items-center justify-between">
+                  <div>
+                    <h2 className="text-[13px] font-semibold text-white">Revenue vs. Expenses vs. Profit</h2>
+                    <p className="text-[11px] text-slate-500">Per party, chronological</p>
+                  </div>
+                </div>
+                <div className="px-4 pt-4 pb-2">
+                  <ResponsiveContainer width="100%" height={160}>
+                    <BarChart data={chartData} margin={{ top: 4, right: 8, bottom: 0, left: -16 }} barGap={2} barCategoryGap="25%">
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
+                      <XAxis dataKey="name" tick={{ fontSize: 9, fill: "#475569" }} axisLine={false} tickLine={false} />
+                      <YAxis tick={{ fontSize: 10, fill: "#475569" }} axisLine={false} tickLine={false} tickFormatter={(v: number) => `$${v}`} />
+                      <Tooltip
+                        formatter={(v, name) => [fmt$(Number(v ?? 0)), String(name).charAt(0).toUpperCase() + String(name).slice(1)]}
+                        contentStyle={tooltipStyle}
+                        cursor={{ fill: "rgba(255,255,255,0.03)" }}
+                      />
+                      <Bar dataKey="revenue"  fill="#818cf8" radius={[3, 3, 0, 0]} name="Revenue" />
+                      <Bar dataKey="expenses" fill="#f87171" radius={[3, 3, 0, 0]} name="Expenses" />
+                      <Bar dataKey="profit"   radius={[3, 3, 0, 0]} name="Profit">
+                        {chartData.map((d, i) => <Cell key={i} fill={d.profit >= 0 ? "#34d399" : "#f87171"} />)}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                  <div className="flex items-center gap-5 mt-1 px-2">
+                    {[["#818cf8","Revenue"],["#f87171","Expenses"],["#34d399","Profit"]].map(([color, label]) => (
+                      <div key={label} className="flex items-center gap-1.5">
+                        <span className="h-2 w-2 rounded-sm" style={{ background: color }} />
+                        <span className="text-[10px] text-slate-500">{label}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </Card>
+            )}
+
+            {/* ── main grid: table + detail panel ───────────────────────────── */}
+            <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+
+              {/* party table */}
+              <Card className="overflow-hidden xl:col-span-2" style={{ background: "linear-gradient(to bottom, #ffffff08 0%, #141925 45%)" }}>
+                <div className="border-b border-white/[0.07] px-5 py-3.5 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <h2 className="text-[14px] font-semibold text-white">All Parties</h2>
+                    <p className="text-[11px] text-slate-500">Click a row to view details</p>
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    {(["All", "Open", "Closed"] as const).map(f => (
+                      <button key={f} onClick={() => setStatusFilter(f)}
+                        className={`rounded-md px-2.5 py-1 text-[11px] font-medium transition-all duration-150 ${statusFilter === f ? "bg-white/[0.12] text-white" : "border border-white/[0.1] text-slate-400 hover:border-white/[0.2] hover:text-slate-200"}`}>
+                        {f}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="min-w-full">
+                    <thead>
+                      <tr className="border-b border-white/[0.06] bg-white/[0.03]">
+                        <th className="py-2.5 pl-5 pr-3 text-left text-[10px] font-semibold uppercase tracking-[0.07em] text-slate-500">Party</th>
+                        <SortTh label="Date"     col="date" />
+                        <SortTh label="Revenue"  col="doorRevenue" />
+                        <SortTh label="Expenses" col="expenses" />
+                        <SortTh label="Profit"   col="profit" />
+                        <SortTh label="Att."     col="attendance" />
+                        <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-[0.07em] text-slate-500">Status</th>
+                        <th className="px-3 py-2.5" />
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-white/[0.04]">
+                      {sorted.length === 0 ? (
+                        <tr><td colSpan={8} className="py-12 text-center text-[13px] text-slate-500">No parties match this filter.</td></tr>
+                      ) : sorted.map(p => {
+                        const profit  = partyProfit(p);
+                        const status  = partyStatus(p);
+                        const isSelected = selectedId === p.id;
+                        return (
+                          <tr key={p.id}
+                              onClick={() => setSelectedId(p.id === selectedId ? null : p.id)}
+                              className={`cursor-pointer transition-colors ${isSelected ? "bg-indigo-500/[0.07]" : "hover:bg-white/[0.03]"}`}>
+                            <td className="border-l-2 border-l-indigo-500/40 py-3 pl-4 pr-3">
+                              <p className="text-[13px] font-semibold text-white">{p.name}</p>
+                              {p.theme && <p className="text-[10px] text-slate-500 mt-0.5">{p.theme}{p.collabOrg ? ` · ${p.collabOrg}` : ""}</p>}
+                            </td>
+                            <td className="px-3 py-3 text-[12px] text-slate-400 whitespace-nowrap">{fmtDate(p.date)}</td>
+                            <td className="px-3 py-3 tabular-nums text-[13px] font-medium text-indigo-300">{fmt$(p.doorRevenue)}</td>
+                            <td className="px-3 py-3 tabular-nums text-[13px] font-medium text-red-400">{fmt$(p.expenses)}</td>
+                            <td className="px-3 py-3 tabular-nums text-[13px] font-bold" style={{ color: profit >= 0 ? "#34d399" : "#f87171" }}>{fmt$(profit)}</td>
+                            <td className="px-3 py-3 tabular-nums text-[12px] text-slate-400">{p.attendance}</td>
+                            <td className="px-3 py-3">
+                              <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium tracking-wide ${STATUS_STYLES[status]}`}>
+                                {status}
+                              </span>
+                            </td>
+                            <td className="px-3 py-3">
+                              <button onClick={e => { e.stopPropagation(); openEdit(p); }}
+                                className="rounded-md bg-white/[0.05] px-2 py-1 text-[10px] font-medium text-slate-400 ring-1 ring-inset ring-white/[0.1] hover:bg-indigo-500/15 hover:text-indigo-400 hover:ring-indigo-500/25 transition-colors">
+                                Edit
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="border-t border-white/[0.06] bg-white/[0.02] px-5 py-2.5">
+                  <p className="text-[11px] text-slate-500">
+                    {sorted.length} / {partyList.length} parties ·{" "}
+                    <span className="font-medium text-emerald-400">{partyList.filter(p => partyStatus(p) === "Open").length} open</span> ·{" "}
+                    <span className="font-medium text-slate-300">{partyList.filter(p => partyStatus(p) === "Closed").length} closed</span>
+                  </p>
+                </div>
+              </Card>
+
+              {/* detail panel */}
+              <div className="flex flex-col gap-4">
+                {selected ? (
+                  <DetailPanel party={selected} onEdit={() => openEdit(selected)} onDelete={() => handleDelete(selected.id)} />
+                ) : (
+                  <Card className="flex flex-col items-center justify-center gap-2 py-16 text-center">
+                    <svg className="h-8 w-8 text-slate-700" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
+                    </svg>
+                    <p className="text-[13px] text-slate-500">Select a party to view details</p>
+                  </Card>
+                )}
+              </div>
+            </div>
+
+          </div>
+        </main>
+      </div>
+
+      {/* modals */}
+      {modal === "add" && (
+        <Modal title="Add Party" onClose={() => setModal(null)}>
+          <PartyForm initial={EMPTY_FORM} onSubmit={handleAdd} onClose={() => setModal(null)} submitLabel="Add Party" />
+        </Modal>
+      )}
+      {modal === "edit" && (
+        <Modal title="Edit Party" onClose={() => { setModal(null); setEditingId(null); }}>
+          <PartyForm initial={editInitial} onSubmit={handleEdit} onClose={() => { setModal(null); setEditingId(null); }} submitLabel="Save Changes" />
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+// ─── detail panel ─────────────────────────────────────────────────────────────
+
+function DetailPanel({ party, onEdit, onDelete }: { party: PartyEvent; onEdit: () => void; onDelete: () => void }) {
+  const profit  = partyProfit(party);
+  const status  = partyStatus(party);
+  const margin  = party.doorRevenue > 0 ? Math.round((profit / party.doorRevenue) * 100) : 0;
+
+  return (
+    <Card className="overflow-hidden">
+      {/* accent bar */}
+      <div className="h-[2px]" style={{ background: profit >= 0 ? "linear-gradient(90deg, transparent, #34d399 30%, #34d399 70%, transparent)" : "linear-gradient(90deg, transparent, #f87171 30%, #f87171 70%, transparent)" }} />
+
+      <div className="px-5 py-4 border-b border-white/[0.07] flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h3 className="text-[15px] font-bold text-white leading-snug">{party.name}</h3>
+          <p className="text-[11px] text-slate-400 mt-0.5">{fmtDate(party.date)}</p>
+        </div>
+        <span className={`mt-0.5 inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[11px] font-medium tracking-wide ${STATUS_STYLES[status]}`}>
+          {status}
+        </span>
+      </div>
+
+      <div className="px-5 py-4 space-y-4">
+        {/* financials */}
+        <div className="grid grid-cols-3 gap-2">
+          {[
+            { label: "Revenue",  value: fmt$(party.doorRevenue), color: "#818cf8" },
+            { label: "Expenses", value: fmt$(party.expenses),    color: "#f87171" },
+            { label: "Profit",   value: fmt$(profit),            color: profit >= 0 ? "#34d399" : "#f87171" },
+          ].map(({ label, value, color }) => (
+            <div key={label} className="rounded-lg bg-white/[0.04] px-3 py-2.5 text-center">
+              <p className="text-[14px] font-bold tabular-nums" style={{ color }}>{value}</p>
+              <p className="text-[10px] text-slate-500 mt-0.5">{label}</p>
+            </div>
+          ))}
+        </div>
+
+        {/* margin bar */}
+        <div>
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-[10px] text-slate-500">Profit margin</span>
+            <span className="text-[10px] tabular-nums text-slate-400">{margin}%</span>
+          </div>
+          <div className="h-1.5 overflow-hidden rounded-full bg-white/[0.07]">
+            <div className="h-full rounded-full transition-all duration-500"
+                 style={{ width: `${Math.min(100, Math.max(0, margin))}%`, background: profit >= 0 ? "#34d399" : "#f87171" }} />
+          </div>
+        </div>
+
+        {/* meta */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] text-slate-500">Attendance</span>
+            <span className="text-[12px] font-medium text-white tabular-nums">{party.attendance}</span>
+          </div>
+          {party.attendance > 0 && party.doorRevenue > 0 && (
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] text-slate-500">Revenue / head</span>
+              <span className="text-[12px] font-medium text-slate-300 tabular-nums">{fmt$(Math.round(party.doorRevenue / party.attendance))}</span>
+            </div>
+          )}
+          {party.attendance > 0 && (
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] text-slate-500">Profit / head</span>
+              <span className="text-[12px] font-medium tabular-nums" style={{ color: profit >= 0 ? "#34d399" : "#f87171" }}>{fmt$(Math.round(profit / party.attendance))}</span>
+            </div>
+          )}
+          {party.theme && (
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] text-slate-500">Theme</span>
+              <span className="text-[12px] text-slate-300">{party.theme}</span>
+            </div>
+          )}
+          {party.collabOrg && (
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] text-slate-500">Collab</span>
+              <span className="text-[12px] font-medium text-indigo-400">{party.collabOrg}</span>
+            </div>
+          )}
+        </div>
+
+        {/* notes */}
+        {party.notes && (
+          <div className="rounded-lg bg-white/[0.03] border border-white/[0.06] px-3 py-2.5">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-600 mb-1">Notes</p>
+            <p className="text-[12px] leading-relaxed text-slate-300">{party.notes}</p>
+          </div>
+        )}
+
+        {/* actions */}
+        <div className="flex gap-2 pt-1">
+          <button onClick={onEdit}
+            className="flex-1 rounded-lg border border-indigo-500/30 bg-indigo-500/10 px-3 py-2 text-[12px] font-semibold text-indigo-300 hover:bg-indigo-500/20 transition-colors">
+            Edit
+          </button>
+          <button onClick={onDelete}
+            className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[12px] font-semibold text-red-400 hover:bg-red-500/20 transition-colors">
+            Delete
+          </button>
+        </div>
+      </div>
+    </Card>
+  );
+}

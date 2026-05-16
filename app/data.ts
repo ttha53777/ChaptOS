@@ -62,6 +62,10 @@ export interface PartyEvent {
   doorRevenue: number;
   attendance: number;
   notes: string;
+  theme: string;
+  collabOrg: string;
+  expenses: number;
+  partyType: "Open" | "Closed";
 }
 
 export interface CalendarEvent {
@@ -120,11 +124,11 @@ export const instagramTasks: InstagramTask[] = [
 ];
 
 export const partyEvents: PartyEvent[] = [
-  { id: 1, name: "Spring Rush Social",      date: "2026-02-14", doorRevenue: 580, attendance: 94,  notes: "Strong turnout from rush candidates"     },
-  { id: 2, name: "Kickback Night",          date: "2026-02-28", doorRevenue: 420, attendance: 67,  notes: "Brothers-only mixer"                     },
-  { id: 3, name: "LPE × KDF Collab",        date: "2026-03-15", doorRevenue: 750, attendance: 142, notes: "Best collab event of the semester"        },
-  { id: 4, name: "Brotherhood Mixer",       date: "2026-04-05", doorRevenue: 320, attendance: 52,  notes: "Fundraising focus"                       },
-  { id: 5, name: "Spring Formal Pre-Party", date: "2026-04-26", doorRevenue: 890, attendance: 178, notes: "Highest revenue event this semester"      },
+  { id: 1, name: "Spring Rush Social",      date: "2026-02-14", doorRevenue: 580, attendance: 94,  notes: "Strong turnout from rush candidates",    theme: "Casual",        collabOrg: "",    expenses: 120, partyType: "Open"   },
+  { id: 2, name: "Kickback Night",          date: "2026-02-28", doorRevenue: 420, attendance: 67,  notes: "Brothers-only mixer",                   theme: "Chill Vibes",   collabOrg: "",    expenses: 80,  partyType: "Closed" },
+  { id: 3, name: "LPE × KDF Collab",        date: "2026-03-15", doorRevenue: 750, attendance: 142, notes: "Best collab event of the semester",      theme: "Black & Gold",  collabOrg: "KDF", expenses: 200, partyType: "Open"   },
+  { id: 4, name: "Brotherhood Mixer",       date: "2026-04-05", doorRevenue: 320, attendance: 52,  notes: "Fundraising focus",                     theme: "Fundraiser",    collabOrg: "",    expenses: 95,  partyType: "Closed" },
+  { id: 5, name: "Spring Formal Pre-Party", date: "2026-04-26", doorRevenue: 890, attendance: 178, notes: "Highest revenue event this semester",    theme: "All White",     collabOrg: "",    expenses: 310, partyType: "Open"   },
 ];
 
 export const calendarEvents: CalendarEvent[] = [
@@ -321,7 +325,7 @@ export function avg(values: number[]): number {
 }
 
 export function fmt$(n: number): string {
-  return `$${n.toLocaleString()}`;
+  return `$${(n ?? 0).toLocaleString()}`;
 }
 
 export function fmtDate(s: string): string {

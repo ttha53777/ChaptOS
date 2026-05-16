@@ -73,7 +73,7 @@ export function ChapterProvider({ children }: { children: React.ReactNode }) {
       setBrotherList(brothers);
       setDeadlineList(deadlines);
       setIgTaskList(instagram);
-      setPartyList(parties);
+      setPartyList(parties.map(p => ({ ...p, expenses: p.expenses ?? 0, theme: p.theme ?? "", collabOrg: p.collabOrg ?? "", partyType: p.partyType ?? "Open" })));
       setActivityFeed(activity);
       setTreasuryData(treasury);
       setTransactionList(transactions);

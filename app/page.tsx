@@ -1188,7 +1188,7 @@ export default function Home() {
 
   function handleAddRevenue(e: { name: string; date: string; doorRevenue: number; attendance: number; notes: string }) {
     const tempId = Date.now();
-    setPartyList(prev => [...prev, { id: tempId, ...e }]);
+    setPartyList(prev => [...prev, { id: tempId, theme: "", collabOrg: "", expenses: 0, partyType: "Open", ...e }]);
     addActivity(`Revenue logged: ${e.name} — ${fmt$(e.doorRevenue)}`, "success");
     setActiveModal(null);
     persistMutation(

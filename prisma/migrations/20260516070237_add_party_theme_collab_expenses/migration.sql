@@ -1,0 +1,4 @@
+-- AlterTable
+ALTER TABLE "PartyEvent" ADD COLUMN     "collabOrg" TEXT NOT NULL DEFAULT '',
+ADD COLUMN     "expenses" DOUBLE PRECISION NOT NULL DEFAULT 0,
+ADD COLUMN     "theme" TEXT NOT NULL DEFAULT '';

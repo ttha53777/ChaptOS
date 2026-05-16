@@ -17,7 +17,7 @@ export const NAV_ICONS: Record<string, string> = {
 };
 
 // Dashboard section labels that live on "/" and use scroll-spy
-export const DASHBOARD_NAV = ["Dashboard", "Brothers", "Deadlines", "Instagram", "Parties", "Settings"];
+export const DASHBOARD_NAV = ["Dashboard", "Brothers", "Deadlines", "Instagram", "Settings"];
 
 // Full nav order — Timeline is second, right after Dashboard
 export const NAV = ["Dashboard", "Timeline", "Brothers", "Deadlines", "Instagram", "Treasury", "Parties", "Settings"];
@@ -60,13 +60,16 @@ export function Sidebar({ open, onClose, activeSection, onNavClick }: {
             {NAV.map(label => {
               const isTimeline = label === "Timeline";
               const isTreasury = label === "Treasury";
-              const isStandalone = isTimeline || isTreasury;
-              const standaloneHref = isTimeline ? "/timeline" : "/treasury";
+              const isParties  = label === "Parties";
+              const isStandalone = isTimeline || isTreasury || isParties;
+              const standaloneHref = isTimeline ? "/timeline" : isTreasury ? "/treasury" : "/parties";
               const isActive = isTimeline
                 ? pathname === "/timeline"
                 : isTreasury
                   ? pathname === "/treasury"
-                  : pathname === "/" && activeSection === label;
+                  : isParties
+                    ? pathname === "/parties"
+                    : pathname === "/" && activeSection === label;
 
               if (isStandalone) {
                 return (
