@@ -2,6 +2,8 @@ import { NextRequest } from "next/server";
 import { Prisma } from "../../../generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 
+type PartyUpdateData = Prisma.PartyEventUpdateInput;
+
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -18,13 +20,15 @@ export async function PATCH(
 
   const stringFields  = ["name", "date", "notes", "theme", "collabOrg", "partyType"] as const;
   const numericFields = ["doorRevenue", "attendance", "expenses"] as const;
-  const data: Record<string, string | number | boolean | Date | null> = {};
+  const data: PartyUpdateData = {};
 
   for (const key of stringFields) {
     if (key in body) {
-      data[key] = key === "partyType"
-        ? (body[key] === "Closed" ? "Closed" : "Open")
-        : String(body[key]);
+      if (key === "partyType") {
+        data.partyType = body[key] === "Closed" ? "Closed" : "Open";
+      } else {
+        data[key] = String(body[key]);
+      }
     }
   }
   for (const key of numericFields) {
@@ -35,25 +39,24 @@ export async function PATCH(
     }
   }
 
-  // Handle completion payload
   if ("completed" in body) {
     const completing = body.completed === true;
     data.completed = completing;
-    if (completing) {
-      // Validate financial fields are present when marking complete
-      const rev = "doorRevenue" in data ? data.doorRevenue : null;
-      const att = "attendance"  in data ? data.attendance  : null;
-      if (rev === null || att === null) {
-        // Allow partial — they might already be set; just stamp completedAt
-      }
-      data.completedAt = new Date();
-    } else {
-      data.completedAt = null;
-    }
+    data.completedAt = completing ? new Date() : null;
   }
 
   if (Object.keys(data).length === 0) {
     return Response.json({ error: "No valid fields provided" }, { status: 400 });
+  }
+
+  if (body.completed === true) {
+    const hasFinancials =
+      ("doorRevenue" in body && body.doorRevenue != null) ||
+      ("attendance" in body && body.attendance != null) ||
+      ("expenses" in body && body.expenses != null);
+    if (!hasFinancials) {
+      return Response.json({ error: "Revenue, expenses, and attendance are required to complete a party" }, { status: 400 });
+    }
   }
 
   try {
@@ -66,6 +69,7 @@ export async function PATCH(
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2025") {
       return Response.json({ error: "Party event not found" }, { status: 404 });
     }
+    console.error("PATCH /api/parties/[id] failed:", e);
     return Response.json({ error: "Failed to update party event" }, { status: 500 });
   }
 }
