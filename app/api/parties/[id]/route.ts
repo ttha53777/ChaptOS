@@ -18,15 +18,13 @@ export async function PATCH(
 
   const stringFields  = ["name", "date", "notes", "theme", "collabOrg", "partyType"] as const;
   const numericFields = ["doorRevenue", "attendance", "expenses"] as const;
-  const data: Record<string, string | number> = {};
+  const data: Record<string, string | number | boolean | Date | null> = {};
 
   for (const key of stringFields) {
     if (key in body) {
-      if (key === "partyType") {
-        data[key] = body[key] === "Closed" ? "Closed" : "Open";
-      } else {
-        data[key] = String(body[key]);
-      }
+      data[key] = key === "partyType"
+        ? (body[key] === "Closed" ? "Closed" : "Open")
+        : String(body[key]);
     }
   }
   for (const key of numericFields) {
@@ -34,6 +32,23 @@ export async function PATCH(
       const n = Number(body[key]);
       if (isNaN(n) || n < 0) return Response.json({ error: `${key} must be a non-negative number` }, { status: 400 });
       data[key] = n;
+    }
+  }
+
+  // Handle completion payload
+  if ("completed" in body) {
+    const completing = body.completed === true;
+    data.completed = completing;
+    if (completing) {
+      // Validate financial fields are present when marking complete
+      const rev = "doorRevenue" in data ? data.doorRevenue : null;
+      const att = "attendance"  in data ? data.attendance  : null;
+      if (rev === null || att === null) {
+        // Allow partial — they might already be set; just stamp completedAt
+      }
+      data.completedAt = new Date();
+    } else {
+      data.completedAt = null;
     }
   }
 

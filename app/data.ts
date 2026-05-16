@@ -59,13 +59,15 @@ export interface PartyEvent {
   id: number;
   name: string;
   date: string;
-  doorRevenue: number;
-  attendance: number;
-  notes: string;
+  partyType: "Open" | "Closed";
   theme: string;
   collabOrg: string;
+  doorRevenue: number;
+  attendance: number;
   expenses: number;
-  partyType: "Open" | "Closed";
+  notes: string;
+  completed: boolean;
+  completedAt: string | null;
 }
 
 export interface CalendarEvent {
@@ -124,11 +126,13 @@ export const instagramTasks: InstagramTask[] = [
 ];
 
 export const partyEvents: PartyEvent[] = [
-  { id: 1, name: "Spring Rush Social",      date: "2026-02-14", doorRevenue: 580, attendance: 94,  notes: "Strong turnout from rush candidates",    theme: "Casual",        collabOrg: "",    expenses: 120, partyType: "Open"   },
-  { id: 2, name: "Kickback Night",          date: "2026-02-28", doorRevenue: 420, attendance: 67,  notes: "Brothers-only mixer",                   theme: "Chill Vibes",   collabOrg: "",    expenses: 80,  partyType: "Closed" },
-  { id: 3, name: "LPE × KDF Collab",        date: "2026-03-15", doorRevenue: 750, attendance: 142, notes: "Best collab event of the semester",      theme: "Black & Gold",  collabOrg: "KDF", expenses: 200, partyType: "Open"   },
-  { id: 4, name: "Brotherhood Mixer",       date: "2026-04-05", doorRevenue: 320, attendance: 52,  notes: "Fundraising focus",                     theme: "Fundraiser",    collabOrg: "",    expenses: 95,  partyType: "Closed" },
-  { id: 5, name: "Spring Formal Pre-Party", date: "2026-04-26", doorRevenue: 890, attendance: 178, notes: "Highest revenue event this semester",    theme: "All White",     collabOrg: "",    expenses: 310, partyType: "Open"   },
+  { id: 1, name: "Spring Rush Social",      date: "2026-02-14", partyType: "Open",   theme: "Casual",       collabOrg: "",    doorRevenue: 580, attendance: 94,  expenses: 120, notes: "Strong turnout from rush candidates",   completed: true,  completedAt: "2026-02-15T04:00:00.000Z" },
+  { id: 2, name: "Kickback Night",          date: "2026-02-28", partyType: "Closed", theme: "Chill Vibes",  collabOrg: "",    doorRevenue: 420, attendance: 67,  expenses: 80,  notes: "Brothers-only mixer",                  completed: true,  completedAt: "2026-03-01T04:00:00.000Z" },
+  { id: 3, name: "LPE × KDF Collab",        date: "2026-03-15", partyType: "Open",   theme: "Black & Gold", collabOrg: "KDF", doorRevenue: 750, attendance: 142, expenses: 200, notes: "Best collab event of the semester",     completed: true,  completedAt: "2026-03-16T04:00:00.000Z" },
+  { id: 4, name: "Brotherhood Mixer",       date: "2026-04-05", partyType: "Closed", theme: "Fundraiser",   collabOrg: "",    doorRevenue: 320, attendance: 52,  expenses: 95,  notes: "Fundraising focus",                    completed: true,  completedAt: "2026-04-06T04:00:00.000Z" },
+  { id: 5, name: "Spring Formal Pre-Party", date: "2026-04-26", partyType: "Open",   theme: "All White",    collabOrg: "",    doorRevenue: 890, attendance: 178, expenses: 310, notes: "Highest revenue event this semester",   completed: true,  completedAt: "2026-04-27T04:00:00.000Z" },
+  { id: 6, name: "End of Year Kickback",    date: "2026-06-07", partyType: "Closed", theme: "",             collabOrg: "",    doorRevenue: 0,   attendance: 0,   expenses: 0,   notes: "",                                     completed: false, completedAt: null },
+  { id: 7, name: "Summer Collab Night",     date: "2026-06-21", partyType: "Open",   theme: "",             collabOrg: "DSP", doorRevenue: 0,   attendance: 0,   expenses: 0,   notes: "",                                     completed: false, completedAt: null },
 ];
 
 export const calendarEvents: CalendarEvent[] = [

@@ -261,7 +261,7 @@ function PartyForm({
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    onSubmit({ name, date, doorRevenue: Number(doorRevenue), attendance: Number(attendance), notes, theme: "", collabOrg: "", expenses: 0, partyType: initial?.partyType ?? "Open" });
+    onSubmit({ name, date, doorRevenue: Number(doorRevenue), attendance: Number(attendance), notes, theme: "", collabOrg: "", expenses: 0, partyType: initial?.partyType ?? "Open", completed: initial?.completed ?? false, completedAt: initial?.completedAt ?? null });
   }
 
   return (

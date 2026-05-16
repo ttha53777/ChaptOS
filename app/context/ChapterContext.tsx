@@ -73,7 +73,18 @@ export function ChapterProvider({ children }: { children: React.ReactNode }) {
       setBrotherList(brothers);
       setDeadlineList(deadlines);
       setIgTaskList(instagram);
-      setPartyList(parties.map(p => ({ ...p, expenses: p.expenses ?? 0, theme: p.theme ?? "", collabOrg: p.collabOrg ?? "", partyType: p.partyType ?? "Open" })));
+      setPartyList(parties.map(p => ({
+        ...p,
+        partyType:   (p.partyType   ?? "Open") as "Open" | "Closed",
+        theme:       p.theme        ?? "",
+        collabOrg:   p.collabOrg    ?? "",
+        doorRevenue: p.doorRevenue  ?? 0,
+        attendance:  p.attendance   ?? 0,
+        expenses:    p.expenses     ?? 0,
+        notes:       p.notes        ?? "",
+        completed:   p.completed    ?? false,
+        completedAt: p.completedAt  ?? null,
+      })));
       setActivityFeed(activity);
       setTreasuryData(treasury);
       setTransactionList(transactions);

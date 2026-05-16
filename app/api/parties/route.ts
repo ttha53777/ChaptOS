@@ -16,37 +16,36 @@ export async function POST(req: NextRequest) {
   try { body = await req.json(); }
   catch { return Response.json({ error: "Invalid JSON body" }, { status: 400 }); }
 
-  const { name, date, doorRevenue, attendance, notes, theme, collabOrg, expenses, partyType } = body;
+  const { name, date, partyType, theme, collabOrg, doorRevenue, attendance, expenses, notes } = body;
 
-  if (!name || !date || doorRevenue == null || attendance == null || notes == null) {
-    return Response.json({ error: "Missing required fields" }, { status: 400 });
+  if (!name || !date) {
+    return Response.json({ error: "name and date are required" }, { status: 400 });
   }
-  const numDoorRevenue = Number(doorRevenue);
-  const numAttendance  = Number(attendance);
-  const numExpenses    = expenses != null ? Number(expenses) : 0;
-  if (isNaN(numDoorRevenue) || numDoorRevenue < 0) {
+
+  const numDoorRevenue = doorRevenue != null ? Number(doorRevenue) : 0;
+  const numAttendance  = attendance  != null ? Number(attendance)  : 0;
+  const numExpenses    = expenses    != null ? Number(expenses)    : 0;
+
+  if (isNaN(numDoorRevenue) || numDoorRevenue < 0)
     return Response.json({ error: "doorRevenue must be a non-negative number" }, { status: 400 });
-  }
-  if (isNaN(numAttendance) || numAttendance < 0) {
+  if (isNaN(numAttendance) || numAttendance < 0)
     return Response.json({ error: "attendance must be a non-negative number" }, { status: 400 });
-  }
-  if (isNaN(numExpenses) || numExpenses < 0) {
+  if (isNaN(numExpenses) || numExpenses < 0)
     return Response.json({ error: "expenses must be a non-negative number" }, { status: 400 });
-  }
-  const normalizedPartyType = partyType === "Closed" ? "Closed" : "Open";
 
   try {
     const party = await prisma.partyEvent.create({
       data: {
-        name:       String(name),
-        date:       String(date),
+        name:        String(name),
+        date:        String(date),
+        partyType:   partyType === "Closed" ? "Closed" : "Open",
+        theme:       theme     ? String(theme)     : "",
+        collabOrg:   collabOrg ? String(collabOrg) : "",
         doorRevenue: numDoorRevenue,
         attendance:  numAttendance,
-        notes:      String(notes),
-        theme:      theme      ? String(theme)      : "",
-        collabOrg:  collabOrg  ? String(collabOrg)  : "",
-        expenses:   numExpenses,
-        partyType:  normalizedPartyType,
+        expenses:    numExpenses,
+        notes:       notes ? String(notes) : "",
+        completed:   false,
       },
     });
     return Response.json(party, { status: 201 });
