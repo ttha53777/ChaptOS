@@ -509,6 +509,10 @@ export default function PartiesPage() {
 
   function handleWrapUp(form: typeof WRAP_FORM_EMPTY) {
     if (!wrapUpId) return;
+    if (wrapUpId > 1_000_000_000) {
+      setPageError("Party is still saving. Wait a moment, then try again.");
+      return;
+    }
     const prev = partyList.find(p => p.id === wrapUpId);
     const updates = {
       doorRevenue: Number(form.doorRevenue) || 0,
