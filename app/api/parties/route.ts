@@ -16,28 +16,37 @@ export async function POST(req: NextRequest) {
   try { body = await req.json(); }
   catch { return Response.json({ error: "Invalid JSON body" }, { status: 400 }); }
 
-  const { name, date, doorRevenue, attendance, notes } = body;
+  const { name, date, doorRevenue, attendance, notes, theme, collabOrg, expenses, partyType } = body;
 
   if (!name || !date || doorRevenue == null || attendance == null || notes == null) {
     return Response.json({ error: "Missing required fields" }, { status: 400 });
   }
   const numDoorRevenue = Number(doorRevenue);
   const numAttendance  = Number(attendance);
+  const numExpenses    = expenses != null ? Number(expenses) : 0;
   if (isNaN(numDoorRevenue) || numDoorRevenue < 0) {
     return Response.json({ error: "doorRevenue must be a non-negative number" }, { status: 400 });
   }
   if (isNaN(numAttendance) || numAttendance < 0) {
     return Response.json({ error: "attendance must be a non-negative number" }, { status: 400 });
   }
+  if (isNaN(numExpenses) || numExpenses < 0) {
+    return Response.json({ error: "expenses must be a non-negative number" }, { status: 400 });
+  }
+  const normalizedPartyType = partyType === "Closed" ? "Closed" : "Open";
 
   try {
     const party = await prisma.partyEvent.create({
       data: {
-        name: String(name),
-        date: String(date),
+        name:       String(name),
+        date:       String(date),
         doorRevenue: numDoorRevenue,
         attendance:  numAttendance,
-        notes: String(notes),
+        notes:      String(notes),
+        theme:      theme      ? String(theme)      : "",
+        collabOrg:  collabOrg  ? String(collabOrg)  : "",
+        expenses:   numExpenses,
+        partyType:  normalizedPartyType,
       },
     });
     return Response.json(party, { status: 201 });

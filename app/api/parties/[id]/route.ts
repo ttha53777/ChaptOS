@@ -16,12 +16,18 @@ export async function PATCH(
   try { body = await req.json(); }
   catch { return Response.json({ error: "Invalid JSON body" }, { status: 400 }); }
 
-  const stringFields  = ["name", "date", "notes"] as const;
-  const numericFields = ["doorRevenue", "attendance"] as const;
+  const stringFields  = ["name", "date", "notes", "theme", "collabOrg", "partyType"] as const;
+  const numericFields = ["doorRevenue", "attendance", "expenses"] as const;
   const data: Record<string, string | number> = {};
 
   for (const key of stringFields) {
-    if (key in body) data[key] = String(body[key]);
+    if (key in body) {
+      if (key === "partyType") {
+        data[key] = body[key] === "Closed" ? "Closed" : "Open";
+      } else {
+        data[key] = String(body[key]);
+      }
+    }
   }
   for (const key of numericFields) {
     if (key in body) {
