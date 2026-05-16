@@ -1,13 +1,9 @@
 "use client";
 
 import React, { useState, useMemo, useCallback } from "react";
-import {
-  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Cell,
-} from "recharts";
-import Link from "next/link";
 import { Sidebar } from "../components/Sidebar";
 import { Card, Modal, FieldLabel } from "../components/dashboard/primitives";
-import { inputCls, tooltipStyle } from "../components/dashboard/styles";
+import { inputCls } from "../components/dashboard/styles";
 import { useChapter } from "../context/ChapterContext";
 import { PartyEvent, fmt$, fmtDate } from "../data";
 
@@ -30,23 +26,25 @@ function todayStr() {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
-function partyProfit(p: PartyEvent) { return p.doorRevenue - p.expenses; }
+function profit(p: PartyEvent) { return p.doorRevenue - p.expenses; }
+function needsWrapUp(p: PartyEvent) { return !p.completed && p.date < todayStr(); }
 
-function partyStatus(p: PartyEvent): PartyStatus {
-  return p.partyType ?? "Open";
-}
+// ─── types ────────────────────────────────────────────────────────────────────
 
-type PartyStatus = "Open" | "Closed";
-type SortKey = "date" | "doorRevenue" | "expenses" | "profit" | "attendance";
-type SortDir = "asc" | "desc";
-type ModalKind = "add" | "edit";
+type TimeTab   = "All" | "Upcoming" | "Past";
+type TypeFilter = "All" | "Open" | "Closed";
+type SortKey   = "date" | "doorRevenue" | "expenses" | "profit" | "attendance";
+type SortDir   = "asc" | "desc";
+type ModalKind = "add" | "edit" | "wrap-up";
 
-const STATUS_STYLES: Record<PartyStatus, string> = {
-  "Open":   "bg-emerald-500/15 text-emerald-400 ring-1 ring-inset ring-emerald-500/25",
-  "Closed": "bg-slate-500/15 text-slate-400 ring-1 ring-inset ring-slate-500/20",
+const ADD_FORM_EMPTY = {
+  name: "", date: todayStr(), partyType: "Open" as "Open" | "Closed",
+  theme: "", collabOrg: "",
 };
 
-const EMPTY_FORM = { name: "", date: todayStr(), doorRevenue: "", attendance: "", notes: "", theme: "", collabOrg: "", expenses: "", partyType: "Open" as PartyStatus };
+const WRAP_FORM_EMPTY = {
+  doorRevenue: "", expenses: "", attendance: "", notes: "",
+};
 
 // ─── sub-components ───────────────────────────────────────────────────────────
 
@@ -60,69 +58,60 @@ function SummaryCard({ label, value, sub, accent }: { label: string; value: stri
   );
 }
 
-function PartyForm({
-  initial,
-  onSubmit,
-  onClose,
-  submitLabel,
-}: {
-  initial: typeof EMPTY_FORM;
-  onSubmit: (data: typeof EMPTY_FORM) => void;
-  onClose: () => void;
-  submitLabel: string;
-}) {
-  const [form, setForm] = useState(initial);
-  const set = (k: keyof typeof EMPTY_FORM) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
-    setForm(f => ({ ...f, [k]: e.target.value }));
-  const setPartyType = (e: React.ChangeEvent<HTMLSelectElement>) =>
-    setForm(f => ({ ...f, partyType: e.target.value as PartyStatus }));
+function PartyTypeBadge({ type }: { type: "Open" | "Closed" }) {
+  return (
+    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium tracking-wide ${
+      type === "Open"
+        ? "bg-indigo-500/15 text-indigo-400 ring-1 ring-inset ring-indigo-500/25"
+        : "bg-slate-500/15 text-slate-400 ring-1 ring-inset ring-slate-500/20"
+    }`}>{type}</span>
+  );
+}
 
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    onSubmit(form);
-  }
+function WrapUpBadge() {
+  return (
+    <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium bg-amber-500/15 text-amber-400 ring-1 ring-inset ring-amber-500/25">
+      Needs wrap-up
+    </span>
+  );
+}
+
+// ─── Add party form (minimal) ─────────────────────────────────────────────────
+
+function AddPartyForm({ onSubmit, onClose }: {
+  onSubmit: (data: typeof ADD_FORM_EMPTY) => void;
+  onClose: () => void;
+}) {
+  const [form, setForm] = useState(ADD_FORM_EMPTY);
+  const set = (k: keyof typeof ADD_FORM_EMPTY) =>
+    (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
+      setForm(f => ({ ...f, [k]: e.target.value }));
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-3">
+    <form onSubmit={e => { e.preventDefault(); onSubmit(form); }} className="space-y-3">
+      <div>
+        <FieldLabel>Party name *</FieldLabel>
+        <input className={inputCls} required value={form.name} onChange={set("name")} placeholder="Spring Rush Social" />
+      </div>
       <div className="grid grid-cols-2 gap-3">
-        <div className="col-span-2">
-          <FieldLabel>Party name *</FieldLabel>
-          <input className={inputCls} required value={form.name} onChange={set("name")} placeholder="Spring Rush Social" />
-        </div>
         <div>
           <FieldLabel>Date *</FieldLabel>
           <input type="date" className={inputCls} required value={form.date} onChange={set("date")} />
         </div>
         <div>
-          <FieldLabel>Attendance</FieldLabel>
-          <input type="number" min="0" className={inputCls} value={form.attendance} onChange={set("attendance")} placeholder="0" />
-        </div>
-        <div>
-          <FieldLabel>Door Revenue ($) *</FieldLabel>
-          <input type="number" min="0" step="0.01" className={inputCls} required value={form.doorRevenue} onChange={set("doorRevenue")} placeholder="0.00" />
-        </div>
-        <div>
-          <FieldLabel>Expenses ($)</FieldLabel>
-          <input type="number" min="0" step="0.01" className={inputCls} value={form.expenses} onChange={set("expenses")} placeholder="0.00" />
+          <FieldLabel>Party type</FieldLabel>
+          <select className={inputCls} value={form.partyType} onChange={e => setForm(f => ({ ...f, partyType: e.target.value as "Open" | "Closed" }))}>
+            <option value="Open">Open</option>
+            <option value="Closed">Closed</option>
+          </select>
         </div>
         <div>
           <FieldLabel>Theme</FieldLabel>
           <input className={inputCls} value={form.theme} onChange={set("theme")} placeholder="All White, Black & Gold…" />
         </div>
         <div>
-          <FieldLabel>Collab Organization</FieldLabel>
+          <FieldLabel>Collab org</FieldLabel>
           <input className={inputCls} value={form.collabOrg} onChange={set("collabOrg")} placeholder="KDF, DSP…" />
-        </div>
-        <div>
-          <FieldLabel>Party Type</FieldLabel>
-          <select className={inputCls} value={form.partyType} onChange={setPartyType}>
-            <option value="Open">Open</option>
-            <option value="Closed">Closed</option>
-          </select>
-        </div>
-        <div className="col-span-2">
-          <FieldLabel>Notes</FieldLabel>
-          <textarea className={`${inputCls} resize-none`} rows={2} value={form.notes} onChange={set("notes")} placeholder="Post-event notes…" />
         </div>
       </div>
       <div className="flex gap-2 justify-end pt-1">
@@ -132,65 +121,331 @@ function PartyForm({
         </button>
         <button type="submit"
           className="rounded-lg bg-indigo-600 px-4 py-2 text-[13px] font-semibold text-white hover:bg-indigo-500 transition-colors">
-          {submitLabel}
+          Add Party
         </button>
       </div>
     </form>
   );
 }
 
-// ─── page ─────────────────────────────────────────────────────────────────────
+// ─── Edit party form ──────────────────────────────────────────────────────────
+
+function EditPartyForm({ party, onSubmit, onClose }: {
+  party: PartyEvent;
+  onSubmit: (data: Partial<PartyEvent>) => void;
+  onClose: () => void;
+}) {
+  const [name,      setName]      = useState(party.name);
+  const [date,      setDate]      = useState(party.date);
+  const [partyType, setPartyType] = useState<"Open" | "Closed">(party.partyType);
+  const [theme,     setTheme]     = useState(party.theme);
+  const [collabOrg, setCollabOrg] = useState(party.collabOrg);
+
+  return (
+    <form onSubmit={e => { e.preventDefault(); onSubmit({ name, date, partyType, theme, collabOrg }); }} className="space-y-3">
+      <div>
+        <FieldLabel>Party name *</FieldLabel>
+        <input className={inputCls} required value={name} onChange={e => setName(e.target.value)} />
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <FieldLabel>Date *</FieldLabel>
+          <input type="date" className={inputCls} required value={date} onChange={e => setDate(e.target.value)} />
+        </div>
+        <div>
+          <FieldLabel>Party type</FieldLabel>
+          <select className={inputCls} value={partyType} onChange={e => setPartyType(e.target.value as "Open" | "Closed")}>
+            <option value="Open">Open</option>
+            <option value="Closed">Closed</option>
+          </select>
+        </div>
+        <div>
+          <FieldLabel>Theme</FieldLabel>
+          <input className={inputCls} value={theme} onChange={e => setTheme(e.target.value)} placeholder="All White…" />
+        </div>
+        <div>
+          <FieldLabel>Collab org</FieldLabel>
+          <input className={inputCls} value={collabOrg} onChange={e => setCollabOrg(e.target.value)} placeholder="KDF, DSP…" />
+        </div>
+      </div>
+      <div className="flex gap-2 justify-end pt-1">
+        <button type="button" onClick={onClose}
+          className="rounded-lg border border-white/[0.08] bg-white/[0.03] px-4 py-2 text-[13px] font-medium text-slate-300 hover:bg-white/[0.07] transition-colors">
+          Cancel
+        </button>
+        <button type="submit"
+          className="rounded-lg bg-indigo-600 px-4 py-2 text-[13px] font-semibold text-white hover:bg-indigo-500 transition-colors">
+          Save Changes
+        </button>
+      </div>
+    </form>
+  );
+}
+
+// ─── Wrap-up form ─────────────────────────────────────────────────────────────
+
+function WrapUpForm({ party, onSubmit, onClose }: {
+  party: PartyEvent;
+  onSubmit: (data: typeof WRAP_FORM_EMPTY) => void;
+  onClose: () => void;
+}) {
+  const [form, setForm] = useState(WRAP_FORM_EMPTY);
+  const set = (k: keyof typeof WRAP_FORM_EMPTY) =>
+    (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+      setForm(f => ({ ...f, [k]: e.target.value }));
+
+  const profitPreview = (Number(form.doorRevenue) || 0) - (Number(form.expenses) || 0);
+
+  return (
+    <form onSubmit={e => { e.preventDefault(); onSubmit(form); }} className="space-y-3">
+      <div className="rounded-lg bg-white/[0.04] px-4 py-3 mb-1">
+        <p className="text-[13px] font-semibold text-white">{party.name}</p>
+        <p className="text-[11px] text-slate-400 mt-0.5">{fmtDate(party.date)} · {party.partyType}{party.theme ? ` · ${party.theme}` : ""}</p>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <FieldLabel>Door Revenue ($) *</FieldLabel>
+          <input type="number" min="0" step="0.01" className={inputCls} required value={form.doorRevenue} onChange={set("doorRevenue")} placeholder="0.00" />
+        </div>
+        <div>
+          <FieldLabel>Expenses ($) *</FieldLabel>
+          <input type="number" min="0" step="0.01" className={inputCls} required value={form.expenses} onChange={set("expenses")} placeholder="0.00" />
+        </div>
+        <div>
+          <FieldLabel>Attendance *</FieldLabel>
+          <input type="number" min="0" className={inputCls} required value={form.attendance} onChange={set("attendance")} placeholder="0" />
+        </div>
+        <div className="flex items-end">
+          <div className="rounded-lg bg-white/[0.04] px-3 py-2 w-full text-center">
+            <p className="text-[10px] text-slate-500 mb-0.5">Profit preview</p>
+            <p className={`text-[16px] font-bold tabular-nums ${profitPreview >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+              {fmt$(profitPreview)}
+            </p>
+          </div>
+        </div>
+      </div>
+      <div>
+        <FieldLabel>Post-event notes</FieldLabel>
+        <textarea className={`${inputCls} resize-none`} rows={2} value={form.notes} onChange={set("notes")} placeholder="How did it go?" />
+      </div>
+      <div className="flex gap-2 justify-end pt-1">
+        <button type="button" onClick={onClose}
+          className="rounded-lg border border-white/[0.08] bg-white/[0.03] px-4 py-2 text-[13px] font-medium text-slate-300 hover:bg-white/[0.07] transition-colors">
+          Cancel
+        </button>
+        <button type="submit"
+          className="rounded-lg bg-emerald-600 px-4 py-2 text-[13px] font-semibold text-white hover:bg-emerald-500 transition-colors">
+          Mark Completed
+        </button>
+      </div>
+    </form>
+  );
+}
+
+// ─── Detail panel ─────────────────────────────────────────────────────────────
+
+function DetailPanel({ party, onEdit, onWrapUp, onDelete }: {
+  party: PartyEvent;
+  onEdit:   () => void;
+  onWrapUp: () => void;
+  onDelete: () => void;
+}) {
+  const p = profit(party);
+  const margin = party.doorRevenue > 0 ? Math.round((p / party.doorRevenue) * 100) : 0;
+
+  return (
+    <Card className="overflow-hidden">
+      <div className="h-[2px]" style={{
+        background: party.completed
+          ? p >= 0 ? "linear-gradient(90deg,transparent,#34d399 30%,#34d399 70%,transparent)"
+                  : "linear-gradient(90deg,transparent,#f87171 30%,#f87171 70%,transparent)"
+          : "linear-gradient(90deg,transparent,#818cf8 30%,#818cf8 70%,transparent)"
+      }} />
+
+      <div className="px-5 py-4 border-b border-white/[0.07] flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h3 className="text-[15px] font-bold text-white leading-snug">{party.name}</h3>
+          <p className="text-[11px] text-slate-400 mt-0.5">{fmtDate(party.date)}</p>
+        </div>
+        <div className="flex flex-col items-end gap-1.5 shrink-0">
+          <PartyTypeBadge type={party.partyType} />
+          {needsWrapUp(party) && <WrapUpBadge />}
+        </div>
+      </div>
+
+      <div className="px-5 py-4 space-y-4">
+        {/* financials — only if completed */}
+        {party.completed ? (
+          <>
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                { label: "Revenue",  value: fmt$(party.doorRevenue), color: "#818cf8" },
+                { label: "Expenses", value: fmt$(party.expenses),    color: "#f87171" },
+                { label: "Profit",   value: fmt$(p),                 color: p >= 0 ? "#34d399" : "#f87171" },
+              ].map(({ label, value, color }) => (
+                <div key={label} className="rounded-lg bg-white/[0.04] px-3 py-2.5 text-center">
+                  <p className="text-[14px] font-bold tabular-nums" style={{ color }}>{value}</p>
+                  <p className="text-[10px] text-slate-500 mt-0.5">{label}</p>
+                </div>
+              ))}
+            </div>
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-[10px] text-slate-500">Profit margin</span>
+                <span className="text-[10px] tabular-nums text-slate-400">{margin}%</span>
+              </div>
+              <div className="h-1.5 overflow-hidden rounded-full bg-white/[0.07]">
+                <div className="h-full rounded-full transition-all duration-500"
+                     style={{ width: `${Math.min(100, Math.max(0, margin))}%`, background: p >= 0 ? "#34d399" : "#f87171" }} />
+              </div>
+            </div>
+          </>
+        ) : (
+          <div className="rounded-lg bg-indigo-500/[0.07] border border-indigo-500/20 px-4 py-3 text-center">
+            <p className="text-[12px] text-indigo-300">Financial data will appear after wrap-up</p>
+          </div>
+        )}
+
+        {/* meta */}
+        <div className="space-y-2">
+          {party.completed && party.attendance > 0 && (
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] text-slate-500">Attendance</span>
+              <span className="text-[12px] font-medium text-white tabular-nums">{party.attendance}</span>
+            </div>
+          )}
+          {party.completed && party.attendance > 0 && party.doorRevenue > 0 && (
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] text-slate-500">Revenue / head</span>
+              <span className="text-[12px] font-medium text-slate-300 tabular-nums">{fmt$(Math.round(party.doorRevenue / party.attendance))}</span>
+            </div>
+          )}
+          {party.completed && party.attendance > 0 && (
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] text-slate-500">Profit / head</span>
+              <span className="text-[12px] font-medium tabular-nums" style={{ color: p >= 0 ? "#34d399" : "#f87171" }}>{fmt$(Math.round(p / party.attendance))}</span>
+            </div>
+          )}
+          {party.theme && (
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] text-slate-500">Theme</span>
+              <span className="text-[12px] text-slate-300">{party.theme}</span>
+            </div>
+          )}
+          {party.collabOrg && (
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] text-slate-500">Collab</span>
+              <span className="text-[12px] font-medium text-indigo-400">{party.collabOrg}</span>
+            </div>
+          )}
+          {party.completedAt && (
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] text-slate-500">Completed</span>
+              <span className="text-[11px] text-slate-400">{fmtDate(party.completedAt.slice(0, 10))}</span>
+            </div>
+          )}
+        </div>
+
+        {party.notes && (
+          <div className="rounded-lg bg-white/[0.03] border border-white/[0.06] px-3 py-2.5">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-600 mb-1">Notes</p>
+            <p className="text-[12px] leading-relaxed text-slate-300">{party.notes}</p>
+          </div>
+        )}
+
+        {/* actions */}
+        <div className="flex gap-2 pt-1">
+          {!party.completed && (
+            <button onClick={onWrapUp}
+              className="flex-1 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-[12px] font-semibold text-emerald-300 hover:bg-emerald-500/20 transition-colors">
+              Mark completed
+            </button>
+          )}
+          <button onClick={onEdit}
+            className="flex-1 rounded-lg border border-indigo-500/30 bg-indigo-500/10 px-3 py-2 text-[12px] font-semibold text-indigo-300 hover:bg-indigo-500/20 transition-colors">
+            Edit
+          </button>
+          <button onClick={onDelete}
+            className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[12px] font-semibold text-red-400 hover:bg-red-500/20 transition-colors">
+            Delete
+          </button>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function PartiesPage() {
   const { partyList, setPartyList } = useChapter();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [selectedId, setSelectedId]   = useState<number | null>(null);
-  const [modal, setModal]             = useState<ModalKind | null>(null);
-  const [editingId, setEditingId]     = useState<number | null>(null);
-  const [sortKey, setSortKey]         = useState<SortKey>("date");
-  const [sortDir, setSortDir]         = useState<SortDir>("desc");
-  const [statusFilter, setStatusFilter] = useState<PartyStatus | "All">("All");
-  const [error, setError]             = useState<string | null>(null);
+  const [selectedId,  setSelectedId]  = useState<number | null>(null);
+  const [modal,       setModal]       = useState<ModalKind | null>(null);
+  const [editingId,   setEditingId]   = useState<number | null>(null);
+  const [wrapUpId,    setWrapUpId]    = useState<number | null>(null);
+  const [timeTab,     setTimeTab]     = useState<TimeTab>("All");
+  const [typeFilter,  setTypeFilter]  = useState<TypeFilter>("All");
+  const [sortKey,     setSortKey]     = useState<SortKey>("date");
+  const [sortDir,     setSortDir]     = useState<SortDir>("desc");
+  const [pageError,   setPageError]   = useState<string | null>(null);
 
-  // ── derived ─────────────────────────────────────────────────────────────────
+  // ── persistence helper ────────────────────────────────────────────────────────
+  const persist = useCallback((
+    promise: Promise<unknown>,
+    errMsg: string,
+    rollback: () => void,
+    onSuccess?: (r: unknown) => void,
+  ) => {
+    promise
+      .then(r => { setPageError(null); onSuccess?.(r); })
+      .catch(() => { setPageError(errMsg); rollback(); });
+  }, []);
 
-  const totalRevenue  = useMemo(() => partyList.reduce((s, p) => s + p.doorRevenue, 0), [partyList]);
-  const totalExpenses = useMemo(() => partyList.reduce((s, p) => s + p.expenses, 0), [partyList]);
-  const totalProfit   = totalRevenue - totalExpenses;
-  const avgProfit     = partyList.length > 0 ? totalProfit / partyList.length : 0;
-
-  const bestParty = useMemo(() => {
-    const past = partyList.filter(p => p.date <= todayStr());
-    if (!past.length) return null;
-    return past.reduce((a, b) => partyProfit(b) > partyProfit(a) ? b : a);
-  }, [partyList]);
+  // ── derived lists ─────────────────────────────────────────────────────────────
+  const tabFiltered = useMemo(() => {
+    let list = partyList;
+    if (timeTab === "Upcoming") list = list.filter(p => !p.completed);
+    if (timeTab === "Past")     list = list.filter(p =>  p.completed);
+    if (typeFilter !== "All")   list = list.filter(p => p.partyType === typeFilter);
+    return list;
+  }, [partyList, timeTab, typeFilter]);
 
   const sorted = useMemo(() => {
-    const list = statusFilter === "All" ? [...partyList] : partyList.filter(p => partyStatus(p) === statusFilter);
+    const list = [...tabFiltered];
     list.sort((a, b) => {
-      let av: number, bv: number;
-      if (sortKey === "profit")     { av = partyProfit(a); bv = partyProfit(b); }
-      else if (sortKey === "date")  { av = a.date < b.date ? -1 : 1; bv = 0; return sortDir === "asc" ? (a.date < b.date ? -1 : 1) : (a.date > b.date ? -1 : 1); }
-      else                          { av = a[sortKey] as number; bv = b[sortKey] as number; }
+      if (sortKey === "date") {
+        return sortDir === "asc" ? a.date.localeCompare(b.date) : b.date.localeCompare(a.date);
+      }
+      const av = sortKey === "profit" ? profit(a) : (a[sortKey] as number);
+      const bv = sortKey === "profit" ? profit(b) : (b[sortKey] as number);
       return sortDir === "asc" ? av - bv : bv - av;
     });
     return list;
-  }, [partyList, sortKey, sortDir, statusFilter]);
+  }, [tabFiltered, sortKey, sortDir]);
 
-  const selected = useMemo(() => partyList.find(p => p.id === selectedId) ?? null, [partyList, selectedId]);
+  const selected    = useMemo(() => partyList.find(p => p.id === selectedId) ?? null, [partyList, selectedId]);
+  const wrapUpParty = useMemo(() => partyList.find(p => p.id === wrapUpId)   ?? null, [partyList, wrapUpId]);
+  const editParty   = useMemo(() => partyList.find(p => p.id === editingId)  ?? null, [partyList, editingId]);
 
-  const chartData = useMemo(() =>
-    [...partyList]
-      .sort((a, b) => a.date.localeCompare(b.date))
-      .map(p => ({
-        name:     p.name.length > 14 ? p.name.slice(0, 13) + "…" : p.name,
-        revenue:  p.doorRevenue,
-        expenses: p.expenses,
-        profit:   partyProfit(p),
-      })),
-  [partyList]);
+  // ── summary stats (based on tab-filtered list) ────────────────────────────────
+  const completedFiltered = useMemo(() => tabFiltered.filter(p => p.completed), [tabFiltered]);
+  const totalRevenue  = useMemo(() => completedFiltered.reduce((s, p) => s + p.doorRevenue, 0), [completedFiltered]);
+  const totalExpenses = useMemo(() => completedFiltered.reduce((s, p) => s + p.expenses,    0), [completedFiltered]);
+  const totalProfit   = totalRevenue - totalExpenses;
+  const avgProfit     = completedFiltered.length > 0 ? totalProfit / completedFiltered.length : 0;
+  const bestParty     = useMemo(() => {
+    if (!completedFiltered.length) return null;
+    return completedFiltered.reduce((a, b) => profit(b) > profit(a) ? b : a);
+  }, [completedFiltered]);
 
-  // ── sort toggle ─────────────────────────────────────────────────────────────
+  const counts = useMemo(() => ({
+    all:      partyList.length,
+    upcoming: partyList.filter(p => !p.completed).length,
+    past:     partyList.filter(p =>  p.completed).length,
+  }), [partyList]);
+
+  // ── sort helper ───────────────────────────────────────────────────────────────
   function toggleSort(k: SortKey) {
     if (sortKey === k) setSortDir(d => d === "asc" ? "desc" : "asc");
     else { setSortKey(k); setSortDir("desc"); }
@@ -199,81 +454,84 @@ export default function PartiesPage() {
   function SortTh({ label, col }: { label: string; col: SortKey }) {
     const active = sortKey === col;
     return (
-      <th className="cursor-pointer select-none px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-[0.07em] text-slate-500 hover:text-slate-300 transition-colors"
-          onClick={() => toggleSort(col)}>
+      <th onClick={() => toggleSort(col)}
+          className="cursor-pointer select-none px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-[0.07em] text-slate-500 hover:text-slate-300 transition-colors">
         {label}{active ? (sortDir === "asc" ? " ↑" : " ↓") : ""}
       </th>
     );
   }
 
-  // ── mutations ────────────────────────────────────────────────────────────────
+  // ── mutations ─────────────────────────────────────────────────────────────────
 
-  const persistMutation = useCallback((
-    promise: Promise<unknown>,
-    errMsg: string,
-    rollback: () => void,
-    onSuccess?: (r: unknown) => void,
-  ) => {
-    promise
-      .then(r => { setError(null); onSuccess?.(r); })
-      .catch(() => { setError(errMsg); rollback(); });
-  }, []);
-
-  function handleAdd(form: typeof EMPTY_FORM) {
+  function handleAdd(form: typeof ADD_FORM_EMPTY) {
     const tempId = Date.now();
     const entry: PartyEvent = {
-      id: tempId,
-      name: form.name,
-      date: form.date,
-      doorRevenue: Number(form.doorRevenue) || 0,
-      attendance:  Number(form.attendance)  || 0,
-      notes:       form.notes,
-      theme:       form.theme,
-      collabOrg:   form.collabOrg,
-      expenses:    Number(form.expenses) || 0,
-      partyType:   form.partyType,
+      id: tempId, name: form.name, date: form.date, partyType: form.partyType,
+      theme: form.theme, collabOrg: form.collabOrg,
+      doorRevenue: 0, attendance: 0, expenses: 0, notes: "",
+      completed: false, completedAt: null,
     };
     setPartyList(prev => [...prev, entry]);
     setModal(null);
-    persistMutation(
+    setSelectedId(tempId);
+    persist(
       requestJson<PartyEvent>("/api/parties", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...entry, id: undefined }),
+        body: JSON.stringify({ name: form.name, date: form.date, partyType: form.partyType, theme: form.theme, collabOrg: form.collabOrg }),
       }),
       "Could not save party. Changes reverted.",
-      () => setPartyList(prev => prev.filter(p => p.id !== tempId)),
-      saved => setPartyList(prev => prev.map(p => p.id === tempId ? saved as PartyEvent : p)),
+      () => { setPartyList(prev => prev.filter(p => p.id !== tempId)); setSelectedId(null); },
+      saved => {
+        const s = saved as PartyEvent;
+        setPartyList(prev => prev.map(p => p.id === tempId ? s : p));
+        setSelectedId(s.id);
+      },
     );
   }
 
-  function handleEdit(form: typeof EMPTY_FORM) {
+  function handleEdit(updates: Partial<PartyEvent>) {
     if (!editingId) return;
     const prev = partyList.find(p => p.id === editingId);
-    const updated: PartyEvent = {
-      id: editingId,
-      name:        form.name,
-      date:        form.date,
-      doorRevenue: Number(form.doorRevenue) || 0,
-      attendance:  Number(form.attendance)  || 0,
-      notes:       form.notes,
-      theme:       form.theme,
-      collabOrg:   form.collabOrg,
-      expenses:    Number(form.expenses) || 0,
-      partyType:   form.partyType,
-    };
-    setPartyList(prev2 => prev2.map(p => p.id === editingId ? updated : p));
-    if (selectedId === editingId) setSelectedId(editingId);
+    setPartyList(list => list.map(p => p.id === editingId ? { ...p, ...updates } : p));
     setModal(null);
     setEditingId(null);
-    persistMutation(
+    persist(
       requestJson<PartyEvent>(`/api/parties/${editingId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(updated),
+        body: JSON.stringify(updates),
       }),
       "Could not save changes. Changes reverted.",
-      () => { if (prev) setPartyList(prev2 => prev2.map(p => p.id === editingId ? prev : p)); },
+      () => { if (prev) setPartyList(list => list.map(p => p.id === editingId ? prev : p)); },
+    );
+  }
+
+  function handleWrapUp(form: typeof WRAP_FORM_EMPTY) {
+    if (!wrapUpId) return;
+    const prev = partyList.find(p => p.id === wrapUpId);
+    const updates = {
+      doorRevenue: Number(form.doorRevenue) || 0,
+      expenses:    Number(form.expenses)    || 0,
+      attendance:  Number(form.attendance)  || 0,
+      notes:       form.notes,
+      completed:   true,
+    };
+    setPartyList(list => list.map(p => p.id === wrapUpId
+      ? { ...p, ...updates, completedAt: new Date().toISOString() }
+      : p
+    ));
+    setModal(null);
+    setWrapUpId(null);
+    persist(
+      requestJson<PartyEvent>(`/api/parties/${wrapUpId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(updates),
+      }),
+      "Could not mark party completed. Changes reverted.",
+      () => { if (prev) setPartyList(list => list.map(p => p.id === wrapUpId ? prev : p)); },
+      saved => setPartyList(list => list.map(p => p.id === wrapUpId ? saved as PartyEvent : p)),
     );
   }
 
@@ -281,36 +539,20 @@ export default function PartiesPage() {
     const prev = partyList.find(p => p.id === id);
     setPartyList(list => list.filter(p => p.id !== id));
     if (selectedId === id) setSelectedId(null);
-    persistMutation(
+    persist(
       requestJson<void>(`/api/parties/${id}`, { method: "DELETE" }),
       "Could not delete party. Changes reverted.",
       () => { if (prev) setPartyList(list => [...list, prev].sort((a, b) => a.id - b.id)); },
     );
   }
 
-  function openEdit(p: PartyEvent) {
-    setEditingId(p.id);
-    setModal("edit");
-  }
+  function openWrapUp(p: PartyEvent) { setWrapUpId(p.id); setModal("wrap-up"); }
+  function openEdit(p: PartyEvent)   { setEditingId(p.id); setModal("edit"); }
+  function closeModal() { setModal(null); setEditingId(null); setWrapUpId(null); }
 
-  const editInitial = useMemo<typeof EMPTY_FORM>(() => {
-    if (!editingId) return EMPTY_FORM;
-    const p = partyList.find(x => x.id === editingId);
-    if (!p) return EMPTY_FORM;
-    return {
-      name:        p.name,
-      date:        p.date,
-      doorRevenue: String(p.doorRevenue),
-      attendance:  String(p.attendance),
-      notes:       p.notes,
-      theme:       p.theme,
-      collabOrg:   p.collabOrg,
-      expenses:    String(p.expenses),
-      partyType:   p.partyType,
-    };
-  }, [editingId, partyList]);
+  const showFinancials = timeTab !== "Upcoming";
 
-  // ── render ──────────────────────────────────────────────────────────────────
+  // ── render ────────────────────────────────────────────────────────────────────
   return (
     <div className="flex h-screen overflow-hidden bg-[#0d1117]">
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} activeSection="Parties" onNavClick={() => {}} />
@@ -326,10 +568,10 @@ export default function PartiesPage() {
           </button>
           <div className="min-w-0 flex-1">
             <p className="text-[14px] font-semibold leading-tight text-white">Party Dashboard</p>
-            <p className="hidden text-[11px] leading-tight text-slate-400 sm:block">Lambda Phi Epsilon · Revenue & Profit Tracker</p>
+            <p className="hidden text-[11px] leading-tight text-slate-400 sm:block">Lambda Phi Epsilon · Revenue &amp; Profit Tracker</p>
           </div>
           <div className="absolute bottom-0 left-0 right-0 h-px"
-               style={{ background: "linear-gradient(90deg, transparent, rgba(99,102,241,0.4) 30%, rgba(99,102,241,0.4) 70%, transparent)" }} />
+               style={{ background: "linear-gradient(90deg,transparent,rgba(99,102,241,0.4) 30%,rgba(99,102,241,0.4) 70%,transparent)" }} />
           <button onClick={() => setModal("add")}
             className="rounded-lg border border-indigo-500/40 bg-indigo-500/10 px-3 py-1.5 text-[12px] font-semibold text-indigo-300 hover:bg-indigo-500/20 transition-colors">
             + Add Party
@@ -340,80 +582,70 @@ export default function PartiesPage() {
         <main className="page-ambient flex-1 overflow-y-auto">
           <div className="mx-auto max-w-[1400px] space-y-5 px-4 py-6 sm:px-6">
 
-            {/* error banner */}
-            {error && (
+            {pageError && (
               <div className="flex items-center justify-between gap-3 rounded-xl border border-red-500/25 bg-red-500/10 px-4 py-3 text-[12px] text-red-200">
-                <span>{error}</span>
-                <button onClick={() => setError(null)} className="rounded-lg border border-red-300/20 px-2.5 py-1 font-semibold text-red-100 hover:bg-red-500/15">Dismiss</button>
+                <span>{pageError}</span>
+                <button onClick={() => setPageError(null)} className="rounded-lg border border-red-300/20 px-2.5 py-1 font-semibold text-red-100 hover:bg-red-500/15">Dismiss</button>
               </div>
             )}
 
-            {/* ── summary cards ─────────────────────────────────────────────── */}
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
-              <SummaryCard label="Total Revenue"    value={fmt$(totalRevenue)}  accent="text-indigo-400" sub={`${partyList.length} events`} />
-              <SummaryCard label="Total Expenses"   value={fmt$(totalExpenses)} accent="text-red-400"    sub="all parties" />
-              <SummaryCard label="Total Profit"     value={fmt$(totalProfit)}   accent={totalProfit >= 0 ? "text-emerald-400" : "text-red-400"} sub={totalProfit >= 0 ? "net positive" : "net loss"} />
-              <SummaryCard label="Avg Profit / Party" value={fmt$(Math.round(avgProfit))} accent={avgProfit >= 0 ? "text-white" : "text-amber-400"} />
-              <SummaryCard label="Best Party"       value={bestParty ? fmt$(partyProfit(bestParty)) : "—"} accent="text-pink-400" sub={bestParty?.name ?? "no past events"} />
+            {/* ── time tabs + type filter ────────────────────────────────── */}
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex gap-1">
+                {(["All", "Upcoming", "Past"] as TimeTab[]).map(tab => (
+                  <button key={tab} onClick={() => setTimeTab(tab)}
+                    className={`rounded-lg px-3 py-1.5 text-[12px] font-medium transition-all duration-150 ${
+                      timeTab === tab
+                        ? "bg-white/[0.10] text-white"
+                        : "border border-white/[0.08] text-slate-400 hover:border-white/[0.16] hover:text-slate-200"
+                    }`}>
+                    {tab}
+                    <span className={`ml-1.5 text-[10px] tabular-nums ${timeTab === tab ? "text-slate-300" : "text-slate-600"}`}>
+                      {tab === "All" ? counts.all : tab === "Upcoming" ? counts.upcoming : counts.past}
+                    </span>
+                  </button>
+                ))}
+              </div>
+              <div className="flex gap-1">
+                {(["All", "Open", "Closed"] as TypeFilter[]).map(f => (
+                  <button key={f} onClick={() => setTypeFilter(f)}
+                    className={`rounded-md px-2.5 py-1 text-[11px] font-medium transition-all duration-150 ${
+                      typeFilter === f
+                        ? "bg-white/[0.10] text-white"
+                        : "border border-white/[0.08] text-slate-400 hover:border-white/[0.16] hover:text-slate-200"
+                    }`}>
+                    {f}
+                  </button>
+                ))}
+              </div>
             </div>
 
-            {/* ── profit chart ───────────────────────────────────────────────── */}
-            {chartData.length > 0 && (
-              <Card className="overflow-hidden">
-                <div className="border-b border-white/[0.07] px-5 py-3.5 flex items-center justify-between">
-                  <div>
-                    <h2 className="text-[13px] font-semibold text-white">Revenue vs. Expenses vs. Profit</h2>
-                    <p className="text-[11px] text-slate-500">Per party, chronological</p>
-                  </div>
-                </div>
-                <div className="px-4 pt-4 pb-2">
-                  <ResponsiveContainer width="100%" height={160}>
-                    <BarChart data={chartData} margin={{ top: 4, right: 8, bottom: 0, left: -16 }} barGap={2} barCategoryGap="25%">
-                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
-                      <XAxis dataKey="name" tick={{ fontSize: 9, fill: "#475569" }} axisLine={false} tickLine={false} />
-                      <YAxis tick={{ fontSize: 10, fill: "#475569" }} axisLine={false} tickLine={false} tickFormatter={(v: number) => `$${v}`} />
-                      <Tooltip
-                        formatter={(v, name) => [fmt$(Number(v ?? 0)), String(name).charAt(0).toUpperCase() + String(name).slice(1)]}
-                        contentStyle={tooltipStyle}
-                        cursor={{ fill: "rgba(255,255,255,0.03)" }}
-                      />
-                      <Bar dataKey="revenue"  fill="#818cf8" radius={[3, 3, 0, 0]} name="Revenue" />
-                      <Bar dataKey="expenses" fill="#f87171" radius={[3, 3, 0, 0]} name="Expenses" />
-                      <Bar dataKey="profit"   radius={[3, 3, 0, 0]} name="Profit">
-                        {chartData.map((d, i) => <Cell key={i} fill={d.profit >= 0 ? "#34d399" : "#f87171"} />)}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
-                  <div className="flex items-center gap-5 mt-1 px-2">
-                    {[["#818cf8","Revenue"],["#f87171","Expenses"],["#34d399","Profit"]].map(([color, label]) => (
-                      <div key={label} className="flex items-center gap-1.5">
-                        <span className="h-2 w-2 rounded-sm" style={{ background: color }} />
-                        <span className="text-[10px] text-slate-500">{label}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </Card>
+            {/* ── summary cards ─────────────────────────────────────────── */}
+            {showFinancials && (
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 xl:grid-cols-5">
+                <SummaryCard label="Total Revenue"  value={fmt$(totalRevenue)}  accent="text-indigo-400"
+                  sub={`${completedFiltered.length} completed`} />
+                <SummaryCard label="Total Expenses" value={fmt$(totalExpenses)} accent="text-red-400" />
+                <SummaryCard label="Total Profit"   value={fmt$(totalProfit)}
+                  accent={totalProfit >= 0 ? "text-emerald-400" : "text-red-400"}
+                  sub={totalProfit >= 0 ? "net positive" : "net loss"} />
+                <SummaryCard label="Avg Profit"     value={fmt$(Math.round(avgProfit))}
+                  accent={avgProfit >= 0 ? "text-white" : "text-amber-400"} />
+                <SummaryCard label="Best Party"     value={bestParty ? fmt$(profit(bestParty)) : "—"}
+                  accent="text-pink-400" sub={bestParty?.name ?? "none yet"} />
+              </div>
             )}
 
-            {/* ── main grid: table + detail panel ───────────────────────────── */}
+            {/* ── main grid: table + detail ──────────────────────────────── */}
             <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
 
-              {/* party table */}
-              <Card className="overflow-hidden xl:col-span-2" style={{ background: "linear-gradient(to bottom, #ffffff08 0%, #141925 45%)" }}>
-                <div className="border-b border-white/[0.07] px-5 py-3.5 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <h2 className="text-[14px] font-semibold text-white">All Parties</h2>
-                    <p className="text-[11px] text-slate-500">Click a row to view details</p>
-                  </div>
-                  <div className="flex flex-wrap gap-1">
-                    {(["All", "Open", "Closed"] as const).map(f => (
-                      <button key={f} onClick={() => setStatusFilter(f)}
-                        className={`rounded-md px-2.5 py-1 text-[11px] font-medium transition-all duration-150 ${statusFilter === f ? "bg-white/[0.12] text-white" : "border border-white/[0.1] text-slate-400 hover:border-white/[0.2] hover:text-slate-200"}`}>
-                        {f}
-                      </button>
-                    ))}
-                  </div>
+              {/* table */}
+              <Card className="overflow-hidden xl:col-span-2" style={{ background: "linear-gradient(to bottom,#ffffff08 0%,#141925 45%)" }}>
+                <div className="border-b border-white/[0.07] px-5 py-3.5">
+                  <h2 className="text-[14px] font-semibold text-white">
+                    {timeTab === "Upcoming" ? "Upcoming Parties" : timeTab === "Past" ? "Past Parties" : "All Parties"}
+                  </h2>
+                  <p className="text-[11px] text-slate-500 mt-0.5">Click a row to view details</p>
                 </div>
 
                 <div className="overflow-x-auto">
@@ -421,21 +653,22 @@ export default function PartiesPage() {
                     <thead>
                       <tr className="border-b border-white/[0.06] bg-white/[0.03]">
                         <th className="py-2.5 pl-5 pr-3 text-left text-[10px] font-semibold uppercase tracking-[0.07em] text-slate-500">Party</th>
-                        <SortTh label="Date"     col="date" />
-                        <SortTh label="Revenue"  col="doorRevenue" />
-                        <SortTh label="Expenses" col="expenses" />
-                        <SortTh label="Profit"   col="profit" />
-                        <SortTh label="Att."     col="attendance" />
-                        <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-[0.07em] text-slate-500">Status</th>
+                        <SortTh label="Date" col="date" />
+                        <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-[0.07em] text-slate-500">Type</th>
+                        {showFinancials && <>
+                          <SortTh label="Revenue"  col="doorRevenue" />
+                          <SortTh label="Expenses" col="expenses" />
+                          <SortTh label="Profit"   col="profit" />
+                          <SortTh label="Att."     col="attendance" />
+                        </>}
                         <th className="px-3 py-2.5" />
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-white/[0.04]">
                       {sorted.length === 0 ? (
-                        <tr><td colSpan={8} className="py-12 text-center text-[13px] text-slate-500">No parties match this filter.</td></tr>
+                        <tr><td colSpan={showFinancials ? 8 : 4} className="py-12 text-center text-[13px] text-slate-500">No parties here yet.</td></tr>
                       ) : sorted.map(p => {
-                        const profit  = partyProfit(p);
-                        const status  = partyStatus(p);
+                        const pr = profit(p);
                         const isSelected = selectedId === p.id;
                         return (
                           <tr key={p.id}
@@ -443,23 +676,35 @@ export default function PartiesPage() {
                               className={`cursor-pointer transition-colors ${isSelected ? "bg-indigo-500/[0.07]" : "hover:bg-white/[0.03]"}`}>
                             <td className="border-l-2 border-l-indigo-500/40 py-3 pl-4 pr-3">
                               <p className="text-[13px] font-semibold text-white">{p.name}</p>
-                              {p.theme && <p className="text-[10px] text-slate-500 mt-0.5">{p.theme}{p.collabOrg ? ` · ${p.collabOrg}` : ""}</p>}
+                              {(p.theme || p.collabOrg) && (
+                                <p className="text-[10px] text-slate-500 mt-0.5">
+                                  {[p.theme, p.collabOrg ? `w/ ${p.collabOrg}` : ""].filter(Boolean).join(" · ")}
+                                </p>
+                              )}
                             </td>
                             <td className="px-3 py-3 text-[12px] text-slate-400 whitespace-nowrap">{fmtDate(p.date)}</td>
-                            <td className="px-3 py-3 tabular-nums text-[13px] font-medium text-indigo-300">{fmt$(p.doorRevenue)}</td>
-                            <td className="px-3 py-3 tabular-nums text-[13px] font-medium text-red-400">{fmt$(p.expenses)}</td>
-                            <td className="px-3 py-3 tabular-nums text-[13px] font-bold" style={{ color: profit >= 0 ? "#34d399" : "#f87171" }}>{fmt$(profit)}</td>
-                            <td className="px-3 py-3 tabular-nums text-[12px] text-slate-400">{p.attendance}</td>
+                            <td className="px-3 py-3"><PartyTypeBadge type={p.partyType} /></td>
+                            {showFinancials && <>
+                              <td className="px-3 py-3 tabular-nums text-[13px] font-medium text-indigo-300">{p.completed ? fmt$(p.doorRevenue) : "—"}</td>
+                              <td className="px-3 py-3 tabular-nums text-[13px] font-medium text-red-400">{p.completed ? fmt$(p.expenses) : "—"}</td>
+                              <td className="px-3 py-3 tabular-nums text-[13px] font-bold" style={{ color: p.completed ? (pr >= 0 ? "#34d399" : "#f87171") : "#475569" }}>
+                                {p.completed ? fmt$(pr) : "—"}
+                              </td>
+                              <td className="px-3 py-3 tabular-nums text-[12px] text-slate-400">{p.completed ? p.attendance : "—"}</td>
+                            </>}
                             <td className="px-3 py-3">
-                              <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium tracking-wide ${STATUS_STYLES[status]}`}>
-                                {status}
-                              </span>
-                            </td>
-                            <td className="px-3 py-3">
-                              <button onClick={e => { e.stopPropagation(); openEdit(p); }}
-                                className="rounded-md bg-white/[0.05] px-2 py-1 text-[10px] font-medium text-slate-400 ring-1 ring-inset ring-white/[0.1] hover:bg-indigo-500/15 hover:text-indigo-400 hover:ring-indigo-500/25 transition-colors">
-                                Edit
-                              </button>
+                              <div className="flex gap-1.5" onClick={e => e.stopPropagation()}>
+                                {!p.completed && (
+                                  <button onClick={() => openWrapUp(p)}
+                                    className="rounded-md bg-emerald-500/10 px-2 py-1 text-[10px] font-medium text-emerald-400 ring-1 ring-inset ring-emerald-500/20 hover:bg-emerald-500/20 transition-colors whitespace-nowrap">
+                                    Wrap up
+                                  </button>
+                                )}
+                                <button onClick={() => openEdit(p)}
+                                  className="rounded-md bg-white/[0.05] px-2 py-1 text-[10px] font-medium text-slate-400 ring-1 ring-inset ring-white/[0.1] hover:bg-indigo-500/15 hover:text-indigo-400 hover:ring-indigo-500/25 transition-colors">
+                                  Edit
+                                </button>
+                              </div>
                             </td>
                           </tr>
                         );
@@ -470,17 +715,21 @@ export default function PartiesPage() {
 
                 <div className="border-t border-white/[0.06] bg-white/[0.02] px-5 py-2.5">
                   <p className="text-[11px] text-slate-500">
-                    {sorted.length} / {partyList.length} parties ·{" "}
-                    <span className="font-medium text-emerald-400">{partyList.filter(p => partyStatus(p) === "Open").length} open</span> ·{" "}
-                    <span className="font-medium text-slate-300">{partyList.filter(p => partyStatus(p) === "Closed").length} closed</span>
+                    {sorted.length} shown ·{" "}
+                    <span className="font-medium text-amber-400">{sorted.filter(needsWrapUp).length} need wrap-up</span>
                   </p>
                 </div>
               </Card>
 
               {/* detail panel */}
-              <div className="flex flex-col gap-4">
+              <div>
                 {selected ? (
-                  <DetailPanel party={selected} onEdit={() => openEdit(selected)} onDelete={() => handleDelete(selected.id)} />
+                  <DetailPanel
+                    party={selected}
+                    onEdit={() => openEdit(selected)}
+                    onWrapUp={() => openWrapUp(selected)}
+                    onDelete={() => handleDelete(selected.id)}
+                  />
                 ) : (
                   <Card className="flex flex-col items-center justify-center gap-2 py-16 text-center">
                     <svg className="h-8 w-8 text-slate-700" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -498,120 +747,20 @@ export default function PartiesPage() {
 
       {/* modals */}
       {modal === "add" && (
-        <Modal title="Add Party" onClose={() => setModal(null)}>
-          <PartyForm initial={EMPTY_FORM} onSubmit={handleAdd} onClose={() => setModal(null)} submitLabel="Add Party" />
+        <Modal title="Add Party" onClose={closeModal}>
+          <AddPartyForm onSubmit={handleAdd} onClose={closeModal} />
         </Modal>
       )}
-      {modal === "edit" && (
-        <Modal title="Edit Party" onClose={() => { setModal(null); setEditingId(null); }}>
-          <PartyForm initial={editInitial} onSubmit={handleEdit} onClose={() => { setModal(null); setEditingId(null); }} submitLabel="Save Changes" />
+      {modal === "edit" && editParty && (
+        <Modal title="Edit Party" onClose={closeModal}>
+          <EditPartyForm party={editParty} onSubmit={handleEdit} onClose={closeModal} />
+        </Modal>
+      )}
+      {modal === "wrap-up" && wrapUpParty && (
+        <Modal title="Mark Completed" onClose={closeModal}>
+          <WrapUpForm party={wrapUpParty} onSubmit={handleWrapUp} onClose={closeModal} />
         </Modal>
       )}
     </div>
-  );
-}
-
-// ─── detail panel ─────────────────────────────────────────────────────────────
-
-function DetailPanel({ party, onEdit, onDelete }: { party: PartyEvent; onEdit: () => void; onDelete: () => void }) {
-  const profit  = partyProfit(party);
-  const status  = partyStatus(party);
-  const margin  = party.doorRevenue > 0 ? Math.round((profit / party.doorRevenue) * 100) : 0;
-
-  return (
-    <Card className="overflow-hidden">
-      {/* accent bar */}
-      <div className="h-[2px]" style={{ background: profit >= 0 ? "linear-gradient(90deg, transparent, #34d399 30%, #34d399 70%, transparent)" : "linear-gradient(90deg, transparent, #f87171 30%, #f87171 70%, transparent)" }} />
-
-      <div className="px-5 py-4 border-b border-white/[0.07] flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h3 className="text-[15px] font-bold text-white leading-snug">{party.name}</h3>
-          <p className="text-[11px] text-slate-400 mt-0.5">{fmtDate(party.date)}</p>
-        </div>
-        <span className={`mt-0.5 inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[11px] font-medium tracking-wide ${STATUS_STYLES[status]}`}>
-          {status}
-        </span>
-      </div>
-
-      <div className="px-5 py-4 space-y-4">
-        {/* financials */}
-        <div className="grid grid-cols-3 gap-2">
-          {[
-            { label: "Revenue",  value: fmt$(party.doorRevenue), color: "#818cf8" },
-            { label: "Expenses", value: fmt$(party.expenses),    color: "#f87171" },
-            { label: "Profit",   value: fmt$(profit),            color: profit >= 0 ? "#34d399" : "#f87171" },
-          ].map(({ label, value, color }) => (
-            <div key={label} className="rounded-lg bg-white/[0.04] px-3 py-2.5 text-center">
-              <p className="text-[14px] font-bold tabular-nums" style={{ color }}>{value}</p>
-              <p className="text-[10px] text-slate-500 mt-0.5">{label}</p>
-            </div>
-          ))}
-        </div>
-
-        {/* margin bar */}
-        <div>
-          <div className="flex items-center justify-between mb-1">
-            <span className="text-[10px] text-slate-500">Profit margin</span>
-            <span className="text-[10px] tabular-nums text-slate-400">{margin}%</span>
-          </div>
-          <div className="h-1.5 overflow-hidden rounded-full bg-white/[0.07]">
-            <div className="h-full rounded-full transition-all duration-500"
-                 style={{ width: `${Math.min(100, Math.max(0, margin))}%`, background: profit >= 0 ? "#34d399" : "#f87171" }} />
-          </div>
-        </div>
-
-        {/* meta */}
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] text-slate-500">Attendance</span>
-            <span className="text-[12px] font-medium text-white tabular-nums">{party.attendance}</span>
-          </div>
-          {party.attendance > 0 && party.doorRevenue > 0 && (
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] text-slate-500">Revenue / head</span>
-              <span className="text-[12px] font-medium text-slate-300 tabular-nums">{fmt$(Math.round(party.doorRevenue / party.attendance))}</span>
-            </div>
-          )}
-          {party.attendance > 0 && (
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] text-slate-500">Profit / head</span>
-              <span className="text-[12px] font-medium tabular-nums" style={{ color: profit >= 0 ? "#34d399" : "#f87171" }}>{fmt$(Math.round(profit / party.attendance))}</span>
-            </div>
-          )}
-          {party.theme && (
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] text-slate-500">Theme</span>
-              <span className="text-[12px] text-slate-300">{party.theme}</span>
-            </div>
-          )}
-          {party.collabOrg && (
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] text-slate-500">Collab</span>
-              <span className="text-[12px] font-medium text-indigo-400">{party.collabOrg}</span>
-            </div>
-          )}
-        </div>
-
-        {/* notes */}
-        {party.notes && (
-          <div className="rounded-lg bg-white/[0.03] border border-white/[0.06] px-3 py-2.5">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-600 mb-1">Notes</p>
-            <p className="text-[12px] leading-relaxed text-slate-300">{party.notes}</p>
-          </div>
-        )}
-
-        {/* actions */}
-        <div className="flex gap-2 pt-1">
-          <button onClick={onEdit}
-            className="flex-1 rounded-lg border border-indigo-500/30 bg-indigo-500/10 px-3 py-2 text-[12px] font-semibold text-indigo-300 hover:bg-indigo-500/20 transition-colors">
-            Edit
-          </button>
-          <button onClick={onDelete}
-            className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[12px] font-semibold text-red-400 hover:bg-red-500/20 transition-colors">
-            Delete
-          </button>
-        </div>
-      </div>
-    </Card>
   );
 }

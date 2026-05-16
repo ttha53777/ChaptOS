@@ -35,16 +35,18 @@ model InstagramTask {
 }
 
 model PartyEvent {
-  id               Int     @id @default(autoincrement())
-  name             String
-  date             String
-  doorRevenue      Float
-  attendance       Int
-  notes            String
-  theme            String  @default("")
-  collabOrg        String  @default("")
-  expenses         Float   @default(0)
-  partyType        String  @default("Open")
+  id          Int       @id @default(autoincrement())
+  name        String
+  date        String
+  partyType   String    @default("Open")
+  theme       String    @default("")
+  collabOrg   String    @default("")
+  doorRevenue Float     @default(0)
+  attendance  Int       @default(0)
+  expenses    Float     @default(0)
+  notes       String    @default("")
+  completed   Boolean   @default(false)
+  completedAt DateTime?
 }
 
 model CalendarEvent {
