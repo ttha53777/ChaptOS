@@ -17,10 +17,11 @@ export const NAV_ICONS: Record<string, string> = {
 };
 
 // Dashboard section labels that live on "/" and use scroll-spy
-export const DASHBOARD_NAV = ["Dashboard", "Brothers", "Deadlines", "Instagram", "Settings"];
+export const DASHBOARD_NAV = ["Dashboard", "Brothers", "Deadlines", "Instagram"];
 
-// Full nav order — Timeline is second, right after Dashboard
-export const NAV = ["Dashboard", "Timeline", "Brothers", "Deadlines", "Instagram", "Treasury", "Parties", "Settings"];
+// Main nav — Settings is pinned at the bottom of the sidebar
+export const NAV = ["Dashboard", "Timeline", "Brothers", "Deadlines", "Instagram", "Treasury", "Parties"];
+export const SETTINGS_NAV = "Settings";
 
 // ─── SvgIcon ──────────────────────────────────────────────────────────────────
 
@@ -30,6 +31,14 @@ export function SvgIcon({ d, className = "h-4 w-4" }: { d: string; className?: s
       <path strokeLinecap="round" strokeLinejoin="round" d={d} />
     </svg>
   );
+}
+
+function navItemClass(isActive: boolean) {
+  return `flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] font-medium transition-all duration-150 ${
+    isActive
+      ? "bg-gradient-to-r from-indigo-500/15 to-indigo-500/[0.04] text-indigo-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] ring-1 ring-inset ring-indigo-500/15"
+      : "text-white/45 hover:bg-white/[0.04] hover:text-white/80"
+  }`;
 }
 
 // ─── Sidebar ──────────────────────────────────────────────────────────────────
@@ -43,19 +52,36 @@ export function Sidebar({ open, onClose, activeSection, onNavClick }: {
   const pathname = usePathname();
   const router   = useRouter();
 
+  function goToDashboardSection(label: string) {
+    if (pathname !== "/") {
+      router.push("/");
+      sessionStorage.setItem("scrollTo", label);
+    } else {
+      onNavClick(label);
+    }
+    onClose();
+  }
+
+  const settingsActive = pathname.startsWith("/settings");
+
   return (
     <>
       {open && <div className="fixed inset-0 z-20 bg-black/60 lg:hidden" onClick={onClose} />}
       <aside className={`fixed inset-y-0 left-0 z-30 flex w-56 flex-col border-r border-white/[0.04] bg-[#070a10] transition-transform duration-200 ease-in-out lg:static lg:z-auto lg:translate-x-0 ${open ? "translate-x-0" : "-translate-x-full"}`}>
-        <div className="flex h-14 items-center gap-3 border-b border-white/[0.05] px-4">
+        <Link
+          href="/"
+          onClick={onClose}
+          className="flex h-14 items-center gap-3 border-b border-white/[0.05] px-4 transition-colors hover:bg-white/[0.03]"
+          aria-label="Go to dashboard home"
+        >
           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-indigo-700 text-[11px] font-bold text-white shadow-[0_2px_8px_rgba(99,102,241,0.3)]">ΛΦΕ</div>
           <div className="min-w-0">
             <p className="truncate text-[12px] font-semibold leading-tight text-white">Lambda Phi Epsilon</p>
             <p className="text-[10px] leading-tight text-white/35">Fall 2026</p>
           </div>
-        </div>
+        </Link>
 
-        <nav className="flex-1 overflow-y-auto px-2 py-3" aria-label="Dashboard navigation">
+        <nav className="flex-1 overflow-y-auto px-2 py-3" aria-label="Main navigation">
           <div className="space-y-0.5">
             {NAV.map(label => {
               const isTimeline = label === "Timeline";
@@ -66,9 +92,9 @@ export function Sidebar({ open, onClose, activeSection, onNavClick }: {
               const isActive = isTimeline
                 ? pathname === "/timeline"
                 : isTreasury
-                  ? pathname === "/treasury"
+                  ? pathname.startsWith("/treasury")
                   : isParties
-                    ? pathname === "/parties"
+                    ? pathname.startsWith("/parties")
                     : pathname === "/" && activeSection === label;
 
               if (isStandalone) {
@@ -78,11 +104,7 @@ export function Sidebar({ open, onClose, activeSection, onNavClick }: {
                     href={standaloneHref}
                     onClick={onClose}
                     aria-current={isActive ? "page" : undefined}
-                    className={`flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] font-medium transition-all duration-150 ${
-                      isActive
-                        ? "bg-gradient-to-r from-indigo-500/15 to-indigo-500/[0.04] text-indigo-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] ring-1 ring-inset ring-indigo-500/15"
-                        : "text-white/45 hover:bg-white/[0.04] hover:text-white/80"
-                    }`}
+                    className={navItemClass(isActive)}
                   >
                     <SvgIcon d={NAV_ICONS[label] ?? ""} className="h-4 w-4 shrink-0 opacity-75" />
                     {label}
@@ -94,23 +116,9 @@ export function Sidebar({ open, onClose, activeSection, onNavClick }: {
               return (
                 <button
                   key={label}
-                  onClick={() => {
-                    if (pathname !== "/") {
-                      router.push("/");
-                      // after client-side navigation lands, the dashboard scroll-spy
-                      // will pick up the section; store the target so page.tsx can scroll
-                      sessionStorage.setItem("scrollTo", label);
-                    } else {
-                      onNavClick(label);
-                    }
-                    onClose();
-                  }}
+                  onClick={() => goToDashboardSection(label)}
                   aria-current={isActive ? "page" : undefined}
-                  className={`flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] font-medium transition-all duration-150 ${
-                    isActive
-                      ? "bg-gradient-to-r from-indigo-500/15 to-indigo-500/[0.04] text-indigo-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] ring-1 ring-inset ring-indigo-500/15"
-                      : "text-white/45 hover:bg-white/[0.04] hover:text-white/80"
-                  }`}
+                  className={navItemClass(isActive)}
                 >
                   <SvgIcon d={NAV_ICONS[label] ?? ""} className="h-4 w-4 shrink-0 opacity-75" />
                   {label}
@@ -121,8 +129,20 @@ export function Sidebar({ open, onClose, activeSection, onNavClick }: {
           </div>
         </nav>
 
-        <div className="border-t border-white/[0.05] px-4 py-3">
-          <p className="text-[10px] tracking-wide text-white/25">Chapter Ops · v1.0</p>
+        <div className="shrink-0 border-t border-white/[0.05] px-2 py-2">
+          <nav aria-label="Settings">
+            <Link
+              href="/settings"
+              onClick={onClose}
+              aria-current={settingsActive ? "page" : undefined}
+              className={navItemClass(settingsActive)}
+            >
+              <SvgIcon d={NAV_ICONS[SETTINGS_NAV] ?? ""} className="h-4 w-4 shrink-0 opacity-75" />
+              {SETTINGS_NAV}
+              {settingsActive && <span className="ml-auto h-1.5 w-1.5 rounded-full bg-indigo-400" aria-hidden="true" />}
+            </Link>
+          </nav>
+          <p className="px-3 pb-1 pt-2 text-[10px] tracking-wide text-white/25">Chapter Ops · v1.0</p>
         </div>
       </aside>
     </>

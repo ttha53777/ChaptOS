@@ -17,19 +17,21 @@ export async function POST(req: NextRequest) {
       return Response.json({ error: "Invalid attendedIds" }, { status: 400 });
     }
 
-    const event = await prisma.calendarEvent.findUnique({ where: { id: calendarEventId } });
+    // Stage 1: event + semester in parallel (excuses needs semester.id so must come after)
+    const [event, semester] = await Promise.all([
+      prisma.calendarEvent.findUnique({ where: { id: calendarEventId } }),
+      getActiveSemester(),
+    ]);
     if (!event) return Response.json({ error: "Event not found" }, { status: 404 });
     if (!event.mandatory) return Response.json({ error: "Only mandatory events track attendance" }, { status: 400 });
-
-    const semester = await getActiveSemester();
     if (!semester) return Response.json({ error: "No active semester" }, { status: 400 });
 
-    const excuses = await prisma.attendanceExcuse.findMany({
-      where: { calendarEventId, semesterId: semester.id },
-    });
+    // Stage 2: excuses + brothers in parallel
+    const [excuses, brothers] = await Promise.all([
+      prisma.attendanceExcuse.findMany({ where: { calendarEventId, semesterId: semester.id } }),
+      prisma.brother.findMany({ select: { id: true } }),
+    ]);
     const excusedBrotherIds = new Set(excuses.map(e => e.brotherId));
-
-    const brothers = await prisma.brother.findMany({ select: { id: true } });
     const eligible = brothers.filter(b => !excusedBrotherIds.has(b.id));
 
     await Promise.all(

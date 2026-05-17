@@ -29,7 +29,6 @@ export const SECTION_IDS: Record<string, string> = {
   Instagram: "sec-instagram",
   Treasury:  "sec-treasury",
   Parties:   "sec-parties",
-  Settings:  "sec-settings",
 };
 
 export const inputCls = "w-full rounded-lg border border-white/[0.08] bg-[#0a0d14] px-3 py-2 text-[13px] text-white placeholder:text-slate-500 focus:border-indigo-500/60 focus:outline-none focus:ring-2 focus:ring-indigo-500/15";

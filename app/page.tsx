@@ -1062,19 +1062,6 @@ export default function Home() {
     return () => controller.abort();
   }, []);
 
-  // ── Refresh all data from DB ───────────────────────────────────────────────
-  function refreshDataFromDatabase() {
-    refreshChapterData()
-      .then(() => {
-        setMutationError(null);
-        addActivity("Data refreshed from database", "info");
-      })
-      .catch(error => {
-        console.error(error);
-        setMutationError("Could not refresh data from the database.");
-      });
-  }
-
   // ── KPIs ──────────────────────────────────────────────────────────────────
   const avgAttendance   = useMemo(() => avg(brotherList.map(b => b.attendance)), [brotherList]);
   const outstandingDues = useMemo(() => brotherList.reduce((s, b) => s + b.duesOwed, 0), [brotherList]);
@@ -1435,8 +1422,6 @@ export default function Home() {
           <div className="hidden items-center gap-1.5 lg:flex">
             {([
               ["deadline",   "+ Deadline"],
-              ["revenue",    "+ Revenue" ],
-              ["ig",         "+ IG Task" ],
             ] as const).map(([key, label]) => (
               <button key={key} onClick={() => setActiveModal(key)}
                 className="rounded-lg border border-white/[0.08] bg-white/[0.03] px-2.5 py-1.5 text-[11px] font-medium text-slate-300 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition-all duration-150 hover:border-indigo-500/40 hover:bg-indigo-500/10 hover:text-indigo-200">
@@ -1857,84 +1842,6 @@ export default function Home() {
                 </div>
               </Card>
             </div>
-
-            {/* ── Settings ───────────────────────────────────────────────── */}
-            <section id="sec-settings" aria-label="Settings">
-              <Card className="overflow-hidden">
-                <div className="border-b border-white/[0.07] px-5 py-4">
-                  <h2 className="text-[14px] font-semibold text-white">Settings</h2>
-                  <p className="mt-0.5 text-[11px] text-slate-500">Database-backed controls · optimistic UI updates</p>
-                </div>
-                <div className="divide-y divide-white/[0.06]">
-                  {/* Data Controls */}
-                  <div className="px-5 py-4">
-                    <p className="mb-3 text-[12px] font-semibold text-slate-300">Data Controls</p>
-                    <p className="mb-3 text-[11px] text-slate-500">
-                      Dashboard changes are saved through the Prisma API. Use the button below to refresh the
-                      local view from the database.
-                    </p>
-                    <div className="flex flex-wrap gap-2">
-                      <button
-                        onClick={refreshDataFromDatabase}
-                        className="inline-flex items-center gap-1.5 rounded-lg border border-white/[0.1] bg-white/[0.04] px-3 py-2 text-[12px] font-medium text-slate-300 transition-all hover:border-red-500/40 hover:bg-red-500/10 hover:text-red-400 focus:outline-none"
-                      >
-                        <svg className="h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                        </svg>
-                        Refresh from database
-                      </button>
-                      <button
-                        onClick={() => window.print()}
-                        className="inline-flex items-center gap-1.5 rounded-lg border border-white/[0.1] bg-white/[0.04] px-3 py-2 text-[12px] font-medium text-slate-300 transition-all hover:border-white/[0.2] hover:bg-white/[0.08] focus:outline-none"
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="h-3.5 w-3.5 text-slate-400">
-                          <path fillRule="evenodd" d="M11.5 4.5a3.5 3.5 0 1 1-7 0 3.5 3.5 0 0 1 7 0ZM4.25 8.5a3.25 3.25 0 0 0-3.25 3.25v.5A1.75 1.75 0 0 0 2.75 14h10.5A1.75 1.75 0 0 0 15 12.25v-.5A3.25 3.25 0 0 0 11.75 8.5h-7.5Z" clipRule="evenodd" />
-                        </svg>
-                        Export report
-                      </button>
-                    </div>
-                  </div>
-                  {/* Quick Actions */}
-                  <div className="px-5 py-4">
-                    <p className="mb-3 text-[12px] font-semibold text-slate-300">Quick Actions</p>
-                    <div className="flex flex-wrap gap-2">
-                      {([
-                        ["deadline",   "+ Add Deadline"  ],
-                        ["revenue",    "+ Log Revenue"   ],
-                        ["ig",         "+ Add IG Task"   ],
-                      ] as const).map(([key, label]) => (
-                        <button key={key} onClick={() => setActiveModal(key)}
-                          className="rounded-lg border border-white/[0.1] bg-white/[0.04] px-3 py-2 text-[12px] font-medium text-slate-300 transition-all hover:border-indigo-500/40 hover:bg-indigo-500/10 hover:text-indigo-400">
-                          {label}
-                        </button>
-                      ))}
-                      <button onClick={() => openAttendanceLog()}
-                        className="rounded-lg border border-white/[0.1] bg-white/[0.04] px-3 py-2 text-[12px] font-medium text-slate-300 transition-all hover:border-indigo-500/40 hover:bg-indigo-500/10 hover:text-indigo-400">
-                        Log Attendance
-                      </button>
-                    </div>
-                  </div>
-                  {/* Thresholds */}
-                  <div className="px-5 py-4">
-                    <p className="mb-3 text-[12px] font-semibold text-slate-300">Active Thresholds</p>
-                    <div className="grid grid-cols-2 gap-x-8 gap-y-1.5 sm:grid-cols-3">
-                      {[
-                        ["Attendance At Risk", `< ${THRESHOLDS.attendanceAtRisk}%`],
-                        ["Attendance Watch",   `< ${THRESHOLDS.attendanceWatch}%`],
-                        ["GPA At Risk",        `< ${THRESHOLDS.gpaAtRisk}`       ],
-                        ["GPA Watch",          `< ${THRESHOLDS.gpaWatch}`        ],
-                        ["Service Goal",       `${THRESHOLDS.serviceHoursGoal}h` ],
-                      ].map(([k, v]) => (
-                        <div key={k} className="flex items-center justify-between gap-2">
-                          <span className="text-[11px] text-slate-500">{k}</span>
-                          <span className="text-[11px] font-semibold tabular-nums text-slate-300">{v}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </Card>
-            </section>
 
             {/* ── Footer ─────────────────────────────────────────────────── */}
             <div className="border-t border-white/[0.06] pt-4 text-center">
