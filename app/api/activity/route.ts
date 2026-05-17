@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireUser } from "@/lib/auth/require-user";
 
 function relativeTime(date: Date): string {
   const diff = Math.floor((Date.now() - date.getTime()) / 1000);
@@ -10,6 +11,8 @@ function relativeTime(date: Date): string {
 }
 
 export async function GET() {
+  const user = await requireUser();
+  if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
   try {
     const logs = await prisma.activityLog.findMany({
       orderBy: { timestamp: "desc" },
@@ -23,6 +26,8 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  const user = await requireUser();
+  if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
   try {
     const body = await req.json();
     const { message, type } = body;

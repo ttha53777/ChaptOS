@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { Prisma } from "../../../generated/prisma/client";
 import { prisma } from "@/lib/prisma";
+import { requireUser } from "@/lib/auth/require-user";
 
 type PartyUpdateData = Prisma.PartyEventUpdateInput;
 
@@ -8,6 +9,8 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const user = await requireUser();
+  if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
   const { id } = await params;
   const numId = Number(id);
   if (!Number.isInteger(numId) || numId <= 0) {
@@ -78,6 +81,8 @@ export async function DELETE(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const user = await requireUser();
+  if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
   const { id } = await params;
   const numId = Number(id);
   if (!Number.isInteger(numId) || numId <= 0) {

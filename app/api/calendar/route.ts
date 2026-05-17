@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireUser } from "@/lib/auth/require-user";
 
 const CALENDAR_CATEGORIES = ["chapter", "social", "fundy", "program", "party", "deadline"] as const;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -42,6 +43,8 @@ function validateCalendarBody(body: Record<string, unknown>) {
 }
 
 export async function GET() {
+  const user = await requireUser();
+  if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
   try {
     const events = await prisma.calendarEvent.findMany({ orderBy: { id: "asc" } });
     return Response.json(events);
@@ -52,6 +55,8 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  const user = await requireUser();
+  if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
   try {
     const body = await req.json();
     const parsed = validateCalendarBody(body);

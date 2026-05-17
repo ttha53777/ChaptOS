@@ -15,6 +15,7 @@ model Brother {
   duesOwed          Float
   gpa               Float
   serviceHours      Float
+  authUserId        String?            @unique @map("auth_user_id")
   attendanceRecords AttendanceRecord[]
   attendanceExcuses AttendanceExcuse[]
 }

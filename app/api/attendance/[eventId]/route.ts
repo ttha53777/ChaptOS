@@ -1,11 +1,14 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getActiveSemester } from "@/lib/attendance";
+import { requireUser } from "@/lib/auth/require-user";
 
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ eventId: string }> }
 ) {
+  const user = await requireUser();
+  if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
   try {
     const { eventId } = await params;
     const calendarEventId = Number(eventId);
