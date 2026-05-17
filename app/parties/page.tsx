@@ -2,6 +2,7 @@
 
 import React, { useState, useMemo, useCallback } from "react";
 import { Sidebar } from "../components/Sidebar";
+import { UserAvatar } from "../components/UserAvatar";
 import { Card, Modal, FieldLabel } from "../components/dashboard/primitives";
 import { inputCls } from "../components/dashboard/styles";
 import { useChapter } from "../context/ChapterContext";
@@ -586,6 +587,7 @@ export default function PartiesPage() {
             className="rounded-lg border border-indigo-500/40 bg-indigo-500/10 px-3 py-1.5 text-[12px] font-semibold text-indigo-300 hover:bg-indigo-500/20 transition-colors">
             + Add Party
           </button>
+          <UserAvatar />
         </header>
 
         {/* body */}

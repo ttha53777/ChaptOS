@@ -2,6 +2,7 @@
 
 import React, { useState, useMemo, useEffect } from "react";
 import { Sidebar } from "../components/Sidebar";
+import { UserAvatar } from "../components/UserAvatar";
 import { CalendarEvent, CalEventCategory, CalLayer } from "../data";
 import { useChapter } from "../context/ChapterContext";
 import { FieldLabel, Modal } from "../components/dashboard/primitives";
@@ -1214,6 +1215,7 @@ export default function TimelinePage() {
               );
             })}
           </div>
+          <UserAvatar />
         </header>
 
         {/* ── Body ──────────────────────────────────────────────────────────── */}
