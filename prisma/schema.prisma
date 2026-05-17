@@ -27,6 +27,8 @@ model Semester {
   isActive  Boolean            @default(false)
   records   AttendanceRecord[]
   excuses   AttendanceExcuse[]
+
+  @@index([isActive])
 }
 
 model AttendanceRecord {
@@ -41,6 +43,8 @@ model AttendanceRecord {
   semester        Semester      @relation(fields: [semesterId], references: [id])
 
   @@unique([calendarEventId, brotherId])
+  @@index([brotherId, semesterId])
+  @@index([calendarEventId, semesterId])
 }
 
 model AttendanceExcuse {
@@ -56,6 +60,8 @@ model AttendanceExcuse {
   semester        Semester      @relation(fields: [semesterId], references: [id])
 
   @@unique([calendarEventId, brotherId])
+  @@index([brotherId, semesterId])
+  @@index([calendarEventId, semesterId])
 }
 
 model Deadline {
@@ -123,4 +129,6 @@ model Transaction {
   deletedAt     DateTime?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
+
+  @@index([deletedAt])
 }

@@ -19,15 +19,13 @@ export async function POST(req: NextRequest) {
     }
     if (!reason) return Response.json({ error: "Reason is required" }, { status: 400 });
 
-    const semester = await getActiveSemester();
+    const [semester, brotherExists, existingRecord] = await Promise.all([
+      getActiveSemester(),
+      prisma.brother.findUnique({ where: { id: brotherId }, select: { id: true } }),
+      prisma.attendanceRecord.findUnique({ where: { calendarEventId_brotherId: { calendarEventId, brotherId } } }),
+    ]);
     if (!semester) return Response.json({ error: "No active semester" }, { status: 400 });
-
-    const brotherExists = await prisma.brother.findUnique({ where: { id: brotherId }, select: { id: true } });
     if (!brotherExists) return Response.json({ error: "Brother not found" }, { status: 404 });
-
-    const existingRecord = await prisma.attendanceRecord.findUnique({
-      where: { calendarEventId_brotherId: { calendarEventId, brotherId } },
-    });
     const isRetroactive = !!existingRecord;
 
     await prisma.attendanceExcuse.upsert({
