@@ -137,10 +137,15 @@ export function LogAttendanceForm({ event, bList, onSubmit }: {
     setLoading(true);
     fetch(`/api/attendance/${event.id}`, { signal: controller.signal })
       .then(r => r.json())
-      .then((data: { excused: { brotherId: number }[] }) => {
-        const ids = new Set(data.excused.map((e: { brotherId: number }) => e.brotherId));
-        setExcusedIds(ids);
-        setAttended(new Set(bListRef.current.filter(b => !ids.has(b.id)).map(b => b.id)));
+      .then((data: { excused: { brotherId: number }[]; attended: { brotherId: number }[] }) => {
+        const excusedIds = new Set(data.excused.map((e: { brotherId: number }) => e.brotherId));
+        setExcusedIds(excusedIds);
+        // Pre-fill from existing log if available; otherwise default all eligible to attended
+        if (data.attended && data.attended.length > 0) {
+          setAttended(new Set(data.attended.map((e: { brotherId: number }) => e.brotherId)));
+        } else {
+          setAttended(new Set(bListRef.current.filter(b => !excusedIds.has(b.id)).map(b => b.id)));
+        }
       })
       .catch(err => { if (err.name !== "AbortError") console.error("Failed to load excuses", err); })
       .finally(() => setLoading(false));

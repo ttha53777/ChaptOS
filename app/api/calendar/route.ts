@@ -42,21 +42,28 @@ function validateCalendarBody(body: Record<string, unknown>) {
 }
 
 export async function GET() {
-  const events = await prisma.calendarEvent.findMany({ orderBy: { id: "asc" } });
-  return Response.json(events);
+  try {
+    const events = await prisma.calendarEvent.findMany({ orderBy: { id: "asc" } });
+    return Response.json(events);
+  } catch (e) {
+    console.error("GET /api/calendar failed:", e);
+    return Response.json({ error: "Failed to fetch calendar events" }, { status: 500 });
+  }
 }
 
 export async function POST(req: NextRequest) {
-  const body = await req.json();
-  const parsed = validateCalendarBody(body);
+  try {
+    const body = await req.json();
+    const parsed = validateCalendarBody(body);
 
-  if ("error" in parsed) {
-    return Response.json({ error: parsed.error }, { status: 400 });
+    if ("error" in parsed) {
+      return Response.json({ error: parsed.error }, { status: 400 });
+    }
+
+    const event = await prisma.calendarEvent.create({ data: parsed.data });
+    return Response.json(event, { status: 201 });
+  } catch (e) {
+    console.error("POST /api/calendar failed:", e);
+    return Response.json({ error: "Failed to create calendar event" }, { status: 500 });
   }
-
-  const event = await prisma.calendarEvent.create({
-    data: parsed.data,
-  });
-
-  return Response.json(event, { status: 201 });
 }

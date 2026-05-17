@@ -925,6 +925,7 @@ export default function Home() {
   const [activeSection,  setActiveSection]  = useState("Dashboard");
   const deltaTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mainRef = useRef<HTMLElement>(null);
+  const attendanceReqRef = useRef<AbortController | null>(null);
 
   // ── Data state ─────────────────────────────────────────────────────────────
   const { brotherList, setBrotherList, deadlineList, setDeadlineList, igTaskList, setIgTaskList, partyList, setPartyList, activityFeed, setActivityFeed, treasuryData, isLoading, loadError, mutationError, setMutationError, refreshChapterData } = useChapter();
@@ -1183,7 +1184,7 @@ export default function Home() {
 
   // ── Quick Action handlers ──────────────────────────────────────────────────
   function handleAddDeadline(d: { title: string; dueDate: string; owner: string; status: TaskStatus }) {
-    const tempId = Date.now();
+    const tempId = _nextId++;
     setDeadlineList(prev => [...prev, { id: tempId, ...d }]);
     addActivity(`New deadline added: "${d.title}"`, "info");
     setActiveModal(null);
@@ -1200,7 +1201,7 @@ export default function Home() {
   }
 
   function handleAddRevenue(e: { name: string; date: string; doorRevenue: number; attendance: number; notes: string }) {
-    const tempId = Date.now();
+    const tempId = _nextId++;
     setPartyList(prev => [...prev, { id: tempId, theme: "", collabOrg: "", expenses: 0, partyType: "Open", completed: false, completedAt: null, ...e }]);
     addActivity(`Revenue logged: ${e.name} — ${fmt$(e.doorRevenue)}`, "success");
     setActiveModal(null);
@@ -1217,7 +1218,7 @@ export default function Home() {
   }
 
   function handleAddIGTask(t: { title: string; dueDate: string; owner: string; type: string; status: TaskStatus }) {
-    const tempId = Date.now();
+    const tempId = _nextId++;
     setIgTaskList(prev => [...prev, { id: tempId, ...t }]);
     addActivity(`IG task added: "${t.title}"`, "info");
     setActiveModal(null);
@@ -1338,17 +1339,24 @@ export default function Home() {
   }
 
   async function handleLogAttendance(attendedIds: number[], eventId: number) {
+    // Abort any in-flight attendance request before starting a new one
+    attendanceReqRef.current?.abort();
+    const controller = new AbortController();
+    attendanceReqRef.current = controller;
     try {
       const updated = await requestJson<Brother[]>("/api/attendance", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ calendarEventId: eventId, attendedIds }),
+        signal: controller.signal,
       });
+      if (controller.signal.aborted) return;
       setBrotherList(updated);
       addActivity(`Attendance logged — ${attendedIds.length} present`, "info");
       setActiveModal(null);
       setSelectedEventForAttendance(null);
-    } catch {
+    } catch (err: unknown) {
+      if (err instanceof Error && err.name === "AbortError") return;
       setMutationError("Attendance log failed. Please try again.");
     }
   }
