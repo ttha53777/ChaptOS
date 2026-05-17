@@ -6,7 +6,7 @@ import {
   XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
 } from "recharts";
 import {
-  Brother, TaskStatus, ActivityEntry, PartyEvent, Deadline, InstagramTask,
+  Brother, CalendarEvent, TaskStatus, ActivityEntry, PartyEvent, Deadline, InstagramTask,
   treasuryTrend, TREASURY_BALANCE, TREASURY_PROJECTED, THRESHOLDS,
   KPI_SPARKLINES,
   getBrotherStatus, calcHealthScore, avg, fmt$, fmtDate,
@@ -60,7 +60,7 @@ function KPIDetailDrawer({
   totalServiceHrs, onTrackSvc,
   totalDoorRev, maxRevenue, bestEvent,
   liveBalance, liveProjected, liveTrend,
-  onOpenModal,
+  onOpenModal, onOpenAttendance,
 }: {
   activeKey: KPIDrawerKey | null;
   onClose: () => void;
@@ -79,7 +79,8 @@ function KPIDetailDrawer({
   liveBalance: number;
   liveProjected: number;
   liveTrend: { month: string; balance: number }[];
-  onOpenModal: (key: "attendance") => void;
+  onOpenModal: (key: "deadline" | "revenue" | "ig") => void;
+  onOpenAttendance: () => void;
 }) {
   const isOpen = activeKey !== null;
   const cfg = activeKey ? DRAWER_CONFIGS[activeKey] : null;
@@ -139,8 +140,8 @@ function KPIDetailDrawer({
                 }
               </p>
             </div>
-            <button onClick={() => { onOpenModal("attendance"); onClose(); }} className="w-full rounded-lg bg-indigo-600 px-4 py-2.5 text-[13px] font-semibold text-white hover:bg-indigo-500 transition-colors">
-              Log Chapter Meeting
+            <button onClick={() => { onOpenAttendance(); onClose(); }} className="w-full rounded-lg bg-indigo-600 px-4 py-2.5 text-[13px] font-semibold text-white hover:bg-indigo-500 transition-colors">
+              Log Attendance
             </button>
           </>
         );
@@ -910,7 +911,9 @@ export default function Home() {
   const [sortKey,        setSortKey]        = useState<keyof Brother | null>(null);
   const [sortDir,        setSortDir]        = useState<"asc" | "desc">("asc");
   const [sidebarOpen,    setSidebarOpen]    = useState(false);
-  const [activeModal,    setActiveModal]    = useState<"deadline" | "revenue" | "ig" | "attendance" | "edit-deadline" | "edit-ig" | null>(null);
+  const [activeModal,    setActiveModal]    = useState<"deadline" | "revenue" | "ig" | "attendance" | "pick-event" | "edit-deadline" | "edit-ig" | null>(null);
+  const [selectedEventForAttendance, setSelectedEventForAttendance] = useState<CalendarEvent | null>(null);
+  const [calendarList,   setCalendarList]   = useState<CalendarEvent[]>([]);
   const [editingDeadlineId, setEditingDeadlineId] = useState<number | null>(null);
   const [editingIgId,       setEditingIgId]       = useState<number | null>(null);
   const [activeDrawer,   setActiveDrawer]   = useState<KPIDrawerKey | null>(null);
@@ -1047,6 +1050,16 @@ export default function Home() {
       () => setBrotherList(list => list.map(b => b.id === id ? prev : b)),
     );
   }
+
+  // ── Fetch calendar events once for attendance event picker ────────────────
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch("/api/calendar", { signal: controller.signal })
+      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+      .then((data: CalendarEvent[]) => setCalendarList(data))
+      .catch(err => { if (err.name !== "AbortError") console.error("Failed to load calendar", err); });
+    return () => controller.abort();
+  }, []);
 
   // ── Refresh all data from DB ───────────────────────────────────────────────
   function refreshDataFromDatabase() {
@@ -1324,26 +1337,34 @@ export default function Home() {
     setActiveModal(null);
   }
 
-  function handleLogAttendance(attended: Set<number>) {
-    const newList = brotherList.map(b => {
-      const didAttend = attended.has(b.id);
-      const newAtt = Math.min(100, Math.max(0, Math.round(b.attendance + (didAttend ? 2 : -3))));
-      return { ...b, attendance: newAtt };
-    });
-    setBrotherList(newList);
-    addActivity(`Attendance logged — ${attended.size} of ${brotherList.length} present`, "info");
-    setActiveModal(null);
-    persistMutation(
-      Promise.all(newList.map(b =>
-        requestJson<Brother>(`/api/brothers/${b.id}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ attendance: b.attendance }),
-        })
-      )),
-      "Attendance log failed. Local changes were reverted.",
-      () => setBrotherList(brotherList),
-    );
+  async function handleLogAttendance(attendedIds: number[], eventId: number) {
+    try {
+      const updated = await requestJson<Brother[]>("/api/attendance", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ calendarEventId: eventId, attendedIds }),
+      });
+      setBrotherList(updated);
+      addActivity(`Attendance logged — ${attendedIds.length} present`, "info");
+      setActiveModal(null);
+      setSelectedEventForAttendance(null);
+    } catch {
+      setMutationError("Attendance log failed. Please try again.");
+    }
+  }
+
+  function openAttendanceLog(event?: CalendarEvent) {
+    if (event) {
+      setSelectedEventForAttendance(event);
+      setActiveModal("attendance");
+    } else {
+      // Refresh calendar list so newly-added events show up
+      fetch("/api/calendar")
+        .then(r => r.ok ? r.json() : Promise.reject())
+        .then((data: CalendarEvent[]) => setCalendarList(data))
+        .catch(() => undefined);
+      setActiveModal("pick-event");
+    }
   }
 
   function closeModal() { setActiveModal(null); }
@@ -1408,13 +1429,16 @@ export default function Home() {
               ["deadline",   "+ Deadline"],
               ["revenue",    "+ Revenue" ],
               ["ig",         "+ IG Task" ],
-              ["attendance", "Log Att."  ],
             ] as const).map(([key, label]) => (
               <button key={key} onClick={() => setActiveModal(key)}
                 className="rounded-lg border border-white/[0.08] bg-white/[0.03] px-2.5 py-1.5 text-[11px] font-medium text-slate-300 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition-all duration-150 hover:border-indigo-500/40 hover:bg-indigo-500/10 hover:text-indigo-200">
                 {label}
               </button>
             ))}
+            <button onClick={() => openAttendanceLog()}
+              className="rounded-lg border border-white/[0.08] bg-white/[0.03] px-2.5 py-1.5 text-[11px] font-medium text-slate-300 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition-all duration-150 hover:border-indigo-500/40 hover:bg-indigo-500/10 hover:text-indigo-200">
+              Log Att.
+            </button>
           </div>
 
           {/* Mobile: single add button */}
@@ -1604,7 +1628,6 @@ export default function Home() {
                         <tr><td colSpan={7} className="py-10 text-center text-sm text-slate-500">No brothers match your filters.</td></tr>
                       ) : filteredBrothers.map(b => {
                         const status = getBrotherStatus(b);
-                        const isEditingAtt = editingAttId === b.id;
                         return (
                           <tr key={b.id} onClick={() => setSelectedBrotherId(b.id)} className="cursor-pointer transition-colors hover:bg-white/[0.03] active:bg-white/[0.06]">
                             <td className={`border-l-2 py-3 pl-4 pr-3 ${BROTHER_STYLES[status].row}`}>
@@ -1613,29 +1636,9 @@ export default function Home() {
                             <td className="hidden max-w-[160px] px-3 py-3 sm:table-cell">
                               <p className="truncate text-[12px] text-slate-400">{b.role}</p>
                             </td>
-                            {/* Attendance — inline editable */}
+                            {/* Attendance — read-only ratio */}
                             <td className="px-3 py-3">
-                              {isEditingAtt ? (
-                                <div className="flex items-center gap-1.5" onClick={e => e.stopPropagation()}>
-                                  <input
-                                    type="number" min="0" max="100"
-                                    value={editAttVal}
-                                    onChange={e => setEditAttVal(e.target.value)}
-                                    onKeyDown={e => { if (e.key === "Enter") saveAttEdit(b); if (e.key === "Escape") setEditingAttId(null); }}
-                                    autoFocus
-                                    className="w-14 rounded-md border border-indigo-500/50 bg-[#0a0d14] px-2 py-1 text-[12px] text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
-                                  />
-                                  <button onClick={() => saveAttEdit(b)} className="rounded bg-indigo-600 px-1.5 py-0.5 text-[10px] font-semibold text-white hover:bg-indigo-500">✓</button>
-                                  <button onClick={() => setEditingAttId(null)} className="text-[11px] text-slate-500 hover:text-slate-300">✕</button>
-                                </div>
-                              ) : (
-                                <button onClick={e => { e.stopPropagation(); startAttEdit(b); }} className="group flex items-center gap-1.5 rounded p-0.5 hover:bg-white/[0.05] transition-colors">
-                                  <AttBar pct={b.attendance} />
-                                  <svg className="h-3 w-3 text-slate-600 opacity-0 group-hover:opacity-100 transition-opacity" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                                  </svg>
-                                </button>
-                              )}
+                              <AttBar pct={b.attendance} />
                             </td>
                             {/* Dues — Pay button */}
                             <td className="px-3 py-3">
@@ -1891,13 +1894,16 @@ export default function Home() {
                         ["deadline",   "+ Add Deadline"  ],
                         ["revenue",    "+ Log Revenue"   ],
                         ["ig",         "+ Add IG Task"   ],
-                        ["attendance", "Log Attendance"  ],
                       ] as const).map(([key, label]) => (
                         <button key={key} onClick={() => setActiveModal(key)}
                           className="rounded-lg border border-white/[0.1] bg-white/[0.04] px-3 py-2 text-[12px] font-medium text-slate-300 transition-all hover:border-indigo-500/40 hover:bg-indigo-500/10 hover:text-indigo-400">
                           {label}
                         </button>
                       ))}
+                      <button onClick={() => openAttendanceLog()}
+                        className="rounded-lg border border-white/[0.1] bg-white/[0.04] px-3 py-2 text-[12px] font-medium text-slate-300 transition-all hover:border-indigo-500/40 hover:bg-indigo-500/10 hover:text-indigo-400">
+                        Log Attendance
+                      </button>
                     </div>
                   </div>
                   {/* Thresholds */}
@@ -1947,9 +1953,26 @@ export default function Home() {
           <AddIGTaskForm brotherNames={brotherNames} onSubmit={handleAddIGTask} />
         </Modal>
       )}
-      {activeModal === "attendance" && (
-        <Modal title="Log Chapter Meeting" onClose={closeModal}>
-          <LogAttendanceForm bList={brotherList} onSubmit={handleLogAttendance} />
+      {activeModal === "attendance" && selectedEventForAttendance && (
+        <Modal title="Log Attendance" onClose={closeModal}>
+          <LogAttendanceForm event={selectedEventForAttendance} bList={brotherList} onSubmit={handleLogAttendance} />
+        </Modal>
+      )}
+      {activeModal === "pick-event" && (
+        <Modal title="Select Event to Log" onClose={closeModal}>
+          <p className="mb-3 text-[12px] text-slate-400">Pick a required event to log attendance for.</p>
+          <div className="max-h-72 space-y-1 overflow-y-auto">
+            {calendarList.filter(e => e.mandatory).length === 0 && (
+              <p className="text-[12px] text-slate-500">No required events found.</p>
+            )}
+            {calendarList.filter(e => e.mandatory).sort((a, b) => a.date.localeCompare(b.date)).map(e => (
+              <button key={e.id} onClick={() => { setSelectedEventForAttendance(e); setActiveModal("attendance"); }}
+                className="w-full rounded-lg border border-white/[0.07] bg-white/[0.03] px-3 py-2.5 text-left transition-colors hover:border-indigo-500/30 hover:bg-indigo-500/10">
+                <p className="text-[13px] font-medium text-white">{e.title}</p>
+                <p className="text-[11px] text-slate-500">{e.date}{e.location ? ` · ${e.location}` : ""}</p>
+              </button>
+            ))}
+          </div>
         </Modal>
       )}
       {activeModal === "edit-deadline" && editingDeadlineId !== null && (() => {
@@ -2024,6 +2047,7 @@ export default function Home() {
         liveProjected={liveProjected}
         liveTrend={liveTrend}
         onOpenModal={setActiveModal}
+        onOpenAttendance={openAttendanceLog}
       />
     </div>
   );

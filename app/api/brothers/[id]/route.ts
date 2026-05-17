@@ -9,7 +9,8 @@ export async function PATCH(
   const body = await req.json();
 
   // Only accept known Brother fields; coerce numerics to prevent type drift
-  const allowed = ["name", "role", "attendance", "duesOwed", "gpa", "serviceHours"] as const;
+  // attendance is system-managed via /api/attendance — not patchable directly
+  const allowed = ["name", "role", "duesOwed", "gpa", "serviceHours"] as const;
   const data: Record<string, string | number> = {};
   for (const key of allowed) {
     if (key in body) {
