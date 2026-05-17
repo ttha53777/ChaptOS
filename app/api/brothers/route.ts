@@ -2,35 +2,38 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 
 export async function GET() {
-  const brothers = await prisma.brother.findMany({ orderBy: { id: "asc" } });
-  return Response.json(brothers);
+  try {
+    const brothers = await prisma.brother.findMany({ orderBy: { id: "asc" } });
+    return Response.json(brothers);
+  } catch (e) {
+    console.error("GET /api/brothers failed:", e);
+    return Response.json({ error: "Failed to fetch brothers" }, { status: 500 });
+  }
 }
 
 export async function POST(req: NextRequest) {
-  const body = await req.json();
-  const { name, role, attendance, duesOwed, gpa, serviceHours } = body;
+  try {
+    const body = await req.json();
+    const { name, role, duesOwed, gpa, serviceHours } = body;
 
-  if (
-    !name ||
-    !role ||
-    attendance == null ||
-    duesOwed == null ||
-    gpa == null ||
-    serviceHours == null
-  ) {
-    return Response.json({ error: "Missing required fields" }, { status: 400 });
+    if (!name || !role || duesOwed == null || gpa == null || serviceHours == null) {
+      return Response.json({ error: "Missing required fields" }, { status: 400 });
+    }
+
+    const brother = await prisma.brother.create({
+      data: {
+        name: String(name),
+        role: String(role),
+        attendance: 0, // system-managed — always starts at 0
+        duesOwed: Number(duesOwed),
+        gpa: Number(gpa),
+        serviceHours: Number(serviceHours),
+      },
+    });
+
+    return Response.json(brother, { status: 201 });
+  } catch (e) {
+    console.error("POST /api/brothers failed:", e);
+    return Response.json({ error: "Failed to create brother" }, { status: 500 });
   }
-
-  const brother = await prisma.brother.create({
-    data: {
-      name: String(name),
-      role: String(role),
-      attendance: Number(attendance),
-      duesOwed: Number(duesOwed),
-      gpa: Number(gpa),
-      serviceHours: Number(serviceHours),
-    },
-  });
-
-  return Response.json(brother, { status: 201 });
 }

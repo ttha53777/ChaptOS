@@ -27,5 +27,6 @@ export async function recalcAllBrothersInSemester(semesterId: number): Promise<v
   const failed = results.filter(r => r.status === "rejected");
   if (failed.length > 0) {
     console.error(`recalcAllBrothersInSemester: ${failed.length} brother(s) failed to recalculate`, failed);
+    throw new Error(`Attendance recalculation failed for ${failed.length} brother(s)`);
   }
 }

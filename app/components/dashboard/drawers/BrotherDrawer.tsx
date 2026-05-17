@@ -70,7 +70,7 @@ export function BrotherDrawer({
   function handleQuickAddService() {
     if (!brother) return;
     onAddServiceHour(brother);
-    setServiceHours(String(brother.serviceHours + 1));
+    setServiceHours(String((parseInt(serviceHours) || 0) + 1));
   }
 
   const status  = brother ? getBrotherStatus(brother) : "Good";

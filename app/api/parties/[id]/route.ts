@@ -51,8 +51,8 @@ export async function PATCH(
 
   if (body.completed === true) {
     const hasFinancials =
-      ("doorRevenue" in body && body.doorRevenue != null) ||
-      ("attendance" in body && body.attendance != null) ||
+      ("doorRevenue" in body && body.doorRevenue != null) &&
+      ("attendance" in body && body.attendance != null) &&
       ("expenses" in body && body.expenses != null);
     if (!hasFinancials) {
       return Response.json({ error: "Revenue, expenses, and attendance are required to complete a party" }, { status: 400 });
