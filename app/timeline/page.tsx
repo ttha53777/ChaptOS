@@ -568,6 +568,15 @@ function EventDetail({
     return () => controller.abort();
   }, [event.id, event.mandatory]);
 
+  useEffect(() => {
+    setExcuseOpen(false);
+    setExcuseBrother("");
+    setExcuseReason("");
+    setLogAttOpen(false);
+    setLogAttended(new Set());
+    setLogError(null);
+  }, [event.id]);
+
   async function submitExcuse(e: React.FormEvent) {
     e.preventDefault();
     if (!excuseBrother || !excuseReason.trim()) return;
@@ -584,7 +593,7 @@ function EventDetail({
         return;
       }
       // Refresh attendance detail only after confirmed success
-      const updated: AttendanceDetail = await fetch(`/api/attendance/${event.id}`).then(r => r.json());
+      const updated = await requestJson<AttendanceDetail>(`/api/attendance/${event.id}`);
       setAttDetail(updated);
       setExcuseOpen(false);
       setExcuseBrother("");
@@ -622,7 +631,7 @@ function EventDetail({
         setLogError(typeof err?.error === "string" ? err.error : "Failed to log attendance.");
         return;
       }
-      const updated: AttendanceDetail = await fetch(`/api/attendance/${event.id}`).then(r => r.json());
+      const updated = await requestJson<AttendanceDetail>(`/api/attendance/${event.id}`);
       setAttDetail(updated);
       setLogAttOpen(false);
     } catch {

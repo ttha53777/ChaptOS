@@ -10,24 +10,34 @@ function relativeTime(date: Date): string {
 }
 
 export async function GET() {
-  const logs = await prisma.activityLog.findMany({
-    orderBy: { timestamp: "desc" },
-    take: 20,
-  });
-  return Response.json(logs.map(l => ({ ...l, timestamp: relativeTime(l.timestamp) })));
+  try {
+    const logs = await prisma.activityLog.findMany({
+      orderBy: { timestamp: "desc" },
+      take: 20,
+    });
+    return Response.json(logs.map(l => ({ ...l, timestamp: relativeTime(l.timestamp) })));
+  } catch (e) {
+    console.error("GET /api/activity failed:", e);
+    return Response.json({ error: "Failed to fetch activity" }, { status: 500 });
+  }
 }
 
 export async function POST(req: NextRequest) {
-  const body = await req.json();
-  const { message, type } = body;
+  try {
+    const body = await req.json();
+    const { message, type } = body;
 
-  if (!message || !type) {
-    return Response.json({ error: "Missing required fields" }, { status: 400 });
+    if (!message || !type) {
+      return Response.json({ error: "Missing required fields" }, { status: 400 });
+    }
+
+    const log = await prisma.activityLog.create({
+      data: { message: String(message), type: String(type) },
+    });
+
+    return Response.json(log, { status: 201 });
+  } catch (e) {
+    console.error("POST /api/activity failed:", e);
+    return Response.json({ error: "Failed to create activity log" }, { status: 500 });
   }
-
-  const log = await prisma.activityLog.create({
-    data: { message: String(message), type: String(type) },
-  });
-
-  return Response.json(log, { status: 201 });
 }
