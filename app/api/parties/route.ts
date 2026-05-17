@@ -1,8 +1,11 @@
 import { NextRequest } from "next/server";
 import { Prisma } from "../../generated/prisma/client";
 import { prisma } from "@/lib/prisma";
+import { requireUser } from "@/lib/auth/require-user";
 
 export async function GET() {
+  const user = await requireUser();
+  if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
   try {
     const parties = await prisma.partyEvent.findMany({ orderBy: { id: "asc" } });
     return Response.json(parties);
@@ -12,6 +15,8 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  const user = await requireUser();
+  if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
   let body: Record<string, unknown>;
   try { body = await req.json(); }
   catch { return Response.json({ error: "Invalid JSON body" }, { status: 400 }); }

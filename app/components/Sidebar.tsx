@@ -142,6 +142,22 @@ export function Sidebar({ open, onClose, activeSection, onNavClick }: {
               {settingsActive && <span className="ml-auto h-1.5 w-1.5 rounded-full bg-indigo-400" aria-hidden="true" />}
             </Link>
           </nav>
+          <button
+            onClick={async () => {
+              try {
+                await fetch("/api/auth/signout", { method: "POST" });
+              } catch {
+                // Network failure — still redirect so the user isn't stuck
+              }
+              router.push("/login");
+            }}
+            className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] font-medium text-white/35 hover:bg-white/[0.04] hover:text-white/60 transition-all duration-150"
+          >
+            <svg className="h-4 w-4 shrink-0 opacity-75" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+            </svg>
+            Sign out
+          </button>
           <p className="px-3 pb-1 pt-2 text-[10px] tracking-wide text-white/25">Chapter Ops · v1.0</p>
         </div>
       </aside>

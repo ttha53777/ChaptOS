@@ -1,10 +1,12 @@
-// TODO: verify officer role before allowing this action
 import { NextRequest } from "next/server";
 import { Prisma } from "../../generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getActiveSemester, recalcAllBrothersInSemester } from "@/lib/attendance";
+import { requireUser } from "@/lib/auth/require-user";
 
 export async function POST(req: NextRequest) {
+  const user = await requireUser();
+  if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
   try {
     const body = await req.json();
     const calendarEventId = Number(body.calendarEventId);
