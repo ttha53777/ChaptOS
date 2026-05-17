@@ -12,6 +12,7 @@ import {
   getBrotherStatus, calcHealthScore, avg, fmt$, fmtDate,
 } from "./data";
 import { Sidebar, SvgIcon, NAV_ICONS } from "./components/Sidebar";
+import { UserAvatar } from "./components/UserAvatar";
 import { useChapter } from "./context/ChapterContext";
 import { AddDeadlineForm, AddIGTaskForm, AddRevenueForm, LogAttendanceForm } from "./components/dashboard/forms";
 import { BrotherDrawer } from "./components/dashboard/drawers/BrotherDrawer";
@@ -1457,6 +1458,7 @@ export default function Home() {
             </svg>
             <span className="hidden sm:inline">Export</span>
           </button>
+          <UserAvatar />
         </header>
 
         {/* ── Scrollable body ──────────────────────────────────────────────── */}

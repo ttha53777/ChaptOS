@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { Sidebar } from "../components/Sidebar";
+import { UserAvatar } from "../components/UserAvatar";
 import { GeneralSection } from "./sections/GeneralSection";
 import { ThresholdsSection } from "./sections/ThresholdsSection";
 import { SemestersSection } from "./sections/SemestersSection";
@@ -186,6 +187,7 @@ export default function SettingsPage() {
               </svg>
               Sections
             </button>
+            <UserAvatar />
           </header>
 
           {/* Mobile nav dropdown */}

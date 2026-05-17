@@ -8,6 +8,7 @@ import {
   XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer,
 } from "recharts";
 import { Sidebar } from "../components/Sidebar";
+import { UserAvatar } from "../components/UserAvatar";
 import { Modal, FieldLabel } from "../components/dashboard/primitives";
 import { inputCls } from "../components/dashboard/styles";
 import { useChapter } from "../context/ChapterContext";
@@ -718,6 +719,7 @@ export default function TreasuryPage() {
               <span className="hidden sm:inline">Add Transaction</span>
             </button>
           </div>
+          <UserAvatar />
         </header>
 
         {/* ── Nav tabs ─────────────────────────────────────────────────────── */}
