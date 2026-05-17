@@ -60,6 +60,7 @@ export async function POST(req: NextRequest) {
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
       return Response.json({ error: "Duplicate entry" }, { status: 409 });
     }
+    console.error("POST /api/transactions failed:", e);
     return Response.json({ error: "Failed to create transaction" }, { status: 500 });
   }
 }
