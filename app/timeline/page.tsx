@@ -514,18 +514,26 @@ function MonthDivider({
 
 // ─── EventDetail ──────────────────────────────────────────────────────────────
 
+type AttendanceDetail = {
+  excused:   { brotherId: number; brotherName: string; reason: string; isRetroactive: boolean }[];
+  unexcused: { brotherId: number; brotherName: string }[];
+  attended:  { brotherId: number; brotherName: string }[];
+};
+
 function EventDetail({
   event,
   onClose,
   canEdit,
   onEdit,
   onDelete,
+  brotherList,
 }: {
   event: CalendarEvent;
   onClose: () => void;
   canEdit: boolean;
   onEdit: () => void;
   onDelete: () => void;
+  brotherList: { id: number; name: string }[];
 }) {
   const m          = CAT_META[event.category];
   const isDeadline = event.category === "deadline";
@@ -535,6 +543,54 @@ function EventDetail({
   const [, mo, d]  = event.date.split("-").map(Number);
   const dow        = fmtDow(event.date);
   const diff       = daysFromToday(event.date);
+
+  const [attDetail,     setAttDetail]     = useState<AttendanceDetail | null>(null);
+  const [attLoading,    setAttLoading]    = useState(false);
+  const [excuseOpen,    setExcuseOpen]    = useState(false);
+  const [excuseBrother, setExcuseBrother] = useState("");
+  const [excuseReason,  setExcuseReason]  = useState("");
+  const [excuseSubmitting, setExcuseSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (!event.mandatory) return;
+    const controller = new AbortController();
+    setAttDetail(null);
+    setAttLoading(true);
+    fetch(`/api/attendance/${event.id}`, { signal: controller.signal })
+      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+      .then((data: AttendanceDetail) => setAttDetail(data))
+      .catch(err => { if (err.name !== "AbortError") console.error("Failed to load attendance", err); })
+      .finally(() => setAttLoading(false));
+    return () => controller.abort();
+  }, [event.id, event.mandatory]);
+
+  async function submitExcuse(e: React.FormEvent) {
+    e.preventDefault();
+    if (!excuseBrother || !excuseReason.trim()) return;
+    setExcuseSubmitting(true);
+    try {
+      const res = await fetch("/api/excuses", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ calendarEventId: event.id, brotherId: Number(excuseBrother), reason: excuseReason.trim() }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        console.error("Excuse submission failed", err);
+        return;
+      }
+      // Refresh attendance detail only after confirmed success
+      const updated: AttendanceDetail = await fetch(`/api/attendance/${event.id}`).then(r => r.json());
+      setAttDetail(updated);
+      setExcuseOpen(false);
+      setExcuseBrother("");
+      setExcuseReason("");
+    } catch (err) {
+      console.error("Excuse submission error", err);
+    } finally {
+      setExcuseSubmitting(false);
+    }
+  }
 
   return (
     <div className="flex flex-col gap-4">
@@ -631,6 +687,83 @@ function EventDetail({
         )}
       </div>
 
+      {/* Attendance detail — mandatory events only */}
+      {event.mandatory && (
+        <div className="rounded-xl border border-white/[0.07] overflow-hidden">
+          <div className="border-b border-white/[0.06] px-4 py-2.5">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Attendance</p>
+          </div>
+          {attLoading ? (
+            <p className="px-4 py-3 text-[12px] text-slate-500">Loading…</p>
+          ) : !attDetail || (attDetail.excused.length === 0 && attDetail.unexcused.length === 0) ? (
+            <p className="px-4 py-3 text-[12px] text-slate-500">
+              {isPast ? "No attendance logged for this event." : "No excuses submitted yet."}
+            </p>
+          ) : (
+            <div className="divide-y divide-white/[0.05]">
+              {attDetail.excused.length > 0 && (
+                <div className="px-4 py-3">
+                  <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-amber-400">Excused ({attDetail.excused.length})</p>
+                  <div className="space-y-1.5">
+                    {attDetail.excused.map(e => (
+                      <div key={e.brotherId} className="flex items-start gap-2">
+                        <span className="text-[12px] font-medium text-slate-300">{e.brotherName}</span>
+                        {e.isRetroactive && <span className="mt-0.5 rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[9px] font-semibold text-amber-400">Retroactive</span>}
+                        <span className="ml-auto text-[11px] text-slate-500 text-right max-w-[120px] truncate" title={e.reason}>{e.reason}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {attDetail.unexcused.length > 0 && (
+                <div className="px-4 py-3">
+                  <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-red-400">Unexcused ({attDetail.unexcused.length})</p>
+                  <div className="space-y-1">
+                    {attDetail.unexcused.map(e => (
+                      <p key={e.brotherId} className="text-[12px] font-medium text-red-300">{e.brotherName}</p>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Excuse submission form */}
+          <div className="border-t border-white/[0.06] px-4 py-3">
+            {!excuseOpen ? (
+              <button onClick={() => setExcuseOpen(true)}
+                className="text-[11px] font-medium text-indigo-400 hover:text-indigo-300 transition-colors">
+                {isPast && attDetail && attDetail.unexcused.length > 0 ? "+ Retroactive Excuse" : "+ Submit Excuse"}
+              </button>
+            ) : (
+              <form onSubmit={submitExcuse} className="space-y-2">
+                <div>
+                  <FieldLabel>Brother</FieldLabel>
+                  <select className={inputCls} value={excuseBrother} onChange={e => setExcuseBrother(e.target.value)} required>
+                    <option value="">Select brother…</option>
+                    {brotherList.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <FieldLabel>Reason</FieldLabel>
+                  <input className={inputCls} value={excuseReason} onChange={e => setExcuseReason(e.target.value)} placeholder="e.g. family emergency" required />
+                </div>
+                <div className="flex gap-2">
+                  <button type="submit" disabled={excuseSubmitting}
+                    className="flex-1 rounded-lg bg-indigo-600 px-3 py-2 text-[12px] font-semibold text-white hover:bg-indigo-500 disabled:opacity-50 transition-colors">
+                    {excuseSubmitting ? "Saving…" : "Submit"}
+                  </button>
+                  <button type="button" onClick={() => setExcuseOpen(false)}
+                    className="rounded-lg border border-white/[0.08] px-3 py-2 text-[12px] text-slate-400 hover:text-slate-300 transition-colors">
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
+
       {canEdit ? (
         <div className="flex gap-2 border-t border-white/[0.06] pt-4">
           <button onClick={onEdit} className="flex-1 rounded-lg border border-indigo-500/30 bg-indigo-500/10 px-3 py-2 text-[12px] font-semibold text-indigo-300 transition-colors hover:bg-indigo-500/15">
@@ -652,7 +785,7 @@ function EventDetail({
 // ─── Right Panel ──────────────────────────────────────────────────────────────
 
 function RightPanel({
-  allFiltered, todayRef, selectedEvent, selectedEventCanEdit, onClearEvent, onEditEvent, onDeleteEvent,
+  allFiltered, todayRef, selectedEvent, selectedEventCanEdit, onClearEvent, onEditEvent, onDeleteEvent, brotherList,
 }: {
   allFiltered: CalendarEvent[];
   todayRef: React.RefObject<HTMLDivElement | null>;
@@ -661,6 +794,7 @@ function RightPanel({
   onClearEvent: () => void;
   onEditEvent: () => void;
   onDeleteEvent: () => void;
+  brotherList: { id: number; name: string }[];
 }) {
   const todayStr = toDateStr(TODAY.year, TODAY.month, TODAY.day);
 
@@ -690,6 +824,7 @@ function RightPanel({
           canEdit={selectedEventCanEdit}
           onEdit={onEditEvent}
           onDelete={onDeleteEvent}
+          brotherList={brotherList}
         />
       ) : (
         <>
@@ -747,7 +882,7 @@ function RightPanel({
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function TimelinePage() {
-  const { deadlineList, partyList } = useChapter();
+  const { deadlineList, partyList, brotherList } = useChapter();
 
   const [sidebarOpen,    setSidebarOpen]    = useState(false);
   const [activeLayer,    setActiveLayer]    = useState<CalLayer>("all");
@@ -1058,6 +1193,7 @@ export default function TimelinePage() {
             onClearEvent={() => setSelectedEvent(null)}
             onEditEvent={() => setActiveModal("edit")}
             onDeleteEvent={handleDeleteEvent}
+            brotherList={brotherList}
           />
         </div>
       </div>

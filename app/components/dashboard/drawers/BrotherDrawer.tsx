@@ -27,7 +27,6 @@ export function BrotherDrawer({
   const [gpa,          setGpa]          = useState("");
   const [duesOwed,     setDuesOwed]     = useState("");
   const [serviceHours, setServiceHours] = useState("");
-  const [attendance,   setAttendance]   = useState("");
   const [dirty,        setDirty]        = useState(false);
 
   // Sync form fields whenever a different brother is selected
@@ -38,7 +37,6 @@ export function BrotherDrawer({
     setGpa(String(brother.gpa));
     setDuesOwed(String(brother.duesOwed));
     setServiceHours(String(brother.serviceHours));
-    setAttendance(String(brother.attendance));
     setDirty(false);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [brotherId]);
@@ -58,7 +56,7 @@ export function BrotherDrawer({
       gpa:          Math.min(4.0, Math.max(0, parseFloat(gpa)          || brother.gpa)),
       duesOwed:     Math.max(0,              parseInt(duesOwed)         || 0),
       serviceHours: Math.max(0,              parseInt(serviceHours)     || 0),
-      attendance:   Math.min(100, Math.max(0, parseInt(attendance)      || brother.attendance)),
+      attendance:   brother.attendance,
     });
     setDirty(false);
   }
@@ -231,15 +229,9 @@ export function BrotherDrawer({
               <div>
                 <p className="mb-3 text-[10px] font-semibold uppercase tracking-wider text-slate-500">Edit Profile</p>
                 <div className="space-y-3">
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <FieldLabel>Name</FieldLabel>
-                      <input className={inputCls} value={name} onChange={e => { setName(e.target.value); setDirty(true); }} />
-                    </div>
-                    <div>
-                      <FieldLabel>Attendance (%)</FieldLabel>
-                      <input type="number" min="0" max="100" className={inputCls} value={attendance} onChange={e => { setAttendance(e.target.value); setDirty(true); }} />
-                    </div>
+                  <div>
+                    <FieldLabel>Name</FieldLabel>
+                    <input className={inputCls} value={name} onChange={e => { setName(e.target.value); setDirty(true); }} />
                   </div>
                   <div>
                     <FieldLabel>Role / Committees</FieldLabel>

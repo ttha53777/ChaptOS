@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import type { Brother, TaskStatus } from "../../data";
+import React, { useState, useEffect } from "react";
+import type { Brother, CalendarEvent, TaskStatus } from "../../data";
 import { FieldLabel } from "./primitives";
 import { inputCls } from "./styles";
 
@@ -119,11 +119,33 @@ export function AddIGTaskForm({ brotherNames, onSubmit, initial }: {
   );
 }
 
-export function LogAttendanceForm({ bList, onSubmit }: {
+export function LogAttendanceForm({ event, bList, onSubmit }: {
+  event: CalendarEvent;
   bList: Brother[];
-  onSubmit: (attended: Set<number>) => void;
+  onSubmit: (attendedIds: number[], eventId: number) => Promise<void> | void;
 }) {
-  const [attended, setAttended] = useState<Set<number>>(new Set(bList.map(b => b.id)));
+  const [excusedIds, setExcusedIds] = useState<Set<number>>(new Set());
+  const [attended,   setAttended]   = useState<Set<number>>(new Set());
+  const [loading,    setLoading]    = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  // Stable ref so the effect doesn't re-run just because the array object changed
+  const bListRef = React.useRef(bList);
+  bListRef.current = bList;
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setLoading(true);
+    fetch(`/api/attendance/${event.id}`, { signal: controller.signal })
+      .then(r => r.json())
+      .then((data: { excused: { brotherId: number }[] }) => {
+        const ids = new Set(data.excused.map((e: { brotherId: number }) => e.brotherId));
+        setExcusedIds(ids);
+        setAttended(new Set(bListRef.current.filter(b => !ids.has(b.id)).map(b => b.id)));
+      })
+      .catch(err => { if (err.name !== "AbortError") console.error("Failed to load excuses", err); })
+      .finally(() => setLoading(false));
+    return () => controller.abort();
+  }, [event.id]); // bList intentionally excluded — captured via ref
 
   function toggle(id: number) {
     setAttended(prev => {
@@ -133,28 +155,53 @@ export function LogAttendanceForm({ bList, onSubmit }: {
     });
   }
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    onSubmit(attended);
+    if (submitting) return;
+    setSubmitting(true);
+    try {
+      await onSubmit(Array.from(attended), event.id);
+    } finally {
+      setSubmitting(false);
+    }
   }
+
+  const eligible = bList.filter(b => !excusedIds.has(b.id));
+  const excused  = bList.filter(b => excusedIds.has(b.id));
+  const busy = loading || submitting;
 
   return (
     <form onSubmit={handleSubmit}>
-      <p className="mb-4 text-[12px] text-slate-400">Check brothers who attended. Attended +2%, absent −3%.</p>
-      <div className="mb-4 max-h-64 space-y-0.5 overflow-y-auto rounded-lg border border-white/[0.07] bg-[#0a0d14] p-2">
-        {bList.map(b => (
-          <label key={b.id} className="flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2 hover:bg-white/[0.05] transition-colors">
-            <input type="checkbox" checked={attended.has(b.id)} onChange={() => toggle(b.id)} className="h-4 w-4 rounded border-white/20 bg-transparent text-indigo-500 focus:ring-indigo-500/30" />
-            <span className="flex-1 text-[13px] font-medium text-white">{b.name}</span>
-            <span className="text-[11px] tabular-nums text-slate-500">{b.attendance}%</span>
-          </label>
-        ))}
-      </div>
+      <p className="mb-1 text-[13px] font-semibold text-white">{event.title}</p>
+      <p className="mb-4 text-[12px] text-slate-400">{event.date}{event.location ? ` · ${event.location}` : ""}</p>
+      {loading ? (
+        <p className="mb-4 text-[12px] text-slate-500">Loading excuses…</p>
+      ) : (
+        <div className="mb-4 max-h-64 space-y-0.5 overflow-y-auto rounded-lg border border-white/[0.07] bg-[#0a0d14] p-2">
+          {eligible.map(b => (
+            <label key={b.id} className="flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2 hover:bg-white/[0.05] transition-colors">
+              <input type="checkbox" checked={attended.has(b.id)} onChange={() => toggle(b.id)} className="h-4 w-4 rounded border-white/20 bg-transparent text-indigo-500 focus:ring-indigo-500/30" />
+              <span className="flex-1 text-[13px] font-medium text-white">{b.name}</span>
+              <span className="text-[11px] tabular-nums text-slate-500">{b.attendance}%</span>
+            </label>
+          ))}
+          {excused.map(b => (
+            <div key={b.id} className="flex items-center gap-3 rounded-lg px-2 py-2 opacity-50">
+              <input type="checkbox" disabled className="h-4 w-4 rounded border-white/20 bg-transparent" />
+              <span className="flex-1 text-[13px] font-medium text-slate-400">{b.name}</span>
+              <span className="text-[10px] font-semibold text-amber-400">Excused</span>
+            </div>
+          ))}
+        </div>
+      )}
       <div className="mb-4 flex gap-2 text-[11px] text-slate-500">
         <span className="font-medium text-white">{attended.size}</span> attending ·
-        <span className="font-medium text-white">{bList.length - attended.size}</span> absent
+        <span className="font-medium text-white">{eligible.length - attended.size}</span> absent ·
+        <span className="font-medium text-amber-400">{excused.length}</span> excused
       </div>
-      <button type="submit" className="w-full rounded-lg bg-indigo-600 px-4 py-2.5 text-[13px] font-semibold text-white hover:bg-indigo-500 transition-colors">Log Attendance</button>
+      <button type="submit" disabled={busy} className="w-full rounded-lg bg-indigo-600 px-4 py-2.5 text-[13px] font-semibold text-white hover:bg-indigo-500 transition-colors disabled:opacity-50">
+        {submitting ? "Saving…" : "Log Attendance"}
+      </button>
     </form>
   );
 }

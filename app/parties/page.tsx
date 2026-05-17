@@ -218,7 +218,7 @@ function WrapUpForm({ party, onSubmit, onClose }: {
         <div className="flex items-end">
           <div className="rounded-lg bg-white/[0.04] px-3 py-2 w-full text-center">
             <p className="text-[10px] text-slate-500 mb-0.5">Profit preview</p>
-            <p className={`text-[16px] font-bold tabular-nums ${profitPreview >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+            <p className={`text-[16px] font-bold tabular-nums ${profitPreview >= 0 ? "text-indigo-300" : "text-amber-300"}`}>
               {fmt$(profitPreview)}
             </p>
           </div>
@@ -257,9 +257,10 @@ function DetailPanel({ party, onEdit, onWrapUp, onDelete }: {
     <Card className="overflow-hidden">
       <div className="h-[2px]" style={{
         background: party.completed
-          ? p >= 0 ? "linear-gradient(90deg,transparent,#34d399 30%,#34d399 70%,transparent)"
-                  : "linear-gradient(90deg,transparent,#f87171 30%,#f87171 70%,transparent)"
-          : "linear-gradient(90deg,transparent,#818cf8 30%,#818cf8 70%,transparent)"
+          ? (p >= 0
+            ? "linear-gradient(90deg,transparent,rgba(99,102,241,0.9) 30%,rgba(129,140,248,0.95) 70%,transparent)"
+            : "linear-gradient(90deg,transparent,rgba(251,191,36,0.75) 30%,rgba(252,211,77,0.9) 70%,transparent)")
+          : "linear-gradient(90deg,transparent,rgba(99,102,241,0.55) 30%,rgba(129,140,248,0.65) 70%,transparent)",
       }} />
 
       <div className="px-5 py-4 border-b border-white/[0.07] flex items-start justify-between gap-3">
@@ -280,8 +281,8 @@ function DetailPanel({ party, onEdit, onWrapUp, onDelete }: {
             <div className="grid grid-cols-3 gap-2">
               {[
                 { label: "Revenue",  value: fmt$(party.doorRevenue), color: "#818cf8" },
-                { label: "Expenses", value: fmt$(party.expenses),    color: "#f87171" },
-                { label: "Profit",   value: fmt$(p),                 color: p >= 0 ? "#34d399" : "#f87171" },
+                { label: "Expenses", value: fmt$(party.expenses),    color: "#fbbf24" },
+                { label: "Profit",   value: fmt$(p),                 color: p >= 0 ? "#c7d2fe" : "#fcd34d" },
               ].map(({ label, value, color }) => (
                 <div key={label} className="rounded-lg bg-white/[0.04] px-3 py-2.5 text-center">
                   <p className="text-[14px] font-bold tabular-nums" style={{ color }}>{value}</p>
@@ -292,11 +293,16 @@ function DetailPanel({ party, onEdit, onWrapUp, onDelete }: {
             <div>
               <div className="flex items-center justify-between mb-1">
                 <span className="text-[10px] text-slate-500">Profit margin</span>
-                <span className="text-[10px] tabular-nums text-slate-400">{margin}%</span>
+                <span className={`text-[10px] tabular-nums ${p >= 0 ? "text-indigo-300" : "text-amber-300"}`}>{margin}%</span>
               </div>
               <div className="h-1.5 overflow-hidden rounded-full bg-white/[0.07]">
                 <div className="h-full rounded-full transition-all duration-500"
-                     style={{ width: `${Math.min(100, Math.max(0, margin))}%`, background: p >= 0 ? "#34d399" : "#f87171" }} />
+                     style={{
+                       width: `${Math.min(100, Math.max(0, margin))}%`,
+                       background: p >= 0
+                         ? "linear-gradient(90deg,#4f46e5,#818cf8)"
+                         : "linear-gradient(90deg,#b45309,#fbbf24)",
+                     }} />
               </div>
             </div>
           </>
@@ -323,7 +329,7 @@ function DetailPanel({ party, onEdit, onWrapUp, onDelete }: {
           {party.completed && party.attendance > 0 && (
             <div className="flex items-center justify-between">
               <span className="text-[11px] text-slate-500">Profit / head</span>
-              <span className="text-[12px] font-medium tabular-nums" style={{ color: p >= 0 ? "#34d399" : "#f87171" }}>{fmt$(Math.round(p / party.attendance))}</span>
+              <span className={`text-[12px] font-medium tabular-nums ${p >= 0 ? "text-indigo-300" : "text-amber-300"}`}>{fmt$(Math.round(p / party.attendance))}</span>
             </div>
           )}
           {party.theme && (

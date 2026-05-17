@@ -8,13 +8,54 @@ datasource db {
 }
 
 model Brother {
-  id           Int    @id @default(autoincrement())
-  name         String
-  role         String
-  attendance   Float
-  duesOwed     Float
-  gpa          Float
-  serviceHours Float
+  id                Int                @id @default(autoincrement())
+  name              String
+  role              String
+  attendance        Float
+  duesOwed          Float
+  gpa               Float
+  serviceHours      Float
+  attendanceRecords AttendanceRecord[]
+  attendanceExcuses AttendanceExcuse[]
+}
+
+model Semester {
+  id        Int                @id @default(autoincrement())
+  label     String             @unique
+  startDate String
+  endDate   String
+  isActive  Boolean            @default(false)
+  records   AttendanceRecord[]
+  excuses   AttendanceExcuse[]
+}
+
+model AttendanceRecord {
+  id              Int           @id @default(autoincrement())
+  calendarEventId Int
+  brotherId       Int
+  semesterId      Int
+  attended        Boolean
+  loggedAt        DateTime      @default(now())
+  calendarEvent   CalendarEvent @relation(fields: [calendarEventId], references: [id])
+  brother         Brother       @relation(fields: [brotherId], references: [id])
+  semester        Semester      @relation(fields: [semesterId], references: [id])
+
+  @@unique([calendarEventId, brotherId])
+}
+
+model AttendanceExcuse {
+  id              Int           @id @default(autoincrement())
+  calendarEventId Int
+  brotherId       Int
+  semesterId      Int
+  reason          String
+  submittedAt     DateTime      @default(now())
+  isRetroactive   Boolean       @default(false)
+  calendarEvent   CalendarEvent @relation(fields: [calendarEventId], references: [id])
+  brother         Brother       @relation(fields: [brotherId], references: [id])
+  semester        Semester      @relation(fields: [semesterId], references: [id])
+
+  @@unique([calendarEventId, brotherId])
 }
 
 model Deadline {
@@ -50,14 +91,16 @@ model PartyEvent {
 }
 
 model CalendarEvent {
-  id          Int     @id @default(autoincrement())
-  title       String
-  date        String
-  time        String?
-  category    String
-  mandatory   Boolean
-  description String?
-  location    String?
+  id                Int                @id @default(autoincrement())
+  title             String
+  date              String
+  time              String?
+  category          String
+  mandatory         Boolean
+  description       String?
+  location          String?
+  attendanceRecords AttendanceRecord[]
+  attendanceExcuses AttendanceExcuse[]
 }
 
 model ActivityLog {
