@@ -550,6 +550,10 @@ function EventDetail({
   const [excuseBrother, setExcuseBrother] = useState("");
   const [excuseReason,  setExcuseReason]  = useState("");
   const [excuseSubmitting, setExcuseSubmitting] = useState(false);
+  const [logAttOpen,    setLogAttOpen]    = useState(false);
+  const [logAttended,   setLogAttended]   = useState<Set<number>>(new Set());
+  const [logSubmitting, setLogSubmitting] = useState(false);
+  const [logError,      setLogError]      = useState<string | null>(null);
 
   useEffect(() => {
     if (!event.mandatory) return;
@@ -589,6 +593,42 @@ function EventDetail({
       console.error("Excuse submission error", err);
     } finally {
       setExcuseSubmitting(false);
+    }
+  }
+
+  function openLogAtt() {
+    const excusedIds = new Set((attDetail?.excused ?? []).map(e => e.brotherId));
+    const alreadyAttended = new Set((attDetail?.attended ?? []).map(e => e.brotherId));
+    const eligible = brotherList.filter(b => !excusedIds.has(b.id));
+    // If attendance was already logged use those ids, else default all eligible as attending
+    setLogAttended(alreadyAttended.size > 0 ? alreadyAttended : new Set(eligible.map(b => b.id)));
+    setLogError(null);
+    setLogAttOpen(true);
+  }
+
+  async function submitLogAtt(e: React.FormEvent) {
+    e.preventDefault();
+    if (logSubmitting) return;
+    setLogSubmitting(true);
+    setLogError(null);
+    try {
+      const res = await fetch("/api/attendance", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ calendarEventId: event.id, attendedIds: Array.from(logAttended) }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        setLogError(typeof err?.error === "string" ? err.error : "Failed to log attendance.");
+        return;
+      }
+      const updated: AttendanceDetail = await fetch(`/api/attendance/${event.id}`).then(r => r.json());
+      setAttDetail(updated);
+      setLogAttOpen(false);
+    } catch {
+      setLogError("Failed to log attendance. Please try again.");
+    } finally {
+      setLogSubmitting(false);
     }
   }
 
@@ -690,17 +730,35 @@ function EventDetail({
       {/* Attendance detail — mandatory events only */}
       {event.mandatory && (
         <div className="rounded-xl border border-white/[0.07] overflow-hidden">
-          <div className="border-b border-white/[0.06] px-4 py-2.5">
+          <div className="flex items-center justify-between border-b border-white/[0.06] px-4 py-2.5">
             <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Attendance</p>
+            {!logAttOpen && (
+              <button
+                onClick={openLogAtt}
+                className="text-[11px] font-medium text-indigo-400 hover:text-indigo-300 transition-colors"
+              >
+                {attDetail?.attended && attDetail.attended.length > 0 ? "Edit Log" : "Log Attendance"}
+              </button>
+            )}
           </div>
           {attLoading ? (
             <p className="px-4 py-3 text-[12px] text-slate-500">Loading…</p>
-          ) : !attDetail || (attDetail.excused.length === 0 && attDetail.unexcused.length === 0) ? (
+          ) : !attDetail || (attDetail.excused.length === 0 && attDetail.unexcused.length === 0 && attDetail.attended.length === 0) ? (
             <p className="px-4 py-3 text-[12px] text-slate-500">
               {isPast ? "No attendance logged for this event." : "No excuses submitted yet."}
             </p>
           ) : (
             <div className="divide-y divide-white/[0.05]">
+              {attDetail.attended.length > 0 && (
+                <div className="px-4 py-3">
+                  <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-indigo-400">Attended ({attDetail.attended.length})</p>
+                  <div className="space-y-1">
+                    {attDetail.attended.map(e => (
+                      <p key={e.brotherId} className="text-[12px] font-medium text-indigo-300">{e.brotherName}</p>
+                    ))}
+                  </div>
+                </div>
+              )}
               {attDetail.excused.length > 0 && (
                 <div className="px-4 py-3">
                   <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-amber-400">Excused ({attDetail.excused.length})</p>
@@ -727,6 +785,54 @@ function EventDetail({
               )}
             </div>
           )}
+
+          {/* Log attendance inline form */}
+          {logAttOpen && (() => {
+            const excusedIds = new Set((attDetail?.excused ?? []).map(e => e.brotherId));
+            const eligible = brotherList.filter(b => !excusedIds.has(b.id));
+            const excused  = brotherList.filter(b => excusedIds.has(b.id));
+            return (
+              <form onSubmit={submitLogAtt} className="border-t border-white/[0.06] px-4 py-3 space-y-3">
+                <p className="text-[11px] font-semibold text-slate-400">Mark who attended</p>
+                <div className="max-h-52 overflow-y-auto space-y-0.5 rounded-lg border border-white/[0.07] bg-[#0a0d14] p-2">
+                  {eligible.map(b => (
+                    <label key={b.id} className="flex cursor-pointer items-center gap-3 rounded-lg px-2 py-1.5 hover:bg-white/[0.05] transition-colors">
+                      <input
+                        type="checkbox"
+                        checked={logAttended.has(b.id)}
+                        onChange={() => setLogAttended(prev => { const n = new Set(prev); n.has(b.id) ? n.delete(b.id) : n.add(b.id); return n; })}
+                        className="h-4 w-4 rounded border-white/20 bg-transparent text-indigo-500 focus:ring-indigo-500/30"
+                      />
+                      <span className="flex-1 text-[12px] font-medium text-white">{b.name}</span>
+                    </label>
+                  ))}
+                  {excused.map(b => (
+                    <div key={b.id} className="flex items-center gap-3 rounded-lg px-2 py-1.5 opacity-40">
+                      <input type="checkbox" disabled className="h-4 w-4 rounded border-white/20 bg-transparent" />
+                      <span className="flex-1 text-[12px] font-medium text-slate-400">{b.name}</span>
+                      <span className="text-[10px] font-semibold text-amber-400">Excused</span>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-[11px] text-slate-500">
+                  <span className="font-medium text-white">{logAttended.size}</span> attending ·{" "}
+                  <span className="font-medium text-white">{eligible.length - logAttended.size}</span> absent
+                  {excused.length > 0 && <> · <span className="font-medium text-amber-400">{excused.length}</span> excused</>}
+                </p>
+                {logError && <p className="text-[11px] text-red-400">{logError}</p>}
+                <div className="flex gap-2">
+                  <button type="submit" disabled={logSubmitting}
+                    className="flex-1 rounded-lg bg-indigo-600 px-3 py-2 text-[12px] font-semibold text-white hover:bg-indigo-500 disabled:opacity-50 transition-colors">
+                    {logSubmitting ? "Saving…" : "Save Attendance"}
+                  </button>
+                  <button type="button" onClick={() => setLogAttOpen(false)}
+                    className="rounded-lg border border-white/[0.08] px-3 py-2 text-[12px] text-slate-400 hover:text-slate-300 transition-colors">
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            );
+          })()}
 
           {/* Excuse submission form */}
           <div className="border-t border-white/[0.06] px-4 py-3">
