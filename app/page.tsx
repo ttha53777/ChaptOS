@@ -16,7 +16,7 @@ import { UserAvatar } from "./components/UserAvatar";
 import { useChapter } from "./context/ChapterContext";
 import { AddDeadlineForm, AddIGTaskForm, AddRevenueForm, LogAttendanceForm } from "./components/dashboard/forms";
 import { BrotherDrawer } from "./components/dashboard/drawers/BrotherDrawer";
-import { Card, Modal, StatusBadge, TaskBadge } from "./components/dashboard/primitives";
+import { Card, Modal, StatusBadge, TaskBadge, ConfirmDialog } from "./components/dashboard/primitives";
 import { BROTHER_STYLES, KPI_ICONS, SECTION_IDS, tooltipStyle } from "./components/dashboard/styles";
 import { ActivityFeed, AttBar, ChartWidget, HealthScoreWidget, KPICard, SortTh } from "./components/dashboard/widgets";
 
@@ -924,6 +924,7 @@ export default function Home() {
   const [selectedBrotherId, setSelectedBrotherId] = useState<number | null>(null);
   const [healthDelta,    setHealthDelta]    = useState<number | null>(null);
   const [activeSection,  setActiveSection]  = useState("Dashboard");
+  const [confirmDelete, setConfirmDelete] = useState<{ kind: "deadline" | "ig"; id: number; label: string } | null>(null);
   const deltaTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mainRef = useRef<HTMLElement>(null);
   const attendanceReqRef = useRef<AbortController | null>(null);
@@ -1242,6 +1243,12 @@ export default function Home() {
   function deleteDeadline(id: number) {
     const d = deadlineList.find(x => x.id === id);
     if (!d) return;
+    setConfirmDelete({ kind: "deadline", id, label: d.title });
+  }
+
+  function confirmDeleteDeadline(id: number) {
+    const d = deadlineList.find(x => x.id === id);
+    if (!d) return;
     setDeadlineList(prev => prev.filter(x => x.id !== id));
     addActivity(`Deadline removed: "${d.title}"`, "info");
     persistMutation(
@@ -1292,6 +1299,12 @@ export default function Home() {
   }
 
   function deleteIG(id: number) {
+    const t = igTaskList.find(x => x.id === id);
+    if (!t) return;
+    setConfirmDelete({ kind: "ig", id, label: t.title });
+  }
+
+  function confirmDeleteIG(id: number) {
     const t = igTaskList.find(x => x.id === id);
     if (!t) return;
     setIgTaskList(prev => prev.filter(x => x.id !== id));
@@ -1416,7 +1429,7 @@ export default function Home() {
 
           <div className="min-w-0 flex-1">
             <p className="text-[14px] font-semibold leading-tight text-white">Operations Dashboard</p>
-            <p className="hidden text-[11px] leading-tight text-slate-400 sm:block">Lambda Phi Epsilon · Fall 2026</p>
+            <p className="hidden text-[11px] leading-tight text-slate-400 sm:block">Lambda Phi Epsilon · ChaptOS</p>
           </div>
 
           {/* Quick Actions */}
@@ -1442,7 +1455,7 @@ export default function Home() {
             </svg>
           </button>
 
-          <p className="hidden text-[11px] text-slate-500 xl:block shrink-0">May 11, 2026</p>
+          <p className="hidden text-[11px] text-slate-500 xl:block shrink-0">{new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</p>
 
           <div className="relative hidden sm:block">
             <svg className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
@@ -1847,7 +1860,7 @@ export default function Home() {
 
             {/* ── Footer ─────────────────────────────────────────────────── */}
             <div className="border-t border-white/[0.06] pt-4 text-center">
-              <p className="text-[10px] text-slate-700">Lambda Phi Epsilon · Fall 2026 · Prototype backed by seeded chapter data</p>
+              <p className="text-[10px] text-slate-700">Lambda Phi Epsilon · ChaptOS · Prototype backed by seeded chapter data</p>
             </div>
 
           </div>
@@ -1943,6 +1956,20 @@ export default function Home() {
         onPayDues={payDues}
         onAddServiceHour={addServiceHour}
       />
+
+      {/* ── Confirm Delete Dialog ───────────────────────────────────────────── */}
+      {confirmDelete && (
+        <ConfirmDialog
+          title={confirmDelete.kind === "deadline" ? "Delete Deadline" : "Delete IG Task"}
+          message={<>Delete <span className="font-semibold text-white">{confirmDelete.label}</span>? This cannot be undone.</>}
+          onCancel={() => setConfirmDelete(null)}
+          onConfirm={() => {
+            if (confirmDelete.kind === "deadline") confirmDeleteDeadline(confirmDelete.id);
+            else confirmDeleteIG(confirmDelete.id);
+            setConfirmDelete(null);
+          }}
+        />
+      )}
 
       {/* ── KPI Detail Drawer ───────────────────────────────────────────────── */}
       <KPIDetailDrawer

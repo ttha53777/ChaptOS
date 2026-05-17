@@ -3,7 +3,7 @@
 import React, { useCallback, useMemo, useState } from "react";
 import Link from "next/link";
 import { Sidebar } from "../../components/Sidebar";
-import { Modal, FieldLabel } from "../../components/dashboard/primitives";
+import { Modal, FieldLabel, ConfirmDialog } from "../../components/dashboard/primitives";
 import { inputCls } from "../../components/dashboard/styles";
 import { useChapter } from "../../context/ChapterContext";
 import {
@@ -154,17 +154,6 @@ function TxForm({
   );
 }
 
-function DeleteConfirm({ label, onConfirm, onCancel }: { label: string; onConfirm: () => void; onCancel: () => void }) {
-  return (
-    <div className="space-y-4">
-      <p className="text-[13px] text-slate-300">Delete <span className="font-semibold text-white">{label}</span>? This action can be restored only if the request fails.</p>
-      <div className="flex justify-end gap-2">
-        <button onClick={onCancel} className="rounded-lg border border-white/[0.08] px-4 py-1.5 text-[13px] text-slate-400 hover:border-white/[0.16] hover:text-white transition-colors">Cancel</button>
-        <button onClick={onConfirm} className="rounded-lg bg-red-600 px-4 py-1.5 text-[13px] font-semibold text-white hover:bg-red-500 transition-colors">Delete</button>
-      </div>
-    </div>
-  );
-}
 
 export default function TreasuryTransactionsPage() {
   const { transactionList, setTransactionList } = useChapter();
@@ -397,13 +386,12 @@ export default function TreasuryTransactionsPage() {
       )}
 
       {deleteTx && (
-        <Modal title="Delete Transaction" onClose={() => setDeleteTx(null)}>
-          <DeleteConfirm
-            label={deleteTx.description || deleteTx.category}
-            onConfirm={() => handleDeleteTx(deleteTx)}
-            onCancel={() => setDeleteTx(null)}
-          />
-        </Modal>
+        <ConfirmDialog
+          title="Delete Transaction"
+          message={<>Delete <span className="font-semibold text-white">{deleteTx.description || deleteTx.category}</span>? This cannot be undone.</>}
+          onConfirm={() => { handleDeleteTx(deleteTx); }}
+          onCancel={() => setDeleteTx(null)}
+        />
       )}
     </div>
   );

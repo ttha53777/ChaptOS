@@ -3,7 +3,7 @@
 import React, { useState, useMemo, useCallback } from "react";
 import { Sidebar } from "../components/Sidebar";
 import { UserAvatar } from "../components/UserAvatar";
-import { Card, Modal, FieldLabel } from "../components/dashboard/primitives";
+import { Card, Modal, FieldLabel, ConfirmDialog } from "../components/dashboard/primitives";
 import { inputCls } from "../components/dashboard/styles";
 import { useChapter } from "../context/ChapterContext";
 import { PartyEvent, fmt$, fmtDate } from "../data";
@@ -391,11 +391,12 @@ export default function PartiesPage() {
   const [modal,       setModal]       = useState<ModalKind | null>(null);
   const [editingId,   setEditingId]   = useState<number | null>(null);
   const [wrapUpId,    setWrapUpId]    = useState<number | null>(null);
-  const [timeTab,     setTimeTab]     = useState<TimeTab>("All");
-  const [typeFilter,  setTypeFilter]  = useState<TypeFilter>("All");
-  const [sortKey,     setSortKey]     = useState<SortKey>("date");
-  const [sortDir,     setSortDir]     = useState<SortDir>("desc");
-  const [pageError,   setPageError]   = useState<string | null>(null);
+  const [timeTab,        setTimeTab]        = useState<TimeTab>("All");
+  const [typeFilter,     setTypeFilter]     = useState<TypeFilter>("All");
+  const [sortKey,        setSortKey]        = useState<SortKey>("date");
+  const [sortDir,        setSortDir]        = useState<SortDir>("desc");
+  const [pageError,      setPageError]      = useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
 
   // ── persistence helper ────────────────────────────────────────────────────────
   const persist = useCallback((
@@ -566,7 +567,7 @@ export default function PartiesPage() {
   // ── render ────────────────────────────────────────────────────────────────────
   return (
     <div className="flex h-screen overflow-hidden bg-[#0d1117]">
-      <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} activeSection="Parties" onNavClick={() => {}} />
+      <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} activeSection="Events" onNavClick={() => {}} />
 
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
 
@@ -740,7 +741,7 @@ export default function PartiesPage() {
                     party={selected}
                     onEdit={() => openEdit(selected)}
                     onWrapUp={() => openWrapUp(selected)}
-                    onDelete={() => handleDelete(selected.id)}
+                    onDelete={() => setConfirmDeleteId(selected.id)}
                   />
                 ) : (
                   <Card className="flex flex-col items-center justify-center gap-2 py-16 text-center">
@@ -773,6 +774,17 @@ export default function PartiesPage() {
           <WrapUpForm party={wrapUpParty} onSubmit={handleWrapUp} onClose={closeModal} />
         </Modal>
       )}
+      {confirmDeleteId !== null && (() => {
+        const party = partyList.find(p => p.id === confirmDeleteId);
+        return party ? (
+          <ConfirmDialog
+            title="Delete Party"
+            message={<>Delete <span className="font-semibold text-white">{party.name}</span>? This cannot be undone.</>}
+            onCancel={() => setConfirmDeleteId(null)}
+            onConfirm={() => { handleDelete(confirmDeleteId); setConfirmDeleteId(null); }}
+          />
+        ) : null;
+      })()}
     </div>
   );
 }

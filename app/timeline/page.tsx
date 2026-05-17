@@ -1,11 +1,11 @@
 "use client";
 
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import { Sidebar } from "../components/Sidebar";
 import { UserAvatar } from "../components/UserAvatar";
 import { CalendarEvent, CalEventCategory, CalLayer } from "../data";
 import { useChapter } from "../context/ChapterContext";
-import { FieldLabel, Modal } from "../components/dashboard/primitives";
+import { FieldLabel, Modal, ConfirmDialog } from "../components/dashboard/primitives";
 import { inputCls } from "../components/dashboard/styles";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -14,37 +14,34 @@ const MONTH_NAMES = [
   "January","February","March","April","May","June",
   "July","August","September","October","November","December",
 ];
+const DAY_NAMES = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 const _now = new Date();
 const TODAY = { year: _now.getFullYear(), month: _now.getMonth(), day: _now.getDate() };
 
 type CalendarDraft = Omit<CalendarEvent, "id">;
 
-const LAYERS: { id: CalLayer; label: string; accent: string; activeClasses: string; iconPath: string }[] = [
+const LAYERS: { id: CalLayer; label: string; activeClasses: string; iconPath: string }[] = [
   {
     id: "all",
     label: "All",
-    accent: "text-white",
     activeClasses: "border-white/20 bg-white/[0.08] text-white shadow-sm",
     iconPath: "M4 6h16M4 10h16M4 14h16M4 18h16",
   },
   {
     id: "mandatory",
     label: "Mandatory",
-    accent: "text-emerald-400",
     activeClasses: "border-emerald-500/40 bg-emerald-500/10 text-emerald-300 shadow-sm shadow-emerald-900/20",
     iconPath: "M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z",
   },
   {
     id: "deadlines",
     label: "Deadlines",
-    accent: "text-red-400",
     activeClasses: "border-red-500/40 bg-red-500/10 text-red-300 shadow-sm shadow-red-900/20",
     iconPath: "M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z",
   },
   {
     id: "parties",
     label: "Parties",
-    accent: "text-indigo-400",
     activeClasses: "border-indigo-500/40 bg-indigo-500/10 text-indigo-300 shadow-sm shadow-indigo-900/20",
     iconPath: "M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z",
   },
@@ -60,6 +57,8 @@ const CAT_META: Record<CalEventCategory, {
   border: string;
   borderL: string;
   cardBg: string;
+  accentBar: string;
+  heroBg: string;
   iconPath: string;
 }> = {
   chapter: {
@@ -72,6 +71,8 @@ const CAT_META: Record<CalEventCategory, {
     border: "border-emerald-500/25",
     borderL: "border-l-emerald-500",
     cardBg: "bg-emerald-500/[0.04]",
+    accentBar: "bg-emerald-500",
+    heroBg: "from-emerald-500/20",
     iconPath: "M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z",
   },
   social: {
@@ -84,6 +85,8 @@ const CAT_META: Record<CalEventCategory, {
     border: "border-violet-500/25",
     borderL: "border-l-violet-500",
     cardBg: "bg-violet-500/[0.04]",
+    accentBar: "bg-violet-500",
+    heroBg: "from-violet-500/20",
     iconPath: "M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z",
   },
   fundy: {
@@ -96,6 +99,8 @@ const CAT_META: Record<CalEventCategory, {
     border: "border-amber-500/25",
     borderL: "border-l-amber-500",
     cardBg: "bg-amber-500/[0.04]",
+    accentBar: "bg-amber-500",
+    heroBg: "from-amber-500/20",
     iconPath: "M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z",
   },
   program: {
@@ -108,6 +113,8 @@ const CAT_META: Record<CalEventCategory, {
     border: "border-sky-500/25",
     borderL: "border-l-sky-500",
     cardBg: "bg-sky-500/[0.04]",
+    accentBar: "bg-sky-500",
+    heroBg: "from-sky-500/20",
     iconPath: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2",
   },
   party: {
@@ -120,6 +127,8 @@ const CAT_META: Record<CalEventCategory, {
     border: "border-indigo-500/25",
     borderL: "border-l-indigo-500",
     cardBg: "bg-indigo-500/[0.04]",
+    accentBar: "bg-indigo-500",
+    heroBg: "from-indigo-500/20",
     iconPath: "M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3",
   },
   deadline: {
@@ -132,6 +141,8 @@ const CAT_META: Record<CalEventCategory, {
     border: "border-red-500/25",
     borderL: "border-l-red-500",
     cardBg: "bg-red-500/[0.04]",
+    accentBar: "bg-red-500",
+    heroBg: "from-red-500/20",
     iconPath: "M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z",
   },
 };
@@ -179,7 +190,8 @@ function filterByLayer(events: CalendarEvent[], layer: CalLayer): CalendarEvent[
 }
 
 function fmtDow(dateStr: string) {
-  return new Date(dateStr + "T12:00:00").toLocaleDateString("en-US", { weekday: "short" });
+  const d = new Date(dateStr + "T12:00:00");
+  return DAY_NAMES[d.getDay()].toUpperCase();
 }
 
 function daysFromToday(dateStr: string): number {
@@ -193,6 +205,8 @@ function optionalValue(value: string): string | undefined {
   const trimmed = value.trim();
   return trimmed ? trimmed : undefined;
 }
+
+// ─── CalendarEventForm ────────────────────────────────────────────────────────
 
 function CalendarEventForm({
   initialEvent,
@@ -282,7 +296,6 @@ interface MonthGroup {
 }
 
 function buildMonthGroups(events: CalendarEvent[]): MonthGroup[] {
-  const todayStr = toDateStr(TODAY.year, TODAY.month, TODAY.day);
   const sorted = [...events].sort((a, b) => a.date.localeCompare(b.date));
 
   const map: Record<string, MonthGroup> = {};
@@ -301,108 +314,105 @@ function buildMonthGroups(events: CalendarEvent[]): MonthGroup[] {
     map[key].events.push(e);
   }
 
-  // Sort: past months first, then current, then future — but highlight current
   return Object.values(map).sort((a, b) => a.id.localeCompare(b.id));
+}
+
+// ─── TodayMarker ──────────────────────────────────────────────────────────────
+
+function TodayMarker() {
+  return (
+    <div className="relative my-3 flex items-center gap-3">
+      <div className="h-px flex-1 bg-indigo-500/30" />
+      <div className="flex shrink-0 items-center gap-1.5 rounded-full border border-indigo-500/40 bg-indigo-500/15 px-3 py-1">
+        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-indigo-400" />
+        <span className="text-[10px] font-bold tracking-widest text-indigo-300 uppercase">Today</span>
+      </div>
+      <div className="h-px flex-1 bg-indigo-500/30" />
+    </div>
+  );
 }
 
 // ─── EventCard ────────────────────────────────────────────────────────────────
 
 function EventCard({
-  event, onSelect, selected, isLast,
+  event, onSelect, selected, showTodayMarkerBefore,
 }: {
   event: CalendarEvent;
   onSelect: (e: CalendarEvent) => void;
   selected: boolean;
-  isLast: boolean;
+  showTodayMarkerBefore: boolean;
 }) {
-  const m          = CAT_META[event.category];
-  const todayStr   = toDateStr(TODAY.year, TODAY.month, TODAY.day);
-  const isPast     = event.date < todayStr;
-  const isToday    = event.date === todayStr;
-  const isDeadline = event.category === "deadline";
+  const m           = CAT_META[event.category];
+  const todayStr    = toDateStr(TODAY.year, TODAY.month, TODAY.day);
+  const isPast      = event.date < todayStr;
+  const isToday     = event.date === todayStr;
   const isMandatory = event.mandatory;
-  const [, mo, d]  = event.date.split("-").map(Number);
-  const dow        = fmtDow(event.date);
-  const diff       = daysFromToday(event.date);
+  const [, , d]     = event.date.split("-").map(Number);
+  const dow         = fmtDow(event.date);
+  const diff        = daysFromToday(event.date);
 
-  const relLabel = isToday
-    ? "Today"
+  const daysChip = isToday
+    ? { label: "Today", cls: `${m.bg} ${m.text} ring-1 ring-inset ${m.ring}` }
     : diff === 1
-    ? "Tomorrow"
-    : diff === -1
-    ? "Yesterday"
+    ? { label: "Tomorrow", cls: "bg-amber-500/15 text-amber-400 ring-1 ring-inset ring-amber-500/25" }
+    : diff > 0 && diff <= 2
+    ? { label: `In ${diff}d`, cls: "bg-red-500/15 text-red-400 ring-1 ring-inset ring-red-500/25" }
+    : diff > 0 && diff <= 7
+    ? { label: `In ${diff}d`, cls: "bg-amber-500/15 text-amber-400 ring-1 ring-inset ring-amber-500/25" }
     : diff > 0
-    ? `In ${diff}d`
-    : `${Math.abs(diff)}d ago`;
+    ? { label: `In ${diff}d`, cls: "bg-white/[0.04] text-slate-500" }
+    : isPast
+    ? { label: `${Math.abs(diff)}d ago`, cls: "bg-white/[0.03] text-slate-600" }
+    : null;
 
   return (
-    <div className="flex gap-4">
-      {/* Timeline spine + dot */}
-      <div className="flex flex-col items-center">
-        <div
-          className={`mt-4 flex h-3 w-3 shrink-0 items-center justify-center rounded-full shadow-md transition-all duration-300 ${
-            selected
-              ? `${m.dot} ${m.dotGlow} ring-2 ring-offset-1 ring-offset-[#0d1117] ring-white/20 scale-125`
-              : isToday
-              ? `${m.dot} ${m.dotGlow} ring-2 ring-offset-1 ring-offset-[#0d1117] ring-white/10 animate-pulse`
-              : isPast
-              ? "bg-white/[0.08]"
-              : `${m.dot} opacity-75`
-          }`}
-        />
-        {!isLast && (
-          <div className="mt-1.5 w-px flex-1 bg-gradient-to-b from-white/[0.08] to-transparent" style={{ minHeight: "2rem" }} />
-        )}
-      </div>
-
-      {/* Card */}
+    <>
+      {showTodayMarkerBefore && <TodayMarker />}
       <div
         onClick={() => onSelect(event)}
-        className={`mb-3 flex-1 cursor-pointer rounded-xl border transition-all duration-200 overflow-hidden ${
+        className={`group mb-2 flex min-h-[72px] cursor-pointer overflow-hidden rounded-xl border transition-all duration-150 hover:translate-x-0.5 ${
           selected
-            ? `${m.border} ${m.cardBg} shadow-lg`
+            ? `${m.border} ${m.cardBg} shadow-lg ring-1 ${m.ring}`
             : isPast
-            ? "border-white/[0.04] bg-white/[0.01] hover:border-white/[0.08] hover:bg-white/[0.03]"
-            : `border-white/[0.07] bg-[#161b27] hover:border-white/[0.12] hover:bg-[#1a2033] hover:shadow-md`
+            ? "border-white/[0.04] bg-[#0f1520] hover:border-white/[0.08] hover:bg-[#121824] hover:shadow-md"
+            : "border-white/[0.07] bg-[#141925] hover:border-white/[0.12] hover:bg-[#1a2033] hover:shadow-lg"
         }`}
       >
-        {/* Color accent bar */}
-        <div className={`h-[2px] ${m.dot} ${isPast ? "opacity-20" : "opacity-60"}`} />
+        {/* Left accent bar */}
+        <div className={`w-[3px] shrink-0 self-stretch rounded-l-xl ${m.accentBar} ${isPast && !selected ? "opacity-20" : "opacity-90"}`} />
 
-        <div className="flex items-start gap-3 px-4 py-3">
-          {/* Date mini-block */}
-          <div className={`flex w-11 shrink-0 flex-col items-center rounded-lg border py-2 text-center transition-colors ${
-            isToday
-              ? `${m.border} ${m.bg}`
-              : isPast
-              ? "border-white/[0.04] bg-white/[0.01]"
-              : "border-white/[0.06] bg-white/[0.02]"
-          }`}>
-            <span className={`text-[9px] font-bold uppercase tracking-widest ${isToday ? m.text : "text-slate-600"}`}>{dow}</span>
-            <span className={`text-[18px] font-bold leading-none tabular-nums ${isPast ? "text-slate-600" : isToday ? m.text : "text-slate-200"}`}>{d}</span>
-            <span className={`text-[9px] ${isPast ? "text-slate-700" : "text-slate-500"}`}>{MONTH_NAMES[mo - 1].slice(0, 3)}</span>
+        <div className="flex flex-1 items-center gap-4 px-4 py-3.5">
+          {/* Date column */}
+          <div className={`flex w-14 shrink-0 flex-col items-center text-center ${isPast ? "opacity-40" : ""}`}>
+            <span className={`text-[10px] font-semibold uppercase tracking-widest ${isToday ? m.text : "text-slate-500"}`}>{dow}</span>
+            <span className={`text-[22px] font-black tabular-nums leading-none ${isPast ? "text-slate-600" : isToday ? m.text : "text-slate-100"}`}>{d}</span>
           </div>
 
           {/* Content */}
           <div className="min-w-0 flex-1">
-            <div className="flex items-start justify-between gap-2">
-              <p className={`text-[13px] font-semibold leading-tight ${isPast ? "text-slate-500" : "text-white"}`}>
+            <div className="flex items-start gap-2">
+              <p className={`flex-1 text-[14px] font-semibold leading-snug ${isPast ? "text-slate-500" : "text-white"}`}>
                 {event.title}
               </p>
-              <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-semibold tabular-nums ${
-                isToday
-                  ? `${m.bg} ${m.text}`
-                  : diff > 0 && diff <= 3
-                  ? "bg-amber-500/15 text-amber-400"
-                  : isPast
-                  ? "bg-white/[0.04] text-slate-600"
-                  : "bg-white/[0.04] text-slate-500"
-              }`}>
-                {relLabel}
-              </span>
+              {daysChip && (
+                <span className={`shrink-0 rounded-full px-2 py-0.5 text-[9px] font-semibold tabular-nums ${daysChip.cls}`}>
+                  {daysChip.label}
+                </span>
+              )}
             </div>
 
-            <div className={`mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] ${isPast ? "text-slate-600" : "text-slate-400"}`}>
+            <div className={`mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] ${isPast ? "text-slate-600" : "text-slate-400"}`}>
+              <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-semibold ${m.text} ${m.bg} ring-1 ring-inset ${m.ring}`}>
+                {m.label}
+              </span>
+              {isMandatory && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[9px] font-semibold text-emerald-400 ring-1 ring-inset ring-emerald-500/20">
+                  <svg className="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  Required
+                </span>
+              )}
               {event.time && (
                 <span className="flex items-center gap-1">
                   <svg className="h-3 w-3 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -419,38 +429,18 @@ function EventCard({
                   {event.location}
                 </span>
               )}
-              {!event.location && event.description && (
-                <span className="truncate max-w-[220px]">{event.description}</span>
-              )}
-            </div>
-
-            {/* Badges row */}
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1 ring-inset ${m.text} ${m.bg} ${m.ring}`}>
-                <svg className="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d={m.iconPath} />
-                </svg>
-                {m.label}
-              </span>
-              {isMandatory && (
-                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold text-emerald-400 ring-1 ring-inset ring-emerald-500/25">
-                  <svg className="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  Required
-                </span>
-              )}
-              {isDeadline && (
-                <span className="inline-flex items-center gap-1 rounded-full bg-red-500/15 px-2 py-0.5 text-[10px] font-semibold text-red-400 ring-1 ring-inset ring-red-500/25">
-                  <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-red-400" />
-                  Deadline
-                </span>
-              )}
             </div>
           </div>
+
+          {/* Right side — completion dot for past, nothing for future */}
+          {isPast && (
+            <div className="shrink-0">
+              <div className="h-2 w-2 rounded-full bg-white/[0.08]" />
+            </div>
+          )}
         </div>
       </div>
-    </div>
+    </>
   );
 }
 
@@ -466,49 +456,41 @@ function MonthDivider({
   return (
     <button
       onClick={onToggle}
-      className="mb-4 flex w-full cursor-pointer items-center gap-3 text-left"
+      className="mb-3 flex w-full cursor-pointer items-center gap-4 text-left"
     >
-      {/* Spine top cap */}
-      <div className="flex w-3 shrink-0 flex-col items-center">
-        <div className={`h-3 w-3 rounded-sm transition-colors ${group.isCurrentMonth ? "bg-indigo-500" : "bg-white/[0.06]"}`} />
+      <div className="min-w-0 flex-1">
+        <div className="flex items-baseline gap-2">
+          <span className={`text-[26px] font-black tracking-tight leading-none ${group.isCurrentMonth ? "text-white" : "text-slate-500"}`}>
+            {group.monthLabel}
+          </span>
+          <span className={`text-[14px] font-semibold ${group.isCurrentMonth ? "text-indigo-400" : "text-slate-600"}`}>
+            {group.year}
+          </span>
+          {group.isCurrentMonth && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-indigo-500/20 px-2 py-0.5 text-[9px] font-bold tracking-wider text-indigo-300 uppercase">
+              <span className="h-1 w-1 animate-pulse rounded-full bg-indigo-400" />
+              Now
+            </span>
+          )}
+        </div>
+        <div className={`mt-1.5 h-px ${group.isCurrentMonth ? "bg-indigo-500/30" : "bg-white/[0.06]"}`} />
       </div>
-      <div className={`flex items-center gap-2 rounded-lg px-3 py-1.5 transition-all ${
-        group.isCurrentMonth
-          ? "border border-indigo-500/30 bg-indigo-500/10 hover:bg-indigo-500/15"
-          : "border border-white/[0.05] bg-white/[0.02] hover:bg-white/[0.04]"
-      }`}>
-        <span className={`text-[12px] font-bold tracking-wide ${group.isCurrentMonth ? "text-indigo-300" : "text-slate-400"}`}>
-          {group.monthLabel}
-        </span>
-        <span className={`text-[12px] ${group.isCurrentMonth ? "text-indigo-500" : "text-slate-600"}`}>
-          {group.year}
-        </span>
-        <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-semibold tabular-nums ${
-          group.isCurrentMonth
-            ? "bg-indigo-500/20 text-indigo-400"
-            : "bg-white/[0.04] text-slate-600"
+
+      <div className="flex shrink-0 items-center gap-2">
+        <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold tabular-nums ${
+          group.isCurrentMonth ? "bg-indigo-500/20 text-indigo-400" : "bg-white/[0.04] text-slate-600"
         }`}>
           {group.events.length}
         </span>
-        {group.isCurrentMonth && (
-          <span className="inline-flex items-center gap-1 rounded-full bg-indigo-500/20 px-1.5 py-0.5 text-[9px] font-bold text-indigo-300">
-            <span className="h-1 w-1 animate-pulse rounded-full bg-indigo-400" />
-            Now
-          </span>
-        )}
-        {/* Chevron */}
         <svg
-          className={`ml-0.5 h-3 w-3 shrink-0 transition-transform duration-200 ${
-            collapsed
-              ? group.isCurrentMonth ? "text-indigo-500 -rotate-90" : "text-slate-600 -rotate-90"
-              : group.isCurrentMonth ? "text-indigo-500" : "text-slate-600"
-          }`}
+          className={`h-4 w-4 shrink-0 transition-transform duration-200 ${
+            collapsed ? "-rotate-90" : ""
+          } ${group.isCurrentMonth ? "text-indigo-500" : "text-slate-600"}`}
           fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}
         >
           <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
         </svg>
       </div>
-      <div className="flex-1 border-t border-white/[0.05]" />
     </button>
   );
 }
@@ -593,7 +575,6 @@ function EventDetail({
         console.error("Excuse submission failed", err);
         return;
       }
-      // Refresh attendance detail only after confirmed success
       const updated = await requestJson<AttendanceDetail>(`/api/attendance/${event.id}`);
       setAttDetail(updated);
       setExcuseOpen(false);
@@ -610,7 +591,6 @@ function EventDetail({
     const excusedIds = new Set((attDetail?.excused ?? []).map(e => e.brotherId));
     const alreadyAttended = new Set((attDetail?.attended ?? []).map(e => e.brotherId));
     const eligible = brotherList.filter(b => !excusedIds.has(b.id));
-    // If attendance was already logged use those ids, else default all eligible as attending
     setLogAttended(alreadyAttended.size > 0 ? alreadyAttended : new Set(eligible.map(b => b.id)));
     setLogError(null);
     setLogAttOpen(true);
@@ -644,103 +624,118 @@ function EventDetail({
 
   return (
     <div className="flex flex-col gap-4">
-      <button
-        onClick={onClose}
-        className="flex items-center gap-1.5 self-start rounded-lg px-2.5 py-1.5 text-[11px] font-medium text-slate-500 transition-all hover:bg-white/[0.06] hover:text-slate-300 cursor-pointer"
-      >
-        <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
-        </svg>
-        Back
-      </button>
-
-      {/* Hero date card */}
-      <div className={`rounded-xl border ${m.border} ${m.bg} p-4`}>
-        <div className="flex items-start gap-4">
-          <div className="flex flex-col items-center rounded-xl border border-white/[0.1] bg-[#0d1117]/80 px-3 py-2.5 text-center shrink-0 min-w-[52px]">
-            <span className="text-[9px] font-bold uppercase tracking-widest text-slate-500">{dow}</span>
-            <span className={`text-[32px] font-bold leading-none tabular-nums ${m.text}`}>{d}</span>
-            <span className="text-[10px] text-slate-500">{MONTH_NAMES[mo - 1]}</span>
+      {/* Back + edit/delete controls */}
+      <div className="flex items-center justify-between">
+        <button
+          onClick={onClose}
+          className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] font-medium text-slate-500 transition-all hover:bg-white/[0.06] hover:text-slate-300 cursor-pointer"
+        >
+          <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+          </svg>
+          Back
+        </button>
+        {canEdit && (
+          <div className="flex items-center gap-1">
+            <button
+              onClick={onEdit}
+              className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-white/[0.06] hover:text-slate-300"
+              title="Edit event"
+            >
+              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+              </svg>
+            </button>
+            <button
+              onClick={onDelete}
+              className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-600 transition-colors hover:bg-red-500/10 hover:text-red-400"
+              title="Delete event"
+            >
+              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+            </button>
           </div>
-          <div className="min-w-0 flex-1 pt-0.5">
-            <p className="text-[15px] font-bold leading-tight text-white">{event.title}</p>
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1 ring-inset ${m.text} ${m.bg} ${m.ring}`}>
-                {m.label}
+        )}
+      </div>
+
+      {/* Hero gradient banner */}
+      <div className={`relative overflow-hidden rounded-xl border ${m.border}`}>
+        <div className={`absolute inset-0 bg-gradient-to-br ${m.heroBg} to-transparent`} />
+        <div className={`absolute left-0 top-0 h-full w-[3px] ${m.accentBar}`} />
+        <div className="relative px-4 pb-4 pt-3.5">
+          <div className="mb-2 flex items-center gap-2">
+            <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${m.text} ${m.bg} ring-1 ring-inset ${m.ring}`}>
+              <svg className="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d={m.iconPath} />
+              </svg>
+              {m.label}
+            </span>
+            {event.mandatory && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold text-emerald-400 ring-1 ring-inset ring-emerald-500/25">
+                <svg className="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                Required
               </span>
-              {!isPast && !isToday && diff > 0 && (
-                <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                  diff <= 3 ? "bg-amber-500/15 text-amber-400" : "bg-white/[0.05] text-slate-400"
-                }`}>
-                  {diff === 1 ? "Tomorrow" : `In ${diff} days`}
-                </span>
-              )}
-              {isToday && (
-                <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${m.bg} ${m.text}`}>
-                  <span className="h-1 w-1 animate-pulse rounded-full bg-current" />
-                  Today
-                </span>
-              )}
-              {isPast && (
-                <span className="rounded-full bg-white/[0.04] px-2 py-0.5 text-[10px] text-slate-500">
-                  {Math.abs(diff)} days ago
-                </span>
-              )}
+            )}
+          </div>
+          <p className="text-[18px] font-bold leading-snug text-white">{event.title}</p>
+          <div className="mt-2 flex items-baseline gap-2">
+            <span className={`text-[26px] font-black tabular-nums leading-none ${m.text}`}>{d}</span>
+            <div>
+              <p className="text-[11px] font-semibold text-slate-300">{dow} · {MONTH_NAMES[mo - 1]}</p>
+              <p className="text-[10px] text-slate-500">
+                {isToday ? "Today" : isPast ? `${Math.abs(diff)} days ago` : diff === 1 ? "Tomorrow" : `In ${diff} days`}
+              </p>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Details */}
-      <div className="divide-y divide-white/[0.05] rounded-xl border border-white/[0.07] overflow-hidden">
-        {event.time && (
-          <div className="flex items-center gap-3 px-4 py-3">
-            <svg className="h-4 w-4 shrink-0 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            <span className="text-[12px] text-slate-300">{event.time}</span>
-          </div>
-        )}
-        {event.location && (
-          <div className="flex items-center gap-3 px-4 py-3">
-            <svg className="h-4 w-4 shrink-0 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0zM15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-            </svg>
-            <span className="text-[12px] text-slate-300">{event.location}</span>
-          </div>
-        )}
-        {event.description && (
-          <div className="flex items-start gap-3 px-4 py-3">
-            <svg className="mt-0.5 h-4 w-4 shrink-0 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-            </svg>
-            <span className="text-[12px] leading-relaxed text-slate-400">{event.description}</span>
-          </div>
-        )}
-      </div>
+      {/* Info pills */}
+      {(event.time || event.location || event.description) && (
+        <div className="flex flex-wrap gap-2">
+          {event.time && (
+            <span className="flex items-center gap-1.5 rounded-lg border border-white/[0.07] bg-white/[0.03] px-2.5 py-1.5 text-[11px] text-slate-300">
+              <svg className="h-3.5 w-3.5 shrink-0 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              {event.time}
+            </span>
+          )}
+          {event.location && (
+            <span className="flex items-center gap-1.5 rounded-lg border border-white/[0.07] bg-white/[0.03] px-2.5 py-1.5 text-[11px] text-slate-300">
+              <svg className="h-3.5 w-3.5 shrink-0 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0zM15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+              {event.location}
+            </span>
+          )}
+          {event.description && !event.location && (
+            <span className="flex items-start gap-1.5 rounded-lg border border-white/[0.07] bg-white/[0.03] px-2.5 py-1.5 text-[11px] leading-relaxed text-slate-400">
+              {event.description}
+            </span>
+          )}
+          {event.description && event.location && (
+            <div className="w-full rounded-lg border border-white/[0.07] bg-white/[0.03] px-3 py-2 text-[11px] leading-relaxed text-slate-400">
+              {event.description}
+            </div>
+          )}
+        </div>
+      )}
 
-      {/* Requirement badges */}
-      <div className="flex flex-wrap gap-2">
-        {event.mandatory && (
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/15 px-3 py-1.5 text-[11px] font-semibold text-emerald-400 ring-1 ring-inset ring-emerald-500/25">
-            <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            Required Attendance
-          </span>
-        )}
-        {isDeadline && (
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-red-500/15 px-3 py-1.5 text-[11px] font-semibold text-red-400 ring-1 ring-inset ring-red-500/25">
-            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-red-400" />
-            Submit by deadline
-          </span>
-        )}
-      </div>
+      {isDeadline && (
+        <span className="inline-flex items-center gap-1.5 self-start rounded-full bg-red-500/15 px-3 py-1.5 text-[11px] font-semibold text-red-400 ring-1 ring-inset ring-red-500/25">
+          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-red-400" />
+          Submit by deadline
+        </span>
+      )}
 
-      {/* Attendance detail — mandatory events only */}
+      {/* Attendance — mandatory events only */}
       {event.mandatory && (
-        <div className="rounded-xl border border-white/[0.07] overflow-hidden">
-          <div className="flex items-center justify-between border-b border-white/[0.06] px-4 py-2.5">
+        <div className="overflow-hidden rounded-xl border border-white/[0.07]">
+          <div className="flex items-center justify-between border-b border-white/[0.06] bg-white/[0.02] px-4 py-2.5">
             <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Attendance</p>
             {!logAttOpen && (
               <button
@@ -751,6 +746,7 @@ function EventDetail({
               </button>
             )}
           </div>
+
           {attLoading ? (
             <p className="px-4 py-3 text-[12px] text-slate-500">Loading…</p>
           ) : !attDetail || (attDetail.excused.length === 0 && attDetail.unexcused.length === 0 && attDetail.attended.length === 0) ? (
@@ -758,53 +754,61 @@ function EventDetail({
               {isPast ? "No attendance logged for this event." : "No excuses submitted yet."}
             </p>
           ) : (
-            <div className="divide-y divide-white/[0.05]">
-              {attDetail.attended.length > 0 && (
-                <div className="px-4 py-3">
-                  <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-indigo-400">Attended ({attDetail.attended.length})</p>
-                  <div className="space-y-1">
-                    {attDetail.attended.map(e => (
-                      <p key={e.brotherId} className="text-[12px] font-medium text-indigo-300">{e.brotherName}</p>
-                    ))}
-                  </div>
+            <div className="grid grid-cols-3 divide-x divide-white/[0.05]">
+              {/* Attended */}
+              <div className="px-3 py-3">
+                <div className="mb-2 flex items-center gap-1.5">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                  <p className="text-[9px] font-bold uppercase tracking-wider text-emerald-400">Attended</p>
+                  <span className="ml-auto rounded-full bg-emerald-500/15 px-1.5 text-[9px] font-semibold text-emerald-400">{attDetail.attended.length}</span>
                 </div>
-              )}
-              {attDetail.excused.length > 0 && (
-                <div className="px-4 py-3">
-                  <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-amber-400">Excused ({attDetail.excused.length})</p>
-                  <div className="space-y-1.5">
-                    {attDetail.excused.map(e => (
-                      <div key={e.brotherId} className="flex items-start gap-2">
-                        <span className="text-[12px] font-medium text-slate-300">{e.brotherName}</span>
-                        {e.isRetroactive && <span className="mt-0.5 rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[9px] font-semibold text-amber-400">Retroactive</span>}
-                        <span className="ml-auto text-[11px] text-slate-500 text-right max-w-[120px] truncate" title={e.reason}>{e.reason}</span>
-                      </div>
-                    ))}
-                  </div>
+                <div className="space-y-1">
+                  {attDetail.attended.map(e => (
+                    <p key={e.brotherId} className="truncate text-[10px] text-slate-300">{e.brotherName}</p>
+                  ))}
+                  {attDetail.attended.length === 0 && <p className="text-[10px] text-slate-600">—</p>}
                 </div>
-              )}
-              {attDetail.unexcused.length > 0 && (
-                <div className="px-4 py-3">
-                  <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-red-400">Unexcused ({attDetail.unexcused.length})</p>
-                  <div className="space-y-1">
-                    {attDetail.unexcused.map(e => (
-                      <p key={e.brotherId} className="text-[12px] font-medium text-red-300">{e.brotherName}</p>
-                    ))}
-                  </div>
+              </div>
+              {/* Excused */}
+              <div className="px-3 py-3">
+                <div className="mb-2 flex items-center gap-1.5">
+                  <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
+                  <p className="text-[9px] font-bold uppercase tracking-wider text-amber-400">Excused</p>
+                  <span className="ml-auto rounded-full bg-amber-500/15 px-1.5 text-[9px] font-semibold text-amber-400">{attDetail.excused.length}</span>
                 </div>
-              )}
+                <div className="space-y-1">
+                  {attDetail.excused.map(e => (
+                    <p key={e.brotherId} className="truncate text-[10px] text-slate-300" title={e.reason}>{e.brotherName}</p>
+                  ))}
+                  {attDetail.excused.length === 0 && <p className="text-[10px] text-slate-600">—</p>}
+                </div>
+              </div>
+              {/* Unexcused */}
+              <div className="px-3 py-3">
+                <div className="mb-2 flex items-center gap-1.5">
+                  <span className="h-1.5 w-1.5 rounded-full bg-red-400" />
+                  <p className="text-[9px] font-bold uppercase tracking-wider text-red-400">Absent</p>
+                  <span className="ml-auto rounded-full bg-red-500/15 px-1.5 text-[9px] font-semibold text-red-400">{attDetail.unexcused.length}</span>
+                </div>
+                <div className="space-y-1">
+                  {attDetail.unexcused.map(e => (
+                    <p key={e.brotherId} className="truncate text-[10px] text-slate-300">{e.brotherName}</p>
+                  ))}
+                  {attDetail.unexcused.length === 0 && <p className="text-[10px] text-slate-600">—</p>}
+                </div>
+              </div>
             </div>
           )}
 
           {/* Log attendance inline form */}
           {logAttOpen && (() => {
             const excusedIds = new Set((attDetail?.excused ?? []).map(e => e.brotherId));
-            const eligible = brotherList.filter(b => !excusedIds.has(b.id));
-            const excused  = brotherList.filter(b => excusedIds.has(b.id));
+            const eligible   = brotherList.filter(b => !excusedIds.has(b.id));
+            const excused    = brotherList.filter(b => excusedIds.has(b.id));
             return (
               <form onSubmit={submitLogAtt} className="border-t border-white/[0.06] px-4 py-3 space-y-3">
                 <p className="text-[11px] font-semibold text-slate-400">Mark who attended</p>
-                <div className="max-h-52 overflow-y-auto space-y-0.5 rounded-lg border border-white/[0.07] bg-[#0a0d14] p-2">
+                <div className="max-h-48 overflow-y-auto space-y-0.5 rounded-lg border border-white/[0.07] bg-[#0a0d14] p-2">
                   {eligible.map(b => (
                     <label key={b.id} className="flex cursor-pointer items-center gap-3 rounded-lg px-2 py-1.5 hover:bg-white/[0.05] transition-colors">
                       <input
@@ -844,7 +848,7 @@ function EventDetail({
             );
           })()}
 
-          {/* Excuse submission form */}
+          {/* Excuse submission */}
           <div className="border-t border-white/[0.06] px-4 py-3">
             {!excuseOpen ? (
               <button onClick={() => setExcuseOpen(true)}
@@ -880,16 +884,25 @@ function EventDetail({
         </div>
       )}
 
-      {canEdit ? (
-        <div className="flex gap-2 border-t border-white/[0.06] pt-4">
-          <button onClick={onEdit} className="flex-1 rounded-lg border border-indigo-500/30 bg-indigo-500/10 px-3 py-2 text-[12px] font-semibold text-indigo-300 transition-colors hover:bg-indigo-500/15">
-            Edit event
+      {/* Full-width action buttons for mandatory events */}
+      {event.mandatory && (
+        <div className="flex gap-2">
+          <button
+            onClick={openLogAtt}
+            className="flex-1 rounded-lg bg-indigo-600 px-3 py-2.5 text-[12px] font-semibold text-white transition-colors hover:bg-indigo-500"
+          >
+            Log Attendance
           </button>
-          <button onClick={onDelete} className="rounded-lg border border-red-500/25 bg-red-500/10 px-3 py-2 text-[12px] font-semibold text-red-300 transition-colors hover:bg-red-500/15">
-            Delete
+          <button
+            onClick={() => setExcuseOpen(true)}
+            className="flex-1 rounded-lg border border-red-500/25 bg-red-500/10 px-3 py-2.5 text-[12px] font-semibold text-red-300 transition-colors hover:bg-red-500/15"
+          >
+            + Excuse
           </button>
         </div>
-      ) : (
+      )}
+
+      {!canEdit && (
         <p className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2 text-[11px] leading-relaxed text-slate-500">
           This event is derived from dashboard data. Manage it from its source list.
         </p>
@@ -929,10 +942,10 @@ function RightPanel({
     cat,
     count: allFiltered.filter(e => e.category === cat).length,
   })).filter(c => c.count > 0);
-  const maxCount = Math.max(...catCounts.map(c => c.count), 1);
+  const totalCat = catCounts.reduce((s, c) => s + c.count, 0) || 1;
 
   return (
-    <aside className="hidden w-64 shrink-0 flex-col overflow-y-auto border-l border-white/[0.07] px-4 py-5 lg:flex gap-4">
+    <aside className="hidden w-64 shrink-0 flex-col overflow-y-auto border-l border-white/[0.07] bg-[#0a0d14]/60 px-4 py-5 lg:flex gap-5">
       {selectedEvent ? (
         <EventDetail
           event={selectedEvent}
@@ -944,7 +957,7 @@ function RightPanel({
         />
       ) : (
         <>
-          {/* Stat grid */}
+          {/* 2×2 KPI grid */}
           <div className="grid grid-cols-2 gap-2">
             {[
               { value: urgentCount,    label: "Overdue",    color: "text-red-400",     bg: "bg-red-500/10",     border: "border-red-500/20"     },
@@ -952,38 +965,53 @@ function RightPanel({
               { value: mandatoryCount, label: "Required",   color: "text-emerald-400", bg: "bg-emerald-500/10", border: "border-emerald-500/20" },
               { value: upcomingCount,  label: "Upcoming",   color: "text-slate-300",   bg: "bg-white/[0.03]",   border: "border-white/[0.07]"   },
             ].map(s => (
-              <div key={s.label} className={`flex flex-col items-center rounded-xl border ${s.border} ${s.bg} px-2 py-3 text-center`}>
-                <span className={`text-[22px] font-bold tabular-nums leading-none ${s.color}`}>{s.value}</span>
-                <span className="mt-1 text-[9px] font-semibold uppercase tracking-wider text-slate-600">{s.label}</span>
+              <div key={s.label} className={`flex flex-col items-center rounded-xl border ${s.border} ${s.bg} px-2 py-4 text-center`}>
+                <span className={`text-[28px] font-black tabular-nums leading-none ${s.color}`}>{s.value}</span>
+                <span className="mt-1.5 text-[9px] font-semibold uppercase tracking-wider text-slate-600">{s.label}</span>
               </div>
             ))}
           </div>
 
-          {/* Category breakdown */}
-          <div>
-            <p className="mb-3 text-[10px] font-semibold uppercase tracking-wider text-slate-600">By Category</p>
-            <div className="space-y-2">
-              {catCounts.map(({ cat, count }) => {
-                const m = CAT_META[cat];
-                const pct = Math.round((count / maxCount) * 100);
-                return (
-                  <div key={cat} className="flex items-center gap-2">
-                    <span className={`h-2 w-2 shrink-0 rounded-full ${m.dot}`} />
-                    <span className="w-[72px] shrink-0 text-[11px] text-slate-400">{m.label}</span>
-                    <div className="flex-1 overflow-hidden rounded-full bg-white/[0.05] h-1">
-                      <div className={`h-full rounded-full transition-all duration-500 ${m.dot}`} style={{ width: `${pct}%` }} />
+          {/* Category stacked bar */}
+          {catCounts.length > 0 && (
+            <div>
+              <p className="mb-2.5 text-[10px] font-semibold uppercase tracking-wider text-slate-600">By Category</p>
+              {/* Stacked bar */}
+              <div className="flex h-2 w-full overflow-hidden rounded-full">
+                {catCounts.map(({ cat, count }) => {
+                  const m = CAT_META[cat];
+                  const pct = (count / totalCat) * 100;
+                  return (
+                    <div
+                      key={cat}
+                      className={`h-full ${m.accentBar} transition-all duration-500`}
+                      style={{ width: `${pct}%` }}
+                    />
+                  );
+                })}
+              </div>
+              {/* Legend */}
+              <div className="mt-2.5 space-y-1.5">
+                {catCounts.map(({ cat, count }) => {
+                  const m = CAT_META[cat];
+                  const pct = Math.round((count / totalCat) * 100);
+                  return (
+                    <div key={cat} className="flex items-center gap-2">
+                      <span className={`h-2 w-2 shrink-0 rounded-full ${m.dot}`} />
+                      <span className="flex-1 text-[10px] text-slate-400">{m.label}</span>
+                      <span className="text-[10px] tabular-nums text-slate-600">{count}</span>
+                      <span className="w-7 text-right text-[10px] tabular-nums text-slate-700">{pct}%</span>
                     </div>
-                    <span className="w-4 text-right text-[10px] tabular-nums text-slate-600">{count}</span>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Jump to today */}
           <button
             onClick={() => todayRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}
-            className="w-full cursor-pointer rounded-xl border border-indigo-500/25 bg-indigo-500/10 px-3 py-2.5 text-[11px] font-semibold text-indigo-400 transition-all hover:border-indigo-500/40 hover:bg-indigo-500/15 hover:text-indigo-300"
+            className="w-full cursor-pointer rounded-xl border border-indigo-500/25 bg-indigo-500/10 px-3 py-3 text-[12px] font-semibold text-indigo-400 transition-all hover:border-indigo-500/40 hover:bg-indigo-500/15 hover:text-indigo-300"
           >
             Jump to today →
           </button>
@@ -1000,28 +1028,30 @@ function RightPanel({
 export default function TimelinePage() {
   const { deadlineList, partyList, brotherList } = useChapter();
 
-  const [sidebarOpen,    setSidebarOpen]    = useState(false);
-  const [activeLayer,    setActiveLayer]    = useState<CalLayer>("all");
-  const [selectedEvent,  setSelectedEvent]  = useState<CalendarEvent | null>(null);
-  const [apiEvents,      setApiEvents]      = useState<CalendarEvent[]>([]);
+  const [sidebarOpen,     setSidebarOpen]     = useState(false);
+  const [activeLayer,     setActiveLayer]     = useState<CalLayer>("all");
+  const [selectedEvent,   setSelectedEvent]   = useState<CalendarEvent | null>(null);
+  const [apiEvents,       setApiEvents]       = useState<CalendarEvent[]>([]);
   const [collapsedMonths, setCollapsedMonths] = useState<Set<string>>(new Set());
-  const [activeModal, setActiveModal] = useState<"create" | "edit" | null>(null);
-  const [calendarLoading, setCalendarLoading] = useState(true);
-  const [calendarError, setCalendarError] = useState<string | null>(null);
+  const [activeModal,     setActiveModal]     = useState<"create" | "edit" | null>(null);
+  const [calendarLoading,      setCalendarLoading]      = useState(true);
+  const [calendarError,        setCalendarError]        = useState<string | null>(null);
+  const [confirmDeleteEvent,   setConfirmDeleteEvent]   = useState<CalendarEvent | null>(null);
 
-  const todayRef = React.useRef<HTMLDivElement | null>(null);
+  const todayRef         = useRef<HTMLDivElement | null>(null);
+  const currentMonthRef  = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     requestJson<CalendarEvent[]>("/api/calendar")
-      .then(data => {
-        setApiEvents(data);
-        setCalendarError(null);
-      })
-      .catch(error => {
-        console.error(error);
-        setCalendarError("Could not load calendar events from the database.");
-      })
+      .then(data => { setApiEvents(data); setCalendarError(null); })
+      .catch(error => { console.error(error); setCalendarError("Could not load calendar events from the database."); })
       .finally(() => setCalendarLoading(false));
+  }, []);
+
+  useEffect(() => {
+    if (currentMonthRef.current) {
+      currentMonthRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
   }, []);
 
   const apiEventIds = useMemo(() => new Set(apiEvents.map(e => e.id)), [apiEvents]);
@@ -1058,9 +1088,11 @@ export default function TimelinePage() {
     return [...deduped, ...live];
   }, [apiEvents, deadlineList, partyList]);
 
-  const filtered     = useMemo(() => filterByLayer(allEvents, activeLayer), [allEvents, activeLayer]);
-  const monthGroups  = useMemo(() => buildMonthGroups(filtered), [filtered]);
+  const filtered    = useMemo(() => filterByLayer(allEvents, activeLayer), [allEvents, activeLayer]);
+  const monthGroups = useMemo(() => buildMonthGroups(filtered), [filtered]);
   const selectedEventCanEdit = selectedEvent ? apiEventIds.has(selectedEvent.id) : false;
+
+  const todayStr = toDateStr(TODAY.year, TODAY.month, TODAY.day);
 
   function toggleMonth(id: string) {
     setCollapsedMonths(prev => {
@@ -1071,32 +1103,19 @@ export default function TimelinePage() {
     });
   }
 
-  // Ref for current month
-  const currentMonthRef = React.useRef<HTMLDivElement | null>(null);
-  useEffect(() => {
-    if (currentMonthRef.current) {
-      currentMonthRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
-  }, []);
-
   function handleCreateEvent(draft: CalendarDraft) {
     const tempId = -Date.now();
     const optimistic: CalendarEvent = { id: tempId, ...draft };
-
     setApiEvents(prev => [...prev, optimistic]);
     setSelectedEvent(optimistic);
     setActiveModal(null);
     setCalendarError(null);
-
     requestJson<CalendarEvent>("/api/calendar", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(draft),
     })
-      .then(saved => {
-        setApiEvents(prev => prev.map(e => e.id === tempId ? saved : e));
-        setSelectedEvent(saved);
-      })
+      .then(saved => { setApiEvents(prev => prev.map(e => e.id === tempId ? saved : e)); setSelectedEvent(saved); })
       .catch(error => {
         console.error(error);
         setApiEvents(prev => prev.filter(e => e.id !== tempId));
@@ -1109,22 +1128,17 @@ export default function TimelinePage() {
     if (!selectedEvent || !selectedEventCanEdit) return;
     const previous = apiEvents.find(e => e.id === selectedEvent.id);
     if (!previous) return;
-
     const optimistic: CalendarEvent = { ...previous, ...draft };
     setApiEvents(prev => prev.map(e => e.id === previous.id ? optimistic : e));
     setSelectedEvent(optimistic);
     setActiveModal(null);
     setCalendarError(null);
-
     requestJson<CalendarEvent>(`/api/calendar/${previous.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(draft),
     })
-      .then(saved => {
-        setApiEvents(prev => prev.map(e => e.id === previous.id ? saved : e));
-        setSelectedEvent(saved);
-      })
+      .then(saved => { setApiEvents(prev => prev.map(e => e.id === previous.id ? saved : e)); setSelectedEvent(saved); })
       .catch(error => {
         console.error(error);
         setApiEvents(prev => prev.map(e => e.id === previous.id ? previous : e));
@@ -1135,13 +1149,15 @@ export default function TimelinePage() {
 
   function handleDeleteEvent() {
     if (!selectedEvent || !selectedEventCanEdit) return;
-    const previous = apiEvents.find(e => e.id === selectedEvent.id);
-    if (!previous) return;
+    setConfirmDeleteEvent(selectedEvent);
+  }
 
+  function executeDeleteEvent(event: CalendarEvent) {
+    const previous = apiEvents.find(e => e.id === event.id);
+    if (!previous) return;
     setApiEvents(prev => prev.filter(e => e.id !== previous.id));
     setSelectedEvent(null);
     setCalendarError(null);
-
     requestJson<void>(`/api/calendar/${previous.id}`, { method: "DELETE" })
       .catch(error => {
         console.error(error);
@@ -1163,9 +1179,10 @@ export default function TimelinePage() {
       <div className="flex flex-1 flex-col overflow-hidden">
 
         {/* ── Header ────────────────────────────────────────────────────────── */}
-        <header className="relative flex h-14 shrink-0 items-center gap-3 overflow-hidden border-b border-white/[0.07] bg-[#0d1117] px-4">
-          <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-indigo-500/[0.06] via-transparent to-transparent" />
+        <header className="relative flex h-16 shrink-0 items-center gap-3 overflow-hidden border-b border-white/[0.07] bg-[#0d1117] px-4">
+          <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-indigo-500/[0.05] via-transparent to-transparent" />
 
+          {/* Mobile menu */}
           <button
             onClick={() => setSidebarOpen(true)}
             className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-white/[0.06] hover:text-white lg:hidden cursor-pointer"
@@ -1175,22 +1192,16 @@ export default function TimelinePage() {
             </svg>
           </button>
 
-          <div className="relative min-w-0 flex-1">
-            <p className="text-[14px] font-semibold leading-tight text-white">Chapter Timeline</p>
+          {/* Title */}
+          <div className="relative min-w-0 shrink-0">
+            <p className="text-[18px] font-bold leading-tight text-white">Timeline</p>
             <p className="hidden text-[11px] leading-tight text-slate-500 sm:block">
-              Lambda Phi Epsilon · Spring 2026
+              {filtered.length} event{filtered.length !== 1 ? "s" : ""}
             </p>
           </div>
 
-          <button
-            onClick={() => setActiveModal("create")}
-            className="relative inline-flex rounded-lg border border-indigo-500/30 bg-indigo-500/10 px-3 py-1.5 text-[11px] font-semibold text-indigo-300 transition-colors hover:bg-indigo-500/15"
-          >
-            + Event
-          </button>
-
-          {/* Layer filter chips */}
-          <div className="flex items-center gap-1">
+          {/* Layer filter pills — centered on desktop, hidden on mobile (shown below) */}
+          <div className="hidden flex-1 items-center justify-center gap-1.5 lg:flex">
             {LAYERS.map(layer => {
               const active = activeLayer === layer.id;
               const count  = filterByLayer(allEvents, layer.id).length;
@@ -1198,25 +1209,62 @@ export default function TimelinePage() {
                 <button
                   key={layer.id}
                   onClick={() => setActiveLayer(layer.id)}
-                  className={`flex cursor-pointer items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[11px] font-medium transition-all duration-150 ${
+                  className={`flex cursor-pointer items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-[11px] font-semibold transition-all duration-150 ${
                     active
                       ? layer.activeClasses
-                      : "border-transparent text-slate-500 hover:border-white/[0.06] hover:bg-white/[0.04] hover:text-slate-300"
+                      : "border-transparent text-slate-500 hover:border-white/[0.08] hover:bg-white/[0.04] hover:text-slate-300"
                   }`}
                 >
                   <svg className="h-3 w-3 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d={layer.iconPath} />
                   </svg>
-                  <span className="hidden sm:inline">{layer.label}</span>
-                  <span className={`rounded-full px-1.5 py-px text-[9px] font-semibold tabular-nums ${
-                    active ? "bg-white/[0.15] text-slate-100" : "bg-white/[0.04] text-slate-600"
+                  {layer.label}
+                  <span className={`rounded-full px-1.5 py-px text-[9px] font-bold tabular-nums ${
+                    active ? "bg-white/[0.2] text-white" : "bg-white/[0.05] text-slate-600"
                   }`}>{count}</span>
                 </button>
               );
             })}
           </div>
-          <UserAvatar />
+
+          {/* Right: + Event button + avatar */}
+          <div className="relative ml-auto flex items-center gap-2">
+            <button
+              onClick={() => setActiveModal("create")}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3.5 py-2 text-[12px] font-semibold text-white transition-colors hover:bg-indigo-500 shadow-sm shadow-indigo-900/40"
+            >
+              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+              </svg>
+              Event
+            </button>
+            <UserAvatar />
+          </div>
         </header>
+
+        {/* Mobile layer pills strip */}
+        <div className="flex gap-1.5 overflow-x-auto border-b border-white/[0.05] bg-[#0a0d14] px-4 py-2 lg:hidden">
+          {LAYERS.map(layer => {
+            const active = activeLayer === layer.id;
+            const count  = filterByLayer(allEvents, layer.id).length;
+            return (
+              <button
+                key={layer.id}
+                onClick={() => setActiveLayer(layer.id)}
+                className={`flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1 text-[11px] font-semibold transition-all duration-150 ${
+                  active
+                    ? layer.activeClasses
+                    : "border-transparent text-slate-500 hover:border-white/[0.08] hover:bg-white/[0.04] hover:text-slate-300"
+                }`}
+              >
+                {layer.label}
+                <span className={`rounded-full px-1.5 py-px text-[9px] font-bold tabular-nums ${
+                  active ? "bg-white/[0.2] text-white" : "bg-white/[0.05] text-slate-600"
+                }`}>{count}</span>
+              </button>
+            );
+          })}
+        </div>
 
         {/* ── Body ──────────────────────────────────────────────────────────── */}
         <div className="flex flex-1 overflow-hidden">
@@ -1237,17 +1285,18 @@ export default function TimelinePage() {
                 )}
               </div>
             )}
+
             {monthGroups.length === 0 ? (
               <div className="flex flex-col items-center gap-3 py-24 text-center">
-                <div className="flex h-12 w-12 items-center justify-center rounded-full border border-white/[0.06] bg-white/[0.02]">
-                  <svg className="h-5 w-5 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-white/[0.06] bg-white/[0.02]">
+                  <svg className="h-6 w-6 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                   </svg>
                 </div>
-                <p className="text-[13px] text-slate-600">No events on this filter</p>
+                <p className="text-[14px] font-semibold text-slate-500">No events on this filter</p>
                 <button
                   onClick={() => setActiveLayer("all")}
-                  className="cursor-pointer text-[11px] text-indigo-500 transition-colors hover:text-indigo-400"
+                  className="cursor-pointer text-[12px] text-indigo-500 transition-colors hover:text-indigo-400"
                 >
                   Show all events →
                 </button>
@@ -1256,43 +1305,57 @@ export default function TimelinePage() {
               <div className="mx-auto max-w-2xl">
                 {monthGroups.map(group => {
                   const isCollapsed = collapsedMonths.has(group.id);
+
+                  // Find if today marker should appear inside this month group
+                  let todayMarkerIndex = -1;
+                  if (group.isCurrentMonth && !isCollapsed) {
+                    const firstFutureIdx = group.events.findIndex(e => e.date >= todayStr);
+                    if (firstFutureIdx > 0) todayMarkerIndex = firstFutureIdx;
+                  }
+
                   return (
                     <div
                       key={group.id}
                       ref={group.isCurrentMonth ? (el => { currentMonthRef.current = el; todayRef.current = el; }) : undefined}
+                      className="mb-8"
                     >
                       <MonthDivider
                         group={group}
                         collapsed={isCollapsed}
                         onToggle={() => toggleMonth(group.id)}
                       />
+
                       {!isCollapsed && (
-                        <div className="ml-[0.4rem] pl-4">
+                        <div className="space-y-0">
+                          {group.isCurrentMonth && !group.events.some(e => e.date >= todayStr) && (
+                            <TodayMarker />
+                          )}
                           {group.events.map((e, i) => (
                             <EventCard
                               key={e.id}
                               event={e}
                               onSelect={setSelectedEvent}
                               selected={selectedEvent?.id === e.id}
-                              isLast={i === group.events.length - 1}
+                              showTodayMarkerBefore={i === todayMarkerIndex}
                             />
                           ))}
+                          {group.isCurrentMonth && group.events.length === 0 && (
+                            <TodayMarker />
+                          )}
                         </div>
                       )}
+
                       {isCollapsed && (
-                        <div className="mb-2 ml-[0.4rem] pl-4">
-                          <div className="mb-4 flex items-center gap-2 rounded-lg border border-white/[0.04] bg-white/[0.01] px-3 py-2">
-                            <span className="text-[11px] text-slate-600">{group.events.length} event{group.events.length !== 1 ? "s" : ""} hidden</span>
-                            <button
-                              onClick={() => toggleMonth(group.id)}
-                              className="cursor-pointer text-[10px] text-indigo-600 transition-colors hover:text-indigo-400"
-                            >
-                              Show →
-                            </button>
-                          </div>
+                        <div className="flex items-center gap-2 rounded-xl border border-white/[0.04] bg-white/[0.01] px-4 py-2.5">
+                          <span className="text-[11px] text-slate-600">{group.events.length} event{group.events.length !== 1 ? "s" : ""} hidden</span>
+                          <button
+                            onClick={() => toggleMonth(group.id)}
+                            className="cursor-pointer text-[11px] text-indigo-600 transition-colors hover:text-indigo-400"
+                          >
+                            Show →
+                          </button>
                         </div>
                       )}
-                      <div className="mb-6" />
                     </div>
                   );
                 })}
@@ -1324,6 +1387,14 @@ export default function TimelinePage() {
         <Modal title="Edit Calendar Event" onClose={() => setActiveModal(null)}>
           <CalendarEventForm initialEvent={selectedEvent} submitLabel="Save Event" onSubmit={handleUpdateEvent} />
         </Modal>
+      )}
+      {confirmDeleteEvent && (
+        <ConfirmDialog
+          title="Delete Event"
+          message={<>Delete <span className="font-semibold text-white">{confirmDeleteEvent.title}</span>? This cannot be undone.</>}
+          onCancel={() => setConfirmDeleteEvent(null)}
+          onConfirm={() => { executeDeleteEvent(confirmDeleteEvent); setConfirmDeleteEvent(null); }}
+        />
       )}
     </div>
   );

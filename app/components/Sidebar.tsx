@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { useOrgLogo } from "../hooks/useOrgLogo";
 
 // ─── Icon paths ───────────────────────────────────────────────────────────────
 
@@ -12,6 +13,7 @@ export const NAV_ICONS: Record<string, string> = {
   Deadlines: "M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z",
   Instagram: "M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z",
   Treasury:  "M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z",
+  Events:    "M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3",
   Parties:   "M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3",
   Timeline:  "M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z M9 17h6M9 13h6",
   Settings:  "M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z",
@@ -21,7 +23,7 @@ export const NAV_ICONS: Record<string, string> = {
 export const DASHBOARD_NAV = ["Dashboard", "Brothers", "Deadlines", "Instagram"];
 
 // Main nav — Settings is pinned at the bottom of the sidebar
-export const NAV = ["Dashboard", "Timeline", "Brotherhood", "Deadlines", "Instagram", "Treasury", "Parties"];
+export const NAV = ["Dashboard", "Timeline", "Brotherhood", "Deadlines", "Instagram", "Treasury", "Events"];
 export const SETTINGS_NAV = "Settings";
 
 // ─── SvgIcon ──────────────────────────────────────────────────────────────────
@@ -52,6 +54,13 @@ export function Sidebar({ open, onClose, activeSection, onNavClick }: {
 }) {
   const pathname = usePathname();
   const router   = useRouter();
+  const { logoUrl } = useOrgLogo();
+
+  const semesterLabel = (() => {
+    const m = new Date().getMonth(); // 0-based
+    const y = new Date().getFullYear();
+    return `${m >= 7 ? "Fall" : "Spring"} ${y}`;
+  })();
 
   function goToDashboardSection(label: string) {
     if (pathname !== "/") {
@@ -75,10 +84,15 @@ export function Sidebar({ open, onClose, activeSection, onNavClick }: {
           className="flex h-14 items-center gap-3 border-b border-white/[0.05] px-4 transition-colors hover:bg-white/[0.03]"
           aria-label="Go to dashboard home"
         >
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-indigo-700 text-[11px] font-bold text-white shadow-[0_2px_8px_rgba(99,102,241,0.3)]">ΛΦΕ</div>
+          {logoUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={logoUrl} alt="Org logo" className="h-8 w-8 shrink-0 rounded-lg object-cover shadow-[0_2px_8px_rgba(0,0,0,0.4)]" />
+          ) : (
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-indigo-700 text-[11px] font-bold text-white shadow-[0_2px_8px_rgba(99,102,241,0.3)]">ΛΦΕ</div>
+          )}
           <div className="min-w-0">
             <p className="truncate text-[12px] font-semibold leading-tight text-white">Lambda Phi Epsilon</p>
-            <p className="text-[10px] leading-tight text-white/35">Fall 2026</p>
+            <p className="text-[10px] leading-tight text-white/35">{semesterLabel}</p>
           </div>
         </Link>
 
@@ -87,15 +101,15 @@ export function Sidebar({ open, onClose, activeSection, onNavClick }: {
             {NAV.map(label => {
               const isTimeline  = label === "Timeline";
               const isTreasury  = label === "Treasury";
-              const isParties   = label === "Parties";
+              const isEvents    = label === "Events";
               const isBrotherhood = label === "Brotherhood";
-              const isStandalone = isTimeline || isTreasury || isParties || isBrotherhood;
-              const standaloneHref = isTimeline ? "/timeline" : isTreasury ? "/treasury" : isParties ? "/parties" : "/brothers";
+              const isStandalone = isTimeline || isTreasury || isEvents || isBrotherhood;
+              const standaloneHref = isTimeline ? "/timeline" : isTreasury ? "/treasury" : isEvents ? "/parties" : "/brothers";
               const isActive = isTimeline
                 ? pathname === "/timeline"
                 : isTreasury
                   ? pathname.startsWith("/treasury")
-                  : isParties
+                  : isEvents
                     ? pathname.startsWith("/parties")
                     : isBrotherhood
                       ? pathname.startsWith("/brothers")
@@ -162,7 +176,7 @@ export function Sidebar({ open, onClose, activeSection, onNavClick }: {
             </svg>
             Sign out
           </button>
-          <p className="px-3 pb-1 pt-2 text-[10px] tracking-wide text-white/25">Chapter Ops · v1.0</p>
+          <p className="px-3 pb-1 pt-2 text-[10px] tracking-wide text-white/25">ChaptOS · v1.0</p>
         </div>
       </aside>
     </>

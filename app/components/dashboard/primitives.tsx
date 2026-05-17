@@ -64,3 +64,33 @@ export function Modal({ title, onClose, children }: {
 export function FieldLabel({ children }: { children: React.ReactNode }) {
   return <label className="mb-1 block text-[12px] font-medium text-slate-400">{children}</label>;
 }
+
+export function ConfirmDialog({ title, message, confirmLabel = "Delete", onConfirm, onCancel }: {
+  title: string;
+  message: React.ReactNode;
+  confirmLabel?: string;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <Modal title={title} onClose={onCancel}>
+      <div className="space-y-4">
+        <p className="text-[13px] leading-relaxed text-slate-300">{message}</p>
+        <div className="flex justify-end gap-2">
+          <button
+            onClick={onCancel}
+            className="rounded-lg border border-white/[0.08] px-4 py-1.5 text-[13px] text-slate-400 hover:border-white/[0.16] hover:text-white transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            className="rounded-lg bg-red-600 px-4 py-1.5 text-[13px] font-semibold text-white hover:bg-red-500 transition-colors"
+          >
+            {confirmLabel}
+          </button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
