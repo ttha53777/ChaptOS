@@ -35,8 +35,11 @@ interface ChapterContextValue {
 
 const ChapterContext = createContext<ChapterContextValue | null>(null);
 
+class UnauthenticatedError extends Error {}
+
 async function fetchJson<T>(url: string): Promise<T> {
   const response = await fetch(url);
+  if (response.status === 401) throw new UnauthenticatedError();
   if (!response.ok) {
     throw new Error(`${url} returned ${response.status}`);
   }
@@ -89,6 +92,10 @@ export function ChapterProvider({ children }: { children: React.ReactNode }) {
       setTreasuryData(treasury);
       setTransactionList(transactions);
     } catch (error) {
+      if (error instanceof UnauthenticatedError) {
+        // Not signed in — login/pending-access pages are expected to 401. Stay silent.
+        return;
+      }
       console.error(error);
       setLoadError("Could not load chapter data from the database.");
       throw error;

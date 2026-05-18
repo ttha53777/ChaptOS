@@ -1,6 +1,8 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { ConfirmDialog } from "../../components/dashboard/primitives";
 
 interface AccountRow {
   id: number;
@@ -30,9 +32,12 @@ export function AccountsSection({
   onStatus: (msg: string) => void;
   onError: (msg: string) => void;
 }) {
+  const router = useRouter();
   const [accounts, setAccounts] = useState<AccountRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [unlinking, setUnlinking] = useState<number | null>(null);
+  const [unlinkingSelf, setUnlinkingSelf] = useState(false);
+  const [confirmSelfUnlink, setConfirmSelfUnlink] = useState(false);
 
   useEffect(() => {
     requestJson<AccountRow[]>("/api/auth/accounts")
@@ -54,6 +59,17 @@ export function AccountsSection({
     }
   }
 
+  async function unlinkSelf() {
+    setUnlinkingSelf(true);
+    try {
+      await requestJson("/api/auth/unlink-self", { method: "DELETE" });
+      router.push("/login");
+    } catch (err: unknown) {
+      onError(err instanceof Error ? err.message : "Failed to unlink your account. Try again.");
+      setUnlinkingSelf(false);
+    }
+  }
+
   const linked = accounts.filter(a => a.linked);
   const unlinked = accounts.filter(a => !a.linked);
 
@@ -61,6 +77,20 @@ export function AccountsSection({
 
   return (
     <div className="space-y-6">
+      {confirmSelfUnlink && (
+        <ConfirmDialog
+          title="Unlink your account"
+          confirmLabel="Unlink & sign out"
+          message={
+            <>
+              This will remove your Google account from your brother profile and sign you out.
+              You&apos;ll need to sign in again and re-link your name to regain access.
+            </>
+          }
+          onCancel={() => setConfirmSelfUnlink(false)}
+          onConfirm={() => { setConfirmSelfUnlink(false); unlinkSelf(); }}
+        />
+      )}
       <p className="text-[12px] text-slate-500">
         Manage which brothers have linked their Google account. Unlink removes their access until they claim again.
       </p>
@@ -90,7 +120,15 @@ export function AccountsSection({
                         <p className="text-[11px] text-slate-600">{a.role || "Member"}</p>
                       </div>
                     </div>
-                    {!a.isSelf && (
+                    {a.isSelf ? (
+                      <button
+                        onClick={() => setConfirmSelfUnlink(true)}
+                        disabled={unlinkingSelf}
+                        className="shrink-0 rounded-lg border border-amber-500/25 bg-amber-500/[0.07] px-3 py-1.5 text-[11px] font-medium text-amber-400 transition-all hover:bg-amber-500/15 disabled:opacity-40"
+                      >
+                        {unlinkingSelf ? "Unlinking…" : "Unlink my account"}
+                      </button>
+                    ) : (
                       <button
                         onClick={() => unlink(a.id, a.name)}
                         disabled={unlinking === a.id}
