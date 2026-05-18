@@ -1392,8 +1392,8 @@ export default function Home() {
     );
   }
 
-  function addServiceHour(b: Brother) {
-    const newHrs = b.serviceHours + 1;
+  function addServiceHour(b: Brother, hours = 1) {
+    const newHrs = b.serviceHours + hours;
     setBrotherList(prev => prev.map(x => x.id === b.id ? { ...x, serviceHours: newHrs } : x));
     addActivity(`${b.name} — service hours updated to ${newHrs}h`, "info");
     persistMutation(
@@ -1954,7 +1954,7 @@ export default function Home() {
         onClose={() => setSelectedBrotherId(null)}
         onSave={updateBrother}
         onPayDues={payDues}
-        onAddServiceHour={addServiceHour}
+        onAddServiceHours={addServiceHour}
       />
 
       {/* ── Confirm Delete Dialog ───────────────────────────────────────────── */}

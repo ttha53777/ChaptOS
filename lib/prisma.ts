@@ -20,6 +20,9 @@ function clientSupportsCurrentSchema(client: PrismaClient | undefined): boolean 
 
 // Reuse pool and client across hot-reloads in dev; create once in prod
 const pool = globalThis._pgPool ?? new Pool({ connectionString: process.env.DATABASE_URL! });
+
+// Pre-warm the connection so the first real request doesn't pay the cold-start penalty
+if (!globalThis._pgPool) pool.query("SELECT 1").catch(() => undefined);
 const adapter = new PrismaPg(pool);
 const cachedPrisma = globalThis._prisma;
 

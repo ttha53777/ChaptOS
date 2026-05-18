@@ -1,9 +1,11 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useCallback } from "react";
 import { Sidebar } from "../components/Sidebar";
 import { UserAvatar } from "../components/UserAvatar";
-import { StatusBadge } from "../components/dashboard/primitives";
+import { StatusBadge, Modal, FieldLabel, ConfirmDialog } from "../components/dashboard/primitives";
+import { inputCls } from "../components/dashboard/styles";
+import { BrotherDrawer } from "../components/dashboard/drawers/BrotherDrawer";
 import { useChapter } from "../context/ChapterContext";
 import {
   Brother,
@@ -25,14 +27,19 @@ function clamp(n: number, lo: number, hi: number) {
   return Math.min(hi, Math.max(lo, n));
 }
 
-// Mini bar — fills a fixed-height track
-function Bar({
-  value, max = 100, colorClass,
-}: {
-  value: number;
-  max?: number;
-  colorClass: string;
-}) {
+async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(url, init);
+  if (!res.ok) {
+    let detail = "";
+    try { const b = await res.json(); detail = b?.error ? `: ${b.error}` : ""; } catch { /* ignore */ }
+    throw new Error(`${url} → ${res.status}${detail}`);
+  }
+  if (res.status === 204) return undefined as unknown as T;
+  return res.json() as Promise<T>;
+}
+
+// Mini bar
+function Bar({ value, max = 100, colorClass }: { value: number; max?: number; colorClass: string }) {
   const w = clamp((value / max) * 100, 0, 100);
   return (
     <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/[0.06]">
@@ -41,63 +48,8 @@ function Bar({
   );
 }
 
-// Radial-arc gauge used in the KPI strip
-function Gauge({ value, max = 100, color }: { value: number; max?: number; color: string }) {
-  const SIZE = 56;
-  const R = 22;
-  const cx = SIZE / 2;
-  const cy = SIZE / 2;
-  const circ = 2 * Math.PI * R;
-  const arc = circ * 0.75; // 270° arc
-  const offset = arc - (clamp(value / max, 0, 1) * arc);
-  const rotation = 135; // start from bottom-left
-
-  return (
-    <svg width={SIZE} height={SIZE} className="-rotate-[0deg]" viewBox={`0 0 ${SIZE} ${SIZE}`}>
-      {/* Track */}
-      <circle
-        cx={cx} cy={cy} r={R}
-        fill="none"
-        stroke="rgba(255,255,255,0.06)"
-        strokeWidth={5}
-        strokeDasharray={`${arc} ${circ - arc}`}
-        strokeDashoffset={0}
-        strokeLinecap="round"
-        transform={`rotate(${rotation} ${cx} ${cy})`}
-      />
-      {/* Fill */}
-      <circle
-        cx={cx} cy={cy} r={R}
-        fill="none"
-        stroke={color}
-        strokeWidth={5}
-        strokeDasharray={`${arc} ${circ - arc}`}
-        strokeDashoffset={offset}
-        strokeLinecap="round"
-        transform={`rotate(${rotation} ${cx} ${cy})`}
-        style={{ transition: "stroke-dashoffset 0.6s ease" }}
-      />
-    </svg>
-  );
-}
-
-// Status color for Gauge fill
-function statusColor(status: BrotherStatus) {
-  if (status === "Good") return "#34d399";
-  if (status === "Watch") return "#fbbf24";
-  return "#f87171";
-}
-
-// ─── Stat card (chapter-wide KPI) ────────────────────────────────────────────
-
-function KpiCard({
-  label, value, sub, accent,
-}: {
-  label: string;
-  value: string;
-  sub: string;
-  accent: string;
-}) {
+// KPI card
+function KpiCard({ label, value, sub, accent }: { label: string; value: string; sub: string; accent: string }) {
   return (
     <div className="rounded-xl border border-white/[0.06] bg-[#141925] px-4 py-3.5 flex flex-col gap-1">
       <p className="text-[11px] font-medium text-slate-500 uppercase tracking-wider">{label}</p>
@@ -107,198 +59,123 @@ function KpiCard({
   );
 }
 
-// ─── Brother detail drawer ────────────────────────────────────────────────────
-
-function BrotherDrawer({ brother, onClose }: { brother: Brother; onClose: () => void }) {
-  const status = getBrotherStatus(brother);
-
-  const metrics = [
-    {
-      label: "Attendance",
-      value: `${brother.attendance}%`,
-      bar: brother.attendance,
-      max: 100,
-      color: brother.attendance < THRESHOLDS.attendanceAtRisk
-        ? "bg-red-500"
-        : brother.attendance < THRESHOLDS.attendanceWatch
-          ? "bg-amber-500"
-          : "bg-emerald-500",
-      note: brother.attendance < THRESHOLDS.attendanceAtRisk
-        ? `At risk — below ${THRESHOLDS.attendanceAtRisk}%`
-        : brother.attendance < THRESHOLDS.attendanceWatch
-          ? `Watch — below ${THRESHOLDS.attendanceWatch}%`
-          : "On track",
-    },
-    {
-      label: "GPA",
-      value: brother.gpa.toFixed(2),
-      bar: (brother.gpa / 4) * 100,
-      max: 100,
-      color: brother.gpa < THRESHOLDS.gpaAtRisk
-        ? "bg-red-500"
-        : brother.gpa < THRESHOLDS.gpaWatch
-          ? "bg-amber-500"
-          : "bg-indigo-400",
-      note: brother.gpa < THRESHOLDS.gpaAtRisk
-        ? `At risk — below ${THRESHOLDS.gpaAtRisk}`
-        : brother.gpa < THRESHOLDS.gpaWatch
-          ? `Watch — below ${THRESHOLDS.gpaWatch}`
-          : "On track",
-    },
-    {
-      label: "Service Hours",
-      value: `${brother.serviceHours}h`,
-      bar: brother.serviceHours,
-      max: THRESHOLDS.serviceHoursGoal * 2,
-      color: brother.serviceHours >= THRESHOLDS.serviceHoursGoal ? "bg-emerald-500" : "bg-amber-500",
-      note: brother.serviceHours >= THRESHOLDS.serviceHoursGoal
-        ? `Goal met (${THRESHOLDS.serviceHoursGoal}h)`
-        : `${THRESHOLDS.serviceHoursGoal - brother.serviceHours}h below goal`,
-    },
-    {
-      label: "Dues Owed",
-      value: fmt$(brother.duesOwed),
-      bar: brother.duesOwed === 0 ? 100 : 0,
-      max: 100,
-      color: brother.duesOwed === 0 ? "bg-emerald-500" : "bg-red-500",
-      note: brother.duesOwed === 0 ? "Paid in full" : "Outstanding balance",
-    },
-  ];
-
-  return (
-    <>
-      <div className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-      <aside className="fixed right-0 top-0 z-50 flex h-full w-full max-w-sm flex-col border-l border-white/[0.06] bg-[#0d1117] shadow-2xl">
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-white/[0.06] px-6 py-4">
-          <div>
-            <p className="text-[15px] font-semibold text-white">{brother.name}</p>
-            <p className="text-[12px] text-slate-500 mt-0.5">{brother.role}</p>
-          </div>
-          <div className="flex items-center gap-3">
-            <StatusBadge status={status} />
-            <button
-              onClick={onClose}
-              className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-500 hover:bg-white/[0.08] hover:text-white transition-colors"
-            >
-              <svg className="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-        </div>
-
-        {/* Gauge + summary */}
-        <div className="border-b border-white/[0.06] px-6 py-5">
-          <div className="flex items-center gap-5">
-            <div className="relative shrink-0">
-              <Gauge value={brother.attendance} max={100} color={statusColor(status)} />
-              <div className="absolute inset-0 flex items-center justify-center">
-                <span className="text-[11px] font-bold tabular-nums text-white">{brother.attendance}%</span>
-              </div>
-            </div>
-            <div className="space-y-1">
-              <p className="text-[12px] text-slate-400">Overall attendance</p>
-              <p className="text-[11px] text-slate-600 leading-snug">
-                GPA {brother.gpa.toFixed(2)} · {brother.serviceHours}h service
-                {brother.duesOwed > 0 ? ` · owes ${fmt$(brother.duesOwed)}` : " · dues clear"}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* Metrics */}
-        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
-          {metrics.map(m => (
-            <div key={m.label}>
-              <div className="flex items-center justify-between mb-1.5">
-                <span className="text-[12px] font-medium text-slate-400">{m.label}</span>
-                <span className="text-[13px] font-semibold tabular-nums text-slate-200">{m.value}</span>
-              </div>
-              <Bar value={m.bar} max={m.max} colorClass={m.color} />
-              <p className="mt-1 text-[11px] text-slate-600">{m.note}</p>
-            </div>
-          ))}
-        </div>
-      </aside>
-    </>
-  );
-}
-
-// ─── Sort button ──────────────────────────────────────────────────────────────
-
+// Sort button
 type SortKey = "attendance" | "gpa" | "serviceHours" | "duesOwed" | "name";
 
-function SortButton({
-  label, sortKey, activeKey, dir, onClick,
-}: {
-  label: string;
-  sortKey: SortKey;
-  activeKey: SortKey | null;
-  dir: "asc" | "desc";
-  onClick: (k: SortKey) => void;
+function SortButton({ label, sortKey, activeKey, dir, onClick }: {
+  label: string; sortKey: SortKey; activeKey: SortKey | null; dir: "asc" | "desc"; onClick: (k: SortKey) => void;
 }) {
   const isActive = activeKey === sortKey;
   return (
     <button
       onClick={() => onClick(sortKey)}
-      className={`flex items-center gap-1 text-[11px] font-medium transition-colors ${
-        isActive ? "text-indigo-400" : "text-slate-500 hover:text-slate-300"
-      }`}
+      className={`flex items-center gap-1 text-[11px] font-medium transition-colors ${isActive ? "text-indigo-400" : "text-slate-500 hover:text-slate-300"}`}
     >
       {label}
       {isActive && (
         <svg className="h-3 w-3" viewBox="0 0 16 16" fill="currentColor">
-          {dir === "asc"
-            ? <path d="M8 3.5L3.5 9h9L8 3.5Z" />
-            : <path d="M8 12.5L3.5 7h9L8 12.5Z" />}
+          {dir === "asc" ? <path d="M8 3.5L3.5 9h9L8 3.5Z" /> : <path d="M8 12.5L3.5 7h9L8 12.5Z" />}
         </svg>
       )}
     </button>
   );
 }
 
+// Add Brother form
+function AddBrotherForm({ onSubmit, onCancel }: {
+  onSubmit: (data: Omit<Brother, "id" | "attendance">) => void;
+  onCancel: () => void;
+}) {
+  const [name,         setName]         = useState("");
+  const [role,         setRole]         = useState("");
+  const [gpa,          setGpa]          = useState("0.00");
+  const [duesOwed,     setDuesOwed]     = useState("0");
+  const [serviceHours, setServiceHours] = useState("0");
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    onSubmit({
+      name:         name.trim(),
+      role:         role.trim(),
+      gpa:          Math.min(4.0, Math.max(0, parseFloat(gpa) || 0)),
+      duesOwed:     Math.max(0, parseFloat(duesOwed) || 0),
+      serviceHours: Math.max(0, parseFloat(serviceHours) || 0),
+    });
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-3">
+      <div>
+        <FieldLabel>Name</FieldLabel>
+        <input required className={inputCls} value={name} onChange={e => setName(e.target.value)} placeholder="Full name" />
+      </div>
+      <div>
+        <FieldLabel>Role / Committees</FieldLabel>
+        <input required className={inputCls} value={role} onChange={e => setRole(e.target.value)} placeholder="e.g. President · Rush" />
+      </div>
+      <div className="grid grid-cols-3 gap-3">
+        <div>
+          <FieldLabel>GPA</FieldLabel>
+          <input type="number" min="0" max="4" step="0.01" className={inputCls} value={gpa} onChange={e => setGpa(e.target.value)} />
+        </div>
+        <div>
+          <FieldLabel>Dues ($)</FieldLabel>
+          <input type="number" min="0" className={inputCls} value={duesOwed} onChange={e => setDuesOwed(e.target.value)} />
+        </div>
+        <div>
+          <FieldLabel>Service (h)</FieldLabel>
+          <input type="number" min="0" className={inputCls} value={serviceHours} onChange={e => setServiceHours(e.target.value)} />
+        </div>
+      </div>
+      <div className="flex justify-end gap-2 pt-1">
+        <button type="button" onClick={onCancel} className="rounded-lg border border-white/[0.08] px-4 py-1.5 text-[13px] text-slate-400 hover:border-white/[0.16] hover:text-white transition-colors">Cancel</button>
+        <button type="submit" className="rounded-lg bg-indigo-600 px-4 py-1.5 text-[13px] font-semibold text-white hover:bg-indigo-500 transition-colors">Add Brother</button>
+      </div>
+    </form>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function BrothersPage() {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<BrotherStatus | "All">("All");
-  const [sortKey, setSortKey] = useState<SortKey | null>(null);
-  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
-  const [selected, setSelected] = useState<Brother | null>(null);
+  const { brotherList, setBrotherList, isLoading } = useChapter();
 
-  const { brotherList, isLoading } = useChapter();
+  const [sidebarOpen,      setSidebarOpen]      = useState(false);
+  const [search,           setSearch]           = useState("");
+  const [statusFilter,     setStatusFilter]     = useState<BrotherStatus | "All">("All");
+  const [sortKey,          setSortKey]          = useState<SortKey | null>(null);
+  const [sortDir,          setSortDir]          = useState<"asc" | "desc">("asc");
+  const [selectedId,       setSelectedId]       = useState<number | null>(null);
+  const [showAddModal,     setShowAddModal]     = useState(false);
+  const [pageError,        setPageError]        = useState<string | null>(null);
+  const [atRiskDismissed,  setAtRiskDismissed]  = useState(false);
+  const [deleteError,      setDeleteError]      = useState<string | null>(null);
 
   function toggleSort(key: SortKey) {
     if (sortKey === key) setSortDir(d => d === "asc" ? "desc" : "asc");
     else { setSortKey(key); setSortDir("asc"); }
   }
 
-  // ── Chapter-wide KPIs ────────────────────────────────────────────────────
+  // ── KPIs ──────────────────────────────────────────────────────────────────
   const kpis = useMemo(() => {
     if (!brotherList.length) return null;
-    const attRisk   = brotherList.filter(b => getBrotherStatus(b) === "At Risk").length;
-    const watching  = brotherList.filter(b => getBrotherStatus(b) === "Watch").length;
+    const attRisk  = brotherList.filter(b => getBrotherStatus(b) === "At Risk").length;
+    const watching = brotherList.filter(b => getBrotherStatus(b) === "Watch").length;
     const duesTotal = brotherList.reduce((s, b) => s + b.duesOwed, 0);
-    const svcMet    = brotherList.filter(b => b.serviceHours >= THRESHOLDS.serviceHoursGoal).length;
-    return {
-      avgAtt:    avg(brotherList.map(b => b.attendance)),
-      avgGpa:    avg(brotherList.map(b => b.gpa)),
-      attRisk,
-      watching,
-      duesTotal,
-      svcMet,
-      total:     brotherList.length,
-    };
+    const svcMet   = brotherList.filter(b => b.serviceHours >= THRESHOLDS.serviceHoursGoal).length;
+    return { avgAtt: avg(brotherList.map(b => b.attendance)), avgGpa: avg(brotherList.map(b => b.gpa)), attRisk, watching, duesTotal, svcMet, total: brotherList.length };
   }, [brotherList]);
 
-  // ── Status counts for filter chips ──────────────────────────────────────
   const statusCounts = useMemo(() => {
     const counts = { All: brotherList.length, Good: 0, Watch: 0, "At Risk": 0 };
     brotherList.forEach(b => { counts[getBrotherStatus(b)]++; });
     return counts;
   }, [brotherList]);
+
+  const atRiskBrothers = useMemo(
+    () => brotherList.filter(b => getBrotherStatus(b) === "At Risk"),
+    [brotherList]
+  );
 
   // ── Filtered + sorted list ────────────────────────────────────────────────
   const filtered = useMemo(() => {
@@ -310,11 +187,7 @@ export default function BrothersPage() {
     });
     if (sortKey) {
       result = [...result].sort((a, b) => {
-        if (sortKey === "name") {
-          return sortDir === "asc"
-            ? a.name.localeCompare(b.name)
-            : b.name.localeCompare(a.name);
-        }
+        if (sortKey === "name") return sortDir === "asc" ? a.name.localeCompare(b.name) : b.name.localeCompare(a.name);
         const av = a[sortKey] as number, bv = b[sortKey] as number;
         return sortDir === "asc" ? av - bv : bv - av;
       });
@@ -322,10 +195,109 @@ export default function BrothersPage() {
     return result;
   }, [brotherList, search, statusFilter, sortKey, sortDir]);
 
+  // ── Mutations ─────────────────────────────────────────────────────────────
+
+  const handleAddBrother = useCallback(async (data: Omit<Brother, "id" | "attendance">) => {
+    const optimisticId = -Date.now();
+    const optimistic: Brother = { ...data, id: optimisticId, attendance: 0 };
+    setBrotherList(prev => [...prev, optimistic]);
+    setShowAddModal(false);
+    setPageError(null);
+    try {
+      const saved = await requestJson<Brother>("/api/brothers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...data, attendance: 0 }),
+      });
+      setBrotherList(prev => prev.map(b => b.id === optimisticId ? saved : b));
+    } catch {
+      setBrotherList(prev => prev.filter(b => b.id !== optimisticId));
+      setPageError("Failed to add brother. Please try again.");
+    }
+  }, [setBrotherList]);
+
+  const updateBrother = useCallback((id: number, updates: Omit<Brother, "id">) => {
+    const prev = brotherList.find(b => b.id === id);
+    if (!prev) return;
+    setBrotherList(list => list.map(b => b.id === id ? { ...b, ...updates } : b));
+    requestJson<Brother>(`/api/brothers/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(updates),
+    }).catch(() => {
+      setBrotherList(list => list.map(b => b.id === id ? prev : b));
+      setPageError("Update failed. Changes were reverted.");
+    });
+  }, [brotherList, setBrotherList]);
+
+  const payDues = useCallback((b: Brother) => {
+    setBrotherList(prev => prev.map(x => x.id === b.id ? { ...x, duesOwed: 0 } : x));
+    requestJson<Brother>(`/api/brothers/${b.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ duesOwed: 0 }),
+    }).catch(() => {
+      setBrotherList(prev => prev.map(x => x.id === b.id ? b : x));
+      setPageError("Dues update failed. Changes were reverted.");
+    });
+  }, [setBrotherList]);
+
+  const addServiceHours = useCallback((b: Brother, hours: number) => {
+    const newHrs = b.serviceHours + hours;
+    setBrotherList(prev => prev.map(x => x.id === b.id ? { ...x, serviceHours: newHrs } : x));
+    requestJson<Brother>(`/api/brothers/${b.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ serviceHours: newHrs }),
+    }).catch(() => {
+      setBrotherList(prev => prev.map(x => x.id === b.id ? b : x));
+      setPageError("Service hours update failed. Changes were reverted.");
+    });
+  }, [setBrotherList]);
+
+  const deleteBrother = useCallback(async (b: Brother) => {
+    setBrotherList(prev => prev.filter(x => x.id !== b.id));
+    setSelectedId(null);
+    setDeleteError(null);
+    try {
+      await requestJson<void>(`/api/brothers/${b.id}`, { method: "DELETE" });
+    } catch (err) {
+      setBrotherList(prev => [...prev, b]);
+      const msg = err instanceof Error && err.message.includes("attendance records")
+        ? "Cannot remove a brother with attendance records."
+        : "Failed to remove brother.";
+      setDeleteError(msg);
+    }
+  }, [setBrotherList]);
+
+  // ── CSV export ────────────────────────────────────────────────────────────
+  function handleExport() {
+    const rows = [
+      ["Name", "Role", "Attendance %", "GPA", "Service Hours", "Dues Owed", "Status"],
+      ...filtered.map(b => [
+        b.name,
+        b.role,
+        String(b.attendance),
+        b.gpa.toFixed(2),
+        String(b.serviceHours),
+        b.duesOwed.toFixed(2),
+        getBrotherStatus(b),
+      ]),
+    ];
+    const csv = rows.map(r => r.map(c => `"${c.replace(/"/g, '""')}"`).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "brotherhood-roster.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   const filterChips: Array<{ label: string; value: BrotherStatus | "All" }> = [
-    { label: "All",     value: "All"     },
-    { label: "Good",    value: "Good"    },
-    { label: "Watch",   value: "Watch"   },
+    { label: "All", value: "All" },
+    { label: "Good", value: "Good" },
+    { label: "Watch", value: "Watch" },
     { label: "At Risk", value: "At Risk" },
   ];
 
@@ -334,14 +306,10 @@ export default function BrothersPage() {
 
   return (
     <div className="flex h-screen overflow-hidden bg-[#0d1117]">
-      <Sidebar
-        open={sidebarOpen}
-        onClose={() => setSidebarOpen(false)}
-        activeSection="Brotherhood"
-        onNavClick={() => {}}
-      />
+      <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} activeSection="Brotherhood" onNavClick={() => {}} />
 
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+
         {/* ── Toolbar ── */}
         <header className="toolbar-frosted relative z-10 flex h-14 shrink-0 items-center gap-3 border-b border-white/[0.05] px-4 sm:px-6">
           <button
@@ -359,45 +327,90 @@ export default function BrothersPage() {
               {brotherList.length} members · chapter analytics
             </p>
           </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleExport}
+              title="Export CSV"
+              className="flex h-8 w-8 items-center justify-center rounded-full border border-white/[0.08] bg-white/[0.04] text-slate-400 transition-all hover:border-white/[0.16] hover:bg-white/[0.08] hover:text-white"
+            >
+              <svg className="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+              </svg>
+            </button>
+            <button
+              onClick={() => setShowAddModal(true)}
+              className="flex h-8 items-center gap-1.5 rounded-full border border-indigo-500/20 bg-white/[0.04] px-3.5 text-[12px] font-semibold text-indigo-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] transition-all hover:border-indigo-400/35 hover:bg-indigo-500/[0.08] hover:text-white"
+            >
+              <svg className="h-3.5 w-3.5 text-indigo-300" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+              </svg>
+              <span className="hidden sm:inline">New Brother</span>
+            </button>
+          </div>
           <UserAvatar />
         </header>
 
         <main className="page-ambient flex-1 overflow-y-auto">
           <div className="mx-auto max-w-5xl space-y-5 px-4 py-6 sm:px-6">
 
+            {/* ── Error toasts ── */}
+            {pageError && (
+              <div className="flex items-center justify-between rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3">
+                <p className="text-[13px] text-red-300">{pageError}</p>
+                <button onClick={() => setPageError(null)} className="ml-4 text-[11px] text-red-400 hover:text-red-200">Dismiss</button>
+              </div>
+            )}
+            {deleteError && (
+              <div className="flex items-center justify-between rounded-xl border border-amber-500/20 bg-amber-500/10 px-4 py-3">
+                <p className="text-[13px] text-amber-300">{deleteError}</p>
+                <button onClick={() => setDeleteError(null)} className="ml-4 text-[11px] text-amber-400 hover:text-amber-200">Dismiss</button>
+              </div>
+            )}
+
+            {/* ── At-Risk banner ── */}
+            {!atRiskDismissed && atRiskBrothers.length > 0 && (
+              <div className="flex items-start gap-3 rounded-xl border border-red-500/20 bg-red-500/[0.07] px-4 py-3">
+                <div className="mt-0.5 h-2 w-2 shrink-0 rounded-full bg-red-400" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-[12px] font-semibold text-red-300">
+                    {atRiskBrothers.length} brother{atRiskBrothers.length > 1 ? "s" : ""} at risk
+                  </p>
+                  <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1">
+                    {atRiskBrothers.map(b => {
+                      const reasons: string[] = [];
+                      if (b.attendance < THRESHOLDS.attendanceAtRisk) reasons.push(`att. ${b.attendance}%`);
+                      if (b.gpa < THRESHOLDS.gpaAtRisk) reasons.push(`GPA ${b.gpa.toFixed(2)}`);
+                      return (
+                        <button
+                          key={b.id}
+                          onClick={() => setSelectedId(b.id)}
+                          className="text-[11px] text-red-400 hover:text-red-300 underline underline-offset-2 transition-colors"
+                        >
+                          {b.name} <span className="text-red-600 no-underline">({reasons.join(", ")})</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+                <button onClick={() => setAtRiskDismissed(true)} className="shrink-0 text-red-600 hover:text-red-400 transition-colors">
+                  <svg className="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            )}
+
             {/* ── KPI strip ── */}
             {isLoading ? (
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                {[...Array(4)].map((_, i) => (
-                  <div key={i} className="h-20 rounded-xl border border-white/[0.06] bg-[#141925] animate-pulse" />
-                ))}
+                {[...Array(4)].map((_, i) => <div key={i} className="h-20 rounded-xl border border-white/[0.06] bg-[#141925] animate-pulse" />)}
               </div>
             ) : kpis && (
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                <KpiCard
-                  label="Avg Attendance"
-                  value={pct(kpis.avgAtt)}
-                  sub={`${kpis.attRisk} at risk · ${kpis.watching} on watch`}
-                  accent={kpis.avgAtt < THRESHOLDS.attendanceAtRisk ? "text-red-400" : kpis.avgAtt < THRESHOLDS.attendanceWatch ? "text-amber-400" : "text-emerald-400"}
-                />
-                <KpiCard
-                  label="Avg GPA"
-                  value={kpis.avgGpa.toFixed(2)}
-                  sub={`out of 4.0`}
-                  accent={kpis.avgGpa < THRESHOLDS.gpaAtRisk ? "text-red-400" : kpis.avgGpa < THRESHOLDS.gpaWatch ? "text-amber-400" : "text-indigo-400"}
-                />
-                <KpiCard
-                  label="Dues Owed"
-                  value={fmt$(kpis.duesTotal)}
-                  sub={`${brotherList.filter(b => b.duesOwed > 0).length} brothers outstanding`}
-                  accent={kpis.duesTotal === 0 ? "text-emerald-400" : "text-red-400"}
-                />
-                <KpiCard
-                  label="Service Goal"
-                  value={`${kpis.svcMet} / ${kpis.total}`}
-                  sub={`met ${THRESHOLDS.serviceHoursGoal}h goal`}
-                  accent="text-white"
-                />
+                <KpiCard label="Avg Attendance" value={pct(kpis.avgAtt)} sub={`${kpis.attRisk} at risk · ${kpis.watching} on watch`} accent={kpis.avgAtt < THRESHOLDS.attendanceAtRisk ? "text-red-400" : kpis.avgAtt < THRESHOLDS.attendanceWatch ? "text-amber-400" : "text-emerald-400"} />
+                <KpiCard label="Avg GPA" value={kpis.avgGpa.toFixed(2)} sub="out of 4.0" accent={kpis.avgGpa < THRESHOLDS.gpaAtRisk ? "text-red-400" : kpis.avgGpa < THRESHOLDS.gpaWatch ? "text-amber-400" : "text-indigo-400"} />
+                <KpiCard label="Dues Owed" value={fmt$(kpis.duesTotal)} sub={`${brotherList.filter(b => b.duesOwed > 0).length} brothers outstanding`} accent={kpis.duesTotal === 0 ? "text-emerald-400" : "text-red-400"} />
+                <KpiCard label="Service Goal" value={`${kpis.svcMet} / ${kpis.total}`} sub={`met ${THRESHOLDS.serviceHoursGoal}h goal`} accent="text-white" />
               </div>
             )}
 
@@ -407,32 +420,35 @@ export default function BrothersPage() {
                 <p className="mb-3 text-[11px] font-semibold uppercase tracking-widest text-slate-600">Status distribution</p>
                 <div className="flex h-2.5 w-full overflow-hidden rounded-full gap-0.5">
                   {statusCounts.Good > 0 && (
-                    <div
-                      className="bg-emerald-500 rounded-full transition-all duration-500"
+                    <button
+                      onClick={() => setStatusFilter(statusFilter === "Good" ? "All" : "Good")}
+                      className="bg-emerald-500 rounded-full transition-all duration-500 hover:opacity-80"
                       style={{ flex: statusCounts.Good }}
-                      title={`Good: ${statusCounts.Good}`}
+                      title={`Good: ${statusCounts.Good} — click to filter`}
                     />
                   )}
                   {statusCounts.Watch > 0 && (
-                    <div
-                      className="bg-amber-500 rounded-full transition-all duration-500"
+                    <button
+                      onClick={() => setStatusFilter(statusFilter === "Watch" ? "All" : "Watch")}
+                      className="bg-amber-500 rounded-full transition-all duration-500 hover:opacity-80"
                       style={{ flex: statusCounts.Watch }}
-                      title={`Watch: ${statusCounts.Watch}`}
+                      title={`Watch: ${statusCounts.Watch} — click to filter`}
                     />
                   )}
                   {statusCounts["At Risk"] > 0 && (
-                    <div
-                      className="bg-red-500 rounded-full transition-all duration-500"
+                    <button
+                      onClick={() => setStatusFilter(statusFilter === "At Risk" ? "All" : "At Risk")}
+                      className="bg-red-500 rounded-full transition-all duration-500 hover:opacity-80"
                       style={{ flex: statusCounts["At Risk"] }}
-                      title={`At Risk: ${statusCounts["At Risk"]}`}
+                      title={`At Risk: ${statusCounts["At Risk"]} — click to filter`}
                     />
                   )}
                 </div>
                 <div className="mt-2.5 flex items-center gap-5">
                   {[
-                    { label: "Good",    count: statusCounts.Good,          color: "bg-emerald-500" },
-                    { label: "Watch",   count: statusCounts.Watch,         color: "bg-amber-500"   },
-                    { label: "At Risk", count: statusCounts["At Risk"],     color: "bg-red-500"     },
+                    { label: "Good",    count: statusCounts.Good,        color: "bg-emerald-500" },
+                    { label: "Watch",   count: statusCounts.Watch,       color: "bg-amber-500"   },
+                    { label: "At Risk", count: statusCounts["At Risk"],  color: "bg-red-500"     },
                   ].map(({ label, count, color }) => (
                     <div key={label} className="flex items-center gap-1.5">
                       <div className={`h-2 w-2 rounded-full ${color}`} />
@@ -448,29 +464,25 @@ export default function BrothersPage() {
               <div className="rounded-xl border border-white/[0.06] bg-[#141925] px-5 py-4">
                 <p className="mb-4 text-[11px] font-semibold uppercase tracking-widest text-slate-600">Attendance ranking</p>
                 <div className="space-y-2.5">
-                  {[...brotherList]
-                    .sort((a, b) => b.attendance - a.attendance)
-                    .map((b, i) => {
-                      const status = getBrotherStatus(b);
-                      const barColor = status === "At Risk" ? "bg-red-500" : status === "Watch" ? "bg-amber-500" : "bg-emerald-500";
-                      return (
-                        <div key={b.id} className="flex items-center gap-3">
-                          <span className="w-5 shrink-0 text-right text-[11px] tabular-nums text-slate-700">{i + 1}</span>
-                          <button
-                            onClick={() => setSelected(b)}
-                            className="min-w-0 w-28 shrink-0 truncate text-left text-[12px] text-slate-300 hover:text-indigo-300 transition-colors"
-                          >
-                            {b.name.split(" ")[0]}
-                          </button>
-                          <div className="flex-1">
-                            <Bar value={b.attendance} max={100} colorClass={barColor} />
-                          </div>
-                          <span className="w-10 shrink-0 text-right text-[12px] font-semibold tabular-nums text-slate-300">
-                            {b.attendance}%
-                          </span>
+                  {[...brotherList].sort((a, b) => b.attendance - a.attendance).map((b, i) => {
+                    const status = getBrotherStatus(b);
+                    const barColor = status === "At Risk" ? "bg-red-500" : status === "Watch" ? "bg-amber-500" : "bg-emerald-500";
+                    return (
+                      <div key={b.id} className="flex items-center gap-3">
+                        <span className="w-5 shrink-0 text-right text-[11px] tabular-nums text-slate-700">{i + 1}</span>
+                        <button
+                          onClick={() => setSelectedId(b.id)}
+                          className="min-w-0 w-28 shrink-0 truncate text-left text-[12px] text-slate-300 hover:text-indigo-300 transition-colors"
+                        >
+                          {b.name.split(" ")[0]}
+                        </button>
+                        <div className="flex-1">
+                          <Bar value={b.attendance} max={100} colorClass={barColor} />
                         </div>
-                      );
-                    })}
+                        <span className="w-10 shrink-0 text-right text-[12px] font-semibold tabular-nums text-slate-300">{b.attendance}%</span>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -487,9 +499,7 @@ export default function BrothersPage() {
                       className={`rounded-lg px-3 py-1.5 text-[12px] font-medium transition-all ${statusFilter === chip.value ? chipActive : chipIdle}`}
                     >
                       {chip.label}
-                      <span className="ml-1.5 tabular-nums opacity-60">
-                        {statusCounts[chip.value]}
-                      </span>
+                      <span className="ml-1.5 tabular-nums opacity-60">{statusCounts[chip.value]}</span>
                     </button>
                   ))}
                 </div>
@@ -508,11 +518,11 @@ export default function BrothersPage() {
 
               {/* Column headers */}
               <div className="grid grid-cols-[1fr_auto_auto_auto_auto_auto] items-center gap-x-4 border-b border-white/[0.04] px-5 py-2">
-                <SortButton label="Name"     sortKey="name"         activeKey={sortKey} dir={sortDir} onClick={toggleSort} />
-                <SortButton label="Att."     sortKey="attendance"   activeKey={sortKey} dir={sortDir} onClick={toggleSort} />
-                <SortButton label="GPA"      sortKey="gpa"          activeKey={sortKey} dir={sortDir} onClick={toggleSort} />
-                <SortButton label="Service"  sortKey="serviceHours" activeKey={sortKey} dir={sortDir} onClick={toggleSort} />
-                <SortButton label="Dues"     sortKey="duesOwed"     activeKey={sortKey} dir={sortDir} onClick={toggleSort} />
+                <SortButton label="Name"    sortKey="name"         activeKey={sortKey} dir={sortDir} onClick={toggleSort} />
+                <SortButton label="Att."    sortKey="attendance"   activeKey={sortKey} dir={sortDir} onClick={toggleSort} />
+                <SortButton label="GPA"     sortKey="gpa"          activeKey={sortKey} dir={sortDir} onClick={toggleSort} />
+                <SortButton label="Service" sortKey="serviceHours" activeKey={sortKey} dir={sortDir} onClick={toggleSort} />
+                <SortButton label="Dues"    sortKey="duesOwed"     activeKey={sortKey} dir={sortDir} onClick={toggleSort} />
                 <span className="text-[11px] font-medium text-slate-600">Status</span>
               </div>
 
@@ -535,8 +545,8 @@ export default function BrothersPage() {
                   return (
                     <button
                       key={b.id}
-                      onClick={() => setSelected(selected?.id === b.id ? null : b)}
-                      className={`grid w-full grid-cols-[1fr_auto_auto_auto_auto_auto] items-center gap-x-4 border-b border-l-2 border-white/[0.03] px-5 py-3.5 text-left transition-colors last:border-b-0 hover:bg-white/[0.03] ${borderColor} ${selected?.id === b.id ? "bg-white/[0.03]" : ""}`}
+                      onClick={() => setSelectedId(selectedId === b.id ? null : b.id)}
+                      className={`grid w-full grid-cols-[1fr_auto_auto_auto_auto_auto] items-center gap-x-4 border-b border-l-2 border-white/[0.03] px-5 py-3.5 text-left transition-colors last:border-b-0 hover:bg-white/[0.03] ${borderColor} ${selectedId === b.id ? "bg-white/[0.03]" : ""}`}
                     >
                       <div className="min-w-0">
                         <p className="truncate text-[13px] font-medium text-slate-200">{b.name}</p>
@@ -574,8 +584,26 @@ export default function BrothersPage() {
         </main>
       </div>
 
-      {/* Detail drawer */}
-      {selected && <BrotherDrawer brother={selected} onClose={() => setSelected(null)} />}
+      {/* ── Add Brother Modal ── */}
+      {showAddModal && (
+        <Modal title="New Brother" onClose={() => setShowAddModal(false)}>
+          <AddBrotherForm
+            onSubmit={handleAddBrother}
+            onCancel={() => setShowAddModal(false)}
+          />
+        </Modal>
+      )}
+
+      {/* ── Brother Drawer ── */}
+      <BrotherDrawer
+        brotherId={selectedId}
+        brotherList={brotherList}
+        onClose={() => setSelectedId(null)}
+        onSave={updateBrother}
+        onPayDues={payDues}
+        onAddServiceHours={addServiceHours}
+        onDelete={deleteBrother}
+      />
     </div>
   );
 }

@@ -99,12 +99,13 @@ export function Sidebar({ open, onClose, activeSection, onNavClick }: {
         <nav className="flex-1 overflow-y-auto px-2 py-3" aria-label="Main navigation">
           <div className="space-y-0.5">
             {NAV.map(label => {
-              const isTimeline  = label === "Timeline";
-              const isTreasury  = label === "Treasury";
-              const isEvents    = label === "Events";
+              const isTimeline    = label === "Timeline";
+              const isTreasury    = label === "Treasury";
+              const isEvents      = label === "Events";
               const isBrotherhood = label === "Brotherhood";
-              const isStandalone = isTimeline || isTreasury || isEvents || isBrotherhood;
-              const standaloneHref = isTimeline ? "/timeline" : isTreasury ? "/treasury" : isEvents ? "/parties" : "/brothers";
+              const isInstagram   = label === "Instagram";
+              const isStandalone  = isTimeline || isTreasury || isEvents || isBrotherhood || isInstagram;
+              const standaloneHref = isTimeline ? "/timeline" : isTreasury ? "/treasury" : isEvents ? "/parties" : isInstagram ? "/instagram" : "/brothers";
               const isActive = isTimeline
                 ? pathname === "/timeline"
                 : isTreasury
@@ -113,7 +114,9 @@ export function Sidebar({ open, onClose, activeSection, onNavClick }: {
                     ? pathname.startsWith("/parties")
                     : isBrotherhood
                       ? pathname.startsWith("/brothers")
-                      : pathname === "/" && activeSection === label;
+                      : isInstagram
+                        ? pathname.startsWith("/instagram")
+                        : pathname === "/" && activeSection === label;
 
               if (isStandalone) {
                 return (
