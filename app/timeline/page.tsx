@@ -1179,13 +1179,12 @@ export default function TimelinePage() {
       <div className="flex flex-1 flex-col overflow-hidden">
 
         {/* ── Header ────────────────────────────────────────────────────────── */}
-        <header className="relative flex h-16 shrink-0 items-center gap-3 overflow-hidden border-b border-white/[0.07] bg-[#0d1117] px-4">
-          <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-indigo-500/[0.05] via-transparent to-transparent" />
+        <header className="toolbar-frosted relative z-10 flex h-14 shrink-0 items-center gap-3 border-b border-white/[0.05] px-4 sm:px-6">
 
           {/* Mobile menu */}
           <button
             onClick={() => setSidebarOpen(true)}
-            className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-white/[0.06] hover:text-white lg:hidden cursor-pointer"
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-white/[0.07] lg:hidden"
           >
             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
@@ -1194,8 +1193,8 @@ export default function TimelinePage() {
 
           {/* Title */}
           <div className="relative min-w-0 shrink-0">
-            <p className="text-[18px] font-bold leading-tight text-white">Timeline</p>
-            <p className="hidden text-[11px] leading-tight text-slate-500 sm:block">
+            <p className="text-[14px] font-semibold leading-tight text-white">Timeline</p>
+            <p className="hidden text-[11px] leading-tight text-slate-400 sm:block">
               {filtered.length} event{filtered.length !== 1 ? "s" : ""}
             </p>
           </div>
