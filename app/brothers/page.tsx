@@ -51,7 +51,7 @@ function Bar({ value, max = 100, colorClass }: { value: number; max?: number; co
 // KPI card
 function KpiCard({ label, value, sub, accent }: { label: string; value: string; sub: string; accent: string }) {
   return (
-    <div className="rounded-xl border border-white/[0.06] bg-[#141925] px-4 py-3.5 flex flex-col gap-1">
+    <div className="rounded-xl border border-white/[0.06] bg-[#10121a] px-4 py-3.5 flex flex-col gap-1">
       <p className="text-[11px] font-medium text-slate-500 uppercase tracking-wider">{label}</p>
       <p className={`text-[24px] font-bold leading-none tabular-nums ${accent}`}>{value}</p>
       <p className="text-[11px] text-slate-500 leading-tight">{sub}</p>
@@ -148,7 +148,6 @@ export default function BrothersPage() {
   const [selectedId,       setSelectedId]       = useState<number | null>(null);
   const [showAddModal,     setShowAddModal]     = useState(false);
   const [pageError,        setPageError]        = useState<string | null>(null);
-  const [atRiskDismissed,  setAtRiskDismissed]  = useState(false);
   const [deleteError,      setDeleteError]      = useState<string | null>(null);
 
   function toggleSort(key: SortKey) {
@@ -171,11 +170,6 @@ export default function BrothersPage() {
     brotherList.forEach(b => { counts[getBrotherStatus(b)]++; });
     return counts;
   }, [brotherList]);
-
-  const atRiskBrothers = useMemo(
-    () => brotherList.filter(b => getBrotherStatus(b) === "At Risk"),
-    [brotherList]
-  );
 
   // ── Filtered + sorted list ────────────────────────────────────────────────
   const filtered = useMemo(() => {
@@ -305,7 +299,7 @@ export default function BrothersPage() {
   const chipIdle   = "text-slate-400 hover:bg-white/[0.05] hover:text-slate-200";
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#0d1117]">
+    <div className="flex h-screen overflow-hidden bg-[#07090f]">
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} activeSection="Brotherhood" onNavClick={() => {}} />
 
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
@@ -367,43 +361,10 @@ export default function BrothersPage() {
               </div>
             )}
 
-            {/* ── At-Risk banner ── */}
-            {!atRiskDismissed && atRiskBrothers.length > 0 && (
-              <div className="flex items-start gap-3 rounded-xl border border-red-500/20 bg-red-500/[0.07] px-4 py-3">
-                <div className="mt-0.5 h-2 w-2 shrink-0 rounded-full bg-red-400" />
-                <div className="min-w-0 flex-1">
-                  <p className="text-[12px] font-semibold text-red-300">
-                    {atRiskBrothers.length} brother{atRiskBrothers.length > 1 ? "s" : ""} at risk
-                  </p>
-                  <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1">
-                    {atRiskBrothers.map(b => {
-                      const reasons: string[] = [];
-                      if (b.attendance < THRESHOLDS.attendanceAtRisk) reasons.push(`att. ${b.attendance}%`);
-                      if (b.gpa < THRESHOLDS.gpaAtRisk) reasons.push(`GPA ${b.gpa.toFixed(2)}`);
-                      return (
-                        <button
-                          key={b.id}
-                          onClick={() => setSelectedId(b.id)}
-                          className="text-[11px] text-red-400 hover:text-red-300 underline underline-offset-2 transition-colors"
-                        >
-                          {b.name} <span className="text-red-600 no-underline">({reasons.join(", ")})</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-                <button onClick={() => setAtRiskDismissed(true)} className="shrink-0 text-red-600 hover:text-red-400 transition-colors">
-                  <svg className="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-            )}
-
             {/* ── KPI strip ── */}
             {isLoading ? (
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                {[...Array(4)].map((_, i) => <div key={i} className="h-20 rounded-xl border border-white/[0.06] bg-[#141925] animate-pulse" />)}
+                {[...Array(4)].map((_, i) => <div key={i} className="h-20 rounded-xl border border-white/[0.06] bg-[#10121a] animate-pulse" />)}
               </div>
             ) : kpis && (
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -416,7 +377,7 @@ export default function BrothersPage() {
 
             {/* ── Status distribution bar ── */}
             {!isLoading && kpis && (
-              <div className="rounded-xl border border-white/[0.06] bg-[#141925] px-5 py-4">
+              <div className="rounded-xl border border-white/[0.06] bg-[#10121a] px-5 py-4">
                 <p className="mb-3 text-[11px] font-semibold uppercase tracking-widest text-slate-600">Status distribution</p>
                 <div className="flex h-2.5 w-full overflow-hidden rounded-full gap-0.5">
                   {statusCounts.Good > 0 && (
@@ -459,36 +420,8 @@ export default function BrothersPage() {
               </div>
             )}
 
-            {/* ── Attendance leaderboard ── */}
-            {!isLoading && brotherList.length > 0 && (
-              <div className="rounded-xl border border-white/[0.06] bg-[#141925] px-5 py-4">
-                <p className="mb-4 text-[11px] font-semibold uppercase tracking-widest text-slate-600">Attendance ranking</p>
-                <div className="space-y-2.5">
-                  {[...brotherList].sort((a, b) => b.attendance - a.attendance).map((b, i) => {
-                    const status = getBrotherStatus(b);
-                    const barColor = status === "At Risk" ? "bg-red-500" : status === "Watch" ? "bg-amber-500" : "bg-emerald-500";
-                    return (
-                      <div key={b.id} className="flex items-center gap-3">
-                        <span className="w-5 shrink-0 text-right text-[11px] tabular-nums text-slate-700">{i + 1}</span>
-                        <button
-                          onClick={() => setSelectedId(b.id)}
-                          className="min-w-0 w-28 shrink-0 truncate text-left text-[12px] text-slate-300 hover:text-indigo-300 transition-colors"
-                        >
-                          {b.name.split(" ")[0]}
-                        </button>
-                        <div className="flex-1">
-                          <Bar value={b.attendance} max={100} colorClass={barColor} />
-                        </div>
-                        <span className="w-10 shrink-0 text-right text-[12px] font-semibold tabular-nums text-slate-300">{b.attendance}%</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
             {/* ── Roster table ── */}
-            <div className="rounded-xl border border-white/[0.06] bg-[#141925] overflow-hidden">
+            <div className="rounded-xl border border-white/[0.06] bg-[#10121a] overflow-hidden">
               {/* Controls */}
               <div className="flex flex-col gap-3 border-b border-white/[0.06] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex flex-wrap gap-1.5">
@@ -579,6 +512,34 @@ export default function BrothersPage() {
                 </div>
               )}
             </div>
+
+            {/* ── Attendance leaderboard ── */}
+            {!isLoading && brotherList.length > 0 && (
+              <div className="rounded-xl border border-white/[0.06] bg-[#10121a] px-5 py-4">
+                <p className="mb-4 text-[11px] font-semibold uppercase tracking-widest text-slate-600">Attendance ranking</p>
+                <div className="space-y-2.5">
+                  {[...brotherList].sort((a, b) => b.attendance - a.attendance).map((b, i) => {
+                    const status = getBrotherStatus(b);
+                    const barColor = status === "At Risk" ? "bg-red-500" : status === "Watch" ? "bg-amber-500" : "bg-emerald-500";
+                    return (
+                      <div key={b.id} className="flex items-center gap-3">
+                        <span className="w-5 shrink-0 text-right text-[11px] tabular-nums text-slate-700">{i + 1}</span>
+                        <button
+                          onClick={() => setSelectedId(b.id)}
+                          className="min-w-0 w-28 shrink-0 truncate text-left text-[12px] text-slate-300 hover:text-indigo-300 transition-colors"
+                        >
+                          {b.name.split(" ")[0]}
+                        </button>
+                        <div className="flex-1">
+                          <Bar value={b.attendance} max={100} colorClass={barColor} />
+                        </div>
+                        <span className="w-10 shrink-0 text-right text-[12px] font-semibold tabular-nums text-slate-300">{b.attendance}%</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
           </div>
         </main>

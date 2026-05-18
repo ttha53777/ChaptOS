@@ -77,7 +77,7 @@ export function UserAvatar() {
       {/* Dropdown popover */}
       {open && (
         <div
-          className="absolute right-0 top-11 z-50 w-64 overflow-hidden rounded-xl border border-white/[0.08] bg-[#141925] shadow-[0_8px_32px_rgba(0,0,0,0.6)]"
+          className="absolute right-0 top-11 z-50 w-64 overflow-hidden rounded-xl border border-white/[0.08] bg-[#10121a] shadow-[0_8px_32px_rgba(0,0,0,0.6)]"
           role="menu"
         >
           {/* Profile section */}

@@ -22,10 +22,10 @@ export function HealthScoreWidget({ score, label, breakdown, delta, onExpand }: 
       ? "linear-gradient(90deg, #f59e0b 0%, #fbbf24 50%, #f59e0b 100%)"
       : "linear-gradient(90deg, transparent 0%, #ef4444 20%, #f87171 50%, #ef4444 80%, transparent 100%)";
   const ambientGlow = score >= 80
-    ? "radial-gradient(ellipse 50% 80% at 8% 50%, rgba(16,185,129,0.04) 0%, transparent 60%), #141925"
+    ? "radial-gradient(ellipse 50% 80% at 8% 50%, rgba(16,185,129,0.04) 0%, transparent 60%), #10121a"
     : score >= 60
-      ? "radial-gradient(ellipse 50% 80% at 8% 50%, rgba(245,158,11,0.04) 0%, transparent 60%), #141925"
-      : "radial-gradient(ellipse 50% 80% at 8% 50%, rgba(239,68,68,0.04) 0%, transparent 60%), #141925";
+      ? "radial-gradient(ellipse 50% 80% at 8% 50%, rgba(245,158,11,0.04) 0%, transparent 60%), #10121a"
+      : "radial-gradient(ellipse 50% 80% at 8% 50%, rgba(239,68,68,0.04) 0%, transparent 60%), #10121a";
   const sub       = score >= 80 ? "All systems operational" : score >= 60 ? "Some areas need attention" : "Immediate action required";
 
   return (
@@ -84,7 +84,7 @@ export function KPICard({ label, value, trend, iconKey, sparkData, accent = "tex
 }) {
   const chartData = sparkData.map((v, i) => ({ i, v }));
   const gradientStyle = glowColor
-    ? { background: `radial-gradient(ellipse at 15% 15%, ${glowColor}14 0%, transparent 65%), #141925` }
+    ? { background: `radial-gradient(ellipse at 15% 15%, ${glowColor}14 0%, transparent 65%), #10121a` }
     : undefined;
   const inner = (
     <>
@@ -117,7 +117,7 @@ export function KPICard({ label, value, trend, iconKey, sparkData, accent = "tex
   );
   if (onClick) {
     return (
-      <button type="button" onClick={onClick} style={gradientStyle} className="card-premium rounded-xl border border-white/[0.06] bg-[#141925] flex flex-col p-4 w-full text-left transition-all duration-200 hover:border-white/[0.12] cursor-pointer group">
+      <button type="button" onClick={onClick} style={gradientStyle} className="card-premium rounded-xl border border-white/[0.06] bg-[#10121a] flex flex-col p-4 w-full text-left transition-all duration-200 hover:border-white/[0.12] cursor-pointer group">
         {inner}
       </button>
     );
@@ -133,7 +133,7 @@ export function ChartWidget({ title, stat, caption, accentColor, children }: {
   title: string; stat: string; caption: string; accentColor?: string; children: React.ReactNode;
 }) {
   const gradientStyle = accentColor
-    ? { background: `linear-gradient(to bottom, ${accentColor}0d 0%, #141925 55%)` }
+    ? { background: `linear-gradient(to bottom, ${accentColor}0d 0%, #10121a 55%)` }
     : undefined;
   return (
     <Card style={gradientStyle} className="overflow-hidden">
@@ -157,7 +157,7 @@ export function ActivityFeed({ entries, onExpand }: { entries: ActivityEntry[]; 
   };
 
   return (
-    <Card style={{ background: "linear-gradient(to bottom, #10b98110 0%, #141925 50%)" }} className="overflow-hidden cursor-pointer hover:border-white/[0.14] transition-colors" onClick={onExpand}>
+    <Card style={{ background: "linear-gradient(to bottom, #10b98110 0%, #10121a 50%)" }} className="overflow-hidden cursor-pointer hover:border-white/[0.14] transition-colors" onClick={onExpand}>
       <div className="h-[3px] bg-emerald-500/50" />
       <div className="border-b border-white/[0.07] px-5 py-3.5">
         <div className="flex items-center justify-between">

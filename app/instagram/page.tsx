@@ -84,7 +84,7 @@ function TaskCard({
     : { label: `${Math.abs(diff)}d ago`, cls: "bg-white/[0.03] text-slate-600" };
 
   return (
-    <div className={`group flex min-h-[68px] overflow-hidden rounded-xl border border-white/[0.07] bg-[#141925] transition-all duration-150 hover:border-white/[0.12] hover:shadow-md ${isComplete ? "opacity-60" : ""}`}>
+    <div className={`group flex min-h-[68px] overflow-hidden rounded-xl border border-white/[0.07] bg-[#10121a] transition-all duration-150 hover:border-white/[0.12] hover:shadow-md ${isComplete ? "opacity-60" : ""}`}>
       {/* Left accent bar */}
       <div className={`w-[3px] shrink-0 self-stretch ${s.accent} opacity-80`} />
 
@@ -450,7 +450,7 @@ export default function InstagramPage() {
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#0d1117]">
+    <div className="flex h-screen overflow-hidden bg-[#07090f]">
       <Sidebar
         open={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
@@ -504,12 +504,12 @@ export default function InstagramPage() {
           <div className="relative flex shrink-0 items-center gap-2">
             <button
               onClick={() => { setEditingTask(null); setModal("create"); }}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-pink-600 px-3.5 py-2 text-[12px] font-semibold text-white transition-colors hover:bg-pink-500 shadow-sm"
+              className="flex h-8 items-center gap-1.5 rounded-full border border-indigo-500/20 bg-white/[0.04] px-4 text-[12px] font-semibold text-indigo-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_8px_24px_-18px_rgba(99,102,241,0.45)] transition-all hover:border-indigo-400/35 hover:bg-indigo-500/[0.08] hover:text-white"
             >
-              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <svg className="h-3.5 w-3.5 shrink-0 text-indigo-300" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
               </svg>
-              Post
+              <span className="hidden sm:inline">Add Post</span>
             </button>
             <UserAvatar />
           </div>

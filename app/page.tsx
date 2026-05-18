@@ -355,7 +355,7 @@ function KPIDetailDrawer({
                   <XAxis dataKey="month" tick={{ fontSize: 10, fill: "#475569" }} axisLine={false} tickLine={false} />
                   <YAxis tick={{ fontSize: 9, fill: "#475569" }} axisLine={false} tickLine={false} tickFormatter={(v: number) => `$${v / 1000}k`} />
                   <Tooltip formatter={(v) => [fmt$(Number(v ?? 0)), "Balance"]} contentStyle={tooltipStyle} cursor={{ stroke: "#818cf8", strokeWidth: 1, strokeDasharray: "4 4" }} />
-                  <Area type="monotone" dataKey="balance" stroke="#818cf8" strokeWidth={2} fill="url(#drawerTGrad)" dot={{ r: 3, fill: "#818cf8", stroke: "#131720", strokeWidth: 2 }} activeDot={{ r: 4, fill: "#818cf8", stroke: "#131720", strokeWidth: 2 }} />
+                  <Area type="monotone" dataKey="balance" stroke="#818cf8" strokeWidth={2} fill="url(#drawerTGrad)" dot={{ r: 3, fill: "#818cf8", stroke: "#10121a", strokeWidth: 2 }} activeDot={{ r: 4, fill: "#818cf8", stroke: "#10121a", strokeWidth: 2 }} />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
@@ -457,7 +457,7 @@ function KPIDetailDrawer({
       />
       {/* Drawer panel */}
       <div
-        className={`fixed inset-y-0 right-0 z-50 flex w-full flex-col bg-[#131720] border-l border-white/[0.07] shadow-2xl transition-transform duration-300 ease-in-out sm:w-[400px] ${isOpen ? "translate-x-0" : "translate-x-full pointer-events-none"}`}
+        className={`fixed inset-y-0 right-0 z-50 flex w-full flex-col bg-[#0c0e14] border-l border-white/[0.07] shadow-2xl transition-transform duration-300 ease-in-out sm:w-[400px] ${isOpen ? "translate-x-0" : "translate-x-full pointer-events-none"}`}
       >
         {cfg && (
           <>
@@ -880,7 +880,7 @@ function WidgetDetailDrawer({
         onClick={onClose}
       />
       <div
-        className={`fixed inset-y-0 right-0 z-50 flex w-full flex-col bg-[#131720] border-l border-white/[0.07] shadow-2xl transition-transform duration-300 ease-in-out sm:w-[400px] ${isOpen ? "translate-x-0" : "translate-x-full pointer-events-none"}`}
+        className={`fixed inset-y-0 right-0 z-50 flex w-full flex-col bg-[#0c0e14] border-l border-white/[0.07] shadow-2xl transition-transform duration-300 ease-in-out sm:w-[400px] ${isOpen ? "translate-x-0" : "translate-x-full pointer-events-none"}`}
       >
         {cfg && (
           <>
@@ -1409,7 +1409,7 @@ export default function Home() {
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
-    <div className="flex h-screen overflow-hidden bg-[#0d1117]">
+    <div className="flex h-screen overflow-hidden bg-[#07090f]">
       <Sidebar
         open={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
@@ -1553,7 +1553,7 @@ export default function Home() {
                     <XAxis dataKey="month" tick={{ fontSize: 10, fill: "#475569" }} axisLine={false} tickLine={false} />
                     <YAxis tick={{ fontSize: 10, fill: "#475569" }} axisLine={false} tickLine={false} tickFormatter={(v: number) => `$${v / 1000}k`} />
                     <Tooltip formatter={(v) => [fmt$(Number(v ?? 0)), "Balance"]} contentStyle={tooltipStyle} cursor={{ stroke: "#818cf8", strokeWidth: 1, strokeDasharray: "4 4" }} />
-                    <Area type="monotone" dataKey="balance" stroke="#818cf8" strokeWidth={2} fill="url(#tGrad)" dot={false} activeDot={{ r: 4, fill: "#818cf8", stroke: "#141925", strokeWidth: 2 }} />
+                    <Area type="monotone" dataKey="balance" stroke="#818cf8" strokeWidth={2} fill="url(#tGrad)" dot={false} activeDot={{ r: 4, fill: "#818cf8", stroke: "#10121a", strokeWidth: 2 }} />
                   </AreaChart>
                 </ResponsiveContainer>
               </ChartWidget>
@@ -1601,7 +1601,7 @@ export default function Home() {
             <div id="sec-brothers" className="grid grid-cols-1 gap-4 xl:grid-cols-3">
 
               {/* Brother Tracking Table */}
-              <Card style={{ background: "linear-gradient(to bottom, #ffffff08 0%, #141925 45%)" }} className="overflow-hidden xl:col-span-2">
+              <Card style={{ background: "linear-gradient(to bottom, #ffffff08 0%, #10121a 45%)" }} className="overflow-hidden xl:col-span-2">
                 <div className="border-b border-white/[0.07] px-5 py-3.5">
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                     <div>
@@ -1696,7 +1696,7 @@ export default function Home() {
               {/* Right panel */}
               <div className="space-y-4 self-start sticky top-5 max-h-[calc(100vh-6rem)] overflow-y-auto">
                 {/* Needs Attention */}
-                <Card style={{ background: "linear-gradient(to bottom, #ef444410 0%, #141925 50%)" }} className="overflow-hidden cursor-pointer hover:border-white/[0.14] transition-colors" onClick={() => setWidgetDrawer("attention")}>
+                <Card style={{ background: "linear-gradient(to bottom, #ef444410 0%, #10121a 50%)" }} className="overflow-hidden cursor-pointer hover:border-white/[0.14] transition-colors" onClick={() => setWidgetDrawer("attention")}>
                   <div className="h-[3px] bg-red-500/70" />
                   <div className="px-4 py-3">
                     <div className="mb-3 flex items-center justify-between">
@@ -1729,7 +1729,7 @@ export default function Home() {
                 </Card>
 
                 {/* Deadlines */}
-                <Card id="sec-deadlines" style={{ background: "linear-gradient(to bottom, #818cf810 0%, #141925 50%)" }} className="overflow-hidden cursor-pointer hover:border-white/[0.14] transition-colors" onClick={() => setWidgetDrawer("deadlines")}>
+                <Card id="sec-deadlines" style={{ background: "linear-gradient(to bottom, #818cf810 0%, #10121a 50%)" }} className="overflow-hidden cursor-pointer hover:border-white/[0.14] transition-colors" onClick={() => setWidgetDrawer("deadlines")}>
                   <div className="flex items-center justify-between border-b border-white/[0.07] px-4 py-3">
                     <h2 className="text-[13px] font-semibold text-white">Deadlines</h2>
                     <div className="flex items-center gap-2">
@@ -1770,7 +1770,7 @@ export default function Home() {
                 </Card>
 
                 {/* Instagram */}
-                <Card id="sec-instagram" style={{ background: "linear-gradient(to bottom, #f472b610 0%, #141925 50%)" }} className="overflow-hidden cursor-pointer hover:border-white/[0.14] transition-colors" onClick={() => setWidgetDrawer("instagram")}>
+                <Card id="sec-instagram" style={{ background: "linear-gradient(to bottom, #f472b610 0%, #10121a 50%)" }} className="overflow-hidden cursor-pointer hover:border-white/[0.14] transition-colors" onClick={() => setWidgetDrawer("instagram")}>
                   <div className="flex items-center justify-between border-b border-white/[0.07] px-4 py-3">
                     <h2 className="text-[13px] font-semibold text-white">Instagram</h2>
                     <div className="flex items-center gap-2">
@@ -1816,7 +1816,7 @@ export default function Home() {
             <div id="sec-parties" className="grid grid-cols-1 gap-4 lg:grid-cols-2">
               <ActivityFeed entries={activityFeed} onExpand={() => setWidgetDrawer("activity")} />
 
-              <Card style={{ background: "linear-gradient(to bottom, #818cf810 0%, #141925 50%)" }} className="overflow-hidden cursor-pointer hover:border-white/[0.14] transition-colors" onClick={() => setWidgetDrawer("parties")}>
+              <Card style={{ background: "linear-gradient(to bottom, #818cf810 0%, #10121a 50%)" }} className="overflow-hidden cursor-pointer hover:border-white/[0.14] transition-colors" onClick={() => setWidgetDrawer("parties")}>
                 <div className="flex items-center justify-between border-b border-white/[0.07] px-5 py-3.5">
                   <div>
                     <h2 className="text-[13px] font-semibold text-white">Party Events</h2>

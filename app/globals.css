@@ -1,9 +1,9 @@
 @import "tailwindcss";
 
 :root {
-  --background: #0d1117;
-  --surface: #141925;
-  --surface-elevated: #1a2032;
+  --background: #07090f;
+  --surface: #10121a;
+  --surface-elevated: #141820;
   --border-subtle: rgba(255, 255, 255, 0.06);
   --border-default: rgba(255, 255, 255, 0.08);
   --border-strong: rgba(255, 255, 255, 0.14);
@@ -46,12 +46,9 @@ table {
 *:hover::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); }
 *::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.18); }
 
-/* Ambient page glow — anchored at top, indigo wash that fades fast */
+/* Flat page background — matches Treasury */
 .page-ambient {
-  background:
-    radial-gradient(ellipse 80% 50% at 50% -10%, rgba(99, 102, 241, 0.06) 0%, transparent 60%),
-    radial-gradient(ellipse 60% 40% at 100% 0%, rgba(168, 85, 247, 0.03) 0%, transparent 50%),
-    #0d1117;
+  background: var(--background);
 }
 
 /* Premium card surface — subtle inner highlight + soft shadow */
@@ -63,9 +60,9 @@ table {
   box-shadow: var(--shadow-elevated), var(--inner-highlight);
 }
 
-/* Frosted toolbar */
+/* Frosted toolbar — matches Treasury header */
 .toolbar-frosted {
-  background: rgba(13, 17, 23, 0.72);
+  background: rgba(7, 9, 15, 0.85);
   backdrop-filter: saturate(140%) blur(12px);
   -webkit-backdrop-filter: saturate(140%) blur(12px);
 }

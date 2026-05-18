@@ -30,7 +30,7 @@ function LoginContent() {
   }
 
   return (
-    <div className="relative min-h-screen flex items-center justify-center overflow-hidden bg-[#0d1117]">
+    <div className="relative min-h-screen flex items-center justify-center overflow-hidden bg-[#07090f]">
 
       {/* Ambient background glows */}
       <div className="pointer-events-none absolute inset-0">
@@ -58,7 +58,7 @@ function LoginContent() {
         <div className="absolute -inset-px rounded-2xl bg-gradient-to-b from-indigo-500/20 via-indigo-500/5 to-transparent blur-sm" />
 
         <div
-          className="relative rounded-2xl border border-white/[0.08] bg-[#141925]/90 backdrop-blur-xl px-8 py-10 flex flex-col gap-8"
+          className="relative rounded-2xl border border-white/[0.08] bg-[#10121a]/90 backdrop-blur-xl px-8 py-10 flex flex-col gap-8"
           style={{ boxShadow: "0 4px 6px rgba(0,0,0,0.4), 0 24px 60px -20px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.05)" }}
         >
           {/* Header */}
@@ -104,7 +104,7 @@ function LoginContent() {
             <button
               onClick={handleGoogleSignIn}
               disabled={loading}
-              className="group relative w-full overflow-hidden rounded-xl px-4 py-3 text-[14px] font-semibold transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#141925]"
+              className="group relative w-full overflow-hidden rounded-xl px-4 py-3 text-[14px] font-semibold transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#10121a]"
               style={{
                 background: loading
                   ? "rgba(99,102,241,0.7)"

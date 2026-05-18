@@ -114,6 +114,7 @@ export function BrotherDrawer({
       attendance:   brother.attendance,
     });
     setDirty(false);
+    onClose();
   }
 
   function handleQuickPayDues() {
@@ -244,7 +245,7 @@ export function BrotherDrawer({
       />
       {/* Panel */}
       <div
-        className={`fixed inset-y-0 right-0 z-50 flex w-full flex-col bg-[#131720] border-l border-white/[0.07] shadow-2xl transition-transform duration-300 ease-in-out sm:w-[420px] ${isOpen ? "translate-x-0" : "translate-x-full pointer-events-none"}`}
+        className={`fixed inset-y-0 right-0 z-50 flex w-full flex-col bg-[#0c0e14] border-l border-white/[0.07] shadow-2xl transition-transform duration-300 ease-in-out sm:w-[420px] ${isOpen ? "translate-x-0" : "translate-x-full pointer-events-none"}`}
       >
         {brother && (
           <>
