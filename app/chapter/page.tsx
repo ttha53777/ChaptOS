@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { Sidebar } from "../components/Sidebar";
 import { UserAvatar } from "../components/UserAvatar";
 import { Modal, FieldLabel, ConfirmDialog } from "../components/dashboard/primitives";
@@ -9,12 +9,16 @@ import { CalendarEvent, fmtDate } from "../data";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+type HttpError = Error & { status: number };
+
 async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, init);
   if (!res.ok) {
     let detail = "";
     try { const b = await res.json(); detail = typeof b?.error === "string" ? `: ${b.error}` : ""; } catch { /* ignore */ }
-    throw new Error(`${url} returned ${res.status}${detail}`);
+    const err = new Error(`${url} returned ${res.status}${detail}`) as HttpError;
+    err.status = res.status;
+    throw err;
   }
   if (res.status === 204) return undefined as T;
   return res.json() as Promise<T>;
@@ -228,19 +232,28 @@ export default function ChapterPage() {
   const [deleteTarget,  setDeleteTarget]  = useState<CalendarEvent | null>(null);
 
   const timers = useRef<Record<number, ReturnType<typeof setTimeout>>>({});
+  const saveResetTimers = useRef<Record<number, ReturnType<typeof setTimeout>>>({});
   const savedValues = useRef<Record<number, string>>({});
 
   // ── Fetch ────────────────────────────────────────────────────────────────────
   useEffect(() => {
-    requestJson<CalendarEvent[]>("/api/calendar")
-      .then(all => {
-        const meetings = all.filter(e => e.category === "chapter");
+    requestJson<CalendarEvent[]>("/api/calendar?category=chapter")
+      .then(meetings => {
         setEvents(meetings);
-        // seed savedValues so autosave can guard against no-op PATCHes
         meetings.forEach(e => { savedValues.current[e.id] = e.description ?? ""; });
       })
       .catch(() => setLoadError("Could not load meetings. Please refresh."))
       .finally(() => setLoading(false));
+  }, []);
+
+  // ── Cleanup pending timers on unmount ────────────────────────────────────────
+  useEffect(() => {
+    const t = timers.current;
+    const sr = saveResetTimers.current;
+    return () => {
+      Object.values(t).forEach(clearTimeout);
+      Object.values(sr).forEach(clearTimeout);
+    };
   }, []);
 
   // ── Autosave ─────────────────────────────────────────────────────────────────
@@ -257,7 +270,8 @@ export default function ChapterPage() {
       savedValues.current[id] = value;
       setEvents(prev => prev.map(e => e.id === id ? { ...e, description: value } : e));
       setSaveState(s => ({ ...s, [id]: "saved" }));
-      setTimeout(() => setSaveState(s => ({ ...s, [id]: "idle" })), 2000);
+      clearTimeout(saveResetTimers.current[id]);
+      saveResetTimers.current[id] = setTimeout(() => setSaveState(s => ({ ...s, [id]: "idle" })), 2000);
     } catch {
       setSaveState(s => ({ ...s, [id]: "error" }));
     }
@@ -342,15 +356,22 @@ export default function ChapterPage() {
       await requestJson<void>(`/api/calendar/${id}`, { method: "DELETE" });
       setEvents(prev => prev.filter(e => e.id !== id));
       if (expandedId === id) setExpandedId(null);
+      setNotesDraft(d => { const c = { ...d }; delete c[id]; return c; });
+      setSaveState(s => { const c = { ...s }; delete c[id]; return c; });
+      clearTimeout(timers.current[id]);
+      clearTimeout(saveResetTimers.current[id]);
+      delete timers.current[id];
+      delete saveResetTimers.current[id];
+      delete savedValues.current[id];
     } catch (err) {
-      const msg = err instanceof Error && err.message.includes("409")
+      const is409 = err instanceof Error && (err as HttpError).status === 409;
+      setDeleteError(is409
         ? "This meeting has attendance records and cannot be deleted."
-        : "Failed to delete meeting.";
-      setDeleteError(msg);
+        : "Failed to delete meeting.");
     }
   }
 
-  const sorted = sortedMeetings(events);
+  const sorted = useMemo(() => sortedMeetings(events), [events]);
 
   return (
     <div className="flex h-screen overflow-hidden bg-[#07090f]">
