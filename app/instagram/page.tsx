@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import { useState, useMemo } from "react";
 import { Sidebar } from "../components/Sidebar";
 import { UserAvatar } from "../components/UserAvatar";
 import { Modal } from "../components/dashboard/primitives";
@@ -19,11 +19,11 @@ const MONTH_NAMES = [
 ];
 const DAY_LABELS = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 
-const STATUS_META: Record<TaskStatus, { label: string; accent: string; dot: string; chip: string; bar: string }> = {
-  Urgent:    { label: "Urgent",    accent: "bg-red-500",    dot: "bg-red-400",    chip: "bg-red-500/15 text-red-400 ring-red-500/25",    bar: "border-l-red-500"    },
-  "Due Soon":{ label: "Due Soon",  accent: "bg-amber-500",  dot: "bg-amber-400",  chip: "bg-amber-500/15 text-amber-400 ring-amber-500/25",  bar: "border-l-amber-500"  },
-  Upcoming:  { label: "Upcoming",  accent: "bg-slate-500",  dot: "bg-slate-400",  chip: "bg-slate-500/15 text-slate-400 ring-slate-500/25",  bar: "border-l-slate-500"  },
-  Complete:  { label: "Complete",  accent: "bg-emerald-500",dot: "bg-emerald-400",chip: "bg-emerald-500/15 text-emerald-400 ring-emerald-500/25", bar: "border-l-emerald-500" },
+const STATUS_META: Record<TaskStatus, { label: string; accent: string; dot: string }> = {
+  Urgent:    { label: "Urgent",   accent: "bg-red-500",     dot: "bg-red-400"     },
+  "Due Soon":{ label: "Due Soon", accent: "bg-amber-500",   dot: "bg-amber-400"   },
+  Upcoming:  { label: "Upcoming", accent: "bg-slate-500",   dot: "bg-slate-400"   },
+  Complete:  { label: "Complete", accent: "bg-emerald-500", dot: "bg-emerald-400" },
 };
 
 const TYPE_META: Record<string, string> = {
@@ -201,7 +201,7 @@ function ListView({
             >
               <span className={`h-2 w-2 shrink-0 rounded-full ${s.dot}`} />
               <span className="text-[13px] font-bold text-white">{s.label}</span>
-              <span className={`rounded-full px-2 py-0.5 text-[9px] font-semibold tabular-nums ring-1 ring-inset ${s.chip}`}>
+              <span className="rounded-full px-2 py-0.5 text-[9px] font-semibold tabular-nums ring-1 ring-inset bg-white/[0.06] text-slate-400 ring-white/[0.1]">
                 {bucket.length}
               </span>
               <div className="flex-1 border-t border-white/[0.06]" />
@@ -389,15 +389,9 @@ export default function InstagramPage() {
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [activeView,  setActiveView]  = useState<"list" | "calendar">("list");
-  const [activeStatus, setActiveStatus] = useState<TaskStatus | "all">("all");
   const [modal, setModal] = useState<"create" | "edit" | null>(null);
   const [editingTask, setEditingTask] = useState<InstagramTask | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<InstagramTask | null>(null);
-
-  const filtered = useMemo(() =>
-    activeStatus === "all" ? igTaskList : igTaskList.filter(t => t.status === activeStatus),
-    [igTaskList, activeStatus]
-  );
 
   const urgentCount = igTaskList.filter(t => t.status === "Urgent").length;
 
@@ -467,13 +461,12 @@ export default function InstagramPage() {
       <div className="flex flex-1 flex-col overflow-hidden">
 
         {/* ── Header ────────────────────────────────────────────────────────── */}
-        <header className="relative flex h-16 shrink-0 items-center gap-3 overflow-hidden border-b border-white/[0.07] bg-[#0d1117] px-4">
-          <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-pink-500/[0.04] via-transparent to-transparent" />
+        <header className="toolbar-frosted relative z-10 flex h-14 shrink-0 items-center gap-3 border-b border-white/[0.05] px-4 sm:px-6">
 
           {/* Mobile menu */}
           <button
             onClick={() => setSidebarOpen(true)}
-            className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-white/[0.06] hover:text-white lg:hidden"
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-white/[0.07] lg:hidden"
           >
             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
@@ -482,8 +475,8 @@ export default function InstagramPage() {
 
           {/* Title */}
           <div className="relative min-w-0 shrink-0">
-            <p className="text-[18px] font-bold leading-tight text-white">Instagram</p>
-            <p className="hidden text-[11px] leading-tight text-slate-500 sm:block">
+            <p className="text-[14px] font-semibold leading-tight text-white">Instagram</p>
+            <p className="hidden text-[11px] leading-tight text-slate-400 sm:block">
               {igTaskList.length} post{igTaskList.length !== 1 ? "s" : ""}{urgentCount > 0 ? ` · ${urgentCount} urgent` : ""}
             </p>
           </div>
@@ -505,35 +498,10 @@ export default function InstagramPage() {
             ))}
           </div>
 
-          {/* Status filter chips — hidden on mobile */}
-          <div className="hidden flex-1 items-center gap-1.5 overflow-x-auto lg:flex">
-            {(["all", ...STATUS_ORDER] as const).map(s => {
-              const count = s === "all" ? igTaskList.length : igTaskList.filter(t => t.status === s).length;
-              const isActive = activeStatus === s;
-              const meta = s !== "all" ? STATUS_META[s] : null;
-              return (
-                <button
-                  key={s}
-                  onClick={() => setActiveStatus(s)}
-                  className={`flex shrink-0 cursor-pointer items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11px] font-semibold transition-all duration-150 ${
-                    isActive
-                      ? meta
-                        ? `${meta.chip} border-current/40 shadow-sm ring-1 ring-inset`
-                        : "border-white/20 bg-white/[0.08] text-white shadow-sm"
-                      : "border-transparent text-slate-500 hover:border-white/[0.08] hover:bg-white/[0.04] hover:text-slate-300"
-                  }`}
-                >
-                  {s === "all" ? "All" : s}
-                  <span className={`rounded-full px-1.5 py-px text-[9px] font-bold tabular-nums ${
-                    isActive ? "bg-white/[0.2] text-white" : "bg-white/[0.05] text-slate-600"
-                  }`}>{count}</span>
-                </button>
-              );
-            })}
-          </div>
+          <div className="flex-1" />
 
           {/* CTA + avatar */}
-          <div className="relative ml-auto flex shrink-0 items-center gap-2">
+          <div className="relative flex shrink-0 items-center gap-2">
             <button
               onClick={() => { setEditingTask(null); setModal("create"); }}
               className="inline-flex items-center gap-1.5 rounded-lg bg-pink-600 px-3.5 py-2 text-[12px] font-semibold text-white transition-colors hover:bg-pink-500 shadow-sm"
@@ -547,43 +515,19 @@ export default function InstagramPage() {
           </div>
         </header>
 
-        {/* Mobile status chips */}
-        <div className="flex gap-1.5 overflow-x-auto border-b border-white/[0.05] bg-[#0a0d14] px-4 py-2 lg:hidden">
-          {(["all", ...STATUS_ORDER] as const).map(s => {
-            const count = s === "all" ? igTaskList.length : igTaskList.filter(t => t.status === s).length;
-            const isActive = activeStatus === s;
-            return (
-              <button
-                key={s}
-                onClick={() => setActiveStatus(s)}
-                className={`flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1 text-[11px] font-semibold transition-all duration-150 ${
-                  isActive
-                    ? "border-white/20 bg-white/[0.08] text-white shadow-sm"
-                    : "border-transparent text-slate-500 hover:border-white/[0.08] hover:bg-white/[0.04] hover:text-slate-300"
-                }`}
-              >
-                {s === "all" ? "All" : s}
-                <span className={`rounded-full px-1.5 py-px text-[9px] font-bold tabular-nums ${
-                  isActive ? "bg-white/[0.2] text-white" : "bg-white/[0.05] text-slate-600"
-                }`}>{count}</span>
-              </button>
-            );
-          })}
-        </div>
-
         {/* ── Body ──────────────────────────────────────────────────────────── */}
         <div className="flex-1 overflow-y-auto px-6 py-6">
           <div className="mx-auto max-w-3xl">
             {activeView === "list" ? (
               <ListView
-                tasks={filtered}
+                tasks={igTaskList}
                 onEdit={openEdit}
                 onDelete={setDeleteTarget}
                 onComplete={handleComplete}
               />
             ) : (
               <CalendarView
-                tasks={filtered}
+                tasks={igTaskList}
                 onEdit={openEdit}
               />
             )}
