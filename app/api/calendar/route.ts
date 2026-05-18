@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth/require-user";
+import type { Prisma } from "../../generated/prisma/client";
 
 const CALENDAR_CATEGORIES = ["chapter", "social", "fundy", "program", "party", "deadline"] as const;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -29,6 +30,10 @@ function validateCalendarBody(body: Record<string, unknown>) {
     return { error: "Mandatory must be a boolean" };
   }
 
+  if (category === "chapter" && !body.mandatory) {
+    return { error: "Chapter events must be mandatory" };
+  }
+
   return {
     data: {
       title,
@@ -42,11 +47,20 @@ function validateCalendarBody(body: Record<string, unknown>) {
   };
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const user = await requireUser();
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
   try {
-    const events = await prisma.calendarEvent.findMany({ orderBy: { id: "asc" } });
+    const { searchParams } = new URL(req.url);
+    const categoryParam = searchParams.get("category");
+    const where: Prisma.CalendarEventWhereInput =
+      categoryParam && CALENDAR_CATEGORIES.includes(categoryParam as typeof CALENDAR_CATEGORIES[number])
+        ? { category: categoryParam }
+        : {};
+    const events = await prisma.calendarEvent.findMany({
+      where,
+      orderBy: [{ date: "desc" }, { id: "desc" }],
+    });
     return Response.json(events);
   } catch (e) {
     console.error("GET /api/calendar failed:", e);
