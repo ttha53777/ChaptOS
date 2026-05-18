@@ -374,8 +374,8 @@ function EventCard({
           selected
             ? `${m.border} ${m.cardBg} shadow-lg ring-1 ${m.ring}`
             : isPast
-            ? "border-white/[0.04] bg-[#0f1520] hover:border-white/[0.08] hover:bg-[#121824] hover:shadow-md"
-            : "border-white/[0.07] bg-[#141925] hover:border-white/[0.12] hover:bg-[#1a2033] hover:shadow-lg"
+            ? "border-white/[0.04] bg-[#0c0e14] hover:border-white/[0.08] hover:bg-[#10121a] hover:shadow-md"
+            : "border-white/[0.07] bg-[#10121a] hover:border-white/[0.12] hover:bg-[#141820] hover:shadow-lg"
         }`}
       >
         {/* Left accent bar */}
@@ -945,7 +945,7 @@ function RightPanel({
   const totalCat = catCounts.reduce((s, c) => s + c.count, 0) || 1;
 
   return (
-    <aside className="hidden w-64 shrink-0 flex-col overflow-y-auto border-l border-white/[0.07] bg-[#0a0d14]/60 px-4 py-5 lg:flex gap-5">
+    <aside className="hidden w-64 shrink-0 flex-col overflow-y-auto border-l border-white/[0.07] bg-[#07090f]/80 px-4 py-5 lg:flex gap-5">
       {selectedEvent ? (
         <EventDetail
           event={selectedEvent}
@@ -1168,7 +1168,7 @@ export default function TimelinePage() {
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#0d1117]">
+    <div className="flex h-screen overflow-hidden bg-[#07090f]">
       <Sidebar
         open={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
@@ -1230,19 +1230,19 @@ export default function TimelinePage() {
           <div className="relative ml-auto flex items-center gap-2">
             <button
               onClick={() => setActiveModal("create")}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3.5 py-2 text-[12px] font-semibold text-white transition-colors hover:bg-indigo-500 shadow-sm shadow-indigo-900/40"
+              className="flex h-8 items-center gap-1.5 rounded-full border border-indigo-500/20 bg-white/[0.04] px-4 text-[12px] font-semibold text-indigo-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_8px_24px_-18px_rgba(99,102,241,0.45)] transition-all hover:border-indigo-400/35 hover:bg-indigo-500/[0.08] hover:text-white"
             >
-              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <svg className="h-3.5 w-3.5 shrink-0 text-indigo-300" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
               </svg>
-              Event
+              <span className="hidden sm:inline">Add Event</span>
             </button>
             <UserAvatar />
           </div>
         </header>
 
         {/* Mobile layer pills strip */}
-        <div className="flex gap-1.5 overflow-x-auto border-b border-white/[0.05] bg-[#0a0d14] px-4 py-2 lg:hidden">
+        <div className="flex gap-1.5 overflow-x-auto border-b border-white/[0.05] bg-[#07090f] px-4 py-2 lg:hidden">
           {LAYERS.map(layer => {
             const active = activeLayer === layer.id;
             const count  = filterByLayer(allEvents, layer.id).length;

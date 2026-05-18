@@ -118,7 +118,7 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#0d1117]">
+    <div className="flex h-screen overflow-hidden bg-[#07090f]">
       {/* Main app sidebar — unchanged */}
       <Sidebar
         open={sidebarOpen}
@@ -133,7 +133,7 @@ export default function SettingsPage() {
         {/* ── Settings left nav (lg+: always visible, <lg: hidden) ── */}
         <nav
           aria-label="Settings navigation"
-          className="hidden lg:flex w-[230px] shrink-0 flex-col border-r border-white/[0.05] bg-[#0d1117] px-3 py-5"
+          className="hidden lg:flex w-[230px] shrink-0 flex-col border-r border-white/[0.05] bg-[#07090f] px-3 py-5"
         >
           {GROUPS.map(group => {
             const items = NAV_ITEMS.filter(n => n.group === group);
@@ -192,7 +192,7 @@ export default function SettingsPage() {
 
           {/* Mobile nav dropdown */}
           {mobileNavOpen && (
-            <div className="relative z-20 border-b border-white/[0.06] bg-[#0d1117] px-3 py-3 lg:hidden">
+            <div className="relative z-20 border-b border-white/[0.06] bg-[#07090f] px-3 py-3 lg:hidden">
               <div className="flex flex-wrap gap-1">
                 {NAV_ITEMS.map(item => (
                   <button

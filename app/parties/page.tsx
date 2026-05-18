@@ -51,7 +51,7 @@ const WRAP_FORM_EMPTY = {
 
 function SummaryCard({ label, value, sub, accent }: { label: string; value: string; sub?: string; accent: string }) {
   return (
-    <div className="card-premium rounded-xl border border-white/[0.06] bg-[#141925] px-4 py-3.5 flex flex-col gap-0.5">
+    <div className="card-premium rounded-xl border border-white/[0.06] bg-[#10121a] px-4 py-3.5 flex flex-col gap-0.5">
       <p className="text-[10px] font-semibold uppercase tracking-[0.07em] text-slate-500">{label}</p>
       <p className={`text-[22px] font-bold leading-none tracking-tight tabular-nums ${accent}`}>{value}</p>
       {sub && <p className="text-[11px] text-slate-500 mt-0.5">{sub}</p>}
@@ -566,7 +566,7 @@ export default function PartiesPage() {
 
   // ── render ────────────────────────────────────────────────────────────────────
   return (
-    <div className="flex h-screen overflow-hidden bg-[#0d1117]">
+    <div className="flex h-screen overflow-hidden bg-[#07090f]">
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} activeSection="Events" onNavClick={() => {}} />
 
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
@@ -653,7 +653,7 @@ export default function PartiesPage() {
             <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
 
               {/* table */}
-              <Card className="overflow-hidden xl:col-span-2" style={{ background: "linear-gradient(to bottom,#ffffff08 0%,#141925 45%)" }}>
+              <Card className="overflow-hidden xl:col-span-2" style={{ background: "linear-gradient(to bottom,#ffffff08 0%,#10121a 45%)" }}>
                 <div className="border-b border-white/[0.07] px-5 py-3.5">
                   <h2 className="text-[14px] font-semibold text-white">
                     {timeTab === "Upcoming" ? "Upcoming Parties" : timeTab === "Past" ? "Past Parties" : "All Parties"}

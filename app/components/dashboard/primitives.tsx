@@ -26,7 +26,7 @@ export function Card({ children, className = "", id, onClick, style }: {
   style?: React.CSSProperties;
 }) {
   return (
-    <div id={id} onClick={onClick} style={style} className={`card-premium rounded-2xl border border-white/[0.06] bg-[#141925] ${className}`}>
+    <div id={id} onClick={onClick} style={style} className={`card-premium rounded-2xl border border-white/[0.06] bg-[#10121a] ${className}`}>
       {children}
     </div>
   );
@@ -46,7 +46,7 @@ export function Modal({ title, onClose, children }: {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/70 backdrop-blur-md" onClick={onClose} />
-      <div className="card-premium-elevated relative w-full max-w-md rounded-2xl border border-white/[0.08] bg-[#141925]">
+      <div className="card-premium-elevated relative w-full max-w-md rounded-2xl border border-white/[0.08] bg-[#10121a]">
         <div className="flex items-center justify-between border-b border-white/[0.07] px-6 py-4">
           <h3 className="text-[15px] font-semibold text-white">{title}</h3>
           <button onClick={onClose} className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-500 hover:bg-white/[0.08] hover:text-white transition-colors">
