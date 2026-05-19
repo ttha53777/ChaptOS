@@ -120,7 +120,6 @@ export function BrotherDrawer({
   function handleQuickPayDues() {
     if (!brother) return;
     onPayDues(brother);
-    setDuesOwed("0");
   }
 
   function handleAddHoursSubmit(e: React.FormEvent) {
