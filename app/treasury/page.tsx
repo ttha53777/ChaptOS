@@ -13,7 +13,7 @@ import { Modal, FieldLabel } from "../components/dashboard/primitives";
 import { inputCls } from "../components/dashboard/styles";
 import { useChapter } from "../context/ChapterContext";
 import {
-  Transaction, PartyEvent,
+  Transaction, PartyEvent, Brother,
   INCOME_CATEGORIES, EXPENSE_CATEGORIES, PAYMENT_METHODS,
   fmt$, fmtDate,
 } from "../data";
@@ -420,7 +420,7 @@ function catColor(name: string, index: number): string {
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function TreasuryPage() {
-  const { treasuryData, transactionList, setTransactionList, partyList, setPartyList } = useChapter();
+  const { treasuryData, transactionList, setTransactionList, partyList, setPartyList, brotherList, setBrotherList } = useChapter();
 
   const [sidebarOpen,   setSidebarOpen]   = useState(false);
   const [semester,      setSemester]      = useState(CURRENT_SEMESTER);
@@ -432,6 +432,9 @@ export default function TreasuryPage() {
   const [partyModal,    setPartyModal]    = useState<PartyModal>(null);
   const [deleteModal,   setDeleteModal]   = useState<{ kind: "tx"; tx: Transaction } | { kind: "party"; event: PartyEvent } | null>(null);
   const [mutErr,        setMutErr]        = useState<string | null>(null);
+  const [duesTarget,    setDuesTarget]    = useState<Brother | null>(null);
+  const [duesAction,    setDuesAction]    = useState<"assign" | "deduct">("deduct");
+  const [duesAmountStr, setDuesAmountStr] = useState("");
 
   // ── Derived data ─────────────────────────────────────────────────────────────
 
@@ -521,6 +524,11 @@ export default function TreasuryPage() {
   const latest5 = useMemo(
     () => transactionList.filter(t => !t.deletedAt).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5),
     [transactionList]
+  );
+
+  const brothersOwing = useMemo(
+    () => [...brotherList].sort((a, b) => b.duesOwed - a.duesOwed),
+    [brotherList]
   );
 
   // Upcoming: future-dated transactions + upcoming party events
@@ -639,6 +647,26 @@ export default function TreasuryPage() {
   function handleExport() {
     const url = semester ? `/api/transactions/export?semester=${semester}` : "/api/transactions/export";
     window.location.href = url;
+  }
+
+  function submitDuesAction() {
+    if (!duesTarget) return;
+    const amount = Math.max(0, parseFloat(duesAmountStr) || 0);
+    if (amount === 0) return;
+    const newOwed = duesAction === "assign"
+      ? duesTarget.duesOwed + amount
+      : Math.max(0, duesTarget.duesOwed - amount);
+    const b = duesTarget;
+    setDuesTarget(null);
+    setDuesAmountStr("");
+    setBrotherList(prev => prev.map(x => x.id === b.id ? { ...x, duesOwed: newOwed } : x));
+    requestJson<Brother>(`/api/brothers/${b.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ duesOwed: newOwed }),
+    }).catch(() => {
+      setBrotherList(prev => prev.map(x => x.id === b.id ? b : x));
+    });
   }
 
   // ─── Render ───────────────────────────────────────────────────────────────
@@ -1010,38 +1038,50 @@ export default function TreasuryPage() {
             {/* ── Bottom row: Latest, Upcoming, Reports ── Overview only ────── */}
             {navTab === "Overview" && <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-12">
 
-              {/* ── Latest Transactions ───────────────────────────────────── */}
+              {/* ── Brothers with Dues ───────────────────────────────────── */}
               <FinanceCard className="lg:col-span-5">
                 <div className="flex items-center justify-between border-b border-white/[0.05] px-5 py-4">
-                  <h2 className="text-[14px] font-semibold text-white">Latest Transactions</h2>
-                  <Link href="/treasury/transactions" className="text-[11px] text-slate-500 hover:text-indigo-400 transition-colors">View all</Link>
+                  <div>
+                    <h2 className="text-[14px] font-semibold text-white">Brothers with Dues</h2>
+                    <p className="mt-0.5 text-[11px] text-slate-500">
+                      {brotherList.filter(b => b.duesOwed > 0).length} owing · {fmt$(brotherList.reduce((s, b) => s + b.duesOwed, 0))} total
+                    </p>
+                  </div>
                 </div>
-                {latest5.length === 0 ? (
+                {brothersOwing.length === 0 ? (
                   <div className="px-5 py-8 text-center">
-                    <p className="text-[12px] text-slate-600">No transactions yet</p>
+                    <p className="text-[12px] text-slate-600">No brothers yet</p>
                   </div>
                 ) : (
-                  <div className="divide-y divide-white/[0.04]">
-                    {latest5.map(t => (
-                      <div key={t.id} className="group flex items-center gap-3 px-5 py-3 transition-colors hover:bg-white/[0.02]">
-                        {/* Color blob */}
-                        <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[12px] font-bold ${
-                          t.type === "income" ? "bg-emerald-500/15 text-emerald-400" : "bg-red-500/15 text-red-400"
-                        }`}>
-                          {t.category.slice(0, 2).toUpperCase()}
+                  <div className="max-h-[280px] overflow-y-auto divide-y divide-white/[0.04]">
+                    {brothersOwing.map(b => (
+                      <div key={b.id} className="flex items-center gap-3 px-5 py-3 transition-colors hover:bg-white/[0.02]">
+                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/[0.06] text-[11px] font-bold text-slate-400">
+                          {b.name.split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase()}
                         </div>
                         <div className="min-w-0 flex-1">
-                          <p className="truncate text-[13px] font-medium text-slate-200">{t.description || t.category}</p>
-                          <p className="text-[10px] text-slate-500">{fmtDate(t.date)} · {t.category}</p>
+                          <p className="text-[13px] font-medium text-slate-200">{b.name}</p>
+                          <p className="text-[10px] text-slate-500">{b.role}</p>
                         </div>
-                        <div className="shrink-0 text-right">
-                          <p className={`text-[14px] font-semibold tabular-nums ${t.type === "income" ? "text-emerald-400" : "text-red-400"}`}>
-                            {t.type === "income" ? "+" : "-"}{fmt$(t.amount)}
-                          </p>
-                        </div>
-                        <div className="hidden items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 sm:flex">
-                          <IconBtn path={ICON_EDIT}  label="Edit"   onClick={() => setTxModal({ kind: "editTx", tx: t })}     className="text-slate-600 hover:bg-indigo-500/20 hover:text-indigo-400" />
-                          <IconBtn path={ICON_TRASH} label="Delete" onClick={() => setDeleteModal({ kind: "tx", tx: t })}     className="text-slate-600 hover:bg-red-500/20 hover:text-red-400" />
+                        {b.duesOwed > 0
+                          ? <span className="shrink-0 tabular-nums text-[14px] font-semibold text-amber-400">{fmt$(b.duesOwed)}</span>
+                          : <span className="shrink-0 tabular-nums text-[13px] text-slate-600">—</span>
+                        }
+                        <div className="flex items-center gap-1">
+                          {b.duesOwed > 0 && (
+                            <button
+                              onClick={() => { setDuesTarget(b); setDuesAction("deduct"); setDuesAmountStr(String(b.duesOwed)); }}
+                              className="rounded-md bg-indigo-500/15 px-2 py-1 text-[11px] font-semibold text-indigo-400 ring-1 ring-inset ring-indigo-500/25 hover:bg-indigo-500/25 transition-colors"
+                            >
+                              Pay
+                            </button>
+                          )}
+                          <button
+                            onClick={() => { setDuesTarget(b); setDuesAction("assign"); setDuesAmountStr(""); }}
+                            className="rounded-md bg-white/[0.05] px-2 py-1 text-[11px] font-semibold text-slate-400 ring-1 ring-inset ring-white/[0.08] hover:bg-white/[0.10] transition-colors"
+                          >
+                            + Add
+                          </button>
                         </div>
                       </div>
                     ))}
@@ -1366,6 +1406,63 @@ export default function TreasuryPage() {
             onConfirm={() => deleteModal.kind === "tx" ? handleDeleteTx(deleteModal.tx) : handleDeleteParty(deleteModal.event)}
             onCancel={() => setDeleteModal(null)}
           />
+        </Modal>
+      )}
+
+      {duesTarget && (
+        <Modal
+          title={duesAction === "deduct" ? "Record Payment" : "Assign Dues"}
+          onClose={() => setDuesTarget(null)}
+        >
+          <div className="space-y-4">
+            <div>
+              <p className="text-[12px] text-slate-400 mb-3">
+                {duesTarget.name} currently owes{" "}
+                <span className="font-semibold text-amber-400">{fmt$(duesTarget.duesOwed)}</span>
+              </p>
+              <FieldLabel>{duesAction === "deduct" ? "Amount Paid ($)" : "Amount to Assign ($)"}</FieldLabel>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                className={inputCls}
+                value={duesAmountStr}
+                onChange={e => setDuesAmountStr(e.target.value)}
+                autoFocus
+                onKeyDown={e => { if (e.key === "Enter") submitDuesAction(); }}
+              />
+              {(() => {
+                const amt = parseFloat(duesAmountStr) || 0;
+                if (amt <= 0) return null;
+                const newOwed = duesAction === "assign"
+                  ? duesTarget.duesOwed + amt
+                  : Math.max(0, duesTarget.duesOwed - amt);
+                return (
+                  <p className="mt-1.5 text-[11px] text-slate-500">
+                    New balance:{" "}
+                    <span className={newOwed === 0 ? "text-indigo-400 font-semibold" : "text-slate-300"}>
+                      {fmt$(newOwed)}
+                    </span>
+                  </p>
+                );
+              })()}
+            </div>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setDuesTarget(null)}
+                className="rounded-lg border border-white/[0.08] px-4 py-1.5 text-[13px] text-slate-400 hover:border-white/[0.16] hover:text-white transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={submitDuesAction}
+                disabled={!(parseFloat(duesAmountStr) > 0)}
+                className="rounded-lg bg-indigo-600 px-4 py-1.5 text-[13px] font-semibold text-white hover:bg-indigo-500 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {duesAction === "deduct" ? "Record Payment" : "Assign Dues"}
+              </button>
+            </div>
+          </div>
         </Modal>
       )}
     </div>
