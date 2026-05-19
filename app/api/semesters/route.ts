@@ -6,8 +6,13 @@ export async function GET() {
   const user = await requireUser();
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
-  const semesters = await prisma.semester.findMany({ orderBy: { id: "desc" } });
-  return Response.json(semesters);
+  try {
+    const semesters = await prisma.semester.findMany({ orderBy: { id: "desc" } });
+    return Response.json(semesters);
+  } catch (e) {
+    console.error("GET /api/semesters failed:", e);
+    return Response.json({ error: "Failed to fetch semesters" }, { status: 500 });
+  }
 }
 
 export async function POST(req: NextRequest) {

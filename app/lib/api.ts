@@ -1,5 +1,6 @@
 export async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(url, init);
+  const signal = init?.signal ?? AbortSignal.timeout(15_000);
+  const response = await fetch(url, { ...init, signal });
   if (!response.ok) {
     let detail = "";
     try {
@@ -11,5 +12,9 @@ export async function requestJson<T>(url: string, init?: RequestInit): Promise<T
     throw new Error(`${url} returned ${response.status}${detail}`);
   }
   if (response.status === 204) return undefined as T;
-  return response.json() as Promise<T>;
+  try {
+    return await (response.json() as Promise<T>);
+  } catch {
+    throw new Error(`${url} returned non-JSON response`);
+  }
 }

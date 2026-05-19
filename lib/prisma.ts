@@ -19,10 +19,19 @@ function clientSupportsCurrentSchema(client: PrismaClient | undefined): boolean 
 }
 
 // Reuse pool and client across hot-reloads in dev; create once in prod
-const pool = globalThis._pgPool ?? new Pool({ connectionString: process.env.DATABASE_URL! });
+const pool = globalThis._pgPool ?? new Pool({
+  connectionString:        process.env.DATABASE_URL!,
+  connectionTimeoutMillis: 5_000,   // fail fast instead of hanging when DB is unreachable
+  idleTimeoutMillis:       30_000,  // release idle connections promptly on Vercel
+  max:                     10,      // stay under Supabase free-tier connection limit
+});
 
 // Pre-warm the connection so the first real request doesn't pay the cold-start penalty
-if (!globalThis._pgPool) pool.query("SELECT 1").catch(() => undefined);
+if (!globalThis._pgPool) {
+  pool.query("SELECT 1").catch(() => undefined);
+  // Drain the pool on graceful shutdown so in-flight queries finish cleanly
+  process.once("SIGTERM", () => { pool.end().catch(() => undefined); });
+}
 const adapter = new PrismaPg(pool);
 const cachedPrisma = globalThis._prisma;
 

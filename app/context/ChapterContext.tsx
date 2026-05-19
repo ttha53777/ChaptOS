@@ -45,7 +45,11 @@ async function fetchJson<T>(url: string): Promise<T> {
   if (!response.ok) {
     throw new Error(`${url} returned ${response.status}`);
   }
-  return response.json() as Promise<T>;
+  try {
+    return await (response.json() as Promise<T>);
+  } catch {
+    throw new Error(`${url} returned non-JSON response`);
+  }
 }
 
 export function ChapterProvider({ children }: { children: React.ReactNode }) {
