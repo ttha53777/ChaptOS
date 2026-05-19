@@ -112,6 +112,15 @@ model CalendarEvent {
   @@index([category, date])
 }
 
+model ServiceEvent {
+  id        Int      @id @default(autoincrement())
+  title     String
+  date      String
+  location  String   @default("")
+  notes     String   @default("")
+  createdAt DateTime @default(now())
+}
+
 model ActivityLog {
   id        Int      @id @default(autoincrement())
   message   String
