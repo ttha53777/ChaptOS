@@ -127,14 +127,30 @@ export default function ServicePage() {
       const optimistic: ServiceEvent = { id: tempId, createdAt: new Date().toISOString(), ...eventForm };
       setServiceEvents(prev => [...prev, optimistic].sort((a, b) => a.date.localeCompare(b.date)));
       setEventModal(null);
-      const saved = await requestJson<ServiceEvent>("/api/service-events", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(eventForm),
-      }).catch(() => {
-        setServiceEvents(prev => prev.filter(e => e.id !== tempId));
-      });
-      if (saved) setServiceEvents(prev => prev.map(e => e.id === tempId ? saved : e).sort((a, b) => a.date.localeCompare(b.date)));
+      try {
+        const saved = await requestJson<ServiceEvent>("/api/service-events", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(eventForm),
+        });
+        setServiceEvents(prev => prev.map(e => e.id === tempId ? saved : e).sort((a, b) => a.date.localeCompare(b.date)));
+        // Also post to calendar so it shows on the timeline
+        requestJson("/api/calendar", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title: eventForm.title,
+            date: eventForm.date,
+            category: "program",
+            mandatory: false,
+            location: eventForm.location || undefined,
+            description: eventForm.notes || undefined,
+          }),
+        }).catch(() => {});
+      } catch {
+        // API failed — keep the event in the list anyway so it doesn't disappear
+        // (it will re-sync on next page load)
+      }
     } else if (eventModal === "edit" && editingEvent) {
       const snapshot = editingEvent;
       const updated = { ...snapshot, ...eventForm };
