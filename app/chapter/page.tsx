@@ -137,40 +137,58 @@ function MeetingCard({
   isSelected: boolean;
   onOpen: () => void;
 }) {
-  const hasNotes = !!(event.description ?? "").trim();
-
-  const meta = [
-    fmtDate(event.date),
-    event.time,
-    event.location,
-  ].filter(Boolean).join(" · ");
+  const notes = (event.description ?? "").trim();
+  const hasNotes = !!notes;
+  const previewLines = notes.split("\n").filter((l: string) => l.trim()).slice(0, 3);
+  const sub = [event.time, event.location].filter(Boolean).join(" · ");
+  const wordCount = notes ? notes.split(/\s+/).filter(Boolean).length : 0;
 
   return (
     <button
+      type="button"
       onClick={onOpen}
-      className={`w-full overflow-hidden rounded-xl border text-left transition-all duration-150 ${
+      className={`card-premium flex w-full flex-col rounded-xl border bg-[#10121a] p-5 text-left transition-all duration-200 group ${
         isSelected
-          ? "border-indigo-500/40 bg-[#10121a] shadow-[0_0_0_1px_rgba(99,102,241,0.15)]"
-          : "border-white/[0.07] bg-[#10121a] hover:border-white/[0.13] hover:bg-[#12141c]"
+          ? "border-indigo-500/40 shadow-[0_0_0_1px_rgba(99,102,241,0.15)]"
+          : "border-white/[0.06] hover:border-white/[0.12]"
       }`}
     >
-      <div className="flex">
-        <div className="w-[3px] shrink-0 self-stretch bg-indigo-500 opacity-70" />
-        <div className="flex flex-1 items-center gap-3 px-4 py-3.5">
-          <span className="h-2 w-2 shrink-0 rounded-full bg-indigo-400" />
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-[14px] font-semibold text-white">{event.title}</p>
-            <p className="mt-0.5 text-[12px] text-slate-400">{meta}</p>
-          </div>
-          {!hasNotes && (
-            <span className="shrink-0 rounded-full bg-white/[0.04] px-2 py-0.5 text-[10px] text-slate-600 ring-1 ring-inset ring-white/[0.06]">
-              No notes
-            </span>
-          )}
-          <svg
-            className="h-4 w-4 shrink-0 text-slate-600"
-            fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
-          >
+      {/* Icon + title + date */}
+      <div className="flex items-start gap-3">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-indigo-500/10">
+          <svg className="h-4 w-4 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+          </svg>
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-[10px] font-semibold uppercase tracking-[0.07em] text-slate-500">{event.title}</p>
+          <p className="mt-0.5 text-[22px] font-bold leading-none tracking-tight text-white">{fmtDate(event.date)}</p>
+          <p className="mt-1 truncate text-[11px] leading-snug text-slate-400">{sub || " "}</p>
+        </div>
+      </div>
+
+      {/* Divider */}
+      <div className="my-4 h-px bg-white/[0.05]" />
+
+      {/* Notes preview — up to 3 lines */}
+      <div className="min-h-[52px] flex-1 space-y-1">
+        {hasNotes ? (
+          previewLines.map((line: string, i: number) => (
+            <p key={i} className="truncate text-[12px] leading-snug text-slate-400">{line}</p>
+          ))
+        ) : (
+          <p className="text-[12px] italic text-slate-600">No notes yet</p>
+        )}
+      </div>
+
+      {/* Footer: word count + open hint */}
+      <div className="mt-4 flex items-center justify-between">
+        <span className="text-[10px] text-slate-600">
+          {hasNotes ? `${wordCount} word${wordCount !== 1 ? "s" : ""}` : "Empty"}
+        </span>
+        <div className="flex items-center gap-1 opacity-0 transition-opacity duration-150 group-hover:opacity-100">
+          <span className="text-[10px] text-slate-500">Open</span>
+          <svg className="h-3 w-3 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
           </svg>
         </div>
@@ -544,7 +562,7 @@ export default function ChapterPage() {
 
         {/* ── Main ────────────────────────────────────────────────────────────── */}
         <main className="page-ambient flex-1 overflow-y-auto">
-          <div className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
+          <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
 
             {/* Loading */}
             {loading && (
@@ -578,7 +596,7 @@ export default function ChapterPage() {
 
             {/* Meeting cards */}
             {!loading && !loadError && sorted.length > 0 && (
-              <div className="space-y-2">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {sorted.map(event => (
                   <MeetingCard
                     key={event.id}
