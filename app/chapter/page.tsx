@@ -225,15 +225,12 @@ function MeetingDetailOverlay({
   const meta = [event.time, event.location].filter(Boolean);
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col">
+    <div className="fixed inset-0 z-50 flex items-stretch justify-center" onClick={onClose}>
       {/* Backdrop */}
-      <div
-        className="absolute inset-0 bg-black/80 backdrop-blur-md"
-        onClick={onClose}
-      />
+      <div className="absolute inset-0 bg-black/80 backdrop-blur-md" />
 
-      {/* Panel */}
-      <div className="relative flex h-full flex-col bg-[#07090f]">
+      {/* Panel — stop propagation so clicks inside don't close */}
+      <div className="relative flex w-full max-w-5xl flex-col bg-[#07090f]" onClick={e => e.stopPropagation()}>
 
         {/* ── Header ──────────────────────────────────────────────────────── */}
         <div className="flex h-14 shrink-0 items-center gap-3 border-b border-white/[0.07] bg-[#07090f] px-4 sm:px-6">
