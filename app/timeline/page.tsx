@@ -1063,6 +1063,10 @@ export default function TimelinePage() {
 
   const filtered    = useMemo(() => filterByLayer(allEvents, activeLayer), [allEvents, activeLayer]);
   const monthGroups = useMemo(() => buildMonthGroups(filtered), [filtered]);
+  const layerCounts = useMemo(
+    () => Object.fromEntries(LAYERS.map(l => [l.id, filterByLayer(allEvents, l.id).length])),
+    [allEvents],
+  );
   const selectedEventCanEdit = selectedEvent ? apiEventIds.has(selectedEvent.id) : false;
 
   const todayStr = toDateStr(TODAY.year, TODAY.month, TODAY.day);
@@ -1176,7 +1180,7 @@ export default function TimelinePage() {
           <div className="hidden flex-1 items-center justify-center gap-1.5 lg:flex">
             {LAYERS.map(layer => {
               const active = activeLayer === layer.id;
-              const count  = filterByLayer(allEvents, layer.id).length;
+              const count  = layerCounts[layer.id] ?? 0;
               return (
                 <button
                   key={layer.id}

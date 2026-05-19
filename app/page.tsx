@@ -1068,6 +1068,9 @@ export default function Home() {
   const avgAttendance   = useMemo(() => avg(brotherList.map(b => b.attendance)), [brotherList]);
   const outstandingDues = useMemo(() => brotherList.reduce((s, b) => s + b.duesOwed, 0), [brotherList]);
   const chapterGPA      = useMemo(() => avg(brotherList.map(b => b.gpa)), [brotherList]);
+  const belowAttCount   = useMemo(() => brotherList.filter(b => b.attendance < THRESHOLDS.attendanceWatch).length, [brotherList]);
+  const owingCount      = useMemo(() => brotherList.filter(b => b.duesOwed > 0).length, [brotherList]);
+  const belowGpaCount   = useMemo(() => brotherList.filter(b => b.gpa < THRESHOLDS.gpaWatch).length, [brotherList]);
   const totalServiceHrs = useMemo(() => brotherList.reduce((s, b) => s + b.serviceHours, 0), [brotherList]);
   const totalDoorRev    = useMemo(() => partyList.reduce((s, e) => s + e.doorRevenue, 0), [partyList]);
   const onTrackSvc      = useMemo(() => brotherList.filter(b => b.serviceHours >= THRESHOLDS.serviceHoursGoal).length, [brotherList]);
@@ -1522,18 +1525,18 @@ export default function Home() {
             {/* ── KPI Cards ──────────────────────────────────────────────── */}
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
               <KPICard label="Avg Attendance" value={`${avgAttendance.toFixed(1)}%`}
-                trend={`${brotherList.filter(b => b.attendance < THRESHOLDS.attendanceWatch).length} below threshold`}
+                trend={`${belowAttCount} below threshold`}
                 iconKey="attendance" sparkData={KPI_SPARKLINES.attendance}
                 iconBg="bg-blue-500/10" iconColor="text-blue-400" strokeColor="#60a5fa" glowColor="#60a5fa"
                 onClick={() => setActiveDrawer("attendance")} />
               <KPICard label="Dues" value={fmt$(outstandingDues)}
-                trend={`${brotherList.filter(b => b.duesOwed > 0).length} brothers owe`}
+                trend={`${owingCount} brothers owe`}
                 iconKey="dues" sparkData={KPI_SPARKLINES.dues}
                 accent={outstandingDues > 0 ? "text-amber-400" : "text-white"}
                 iconBg="bg-amber-500/10" iconColor="text-amber-400" strokeColor="#fbbf24" glowColor="#fbbf24"
                 onClick={() => setActiveDrawer("dues")} />
               <KPICard label="Chapter GPA" value={chapterGPA.toFixed(2)}
-                trend={`${brotherList.filter(b => b.gpa < THRESHOLDS.gpaWatch).length} below 3.0`}
+                trend={`${belowGpaCount} below 3.0`}
                 iconKey="gpa" sparkData={KPI_SPARKLINES.gpa}
                 iconBg="bg-violet-500/10" iconColor="text-violet-400" strokeColor="#a78bfa" glowColor="#a78bfa"
                 onClick={() => setActiveDrawer("gpa")} />
