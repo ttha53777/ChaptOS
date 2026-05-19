@@ -16,7 +16,7 @@ export async function GET() {
       name: b.name,
       role: b.role,
       linked: b.authUserId !== null,
-      isSelf: b.authUserId === user.id,
+      isSelf: b.authUserId === user.authUserId,
     }))
   );
 }

@@ -20,9 +20,12 @@ export async function GET() {
     ]);
 
     const totalDoorRevenue = parties.reduce((sum: number, p) => sum + p.doorRevenue, 0);
-    const totalIncome      = transactions.filter(t => t.type === "income").reduce((sum: number, t) => sum + t.amount, 0);
-    const totalExpenses    = transactions.filter(t => t.type === "expense").reduce((sum: number, t) => sum + t.amount, 0);
-    const netBalance       = totalDoorRevenue + totalIncome - totalExpenses;
+    let totalIncome = 0, totalExpenses = 0;
+    for (const t of transactions) {
+      if (t.type === "income") totalIncome  += t.amount;
+      else                     totalExpenses += t.amount;
+    }
+    const netBalance = totalDoorRevenue + totalIncome - totalExpenses;
 
     // Build a combined month map: net delta per YYYY-MM
     const monthMap = new Map<string, number>();

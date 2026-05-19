@@ -19,9 +19,14 @@ export async function requireUser() {
 
   const brother = await prisma.brother.findUnique({
     where: { authUserId: user.id },
-    select: { id: true },
+    select: { id: true, role: true },
   });
   if (!brother) return null;
 
-  return user;
+  return {
+    id: brother.id,
+    role: brother.role,
+    authUserId: user.id,
+    email: user.email ?? null,
+  };
 }

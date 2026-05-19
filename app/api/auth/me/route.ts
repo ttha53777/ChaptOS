@@ -6,13 +6,13 @@ export async function GET() {
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
   const brother = await prisma.brother.findUnique({
-    where: { authUserId: user.id },
-    select: { name: true, role: true },
+    where: { id: user.id },
+    select: { name: true },
   });
 
   return Response.json({
     name: brother?.name ?? user.email ?? "Unknown",
-    role: brother?.role ?? "",
+    role: user.role,
     email: user.email ?? "",
   });
 }

@@ -14,9 +14,14 @@ export async function PATCH(
     const body = await req.json();
 
     const allowed = ["title", "dueDate", "owner", "status", "type"] as const;
+    const LENGTH_LIMITS: Partial<Record<typeof allowed[number], number>> = { title: 200, owner: 200 };
     const data: Record<string, string> = {};
     for (const key of allowed) {
-      if (key in body) data[key] = String(body[key]);
+      if (!(key in body)) continue;
+      const val = String(body[key]);
+      const limit = LENGTH_LIMITS[key];
+      if (limit && val.length > limit) return Response.json({ error: `${key} too long` }, { status: 400 });
+      data[key] = val;
     }
 
     if (Object.keys(data).length === 0) {

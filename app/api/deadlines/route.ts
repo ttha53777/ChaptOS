@@ -24,6 +24,8 @@ export async function POST(req: NextRequest) {
     if (!title || !dueDate || !owner || !status) {
       return Response.json({ error: "Missing required fields" }, { status: 400 });
     }
+    if (String(title).length > 200) return Response.json({ error: "Title too long" }, { status: 400 });
+    if (String(owner).length > 200) return Response.json({ error: "Owner too long" }, { status: 400 });
 
     const deadline = await prisma.deadline.create({
       data: {

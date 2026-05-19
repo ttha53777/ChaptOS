@@ -22,7 +22,7 @@ export async function DELETE(
     select: { authUserId: true },
   });
   if (!target) return Response.json({ error: "Brother not found" }, { status: 404 });
-  if (target.authUserId === user.id) {
+  if (target.authUserId === user.authUserId) {
     return Response.json({ error: "You cannot unlink your own account" }, { status: 400 });
   }
 

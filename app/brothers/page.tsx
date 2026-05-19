@@ -16,6 +16,7 @@ import {
   fmt$,
 } from "../data";
 import { BROTHER_STYLES } from "../components/dashboard/styles";
+import { requestJson } from "../lib/api";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -25,17 +26,6 @@ function pct(n: number) {
 
 function clamp(n: number, lo: number, hi: number) {
   return Math.min(hi, Math.max(lo, n));
-}
-
-async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(url, init);
-  if (!res.ok) {
-    let detail = "";
-    try { const b = await res.json(); detail = b?.error ? `: ${b.error}` : ""; } catch { /* ignore */ }
-    throw new Error(`${url} → ${res.status}${detail}`);
-  }
-  if (res.status === 204) return undefined as unknown as T;
-  return res.json() as Promise<T>;
 }
 
 // Mini bar

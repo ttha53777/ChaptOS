@@ -24,6 +24,7 @@ export async function POST(req: NextRequest) {
     if (!name || !role || duesOwed == null || gpa == null || serviceHours == null) {
       return Response.json({ error: "Missing required fields" }, { status: 400 });
     }
+    if (String(name).length > 200) return Response.json({ error: "Name too long" }, { status: 400 });
 
     const brother = await prisma.brother.create({
       data: {

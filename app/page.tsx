@@ -1,10 +1,22 @@
 "use client";
 
 import React, { useState, useMemo, useEffect, useCallback, useRef } from "react";
-import {
-  AreaChart, Area, BarChart, Bar, Cell,
-  XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
-} from "recharts";
+import dynamic from "next/dynamic";
+
+const DashboardCharts = dynamic(() => import("./components/dashboard/DashboardCharts"), {
+  ssr: false,
+  loading: () => (
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      {[...Array(4)].map((_, i) => (
+        <div key={i} className="h-[148px] rounded-xl border border-white/[0.06] bg-[#10121a] animate-pulse" />
+      ))}
+    </div>
+  ),
+});
+const DrawerTrendChart = dynamic(() => import("./components/dashboard/DrawerTrendChart"), {
+  ssr: false,
+  loading: () => <div className="h-[110px] w-full rounded-lg bg-white/[0.04] animate-pulse" />,
+});
 import {
   Brother, CalendarEvent, TaskStatus, ActivityEntry, PartyEvent, Deadline, InstagramTask,
   treasuryTrend, TREASURY_BALANCE, TREASURY_PROJECTED, THRESHOLDS,
@@ -17,8 +29,8 @@ import { useChapter } from "./context/ChapterContext";
 import { AddDeadlineForm, AddIGTaskForm, AddRevenueForm, LogAttendanceForm } from "./components/dashboard/forms";
 import { BrotherDrawer } from "./components/dashboard/drawers/BrotherDrawer";
 import { Card, Modal, StatusBadge, TaskBadge, ConfirmDialog } from "./components/dashboard/primitives";
-import { BROTHER_STYLES, KPI_ICONS, SECTION_IDS, tooltipStyle } from "./components/dashboard/styles";
-import { ActivityFeed, AttBar, ChartWidget, HealthScoreWidget, KPICard, SortTh } from "./components/dashboard/widgets";
+import { BROTHER_STYLES, KPI_ICONS, SECTION_IDS } from "./components/dashboard/styles";
+import { ActivityFeed, AttBar, HealthScoreWidget, KPICard, SortTh } from "./components/dashboard/widgets";
 
 // ─── Activity ID counter (module-level, reset-safe) ───────────────────────────
 
@@ -343,21 +355,7 @@ function KPIDetailDrawer({
             </div>
             <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500">Treasury Trend</p>
             <div className="mb-5">
-              <ResponsiveContainer width="100%" height={110}>
-                <AreaChart data={liveTrend} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
-                  <defs>
-                    <linearGradient id="drawerTGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#818cf8" stopOpacity={0.3} />
-                      <stop offset="100%" stopColor="#818cf8" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
-                  <XAxis dataKey="month" tick={{ fontSize: 10, fill: "#475569" }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 9, fill: "#475569" }} axisLine={false} tickLine={false} tickFormatter={(v: number) => `$${v / 1000}k`} />
-                  <Tooltip formatter={(v) => [fmt$(Number(v ?? 0)), "Balance"]} contentStyle={tooltipStyle} cursor={{ stroke: "#818cf8", strokeWidth: 1, strokeDasharray: "4 4" }} />
-                  <Area type="monotone" dataKey="balance" stroke="#818cf8" strokeWidth={2} fill="url(#drawerTGrad)" dot={{ r: 3, fill: "#818cf8", stroke: "#10121a", strokeWidth: 2 }} activeDot={{ r: 4, fill: "#818cf8", stroke: "#10121a", strokeWidth: 2 }} />
-                </AreaChart>
-              </ResponsiveContainer>
+              <DrawerTrendChart data={liveTrend} />
             </div>
             <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500">Monthly Breakdown</p>
             <div className="space-y-1.5 mb-5">
@@ -1539,63 +1537,20 @@ export default function Home() {
             </div>
 
             {/* ── Charts ─────────────────────────────────────────────────── */}
-            <div id="sec-treasury" className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              <ChartWidget title="Treasury Trend" stat={fmt$(liveBalance)} caption="Jan – May 2026" accentColor="#818cf8">
-                <ResponsiveContainer width="100%" height={96}>
-                  <AreaChart data={liveTrend} margin={{ top: 4, right: 4, bottom: 0, left: -22 }}>
-                    <defs>
-                      <linearGradient id="tGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%"   stopColor="#818cf8" stopOpacity={0.25} />
-                        <stop offset="100%" stopColor="#818cf8" stopOpacity={0}    />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
-                    <XAxis dataKey="month" tick={{ fontSize: 10, fill: "#475569" }} axisLine={false} tickLine={false} />
-                    <YAxis tick={{ fontSize: 10, fill: "#475569" }} axisLine={false} tickLine={false} tickFormatter={(v: number) => `$${v / 1000}k`} />
-                    <Tooltip formatter={(v) => [fmt$(Number(v ?? 0)), "Balance"]} contentStyle={tooltipStyle} cursor={{ stroke: "#818cf8", strokeWidth: 1, strokeDasharray: "4 4" }} />
-                    <Area type="monotone" dataKey="balance" stroke="#818cf8" strokeWidth={2} fill="url(#tGrad)" dot={false} activeDot={{ r: 4, fill: "#818cf8", stroke: "#10121a", strokeWidth: 2 }} />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </ChartWidget>
-
-              <ChartWidget title="Door Revenue" stat={fmt$(totalDoorRev)} caption={`${partyList.length} events`} accentColor="#f472b6">
-                <ResponsiveContainer width="100%" height={96}>
-                  <BarChart data={partyChartData} margin={{ top: 4, right: 4, bottom: 0, left: -22 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
-                    <XAxis dataKey="name" tick={{ fontSize: 9, fill: "#475569" }} axisLine={false} tickLine={false} />
-                    <YAxis tick={{ fontSize: 10, fill: "#475569" }} axisLine={false} tickLine={false} tickFormatter={(v: number) => `$${v}`} />
-                    <Tooltip formatter={(v) => [fmt$(Number(v ?? 0)), "Revenue"]} contentStyle={tooltipStyle} cursor={{ fill: "rgba(255,255,255,0.04)" }} />
-                    <Bar dataKey="revenue" fill="#818cf8" radius={[3, 3, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </ChartWidget>
-
-              <ChartWidget title="Status Mix" stat={`${statusCounts.Good} / ${brotherList.length} Good`} caption={`${brotherList.length} brothers`} accentColor="#34d399">
-                <ResponsiveContainer width="100%" height={96}>
-                  <BarChart data={statusChartData} margin={{ top: 4, right: 8, bottom: 0, left: -22 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
-                    <XAxis dataKey="name" tick={{ fontSize: 10, fill: "#475569" }} axisLine={false} tickLine={false} />
-                    <YAxis tick={{ fontSize: 10, fill: "#475569" }} axisLine={false} tickLine={false} allowDecimals={false} />
-                    <Tooltip formatter={(v) => [v, "Brothers"]} contentStyle={tooltipStyle} cursor={{ fill: "rgba(255,255,255,0.04)" }} />
-                    <Bar dataKey="count" radius={[3, 3, 0, 0]}>
-                      {statusChartData.map((entry, idx) => <Cell key={`sc-${idx}`} fill={entry.fill} />)}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </ChartWidget>
-
-              <ChartWidget title="Service Hours" stat={`${onTrackSvc} / ${brotherList.length} on track`} caption={`Goal: ${THRESHOLDS.serviceHoursGoal}h`} accentColor="#34d399">
-                <ResponsiveContainer width="100%" height={96}>
-                  <BarChart data={svcChartData} margin={{ top: 4, right: 4, bottom: 0, left: -22 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
-                    <XAxis dataKey="name" tick={{ fontSize: 9, fill: "#475569" }} axisLine={false} tickLine={false} />
-                    <YAxis tick={{ fontSize: 10, fill: "#475569" }} axisLine={false} tickLine={false} />
-                    <Tooltip formatter={(v) => [`${v}h`, "Service"]} contentStyle={tooltipStyle} cursor={{ fill: "rgba(255,255,255,0.04)" }} />
-                    <Bar dataKey="hours" fill="#34d399" radius={[3, 3, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </ChartWidget>
-            </div>
+            <DashboardCharts
+              liveBalance={liveBalance}
+              liveProjected={liveProjected}
+              liveTrend={liveTrend}
+              totalDoorRev={totalDoorRev}
+              partyCount={partyList.length}
+              partyChartData={partyChartData}
+              brotherCount={brotherList.length}
+              goodCount={statusCounts.Good}
+              statusChartData={statusChartData}
+              onTrackSvc={onTrackSvc}
+              serviceHoursGoal={THRESHOLDS.serviceHoursGoal}
+              svcChartData={svcChartData}
+            />
 
             {/* ── Main grid: table + right panel ─────────────────────────── */}
             <div id="sec-brothers" className="grid grid-cols-1 gap-4 xl:grid-cols-3">

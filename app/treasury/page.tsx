@@ -47,20 +47,10 @@ type PartyModal =
 
 type TxTab = "all" | "income" | "expense";
 
+import { requestJson } from "../lib/api";
+import { todayStr } from "../lib/dates";
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(url, init);
-  if (!res.ok) throw new Error(`${url} → ${res.status}`);
-  if (res.status === 204) return undefined as unknown as T;
-  return res.json() as Promise<T>;
-}
-
-function todayStr() {
-  const d = new Date();
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-}
 
 function buildRunningBalanceData(
   txns: Transaction[],

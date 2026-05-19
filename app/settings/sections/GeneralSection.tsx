@@ -7,22 +7,9 @@ import { Modal } from "../../components/dashboard/primitives";
 import { AddDeadlineForm, AddIGTaskForm, AddRevenueForm } from "../../components/dashboard/forms";
 import { TaskStatus, ActivityEntry, Deadline, InstagramTask, PartyEvent, fmt$ } from "../../data";
 import { useOrgLogo } from "../../hooks/useOrgLogo";
+import { requestJson } from "../../lib/api";
 
 let _nextId = Date.now();
-
-async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(url, init);
-  if (!res.ok) {
-    let detail = "";
-    try {
-      const body = await res.json();
-      detail = typeof body?.error === "string" ? `: ${body.error}` : "";
-    } catch { /* ignore */ }
-    throw new Error(`${url} returned ${res.status}${detail}`);
-  }
-  if (res.status === 204) return undefined as T;
-  return res.json() as Promise<T>;
-}
 
 type ModalKey = "deadline" | "revenue" | "ig" | null;
 
