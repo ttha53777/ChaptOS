@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import {
   Brother, Deadline, InstagramTask, PartyEvent, ActivityEntry, Transaction,
 } from "../data";
@@ -117,8 +117,26 @@ export function ChapterProvider({ children }: { children: React.ReactNode }) {
     });
   }, [refreshChapterData]);
 
+  const value = useMemo(() => ({
+    brotherList, setBrotherList,
+    deadlineList, setDeadlineList,
+    igTaskList, setIgTaskList,
+    partyList, setPartyList,
+    activityFeed, setActivityFeed,
+    treasuryData, setTreasuryData,
+    transactionList, setTransactionList,
+    isLoading, loadError,
+    mutationError, setMutationError,
+    refreshChapterData, hasLoaded,
+  }), [
+    brotherList, deadlineList, igTaskList, partyList,
+    activityFeed, treasuryData, transactionList,
+    isLoading, loadError, mutationError, hasLoaded,
+    refreshChapterData,
+  ]);
+
   return (
-    <ChapterContext.Provider value={{ brotherList, setBrotherList, deadlineList, setDeadlineList, igTaskList, setIgTaskList, partyList, setPartyList, activityFeed, setActivityFeed, treasuryData, setTreasuryData, transactionList, setTransactionList, isLoading, loadError, mutationError, setMutationError, refreshChapterData, hasLoaded }}>
+    <ChapterContext.Provider value={value}>
       {children}
     </ChapterContext.Provider>
   );
