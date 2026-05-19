@@ -2,6 +2,10 @@ import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { prisma } from "@/lib/prisma";
 
+function withTimeout(ms: number): typeof fetch {
+  return (input, init) => fetch(input, { ...init, signal: AbortSignal.timeout(ms) });
+}
+
 export async function requireUser() {
   const cookieStore = await cookies();
   const supabase = createServerClient(
@@ -12,6 +16,7 @@ export async function requireUser() {
         getAll: () => cookieStore.getAll(),
         setAll: () => {},
       },
+      global: { fetch: withTimeout(5_000) },
     }
   );
   const { data: { user } } = await supabase.auth.getUser();

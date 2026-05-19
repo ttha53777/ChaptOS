@@ -16,20 +16,25 @@ export async function DELETE(
     return Response.json({ error: "Invalid ID" }, { status: 400 });
   }
 
-  // Prevent unlinking yourself — would lock you out
-  const target = await prisma.brother.findUnique({
-    where: { id: numId },
-    select: { authUserId: true },
-  });
-  if (!target) return Response.json({ error: "Brother not found" }, { status: 404 });
-  if (target.authUserId === user.authUserId) {
-    return Response.json({ error: "You cannot unlink your own account" }, { status: 400 });
+  try {
+    // Prevent unlinking yourself — would lock you out
+    const target = await prisma.brother.findUnique({
+      where: { id: numId },
+      select: { authUserId: true },
+    });
+    if (!target) return Response.json({ error: "Brother not found" }, { status: 404 });
+    if (target.authUserId === user.authUserId) {
+      return Response.json({ error: "You cannot unlink your own account" }, { status: 400 });
+    }
+
+    await prisma.brother.update({
+      where: { id: numId },
+      data: { authUserId: null },
+    });
+
+    return new Response(null, { status: 204 });
+  } catch (e) {
+    console.error("DELETE /api/auth/accounts/[id] failed:", e);
+    return Response.json({ error: "Failed to unlink account" }, { status: 500 });
   }
-
-  await prisma.brother.update({
-    where: { id: numId },
-    data: { authUserId: null },
-  });
-
-  return new Response(null, { status: 204 });
 }

@@ -52,6 +52,7 @@ export async function PATCH(
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2025") {
       return Response.json({ error: "Transaction not found" }, { status: 404 });
     }
+    console.error("PATCH /api/transactions/[id] failed:", e);
     return Response.json({ error: "Failed to update transaction" }, { status: 500 });
   }
 }

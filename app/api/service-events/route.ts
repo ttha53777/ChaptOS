@@ -8,7 +8,8 @@ export async function GET() {
   try {
     const events = await prisma.serviceEvent.findMany({ orderBy: { date: "asc" } });
     return Response.json(events);
-  } catch {
+  } catch (e) {
+    console.error("GET /api/service-events failed:", e);
     return Response.json({ error: "Failed to fetch service events" }, { status: 500 });
   }
 }
