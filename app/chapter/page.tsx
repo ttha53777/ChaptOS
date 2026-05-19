@@ -34,6 +34,13 @@ function sortedMeetings(events: CalendarEvent[]) {
   return [...events].sort((a, b) => b.date.localeCompare(a.date) || b.id - a.id);
 }
 
+function fmtDateFull(dateStr: string) {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString("en-US", {
+    weekday: "long", year: "numeric", month: "long", day: "numeric",
+  });
+}
+
 // ─── MeetingForm (shared by add + edit modals) ────────────────────────────────
 
 type MeetingDraft = { title: string; date: string; time: string; location: string };
@@ -119,28 +126,18 @@ function SaveIndicator({ state }: { state: "idle" | "saving" | "saved" | "error"
   return <span className="text-[11px] text-red-400">Save failed</span>;
 }
 
-// ─── MeetingCard ──────────────────────────────────────────────────────────────
+// ─── MeetingCard (click to open detail overlay) ───────────────────────────────
 
 function MeetingCard({
   event,
-  expanded,
-  notesDraft,
-  saveState,
-  onToggle,
-  onNotesChange,
-  onEdit,
-  onDelete,
+  isSelected,
+  onOpen,
 }: {
   event: CalendarEvent;
-  expanded: boolean;
-  notesDraft: string;
-  saveState: "idle" | "saving" | "saved" | "error";
-  onToggle: () => void;
-  onNotesChange: (val: string) => void;
-  onEdit: () => void;
-  onDelete: () => void;
+  isSelected: boolean;
+  onOpen: () => void;
 }) {
-  const hasNotes = !!(event.description ?? "").trim() || notesDraft.trim().length > 0;
+  const hasNotes = !!(event.description ?? "").trim();
 
   const meta = [
     fmtDate(event.date),
@@ -149,68 +146,165 @@ function MeetingCard({
   ].filter(Boolean).join(" · ");
 
   return (
-    <div className={`overflow-hidden rounded-xl border border-white/[0.07] bg-[#10121a] transition-colors ${expanded ? "border-white/[0.10]" : "hover:border-white/[0.10]"}`}>
-      {/* Left emerald accent bar + header row */}
+    <button
+      onClick={onOpen}
+      className={`w-full overflow-hidden rounded-xl border text-left transition-all duration-150 ${
+        isSelected
+          ? "border-indigo-500/40 bg-[#10121a] shadow-[0_0_0_1px_rgba(99,102,241,0.15)]"
+          : "border-white/[0.07] bg-[#10121a] hover:border-white/[0.13] hover:bg-[#12141c]"
+      }`}
+    >
       <div className="flex">
-        <div className="w-[3px] shrink-0 self-stretch bg-emerald-500 opacity-70" />
-        <button
-          onClick={onToggle}
-          className="flex flex-1 items-center gap-3 px-4 py-3.5 text-left"
-        >
-          <span className="h-2 w-2 shrink-0 rounded-full bg-emerald-400" />
+        <div className="w-[3px] shrink-0 self-stretch bg-indigo-500 opacity-70" />
+        <div className="flex flex-1 items-center gap-3 px-4 py-3.5">
+          <span className="h-2 w-2 shrink-0 rounded-full bg-indigo-400" />
           <div className="min-w-0 flex-1">
             <p className="truncate text-[14px] font-semibold text-white">{event.title}</p>
             <p className="mt-0.5 text-[12px] text-slate-400">{meta}</p>
           </div>
-          {!hasNotes && !expanded && (
+          {!hasNotes && (
             <span className="shrink-0 rounded-full bg-white/[0.04] px-2 py-0.5 text-[10px] text-slate-600 ring-1 ring-inset ring-white/[0.06]">
               No notes
             </span>
           )}
           <svg
-            className={`h-4 w-4 shrink-0 text-slate-600 transition-transform duration-200 ${expanded ? "rotate-180" : ""}`}
+            className="h-4 w-4 shrink-0 text-slate-600"
             fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
           >
-            <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
           </svg>
-        </button>
+        </div>
       </div>
+    </button>
+  );
+}
 
-      {/* Expanded body */}
-      {expanded && (
-        <div className="border-t border-white/[0.06] px-5 pb-4 pt-3">
-          <textarea
-            rows={10}
-            className={`${inputCls} resize-none font-mono text-[13px] leading-relaxed`}
-            value={notesDraft}
-            onChange={e => onNotesChange(e.target.value)}
-            placeholder="Start typing meeting notes…"
-          />
-          <div className="mt-2 flex items-center justify-between">
-            <SaveIndicator state={saveState} />
-            <div className="ml-auto flex items-center gap-1">
-              <button
-                onClick={onEdit}
-                className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[12px] text-slate-500 transition-colors hover:bg-white/[0.06] hover:text-slate-200"
-              >
-                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                </svg>
-                Edit
-              </button>
-              <button
-                onClick={onDelete}
-                className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[12px] text-slate-500 transition-colors hover:bg-red-500/[0.08] hover:text-red-400"
-              >
-                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                </svg>
-                Delete
-              </button>
-            </div>
+// ─── MeetingDetailOverlay ─────────────────────────────────────────────────────
+
+function MeetingDetailOverlay({
+  event,
+  notesDraft,
+  saveState,
+  onClose,
+  onNotesChange,
+  onEdit,
+  onDelete,
+}: {
+  event: CalendarEvent;
+  notesDraft: string;
+  saveState: "idle" | "saving" | "saved" | "error";
+  onClose: () => void;
+  onNotesChange: (val: string) => void;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [onClose]);
+
+  const meta = [event.time, event.location].filter(Boolean);
+
+  return (
+    <div className="fixed inset-0 z-50 flex flex-col">
+      {/* Backdrop */}
+      <div
+        className="absolute inset-0 bg-black/80 backdrop-blur-md"
+        onClick={onClose}
+      />
+
+      {/* Panel */}
+      <div className="relative flex h-full flex-col bg-[#07090f]">
+
+        {/* ── Header ──────────────────────────────────────────────────────── */}
+        <div className="flex h-14 shrink-0 items-center gap-3 border-b border-white/[0.07] bg-[#07090f] px-4 sm:px-6">
+          {/* Back button */}
+          <button
+            onClick={onClose}
+            className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[12px] text-slate-400 transition-colors hover:bg-white/[0.06] hover:text-white"
+          >
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+            </svg>
+            <span className="hidden sm:inline">Back</span>
+          </button>
+
+          <div className="h-4 w-px bg-white/[0.08]" />
+
+          {/* Title + dot */}
+          <div className="flex min-w-0 flex-1 items-center gap-2">
+            <span className="h-2 w-2 shrink-0 rounded-full bg-indigo-400" />
+            <p className="truncate text-[14px] font-semibold text-white">{event.title}</p>
+          </div>
+
+          {/* Save indicator */}
+          <SaveIndicator state={saveState} />
+
+          {/* Edit / Delete */}
+          <div className="flex items-center gap-1">
+            <button
+              onClick={onEdit}
+              className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[12px] text-slate-500 transition-colors hover:bg-white/[0.06] hover:text-slate-200"
+            >
+              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+              </svg>
+              <span className="hidden sm:inline">Edit</span>
+            </button>
+            <button
+              onClick={onDelete}
+              className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[12px] text-slate-500 transition-colors hover:bg-red-500/[0.08] hover:text-red-400"
+            >
+              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+              <span className="hidden sm:inline">Delete</span>
+            </button>
           </div>
         </div>
-      )}
+
+        {/* ── Meta strip ──────────────────────────────────────────────────── */}
+        <div className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-1.5 border-b border-white/[0.05] bg-white/[0.015] px-6 py-3">
+          <div className="flex items-center gap-2 text-[12px] text-slate-400">
+            <svg className="h-3.5 w-3.5 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+            {fmtDateFull(event.date)}
+          </div>
+          {meta.map((item, i) => (
+            <div key={i} className="flex items-center gap-2 text-[12px] text-slate-400">
+              <div className="h-3 w-px bg-white/[0.08]" />
+              {item}
+            </div>
+          ))}
+          <div className="flex items-center gap-2">
+            <div className="h-3 w-px bg-white/[0.08]" />
+            <span className="inline-flex items-center gap-1 rounded-full bg-indigo-500/10 px-2 py-0.5 text-[10px] font-semibold text-indigo-400 ring-1 ring-inset ring-indigo-500/20">
+              Required
+            </span>
+          </div>
+        </div>
+
+        {/* ── Scrollable body ──────────────────────────────────────────────── */}
+        <div className="flex-1 overflow-y-auto">
+          <div className="mx-auto max-w-4xl px-6 py-8 sm:px-10">
+
+            {/* Notes section */}
+            <div>
+              <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-500">Meeting Notes</p>
+              <textarea
+                className={`${inputCls} min-h-[70vh] resize-none font-mono text-[13px] leading-relaxed`}
+                value={notesDraft}
+                onChange={e => onNotesChange(e.target.value)}
+                placeholder="Start typing meeting notes…"
+                autoFocus
+              />
+            </div>
+
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -224,7 +318,7 @@ export default function ChapterPage() {
   const [loadError,     setLoadError]     = useState<string | null>(null);
   const [pageError,     setPageError]     = useState<string | null>(null);
   const [deleteError,   setDeleteError]   = useState<string | null>(null);
-  const [expandedId,    setExpandedId]    = useState<number | null>(null);
+  const [selectedId,    setSelectedId]    = useState<number | null>(null);
   const [notesDraft,    setNotesDraft]    = useState<Record<number, string>>({});
   const [saveState,     setSaveState]     = useState<Record<number, "idle" | "saving" | "saved" | "error">>({});
   const [showAddModal,  setShowAddModal]  = useState(false);
@@ -284,17 +378,27 @@ export default function ChapterPage() {
     timers.current[id] = setTimeout(() => flushSave(id, value), 600);
   }
 
-  // ── Accordion toggle ─────────────────────────────────────────────────────────
-  function handleToggle(id: number) {
-    // Flush pending save on the currently expanded card before switching
-    if (expandedId !== null && expandedId !== id) {
-      const pending = notesDraft[expandedId];
+  // ── Open / close overlay ──────────────────────────────────────────────────────
+  function handleOpen(id: number) {
+    if (selectedId !== null && selectedId !== id) {
+      const pending = notesDraft[selectedId];
       if (pending !== undefined) {
-        clearTimeout(timers.current[expandedId]);
-        flushSave(expandedId, pending);
+        clearTimeout(timers.current[selectedId]);
+        flushSave(selectedId, pending);
       }
     }
-    setExpandedId(prev => prev === id ? null : id);
+    setSelectedId(id);
+  }
+
+  function handleClose() {
+    if (selectedId !== null) {
+      const pending = notesDraft[selectedId];
+      if (pending !== undefined) {
+        clearTimeout(timers.current[selectedId]);
+        flushSave(selectedId, pending);
+      }
+    }
+    setSelectedId(null);
   }
 
   // ── Add meeting ───────────────────────────────────────────────────────────────
@@ -317,7 +421,7 @@ export default function ChapterPage() {
       savedValues.current[created.id] = "";
       setEvents(prev => [created, ...prev]);
       setShowAddModal(false);
-      setExpandedId(created.id);
+      setSelectedId(created.id);
     } catch (err) {
       setPageError(err instanceof Error ? err.message : "Failed to create meeting.");
     }
@@ -355,7 +459,7 @@ export default function ChapterPage() {
     try {
       await requestJson<void>(`/api/calendar/${id}`, { method: "DELETE" });
       setEvents(prev => prev.filter(e => e.id !== id));
-      if (expandedId === id) setExpandedId(null);
+      if (selectedId === id) setSelectedId(null);
       setNotesDraft(d => { const c = { ...d }; delete c[id]; return c; });
       setSaveState(s => { const c = { ...s }; delete c[id]; return c; });
       clearTimeout(timers.current[id]);
@@ -372,6 +476,7 @@ export default function ChapterPage() {
   }
 
   const sorted = useMemo(() => sortedMeetings(events), [events]);
+  const selectedEvent = selectedId !== null ? events.find(e => e.id === selectedId) ?? null : null;
 
   return (
     <div className="flex h-screen overflow-hidden bg-[#07090f]">
@@ -478,13 +583,8 @@ export default function ChapterPage() {
                   <MeetingCard
                     key={event.id}
                     event={event}
-                    expanded={expandedId === event.id}
-                    notesDraft={notesDraft[event.id] ?? (event.description ?? "")}
-                    saveState={saveState[event.id] ?? "idle"}
-                    onToggle={() => handleToggle(event.id)}
-                    onNotesChange={val => handleNotesChange(event.id, val)}
-                    onEdit={() => setEditTarget(event)}
-                    onDelete={() => setDeleteTarget(event)}
+                    isSelected={selectedId === event.id}
+                    onOpen={() => handleOpen(event.id)}
                   />
                 ))}
               </div>
@@ -492,6 +592,19 @@ export default function ChapterPage() {
           </div>
         </main>
       </div>
+
+      {/* ── Full-screen meeting detail overlay ─────────────────────────────────── */}
+      {selectedEvent && (
+        <MeetingDetailOverlay
+          event={selectedEvent}
+          notesDraft={notesDraft[selectedEvent.id] ?? (selectedEvent.description ?? "")}
+          saveState={saveState[selectedEvent.id] ?? "idle"}
+          onClose={handleClose}
+          onNotesChange={val => handleNotesChange(selectedEvent.id, val)}
+          onEdit={() => setEditTarget(selectedEvent)}
+          onDelete={() => setDeleteTarget(selectedEvent)}
+        />
+      )}
 
       {/* Add modal */}
       {showAddModal && (
