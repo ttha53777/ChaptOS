@@ -20,6 +20,7 @@ export async function POST(req: NextRequest) {
       return Response.json({ error: "Invalid brotherId" }, { status: 400 });
     }
     if (!reason) return Response.json({ error: "Reason is required" }, { status: 400 });
+    if (reason.length > 1000) return Response.json({ error: "Reason too long" }, { status: 400 });
 
     const [semester, brotherExists, existingRecord] = await Promise.all([
       getActiveSemester(),

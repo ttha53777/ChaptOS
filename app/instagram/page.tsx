@@ -5,13 +5,12 @@ import { Sidebar } from "../components/Sidebar";
 import { UserAvatar } from "../components/UserAvatar";
 import { Modal } from "../components/dashboard/primitives";
 import { AddIGTaskForm } from "../components/dashboard/forms";
-import { InstagramTask, TaskStatus } from "../data";
+import { InstagramTask, TaskStatus, fmtDate } from "../data";
 import { useChapter } from "../context/ChapterContext";
+import { requestJson } from "../lib/api";
+import { daysFromToday, todayStr } from "../lib/dates";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-
-const _now = new Date();
-const TODAY_STR = `${_now.getFullYear()}-${String(_now.getMonth() + 1).padStart(2, "0")}-${String(_now.getDate()).padStart(2, "0")}`;
 
 const MONTH_NAMES = [
   "January","February","March","April","May","June",
@@ -36,27 +35,7 @@ const TYPE_META: Record<string, string> = {
 
 const STATUS_ORDER: TaskStatus[] = ["Urgent", "Due Soon", "Upcoming", "Complete"];
 
-async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(url, init);
-  if (!res.ok) {
-    let detail = "";
-    try { const b = await res.json(); detail = typeof b?.error === "string" ? `: ${b.error}` : ""; } catch { /* ignore */ }
-    throw new Error(`${url} returned ${res.status}${detail}`);
-  }
-  if (res.status === 204) return undefined as T;
-  return res.json() as Promise<T>;
-}
-
-function daysFromToday(dateStr: string): number {
-  const a = new Date(TODAY_STR + "T12:00:00");
-  const b = new Date(dateStr + "T12:00:00");
-  return Math.round((b.getTime() - a.getTime()) / (1000 * 60 * 60 * 24));
-}
-
-function fmtDate(dateStr: string) {
-  const [, m, d] = dateStr.split("-").map(Number);
-  return `${MONTH_NAMES[m - 1].slice(0, 3)} ${d}`;
-}
+const TODAY_STR = todayStr();
 
 // ─── TaskCard ─────────────────────────────────────────────────────────────────
 
@@ -236,7 +215,7 @@ function CalendarView({
   tasks: InstagramTask[];
   onEdit: (t: InstagramTask) => void;
 }) {
-  const [month, setMonth] = useState(() => ({ year: _now.getFullYear(), month: _now.getMonth() }));
+  const [month, setMonth] = useState(() => { const n = new Date(); return { year: n.getFullYear(), month: n.getMonth() }; });
   const [expandedDay, setExpandedDay] = useState<string | null>(null);
 
   function prevMonth() {
@@ -246,7 +225,7 @@ function CalendarView({
     setMonth(prev => prev.month === 11 ? { year: prev.year + 1, month: 0 } : { year: prev.year, month: prev.month + 1 });
   }
   function goToToday() {
-    setMonth({ year: _now.getFullYear(), month: _now.getMonth() });
+    const n = new Date(); setMonth({ year: n.getFullYear(), month: n.getMonth() });
   }
 
   const firstDay = new Date(month.year, month.month, 1).getDay();
@@ -271,7 +250,8 @@ function CalendarView({
   // Pad to complete last row
   while (cells.length % 7 !== 0) cells.push(null);
 
-  const isCurrentMonth = month.year === _now.getFullYear() && month.month === _now.getMonth();
+  const _n = new Date();
+  const isCurrentMonth = month.year === _n.getFullYear() && month.month === _n.getMonth();
 
   return (
     <div>

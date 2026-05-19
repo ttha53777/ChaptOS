@@ -1,5 +1,10 @@
 import React from "react";
-import { LineChart, Line, ResponsiveContainer } from "recharts";
+import dynamic from "next/dynamic";
+
+const SparkLine = dynamic(() => import("./SparkLine"), {
+  ssr: false,
+  loading: () => <div className="h-7 w-full rounded bg-white/[0.04]" />,
+});
 import type { ActivityEntry, Brother } from "../../data";
 import { THRESHOLDS } from "../../data";
 import { SvgIcon } from "../Sidebar";
@@ -99,11 +104,7 @@ export function KPICard({ label, value, trend, iconKey, sparkData, accent = "tex
         </div>
       </div>
       <div className="mt-2 -mx-1">
-        <ResponsiveContainer width="100%" height={28}>
-          <LineChart data={chartData} margin={{ top: 2, right: 2, bottom: 2, left: 2 }}>
-            <Line type="monotone" dataKey="v" stroke={strokeColor} strokeWidth={1.5} dot={false} />
-          </LineChart>
-        </ResponsiveContainer>
+        <SparkLine data={chartData} stroke={strokeColor} />
       </div>
       {onClick && (
         <div className="mt-1.5 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-150">

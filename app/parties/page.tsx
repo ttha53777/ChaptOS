@@ -7,25 +7,10 @@ import { Card, Modal, FieldLabel, ConfirmDialog } from "../components/dashboard/
 import { inputCls } from "../components/dashboard/styles";
 import { useChapter } from "../context/ChapterContext";
 import { PartyEvent, fmt$, fmtDate } from "../data";
+import { requestJson } from "../lib/api";
+import { todayStr } from "../lib/dates";
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
-
-async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(url, init);
-  if (!res.ok) {
-    let detail = "";
-    try { const b = await res.json(); detail = typeof b?.error === "string" ? `: ${b.error}` : ""; } catch { /* ignore */ }
-    throw new Error(`${url} returned ${res.status}${detail}`);
-  }
-  if (res.status === 204) return undefined as T;
-  return res.json() as Promise<T>;
-}
-
-function todayStr() {
-  const d = new Date();
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-}
 
 function profit(p: PartyEvent) { return p.doorRevenue - p.expenses; }
 function needsWrapUp(p: PartyEvent) { return !p.completed && p.date < todayStr(); }

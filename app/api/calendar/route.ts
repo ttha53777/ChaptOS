@@ -33,6 +33,9 @@ function validateCalendarBody(body: Record<string, unknown>) {
   if (category === "chapter" && !body.mandatory) {
     return { error: "Chapter events must be mandatory" };
   }
+  if (title.length > 200) return { error: "Title too long" };
+  const description = optionalString(body.description);
+  if (description && description.length > 1000) return { error: "Description too long" };
 
   return {
     data: {
@@ -41,7 +44,7 @@ function validateCalendarBody(body: Record<string, unknown>) {
       time: optionalString(body.time),
       category,
       mandatory: body.mandatory,
-      description: optionalString(body.description),
+      description,
       location: optionalString(body.location),
     },
   };

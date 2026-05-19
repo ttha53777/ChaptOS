@@ -7,6 +7,8 @@ import { CalendarEvent, CalEventCategory, CalLayer } from "../data";
 import { useChapter } from "../context/ChapterContext";
 import { FieldLabel, Modal, ConfirmDialog } from "../components/dashboard/primitives";
 import { inputCls } from "../components/dashboard/styles";
+import { requestJson } from "../lib/api";
+import { pad, toDateStr, daysFromToday } from "../lib/dates";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -156,29 +158,7 @@ const CATEGORY_OPTIONS: { id: CalEventCategory; label: string }[] = [
   { id: "deadline", label: "Deadline" },
 ];
 
-async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(url, init);
-  if (!response.ok) {
-    let detail = "";
-    try {
-      const body = await response.json();
-      detail = typeof body?.error === "string" ? `: ${body.error}` : "";
-    } catch {
-      // Fall back to status code when the API does not return JSON.
-    }
-    throw new Error(`${url} returned ${response.status}${detail}`);
-  }
-  if (response.status === 204) return undefined as T;
-  return response.json() as Promise<T>;
-}
-
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function pad(n: number) { return String(n).padStart(2, "0"); }
-
-function toDateStr(y: number, m: number, d: number) {
-  return `${y}-${pad(m + 1)}-${pad(d)}`;
-}
 
 function filterByLayer(events: CalendarEvent[], layer: CalLayer): CalendarEvent[] {
   switch (layer) {
@@ -192,13 +172,6 @@ function filterByLayer(events: CalendarEvent[], layer: CalLayer): CalendarEvent[
 function fmtDow(dateStr: string) {
   const d = new Date(dateStr + "T12:00:00");
   return DAY_NAMES[d.getDay()].toUpperCase();
-}
-
-function daysFromToday(dateStr: string): number {
-  const todayStr = toDateStr(TODAY.year, TODAY.month, TODAY.day);
-  const a = new Date(todayStr + "T12:00:00");
-  const b = new Date(dateStr + "T12:00:00");
-  return Math.round((b.getTime() - a.getTime()) / (1000 * 60 * 60 * 24));
 }
 
 function optionalValue(value: string): string | undefined {

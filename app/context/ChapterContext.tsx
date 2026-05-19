@@ -4,6 +4,7 @@ import React, { createContext, useCallback, useContext, useEffect, useState } fr
 import {
   Brother, Deadline, InstagramTask, PartyEvent, ActivityEntry, Transaction,
 } from "../data";
+import { createClient } from "@/lib/supabase/client";
 
 export interface TreasuryData {
   balance: number;
@@ -31,6 +32,7 @@ interface ChapterContextValue {
   mutationError: string | null;
   setMutationError: React.Dispatch<React.SetStateAction<string | null>>;
   refreshChapterData: () => Promise<void>;
+  hasLoaded: boolean;
 }
 
 const ChapterContext = createContext<ChapterContextValue | null>(null);
@@ -57,6 +59,7 @@ export function ChapterProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [mutationError, setMutationError] = useState<string | null>(null);
+  const [hasLoaded, setHasLoaded] = useState(false);
 
   const refreshChapterData = useCallback(async () => {
     setIsLoading(true);
@@ -93,7 +96,6 @@ export function ChapterProvider({ children }: { children: React.ReactNode }) {
       setTransactionList(transactions);
     } catch (error) {
       if (error instanceof UnauthenticatedError) {
-        // Not signed in — login/pending-access pages are expected to 401. Stay silent.
         return;
       }
       console.error(error);
@@ -101,15 +103,22 @@ export function ChapterProvider({ children }: { children: React.ReactNode }) {
       throw error;
     } finally {
       setIsLoading(false);
+      setHasLoaded(true);
     }
   }, []);
 
   useEffect(() => {
-    refreshChapterData().catch(() => undefined);
+    createClient().auth.getSession().then(({ data }) => {
+      if (data.session) {
+        refreshChapterData().catch(() => undefined);
+      } else {
+        setIsLoading(false);
+      }
+    });
   }, [refreshChapterData]);
 
   return (
-    <ChapterContext.Provider value={{ brotherList, setBrotherList, deadlineList, setDeadlineList, igTaskList, setIgTaskList, partyList, setPartyList, activityFeed, setActivityFeed, treasuryData, setTreasuryData, transactionList, setTransactionList, isLoading, loadError, mutationError, setMutationError, refreshChapterData }}>
+    <ChapterContext.Provider value={{ brotherList, setBrotherList, deadlineList, setDeadlineList, igTaskList, setIgTaskList, partyList, setPartyList, activityFeed, setActivityFeed, treasuryData, setTreasuryData, transactionList, setTransactionList, isLoading, loadError, mutationError, setMutationError, refreshChapterData, hasLoaded }}>
       {children}
     </ChapterContext.Provider>
   );
