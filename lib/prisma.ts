@@ -12,10 +12,10 @@ declare global {
 }
 
 /** Bump when Prisma schema changes so `next dev` hot reload gets a fresh client. */
-const PRISMA_SCHEMA_REVISION = "attendance-v2-20260517";
+const PRISMA_SCHEMA_REVISION = "service-event-v1-20260519";
 
 function clientSupportsCurrentSchema(client: PrismaClient | undefined): boolean {
-  return !!client && "completed" in Prisma.PartyEventScalarFieldEnum;
+  return !!client && "completed" in Prisma.PartyEventScalarFieldEnum && "id" in Prisma.ServiceEventScalarFieldEnum;
 }
 
 // Reuse pool and client across hot-reloads in dev; create once in prod
@@ -35,7 +35,8 @@ const needsFreshClient =
   !cachedPrisma.transaction ||
   !cachedPrisma.semester ||
   !cachedPrisma.attendanceRecord ||
-  !cachedPrisma.attendanceExcuse;
+  !cachedPrisma.attendanceExcuse ||
+  !cachedPrisma.serviceEvent;
 
 export const prisma = needsFreshClient ? new PrismaClient({ adapter }) : cachedPrisma;
 
