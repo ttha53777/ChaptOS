@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { Sidebar } from "../components/Sidebar";
 import { UserAvatar } from "../components/UserAvatar";
 import { Modal, FieldLabel, ConfirmDialog } from "../components/dashboard/primitives";
-import { inputCls } from "../components/dashboard/styles";
+import { headerActionBtnCls, inputCls } from "../components/dashboard/styles";
 import { CalendarEvent, fmtDate } from "../data";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -524,12 +524,12 @@ export default function ChapterPage() {
 
           <button
             onClick={() => setShowAddModal(true)}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3.5 py-2 text-[12px] font-semibold text-white shadow-sm transition-colors hover:bg-indigo-500"
+            className={headerActionBtnCls}
           >
-            <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+            <svg className="h-3.5 w-3.5 shrink-0 text-indigo-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
             </svg>
-            Add Meeting
+            <span className="hidden sm:inline">Add Meeting</span>
           </button>
 
           <UserAvatar />

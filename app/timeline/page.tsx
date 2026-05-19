@@ -1,12 +1,12 @@
 "use client";
 
-import React, { useState, useMemo, useEffect, useRef } from "react";
+import React, { useState, useMemo, useEffect, useLayoutEffect, useRef } from "react";
 import { Sidebar } from "../components/Sidebar";
 import { UserAvatar } from "../components/UserAvatar";
 import { CalendarEvent, CalEventCategory, CalLayer } from "../data";
 import { useChapter } from "../context/ChapterContext";
 import { FieldLabel, Modal, ConfirmDialog } from "../components/dashboard/primitives";
-import { inputCls } from "../components/dashboard/styles";
+import { headerActionBtnCls, inputCls } from "../components/dashboard/styles";
 import { requestJson } from "../lib/api";
 import { pad, toDateStr, daysFromToday } from "../lib/dates";
 
@@ -596,20 +596,20 @@ function EventDetail({
   }
 
   return (
-    <div className="flex flex-col gap-4">
-      {/* Back + edit/delete controls */}
+    <div className="flex flex-col gap-3">
+      {/* Top bar: back + edit/delete */}
       <div className="flex items-center justify-between">
         <button
           onClick={onClose}
-          className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] font-medium text-slate-500 transition-all hover:bg-white/[0.06] hover:text-slate-300 cursor-pointer"
+          className="flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-[12px] font-medium text-slate-400 transition-all hover:bg-white/[0.06] hover:text-white cursor-pointer"
         >
-          <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
           </svg>
           Back
         </button>
         {canEdit && (
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-0.5">
             <button
               onClick={onEdit}
               className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-white/[0.06] hover:text-slate-300"
@@ -632,12 +632,13 @@ function EventDetail({
         )}
       </div>
 
-      {/* Hero gradient banner */}
+      {/* Hero banner */}
       <div className={`relative overflow-hidden rounded-xl border ${m.border}`}>
         <div className={`absolute inset-0 bg-gradient-to-br ${m.heroBg} to-transparent`} />
         <div className={`absolute left-0 top-0 h-full w-[3px] ${m.accentBar}`} />
         <div className="relative px-4 pb-4 pt-3.5">
-          <div className="mb-2 flex items-center gap-2">
+          {/* Category + mandatory chips */}
+          <div className="mb-2.5 flex flex-wrap items-center gap-1.5">
             <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${m.text} ${m.bg} ring-1 ring-inset ${m.ring}`}>
               <svg className="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d={m.iconPath} />
@@ -653,124 +654,136 @@ function EventDetail({
               </span>
             )}
           </div>
-          <p className="text-[18px] font-bold leading-snug text-white">{event.title}</p>
-          <div className="mt-2 flex items-baseline gap-2">
-            <span className={`text-[26px] font-black tabular-nums leading-none ${m.text}`}>{d}</span>
-            <div>
-              <p className="text-[11px] font-semibold text-slate-300">{dow} · {MONTH_NAMES[mo - 1]}</p>
-              <p className="text-[10px] text-slate-500">
-                {isToday ? "Today" : isPast ? `${Math.abs(diff)} days ago` : diff === 1 ? "Tomorrow" : `In ${diff} days`}
-              </p>
-            </div>
+          {/* Title */}
+          <p className="text-[17px] font-bold leading-snug text-white">{event.title}</p>
+          {/* Date */}
+          <div className="mt-2.5 flex items-center gap-2">
+            <span className={`text-[13px] font-bold tabular-nums ${m.text}`}>{dow} {d} {MONTH_NAMES[mo - 1]}</span>
+            <span className="text-[11px] text-slate-500">
+              {isToday ? "Today" : isPast ? `${Math.abs(diff)}d ago` : diff === 1 ? "Tomorrow" : `In ${diff}d`}
+            </span>
           </div>
         </div>
       </div>
 
-      {/* Info pills */}
-      {(event.time || event.location || event.description) && (
-        <div className="flex flex-wrap gap-2">
+      {/* Meta info — consistent stacked rows */}
+      {(event.time || event.location || event.description || isDeadline) && (
+        <div className="space-y-1.5">
           {event.time && (
-            <span className="flex items-center gap-1.5 rounded-lg border border-white/[0.07] bg-white/[0.03] px-2.5 py-1.5 text-[11px] text-slate-300">
-              <svg className="h-3.5 w-3.5 shrink-0 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <div className="flex items-center gap-2.5 rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2">
+              <svg className="h-3.5 w-3.5 shrink-0 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
-              {event.time}
-            </span>
+              <span className="text-[12px] text-slate-300">{event.time}</span>
+            </div>
           )}
           {event.location && (
-            <span className="flex items-center gap-1.5 rounded-lg border border-white/[0.07] bg-white/[0.03] px-2.5 py-1.5 text-[11px] text-slate-300">
-              <svg className="h-3.5 w-3.5 shrink-0 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <div className="flex items-center gap-2.5 rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2">
+              <svg className="h-3.5 w-3.5 shrink-0 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0zM15 11a3 3 0 11-6 0 3 3 0 016 0z" />
               </svg>
-              {event.location}
-            </span>
+              <span className="text-[12px] text-slate-300">{event.location}</span>
+            </div>
           )}
-          {event.description && !event.location && (
-            <span className="flex items-start gap-1.5 rounded-lg border border-white/[0.07] bg-white/[0.03] px-2.5 py-1.5 text-[11px] leading-relaxed text-slate-400">
-              {event.description}
-            </span>
-          )}
-          {event.description && event.location && (
-            <div className="w-full rounded-lg border border-white/[0.07] bg-white/[0.03] px-3 py-2 text-[11px] leading-relaxed text-slate-400">
+          {event.description && (
+            <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2 text-[11px] leading-relaxed text-slate-400">
               {event.description}
             </div>
           )}
+          {isDeadline && (
+            <div className="flex items-center gap-2 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2">
+              <span className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-red-400" />
+              <span className="text-[11px] font-semibold text-red-400">Submit by this date</span>
+            </div>
+          )}
         </div>
-      )}
-
-      {isDeadline && (
-        <span className="inline-flex items-center gap-1.5 self-start rounded-full bg-red-500/15 px-3 py-1.5 text-[11px] font-semibold text-red-400 ring-1 ring-inset ring-red-500/25">
-          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-red-400" />
-          Submit by deadline
-        </span>
       )}
 
       {/* Attendance — mandatory events only */}
       {event.mandatory && (
         <div className="overflow-hidden rounded-xl border border-white/[0.07]">
-          <div className="flex items-center justify-between border-b border-white/[0.06] bg-white/[0.02] px-4 py-2.5">
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Attendance</p>
-            {!logAttOpen && (
-              <button
-                onClick={openLogAtt}
-                className="text-[11px] font-medium text-indigo-400 hover:text-indigo-300 transition-colors"
-              >
-                {attDetail?.attended && attDetail.attended.length > 0 ? "Edit Log" : "Log Attendance"}
-              </button>
+          {/* Attendance header */}
+          <div className="flex items-center justify-between border-b border-white/[0.06] bg-white/[0.02] px-3 py-2.5">
+            <p className="text-[11px] font-semibold text-slate-400">Attendance</p>
+            {!logAttOpen && !excuseOpen && (
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={openLogAtt}
+                  className="text-[11px] font-medium text-indigo-400 hover:text-indigo-300 transition-colors"
+                >
+                  {attDetail?.attended && attDetail.attended.length > 0 ? "Edit" : "Log"}
+                </button>
+                <span className="text-slate-700">·</span>
+                <button
+                  onClick={() => setExcuseOpen(true)}
+                  className="text-[11px] font-medium text-slate-500 hover:text-slate-300 transition-colors"
+                >
+                  Excuse
+                </button>
+              </div>
             )}
           </div>
 
-          {attLoading ? (
-            <p className="px-4 py-3 text-[12px] text-slate-500">Loading…</p>
-          ) : !attDetail || (attDetail.excused.length === 0 && attDetail.unexcused.length === 0 && attDetail.attended.length === 0) ? (
-            <p className="px-4 py-3 text-[12px] text-slate-500">
-              {isPast ? "No attendance logged for this event." : "No excuses submitted yet."}
-            </p>
-          ) : (
-            <div className="grid grid-cols-3 divide-x divide-white/[0.05]">
-              {/* Attended */}
-              <div className="px-3 py-3">
-                <div className="mb-2 flex items-center gap-1.5">
-                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-                  <p className="text-[9px] font-bold uppercase tracking-wider text-emerald-400">Attended</p>
-                  <span className="ml-auto rounded-full bg-emerald-500/15 px-1.5 text-[9px] font-semibold text-emerald-400">{attDetail.attended.length}</span>
-                </div>
-                <div className="space-y-1">
-                  {attDetail.attended.map(e => (
-                    <p key={e.brotherId} className="truncate text-[10px] text-slate-300">{e.brotherName}</p>
-                  ))}
-                  {attDetail.attended.length === 0 && <p className="text-[10px] text-slate-600">—</p>}
-                </div>
+          {/* Attendance summary — vertical stacked list instead of truncating 3-col grid */}
+          {!logAttOpen && !excuseOpen && (
+            attLoading ? (
+              <div className="flex items-center gap-2 px-3 py-3">
+                <div className="h-1 w-1 animate-pulse rounded-full bg-slate-600" />
+                <p className="text-[11px] text-slate-600">Loading…</p>
               </div>
-              {/* Excused */}
-              <div className="px-3 py-3">
-                <div className="mb-2 flex items-center gap-1.5">
-                  <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
-                  <p className="text-[9px] font-bold uppercase tracking-wider text-amber-400">Excused</p>
-                  <span className="ml-auto rounded-full bg-amber-500/15 px-1.5 text-[9px] font-semibold text-amber-400">{attDetail.excused.length}</span>
-                </div>
-                <div className="space-y-1">
-                  {attDetail.excused.map(e => (
-                    <p key={e.brotherId} className="truncate text-[10px] text-slate-300" title={e.reason}>{e.brotherName}</p>
-                  ))}
-                  {attDetail.excused.length === 0 && <p className="text-[10px] text-slate-600">—</p>}
-                </div>
+            ) : !attDetail || (attDetail.excused.length === 0 && attDetail.unexcused.length === 0 && attDetail.attended.length === 0) ? (
+              <p className="px-3 py-3 text-[11px] text-slate-600">
+                {isPast ? "No attendance recorded." : "No attendance logged yet."}
+              </p>
+            ) : (
+              <div className="divide-y divide-white/[0.04] px-3 py-1">
+                {/* Attended */}
+                {attDetail.attended.length > 0 && (
+                  <div className="py-2.5">
+                    <div className="mb-1.5 flex items-center gap-1.5">
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                      <span className="text-[10px] font-semibold uppercase tracking-wider text-emerald-400">Attended</span>
+                      <span className="ml-auto text-[10px] tabular-nums text-emerald-600">{attDetail.attended.length}</span>
+                    </div>
+                    <div className="space-y-0.5">
+                      {attDetail.attended.map(e => (
+                        <p key={e.brotherId} className="text-[11px] text-slate-300">{e.brotherName}</p>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {/* Excused */}
+                {attDetail.excused.length > 0 && (
+                  <div className="py-2.5">
+                    <div className="mb-1.5 flex items-center gap-1.5">
+                      <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
+                      <span className="text-[10px] font-semibold uppercase tracking-wider text-amber-400">Excused</span>
+                      <span className="ml-auto text-[10px] tabular-nums text-amber-600">{attDetail.excused.length}</span>
+                    </div>
+                    <div className="space-y-0.5">
+                      {attDetail.excused.map(e => (
+                        <p key={e.brotherId} className="text-[11px] text-slate-300" title={e.reason}>{e.brotherName}</p>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {/* Unexcused / Absent */}
+                {attDetail.unexcused.length > 0 && (
+                  <div className="py-2.5">
+                    <div className="mb-1.5 flex items-center gap-1.5">
+                      <span className="h-1.5 w-1.5 rounded-full bg-red-400" />
+                      <span className="text-[10px] font-semibold uppercase tracking-wider text-red-400">Absent</span>
+                      <span className="ml-auto text-[10px] tabular-nums text-red-600">{attDetail.unexcused.length}</span>
+                    </div>
+                    <div className="space-y-0.5">
+                      {attDetail.unexcused.map(e => (
+                        <p key={e.brotherId} className="text-[11px] text-slate-300">{e.brotherName}</p>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
-              {/* Unexcused */}
-              <div className="px-3 py-3">
-                <div className="mb-2 flex items-center gap-1.5">
-                  <span className="h-1.5 w-1.5 rounded-full bg-red-400" />
-                  <p className="text-[9px] font-bold uppercase tracking-wider text-red-400">Absent</p>
-                  <span className="ml-auto rounded-full bg-red-500/15 px-1.5 text-[9px] font-semibold text-red-400">{attDetail.unexcused.length}</span>
-                </div>
-                <div className="space-y-1">
-                  {attDetail.unexcused.map(e => (
-                    <p key={e.brotherId} className="truncate text-[10px] text-slate-300">{e.brotherName}</p>
-                  ))}
-                  {attDetail.unexcused.length === 0 && <p className="text-[10px] text-slate-600">—</p>}
-                </div>
-              </div>
-            </div>
+            )
           )}
 
           {/* Log attendance inline form */}
@@ -779,41 +792,40 @@ function EventDetail({
             const eligible   = brotherList.filter(b => !excusedIds.has(b.id));
             const excused    = brotherList.filter(b => excusedIds.has(b.id));
             return (
-              <form onSubmit={submitLogAtt} className="border-t border-white/[0.06] px-4 py-3 space-y-3">
+              <form onSubmit={submitLogAtt} className="px-3 py-3 space-y-2.5">
                 <p className="text-[11px] font-semibold text-slate-400">Mark who attended</p>
-                <div className="max-h-48 overflow-y-auto space-y-0.5 rounded-lg border border-white/[0.07] bg-[#0a0d14] p-2">
+                <div className="max-h-44 overflow-y-auto space-y-0.5 rounded-lg border border-white/[0.07] bg-[#0a0d14] p-1.5">
                   {eligible.map(b => (
-                    <label key={b.id} className="flex cursor-pointer items-center gap-3 rounded-lg px-2 py-1.5 hover:bg-white/[0.05] transition-colors">
+                    <label key={b.id} className="flex cursor-pointer items-center gap-2.5 rounded-md px-2 py-1.5 hover:bg-white/[0.05] transition-colors">
                       <input
                         type="checkbox"
                         checked={logAttended.has(b.id)}
                         onChange={() => setLogAttended(prev => { const n = new Set(prev); n.has(b.id) ? n.delete(b.id) : n.add(b.id); return n; })}
-                        className="h-4 w-4 rounded border-white/20 bg-transparent text-indigo-500 focus:ring-indigo-500/30"
+                        className="h-3.5 w-3.5 rounded border-white/20 bg-transparent text-indigo-500 focus:ring-indigo-500/30"
                       />
-                      <span className="flex-1 text-[12px] font-medium text-white">{b.name}</span>
+                      <span className="flex-1 text-[12px] text-slate-200">{b.name}</span>
                     </label>
                   ))}
                   {excused.map(b => (
-                    <div key={b.id} className="flex items-center gap-3 rounded-lg px-2 py-1.5 opacity-40">
-                      <input type="checkbox" disabled className="h-4 w-4 rounded border-white/20 bg-transparent" />
-                      <span className="flex-1 text-[12px] font-medium text-slate-400">{b.name}</span>
-                      <span className="text-[10px] font-semibold text-amber-400">Excused</span>
+                    <div key={b.id} className="flex items-center gap-2.5 rounded-md px-2 py-1.5 opacity-35">
+                      <input type="checkbox" disabled className="h-3.5 w-3.5 rounded border-white/20 bg-transparent" />
+                      <span className="flex-1 text-[12px] text-slate-400">{b.name}</span>
+                      <span className="text-[10px] text-amber-500">excused</span>
                     </div>
                   ))}
                 </div>
-                <p className="text-[11px] text-slate-500">
-                  <span className="font-medium text-white">{logAttended.size}</span> attending ·{" "}
-                  <span className="font-medium text-white">{eligible.length - logAttended.size}</span> absent
-                  {excused.length > 0 && <> · <span className="font-medium text-amber-400">{excused.length}</span> excused</>}
+                <p className="text-[10px] text-slate-600">
+                  {logAttended.size} attending · {eligible.length - logAttended.size} absent
+                  {excused.length > 0 && ` · ${excused.length} excused`}
                 </p>
                 {logError && <p className="text-[11px] text-red-400">{logError}</p>}
                 <div className="flex gap-2">
                   <button type="submit" disabled={logSubmitting}
                     className="flex-1 rounded-lg bg-indigo-600 px-3 py-2 text-[12px] font-semibold text-white hover:bg-indigo-500 disabled:opacity-50 transition-colors">
-                    {logSubmitting ? "Saving…" : "Save Attendance"}
+                    {logSubmitting ? "Saving…" : "Save"}
                   </button>
                   <button type="button" onClick={() => setLogAttOpen(false)}
-                    className="rounded-lg border border-white/[0.08] px-3 py-2 text-[12px] text-slate-400 hover:text-slate-300 transition-colors">
+                    className="rounded-lg border border-white/[0.08] px-3 py-2 text-[12px] text-slate-500 hover:text-slate-300 transition-colors">
                     Cancel
                   </button>
                 </div>
@@ -821,63 +833,39 @@ function EventDetail({
             );
           })()}
 
-          {/* Excuse submission */}
-          <div className="border-t border-white/[0.06] px-4 py-3">
-            {!excuseOpen ? (
-              <button onClick={() => setExcuseOpen(true)}
-                className="text-[11px] font-medium text-indigo-400 hover:text-indigo-300 transition-colors">
-                {isPast && attDetail && attDetail.unexcused.length > 0 ? "+ Retroactive Excuse" : "+ Submit Excuse"}
-              </button>
-            ) : (
-              <form onSubmit={submitExcuse} className="space-y-2">
-                <div>
-                  <FieldLabel>Brother</FieldLabel>
-                  <select className={inputCls} value={excuseBrother} onChange={e => setExcuseBrother(e.target.value)} required>
-                    <option value="">Select brother…</option>
-                    {brotherList.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <FieldLabel>Reason</FieldLabel>
-                  <input className={inputCls} value={excuseReason} onChange={e => setExcuseReason(e.target.value)} placeholder="e.g. family emergency" required />
-                </div>
-                <div className="flex gap-2">
-                  <button type="submit" disabled={excuseSubmitting}
-                    className="flex-1 rounded-lg bg-indigo-600 px-3 py-2 text-[12px] font-semibold text-white hover:bg-indigo-500 disabled:opacity-50 transition-colors">
-                    {excuseSubmitting ? "Saving…" : "Submit"}
-                  </button>
-                  <button type="button" onClick={() => setExcuseOpen(false)}
-                    className="rounded-lg border border-white/[0.08] px-3 py-2 text-[12px] text-slate-400 hover:text-slate-300 transition-colors">
-                    Cancel
-                  </button>
-                </div>
-              </form>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Full-width action buttons for mandatory events */}
-      {event.mandatory && (
-        <div className="flex gap-2">
-          <button
-            onClick={openLogAtt}
-            className="flex-1 rounded-lg bg-indigo-600 px-3 py-2.5 text-[12px] font-semibold text-white transition-colors hover:bg-indigo-500"
-          >
-            Log Attendance
-          </button>
-          <button
-            onClick={() => setExcuseOpen(true)}
-            className="flex-1 rounded-lg border border-red-500/25 bg-red-500/10 px-3 py-2.5 text-[12px] font-semibold text-red-300 transition-colors hover:bg-red-500/15"
-          >
-            + Excuse
-          </button>
+          {/* Excuse inline form */}
+          {excuseOpen && (
+            <form onSubmit={submitExcuse} className="px-3 py-3 space-y-2.5">
+              <p className="text-[11px] font-semibold text-slate-400">
+                {isPast && attDetail && attDetail.unexcused.length > 0 ? "Retroactive excuse" : "Submit excuse"}
+              </p>
+              <div>
+                <select className={inputCls} value={excuseBrother} onChange={e => setExcuseBrother(e.target.value)} required>
+                  <option value="">Select brother…</option>
+                  {brotherList.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <input className={inputCls} value={excuseReason} onChange={e => setExcuseReason(e.target.value)} placeholder="Reason" required />
+              </div>
+              <div className="flex gap-2">
+                <button type="submit" disabled={excuseSubmitting}
+                  className="flex-1 rounded-lg bg-indigo-600 px-3 py-2 text-[12px] font-semibold text-white hover:bg-indigo-500 disabled:opacity-50 transition-colors">
+                  {excuseSubmitting ? "Saving…" : "Submit"}
+                </button>
+                <button type="button" onClick={() => setExcuseOpen(false)}
+                  className="rounded-lg border border-white/[0.08] px-3 py-2 text-[12px] text-slate-500 hover:text-slate-300 transition-colors">
+                  Cancel
+                </button>
+              </div>
+            </form>
+          )}
         </div>
       )}
 
       {!canEdit && (
-        <p className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2 text-[11px] leading-relaxed text-slate-500">
-          This event is derived from dashboard data. Manage it from its source list.
+        <p className="text-[10px] leading-relaxed text-slate-700">
+          Managed from its source list — edit there to update.
         </p>
       )}
     </div>
@@ -917,6 +905,12 @@ function RightPanel({
   })).filter(c => c.count > 0);
   const totalCat = catCounts.reduce((s, c) => s + c.count, 0) || 1;
 
+  // Next 3 upcoming events for preview
+  const nextEvents = allFiltered
+    .filter(e => e.date >= todayStr)
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .slice(0, 3);
+
   return (
     <aside className="hidden w-64 shrink-0 flex-col overflow-y-auto border-l border-white/[0.07] bg-[#07090f]/80 px-4 py-5 lg:flex gap-5">
       {selectedEvent ? (
@@ -930,50 +924,63 @@ function RightPanel({
         />
       ) : (
         <>
-          {/* 2×2 KPI grid */}
-          <div className="grid grid-cols-2 gap-2">
+          {/* Overdue alert — only show when non-zero */}
+          {urgentCount > 0 && (
+            <div className="flex items-center gap-2.5 rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2.5">
+              <span className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-red-400" />
+              <p className="text-[12px] font-semibold text-red-300">
+                {urgentCount} overdue deadline{urgentCount !== 1 ? "s" : ""}
+              </p>
+            </div>
+          )}
+
+          {/* Stats row */}
+          <div className="space-y-1.5">
             {[
-              { value: urgentCount,    label: "Overdue",    color: "text-red-400",     bg: "bg-red-500/10",     border: "border-red-500/20"     },
-              { value: thisWeekCount,  label: "This Week",  color: "text-amber-400",   bg: "bg-amber-500/10",   border: "border-amber-500/20"   },
-              { value: mandatoryCount, label: "Required",   color: "text-emerald-400", bg: "bg-emerald-500/10", border: "border-emerald-500/20" },
-              { value: upcomingCount,  label: "Upcoming",   color: "text-slate-300",   bg: "bg-white/[0.03]",   border: "border-white/[0.07]"   },
+              { value: thisWeekCount,  label: "This week",  color: "text-amber-400",   dot: "bg-amber-400"   },
+              { value: mandatoryCount, label: "Required",   color: "text-emerald-400", dot: "bg-emerald-400" },
+              { value: upcomingCount,  label: "Upcoming",   color: "text-slate-300",   dot: "bg-slate-500"   },
             ].map(s => (
-              <div key={s.label} className={`flex flex-col items-center rounded-xl border ${s.border} ${s.bg} px-2 py-4 text-center`}>
-                <span className={`text-[28px] font-black tabular-nums leading-none ${s.color}`}>{s.value}</span>
-                <span className="mt-1.5 text-[9px] font-semibold uppercase tracking-wider text-slate-600">{s.label}</span>
+              <div key={s.label} className="flex items-center gap-2.5 rounded-lg px-1 py-1">
+                <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${s.dot}`} />
+                <span className="flex-1 text-[11px] text-slate-500">{s.label}</span>
+                <span className={`text-[18px] font-black tabular-nums leading-none ${s.color}`}>{s.value}</span>
               </div>
             ))}
           </div>
 
-          {/* Category stacked bar */}
+          {/* Divider */}
+          <div className="h-px bg-white/[0.05]" />
+
+          {/* Category breakdown */}
           {catCounts.length > 0 && (
             <div>
-              <p className="mb-2.5 text-[10px] font-semibold uppercase tracking-wider text-slate-600">By Category</p>
-              {/* Stacked bar */}
-              <div className="flex h-2 w-full overflow-hidden rounded-full">
+              <p className="mb-2.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-600">By Category</p>
+              {/* Segmented bar with gaps */}
+              <div className="flex h-1.5 w-full gap-0.5 overflow-hidden rounded-full">
                 {catCounts.map(({ cat, count }) => {
-                  const m = CAT_META[cat];
+                  const m   = CAT_META[cat];
                   const pct = (count / totalCat) * 100;
                   return (
                     <div
                       key={cat}
-                      className={`h-full ${m.accentBar} transition-all duration-500`}
+                      className={`h-full rounded-full ${m.accentBar} transition-all duration-500`}
                       style={{ width: `${pct}%` }}
                     />
                   );
                 })}
               </div>
               {/* Legend */}
-              <div className="mt-2.5 space-y-1.5">
+              <div className="mt-3 space-y-2">
                 {catCounts.map(({ cat, count }) => {
-                  const m = CAT_META[cat];
+                  const m   = CAT_META[cat];
                   const pct = Math.round((count / totalCat) * 100);
                   return (
                     <div key={cat} className="flex items-center gap-2">
-                      <span className={`h-2 w-2 shrink-0 rounded-full ${m.dot}`} />
-                      <span className="flex-1 text-[10px] text-slate-400">{m.label}</span>
-                      <span className="text-[10px] tabular-nums text-slate-600">{count}</span>
-                      <span className="w-7 text-right text-[10px] tabular-nums text-slate-700">{pct}%</span>
+                      <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${m.dot}`} />
+                      <span className="flex-1 text-[11px] text-slate-400">{m.label}</span>
+                      <span className="text-[11px] tabular-nums text-slate-500">{count}</span>
+                      <span className="w-8 text-right text-[10px] tabular-nums text-slate-700">{pct}%</span>
                     </div>
                   );
                 })}
@@ -981,15 +988,48 @@ function RightPanel({
             </div>
           )}
 
-          {/* Jump to today */}
+          {/* Divider */}
+          <div className="h-px bg-white/[0.05]" />
+
+          {/* Upcoming events preview */}
+          {nextEvents.length > 0 && (
+            <div>
+              <p className="mb-2.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-600">Up Next</p>
+              <div className="space-y-1.5">
+                {nextEvents.map(ev => {
+                  const m    = CAT_META[ev.category];
+                  const diff = daysFromToday(ev.date);
+                  const [, mo, d] = ev.date.split("-").map(Number);
+                  return (
+                    <div
+                      key={ev.id}
+                      className="flex items-start gap-2.5 rounded-lg border border-white/[0.05] bg-white/[0.02] px-3 py-2.5"
+                    >
+                      <div className={`mt-0.5 h-1.5 w-1.5 shrink-0 rounded-full ${m.dot}`} />
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-[12px] font-semibold leading-snug text-slate-200">{ev.title}</p>
+                        <p className="mt-0.5 text-[10px] text-slate-600">
+                          {MONTH_NAMES[mo - 1].slice(0, 3)} {d}
+                          {diff === 0 ? " · Today" : diff === 1 ? " · Tomorrow" : ` · ${diff}d`}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Jump to today — subtle ghost button */}
           <button
             onClick={() => todayRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}
-            className="w-full cursor-pointer rounded-xl border border-indigo-500/25 bg-indigo-500/10 px-3 py-3 text-[12px] font-semibold text-indigo-400 transition-all hover:border-indigo-500/40 hover:bg-indigo-500/15 hover:text-indigo-300"
+            className="flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-white/[0.06] py-2 text-[11px] font-medium text-slate-600 transition-all hover:border-indigo-500/25 hover:text-indigo-400"
           >
-            Jump to today →
+            <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+            Jump to today
           </button>
-
-          <p className="text-center text-[10px] text-slate-700">Click any event to see details</p>
         </>
       )}
     </aside>
@@ -1013,6 +1053,7 @@ export default function TimelinePage() {
 
   const todayRef         = useRef<HTMLDivElement | null>(null);
   const currentMonthRef  = useRef<HTMLDivElement | null>(null);
+  const feedRef          = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     requestJson<CalendarEvent[]>("/api/calendar")
@@ -1021,11 +1062,19 @@ export default function TimelinePage() {
       .finally(() => setCalendarLoading(false));
   }, []);
 
-  useEffect(() => {
-    if (currentMonthRef.current) {
-      currentMonthRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
-  }, []);
+  const didScrollToToday = useRef(false);
+  useLayoutEffect(() => {
+    // Only scroll once, and only after the API load is complete (so all events are in the DOM)
+    if (didScrollToToday.current || calendarLoading) return;
+    const feed   = feedRef.current;
+    const target = currentMonthRef.current;
+    if (!feed || !target) return;
+    didScrollToToday.current = true;
+    const targetTop = target.getBoundingClientRect().top;
+    const feedTop   = feed.getBoundingClientRect().top;
+    feed.scrollTop  = feed.scrollTop + (targetTop - feedTop);
+  }, [calendarLoading]);
+
 
   const apiEventIds = useMemo(() => new Set(apiEvents.map(e => e.id)), [apiEvents]);
 
@@ -1207,7 +1256,7 @@ export default function TimelinePage() {
           <div className="relative ml-auto flex items-center gap-2">
             <button
               onClick={() => setActiveModal("create")}
-              className="flex h-8 items-center gap-1.5 rounded-full border border-indigo-500/20 bg-white/[0.04] px-4 text-[12px] font-semibold text-indigo-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_8px_24px_-18px_rgba(99,102,241,0.45)] transition-all hover:border-indigo-400/35 hover:bg-indigo-500/[0.08] hover:text-white"
+              className={headerActionBtnCls}
             >
               <svg className="h-3.5 w-3.5 shrink-0 text-indigo-300" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
@@ -1246,7 +1295,7 @@ export default function TimelinePage() {
         <div className="flex flex-1 overflow-hidden">
 
           {/* Timeline feed */}
-          <div className="flex-1 overflow-y-auto px-6 py-6">
+          <div ref={feedRef} className="flex-1 overflow-y-auto px-6 py-6">
             {(calendarLoading || calendarError) && (
               <div className={`mx-auto mb-5 flex max-w-2xl items-center justify-between gap-3 rounded-xl border px-4 py-3 text-[12px] ${
                 calendarError
