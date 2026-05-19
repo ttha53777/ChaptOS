@@ -4,7 +4,7 @@ import React, { useState, useEffect, useMemo, useRef } from "react";
 import { Sidebar } from "../components/Sidebar";
 import { UserAvatar } from "../components/UserAvatar";
 import { Modal, FieldLabel } from "../components/dashboard/primitives";
-import { inputCls } from "../components/dashboard/styles";
+import { headerActionBtnCls, inputCls } from "../components/dashboard/styles";
 import { useChapter } from "../context/ChapterContext";
 import { Brother, THRESHOLDS, fmtDate } from "../data";
 import { requestJson } from "../lib/api";
@@ -200,12 +200,12 @@ export default function ServicePage() {
           <div className="flex items-center gap-2">
             <button
               onClick={openAddEvent}
-              className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-[12px] font-semibold text-white hover:bg-indigo-500 transition-colors"
+              className={headerActionBtnCls}
             >
-              <svg className="h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <svg className="h-3.5 w-3.5 shrink-0 text-indigo-300" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
               </svg>
-              Add Event
+              <span className="hidden sm:inline">Add Event</span>
             </button>
             <UserAvatar />
           </div>
