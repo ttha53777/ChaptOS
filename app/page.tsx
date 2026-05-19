@@ -28,8 +28,8 @@ import { UserAvatar } from "./components/UserAvatar";
 import { useChapter } from "./context/ChapterContext";
 import { AddDeadlineForm, AddIGTaskForm, AddRevenueForm, LogAttendanceForm } from "./components/dashboard/forms";
 import { BrotherDrawer } from "./components/dashboard/drawers/BrotherDrawer";
-import { Card, Modal, StatusBadge, TaskBadge, ConfirmDialog } from "./components/dashboard/primitives";
-import { BROTHER_STYLES, KPI_ICONS, SECTION_IDS } from "./components/dashboard/styles";
+import { Card, Modal, StatusBadge, TaskBadge, ConfirmDialog, FieldLabel } from "./components/dashboard/primitives";
+import { BROTHER_STYLES, KPI_ICONS, SECTION_IDS, inputCls } from "./components/dashboard/styles";
 import { ActivityFeed, AttBar, HealthScoreWidget, KPICard, SortTh } from "./components/dashboard/widgets";
 
 // ─── Activity ID counter (module-level, reset-safe) ───────────────────────────
@@ -68,7 +68,7 @@ const DRAWER_CONFIGS: Record<KPIDrawerKey, { title: string; accent: string; icon
 function KPIDetailDrawer({
   activeKey, onClose,
   brotherList, partyList,
-  payDues, addServiceHour,
+  openPayDues, addServiceHour,
   avgAttendance, outstandingDues, chapterGPA,
   totalServiceHrs, onTrackSvc,
   totalDoorRev, maxRevenue, bestEvent,
@@ -79,7 +79,7 @@ function KPIDetailDrawer({
   onClose: () => void;
   brotherList: Brother[];
   partyList: PartyEvent[];
-  payDues: (b: Brother) => void;
+  openPayDues: (b: Brother) => void;
   addServiceHour: (b: Brother) => void;
   avgAttendance: number;
   outstandingDues: number;
@@ -191,7 +191,7 @@ function KPIDetailDrawer({
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
                         <span className="text-[14px] font-bold text-amber-400 tabular-nums">{fmt$(b.duesOwed)}</span>
-                        <button onClick={() => payDues(b)} className="rounded-md bg-emerald-500/15 px-2 py-1 text-[11px] font-semibold text-emerald-400 ring-1 ring-inset ring-emerald-500/25 hover:bg-emerald-500/25 transition-colors">Pay</button>
+                        <button onClick={() => openPayDues(b)} className="rounded-md bg-emerald-500/15 px-2 py-1 text-[11px] font-semibold text-emerald-400 ring-1 ring-inset ring-emerald-500/25 hover:bg-emerald-500/25 transition-colors">Pay</button>
                       </div>
                     </div>
                   ))}
@@ -923,6 +923,8 @@ export default function Home() {
   const [healthDelta,    setHealthDelta]    = useState<number | null>(null);
   const [activeSection,  setActiveSection]  = useState("Dashboard");
   const [confirmDelete, setConfirmDelete] = useState<{ kind: "deadline" | "ig"; id: number; label: string } | null>(null);
+  const [payTarget,    setPayTarget]    = useState<Brother | null>(null);
+  const [payAmountStr, setPayAmountStr] = useState("");
   const deltaTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mainRef = useRef<HTMLElement>(null);
   const attendanceReqRef = useRef<AbortController | null>(null);
@@ -1376,14 +1378,30 @@ export default function Home() {
 
   function closeModal() { setActiveModal(null); }
 
-  function payDues(b: Brother) {
-    setBrotherList(prev => prev.map(x => x.id === b.id ? { ...x, duesOwed: 0 } : x));
-    addActivity(`${b.name} marked dues paid`, "success");
+  function openPayDues(b: Brother) {
+    setPayTarget(b);
+    setPayAmountStr(String(b.duesOwed));
+  }
+
+  function submitPayDues() {
+    if (!payTarget) return;
+    const amount = Math.max(0, parseFloat(payAmountStr) || 0);
+    const newOwed = Math.max(0, payTarget.duesOwed - amount);
+    const b = payTarget;
+    setPayTarget(null);
+    setPayAmountStr("");
+    setBrotherList(prev => prev.map(x => x.id === b.id ? { ...x, duesOwed: newOwed } : x));
+    addActivity(
+      newOwed === 0
+        ? `${b.name} dues fully paid`
+        : `${b.name} paid ${fmt$(amount)} — ${fmt$(newOwed)} remaining`,
+      "success",
+    );
     persistMutation(
       requestJson<Brother>(`/api/brothers/${b.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ duesOwed: 0 }),
+        body: JSON.stringify({ duesOwed: newOwed }),
       }),
       "Dues update failed. Local changes were reverted.",
       () => setBrotherList(prev => prev.map(x => x.id === b.id ? b : x)),
@@ -1608,7 +1626,7 @@ export default function Home() {
                               {b.duesOwed > 0 ? (
                                 <div className="flex items-center gap-2">
                                   <span className="tabular-nums text-[13px] font-medium text-amber-400">{fmt$(b.duesOwed)}</span>
-                                  <button onClick={e => { e.stopPropagation(); payDues(b); }} className="rounded-md bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-400 ring-1 ring-inset ring-emerald-500/25 hover:bg-emerald-500/25 transition-colors">Pay</button>
+                                  <button onClick={e => { e.stopPropagation(); openPayDues(b); }} className="rounded-md bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-400 ring-1 ring-inset ring-emerald-500/25 hover:bg-emerald-500/25 transition-colors">Pay</button>
                                 </div>
                               ) : (
                                 <span className="tabular-nums text-[13px] font-medium text-slate-600">—</span>
@@ -1879,6 +1897,55 @@ export default function Home() {
         );
       })()}
 
+      {/* ── Pay Dues Modal ──────────────────────────────────────────────────── */}
+      {payTarget && (
+        <Modal title="Record Payment" onClose={() => setPayTarget(null)}>
+          <div className="space-y-4">
+            <div>
+              <p className="text-[12px] text-slate-400 mb-3">
+                {payTarget.name} owes <span className="font-semibold text-amber-400">{fmt$(payTarget.duesOwed)}</span>
+              </p>
+              <FieldLabel>Amount Paid ($)</FieldLabel>
+              <input
+                type="number"
+                min="0"
+                max={payTarget.duesOwed}
+                step="0.01"
+                className={inputCls}
+                value={payAmountStr}
+                onChange={e => setPayAmountStr(e.target.value)}
+                autoFocus
+                onKeyDown={e => { if (e.key === "Enter") submitPayDues(); }}
+              />
+              {(() => {
+                const amt = parseFloat(payAmountStr) || 0;
+                const remaining = Math.max(0, payTarget.duesOwed - amt);
+                return amt > 0 ? (
+                  <p className="mt-1.5 text-[11px] text-slate-500">
+                    Remaining after payment: <span className={remaining === 0 ? "text-emerald-400 font-semibold" : "text-slate-300"}>{fmt$(remaining)}</span>
+                  </p>
+                ) : null;
+              })()}
+            </div>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setPayTarget(null)}
+                className="rounded-lg border border-white/[0.08] px-4 py-1.5 text-[13px] text-slate-400 hover:border-white/[0.16] hover:text-white transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={submitPayDues}
+                disabled={!(parseFloat(payAmountStr) > 0)}
+                className="rounded-lg bg-indigo-600 px-4 py-1.5 text-[13px] font-semibold text-white hover:bg-indigo-500 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Record Payment
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
       {/* ── Widget Detail Drawer ────────────────────────────────────────────── */}
       <WidgetDetailDrawer
         activeKey={widgetDrawer}
@@ -1908,7 +1975,7 @@ export default function Home() {
         brotherList={brotherList}
         onClose={() => setSelectedBrotherId(null)}
         onSave={updateBrother}
-        onPayDues={payDues}
+        onPayDues={openPayDues}
         onAddServiceHours={addServiceHour}
       />
 
@@ -1932,7 +1999,7 @@ export default function Home() {
         onClose={() => setActiveDrawer(null)}
         brotherList={brotherList}
         partyList={partyList}
-        payDues={payDues}
+        openPayDues={openPayDues}
         addServiceHour={addServiceHour}
         avgAttendance={avgAttendance}
         outstandingDues={outstandingDues}
