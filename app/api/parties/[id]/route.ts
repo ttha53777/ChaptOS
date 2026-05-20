@@ -3,6 +3,7 @@ import { Prisma } from "../../../generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth/require-user";
 import { requireAdmin } from "@/lib/auth/require-admin";
+import { logActivity } from "@/lib/activity";
 
 type PartyUpdateData = Prisma.PartyEventUpdateInput;
 
@@ -63,11 +64,22 @@ export async function PATCH(
     }
   }
 
+  const completing = body.completed === true;
+
   try {
     const party = await prisma.partyEvent.update({
       where: { id: numId },
       data,
     });
+
+    await logActivity({
+      actorId: user.id,
+      type: completing ? "success" : "info",
+      message: completing
+        ? `${user.name} marked ${party.name} complete`
+        : `${user.name} updated ${party.name}`,
+    });
+
     return Response.json(party);
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2025") {
@@ -82,7 +94,7 @@ export async function DELETE(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { error } = await requireAdmin();
+  const { user, error } = await requireAdmin();
   if (error) return error;
   const { id } = await params;
   const numId = Number(id);
@@ -91,7 +103,18 @@ export async function DELETE(
   }
 
   try {
+    const target = await prisma.partyEvent.findUnique({
+      where: { id: numId },
+      select: { name: true },
+    });
     await prisma.partyEvent.delete({ where: { id: numId } });
+
+    await logActivity({
+      actorId: user.id,
+      type: "warning",
+      message: `${user.name} deleted party ${target?.name ?? `#${numId}`}`,
+    });
+
     return new Response(null, { status: 204 });
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2025") {

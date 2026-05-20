@@ -1,13 +1,14 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth/require-admin";
+import { logActivity } from "@/lib/activity";
 
 // PATCH — set a semester as active (deactivates all others)
 export async function PATCH(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { error } = await requireAdmin();
+  const { user, error } = await requireAdmin();
   if (error) return error;
 
   const { id } = await params;
@@ -22,6 +23,13 @@ export async function PATCH(
       where: { id: numId },
       data: { isActive: true },
     });
+
+    await logActivity({
+      actorId: user.id,
+      type: "info",
+      message: `${user.name} set the active semester to ${semester.label}`,
+    });
+
     return Response.json(semester);
   } catch (e: unknown) {
     const isPrismaError = e && typeof e === "object" && "code" in e;

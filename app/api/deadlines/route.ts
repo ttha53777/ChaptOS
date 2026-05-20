@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth/require-user";
+import { logActivity } from "@/lib/activity";
 
 export async function GET() {
   const user = await requireUser();
@@ -34,6 +35,12 @@ export async function POST(req: NextRequest) {
         owner: String(owner),
         status: String(status),
       },
+    });
+
+    await logActivity({
+      actorId: user.id,
+      type: "info",
+      message: `${user.name} added deadline ${deadline.title} (due ${deadline.dueDate})`,
     });
 
     return Response.json(deadline, { status: 201 });

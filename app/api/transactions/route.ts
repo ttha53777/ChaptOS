@@ -3,6 +3,7 @@ import { Prisma } from "../../generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth/require-user";
 import { requireAdmin } from "@/lib/auth/require-admin";
+import { logActivity } from "@/lib/activity";
 
 export async function GET(req: NextRequest) {
   const user = await requireUser();
@@ -29,7 +30,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const { error } = await requireAdmin();
+  const { user, error } = await requireAdmin();
   if (error) return error;
   let body: Record<string, unknown>;
   try { body = await req.json(); }
@@ -61,6 +62,13 @@ export async function POST(req: NextRequest) {
         semester:      semester      ? String(semester)      : null,
       },
     });
+
+    await logActivity({
+      actorId: user.id,
+      type: tx.type === "income" ? "success" : "warning",
+      message: `${user.name} added a $${tx.amount.toFixed(2)} ${tx.type} for ${tx.category}: ${tx.description}`,
+    });
+
     return Response.json(tx, { status: 201 });
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {

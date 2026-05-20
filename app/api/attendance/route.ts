@@ -3,9 +3,10 @@ import { Prisma } from "../../generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getActiveSemester, recalcAllBrothersInSemester } from "@/lib/attendance";
 import { requireAdmin } from "@/lib/auth/require-admin";
+import { logActivity } from "@/lib/activity";
 
 export async function POST(req: NextRequest) {
-  const { error } = await requireAdmin();
+  const { user, error } = await requireAdmin();
   if (error) return error;
   try {
     const body = await req.json();
@@ -47,6 +48,12 @@ export async function POST(req: NextRequest) {
     );
 
     await recalcAllBrothersInSemester(semester.id);
+
+    await logActivity({
+      actorId: user.id,
+      type: "info",
+      message: `${user.name} recorded attendance for ${event.title}: ${attendedIds.length}/${eligible.length} present`,
+    });
 
     const updatedBrothers = await prisma.brother.findMany();
     return Response.json(updatedBrothers);

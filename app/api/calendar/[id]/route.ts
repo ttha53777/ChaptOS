@@ -3,6 +3,7 @@ import { Prisma } from "../../../generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth/require-user";
 import { requireAdmin } from "@/lib/auth/require-admin";
+import { logActivity } from "@/lib/activity";
 
 const CALENDAR_CATEGORIES = ["chapter", "social", "fundy", "program", "party", "deadline", "service"] as const;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -54,6 +55,12 @@ export async function PATCH(
       data,
     });
 
+    await logActivity({
+      actorId: user.id,
+      type: "info",
+      message: `${user.name} updated event ${event.title}`,
+    });
+
     return Response.json(event);
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError) {
@@ -68,11 +75,23 @@ export async function DELETE(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { error } = await requireAdmin();
+  const { user, error } = await requireAdmin();
   if (error) return error;
   try {
     const { id } = await params;
-    await prisma.calendarEvent.delete({ where: { id: Number(id) } });
+    const numId = Number(id);
+    const target = await prisma.calendarEvent.findUnique({
+      where: { id: numId },
+      select: { title: true },
+    });
+    await prisma.calendarEvent.delete({ where: { id: numId } });
+
+    await logActivity({
+      actorId: user.id,
+      type: "warning",
+      message: `${user.name} deleted event ${target?.title ?? `#${numId}`}`,
+    });
+
     return new Response(null, { status: 204 });
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError) {

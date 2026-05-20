@@ -19,6 +19,7 @@ model Brother {
   isAdmin           Boolean            @default(false)
   attendanceRecords AttendanceRecord[]
   attendanceExcuses AttendanceExcuse[]
+  authoredLogs      ActivityLog[]
 }
 
 model Semester {
@@ -128,6 +129,11 @@ model ActivityLog {
   message   String
   type      String
   timestamp DateTime @default(now())
+  actorId   Int?
+  actor     Brother? @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([timestamp])
+  @@index([actorId])
 }
 
 model Transaction {

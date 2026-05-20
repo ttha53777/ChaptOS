@@ -3,6 +3,7 @@ import { Prisma } from "../../generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getActiveSemester, recalcBrotherAttendance } from "@/lib/attendance";
 import { requireUser } from "@/lib/auth/require-user";
+import { logActivity } from "@/lib/activity";
 
 export async function POST(req: NextRequest) {
   const user = await requireUser();
@@ -41,6 +42,16 @@ export async function POST(req: NextRequest) {
     const newAttendance = await recalcBrotherAttendance(brotherId, semester.id);
     const brother = await prisma.brother.findUnique({ where: { id: brotherId } });
     if (!brother) return Response.json({ error: "Brother not found" }, { status: 404 });
+
+    const event = await prisma.calendarEvent.findUnique({
+      where: { id: calendarEventId },
+      select: { title: true },
+    });
+    await logActivity({
+      actorId: user.id,
+      type: "info",
+      message: `${user.name} ${isRetroactive ? "submitted retroactive excuse for" : "excused"} ${brother.name} from ${event?.title ?? "an event"}`,
+    });
 
     return Response.json({ ...brother, attendance: newAttendance });
   } catch (e) {

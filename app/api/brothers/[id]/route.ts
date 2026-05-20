@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { Prisma } from "../../../generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin, requireAdminOrSelf } from "@/lib/auth/require-admin";
+import { logActivity } from "@/lib/activity";
 
 export async function PATCH(
   req: NextRequest,
@@ -41,6 +42,12 @@ export async function PATCH(
       data,
     });
 
+    await logActivity({
+      actorId: user.id,
+      type: "info",
+      message: `${user.name} updated ${brother.name}'s ${Object.keys(data).join(", ")}`,
+    });
+
     return Response.json(brother);
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError) {
@@ -55,11 +62,23 @@ export async function DELETE(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { error } = await requireAdmin();
+  const { user, error } = await requireAdmin();
   if (error) return error;
   try {
     const { id } = await params;
-    await prisma.brother.delete({ where: { id: Number(id) } });
+    const numId = Number(id);
+    const target = await prisma.brother.findUnique({
+      where: { id: numId },
+      select: { name: true },
+    });
+    await prisma.brother.delete({ where: { id: numId } });
+
+    await logActivity({
+      actorId: user.id,
+      type: "warning",
+      message: `${user.name} removed ${target?.name ?? `brother #${numId}`}`,
+    });
+
     return new Response(null, { status: 204 });
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError) {

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import { logActivity } from "@/lib/activity";
 
 export async function POST(req: NextRequest) {
   // Validate Supabase session directly (can't use requireUser here — it checks
@@ -57,6 +58,12 @@ export async function POST(req: NextRequest) {
     console.error("POST /api/auth/claim: DB update failed for user", user.id);
     return Response.json({ error: "Failed to link account. Please try again." }, { status: 500 });
   }
+
+  await logActivity({
+    actorId: brother.id,
+    type: "success",
+    message: `${user.email ?? "A new user"} claimed the ${name} profile`,
+  });
 
   const res = NextResponse.json({ ok: true });
   res.cookies.set("brother_linked", "1", {

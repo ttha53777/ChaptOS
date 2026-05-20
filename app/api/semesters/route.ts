@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth/require-user";
 import { requireAdmin } from "@/lib/auth/require-admin";
+import { logActivity } from "@/lib/activity";
 
 export async function GET() {
   const user = await requireUser();
@@ -17,7 +18,7 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const { error } = await requireAdmin();
+  const { user, error } = await requireAdmin();
   if (error) return error;
 
   const body = await req.json().catch(() => ({}));
@@ -40,6 +41,13 @@ export async function POST(req: NextRequest) {
     const semester = await prisma.semester.create({
       data: { label, startDate, endDate, isActive: true },
     });
+
+    await logActivity({
+      actorId: user.id,
+      type: "info",
+      message: `${user.name} created semester ${semester.label} and made it active`,
+    });
+
     return Response.json(semester, { status: 201 });
   } catch (e: unknown) {
     const isPrismaError = e && typeof e === "object" && "code" in e;

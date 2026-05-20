@@ -3,6 +3,7 @@ import { Prisma } from "../../../generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth/require-user";
 import { requireAdmin } from "@/lib/auth/require-admin";
+import { logActivity } from "@/lib/activity";
 
 export async function PATCH(
   req: NextRequest,
@@ -45,6 +46,13 @@ export async function PATCH(
       }
       return updated;
     });
+
+    await logActivity({
+      actorId: user.id,
+      type: "info",
+      message: `${user.name} updated service event ${event.title}`,
+    });
+
     return Response.json(event);
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2025") {
@@ -59,7 +67,7 @@ export async function DELETE(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { error } = await requireAdmin();
+  const { user, error } = await requireAdmin();
   if (error) return error;
   const { id } = await params;
   const numId = Number(id);
@@ -68,14 +76,25 @@ export async function DELETE(
   }
 
   try {
-    await prisma.$transaction(async (tx) => {
-      const existing = await tx.serviceEvent.findUnique({ where: { id: numId }, select: { calendarEventId: true } });
+    const deleted = await prisma.$transaction(async (tx) => {
+      const existing = await tx.serviceEvent.findUnique({
+        where: { id: numId },
+        select: { calendarEventId: true, title: true },
+      });
       if (!existing) throw new Prisma.PrismaClientKnownRequestError("Not found", { code: "P2025", clientVersion: "" });
       await tx.serviceEvent.delete({ where: { id: numId } });
       if (existing.calendarEventId) {
         await tx.calendarEvent.delete({ where: { id: existing.calendarEventId } }).catch(() => undefined);
       }
+      return existing;
     });
+
+    await logActivity({
+      actorId: user.id,
+      type: "warning",
+      message: `${user.name} deleted service event ${deleted.title}`,
+    });
+
     return new Response(null, { status: 204 });
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2025") {
