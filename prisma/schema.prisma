@@ -114,12 +114,13 @@ model CalendarEvent {
 }
 
 model ServiceEvent {
-  id        Int      @id @default(autoincrement())
-  title     String
-  date      String
-  location  String   @default("")
-  notes     String   @default("")
-  createdAt DateTime @default(now())
+  id              Int      @id @default(autoincrement())
+  title           String
+  date            String
+  location        String   @default("")
+  notes           String   @default("")
+  calendarEventId Int?     @unique
+  createdAt       DateTime @default(now())
 }
 
 model ActivityLog {

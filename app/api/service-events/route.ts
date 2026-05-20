@@ -26,14 +26,32 @@ export async function POST(req: NextRequest) {
     return Response.json({ error: "title and date are required" }, { status: 400 });
   }
 
+  const titleStr    = String(title);
+  const dateStr     = String(date);
+  const locationStr = location ? String(location) : "";
+  const notesStr    = notes    ? String(notes)    : "";
+
   try {
-    const event = await prisma.serviceEvent.create({
-      data: {
-        title:    String(title),
-        date:     String(date),
-        location: location ? String(location) : "",
-        notes:    notes    ? String(notes)    : "",
-      },
+    const event = await prisma.$transaction(async (tx) => {
+      const calendarEvent = await tx.calendarEvent.create({
+        data: {
+          title:       titleStr,
+          date:        dateStr,
+          category:    "service",
+          mandatory:   false,
+          location:    locationStr || null,
+          description: notesStr    || null,
+        },
+      });
+      return tx.serviceEvent.create({
+        data: {
+          title:           titleStr,
+          date:            dateStr,
+          location:        locationStr,
+          notes:           notesStr,
+          calendarEventId: calendarEvent.id,
+        },
+      });
     });
     return Response.json(event, { status: 201 });
   } catch (e) {

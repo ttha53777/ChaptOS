@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth/require-user";
 import type { Prisma } from "../../generated/prisma/client";
 
-const CALENDAR_CATEGORIES = ["chapter", "social", "fundy", "program", "party", "deadline"] as const;
+const CALENDAR_CATEGORIES = ["chapter", "social", "fundy", "program", "party", "deadline", "service"] as const;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 function optionalString(value: unknown): string | null {

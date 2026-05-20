@@ -31,7 +31,20 @@ export async function PATCH(
   }
 
   try {
-    const event = await prisma.serviceEvent.update({ where: { id: numId }, data });
+    const event = await prisma.$transaction(async (tx) => {
+      const updated = await tx.serviceEvent.update({ where: { id: numId }, data });
+      if (updated.calendarEventId) {
+        const calData: Prisma.CalendarEventUpdateInput = {};
+        if ("title"    in body) calData.title       = String(body.title);
+        if ("date"     in body) calData.date        = String(body.date);
+        if ("location" in body) calData.location    = String(body.location) || null;
+        if ("notes"    in body) calData.description = String(body.notes)    || null;
+        if (Object.keys(calData).length > 0) {
+          await tx.calendarEvent.update({ where: { id: updated.calendarEventId }, data: calData });
+        }
+      }
+      return updated;
+    });
     return Response.json(event);
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2025") {
@@ -55,7 +68,14 @@ export async function DELETE(
   }
 
   try {
-    await prisma.serviceEvent.delete({ where: { id: numId } });
+    await prisma.$transaction(async (tx) => {
+      const existing = await tx.serviceEvent.findUnique({ where: { id: numId }, select: { calendarEventId: true } });
+      if (!existing) throw new Prisma.PrismaClientKnownRequestError("Not found", { code: "P2025", clientVersion: "" });
+      await tx.serviceEvent.delete({ where: { id: numId } });
+      if (existing.calendarEventId) {
+        await tx.calendarEvent.delete({ where: { id: existing.calendarEventId } }).catch(() => undefined);
+      }
+    });
     return new Response(null, { status: 204 });
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2025") {
