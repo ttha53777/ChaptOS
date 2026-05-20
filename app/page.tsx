@@ -24,6 +24,7 @@ import {
   getBrotherStatus, calcHealthScore, avg, fmt$, fmtDate,
 } from "./data";
 import { Sidebar, SvgIcon, NAV_ICONS } from "./components/Sidebar";
+import { ProfileAvatar } from "./components/ProfileAvatar";
 import { UserAvatar } from "./components/UserAvatar";
 import { useChapter } from "./context/ChapterContext";
 import { AddDeadlineForm, AddIGTaskForm, AddRevenueForm, LogAttendanceForm } from "./components/dashboard/forms";
@@ -934,7 +935,7 @@ export default function Home() {
   const attendanceReqRef = useRef<AbortController | null>(null);
 
   // ── Data state ─────────────────────────────────────────────────────────────
-  const { currentUser, brotherList, setBrotherList, deadlineList, setDeadlineList, igTaskList, setIgTaskList, partyList, setPartyList, activityFeed, setActivityFeed, treasuryData, isLoading, loadError, mutationError, setMutationError, refreshChapterData } = useChapter();
+  const { currentUser, brotherList, setBrotherList, deadlineList, setDeadlineList, igTaskList, setIgTaskList, partyList, setPartyList, activityFeed, setActivityFeed, treasuryData, isLoading, loadError, mutationError, setMutationError, refreshChapterData, avatarRevision } = useChapter();
   const isAdmin = currentUser?.isAdmin ?? false;
   const selfId  = currentUser?.id ?? null;
 
@@ -1623,7 +1624,17 @@ export default function Home() {
                         return (
                           <tr key={b.id} onClick={() => setSelectedBrotherId(b.id)} className="cursor-pointer transition-colors hover:bg-white/[0.03] active:bg-white/[0.06]">
                             <td className={`border-l-2 py-3 pl-4 pr-3 ${BROTHER_STYLES[status].row}`}>
-                              <p className="text-[13px] font-semibold text-white">{b.name}</p>
+                              <div className="flex items-center gap-2.5">
+                                {b.id === selfId && (
+                                  <ProfileAvatar
+                                    name={currentUser?.name ?? b.name}
+                                    avatarUrl={currentUser?.avatarUrl}
+                                    revision={avatarRevision}
+                                    size="xs"
+                                  />
+                                )}
+                                <p className="text-[13px] font-semibold text-white">{b.name}</p>
+                              </div>
                             </td>
                             <td className="hidden max-w-[160px] px-3 py-3 sm:table-cell">
                               <p className="truncate text-[12px] text-slate-400">{b.role}</p>
