@@ -47,7 +47,7 @@ const EMPTY_FORM = { title: "", date: "", location: "", notes: "" };
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function ServicePage() {
-  const { currentUser, brotherList, setBrotherList } = useChapter();
+  const { currentUser, brotherList, setBrotherList, isLoading } = useChapter();
   const isAdmin = currentUser?.isAdmin ?? false;
   const selfId  = currentUser?.id ?? null;
 
@@ -56,6 +56,7 @@ export default function ServicePage() {
   const [editingId,     setEditingId]     = useState<number | null>(null);
   const [editHours,     setEditHours]     = useState("");
   const [serviceEvents, setServiceEvents] = useState<ServiceEvent[]>([]);
+  const [eventsLoading, setEventsLoading] = useState(true);
   const [eventModal,    setEventModal]    = useState<"add" | "edit" | null>(null);
   const [editingEvent,  setEditingEvent]  = useState<ServiceEvent | null>(null);
   const [eventForm,     setEventForm]     = useState(EMPTY_FORM);
@@ -63,7 +64,10 @@ export default function ServicePage() {
 
   // Load service events
   useEffect(() => {
-    requestJson<ServiceEvent[]>("/api/service-events").then(setServiceEvents).catch(() => {});
+    requestJson<ServiceEvent[]>("/api/service-events")
+      .then(setServiceEvents)
+      .catch(() => {})
+      .finally(() => setEventsLoading(false));
   }, []);
 
   // Focus input when edit starts
@@ -227,7 +231,20 @@ export default function ServicePage() {
 
             {/* Brother rows */}
             <div className="flex-1 overflow-y-auto divide-y divide-white/[0.04]">
-              {filteredBrothers.length === 0 ? (
+              {isLoading ? (
+                <div className="space-y-0">
+                  {[...Array(6)].map((_, i) => (
+                    <div key={i} className="flex items-center gap-3 px-5 py-3 animate-pulse">
+                      <div className="h-8 w-8 shrink-0 rounded-full bg-white/[0.05]" />
+                      <div className="min-w-0 flex-1 space-y-1.5">
+                        <div className="h-3 w-32 rounded bg-white/[0.05]" />
+                        <div className="h-1 w-full rounded-full bg-white/[0.05]" />
+                      </div>
+                      <div className="h-4 w-10 rounded bg-white/[0.05]" />
+                    </div>
+                  ))}
+                </div>
+              ) : filteredBrothers.length === 0 ? (
                 <div className="px-5 py-10 text-center">
                   <p className="text-[12px] text-slate-600">No brothers found</p>
                 </div>
@@ -302,7 +319,16 @@ export default function ServicePage() {
             </div>
 
             <div className="flex-1 overflow-y-auto divide-y divide-white/[0.04]">
-              {serviceEvents.length === 0 ? (
+              {eventsLoading ? (
+                <div className="space-y-0">
+                  {[...Array(4)].map((_, i) => (
+                    <div key={i} className="px-5 py-4 animate-pulse">
+                      <div className="h-3 w-44 rounded bg-white/[0.05]" />
+                      <div className="mt-2 h-2.5 w-28 rounded bg-white/[0.05]" />
+                    </div>
+                  ))}
+                </div>
+              ) : serviceEvents.length === 0 ? (
                 <div className="flex flex-col items-center justify-center px-5 py-16 text-center">
                   <p className="text-[12px] text-slate-600">No events posted yet</p>
                   <button onClick={openAddEvent} className="mt-2 text-[11px] text-indigo-400 hover:text-indigo-300">

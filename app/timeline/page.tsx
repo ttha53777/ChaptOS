@@ -1371,7 +1371,24 @@ export default function TimelinePage() {
               </div>
             )}
 
-            {monthGroups.length === 0 ? (
+            {calendarLoading && monthGroups.length === 0 ? (
+              <div className="mx-auto max-w-2xl space-y-5">
+                {[...Array(2)].map((_, monthIdx) => (
+                  <div key={monthIdx} className="space-y-3">
+                    <div className="h-4 w-32 rounded bg-white/[0.05] animate-pulse" />
+                    {[...Array(3)].map((_, i) => (
+                      <div key={i} className="flex items-start gap-3 rounded-xl border border-white/[0.06] bg-[#10121a] px-4 py-4 animate-pulse">
+                        <div className="h-10 w-10 shrink-0 rounded-lg bg-white/[0.05]" />
+                        <div className="min-w-0 flex-1 space-y-2">
+                          <div className="h-3 w-48 rounded bg-white/[0.05]" />
+                          <div className="h-2.5 w-28 rounded bg-white/[0.05]" />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            ) : monthGroups.length === 0 ? (
               <div className="flex flex-col items-center gap-3 py-24 text-center">
                 <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-white/[0.06] bg-white/[0.02]">
                   <svg className="h-6 w-6 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>

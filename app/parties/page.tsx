@@ -373,7 +373,7 @@ function DetailPanel({ party, onEdit, onWrapUp, onDelete, canDelete }: {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function PartiesPage() {
-  const { currentUser, partyList, setPartyList } = useChapter();
+  const { currentUser, partyList, setPartyList, isLoading } = useChapter();
   const isAdmin = currentUser?.isAdmin ?? false;
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectedId,  setSelectedId]  = useState<number | null>(null);
@@ -591,6 +591,27 @@ export default function PartiesPage() {
               </div>
             )}
 
+            {isLoading && (
+              <>
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 xl:grid-cols-5">
+                  {[...Array(5)].map((_, i) => <div key={i} className="h-20 animate-pulse rounded-xl border border-white/[0.06] bg-[#10121a]" />)}
+                </div>
+                <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+                  <div className="space-y-0 overflow-hidden rounded-xl border border-white/[0.06] bg-[#10121a] xl:col-span-2">
+                    {[...Array(6)].map((_, i) => (
+                      <div key={i} className="h-14 border-b border-white/[0.04] px-5 flex items-center gap-4 animate-pulse last:border-b-0">
+                        <div className="h-3 w-36 rounded bg-white/[0.05]" />
+                        <div className="ml-auto h-3 w-24 rounded bg-white/[0.05]" />
+                      </div>
+                    ))}
+                  </div>
+                  <div className="h-[420px] animate-pulse rounded-xl border border-white/[0.06] bg-[#10121a]" />
+                </div>
+              </>
+            )}
+
+            {!isLoading && <>
+
             {/* ── time tabs + type filter ────────────────────────────────── */}
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex gap-1">
@@ -743,6 +764,8 @@ export default function PartiesPage() {
                 )}
               </div>
             </div>
+
+            </>}
 
           </div>
         </main>
