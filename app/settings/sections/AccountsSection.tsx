@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { ConfirmDialog } from "../../components/dashboard/primitives";
+import { useChapter } from "../../context/ChapterContext";
 
 interface AccountRow {
   id: number;
@@ -33,6 +34,8 @@ export function AccountsSection({
   onError: (msg: string) => void;
 }) {
   const router = useRouter();
+  const { currentUser } = useChapter();
+  const isAdmin = currentUser?.isAdmin ?? false;
   const [accounts, setAccounts] = useState<AccountRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [unlinking, setUnlinking] = useState<number | null>(null);
@@ -128,7 +131,7 @@ export function AccountsSection({
                       >
                         {unlinkingSelf ? "Unlinking…" : "Unlink my account"}
                       </button>
-                    ) : (
+                    ) : isAdmin ? (
                       <button
                         onClick={() => unlink(a.id, a.name)}
                         disabled={unlinking === a.id}
@@ -136,7 +139,7 @@ export function AccountsSection({
                       >
                         {unlinking === a.id ? "Unlinking…" : "Unlink"}
                       </button>
-                    )}
+                    ) : null}
                   </div>
                 ))}
               </div>

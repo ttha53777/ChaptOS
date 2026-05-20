@@ -230,11 +230,12 @@ function WrapUpForm({ party, onSubmit, onClose }: {
 
 // ─── Detail panel ─────────────────────────────────────────────────────────────
 
-function DetailPanel({ party, onEdit, onWrapUp, onDelete }: {
+function DetailPanel({ party, onEdit, onWrapUp, onDelete, canDelete }: {
   party: PartyEvent;
   onEdit:   () => void;
   onWrapUp: () => void;
   onDelete: () => void;
+  canDelete: boolean;
 }) {
   const p = profit(party);
   const margin = party.doorRevenue > 0 ? Math.round((p / party.doorRevenue) * 100) : 0;
@@ -357,10 +358,12 @@ function DetailPanel({ party, onEdit, onWrapUp, onDelete }: {
             className="flex-1 rounded-lg border border-indigo-500/30 bg-indigo-500/10 px-3 py-2 text-[12px] font-semibold text-indigo-300 hover:bg-indigo-500/20 transition-colors">
             Edit
           </button>
-          <button onClick={onDelete}
-            className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[12px] font-semibold text-red-400 hover:bg-red-500/20 transition-colors">
-            Delete
-          </button>
+          {canDelete && (
+            <button onClick={onDelete}
+              className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[12px] font-semibold text-red-400 hover:bg-red-500/20 transition-colors">
+              Delete
+            </button>
+          )}
         </div>
       </div>
     </Card>
@@ -370,7 +373,8 @@ function DetailPanel({ party, onEdit, onWrapUp, onDelete }: {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function PartiesPage() {
-  const { partyList, setPartyList } = useChapter();
+  const { currentUser, partyList, setPartyList } = useChapter();
+  const isAdmin = currentUser?.isAdmin ?? false;
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectedId,  setSelectedId]  = useState<number | null>(null);
   const [modal,       setModal]       = useState<ModalKind | null>(null);
@@ -727,6 +731,7 @@ export default function PartiesPage() {
                     onEdit={() => openEdit(selected)}
                     onWrapUp={() => openWrapUp(selected)}
                     onDelete={() => setConfirmDeleteId(selected.id)}
+                    canDelete={isAdmin}
                   />
                 ) : (
                   <Card className="flex flex-col items-center justify-center gap-2 py-16 text-center">

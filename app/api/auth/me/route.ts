@@ -12,8 +12,10 @@ export async function GET() {
     });
 
     return Response.json({
+      id: user.id,
       name: brother?.name ?? user.email ?? "Unknown",
       role: user.role,
+      isAdmin: user.isAdmin,
       email: user.email ?? "",
     });
   } catch (e) {

@@ -25,6 +25,8 @@ export function BrotherDrawer({
   onPayDues,
   onAddServiceHours,
   onDelete,
+  isAdmin = true,
+  selfId = null,
 }: {
   brotherId: number | null;
   brotherList: Brother[];
@@ -33,7 +35,15 @@ export function BrotherDrawer({
   onPayDues: (b: Brother) => void;
   onAddServiceHours: (b: Brother, hours: number) => void;
   onDelete?: (b: Brother) => void;
+  /** When false, restrict to "view + self-edit" mode. Defaults true for back-compat. */
+  isAdmin?: boolean;
+  /** Brother id of the current viewer; used to allow self-edits when not admin. */
+  selfId?: number | null;
 }) {
+  const isSelf = brotherId !== null && selfId === brotherId;
+  const canEditProfile = isAdmin || isSelf;        // name, role, gpa, serviceHours
+  const canManageDues  = isAdmin;                  // duesOwed field + "Mark Paid"
+  const canDelete      = isAdmin;
   const isOpen = brotherId !== null;
   const brother = brotherId !== null ? brotherList.find(b => b.id === brotherId) ?? null : null;
 
@@ -308,7 +318,7 @@ export function BrotherDrawer({
                       <p className={`text-[20px] font-bold tabular-nums leading-none ${brother.duesOwed > 0 ? "text-amber-400" : "text-emerald-400"}`}>
                         {brother.duesOwed > 0 ? fmt$(brother.duesOwed) : "Clear"}
                       </p>
-                      {brother.duesOwed > 0 && (
+                      {brother.duesOwed > 0 && canManageDues && (
                         <button onClick={handleQuickPayDues} className="mt-1.5 w-full rounded-md bg-emerald-500/15 py-0.5 text-[10px] font-semibold text-emerald-400 ring-1 ring-inset ring-emerald-500/25 hover:bg-emerald-500/25 transition-colors">
                           Mark Paid
                         </button>
@@ -353,34 +363,38 @@ export function BrotherDrawer({
                     </div>
                   </div>
 
-                  {/* Edit form */}
-                  <div>
-                    <p className="mb-3 text-[10px] font-semibold uppercase tracking-wider text-slate-500">Edit Profile</p>
-                    <div className="space-y-3">
-                      <div>
-                        <FieldLabel>Name</FieldLabel>
-                        <input className={inputCls} value={name} onChange={e => { setName(e.target.value); setDirty(true); }} />
-                      </div>
-                      <div>
-                        <FieldLabel>Role / Committees</FieldLabel>
-                        <input className={inputCls} value={role} onChange={e => { setRole(e.target.value); setDirty(true); }} placeholder="President · Rush · …" />
-                      </div>
-                      <div className="grid grid-cols-3 gap-3">
+                  {/* Edit form — only when admin or viewing self */}
+                  {canEditProfile && (
+                    <div>
+                      <p className="mb-3 text-[10px] font-semibold uppercase tracking-wider text-slate-500">Edit Profile</p>
+                      <div className="space-y-3">
                         <div>
-                          <FieldLabel>GPA</FieldLabel>
-                          <input type="number" min="0" max="4" step="0.01" className={inputCls} value={gpa} onChange={e => { setGpa(e.target.value); setDirty(true); }} />
+                          <FieldLabel>Name</FieldLabel>
+                          <input className={inputCls} value={name} onChange={e => { setName(e.target.value); setDirty(true); }} />
                         </div>
                         <div>
-                          <FieldLabel>Dues ($)</FieldLabel>
-                          <input type="number" min="0" className={inputCls} value={duesOwed} onChange={e => { setDuesOwed(e.target.value); setDirty(true); }} />
+                          <FieldLabel>Role / Committees</FieldLabel>
+                          <input className={inputCls} value={role} onChange={e => { setRole(e.target.value); setDirty(true); }} placeholder="President · Rush · …" />
                         </div>
-                        <div>
-                          <FieldLabel>Service (h)</FieldLabel>
-                          <input type="number" min="0" className={inputCls} value={serviceHours} onChange={e => { setServiceHours(e.target.value); setDirty(true); }} />
+                        <div className={`grid gap-3 ${canManageDues ? "grid-cols-3" : "grid-cols-2"}`}>
+                          <div>
+                            <FieldLabel>GPA</FieldLabel>
+                            <input type="number" min="0" max="4" step="0.01" className={inputCls} value={gpa} onChange={e => { setGpa(e.target.value); setDirty(true); }} />
+                          </div>
+                          {canManageDues && (
+                            <div>
+                              <FieldLabel>Dues ($)</FieldLabel>
+                              <input type="number" min="0" className={inputCls} value={duesOwed} onChange={e => { setDuesOwed(e.target.value); setDirty(true); }} />
+                            </div>
+                          )}
+                          <div>
+                            <FieldLabel>Service (h)</FieldLabel>
+                            <input type="number" min="0" className={inputCls} value={serviceHours} onChange={e => { setServiceHours(e.target.value); setDirty(true); }} />
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
+                  )}
                 </>
               )}
 
@@ -469,7 +483,7 @@ export function BrotherDrawer({
 
             {/* Footer */}
             <div className="shrink-0 border-t border-white/[0.07] px-5 py-4 space-y-2">
-              {tab === "profile" && (
+              {tab === "profile" && canEditProfile && (
                 <button
                   onClick={handleSave}
                   disabled={!dirty}
@@ -478,7 +492,7 @@ export function BrotherDrawer({
                   Save Changes
                 </button>
               )}
-              {onDelete && (
+              {onDelete && canDelete && (
                 <button
                   onClick={() => setConfirmDelete(true)}
                   className="w-full rounded-lg border border-red-500/20 bg-red-500/[0.06] px-4 py-2 text-[12px] font-medium text-red-400 hover:bg-red-500/15 transition-colors"

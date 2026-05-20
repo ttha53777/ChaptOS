@@ -359,7 +359,8 @@ const ICON_PARTY  = "M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function TreasuryPage() {
-  const { treasuryData, transactionList, setTransactionList, partyList, setPartyList, brotherList, setBrotherList } = useChapter();
+  const { currentUser, treasuryData, transactionList, setTransactionList, partyList, setPartyList, brotherList, setBrotherList } = useChapter();
+  const isAdmin = currentUser?.isAdmin ?? false;
 
   const [sidebarOpen,   setSidebarOpen]   = useState(false);
   const [semester,      setSemester]      = useState(CURRENT_SEMESTER);
@@ -656,25 +657,29 @@ export default function TreasuryPage() {
 
           {/* Action buttons */}
           <div className="flex items-center gap-2">
-            <TreasuryIconButton onClick={handleExport} title="Export CSV">
-              <svg className="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d={ICON_EXPORT} />
-              </svg>
-            </TreasuryIconButton>
+            {isAdmin && (
+              <TreasuryIconButton onClick={handleExport} title="Export CSV">
+                <svg className="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d={ICON_EXPORT} />
+                </svg>
+              </TreasuryIconButton>
+            )}
             <TreasuryIconButton onClick={() => setPartyModal({ kind: "addParty" })} title="Add Party Event">
               <svg className="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d={ICON_PARTY} />
               </svg>
             </TreasuryIconButton>
-            <button
-              onClick={() => setTxModal({ kind: "addTx" })}
-              className="flex h-8 items-center gap-1.5 rounded-full border border-indigo-500/20 bg-white/[0.04] px-3.5 text-[12px] font-semibold text-indigo-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_8px_24px_-18px_rgba(99,102,241,0.45)] transition-all hover:border-indigo-400/35 hover:bg-indigo-500/[0.08] hover:text-white"
-            >
-              <svg className="h-3.5 w-3.5 text-indigo-300" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d={ICON_PLUS} />
-              </svg>
-              <span className="hidden sm:inline">Add Transaction</span>
-            </button>
+            {isAdmin && (
+              <button
+                onClick={() => setTxModal({ kind: "addTx" })}
+                className="flex h-8 items-center gap-1.5 rounded-full border border-indigo-500/20 bg-white/[0.04] px-3.5 text-[12px] font-semibold text-indigo-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_8px_24px_-18px_rgba(99,102,241,0.45)] transition-all hover:border-indigo-400/35 hover:bg-indigo-500/[0.08] hover:text-white"
+              >
+                <svg className="h-3.5 w-3.5 text-indigo-300" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d={ICON_PLUS} />
+                </svg>
+                <span className="hidden sm:inline">Add Transaction</span>
+              </button>
+            )}
           </div>
           <UserAvatar />
         </header>
@@ -909,22 +914,24 @@ export default function TreasuryPage() {
                           ? <span className="shrink-0 tabular-nums text-[14px] font-semibold text-amber-400">{fmt$(b.duesOwed)}</span>
                           : <span className="shrink-0 tabular-nums text-[13px] text-slate-600">—</span>
                         }
-                        <div className="flex items-center gap-1">
-                          {b.duesOwed > 0 && (
+                        {isAdmin && (
+                          <div className="flex items-center gap-1">
+                            {b.duesOwed > 0 && (
+                              <button
+                                onClick={() => { setDuesTarget(b); setDuesAction("deduct"); setDuesAmountStr(String(b.duesOwed)); }}
+                                className="rounded-md bg-indigo-500/15 px-2 py-1 text-[11px] font-semibold text-indigo-400 ring-1 ring-inset ring-indigo-500/25 hover:bg-indigo-500/25 transition-colors"
+                              >
+                                Pay
+                              </button>
+                            )}
                             <button
-                              onClick={() => { setDuesTarget(b); setDuesAction("deduct"); setDuesAmountStr(String(b.duesOwed)); }}
-                              className="rounded-md bg-indigo-500/15 px-2 py-1 text-[11px] font-semibold text-indigo-400 ring-1 ring-inset ring-indigo-500/25 hover:bg-indigo-500/25 transition-colors"
+                              onClick={() => { setDuesTarget(b); setDuesAction("assign"); setDuesAmountStr(""); }}
+                              className="rounded-md bg-white/[0.05] px-2 py-1 text-[11px] font-semibold text-slate-400 ring-1 ring-inset ring-white/[0.08] hover:bg-white/[0.10] transition-colors"
                             >
-                              Pay
+                              + Add
                             </button>
-                          )}
-                          <button
-                            onClick={() => { setDuesTarget(b); setDuesAction("assign"); setDuesAmountStr(""); }}
-                            className="rounded-md bg-white/[0.05] px-2 py-1 text-[11px] font-semibold text-slate-400 ring-1 ring-inset ring-white/[0.08] hover:bg-white/[0.10] transition-colors"
-                          >
-                            + Add
-                          </button>
-                        </div>
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -1018,17 +1025,19 @@ export default function TreasuryPage() {
                       <p className="text-[13px] tabular-nums text-slate-400">{partyList.length}</p>
                     </div>
                   </div>
-                  <div className="mt-auto pt-2">
-                    <button
-                      onClick={handleExport}
-                      className="flex w-full items-center justify-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.03] py-2.5 text-[12px] font-medium text-slate-400 transition-all hover:border-white/[0.16] hover:bg-white/[0.06] hover:text-white"
-                    >
-                      <svg className="h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d={ICON_EXPORT} />
-                      </svg>
-                      Export CSV
-                    </button>
-                  </div>
+                  {isAdmin && (
+                    <div className="mt-auto pt-2">
+                      <button
+                        onClick={handleExport}
+                        className="flex w-full items-center justify-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.03] py-2.5 text-[12px] font-medium text-slate-400 transition-all hover:border-white/[0.16] hover:bg-white/[0.06] hover:text-white"
+                      >
+                        <svg className="h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d={ICON_EXPORT} />
+                        </svg>
+                        Export CSV
+                      </button>
+                    </div>
+                  )}
                 </div>
               </FinanceCard>
             </div>}{/* end Overview bottom row */}
@@ -1057,13 +1066,15 @@ export default function TreasuryPage() {
                     {txTab === "all" && tabTotals.all >= 0 && "+"}{fmt$(Math.round(tabTotals[txTab]))}
                   </span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <button onClick={handleExport} className="flex items-center gap-1.5 rounded-lg border border-white/[0.07] bg-white/[0.03] px-2.5 py-1.5 text-[11px] font-medium text-slate-500 transition-all hover:border-white/[0.14] hover:text-slate-200">
-                    <svg className="h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d={ICON_EXPORT} /></svg>
-                    CSV
-                  </button>
-                  <button onClick={() => setTxModal({ kind: "addTx" })} className="rounded-lg bg-indigo-500/15 px-2.5 py-1.5 text-[11px] font-semibold text-indigo-400 hover:bg-indigo-500/25 transition-colors">+ Add</button>
-                </div>
+                {isAdmin && (
+                  <div className="flex items-center gap-2">
+                    <button onClick={handleExport} className="flex items-center gap-1.5 rounded-lg border border-white/[0.07] bg-white/[0.03] px-2.5 py-1.5 text-[11px] font-medium text-slate-500 transition-all hover:border-white/[0.14] hover:text-slate-200">
+                      <svg className="h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d={ICON_EXPORT} /></svg>
+                      CSV
+                    </button>
+                    <button onClick={() => setTxModal({ kind: "addTx" })} className="rounded-lg bg-indigo-500/15 px-2.5 py-1.5 text-[11px] font-semibold text-indigo-400 hover:bg-indigo-500/25 transition-colors">+ Add</button>
+                  </div>
+                )}
               </div>
 
               {txnsWithRunning.length === 0 ? (
@@ -1105,10 +1116,12 @@ export default function TreasuryPage() {
                             {fmt$(Math.round(t.running))}
                           </td>
                           <td className="px-4 py-3">
-                            <div className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
-                              <IconBtn path={ICON_EDIT}  label="Edit"   onClick={() => setTxModal({ kind: "editTx", tx: t })}      className="text-slate-600 hover:bg-indigo-500/20 hover:text-indigo-400" />
-                              <IconBtn path={ICON_TRASH} label="Delete" onClick={() => setDeleteModal({ kind: "tx", tx: t })}      className="text-slate-600 hover:bg-red-500/20 hover:text-red-400" />
-                            </div>
+                            {isAdmin && (
+                              <div className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+                                <IconBtn path={ICON_EDIT}  label="Edit"   onClick={() => setTxModal({ kind: "editTx", tx: t })}      className="text-slate-600 hover:bg-indigo-500/20 hover:text-indigo-400" />
+                                <IconBtn path={ICON_TRASH} label="Delete" onClick={() => setDeleteModal({ kind: "tx", tx: t })}      className="text-slate-600 hover:bg-red-500/20 hover:text-red-400" />
+                              </div>
+                            )}
                           </td>
                         </tr>
                       ))}
@@ -1158,7 +1171,9 @@ export default function TreasuryPage() {
                               <td className="px-4 py-3">
                                 <div className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
                                   <IconBtn path={ICON_EDIT}  label="Edit"   onClick={() => setPartyModal({ kind: "editParty", event: p })} className="text-slate-600 hover:bg-indigo-500/20 hover:text-indigo-400" />
-                                  <IconBtn path={ICON_TRASH} label="Delete" onClick={() => setDeleteModal({ kind: "party", event: p })}   className="text-slate-600 hover:bg-red-500/20 hover:text-red-400" />
+                                  {isAdmin && (
+                                    <IconBtn path={ICON_TRASH} label="Delete" onClick={() => setDeleteModal({ kind: "party", event: p })}   className="text-slate-600 hover:bg-red-500/20 hover:text-red-400" />
+                                  )}
                                 </div>
                               </td>
                             </tr>
@@ -1193,15 +1208,17 @@ export default function TreasuryPage() {
                     <p className="text-[11px] text-slate-500">Projected end-of-semester</p>
                     <p className="text-[20px] font-semibold tabular-nums text-slate-300">{fmt$(Math.round(projected))}</p>
                   </div>
-                  <button
-                    onClick={handleExport}
-                    className="flex items-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.03] px-4 py-2.5 text-[12px] font-medium text-slate-400 transition-all hover:border-white/[0.16] hover:bg-white/[0.06] hover:text-white"
-                  >
-                    <svg className="h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d={ICON_EXPORT} />
-                    </svg>
-                    Export CSV
-                  </button>
+                  {isAdmin && (
+                    <button
+                      onClick={handleExport}
+                      className="flex items-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.03] px-4 py-2.5 text-[12px] font-medium text-slate-400 transition-all hover:border-white/[0.16] hover:bg-white/[0.06] hover:text-white"
+                    >
+                      <svg className="h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d={ICON_EXPORT} />
+                      </svg>
+                      Export CSV
+                    </button>
+                  )}
                 </div>
               </FinanceCard>
             )}

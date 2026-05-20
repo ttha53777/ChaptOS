@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { Modal } from "../../components/dashboard/primitives";
+import { useChapter } from "../../context/ChapterContext";
 
 interface Semester {
   id: number;
@@ -108,6 +109,8 @@ export function SemestersSection({
   onStatus: (msg: string) => void;
   onError: (msg: string) => void;
 }) {
+  const { currentUser } = useChapter();
+  const isAdmin = currentUser?.isAdmin ?? false;
   const [semesters, setSemesters] = useState<Semester[]>([]);
   const [loading, setLoading] = useState(true);
   const [activating, setActivating] = useState<number | null>(null);
@@ -143,15 +146,17 @@ export function SemestersSection({
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <p className="text-[12px] text-slate-500">Switch the active semester or create a new one.</p>
-          <button
-            onClick={() => setNewOpen(true)}
-            className="flex items-center gap-1.5 rounded-lg border border-indigo-500/30 bg-indigo-500/10 px-3 py-1.5 text-[11px] font-medium text-indigo-400 transition-colors hover:bg-indigo-500/20"
-          >
-            <svg className="h-3.5 w-3.5" viewBox="0 0 16 16" fill="currentColor">
-              <path d="M8.75 3.75a.75.75 0 0 0-1.5 0v3.5h-3.5a.75.75 0 0 0 0 1.5h3.5v3.5a.75.75 0 0 0 1.5 0v-3.5h3.5a.75.75 0 0 0 0-1.5h-3.5v-3.5Z" />
-            </svg>
-            New Semester
-          </button>
+          {isAdmin && (
+            <button
+              onClick={() => setNewOpen(true)}
+              className="flex items-center gap-1.5 rounded-lg border border-indigo-500/30 bg-indigo-500/10 px-3 py-1.5 text-[11px] font-medium text-indigo-400 transition-colors hover:bg-indigo-500/20"
+            >
+              <svg className="h-3.5 w-3.5" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M8.75 3.75a.75.75 0 0 0-1.5 0v3.5h-3.5a.75.75 0 0 0 0 1.5h3.5v3.5a.75.75 0 0 0 1.5 0v-3.5h3.5a.75.75 0 0 0 0-1.5h-3.5v-3.5Z" />
+              </svg>
+              New Semester
+            </button>
+          )}
         </div>
 
         {loading ? (
@@ -176,7 +181,7 @@ export function SemestersSection({
                   </div>
                   <p className="mt-0.5 text-[11px] text-slate-600">{s.startDate} – {s.endDate}</p>
                 </div>
-                {!s.isActive && (
+                {!s.isActive && isAdmin && (
                   <button
                     onClick={() => setActive(s.id)}
                     disabled={activating === s.id}

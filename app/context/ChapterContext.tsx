@@ -12,7 +12,16 @@ export interface TreasuryData {
   trend: { month: string; balance: number }[];
 }
 
+export interface CurrentUser {
+  id: number;
+  name: string;
+  role: string;
+  email: string;
+  isAdmin: boolean;
+}
+
 interface ChapterContextValue {
+  currentUser: CurrentUser | null;
   brotherList: Brother[];
   setBrotherList: React.Dispatch<React.SetStateAction<Brother[]>>;
   deadlineList: Deadline[];
@@ -60,6 +69,7 @@ export function ChapterProvider({ children }: { children: React.ReactNode }) {
   const [activityFeed,     setActivityFeed]     = useState<ActivityEntry[]>([]);
   const [treasuryData,     setTreasuryData]     = useState<TreasuryData | null>(null);
   const [transactionList,  setTransactionList]  = useState<Transaction[]>([]);
+  const [currentUser,      setCurrentUser]      = useState<CurrentUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [mutationError, setMutationError] = useState<string | null>(null);
@@ -70,7 +80,8 @@ export function ChapterProvider({ children }: { children: React.ReactNode }) {
     setLoadError(null);
 
     try {
-      const [brothers, deadlines, instagram, parties, activity, treasury, transactions] = await Promise.all([
+      const [me, brothers, deadlines, instagram, parties, activity, treasury, transactions] = await Promise.all([
+        fetchJson<CurrentUser>("/api/auth/me"),
         fetchJson<Brother[]>("/api/brothers"),
         fetchJson<Deadline[]>("/api/deadlines"),
         fetchJson<InstagramTask[]>("/api/instagram"),
@@ -80,6 +91,7 @@ export function ChapterProvider({ children }: { children: React.ReactNode }) {
         fetchJson<Transaction[]>("/api/transactions"),
       ]);
 
+      setCurrentUser(me);
       setBrotherList(brothers);
       setDeadlineList(deadlines);
       setIgTaskList(instagram);
@@ -122,6 +134,7 @@ export function ChapterProvider({ children }: { children: React.ReactNode }) {
   }, [refreshChapterData]);
 
   const value = useMemo(() => ({
+    currentUser,
     brotherList, setBrotherList,
     deadlineList, setDeadlineList,
     igTaskList, setIgTaskList,
@@ -133,6 +146,7 @@ export function ChapterProvider({ children }: { children: React.ReactNode }) {
     mutationError, setMutationError,
     refreshChapterData, hasLoaded,
   }), [
+    currentUser,
     brotherList, deadlineList, igTaskList, partyList,
     activityFeed, treasuryData, transactionList,
     isLoading, loadError, mutationError, hasLoaded,

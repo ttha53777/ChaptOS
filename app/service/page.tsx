@@ -47,7 +47,9 @@ const EMPTY_FORM = { title: "", date: "", location: "", notes: "" };
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function ServicePage() {
-  const { brotherList, setBrotherList } = useChapter();
+  const { currentUser, brotherList, setBrotherList } = useChapter();
+  const isAdmin = currentUser?.isAdmin ?? false;
+  const selfId  = currentUser?.id ?? null;
 
   const [sidebarOpen,   setSidebarOpen]   = useState(false);
   const [search,        setSearch]        = useState("");
@@ -283,9 +285,10 @@ export default function ServicePage() {
                       </div>
                     ) : (
                       <button
-                        onClick={() => startEdit(b)}
-                        title="Click to edit"
-                        className={`tabular-nums text-[15px] font-semibold transition-colors hover:opacity-70 ${onTrack ? "text-white" : "text-amber-400"}`}
+                        onClick={() => { if (isAdmin || b.id === selfId) startEdit(b); }}
+                        disabled={!isAdmin && b.id !== selfId}
+                        title={isAdmin || b.id === selfId ? "Click to edit" : "Only admins can edit other brothers' hours"}
+                        className={`tabular-nums text-[15px] font-semibold transition-colors hover:opacity-70 disabled:cursor-default disabled:hover:opacity-100 ${onTrack ? "text-white" : "text-amber-400"}`}
                       >
                         {b.serviceHours}h
                       </button>
@@ -346,7 +349,9 @@ export default function ServicePage() {
                       </div>
                       <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
                         <IconBtn path={ICON_EDIT}  label="Edit"   onClick={() => openEditEvent(ev)} className="text-slate-600 hover:bg-indigo-500/20 hover:text-indigo-400" />
-                        <IconBtn path={ICON_TRASH} label="Delete" onClick={() => handleDeleteEvent(ev)} className="text-slate-600 hover:bg-red-500/20 hover:text-red-400" />
+                        {isAdmin && (
+                          <IconBtn path={ICON_TRASH} label="Delete" onClick={() => handleDeleteEvent(ev)} className="text-slate-600 hover:bg-red-500/20 hover:text-red-400" />
+                        )}
                       </div>
                     </div>
                   </div>

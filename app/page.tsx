@@ -74,6 +74,7 @@ function KPIDetailDrawer({
   totalDoorRev, maxRevenue, bestEvent,
   liveBalance, liveProjected, liveTrend,
   onOpenModal, onOpenAttendance,
+  isAdmin = true,
 }: {
   activeKey: KPIDrawerKey | null;
   onClose: () => void;
@@ -94,6 +95,7 @@ function KPIDetailDrawer({
   liveTrend: { month: string; balance: number }[];
   onOpenModal: (key: "deadline" | "revenue" | "ig") => void;
   onOpenAttendance: () => void;
+  isAdmin?: boolean;
 }) {
   const isOpen = activeKey !== null;
   const cfg = activeKey ? DRAWER_CONFIGS[activeKey] : null;
@@ -191,7 +193,9 @@ function KPIDetailDrawer({
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
                         <span className="text-[14px] font-bold text-amber-400 tabular-nums">{fmt$(b.duesOwed)}</span>
-                        <button onClick={() => openPayDues(b)} className="rounded-md bg-emerald-500/15 px-2 py-1 text-[11px] font-semibold text-emerald-400 ring-1 ring-inset ring-emerald-500/25 hover:bg-emerald-500/25 transition-colors">Pay</button>
+                        {isAdmin && (
+                          <button onClick={() => openPayDues(b)} className="rounded-md bg-emerald-500/15 px-2 py-1 text-[11px] font-semibold text-emerald-400 ring-1 ring-inset ring-emerald-500/25 hover:bg-emerald-500/25 transition-colors">Pay</button>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -930,7 +934,9 @@ export default function Home() {
   const attendanceReqRef = useRef<AbortController | null>(null);
 
   // ── Data state ─────────────────────────────────────────────────────────────
-  const { brotherList, setBrotherList, deadlineList, setDeadlineList, igTaskList, setIgTaskList, partyList, setPartyList, activityFeed, setActivityFeed, treasuryData, isLoading, loadError, mutationError, setMutationError, refreshChapterData } = useChapter();
+  const { currentUser, brotherList, setBrotherList, deadlineList, setDeadlineList, igTaskList, setIgTaskList, partyList, setPartyList, activityFeed, setActivityFeed, treasuryData, isLoading, loadError, mutationError, setMutationError, refreshChapterData } = useChapter();
+  const isAdmin = currentUser?.isAdmin ?? false;
+  const selfId  = currentUser?.id ?? null;
 
   // ── Treasury — live from DB, fall back to hardcoded constants while loading ─
   const liveBalance   = treasuryData?.balance   ?? TREASURY_BALANCE;
@@ -1461,10 +1467,12 @@ export default function Home() {
                 {label}
               </button>
             ))}
-            <button onClick={() => openAttendanceLog()}
-              className="rounded-lg border border-white/[0.08] bg-white/[0.03] px-2.5 py-1.5 text-[11px] font-medium text-slate-300 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition-all duration-150 hover:border-indigo-500/40 hover:bg-indigo-500/10 hover:text-indigo-200">
-              Log Att.
-            </button>
+            {isAdmin && (
+              <button onClick={() => openAttendanceLog()}
+                className="rounded-lg border border-white/[0.08] bg-white/[0.03] px-2.5 py-1.5 text-[11px] font-medium text-slate-300 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition-all duration-150 hover:border-indigo-500/40 hover:bg-indigo-500/10 hover:text-indigo-200">
+                Log Att.
+              </button>
+            )}
           </div>
 
           {/* Mobile: single add button */}
@@ -1629,7 +1637,9 @@ export default function Home() {
                               {b.duesOwed > 0 ? (
                                 <div className="flex items-center gap-2">
                                   <span className="tabular-nums text-[13px] font-medium text-amber-400">{fmt$(b.duesOwed)}</span>
-                                  <button onClick={e => { e.stopPropagation(); openPayDues(b); }} className="rounded-md bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-400 ring-1 ring-inset ring-emerald-500/25 hover:bg-emerald-500/25 transition-colors">Pay</button>
+                                  {isAdmin && (
+                                    <button onClick={e => { e.stopPropagation(); openPayDues(b); }} className="rounded-md bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-400 ring-1 ring-inset ring-emerald-500/25 hover:bg-emerald-500/25 transition-colors">Pay</button>
+                                  )}
                                 </div>
                               ) : (
                                 <span className="tabular-nums text-[13px] font-medium text-slate-600">—</span>
@@ -1980,6 +1990,8 @@ export default function Home() {
         onSave={updateBrother}
         onPayDues={openPayDues}
         onAddServiceHours={addServiceHour}
+        isAdmin={isAdmin}
+        selfId={selfId}
       />
 
       {/* ── Confirm Delete Dialog ───────────────────────────────────────────── */}
@@ -2017,6 +2029,7 @@ export default function Home() {
         liveTrend={liveTrend}
         onOpenModal={setActiveModal}
         onOpenAttendance={openAttendanceLog}
+        isAdmin={isAdmin}
       />
     </div>
   );

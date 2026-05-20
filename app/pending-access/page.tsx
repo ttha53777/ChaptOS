@@ -21,8 +21,10 @@ export default function PendingAccessPage() {
     });
 
     if (res.ok) {
-      router.push("/");
-      router.refresh();
+      // Hard navigation so ChapterProvider remounts and reloads data with the
+      // now-linked session. A soft router.push keeps the stale provider mounted,
+      // so chapter data wouldn't load until a manual full refresh.
+      window.location.assign("/");
     } else {
       const data = await res.json();
       setError(data.error ?? "Something went wrong. Try again.");
