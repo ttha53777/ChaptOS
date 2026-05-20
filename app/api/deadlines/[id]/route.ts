@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { Prisma } from "../../../generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth/require-user";
+import { requireAdmin } from "@/lib/auth/require-admin";
 
 export async function PATCH(
   req: NextRequest,
@@ -47,8 +48,8 @@ export async function DELETE(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const user = await requireUser();
-  if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  const { error } = await requireAdmin();
+  if (error) return error;
   try {
     const { id } = await params;
     await prisma.deadline.delete({ where: { id: Number(id) } });

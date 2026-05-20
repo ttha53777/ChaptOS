@@ -12,10 +12,13 @@ declare global {
 }
 
 /** Bump when Prisma schema changes so `next dev` hot reload gets a fresh client. */
-const PRISMA_SCHEMA_REVISION = "service-event-v1-20260519";
+const PRISMA_SCHEMA_REVISION = "brother-isadmin-v1-20260520";
 
 function clientSupportsCurrentSchema(client: PrismaClient | undefined): boolean {
-  return !!client && "completed" in Prisma.PartyEventScalarFieldEnum && "id" in Prisma.ServiceEventScalarFieldEnum;
+  return !!client
+    && "completed" in Prisma.PartyEventScalarFieldEnum
+    && "id" in Prisma.ServiceEventScalarFieldEnum
+    && "isAdmin" in Prisma.BrotherScalarFieldEnum;
 }
 
 // Reuse pool and client across hot-reloads in dev; create once in prod

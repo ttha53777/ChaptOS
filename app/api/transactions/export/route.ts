@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireUser } from "@/lib/auth/require-user";
+import { requireAdmin } from "@/lib/auth/require-admin";
 
 function csvSafeStr(s: string | null | undefined): string {
   const v = (s ?? "").replace(/"/g, '""');
@@ -8,8 +8,8 @@ function csvSafeStr(s: string | null | undefined): string {
 }
 
 export async function GET(req: NextRequest) {
-  const user = await requireUser();
-  if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  const { error } = await requireAdmin();
+  if (error) return error;
   try {
     const { searchParams } = new URL(req.url);
     const semester = searchParams.get("semester") ?? "all";

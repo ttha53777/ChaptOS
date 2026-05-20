@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth/require-user";
+import { requireAdmin } from "@/lib/auth/require-admin";
 
 export async function GET() {
   const user = await requireUser();
@@ -15,8 +16,8 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const user = await requireUser();
-  if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  const { error } = await requireAdmin();
+  if (error) return error;
   try {
     const body = await req.json();
     const { name, role, duesOwed, gpa, serviceHours } = body;

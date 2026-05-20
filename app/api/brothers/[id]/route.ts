@@ -1,20 +1,30 @@
 import { NextRequest } from "next/server";
 import { Prisma } from "../../../generated/prisma/client";
 import { prisma } from "@/lib/prisma";
-import { requireUser } from "@/lib/auth/require-user";
+import { requireAdmin, requireAdminOrSelf } from "@/lib/auth/require-admin";
 
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const user = await requireUser();
-  if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
   try {
     const { id } = await params;
+    const numId = Number(id);
+    if (!Number.isInteger(numId) || numId <= 0) {
+      return Response.json({ error: "Invalid ID" }, { status: 400 });
+    }
+
+    const { user, error } = await requireAdminOrSelf(numId);
+    if (error) return error;
+
     const body = await req.json();
 
-    // attendance is system-managed via /api/attendance — not patchable directly
-    const allowed = ["name", "role", "duesOwed", "gpa", "serviceHours"] as const;
+    // attendance is system-managed via /api/attendance — not patchable directly.
+    // Admins can edit dues; non-admins (self) can only edit profile + service hours.
+    const allowed = user.isAdmin
+      ? ["name", "role", "duesOwed", "gpa", "serviceHours"] as const
+      : ["name", "role", "gpa", "serviceHours"] as const;
+
     const data: Record<string, string | number> = {};
     for (const key of allowed) {
       if (key in body) {
@@ -27,7 +37,7 @@ export async function PATCH(
     }
 
     const brother = await prisma.brother.update({
-      where: { id: Number(id) },
+      where: { id: numId },
       data,
     });
 
@@ -45,8 +55,8 @@ export async function DELETE(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const user = await requireUser();
-  if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  const { error } = await requireAdmin();
+  if (error) return error;
   try {
     const { id } = await params;
     await prisma.brother.delete({ where: { id: Number(id) } });

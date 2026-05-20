@@ -10,7 +10,8 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const calendarEventId = Number(body.calendarEventId);
-    const brotherId = Number(body.brotherId);
+    // Non-admins can only submit excuses for themselves; ignore any passed-in brotherId.
+    const brotherId = user.isAdmin ? Number(body.brotherId) : user.id;
     const reason = String(body.reason ?? "").trim();
 
     if (!Number.isInteger(calendarEventId) || calendarEventId <= 0) {

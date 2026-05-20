@@ -480,16 +480,24 @@ function EventDetail({
   event,
   onClose,
   canEdit,
+  canDelete,
+  canLogAttendance,
   onEdit,
   onDelete,
   brotherList,
+  selfBrotherId,
 }: {
   event: CalendarEvent;
   onClose: () => void;
   canEdit: boolean;
+  /** Admin-only delete. */
+  canDelete: boolean;
+  /** Admin-only attendance logging. */
+  canLogAttendance: boolean;
   onEdit: () => void;
   onDelete: () => void;
   brotherList: { id: number; name: string }[];
+  selfBrotherId: number | null;
 }) {
   const m          = CAT_META[event.category];
   const isDeadline = event.category === "deadline";
@@ -535,13 +543,20 @@ function EventDetail({
 
   async function submitExcuse(e: React.FormEvent) {
     e.preventDefault();
-    if (!excuseBrother || !excuseReason.trim()) return;
+    if (!excuseReason.trim()) return;
+    // Admins must pick a brother; non-admins submit for themselves (server enforces this).
+    if (canLogAttendance && !excuseBrother) return;
     setExcuseSubmitting(true);
     try {
       const res = await fetch("/api/excuses", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ calendarEventId: event.id, brotherId: Number(excuseBrother), reason: excuseReason.trim() }),
+        body: JSON.stringify({
+          calendarEventId: event.id,
+          // Server ignores brotherId for non-admins, but we send self's id when known for clarity.
+          brotherId: canLogAttendance ? Number(excuseBrother) : selfBrotherId ?? undefined,
+          reason: excuseReason.trim(),
+        }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -619,15 +634,17 @@ function EventDetail({
                 <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
               </svg>
             </button>
-            <button
-              onClick={onDelete}
-              className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-600 transition-colors hover:bg-red-500/10 hover:text-red-400"
-              title="Delete event"
-            >
-              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-              </svg>
-            </button>
+            {canDelete && (
+              <button
+                onClick={onDelete}
+                className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-600 transition-colors hover:bg-red-500/10 hover:text-red-400"
+                title="Delete event"
+              >
+                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -707,13 +724,17 @@ function EventDetail({
             <p className="text-[11px] font-semibold text-slate-400">Attendance</p>
             {!logAttOpen && !excuseOpen && (
               <div className="flex items-center gap-2">
-                <button
-                  onClick={openLogAtt}
-                  className="text-[11px] font-medium text-indigo-400 hover:text-indigo-300 transition-colors"
-                >
-                  {attDetail?.attended && attDetail.attended.length > 0 ? "Edit" : "Log"}
-                </button>
-                <span className="text-slate-700">·</span>
+                {canLogAttendance && (
+                  <>
+                    <button
+                      onClick={openLogAtt}
+                      className="text-[11px] font-medium text-indigo-400 hover:text-indigo-300 transition-colors"
+                    >
+                      {attDetail?.attended && attDetail.attended.length > 0 ? "Edit" : "Log"}
+                    </button>
+                    <span className="text-slate-700">·</span>
+                  </>
+                )}
                 <button
                   onClick={() => setExcuseOpen(true)}
                   className="text-[11px] font-medium text-slate-500 hover:text-slate-300 transition-colors"
@@ -837,14 +858,23 @@ function EventDetail({
           {excuseOpen && (
             <form onSubmit={submitExcuse} className="px-3 py-3 space-y-2.5">
               <p className="text-[11px] font-semibold text-slate-400">
-                {isPast && attDetail && attDetail.unexcused.length > 0 ? "Retroactive excuse" : "Submit excuse"}
+                {canLogAttendance
+                  ? isPast && attDetail && attDetail.unexcused.length > 0 ? "Retroactive excuse" : "Submit excuse"
+                  : "Submit excuse for yourself"}
               </p>
-              <div>
-                <select className={inputCls} value={excuseBrother} onChange={e => setExcuseBrother(e.target.value)} required>
-                  <option value="">Select brother…</option>
-                  {brotherList.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-                </select>
-              </div>
+              {canLogAttendance ? (
+                <div>
+                  <select className={inputCls} value={excuseBrother} onChange={e => setExcuseBrother(e.target.value)} required>
+                    <option value="">Select brother…</option>
+                    {brotherList.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                  </select>
+                </div>
+              ) : (
+                // Member self-excuse: brotherId is forced server-side; hint who it's for.
+                <p className="text-[11px] text-slate-500">
+                  {brotherList.find(b => b.id === selfBrotherId)?.name ?? "You"}
+                </p>
+              )}
               <div>
                 <input className={inputCls} value={excuseReason} onChange={e => setExcuseReason(e.target.value)} placeholder="Reason" required />
               </div>
@@ -876,6 +906,7 @@ function EventDetail({
 
 function RightPanel({
   allFiltered, todayRef, selectedEvent, selectedEventCanEdit, onClearEvent, onEditEvent, onDeleteEvent, brotherList,
+  isAdmin, selfBrotherId,
 }: {
   allFiltered: CalendarEvent[];
   todayRef: React.RefObject<HTMLDivElement | null>;
@@ -885,6 +916,8 @@ function RightPanel({
   onEditEvent: () => void;
   onDeleteEvent: () => void;
   brotherList: { id: number; name: string }[];
+  isAdmin: boolean;
+  selfBrotherId: number | null;
 }) {
   const todayStr = toDateStr(TODAY.year, TODAY.month, TODAY.day);
 
@@ -918,9 +951,12 @@ function RightPanel({
           event={selectedEvent}
           onClose={onClearEvent}
           canEdit={selectedEventCanEdit}
+          canDelete={selectedEventCanEdit && isAdmin}
+          canLogAttendance={isAdmin}
           onEdit={onEditEvent}
           onDelete={onDeleteEvent}
           brotherList={brotherList}
+          selfBrotherId={selfBrotherId}
         />
       ) : (
         <>
@@ -1039,7 +1075,8 @@ function RightPanel({
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function TimelinePage() {
-  const { deadlineList, partyList, brotherList } = useChapter();
+  const { currentUser, deadlineList, partyList, brotherList } = useChapter();
+  const isAdmin = currentUser?.isAdmin ?? false;
 
   const [sidebarOpen,     setSidebarOpen]     = useState(false);
   const [activeLayer,     setActiveLayer]     = useState<CalLayer>("all");
@@ -1067,7 +1104,8 @@ export default function TimelinePage() {
     // Only scroll once, and only after the API load is complete (so all events are in the DOM)
     if (didScrollToToday.current || calendarLoading) return;
     const feed   = feedRef.current;
-    const target = currentMonthRef.current;
+    // Prefer the today-anchor event; fall back to the current-month divider if present.
+    const target = todayRef.current ?? currentMonthRef.current;
     if (!feed || !target) return;
     didScrollToToday.current = true;
     const targetTop = target.getBoundingClientRect().top;
@@ -1119,6 +1157,13 @@ export default function TimelinePage() {
   const selectedEventCanEdit = selectedEvent ? apiEventIds.has(selectedEvent.id) : false;
 
   const todayStr = toDateStr(TODAY.year, TODAY.month, TODAY.day);
+
+  // The first event on or after today — the chronological "now" anchor we scroll to on load.
+  const todayAnchorId = useMemo(() => {
+    const sorted = [...filtered].sort((a, b) => a.date.localeCompare(b.date));
+    const upcoming = sorted.find(e => e.date >= todayStr);
+    return upcoming ? upcoming.id : sorted.length > 0 ? sorted[sorted.length - 1].id : null;
+  }, [filtered, todayStr]);
 
   function toggleMonth(id: string) {
     setCollapsedMonths(prev => {
@@ -1341,7 +1386,7 @@ export default function TimelinePage() {
                   return (
                     <div
                       key={group.id}
-                      ref={group.isCurrentMonth ? (el => { currentMonthRef.current = el; todayRef.current = el; }) : undefined}
+                      ref={group.isCurrentMonth ? (el => { currentMonthRef.current = el; }) : undefined}
                       className="mb-8"
                     >
                       <MonthDivider
@@ -1356,13 +1401,17 @@ export default function TimelinePage() {
                             <TodayMarker />
                           )}
                           {group.events.map((e, i) => (
-                            <EventCard
+                            <div
                               key={e.id}
-                              event={e}
-                              onSelect={setSelectedEvent}
-                              selected={selectedEvent?.id === e.id}
-                              showTodayMarkerBefore={i === todayMarkerIndex}
-                            />
+                              ref={e.id === todayAnchorId ? (el => { todayRef.current = el; }) : undefined}
+                            >
+                              <EventCard
+                                event={e}
+                                onSelect={setSelectedEvent}
+                                selected={selectedEvent?.id === e.id}
+                                showTodayMarkerBefore={i === todayMarkerIndex}
+                              />
+                            </div>
                           ))}
                           {group.isCurrentMonth && group.events.length === 0 && (
                             <TodayMarker />
@@ -1399,6 +1448,8 @@ export default function TimelinePage() {
             onEditEvent={() => setActiveModal("edit")}
             onDeleteEvent={handleDeleteEvent}
             brotherList={brotherList}
+            isAdmin={isAdmin}
+            selfBrotherId={currentUser?.id ?? null}
           />
         </div>
       </div>
