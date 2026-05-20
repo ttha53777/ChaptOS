@@ -359,7 +359,7 @@ const ICON_PARTY  = "M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function TreasuryPage() {
-  const { currentUser, treasuryData, transactionList, setTransactionList, partyList, setPartyList, brotherList, setBrotherList } = useChapter();
+  const { currentUser, treasuryData, transactionList, setTransactionList, partyList, setPartyList, brotherList, setBrotherList, isLoading } = useChapter();
   const isAdmin = currentUser?.isAdmin ?? false;
 
   const [sidebarOpen,   setSidebarOpen]   = useState(false);
@@ -724,6 +724,21 @@ export default function TreasuryPage() {
                 <button onClick={() => setMutErr(null)} className="ml-4 text-[11px] text-red-400 hover:text-red-200">Dismiss</button>
               </div>
             )}
+
+            {isLoading && (
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
+                  <div className="h-[340px] animate-pulse rounded-xl border border-white/[0.06] bg-[#10121a] lg:col-span-8" />
+                  <div className="h-[340px] animate-pulse rounded-xl border border-white/[0.06] bg-[#10121a] lg:col-span-4" />
+                </div>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                  {[...Array(4)].map((_, i) => <div key={i} className="h-20 animate-pulse rounded-xl border border-white/[0.06] bg-[#10121a]" />)}
+                </div>
+                <div className="h-[420px] animate-pulse rounded-xl border border-white/[0.06] bg-[#10121a]" />
+              </div>
+            )}
+
+            {!isLoading && <>
 
             {/* ── Hero row: Balance chart (8) + Donut (4) ─────────────────── */}
             <div className={`grid grid-cols-1 gap-4 ${navTab === "Overview" || navTab === "Breakdown" ? "lg:grid-cols-12" : "lg:grid-cols-1"}`}>
@@ -1222,6 +1237,8 @@ export default function TreasuryPage() {
                 </div>
               </FinanceCard>
             )}
+
+            </>}
 
           </div>
         </main>

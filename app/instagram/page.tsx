@@ -364,7 +364,7 @@ function CalendarView({
 let _nextId = Date.now();
 
 export default function InstagramPage() {
-  const { igTaskList, setIgTaskList, brotherList } = useChapter();
+  const { igTaskList, setIgTaskList, brotherList, isLoading } = useChapter();
   const brotherNames = useMemo(() => brotherList.map(b => b.name), [brotherList]);
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -498,7 +498,20 @@ export default function InstagramPage() {
         {/* ── Body ──────────────────────────────────────────────────────────── */}
         <div className="flex-1 overflow-y-auto px-6 py-6">
           <div className="mx-auto max-w-3xl">
-            {activeView === "list" ? (
+            {isLoading ? (
+              <div className="space-y-3">
+                {[...Array(6)].map((_, i) => (
+                  <div key={i} className="flex items-center gap-4 rounded-xl border border-white/[0.06] bg-[#10121a] px-5 py-4 animate-pulse">
+                    <div className="h-8 w-8 shrink-0 rounded-lg bg-white/[0.05]" />
+                    <div className="min-w-0 flex-1 space-y-2">
+                      <div className="h-3 w-48 rounded bg-white/[0.05]" />
+                      <div className="h-2.5 w-32 rounded bg-white/[0.05]" />
+                    </div>
+                    <div className="h-5 w-16 rounded-full bg-white/[0.05]" />
+                  </div>
+                ))}
+              </div>
+            ) : activeView === "list" ? (
               <ListView
                 tasks={igTaskList}
                 onEdit={openEdit}
