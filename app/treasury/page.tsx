@@ -170,7 +170,7 @@ function TxForm({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-3">
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div>
           <FieldLabel>Type</FieldLabel>
           <select value={type} onChange={e => { setType(e.target.value as "income" | "expense"); setCategory(""); }} className={inputCls}>
@@ -186,7 +186,7 @@ function TxForm({
           </select>
         </div>
       </div>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div>
           <FieldLabel>Amount ($)</FieldLabel>
           <input type="number" min="0.01" step="0.01" value={amount} onChange={e => setAmount(e.target.value)} required placeholder="0.00" className={inputCls} />
@@ -200,7 +200,7 @@ function TxForm({
         <FieldLabel>Description</FieldLabel>
         <input type="text" value={description} onChange={e => setDescription(e.target.value)} placeholder="e.g. Asia Night door cut" className={inputCls} />
       </div>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div>
           <FieldLabel>Payment Method</FieldLabel>
           <select value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)} className={inputCls}>
@@ -257,7 +257,7 @@ function PartyForm({
         <FieldLabel>Event Name</FieldLabel>
         <input type="text" value={name} onChange={e => setName(e.target.value)} required placeholder="Spring Rush Social" className={inputCls} />
       </div>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div>
           <FieldLabel>Date</FieldLabel>
           <input type="date" value={date} onChange={e => setDate(e.target.value)} required className={inputCls} />
@@ -267,7 +267,7 @@ function PartyForm({
           <input type="number" min="0" step="0.01" value={doorRevenue} onChange={e => setDoorRevenue(e.target.value)} required placeholder="0" className={inputCls} />
         </div>
       </div>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div>
           <FieldLabel>Attendance</FieldLabel>
           <input type="number" min="0" value={attendance} onChange={e => setAttendance(e.target.value)} required placeholder="0" className={inputCls} />
@@ -1083,7 +1083,7 @@ export default function TreasuryPage() {
                 </div>
               ) : (
                 <div className="overflow-x-auto">
-                  <table className="min-w-full">
+                  <table className="w-full min-w-[640px]">
                     <thead>
                       <tr className="border-b border-white/[0.05] bg-white/[0.015]">
                         {["Date", "Category", "Description", "Method", "Amount", "Running Balance", ""].map(h => (
@@ -1117,7 +1117,7 @@ export default function TreasuryPage() {
                           </td>
                           <td className="px-4 py-3">
                             {isAdmin && (
-                              <div className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+                              <div className="flex items-center gap-0.5 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100">
                                 <IconBtn path={ICON_EDIT}  label="Edit"   onClick={() => setTxModal({ kind: "editTx", tx: t })}      className="text-slate-600 hover:bg-indigo-500/20 hover:text-indigo-400" />
                                 <IconBtn path={ICON_TRASH} label="Delete" onClick={() => setDeleteModal({ kind: "tx", tx: t })}      className="text-slate-600 hover:bg-red-500/20 hover:text-red-400" />
                               </div>
@@ -1150,7 +1150,7 @@ export default function TreasuryPage() {
                     </div>
                   ) : (
                     <div className="overflow-x-auto">
-                      <table className="min-w-full">
+                      <table className="w-full min-w-[640px]">
                         <thead>
                           <tr className="border-b border-white/[0.05] bg-white/[0.015]">
                             {["Name", "Date", "Door Revenue", "Attendance", "Notes", ""].map(h => (
@@ -1169,7 +1169,7 @@ export default function TreasuryPage() {
                                 <p className="truncate text-[12px] text-slate-600">{p.notes || "—"}</p>
                               </td>
                               <td className="px-4 py-3">
-                                <div className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+                                <div className="flex items-center gap-0.5 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100">
                                   <IconBtn path={ICON_EDIT}  label="Edit"   onClick={() => setPartyModal({ kind: "editParty", event: p })} className="text-slate-600 hover:bg-indigo-500/20 hover:text-indigo-400" />
                                   {isAdmin && (
                                     <IconBtn path={ICON_TRASH} label="Delete" onClick={() => setDeleteModal({ kind: "party", event: p })}   className="text-slate-600 hover:bg-red-500/20 hover:text-red-400" />
@@ -1190,7 +1190,7 @@ export default function TreasuryPage() {
             {navTab === "Reports" && (
               <FinanceCard className="mt-4 flex flex-col gap-3 p-6">
                 <h2 className="text-[14px] font-semibold text-white">Semester Report — {semester}</h2>
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
                   {[
                     { label: "Total Income",   value: fmt$(Math.round(totalIncome)),   color: "text-emerald-400" },
                     { label: "Total Expenses", value: fmt$(Math.round(totalExpenses)), color: "text-red-400" },

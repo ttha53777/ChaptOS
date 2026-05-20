@@ -104,7 +104,7 @@ function AddBrotherForm({ onSubmit, onCancel }: {
         <FieldLabel>Role / Committees</FieldLabel>
         <input required className={inputCls} value={role} onChange={e => setRole(e.target.value)} placeholder="e.g. President · Rush" />
       </div>
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <div>
           <FieldLabel>GPA</FieldLabel>
           <input type="number" min="0" max="4" step="0.01" className={inputCls} value={gpa} onChange={e => setGpa(e.target.value)} />
@@ -358,11 +358,11 @@ export default function BrothersPage() {
 
             {/* ── KPI strip ── */}
             {isLoading ? (
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 {[...Array(4)].map((_, i) => <div key={i} className="h-20 rounded-xl border border-white/[0.06] bg-[#10121a] animate-pulse" />)}
               </div>
             ) : kpis && (
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 <KpiCard label="Avg Attendance" value={pct(kpis.avgAtt)} sub={`${kpis.attRisk} at risk · ${kpis.watching} on watch`} accent={kpis.avgAtt < THRESHOLDS.attendanceAtRisk ? "text-red-400" : kpis.avgAtt < THRESHOLDS.attendanceWatch ? "text-amber-400" : "text-emerald-400"} />
                 <KpiCard label="Avg GPA" value={kpis.avgGpa.toFixed(2)} sub="out of 4.0" accent={kpis.avgGpa < THRESHOLDS.gpaAtRisk ? "text-red-400" : kpis.avgGpa < THRESHOLDS.gpaWatch ? "text-amber-400" : "text-indigo-400"} />
                 <KpiCard label="Dues Owed" value={fmt$(kpis.duesTotal)} sub={`${brotherList.filter(b => b.duesOwed > 0).length} brothers outstanding`} accent={kpis.duesTotal === 0 ? "text-emerald-400" : "text-red-400"} />
@@ -416,7 +416,7 @@ export default function BrothersPage() {
             )}
 
             {/* ── Roster table ── */}
-            <div className="rounded-xl border border-white/[0.06] bg-[#10121a] overflow-hidden">
+            <div className="rounded-xl border border-white/[0.06] bg-[#10121a] overflow-x-auto">
               {/* Controls */}
               <div className="flex flex-col gap-3 border-b border-white/[0.06] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex flex-wrap gap-1.5">
@@ -445,7 +445,7 @@ export default function BrothersPage() {
               </div>
 
               {/* Column headers */}
-              <div className="grid grid-cols-[1fr_auto_auto_auto_auto_auto] items-center gap-x-4 border-b border-white/[0.04] px-5 py-2">
+              <div className="grid min-w-[560px] grid-cols-[1fr_auto_auto_auto_auto_auto] items-center gap-x-4 border-b border-white/[0.04] px-5 py-2">
                 <SortButton label="Name"    sortKey="name"         activeKey={sortKey} dir={sortDir} onClick={toggleSort} />
                 <SortButton label="Att."    sortKey="attendance"   activeKey={sortKey} dir={sortDir} onClick={toggleSort} />
                 <SortButton label="GPA"     sortKey="gpa"          activeKey={sortKey} dir={sortDir} onClick={toggleSort} />
@@ -474,7 +474,7 @@ export default function BrothersPage() {
                     <button
                       key={b.id}
                       onClick={() => setSelectedId(selectedId === b.id ? null : b.id)}
-                      className={`grid w-full grid-cols-[1fr_auto_auto_auto_auto_auto] items-center gap-x-4 border-b border-l-2 border-white/[0.03] px-5 py-3.5 text-left transition-colors last:border-b-0 hover:bg-white/[0.03] ${borderColor} ${selectedId === b.id ? "bg-white/[0.03]" : ""}`}
+                      className={`grid w-full min-w-[560px] grid-cols-[1fr_auto_auto_auto_auto_auto] items-center gap-x-4 border-b border-l-2 border-white/[0.03] px-5 py-3.5 text-left transition-colors last:border-b-0 hover:bg-white/[0.03] ${borderColor} ${selectedId === b.id ? "bg-white/[0.03]" : ""}`}
                     >
                       <div className="flex min-w-0 items-center gap-2.5">
                         {b.id === selfId && (

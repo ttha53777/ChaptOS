@@ -651,7 +651,7 @@ export default function PartiesPage() {
                 </div>
 
                 <div className="overflow-x-auto">
-                  <table className="min-w-full">
+                  <table className="w-full min-w-[640px]">
                     <thead>
                       <tr className="border-b border-white/[0.06] bg-white/[0.03]">
                         <th className="py-2.5 pl-5 pr-3 text-left text-[10px] font-semibold uppercase tracking-[0.07em] text-slate-500">Party</th>
