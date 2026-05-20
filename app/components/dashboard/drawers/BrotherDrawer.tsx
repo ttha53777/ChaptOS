@@ -389,7 +389,7 @@ export function BrotherDrawer({
                           <FieldLabel>Role / Committees</FieldLabel>
                           <input className={inputCls} value={role} onChange={e => { setRole(e.target.value); setDirty(true); }} placeholder="President · Rush · …" />
                         </div>
-                        <div className={`grid gap-3 ${canManageDues ? "grid-cols-3" : "grid-cols-2"}`}>
+                        <div className={`grid grid-cols-1 gap-3 ${canManageDues ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}>
                           <div>
                             <FieldLabel>GPA</FieldLabel>
                             <input type="number" min="0" max="4" step="0.01" className={inputCls} value={gpa} onChange={e => { setGpa(e.target.value); setDirty(true); }} />

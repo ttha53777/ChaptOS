@@ -90,8 +90,8 @@ function TaskCard({
               {daysChip.label}
             </span>
           )}
-          {/* Action icons — visible on hover */}
-          <div className="flex items-center gap-1 opacity-0 transition-opacity duration-150 group-hover:opacity-100">
+          {/* Action icons — visible on mobile; fade-in on hover for desktop */}
+          <div className="flex items-center gap-1 opacity-100 transition-opacity duration-150 md:opacity-0 md:group-hover:opacity-100">
             {!isComplete && (
               <button
                 onClick={() => onComplete(task)}

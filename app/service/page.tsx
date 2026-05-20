@@ -214,10 +214,10 @@ export default function ServicePage() {
         </header>
 
         {/* Body */}
-        <div className="flex flex-1 gap-4 overflow-hidden p-4">
+        <div className="flex flex-1 flex-col gap-4 overflow-hidden p-4 md:flex-row">
 
           {/* ── Brothers Panel ─────────────────────────────────────────────── */}
-          <div className="flex w-[55%] shrink-0 flex-col overflow-hidden rounded-xl border border-white/[0.07] bg-[#10121a]">
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-white/[0.07] bg-[#10121a] md:w-[55%] md:flex-none md:shrink-0">
             {/* Panel header */}
             <div className="flex items-center justify-between border-b border-white/[0.05] px-5 py-4">
               <div>
@@ -300,7 +300,7 @@ export default function ServicePage() {
           </div>
 
           {/* ── Events Panel ───────────────────────────────────────────────── */}
-          <div className="flex flex-1 flex-col overflow-hidden rounded-xl border border-white/[0.07] bg-[#10121a]">
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-white/[0.07] bg-[#10121a]">
             <div className="flex items-center justify-between border-b border-white/[0.05] px-5 py-4">
               <div>
                 <h2 className="text-[14px] font-semibold text-white">Service Events</h2>
@@ -347,7 +347,7 @@ export default function ServicePage() {
                           <p className="mt-1.5 text-[11px] leading-relaxed text-slate-500">{ev.notes}</p>
                         )}
                       </div>
-                      <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+                      <div className="flex shrink-0 items-center gap-0.5 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100">
                         <IconBtn path={ICON_EDIT}  label="Edit"   onClick={() => openEditEvent(ev)} className="text-slate-600 hover:bg-indigo-500/20 hover:text-indigo-400" />
                         {isAdmin && (
                           <IconBtn path={ICON_TRASH} label="Delete" onClick={() => handleDeleteEvent(ev)} className="text-slate-600 hover:bg-red-500/20 hover:text-red-400" />

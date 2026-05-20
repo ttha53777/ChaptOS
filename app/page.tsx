@@ -321,7 +321,7 @@ function KPIDetailDrawer({
                       ? <span className="text-[10px] text-emerald-500 w-10 shrink-0 text-right">✓</span>
                       : <span className="text-[10px] text-slate-600 w-10 shrink-0 text-right">-{remaining}h</span>
                     }
-                    <button onClick={() => addServiceHour(b)} className="opacity-0 group-hover:opacity-100 shrink-0 rounded bg-white/[0.07] px-1.5 py-0.5 text-[10px] font-semibold text-slate-400 hover:bg-indigo-500/15 hover:text-indigo-400 transition-all">+1h</button>
+                    <button onClick={() => addServiceHour(b)} className="opacity-100 md:opacity-0 md:group-hover:opacity-100 shrink-0 rounded bg-white/[0.07] px-1.5 py-0.5 text-[10px] font-semibold text-slate-400 hover:bg-indigo-500/15 hover:text-indigo-400 transition-all">+1h</button>
                   </div>
                 );
               })}
@@ -691,7 +691,7 @@ function WidgetDetailDrawer({
                             <p className={`text-[12px] font-medium ${d.status === "Complete" ? "line-through text-slate-500" : "text-white"}`}>{d.title}</p>
                             <p className="text-[10px] text-slate-500 mt-0.5">{fmtDate(d.dueDate)} · {d.owner.split(" ")[0]}</p>
                           </div>
-                          <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <div className="flex items-center gap-0.5 shrink-0 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                             {d.status !== "Complete" && (
                               <button onClick={() => onCompleteDeadline(d.id)} title="Mark complete" className="flex h-6 w-6 items-center justify-center rounded hover:bg-emerald-500/20 text-slate-500 hover:text-emerald-400 transition-colors">
                                 <svg className="h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
@@ -752,7 +752,7 @@ function WidgetDetailDrawer({
                     <div className="flex items-start justify-between gap-2 mb-1">
                       <p className={`text-[12px] font-semibold flex-1 ${t.status === "Complete" ? "line-through text-slate-500" : "text-white"}`}>{t.title}</p>
                       <div className="flex items-center gap-1 shrink-0">
-                        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="flex items-center gap-0.5 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                           {t.status !== "Complete" && (
                             <button onClick={() => onCompleteIG(t.id)} title="Mark complete" className="flex h-6 w-6 items-center justify-center rounded hover:bg-emerald-500/20 text-slate-500 hover:text-emerald-400 transition-colors">
                               <svg className="h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
@@ -1532,7 +1532,7 @@ export default function Home() {
             </section>
 
             {/* ── KPI Cards ──────────────────────────────────────────────── */}
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6">
               <KPICard label="Avg Attendance" value={`${avgAttendance.toFixed(1)}%`}
                 trend={`${belowAttCount} below threshold`}
                 iconKey="attendance" sparkData={KPI_SPARKLINES.attendance}
@@ -1605,7 +1605,7 @@ export default function Home() {
                 </div>
 
                 <div className="overflow-x-auto">
-                  <table className="min-w-full">
+                  <table className="min-w-[640px]">
                     <thead>
                       <tr className="border-b border-white/[0.06] bg-white/[0.02]">
                         <th className="py-2.5 pl-5 pr-3 text-left text-[10px] font-semibold uppercase tracking-[0.07em] text-slate-500">Brother</th>
@@ -1747,7 +1747,7 @@ export default function Home() {
                           <p className={`truncate text-[12px] font-medium ${d.status === "Complete" ? "line-through text-slate-500" : "text-white"}`}>{d.title}</p>
                           <p className="text-[11px] text-slate-500">{fmtDate(d.dueDate)} · {d.owner.split(" ")[0]}</p>
                         </div>
-                        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                        <div className="flex items-center gap-0.5 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity shrink-0">
                           {d.status !== "Complete" && (
                             <button onClick={() => completeDeadline(d.id)} title="Mark complete" className="flex h-6 w-6 items-center justify-center rounded hover:bg-emerald-500/20 text-slate-600 hover:text-emerald-400 transition-colors">
                               <svg className="h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
@@ -1788,7 +1788,7 @@ export default function Home() {
                           <p className={`truncate text-[12px] font-medium ${t.status === "Complete" ? "line-through text-slate-500" : "text-white"}`}>{t.title}</p>
                           <p className="text-[11px] text-slate-500">{fmtDate(t.dueDate)} · {t.type}</p>
                         </div>
-                        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                        <div className="flex items-center gap-0.5 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity shrink-0">
                           {t.status !== "Complete" && (
                             <button onClick={() => completeIG(t.id)} title="Mark complete" className="flex h-6 w-6 items-center justify-center rounded hover:bg-emerald-500/20 text-slate-600 hover:text-emerald-400 transition-colors">
                               <svg className="h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
