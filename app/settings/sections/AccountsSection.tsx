@@ -11,6 +11,7 @@ interface AccountRow {
   role: string;
   linked: boolean;
   isSelf: boolean;
+  isAdmin: boolean;
 }
 
 async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
@@ -41,6 +42,9 @@ export function AccountsSection({
   const [unlinking, setUnlinking] = useState<number | null>(null);
   const [unlinkingSelf, setUnlinkingSelf] = useState(false);
   const [confirmSelfUnlink, setConfirmSelfUnlink] = useState(false);
+  // Admin promote/demote confirm dialog target.
+  const [adminTarget, setAdminTarget] = useState<{ id: number; name: string; nextIsAdmin: boolean } | null>(null);
+  const [togglingAdmin, setTogglingAdmin] = useState<number | null>(null);
 
   useEffect(() => {
     requestJson<AccountRow[]>("/api/auth/accounts")
@@ -73,6 +77,23 @@ export function AccountsSection({
     }
   }
 
+  async function toggleAdmin(target: { id: number; name: string; nextIsAdmin: boolean }) {
+    setTogglingAdmin(target.id);
+    try {
+      await requestJson(`/api/auth/accounts/${target.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isAdmin: target.nextIsAdmin }),
+      });
+      setAccounts(prev => prev.map(a => a.id === target.id ? { ...a, isAdmin: target.nextIsAdmin } : a));
+      onStatus(target.nextIsAdmin ? `${target.name} is now an admin.` : `${target.name} is no longer an admin.`);
+    } catch (err: unknown) {
+      onError(err instanceof Error ? err.message : "Failed to update admin status.");
+    } finally {
+      setTogglingAdmin(null);
+    }
+  }
+
   const linked = accounts.filter(a => a.linked);
   const unlinked = accounts.filter(a => !a.linked);
 
@@ -92,6 +113,31 @@ export function AccountsSection({
           }
           onCancel={() => setConfirmSelfUnlink(false)}
           onConfirm={() => { setConfirmSelfUnlink(false); unlinkSelf(); }}
+        />
+      )}
+      {adminTarget && (
+        <ConfirmDialog
+          title={adminTarget.nextIsAdmin ? "Promote to admin" : "Remove admin"}
+          confirmLabel={adminTarget.nextIsAdmin ? "Promote" : "Remove admin"}
+          message={
+            adminTarget.nextIsAdmin ? (
+              <>
+                Grant <span className="font-semibold text-white">{adminTarget.name}</span> admin permissions?
+                They will be able to manage finances, semesters, roster, and attendance.
+              </>
+            ) : (
+              <>
+                Remove admin permissions from <span className="font-semibold text-white">{adminTarget.name}</span>?
+                They will lose access to financial and destructive actions.
+              </>
+            )
+          }
+          onCancel={() => setAdminTarget(null)}
+          onConfirm={() => {
+            const t = adminTarget;
+            setAdminTarget(null);
+            void toggleAdmin(t);
+          }}
         />
       )}
       <p className="text-[12px] text-slate-500">
@@ -119,27 +165,47 @@ export function AccountsSection({
                           {a.isSelf && (
                             <span className="rounded-full bg-white/[0.06] px-1.5 py-0.5 text-[10px] text-slate-500">you</span>
                           )}
+                          {a.isAdmin && (
+                            <span className="rounded-full bg-indigo-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-300 ring-1 ring-inset ring-indigo-500/30">
+                              Admin
+                            </span>
+                          )}
                         </div>
                         <p className="text-[11px] text-slate-600">{a.role || "Member"}</p>
                       </div>
                     </div>
-                    {a.isSelf ? (
-                      <button
-                        onClick={() => setConfirmSelfUnlink(true)}
-                        disabled={unlinkingSelf}
-                        className="shrink-0 rounded-lg border border-amber-500/25 bg-amber-500/[0.07] px-3 py-1.5 text-[11px] font-medium text-amber-400 transition-all hover:bg-amber-500/15 disabled:opacity-40"
-                      >
-                        {unlinkingSelf ? "Unlinking…" : "Unlink my account"}
-                      </button>
-                    ) : isAdmin ? (
-                      <button
-                        onClick={() => unlink(a.id, a.name)}
-                        disabled={unlinking === a.id}
-                        className="shrink-0 rounded-lg border border-red-500/20 bg-red-500/[0.08] px-3 py-1.5 text-[11px] font-medium text-red-400 transition-all hover:bg-red-500/15 disabled:opacity-40"
-                      >
-                        {unlinking === a.id ? "Unlinking…" : "Unlink"}
-                      </button>
-                    ) : null}
+                    <div className="flex shrink-0 items-center gap-1.5">
+                      {isAdmin && !a.isSelf && (
+                        <button
+                          onClick={() => setAdminTarget({ id: a.id, name: a.name, nextIsAdmin: !a.isAdmin })}
+                          disabled={togglingAdmin === a.id}
+                          className={`rounded-lg border px-3 py-1.5 text-[11px] font-medium transition-all disabled:opacity-40 ${
+                            a.isAdmin
+                              ? "border-white/[0.1] bg-white/[0.04] text-slate-400 hover:border-white/[0.16] hover:text-slate-200"
+                              : "border-indigo-500/25 bg-indigo-500/[0.08] text-indigo-300 hover:bg-indigo-500/15"
+                          }`}
+                        >
+                          {togglingAdmin === a.id ? "Saving…" : a.isAdmin ? "Remove admin" : "Make admin"}
+                        </button>
+                      )}
+                      {a.isSelf ? (
+                        <button
+                          onClick={() => setConfirmSelfUnlink(true)}
+                          disabled={unlinkingSelf}
+                          className="rounded-lg border border-amber-500/25 bg-amber-500/[0.07] px-3 py-1.5 text-[11px] font-medium text-amber-400 transition-all hover:bg-amber-500/15 disabled:opacity-40"
+                        >
+                          {unlinkingSelf ? "Unlinking…" : "Unlink my account"}
+                        </button>
+                      ) : isAdmin ? (
+                        <button
+                          onClick={() => unlink(a.id, a.name)}
+                          disabled={unlinking === a.id}
+                          className="rounded-lg border border-red-500/20 bg-red-500/[0.08] px-3 py-1.5 text-[11px] font-medium text-red-400 transition-all hover:bg-red-500/15 disabled:opacity-40"
+                        >
+                          {unlinking === a.id ? "Unlinking…" : "Unlink"}
+                        </button>
+                      ) : null}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -153,13 +219,35 @@ export function AccountsSection({
                 {unlinked.map((a, i) => (
                   <div
                     key={a.id}
-                    className={`flex items-center gap-2.5 px-4 py-3 ${i < unlinked.length - 1 ? "border-b border-white/[0.04]" : ""}`}
+                    className={`flex items-center justify-between gap-3 px-4 py-3 ${i < unlinked.length - 1 ? "border-b border-white/[0.04]" : ""}`}
                   >
-                    <div className="h-2 w-2 shrink-0 rounded-full bg-slate-700" />
-                    <div className="min-w-0">
-                      <span className="truncate text-[13px] text-slate-500">{a.name}</span>
-                      <p className="text-[11px] text-slate-700">{a.role || "Member"}</p>
+                    <div className="flex min-w-0 items-center gap-2.5">
+                      <div className="h-2 w-2 shrink-0 rounded-full bg-slate-700" />
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="truncate text-[13px] text-slate-500">{a.name}</span>
+                          {a.isAdmin && (
+                            <span className="rounded-full bg-indigo-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-300 ring-1 ring-inset ring-indigo-500/30">
+                              Admin
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-slate-700">{a.role || "Member"}</p>
+                      </div>
                     </div>
+                    {isAdmin && (
+                      <button
+                        onClick={() => setAdminTarget({ id: a.id, name: a.name, nextIsAdmin: !a.isAdmin })}
+                        disabled={togglingAdmin === a.id}
+                        className={`shrink-0 rounded-lg border px-3 py-1.5 text-[11px] font-medium transition-all disabled:opacity-40 ${
+                          a.isAdmin
+                            ? "border-white/[0.1] bg-white/[0.04] text-slate-400 hover:border-white/[0.16] hover:text-slate-200"
+                            : "border-indigo-500/25 bg-indigo-500/[0.08] text-indigo-300 hover:bg-indigo-500/15"
+                        }`}
+                      >
+                        {togglingAdmin === a.id ? "Saving…" : a.isAdmin ? "Remove admin" : "Make admin"}
+                      </button>
+                    )}
                   </div>
                 ))}
               </div>
