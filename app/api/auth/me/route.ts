@@ -1,15 +1,23 @@
 import { requireUser } from "@/lib/auth/require-user";
+import { parseAvatarFromMetadata } from "@/lib/avatar";
 import { prisma } from "@/lib/prisma";
+import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 export async function GET() {
   const user = await requireUser();
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
   try {
-    const brother = await prisma.brother.findUnique({
-      where: { id: user.id },
-      select: { name: true },
-    });
+    const [brother, supabase] = await Promise.all([
+      prisma.brother.findUnique({
+        where: { id: user.id },
+        select: { name: true },
+      }),
+      createServerSupabaseClient(),
+    ]);
+
+    const { data: { user: authUser } } = await supabase.auth.getUser();
+    const { avatarUrl, hasCustomAvatar } = parseAvatarFromMetadata(authUser?.user_metadata);
 
     return Response.json({
       id: user.id,
@@ -17,6 +25,8 @@ export async function GET() {
       role: user.role,
       isAdmin: user.isAdmin,
       email: user.email ?? "",
+      avatarUrl,
+      hasCustomAvatar,
     });
   } catch (e) {
     console.error("GET /api/auth/me failed:", e);

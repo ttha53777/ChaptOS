@@ -2,47 +2,17 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
+import { ProfileAvatar } from "./ProfileAvatar";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 
-function AvatarImage({
-  avatarUrl,
-  name,
-  initial,
-  size,
-}: {
-  avatarUrl: string | null | undefined;
-  name: string | undefined;
-  initial: string;
-  size: "sm" | "md";
-}) {
-  if (avatarUrl) {
-    const cls = size === "sm"
-      ? "h-8 w-8 rounded-full object-cover"
-      : "h-10 w-10 shrink-0 rounded-full object-cover ring-2 ring-white/[0.08]";
-    return (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img
-        src={avatarUrl}
-        alt={name ?? "Profile"}
-        className={cls}
-        referrerPolicy="no-referrer"
-      />
-    );
-  }
-
-  const textCls = size === "sm" ? "text-[12px]" : "text-[14px]";
-  const boxCls = size === "sm" ? "h-8 w-8" : "h-10 w-10 shrink-0";
-  return (
-    <div
-      className={`flex ${boxCls} items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-indigo-700 ${textCls} font-bold text-white shadow-[0_2px_8px_rgba(99,102,241,0.4)]`}
-    >
-      {initial}
-    </div>
-  );
+async function syncAvatarSession() {
+  const supabase = createClient();
+  await supabase.auth.refreshSession();
 }
 
 export function UserAvatar() {
-  const { user, loading, setAvatarUrl } = useCurrentUser();
+  const { user, loading, avatarRevision, setAvatarUrl } = useCurrentUser();
   const [open, setOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -102,7 +72,8 @@ export function UserAvatar() {
       const res = await fetch("/api/auth/avatar", { method: "POST", body });
       const data = await res.json().catch(() => ({})) as { avatarUrl?: string; error?: string };
       if (!res.ok) throw new Error(data.error ?? "Upload failed");
-      if (data.avatarUrl) setAvatarUrl(data.avatarUrl, true);
+      await syncAvatarSession();
+      setAvatarUrl(data.avatarUrl ?? null, true);
     } catch (err) {
       setPhotoError(err instanceof Error ? err.message : "Could not update profile photo");
     } finally {
@@ -117,6 +88,7 @@ export function UserAvatar() {
       const res = await fetch("/api/auth/avatar", { method: "DELETE" });
       const data = await res.json().catch(() => ({})) as { avatarUrl?: string | null; error?: string };
       if (!res.ok) throw new Error(data.error ?? "Remove failed");
+      await syncAvatarSession();
       setAvatarUrl(data.avatarUrl ?? null, false);
     } catch (err) {
       setPhotoError(err instanceof Error ? err.message : "Could not remove profile photo");
@@ -125,12 +97,11 @@ export function UserAvatar() {
     }
   }
 
-  const initial = user?.name?.charAt(0).toUpperCase() ?? "?";
   const photoBusy = uploading || removing;
 
   if (loading) {
     return (
-      <div className="h-8 w-8 rounded-full bg-white/[0.07] animate-pulse shrink-0" />
+      <div className="h-8 w-8 shrink-0 rounded-full bg-white/[0.07] animate-pulse" />
     );
   }
 
@@ -152,18 +123,39 @@ export function UserAvatar() {
         aria-label="Open profile menu"
         aria-expanded={open}
       >
-        <AvatarImage avatarUrl={user?.avatarUrl} name={user?.name} initial={initial} size="sm" />
+        <ProfileAvatar
+          name={user?.name}
+          avatarUrl={user?.avatarUrl}
+          revision={avatarRevision}
+          size="sm"
+        />
       </button>
 
       {open && (
         <div
-          className="absolute right-0 top-11 z-50 w-64 overflow-hidden rounded-xl border border-white/[0.08] bg-[#10121a] shadow-[0_8px_32px_rgba(0,0,0,0.6)]"
+          className="absolute right-0 top-11 z-[60] w-64 overflow-hidden rounded-xl border border-white/[0.08] bg-[#10121a] shadow-[0_8px_32px_rgba(0,0,0,0.6)]"
           role="menu"
         >
           <div className="flex items-center gap-3 px-4 py-4">
-            <AvatarImage avatarUrl={user?.avatarUrl} name={user?.name} initial={initial} size="md" />
+            <ProfileAvatar
+              name={user?.name}
+              avatarUrl={user?.avatarUrl}
+              revision={avatarRevision}
+              size="md"
+              ringClassName="ring-2 ring-white/[0.08]"
+            />
             <div className="min-w-0">
-              <p className="truncate text-[13px] font-semibold text-white">{user?.name}</p>
+              <div className="flex items-center gap-1.5">
+                <p className="truncate text-[13px] font-semibold text-white">{user?.name}</p>
+                {user?.isAdmin && (
+                  <span
+                    className="shrink-0 rounded-full bg-indigo-500/15 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-indigo-300 ring-1 ring-inset ring-indigo-500/30"
+                    title="You have admin permissions"
+                  >
+                    Admin
+                  </span>
+                )}
+              </div>
               {user?.role && (
                 <p className="truncate text-[11px] text-slate-500 leading-tight mt-0.5">{user.role}</p>
               )}

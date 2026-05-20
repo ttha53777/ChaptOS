@@ -2,6 +2,7 @@
 
 import React, { useState, useMemo, useCallback } from "react";
 import { Sidebar } from "../components/Sidebar";
+import { ProfileAvatar } from "../components/ProfileAvatar";
 import { UserAvatar } from "../components/UserAvatar";
 import { StatusBadge, Modal, FieldLabel, ConfirmDialog } from "../components/dashboard/primitives";
 import { inputCls } from "../components/dashboard/styles";
@@ -128,7 +129,7 @@ function AddBrotherForm({ onSubmit, onCancel }: {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function BrothersPage() {
-  const { currentUser, brotherList, setBrotherList, isLoading } = useChapter();
+  const { currentUser, brotherList, setBrotherList, isLoading, avatarRevision } = useChapter();
   const isAdmin = currentUser?.isAdmin ?? false;
   const selfId = currentUser?.id ?? null;
 
@@ -313,7 +314,7 @@ export default function BrothersPage() {
               {brotherList.length} members · chapter analytics
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex shrink-0 items-center gap-2">
             <button
               onClick={handleExport}
               title="Export CSV"
@@ -334,8 +335,8 @@ export default function BrothersPage() {
                 <span className="hidden sm:inline">New Brother</span>
               </button>
             )}
+            <UserAvatar />
           </div>
-          <UserAvatar />
         </header>
 
         <main className="page-ambient flex-1 overflow-y-auto">
@@ -475,9 +476,19 @@ export default function BrothersPage() {
                       onClick={() => setSelectedId(selectedId === b.id ? null : b.id)}
                       className={`grid w-full grid-cols-[1fr_auto_auto_auto_auto_auto] items-center gap-x-4 border-b border-l-2 border-white/[0.03] px-5 py-3.5 text-left transition-colors last:border-b-0 hover:bg-white/[0.03] ${borderColor} ${selectedId === b.id ? "bg-white/[0.03]" : ""}`}
                     >
-                      <div className="min-w-0">
-                        <p className="truncate text-[13px] font-medium text-slate-200">{b.name}</p>
-                        <p className="truncate text-[11px] text-slate-600">{b.role}</p>
+                      <div className="flex min-w-0 items-center gap-2.5">
+                        {b.id === selfId && (
+                          <ProfileAvatar
+                            name={currentUser?.name ?? b.name}
+                            avatarUrl={currentUser?.avatarUrl}
+                            revision={avatarRevision}
+                            size="xs"
+                          />
+                        )}
+                        <div className="min-w-0">
+                          <p className="truncate text-[13px] font-medium text-slate-200">{b.name}</p>
+                          <p className="truncate text-[11px] text-slate-600">{b.role}</p>
+                        </div>
                       </div>
                       <div className="flex w-16 flex-col items-end gap-1">
                         <span className={`text-[12px] font-semibold tabular-nums ${b.attendance < THRESHOLDS.attendanceAtRisk ? "text-red-400" : b.attendance < THRESHOLDS.attendanceWatch ? "text-amber-400" : "text-slate-300"}`}>
