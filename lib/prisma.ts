@@ -6,6 +6,8 @@ declare global {
   // eslint-disable-next-line no-var
   var _pgPool: Pool | undefined;
   // eslint-disable-next-line no-var
+  var _pgPoolRevision: string | undefined;
+  // eslint-disable-next-line no-var
   var _prisma: PrismaClient | undefined;
   // eslint-disable-next-line no-var
   var _prismaSchemaRevision: string | undefined;
@@ -13,6 +15,8 @@ declare global {
 
 /** Bump when Prisma schema changes so `next dev` hot reload gets a fresh client. */
 const PRISMA_SCHEMA_REVISION = "brother-isadmin-v1-20260520";
+/** Bump when pool options change so `next dev` hot reload picks up new config. */
+const POOL_REVISION = "pool-timeout-20s-v1-20260520";
 
 function clientSupportsCurrentSchema(client: PrismaClient | undefined): boolean {
   return !!client
@@ -21,16 +25,24 @@ function clientSupportsCurrentSchema(client: PrismaClient | undefined): boolean 
     && "isAdmin" in Prisma.BrotherScalarFieldEnum;
 }
 
-// Reuse pool and client across hot-reloads in dev; create once in prod
+// Reuse pool and client across hot-reloads in dev; create once in prod.
+// If POOL_REVISION changes, drain the old pool so the new options take effect without a restart.
+const needsFreshPool = !globalThis._pgPool || globalThis._pgPoolRevision !== POOL_REVISION;
+if (globalThis._pgPool && needsFreshPool) {
+  globalThis._pgPool.end().catch(() => undefined);
+  globalThis._pgPool = undefined;
+  // A new pool means the cached Prisma client points at a dead one — discard it.
+  globalThis._prisma = undefined;
+}
 const pool = globalThis._pgPool ?? new Pool({
   connectionString:        process.env.DATABASE_URL!,
-  connectionTimeoutMillis: 5_000,   // fail fast instead of hanging when DB is unreachable
+  connectionTimeoutMillis: 20_000,  // Supabase pooler cold-starts can take 10s+
   idleTimeoutMillis:       30_000,  // release idle connections promptly on Vercel
   max:                     10,      // stay under Supabase free-tier connection limit
 });
 
 // Pre-warm the connection so the first real request doesn't pay the cold-start penalty
-if (!globalThis._pgPool) {
+if (needsFreshPool) {
   pool.query("SELECT 1").catch(() => undefined);
   // Drain the pool on graceful shutdown so in-flight queries finish cleanly
   process.once("SIGTERM", () => { pool.end().catch(() => undefined); });
@@ -39,8 +51,10 @@ const adapter = new PrismaPg(pool);
 const cachedPrisma = globalThis._prisma;
 
 // Prisma's generated model delegates can change while `next dev` keeps globals alive.
+// Also rebuild if the pool was just recreated (cached client would reference the dead pool).
 const needsFreshClient =
   !cachedPrisma ||
+  needsFreshPool ||
   globalThis._prismaSchemaRevision !== PRISMA_SCHEMA_REVISION ||
   !clientSupportsCurrentSchema(cachedPrisma) ||
   !cachedPrisma.activityLog ||
@@ -54,6 +68,7 @@ export const prisma = needsFreshClient ? new PrismaClient({ adapter }) : cachedP
 
 if (process.env.NODE_ENV !== "production") {
   globalThis._pgPool = pool;
+  globalThis._pgPoolRevision = POOL_REVISION;
   globalThis._prisma = prisma;
   globalThis._prismaSchemaRevision = PRISMA_SCHEMA_REVISION;
 }
