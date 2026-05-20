@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { requireAdmin } from "@/lib/auth/require-admin";
 import { prisma } from "@/lib/prisma";
+import { logActivity } from "@/lib/activity";
 
 // PATCH — promote or demote a brother's admin status
 export async function PATCH(
@@ -36,9 +37,16 @@ export async function PATCH(
     const updated = await prisma.brother.update({
       where: { id: numId },
       data: { isAdmin: body.isAdmin },
-      select: { id: true, isAdmin: true },
+      select: { id: true, isAdmin: true, name: true },
     });
-    return Response.json(updated);
+
+    await logActivity({
+      actorId: user.id,
+      type: "warning",
+      message: `${user.name} ${body.isAdmin ? "promoted" : "demoted"} ${updated.name}`,
+    });
+
+    return Response.json({ id: updated.id, isAdmin: updated.isAdmin });
   } catch (e) {
     if (e && typeof e === "object" && "code" in e && (e as { code: string }).code === "P2025") {
       return Response.json({ error: "Brother not found" }, { status: 404 });
@@ -66,7 +74,7 @@ export async function DELETE(
     // Prevent unlinking yourself — would lock you out
     const target = await prisma.brother.findUnique({
       where: { id: numId },
-      select: { authUserId: true },
+      select: { authUserId: true, name: true },
     });
     if (!target) return Response.json({ error: "Brother not found" }, { status: 404 });
     if (target.authUserId === user.authUserId) {
@@ -76,6 +84,12 @@ export async function DELETE(
     await prisma.brother.update({
       where: { id: numId },
       data: { authUserId: null },
+    });
+
+    await logActivity({
+      actorId: user.id,
+      type: "warning",
+      message: `${user.name} unlinked ${target.name}'s Google account`,
     });
 
     return new Response(null, { status: 204 });

@@ -14,7 +14,7 @@ declare global {
 }
 
 /** Bump when Prisma schema changes so `next dev` hot reload gets a fresh client. */
-const PRISMA_SCHEMA_REVISION = "service-event-calendar-link-v1-20260520";
+const PRISMA_SCHEMA_REVISION = "activity-log-actorid-v1-20260520";
 /** Bump when pool options change so `next dev` hot reload picks up new config. */
 const POOL_REVISION = "pool-timeout-20s-v1-20260520";
 
@@ -23,7 +23,8 @@ function clientSupportsCurrentSchema(client: PrismaClient | undefined): boolean 
     && "completed" in Prisma.PartyEventScalarFieldEnum
     && "id" in Prisma.ServiceEventScalarFieldEnum
     && "calendarEventId" in Prisma.ServiceEventScalarFieldEnum
-    && "isAdmin" in Prisma.BrotherScalarFieldEnum;
+    && "isAdmin" in Prisma.BrotherScalarFieldEnum
+    && "actorId" in Prisma.ActivityLogScalarFieldEnum;
 }
 
 // Reuse pool and client across hot-reloads in dev; create once in prod.

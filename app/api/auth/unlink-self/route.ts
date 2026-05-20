@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { prisma } from "@/lib/prisma";
+import { logActivity } from "@/lib/activity";
 
 // DELETE — unlink the currently signed-in user from their Brother row,
 // clear the brother_linked cookie, and sign them out of Supabase.
@@ -12,7 +13,7 @@ export async function DELETE() {
 
   const brother = await prisma.brother.findUnique({
     where: { authUserId: user.id },
-    select: { id: true },
+    select: { id: true, name: true },
   });
   if (!brother) {
     // Already unlinked — still sign them out cleanly
@@ -25,6 +26,13 @@ export async function DELETE() {
   await prisma.brother.update({
     where: { id: brother.id },
     data: { authUserId: null },
+  });
+
+  // Log before signOut so the FK to Brother is still resolvable in the audit panel.
+  await logActivity({
+    actorId: brother.id,
+    type: "info",
+    message: `${brother.name} unlinked their own account`,
   });
 
   await supabase.auth.signOut();

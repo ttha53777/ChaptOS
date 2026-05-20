@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth/require-user";
 import { requireAdmin } from "@/lib/auth/require-admin";
+import { logActivity } from "@/lib/activity";
 
 export async function GET() {
   const user = await requireUser();
@@ -16,7 +17,7 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const { error } = await requireAdmin();
+  const { user, error } = await requireAdmin();
   if (error) return error;
   try {
     const body = await req.json();
@@ -36,6 +37,12 @@ export async function POST(req: NextRequest) {
         gpa: Number(gpa),
         serviceHours: Number(serviceHours),
       },
+    });
+
+    await logActivity({
+      actorId: user.id,
+      type: "info",
+      message: `${user.name} added ${brother.name} as ${brother.role}`,
     });
 
     return Response.json(brother, { status: 201 });

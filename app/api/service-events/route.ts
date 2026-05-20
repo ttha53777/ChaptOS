@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth/require-user";
+import { logActivity } from "@/lib/activity";
 
 export async function GET() {
   const user = await requireUser();
@@ -53,6 +54,13 @@ export async function POST(req: NextRequest) {
         },
       });
     });
+
+    await logActivity({
+      actorId: user.id,
+      type: "info",
+      message: `${user.name} added service event ${event.title} on ${event.date}`,
+    });
+
     return Response.json(event, { status: 201 });
   } catch (e) {
     console.error("POST /api/service-events failed:", e);

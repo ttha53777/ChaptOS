@@ -3,6 +3,7 @@ import { Prisma } from "../../../generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth/require-user";
 import { requireAdmin } from "@/lib/auth/require-admin";
+import { logActivity } from "@/lib/activity";
 
 export async function PATCH(
   req: NextRequest,
@@ -34,6 +35,12 @@ export async function PATCH(
       data,
     });
 
+    await logActivity({
+      actorId: user.id,
+      type: "info",
+      message: `${user.name} updated deadline ${deadline.title}`,
+    });
+
     return Response.json(deadline);
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError) {
@@ -48,11 +55,23 @@ export async function DELETE(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { error } = await requireAdmin();
+  const { user, error } = await requireAdmin();
   if (error) return error;
   try {
     const { id } = await params;
-    await prisma.deadline.delete({ where: { id: Number(id) } });
+    const numId = Number(id);
+    const target = await prisma.deadline.findUnique({
+      where: { id: numId },
+      select: { title: true },
+    });
+    await prisma.deadline.delete({ where: { id: numId } });
+
+    await logActivity({
+      actorId: user.id,
+      type: "warning",
+      message: `${user.name} deleted deadline ${target?.title ?? `#${numId}`}`,
+    });
+
     return new Response(null, { status: 204 });
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError) {

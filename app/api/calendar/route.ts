@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth/require-user";
+import { logActivity } from "@/lib/activity";
 import type { Prisma } from "../../generated/prisma/client";
 
 const CALENDAR_CATEGORIES = ["chapter", "social", "fundy", "program", "party", "deadline", "service"] as const;
@@ -83,6 +84,13 @@ export async function POST(req: NextRequest) {
     }
 
     const event = await prisma.calendarEvent.create({ data: parsed.data });
+
+    await logActivity({
+      actorId: user.id,
+      type: "info",
+      message: `${user.name} scheduled ${event.title} for ${event.date}`,
+    });
+
     return Response.json(event, { status: 201 });
   } catch (e) {
     console.error("POST /api/calendar failed:", e);

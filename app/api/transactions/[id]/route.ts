@@ -2,12 +2,13 @@ import { NextRequest } from "next/server";
 import { Prisma } from "../../../generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth/require-admin";
+import { logActivity } from "@/lib/activity";
 
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { error } = await requireAdmin();
+  const { user, error } = await requireAdmin();
   if (error) return error;
   const { id } = await params;
   const numId = Number(id);
@@ -47,6 +48,13 @@ export async function PATCH(
       where: { id: numId },
       data,
     });
+
+    await logActivity({
+      actorId: user.id,
+      type: "info",
+      message: `${user.name} updated transaction #${tx.id} (${tx.description})`,
+    });
+
     return Response.json(tx);
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2025") {
@@ -61,7 +69,7 @@ export async function DELETE(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { error } = await requireAdmin();
+  const { user, error } = await requireAdmin();
   if (error) return error;
   const { id } = await params;
   const numId = Number(id);
@@ -70,10 +78,23 @@ export async function DELETE(
   }
 
   try {
+    const existing = await prisma.transaction.findUnique({
+      where: { id: numId },
+      select: { description: true, amount: true },
+    });
     await prisma.transaction.update({
       where: { id: numId },
       data: { deletedAt: new Date() },
     });
+
+    if (existing) {
+      await logActivity({
+        actorId: user.id,
+        type: "warning",
+        message: `${user.name} deleted transaction: ${existing.description} ($${existing.amount.toFixed(2)})`,
+      });
+    }
+
     return new Response(null, { status: 204 });
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2025") {

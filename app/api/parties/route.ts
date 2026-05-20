@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { Prisma } from "../../generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth/require-user";
+import { logActivity } from "@/lib/activity";
 
 export async function GET() {
   const user = await requireUser();
@@ -53,6 +54,13 @@ export async function POST(req: NextRequest) {
         completed:   false,
       },
     });
+
+    await logActivity({
+      actorId: user.id,
+      type: "info",
+      message: `${user.name} scheduled ${party.name} on ${party.date}`,
+    });
+
     return Response.json(party, { status: 201 });
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
