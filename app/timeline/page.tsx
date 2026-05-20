@@ -147,6 +147,20 @@ const CAT_META: Record<CalEventCategory, {
     heroBg: "from-red-500/20",
     iconPath: "M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z",
   },
+  service: {
+    label: "Service",
+    dot: "bg-teal-400",
+    dotGlow: "shadow-teal-500/60",
+    ring: "ring-teal-500/25",
+    text: "text-teal-400",
+    bg: "bg-teal-500/10",
+    border: "border-teal-500/25",
+    borderL: "border-l-teal-500",
+    cardBg: "bg-teal-500/[0.04]",
+    accentBar: "bg-teal-500",
+    heroBg: "from-teal-500/20",
+    iconPath: "M4.318 6.318a4.5 4.5 0 016.364 0L12 7.636l1.318-1.318a4.5 4.5 0 116.364 6.364L12 20.364l-7.682-7.682a4.5 4.5 0 010-6.364z",
+  },
 };
 
 const CATEGORY_OPTIONS: { id: CalEventCategory; label: string }[] = [
@@ -156,6 +170,7 @@ const CATEGORY_OPTIONS: { id: CalEventCategory; label: string }[] = [
   { id: "program", label: "Program" },
   { id: "party", label: "Party" },
   { id: "deadline", label: "Deadline" },
+  { id: "service", label: "Service" },
 ];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -198,7 +213,7 @@ function CalendarEventForm({
   const [location, setLocation] = useState(initialEvent?.location ?? "");
   const [description, setDescription] = useState(initialEvent?.description ?? "");
   const categoryOptions = CATEGORY_OPTIONS.filter(option =>
-    option.id !== "deadline" && option.id !== "party" || option.id === initialEvent?.category
+    option.id !== "deadline" && option.id !== "party" && option.id !== "service" || option.id === initialEvent?.category
   );
 
   function handleSubmit(e: React.FormEvent) {
