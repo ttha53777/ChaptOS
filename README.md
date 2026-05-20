@@ -285,7 +285,11 @@ npx prisma generate
 
 The client outputs to `app/generated/prisma/` (gitignored — must be generated locally and in CI).
 
-**6. (Optional) Seed sample data**
+**6. Enable profile photos (optional)**
+
+Run `supabase/storage-avatars.sql` in the Supabase SQL Editor to create the `avatars` storage bucket and RLS policies. Without this, users can still sign in but changing profile photos from the top-right menu will fail.
+
+**7. (Optional) Seed sample data**
 
 ```bash
 npx prisma db seed
@@ -293,7 +297,7 @@ npx prisma db seed
 
 Creates sample brothers, deadlines, calendar events, transactions, and attendance records.
 
-**7. Start the dev server**
+**8. Start the dev server**
 
 ```bash
 npm run dev
