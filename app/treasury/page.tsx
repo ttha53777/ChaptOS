@@ -17,6 +17,7 @@ const TreasuryDonutChart = dynamic(
 );
 import { Modal, FieldLabel } from "../components/dashboard/primitives";
 import { inputCls } from "../components/dashboard/styles";
+import { BudgetView } from "../components/treasury/BudgetView";
 import { useChapter } from "../context/ChapterContext";
 import {
   Transaction, PartyEvent, Brother,
@@ -29,7 +30,7 @@ import {
 const CURRENT_SEMESTER = "SPR26";
 
 
-type NavTab = "Overview" | "Breakdown" | "Transactions" | "Reports";
+type NavTab = "Overview" | "Budget" | "Transactions" | "Reports";
 
 type TxModal =
   | { kind: "addTx" }
@@ -615,7 +616,7 @@ export default function TreasuryPage() {
   const balance   = totalIncome - totalExpenses + totalDoorRev;
   const projected = Math.round(balance * 1.3);
 
-  const NAV_TABS: NavTab[] = ["Overview", "Breakdown", "Transactions", "Reports"];
+  const NAV_TABS: NavTab[] = ["Overview", "Budget", "Transactions", "Reports"];
 
   return (
     <div className="flex h-screen overflow-hidden" style={{ background: "#07090f" }}>
@@ -704,7 +705,7 @@ export default function TreasuryPage() {
                   navTab === tab ? "text-white" : "text-slate-500 hover:text-slate-300"
                 }`}
               >
-                {tab === "Breakdown" ? "Breakdown & Budget" : tab}
+                {tab}
                 {navTab === tab && (
                   <span className="absolute bottom-0 left-0 right-0 h-[2px] rounded-full bg-indigo-400" />
                 )}
@@ -741,10 +742,10 @@ export default function TreasuryPage() {
             {!isLoading && <>
 
             {/* ── Hero row: Balance chart (8) + Donut (4) ─────────────────── */}
-            <div className={`grid grid-cols-1 gap-4 ${navTab === "Overview" || navTab === "Breakdown" ? "lg:grid-cols-12" : "lg:grid-cols-1"}`}>
+            <div className={`grid grid-cols-1 gap-4 ${navTab === "Overview" ? "lg:grid-cols-12" : "lg:grid-cols-1"}`}>
 
               {/* ── Hero Balance Card ──────────────────────────────────────── */}
-              <FinanceCard className={`flex flex-col overflow-hidden ${navTab === "Overview" || navTab === "Breakdown" ? "lg:col-span-8" : "lg:col-span-12"}`}>
+              <FinanceCard className={`flex flex-col overflow-hidden ${navTab === "Overview" ? "lg:col-span-8" : "lg:col-span-12"}`}>
                 {/* Card header */}
                 <div className="flex items-start justify-between px-6 pt-5 pb-1">
                   <div>
@@ -804,7 +805,7 @@ export default function TreasuryPage() {
               </FinanceCard>
 
               {/* ── Category Donut Card ────────────────────────────────────── */}
-              {(navTab === "Overview" || navTab === "Breakdown") && <FinanceCard className="flex flex-col overflow-hidden lg:col-span-4">
+              {navTab === "Overview" && <FinanceCard className="flex flex-col overflow-hidden lg:col-span-4">
                 <div className="flex items-center justify-between px-5 pt-5 pb-3">
                   <CardLabel>Category Breakdown</CardLabel>
                   <div className="flex rounded-lg border border-white/[0.07] bg-white/[0.03] p-0.5">
@@ -896,6 +897,19 @@ export default function TreasuryPage() {
               </FinanceCard>}
 
             </div>{/* end hero grid */}
+
+            {/* ── Budget tab: BudgetView ─────────────────────────────────── */}
+            {navTab === "Budget" && (
+              <div className="mt-4">
+                <BudgetView
+                  semester={semester}
+                  transactions={activeTxns}
+                  currentBalance={balance}
+                  isAdmin={isAdmin}
+                  onError={msg => setMutErr(msg)}
+                />
+              </div>
+            )}
 
             {/* ── Bottom row: Latest, Upcoming, Reports ── Overview only ────── */}
             {navTab === "Overview" && <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-12">
@@ -1146,8 +1160,8 @@ export default function TreasuryPage() {
               )}
             </FinanceCard>}
 
-            {/* ── Party Events ── Overview + Breakdown tabs ────────────────── */}
-            {(navTab === "Overview" || navTab === "Breakdown") && (() => {
+            {/* ── Party Events ── Overview tab only ────────────────────────── */}
+            {navTab === "Overview" && (() => {
               const sortedParties = [...partyList].sort((a, b) => b.date.localeCompare(a.date));
               const totalDoorRev  = partyList.reduce((s, p) => s + p.doorRevenue, 0);
               return (
