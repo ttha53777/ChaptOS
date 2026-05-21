@@ -12,6 +12,7 @@ interface AccountRow {
   linked: boolean;
   isSelf: boolean;
   isAdmin: boolean;
+  email: string | null;
 }
 
 async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
@@ -172,6 +173,9 @@ export function AccountsSection({
                           )}
                         </div>
                         <p className="text-[11px] text-slate-600">{a.role || "Member"}</p>
+                        {a.email && (
+                          <p className="truncate text-[11px] text-slate-500" title={a.email}>{a.email}</p>
+                        )}
                       </div>
                     </div>
                     <div className="flex shrink-0 items-center gap-1.5">

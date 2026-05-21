@@ -7,7 +7,7 @@ export async function GET() {
 
   try {
     const brothers = await prisma.brother.findMany({
-      select: { id: true, name: true, role: true, authUserId: true, isAdmin: true },
+      select: { id: true, name: true, role: true, authUserId: true, isAdmin: true, email: true },
       orderBy: { name: "asc" },
     });
 
@@ -19,6 +19,7 @@ export async function GET() {
         linked: b.authUserId !== null,
         isSelf: b.authUserId === user.authUserId,
         isAdmin: b.isAdmin,
+        email: b.email,
       }))
     );
   } catch (e) {

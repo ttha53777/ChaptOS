@@ -55,7 +55,7 @@ export async function POST(req: NextRequest) {
   try {
     await prisma.brother.update({
       where: { id: brother.id },
-      data: { authUserId: user.id, avatarUrl },
+      data: { authUserId: user.id, avatarUrl, email: user.email ?? null },
     });
   } catch {
     console.error("POST /api/auth/claim: DB update failed for user", user.id);
