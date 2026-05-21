@@ -210,3 +210,80 @@ export function LogAttendanceForm({ event, bList, onSubmit }: {
     </form>
   );
 }
+
+export function ExcuseForm({ event, bList, isAdmin, selfBrotherId, onDone }: {
+  event: CalendarEvent;
+  bList: Brother[];
+  isAdmin: boolean;
+  selfBrotherId: number | null;
+  onDone: (result: { excuseStatus: "approved" | "pending" }) => void;
+}) {
+  const adminDefault = bList[0]?.id != null ? String(bList[0].id) : "";
+  const [brotherId, setBrotherId] = useState<string>(isAdmin ? adminDefault : "");
+  const [reason,    setReason]    = useState("");
+  const [submitting,setSubmitting]= useState(false);
+  const [error,     setError]     = useState<string | null>(null);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (submitting) return;
+    const trimmed = reason.trim();
+    if (!trimmed) { setError("Please enter a reason."); return; }
+    if (isAdmin && !brotherId) { setError("Pick a brother."); return; }
+    setSubmitting(true);
+    setError(null);
+    try {
+      const payload = {
+        calendarEventId: event.id,
+        brotherId: isAdmin ? Number(brotherId) : selfBrotherId ?? undefined,
+        reason: trimmed,
+      };
+      const res = await fetch("/api/excuses", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        setError(typeof err?.error === "string" ? err.error : "Failed to submit excuse.");
+        return;
+      }
+      const data = await res.json().catch(() => ({})) as { excuseStatus?: "approved" | "pending" };
+      onDone({ excuseStatus: data.excuseStatus ?? (isAdmin ? "approved" : "pending") });
+    } catch (e) {
+      console.error("ExcuseForm submit failed:", e);
+      setError("Network error. Please try again.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="rounded-lg border border-white/[0.07] bg-white/[0.02] px-3 py-2">
+        <p className="text-[13px] font-semibold text-white">{event.title}</p>
+        <p className="text-[11px] text-slate-500">{event.date}{event.location ? ` · ${event.location}` : ""}</p>
+      </div>
+      {isAdmin && (
+        <div>
+          <FieldLabel>Brother</FieldLabel>
+          <select value={brotherId} onChange={e => setBrotherId(e.target.value)} className={inputCls} required>
+            <option value="">Select…</option>
+            {bList.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+          </select>
+        </div>
+      )}
+      <div>
+        <FieldLabel>Reason</FieldLabel>
+        <textarea value={reason} onChange={e => setReason(e.target.value)} required rows={3} placeholder="Why are you (or this brother) missing this event?" className={inputCls} maxLength={1000} />
+      </div>
+      {!isAdmin && (
+        <p className="text-[11px] text-slate-500">Submissions are reviewed by chapter admins.</p>
+      )}
+      {error && <p className="text-[12px] text-red-400">{error}</p>}
+      <button type="submit" disabled={submitting} className="w-full rounded-lg bg-indigo-600 px-4 py-2.5 text-[13px] font-semibold text-white hover:bg-indigo-500 transition-colors disabled:opacity-50">
+        {submitting ? "Submitting…" : isAdmin ? "Approve Excuse" : "Submit for Review"}
+      </button>
+    </form>
+  );
+}
