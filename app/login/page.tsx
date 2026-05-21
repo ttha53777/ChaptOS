@@ -1,6 +1,7 @@
 "use client";
 
 import { createClient } from "@/lib/supabase/client";
+import { useOrgLogo } from "@/app/hooks/useOrgLogo";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
 
@@ -9,6 +10,7 @@ function LoginContent() {
   const urlError = searchParams.get("error");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { logoUrl } = useOrgLogo();
 
   async function handleGoogleSignIn() {
     setLoading(true);
@@ -63,12 +65,21 @@ function LoginContent() {
         >
           {/* Header */}
           <div className="flex flex-col items-center gap-4">
-            {/* Logo mark */}
+            {/* Logo mark — same org icon as Settings → Organization Icon / sidebar */}
             <div className="relative">
               <div className="absolute inset-0 rounded-xl bg-indigo-500/30 blur-md" />
-              <div className="relative flex h-14 w-14 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-700 shadow-[0_2px_12px_rgba(99,102,241,0.5)]">
-                <span className="text-[15px] font-bold tracking-tight text-white select-none">ΛΦΕ</span>
-              </div>
+              {logoUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={logoUrl}
+                  alt="Chapter logo"
+                  className="relative h-14 w-14 rounded-xl object-cover shadow-[0_2px_12px_rgba(99,102,241,0.5)] ring-1 ring-white/10"
+                />
+              ) : (
+                <div className="relative flex h-14 w-14 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-700 shadow-[0_2px_12px_rgba(99,102,241,0.5)]">
+                  <span className="text-[15px] font-bold tracking-tight text-white select-none">ΛΦΕ</span>
+                </div>
+              )}
             </div>
 
             <div className="flex flex-col items-center gap-1 text-center">
