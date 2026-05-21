@@ -18,7 +18,7 @@ const DrawerTrendChart = dynamic(() => import("./components/dashboard/DrawerTren
   loading: () => <div className="h-[110px] w-full rounded-lg bg-white/[0.04] animate-pulse" />,
 });
 import {
-  Brother, CalendarEvent, TaskStatus, ActivityEntry, PartyEvent, Deadline, InstagramTask,
+  Brother, CalendarEvent, TaskStatus, ActivityEntry, PartyEvent, Deadline, InstagramTask, Transaction,
   treasuryTrend, TREASURY_BALANCE, TREASURY_PROJECTED, THRESHOLDS,
   KPI_SPARKLINES,
   getBrotherStatus, calcHealthScore, avg, fmt$, fmtDate,
@@ -27,7 +27,10 @@ import { Sidebar, SvgIcon, NAV_ICONS } from "./components/Sidebar";
 import { ProfileAvatar } from "./components/ProfileAvatar";
 import { UserAvatar } from "./components/UserAvatar";
 import { useChapter } from "./context/ChapterContext";
-import { AddDeadlineForm, AddIGTaskForm, AddRevenueForm, LogAttendanceForm } from "./components/dashboard/forms";
+import { AddDeadlineForm, AddIGTaskForm, AddRevenueForm, LogAttendanceForm, ExcuseForm } from "./components/dashboard/forms";
+import { QuickActionsMenu, type QuickActionKey } from "./components/dashboard/QuickActionsMenu";
+import { TxForm } from "./components/treasury/TxForm";
+import { CalendarEventForm, type CalendarDraft } from "./components/timeline/CalendarEventForm";
 import { BrotherDrawer } from "./components/dashboard/drawers/BrotherDrawer";
 import { Card, Modal, StatusBadge, TaskBadge, ConfirmDialog, FieldLabel } from "./components/dashboard/primitives";
 import { BROTHER_STYLES, KPI_ICONS, SECTION_IDS, inputCls } from "./components/dashboard/styles";
@@ -915,7 +918,7 @@ export default function Home() {
   const [sortKey,        setSortKey]        = useState<keyof Brother | null>(null);
   const [sortDir,        setSortDir]        = useState<"asc" | "desc">("asc");
   const [sidebarOpen,    setSidebarOpen]    = useState(false);
-  const [activeModal,    setActiveModal]    = useState<"deadline" | "revenue" | "ig" | "attendance" | "pick-event" | "edit-deadline" | "edit-ig" | null>(null);
+  const [activeModal,    setActiveModal]    = useState<"deadline" | "revenue" | "ig" | "attendance" | "pick-event" | "edit-deadline" | "edit-ig" | "expense" | "excuse" | "event" | "pick-event-for-excuse" | null>(null);
   const [selectedEventForAttendance, setSelectedEventForAttendance] = useState<CalendarEvent | null>(null);
   const [calendarList,   setCalendarList]   = useState<CalendarEvent[]>([]);
   const [editingDeadlineId, setEditingDeadlineId] = useState<number | null>(null);
@@ -935,7 +938,7 @@ export default function Home() {
   const attendanceReqRef = useRef<AbortController | null>(null);
 
   // ── Data state ─────────────────────────────────────────────────────────────
-  const { currentUser, brotherList, setBrotherList, deadlineList, setDeadlineList, igTaskList, setIgTaskList, partyList, setPartyList, activityFeed, setActivityFeed, treasuryData, isLoading, loadError, mutationError, setMutationError, refreshChapterData, avatarRevision } = useChapter();
+  const { currentUser, brotherList, setBrotherList, deadlineList, setDeadlineList, igTaskList, setIgTaskList, partyList, setPartyList, activityFeed, setActivityFeed, treasuryData, setTransactionList, isLoading, loadError, mutationError, setMutationError, refreshChapterData, avatarRevision } = useChapter();
   const isAdmin = currentUser?.isAdmin ?? false;
   const selfId  = currentUser?.id ?? null;
 
@@ -1182,6 +1185,50 @@ export default function Home() {
   }
 
   // ── Quick Action handlers ──────────────────────────────────────────────────
+  function handleAddCalendarEvent(draft: CalendarDraft) {
+    const tempId = _nextId++;
+    const optimistic: CalendarEvent = { id: tempId, ...draft };
+    setCalendarList(prev => [...prev, optimistic]);
+    addActivity(`New event added: "${draft.title}"`, "info");
+    setActiveModal(null);
+    requestJson<CalendarEvent>("/api/calendar", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(draft),
+    })
+      .then(saved => {
+        setCalendarList(prev => prev.map(e => e.id === tempId ? saved : e));
+        setMutationError(null);
+      })
+      .catch(error => {
+        console.error(error);
+        setCalendarList(prev => prev.filter(e => e.id !== tempId));
+        setMutationError("Calendar event could not be saved. Local changes were reverted.");
+      });
+  }
+
+  async function handleAddTransaction(data: Omit<Transaction, "id" | "createdAt" | "updatedAt" | "deletedAt">) {
+    const optimisticId = -Date.now();
+    const optimistic: Transaction = { ...data, id: optimisticId, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+    setTransactionList(prev => [optimistic, ...prev]);
+    const label = data.type === "expense" ? "Expense" : "Revenue";
+    addActivity(`${label} logged: ${data.category} — ${fmt$(data.amount)}`, data.type === "expense" ? "warning" : "success");
+    setActiveModal(null);
+    try {
+      const saved = await requestJson<Transaction>("/api/transactions", {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data),
+      });
+      setTransactionList(prev => prev.map(t => t.id === optimisticId ? saved : t));
+      setMutationError(null);
+      // Refresh chapter data so treasury KPIs update.
+      refreshChapterData().catch(() => undefined);
+    } catch (e) {
+      console.error(e);
+      setTransactionList(prev => prev.filter(t => t.id !== optimisticId));
+      setMutationError("Transaction could not be saved. Please try again.");
+    }
+  }
+
   function handleAddDeadline(d: { title: string; dueDate: string; owner: string; status: TaskStatus }) {
     const tempId = _nextId++;
     setDeadlineList(prev => [...prev, { id: tempId, ...d }]);
@@ -1388,6 +1435,21 @@ export default function Home() {
 
   function closeModal() { setActiveModal(null); }
 
+  function handleQuickAction(key: QuickActionKey) {
+    if (key === "expense"  && !isAdmin) return;
+    if (key === "revenue"  && !isAdmin) return;
+    if (key === "excuse") {
+      // Refresh calendar so the picker shows the latest mandatory events.
+      fetch("/api/calendar")
+        .then(r => r.ok ? r.json() : Promise.reject())
+        .then((data: CalendarEvent[]) => setCalendarList(data))
+        .catch(() => undefined);
+      setActiveModal("pick-event-for-excuse");
+      return;
+    }
+    setActiveModal(key);
+  }
+
   function openPayDues(b: Brother) {
     setPayTarget(b);
     setPayAmountStr(String(b.duesOwed));
@@ -1460,14 +1522,7 @@ export default function Home() {
 
           {/* Quick Actions */}
           <div className="hidden items-center gap-1.5 lg:flex">
-            {([
-              ["deadline",   "+ Deadline"],
-            ] as const).map(([key, label]) => (
-              <button key={key} onClick={() => setActiveModal(key)}
-                className="rounded-lg border border-white/[0.08] bg-white/[0.03] px-2.5 py-1.5 text-[11px] font-medium text-slate-300 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition-all duration-150 hover:border-indigo-500/40 hover:bg-indigo-500/10 hover:text-indigo-200">
-                {label}
-              </button>
-            ))}
+            <QuickActionsMenu isAdmin={isAdmin} onSelect={handleQuickAction} />
             {isAdmin && (
               <button onClick={() => openAttendanceLog()}
                 className="rounded-lg border border-white/[0.08] bg-white/[0.03] px-2.5 py-1.5 text-[11px] font-medium text-slate-300 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition-all duration-150 hover:border-indigo-500/40 hover:bg-indigo-500/10 hover:text-indigo-200">
@@ -1476,12 +1531,10 @@ export default function Home() {
             )}
           </div>
 
-          {/* Mobile: single add button */}
-          <button className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-600 text-white hover:bg-indigo-500 lg:hidden" onClick={() => setActiveModal("deadline")}>
-            <svg className="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-            </svg>
-          </button>
+          {/* Mobile: quick actions menu */}
+          <div className="lg:hidden">
+            <QuickActionsMenu isAdmin={isAdmin} onSelect={handleQuickAction} variant="mobile" />
+          </div>
 
           <p className="hidden text-[11px] text-slate-500 xl:block shrink-0">{new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</p>
 
@@ -1865,6 +1918,16 @@ export default function Home() {
       </div>
 
       {/* ── Modals ──────────────────────────────────────────────────────────── */}
+      {activeModal === "expense" && isAdmin && (
+        <Modal title="Log Expense" onClose={closeModal}>
+          <TxForm lockType="expense" onSubmit={handleAddTransaction} onCancel={closeModal} />
+        </Modal>
+      )}
+      {activeModal === "event" && (
+        <Modal title="New Event" onClose={closeModal}>
+          <CalendarEventForm submitLabel="Add Event" onSubmit={handleAddCalendarEvent} />
+        </Modal>
+      )}
       {activeModal === "deadline" && (
         <Modal title="Add Deadline" onClose={closeModal}>
           <AddDeadlineForm brotherNames={brotherNames} onSubmit={handleAddDeadline} />
@@ -1883,6 +1946,45 @@ export default function Home() {
       {activeModal === "attendance" && selectedEventForAttendance && (
         <Modal title="Log Attendance" onClose={closeModal}>
           <LogAttendanceForm event={selectedEventForAttendance} bList={brotherList} onSubmit={handleLogAttendance} />
+        </Modal>
+      )}
+      {activeModal === "pick-event-for-excuse" && (
+        <Modal title="Select Event to Excuse" onClose={closeModal}>
+          <p className="mb-3 text-[12px] text-slate-400">Pick a required event you (or, if you&rsquo;re an admin, another brother) need an excuse for.</p>
+          <div className="max-h-72 space-y-1 overflow-y-auto">
+            {calendarList.filter(e => e.mandatory).length === 0 && (
+              <p className="text-[12px] text-slate-500">No required events found.</p>
+            )}
+            {calendarList.filter(e => e.mandatory).sort((a, b) => a.date.localeCompare(b.date)).map(e => (
+              <button key={e.id} onClick={() => { setSelectedEventForAttendance(e); setActiveModal("excuse"); }}
+                className="w-full rounded-lg border border-white/[0.07] bg-white/[0.03] px-3 py-2.5 text-left transition-colors hover:border-indigo-500/30 hover:bg-indigo-500/10">
+                <p className="text-[13px] font-medium text-white">{e.title}</p>
+                <p className="text-[11px] text-slate-500">{e.date}{e.location ? ` · ${e.location}` : ""}</p>
+              </button>
+            ))}
+          </div>
+        </Modal>
+      )}
+      {activeModal === "excuse" && selectedEventForAttendance && (
+        <Modal title={isAdmin ? "Approve Excuse" : "Submit Excuse"} onClose={closeModal}>
+          <ExcuseForm
+            event={selectedEventForAttendance}
+            bList={brotherList}
+            isAdmin={isAdmin}
+            selfBrotherId={selfId}
+            onDone={({ excuseStatus }) => {
+              const eventTitle = selectedEventForAttendance.title;
+              if (excuseStatus === "approved") {
+                addActivity(`Excuse approved for ${eventTitle}`, "success");
+              } else {
+                addActivity(`Excuse submitted for review (${eventTitle})`, "info");
+              }
+              setSelectedEventForAttendance(null);
+              setActiveModal(null);
+              // Refresh chapter data so attendance numbers reflect the new approval.
+              refreshChapterData().catch(() => undefined);
+            }}
+          />
         </Modal>
       )}
       {activeModal === "pick-event" && (
