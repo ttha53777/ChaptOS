@@ -24,7 +24,7 @@ export async function GET(
       }),
       prisma.attendanceExcuse.findMany({
         where: { brotherId, semesterId: semester.id },
-        select: { calendarEventId: true, reason: true },
+        select: { calendarEventId: true, reason: true, status: true, rejectionNote: true },
       }),
       prisma.calendarEvent.findMany({
         where: { mandatory: true },
@@ -33,17 +33,22 @@ export async function GET(
       }),
     ]);
 
-    const recordMap  = new Map(records.map(r => [r.calendarEventId, r.attended]));
-    const excuseMap  = new Map(excuses.map(e => [e.calendarEventId, e.reason]));
+    const recordMap = new Map(records.map(r => [r.calendarEventId, r.attended]));
+    const excuseMap = new Map(excuses.map(e => [e.calendarEventId, e]));
 
-    const history = events.map(event => ({
-      calendarEventId: event.id,
-      title:   event.title,
-      date:    event.date,
-      attended: recordMap.get(event.id) ?? null,
-      excused:  excuseMap.has(event.id),
-      excuseReason: excuseMap.get(event.id) ?? null,
-    }));
+    const history = events.map(event => {
+      const excuse = excuseMap.get(event.id);
+      return {
+        calendarEventId: event.id,
+        title:            event.title,
+        date:             event.date,
+        attended:         recordMap.get(event.id) ?? null,
+        excused:          !!excuse && excuse.status === "approved",
+        excuseReason:     excuse?.reason ?? null,
+        excuseStatus:     excuse?.status ?? null,
+        excuseRejection:  excuse?.rejectionNote ?? null,
+      };
+    });
 
     return Response.json(history);
   } catch (e) {

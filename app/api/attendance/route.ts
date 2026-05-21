@@ -30,8 +30,10 @@ export async function POST(req: NextRequest) {
     if (!semester) return Response.json({ error: "No active semester" }, { status: 400 });
 
     // Stage 2: excuses + brothers in parallel
+    // Only approved excuses skip an attendance record. Pending/rejected don't —
+    // otherwise a member could dodge an event by self-submitting a bogus excuse.
     const [excuses, brothers] = await Promise.all([
-      prisma.attendanceExcuse.findMany({ where: { calendarEventId, semesterId: semester.id } }),
+      prisma.attendanceExcuse.findMany({ where: { calendarEventId, semesterId: semester.id, status: "approved" } }),
       prisma.brother.findMany({ select: { id: true } }),
     ]);
     const excusedBrotherIds = new Set(excuses.map(e => e.brotherId));

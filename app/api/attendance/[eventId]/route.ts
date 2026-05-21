@@ -24,8 +24,10 @@ export async function GET(
         where: { calendarEventId, semesterId: semester.id },
         include: { brother: { select: { id: true, name: true } } },
       }),
+      // Only approved excuses exclude a brother from the attended/absent tallies.
+      // Pending and rejected excuses leave the brother in the regular attendance flow.
       prisma.attendanceExcuse.findMany({
-        where: { calendarEventId, semesterId: semester.id },
+        where: { calendarEventId, semesterId: semester.id, status: "approved" },
         include: { brother: { select: { id: true, name: true } } },
       }),
     ]);
