@@ -6,11 +6,11 @@ export type CalEventCategory = "chapter" | "social" | "fundy" | "program" | "par
 export type CalLayer = "all" | "mandatory" | "deadlines" | "parties";
 
 export type IncomeCategory = "Door" | "Dues" | "Fines" | "Fundraiser" | "Event" | "Alumni donation" | "External / misc";
-export type ExpenseCategory = "Reimbursement" | "Party Supplies" | "Operations" | "Brotherhood" | "Events" | "House" | "Travel" | "Misc";
+export type ExpenseCategory = "Party Supplies" | "Operations" | "Brotherhood" | "Events" | "House" | "Travel" | "Misc";
 export type PaymentMethod = "venmo" | "cash" | "check" | "invoice";
 
 export const INCOME_CATEGORIES: IncomeCategory[] = ["Door", "Dues", "Fines", "Fundraiser", "Event", "Alumni donation", "External / misc"];
-export const EXPENSE_CATEGORIES: ExpenseCategory[] = ["Reimbursement", "Party Supplies", "Operations", "Brotherhood", "Events", "House", "Travel", "Misc"];
+export const EXPENSE_CATEGORIES: ExpenseCategory[] = ["Party Supplies", "Operations", "Brotherhood", "Events", "House", "Travel", "Misc"];
 export const PAYMENT_METHODS: PaymentMethod[] = ["venmo", "cash", "check", "invoice"];
 
 export interface Transaction {
@@ -197,7 +197,7 @@ export const seedTransactions: Omit<Transaction, "id" | "createdAt" | "updatedAt
 
   // ── February expenses ─────────────────────────────────────────────────────
   { type: "expense", category: "Party Supplies",amount:  210, date: "2026-02-11", description: "Rush Social — cups, ice, decorations",         paymentMethod: "venmo",   semester: "SPR26", paidTo: "Issac Chong" },
-  { type: "expense", category: "Reimbursement", amount:   85, date: "2026-02-16", description: "Gas reimbursement for venue run",              paymentMethod: "venmo",   semester: "SPR26", paidTo: "Noah Kim" },
+  { type: "expense", category: "Travel",        amount:   85, date: "2026-02-16", description: "Gas reimbursement for venue run",              paymentMethod: "venmo",   semester: "SPR26", paidTo: "Noah Kim" },
   { type: "expense", category: "Events",        amount:  120, date: "2026-02-22", description: "Rush week flyers and printing",                paymentMethod: "cash",    semester: "SPR26" },
   { type: "expense", category: "Brotherhood",   amount:  160, date: "2026-02-27", description: "Big-Little reveal gift fund",                  paymentMethod: "venmo",   semester: "SPR26" },
 
@@ -211,7 +211,7 @@ export const seedTransactions: Omit<Transaction, "id" | "createdAt" | "updatedAt
   { type: "expense", category: "Party Supplies",amount:  185, date: "2026-03-13", description: "Collab event — supplies and mixers",          paymentMethod: "cash",    semester: "SPR26", paidTo: "Dariel Milfort" },
   { type: "expense", category: "Travel",        amount:  240, date: "2026-03-08", description: "Van rental — regional conclave trip",         paymentMethod: "invoice", semester: "SPR26" },
   { type: "expense", category: "Operations",    amount:   65, date: "2026-03-18", description: "IFC chapter dues payment",                    paymentMethod: "check",   semester: "SPR26" },
-  { type: "expense", category: "Reimbursement", amount:  110, date: "2026-03-22", description: "Food reimbursement — brotherhood dinner",     paymentMethod: "venmo",   semester: "SPR26", paidTo: "Rinchen Sherpalama" },
+  { type: "expense", category: "Brotherhood",   amount:  110, date: "2026-03-22", description: "Food reimbursement — brotherhood dinner",     paymentMethod: "venmo",   semester: "SPR26", paidTo: "Rinchen Sherpalama" },
   { type: "expense", category: "House",         amount:  200, date: "2026-03-28", description: "Chapter room projector bulb replacement",     paymentMethod: "invoice", semester: "SPR26" },
 
   // ── April income ──────────────────────────────────────────────────────────
@@ -225,7 +225,7 @@ export const seedTransactions: Omit<Transaction, "id" | "createdAt" | "updatedAt
   { type: "expense", category: "Events",        amount:  380, date: "2026-04-20", description: "Spring Banquet venue deposit — Grand Ballroom",paymentMethod: "invoice", semester: "SPR26" },
   { type: "expense", category: "Party Supplies",amount:  260, date: "2026-04-24", description: "Formal Pre-Party — glassware, ice, decor",   paymentMethod: "venmo",   semester: "SPR26", paidTo: "Elvin De La Cruz" },
   { type: "expense", category: "Brotherhood",   amount:  200, date: "2026-04-08", description: "Spring Brotherhood retreat supplies",         paymentMethod: "venmo",   semester: "SPR26" },
-  { type: "expense", category: "Reimbursement", amount:  145, date: "2026-04-15", description: "Catering reimbursement — chapter meeting",   paymentMethod: "venmo",   semester: "SPR26", paidTo: "Thalha Thabish" },
+  { type: "expense", category: "Operations",    amount:  145, date: "2026-04-15", description: "Catering reimbursement — chapter meeting",   paymentMethod: "venmo",   semester: "SPR26", paidTo: "Thalha Thabish" },
   { type: "expense", category: "Misc",          amount:   40, date: "2026-04-28", description: "Office supplies — printer ink, folders",     paymentMethod: "cash",    semester: "SPR26" },
 
   // ── May income ────────────────────────────────────────────────────────────
@@ -239,7 +239,7 @@ export const seedTransactions: Omit<Transaction, "id" | "createdAt" | "updatedAt
   { type: "expense", category: "Operations",    amount:   95, date: "2026-05-04", description: "Chapter website domain & hosting renewal",    paymentMethod: "invoice", semester: "SPR26" },
   { type: "expense", category: "House",         amount:  175, date: "2026-05-09", description: "End-of-semester chapter room deep clean",     paymentMethod: "cash",    semester: "SPR26" },
   { type: "expense", category: "Travel",        amount:  130, date: "2026-05-06", description: "Reimbursement — conclave travel fuel",        paymentMethod: "venmo",   semester: "SPR26", paidTo: "Jacob Hwang" },
-  { type: "expense", category: "Reimbursement", amount:   70, date: "2026-05-11", description: "Photo printing — Spring Banquet slideshow",   paymentMethod: "venmo",   semester: "SPR26", paidTo: "Arijit Das" },
+  { type: "expense", category: "Events",        amount:   70, date: "2026-05-11", description: "Photo printing — Spring Banquet slideshow",   paymentMethod: "venmo",   semester: "SPR26", paidTo: "Arijit Das" },
   { type: "expense", category: "Brotherhood",   amount:  115, date: "2026-05-13", description: "End-of-year gift cards for seniors",          paymentMethod: "venmo",   semester: "SPR26" },
 ];
 

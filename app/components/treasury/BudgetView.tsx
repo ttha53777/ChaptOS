@@ -5,7 +5,7 @@ import { EXPENSE_CATEGORIES, Transaction, fmt$ } from "../../data";
 import { Modal, FieldLabel } from "../dashboard/primitives";
 import { inputCls } from "../dashboard/styles";
 import { requestJson } from "../../lib/api";
-import { catColor } from "./TreasuryCharts";
+import { catColor, TreasuryDonutChart } from "./TreasuryCharts";
 
 type BudgetData = {
   semester: string;
@@ -96,30 +96,91 @@ export function BudgetView({
   const projectedEnd   = totalFunds - actualExpenses;
   const reserveOnTrack = projectedEnd >= reserveTarget;
 
+  const allocationPieData = EXPENSE_CATEGORIES.map(cat => {
+    const percent = budget.allocations.find(a => a.category === cat)?.percent ?? 0;
+    return { name: cat, value: pool * (percent / 100) };
+  });
+  const hasAllocations = allocationPieData.some(d => d.value > 0);
+
   return (
     <div className="space-y-4">
-      {/* ── Header strip ────────────────────────────────────────────────── */}
-      <div className="rounded-2xl border border-white/[0.07] p-5"
-        style={{ background: "linear-gradient(to bottom, rgba(255,255,255,0.025) 0%, #10121a 50%)" }}>
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="grid grid-cols-2 gap-x-8 gap-y-3 sm:grid-cols-4">
-            <Stat label="Carryover"        value={fmt$(Math.round(budget.carryoverBalance))} tone="slate" />
-            <Stat label="Income to Date"   value={fmt$(Math.round(actualIncome))}            tone="emerald" />
-            <Stat label="Reserve Target"   value={fmt$(Math.round(reserveTarget))}           tone="amber" />
-            <Stat label="Projected End"    value={fmt$(Math.round(projectedEnd))}            tone={projectedEnd >= 0 ? "indigo" : "red"} />
+      {/* ── Header row: stats (8) + allocation pie (4) ──────────────────── */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
+        <div className="rounded-2xl border border-white/[0.07] p-5 lg:col-span-8"
+          style={{ background: "linear-gradient(to bottom, rgba(255,255,255,0.025) 0%, #10121a 50%)" }}>
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div className="grid grid-cols-2 gap-x-8 gap-y-3 sm:grid-cols-4">
+              <Stat label="Carryover"        value={fmt$(Math.round(budget.carryoverBalance))} tone="slate" />
+              <Stat label="Income to Date"   value={fmt$(Math.round(actualIncome))}            tone="emerald" />
+              <Stat label="Reserve Target"   value={fmt$(Math.round(reserveTarget))}           tone="amber" />
+              <Stat label="Projected End"    value={fmt$(Math.round(projectedEnd))}            tone={projectedEnd >= 0 ? "indigo" : "red"} />
+            </div>
+            {isAdmin && (
+              <button
+                onClick={() => setEditOpen(true)}
+                className="rounded-lg border border-white/[0.08] bg-white/[0.04] px-3 py-1.5 text-[12px] font-semibold text-slate-300 hover:border-white/[0.16] hover:bg-white/[0.08] hover:text-white transition-colors"
+              >
+                Edit Budget
+              </button>
+            )}
           </div>
-          {isAdmin && (
-            <button
-              onClick={() => setEditOpen(true)}
-              className="rounded-lg border border-white/[0.08] bg-white/[0.04] px-3 py-1.5 text-[12px] font-semibold text-slate-300 hover:border-white/[0.16] hover:bg-white/[0.08] hover:text-white transition-colors"
-            >
-              Edit Budget
-            </button>
+          <p className="mt-3 text-[11px] text-slate-500">
+            Funding pool <span className="font-semibold text-slate-300 tabular-nums">{fmt$(Math.round(pool))}</span> = carryover + income − reserve · each category gets its % of this pool live as money lands.
+          </p>
+
+          {/* ── Burn-rate strip ───────────────────────────────────────── */}
+          <div className="mt-4 border-t border-white/[0.05] pt-4">
+            <div className="flex items-baseline justify-between">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">Spent vs. Funded</p>
+              <p className="text-[11px] tabular-nums text-slate-400">
+                <span className={`font-semibold ${actualExpenses > pool && pool > 0 ? "text-red-400" : "text-slate-200"}`}>
+                  {fmt$(Math.round(actualExpenses))}
+                </span>
+                <span className="text-slate-600"> / </span>
+                <span className="text-slate-300">{fmt$(Math.round(pool))}</span>
+              </p>
+            </div>
+            <div className="mt-2 h-[8px] w-full overflow-hidden rounded-full bg-white/[0.05]">
+              <div
+                className="h-full rounded-full transition-all"
+                style={{
+                  width: `${pool > 0 ? Math.min(100, (actualExpenses / pool) * 100) : (actualExpenses > 0 ? 100 : 0)}%`,
+                  background: actualExpenses > pool && pool > 0 ? "#ef4444" : "#6366f1",
+                }}
+              />
+            </div>
+            <div className="mt-2 flex items-center justify-between text-[10px] tabular-nums">
+              <span className="text-slate-500">
+                {pool > 0 ? `${((actualExpenses / pool) * 100).toFixed(0)}% of pool used` : "—"}
+              </span>
+              <span className={
+                actualExpenses > pool && pool > 0
+                  ? "font-semibold text-red-400"
+                  : actualExpenses > pool * 0.85 && pool > 0
+                    ? "font-semibold text-amber-400"
+                    : "text-slate-500"
+              }>
+                {pool > 0 && actualExpenses > pool
+                  ? `Over by ${fmt$(Math.round(actualExpenses - pool))}`
+                  : pool > 0
+                    ? `${fmt$(Math.round(pool - actualExpenses))} left to spend`
+                    : "No pool funded yet"}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-white/[0.07] p-4 lg:col-span-4"
+          style={{ background: "linear-gradient(to bottom, rgba(255,255,255,0.025) 0%, #10121a 50%)" }}>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">Allocation Split</p>
+          {!hasAllocations ? (
+            <div className="flex h-[180px] items-center justify-center">
+              <p className="text-[11px] text-slate-600">No allocations yet</p>
+            </div>
+          ) : (
+            <TreasuryDonutChart data={allocationPieData} />
           )}
         </div>
-        <p className="mt-3 text-[11px] text-slate-500">
-          Funding pool <span className="font-semibold text-slate-300 tabular-nums">{fmt$(Math.round(pool))}</span> = carryover + income − reserve · each category gets its % of this pool live as money lands.
-        </p>
       </div>
 
       {/* ── Category cards grid ────────────────────────────────────────── */}
