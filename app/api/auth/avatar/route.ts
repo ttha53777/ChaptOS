@@ -1,3 +1,4 @@
+import { syncBrotherAvatar } from "@/lib/brother-avatar";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 const MAX_BYTES = 2 * 1024 * 1024;
@@ -61,6 +62,8 @@ export async function POST(request: Request) {
     return Response.json({ error: "Failed to save profile photo" }, { status: 500 });
   }
 
+  await syncBrotherAvatar(user.id, avatarUrl);
+
   return Response.json({ avatarUrl });
 }
 
@@ -94,6 +97,8 @@ export async function DELETE() {
     console.error("DELETE /api/auth/avatar updateUser failed:", updateError);
     return Response.json({ error: "Failed to remove profile photo" }, { status: 500 });
   }
+
+  await syncBrotherAvatar(user.id, fallback);
 
   return Response.json({ avatarUrl: fallback });
 }

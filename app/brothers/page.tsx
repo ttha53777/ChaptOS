@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo, useCallback } from "react";
 import { Sidebar } from "../components/Sidebar";
-import { ProfileAvatar } from "../components/ProfileAvatar";
+import { BrotherAvatar } from "../components/BrotherAvatar";
 import { UserAvatar } from "../components/UserAvatar";
 import { StatusBadge, Modal, FieldLabel, ConfirmDialog } from "../components/dashboard/primitives";
 import { inputCls } from "../components/dashboard/styles";
@@ -477,14 +477,13 @@ export default function BrothersPage() {
                       className={`grid w-full min-w-[560px] grid-cols-[1fr_auto_auto_auto_auto_auto] items-center gap-x-4 border-b border-l-2 border-white/[0.03] px-5 py-3.5 text-left transition-colors last:border-b-0 hover:bg-white/[0.03] ${borderColor} ${selectedId === b.id ? "bg-white/[0.03]" : ""}`}
                     >
                       <div className="flex min-w-0 items-center gap-2.5">
-                        {b.id === selfId && (
-                          <ProfileAvatar
-                            name={currentUser?.name ?? b.name}
-                            avatarUrl={currentUser?.avatarUrl}
-                            revision={avatarRevision}
-                            size="xs"
-                          />
-                        )}
+                        <BrotherAvatar
+                          brother={b}
+                          selfId={selfId}
+                          selfAvatarUrl={currentUser?.avatarUrl}
+                          avatarRevision={avatarRevision}
+                          size="xs"
+                        />
                         <div className="min-w-0">
                           <p className="truncate text-[13px] font-medium text-slate-200">{b.name}</p>
                           <p className="truncate text-[11px] text-slate-600">{b.role}</p>

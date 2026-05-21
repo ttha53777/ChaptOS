@@ -3,13 +3,15 @@ import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth/require-user";
 import { requireAdmin } from "@/lib/auth/require-admin";
 import { logActivity } from "@/lib/activity";
+import { hydrateBrotherAvatars, publicBrother } from "@/lib/brother-avatar";
 
 export async function GET() {
   const user = await requireUser();
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
   try {
     const brothers = await prisma.brother.findMany({ orderBy: { id: "asc" } });
-    return Response.json(brothers);
+    const hydrated = await hydrateBrotherAvatars(brothers);
+    return Response.json(hydrated.map(publicBrother));
   } catch (e) {
     console.error("GET /api/brothers failed:", e);
     return Response.json({ error: "Failed to fetch brothers" }, { status: 500 });

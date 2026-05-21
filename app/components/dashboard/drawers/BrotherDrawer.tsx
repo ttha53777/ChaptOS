@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useCallback } from "react";
 import type { Brother } from "../../../data";
 import { THRESHOLDS, fmt$, getBrotherStatus } from "../../../data";
-import { ProfileAvatar } from "../../ProfileAvatar";
+import { BrotherAvatar } from "../../BrotherAvatar";
 import { useChapter } from "../../../context/ChapterContext";
 import { FieldLabel, StatusBadge, ConfirmDialog } from "../primitives";
 import { inputCls } from "../styles";
@@ -182,9 +182,6 @@ export function BrotherDrawer({
   }
 
   const status   = brother ? getBrotherStatus(brother) : "Good";
-  const initials = brother
-    ? brother.name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()
-    : "";
 
   const statusRing: Record<typeof status, string> = {
     "Good":    "ring-emerald-500/40 bg-emerald-500/15 text-emerald-400",
@@ -274,19 +271,14 @@ export function BrotherDrawer({
           <>
             {/* Header */}
             <div className="flex h-14 shrink-0 items-center gap-3 border-b border-white/[0.07] px-5">
-              {isSelf ? (
-                <ProfileAvatar
-                  name={currentUser?.name ?? brother.name}
-                  avatarUrl={currentUser?.avatarUrl}
-                  revision={avatarRevision}
-                  size="lg"
-                  ringClassName={`ring-2 ${statusRing[status]}`}
-                />
-              ) : (
-                <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ring-2 ${statusRing[status]}`}>
-                  <span className="text-[12px] font-bold">{initials}</span>
-                </div>
-              )}
+              <BrotherAvatar
+                brother={brother}
+                selfId={currentUser?.id ?? null}
+                selfAvatarUrl={currentUser?.avatarUrl}
+                avatarRevision={avatarRevision}
+                size="lg"
+                ringClassName={`ring-2 ${statusRing[status]}`}
+              />
               <div className="min-w-0 flex-1">
                 <h2 className="truncate text-[15px] font-semibold text-white">{brother.name}</h2>
                 <p className="truncate text-[10px] text-slate-500">{brother.role}</p>

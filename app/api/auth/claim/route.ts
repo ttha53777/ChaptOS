@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import { parseAvatarFromMetadata } from "@/lib/avatar";
 import { logActivity } from "@/lib/activity";
 
 export async function POST(req: NextRequest) {
@@ -49,10 +50,12 @@ export async function POST(req: NextRequest) {
     return Response.json({ error: "This name is already linked to another account." }, { status: 409 });
   }
 
+  const { avatarUrl } = parseAvatarFromMetadata(user.user_metadata);
+
   try {
     await prisma.brother.update({
       where: { id: brother.id },
-      data: { authUserId: user.id },
+      data: { authUserId: user.id, avatarUrl },
     });
   } catch {
     console.error("POST /api/auth/claim: DB update failed for user", user.id);

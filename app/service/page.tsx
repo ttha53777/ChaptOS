@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { Sidebar } from "../components/Sidebar";
+import { BrotherAvatar } from "../components/BrotherAvatar";
 import { UserAvatar } from "../components/UserAvatar";
 import { Modal, FieldLabel } from "../components/dashboard/primitives";
 import { headerActionBtnCls, inputCls } from "../components/dashboard/styles";
@@ -47,7 +48,7 @@ const EMPTY_FORM = { title: "", date: "", location: "", notes: "" };
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function ServicePage() {
-  const { currentUser, brotherList, setBrotherList, isLoading } = useChapter();
+  const { currentUser, brotherList, setBrotherList, isLoading, avatarRevision } = useChapter();
   const isAdmin = currentUser?.isAdmin ?? false;
   const selfId  = currentUser?.id ?? null;
 
@@ -254,9 +255,13 @@ export default function ServicePage() {
                 const isEditing = editingId === b.id;
                 return (
                   <div key={b.id} className="flex items-center gap-3 px-5 py-3 transition-colors hover:bg-white/[0.02]">
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/[0.06] text-[11px] font-bold text-slate-400">
-                      {b.name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()}
-                    </div>
+                    <BrotherAvatar
+                      brother={b}
+                      selfId={selfId}
+                      selfAvatarUrl={currentUser?.avatarUrl}
+                      avatarRevision={avatarRevision}
+                      size="sm"
+                    />
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center justify-between">
                         <p className="text-[13px] font-medium text-slate-200">{b.name}</p>

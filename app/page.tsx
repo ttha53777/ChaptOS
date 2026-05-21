@@ -24,7 +24,7 @@ import {
   getBrotherStatus, calcHealthScore, avg, fmt$, fmtDate,
 } from "./data";
 import { Sidebar, SvgIcon, NAV_ICONS } from "./components/Sidebar";
-import { ProfileAvatar } from "./components/ProfileAvatar";
+import { BrotherAvatar } from "./components/BrotherAvatar";
 import { UserAvatar } from "./components/UserAvatar";
 import { useChapter } from "./context/ChapterContext";
 import { AddDeadlineForm, AddIGTaskForm, AddRevenueForm, LogAttendanceForm, ExcuseForm } from "./components/dashboard/forms";
@@ -1678,14 +1678,13 @@ export default function Home() {
                           <tr key={b.id} onClick={() => setSelectedBrotherId(b.id)} className="cursor-pointer transition-colors hover:bg-white/[0.03] active:bg-white/[0.06]">
                             <td className={`border-l-2 py-3 pl-4 pr-3 ${BROTHER_STYLES[status].row}`}>
                               <div className="flex items-center gap-2.5">
-                                {b.id === selfId && (
-                                  <ProfileAvatar
-                                    name={currentUser?.name ?? b.name}
-                                    avatarUrl={currentUser?.avatarUrl}
-                                    revision={avatarRevision}
-                                    size="xs"
-                                  />
-                                )}
+                                <BrotherAvatar
+                                  brother={b}
+                                  selfId={selfId}
+                                  selfAvatarUrl={currentUser?.avatarUrl}
+                                  avatarRevision={avatarRevision}
+                                  size="xs"
+                                />
                                 <p className="text-[13px] font-semibold text-white">{b.name}</p>
                               </div>
                             </td>

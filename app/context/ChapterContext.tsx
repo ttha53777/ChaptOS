@@ -94,7 +94,13 @@ export function ChapterProvider({ children }: { children: React.ReactNode }) {
   const refreshIdRef = useRef(0);
 
   const setAvatarUrl = useCallback((avatarUrl: string | null, hasCustomAvatar = false) => {
-    setCurrentUser(prev => (prev ? { ...prev, avatarUrl, hasCustomAvatar } : prev));
+    setCurrentUser(prev => {
+      if (prev) {
+        setBrotherList(bl => bl.map(b => (b.id === prev.id ? { ...b, avatarUrl } : b)));
+        return { ...prev, avatarUrl, hasCustomAvatar };
+      }
+      return prev;
+    });
     setAvatarRevision(r => r + 1);
     if (typeof window !== "undefined") {
       window.dispatchEvent(
@@ -189,6 +195,7 @@ export function ChapterProvider({ children }: { children: React.ReactNode }) {
       setCurrentUser(prev => {
         if (!prev) return prev;
         if (prev.avatarUrl === avatarUrl && prev.hasCustomAvatar === hasCustomAvatar) return prev;
+        setBrotherList(bl => bl.map(b => (b.id === prev.id ? { ...b, avatarUrl } : b)));
         return { ...prev, avatarUrl, hasCustomAvatar };
       });
       setAvatarRevision(r => r + 1);
@@ -199,6 +206,7 @@ export function ChapterProvider({ children }: { children: React.ReactNode }) {
       setCurrentUser(prev => {
         if (!prev) return prev;
         if (prev.avatarUrl === avatarUrl && prev.hasCustomAvatar === hasCustomAvatar) return prev;
+        setBrotherList(bl => bl.map(b => (b.id === prev.id ? { ...b, avatarUrl } : b)));
         return { ...prev, avatarUrl, hasCustomAvatar };
       });
       setAvatarRevision(r => r + 1);
