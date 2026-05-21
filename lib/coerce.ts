@@ -18,3 +18,9 @@ export function coerceNumber(value: unknown): number | undefined | null {
   const n = Number(value);
   return Number.isFinite(n) ? n : null;
 }
+
+export const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+export function isValidDateString(value: unknown): value is string {
+  return typeof value === "string" && DATE_RE.test(value);
+}

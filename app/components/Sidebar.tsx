@@ -22,10 +22,10 @@ export const NAV_ICONS: Record<string, string> = {
 };
 
 // Dashboard section labels that live on "/" and use scroll-spy
-export const DASHBOARD_NAV = ["Dashboard", "Brothers", "Deadlines", "Instagram"];
+export const DASHBOARD_NAV = ["Dashboard", "Brothers", "Instagram"];
 
 // Main nav — Settings is pinned at the bottom of the sidebar
-export const NAV = ["Dashboard", "Timeline", "Brotherhood", "Chapter", "Deadlines", "Instagram", "Treasury", "Service", "Events"];
+export const NAV = ["Dashboard", "Timeline", "Brotherhood", "Chapter", "Instagram", "Treasury", "Service", "Events"];
 export const SETTINGS_NAV = "Settings";
 
 // ─── SvgIcon ──────────────────────────────────────────────────────────────────

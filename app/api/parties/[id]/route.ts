@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth/require-user";
 import { requireAdmin } from "@/lib/auth/require-admin";
 import { logActivity } from "@/lib/activity";
-import { coerceString, coerceNumber } from "@/lib/coerce";
+import { coerceString, coerceNumber, isValidDateString } from "@/lib/coerce";
 
 type PartyUpdateData = Prisma.PartyEventUpdateInput;
 
@@ -37,6 +37,9 @@ export async function PATCH(
     } else {
       const s = coerceString(body[key]);
       if (s === undefined) return Response.json({ error: `${key} cannot be null` }, { status: 400 });
+      if (key === "date" && !isValidDateString(s)) {
+        return Response.json({ error: "date must use YYYY-MM-DD format" }, { status: 400 });
+      }
       data[key] = s;
     }
   }

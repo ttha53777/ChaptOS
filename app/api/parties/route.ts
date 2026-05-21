@@ -3,6 +3,7 @@ import { Prisma } from "../../generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth/require-user";
 import { logActivity } from "@/lib/activity";
+import { isValidDateString } from "@/lib/coerce";
 
 export async function GET() {
   const user = await requireUser();
@@ -26,6 +27,9 @@ export async function POST(req: NextRequest) {
 
   if (!name || !date) {
     return Response.json({ error: "name and date are required" }, { status: 400 });
+  }
+  if (!isValidDateString(date)) {
+    return Response.json({ error: "date must use YYYY-MM-DD format" }, { status: 400 });
   }
 
   const numDoorRevenue = doorRevenue != null ? Number(doorRevenue) : 0;

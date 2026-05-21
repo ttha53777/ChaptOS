@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth/require-user";
 import { requireAdmin } from "@/lib/auth/require-admin";
 import { logActivity } from "@/lib/activity";
+import { isValidDateString } from "@/lib/coerce";
 
 export async function GET(req: NextRequest) {
   const user = await requireUser();
@@ -47,6 +48,9 @@ export async function POST(req: NextRequest) {
   const numAmount = Number(amount);
   if (isNaN(numAmount) || numAmount < 0) {
     return Response.json({ error: "amount must be a non-negative number" }, { status: 400 });
+  }
+  if (!isValidDateString(date)) {
+    return Response.json({ error: "date must use YYYY-MM-DD format" }, { status: 400 });
   }
 
   try {

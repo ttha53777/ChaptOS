@@ -2,6 +2,8 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth/require-user";
 
+const TYPES = ["success", "warning", "info"] as const;
+
 function relativeTime(date: Date): string {
   const diff = Math.floor((Date.now() - date.getTime()) / 1000);
   if (diff < 60)  return "just now";
@@ -28,19 +30,28 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   const user = await requireUser();
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
+
+  let body: Record<string, unknown>;
+  try { body = await req.json(); }
+  catch { return Response.json({ error: "Invalid JSON body" }, { status: 400 }); }
+
+  const message = typeof body.message === "string" ? body.message.trim() : "";
+  const type = typeof body.type === "string" ? body.type : "";
+
+  if (!message) return Response.json({ error: "message is required" }, { status: 400 });
+  if (message.length > 500) return Response.json({ error: "message too long" }, { status: 400 });
+  if (!(TYPES as readonly string[]).includes(type)) {
+    return Response.json({ error: "type must be success, warning, or info" }, { status: 400 });
+  }
+
   try {
-    const body = await req.json();
-    const { message, type } = body;
-
-    if (!message || !type) {
-      return Response.json({ error: "Missing required fields" }, { status: 400 });
-    }
-
     const log = await prisma.activityLog.create({
-      data: { message: String(message), type: String(type) },
+      data: { message, type, actorId: user.id },
     });
-
-    return Response.json(log, { status: 201 });
+    return Response.json(
+      { id: log.id, message: log.message, type: log.type, timestamp: relativeTime(log.timestamp) },
+      { status: 201 },
+    );
   } catch (e) {
     console.error("POST /api/activity failed:", e);
     return Response.json({ error: "Failed to create activity log" }, { status: 500 });

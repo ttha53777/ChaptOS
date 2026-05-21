@@ -63,26 +63,14 @@ export async function POST(req: NextRequest) {
     if (!reason) return Response.json({ error: "Reason is required" }, { status: 400 });
     if (reason.length > 1000) return Response.json({ error: "Reason too long" }, { status: 400 });
 
-    const [semester, brotherExists, existingRecord, existingExcuse] = await Promise.all([
+    const [semester, brotherExists, existingRecord] = await Promise.all([
       getActiveSemester(),
       prisma.brother.findUnique({ where: { id: brotherId }, select: { id: true } }),
       prisma.attendanceRecord.findUnique({ where: { calendarEventId_brotherId: { calendarEventId, brotherId } } }),
-      prisma.attendanceExcuse.findUnique({
-        where: { calendarEventId_brotherId: { calendarEventId, brotherId } },
-        select: { status: true },
-      }),
     ]);
     if (!semester) return Response.json({ error: "No active semester" }, { status: 400 });
     if (!brotherExists) return Response.json({ error: "Brother not found" }, { status: 404 });
 
-    // Members cannot overwrite an existing approved or pending excuse (only resubmit a rejected one).
-    // Admins can always overwrite (e.g. fix a typo in their own prior submission).
-    if (!user.isAdmin && existingExcuse && existingExcuse.status !== "rejected") {
-      return Response.json(
-        { error: existingExcuse.status === "approved" ? "Excuse already approved" : "Excuse already pending review" },
-        { status: 409 },
-      );
-    }
     const isRetroactive = !!existingRecord;
 
     // Admin submissions auto-approve (they are the approval). Members go through the queue.
@@ -92,28 +80,52 @@ export async function POST(req: NextRequest) {
     const decidedById = user.isAdmin ? user.id : null;
     const decidedAt = user.isAdmin ? new Date() : null;
 
-    await prisma.attendanceExcuse.upsert({
-      where: { calendarEventId_brotherId: { calendarEventId, brotherId } },
-      update: {
-        reason,
-        isRetroactive,
-        status,
-        decidedById,
-        decidedAt,
-        rejectionNote: null,
-        submittedAt: new Date(),
-      },
-      create: {
-        calendarEventId,
-        brotherId,
-        semesterId: semester.id,
-        reason,
-        isRetroactive,
-        status,
-        decidedById,
-        decidedAt,
-      },
+    // Re-read status inside the transaction so two concurrent submissions can't
+    // both overwrite an approved/pending excuse (TOCTOU between the outer read
+    // above and the upsert below).
+    type StatusConflict = "approved" | "pending";
+    let conflict: StatusConflict | null = null;
+    await prisma.$transaction(async (tx) => {
+      const current = await tx.attendanceExcuse.findUnique({
+        where: { calendarEventId_brotherId: { calendarEventId, brotherId } },
+        select: { status: true },
+      });
+
+      if (!user.isAdmin && current && current.status !== "rejected") {
+        conflict = current.status === "approved" ? "approved" : "pending";
+        return;
+      }
+
+      await tx.attendanceExcuse.upsert({
+        where: { calendarEventId_brotherId: { calendarEventId, brotherId } },
+        update: {
+          reason,
+          isRetroactive,
+          status,
+          decidedById,
+          decidedAt,
+          rejectionNote: null,
+          submittedAt: new Date(),
+        },
+        create: {
+          calendarEventId,
+          brotherId,
+          semesterId: semester.id,
+          reason,
+          isRetroactive,
+          status,
+          decidedById,
+          decidedAt,
+        },
+      });
     });
+
+    if (conflict) {
+      return Response.json(
+        { error: conflict === "approved" ? "Excuse already approved" : "Excuse already pending review" },
+        { status: 409 },
+      );
+    }
 
     // Only approved excuses affect attendance math. Pending excuses are inert until decided.
     const newAttendance = status === "approved"

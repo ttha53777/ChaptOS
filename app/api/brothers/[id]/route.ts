@@ -79,8 +79,17 @@ export async function DELETE(
     const numId = Number(id);
     const target = await prisma.brother.findUnique({
       where: { id: numId },
-      select: { name: true },
+      select: { name: true, isAdmin: true },
     });
+    if (target?.isAdmin) {
+      const adminCount = await prisma.brother.count({ where: { isAdmin: true } });
+      if (adminCount <= 1) {
+        return Response.json(
+          { error: "Cannot delete the last admin. Promote another brother first." },
+          { status: 409 },
+        );
+      }
+    }
     await prisma.brother.delete({ where: { id: numId } });
 
     await logActivity({

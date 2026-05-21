@@ -3,7 +3,7 @@ import { Prisma } from "../../../generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth/require-admin";
 import { logActivity } from "@/lib/activity";
-import { coerceString, coerceNumber } from "@/lib/coerce";
+import { coerceString, coerceNumber, isValidDateString } from "@/lib/coerce";
 
 export async function PATCH(
   req: NextRequest,
@@ -29,6 +29,9 @@ export async function PATCH(
     if (!(key in body)) continue;
     const s = coerceString(body[key]);
     if (s === undefined) return Response.json({ error: `${key} cannot be null` }, { status: 400 });
+    if (key === "date" && !isValidDateString(s)) {
+      return Response.json({ error: "date must use YYYY-MM-DD format" }, { status: 400 });
+    }
     data[key] = s;
   }
   for (const key of numericFields) {

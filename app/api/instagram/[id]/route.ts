@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth/require-user";
 import { requireAdmin } from "@/lib/auth/require-admin";
 import { logActivity } from "@/lib/activity";
-import { coerceString } from "@/lib/coerce";
+import { coerceString, isValidDateString } from "@/lib/coerce";
 
 export async function PATCH(
   req: NextRequest,
@@ -25,6 +25,9 @@ export async function PATCH(
       if (val === undefined) return Response.json({ error: `${key} cannot be null` }, { status: 400 });
       const limit = LENGTH_LIMITS[key];
       if (limit && val.length > limit) return Response.json({ error: `${key} too long` }, { status: 400 });
+      if (key === "dueDate" && !isValidDateString(val)) {
+        return Response.json({ error: "dueDate must use YYYY-MM-DD format" }, { status: 400 });
+      }
       data[key] = val;
     }
 
