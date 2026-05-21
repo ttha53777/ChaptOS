@@ -22,6 +22,20 @@ const TODAY = { year: _now.getFullYear(), month: _now.getMonth(), day: _now.getD
 
 type CalendarDraft = Omit<CalendarEvent, "id">;
 
+interface PendingExcuse {
+  id:              number;
+  brotherId:       number;
+  brotherName:     string;
+  calendarEventId: number;
+  eventTitle:      string;
+  eventDate:       string;
+  reason:          string;
+  status:          string;
+  submittedAt:     string;
+  isRetroactive:   boolean;
+  rejectionNote:   string | null;
+}
+
 const LAYERS: { id: CalLayer; label: string; activeClasses: string; iconPath: string }[] = [
   {
     id: "all",
@@ -1090,7 +1104,7 @@ function RightPanel({
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function TimelinePage() {
-  const { currentUser, deadlineList, partyList, brotherList } = useChapter();
+  const { currentUser, deadlineList, partyList, brotherList, setBrotherList } = useChapter();
   const isAdmin = currentUser?.isAdmin ?? false;
 
   const [sidebarOpen,     setSidebarOpen]     = useState(false);
@@ -1103,6 +1117,13 @@ export default function TimelinePage() {
   const [calendarError,        setCalendarError]        = useState<string | null>(null);
   const [confirmDeleteEvent,   setConfirmDeleteEvent]   = useState<CalendarEvent | null>(null);
 
+  // Pending-excuse review queue (admin-only)
+  const [pendingExcuses, setPendingExcuses] = useState<PendingExcuse[]>([]);
+  const [reviewPanelOpen, setReviewPanelOpen] = useState(false);
+  const [rejectingId, setRejectingId] = useState<number | null>(null);
+  const [rejectionNote, setRejectionNote] = useState("");
+  const [excuseActionBusy, setExcuseActionBusy] = useState<number | null>(null);
+
   const todayRef         = useRef<HTMLDivElement | null>(null);
   const currentMonthRef  = useRef<HTMLDivElement | null>(null);
   const feedRef          = useRef<HTMLDivElement | null>(null);
@@ -1113,6 +1134,41 @@ export default function TimelinePage() {
       .catch(error => { console.error(error); setCalendarError("Could not load calendar events from the database."); })
       .finally(() => setCalendarLoading(false));
   }, []);
+
+  // Admin-only: load pending excuses for the review banner.
+  useEffect(() => {
+    if (!isAdmin) { setPendingExcuses([]); return; }
+    requestJson<PendingExcuse[]>("/api/excuses?status=pending")
+      .then(setPendingExcuses)
+      .catch(() => {});
+  }, [isAdmin]);
+
+  async function decideExcuse(excuseId: number, action: "approve" | "reject", note?: string) {
+    setExcuseActionBusy(excuseId);
+    const target = pendingExcuses.find(e => e.id === excuseId);
+    try {
+      const result = await requestJson<{ brotherId: number; attendance: number | null }>(`/api/excuses/${excuseId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action, rejectionNote: note }),
+      });
+      setPendingExcuses(prev => prev.filter(e => e.id !== excuseId));
+      setRejectingId(null);
+      setRejectionNote("");
+      // Approval recalculates attendance — push the fresh % into the chapter context.
+      if (action === "approve" && target && result.attendance !== null) {
+        setBrotherList(prev => prev.map(b => b.id === target.brotherId ? { ...b, attendance: result.attendance ?? b.attendance } : b));
+      }
+    } catch (err) {
+      console.error("decideExcuse failed", err);
+      // Race condition (e.g. member resubmitted before admin clicked) — resync the queue from the server.
+      setRejectingId(null);
+      setRejectionNote("");
+      requestJson<PendingExcuse[]>("/api/excuses?status=pending").then(setPendingExcuses).catch(() => {});
+    } finally {
+      setExcuseActionBusy(null);
+    }
+  }
 
   const didScrollToToday = useRef(false);
   useLayoutEffect(() => {
@@ -1356,6 +1412,81 @@ export default function TimelinePage() {
 
           {/* Timeline feed */}
           <div ref={feedRef} className="flex-1 overflow-y-auto px-6 py-6">
+            {isAdmin && pendingExcuses.length > 0 && (
+              <div className="mx-auto mb-5 max-w-2xl rounded-xl border border-amber-500/25 bg-amber-500/[0.06]">
+                <button
+                  onClick={() => setReviewPanelOpen(o => !o)}
+                  className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left text-[12px] text-amber-100 transition-colors hover:bg-amber-500/[0.08]"
+                >
+                  <span className="flex items-center gap-2">
+                    <svg className="h-4 w-4 text-amber-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M5 19h14a2 2 0 001.84-2.75L13.74 4a2 2 0 00-3.48 0L3.16 16.25A2 2 0 005 19z" />
+                    </svg>
+                    <span className="font-semibold">{pendingExcuses.length} excuse{pendingExcuses.length === 1 ? "" : "s"} awaiting review</span>
+                  </span>
+                  <span className="rounded-md border border-amber-400/30 px-2 py-0.5 text-[11px] font-semibold text-amber-200">
+                    {reviewPanelOpen ? "Hide" : "Review"}
+                  </span>
+                </button>
+                {reviewPanelOpen && (
+                  <div className="space-y-2 border-t border-amber-500/20 px-3 py-3">
+                    {pendingExcuses.map(ex => {
+                      const isRejecting = rejectingId === ex.id;
+                      const busy = excuseActionBusy === ex.id;
+                      return (
+                        <div key={ex.id} className="rounded-lg border border-white/[0.06] bg-[#10121a] p-3">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0 flex-1">
+                              <p className="text-[13px] font-semibold text-white">{ex.brotherName}</p>
+                              <p className="mt-0.5 text-[11px] text-slate-500">
+                                {ex.eventTitle} · {ex.eventDate}
+                                {ex.isRetroactive && <span className="ml-1 text-amber-400">· retroactive</span>}
+                              </p>
+                              <p className="mt-2 text-[12px] leading-relaxed text-slate-300">{ex.reason}</p>
+                            </div>
+                            <div className="flex shrink-0 items-center gap-1.5">
+                              <button
+                                onClick={() => decideExcuse(ex.id, "approve")}
+                                disabled={busy}
+                                className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-[11px] font-semibold text-emerald-300 transition-colors hover:bg-emerald-500/20 disabled:opacity-50"
+                              >
+                                Approve
+                              </button>
+                              <button
+                                onClick={() => { setRejectingId(isRejecting ? null : ex.id); setRejectionNote(""); }}
+                                disabled={busy}
+                                className="rounded-md border border-red-500/30 bg-red-500/10 px-2.5 py-1 text-[11px] font-semibold text-red-300 transition-colors hover:bg-red-500/20 disabled:opacity-50"
+                              >
+                                {isRejecting ? "Cancel" : "Reject"}
+                              </button>
+                            </div>
+                          </div>
+                          {isRejecting && (
+                            <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                              <input
+                                type="text"
+                                value={rejectionNote}
+                                onChange={e => setRejectionNote(e.target.value)}
+                                placeholder="Optional note for the brother…"
+                                className="flex-1 rounded-md border border-white/[0.08] bg-[#0a0d14] px-2.5 py-1.5 text-[12px] text-white placeholder:text-slate-600 focus:border-red-500/60 focus:outline-none"
+                              />
+                              <button
+                                onClick={() => decideExcuse(ex.id, "reject", rejectionNote.trim() || undefined)}
+                                disabled={busy}
+                                className="rounded-md bg-red-500/80 px-3 py-1.5 text-[11px] font-semibold text-white hover:bg-red-500 disabled:opacity-50"
+                              >
+                                Confirm reject
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
             {(calendarLoading || calendarError) && (
               <div className={`mx-auto mb-5 flex max-w-2xl items-center justify-between gap-3 rounded-xl border px-4 py-3 text-[12px] ${
                 calendarError

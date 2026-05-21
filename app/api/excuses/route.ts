@@ -3,7 +3,46 @@ import { Prisma } from "../../generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getActiveSemester, recalcBrotherAttendance } from "@/lib/attendance";
 import { requireUser } from "@/lib/auth/require-user";
+import { requireAdmin } from "@/lib/auth/require-admin";
 import { logActivity } from "@/lib/activity";
+
+export async function GET(req: NextRequest) {
+  const { error } = await requireAdmin();
+  if (error) return error;
+
+  const { searchParams } = new URL(req.url);
+  const pendingOnly = searchParams.get("status") === "pending" || searchParams.get("pending") === "true";
+  const where: Prisma.AttendanceExcuseWhereInput = pendingOnly ? { status: "pending" } : {};
+
+  try {
+    const excuses = await prisma.attendanceExcuse.findMany({
+      where,
+      orderBy: { submittedAt: "asc" },
+      include: {
+        brother:       { select: { id: true, name: true } },
+        calendarEvent: { select: { id: true, title: true, date: true } },
+      },
+    });
+    return Response.json(
+      excuses.map(e => ({
+        id:              e.id,
+        brotherId:       e.brotherId,
+        brotherName:     e.brother.name,
+        calendarEventId: e.calendarEventId,
+        eventTitle:      e.calendarEvent.title,
+        eventDate:       e.calendarEvent.date,
+        reason:          e.reason,
+        status:          e.status,
+        submittedAt:     e.submittedAt.toISOString(),
+        isRetroactive:   e.isRetroactive,
+        rejectionNote:   e.rejectionNote,
+      })),
+    );
+  } catch (e) {
+    console.error("GET /api/excuses failed:", e);
+    return Response.json({ error: "Failed to fetch excuses" }, { status: 500 });
+  }
+}
 
 export async function POST(req: NextRequest) {
   const user = await requireUser();
@@ -24,22 +63,62 @@ export async function POST(req: NextRequest) {
     if (!reason) return Response.json({ error: "Reason is required" }, { status: 400 });
     if (reason.length > 1000) return Response.json({ error: "Reason too long" }, { status: 400 });
 
-    const [semester, brotherExists, existingRecord] = await Promise.all([
+    const [semester, brotherExists, existingRecord, existingExcuse] = await Promise.all([
       getActiveSemester(),
       prisma.brother.findUnique({ where: { id: brotherId }, select: { id: true } }),
       prisma.attendanceRecord.findUnique({ where: { calendarEventId_brotherId: { calendarEventId, brotherId } } }),
+      prisma.attendanceExcuse.findUnique({
+        where: { calendarEventId_brotherId: { calendarEventId, brotherId } },
+        select: { status: true },
+      }),
     ]);
     if (!semester) return Response.json({ error: "No active semester" }, { status: 400 });
     if (!brotherExists) return Response.json({ error: "Brother not found" }, { status: 404 });
+
+    // Members cannot overwrite an existing approved or pending excuse (only resubmit a rejected one).
+    // Admins can always overwrite (e.g. fix a typo in their own prior submission).
+    if (!user.isAdmin && existingExcuse && existingExcuse.status !== "rejected") {
+      return Response.json(
+        { error: existingExcuse.status === "approved" ? "Excuse already approved" : "Excuse already pending review" },
+        { status: 409 },
+      );
+    }
     const isRetroactive = !!existingRecord;
+
+    // Admin submissions auto-approve (they are the approval). Members go through the queue.
+    // Resubmission after rejection: payload below clears decidedBy/decidedAt/rejectionNote
+    // and resets status to pending, so the row flips back into the officer queue.
+    const status = user.isAdmin ? "approved" : "pending";
+    const decidedById = user.isAdmin ? user.id : null;
+    const decidedAt = user.isAdmin ? new Date() : null;
 
     await prisma.attendanceExcuse.upsert({
       where: { calendarEventId_brotherId: { calendarEventId, brotherId } },
-      update: { reason, isRetroactive },
-      create: { calendarEventId, brotherId, semesterId: semester.id, reason, isRetroactive },
+      update: {
+        reason,
+        isRetroactive,
+        status,
+        decidedById,
+        decidedAt,
+        rejectionNote: null,
+        submittedAt: new Date(),
+      },
+      create: {
+        calendarEventId,
+        brotherId,
+        semesterId: semester.id,
+        reason,
+        isRetroactive,
+        status,
+        decidedById,
+        decidedAt,
+      },
     });
 
-    const newAttendance = await recalcBrotherAttendance(brotherId, semester.id);
+    // Only approved excuses affect attendance math. Pending excuses are inert until decided.
+    const newAttendance = status === "approved"
+      ? await recalcBrotherAttendance(brotherId, semester.id)
+      : null;
     const brother = await prisma.brother.findUnique({ where: { id: brotherId } });
     if (!brother) return Response.json({ error: "Brother not found" }, { status: 404 });
 
@@ -50,10 +129,16 @@ export async function POST(req: NextRequest) {
     await logActivity({
       actorId: user.id,
       type: "info",
-      message: `${user.name} ${isRetroactive ? "submitted retroactive excuse for" : "excused"} ${brother.name} from ${event?.title ?? "an event"}`,
+      message: status === "approved"
+        ? `${user.name} ${isRetroactive ? "submitted retroactive excuse for" : "excused"} ${brother.name} from ${event?.title ?? "an event"}`
+        : `${user.name} submitted excuse for review (${event?.title ?? "an event"})`,
     });
 
-    return Response.json({ ...brother, attendance: newAttendance });
+    return Response.json({
+      ...brother,
+      attendance: newAttendance ?? brother.attendance,
+      excuseStatus: status,
+    });
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError) {
       console.error("POST /api/excuses prisma error:", e.code, e.message);

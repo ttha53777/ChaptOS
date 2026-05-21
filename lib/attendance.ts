@@ -11,7 +11,7 @@ export async function getActiveSemester() {
 export async function recalcBrotherAttendance(brotherId: number, semesterId: number): Promise<number> {
   const [records, excuses] = await Promise.all([
     prisma.attendanceRecord.findMany({ where: { brotherId, semesterId } }),
-    prisma.attendanceExcuse.findMany({ where: { brotherId, semesterId } }),
+    prisma.attendanceExcuse.findMany({ where: { brotherId, semesterId, status: "approved" } }),
   ]);
 
   const excusedEventIds = new Set(excuses.map(e => e.calendarEventId));
@@ -34,7 +34,7 @@ export async function recalcAllBrothersInSemester(semesterId: number): Promise<v
   const [brothers, allRecords, allExcuses] = await Promise.all([
     prisma.brother.findMany({ select: { id: true } }),
     prisma.attendanceRecord.findMany({ where: { semesterId } }),
-    prisma.attendanceExcuse.findMany({ where: { semesterId } }),
+    prisma.attendanceExcuse.findMany({ where: { semesterId, status: "approved" } }),
   ]);
 
   const recordsByBrother = new Map<number, typeof allRecords>();

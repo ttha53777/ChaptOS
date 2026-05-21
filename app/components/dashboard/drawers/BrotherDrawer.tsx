@@ -15,6 +15,8 @@ type AttendanceRow = {
   attended: boolean | null;
   excused: boolean;
   excuseReason: string | null;
+  excuseStatus: "pending" | "approved" | "rejected" | null;
+  excuseRejection: string | null;
 };
 
 type Tab = "profile" | "attendance";
@@ -156,9 +158,18 @@ export function BrotherDrawer({
         body: JSON.stringify({ calendarEventId: excusingEventId, brotherId: brother.id, reason: excuseReason.trim() }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      // Server tells us whether the excuse was auto-approved (admin caller) or queued (member caller).
+      const payload = await res.json().catch(() => null) as { excuseStatus?: "pending" | "approved" | "rejected" } | null;
+      const newStatus = payload?.excuseStatus ?? "approved";
       setHistory(prev => prev.map(row =>
         row.calendarEventId === excusingEventId
-          ? { ...row, excused: true, excuseReason: excuseReason.trim() }
+          ? {
+              ...row,
+              excused:         newStatus === "approved",
+              excuseReason:    excuseReason.trim(),
+              excuseStatus:    newStatus,
+              excuseRejection: null,
+            }
           : row
       ));
       setExcusingEventId(null);
@@ -440,14 +451,28 @@ export function BrotherDrawer({
                     <div className="space-y-1.5">
                       {history.map(row => {
                         const isExcusing = excusingEventId === row.calendarEventId;
+                        const pendingExcuse  = row.excuseStatus === "pending";
+                        const rejectedExcuse = row.excuseStatus === "rejected";
                         const dot = row.excused
                           ? "bg-amber-400"
-                          : row.attended === true
-                            ? "bg-emerald-400"
-                            : row.attended === false
-                              ? "bg-red-400"
-                              : "bg-slate-700";
-                        const label = row.excused ? "Excused" : row.attended === true ? "Attended" : row.attended === false ? "Absent" : "No record";
+                          : pendingExcuse
+                            ? "bg-amber-400/40"
+                            : rejectedExcuse
+                              ? "bg-red-400/60"
+                              : row.attended === true
+                                ? "bg-emerald-400"
+                                : row.attended === false
+                                  ? "bg-red-400"
+                                  : "bg-slate-700";
+                        const label = row.excused
+                          ? "Excused"
+                          : pendingExcuse
+                            ? "Excuse pending"
+                            : rejectedExcuse
+                              ? "Excuse rejected"
+                              : row.attended === true ? "Attended" : row.attended === false ? "Absent" : "No record";
+                        // Allow re-submission only if there is no excuse yet, or the existing one was rejected.
+                        const canSubmitExcuse = row.attended === false && !row.excused && !pendingExcuse && onDelete;
 
                         return (
                           <div key={row.calendarEventId} className="rounded-lg border border-white/[0.05] bg-white/[0.02] px-3 py-2.5">
@@ -456,13 +481,16 @@ export function BrotherDrawer({
                               <div className="min-w-0 flex-1">
                                 <p className="truncate text-[12px] font-medium text-slate-200">{row.title}</p>
                                 <p className="text-[10px] text-slate-600">{fmtDate(row.date)} · {label}</p>
+                                {rejectedExcuse && row.excuseRejection && (
+                                  <p className="mt-1 text-[10px] italic text-red-300/80">Reason: {row.excuseRejection}</p>
+                                )}
                               </div>
-                              {row.attended === false && !row.excused && onDelete && (
+                              {canSubmitExcuse && (
                                 <button
                                   onClick={() => { setExcusingEventId(isExcusing ? null : row.calendarEventId); setExcuseReason(""); }}
                                   className="shrink-0 rounded-md bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold text-amber-400 ring-1 ring-inset ring-amber-500/20 hover:bg-amber-500/20 transition-colors"
                                 >
-                                  {isExcusing ? "Cancel" : "Excuse"}
+                                  {isExcusing ? "Cancel" : rejectedExcuse ? "Re-submit" : "Excuse"}
                                 </button>
                               )}
                             </div>

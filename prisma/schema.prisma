@@ -58,6 +58,10 @@ model AttendanceExcuse {
   reason          String
   submittedAt     DateTime      @default(now())
   isRetroactive   Boolean       @default(false)
+  status          String        @default("approved")
+  decidedById     Int?
+  decidedAt       DateTime?
+  rejectionNote   String?
   calendarEvent   CalendarEvent @relation(fields: [calendarEventId], references: [id])
   brother         Brother       @relation(fields: [brotherId], references: [id])
   semester        Semester      @relation(fields: [semesterId], references: [id])
@@ -65,6 +69,7 @@ model AttendanceExcuse {
   @@unique([calendarEventId, brotherId])
   @@index([brotherId, semesterId])
   @@index([calendarEventId, semesterId])
+  @@index([status])
 }
 
 model Deadline {
