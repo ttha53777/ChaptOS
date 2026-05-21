@@ -157,3 +157,24 @@ model Transaction {
 
   @@index([deletedAt])
 }
+
+model Budget {
+  id                Int                @id @default(autoincrement())
+  semester          String             @unique
+  carryoverBalance  Float              @default(0)
+  reservePercent    Float              @default(0)
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  allocations       BudgetAllocation[]
+}
+
+model BudgetAllocation {
+  id       Int    @id @default(autoincrement())
+  budgetId Int
+  category String
+  percent  Float
+  budget   Budget @relation(fields: [budgetId], references: [id], onDelete: Cascade)
+
+  @@unique([budgetId, category])
+  @@index([budgetId])
+}
