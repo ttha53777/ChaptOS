@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import {
   Brother, Deadline, InstagramTask, PartyEvent, ActivityEntry, Transaction,
 } from "../data";
@@ -89,6 +89,10 @@ export function ChapterProvider({ children }: { children: React.ReactNode }) {
   const [mutationError, setMutationError] = useState<string | null>(null);
   const [hasLoaded, setHasLoaded] = useState(false);
 
+  // Race guard: only the most recently *started* refresh is allowed to write state.
+  // Older in-flight refreshes that resolve later are ignored, preventing stale overwrites.
+  const refreshIdRef = useRef(0);
+
   const setAvatarUrl = useCallback((avatarUrl: string | null, hasCustomAvatar = false) => {
     setCurrentUser(prev => (prev ? { ...prev, avatarUrl, hasCustomAvatar } : prev));
     setAvatarRevision(r => r + 1);
@@ -110,6 +114,9 @@ export function ChapterProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const refreshChapterData = useCallback(async () => {
+    const myId = ++refreshIdRef.current;
+    const isLatest = () => refreshIdRef.current === myId;
+
     setIsLoading(true);
     setLoadError(null);
 
@@ -124,6 +131,8 @@ export function ChapterProvider({ children }: { children: React.ReactNode }) {
         fetchJson<TreasuryData>("/api/treasury"),
         fetchJson<Transaction[]>("/api/transactions"),
       ]);
+
+      if (!isLatest()) return;
 
       setCurrentUser(normalizeCurrentUser(me));
       setAvatarRevision(r => r + 1);
@@ -150,11 +159,13 @@ export function ChapterProvider({ children }: { children: React.ReactNode }) {
         return;
       }
       console.error(error);
-      setLoadError("Could not load chapter data from the database.");
+      if (isLatest()) setLoadError("Could not load chapter data from the database.");
       throw error;
     } finally {
-      setIsLoading(false);
-      setHasLoaded(true);
+      if (isLatest()) {
+        setIsLoading(false);
+        setHasLoaded(true);
+      }
     }
   }, []);
 

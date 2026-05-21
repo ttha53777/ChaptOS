@@ -7,6 +7,11 @@ function csvSafeStr(s: string | null | undefined): string {
   return /^[=+\-@\t\r]/.test(v) ? `'${v}` : v;
 }
 
+/** Quote every string cell so embedded commas/newlines don't shift columns. */
+function quote(s: string | null | undefined): string {
+  return `"${csvSafeStr(s)}"`;
+}
+
 export async function GET(req: NextRequest) {
   const { error } = await requireAdmin();
   if (error) return error;
@@ -24,14 +29,14 @@ export async function GET(req: NextRequest) {
 
     const header = ["Date", "Type", "Category", "Description", "Amount", "Payment Method", "Paid To", "Semester"];
     const rows = transactions.map(tx => [
-      csvSafeStr(tx.date),
-      csvSafeStr(tx.type),
-      csvSafeStr(tx.category),
-      `"${csvSafeStr(tx.description)}"`,
+      quote(tx.date),
+      quote(tx.type),
+      quote(tx.category),
+      quote(tx.description),
       tx.amount.toFixed(2),
-      csvSafeStr(tx.paymentMethod),
-      csvSafeStr(tx.paidTo),
-      csvSafeStr(tx.semester),
+      quote(tx.paymentMethod),
+      quote(tx.paidTo),
+      quote(tx.semester),
     ]);
 
     const csv = [header, ...rows].map(r => r.join(",")).join("\n");

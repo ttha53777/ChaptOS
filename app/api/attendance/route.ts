@@ -37,7 +37,9 @@ export async function POST(req: NextRequest) {
     const excusedBrotherIds = new Set(excuses.map(e => e.brotherId));
     const eligible = brothers.filter(b => !excusedBrotherIds.has(b.id));
 
-    await Promise.all(
+    // Atomic: either every brother's attendance row updates or none do —
+    // prevents half-applied attendance state on transient DB failure.
+    await prisma.$transaction(
       eligible.map(b =>
         prisma.attendanceRecord.upsert({
           where: { calendarEventId_brotherId: { calendarEventId, brotherId: b.id } },

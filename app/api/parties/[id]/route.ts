@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth/require-user";
 import { requireAdmin } from "@/lib/auth/require-admin";
 import { logActivity } from "@/lib/activity";
+import { coerceString, coerceNumber } from "@/lib/coerce";
 
 type PartyUpdateData = Prisma.PartyEventUpdateInput;
 
@@ -28,20 +29,23 @@ export async function PATCH(
   const data: PartyUpdateData = {};
 
   for (const key of stringFields) {
-    if (key in body) {
-      if (key === "partyType") {
-        data.partyType = body[key] === "Closed" ? "Closed" : "Open";
-      } else {
-        data[key] = String(body[key]);
-      }
+    if (!(key in body)) continue;
+    if (key === "partyType") {
+      const pt = coerceString(body[key]);
+      if (pt === undefined) return Response.json({ error: "partyType cannot be null" }, { status: 400 });
+      data.partyType = pt === "Closed" ? "Closed" : "Open";
+    } else {
+      const s = coerceString(body[key]);
+      if (s === undefined) return Response.json({ error: `${key} cannot be null` }, { status: 400 });
+      data[key] = s;
     }
   }
   for (const key of numericFields) {
-    if (key in body) {
-      const n = Number(body[key]);
-      if (isNaN(n) || n < 0) return Response.json({ error: `${key} must be a non-negative number` }, { status: 400 });
-      data[key] = n;
-    }
+    if (!(key in body)) continue;
+    const n = coerceNumber(body[key]);
+    if (n === undefined) return Response.json({ error: `${key} cannot be null` }, { status: 400 });
+    if (n === null || n < 0) return Response.json({ error: `${key} must be a non-negative number` }, { status: 400 });
+    data[key] = n;
   }
 
   if ("completed" in body) {

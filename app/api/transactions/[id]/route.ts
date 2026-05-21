@@ -3,6 +3,7 @@ import { Prisma } from "../../../generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth/require-admin";
 import { logActivity } from "@/lib/activity";
+import { coerceString, coerceNumber } from "@/lib/coerce";
 
 export async function PATCH(
   req: NextRequest,
@@ -25,14 +26,17 @@ export async function PATCH(
   const data: Record<string, string | number> = {};
 
   for (const key of stringFields) {
-    if (key in body) data[key] = String(body[key]);
+    if (!(key in body)) continue;
+    const s = coerceString(body[key]);
+    if (s === undefined) return Response.json({ error: `${key} cannot be null` }, { status: 400 });
+    data[key] = s;
   }
   for (const key of numericFields) {
-    if (key in body) {
-      const n = Number(body[key]);
-      if (isNaN(n) || n < 0) return Response.json({ error: `${key} must be a non-negative number` }, { status: 400 });
-      data[key] = n;
-    }
+    if (!(key in body)) continue;
+    const n = coerceNumber(body[key]);
+    if (n === undefined) return Response.json({ error: `${key} cannot be null` }, { status: 400 });
+    if (n === null || n < 0) return Response.json({ error: `${key} must be a non-negative number` }, { status: 400 });
+    data[key] = n;
   }
 
   if ("type" in data && data.type !== "income" && data.type !== "expense") {
