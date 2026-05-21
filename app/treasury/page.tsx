@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState, useMemo, useCallback } from "react";
-import Link from "next/link";
 import dynamic from "next/dynamic";
 import { catColor } from "../components/treasury/TreasuryCharts";
 import { Sidebar } from "../components/Sidebar";
@@ -214,7 +213,7 @@ function TxForm({
           <input type="text" value={semester} onChange={e => setSemester(e.target.value)} placeholder="SPR26" className={inputCls} />
         </div>
       </div>
-      {category === "Reimbursement" && (
+      {type === "expense" && (
         <div>
           <FieldLabel>Paid To</FieldLabel>
           <input type="text" value={paidTo} onChange={e => setPaidTo(e.target.value)} placeholder="Brother name" className={inputCls} />
@@ -368,6 +367,7 @@ export default function TreasuryPage() {
   const [navTab,        setNavTab]        = useState<NavTab>("Overview");
   const [chartRange,    setChartRange]    = useState<"2W"|"1M"|"3M"|"YTD"|"ALL">("ALL");
   const [txTab,         setTxTab]         = useState<TxTab>("all");
+  const [txCategory,    setTxCategory]    = useState<string>("all");
   const [donutMode,     setDonutMode]     = useState<"expense" | "income">("expense");
   const [txModal,       setTxModal]       = useState<TxModal>(null);
   const [partyModal,    setPartyModal]    = useState<PartyModal>(null);
@@ -391,7 +391,14 @@ export default function TreasuryPage() {
   const totalIncome   = useMemo(() => incomeTxns.reduce((s, t)  => s + t.amount, 0), [incomeTxns]);
   const totalExpenses = useMemo(() => expenseTxns.reduce((s, t) => s + t.amount, 0), [expenseTxns]);
 
-  const visibleTxns = txTab === "income" ? incomeTxns : txTab === "expense" ? expenseTxns : activeTxns;
+  const baseVisibleTxns = txTab === "income" ? incomeTxns : txTab === "expense" ? expenseTxns : activeTxns;
+  const visibleTxns = txCategory === "all" ? baseVisibleTxns : baseVisibleTxns.filter(t => t.category === txCategory);
+
+  const categoryOptions = useMemo(() => {
+    if (txTab === "income")  return INCOME_CATEGORIES as readonly string[];
+    if (txTab === "expense") return EXPENSE_CATEGORIES as readonly string[];
+    return [...INCOME_CATEGORIES, ...EXPENSE_CATEGORIES] as readonly string[];
+  }, [txTab]);
 
   const txnsWithRunning = useMemo(() => {
     // Build running balance from ALL active txns so filtered views show the real balance at each date
@@ -689,28 +696,18 @@ export default function TreasuryPage() {
         <div className="flex shrink-0 items-center gap-1 border-b border-white/[0.05] px-5 sm:px-7"
           style={{ background: "rgba(7,9,15,0.6)" }}>
           {NAV_TABS.map(tab => (
-            tab === "Transactions" ? (
-              <Link
-                key={tab}
-                href="/treasury/transactions"
-                className="relative py-3.5 px-3 text-[12px] font-medium text-slate-500 transition-colors hover:text-slate-300"
-              >
-                {tab}
-              </Link>
-            ) : (
-              <button
-                key={tab}
-                onClick={() => setNavTab(tab)}
-                className={`relative py-3.5 px-3 text-[12px] font-medium transition-colors ${
-                  navTab === tab ? "text-white" : "text-slate-500 hover:text-slate-300"
-                }`}
-              >
-                {tab}
-                {navTab === tab && (
-                  <span className="absolute bottom-0 left-0 right-0 h-[2px] rounded-full bg-indigo-400" />
-                )}
-              </button>
-              )
+            <button
+              key={tab}
+              onClick={() => setNavTab(tab)}
+              className={`relative py-3.5 px-3 text-[12px] font-medium transition-colors ${
+                navTab === tab ? "text-white" : "text-slate-500 hover:text-slate-300"
+              }`}
+            >
+              {tab}
+              {navTab === tab && (
+                <span className="absolute bottom-0 left-0 right-0 h-[2px] rounded-full bg-indigo-400" />
+              )}
+            </button>
           ))}
         </div>
 
@@ -741,11 +738,11 @@ export default function TreasuryPage() {
 
             {!isLoading && <>
 
-            {/* ── Hero row: Balance chart (8) + Donut (4) ─────────────────── */}
-            <div className={`grid grid-cols-1 gap-4 ${navTab === "Overview" ? "lg:grid-cols-12" : "lg:grid-cols-1"}`}>
+            {/* ── Hero row: Balance chart (8) + Donut (4) ─── Overview only ── */}
+            {navTab === "Overview" && <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
 
               {/* ── Hero Balance Card ──────────────────────────────────────── */}
-              <FinanceCard className={`flex flex-col overflow-hidden ${navTab === "Overview" ? "lg:col-span-8" : "lg:col-span-12"}`}>
+              <FinanceCard className="flex flex-col overflow-hidden lg:col-span-8">
                 {/* Card header */}
                 <div className="flex items-start justify-between px-6 pt-5 pb-1">
                   <div>
@@ -896,7 +893,7 @@ export default function TreasuryPage() {
                 )}
               </FinanceCard>}
 
-            </div>{/* end hero grid */}
+            </div>}{/* end hero grid */}
 
             {/* ── Budget tab: BudgetView ─────────────────────────────────── */}
             {navTab === "Budget" && (
@@ -1080,7 +1077,7 @@ export default function TreasuryPage() {
                     {(["all", "income", "expense"] as TxTab[]).map(tab => (
                       <button
                         key={tab}
-                        onClick={() => setTxTab(tab)}
+                        onClick={() => { setTxTab(tab); setTxCategory("all"); }}
                         className={`rounded-lg px-2.5 py-1 text-[11px] font-medium transition-all ${
                           txTab === tab
                             ? "bg-white/[0.10] text-white"
@@ -1091,6 +1088,16 @@ export default function TreasuryPage() {
                       </button>
                     ))}
                   </div>
+                  <select
+                    value={txCategory}
+                    onChange={e => setTxCategory(e.target.value)}
+                    className="rounded-lg border border-white/[0.07] bg-white/[0.03] px-2 py-1 text-[11px] font-medium text-slate-300 transition-colors hover:border-white/[0.14] focus:border-indigo-500/60 focus:outline-none"
+                  >
+                    <option value="all">All categories</option>
+                    {categoryOptions.map(c => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                  </select>
                   <span className={`text-[12px] font-semibold tabular-nums ${txTab === "expense" ? "text-red-400" : txTab === "income" ? "text-emerald-400" : tabTotals.all >= 0 ? "text-emerald-400" : "text-red-400"}`}>
                     {txTab === "all" && tabTotals.all >= 0 && "+"}{fmt$(Math.round(tabTotals[txTab]))}
                   </span>
