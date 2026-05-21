@@ -192,7 +192,7 @@ export function GeneralSection({
         <div>
           <h3 className="mb-1 text-[12px] font-semibold text-slate-300">Organization Icon</h3>
           <p className="mb-3 text-[11px] text-slate-500">
-            Replaces the ΛΦΕ badge in the top-left of the sidebar. PNG, JPG, or SVG · max 1 MB.
+            Replaces the ΛΦΕ badge on the login screen and in the sidebar. PNG, JPG, or SVG · max 1 MB.
           </p>
           <div className="flex items-center gap-4">
             {/* Preview */}
