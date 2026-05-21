@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
     return Response.json({
       semester: budget.semester,
       carryoverBalance: budget.carryoverBalance,
-      reservePercent: budget.reservePercent,
+      reserveAmount: budget.reserveAmount,
       allocations: budget.allocations.map(a => ({ category: a.category, percent: a.percent })),
     });
   } catch (e) {
@@ -41,10 +41,10 @@ export async function PUT(req: NextRequest) {
   try { body = await req.json(); }
   catch { return Response.json({ error: "Invalid JSON body" }, { status: 400 }); }
 
-  const { semester, carryoverBalance, reservePercent, allocations } = body as {
+  const { semester, carryoverBalance, reserveAmount, allocations } = body as {
     semester?: string;
     carryoverBalance?: number;
-    reservePercent?: number;
+    reserveAmount?: number;
     allocations?: { category: string; percent: number }[];
   };
 
@@ -55,9 +55,9 @@ export async function PUT(req: NextRequest) {
   if (isNaN(carryover)) {
     return Response.json({ error: "carryoverBalance must be a number" }, { status: 400 });
   }
-  const reserve = Number(reservePercent);
-  if (isNaN(reserve) || reserve < 0 || reserve > 100) {
-    return Response.json({ error: "reservePercent must be between 0 and 100" }, { status: 400 });
+  const reserve = Number(reserveAmount ?? 0);
+  if (isNaN(reserve) || reserve < 0) {
+    return Response.json({ error: "reserveAmount must be a non-negative number" }, { status: 400 });
   }
   if (!Array.isArray(allocations)) {
     return Response.json({ error: "allocations must be an array" }, { status: 400 });
@@ -77,28 +77,26 @@ export async function PUT(req: NextRequest) {
     }
   }
 
-  const total = reserve + allocations.reduce((s, a) => s + a.percent, 0);
-  if (Math.abs(total - 100) > 0.01) {
-    return Response.json({ error: `Percents must sum to 100 (got ${total.toFixed(2)})` }, { status: 400 });
+  const total = allocations.reduce((s, a) => s + a.percent, 0);
+  if (Math.abs(total - 100) > 0.01 && total !== 0) {
+    return Response.json({ error: `Allocation percents must sum to 100 (got ${total.toFixed(2)})` }, { status: 400 });
   }
 
   try {
-    const result = await prisma.$transaction(async tx => {
-      const budget = await tx.budget.upsert({
-        where: { semester },
-        create: { semester, carryoverBalance: carryover, reservePercent: reserve },
-        update: { carryoverBalance: carryover, reservePercent: reserve },
+    const budget = await prisma.budget.upsert({
+      where: { semester },
+      create: { semester, carryoverBalance: carryover, reserveAmount: reserve },
+      update: { carryoverBalance: carryover, reserveAmount: reserve },
+    });
+    await prisma.budgetAllocation.deleteMany({ where: { budgetId: budget.id } });
+    if (allocations.length > 0) {
+      await prisma.budgetAllocation.createMany({
+        data: allocations.map(a => ({ budgetId: budget.id, category: a.category, percent: a.percent })),
       });
-      await tx.budgetAllocation.deleteMany({ where: { budgetId: budget.id } });
-      if (allocations.length > 0) {
-        await tx.budgetAllocation.createMany({
-          data: allocations.map(a => ({ budgetId: budget.id, category: a.category, percent: a.percent })),
-        });
-      }
-      return tx.budget.findUnique({
-        where: { id: budget.id },
-        include: { allocations: true },
-      });
+    }
+    const result = await prisma.budget.findUnique({
+      where: { id: budget.id },
+      include: { allocations: true },
     });
 
     await logActivity({
@@ -110,11 +108,12 @@ export async function PUT(req: NextRequest) {
     return Response.json({
       semester: result!.semester,
       carryoverBalance: result!.carryoverBalance,
-      reservePercent: result!.reservePercent,
+      reserveAmount: result!.reserveAmount,
       allocations: result!.allocations.map(a => ({ category: a.category, percent: a.percent })),
     });
   } catch (e) {
+    const detail = e instanceof Error ? e.message : String(e);
     console.error("PUT /api/budget failed:", e);
-    return Response.json({ error: "Failed to save budget" }, { status: 500 });
+    return Response.json({ error: `Failed to save budget: ${detail}` }, { status: 500 });
   }
 }

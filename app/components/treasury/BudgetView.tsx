@@ -7,12 +7,10 @@ import { inputCls } from "../dashboard/styles";
 import { requestJson } from "../../lib/api";
 import { catColor } from "./TreasuryCharts";
 
-const RESERVE_KEY = "__reserve__";
-
 type BudgetData = {
   semester: string;
   carryoverBalance: number;
-  reservePercent: number;
+  reserveAmount: number;
   allocations: { category: string; percent: number }[];
 };
 
@@ -92,9 +90,10 @@ export function BudgetView({
     );
   }
 
-  const pool           = budget.carryoverBalance + actualIncome;
-  const reserveTarget  = pool * (budget.reservePercent / 100);
-  const projectedEnd   = budget.carryoverBalance + actualIncome - actualExpenses;
+  const totalFunds     = budget.carryoverBalance + actualIncome;
+  const reserveTarget  = budget.reserveAmount;
+  const pool           = Math.max(0, totalFunds - reserveTarget);
+  const projectedEnd   = totalFunds - actualExpenses;
   const reserveOnTrack = projectedEnd >= reserveTarget;
 
   return (
@@ -119,7 +118,7 @@ export function BudgetView({
           )}
         </div>
         <p className="mt-3 text-[11px] text-slate-500">
-          Funding pool <span className="font-semibold text-slate-300 tabular-nums">{fmt$(Math.round(pool))}</span> = carryover + actual income · each category gets its % of this pool live as money lands.
+          Funding pool <span className="font-semibold text-slate-300 tabular-nums">{fmt$(Math.round(pool))}</span> = carryover + income − reserve · each category gets its % of this pool live as money lands.
         </p>
       </div>
 
@@ -204,7 +203,7 @@ export function BudgetView({
             <p className="mt-1 text-[18px] font-semibold tabular-nums text-white">
               {fmt$(Math.round(reserveTarget))} <span className="text-[12px] font-medium text-slate-500">target</span>
             </p>
-            <p className="mt-0.5 text-[11px] text-slate-500">{budget.reservePercent.toFixed(0)}% of funding pool</p>
+            <p className="mt-0.5 text-[11px] text-slate-500">Set aside off the top</p>
           </div>
           <div className="text-right">
             <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">Projected end</p>
@@ -270,20 +269,22 @@ function EditBudgetModal({
   const [carryoverStr, setCarryoverStr] = useState(
     String(initial?.carryoverBalance ?? Math.max(0, Math.round(currentBalance)))
   );
+  const [reserveStr, setReserveStr] = useState(String(initial?.reserveAmount ?? 0));
   const [percents, setPercents] = useState<Record<string, number>>(() => {
     const initialAlloc = new Map<string, number>();
     initial?.allocations.forEach(a => initialAlloc.set(a.category, a.percent));
     const map: Record<string, number> = {};
     EXPENSE_CATEGORIES.forEach(c => { map[c] = initialAlloc.get(c) ?? 0; });
-    map[RESERVE_KEY] = initial?.reservePercent ?? 0;
     return map;
   });
   const [saving, setSaving] = useState(false);
 
   const carryover = Number(carryoverStr) || 0;
+  const reserve   = Number(reserveStr) || 0;
+  const pool      = Math.max(0, carryover - reserve);
   const total     = Object.values(percents).reduce((s, v) => s + v, 0);
   const totalOk   = Math.abs(total - 100) < 0.01;
-  const canSave   = totalOk && !isNaN(carryover) && !saving;
+  const canSave   = totalOk && !isNaN(carryover) && reserve >= 0 && !saving;
 
   function setPct(key: string, v: number) {
     setPercents(p => ({ ...p, [key]: Math.max(0, Math.min(100, v)) }));
@@ -299,7 +300,7 @@ function EditBudgetModal({
         body: JSON.stringify({
           semester,
           carryoverBalance: carryover,
-          reservePercent: percents[RESERVE_KEY] ?? 0,
+          reserveAmount: reserve,
           allocations: EXPENSE_CATEGORIES
             .map(c => ({ category: c, percent: percents[c] ?? 0 }))
             .filter(a => a.percent > 0),
@@ -311,11 +312,6 @@ function EditBudgetModal({
       setSaving(false);
     }
   }
-
-  const rows: { key: string; label: string; tone: "category" | "reserve" }[] = [
-    ...EXPENSE_CATEGORIES.map(c => ({ key: c, label: c as string, tone: "category" as const })),
-    { key: RESERVE_KEY, label: "Reserve / Carryover", tone: "reserve" as const },
-  ];
 
   return (
     <Modal title={`Edit Budget — ${semester}`} onClose={onClose}>
@@ -346,19 +342,35 @@ function EditBudgetModal({
           </p>
         </div>
 
-        <div className="max-h-[360px] overflow-y-auto rounded-lg border border-white/[0.06] bg-[#0a0d14]">
-          {rows.map(({ key, label, tone }, idx) => {
-            const value = percents[key] ?? 0;
-            const dollar = carryover * value / 100;
+        <div>
+          <FieldLabel>Reserve Target ($)</FieldLabel>
+          <input
+            type="number"
+            min="0"
+            step="0.01"
+            value={reserveStr}
+            onChange={e => setReserveStr(e.target.value)}
+            placeholder="0.00"
+            className={inputCls}
+          />
+          <p className="mt-1 text-[10px] text-slate-500">
+            Locked-aside dollar amount for next semester's carryover. Sliders below divide what's left ({fmt$(Math.round(pool))} from current carryover).
+          </p>
+        </div>
+
+        <div className="max-h-[320px] overflow-y-auto rounded-lg border border-white/[0.06] bg-[#0a0d14]">
+          {EXPENSE_CATEGORIES.map((cat, idx) => {
+            const value = percents[cat] ?? 0;
+            const dollar = pool * value / 100;
             return (
               <div
-                key={key}
-                className={`flex items-center gap-3 px-3 py-2.5 ${idx > 0 ? "border-t border-white/[0.04]" : ""} ${tone === "reserve" ? "bg-amber-500/[0.04]" : ""}`}
+                key={cat}
+                className={`flex items-center gap-3 px-3 py-2.5 ${idx > 0 ? "border-t border-white/[0.04]" : ""}`}
               >
                 <div className="min-w-0 flex-1">
-                  <p className={`text-[12px] font-medium ${tone === "reserve" ? "text-amber-300" : "text-slate-200"}`}>{label}</p>
+                  <p className="text-[12px] font-medium text-slate-200">{cat}</p>
                   <p className="text-[10px] tabular-nums text-slate-500">
-                    {fmt$(Math.round(dollar))} from carryover
+                    {fmt$(Math.round(dollar))} from pool
                   </p>
                 </div>
                 <input
@@ -367,7 +379,7 @@ function EditBudgetModal({
                   max={100}
                   step={1}
                   value={value}
-                  onChange={e => setPct(key, Number(e.target.value))}
+                  onChange={e => setPct(cat, Number(e.target.value))}
                   className="h-1 w-[120px] accent-indigo-500"
                 />
                 <input
@@ -376,7 +388,7 @@ function EditBudgetModal({
                   max={100}
                   step={1}
                   value={value}
-                  onChange={e => setPct(key, Number(e.target.value))}
+                  onChange={e => setPct(cat, Number(e.target.value))}
                   className="w-14 rounded border border-white/[0.08] bg-[#0a0d14] px-2 py-1 text-[12px] tabular-nums text-white focus:border-indigo-500/60 focus:outline-none"
                 />
                 <span className="w-3 text-[11px] text-slate-500">%</span>
