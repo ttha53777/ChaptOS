@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth/require-user";
 import { requireAdmin } from "@/lib/auth/require-admin";
 import { logActivity } from "@/lib/activity";
+import { coerceString } from "@/lib/coerce";
 
 export async function PATCH(
   req: NextRequest,
@@ -22,10 +23,12 @@ export async function PATCH(
   catch { return Response.json({ error: "Invalid JSON body" }, { status: 400 }); }
 
   const data: Prisma.ServiceEventUpdateInput = {};
-  if ("title"    in body) data.title    = String(body.title);
-  if ("date"     in body) data.date     = String(body.date);
-  if ("location" in body) data.location = String(body.location);
-  if ("notes"    in body) data.notes    = String(body.notes);
+  for (const key of ["title", "date", "location", "notes"] as const) {
+    if (!(key in body)) continue;
+    const s = coerceString(body[key]);
+    if (s === undefined) return Response.json({ error: `${key} cannot be null` }, { status: 400 });
+    data[key] = s;
+  }
 
   if (Object.keys(data).length === 0) {
     return Response.json({ error: "No valid fields provided" }, { status: 400 });
@@ -83,8 +86,17 @@ export async function DELETE(
       });
       if (!existing) throw new Prisma.PrismaClientKnownRequestError("Not found", { code: "P2025", clientVersion: "" });
       await tx.serviceEvent.delete({ where: { id: numId } });
+      // Only delete the linked calendar event if it still exists. Don't swallow
+      // arbitrary errors with .catch — that defeats the transaction's atomicity
+      // and can leave orphaned calendar rows.
       if (existing.calendarEventId) {
-        await tx.calendarEvent.delete({ where: { id: existing.calendarEventId } }).catch(() => undefined);
+        const calendarExists = await tx.calendarEvent.findUnique({
+          where: { id: existing.calendarEventId },
+          select: { id: true },
+        });
+        if (calendarExists) {
+          await tx.calendarEvent.delete({ where: { id: existing.calendarEventId } });
+        }
       }
       return existing;
     });
