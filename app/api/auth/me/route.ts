@@ -11,13 +11,23 @@ export async function GET() {
     const [brother, supabase] = await Promise.all([
       prisma.brother.findUnique({
         where: { id: user.id },
-        select: { name: true },
+        select: { name: true, email: true },
       }),
       createServerSupabaseClient(),
     ]);
 
     const { data: { user: authUser } } = await supabase.auth.getUser();
     const { avatarUrl, hasCustomAvatar } = parseAvatarFromMetadata(authUser?.user_metadata);
+
+    // Backfill: brothers linked before the email column existed have a null email.
+    // First time they hit /me after this ships, persist the session email so it
+    // shows up in Settings without forcing a relink.
+    if (brother && !brother.email && user.email) {
+      prisma.brother.update({
+        where: { id: user.id },
+        data: { email: user.email },
+      }).catch(e => console.error("Brother email backfill failed:", e));
+    }
 
     return Response.json({
       id: user.id,

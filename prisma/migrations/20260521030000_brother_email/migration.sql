@@ -1,0 +1,1 @@
+ALTER TABLE "Brother" ADD COLUMN "email" TEXT;

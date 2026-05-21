@@ -17,6 +17,7 @@ model Brother {
   serviceHours      Float
   authUserId        String?            @unique @map("auth_user_id")
   avatarUrl         String?            @map("avatar_url")
+  email             String?
   isAdmin           Boolean            @default(false)
   attendanceRecords AttendanceRecord[]
   attendanceExcuses AttendanceExcuse[]
