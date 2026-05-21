@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth/require-user";
 import { logActivity } from "@/lib/activity";
+import { isValidDateString } from "@/lib/coerce";
 
 export async function GET() {
   const user = await requireUser();
@@ -27,6 +28,9 @@ export async function POST(req: NextRequest) {
     }
     if (String(title).length > 200) return Response.json({ error: "Title too long" }, { status: 400 });
     if (String(owner).length > 200) return Response.json({ error: "Owner too long" }, { status: 400 });
+    if (!isValidDateString(dueDate)) {
+      return Response.json({ error: "dueDate must use YYYY-MM-DD format" }, { status: 400 });
+    }
 
     const task = await prisma.instagramTask.create({
       data: {
