@@ -4,6 +4,7 @@ import React, { useState, useMemo, useCallback } from "react";
 import dynamic from "next/dynamic";
 import { catColor } from "../components/treasury/TreasuryCharts";
 import { Sidebar } from "../components/Sidebar";
+import { BrotherAvatar } from "../components/BrotherAvatar";
 import { UserAvatar } from "../components/UserAvatar";
 
 const TreasuryAreaChart = dynamic(
@@ -272,7 +273,8 @@ const ICON_PARTY  = "M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function TreasuryPage() {
-  const { currentUser, treasuryData, transactionList, setTransactionList, partyList, setPartyList, brotherList, setBrotherList, isLoading } = useChapter();
+  const { currentUser, treasuryData, transactionList, setTransactionList, partyList, setPartyList, brotherList, setBrotherList, isLoading, avatarRevision } = useChapter();
+  const selfId = currentUser?.id ?? null;
   const isAdmin = currentUser?.isAdmin ?? false;
 
   const [sidebarOpen,   setSidebarOpen]   = useState(false);
@@ -842,9 +844,13 @@ export default function TreasuryPage() {
                   <div className="max-h-[280px] overflow-y-auto divide-y divide-white/[0.04]">
                     {brothersOwing.map(b => (
                       <div key={b.id} className="flex items-center gap-3 px-5 py-3 transition-colors hover:bg-white/[0.02]">
-                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/[0.06] text-[11px] font-bold text-slate-400">
-                          {b.name.split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase()}
-                        </div>
+                        <BrotherAvatar
+                          brother={b}
+                          selfId={selfId}
+                          selfAvatarUrl={currentUser?.avatarUrl}
+                          avatarRevision={avatarRevision}
+                          size="sm"
+                        />
                         <div className="min-w-0 flex-1">
                           <p className="text-[13px] font-medium text-slate-200">{b.name}</p>
                           <p className="text-[10px] text-slate-500">{b.role}</p>

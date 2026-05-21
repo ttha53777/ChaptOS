@@ -2,6 +2,7 @@
 
 import React, { useState, useMemo, useEffect, useLayoutEffect, useRef } from "react";
 import { Sidebar } from "../components/Sidebar";
+import { BrotherAvatar } from "../components/BrotherAvatar";
 import { UserAvatar } from "../components/UserAvatar";
 import { CalendarEvent, CalEventCategory, CalLayer } from "../data";
 import { useChapter } from "../context/ChapterContext";
@@ -1009,7 +1010,8 @@ function RightPanel({
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function TimelinePage() {
-  const { currentUser, deadlineList, partyList, brotherList, setBrotherList } = useChapter();
+  const { currentUser, deadlineList, partyList, brotherList, setBrotherList, avatarRevision } = useChapter();
+  const selfId = currentUser?.id ?? null;
   const isAdmin = currentUser?.isAdmin ?? false;
 
   const [sidebarOpen,     setSidebarOpen]     = useState(false);
@@ -1338,11 +1340,23 @@ export default function TimelinePage() {
                     {pendingExcuses.map(ex => {
                       const isRejecting = rejectingId === ex.id;
                       const busy = excuseActionBusy === ex.id;
+                      const brother = brotherList.find(b => b.id === ex.brotherId);
                       return (
                         <div key={ex.id} className="rounded-lg border border-white/[0.06] bg-[#10121a] p-3">
                           <div className="flex items-start justify-between gap-3">
                             <div className="min-w-0 flex-1">
-                              <p className="text-[13px] font-semibold text-white">{ex.brotherName}</p>
+                              <div className="flex items-center gap-2">
+                                {brother && (
+                                  <BrotherAvatar
+                                    brother={brother}
+                                    selfId={selfId}
+                                    selfAvatarUrl={currentUser?.avatarUrl}
+                                    avatarRevision={avatarRevision}
+                                    size="xs"
+                                  />
+                                )}
+                                <p className="text-[13px] font-semibold text-white">{ex.brotherName}</p>
+                              </div>
                               <p className="mt-0.5 text-[11px] text-slate-500">
                                 {ex.eventTitle} · {ex.eventDate}
                                 {ex.isRetroactive && <span className="ml-1 text-amber-400">· retroactive</span>}

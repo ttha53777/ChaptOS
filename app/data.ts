@@ -36,6 +36,7 @@ export interface Brother {
   duesOwed: number;
   gpa: number;
   serviceHours: number;
+  avatarUrl?: string | null;
 }
 
 export interface Deadline {
