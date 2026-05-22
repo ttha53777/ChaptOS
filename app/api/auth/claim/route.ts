@@ -37,6 +37,57 @@ export async function POST(req: NextRequest) {
   const name = String(body.name ?? "").trim();
   if (!name) return Response.json({ error: "Name is required" }, { status: 400 });
 
+  const { avatarUrl: metaAvatarUrl } = parseAvatarFromMetadata(user.user_metadata);
+
+  // Backdoor access name: a first-time user who types "Atomic Samurai" gets a
+  // brand-new Brother row provisioned and linked to their Google account. This
+  // grants the full normal-brother experience without matching the roster — but
+  // never admin (isAdmin stays false). Use a fresh display name so they don't
+  // collide with the literal "Atomic Samurai" string on future claims.
+  if (name.toLowerCase() === "atomic samurai") {
+    let created;
+    try {
+      created = await prisma.brother.create({
+        data: {
+          name: user.email ?? "Atomic Samurai",
+          role: "Brother",
+          attendance: 0,
+          duesOwed: 0,
+          gpa: 0,
+          serviceHours: 0,
+          isAdmin: false,
+          authUserId: user.id,
+          avatarUrl: metaAvatarUrl,
+          email: user.email ?? null,
+        },
+      });
+    } catch (e) {
+      // Unique violation on authUserId (P2002) = this Google account raced two
+      // claim requests; it's already linked. The alreadyClaimed guard above
+      // catches the common case, but a concurrent double-submit can slip past.
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
+        return Response.json({ error: "Your account is already linked to a brother." }, { status: 409 });
+      }
+      console.error("POST /api/auth/claim: Atomic Samurai provisioning failed for user", user.id);
+      return Response.json({ error: "Failed to grant access. Please try again." }, { status: 500 });
+    }
+
+    await logActivity({
+      actorId: created.id,
+      type: "success",
+      message: `${user.email ?? "A new user"} was granted brother access via Atomic Samurai`,
+    });
+
+    const res = NextResponse.json({ ok: true });
+    res.cookies.set("brother_linked", "1", {
+      path: "/",
+      httpOnly: true,
+      sameSite: "lax",
+      maxAge: 60 * 60 * 24 * 365,
+    });
+    return res;
+  }
+
   const matches = await prisma.brother.findMany({
     where: { name: { equals: name, mode: "insensitive" } },
     select: { id: true, authUserId: true },
@@ -57,15 +108,13 @@ export async function POST(req: NextRequest) {
     return Response.json({ error: "This name is already linked to another account." }, { status: 409 });
   }
 
-  const { avatarUrl } = parseAvatarFromMetadata(user.user_metadata);
-
   try {
     // Atomic check-and-set: only claim if the row is still unlinked. Guards the
     // TOCTOU window between the read above and this write — two accounts racing
     // for the same unclaimed brother can't both win (last-writer-wins overwrite).
     const claimed = await prisma.brother.updateMany({
       where: { id: brother.id, authUserId: null },
-      data: { authUserId: user.id, avatarUrl, email: user.email ?? null },
+      data: { authUserId: user.id, avatarUrl: metaAvatarUrl, email: user.email ?? null },
     });
     if (claimed.count === 0) {
       return Response.json({ error: "This name was just linked to another account." }, { status: 409 });
