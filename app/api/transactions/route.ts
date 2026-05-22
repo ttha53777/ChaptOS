@@ -5,6 +5,7 @@ import { requireUser } from "@/lib/auth/require-user";
 import { requireAdmin } from "@/lib/auth/require-admin";
 import { logActivity } from "@/lib/activity";
 import { isValidDateString } from "@/lib/coerce";
+import { checkMutationRate } from "@/lib/rate-limit";
 
 export async function GET(req: NextRequest) {
   const user = await requireUser();
@@ -33,6 +34,8 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const { user, error } = await requireAdmin();
   if (error) return error;
+  const limited = checkMutationRate(user.id);
+  if (limited) return limited;
   let body: Record<string, unknown>;
   try { body = await req.json(); }
   catch { return Response.json({ error: "Invalid JSON body" }, { status: 400 }); }

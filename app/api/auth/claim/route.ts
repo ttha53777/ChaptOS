@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
+import { Prisma } from "../../../generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { parseAvatarFromMetadata } from "@/lib/avatar";
 import { logActivity } from "@/lib/activity";
+import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
 
 export async function POST(req: NextRequest) {
   // Validate Supabase session directly (can't use requireUser here — it checks
@@ -16,6 +18,11 @@ export async function POST(req: NextRequest) {
   );
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
+
+  // Throttle claim attempts to stop name-guessing brute force. Keyed by the
+  // authenticated Supabase user (they're already signed in via Google here).
+  const limit = rateLimit(`claim:${user.id}`, 5, 60_000);
+  if (!limit.ok) return tooManyRequests(limit);
 
   // Prevent the same Google account from claiming a second Brother row
   const alreadyClaimed = await prisma.brother.findUnique({
@@ -53,11 +60,22 @@ export async function POST(req: NextRequest) {
   const { avatarUrl } = parseAvatarFromMetadata(user.user_metadata);
 
   try {
-    await prisma.brother.update({
-      where: { id: brother.id },
+    // Atomic check-and-set: only claim if the row is still unlinked. Guards the
+    // TOCTOU window between the read above and this write — two accounts racing
+    // for the same unclaimed brother can't both win (last-writer-wins overwrite).
+    const claimed = await prisma.brother.updateMany({
+      where: { id: brother.id, authUserId: null },
       data: { authUserId: user.id, avatarUrl, email: user.email ?? null },
     });
-  } catch {
+    if (claimed.count === 0) {
+      return Response.json({ error: "This name was just linked to another account." }, { status: 409 });
+    }
+  } catch (e) {
+    // Unique violation on authUserId (P2002) = this Google account already
+    // claimed a different brother in a concurrent request.
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
+      return Response.json({ error: "Your account is already linked to a brother." }, { status: 409 });
+    }
     console.error("POST /api/auth/claim: DB update failed for user", user.id);
     return Response.json({ error: "Failed to link account. Please try again." }, { status: 500 });
   }

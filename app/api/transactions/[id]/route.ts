@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth/require-admin";
 import { logActivity } from "@/lib/activity";
 import { coerceString, coerceNumber, isValidDateString } from "@/lib/coerce";
+import { checkMutationRate } from "@/lib/rate-limit";
 
 export async function PATCH(
   req: NextRequest,
@@ -11,6 +12,8 @@ export async function PATCH(
 ) {
   const { user, error } = await requireAdmin();
   if (error) return error;
+  const limited = checkMutationRate(user.id);
+  if (limited) return limited;
   const { id } = await params;
   const numId = Number(id);
   if (!Number.isInteger(numId) || numId <= 0) {
@@ -78,6 +81,8 @@ export async function DELETE(
 ) {
   const { user, error } = await requireAdmin();
   if (error) return error;
+  const limited = checkMutationRate(user.id);
+  if (limited) return limited;
   const { id } = await params;
   const numId = Number(id);
   if (!Number.isInteger(numId) || numId <= 0) {
