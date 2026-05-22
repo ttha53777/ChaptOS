@@ -55,6 +55,7 @@ export interface WeeklyDigest {
 export interface MobileTasksData {
   weeklyDigest: WeeklyDigest;
   weekRange: { start: string; end: string };
+  digestNarration: string | null;
   deadlineList: Deadline[];
   igTaskList: InstagramTask[];
   activityFeed: ActivityEntry[];
