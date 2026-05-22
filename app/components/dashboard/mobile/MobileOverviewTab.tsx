@@ -10,7 +10,7 @@ export function MobileOverviewTab({ tasksData, brothersData, actions }: {
   brothersData: MobileBrothersData;
   actions: MobileActions;
 }) {
-  const { weeklyDigest, weekRange } = tasksData;
+  const { weeklyDigest, weekRange, digestNarration } = tasksData;
   const digestTotal =
     weeklyDigest.deadlinesDue.length + weeklyDigest.igDue.length +
     weeklyDigest.eventsThisWeek.length + weeklyDigest.partiesThisWeek.length;
@@ -53,6 +53,12 @@ export function MobileOverviewTab({ tasksData, brothersData, actions }: {
                   <span className={`text-[13px] font-bold tabular-nums ${count > 0 ? color : "text-slate-700"}`}>{count}</span>
                 </div>
               ))}
+            </div>
+          )}
+          {digestNarration && (
+            <div className="mt-3 flex items-start gap-1.5 border-t border-white/[0.06] pt-2.5">
+              <span className="mt-px shrink-0 rounded bg-indigo-500/15 px-1 py-0.5 text-[8px] font-bold uppercase tracking-wider text-indigo-300">AI</span>
+              <p className="text-[11px] italic leading-snug text-slate-400">{digestNarration}</p>
             </div>
           )}
         </div>

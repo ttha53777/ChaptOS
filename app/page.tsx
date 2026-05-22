@@ -495,7 +495,7 @@ type WidgetDrawerKey = "health" | "digest" | "deadlines" | "instagram" | "activi
 
 function WidgetDetailDrawer({
   activeKey, onClose,
-  weeklyDigest, weekRange,
+  weeklyDigest, weekRange, digestNarration,
   deadlineList, igTaskList, activityFeed, partyList,
   health,
   maxRevenue, bestEvent, totalDoorRev,
@@ -513,6 +513,7 @@ function WidgetDetailDrawer({
     atRiskCount: number;
   };
   weekRange: { start: string; end: string };
+  digestNarration: string | null;
   deadlineList: { id: number; title: string; dueDate: string; owner: string; status: TaskStatus }[];
   igTaskList: { id: number; title: string; dueDate: string; owner: string; status: TaskStatus; type: string }[];
   activityFeed: ActivityEntry[];
@@ -638,6 +639,12 @@ function WidgetDetailDrawer({
                 <span className="rounded-full bg-amber-500/20 px-2 py-0.5 text-[10px] font-semibold text-amber-400">{atRiskCount} at risk</span>
               )}
             </div>
+            {digestNarration && (
+              <div className="mb-5 flex items-start gap-2 rounded-lg border border-indigo-500/20 bg-indigo-500/[0.06] px-3 py-2.5">
+                <span className="mt-px shrink-0 rounded bg-indigo-500/20 px-1 py-0.5 text-[8px] font-bold uppercase tracking-wider text-indigo-300">AI</span>
+                <p className="text-[12px] leading-relaxed text-slate-300">{digestNarration}</p>
+              </div>
+            )}
             <div className="grid grid-cols-4 gap-2 mb-5">
               {sections.map(s => (
                 <div key={s.label} className="rounded-lg bg-white/[0.04] px-2 py-2.5 text-center">
@@ -1129,6 +1136,65 @@ export default function Home() {
     weeklyDigest.deadlinesDue.length + weeklyDigest.igDue.length +
     weeklyDigest.eventsThisWeek.length + weeklyDigest.partiesThisWeek.length;
 
+  // ── AI narration (gpt-4o-mini via /api/ai/digest) ──────────────────────────
+  // A stable content key identifies this exact weekly-digest state. Narration is
+  // generated once per key: cached client-side in localStorage and server-side
+  // in-memory, so a plain reload makes zero API calls. The key only changes when
+  // the week's items/counts change, which triggers a single fresh generation.
+  const digestKey = useMemo(() => {
+    const ids = (arr: { id: number }[]) => arr.map(x => x.id).sort((a, b) => a - b).join(",");
+    return [
+      "v2", // bump when the AI prompt/length changes, to invalidate cached narrations
+      weekRange.start, weekRange.end,
+      `d:${ids(weeklyDigest.deadlinesDue)}`,
+      `i:${ids(weeklyDigest.igDue)}`,
+      `e:${ids(weeklyDigest.eventsThisWeek)}`,
+      `p:${ids(weeklyDigest.partiesThisWeek)}`,
+      `r:${weeklyDigest.atRiskCount}`,
+    ].join("|");
+  }, [weekRange, weeklyDigest]);
+
+  const [digestNarration, setDigestNarration] = useState<string | null>(null);
+  const [digestNarrationLoading, setDigestNarrationLoading] = useState(false);
+
+  useEffect(() => {
+    if (digestTotal === 0) { setDigestNarration(null); return; }
+
+    const cacheKey = `chaptos_digest_narration:${digestKey}`;
+    try {
+      const stored = localStorage.getItem(cacheKey);
+      if (stored) { setDigestNarration(stored); return; } // persisted — no API call
+    } catch { /* localStorage unavailable — fall through to fetch */ }
+
+    const controller = new AbortController();
+    setDigestNarrationLoading(true);
+    setDigestNarration(null);
+    fetch("/api/ai/digest", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      signal: controller.signal,
+      body: JSON.stringify({
+        key: digestKey,
+        weekRange,
+        deadlines: weeklyDigest.deadlinesDue.map(d => ({ title: d.title, dueDate: d.dueDate })),
+        instagram: weeklyDigest.igDue.map(t => ({ title: t.title, dueDate: t.dueDate })),
+        events:    weeklyDigest.eventsThisWeek.map(e => ({ title: e.title, date: e.date })),
+        parties:   weeklyDigest.partiesThisWeek.map(p => ({ name: p.name, date: p.date })),
+        atRiskCount: weeklyDigest.atRiskCount,
+      }),
+    })
+      .then(r => r.ok ? r.json() : null)
+      .then((data: { narration?: string | null } | null) => {
+        const text = data?.narration ?? null;
+        setDigestNarration(text);
+        if (text) { try { localStorage.setItem(cacheKey, text); } catch { /* ignore */ } }
+      })
+      .catch(() => { /* network/abort — leave narration absent, card still renders */ })
+      .finally(() => setDigestNarrationLoading(false));
+
+    return () => controller.abort();
+  }, [digestKey, digestTotal, weekRange, weeklyDigest]);
+
   // ── Filtered/sorted brothers ───────────────────────────────────────────────
   const filteredBrothers = useMemo((): Brother[] => {
     let result = brotherList.filter(b => {
@@ -1607,7 +1673,7 @@ export default function Home() {
                 filteredBrothers, brotherList, statusCounts,
                 search, statusFilter, selfId, currentUser, avatarRevision, isAdmin,
               }}
-              tasksData={{ weeklyDigest, weekRange, deadlineList, igTaskList, activityFeed }}
+              tasksData={{ weeklyDigest, weekRange, digestNarration, deadlineList, igTaskList, activityFeed }}
               moneyData={{
                 liveBalance, liveProjected, liveTrend, totalDoorRev, partyList,
                 partyChartData, statusChartData, svcChartData,
@@ -1823,6 +1889,14 @@ export default function Home() {
                             <span className={`text-[13px] font-bold tabular-nums ${count > 0 ? color : "text-slate-700"}`}>{count}</span>
                           </div>
                         ))}
+                      </div>
+                    )}
+                    {(digestNarration || digestNarrationLoading) && (
+                      <div className="mt-3 flex items-start gap-1.5 border-t border-white/[0.06] pt-2.5">
+                        <span className="mt-px shrink-0 rounded bg-indigo-500/15 px-1 py-0.5 text-[8px] font-bold uppercase tracking-wider text-indigo-300">AI</span>
+                        {digestNarrationLoading
+                          ? <span className="text-[11px] italic text-slate-500">Summarizing…</span>
+                          : <p className="text-[11px] italic leading-snug text-slate-400">{digestNarration}</p>}
                       </div>
                     )}
                   </div>
@@ -2128,6 +2202,7 @@ export default function Home() {
         onClose={() => setWidgetDrawer(null)}
         weeklyDigest={weeklyDigest}
         weekRange={weekRange}
+        digestNarration={digestNarration}
         deadlineList={deadlineList}
         igTaskList={igTaskList}
         activityFeed={activityFeed}
