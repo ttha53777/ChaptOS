@@ -35,6 +35,7 @@ import { BrotherDrawer } from "./components/dashboard/drawers/BrotherDrawer";
 import { Card, Modal, StatusBadge, TaskBadge, ConfirmDialog, FieldLabel } from "./components/dashboard/primitives";
 import { BROTHER_STYLES, KPI_ICONS, SECTION_IDS, inputCls } from "./components/dashboard/styles";
 import { ActivityFeed, AttBar, HealthScoreWidget, KPICard, SortTh } from "./components/dashboard/widgets";
+import { MobileDashboard } from "./components/dashboard/mobile/MobileDashboard";
 
 // ─── Activity ID counter (module-level, reset-safe) ───────────────────────────
 
@@ -1557,8 +1558,9 @@ export default function Home() {
 
         {/* ── Scrollable body ──────────────────────────────────────────────── */}
         <main ref={mainRef} className="page-ambient flex-1 overflow-y-auto">
-          <div className="mx-auto max-w-[1400px] space-y-5 px-4 py-6 sm:px-6">
-            {(isLoading || loadError || mutationError) && (
+          {/* Loading/error banner — shared by desktop and mobile views */}
+          {(isLoading || loadError || mutationError) && (
+            <div className="mx-auto max-w-[1400px] px-4 pt-6 sm:px-6">
               <div className={`flex flex-wrap items-center justify-between gap-3 rounded-xl border px-4 py-3 text-[12px] ${
                 loadError || mutationError
                   ? "border-red-500/25 bg-red-500/10 text-red-200"
@@ -1577,8 +1579,45 @@ export default function Home() {
                   </button>
                 ) : null}
               </div>
-            )}
+            </div>
+          )}
 
+          {/* ── Mobile view (below md) — Summary + tabs ─────────────────────── */}
+          <div className="md:hidden">
+            <MobileDashboard
+              health={{ score: health.score, label: health.label, breakdown: health.breakdown }}
+              healthDelta={healthDelta}
+              kpis={{
+                avgAttendance, belowAttCount,
+                outstandingDues, owingCount,
+                chapterGPA, belowGpaCount,
+                totalServiceHrs, onTrackSvc, brotherCount: brotherList.length,
+                liveBalance, liveProjected,
+                totalDoorRev, bestEvent,
+              }}
+              brothersData={{
+                filteredBrothers, brotherList, statusCounts,
+                search, statusFilter, selfId, currentUser, avatarRevision, isAdmin,
+              }}
+              tasksData={{ alerts, urgentCount, deadlineList, igTaskList, activityFeed }}
+              moneyData={{
+                liveBalance, liveProjected, liveTrend, totalDoorRev, partyList,
+                partyChartData, statusChartData, svcChartData,
+                goodCount: statusCounts.Good, brotherCount: brotherList.length,
+                onTrackSvc, serviceHoursGoal: THRESHOLDS.serviceHoursGoal, maxRevenue, bestEvent,
+              }}
+              actions={{
+                setSearch, setStatusFilter, setSelectedBrotherId,
+                setActiveDrawer, setWidgetDrawer, setActiveModal,
+                openPayDues, addServiceHour,
+                completeDeadline, openEditDeadline, deleteDeadline,
+                completeIG, openEditIG, deleteIG,
+              }}
+            />
+          </div>
+
+          {/* ── Desktop view (md and up) — original layout, unchanged ───────── */}
+          <div className="mx-auto hidden max-w-[1400px] space-y-5 px-4 py-6 sm:px-6 md:block">
             {/* ── Health Score ────────────────────────────────────────────── */}
             <section id="sec-dashboard" aria-label="Dashboard overview">
               <HealthScoreWidget score={health.score} label={health.label} breakdown={health.breakdown} delta={healthDelta} onExpand={() => setWidgetDrawer("health")} />
@@ -1731,37 +1770,6 @@ export default function Home() {
                     </tbody>
                   </table>
                 </div>
-
-                {/* Mobile card list — replaces the 640px-min table below md */}
-                <ul className="divide-y divide-white/[0.04] md:hidden">
-                  {filteredBrothers.length === 0 ? (
-                    <li className="py-10 text-center text-sm text-slate-500">No brothers match your filters.</li>
-                  ) : filteredBrothers.map(b => {
-                    const status = getBrotherStatus(b);
-                    return (
-                      <li
-                        key={b.id}
-                        onClick={() => setSelectedBrotherId(b.id)}
-                        className={`flex items-center gap-2.5 border-l-2 px-4 py-3 transition-colors active:bg-white/[0.06] ${BROTHER_STYLES[status].row}`}
-                      >
-                        {/* Collapsed view: avatar + name + attendance only. Tap the
-                            row to open the drawer for role, GPA, dues, service, etc. */}
-                        <BrotherAvatar
-                          brother={b}
-                          selfId={selfId}
-                          selfAvatarUrl={currentUser?.avatarUrl}
-                          avatarRevision={avatarRevision}
-                          size="sm"
-                        />
-                        <p className="min-w-0 flex-1 truncate text-[13px] font-semibold text-white">{b.name}</p>
-                        <AttBar pct={b.attendance} />
-                        <svg className="h-4 w-4 shrink-0 text-slate-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-                        </svg>
-                      </li>
-                    );
-                  })}
-                </ul>
 
                 <div className="border-t border-white/[0.06] bg-white/[0.02] px-5 py-2.5">
                   <p className="text-[11px] text-slate-500">
