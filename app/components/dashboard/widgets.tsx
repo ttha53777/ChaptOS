@@ -36,7 +36,7 @@ export function HealthScoreWidget({ score, label, breakdown, delta, onExpand }: 
   return (
     <Card style={{ background: ambientGlow }} className="overflow-hidden">
       <div className="h-[2px]" style={{ background: accentGradient }} />
-        <div className="flex flex-wrap items-center gap-5 px-5 py-4">
+        <div className="flex flex-wrap items-center gap-4 px-5 py-4 sm:gap-5">
         <div className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-full ${circleBg} ${circleGlow}`}>
           <span className={`text-[22px] font-bold tabular-nums leading-none ${ringColor}`}>{score}</span>
         </div>
@@ -52,9 +52,9 @@ export function HealthScoreWidget({ score, label, breakdown, delta, onExpand }: 
           <p className="text-[11px] text-slate-400">{sub}</p>
           <p className="mt-0.5 text-[10px] text-slate-600">Chapter health score · 0–100</p>
         </div>
-        <div className="flex min-w-0 flex-1 flex-wrap gap-x-6 gap-y-2">
+        <div className="flex min-w-0 flex-1 flex-wrap gap-x-4 gap-y-2 sm:gap-x-6">
           {Object.entries(breakdown).map(([k, v]) => (
-            <div key={k} className="min-w-[90px] flex-1">
+            <div key={k} className="min-w-[120px] flex-1 basis-[calc(50%-0.75rem)] sm:basis-auto">
               <div className="mb-1 flex items-center justify-between">
                 <span className="text-[10px] font-medium text-slate-500">{k}</span>
                 <span className="text-[10px] tabular-nums text-slate-400">{v}%</span>
@@ -103,11 +103,11 @@ export function KPICard({ label, value, trend, iconKey, sparkData, accent = "tex
           <p className="mt-1 truncate text-[11px] leading-snug text-slate-400">{trend}</p>
         </div>
       </div>
-      <div className="mt-2 -mx-1">
+      <div className="mt-2 -mx-1 h-[28px]">
         <SparkLine data={chartData} stroke={strokeColor} />
       </div>
       {onClick && (
-        <div className="mt-1.5 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+        <div className="mt-1.5 flex items-center gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-150">
           <span className="text-[10px] text-slate-600">View details</span>
           <svg className="h-3 w-3 text-slate-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
@@ -145,7 +145,7 @@ export function ChartWidget({ title, stat, caption, accentColor, children }: {
         </div>
         <p className="mt-1 text-[10px] text-slate-500">{caption}</p>
       </div>
-      <div className="px-1 pb-3">{children}</div>
+      <div className="h-[96px] px-1 pb-3">{children}</div>
     </Card>
   );
 }

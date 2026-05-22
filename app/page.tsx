@@ -1657,7 +1657,7 @@ export default function Home() {
                   </div>
                 </div>
 
-                <div className="overflow-x-auto">
+                <div className="hidden overflow-x-auto md:block">
                   <table className="min-w-[640px]">
                     <thead>
                       <tr className="border-b border-white/[0.06] bg-white/[0.02]">
@@ -1732,6 +1732,84 @@ export default function Home() {
                   </table>
                 </div>
 
+                {/* Mobile card list — replaces the 640px-min table below md */}
+                <ul className="divide-y divide-white/[0.04] md:hidden">
+                  {filteredBrothers.length === 0 ? (
+                    <li className="py-10 text-center text-sm text-slate-500">No brothers match your filters.</li>
+                  ) : filteredBrothers.map(b => {
+                    const status = getBrotherStatus(b);
+                    return (
+                      <li
+                        key={b.id}
+                        onClick={() => setSelectedBrotherId(b.id)}
+                        className={`flex flex-col gap-2.5 border-l-2 px-4 py-3 transition-colors active:bg-white/[0.06] ${BROTHER_STYLES[status].row}`}
+                      >
+                        {/* Identity + status */}
+                        <div className="flex items-center gap-2.5">
+                          <BrotherAvatar
+                            brother={b}
+                            selfId={selfId}
+                            selfAvatarUrl={currentUser?.avatarUrl}
+                            avatarRevision={avatarRevision}
+                            size="sm"
+                          />
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-[13px] font-semibold text-white">{b.name}</p>
+                            <p className="truncate text-[11px] text-slate-400">{b.role}</p>
+                          </div>
+                          <StatusBadge status={status} />
+                        </div>
+
+                        {/* Metrics */}
+                        <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-[12px]">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-slate-500">Att.</span>
+                            <AttBar pct={b.attendance} />
+                          </div>
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-slate-500">GPA</span>
+                            <span className={`tabular-nums font-semibold ${b.gpa < THRESHOLDS.gpaAtRisk ? "text-red-400" : b.gpa < THRESHOLDS.gpaWatch ? "text-amber-400" : "text-white"}`}>
+                              {b.gpa.toFixed(1)}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-slate-500">Dues</span>
+                            {b.duesOwed > 0 ? (
+                              <span className="flex items-center gap-2">
+                                <span className="tabular-nums font-medium text-amber-400">{fmt$(b.duesOwed)}</span>
+                                {isAdmin && (
+                                  <button
+                                    onClick={e => { e.stopPropagation(); openPayDues(b); }}
+                                    className="rounded-md bg-emerald-500/15 px-2.5 py-1 text-[11px] font-semibold text-emerald-400 ring-1 ring-inset ring-emerald-500/25 active:bg-emerald-500/25"
+                                  >
+                                    Pay
+                                  </button>
+                                )}
+                              </span>
+                            ) : (
+                              <span className="tabular-nums text-slate-600">—</span>
+                            )}
+                          </div>
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-slate-500">Svc</span>
+                            <span className="flex items-center gap-2">
+                              <span className={`tabular-nums font-medium ${b.serviceHours < THRESHOLDS.serviceHoursGoal ? "text-amber-400" : "text-white"}`}>
+                                {b.serviceHours}h
+                              </span>
+                              <button
+                                onClick={e => { e.stopPropagation(); addServiceHour(b); }}
+                                className="rounded-md bg-white/[0.05] px-2.5 py-1 text-[11px] font-semibold text-slate-400 ring-1 ring-inset ring-white/[0.1] active:bg-indigo-500/15 active:text-indigo-400"
+                              >
+                                +1h
+                              </button>
+                            </span>
+                          </div>
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+
                 <div className="border-t border-white/[0.06] bg-white/[0.02] px-5 py-2.5">
                   <p className="text-[11px] text-slate-500">
                     {filteredBrothers.length} / {brotherList.length} brothers ·{" "}
@@ -1743,7 +1821,7 @@ export default function Home() {
               </Card>
 
               {/* Right panel */}
-              <div className="space-y-4 self-start sticky top-5 max-h-[calc(100vh-6rem)] overflow-y-auto">
+              <div className="space-y-4 xl:self-start xl:sticky xl:top-5 xl:max-h-[calc(100vh-6rem)] xl:overflow-y-auto">
                 {/* Needs Attention */}
                 <Card style={{ background: "linear-gradient(to bottom, #ef444410 0%, #10121a 50%)" }} className="overflow-hidden cursor-pointer hover:border-white/[0.14] transition-colors" onClick={() => setWidgetDrawer("attention")}>
                   <div className="h-[3px] bg-red-500/70" />
