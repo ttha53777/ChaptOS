@@ -5,6 +5,7 @@ import { getActiveSemester, recalcBrotherAttendance } from "@/lib/attendance";
 import { requireUser } from "@/lib/auth/require-user";
 import { requireAdmin } from "@/lib/auth/require-admin";
 import { logActivity } from "@/lib/activity";
+import { checkMutationRate } from "@/lib/rate-limit";
 
 export async function GET(req: NextRequest) {
   const { error } = await requireAdmin();
@@ -47,6 +48,8 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const user = await requireUser();
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  const limited = checkMutationRate(user.id);
+  if (limited) return limited;
   try {
     const body = await req.json();
     const calendarEventId = Number(body.calendarEventId);

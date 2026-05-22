@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth/require-user";
+import { checkMutationRate } from "@/lib/rate-limit";
 
 const TYPES = ["success", "warning", "info"] as const;
 
@@ -30,6 +31,8 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   const user = await requireUser();
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  const limited = checkMutationRate(user.id);
+  if (limited) return limited;
 
   let body: Record<string, unknown>;
   try { body = await req.json(); }

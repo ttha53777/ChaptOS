@@ -4,10 +4,13 @@ import { prisma } from "@/lib/prisma";
 import { getActiveSemester, recalcAllBrothersInSemester } from "@/lib/attendance";
 import { requireAdmin } from "@/lib/auth/require-admin";
 import { logActivity } from "@/lib/activity";
+import { checkMutationRate } from "@/lib/rate-limit";
 
 export async function POST(req: NextRequest) {
   const { user, error } = await requireAdmin();
   if (error) return error;
+  const limited = checkMutationRate(user.id);
+  if (limited) return limited;
   try {
     const body = await req.json();
     const calendarEventId = Number(body.calendarEventId);

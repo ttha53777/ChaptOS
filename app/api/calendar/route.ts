@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth/require-user";
 import { logActivity } from "@/lib/activity";
 import type { Prisma } from "../../generated/prisma/client";
+import { checkMutationRate } from "@/lib/rate-limit";
 
 const CALENDAR_CATEGORIES = ["chapter", "social", "fundy", "program", "party", "deadline", "service"] as const;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -75,6 +76,8 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const user = await requireUser();
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  const limited = checkMutationRate(user.id);
+  if (limited) return limited;
   try {
     const body = await req.json();
     const parsed = validateCalendarBody(body);

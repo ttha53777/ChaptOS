@@ -4,6 +4,7 @@ import { requireUser } from "@/lib/auth/require-user";
 import { requireAdmin } from "@/lib/auth/require-admin";
 import { logActivity } from "@/lib/activity";
 import { EXPENSE_CATEGORIES } from "../../data";
+import { checkMutationRate } from "@/lib/rate-limit";
 
 const VALID_CATEGORIES = new Set<string>(EXPENSE_CATEGORIES);
 
@@ -36,6 +37,8 @@ export async function GET(req: NextRequest) {
 export async function PUT(req: NextRequest) {
   const { user, error } = await requireAdmin();
   if (error) return error;
+  const limited = checkMutationRate(user.id);
+  if (limited) return limited;
 
   let body: Record<string, unknown>;
   try { body = await req.json(); }
@@ -83,20 +86,25 @@ export async function PUT(req: NextRequest) {
   }
 
   try {
-    const budget = await prisma.budget.upsert({
-      where: { semester },
-      create: { semester, carryoverBalance: carryover, reserveAmount: reserve },
-      update: { carryoverBalance: carryover, reserveAmount: reserve },
-    });
-    await prisma.budgetAllocation.deleteMany({ where: { budgetId: budget.id } });
-    if (allocations.length > 0) {
-      await prisma.budgetAllocation.createMany({
-        data: allocations.map(a => ({ budgetId: budget.id, category: a.category, percent: a.percent })),
+    // Atomic: budget upsert + full allocation replace must succeed or roll back
+    // together, otherwise a mid-write failure could leave the budget with zero
+    // allocations.
+    const result = await prisma.$transaction(async (tx) => {
+      const budget = await tx.budget.upsert({
+        where: { semester },
+        create: { semester, carryoverBalance: carryover, reserveAmount: reserve },
+        update: { carryoverBalance: carryover, reserveAmount: reserve },
       });
-    }
-    const result = await prisma.budget.findUnique({
-      where: { id: budget.id },
-      include: { allocations: true },
+      await tx.budgetAllocation.deleteMany({ where: { budgetId: budget.id } });
+      if (allocations.length > 0) {
+        await tx.budgetAllocation.createMany({
+          data: allocations.map(a => ({ budgetId: budget.id, category: a.category, percent: a.percent })),
+        });
+      }
+      return tx.budget.findUnique({
+        where: { id: budget.id },
+        include: { allocations: true },
+      });
     });
 
     await logActivity({
@@ -112,8 +120,7 @@ export async function PUT(req: NextRequest) {
       allocations: result!.allocations.map(a => ({ category: a.category, percent: a.percent })),
     });
   } catch (e) {
-    const detail = e instanceof Error ? e.message : String(e);
     console.error("PUT /api/budget failed:", e);
-    return Response.json({ error: `Failed to save budget: ${detail}` }, { status: 500 });
+    return Response.json({ error: "Failed to save budget" }, { status: 500 });
   }
 }

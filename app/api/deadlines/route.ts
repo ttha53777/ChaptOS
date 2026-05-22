@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth/require-user";
 import { logActivity } from "@/lib/activity";
 import { isValidDateString } from "@/lib/coerce";
+import { checkMutationRate } from "@/lib/rate-limit";
 
 export async function GET() {
   const user = await requireUser();
@@ -19,6 +20,8 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   const user = await requireUser();
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  const limited = checkMutationRate(user.id);
+  if (limited) return limited;
   try {
     const body = await req.json();
     const { title, dueDate, owner, status } = body;
