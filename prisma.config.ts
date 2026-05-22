@@ -11,6 +11,10 @@ export default defineConfig({
     seed: "tsx prisma/seed.ts",
   },
   datasource: {
-    url: process.env["DATABASE_URL"],
+    // Migrations/introspection need a DIRECT (session) connection — the pooled
+    // DATABASE_URL (PgBouncer, port 6543) doesn't support DDL or advisory locks
+    // and hangs `migrate`. The runtime app client connects separately via its own
+    // pooled Pool in lib/prisma.ts, so this only affects Prisma CLI commands.
+    url: process.env["DIRECT_URL"] ?? process.env["DATABASE_URL"],
   },
 });

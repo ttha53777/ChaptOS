@@ -7,6 +7,7 @@ export async function GET() {
 
   try {
     const brothers = await prisma.brother.findMany({
+      where: { isGhost: false },
       select: { id: true, name: true, role: true, authUserId: true, isAdmin: true, email: true },
       orderBy: { name: "asc" },
     });

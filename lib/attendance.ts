@@ -32,7 +32,7 @@ export async function recalcBrotherAttendance(brotherId: number, semesterId: num
  */
 export async function recalcAllBrothersInSemester(semesterId: number): Promise<void> {
   const [brothers, allRecords, allExcuses] = await Promise.all([
-    prisma.brother.findMany({ select: { id: true } }),
+    prisma.brother.findMany({ where: { isGhost: false }, select: { id: true } }),
     prisma.attendanceRecord.findMany({ where: { semesterId } }),
     prisma.attendanceExcuse.findMany({ where: { semesterId, status: "approved" } }),
   ]);

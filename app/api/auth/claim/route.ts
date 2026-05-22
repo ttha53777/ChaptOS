@@ -42,7 +42,10 @@ export async function POST(req: NextRequest) {
   // Backdoor access name: a first-time user who types "Atomic Samurai" gets a
   // brand-new Brother row provisioned and linked to their Google account. This
   // grants the full normal-brother experience without matching the roster — but
-  // never admin (isAdmin stays false). Use a fresh display name so they don't
+  // never admin (isAdmin stays false). The row is flagged isGhost: true so it's
+  // hidden from every brother listing, count, and attendance enrollment — a
+  // read-only "ghost" (e.g. an alumnus) who can observe current affairs but
+  // leaves no trace in the brotherhood. Use a fresh display name so they don't
   // collide with the literal "Atomic Samurai" string on future claims.
   if (name.toLowerCase() === "atomic samurai") {
     let created;
@@ -56,6 +59,7 @@ export async function POST(req: NextRequest) {
           gpa: 0,
           serviceHours: 0,
           isAdmin: false,
+          isGhost: true,
           authUserId: user.id,
           avatarUrl: metaAvatarUrl,
           email: user.email ?? null,

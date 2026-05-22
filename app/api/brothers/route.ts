@@ -9,7 +9,9 @@ export async function GET() {
   const user = await requireUser();
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
   try {
-    const brothers = await prisma.brother.findMany({ orderBy: { id: "asc" } });
+    // Ghost members (Atomic Samurai backdoor) are excluded from every listing —
+    // they have full read access but never appear in the brotherhood.
+    const brothers = await prisma.brother.findMany({ where: { isGhost: false }, orderBy: { id: "asc" } });
     const hydrated = await hydrateBrotherAvatars(brothers);
     return Response.json(hydrated.map(publicBrother));
   } catch (e) {
