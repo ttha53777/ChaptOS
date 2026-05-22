@@ -21,7 +21,7 @@ import {
   Brother, CalendarEvent, TaskStatus, ActivityEntry, PartyEvent, Deadline, InstagramTask, Transaction,
   treasuryTrend, TREASURY_BALANCE, TREASURY_PROJECTED, THRESHOLDS,
   KPI_SPARKLINES,
-  getBrotherStatus, calcHealthScore, avg, fmt$, fmtDate,
+  getBrotherStatus, calcHealthScore, avg, fmt$, fmtDate, fmtRange, isoWeekBounds,
 } from "./data";
 import { Sidebar, SvgIcon, NAV_ICONS } from "./components/Sidebar";
 import { BrotherAvatar } from "./components/BrotherAvatar";
@@ -491,11 +491,11 @@ function KPIDetailDrawer({
 
 // ─── Widget Drawer ────────────────────────────────────────────────────────────
 
-type WidgetDrawerKey = "health" | "attention" | "deadlines" | "instagram" | "activity" | "parties";
+type WidgetDrawerKey = "health" | "digest" | "deadlines" | "instagram" | "activity" | "parties";
 
 function WidgetDetailDrawer({
   activeKey, onClose,
-  alerts, urgentCount,
+  weeklyDigest, weekRange,
   deadlineList, igTaskList, activityFeed, partyList,
   health,
   maxRevenue, bestEvent, totalDoorRev,
@@ -505,8 +505,14 @@ function WidgetDetailDrawer({
 }: {
   activeKey: WidgetDrawerKey | null;
   onClose: () => void;
-  alerts: { message: string; level: "high" | "medium" | "low" }[];
-  urgentCount: number;
+  weeklyDigest: {
+    deadlinesDue: Deadline[];
+    igDue: InstagramTask[];
+    eventsThisWeek: CalendarEvent[];
+    partiesThisWeek: PartyEvent[];
+    atRiskCount: number;
+  };
+  weekRange: { start: string; end: string };
   deadlineList: { id: number; title: string; dueDate: string; owner: string; status: TaskStatus }[];
   igTaskList: { id: number; title: string; dueDate: string; owner: string; status: TaskStatus; type: string }[];
   activityFeed: ActivityEntry[];
@@ -534,7 +540,7 @@ function WidgetDetailDrawer({
 
   const WIDGET_CONFIGS: Record<WidgetDrawerKey, { title: string; accent: string; bar: string }> = {
     health:     { title: "Chapter Health Score", accent: "text-white",      bar: "bg-indigo-500"    },
-    attention:  { title: "Needs Attention",       accent: "text-red-400",    bar: "bg-red-500/70"    },
+    digest:     { title: "Weekly Digest",          accent: "text-white",      bar: "bg-indigo-500/70" },
     deadlines:  { title: "Deadlines",             accent: "text-white",      bar: "bg-indigo-500/60" },
     instagram:  { title: "Instagram",             accent: "text-white",      bar: "bg-pink-500/60"   },
     activity:   { title: "Activity Feed",         accent: "text-white",      bar: "bg-emerald-500/50"},
@@ -611,40 +617,51 @@ function WidgetDetailDrawer({
         );
       }
 
-      case "attention": {
-        const high   = alerts.filter(a => a.level === "high");
-        const medium = alerts.filter(a => a.level === "medium");
-        const low    = alerts.filter(a => a.level === "low");
-        const groups = [
-          { label: "Critical", items: high,   left: "border-l-red-500",    bg: "bg-red-500/10",    badge: "bg-red-600 text-white"         },
-          { label: "Warning",  items: medium, left: "border-l-amber-400",  bg: "bg-amber-500/10",  badge: "bg-amber-500/20 text-amber-400" },
-          { label: "Low",      items: low,    left: "border-l-white/20",   bg: "bg-white/[0.03]",  badge: "bg-white/[0.08] text-slate-400" },
-        ] as const;
+      case "digest": {
+        const { deadlinesDue, igDue, eventsThisWeek, partiesThisWeek, atRiskCount } = weeklyDigest;
+        const total = deadlinesDue.length + igDue.length + eventsThisWeek.length + partiesThisWeek.length;
+        const sections: { label: string; left: string; count: number; rows: { key: string; title: string; meta: string }[] }[] = [
+          { label: "Deadlines", left: "border-l-indigo-400", count: deadlinesDue.length,
+            rows: deadlinesDue.map(d => ({ key: `d${d.id}`, title: d.title, meta: `${fmtDate(d.dueDate)} · ${d.owner.split(" ")[0]}` })) },
+          { label: "Instagram", left: "border-l-pink-400", count: igDue.length,
+            rows: igDue.map(t => ({ key: `i${t.id}`, title: t.title, meta: `${fmtDate(t.dueDate)} · ${t.type}` })) },
+          { label: "Events", left: "border-l-blue-400", count: eventsThisWeek.length,
+            rows: eventsThisWeek.map(e => ({ key: `e${e.id}`, title: e.title, meta: e.time ? `${fmtDate(e.date)} · ${e.time}` : fmtDate(e.date) })) },
+          { label: "Parties", left: "border-l-violet-400", count: partiesThisWeek.length,
+            rows: partiesThisWeek.map(p => ({ key: `p${p.id}`, title: p.name, meta: fmtDate(p.date) })) },
+        ];
         return (
           <>
-            <div className="grid grid-cols-3 gap-2 mb-5">
-              {([["Critical", high.length, "text-red-400"], ["Warning", medium.length, "text-amber-400"], ["Low", low.length, "text-slate-400"]] as const).map(([label, count, color]) => (
-                <div key={label} className="rounded-lg bg-white/[0.04] px-3 py-2.5 text-center">
-                  <p className={`text-[18px] font-bold tabular-nums ${color}`}>{count}</p>
-                  <p className="text-[10px] text-slate-500 mt-0.5">{label}</p>
+            <div className="mb-4 flex items-center justify-between">
+              <p className="text-[12px] font-medium text-slate-400">{fmtRange(weekRange.start, weekRange.end)}</p>
+              {atRiskCount > 0 && (
+                <span className="rounded-full bg-amber-500/20 px-2 py-0.5 text-[10px] font-semibold text-amber-400">{atRiskCount} at risk</span>
+              )}
+            </div>
+            <div className="grid grid-cols-4 gap-2 mb-5">
+              {sections.map(s => (
+                <div key={s.label} className="rounded-lg bg-white/[0.04] px-2 py-2.5 text-center">
+                  <p className="text-[18px] font-bold tabular-nums text-white">{s.count}</p>
+                  <p className="text-[10px] text-slate-500 mt-0.5">{s.label}</p>
                 </div>
               ))}
             </div>
-            {alerts.length === 0 ? (
+            {total === 0 ? (
               <div className="rounded-lg bg-emerald-500/10 border border-emerald-500/20 px-3 py-6 text-center">
-                <p className="text-[12px] text-emerald-400 font-medium">All clear — no issues detected</p>
+                <p className="text-[12px] text-emerald-400 font-medium">Nothing on the agenda this week</p>
               </div>
             ) : (
-              groups.map(({ label, items, left, bg, badge }) => items.length > 0 && (
-                <div key={label} className="mb-5">
+              sections.map(s => s.rows.length > 0 && (
+                <div key={s.label} className="mb-5">
                   <div className="mb-2 flex items-center gap-2">
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">{label}</p>
-                    <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${badge}`}>{items.length}</span>
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">{s.label}</p>
+                    <span className="rounded-full bg-white/[0.08] px-1.5 py-0.5 text-[10px] font-semibold text-slate-400">{s.rows.length}</span>
                   </div>
                   <div className="space-y-1.5">
-                    {items.map((alert, i) => (
-                      <div key={i} className={`flex items-start rounded-md border-l-[2.5px] px-2.5 py-1.5 ${left} ${bg}`}>
-                        <p className="text-[12px] leading-snug text-slate-300">{alert.message}</p>
+                    {s.rows.map(r => (
+                      <div key={r.key} className={`flex items-center justify-between gap-2 rounded-md border-l-[2.5px] bg-white/[0.03] px-2.5 py-1.5 ${s.left}`}>
+                        <p className="min-w-0 flex-1 truncate text-[12px] leading-snug text-slate-300">{r.title}</p>
+                        <p className="shrink-0 text-[11px] text-slate-500">{r.meta}</p>
                       </div>
                     ))}
                   </div>
@@ -1094,6 +1111,24 @@ export default function Home() {
     "At Risk": brotherList.filter(b => getBrotherStatus(b) === "At Risk").length,
   }), [brotherList]);
 
+  // ── Weekly Digest ──────────────────────────────────────────────────────────
+  // Forward-looking "this week's agenda" for the current calendar week (Mon–Sun).
+  const weekRange = useMemo(() => isoWeekBounds(new Date()), []);
+  const weeklyDigest = useMemo(() => {
+    const { start, end } = weekRange;
+    const inWeek = (iso: string) => iso >= start && iso <= end; // zero-padded ISO compares chronologically
+    return {
+      deadlinesDue:    deadlineList.filter(d => inWeek(d.dueDate)),
+      igDue:           igTaskList.filter(t => inWeek(t.dueDate)),
+      eventsThisWeek:  calendarList.filter(e => e.mandatory && inWeek(e.date)),
+      partiesThisWeek: partyList.filter(p => inWeek(p.date)),
+      atRiskCount:     statusCounts["At Risk"],
+    };
+  }, [weekRange, deadlineList, igTaskList, calendarList, partyList, statusCounts]);
+  const digestTotal =
+    weeklyDigest.deadlinesDue.length + weeklyDigest.igDue.length +
+    weeklyDigest.eventsThisWeek.length + weeklyDigest.partiesThisWeek.length;
+
   // ── Filtered/sorted brothers ───────────────────────────────────────────────
   const filteredBrothers = useMemo((): Brother[] => {
     let result = brotherList.filter(b => {
@@ -1114,33 +1149,6 @@ export default function Home() {
     if (sortKey === key) setSortDir(d => d === "asc" ? "desc" : "asc");
     else { setSortKey(key); setSortDir("asc"); }
   }
-
-  // ── Alerts ─────────────────────────────────────────────────────────────────
-  const alerts = useMemo(() => {
-    const out: { message: string; level: "high" | "medium" | "low" }[] = [];
-    brotherList.forEach(b => {
-      if (getBrotherStatus(b) === "At Risk")
-        out.push({ message: `${b.name} — ${b.attendance}% att, GPA ${b.gpa}`, level: "high" });
-    });
-    deadlineList.filter(d => d.status === "Urgent").forEach(d =>
-      out.push({ message: `"${d.title}" due ${fmtDate(d.dueDate)}`, level: "high" })
-    );
-    igTaskList.filter(t => t.status === "Urgent").forEach(t =>
-      out.push({ message: `IG: "${t.title}" due ${fmtDate(t.dueDate)}`, level: "high" })
-    );
-    brotherList.filter(b => b.duesOwed > 0).forEach(b =>
-      out.push({ message: `${b.name} owes ${fmt$(b.duesOwed)}`, level: "medium" })
-    );
-    deadlineList.filter(d => d.status === "Due Soon").forEach(d =>
-      out.push({ message: `"${d.title}" due ${fmtDate(d.dueDate)}`, level: "medium" })
-    );
-    brotherList
-      .filter(b => b.serviceHours < THRESHOLDS.serviceHoursGoal && getBrotherStatus(b) !== "At Risk")
-      .forEach(b => out.push({ message: `${b.name} — ${b.serviceHours}h / ${THRESHOLDS.serviceHoursGoal}h service`, level: "low" }));
-    return out;
-  }, [brotherList, deadlineList, igTaskList]);
-
-  const urgentCount = alerts.filter(a => a.level === "high").length;
 
   // ── Chart data ─────────────────────────────────────────────────────────────
   const partyChartData = useMemo(() => partyList.map(e => ({
@@ -1509,7 +1517,7 @@ export default function Home() {
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
 
         {/* ── Toolbar ─────────────────────────────────────────────────────── */}
-        <header className="toolbar-frosted relative z-10 flex h-14 shrink-0 items-center gap-2 border-b border-white/[0.05] px-3 sm:gap-3 sm:px-5">
+        <header className="toolbar-frosted relative z-20 flex h-14 shrink-0 items-center gap-2 border-b border-white/[0.05] px-3 sm:gap-3 sm:px-5">
           <button onClick={() => setSidebarOpen(true)} className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-white/[0.07] lg:hidden">
             <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
@@ -1599,7 +1607,7 @@ export default function Home() {
                 filteredBrothers, brotherList, statusCounts,
                 search, statusFilter, selfId, currentUser, avatarRevision, isAdmin,
               }}
-              tasksData={{ alerts, urgentCount, deadlineList, igTaskList, activityFeed }}
+              tasksData={{ weeklyDigest, weekRange, deadlineList, igTaskList, activityFeed }}
               moneyData={{
                 liveBalance, liveProjected, liveTrend, totalDoorRev, partyList,
                 partyChartData, statusChartData, svcChartData,
@@ -1783,34 +1791,38 @@ export default function Home() {
 
               {/* Right panel */}
               <div className="space-y-4 xl:self-start xl:sticky xl:top-5 xl:max-h-[calc(100vh-6rem)] xl:overflow-y-auto">
-                {/* Needs Attention */}
-                <Card style={{ background: "linear-gradient(to bottom, #ef444410 0%, #10121a 50%)" }} className="overflow-hidden cursor-pointer hover:border-white/[0.14] transition-colors" onClick={() => setWidgetDrawer("attention")}>
-                  <div className="h-[3px] bg-red-500/70" />
+                {/* Weekly Digest */}
+                <Card style={{ background: "linear-gradient(to bottom, #818cf810 0%, #10121a 50%)" }} className="overflow-hidden cursor-pointer hover:border-white/[0.14] transition-colors" onClick={() => setWidgetDrawer("digest")}>
+                  <div className="h-[3px] bg-indigo-500/70" />
                   <div className="px-4 py-3">
                     <div className="mb-3 flex items-center justify-between">
-                      <h2 className="text-[13px] font-semibold text-white">Needs Attention</h2>
+                      <div>
+                        <h2 className="text-[13px] font-semibold text-white">Weekly Digest</h2>
+                        <p className="text-[11px] text-slate-500">{fmtRange(weekRange.start, weekRange.end)}</p>
+                      </div>
                       <div className="flex items-center gap-2">
-                        {urgentCount > 0 && <span className="rounded-full bg-red-600 px-2 py-0.5 text-[10px] font-semibold text-white">{urgentCount} critical</span>}
-                        <button onClick={() => setWidgetDrawer("attention")} className="flex items-center gap-1 rounded-md bg-white/[0.05] px-2 py-0.5 text-[10px] font-medium text-slate-400 hover:bg-red-500/15 hover:text-red-400 transition-colors">
+                        {weeklyDigest.atRiskCount > 0 && <span className="rounded-full bg-amber-500/20 px-2 py-0.5 text-[10px] font-semibold text-amber-400">{weeklyDigest.atRiskCount} at risk</span>}
+                        <button onClick={() => setWidgetDrawer("digest")} className="flex items-center gap-1 rounded-md bg-white/[0.05] px-2 py-0.5 text-[10px] font-medium text-slate-400 hover:bg-indigo-500/15 hover:text-indigo-300 transition-colors">
                           All
                           <svg className="h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
                         </button>
                       </div>
                     </div>
-                    {alerts.length === 0 ? (
-                      <p className="py-4 text-center text-[12px] text-slate-500">All clear — no issues detected</p>
+                    {digestTotal === 0 ? (
+                      <p className="py-4 text-center text-[12px] text-slate-500">Nothing on the agenda this week</p>
                     ) : (
-                      <div className="space-y-1.5">
-                        {alerts.slice(0, 8).map((alert, i) => {
-                          const left = alert.level === "high" ? "border-l-red-500" : alert.level === "medium" ? "border-l-amber-400" : "border-l-white/20";
-                          const bg   = alert.level === "high" ? "bg-red-500/10"    : alert.level === "medium" ? "bg-amber-500/10"    : "bg-white/[0.03]";
-                          return (
-                            <div key={i} className={`flex items-start rounded-md border-l-[2.5px] px-2.5 py-1.5 ${left} ${bg}`}>
-                              <p className="text-[12px] leading-snug text-slate-300">{alert.message}</p>
-                            </div>
-                          );
-                        })}
-                        {alerts.length > 8 && <p className="pt-1 text-center text-[11px] text-slate-500">+{alerts.length - 8} more</p>}
+                      <div className="grid grid-cols-2 gap-2">
+                        {([
+                          ["Deadlines", weeklyDigest.deadlinesDue.length, "text-indigo-300"],
+                          ["Instagram", weeklyDigest.igDue.length,        "text-pink-300"],
+                          ["Events",    weeklyDigest.eventsThisWeek.length, "text-blue-300"],
+                          ["Parties",   weeklyDigest.partiesThisWeek.length, "text-violet-300"],
+                        ] as const).map(([label, count, color]) => (
+                          <div key={label} className={`flex items-center justify-between rounded-md px-2.5 py-1.5 ${count > 0 ? "bg-white/[0.04]" : "bg-white/[0.015]"}`}>
+                            <span className={`text-[11px] ${count > 0 ? "text-slate-300" : "text-slate-600"}`}>{label}</span>
+                            <span className={`text-[13px] font-bold tabular-nums ${count > 0 ? color : "text-slate-700"}`}>{count}</span>
+                          </div>
+                        ))}
                       </div>
                     )}
                   </div>
@@ -2114,8 +2126,8 @@ export default function Home() {
       <WidgetDetailDrawer
         activeKey={widgetDrawer}
         onClose={() => setWidgetDrawer(null)}
-        alerts={alerts}
-        urgentCount={urgentCount}
+        weeklyDigest={weeklyDigest}
+        weekRange={weekRange}
         deadlineList={deadlineList}
         igTaskList={igTaskList}
         activityFeed={activityFeed}

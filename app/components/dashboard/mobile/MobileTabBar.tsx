@@ -1,8 +1,8 @@
 "use client";
 
-export type MobileTab = "Overview" | "Brothers" | "Tasks" | "Money";
+export type MobileTab = "Overview" | "Tasks" | "Money" | "Logs";
 
-const TABS: MobileTab[] = ["Overview", "Brothers", "Tasks", "Money"];
+const TABS: MobileTab[] = ["Overview", "Tasks", "Money", "Logs"];
 
 export function MobileTabBar({ activeTab, onChange }: {
   activeTab: MobileTab;

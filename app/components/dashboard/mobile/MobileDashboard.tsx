@@ -1,20 +1,20 @@
 "use client";
 
 import { useState } from "react";
-import type { Brother, PartyEvent, Deadline, InstagramTask, ActivityEntry } from "../../../data";
+import type { Brother, PartyEvent, Deadline, InstagramTask, ActivityEntry, CalendarEvent } from "../../../data";
 import type { CurrentUser } from "../../../context/ChapterContext";
 import { MobileSummary } from "./MobileSummary";
 import { MobileTabBar, type MobileTab } from "./MobileTabBar";
 import { MobileOverviewTab } from "./MobileOverviewTab";
-import { MobileBrothersTab } from "./MobileBrothersTab";
 import { MobileTasksTab } from "./MobileTasksTab";
 import { MobileMoneyTab } from "./MobileMoneyTab";
+import { MobileLogsTab } from "./MobileLogsTab";
 
 // String-literal unions kept structurally identical to the (non-exported) types
 // in app/page.tsx — TypeScript matches them by shape, so the mobile tree stays
 // decoupled from the route file while the setters type-check.
 export type KPIDrawerKey = "attendance" | "dues" | "gpa" | "service" | "treasury" | "door";
-export type WidgetDrawerKey = "health" | "attention" | "deadlines" | "instagram" | "activity" | "parties";
+export type WidgetDrawerKey = "health" | "digest" | "deadlines" | "instagram" | "activity" | "parties";
 export type StatusFilter = "All" | "Good" | "Watch" | "At Risk";
 
 export interface MobileHealth {
@@ -44,9 +44,17 @@ export interface MobileBrothersData {
   isAdmin: boolean;
 }
 
+export interface WeeklyDigest {
+  deadlinesDue: Deadline[];
+  igDue: InstagramTask[];
+  eventsThisWeek: CalendarEvent[];
+  partiesThisWeek: PartyEvent[];
+  atRiskCount: number;
+}
+
 export interface MobileTasksData {
-  alerts: { message: string; level: "high" | "medium" | "low" }[];
-  urgentCount: number;
+  weeklyDigest: WeeklyDigest;
+  weekRange: { start: string; end: string };
   deadlineList: Deadline[];
   igTaskList: InstagramTask[];
   activityFeed: ActivityEntry[];
@@ -116,16 +124,16 @@ export function MobileDashboard(props: MobileDashboardProps) {
 
       <div className="px-4 py-4">
         {activeTab === "Overview" && (
-          <MobileOverviewTab tasksData={tasksData} actions={actions} />
-        )}
-        {activeTab === "Brothers" && (
-          <MobileBrothersTab brothersData={brothersData} actions={actions} />
+          <MobileOverviewTab tasksData={tasksData} brothersData={brothersData} actions={actions} />
         )}
         {activeTab === "Tasks" && (
           <MobileTasksTab tasksData={tasksData} actions={actions} />
         )}
         {activeTab === "Money" && (
           <MobileMoneyTab moneyData={moneyData} actions={actions} />
+        )}
+        {activeTab === "Logs" && (
+          <MobileLogsTab tasksData={tasksData} actions={actions} />
         )}
       </div>
     </div>

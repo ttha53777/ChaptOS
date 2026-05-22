@@ -338,3 +338,27 @@ export function fmtDate(s: string): string {
   const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
   return `${months[m - 1]} ${d}`;
 }
+
+// Inclusive Mon–Sun bounds (as local "YYYY-MM-DD") of the calendar week containing `today`.
+// Uses local date components — toISOString() would shift the date across the UTC boundary.
+export function isoWeekBounds(today: Date): { start: string; end: string } {
+  const diffToMon = (today.getDay() + 6) % 7; // Sun(0)->6, Mon(1)->0, ... Sat(6)->5
+  const monday = new Date(today);
+  monday.setDate(today.getDate() - diffToMon);
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const toISO = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  return { start: toISO(monday), end: toISO(sunday) };
+}
+
+// "May 18–24" within a month, "May 30 – Jun 5" across months.
+export function fmtRange(startISO: string, endISO: string): string {
+  const [, sm, sd] = startISO.split("-").map(Number);
+  const [, em, ed] = endISO.split("-").map(Number);
+  if (sm === em) {
+    const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    return `${months[sm - 1]} ${sd}–${ed}`;
+  }
+  return `${fmtDate(startISO)} – ${fmtDate(endISO)}`;
+}
