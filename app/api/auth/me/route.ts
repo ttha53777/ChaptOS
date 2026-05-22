@@ -11,13 +11,21 @@ export async function GET() {
     const [brother, supabase] = await Promise.all([
       prisma.brother.findUnique({
         where: { id: user.id },
-        select: { name: true, email: true },
+        select: { name: true, email: true, avatarUrl: true },
       }),
       createServerSupabaseClient(),
     ]);
 
     const { data: { user: authUser } } = await supabase.auth.getUser();
-    const { avatarUrl, hasCustomAvatar } = parseAvatarFromMetadata(authUser?.user_metadata);
+    const meta = parseAvatarFromMetadata(authUser?.user_metadata);
+
+    // The persisted Brother.avatarUrl is the source of truth — it's written on
+    // every upload/remove via syncBrotherAvatar and survives Supabase re-syncing
+    // Google's OAuth claims into user_metadata on token refresh/re-login (which
+    // would otherwise clobber a custom avatar_url and make the photo "disappear").
+    // Fall back to metadata only when the column is null (e.g. pre-backfill rows).
+    const avatarUrl = brother?.avatarUrl ?? meta.avatarUrl;
+    const hasCustomAvatar = meta.hasCustomAvatar;
 
     // Backfill: brothers linked before the email column existed have a null email.
     // First time they hit /me after this ships, persist the session email so it

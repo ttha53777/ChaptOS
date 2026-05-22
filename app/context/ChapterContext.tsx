@@ -186,30 +186,33 @@ export function ChapterProvider({ children }: { children: React.ReactNode }) {
   }, [refreshChapterData]);
 
   // Keep avatar in sync with Supabase session (covers stale /api/auth/me and cross-page nav).
+  // IMPORTANT: never let session metadata clobber a custom avatar. Supabase re-syncs
+  // Google's OAuth claims into user_metadata.avatar_url on TOKEN_REFRESHED / re-login,
+  // reverting it to the Google picture. The source of truth for a custom photo is the
+  // persisted Brother.avatarUrl (served by /api/auth/me), so we only adopt the session's
+  // avatar when it is itself a custom one, or when we don't yet have any avatar.
   useEffect(() => {
     if (!hasLoaded) return;
     const supabase = createClient();
+    const applyFromMetadata = (meta: Record<string, unknown> | undefined) => {
+      const { avatarUrl, hasCustomAvatar } = parseAvatarFromMetadata(meta);
+      setCurrentUser(prev => {
+        if (!prev) return prev;
+        // Skip when the session reports a non-custom avatar but we already hold one —
+        // that's the OAuth re-sync trying to overwrite the user's custom photo.
+        if (!hasCustomAvatar && prev.avatarUrl) return prev;
+        if (prev.avatarUrl === avatarUrl && prev.hasCustomAvatar === hasCustomAvatar) return prev;
+        setBrotherList(bl => bl.map(b => (b.id === prev.id ? { ...b, avatarUrl } : b)));
+        return { ...prev, avatarUrl, hasCustomAvatar };
+      });
+      setAvatarRevision(r => r + 1);
+    };
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (!session?.user) return;
-      const { avatarUrl, hasCustomAvatar } = parseAvatarFromMetadata(session.user.user_metadata);
-      setCurrentUser(prev => {
-        if (!prev) return prev;
-        if (prev.avatarUrl === avatarUrl && prev.hasCustomAvatar === hasCustomAvatar) return prev;
-        setBrotherList(bl => bl.map(b => (b.id === prev.id ? { ...b, avatarUrl } : b)));
-        return { ...prev, avatarUrl, hasCustomAvatar };
-      });
-      setAvatarRevision(r => r + 1);
+      applyFromMetadata(session.user.user_metadata);
     });
     supabase.auth.getUser().then(({ data: { user } }) => {
-      if (!user) return;
-      const { avatarUrl, hasCustomAvatar } = parseAvatarFromMetadata(user.user_metadata);
-      setCurrentUser(prev => {
-        if (!prev) return prev;
-        if (prev.avatarUrl === avatarUrl && prev.hasCustomAvatar === hasCustomAvatar) return prev;
-        setBrotherList(bl => bl.map(b => (b.id === prev.id ? { ...b, avatarUrl } : b)));
-        return { ...prev, avatarUrl, hasCustomAvatar };
-      });
-      setAvatarRevision(r => r + 1);
+      if (user) applyFromMetadata(user.user_metadata);
     });
     return () => subscription.unsubscribe();
   }, [hasLoaded]);
