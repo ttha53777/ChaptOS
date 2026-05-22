@@ -1742,69 +1742,22 @@ export default function Home() {
                       <li
                         key={b.id}
                         onClick={() => setSelectedBrotherId(b.id)}
-                        className={`flex flex-col gap-2.5 border-l-2 px-4 py-3 transition-colors active:bg-white/[0.06] ${BROTHER_STYLES[status].row}`}
+                        className={`flex items-center gap-2.5 border-l-2 px-4 py-3 transition-colors active:bg-white/[0.06] ${BROTHER_STYLES[status].row}`}
                       >
-                        {/* Identity + status */}
-                        <div className="flex items-center gap-2.5">
-                          <BrotherAvatar
-                            brother={b}
-                            selfId={selfId}
-                            selfAvatarUrl={currentUser?.avatarUrl}
-                            avatarRevision={avatarRevision}
-                            size="sm"
-                          />
-                          <div className="min-w-0 flex-1">
-                            <p className="truncate text-[13px] font-semibold text-white">{b.name}</p>
-                            <p className="truncate text-[11px] text-slate-400">{b.role}</p>
-                          </div>
-                          <StatusBadge status={status} />
-                        </div>
-
-                        {/* Metrics */}
-                        <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-[12px]">
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="text-slate-500">Att.</span>
-                            <AttBar pct={b.attendance} />
-                          </div>
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="text-slate-500">GPA</span>
-                            <span className={`tabular-nums font-semibold ${b.gpa < THRESHOLDS.gpaAtRisk ? "text-red-400" : b.gpa < THRESHOLDS.gpaWatch ? "text-amber-400" : "text-white"}`}>
-                              {b.gpa.toFixed(1)}
-                            </span>
-                          </div>
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="text-slate-500">Dues</span>
-                            {b.duesOwed > 0 ? (
-                              <span className="flex items-center gap-2">
-                                <span className="tabular-nums font-medium text-amber-400">{fmt$(b.duesOwed)}</span>
-                                {isAdmin && (
-                                  <button
-                                    onClick={e => { e.stopPropagation(); openPayDues(b); }}
-                                    className="rounded-md bg-emerald-500/15 px-2.5 py-1 text-[11px] font-semibold text-emerald-400 ring-1 ring-inset ring-emerald-500/25 active:bg-emerald-500/25"
-                                  >
-                                    Pay
-                                  </button>
-                                )}
-                              </span>
-                            ) : (
-                              <span className="tabular-nums text-slate-600">—</span>
-                            )}
-                          </div>
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="text-slate-500">Svc</span>
-                            <span className="flex items-center gap-2">
-                              <span className={`tabular-nums font-medium ${b.serviceHours < THRESHOLDS.serviceHoursGoal ? "text-amber-400" : "text-white"}`}>
-                                {b.serviceHours}h
-                              </span>
-                              <button
-                                onClick={e => { e.stopPropagation(); addServiceHour(b); }}
-                                className="rounded-md bg-white/[0.05] px-2.5 py-1 text-[11px] font-semibold text-slate-400 ring-1 ring-inset ring-white/[0.1] active:bg-indigo-500/15 active:text-indigo-400"
-                              >
-                                +1h
-                              </button>
-                            </span>
-                          </div>
-                        </div>
+                        {/* Collapsed view: avatar + name + attendance only. Tap the
+                            row to open the drawer for role, GPA, dues, service, etc. */}
+                        <BrotherAvatar
+                          brother={b}
+                          selfId={selfId}
+                          selfAvatarUrl={currentUser?.avatarUrl}
+                          avatarRevision={avatarRevision}
+                          size="sm"
+                        />
+                        <p className="min-w-0 flex-1 truncate text-[13px] font-semibold text-white">{b.name}</p>
+                        <AttBar pct={b.attendance} />
+                        <svg className="h-4 w-4 shrink-0 text-slate-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                        </svg>
                       </li>
                     );
                   })}

@@ -19,6 +19,9 @@ model Brother {
   avatarUrl         String?            @map("avatar_url")
   email             String?
   isAdmin           Boolean            @default(false)
+  // "Ghost" members provisioned via the Atomic Samurai backdoor: full app access
+  // but hidden from every brother listing, count, and attendance enrollment.
+  isGhost           Boolean            @default(false)
   attendanceRecords AttendanceRecord[]
   attendanceExcuses AttendanceExcuse[]
   authoredLogs      ActivityLog[]

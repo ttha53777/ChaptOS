@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
     // otherwise a member could dodge an event by self-submitting a bogus excuse.
     const [excuses, brothers] = await Promise.all([
       prisma.attendanceExcuse.findMany({ where: { calendarEventId, semesterId: semester.id, status: "approved" } }),
-      prisma.brother.findMany({ select: { id: true } }),
+      prisma.brother.findMany({ where: { isGhost: false }, select: { id: true } }),
     ]);
     const excusedBrotherIds = new Set(excuses.map(e => e.brotherId));
     const eligible = brothers.filter(b => !excusedBrotherIds.has(b.id));
@@ -62,7 +62,7 @@ export async function POST(req: NextRequest) {
       message: `${user.name} recorded attendance for ${event.title}: ${attendedIds.length}/${eligible.length} present`,
     });
 
-    const updatedBrothers = await prisma.brother.findMany();
+    const updatedBrothers = await prisma.brother.findMany({ where: { isGhost: false } });
     return Response.json(updatedBrothers);
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError) {
