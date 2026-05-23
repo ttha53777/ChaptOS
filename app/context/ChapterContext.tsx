@@ -51,11 +51,28 @@ interface ChapterContextValue {
   setTransactionList: React.Dispatch<React.SetStateAction<Transaction[]>>;
   isLoading: boolean;
   loadError: string | null;
+  /**
+   * Per-section load errors. Populated when a single endpoint fails during
+   * `refreshChapterData()` while the rest succeed. UI can flag the failed
+   * section with a localized retry instead of blanking the whole dashboard.
+   * Empty set when everything loaded. Key = the endpoint slug below.
+   */
+  sectionErrors: ReadonlySet<ChapterSection>;
   mutationError: string | null;
   setMutationError: React.Dispatch<React.SetStateAction<string | null>>;
   refreshChapterData: () => Promise<void>;
   hasLoaded: boolean;
 }
+
+export type ChapterSection =
+  | "me"
+  | "brothers"
+  | "deadlines"
+  | "instagram"
+  | "parties"
+  | "activity"
+  | "treasury"
+  | "transactions";
 
 const ChapterContext = createContext<ChapterContextValue | null>(null);
 
@@ -86,6 +103,7 @@ export function ChapterProvider({ children }: { children: React.ReactNode }) {
   const [avatarRevision,   setAvatarRevision]   = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [sectionErrors, setSectionErrors] = useState<ReadonlySet<ChapterSection>>(() => new Set());
   const [mutationError, setMutationError] = useState<string | null>(null);
   const [hasLoaded, setHasLoaded] = useState(false);
 
@@ -125,27 +143,67 @@ export function ChapterProvider({ children }: { children: React.ReactNode }) {
 
     setIsLoading(true);
     setLoadError(null);
+    setSectionErrors(new Set());
 
-    try {
-      const [me, brothers, deadlines, instagram, parties, activity, treasury, transactions] = await Promise.all([
-        fetchJson<CurrentUser>("/api/auth/me"),
-        fetchJson<Brother[]>("/api/brothers"),
-        fetchJson<Deadline[]>("/api/deadlines"),
-        fetchJson<InstagramTask[]>("/api/instagram"),
-        fetchJson<PartyEvent[]>("/api/parties"),
-        fetchJson<ActivityEntry[]>("/api/activity"),
-        fetchJson<TreasuryData>("/api/treasury"),
-        fetchJson<Transaction[]>("/api/transactions"),
-      ]);
+    // Each endpoint loads independently. A failure in one section (e.g. treasury)
+    // marks that section as errored but lets the rest of the dashboard render.
+    // Auth failure is the one exception — if /api/auth/me fails, we abort the
+    // whole refresh because the rest of the data is meaningless without a user.
+    const meResult        = await Promise.resolve().then(() => fetchJson<CurrentUser>("/api/auth/me"))
+      .then(value => ({ ok: true as const, value }))
+      .catch(error => ({ ok: false as const, error }));
 
-      if (!isLatest()) return;
+    if (!isLatest()) return;
 
-      setCurrentUser(normalizeCurrentUser(me));
-      setAvatarRevision(r => r + 1);
-      setBrotherList(brothers);
-      setDeadlineList(deadlines);
-      setIgTaskList(instagram);
-      setPartyList(parties.map(p => ({
+    if (!meResult.ok) {
+      if (meResult.error instanceof UnauthenticatedError) {
+        setIsLoading(false);
+        setHasLoaded(true);
+        return;
+      }
+      console.error("[ChapterContext] /api/auth/me failed:", meResult.error);
+      setLoadError("Could not load your account. Please refresh.");
+      setIsLoading(false);
+      setHasLoaded(true);
+      return;
+    }
+
+    setCurrentUser(normalizeCurrentUser(meResult.value));
+    setAvatarRevision(r => r + 1);
+
+    // Fan out the rest. allSettled so one slow/broken endpoint doesn't blank
+    // the dashboard — see audit finding D4 / backend E3.
+    const [brothers, deadlines, instagram, parties, activity, treasury, transactions] = await Promise.allSettled([
+      fetchJson<Brother[]>("/api/brothers"),
+      fetchJson<Deadline[]>("/api/deadlines"),
+      fetchJson<InstagramTask[]>("/api/instagram"),
+      fetchJson<PartyEvent[]>("/api/parties"),
+      fetchJson<ActivityEntry[]>("/api/activity"),
+      fetchJson<TreasuryData>("/api/treasury"),
+      fetchJson<Transaction[]>("/api/transactions"),
+    ]);
+
+    if (!isLatest()) return;
+
+    const failed = new Set<ChapterSection>();
+    const trackFailure = (section: ChapterSection, result: PromiseSettledResult<unknown>) => {
+      if (result.status === "rejected") {
+        failed.add(section);
+        console.error(`[ChapterContext] ${section} fetch failed:`, result.reason);
+      }
+    };
+
+    if (brothers.status === "fulfilled")     setBrotherList(brothers.value);
+    else                                     trackFailure("brothers", brothers);
+
+    if (deadlines.status === "fulfilled")    setDeadlineList(deadlines.value);
+    else                                     trackFailure("deadlines", deadlines);
+
+    if (instagram.status === "fulfilled")    setIgTaskList(instagram.value);
+    else                                     trackFailure("instagram", instagram);
+
+    if (parties.status === "fulfilled") {
+      setPartyList(parties.value.map(p => ({
         ...p,
         partyType:   (p.partyType   ?? "Open") as "Open" | "Closed",
         theme:       p.theme        ?? "",
@@ -157,22 +215,22 @@ export function ChapterProvider({ children }: { children: React.ReactNode }) {
         completed:   p.completed    ?? false,
         completedAt: p.completedAt  ?? null,
       })));
-      setActivityFeed(activity);
-      setTreasuryData(treasury);
-      setTransactionList(transactions);
-    } catch (error) {
-      if (error instanceof UnauthenticatedError) {
-        return;
-      }
-      console.error(error);
-      if (isLatest()) setLoadError("Could not load chapter data from the database.");
-      throw error;
-    } finally {
-      if (isLatest()) {
-        setIsLoading(false);
-        setHasLoaded(true);
-      }
+    } else {
+      trackFailure("parties", parties);
     }
+
+    if (activity.status === "fulfilled")     setActivityFeed(activity.value);
+    else                                     trackFailure("activity", activity);
+
+    if (treasury.status === "fulfilled")     setTreasuryData(treasury.value);
+    else                                     trackFailure("treasury", treasury);
+
+    if (transactions.status === "fulfilled") setTransactionList(transactions.value);
+    else                                     trackFailure("transactions", transactions);
+
+    setSectionErrors(failed);
+    setIsLoading(false);
+    setHasLoaded(true);
   }, []);
 
   useEffect(() => {
@@ -228,7 +286,7 @@ export function ChapterProvider({ children }: { children: React.ReactNode }) {
     activityFeed, setActivityFeed,
     treasuryData, setTreasuryData,
     transactionList, setTransactionList,
-    isLoading, loadError,
+    isLoading, loadError, sectionErrors,
     mutationError, setMutationError,
     refreshChapterData, hasLoaded,
   }), [
@@ -237,7 +295,7 @@ export function ChapterProvider({ children }: { children: React.ReactNode }) {
     setAvatarUrl,
     brotherList, deadlineList, igTaskList, partyList,
     activityFeed, treasuryData, transactionList,
-    isLoading, loadError, mutationError, hasLoaded,
+    isLoading, loadError, sectionErrors, mutationError, hasLoaded,
     refreshChapterData,
   ]);
 
