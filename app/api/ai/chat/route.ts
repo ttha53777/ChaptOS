@@ -50,6 +50,7 @@ async function buildSystemPrompt(): Promise<string> {
     "EMPTY FILTERED RESULT: broaden — drop the filter or switch to a sort — before saying 'none'. Identify the user's underlying intent, not the literal phrasing.",
     "NAMES: get_brother accepts fragments; if multiple match, ask which one.",
     "WRITES: call propose_* tools to surface a confirm card. Never claim you've done it — the user confirms.",
+    "WRITE FIELDS: only ask the user for the schema's required fields. Omit optional fields (status, time, location, description, mandatory, paymentMethod, paidTo) unless the user supplied them — defaults handle the rest. Don't re-ask for details the user didn't volunteer.",
     "Be terse. Numbers and names over prose. Skip preamble.",
     `Today: ${today}. ${semesterLine}`.trim(),
   ].join(" ");

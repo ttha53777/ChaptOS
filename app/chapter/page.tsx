@@ -139,7 +139,11 @@ function MeetingCard({
 }) {
   const notes = (event.description ?? "").trim();
   const hasNotes = !!notes;
-  const previewLines = notes.split("\n").filter((l: string) => l.trim()).slice(0, 3);
+  const summary = (event.notesSummary ?? "").trim();
+  // Prefer the AI summary on the card; fall back to the first non-empty lines
+  // of the raw notes so meetings without a summary still show something useful.
+  const previewSource = summary || notes;
+  const previewLines = previewSource.split("\n").filter((l: string) => l.trim()).slice(0, 3);
   const sub = [event.time, event.location].filter(Boolean).join(" · ");
   const wordCount = notes ? notes.split(/\s+/).filter(Boolean).length : 0;
 
@@ -170,12 +174,19 @@ function MeetingCard({
       {/* Divider */}
       <div className="my-4 h-px bg-white/[0.05]" />
 
-      {/* Notes preview — up to 3 lines */}
+      {/* Notes preview — up to 3 lines (summary if available, else raw notes) */}
       <div className="min-h-[52px] flex-1 space-y-1">
         {hasNotes ? (
-          previewLines.map((line: string, i: number) => (
-            <p key={i} className="truncate text-[12px] leading-snug text-slate-400">{line}</p>
-          ))
+          <>
+            {summary && (
+              <span className="mb-1 inline-flex items-center gap-1 rounded-full bg-indigo-500/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-indigo-300 ring-1 ring-inset ring-indigo-500/20">
+                AI summary
+              </span>
+            )}
+            {previewLines.map((line: string, i: number) => (
+              <p key={i} className="truncate text-[12px] leading-snug text-slate-400">{line.replace(/^[-*]\s*/, "").replace(/\*\*/g, "")}</p>
+            ))}
+          </>
         ) : (
           <p className="text-[12px] italic text-slate-600">No notes yet</p>
         )}
@@ -197,24 +208,81 @@ function MeetingCard({
   );
 }
 
+// ─── SummaryMarkdown ──────────────────────────────────────────────────────────
+// Tiny renderer for the AI's output: **bold**, lines starting with "- " become
+// bullets, and bare bold-only lines render as section headers. No deps; we
+// fully control the upstream prompt, so the dialect is intentionally narrow.
+
+function renderInline(text: string, keyPrefix: string) {
+  // Split on **...** spans, keeping the delimiters; toggle bold on each match.
+  const parts = text.split(/(\*\*[^*]+\*\*)/g);
+  return parts.map((part, i) => {
+    if (part.startsWith("**") && part.endsWith("**") && part.length > 4) {
+      return <strong key={`${keyPrefix}-${i}`} className="font-semibold text-white">{part.slice(2, -2)}</strong>;
+    }
+    return <span key={`${keyPrefix}-${i}`}>{part}</span>;
+  });
+}
+
+function SummaryMarkdown({ text }: { text: string }) {
+  const lines = text.split("\n");
+  const blocks: React.ReactNode[] = [];
+  let bullets: string[] = [];
+  const flushBullets = () => {
+    if (bullets.length === 0) return;
+    blocks.push(
+      <ul key={`ul-${blocks.length}`} className="ml-5 list-disc space-y-1">
+        {bullets.map((b, i) => <li key={i}>{renderInline(b, `b-${blocks.length}-${i}`)}</li>)}
+      </ul>,
+    );
+    bullets = [];
+  };
+  lines.forEach((raw, i) => {
+    const line = raw.trimEnd();
+    if (!line.trim()) { flushBullets(); return; }
+    const bullet = line.match(/^\s*[-*]\s+(.*)$/);
+    if (bullet) { bullets.push(bullet[1]); return; }
+    flushBullets();
+    // Bold-only line → section header.
+    const header = line.match(/^\*\*([^*]+)\*\*:?\s*$/);
+    if (header) {
+      blocks.push(
+        <p key={`h-${i}`} className="mt-2 text-[11px] font-semibold uppercase tracking-wider text-indigo-200 first:mt-0">
+          {header[1]}
+        </p>,
+      );
+      return;
+    }
+    blocks.push(<p key={`p-${i}`} className="leading-relaxed">{renderInline(line, `p-${i}`)}</p>);
+  });
+  flushBullets();
+  return <div className="space-y-2 text-[13px] text-slate-200">{blocks}</div>;
+}
+
 // ─── MeetingDetailOverlay ─────────────────────────────────────────────────────
 
 function MeetingDetailOverlay({
   event,
   notesDraft,
   saveState,
+  summarizeState,
+  summarizeError,
   onClose,
   onNotesChange,
   onEdit,
   onDelete,
+  onSummarize,
 }: {
   event: CalendarEvent;
   notesDraft: string;
   saveState: "idle" | "saving" | "saved" | "error";
+  summarizeState: "idle" | "running" | "error";
+  summarizeError: string | null;
   onClose: () => void;
   onNotesChange: (val: string) => void;
   onEdit: () => void;
   onDelete: () => void;
+  onSummarize: () => void;
 }) {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
@@ -256,8 +324,27 @@ function MeetingDetailOverlay({
           {/* Save indicator */}
           <SaveIndicator state={saveState} />
 
-          {/* Edit / Delete */}
+          {/* Summarize / Edit / Delete */}
           <div className="flex items-center gap-1">
+            <button
+              onClick={onSummarize}
+              disabled={summarizeState === "running" || !notesDraft.trim()}
+              title={!notesDraft.trim() ? "Add notes first" : "Generate an AI summary of these notes"}
+              className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[12px] text-indigo-300 transition-colors hover:bg-indigo-500/[0.08] hover:text-indigo-200 disabled:cursor-not-allowed disabled:text-slate-600 disabled:hover:bg-transparent"
+            >
+              {summarizeState === "running" ? (
+                <svg className="h-3.5 w-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                </svg>
+              ) : (
+                <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 3l1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6L12 3z" />
+                  <path d="M19 14l.8 2.2L22 17l-2.2.8L19 20l-.8-2.2L16 17l2.2-.8L19 14z" />
+                </svg>
+              )}
+              <span className="hidden sm:inline">{event.notesSummary ? "Re-summarize" : "Summarize"}</span>
+            </button>
             <button
               onClick={onEdit}
               className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[12px] text-slate-500 transition-colors hover:bg-white/[0.06] hover:text-slate-200"
@@ -305,11 +392,50 @@ function MeetingDetailOverlay({
         <div className="flex-1 overflow-y-auto">
           <div className="mx-auto max-w-4xl px-6 py-8 sm:px-10">
 
+            {/* AI summary (when present) */}
+            {event.notesSummary && (() => {
+              const summaryAt = event.notesSummaryAt ? new Date(event.notesSummaryAt).getTime() : 0;
+              const updatedAt = event.notesUpdatedAt ? new Date(event.notesUpdatedAt).getTime() : 0;
+              // 2s grace window: server timestamps the description update and
+              // the summary creation in the same request, and Postgres rounding
+              // can put them microseconds apart in either order.
+              const stale = summaryAt > 0 && updatedAt > summaryAt + 2000;
+              return (
+                <div className={`mb-8 rounded-xl border p-4 ${stale ? "border-amber-500/30 bg-amber-500/[0.04]" : "border-indigo-500/20 bg-indigo-500/[0.04]"}`}>
+                  <div className="mb-2 flex flex-wrap items-center gap-2">
+                    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wider ring-1 ring-inset ${stale ? "bg-amber-500/15 text-amber-200 ring-amber-500/25" : "bg-indigo-500/15 text-indigo-200 ring-indigo-500/25"}`}>
+                      <svg className="h-2.5 w-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                        <path d="M12 3l1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6L12 3z" />
+                      </svg>
+                      AI Summary
+                    </span>
+                    {event.notesSummaryAt && (
+                      <span className="text-[10px] text-slate-500">
+                        Generated {new Date(event.notesSummaryAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+                      </span>
+                    )}
+                    {stale && (
+                      <span className="text-[10px] font-medium text-amber-300">
+                        Notes have changed — re-summarize to refresh.
+                      </span>
+                    )}
+                  </div>
+                  <SummaryMarkdown text={event.notesSummary} />
+                </div>
+              );
+            })()}
+
+            {summarizeError && (
+              <div className="mb-6 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[12px] text-red-400">
+                {summarizeError}
+              </div>
+            )}
+
             {/* Notes section */}
             <div>
               <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-500">Meeting Notes</p>
               <textarea
-                className={`${inputCls} min-h-[70vh] resize-none font-mono text-[13px] leading-relaxed`}
+                className={`${inputCls} min-h-[55vh] resize-none font-mono text-[13px] leading-relaxed`}
                 value={notesDraft}
                 onChange={e => onNotesChange(e.target.value)}
                 placeholder="Start typing meeting notes…"
@@ -339,6 +465,8 @@ export default function ChapterPage() {
   const [showAddModal,  setShowAddModal]  = useState(false);
   const [editTarget,    setEditTarget]    = useState<CalendarEvent | null>(null);
   const [deleteTarget,  setDeleteTarget]  = useState<CalendarEvent | null>(null);
+  const [summarizeState, setSummarizeState] = useState<Record<number, "idle" | "running" | "error">>({});
+  const [summarizeError, setSummarizeError] = useState<Record<number, string | null>>({});
 
   const timers = useRef<Record<number, ReturnType<typeof setTimeout>>>({});
   const saveResetTimers = useRef<Record<number, ReturnType<typeof setTimeout>>>({});
@@ -371,13 +499,15 @@ export default function ChapterPage() {
     clearTimeout(timers.current[id]);
     setSaveState(s => ({ ...s, [id]: "saving" }));
     try {
-      await requestJson<CalendarEvent>(`/api/calendar/${id}`, {
+      const updated = await requestJson<CalendarEvent>(`/api/calendar/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ description: value }),
       });
       savedValues.current[id] = value;
-      setEvents(prev => prev.map(e => e.id === id ? { ...e, description: value } : e));
+      // Merge the server-bumped notesUpdatedAt into local state so the stale-summary
+      // indicator can compare it against notesSummaryAt.
+      setEvents(prev => prev.map(e => e.id === id ? { ...e, description: value, notesUpdatedAt: updated.notesUpdatedAt ?? e.notesUpdatedAt } : e));
       setSaveState(s => ({ ...s, [id]: "saved" }));
       clearTimeout(saveResetTimers.current[id]);
       saveResetTimers.current[id] = setTimeout(() => setSaveState(s => ({ ...s, [id]: "idle" })), 2000);
@@ -462,6 +592,34 @@ export default function ChapterPage() {
       setEditTarget(null);
     } catch (err) {
       setPageError(err instanceof Error ? err.message : "Failed to update meeting.");
+    }
+  }
+
+  // ── Summarize notes via AI ───────────────────────────────────────────────────
+  async function handleSummarize(id: number) {
+    // Flush any pending autosave first so the server summarizes the user's
+    // latest text, not the previously saved version.
+    const pending = notesDraft[id];
+    if (pending !== undefined && pending !== savedValues.current[id]) {
+      clearTimeout(timers.current[id]);
+      await flushSave(id, pending);
+    }
+    setSummarizeError(s => ({ ...s, [id]: null }));
+    setSummarizeState(s => ({ ...s, [id]: "running" }));
+    try {
+      const res = await requestJson<{ id: number; notesSummary: string | null; notesSummaryAt: string | null }>(
+        "/api/ai/summarize-meeting",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id }),
+        },
+      );
+      setEvents(prev => prev.map(e => e.id === id ? { ...e, notesSummary: res.notesSummary, notesSummaryAt: res.notesSummaryAt } : e));
+      setSummarizeState(s => ({ ...s, [id]: "idle" }));
+    } catch (err) {
+      setSummarizeState(s => ({ ...s, [id]: "error" }));
+      setSummarizeError(s => ({ ...s, [id]: err instanceof Error ? err.message.replace(/^.*?: /, "") : "Failed to summarize." }));
     }
   }
 
@@ -614,10 +772,13 @@ export default function ChapterPage() {
           event={selectedEvent}
           notesDraft={notesDraft[selectedEvent.id] ?? (selectedEvent.description ?? "")}
           saveState={saveState[selectedEvent.id] ?? "idle"}
+          summarizeState={summarizeState[selectedEvent.id] ?? "idle"}
+          summarizeError={summarizeError[selectedEvent.id] ?? null}
           onClose={handleClose}
           onNotesChange={val => handleNotesChange(selectedEvent.id, val)}
           onEdit={() => setEditTarget(selectedEvent)}
           onDelete={() => setDeleteTarget(selectedEvent)}
+          onSummarize={() => handleSummarize(selectedEvent.id)}
         />
       )}
 

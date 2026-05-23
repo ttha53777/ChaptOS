@@ -80,6 +80,9 @@ export interface CalendarEvent {
   mandatory: boolean;
   description?: string;
   location?: string;
+  notesSummary?: string | null;
+  notesSummaryAt?: string | null;
+  notesUpdatedAt?: string | null;
 }
 
 // ─── Thresholds ───────────────────────────────────────────────────────────────

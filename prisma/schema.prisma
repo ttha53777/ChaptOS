@@ -118,6 +118,9 @@ model CalendarEvent {
   mandatory         Boolean
   description       String?
   location          String?
+  notesSummary      String?
+  notesSummaryAt    DateTime?
+  notesUpdatedAt    DateTime?
   attendanceRecords AttendanceRecord[]
   attendanceExcuses AttendanceExcuse[]
 

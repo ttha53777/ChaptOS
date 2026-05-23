@@ -25,7 +25,7 @@ export async function PATCH(
     const body = await req.json();
 
     const stringFields = ["title", "date", "time", "category", "description", "location"] as const;
-    const data: Record<string, string | boolean | null> = {};
+    const data: Record<string, string | boolean | null | Date> = {};
 
     for (const key of stringFields) {
       if (key in body) data[key] = optionalString(body[key]);
@@ -35,6 +35,12 @@ export async function PATCH(
         return Response.json({ error: "Mandatory must be a boolean" }, { status: 400 });
       }
       data["mandatory"] = body.mandatory;
+    }
+    // When notes change, bump notesUpdatedAt so the client can flag a stale
+    // AI summary. Cheap to compute server-side, and keeps the client honest
+    // about clock skew.
+    if ("description" in body) {
+      data["notesUpdatedAt"] = new Date();
     }
 
     if (Object.keys(data).length === 0) {
@@ -48,6 +54,9 @@ export async function PATCH(
     }
     if ("category" in data && (typeof data.category !== "string" || !CALENDAR_CATEGORIES.includes(data.category as typeof CALENDAR_CATEGORIES[number]))) {
       return Response.json({ error: "Invalid calendar category" }, { status: 400 });
+    }
+    if ("description" in data && typeof data.description === "string" && data.description.length > 50000) {
+      return Response.json({ error: "Description too long" }, { status: 400 });
     }
 
     const event = await prisma.calendarEvent.update({
