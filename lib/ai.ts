@@ -19,6 +19,14 @@ export function aiEnabled(): boolean {
   return !!process.env.OPENAI_API_KEY;
 }
 
+/** Shared OpenAI client. Returns null when no key — callers should fall back gracefully. */
+export function getOpenAI(): OpenAI | null {
+  return getClient();
+}
+
+/** The chat model used app-wide. Kept here so swaps are a one-line change. */
+export const CHAT_MODEL = MODEL;
+
 /**
  * Generate a short natural-language narration from a system prompt + user content.
  * Returns null on any failure (missing key, network, API error) so callers can
