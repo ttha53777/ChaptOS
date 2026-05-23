@@ -266,8 +266,13 @@ export function ChatWidget() {
         <button
           onClick={() => setOpen(true)}
           aria-label="Open chat"
-          className="group fixed bottom-6 right-6 z-40 inline-flex items-center gap-2 rounded-full border border-indigo-400/30 bg-indigo-500/15 px-4 py-2.5 text-[13px] font-semibold text-indigo-100 shadow-[0_8px_28px_-10px_rgba(99,102,241,0.55),inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-xl transition-all hover:border-indigo-400/50 hover:bg-indigo-500/25 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:ring-offset-2 focus-visible:ring-offset-[#07090f]"
-          style={{ backgroundImage: "radial-gradient(ellipse at 30% 20%, rgba(129,140,248,0.18) 0%, transparent 70%)" }}
+          className="group fixed z-40 inline-flex items-center gap-2 rounded-full border border-indigo-400/30 bg-indigo-500/15 px-4 py-2.5 text-[13px] font-semibold text-indigo-100 shadow-[0_8px_28px_-10px_rgba(99,102,241,0.55),inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-xl transition-all hover:border-indigo-400/50 hover:bg-indigo-500/25 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:ring-offset-2 focus-visible:ring-offset-[#07090f]"
+          style={{
+            // Sit above the iOS home indicator / safe inset on notched devices.
+            bottom: "max(1.5rem, env(safe-area-inset-bottom))",
+            right:  "max(1.5rem, env(safe-area-inset-right))",
+            backgroundImage: "radial-gradient(ellipse at 30% 20%, rgba(129,140,248,0.18) 0%, transparent 70%)",
+          }}
         >
           <SparkleIcon className="h-4 w-4 text-indigo-300 transition-colors group-hover:text-indigo-200" />
           <span>Ask</span>
@@ -287,30 +292,34 @@ export function ChatWidget() {
       <div
         role="dialog"
         aria-label="Chapter chat"
-        className={`fixed inset-y-0 right-0 z-50 flex w-full flex-col border-l border-white/[0.07] shadow-2xl transition-transform duration-300 ease-in-out sm:w-[420px] ${open ? "translate-x-0" : "translate-x-full pointer-events-none"}`}
+        className={`fixed top-0 right-0 z-50 flex w-full flex-col border-l border-white/[0.07] shadow-2xl transition-transform duration-300 ease-in-out sm:w-[420px] ${open ? "translate-x-0" : "translate-x-full pointer-events-none"}`}
         style={{
+          // 100dvh = the *dynamic* viewport height: shrinks when the iOS keyboard
+          // opens, so the textarea + send button stay visible instead of getting
+          // pushed behind the keyboard. Modern browsers only (iOS 15.4+, etc).
+          height: "100dvh",
           // Layered: dark surface at ~80% + soft indigo bloom from top-right, all over a backdrop blur
           background: "linear-gradient(to bottom, rgba(12,14,20,0.85) 0%, rgba(12,14,20,0.92) 60%, rgba(12,14,20,0.95) 100%), radial-gradient(ellipse 60% 40% at 90% 0%, rgba(99,102,241,0.18) 0%, transparent 70%)",
           backdropFilter: "saturate(140%) blur(16px)",
           WebkitBackdropFilter: "saturate(140%) blur(16px)",
         }}
       >
-        {/* Header */}
-        <header className="flex h-14 shrink-0 items-center justify-between border-b border-white/[0.06] px-4">
+        {/* Header — pt-safe so the close button isn't tucked under the iOS notch */}
+        <header className="flex shrink-0 items-center justify-between border-b border-white/[0.06] px-4 pt-safe pb-2 sm:h-14 sm:pt-0 sm:pb-0">
           <div className="flex items-center gap-2.5">
             <span className="flex h-7 w-7 items-center justify-center rounded-lg border border-indigo-400/25 bg-indigo-500/15 text-indigo-300 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
               <SparkleIcon className="h-3.5 w-3.5" />
             </span>
             <div>
               <p className="text-[14px] font-semibold leading-tight text-white">Ask the Chapter</p>
-              <p className="text-[10px] leading-tight text-slate-500">Saved on this device</p>
+              <p className="hidden text-[10px] leading-tight text-slate-500 sm:block">Saved on this device</p>
             </div>
           </div>
           <div className="flex items-center gap-1">
             {messages.length > 0 && (
               <button
                 onClick={handleClear}
-                className="rounded-md px-2 py-1 text-[11px] font-medium text-slate-400 hover:bg-white/[0.06] hover:text-slate-200"
+                className="rounded-md px-3 py-2 text-[11px] font-medium text-slate-400 hover:bg-white/[0.06] hover:text-slate-200 sm:px-2 sm:py-1"
               >
                 Clear
               </button>
@@ -318,7 +327,7 @@ export function ChatWidget() {
             <button
               onClick={() => setOpen(false)}
               aria-label="Close"
-              className="flex h-8 w-8 items-center justify-center rounded-md text-slate-400 hover:bg-white/[0.06] hover:text-white"
+              className="flex h-10 w-10 items-center justify-center rounded-md text-slate-400 hover:bg-white/[0.06] hover:text-white sm:h-8 sm:w-8"
             >
               <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                 <path d="M6 6l12 12M6 18L18 6" />
@@ -377,13 +386,13 @@ export function ChatWidget() {
                             <div className="mt-2 flex gap-2">
                               <button
                                 onClick={() => void confirmProposal(m.id, card)}
-                                className="flex-1 rounded-md bg-indigo-600 px-2.5 py-1.5 text-[11px] font-semibold text-white transition-colors hover:bg-indigo-500"
+                                className="flex-1 rounded-md bg-indigo-600 px-2.5 py-2.5 text-[11px] font-semibold text-white transition-colors hover:bg-indigo-500 sm:py-1.5"
                               >
                                 Confirm
                               </button>
                               <button
                                 onClick={() => declineProposal(m.id, card)}
-                                className="flex-1 rounded-md border border-white/[0.1] bg-white/[0.03] px-2.5 py-1.5 text-[11px] font-medium text-slate-300 transition-colors hover:bg-white/[0.06]"
+                                className="flex-1 rounded-md border border-white/[0.1] bg-white/[0.03] px-2.5 py-2.5 text-[11px] font-medium text-slate-300 transition-colors hover:bg-white/[0.06] sm:py-1.5"
                               >
                                 Decline
                               </button>
@@ -418,8 +427,10 @@ export function ChatWidget() {
           )}
         </div>
 
-        {/* Input */}
-        <form onSubmit={handleSubmit} className="shrink-0 border-t border-white/[0.06] bg-black/20 p-3">
+        {/* Input — pb-safe lifts above the iOS home indicator when the
+            keyboard is closed; when it opens, 100dvh on the panel shrinks
+            the surface so the input stays visible. */}
+        <form onSubmit={handleSubmit} className="shrink-0 border-t border-white/[0.06] bg-black/20 px-3 pt-3 pb-safe">
           <div className="flex items-end gap-2 rounded-xl border border-white/[0.08] bg-white/[0.03] focus-within:border-indigo-500/40 focus-within:bg-white/[0.05]">
             <textarea
               ref={textareaRef}
@@ -430,12 +441,14 @@ export function ChatWidget() {
               rows={1}
               disabled={streaming}
               className="flex-1 resize-none bg-transparent px-3 py-2.5 text-[13px] text-white placeholder:text-slate-500 focus:outline-none disabled:opacity-50"
-              style={{ minHeight: 40, maxHeight: 160 }}
+              // 44px min-height — Apple HIG tap-target floor. The 4px bump on
+              // desktop is invisible next to the 40px send button.
+              style={{ minHeight: 44, maxHeight: 160 }}
             />
             <button
               type="submit"
               disabled={!input.trim() || streaming}
-              className="m-1.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-indigo-600 text-white transition-colors hover:bg-indigo-500 disabled:cursor-not-allowed disabled:bg-white/[0.06] disabled:text-slate-600"
+              className="m-1.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-indigo-600 text-white transition-colors hover:bg-indigo-500 disabled:cursor-not-allowed disabled:bg-white/[0.06] disabled:text-slate-600 sm:h-8 sm:w-8"
               aria-label="Send"
             >
               <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
