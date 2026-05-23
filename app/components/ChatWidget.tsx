@@ -144,10 +144,12 @@ export function ChatWidget() {
     setInput("");
     setStreaming(true);
 
-    // Send the full local history plus the new user message as the request.
-    // Server caps it again at 30 — this is just our client-side budget.
+    // Send only the last ~12 messages — the server also caps, but trimming on
+    // the client means less request-body upload time. Recent turns matter more
+    // than verbatim history; the assistant can always re-tool if it needs facts.
     const payload = [...messages, userMsg]
       .filter(m => m.content.trim().length > 0)
+      .slice(-12)
       .map(m => ({ role: m.role, content: m.content }));
 
     const controller = new AbortController();

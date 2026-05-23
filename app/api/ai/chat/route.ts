@@ -11,7 +11,8 @@ import { prisma } from "@/lib/prisma";
 export const dynamic = "force-dynamic";
 
 const MAX_ITERS = 10;         // bound the tool-call loop (allows broaden-and-retry + chained queries)
-const MAX_HISTORY_MSGS = 30;  // bound input size from client history
+const MAX_HISTORY_MSGS = 12;  // bound input size — fewer prior turns = fewer input tokens = faster
+const MAX_PRIOR_CONTENT_CHARS = 600; // trim long prior messages; recent turns matter more than verbatim history
 
 interface ClientMessage {
   role: "user" | "assistant" | "system";
@@ -22,32 +23,36 @@ function sseEvent(event: string, data: unknown): string {
   return `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
 }
 
-async function buildSystemPrompt(): Promise<string> {
-  // Pull a tiny bit of live context the model needs to ground itself.
-  const today = new Date().toISOString().slice(0, 10);
-  let semesterLine = "";
+// Cache the active semester for 5 minutes — it changes at most a few times a year,
+// and pulling it on every chat message adds a DB round trip before OpenAI even starts.
+let semesterCache: { line: string; expires: number } | null = null;
+async function getSemesterLine(): Promise<string> {
+  const now = Date.now();
+  if (semesterCache && semesterCache.expires > now) return semesterCache.line;
+  let line = "";
   try {
     const s = await prisma.semester.findFirst({ where: { isActive: true }, select: { label: true, startDate: true, endDate: true } });
-    if (s) semesterLine = `The active semester is ${s.label} (${s.startDate} → ${s.endDate}).`;
+    if (s) line = `Active semester: ${s.label} (${s.startDate} → ${s.endDate}).`;
   } catch { /* DB blip — model still works without this line */ }
+  semesterCache = { line, expires: now + 5 * 60 * 1000 };
+  return line;
+}
 
+async function buildSystemPrompt(): Promise<string> {
+  const today = new Date().toISOString().slice(0, 10);
+  const semesterLine = await getSemesterLine();
+
+  // Compact: the model handles tool selection well; we only need a few
+  // load-bearing nudges. Verbose prompts cost input tokens every turn.
   return [
-    "You are the assistant for ChaptOS, a college fraternity chapter's operations dashboard.",
-    "You help officers answer questions about brothers, attendance, deadlines, Instagram content, parties, treasury, and the budget.",
-    "Always call the provided tools — never make up numbers or names. If no tool fits, say so.",
-    // Superlatives → sort + limit on whichever list tool fits, never a category filter.
-    "SUPERLATIVES (\"worst\", \"best\", \"lowest\", \"highest\", \"biggest\", \"smallest\", \"most\", \"least\", \"top N\", \"bottom N\", \"next\", \"latest\", \"oldest\"): answer by sorting, not by filtering by a category. Every list_* tool accepts order_by + order + limit; use them. Examples: 'worst attendance' → list_brothers order_by=attendance asc limit=5; 'biggest party' → list_parties order_by=doorRevenue desc limit=5; 'next chapter event' → list_calendar_events start=<today> order_by=date asc limit=5; 'biggest expense category' → sum_transactions type_filter=expense group_by_category=true (response is pre-sorted).",
-    // Don't surrender on an empty filtered query.
-    "EMPTY RESULTS: if a filtered tool call returns nothing, broaden it before answering — drop the filter, switch to a sort, or use the tool's full list. Only say 'no results' after you've actually checked the broader data. Examples: no Urgent deadlines → check Due Soon and Upcoming; no At Risk brothers → answer the underlying ranking question (bottom by attendance, etc.).",
-    // Always answer the question that was asked.
-    "INTENT OVER LITERAL: if the literal phrasing maps to a tool filter that's empty, identify the user's underlying intent and answer that. 'Worst attendance' with no At Risk brothers still has a clear answer: the bottom of the attendance ranking.",
-    // Disambiguate name lookups instead of giving up.
-    "NAME LOOKUP: get_brother accepts partial names ('Bryan' matches 'Bryan Lee'). If it returns multiple candidates, ask the user which one they mean (or pick the obvious choice and proceed if context makes it unambiguous).",
-    "When the user wants to create or modify something, you have proposal tools (when enabled) that surface a confirm card; never claim you've written something on your own.",
-    "Be terse and direct. Numbers and names beat prose. Cite the source briefly when it matters (e.g. \"per sum_transactions\").",
-    `Today is ${today}.`,
-    semesterLine,
-  ].filter(Boolean).join(" ");
+    "You are the assistant for ChaptOS, a fraternity chapter ops dashboard. Answer questions about brothers, attendance, deadlines, Instagram, parties, treasury, and budget by calling the provided tools — never make up numbers or names.",
+    "SUPERLATIVES (worst/best/biggest/most/top/next): use order_by + order + small limit on the relevant list tool, NOT a status filter.",
+    "EMPTY FILTERED RESULT: broaden — drop the filter or switch to a sort — before saying 'none'. Identify the user's underlying intent, not the literal phrasing.",
+    "NAMES: get_brother accepts fragments; if multiple match, ask which one.",
+    "WRITES: call propose_* tools to surface a confirm card. Never claim you've done it — the user confirms.",
+    "Be terse. Numbers and names over prose. Skip preamble.",
+    `Today: ${today}. ${semesterLine}`.trim(),
+  ].join(" ");
 }
 
 export async function POST(req: NextRequest) {
@@ -66,9 +71,19 @@ export async function POST(req: NextRequest) {
   }
 
   // Truncate to last N for safety; the client also caps but trust nothing.
-  const history = body.messages.slice(-MAX_HISTORY_MSGS).filter(m =>
+  // Also trim long prior message content — exact verbatim history rarely matters,
+  // and inflating context with old verbose assistant replies adds input tokens
+  // and parse time before the first new token streams. The latest user message
+  // is preserved in full (it's what the model is answering right now).
+  const raw = body.messages.slice(-MAX_HISTORY_MSGS).filter(m =>
     (m.role === "user" || m.role === "assistant") && typeof m.content === "string"
   );
+  const lastIdx = raw.length - 1;
+  const history = raw.map((m, i) => {
+    if (i === lastIdx) return m; // keep the new user message untouched
+    if (m.content.length <= MAX_PRIOR_CONTENT_CHARS) return m;
+    return { ...m, content: m.content.slice(0, MAX_PRIOR_CONTENT_CHARS) + "…" };
+  });
 
   const openai = getOpenAI();
   if (!openai) return Response.json({ enabled: false });
@@ -97,6 +112,17 @@ export async function POST(req: NextRequest) {
             messages,
             tools: TOOLS,
             tool_choice: "auto",
+            // Parallel tool calls let the model emit several calls in one turn
+            // instead of round-tripping for each — big latency win on questions
+            // that need two or three lookups (e.g. "how are dues and attendance?").
+            parallel_tool_calls: true,
+            // Lower temperature → terser, more decisive responses (less hedging).
+            // Same token cost, faster perceived time-to-useful-answer.
+            temperature: 0.3,
+            // Cap output length. Chat answers are short by design; this prevents
+            // the model from streaming a long preamble before getting to the point.
+            // Doesn't affect tool-call planning turns (those barely emit text).
+            max_tokens: 400,
             stream: true,
           });
 
@@ -147,28 +173,29 @@ export async function POST(req: NextRequest) {
             })),
           });
 
-          // Run each tool the model requested and append a tool message per call.
-          for (const tc of toolCalls) {
+          // Run tool calls CONCURRENTLY when the model emitted more than one in
+          // this turn. Sequential awaits would add ~1 DB round trip per extra
+          // tool; Promise.all collapses them. Tool messages must still appear
+          // back in the SAME order as the tool_calls array, so we map → await all.
+          const prepared = toolCalls.map(tc => {
             send("tool_call", { name: tc.name, status: "running" });
-
             let argsObj: Record<string, unknown> = {};
             try { argsObj = tc.argsBuf ? JSON.parse(tc.argsBuf) : {}; }
             catch { argsObj = { _parse_error: tc.argsBuf }; }
+            return { tc, argsObj };
+          });
 
+          const results = await Promise.all(prepared.map(async ({ tc, argsObj }) => {
             let resultPayload: unknown;
+            let proposalEvent: { send: true; proposal: ReturnType<typeof runProposal> } | null = null;
             if (isReadTool(tc.name)) {
               resultPayload = await runTool(tc.name, argsObj);
             } else if (isProposalTool(tc.name)) {
               const proposal = runProposal(tc.name, argsObj);
               if ("error" in proposal) {
-                // Validation failure — feed it back so the model can correct.
                 resultPayload = proposal;
               } else {
-                // Surface to the client as a confirm card.
-                send("proposal", proposal);
-                // Tell the model the user has been shown the confirm card; it
-                // should NOT claim the action is done. The user is the next
-                // actor — model usually just wraps with a one-liner.
+                proposalEvent = { send: true, proposal };
                 resultPayload = {
                   status: "awaiting_user_confirmation",
                   summary: proposal.summary,
@@ -178,9 +205,15 @@ export async function POST(req: NextRequest) {
             } else {
               resultPayload = { error: `Unknown tool: ${tc.name}` };
             }
+            return { tc, resultPayload, proposalEvent };
+          }));
 
+          // Emit results in tool_calls order so client status events stay aligned.
+          for (const { tc, resultPayload, proposalEvent } of results) {
+            if (proposalEvent && proposalEvent.send && !("error" in proposalEvent.proposal)) {
+              send("proposal", proposalEvent.proposal);
+            }
             send("tool_call", { name: tc.name, status: "done" });
-
             messages.push({
               role: "tool",
               tool_call_id: tc.id,
