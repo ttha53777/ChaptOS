@@ -5,6 +5,7 @@ import { checkMutationRate } from "@/lib/rate-limit";
 import { aiEnabled, getOpenAI, CHAT_MODEL } from "@/lib/ai";
 import { TOOLS, runTool, isReadTool, runProposal, isProposalTool } from "@/lib/ai-tools";
 import { prisma } from "@/lib/prisma";
+import { logError } from "@/lib/observability";
 
 // Force the Node runtime — Edge would buffer SSE differently and we want full
 // control over the stream lifecycle. (NOT setting runtime = "edge".)
@@ -226,7 +227,7 @@ export async function POST(req: NextRequest) {
 
         send("done", {});
       } catch (e) {
-        console.error("/api/ai/chat stream failed:", e);
+        logError(e, { route: "/api/ai/chat", method: "POST", userId: user.id });
         send("text", { delta: "\n\n_(Sorry — I hit an error. Try again in a moment.)_" });
         send("done", {});
       } finally {

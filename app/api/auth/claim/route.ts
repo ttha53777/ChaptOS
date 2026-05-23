@@ -6,6 +6,7 @@ import { cookies } from "next/headers";
 import { parseAvatarFromMetadata } from "@/lib/avatar";
 import { logActivity } from "@/lib/activity";
 import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
+import { logError } from "@/lib/observability";
 
 export async function POST(req: NextRequest) {
   // Validate Supabase session directly (can't use requireUser here — it checks
@@ -72,7 +73,7 @@ export async function POST(req: NextRequest) {
       if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
         return Response.json({ error: "Your account is already linked to a brother." }, { status: 409 });
       }
-      console.error("POST /api/auth/claim: Atomic Samurai provisioning failed for user", user.id);
+      logError(e, { route: "/api/auth/claim", method: "POST", userId: user.id, extra: { stage: "ghost_provision" } });
       return Response.json({ error: "Failed to grant access. Please try again." }, { status: 500 });
     }
 
@@ -129,7 +130,7 @@ export async function POST(req: NextRequest) {
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
       return Response.json({ error: "Your account is already linked to a brother." }, { status: 409 });
     }
-    console.error("POST /api/auth/claim: DB update failed for user", user.id);
+    logError(e, { route: "/api/auth/claim", method: "POST", userId: user.id, extra: { stage: "link_account" } });
     return Response.json({ error: "Failed to link account. Please try again." }, { status: 500 });
   }
 

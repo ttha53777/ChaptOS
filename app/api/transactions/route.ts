@@ -6,6 +6,7 @@ import { requireAdmin } from "@/lib/auth/require-admin";
 import { logActivity } from "@/lib/activity";
 import { isValidDateString } from "@/lib/coerce";
 import { checkMutationRate } from "@/lib/rate-limit";
+import { logError } from "@/lib/observability";
 
 export async function GET(req: NextRequest) {
   const user = await requireUser();
@@ -81,7 +82,7 @@ export async function POST(req: NextRequest) {
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
       return Response.json({ error: "Duplicate entry" }, { status: 409 });
     }
-    console.error("POST /api/transactions failed:", e);
+    logError(e, { route: "/api/transactions", method: "POST", userId: user?.id });
     return Response.json({ error: "Failed to create transaction" }, { status: 500 });
   }
 }

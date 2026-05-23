@@ -1,5 +1,6 @@
 import { syncBrotherAvatar } from "@/lib/brother-avatar";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { logError } from "@/lib/observability";
 
 const MAX_BYTES = 2 * 1024 * 1024;
 const BUCKET = "avatars";
@@ -43,7 +44,7 @@ export async function POST(request: Request) {
     .upload(path, buffer, { contentType: file.type, upsert: true });
 
   if (uploadError) {
-    console.error("POST /api/auth/avatar upload failed:", uploadError);
+    logError(uploadError, { route: "/api/auth/avatar upload", method: "POST", userId: user?.id });
     return Response.json(
       { error: "Failed to upload image. Ensure the avatars storage bucket exists." },
       { status: 500 },
@@ -58,7 +59,7 @@ export async function POST(request: Request) {
   });
 
   if (updateError) {
-    console.error("POST /api/auth/avatar updateUser failed:", updateError);
+    logError(updateError, { route: "/api/auth/avatar updateUser", method: "POST", userId: user?.id });
     return Response.json({ error: "Failed to save profile photo" }, { status: 500 });
   }
 
@@ -77,7 +78,7 @@ export async function DELETE() {
     const paths = files.map(f => `${user.id}/${f.name}`);
     const { error: removeError } = await supabase.storage.from(BUCKET).remove(paths);
     if (removeError) {
-      console.error("DELETE /api/auth/avatar remove failed:", removeError);
+      logError(removeError, { route: "/api/auth/avatar remove", method: "DELETE", userId: user?.id });
     }
   }
 
@@ -94,7 +95,7 @@ export async function DELETE() {
   });
 
   if (updateError) {
-    console.error("DELETE /api/auth/avatar updateUser failed:", updateError);
+    logError(updateError, { route: "/api/auth/avatar updateUser", method: "DELETE", userId: user?.id });
     return Response.json({ error: "Failed to remove profile photo" }, { status: 500 });
   }
 

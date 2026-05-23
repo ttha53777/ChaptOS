@@ -5,6 +5,7 @@ import { requireAdmin } from "@/lib/auth/require-admin";
 import { logActivity } from "@/lib/activity";
 import { EXPENSE_CATEGORIES } from "../../data";
 import { checkMutationRate } from "@/lib/rate-limit";
+import { logError } from "@/lib/observability";
 
 const VALID_CATEGORIES = new Set<string>(EXPENSE_CATEGORIES);
 
@@ -29,7 +30,7 @@ export async function GET(req: NextRequest) {
       allocations: budget.allocations.map(a => ({ category: a.category, percent: a.percent })),
     });
   } catch (e) {
-    console.error("GET /api/budget failed:", e);
+    logError(e, { route: "/api/budget", method: "GET", userId: user?.id });
     return Response.json({ error: "Failed to fetch budget" }, { status: 500 });
   }
 }
@@ -120,7 +121,7 @@ export async function PUT(req: NextRequest) {
       allocations: result!.allocations.map(a => ({ category: a.category, percent: a.percent })),
     });
   } catch (e) {
-    console.error("PUT /api/budget failed:", e);
+    logError(e, { route: "/api/budget", method: "PUT", userId: user?.id });
     return Response.json({ error: "Failed to save budget" }, { status: 500 });
   }
 }

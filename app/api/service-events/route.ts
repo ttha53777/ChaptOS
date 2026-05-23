@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth/require-user";
 import { logActivity } from "@/lib/activity";
 import { checkMutationRate } from "@/lib/rate-limit";
+import { logError } from "@/lib/observability";
 
 export async function GET() {
   const user = await requireUser();
@@ -11,7 +12,7 @@ export async function GET() {
     const events = await prisma.serviceEvent.findMany({ orderBy: { date: "asc" } });
     return Response.json(events);
   } catch (e) {
-    console.error("GET /api/service-events failed:", e);
+    logError(e, { route: "/api/service-events", method: "GET", userId: user?.id });
     return Response.json({ error: "Failed to fetch service events" }, { status: 500 });
   }
 }
@@ -80,7 +81,7 @@ export async function POST(req: NextRequest) {
     // that need the linked calendar row to update their local state without a refetch.
     return Response.json({ ...serviceEvent, calendarEvent }, { status: 201 });
   } catch (e) {
-    console.error("POST /api/service-events failed:", e);
+    logError(e, { route: "/api/service-events", method: "POST", userId: user?.id });
     return Response.json({ error: "Failed to create service event" }, { status: 500 });
   }
 }

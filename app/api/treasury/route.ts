@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth/require-user";
+import { logError } from "@/lib/observability";
 
 const MONTH_LABELS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
@@ -53,7 +54,7 @@ export async function GET() {
       trend,
     });
   } catch (e) {
-    console.error("GET /api/treasury failed:", e);
+    logError(e, { route: "/api/treasury", method: "GET", userId: user?.id });
     return Response.json({ error: "Failed to fetch treasury data" }, { status: 500 });
   }
 }

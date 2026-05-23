@@ -5,6 +5,7 @@ import { requireAdmin } from "@/lib/auth/require-admin";
 import { logActivity } from "@/lib/activity";
 import { coerceString, coerceNumber, isValidDateString } from "@/lib/coerce";
 import { checkMutationRate } from "@/lib/rate-limit";
+import { logError } from "@/lib/observability";
 
 export async function PATCH(
   req: NextRequest,
@@ -70,7 +71,7 @@ export async function PATCH(
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2025") {
       return Response.json({ error: "Transaction not found" }, { status: 404 });
     }
-    console.error("PATCH /api/transactions/[id] failed:", e);
+    logError(e, { route: "/api/transactions/[id]", method: "PATCH", userId: user?.id });
     return Response.json({ error: "Failed to update transaction" }, { status: 500 });
   }
 }

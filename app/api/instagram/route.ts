@@ -4,6 +4,7 @@ import { requireUser } from "@/lib/auth/require-user";
 import { logActivity } from "@/lib/activity";
 import { isValidDateString } from "@/lib/coerce";
 import { checkMutationRate } from "@/lib/rate-limit";
+import { logError } from "@/lib/observability";
 
 export async function GET() {
   const user = await requireUser();
@@ -12,7 +13,7 @@ export async function GET() {
     const tasks = await prisma.instagramTask.findMany({ orderBy: { id: "asc" } });
     return Response.json(tasks);
   } catch (e) {
-    console.error("GET /api/instagram failed:", e);
+    logError(e, { route: "/api/instagram", method: "GET", userId: user?.id });
     return Response.json({ error: "Failed to fetch instagram tasks" }, { status: 500 });
   }
 }
@@ -53,7 +54,7 @@ export async function POST(req: NextRequest) {
 
     return Response.json(task, { status: 201 });
   } catch (e) {
-    console.error("POST /api/instagram failed:", e);
+    logError(e, { route: "/api/instagram", method: "POST", userId: user?.id });
     return Response.json({ error: "Failed to create instagram task" }, { status: 500 });
   }
 }

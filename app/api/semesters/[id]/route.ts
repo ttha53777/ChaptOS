@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth/require-admin";
 import { logActivity } from "@/lib/activity";
+import { logError } from "@/lib/observability";
 
 // PATCH — set a semester as active (deactivates all others)
 export async function PATCH(
@@ -36,7 +37,7 @@ export async function PATCH(
     if (isPrismaError && (e as { code: string }).code === "P2025") {
       return Response.json({ error: "Semester not found" }, { status: 404 });
     }
-    console.error("PATCH /api/semesters/[id] failed:", e);
+    logError(e, { route: "/api/semesters/[id]", method: "PATCH", userId: user?.id });
     return Response.json({ error: "Failed to update semester" }, { status: 500 });
   }
 }

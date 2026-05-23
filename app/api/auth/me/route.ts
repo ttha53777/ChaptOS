@@ -2,6 +2,7 @@ import { requireUser } from "@/lib/auth/require-user";
 import { parseAvatarFromMetadata } from "@/lib/avatar";
 import { prisma } from "@/lib/prisma";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { logError } from "@/lib/observability";
 
 export async function GET() {
   const user = await requireUser();
@@ -34,7 +35,7 @@ export async function GET() {
       prisma.brother.update({
         where: { id: user.id },
         data: { email: user.email },
-      }).catch(e => console.error("Brother email backfill failed:", e));
+      }).catch(e => logError(e, { route: "/api/auth/me", method: "GET", userId: user.id, extra: { stage: "email_backfill" } }));
     }
 
     return Response.json({
@@ -47,7 +48,7 @@ export async function GET() {
       hasCustomAvatar,
     });
   } catch (e) {
-    console.error("GET /api/auth/me failed:", e);
+    logError(e, { route: "/api/auth/me", method: "GET", userId: user?.id });
     return Response.json({ error: "Failed to fetch user" }, { status: 500 });
   }
 }

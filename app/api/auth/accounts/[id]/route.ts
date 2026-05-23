@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { requireAdmin } from "@/lib/auth/require-admin";
 import { prisma } from "@/lib/prisma";
 import { logActivity } from "@/lib/activity";
+import { logError } from "@/lib/observability";
 
 // PATCH — promote or demote a brother's admin status
 export async function PATCH(
@@ -51,7 +52,7 @@ export async function PATCH(
     if (e && typeof e === "object" && "code" in e && (e as { code: string }).code === "P2025") {
       return Response.json({ error: "Brother not found" }, { status: 404 });
     }
-    console.error("PATCH /api/auth/accounts/[id] failed:", e);
+    logError(e, { route: "/api/auth/accounts/[id]", method: "PATCH", userId: user?.id });
     return Response.json({ error: "Failed to update admin status" }, { status: 500 });
   }
 }
@@ -94,7 +95,7 @@ export async function DELETE(
 
     return new Response(null, { status: 204 });
   } catch (e) {
-    console.error("DELETE /api/auth/accounts/[id] failed:", e);
+    logError(e, { route: "/api/auth/accounts/[id]", method: "DELETE", userId: user?.id });
     return Response.json({ error: "Failed to unlink account" }, { status: 500 });
   }
 }

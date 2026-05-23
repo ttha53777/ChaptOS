@@ -5,6 +5,7 @@ import { requireUser } from "@/lib/auth/require-user";
 import { checkMutationRate } from "@/lib/rate-limit";
 import { aiEnabled, getOpenAI, CHAT_MODEL } from "@/lib/ai";
 import { logActivity } from "@/lib/activity";
+import { logError } from "@/lib/observability";
 
 // Summarizes a chapter meeting's notes via OpenAI and persists the result on
 // the CalendarEvent row. POST { id } — pulls the latest notes from the DB so we
@@ -75,7 +76,7 @@ export async function POST(req: NextRequest) {
     });
     summary = completion.choices[0]?.message?.content?.trim() ?? null;
   } catch (e) {
-    console.error("summarize-meeting OpenAI call failed:", e);
+    logError(e, { route: "/api/ai/summarize-meeting", method: "POST", userId: user.id, extra: { stage: "openai_call", eventId: id } });
     return Response.json({ error: "Couldn't reach the summarizer. Try again." }, { status: 502 });
   }
 
@@ -105,7 +106,7 @@ export async function POST(req: NextRequest) {
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2025") {
       return Response.json({ error: "Meeting not found" }, { status: 404 });
     }
-    console.error("summarize-meeting save failed:", e);
+    logError(e, { route: "/api/ai/summarize-meeting", method: "POST", userId: user.id, extra: { stage: "db_save", eventId: id } });
     return Response.json({ error: "Failed to save summary" }, { status: 500 });
   }
 }
