@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth/require-user";
 import { requireAdmin } from "@/lib/auth/require-admin";
 import { logActivity } from "@/lib/activity";
+import { logError } from "@/lib/observability";
 
 const CALENDAR_CATEGORIES = ["chapter", "social", "fundy", "program", "party", "deadline", "service"] as const;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -22,6 +23,10 @@ export async function PATCH(
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
   try {
     const { id } = await params;
+    const numId = Number(id);
+    if (!Number.isInteger(numId) || numId <= 0) {
+      return Response.json({ error: "Invalid ID" }, { status: 400 });
+    }
     const body = await req.json();
 
     const stringFields = ["title", "date", "time", "category", "description", "location"] as const;
@@ -59,7 +64,6 @@ export async function PATCH(
       return Response.json({ error: "Description too long" }, { status: 400 });
     }
 
-    const numId = Number(id);
     const event = await prisma.$transaction(async (tx) => {
       const updated = await tx.calendarEvent.update({ where: { id: numId }, data });
 
@@ -88,7 +92,7 @@ export async function PATCH(
     if (e instanceof Prisma.PrismaClientKnownRequestError) {
       if (e.code === "P2025") return Response.json({ error: "Calendar event not found" }, { status: 404 });
     }
-    console.error("PATCH /api/calendar/[id] failed:", e);
+    logError(e, { route: "/api/calendar/[id]", method: "PATCH", userId: user.id });
     return Response.json({ error: "Failed to update calendar event" }, { status: 500 });
   }
 }
@@ -102,6 +106,9 @@ export async function DELETE(
   try {
     const { id } = await params;
     const numId = Number(id);
+    if (!Number.isInteger(numId) || numId <= 0) {
+      return Response.json({ error: "Invalid ID" }, { status: 400 });
+    }
     const target = await prisma.calendarEvent.findUnique({
       where: { id: numId },
       select: { title: true },
@@ -126,7 +133,7 @@ export async function DELETE(
       if (e.code === "P2025") return Response.json({ error: "Calendar event not found" }, { status: 404 });
       if (e.code === "P2003") return Response.json({ error: "Cannot delete event with existing attendance records" }, { status: 409 });
     }
-    console.error("DELETE /api/calendar/[id] failed:", e);
+    logError(e, { route: "/api/calendar/[id]", method: "DELETE", userId: user.id });
     return Response.json({ error: "Failed to delete calendar event" }, { status: 500 });
   }
 }

@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth/require-user";
 import { getActiveSemester } from "@/lib/attendance";
+import { logError } from "@/lib/observability";
 
 export async function GET(
   _req: NextRequest,
@@ -13,6 +14,9 @@ export async function GET(
   try {
     const { id } = await params;
     const brotherId = Number(id);
+    if (!Number.isInteger(brotherId) || brotherId <= 0) {
+      return Response.json({ error: "Invalid brother ID" }, { status: 400 });
+    }
 
     const semester = await getActiveSemester();
     if (!semester) return Response.json([], { status: 200 });
@@ -52,7 +56,7 @@ export async function GET(
 
     return Response.json(history);
   } catch (e) {
-    console.error("GET /api/brothers/[id]/attendance failed:", e);
+    logError(e, { route: "/api/brothers/[id]/attendance", method: "GET", userId: user?.id });
     return Response.json({ error: "Failed to fetch attendance history" }, { status: 500 });
   }
 }

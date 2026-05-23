@@ -5,6 +5,7 @@ import { requireUser } from "@/lib/auth/require-user";
 import { requireAdmin } from "@/lib/auth/require-admin";
 import { logActivity } from "@/lib/activity";
 import { coerceString } from "@/lib/coerce";
+import { logError } from "@/lib/observability";
 
 export async function PATCH(
   req: NextRequest,
@@ -61,7 +62,7 @@ export async function PATCH(
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2025") {
       return Response.json({ error: "Service event not found" }, { status: 404 });
     }
-    console.error("PATCH /api/service-events/[id] failed:", e);
+    logError(e, { route: "/api/service-events/[id]", method: "PATCH", userId: user?.id });
     return Response.json({ error: "Failed to update service event" }, { status: 500 });
   }
 }

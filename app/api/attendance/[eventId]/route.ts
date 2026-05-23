@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getActiveSemester } from "@/lib/attendance";
 import { requireUser } from "@/lib/auth/require-user";
+import { logError } from "@/lib/observability";
 
 export async function GET(
   _req: NextRequest,
@@ -51,7 +52,7 @@ export async function GET(
 
     return Response.json({ excused, unexcused, attended });
   } catch (e) {
-    console.error("GET /api/attendance/[eventId] failed:", e);
+    logError(e, { route: "/api/attendance/[eventId]", method: "GET", userId: user?.id });
     return Response.json({ error: "Failed to fetch attendance" }, { status: 500 });
   }
 }

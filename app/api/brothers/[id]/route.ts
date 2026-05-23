@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { requireAdmin, requireAdminOrSelf } from "@/lib/auth/require-admin";
 import { logActivity } from "@/lib/activity";
 import { coerceString, coerceNumber } from "@/lib/coerce";
+import { logError } from "@/lib/observability";
 
 export async function PATCH(
   req: NextRequest,
@@ -63,7 +64,7 @@ export async function PATCH(
     if (e instanceof Prisma.PrismaClientKnownRequestError) {
       if (e.code === "P2025") return Response.json({ error: "Brother not found" }, { status: 404 });
     }
-    console.error("PATCH /api/brothers/[id] failed:", e);
+    logError(e, { route: "/api/brothers/[id]", method: "PATCH" });
     return Response.json({ error: "Failed to update brother" }, { status: 500 });
   }
 }
@@ -104,7 +105,7 @@ export async function DELETE(
       if (e.code === "P2025") return Response.json({ error: "Brother not found" }, { status: 404 });
       if (e.code === "P2003") return Response.json({ error: "Cannot delete brother with existing attendance records" }, { status: 409 });
     }
-    console.error("DELETE /api/brothers/[id] failed:", e);
+    logError(e, { route: "/api/brothers/[id]", method: "DELETE" });
     return Response.json({ error: "Failed to delete brother" }, { status: 500 });
   }
 }

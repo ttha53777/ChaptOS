@@ -5,6 +5,7 @@ import { requireUser } from "@/lib/auth/require-user";
 import { requireAdmin } from "@/lib/auth/require-admin";
 import { logActivity } from "@/lib/activity";
 import { coerceString, isValidDateString } from "@/lib/coerce";
+import { logError } from "@/lib/observability";
 
 export async function PATCH(
   req: NextRequest,
@@ -51,7 +52,7 @@ export async function PATCH(
     if (e instanceof Prisma.PrismaClientKnownRequestError) {
       if (e.code === "P2025") return Response.json({ error: "Instagram task not found" }, { status: 404 });
     }
-    console.error("PATCH /api/instagram/[id] failed:", e);
+    logError(e, { route: "/api/instagram/[id]", method: "PATCH", userId: user?.id });
     return Response.json({ error: "Failed to update instagram task" }, { status: 500 });
   }
 }
@@ -82,7 +83,7 @@ export async function DELETE(
     if (e instanceof Prisma.PrismaClientKnownRequestError) {
       if (e.code === "P2025") return Response.json({ error: "Instagram task not found" }, { status: 404 });
     }
-    console.error("DELETE /api/instagram/[id] failed:", e);
+    logError(e, { route: "/api/instagram/[id]", method: "DELETE", userId: user?.id });
     return Response.json({ error: "Failed to delete instagram task" }, { status: 500 });
   }
 }

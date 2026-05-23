@@ -4,6 +4,7 @@ import { requireUser } from "@/lib/auth/require-user";
 import { logActivity } from "@/lib/activity";
 import { isValidDateString } from "@/lib/coerce";
 import { checkMutationRate } from "@/lib/rate-limit";
+import { logError } from "@/lib/observability";
 
 export async function GET() {
   const user = await requireUser();
@@ -12,7 +13,7 @@ export async function GET() {
     const deadlines = await prisma.deadline.findMany({ orderBy: { id: "asc" } });
     return Response.json(deadlines);
   } catch (e) {
-    console.error("GET /api/deadlines failed:", e);
+    logError(e, { route: "/api/deadlines", method: "GET", userId: user?.id });
     return Response.json({ error: "Failed to fetch deadlines" }, { status: 500 });
   }
 }
@@ -52,7 +53,7 @@ export async function POST(req: NextRequest) {
 
     return Response.json(deadline, { status: 201 });
   } catch (e) {
-    console.error("POST /api/deadlines failed:", e);
+    logError(e, { route: "/api/deadlines", method: "POST", userId: user?.id });
     return Response.json({ error: "Failed to create deadline" }, { status: 500 });
   }
 }

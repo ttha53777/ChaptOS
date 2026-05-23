@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth/require-admin";
+import { logError } from "@/lib/observability";
 
 function csvSafeStr(s: string | null | undefined): string {
   const v = (s ?? "").replace(/"/g, '""');
@@ -13,7 +14,7 @@ function quote(s: string | null | undefined): string {
 }
 
 export async function GET(req: NextRequest) {
-  const { error } = await requireAdmin();
+  const { user, error } = await requireAdmin();
   if (error) return error;
   try {
     const { searchParams } = new URL(req.url);
@@ -52,7 +53,7 @@ export async function GET(req: NextRequest) {
       },
     });
   } catch (e) {
-    console.error("GET /api/transactions/export failed:", e);
+    logError(e, { route: "/api/transactions/export", method: "GET", userId: user.id });
     return Response.json({ error: "Failed to export transactions" }, { status: 500 });
   }
 }

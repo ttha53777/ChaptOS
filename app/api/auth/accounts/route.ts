@@ -1,5 +1,6 @@
 import { requireUser } from "@/lib/auth/require-user";
 import { prisma } from "@/lib/prisma";
+import { logError } from "@/lib/observability";
 
 export async function GET() {
   const user = await requireUser();
@@ -24,7 +25,7 @@ export async function GET() {
       }))
     );
   } catch (e) {
-    console.error("GET /api/auth/accounts failed:", e);
+    logError(e, { route: "/api/auth/accounts", method: "GET", userId: user?.id });
     return Response.json({ error: "Failed to fetch accounts" }, { status: 500 });
   }
 }

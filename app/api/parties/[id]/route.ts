@@ -5,6 +5,7 @@ import { requireUser } from "@/lib/auth/require-user";
 import { requireAdmin } from "@/lib/auth/require-admin";
 import { logActivity } from "@/lib/activity";
 import { coerceString, coerceNumber, isValidDateString } from "@/lib/coerce";
+import { logError } from "@/lib/observability";
 
 type PartyUpdateData = Prisma.PartyEventUpdateInput;
 
@@ -92,7 +93,7 @@ export async function PATCH(
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2025") {
       return Response.json({ error: "Party event not found" }, { status: 404 });
     }
-    console.error("PATCH /api/parties/[id] failed:", e);
+    logError(e, { route: "/api/parties/[id]", method: "PATCH", userId: user?.id });
     return Response.json({ error: "Failed to update party event" }, { status: 500 });
   }
 }

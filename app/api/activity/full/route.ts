@@ -1,12 +1,13 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth/require-admin";
+import { logError } from "@/lib/observability";
 
 const TYPES = ["success", "warning", "info"] as const;
 type ActivityType = typeof TYPES[number];
 
 export async function GET(req: NextRequest) {
-  const { error } = await requireAdmin();
+  const { user, error } = await requireAdmin();
   if (error) return error;
   try {
     const { searchParams } = new URL(req.url);
@@ -21,7 +22,7 @@ export async function GET(req: NextRequest) {
     });
     return Response.json(logs);
   } catch (e) {
-    console.error("GET /api/activity/full failed:", e);
+    logError(e, { route: "/api/activity/full", method: "GET", userId: user.id });
     return Response.json({ error: "Failed to fetch activity log" }, { status: 500 });
   }
 }

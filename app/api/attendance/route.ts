@@ -5,6 +5,7 @@ import { getActiveSemester, recalcAllBrothersInSemester } from "@/lib/attendance
 import { requireAdmin } from "@/lib/auth/require-admin";
 import { logActivity } from "@/lib/activity";
 import { checkMutationRate } from "@/lib/rate-limit";
+import { logError } from "@/lib/observability";
 
 export async function POST(req: NextRequest) {
   const { user, error } = await requireAdmin();
@@ -66,10 +67,10 @@ export async function POST(req: NextRequest) {
     return Response.json(updatedBrothers);
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError) {
-      console.error("POST /api/attendance prisma error:", e.code, e.message);
+      logError(e, { route: "/api/attendance", method: "POST", userId: user.id, extra: { prismaCode: e.code } });
       return Response.json({ error: "Database error logging attendance" }, { status: 500 });
     }
-    console.error("POST /api/attendance failed:", e);
+    logError(e, { route: "/api/attendance", method: "POST", userId: user.id });
     return Response.json({ error: "Failed to log attendance" }, { status: 500 });
   }
 }

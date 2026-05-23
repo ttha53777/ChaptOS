@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { recalcBrotherAttendance } from "@/lib/attendance";
 import { requireAdmin } from "@/lib/auth/require-admin";
 import { logActivity } from "@/lib/activity";
+import { logError } from "@/lib/observability";
 
 export async function PATCH(
   req: NextRequest,
@@ -79,7 +80,7 @@ export async function PATCH(
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2025") {
       return Response.json({ error: "Excuse not found" }, { status: 404 });
     }
-    console.error("PATCH /api/excuses/[id] failed:", e);
+    logError(e, { route: "/api/excuses/[id]", method: "PATCH", userId: user?.id });
     return Response.json({ error: "Failed to update excuse" }, { status: 500 });
   }
 }

@@ -4,6 +4,7 @@ import { requireUser } from "@/lib/auth/require-user";
 import { logActivity } from "@/lib/activity";
 import type { Prisma } from "../../generated/prisma/client";
 import { checkMutationRate } from "@/lib/rate-limit";
+import { logError } from "@/lib/observability";
 
 const CALENDAR_CATEGORIES = ["chapter", "social", "fundy", "program", "party", "deadline", "service"] as const;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -70,7 +71,7 @@ export async function GET(req: NextRequest) {
     });
     return Response.json(events);
   } catch (e) {
-    console.error("GET /api/calendar failed:", e);
+    logError(e, { route: "/api/calendar", method: "GET", userId: user.id });
     return Response.json({ error: "Failed to fetch calendar events" }, { status: 500 });
   }
 }
@@ -98,7 +99,7 @@ export async function POST(req: NextRequest) {
 
     return Response.json(event, { status: 201 });
   } catch (e) {
-    console.error("POST /api/calendar failed:", e);
+    logError(e, { route: "/api/calendar", method: "POST", userId: user.id });
     return Response.json({ error: "Failed to create calendar event" }, { status: 500 });
   }
 }

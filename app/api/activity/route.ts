@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth/require-user";
 import { checkMutationRate } from "@/lib/rate-limit";
+import { logError } from "@/lib/observability";
 
 const TYPES = ["success", "warning", "info"] as const;
 
@@ -23,7 +24,7 @@ export async function GET() {
     });
     return Response.json(logs.map(l => ({ ...l, timestamp: relativeTime(l.timestamp) })));
   } catch (e) {
-    console.error("GET /api/activity failed:", e);
+    logError(e, { route: "/api/activity", method: "GET", userId: user?.id });
     return Response.json({ error: "Failed to fetch activity" }, { status: 500 });
   }
 }
@@ -56,7 +57,7 @@ export async function POST(req: NextRequest) {
       { status: 201 },
     );
   } catch (e) {
-    console.error("POST /api/activity failed:", e);
+    logError(e, { route: "/api/activity", method: "POST", userId: user?.id });
     return Response.json({ error: "Failed to create activity log" }, { status: 500 });
   }
 }

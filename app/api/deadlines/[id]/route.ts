@@ -5,6 +5,7 @@ import { requireUser } from "@/lib/auth/require-user";
 import { requireAdmin } from "@/lib/auth/require-admin";
 import { logActivity } from "@/lib/activity";
 import { coerceString, isValidDateString } from "@/lib/coerce";
+import { logError } from "@/lib/observability";
 
 export async function PATCH(
   req: NextRequest,
@@ -14,6 +15,10 @@ export async function PATCH(
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
   try {
     const { id } = await params;
+    const numId = Number(id);
+    if (!Number.isInteger(numId) || numId <= 0) {
+      return Response.json({ error: "Invalid ID" }, { status: 400 });
+    }
     const body = await req.json();
 
     const allowed = ["title", "dueDate", "owner", "status"] as const;
@@ -36,7 +41,7 @@ export async function PATCH(
     }
 
     const deadline = await prisma.deadline.update({
-      where: { id: Number(id) },
+      where: { id: numId },
       data,
     });
 
@@ -51,7 +56,7 @@ export async function PATCH(
     if (e instanceof Prisma.PrismaClientKnownRequestError) {
       if (e.code === "P2025") return Response.json({ error: "Deadline not found" }, { status: 404 });
     }
-    console.error("PATCH /api/deadlines/[id] failed:", e);
+    logError(e, { route: "/api/deadlines/[id]", method: "PATCH", userId: user?.id });
     return Response.json({ error: "Failed to update deadline" }, { status: 500 });
   }
 }
@@ -65,6 +70,9 @@ export async function DELETE(
   try {
     const { id } = await params;
     const numId = Number(id);
+    if (!Number.isInteger(numId) || numId <= 0) {
+      return Response.json({ error: "Invalid ID" }, { status: 400 });
+    }
     const target = await prisma.deadline.findUnique({
       where: { id: numId },
       select: { title: true },
@@ -82,7 +90,7 @@ export async function DELETE(
     if (e instanceof Prisma.PrismaClientKnownRequestError) {
       if (e.code === "P2025") return Response.json({ error: "Deadline not found" }, { status: 404 });
     }
-    console.error("DELETE /api/deadlines/[id] failed:", e);
+    logError(e, { route: "/api/deadlines/[id]", method: "DELETE", userId: user?.id });
     return Response.json({ error: "Failed to delete deadline" }, { status: 500 });
   }
 }

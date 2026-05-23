@@ -6,9 +6,10 @@ import { requireUser } from "@/lib/auth/require-user";
 import { requireAdmin } from "@/lib/auth/require-admin";
 import { logActivity } from "@/lib/activity";
 import { checkMutationRate } from "@/lib/rate-limit";
+import { logError } from "@/lib/observability";
 
 export async function GET(req: NextRequest) {
-  const { error } = await requireAdmin();
+  const { user, error } = await requireAdmin();
   if (error) return error;
 
   const { searchParams } = new URL(req.url);
@@ -40,7 +41,7 @@ export async function GET(req: NextRequest) {
       })),
     );
   } catch (e) {
-    console.error("GET /api/excuses failed:", e);
+    logError(e, { route: "/api/excuses", method: "GET", userId: user.id });
     return Response.json({ error: "Failed to fetch excuses" }, { status: 500 });
   }
 }
@@ -156,9 +157,9 @@ export async function POST(req: NextRequest) {
     });
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError) {
-      console.error("POST /api/excuses prisma error:", e.code, e.message);
+      logError(e, { route: "/api/excuses", method: "POST", userId: user.id, extra: { prismaCode: e.code } });
     } else {
-      console.error("POST /api/excuses failed:", e);
+      logError(e, { route: "/api/excuses", method: "POST", userId: user.id });
     }
     return Response.json({ error: "Failed to record excuse" }, { status: 500 });
   }
