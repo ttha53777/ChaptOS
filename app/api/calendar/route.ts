@@ -37,7 +37,9 @@ function validateCalendarBody(body: Record<string, unknown>) {
   }
   if (title.length > 200) return { error: "Title too long" };
   const description = optionalString(body.description);
-  if (description && description.length > 1000) return { error: "Description too long" };
+  // 50k chars (~10 single-spaced pages) is more than any real chapter
+  // meeting will produce, while still protecting against truly absurd payloads.
+  if (description && description.length > 50000) return { error: "Description too long" };
 
   return {
     data: {

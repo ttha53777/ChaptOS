@@ -239,16 +239,18 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
     function: {
       name: "propose_add_deadline",
       description:
-        "Propose adding a chapter deadline. Returns a confirm card — the deadline is NOT created until the user clicks Confirm. Use when the user asks to add or schedule a deadline.",
+        "Propose adding a chapter deadline. Returns a confirm card — the deadline is NOT created until the user clicks Confirm. " +
+        "Use when the user asks to add or schedule a deadline. Only ask the user for the required fields (title, dueDate, owner); " +
+        "do NOT ask for status — omit it and it defaults to 'Upcoming'.",
       parameters: {
         type: "object",
         properties: {
           title:   { type: "string", description: "Short descriptive title." },
           dueDate: { type: "string", description: "YYYY-MM-DD." },
           owner:   { type: "string", description: "Brother name responsible." },
-          status:  { type: "string", enum: ["Upcoming", "Due Soon", "Urgent"], description: "Initial status." },
+          status:  { type: "string", enum: ["Upcoming", "Due Soon", "Urgent"], description: "Optional. Defaults to 'Upcoming' — only set if the user explicitly mentions urgency." },
         },
-        required: ["title", "dueDate", "owner", "status"],
+        required: ["title", "dueDate", "owner"],
       },
     },
   },
@@ -257,17 +259,18 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
     function: {
       name: "propose_add_instagram_task",
       description:
-        "Propose adding an Instagram content task (post, reel, story, etc.). Returns a confirm card; the task is NOT created until confirmed.",
+        "Propose adding an Instagram content task (post, reel, story, etc.). Returns a confirm card; the task is NOT created until confirmed. " +
+        "Only ask the user for the required fields (title, dueDate, owner, type); do NOT ask for status — omit it and it defaults to 'Upcoming'.",
       parameters: {
         type: "object",
         properties: {
           title:   { type: "string" },
           dueDate: { type: "string", description: "YYYY-MM-DD." },
           owner:   { type: "string", description: "Brother name responsible." },
-          status:  { type: "string", enum: ["Upcoming", "Due Soon", "Urgent"] },
+          status:  { type: "string", enum: ["Upcoming", "Due Soon", "Urgent"], description: "Optional. Defaults to 'Upcoming' — only set if the user explicitly mentions urgency." },
           type:    { type: "string", enum: [...IG_TYPES], description: "Content format." },
         },
-        required: ["title", "dueDate", "owner", "status", "type"],
+        required: ["title", "dueDate", "owner", "type"],
       },
     },
   },
@@ -276,19 +279,21 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
     function: {
       name: "propose_add_calendar_event",
       description:
-        "Propose adding a chapter calendar event. Returns a confirm card; the event is NOT created until confirmed. Mandatory events count toward attendance.",
+        "Propose adding a chapter calendar event. Returns a confirm card; the event is NOT created until confirmed. " +
+        "Only ask the user for the required fields (title, date, category). Do NOT ask for time, location, description, or mandatory — " +
+        "those are optional. Mandatory defaults to true for 'chapter' category and false otherwise.",
       parameters: {
         type: "object",
         properties: {
           title:       { type: "string" },
           date:        { type: "string", description: "YYYY-MM-DD." },
-          time:        { type: "string", description: "Optional, e.g. '7:00 PM'." },
+          time:        { type: "string", description: "Optional, e.g. '7:00 PM'. Only include if the user mentions a time." },
           category:    { type: "string", enum: [...CAL_CATEGORIES] },
-          mandatory:   { type: "boolean", description: "True for events that count toward attendance." },
-          location:    { type: "string" },
-          description: { type: "string" },
+          mandatory:   { type: "boolean", description: "Optional. Defaults to true for 'chapter' category, false otherwise. Only set if the user explicitly says mandatory/optional." },
+          location:    { type: "string", description: "Optional. Only include if the user mentions a location." },
+          description: { type: "string", description: "Optional. Only include if the user provides one." },
         },
-        required: ["title", "date", "category", "mandatory"],
+        required: ["title", "date", "category"],
       },
     },
   },
@@ -297,7 +302,8 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
     function: {
       name: "propose_log_transaction",
       description:
-        "Propose logging a treasury transaction (income or expense). Returns a confirm card; the transaction is NOT recorded until confirmed. Only admins can successfully confirm.",
+        "Propose logging a treasury transaction (income or expense). Returns a confirm card; the transaction is NOT recorded until confirmed. Only admins can successfully confirm. " +
+        "Only ask the user for the required fields (type, category, amount, date, description). Do NOT ask for paymentMethod or paidTo — those are optional.",
       parameters: {
         type: "object",
         properties: {
@@ -306,8 +312,8 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
           amount:      { type: "number", description: "Non-negative dollars." },
           date:        { type: "string", description: "YYYY-MM-DD." },
           description: { type: "string" },
-          paymentMethod: { type: "string", description: "venmo | cash | check | invoice" },
-          paidTo:      { type: "string" },
+          paymentMethod: { type: "string", enum: ["venmo", "cash", "check", "invoice"], description: "Optional. Only include if the user mentions how it was paid." },
+          paidTo:      { type: "string", description: "Optional. Only include if the user names a payee." },
         },
         required: ["type", "category", "amount", "date", "description"],
       },
@@ -713,8 +719,9 @@ function proposeAddDeadline(args: ToolArgs): Proposal | { error: string } {
   const title = String(args.title ?? "").trim();
   const dueDate = String(args.dueDate ?? "").trim();
   const owner = String(args.owner ?? "").trim();
-  const status = String(args.status ?? "").trim();
-  if (!title || !dueDate || !owner || !status) return badProposal("Missing required fields.");
+  const rawStatus = typeof args.status === "string" ? args.status.trim() : "";
+  const status = rawStatus || "Upcoming";
+  if (!title || !dueDate || !owner) return badProposal("Missing required fields.");
   if (!DATE_RE.test(dueDate)) return badProposal("dueDate must be YYYY-MM-DD.");
   if (!(TASK_STATUSES as readonly string[]).includes(status)) return badProposal(`status must be one of ${TASK_STATUSES.join(", ")}.`);
   if (title.length > 200 || owner.length > 200) return badProposal("Field too long.");
@@ -732,9 +739,10 @@ function proposeAddInstagram(args: ToolArgs): Proposal | { error: string } {
   const title = String(args.title ?? "").trim();
   const dueDate = String(args.dueDate ?? "").trim();
   const owner = String(args.owner ?? "").trim();
-  const status = String(args.status ?? "").trim();
+  const rawStatus = typeof args.status === "string" ? args.status.trim() : "";
+  const status = rawStatus || "Upcoming";
   const type = String(args.type ?? "").trim();
-  if (!title || !dueDate || !owner || !status || !type) return badProposal("Missing required fields.");
+  if (!title || !dueDate || !owner || !type) return badProposal("Missing required fields.");
   if (!DATE_RE.test(dueDate)) return badProposal("dueDate must be YYYY-MM-DD.");
   if (!(TASK_STATUSES as readonly string[]).includes(status)) return badProposal(`status must be one of ${TASK_STATUSES.join(", ")}.`);
   if (!(IG_TYPES as readonly string[]).includes(type)) return badProposal(`type must be one of ${IG_TYPES.join(", ")}.`);
@@ -752,11 +760,11 @@ function proposeAddCalendarEvent(args: ToolArgs): Proposal | { error: string } {
   const title = String(args.title ?? "").trim();
   const date = String(args.date ?? "").trim();
   const category = String(args.category ?? "").trim();
-  const mandatory = args.mandatory === true;
   if (!title || !date || !category) return badProposal("Missing required fields.");
   if (!DATE_RE.test(date)) return badProposal("date must be YYYY-MM-DD.");
   if (!(CAL_CATEGORIES as readonly string[]).includes(category)) return badProposal(`category must be one of ${CAL_CATEGORIES.join(", ")}.`);
-  if (typeof args.mandatory !== "boolean") return badProposal("mandatory must be a boolean.");
+  // mandatory is optional: default true for chapter (which must be mandatory anyway), false otherwise.
+  const mandatory = typeof args.mandatory === "boolean" ? args.mandatory : category === "chapter";
   if (category === "chapter" && !mandatory) return badProposal("Chapter events must be mandatory.");
   const payload: Record<string, unknown> = { title, date, category, mandatory };
   if (typeof args.time === "string" && args.time.trim()) payload.time = String(args.time).trim();

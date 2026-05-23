@@ -1,0 +1,3 @@
+ALTER TABLE "CalendarEvent" ADD COLUMN IF NOT EXISTS "notesSummary"   TEXT;
+ALTER TABLE "CalendarEvent" ADD COLUMN IF NOT EXISTS "notesSummaryAt" TIMESTAMP;
+ALTER TABLE "CalendarEvent" ADD COLUMN IF NOT EXISTS "notesUpdatedAt" TIMESTAMP;
