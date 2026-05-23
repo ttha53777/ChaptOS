@@ -61,6 +61,12 @@ const LAYERS: { id: CalLayer; label: string; activeClasses: string; iconPath: st
     activeClasses: "border-indigo-500/40 bg-indigo-500/10 text-indigo-300 shadow-sm shadow-indigo-900/20",
     iconPath: "M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z",
   },
+  {
+    id: "service",
+    label: "Service",
+    activeClasses: "border-teal-500/40 bg-teal-500/10 text-teal-300 shadow-sm shadow-teal-900/20",
+    iconPath: "M4.318 6.318a4.5 4.5 0 016.364 0L12 7.636l1.318-1.318a4.5 4.5 0 116.364 6.364L12 20.364l-7.682-7.682a4.5 4.5 0 010-6.364z",
+  },
 ];
 
 const CAT_META: Record<CalEventCategory, {
@@ -185,6 +191,7 @@ function filterByLayer(events: CalendarEvent[], layer: CalLayer): CalendarEvent[
     case "mandatory": return events.filter(e => e.mandatory);
     case "deadlines": return events.filter(e => e.category === "deadline");
     case "parties":   return events.filter(e => e.category === "party");
+    case "service":   return events.filter(e => e.category === "service");
   }
 }
 
@@ -1159,11 +1166,26 @@ export default function TimelinePage() {
     setSelectedEvent(optimistic);
     setActiveModal(null);
     setCalendarError(null);
-    requestJson<CalendarEvent>("/api/calendar", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(draft),
-    })
+
+    // Service events get a backing ServiceEvent row so they also surface on the
+    // Service page — route through /api/service-events. Everything else goes
+    // directly to /api/calendar. The service-events POST returns
+    // `{ ...serviceEvent, calendarEvent }`; we only need the linked calendar
+    // row to update the timeline's local list.
+    const isService = draft.category === "service";
+    const promise = isService
+      ? requestJson<{ calendarEvent: CalendarEvent }>("/api/service-events", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(draft),
+        }).then(res => res.calendarEvent)
+      : requestJson<CalendarEvent>("/api/calendar", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(draft),
+        });
+
+    promise
       .then(saved => { setApiEvents(prev => prev.map(e => e.id === tempId ? saved : e)); setSelectedEvent(saved); })
       .catch(error => {
         console.error(error);
