@@ -3,7 +3,7 @@
 export type BrotherStatus = "Good" | "Watch" | "At Risk";
 export type TaskStatus = "Upcoming" | "Due Soon" | "Urgent" | "Complete";
 export type CalEventCategory = "chapter" | "social" | "fundy" | "program" | "party" | "deadline" | "service";
-export type CalLayer = "all" | "mandatory" | "deadlines" | "parties";
+export type CalLayer = "all" | "mandatory" | "deadlines" | "parties" | "service";
 
 export type IncomeCategory = "Door" | "Dues" | "Fines" | "Fundraiser" | "Event" | "Alumni donation" | "External / misc";
 export type ExpenseCategory = "Party Supplies" | "Operations" | "Brotherhood" | "Events" | "House" | "Travel" | "Misc";

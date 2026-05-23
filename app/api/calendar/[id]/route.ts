@@ -59,9 +59,22 @@ export async function PATCH(
       return Response.json({ error: "Description too long" }, { status: 400 });
     }
 
-    const event = await prisma.calendarEvent.update({
-      where: { id: Number(id) },
-      data,
+    const numId = Number(id);
+    const event = await prisma.$transaction(async (tx) => {
+      const updated = await tx.calendarEvent.update({ where: { id: numId }, data });
+
+      // Keep any linked ServiceEvent in sync. Map calendar field names → service
+      // field names (description→notes; other shared names are identical).
+      const svcData: Record<string, string> = {};
+      if ("title"    in data && typeof data.title    === "string") svcData.title    = data.title    ?? "";
+      if ("date"     in data && typeof data.date     === "string") svcData.date     = data.date     ?? "";
+      if ("location" in data)                                       svcData.location = typeof data.location === "string" ? data.location ?? "" : "";
+      if ("description" in data)                                    svcData.notes    = typeof data.description === "string" ? data.description ?? "" : "";
+      if (Object.keys(svcData).length > 0) {
+        await tx.serviceEvent.updateMany({ where: { calendarEventId: numId }, data: svcData });
+      }
+
+      return updated;
     });
 
     await logActivity({
@@ -93,7 +106,13 @@ export async function DELETE(
       where: { id: numId },
       select: { title: true },
     });
-    await prisma.calendarEvent.delete({ where: { id: numId } });
+
+    await prisma.$transaction(async (tx) => {
+      // Remove any linked ServiceEvent before deleting the CalendarEvent so the
+      // service-events page doesn't retain a stale orphaned row.
+      await tx.serviceEvent.deleteMany({ where: { calendarEventId: numId } });
+      await tx.calendarEvent.delete({ where: { id: numId } });
+    });
 
     await logActivity({
       actorId: user.id,

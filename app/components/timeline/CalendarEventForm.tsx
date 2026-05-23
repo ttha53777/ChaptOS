@@ -43,7 +43,7 @@ export function CalendarEventForm({
   const [location, setLocation] = useState(initialEvent?.location ?? "");
   const [description, setDescription] = useState(initialEvent?.description ?? "");
   const categoryOptions = CATEGORY_OPTIONS.filter(option =>
-    option.id !== "deadline" && option.id !== "party" && option.id !== "service" || option.id === initialEvent?.category
+    option.id !== "deadline" && option.id !== "party" || option.id === initialEvent?.category
   );
 
   function handleSubmit(e: React.FormEvent) {
