@@ -10,7 +10,7 @@ import { prisma } from "@/lib/prisma";
 // control over the stream lifecycle. (NOT setting runtime = "edge".)
 export const dynamic = "force-dynamic";
 
-const MAX_ITERS = 6;          // bound the tool-call loop
+const MAX_ITERS = 10;         // bound the tool-call loop (allows broaden-and-retry + chained queries)
 const MAX_HISTORY_MSGS = 30;  // bound input size from client history
 
 interface ClientMessage {
@@ -35,6 +35,14 @@ async function buildSystemPrompt(): Promise<string> {
     "You are the assistant for ChaptOS, a college fraternity chapter's operations dashboard.",
     "You help officers answer questions about brothers, attendance, deadlines, Instagram content, parties, treasury, and the budget.",
     "Always call the provided tools — never make up numbers or names. If no tool fits, say so.",
+    // Superlatives → sort + limit on whichever list tool fits, never a category filter.
+    "SUPERLATIVES (\"worst\", \"best\", \"lowest\", \"highest\", \"biggest\", \"smallest\", \"most\", \"least\", \"top N\", \"bottom N\", \"next\", \"latest\", \"oldest\"): answer by sorting, not by filtering by a category. Every list_* tool accepts order_by + order + limit; use them. Examples: 'worst attendance' → list_brothers order_by=attendance asc limit=5; 'biggest party' → list_parties order_by=doorRevenue desc limit=5; 'next chapter event' → list_calendar_events start=<today> order_by=date asc limit=5; 'biggest expense category' → sum_transactions type_filter=expense group_by_category=true (response is pre-sorted).",
+    // Don't surrender on an empty filtered query.
+    "EMPTY RESULTS: if a filtered tool call returns nothing, broaden it before answering — drop the filter, switch to a sort, or use the tool's full list. Only say 'no results' after you've actually checked the broader data. Examples: no Urgent deadlines → check Due Soon and Upcoming; no At Risk brothers → answer the underlying ranking question (bottom by attendance, etc.).",
+    // Always answer the question that was asked.
+    "INTENT OVER LITERAL: if the literal phrasing maps to a tool filter that's empty, identify the user's underlying intent and answer that. 'Worst attendance' with no At Risk brothers still has a clear answer: the bottom of the attendance ranking.",
+    // Disambiguate name lookups instead of giving up.
+    "NAME LOOKUP: get_brother accepts partial names ('Bryan' matches 'Bryan Lee'). If it returns multiple candidates, ask the user which one they mean (or pick the obvious choice and proceed if context makes it unambiguous).",
     "When the user wants to create or modify something, you have proposal tools (when enabled) that surface a confirm card; never claim you've written something on your own.",
     "Be terse and direct. Numbers and names beat prose. Cite the source briefly when it matters (e.g. \"per sum_transactions\").",
     `Today is ${today}.`,
