@@ -6,12 +6,19 @@ import {
 } from "../data";
 import { AVATAR_CHANGED_EVENT, parseAvatarFromMetadata } from "@/lib/avatar";
 import { createClient } from "@/lib/supabase/client";
+import { hasPermission, type Permission } from "@/lib/permissions";
 
 function normalizeCurrentUser(me: CurrentUser): CurrentUser {
   return {
     ...me,
     avatarUrl: me.avatarUrl ?? null,
     hasCustomAvatar: me.hasCustomAvatar ?? false,
+    permissions: me.permissions ?? 0,
+    // Server serializes super-admin's Infinity maxRank as `null` (JSON-safe);
+    // normalize it back to Infinity here so the `can()` helper and any
+    // hierarchy-aware UI can treat super-admins uniformly with role-holders.
+    maxRank: me.maxRank == null ? Number.POSITIVE_INFINITY : me.maxRank,
+    roles: me.roles ?? [],
   };
 }
 
@@ -19,6 +26,14 @@ export interface TreasuryData {
   balance: number;
   projected: number;
   trend: { month: string; balance: number }[];
+}
+
+export interface CurrentUserRole {
+  id: number;
+  name: string;
+  color: string | null;
+  rank: number;
+  permissions: number;
 }
 
 export interface CurrentUser {
@@ -29,12 +44,25 @@ export interface CurrentUser {
   isAdmin: boolean;
   avatarUrl: string | null;
   hasCustomAvatar: boolean;
+  /** Effective bitfield = OR of every assigned role's permissions. Super-admins
+   *  report `~0 >>> 0` (every bit set). */
+  permissions: number;
+  /** Highest assigned role's rank. Super-admins report Infinity (server emits
+   *  `null` on the wire — normalized back to Infinity client-side). */
+  maxRank: number;
+  /** Roles assigned to this user. Empty for super-admins who haven't been
+   *  given any actual role assignments. */
+  roles: CurrentUserRole[];
 }
 
 interface ChapterContextValue {
   currentUser: CurrentUser | null;
   avatarRevision: number;
   setAvatarUrl: (avatarUrl: string | null, hasCustomAvatar?: boolean) => void;
+  /** Returns true when the current user holds the given permission (super-admins
+   *  always return true). Returns false when there is no signed-in user. UI use
+   *  only — server-side guards are authoritative. */
+  can: (perm: Permission) => boolean;
   brotherList: Brother[];
   setBrotherList: React.Dispatch<React.SetStateAction<Brother[]>>;
   deadlineList: Deadline[];
@@ -275,10 +303,19 @@ export function ChapterProvider({ children }: { children: React.ReactNode }) {
     return () => subscription.unsubscribe();
   }, [hasLoaded]);
 
+  // `can` reads from currentUser at call time via a closure over the latest
+  // permissions snapshot. Stable identity per render so it's safe to put in
+  // the memo dep list without re-creating the whole context value every tick.
+  const can = useCallback(
+    (perm: Permission) => (currentUser ? hasPermission(currentUser.permissions, perm) : false),
+    [currentUser],
+  );
+
   const value = useMemo(() => ({
     currentUser,
     avatarRevision,
     setAvatarUrl,
+    can,
     brotherList, setBrotherList,
     deadlineList, setDeadlineList,
     igTaskList, setIgTaskList,
@@ -293,6 +330,7 @@ export function ChapterProvider({ children }: { children: React.ReactNode }) {
     currentUser,
     avatarRevision,
     setAvatarUrl,
+    can,
     brotherList, deadlineList, igTaskList, partyList,
     activityFeed, treasuryData, transactionList,
     isLoading, loadError, sectionErrors, mutationError, hasLoaded,

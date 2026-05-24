@@ -25,6 +25,42 @@ model Brother {
   attendanceRecords AttendanceRecord[]
   attendanceExcuses AttendanceExcuse[]
   authoredLogs      ActivityLog[]
+  roles             BrotherRole[]
+}
+
+// Discord-style role: a named bundle of permission bits with a hierarchy rank.
+// `isAdmin = true` on Brother still bypasses every check — roles are additive
+// on top of that, never required.
+model Role {
+  id          Int           @id @default(autoincrement())
+  name        String        @unique
+  // Optional hex color (e.g. "#5865F2") for the UI chip; null = neutral.
+  color       String?
+  // Hierarchy rank. A caller can only grant/edit roles whose rank is STRICTLY
+  // LESS than their own highest assigned role's rank. Higher = more authority.
+  rank        Int           @default(0)
+  // Bitfield of PERMISSIONS flags (see lib/permissions.ts). 32 bits is plenty
+  // for the foreseeable permission surface.
+  permissions Int           @default(0)
+  // System roles are seeded by migration and protected from deletion/rename.
+  isSystem    Boolean       @default(false)
+  createdAt   DateTime      @default(now())
+  brothers    BrotherRole[]
+
+  @@index([rank])
+}
+
+// Join table: a brother can hold any number of roles. Their effective
+// permission bitfield is the bitwise OR of every assigned role's `permissions`.
+model BrotherRole {
+  brotherId  Int
+  roleId     Int
+  assignedAt DateTime @default(now())
+  brother    Brother  @relation(fields: [brotherId], references: [id], onDelete: Cascade)
+  role       Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([brotherId, roleId])
+  @@index([roleId])
 }
 
 model Semester {

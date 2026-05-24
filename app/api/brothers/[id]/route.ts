@@ -1,7 +1,8 @@
 import { NextRequest } from "next/server";
 import { Prisma } from "../../../generated/prisma/client";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin, requireAdminOrSelf } from "@/lib/auth/require-admin";
+import { requirePermission, requirePermissionOrSelf } from "@/lib/auth/require-permission";
+import { hasPermission } from "@/lib/permissions";
 import { logActivity } from "@/lib/activity";
 import { coerceString, coerceNumber } from "@/lib/coerce";
 import { logError } from "@/lib/observability";
@@ -17,14 +18,16 @@ export async function PATCH(
       return Response.json({ error: "Invalid ID" }, { status: 400 });
     }
 
-    const { user, error } = await requireAdminOrSelf(numId);
+    const { user, error } = await requirePermissionOrSelf("MANAGE_BROTHERS", numId);
     if (error) return error;
 
     const body = await req.json();
 
     // attendance is system-managed via /api/attendance — not patchable directly.
-    // Admins can edit dues; non-admins (self) can only edit profile + service hours.
-    const allowed = user.isAdmin
+    // MANAGE_BROTHERS holders (incl. super-admins, via the ~0 bitfield) can edit
+    // dues; everyone else editing their own row can only touch profile + service hours.
+    const canManageBrothers = hasPermission(user.permissions, "MANAGE_BROTHERS");
+    const allowed = canManageBrothers
       ? ["name", "role", "duesOwed", "gpa", "serviceHours"] as const
       : ["name", "role", "gpa", "serviceHours"] as const;
 
@@ -73,7 +76,7 @@ export async function DELETE(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { user, error } = await requireAdmin();
+  const { user, error } = await requirePermission("MANAGE_BROTHERS");
   if (error) return error;
   try {
     const { id } = await params;

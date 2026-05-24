@@ -1,4 +1,5 @@
 import { requireUser } from "@/lib/auth/require-user";
+import { resolvePermissions } from "@/lib/auth/require-permission";
 import { parseAvatarFromMetadata } from "@/lib/avatar";
 import { prisma } from "@/lib/prisma";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
@@ -9,12 +10,13 @@ export async function GET() {
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
   try {
-    const [brother, supabase] = await Promise.all([
+    const [brother, supabase, perms] = await Promise.all([
       prisma.brother.findUnique({
         where: { id: user.id },
         select: { name: true, email: true, avatarUrl: true },
       }),
       createServerSupabaseClient(),
+      resolvePermissions(user),
     ]);
 
     const { data: { user: authUser } } = await supabase.auth.getUser();
@@ -46,6 +48,12 @@ export async function GET() {
       email: user.email ?? "",
       avatarUrl,
       hasCustomAvatar,
+      // Role/permission surface for the client. `permissions` is the effective
+      // bitfield (union over `roles`); super-admins report ~0 >>> 0 and an
+      // Infinity maxRank — serialize Infinity as null so JSON round-trips cleanly.
+      permissions: perms.permissions,
+      maxRank: Number.isFinite(perms.maxRank) ? perms.maxRank : null,
+      roles: perms.roles,
     });
   } catch (e) {
     logError(e, { route: "/api/auth/me", method: "GET", userId: user?.id });
