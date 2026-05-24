@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth/require-user";
-import { requireAdmin } from "@/lib/auth/require-admin";
+import { requirePermission } from "@/lib/auth/require-permission";
 import { logActivity } from "@/lib/activity";
 import { logError } from "@/lib/observability";
 
@@ -19,7 +19,7 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const { user, error } = await requireAdmin();
+  const { user, error } = await requirePermission("MANAGE_SEMESTERS");
   if (error) return error;
 
   const body = await req.json().catch(() => ({}));

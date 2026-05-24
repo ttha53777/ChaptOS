@@ -4,6 +4,14 @@ import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { ConfirmDialog } from "../../components/dashboard/primitives";
 import { useChapter } from "../../context/ChapterContext";
+import { BrotherRoleChips } from "./BrotherRoleChips";
+
+interface AssignedRoleSummary {
+  id: number;
+  name: string;
+  color: string | null;
+  rank: number;
+}
 
 interface AccountRow {
   id: number;
@@ -13,6 +21,7 @@ interface AccountRow {
   isSelf: boolean;
   isAdmin: boolean;
   email: string | null;
+  roles: AssignedRoleSummary[];
 }
 
 async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
@@ -176,6 +185,11 @@ export function AccountsSection({
                         {a.email && (
                           <p className="truncate text-[11px] text-slate-500" title={a.email}>{a.email}</p>
                         )}
+                        <BrotherRoleChips
+                          brotherId={a.id}
+                          initialRoles={a.roles}
+                          onError={onError}
+                        />
                       </div>
                     </div>
                     <div className="flex shrink-0 items-center gap-1.5">
@@ -237,6 +251,11 @@ export function AccountsSection({
                           )}
                         </div>
                         <p className="text-[11px] text-slate-700">{a.role || "Member"}</p>
+                        <BrotherRoleChips
+                          brotherId={a.id}
+                          initialRoles={a.roles}
+                          onError={onError}
+                        />
                       </div>
                     </div>
                     {isAdmin && (

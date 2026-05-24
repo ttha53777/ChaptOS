@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { Prisma } from "../../../generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth/require-user";
-import { requireAdmin } from "@/lib/auth/require-admin";
+import { requirePermission } from "@/lib/auth/require-permission";
 import { logActivity } from "@/lib/activity";
 import { coerceString, isValidDateString } from "@/lib/coerce";
 import { logError } from "@/lib/observability";
@@ -61,7 +61,7 @@ export async function DELETE(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { user, error } = await requireAdmin();
+  const { user, error } = await requirePermission("MANAGE_INSTAGRAM");
   if (error) return error;
   try {
     const { id } = await params;

@@ -7,11 +7,12 @@ import { GeneralSection } from "./sections/GeneralSection";
 import { ThresholdsSection } from "./sections/ThresholdsSection";
 import { SemestersSection } from "./sections/SemestersSection";
 import { AccountsSection } from "./sections/AccountsSection";
+import { RolesSection } from "./sections/RolesSection";
 import { ActivityLogSection } from "./sections/ActivityLogSection";
 
 // ─── Nav config ───────────────────────────────────────────────────────────────
 
-type SectionId = "general" | "thresholds" | "semesters" | "accounts" | "activity-log";
+type SectionId = "general" | "thresholds" | "semesters" | "accounts" | "roles" | "activity-log";
 
 interface NavItem {
   id: SectionId;
@@ -49,6 +50,14 @@ const NAV_ITEMS: NavItem[] = [
     description: "Manage brother Google account links",
     group: "System",
     icon: "M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z",
+  },
+  {
+    id: "roles",
+    label: "Roles",
+    description: "Permission roles and per-brother assignments",
+    group: "System",
+    // Shield icon — signals access control without leaning on a key/lock motif.
+    icon: "M12 2l8 4v6c0 5-3.5 9-8 10-4.5-1-8-5-8-10V6l8-4z",
   },
   {
     id: "activity-log",
@@ -248,6 +257,9 @@ export default function SettingsPage() {
               )}
               {activeId === "accounts" && (
                 <AccountsSection onStatus={setStatusMsg} onError={setPageError} />
+              )}
+              {activeId === "roles" && (
+                <RolesSection onStatus={setStatusMsg} onError={setPageError} />
               )}
               {activeId === "activity-log" && (
                 <ActivityLogSection onStatus={setStatusMsg} onError={setPageError} />

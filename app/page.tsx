@@ -963,8 +963,16 @@ export default function Home() {
   const attendanceReqRef = useRef<AbortController | null>(null);
 
   // ── Data state ─────────────────────────────────────────────────────────────
-  const { currentUser, brotherList, setBrotherList, deadlineList, setDeadlineList, igTaskList, setIgTaskList, partyList, setPartyList, activityFeed, setActivityFeed, treasuryData, setTransactionList, isLoading, loadError, mutationError, setMutationError, refreshChapterData, avatarRevision } = useChapter();
+  const { currentUser, brotherList, setBrotherList, deadlineList, setDeadlineList, igTaskList, setIgTaskList, partyList, setPartyList, activityFeed, setActivityFeed, treasuryData, setTransactionList, isLoading, loadError, mutationError, setMutationError, refreshChapterData, avatarRevision, can } = useChapter();
   const isAdmin = currentUser?.isAdmin ?? false;
+  // Granular permission gates for new UI checks. Existing `isAdmin` is kept
+  // unchanged for prop-chains into QuickActionsMenu / KPIDrawer / Modal title
+  // copy — those flow through multiple sub-components and are best refactored
+  // incrementally. New gates below prefer can(...) so officers (Treasurer,
+  // Social Chair, etc.) see actions matching their role without admin.
+  const canTreasury    = can("MANAGE_TREASURY");
+  const canBrothers    = can("MANAGE_BROTHERS");
+  const canAttendance  = can("MANAGE_ATTENDANCE");
   const selfId  = currentUser?.id ?? null;
 
   // ── Treasury — live from DB, fall back to hardcoded constants while loading ─
@@ -1511,8 +1519,8 @@ export default function Home() {
   function closeModal() { setActiveModal(null); }
 
   function handleQuickAction(key: QuickActionKey) {
-    if (key === "expense"  && !isAdmin) return;
-    if (key === "revenue"  && !isAdmin) return;
+    if (key === "expense"  && !canTreasury) return;
+    if (key === "revenue"  && !canTreasury) return;
     if (key === "excuse") {
       // Refresh calendar so the picker shows the latest mandatory events.
       fetch("/api/calendar")
@@ -1597,8 +1605,8 @@ export default function Home() {
 
           {/* Quick Actions */}
           <div className="hidden items-center gap-1.5 lg:flex">
-            <QuickActionsMenu isAdmin={isAdmin} onSelect={handleQuickAction} />
-            {isAdmin && (
+            <QuickActionsMenu isAdmin={isAdmin || canTreasury || canAttendance} onSelect={handleQuickAction} />
+            {canAttendance && (
               <button onClick={() => openAttendanceLog()}
                 className="rounded-lg border border-white/[0.08] bg-white/[0.03] px-2.5 py-1.5 text-[11px] font-medium text-slate-300 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition-all duration-150 hover:border-indigo-500/40 hover:bg-indigo-500/10 hover:text-indigo-200">
                 Log Att.
@@ -1608,7 +1616,7 @@ export default function Home() {
 
           {/* Mobile: quick actions menu */}
           <div className="lg:hidden">
-            <QuickActionsMenu isAdmin={isAdmin} onSelect={handleQuickAction} variant="mobile" />
+            <QuickActionsMenu isAdmin={isAdmin || canTreasury || canAttendance} onSelect={handleQuickAction} variant="mobile" />
           </div>
 
           <p className="hidden text-[11px] text-slate-500 xl:block shrink-0">{new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</p>
@@ -1813,7 +1821,7 @@ export default function Home() {
                               {b.duesOwed > 0 ? (
                                 <div className="flex items-center gap-2">
                                   <span className="tabular-nums text-[13px] font-medium text-amber-400">{fmt$(b.duesOwed)}</span>
-                                  {isAdmin && (
+                                  {canBrothers && (
                                     <button onClick={e => { e.stopPropagation(); openPayDues(b); }} className="rounded-md bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-400 ring-1 ring-inset ring-emerald-500/25 hover:bg-emerald-500/25 transition-colors">Pay</button>
                                   )}
                                 </div>

@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { Prisma } from "../../generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth/require-user";
-import { requireAdmin } from "@/lib/auth/require-admin";
+import { requirePermission } from "@/lib/auth/require-permission";
 import { logActivity } from "@/lib/activity";
 import { isValidDateString } from "@/lib/coerce";
 import { checkMutationRate } from "@/lib/rate-limit";
@@ -33,7 +33,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const { user, error } = await requireAdmin();
+  const { user, error } = await requirePermission("MANAGE_TREASURY");
   if (error) return error;
   const limited = checkMutationRate(user.id);
   if (limited) return limited;

@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth/require-user";
-import { requireAdmin } from "@/lib/auth/require-admin";
+import { requirePermission } from "@/lib/auth/require-permission";
 import { logActivity } from "@/lib/activity";
 import { hydrateBrotherAvatars, publicBrother } from "@/lib/brother-avatar";
 import { checkMutationRate } from "@/lib/rate-limit";
@@ -33,7 +33,7 @@ function parseNonNegativeNumber(value: unknown): number | null {
 }
 
 export async function POST(req: NextRequest) {
-  const { user, error } = await requireAdmin();
+  const { user, error } = await requirePermission("MANAGE_BROTHERS");
   if (error) return error;
   // C1: rate-limit admin writes too — bug or compromised token shouldn't be able
   // to spam-create brothers. Mirrors every other write endpoint.

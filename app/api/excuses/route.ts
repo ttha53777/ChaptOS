@@ -3,13 +3,13 @@ import { Prisma } from "../../generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getActiveSemester, recalcBrotherAttendance } from "@/lib/attendance";
 import { requireUser } from "@/lib/auth/require-user";
-import { requireAdmin } from "@/lib/auth/require-admin";
+import { requirePermission } from "@/lib/auth/require-permission";
 import { logActivity } from "@/lib/activity";
 import { checkMutationRate } from "@/lib/rate-limit";
 import { logError } from "@/lib/observability";
 
 export async function GET(req: NextRequest) {
-  const { user, error } = await requireAdmin();
+  const { user, error } = await requirePermission("MANAGE_ATTENDANCE");
   if (error) return error;
 
   const { searchParams } = new URL(req.url);

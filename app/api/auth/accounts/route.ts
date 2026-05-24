@@ -9,7 +9,16 @@ export async function GET() {
   try {
     const brothers = await prisma.brother.findMany({
       where: { isGhost: false },
-      select: { id: true, name: true, role: true, authUserId: true, isAdmin: true, email: true },
+      select: {
+        id: true, name: true, role: true, authUserId: true, isAdmin: true, email: true,
+        // Include each brother's assigned roles so the accounts UI can show
+        // chips without a fan-out N+1. Ordered by rank desc inside each row.
+        roles: {
+          select: {
+            role: { select: { id: true, name: true, color: true, rank: true } },
+          },
+        },
+      },
       orderBy: { name: "asc" },
     });
 
@@ -22,6 +31,9 @@ export async function GET() {
         isSelf: b.authUserId === user.authUserId,
         isAdmin: b.isAdmin,
         email: b.email,
+        roles: b.roles
+          .map(r => r.role)
+          .sort((a, z) => z.rank - a.rank),
       }))
     );
   } catch (e) {

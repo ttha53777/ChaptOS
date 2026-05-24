@@ -7,6 +7,7 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../app/generated/prisma/client";
 import { brothers, deadlines, instagramTasks, partyEvents, calendarEvents, seedActivity, seedTransactions } from "../app/data";
 import { recalcBrotherAttendance } from "../lib/attendance";
+import { seedSystemRoles, assignSystemRolesByTitle } from "../lib/seed-roles";
 
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! });
 const prisma = new PrismaClient({ adapter });
@@ -135,6 +136,13 @@ async function main() {
     console.log(`  ${brother.name}: ${ratio}%`);
   }
   console.log("Attendance ratios written back to brothers.");
+
+  // ── System roles + assignment by title ────────────────────────────────────
+  // Roles are seeded last so the assignment pass sees the just-created brothers.
+  const roleIdByName = await seedSystemRoles(prisma);
+  console.log(`Seeded ${roleIdByName.size} system roles.`);
+  const { assigned, brothersTouched } = await assignSystemRolesByTitle(prisma, roleIdByName);
+  console.log(`Assigned ${assigned} role(s) across ${brothersTouched} brothers (by title match).`);
 }
 
 main().finally(() => prisma.$disconnect());

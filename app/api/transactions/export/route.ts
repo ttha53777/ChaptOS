@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin } from "@/lib/auth/require-admin";
+import { requirePermission } from "@/lib/auth/require-permission";
 import { logError } from "@/lib/observability";
 
 function csvSafeStr(s: string | null | undefined): string {
@@ -14,7 +14,7 @@ function quote(s: string | null | undefined): string {
 }
 
 export async function GET(req: NextRequest) {
-  const { user, error } = await requireAdmin();
+  const { user, error } = await requirePermission("MANAGE_TREASURY");
   if (error) return error;
   try {
     const { searchParams } = new URL(req.url);

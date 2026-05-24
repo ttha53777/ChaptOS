@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin } from "@/lib/auth/require-admin";
+import { requirePermission } from "@/lib/auth/require-permission";
 import { logActivity } from "@/lib/activity";
 import { logError } from "@/lib/observability";
 
@@ -9,7 +9,7 @@ export async function PATCH(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { user, error } = await requireAdmin();
+  const { user, error } = await requirePermission("MANAGE_SEMESTERS");
   if (error) return error;
 
   const { id } = await params;
