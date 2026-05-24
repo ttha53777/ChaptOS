@@ -4,7 +4,7 @@ import OpenAI from "openai";
 // and must never reach the browser. All AI calls go through API routes behind auth,
 // mirroring the "all DB access through API routes" rule.
 
-const MODEL = "gpt-4o-mini";
+const MODEL = "gpt-4o";
 
 let client: OpenAI | null = null;
 function getClient(): OpenAI | null {

@@ -362,6 +362,94 @@ function clampLimit(n: unknown, def = 100, max = 100): number {
 }
 
 // ────────────────────────────────────────────────────────────────────────────
+// Tool-arg validation
+//
+// Walks the JSON Schema already declared in TOOLS (so there's no second
+// source of truth) and checks enums, primitive types, and numeric bounds. On
+// failure we return a structured error instead of dispatching — the chat
+// route surfaces that error to the model as the tool result, and the model
+// self-corrects on the next iteration of the existing tool-call loop.
+//
+// Intentionally lenient on unknown properties: the model sometimes adds
+// harmless extras, and rejecting them just burns an iteration.
+// ────────────────────────────────────────────────────────────────────────────
+
+type JsonSchema = {
+  type?: string;
+  enum?: readonly unknown[];
+  minimum?: number;
+  maximum?: number;
+  properties?: Record<string, JsonSchema>;
+  required?: readonly string[];
+  description?: string;
+};
+
+function getToolSchema(name: string): JsonSchema | null {
+  for (const t of TOOLS) {
+    if (t.type === "function" && t.function.name === name) {
+      return (t.function.parameters as JsonSchema) ?? null;
+    }
+  }
+  return null;
+}
+
+function typeMatches(value: unknown, expected: string): boolean {
+  switch (expected) {
+    case "string":  return typeof value === "string";
+    case "number":  return typeof value === "number" && Number.isFinite(value);
+    case "integer": return typeof value === "number" && Number.isInteger(value);
+    case "boolean": return typeof value === "boolean";
+    case "object":  return typeof value === "object" && value !== null && !Array.isArray(value);
+    case "array":   return Array.isArray(value);
+    default:        return true;
+  }
+}
+
+export function validateArgs(toolName: string, args: ToolArgs): { ok: true } | { ok: false; error: string } {
+  const schema = getToolSchema(toolName);
+  if (!schema || !schema.properties) return { ok: true };
+
+  // Required-field check first — the rest of the validation assumes presence.
+  for (const key of schema.required ?? []) {
+    if (args[key] === undefined || args[key] === null) {
+      return { ok: false, error: `${toolName}: missing required field "${key}".` };
+    }
+  }
+
+  for (const [key, propSchemaRaw] of Object.entries(schema.properties)) {
+    const value = args[key];
+    if (value === undefined || value === null) continue; // optional & absent
+
+    const propSchema = propSchemaRaw as JsonSchema;
+
+    if (propSchema.type && !typeMatches(value, propSchema.type)) {
+      return {
+        ok: false,
+        error: `${toolName}.${key}: expected ${propSchema.type}, got ${typeof value} (${JSON.stringify(value)}).`,
+      };
+    }
+
+    if (propSchema.enum && !propSchema.enum.includes(value)) {
+      return {
+        ok: false,
+        error: `${toolName}.${key}: must be one of [${propSchema.enum.map(v => JSON.stringify(v)).join(", ")}] — got ${JSON.stringify(value)}.`,
+      };
+    }
+
+    if (typeof value === "number") {
+      if (propSchema.minimum !== undefined && value < propSchema.minimum) {
+        return { ok: false, error: `${toolName}.${key}: must be ≥ ${propSchema.minimum}, got ${value}.` };
+      }
+      if (propSchema.maximum !== undefined && value > propSchema.maximum) {
+        return { ok: false, error: `${toolName}.${key}: must be ≤ ${propSchema.maximum}, got ${value}.` };
+      }
+    }
+  }
+
+  return { ok: true };
+}
+
+// ────────────────────────────────────────────────────────────────────────────
 // Read-tool handlers
 // ────────────────────────────────────────────────────────────────────────────
 
@@ -834,6 +922,8 @@ export function isProposalTool(name: string): boolean {
 export function runProposal(name: string, args: ToolArgs): Proposal | { error: string } {
   const handler = PROPOSAL_HANDLERS[name];
   if (!handler) return { error: `Unknown proposal: ${name}` };
+  const v = validateArgs(name, args);
+  if (!v.ok) return { error: v.error };
   try { return handler(args); }
   catch (e) { return { error: e instanceof Error ? e.message : "Proposal failed" }; }
 }
@@ -864,6 +954,8 @@ const READ_HANDLERS: Record<string, (args: ToolArgs) => Promise<ToolResult>> = {
 export async function runTool(name: string, args: ToolArgs): Promise<ToolResult> {
   const handler = READ_HANDLERS[name];
   if (!handler) return { error: `Unknown tool: ${name}` };
+  const v = validateArgs(name, args);
+  if (!v.ok) return { error: v.error };
   try {
     return await handler(args);
   } catch (e) {
