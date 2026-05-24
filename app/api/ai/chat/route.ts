@@ -4,7 +4,7 @@ import { requireUser } from "@/lib/auth/require-user";
 import { checkMutationRate } from "@/lib/rate-limit";
 import { aiEnabled, getOpenAI, CHAT_MODEL } from "@/lib/ai";
 import { TOOLS, runTool, isReadTool, runProposal, isProposalTool } from "@/lib/ai-tools";
-import { prisma } from "@/lib/prisma";
+import { buildSystemPrompt } from "@/lib/ai-prompt";
 import { logError } from "@/lib/observability";
 
 // Force the Node runtime — Edge would buffer SSE differently and we want full
@@ -22,39 +22,6 @@ interface ClientMessage {
 
 function sseEvent(event: string, data: unknown): string {
   return `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
-}
-
-// Cache the active semester for 5 minutes — it changes at most a few times a year,
-// and pulling it on every chat message adds a DB round trip before OpenAI even starts.
-let semesterCache: { line: string; expires: number } | null = null;
-async function getSemesterLine(): Promise<string> {
-  const now = Date.now();
-  if (semesterCache && semesterCache.expires > now) return semesterCache.line;
-  let line = "";
-  try {
-    const s = await prisma.semester.findFirst({ where: { isActive: true }, select: { label: true, startDate: true, endDate: true } });
-    if (s) line = `Active semester: ${s.label} (${s.startDate} → ${s.endDate}).`;
-  } catch { /* DB blip — model still works without this line */ }
-  semesterCache = { line, expires: now + 5 * 60 * 1000 };
-  return line;
-}
-
-async function buildSystemPrompt(): Promise<string> {
-  const today = new Date().toISOString().slice(0, 10);
-  const semesterLine = await getSemesterLine();
-
-  // Compact: the model handles tool selection well; we only need a few
-  // load-bearing nudges. Verbose prompts cost input tokens every turn.
-  return [
-    "You are the assistant for ChaptOS, a fraternity chapter ops dashboard. Answer questions about brothers, attendance, deadlines, Instagram, parties, treasury, and budget by calling the provided tools — never make up numbers or names.",
-    "SUPERLATIVES (worst/best/biggest/most/top/next): use order_by + order + small limit on the relevant list tool, NOT a status filter.",
-    "EMPTY FILTERED RESULT: broaden — drop the filter or switch to a sort — before saying 'none'. Identify the user's underlying intent, not the literal phrasing.",
-    "NAMES: get_brother accepts fragments; if multiple match, ask which one.",
-    "WRITES: call propose_* tools to surface a confirm card. Never claim you've done it — the user confirms.",
-    "WRITE FIELDS: only ask the user for the schema's required fields. Omit optional fields (status, time, location, description, mandatory, paymentMethod, paidTo) unless the user supplied them — defaults handle the rest. Don't re-ask for details the user didn't volunteer.",
-    "Be terse. Numbers and names over prose. Skip preamble.",
-    `Today: ${today}. ${semesterLine}`.trim(),
-  ].join(" ");
 }
 
 export async function POST(req: NextRequest) {
