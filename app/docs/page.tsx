@@ -41,6 +41,7 @@ export default function DocsPage() {
   const [editTarget,   setEditTarget]   = useState<Doc | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Doc | null>(null);
   const [submitting,   setSubmitting]   = useState(false);
+  const [query,        setQuery]        = useState("");
 
   useEffect(() => {
     requestJson<Doc[]>("/api/docs")
@@ -117,6 +118,11 @@ export default function DocsPage() {
   }
 
   const sorted = useMemo(() => [...docs].sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id - a.id), [docs]);
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return sorted;
+    return sorted.filter(d => d.title.toLowerCase().includes(q));
+  }, [sorted, query]);
 
   return (
     <div className="flex h-screen overflow-hidden bg-[#07090f]">
@@ -145,6 +151,32 @@ export default function DocsPage() {
             <p className="hidden text-[11px] leading-tight text-slate-400 sm:block">
               {loading ? "Loading…" : `${docs.length} link${docs.length !== 1 ? "s" : ""}`}
             </p>
+          </div>
+
+          <div className="relative w-44 sm:w-64">
+            <svg className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M11 19a8 8 0 100-16 8 8 0 000 16z" />
+            </svg>
+            <input
+              type="search"
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              placeholder="Search docs"
+              aria-label="Search docs by title"
+              className="h-8 w-full rounded-lg border border-white/[0.08] bg-[#0a0d14] pl-8 pr-7 text-[13px] text-white placeholder:text-slate-500 focus:border-indigo-500/60 focus:outline-none focus:ring-2 focus:ring-indigo-500/15"
+            />
+            {query && (
+              <button
+                type="button"
+                onClick={() => setQuery("")}
+                aria-label="Clear search"
+                className="absolute right-1.5 top-1/2 flex h-5 w-5 -translate-y-1/2 items-center justify-center rounded text-slate-500 hover:bg-white/[0.08] hover:text-white"
+              >
+                <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            )}
           </div>
 
           {canManage && (
@@ -196,9 +228,22 @@ export default function DocsPage() {
               </div>
             )}
 
-            {!loading && !loadError && sorted.length > 0 && (
+            {!loading && !loadError && sorted.length > 0 && filtered.length === 0 && (
+              <div className="flex flex-col items-center gap-2 py-24 text-center">
+                <p className="text-[14px] font-semibold text-slate-500">No matches for &ldquo;{query}&rdquo;</p>
+                <button
+                  type="button"
+                  onClick={() => setQuery("")}
+                  className="text-[12px] text-indigo-400 hover:text-indigo-300"
+                >
+                  Clear search
+                </button>
+              </div>
+            )}
+
+            {!loading && !loadError && filtered.length > 0 && (
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {sorted.map(doc => (
+                {filtered.map(doc => (
                   <DocCard
                     key={doc.id}
                     doc={doc}

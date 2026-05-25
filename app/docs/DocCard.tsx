@@ -87,16 +87,21 @@ export function DocCard({
                 title={doc.title}
                 loading="lazy"
                 referrerPolicy="no-referrer"
-                sandbox="allow-scripts allow-same-origin allow-popups"
+                // Sandbox WITHOUT allow-scripts/allow-forms/allow-same-origin
+                // strips the iframe's ability to handle input — typing,
+                // clicking, and focus inside the embed all become no-ops, so
+                // the card behaves like a static preview that opens the real
+                // doc in a new tab when clicked.
+                sandbox=""
+                tabIndex={-1}
                 className="absolute left-0 top-0 origin-top-left"
                 // Render the page at 2× the card and scale down 50% — gives a
                 // "thumbnail" feel and lets more of the real layout fit.
-                style={{ width: "200%", height: "200%", transform: "scale(0.5)" }}
+                style={{ width: "200%", height: "200%", transform: "scale(0.5)", pointerEvents: "none" }}
                 onError={() => setIframeFailed(true)}
               />
-              {/* Pointer shim: covers the iframe so the parent <a> always wins
-                  the click. Without this, clicks would hit the embedded page
-                  and either navigate inside the iframe or do nothing. */}
+              {/* Belt-and-suspenders: pointer shim on top so any stray click
+                  still hits the parent <a> instead of the iframe. */}
               <div className="absolute inset-0" aria-hidden="true" />
             </>
           ) : doc.ogImage ? (
