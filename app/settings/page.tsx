@@ -9,6 +9,7 @@ import { SemestersSection } from "./sections/SemestersSection";
 import { AccountsSection } from "./sections/AccountsSection";
 import { RolesSection } from "./sections/RolesSection";
 import { ActivityLogSection } from "./sections/ActivityLogSection";
+import { useChapter } from "../context/ChapterContext";
 
 // ─── Nav config ───────────────────────────────────────────────────────────────
 
@@ -107,6 +108,7 @@ function SettingsNavItem({
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function SettingsPage() {
+  const { can } = useChapter();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [activeId, setActiveId] = useState<SectionId>("general");
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
@@ -114,6 +116,20 @@ export default function SettingsPage() {
 
   // Mobile nav: show as horizontal scrollable strip on small screens
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+
+  // Roles tab is hidden from callers who can't actually manage roles — section
+  // is unreachable so we don't need to render a gated message inside it.
+  const canManageRoles = can("MANAGE_ROLES");
+  const visibleNavItems = canManageRoles
+    ? NAV_ITEMS
+    : NAV_ITEMS.filter(n => n.id !== "roles");
+
+  // Defensive: if the user lost the permission mid-session (token refresh,
+  // role revoked from another browser), `activeId` could still point at "roles"
+  // even though the tab is gone. Snap back to the first visible section.
+  useEffect(() => {
+    if (activeId === "roles" && !canManageRoles) setActiveId("general");
+  }, [activeId, canManageRoles]);
 
   useEffect(() => {
     if (!statusMsg) return;
@@ -127,7 +143,9 @@ export default function SettingsPage() {
     return () => clearTimeout(t);
   }, [pageError]);
 
-  const activeItem = NAV_ITEMS.find(n => n.id === activeId)!;
+  // Fall back to the first visible item if `activeId` points at a now-hidden
+  // tab (the useEffect above corrects it on next tick, but render must not crash).
+  const activeItem = visibleNavItems.find(n => n.id === activeId) ?? visibleNavItems[0];
 
   function selectSection(id: SectionId) {
     setActiveId(id);
@@ -153,7 +171,7 @@ export default function SettingsPage() {
           className="hidden lg:flex w-[230px] shrink-0 flex-col border-r border-white/[0.05] bg-[#07090f] px-3 py-5"
         >
           {GROUPS.map(group => {
-            const items = NAV_ITEMS.filter(n => n.group === group);
+            const items = visibleNavItems.filter(n => n.group === group);
             return (
               <div key={group} className="mb-5">
                 <p className="mb-1 px-3 text-[10px] font-semibold uppercase tracking-widest text-white/25">{group}</p>
@@ -211,7 +229,7 @@ export default function SettingsPage() {
           {mobileNavOpen && (
             <div className="relative z-20 border-b border-white/[0.06] bg-[#07090f] px-3 py-3 lg:hidden">
               <div className="flex flex-wrap gap-1">
-                {NAV_ITEMS.map(item => (
+                {visibleNavItems.map(item => (
                   <button
                     key={item.id}
                     onClick={() => selectSection(item.id)}

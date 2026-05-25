@@ -53,6 +53,16 @@ function permissionSummary(bits: number): string {
   return names.join(" · ");
 }
 
+// Full enumerated list of permission names — used as a native `title` tooltip
+// on row summaries so users can see the contents of the truncated "+N" without
+// having to click into the role. No extra UI dependency.
+function permissionTooltip(bits: number): string {
+  const names = PERMISSION_LIST.filter(p => (bits & p.bit) !== 0)
+    .map(p => p.name.replace(/^MANAGE_/, "").toLowerCase());
+  if (names.length === 0) return "No permissions";
+  return names.join("\n");
+}
+
 export function RolesSection({
   onStatus, onError,
 }: {
@@ -66,6 +76,10 @@ export function RolesSection({
   const myMaxRank = currentUser?.maxRank ?? 0;
 
   const [roles, setRoles] = useState<RoleRow[]>([]);
+  // Per-role member lists, derived from /api/auth/accounts on mount and refresh.
+  // Map of roleId → [{ id, name }]. Lets the edit panel show who holds the
+  // selected role without an extra round-trip.
+  const [membersByRole, setMembersByRole] = useState<Map<number, { id: number; name: string }[]>>(() => new Map());
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [creating, setCreating] = useState(false);
@@ -84,8 +98,25 @@ export function RolesSection({
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await requestJson<RoleRow[]>("/api/roles");
-      setRoles(data);
+      // Fetch roles and accounts in parallel — accounts carries each brother's
+      // assigned roles, which we invert into membersByRole below. One round
+      // trip instead of N+1 per-role member queries.
+      const [rolesData, accounts] = await Promise.all([
+        requestJson<RoleRow[]>("/api/roles"),
+        requestJson<Array<{ id: number; name: string; roles: { id: number }[] }>>("/api/auth/accounts"),
+      ]);
+      setRoles(rolesData);
+      const byRole = new Map<number, { id: number; name: string }[]>();
+      for (const a of accounts) {
+        for (const r of a.roles) {
+          const list = byRole.get(r.id) ?? [];
+          list.push({ id: a.id, name: a.name });
+          byRole.set(r.id, list);
+        }
+      }
+      // Sort each member list by name so the panel renders consistently.
+      for (const list of byRole.values()) list.sort((x, y) => x.name.localeCompare(y.name));
+      setMembersByRole(byRole);
     } catch (err) {
       onError(err instanceof Error ? err.message : "Could not load roles.");
     } finally {
@@ -168,8 +199,19 @@ export function RolesSection({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
         });
-        onStatus(`Updated role "${name}".`);
-        await refresh();
+        // Apply changes locally instead of full refresh — edits don't change
+        // the row set or membership, and refetching causes a visible flicker
+        // on the row that was just clicked. refresh() is reserved for create
+        // and delete, which DO change the row set.
+        const newName = !selected.isSystem ? name : selected.name;
+        setRoles(prev => prev.map(r => r.id === selected.id ? {
+          ...r,
+          name: newName,
+          color: draft.color,
+          rank: draft.rank,
+          permissions: draft.permissions,
+        } : r));
+        onStatus(`Updated role "${newName}".`);
       }
     } catch (err) {
       onError(err instanceof Error ? err.message : "Failed to save role.");
@@ -193,13 +235,10 @@ export function RolesSection({
     }
   }
 
-  if (!canManageRoles) {
-    return (
-      <div className="rounded-xl border border-white/[0.05] bg-white/[0.02] p-6 text-[13px] text-white/60">
-        You need the <span className="font-medium text-white/80">Manage roles</span> permission to view this section.
-      </div>
-    );
-  }
+  // Defense-in-depth: settings nav already hides this tab when !canManageRoles
+  // (see app/settings/page.tsx). If a stale session lands here anyway, fall
+  // back to a quiet null rather than rendering a wall message.
+  if (!canManageRoles) return null;
 
   return (
     <div className="space-y-6">
@@ -223,21 +262,30 @@ export function RolesSection({
         <p className="text-[12px] text-white/40">Loading roles…</p>
       ) : (
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
-          {/* ── Role list ── */}
-          <ul className="space-y-1.5">
-            {roles.map(r => {
+          {/* ── Role list ──
+              Container + row-divider styling mirrors AccountsSection so the
+              two settings sections look like siblings. Selected row gets a
+              2px left accent in the role's color so selection is signaled by
+              hue, not opacity (opacity is reserved for "you can't edit this"). */}
+          <ul className="rounded-xl border border-white/[0.06] overflow-hidden">
+            {roles.map((r, i) => {
               const editable = isEditableRow(r);
               const active = !creating && selectedId === r.id;
+              const accent = active ? (r.color ?? "rgba(255,255,255,0.4)") : "transparent";
               return (
-                <li key={r.id}>
+                <li key={r.id} className={i < roles.length - 1 ? "border-b border-white/[0.04]" : ""}>
                   <button
                     onClick={() => { setCreating(false); setSelectedId(r.id); }}
-                    className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left transition ${
-                      active
-                        ? "bg-white/[0.06] ring-1 ring-inset ring-white/10"
-                        : "hover:bg-white/[0.03]"
+                    aria-pressed={active}
+                    className={`relative flex w-full items-center gap-3 px-4 py-3 text-left transition ${
+                      active ? "bg-white/[0.05]" : "hover:bg-white/[0.03]"
                     } ${editable ? "" : "opacity-60"}`}
                   >
+                    <span
+                      className="absolute inset-y-0 left-0 w-[2px]"
+                      style={{ background: accent }}
+                      aria-hidden="true"
+                    />
                     <span
                       className="h-3 w-3 shrink-0 rounded-full"
                       style={{ background: r.color ?? "rgba(255,255,255,0.2)" }}
@@ -252,7 +300,10 @@ export function RolesSection({
                           </span>
                         )}
                       </span>
-                      <span className="block truncate text-[11px] text-white/40">
+                      <span
+                        className="block truncate text-[11px] text-white/40"
+                        title={permissionTooltip(r.permissions)}
+                      >
                         rank {r.rank} · {r.memberCount} member{r.memberCount === 1 ? "" : "s"} · {permissionSummary(r.permissions)}
                       </span>
                     </span>
@@ -304,15 +355,38 @@ export function RolesSection({
                     />
                   </Field>
 
-                  <Field label="Rank" hint="Higher rank = more authority. Must be below your own.">
-                    <input
-                      type="number"
-                      min={0}
-                      value={draft.rank}
-                      onChange={e => setDraft(d => ({ ...d, rank: Number(e.target.value) }))}
-                      className="w-28 rounded-lg border border-white/[0.07] bg-white/[0.03] px-3 py-1.5 text-[13px] text-white outline-none focus:border-indigo-500/40"
-                    />
-                  </Field>
+                  {(() => {
+                    // Super-admins (Infinity maxRank) can pick any positive rank;
+                    // everyone else is capped one below their own.
+                    const rankCapped = Number.isFinite(myMaxRank);
+                    const maxRank = rankCapped ? myMaxRank - 1 : undefined;
+                    const rankInvalid = rankCapped && draft.rank >= myMaxRank;
+                    const hint = rankCapped
+                      ? `Higher rank = more authority. Max for you: ${myMaxRank - 1}.`
+                      : "Higher rank = more authority.";
+                    return (
+                      <Field label="Rank" hint={rankInvalid ? undefined : hint}>
+                        <input
+                          type="number"
+                          min={0}
+                          max={maxRank}
+                          value={draft.rank}
+                          onChange={e => setDraft(d => ({ ...d, rank: Number(e.target.value) }))}
+                          aria-invalid={rankInvalid}
+                          className={`w-28 rounded-lg border bg-white/[0.03] px-3 py-1.5 text-[13px] text-white outline-none ${
+                            rankInvalid
+                              ? "border-red-500/60 focus:border-red-500/80"
+                              : "border-white/[0.07] focus:border-indigo-500/40"
+                          }`}
+                        />
+                        {rankInvalid && (
+                          <p className="mt-1 text-[10.5px] text-red-300">
+                            Rank must be below your own (max {myMaxRank - 1}).
+                          </p>
+                        )}
+                      </Field>
+                    );
+                  })()}
 
                   <Field label="Permissions">
                     <div className="grid gap-2 sm:grid-cols-2">
@@ -332,6 +406,15 @@ export function RolesSection({
                       ))}
                     </div>
                   </Field>
+
+                  {/* Members holding this role. Skipped during creation
+                      because the role hasn't been persisted yet. */}
+                  {!creating && selected && (
+                    <MembersList
+                      members={membersByRole.get(selected.id) ?? []}
+                      color={draft.color}
+                    />
+                  )}
 
                   <div className="flex justify-end gap-2 pt-2">
                     {creating && (
@@ -383,6 +466,39 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
       {children}
       {hint && <p className="mt-1 text-[10.5px] text-white/35">{hint}</p>}
     </div>
+  );
+}
+
+// Members holding the selected role. Renders the same colored chips used in
+// AccountsSection.BrotherRoleChips for visual consistency. Scrolls past ~12
+// names so a heavily-assigned role doesn't blow out the panel height.
+function MembersList({ members, color }: { members: { id: number; name: string }[]; color: string }) {
+  return (
+    <Field label={`Members (${members.length})`}>
+      {members.length === 0 ? (
+        <p className="text-[11px] text-white/35">No one holds this role yet.</p>
+      ) : (
+        <div className="flex max-h-48 flex-wrap gap-1.5 overflow-y-auto pr-1">
+          {members.map(m => (
+            <span
+              key={m.id}
+              className="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium"
+              style={{
+                background: `${color}1a`,
+                color: color,
+              }}
+            >
+              <span
+                className="h-1.5 w-1.5 rounded-full"
+                style={{ background: color }}
+                aria-hidden="true"
+              />
+              {m.name}
+            </span>
+          ))}
+        </div>
+      )}
+    </Field>
   );
 }
 

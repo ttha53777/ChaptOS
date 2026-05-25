@@ -43,12 +43,19 @@ export async function requirePermission(perm: Permission): Promise<RequireResult
     };
   }
 
-  // Non-admin: resolve roles and check the bit. One query, one join.
-  const roles = await prisma.brotherRole.findMany({
-    where: { brotherId: user.id },
-    select: { role: { select: { permissions: true, rank: true } } },
-  });
-  const flatRoles = roles.map(r => r.role);
+  // Non-admin: resolve roles and check the bit. One query, one join. If the
+  // BrotherRole table doesn't exist yet (pre-migration), treat the caller as
+  // having no roles — they'll be denied below, which is the safe default.
+  let flatRoles: { permissions: number; rank: number }[] = [];
+  try {
+    const rows = await prisma.brotherRole.findMany({
+      where: { brotherId: user.id },
+      select: { role: { select: { permissions: true, rank: true } } },
+    });
+    flatRoles = rows.map(r => r.role);
+  } catch (e) {
+    console.warn("requirePermission: BrotherRole lookup failed (run prisma migrate?):", (e as Error).message);
+  }
   const permissions = computePermissions(flatRoles);
   const maxRank = flatRoles.reduce((m, r) => Math.max(m, r.rank), 0);
 
@@ -80,11 +87,16 @@ export async function requirePermissionOrSelf(
     return { user: { ...user, permissions: ~0 >>> 0, maxRank: Number.POSITIVE_INFINITY } };
   }
 
-  const roles = await prisma.brotherRole.findMany({
-    where: { brotherId: user.id },
-    select: { role: { select: { permissions: true, rank: true } } },
-  });
-  const flatRoles = roles.map(r => r.role);
+  let flatRoles: { permissions: number; rank: number }[] = [];
+  try {
+    const rows = await prisma.brotherRole.findMany({
+      where: { brotherId: user.id },
+      select: { role: { select: { permissions: true, rank: true } } },
+    });
+    flatRoles = rows.map(r => r.role);
+  } catch (e) {
+    console.warn("requirePermissionOrSelf: BrotherRole lookup failed (run prisma migrate?):", (e as Error).message);
+  }
   const permissions = computePermissions(flatRoles);
   const maxRank = flatRoles.reduce((m, r) => Math.max(m, r.rank), 0);
 
@@ -99,23 +111,31 @@ export async function requirePermissionOrSelf(
  * used by /api/auth/me to populate the client's ChapterContext, and by the
  * role-management routes to enforce hierarchy ("can the caller grant a role
  * with rank R?"). Super-admins still report ALL_PERMISSIONS and +Infinity rank.
+ *
+ * Degrades to "no roles" if the BrotherRole/Role tables don't exist yet
+ * (e.g. code shipped before `prisma migrate dev` ran). This keeps /api/auth/me
+ * up so super-admins can still sign in and run the migration from the UI.
  */
 export async function resolvePermissions(user: AuthedUser): Promise<{ permissions: number; maxRank: number; roles: { id: number; name: string; color: string | null; rank: number; permissions: number }[] }> {
-  if (user.isAdmin) {
-    const roles = await prisma.brotherRole.findMany({
+  let rows: { role: { id: number; name: string; color: string | null; rank: number; permissions: number } }[] = [];
+  try {
+    rows = await prisma.brotherRole.findMany({
       where: { brotherId: user.id },
       select: { role: { select: { id: true, name: true, color: true, rank: true, permissions: true } } },
     });
+  } catch (e) {
+    // Pre-migration: BrotherRole table doesn't exist. Log once, then continue
+    // with an empty role set. Super-admins still get full access via isAdmin.
+    console.warn("resolvePermissions: BrotherRole lookup failed (run prisma migrate?):", (e as Error).message);
+  }
+
+  if (user.isAdmin) {
     return {
       permissions: ~0 >>> 0,
       maxRank: Number.POSITIVE_INFINITY,
-      roles: roles.map(r => r.role),
+      roles: rows.map(r => r.role),
     };
   }
-  const rows = await prisma.brotherRole.findMany({
-    where: { brotherId: user.id },
-    select: { role: { select: { id: true, name: true, color: true, rank: true, permissions: true } } },
-  });
   const roles = rows.map(r => r.role);
   return {
     permissions: computePermissions(roles),
