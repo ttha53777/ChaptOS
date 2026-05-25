@@ -147,36 +147,8 @@ export default function DocsPage() {
           </button>
 
           <div className="min-w-0 flex-1">
-            <p className="text-[14px] font-semibold leading-tight text-white">Docs</p>
-            <p className="hidden text-[11px] leading-tight text-slate-400 sm:block">
-              {loading ? "Loading…" : `${docs.length} link${docs.length !== 1 ? "s" : ""}`}
-            </p>
-          </div>
-
-          <div className="relative w-44 sm:w-64">
-            <svg className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M11 19a8 8 0 100-16 8 8 0 000 16z" />
-            </svg>
-            <input
-              type="search"
-              value={query}
-              onChange={e => setQuery(e.target.value)}
-              placeholder="Search docs"
-              aria-label="Search docs by title"
-              className="h-8 w-full rounded-lg border border-white/[0.08] bg-[#0a0d14] pl-8 pr-7 text-[13px] text-white placeholder:text-slate-500 focus:border-indigo-500/60 focus:outline-none focus:ring-2 focus:ring-indigo-500/15"
-            />
-            {query && (
-              <button
-                type="button"
-                onClick={() => setQuery("")}
-                aria-label="Clear search"
-                className="absolute right-1.5 top-1/2 flex h-5 w-5 -translate-y-1/2 items-center justify-center rounded text-slate-500 hover:bg-white/[0.08] hover:text-white"
-              >
-                <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            )}
+            <p className="text-[14px] font-semibold leading-tight text-white">Resources</p>
+            <p className="hidden text-[11px] leading-tight text-slate-400 sm:block">Lambda Phi Epsilon · Reference Library</p>
           </div>
 
           {canManage && (
@@ -206,6 +178,34 @@ export default function DocsPage() {
         {/* ── Main ────────────────────────────────────────────────────────────── */}
         <main className="page-ambient flex-1 overflow-y-auto">
           <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
+            {!loading && !loadError && sorted.length > 0 && (
+              <div className="relative mb-4 max-w-sm">
+                <svg className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M11 19a8 8 0 100-16 8 8 0 000 16z" />
+                </svg>
+                <input
+                  type="search"
+                  value={query}
+                  onChange={e => setQuery(e.target.value)}
+                  placeholder="Search docs by title"
+                  aria-label="Search docs by title"
+                  className="h-9 w-full rounded-lg border border-white/[0.06] bg-[#10121a] pl-8 pr-8 text-[13px] text-white placeholder:text-slate-500 focus:border-indigo-500/40 focus:outline-none focus:ring-1 focus:ring-indigo-500/20"
+                />
+                {query && (
+                  <button
+                    type="button"
+                    onClick={() => setQuery("")}
+                    aria-label="Clear search"
+                    className="absolute right-2 top-1/2 flex h-5 w-5 -translate-y-1/2 items-center justify-center rounded text-slate-500 hover:bg-white/[0.08] hover:text-white"
+                  >
+                    <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                )}
+              </div>
+            )}
+
             {loading && <LoadingSpinner size="md" label="Loading docs" className="py-24" />}
 
             {!loading && loadError && (

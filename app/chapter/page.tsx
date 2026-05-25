@@ -669,9 +669,7 @@ export default function ChapterPage() {
 
           <div className="min-w-0 flex-1">
             <p className="text-[14px] font-semibold leading-tight text-white">Chapter</p>
-            <p className="hidden text-[11px] leading-tight text-slate-400 sm:block">
-              {loading ? "Loading…" : `${events.length} meeting${events.length !== 1 ? "s" : ""}`}
-            </p>
+            <p className="hidden text-[11px] leading-tight text-slate-400 sm:block">Lambda Phi Epsilon · Chapter Meetings</p>
           </div>
 
           <button

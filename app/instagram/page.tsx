@@ -373,8 +373,6 @@ export default function InstagramPage() {
   const [editingTask, setEditingTask] = useState<InstagramTask | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<InstagramTask | null>(null);
 
-  const urgentCount = igTaskList.filter(t => t.status === "Urgent").length;
-
   function openEdit(task: InstagramTask) {
     setEditingTask(task);
     setModal("edit");
@@ -456,9 +454,7 @@ export default function InstagramPage() {
           {/* Title */}
           <div className="relative min-w-0 shrink-0">
             <p className="text-[14px] font-semibold leading-tight text-white">Instagram</p>
-            <p className="hidden text-[11px] leading-tight text-slate-400 sm:block">
-              {igTaskList.length} post{igTaskList.length !== 1 ? "s" : ""}{urgentCount > 0 ? ` · ${urgentCount} urgent` : ""}
-            </p>
+            <p className="hidden text-[11px] leading-tight text-slate-400 sm:block">Lambda Phi Epsilon · Instagram Calendar</p>
           </div>
 
           {/* View toggle */}
