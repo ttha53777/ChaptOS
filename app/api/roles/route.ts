@@ -54,16 +54,23 @@ export async function POST(req: NextRequest) {
 
   const name = typeof body.name === "string" ? body.name.trim() : "";
   const color = typeof body.color === "string" ? body.color.trim() : null;
-  const rank = Number(body.rank ?? 0);
-  const permissions = Number(body.permissions ?? 0);
+  // rank/permissions default to 0 only when the key is missing entirely. If
+  // it's present but not a real number (eg `""` or `null`), reject — a typo
+  // shouldn't silently coerce to 0.
+  const rankRaw = body.rank ?? 0;
+  const permsRaw = body.permissions ?? 0;
 
   if (!name) return Response.json({ error: "name is required" }, { status: 400 });
   if (name.length > NAME_MAX) return Response.json({ error: `name must be ≤ ${NAME_MAX} chars` }, { status: 400 });
   if (color && !COLOR_RE.test(color)) return Response.json({ error: "color must be #RRGGBB" }, { status: 400 });
-  if (!Number.isInteger(rank) || rank < 0) return Response.json({ error: "rank must be a non-negative integer" }, { status: 400 });
-  if (!Number.isInteger(permissions) || permissions < 0 || permissions > MAX_PERM_BITS) {
+  if (typeof rankRaw !== "number" || !Number.isInteger(rankRaw) || rankRaw < 0) {
+    return Response.json({ error: "rank must be a non-negative integer" }, { status: 400 });
+  }
+  if (typeof permsRaw !== "number" || !Number.isInteger(permsRaw) || permsRaw < 0 || permsRaw > MAX_PERM_BITS) {
     return Response.json({ error: "permissions must be a valid 32-bit bitfield" }, { status: 400 });
   }
+  const rank = rankRaw;
+  const permissions = permsRaw;
   // Hierarchy: callers can only create roles strictly below their own max rank.
   // Super-admins (Infinity maxRank) bypass this.
   if (rank >= user.maxRank) {

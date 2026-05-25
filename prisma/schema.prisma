@@ -130,6 +130,28 @@ model InstagramTask {
   type    String
 }
 
+// A pinned external resource (Google Doc, website, shared drive folder, …)
+// shown on the Docs page. We cache OG metadata so cards can fall back to a
+// thumbnail when the destination refuses to load in an iframe.
+model Doc {
+  id          Int      @id @default(autoincrement())
+  title       String
+  url         String
+  description String?
+  // Cached metadata, refreshed on create / URL change. `embedOk = null` means
+  // we haven't probed yet; `false` means the site sent X-Frame-Options or a
+  // frame-ancestors CSP that blocks our origin → render the OG image instead.
+  ogImage     String?
+  ogTitle     String?
+  faviconUrl  String?
+  embedOk     Boolean?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdById Int?
+
+  @@index([createdAt])
+}
+
 model PartyEvent {
   id          Int       @id @default(autoincrement())
   name        String

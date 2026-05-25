@@ -61,6 +61,21 @@ export function BrotherRoleChips({
   // Sync external prop updates back into local state (e.g. parent refresh).
   useEffect(() => { setAssigned(initialRoles); }, [initialRoles]);
 
+  // Eagerly load the role list once per chip-managing user so we can:
+  //   1. hide the "+ role" button entirely when there's nothing to grant
+  //   2. open the popover with no perceptible loading delay
+  // The list is small (≤ a dozen roles), the endpoint is cached server-side
+  // by Next, and we never refetch — assignments mutate, role definitions don't.
+  useEffect(() => {
+    if (!canManage) return;
+    if (available !== null) return;
+    let cancelled = false;
+    requestJson<AvailableRole[]>("/api/roles")
+      .then(list => { if (!cancelled) setAvailable(list); })
+      .catch(err => { if (!cancelled) onError(err instanceof Error ? err.message : "Could not load roles."); });
+    return () => { cancelled = true; };
+  }, [canManage, available, onError]);
+
   // Close the popover when clicking outside it OR when Escape is pressed.
   // Both listeners are scoped to `picking === true` so they detach when closed.
   useEffect(() => {
@@ -81,16 +96,10 @@ export function BrotherRoleChips({
     };
   }, [picking]);
 
-  async function openPicker() {
+  function openPicker() {
+    // `available` is loaded eagerly in the effect above, so opening the picker
+    // is just a state toggle now — no async fetch, no "Loading…" jank.
     setPicking(true);
-    if (available) return;
-    try {
-      const all = await requestJson<AvailableRole[]>("/api/roles");
-      setAvailable(all);
-    } catch (err) {
-      onError(err instanceof Error ? err.message : "Could not load roles.");
-      setPicking(false);
-    }
   }
 
   async function grant(role: AvailableRole) {
@@ -170,14 +179,20 @@ export function BrotherRoleChips({
         );
       })}
 
-      {canManage && (
+      {/* Hide the button entirely when there's nothing the caller can grant —
+          either because every assignable role is already on this brother, or
+          because rank hierarchy puts every role out of reach. Avoids a dead
+          click that just opens an empty popover. While `available` is still
+          loading we keep the button visible so it doesn't pop in late. */}
+      {canManage && (available === null || grantable.length > 0) && (
         <div className="relative">
           <button
             onClick={openPicker}
+            disabled={available === null}
             aria-label="Grant role"
             aria-haspopup="menu"
             aria-expanded={picking}
-            className="inline-flex items-center gap-0.5 rounded-full bg-white/[0.04] px-2 py-0.5 text-[10px] font-medium text-white/55 ring-1 ring-inset ring-white/10 hover:bg-white/[0.08] hover:text-white/80"
+            className="inline-flex items-center gap-0.5 rounded-full bg-white/[0.04] px-2 py-0.5 text-[10px] font-medium text-white/55 ring-1 ring-inset ring-white/10 hover:bg-white/[0.08] hover:text-white/80 disabled:opacity-50 disabled:cursor-wait"
           >
             + role
           </button>

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ConfirmDialog } from "../../components/dashboard/primitives";
 import { useChapter } from "../../context/ChapterContext";
 import { PERMISSIONS, PERMISSION_LIST, hasPermission, type Permission } from "@/lib/permissions";
@@ -42,6 +42,7 @@ const PERMISSION_LABELS: Record<Permission, string> = {
   MANAGE_ATTENDANCE: "Record attendance, approve excuses",
   MANAGE_SEMESTERS:  "Manage semesters",
   MANAGE_ROLES:      "Manage roles & assignments",
+  MANAGE_DOCS:       "Manage docs (pin/edit/delete links)",
 };
 
 function permissionSummary(bits: number): string {
@@ -88,11 +89,17 @@ export function RolesSection({
 
   // Local form state — mirrors the selected role for editing, or a fresh blank
   // for creation. We don't write back to `roles` until the server confirms.
-  const [draft, setDraft] = useState<{ name: string; color: string; rank: number; permissions: number }>({
+  //
+  // `colorTouched` distinguishes "user picked this color" from "we filled in
+  // DEFAULT_COLOR because the role had `color: null` and the native <input
+  // type=color> can't display nothing." Without this flag, saving an
+  // untouched edit would silently overwrite `null` with `#5865F2`.
+  const [draft, setDraft] = useState<{ name: string; color: string; rank: number; permissions: number; colorTouched: boolean }>({
     name: "",
     color: DEFAULT_COLOR,
     rank: 0,
     permissions: 0,
+    colorTouched: false,
   });
 
   const refresh = useCallback(async () => {
@@ -126,13 +133,26 @@ export function RolesSection({
 
   useEffect(() => { refresh(); }, [refresh]);
 
-  // Load the selected role into the draft form whenever the selection changes.
+  // Load the selected role into the draft form on selection-change OR when
+  // entering create mode. NOT on every `roles` update — that would clobber
+  // unsaved in-progress edits whenever the parent triggers a refresh (e.g.
+  // member grant/revoke from BrotherRoleChips, optimistic save complete, etc.).
+  //
+  // The intentional reload key is `${creating}|${selectedId}` — anything else
+  // about `roles` changing should leave the draft alone.
+  const lastSyncedKey = useRef<string | null>(null);
   useEffect(() => {
+    const key = creating ? "new" : selectedId != null ? `id:${selectedId}` : null;
+    if (key === null) { lastSyncedKey.current = null; return; }
+    if (lastSyncedKey.current === key) return;
+
     if (creating) {
-      setDraft({ name: "", color: DEFAULT_COLOR, rank: 0, permissions: 0 });
+      // New roles default to a real color — picker can't be "unset" anyway and
+      // a created role is more useful with a chip color than without.
+      setDraft({ name: "", color: DEFAULT_COLOR, rank: 0, permissions: 0, colorTouched: true });
+      lastSyncedKey.current = key;
       return;
     }
-    if (selectedId == null) return;
     const role = roles.find(r => r.id === selectedId);
     if (role) {
       setDraft({
@@ -140,7 +160,12 @@ export function RolesSection({
         color: role.color ?? DEFAULT_COLOR,
         rank: role.rank,
         permissions: role.permissions,
+        // If the persisted color is null, treat it as untouched so saving
+        // without picker interaction keeps it null. If it's a real color,
+        // mark it touched so the save round-trips that color back.
+        colorTouched: role.color !== null,
       });
+      lastSyncedKey.current = key;
     }
   }, [selectedId, creating, roles]);
 
@@ -165,16 +190,36 @@ export function RolesSection({
       onError("Rank must be below your own.");
       return;
     }
+    // A role with zero permissions is technically valid (you can still pin
+    // people to it for visual grouping) but is almost always a mistake.
+    // The server accepts it; the UI warns here so the admin notices before
+    // shipping a no-op role and wondering why officers lack access.
+    if (draft.permissions === 0 && !window.confirm(
+      "This role has no permissions selected — members will get no extra access. Save anyway?",
+    )) {
+      return;
+    }
 
+    // Snapshot the intent at function entry so a state change mid-await
+    // (e.g. user clicks a different row) doesn't re-route the response into
+    // the wrong branch and silently misattribute the save.
+    const intent: { kind: "create" } | { kind: "update"; target: RoleRow } =
+      creating ? { kind: "create" } : selected ? { kind: "update", target: selected } : { kind: "create" };
+    if (!creating && !selected) { onError("Nothing selected to save."); return; }
+
+    const draftSnapshot = draft;
+    // Only round-trip `color` when the user actually touched the picker —
+    // otherwise editing a role with color=null would silently overwrite it
+    // with the DEFAULT_COLOR the picker had to display as a placeholder.
     const body = JSON.stringify({
       name,
-      color: draft.color,
-      rank: draft.rank,
-      permissions: draft.permissions,
+      ...(draftSnapshot.colorTouched ? { color: draftSnapshot.color } : {}),
+      rank: draftSnapshot.rank,
+      permissions: draftSnapshot.permissions,
     });
 
     try {
-      if (creating) {
+      if (intent.kind === "create") {
         setSavingId("new");
         const created = await requestJson<RoleRow>("/api/roles", {
           method: "POST",
@@ -185,16 +230,19 @@ export function RolesSection({
         setCreating(false);
         await refresh();
         setSelectedId(created.id);
-      } else if (selected) {
-        setSavingId(selected.id);
-        // System roles disallow renaming — strip name if unchanged.
+      } else {
+        const target = intent.target;
+        setSavingId(target.id);
+        // System roles disallow renaming — strip name if unchanged. Color is
+        // only included when the user touched the picker (see save() body
+        // above for rationale).
         const payload: Record<string, unknown> = {
-          color: draft.color,
-          rank: draft.rank,
-          permissions: draft.permissions,
+          rank: draftSnapshot.rank,
+          permissions: draftSnapshot.permissions,
         };
-        if (!selected.isSystem && name !== selected.name) payload.name = name;
-        await requestJson(`/api/roles/${selected.id}`, {
+        if (draftSnapshot.colorTouched) payload.color = draftSnapshot.color;
+        if (!target.isSystem && name !== target.name) payload.name = name;
+        await requestJson(`/api/roles/${target.id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
@@ -203,13 +251,14 @@ export function RolesSection({
         // the row set or membership, and refetching causes a visible flicker
         // on the row that was just clicked. refresh() is reserved for create
         // and delete, which DO change the row set.
-        const newName = !selected.isSystem ? name : selected.name;
-        setRoles(prev => prev.map(r => r.id === selected.id ? {
+        const newName = !target.isSystem ? name : target.name;
+        const newColor = draftSnapshot.colorTouched ? draftSnapshot.color : target.color;
+        setRoles(prev => prev.map(r => r.id === target.id ? {
           ...r,
           name: newName,
-          color: draft.color,
-          rank: draft.rank,
-          permissions: draft.permissions,
+          color: newColor,
+          rank: draftSnapshot.rank,
+          permissions: draftSnapshot.permissions,
         } : r));
         onStatus(`Updated role "${newName}".`);
       }
@@ -346,11 +395,18 @@ export function RolesSection({
                     )}
                   </Field>
 
-                  <Field label="Color">
+                  <Field
+                    label="Color"
+                    hint={
+                      !creating && selected && selected.color === null && !draft.colorTouched
+                        ? "No color set. Pick one to assign, or leave untouched to keep it neutral."
+                        : undefined
+                    }
+                  >
                     <input
                       type="color"
                       value={draft.color}
-                      onChange={e => setDraft(d => ({ ...d, color: e.target.value }))}
+                      onChange={e => setDraft(d => ({ ...d, color: e.target.value, colorTouched: true }))}
                       className="h-8 w-14 cursor-pointer rounded border border-white/[0.07] bg-transparent"
                     />
                   </Field>
