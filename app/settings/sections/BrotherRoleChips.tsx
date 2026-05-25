@@ -61,7 +61,8 @@ export function BrotherRoleChips({
   // Sync external prop updates back into local state (e.g. parent refresh).
   useEffect(() => { setAssigned(initialRoles); }, [initialRoles]);
 
-  // Close the popover when clicking outside it.
+  // Close the popover when clicking outside it OR when Escape is pressed.
+  // Both listeners are scoped to `picking === true` so they detach when closed.
   useEffect(() => {
     if (!picking) return;
     function onDocClick(e: MouseEvent) {
@@ -69,8 +70,15 @@ export function BrotherRoleChips({
         setPicking(false);
       }
     }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setPicking(false);
+    }
     document.addEventListener("mousedown", onDocClick);
-    return () => document.removeEventListener("mousedown", onDocClick);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDocClick);
+      document.removeEventListener("keydown", onKey);
+    };
   }, [picking]);
 
   async function openPicker() {
@@ -136,7 +144,10 @@ export function BrotherRoleChips({
             style={{
               background: r.color ? `${r.color}1a` : "rgba(255,255,255,0.04)",
               color: r.color ?? "rgba(255,255,255,0.7)",
-              borderColor: r.color ? `${r.color}40` : "rgba(255,255,255,0.1)",
+              // Stronger ring alpha (0x66 vs 0x40) so chips are visibly bounded
+              // on dark backgrounds. Null-color chips fall back to a neutral
+              // light gray that doesn't disappear.
+              borderColor: r.color ? `${r.color}66` : "rgba(255,255,255,0.18)",
             }}
           >
             <span
@@ -163,6 +174,9 @@ export function BrotherRoleChips({
         <div className="relative">
           <button
             onClick={openPicker}
+            aria-label="Grant role"
+            aria-haspopup="menu"
+            aria-expanded={picking}
             className="inline-flex items-center gap-0.5 rounded-full bg-white/[0.04] px-2 py-0.5 text-[10px] font-medium text-white/55 ring-1 ring-inset ring-white/10 hover:bg-white/[0.08] hover:text-white/80"
           >
             + role
@@ -171,18 +185,27 @@ export function BrotherRoleChips({
           {picking && (
             <div
               ref={popoverRef}
-              role="dialog"
+              role="menu"
+              aria-label="Grant role"
+              aria-orientation="vertical"
               className="absolute left-0 top-full z-30 mt-1 w-52 rounded-lg border border-white/[0.1] bg-[#0e1018] p-1.5 shadow-lg shadow-black/40"
             >
               {!available ? (
-                <p className="px-2 py-1.5 text-[11px] text-white/40">Loading…</p>
+                // Skeleton rows give a clear "still fetching" feel that
+                // visually differs from the "no roles to grant" empty state.
+                <div className="space-y-1 px-2 py-1.5" aria-hidden="true">
+                  <div className="h-3 w-3/4 rounded bg-white/[0.05]" />
+                  <div className="h-3 w-1/2 rounded bg-white/[0.05]" />
+                  <div className="h-3 w-2/3 rounded bg-white/[0.05]" />
+                </div>
               ) : grantable.length === 0 ? (
                 <p className="px-2 py-1.5 text-[11px] text-white/40">No roles you can grant.</p>
               ) : (
                 <ul className="space-y-0.5">
                   {grantable.map(r => (
-                    <li key={r.id}>
+                    <li key={r.id} role="none">
                       <button
+                        role="menuitem"
                         onClick={() => grant(r)}
                         disabled={busyRoleId === r.id}
                         className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-[12px] text-white/85 hover:bg-white/[0.06] disabled:opacity-50"
