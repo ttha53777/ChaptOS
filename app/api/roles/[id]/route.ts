@@ -52,18 +52,21 @@ export async function PATCH(
     else return Response.json({ error: "color must be #RRGGBB or null" }, { status: 400 });
   }
   if ("rank" in body) {
-    const r = Number(body.rank);
-    if (!Number.isInteger(r) || r < 0) return Response.json({ error: "rank must be a non-negative integer" }, { status: 400 });
+    // Require a real number — `Number("")`, `Number(null)`, and `Number([])`
+    // all coerce to 0 silently, which would let a typo lower an officer
+    // role's rank to 0 by accident.
+    if (typeof body.rank !== "number" || !Number.isInteger(body.rank) || body.rank < 0) {
+      return Response.json({ error: "rank must be a non-negative integer" }, { status: 400 });
+    }
     // Promoting a role to rank ≥ caller's own max would let them lose control of it.
-    if (r >= user.maxRank) return Response.json({ error: "Cannot raise rank to or above your own" }, { status: 403 });
-    data.rank = r;
+    if (body.rank >= user.maxRank) return Response.json({ error: "Cannot raise rank to or above your own" }, { status: 403 });
+    data.rank = body.rank;
   }
   if ("permissions" in body) {
-    const p = Number(body.permissions);
-    if (!Number.isInteger(p) || p < 0 || p > MAX_PERM_BITS) {
+    if (typeof body.permissions !== "number" || !Number.isInteger(body.permissions) || body.permissions < 0 || body.permissions > MAX_PERM_BITS) {
       return Response.json({ error: "permissions must be a valid 32-bit bitfield" }, { status: 400 });
     }
-    data.permissions = p;
+    data.permissions = body.permissions;
   }
 
   if (Object.keys(data).length === 0) {
