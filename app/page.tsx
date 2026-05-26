@@ -34,7 +34,7 @@ import { CalendarEventForm, type CalendarDraft } from "./components/timeline/Cal
 import { BrotherDrawer } from "./components/dashboard/drawers/BrotherDrawer";
 import { Card, Modal, StatusBadge, TaskBadge, ConfirmDialog, FieldLabel } from "./components/dashboard/primitives";
 import { BROTHER_STYLES, KPI_ICONS, SECTION_IDS, inputCls } from "./components/dashboard/styles";
-import { ActivityFeed, AttBar, HealthScoreWidget, KPICard, SortTh } from "./components/dashboard/widgets";
+import { ActivityFeed, AttBar, ChapterMomentumWidget, HealthScoreWidget, KPICard, SortTh } from "./components/dashboard/widgets";
 import { MobileDashboard } from "./components/dashboard/mobile/MobileDashboard";
 
 // ─── Activity ID counter (module-level, reset-safe) ───────────────────────────
@@ -1022,6 +1022,7 @@ export default function Home() {
   const prevScoreRef = useRef<number | null>(null);
   const health = useMemo(() => calcHealthScore(brotherList, deadlineList), [brotherList, deadlineList]);
 
+
   useEffect(() => {
     if (prevScoreRef.current !== null && prevScoreRef.current !== health.score) {
       const delta = health.score - prevScoreRef.current;
@@ -1728,16 +1729,14 @@ export default function Home() {
                 iconKey="service" sparkData={KPI_SPARKLINES.service}
                 iconBg="bg-emerald-500/10" iconColor="text-emerald-400" strokeColor="#34d399" glowColor="#34d399"
                 onClick={() => setActiveDrawer("service")} />
-              <KPICard label="Treasury" value={fmt$(liveBalance)}
-                trend={`projected ${fmt$(liveProjected)}`}
-                iconKey="treasury" sparkData={KPI_SPARKLINES.treasury}
-                iconBg="bg-indigo-500/10" iconColor="text-indigo-400" strokeColor="#818cf8" glowColor="#818cf8"
-                onClick={() => setActiveDrawer("treasury")} />
-              <KPICard label="Door Revenue" value={fmt$(totalDoorRev)}
-                trend={bestEvent ? `best ${fmt$(bestEvent.doorRevenue)}` : "—"}
-                iconKey="door" sparkData={KPI_SPARKLINES.door}
-                iconBg="bg-pink-500/10" iconColor="text-pink-400" strokeColor="#f472b6" glowColor="#f472b6"
-                onClick={() => setActiveDrawer("door")} />
+              <div className="sm:col-span-2 xl:col-span-2 min-h-full">
+                <ChapterMomentumWidget
+                  score={health.score}
+                  label={health.label}
+                  breakdown={health.breakdown}
+                  onExpand={() => setWidgetDrawer("health")}
+                />
+              </div>
             </div>
 
             {/* ── Charts ─────────────────────────────────────────────────── */}
