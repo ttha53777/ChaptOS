@@ -34,7 +34,9 @@ import { CalendarEventForm, type CalendarDraft } from "./components/timeline/Cal
 import { BrotherDrawer } from "./components/dashboard/drawers/BrotherDrawer";
 import { Card, Modal, StatusBadge, TaskBadge, ConfirmDialog, FieldLabel } from "./components/dashboard/primitives";
 import { BROTHER_STYLES, KPI_ICONS, SECTION_IDS, inputCls } from "./components/dashboard/styles";
-import { ActivityFeed, AttBar, ChapterMomentumWidget, HealthScoreWidget, KPICard, SortTh } from "./components/dashboard/widgets";
+import { ActivityFeed, AttBar, ChapterMomentumWidget, KPICard, SortTh } from "./components/dashboard/widgets";
+import { AnnouncementCard, type Announcement } from "./components/dashboard/AnnouncementCard";
+import { AnnouncementEditor } from "./components/dashboard/AnnouncementEditor";
 import { MobileDashboard } from "./components/dashboard/mobile/MobileDashboard";
 
 // ─── Activity ID counter (module-level, reset-safe) ───────────────────────────
@@ -953,12 +955,12 @@ export default function Home() {
   const [editingAttId,      setEditingAttId]      = useState<number | null>(null);
   const [editAttVal,        setEditAttVal]        = useState("");
   const [selectedBrotherId, setSelectedBrotherId] = useState<number | null>(null);
-  const [healthDelta,    setHealthDelta]    = useState<number | null>(null);
+  const [announcement, setAnnouncement] = useState<Announcement | null>(null);
+  const [announcementEditorOpen, setAnnouncementEditorOpen] = useState(false);
   const [activeSection,  setActiveSection]  = useState("Dashboard");
   const [confirmDelete, setConfirmDelete] = useState<{ kind: "deadline" | "ig"; id: number; label: string } | null>(null);
   const [payTarget,    setPayTarget]    = useState<Brother | null>(null);
   const [payAmountStr, setPayAmountStr] = useState("");
-  const deltaTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mainRef = useRef<HTMLElement>(null);
   const attendanceReqRef = useRef<AbortController | null>(null);
 
@@ -1019,19 +1021,18 @@ export default function Home() {
   }
 
   // ── Health score ───────────────────────────────────────────────────────────
-  const prevScoreRef = useRef<number | null>(null);
+  // Still computed for ChapterMomentumWidget (in the KPI grid) and the health
+  // detail drawer. The top-of-dashboard widget that surfaced the delta is gone.
   const health = useMemo(() => calcHealthScore(brotherList, deadlineList), [brotherList, deadlineList]);
 
-
+  // ── Announcement (pinned single record) ───────────────────────────────────
   useEffect(() => {
-    if (prevScoreRef.current !== null && prevScoreRef.current !== health.score) {
-      const delta = health.score - prevScoreRef.current;
-      setHealthDelta(delta);
-      if (deltaTimerRef.current) clearTimeout(deltaTimerRef.current);
-      deltaTimerRef.current = setTimeout(() => setHealthDelta(null), 3000);
-    }
-    prevScoreRef.current = health.score;
-  }, [health.score]);
+    let cancelled = false;
+    requestJson<Announcement | null>("/api/announcement")
+      .then(data => { if (!cancelled) setAnnouncement(data); })
+      .catch(() => { /* placeholder renders on null — non-fatal */ });
+    return () => { cancelled = true; };
+  }, []);
 
   // ── Scroll spy ────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -1668,8 +1669,8 @@ export default function Home() {
           {/* ── Mobile view (below md) — Summary + tabs ─────────────────────── */}
           <div className="md:hidden">
             <MobileDashboard
-              health={{ score: health.score, label: health.label, breakdown: health.breakdown }}
-              healthDelta={healthDelta}
+              announcement={announcement}
+              onEditAnnouncement={() => setAnnouncementEditorOpen(true)}
               kpis={{
                 avgAttendance, belowAttCount,
                 outstandingDues, owingCount,
@@ -1701,9 +1702,9 @@ export default function Home() {
 
           {/* ── Desktop view (md and up) — original layout, unchanged ───────── */}
           <div className="mx-auto hidden max-w-[1400px] space-y-5 px-4 py-6 sm:px-6 md:block">
-            {/* ── Health Score ────────────────────────────────────────────── */}
-            <section id="sec-dashboard" aria-label="Dashboard overview">
-              <HealthScoreWidget score={health.score} label={health.label} breakdown={health.breakdown} delta={healthDelta} onExpand={() => setWidgetDrawer("health")} />
+            {/* ── Pinned Announcement ─────────────────────────────────────── */}
+            <section id="sec-dashboard" aria-label="Chapter announcement">
+              <AnnouncementCard announcement={announcement} onEdit={() => setAnnouncementEditorOpen(true)} />
             </section>
 
             {/* ── KPI Cards ──────────────────────────────────────────────── */}
@@ -2201,6 +2202,18 @@ export default function Home() {
             </div>
           </div>
         </Modal>
+      )}
+
+      {/* ── Announcement Editor ─────────────────────────────────────────────── */}
+      {announcementEditorOpen && (
+        <AnnouncementEditor
+          current={announcement}
+          onClose={() => setAnnouncementEditorOpen(false)}
+          onSave={(saved) => {
+            setAnnouncement(saved);
+            setAnnouncementEditorOpen(false);
+          }}
+        />
       )}
 
       {/* ── Widget Detail Drawer ────────────────────────────────────────────── */}

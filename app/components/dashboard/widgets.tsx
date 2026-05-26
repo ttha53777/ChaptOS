@@ -6,7 +6,7 @@ const SparkLine = dynamic(() => import("./SparkLine"), {
   loading: () => <div className="h-7 w-full rounded bg-white/[0.04]" />,
 });
 import type { ActivityEntry, Brother } from "../../data";
-import { THRESHOLDS } from "../../data";
+import { THRESHOLDS, KPI_SPARKLINES } from "../../data";
 import { SvgIcon } from "../Sidebar";
 import { Card } from "./primitives";
 import { KPI_ICONS } from "./styles";
@@ -100,43 +100,49 @@ export function ChapterMomentumWidget({ score, label, breakdown, onExpand }: {
 
   const entries = Object.entries(breakdown);
   const interactive = !!onExpand;
+  const sparkStroke = score >= 80 ? "#34d399" : score >= 60 ? "#fbbf24" : "#f87171";
+  const sparkData = KPI_SPARKLINES.health.map((v, i) => ({ i, v }));
 
   const inner = (
     <div className="flex h-full flex-1 items-center gap-5">
       {/* Left column: same header structure as KPICard so visual rhythm matches */}
-      <div className="flex shrink-0 items-start gap-3">
-        <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${iconBg}`}>
-          <svg className={`h-4 w-4 ${iconColor}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-          </svg>
+      <div className="flex shrink-0 flex-col self-start">
+        <div className="flex items-start gap-3">
+          <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${iconBg}`}>
+            <svg className={`h-4 w-4 ${iconColor}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+            </svg>
+          </div>
+          <div className="min-w-0">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.07em] text-slate-500">Chapter Health</p>
+            <p className={`mt-0.5 text-[22px] font-bold leading-none tracking-tight ${accent}`}>
+              {score}<span className="text-[14px] text-slate-500">/100</span>
+            </p>
+            <p className="mt-1 text-[11px] leading-snug text-slate-400">{label}</p>
+          </div>
         </div>
-        <div className="min-w-0">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.07em] text-slate-500">Chapter Health</p>
-          <p className={`mt-0.5 text-[22px] font-bold leading-none tracking-tight ${accent}`}>
-            {score}<span className="text-[14px] text-slate-500">/100</span>
-          </p>
-          <p className="mt-1 text-[11px] leading-snug text-slate-400">{label}</p>
+        <div className="mt-2 -mx-1 h-[28px] w-[180px]">
+          <SparkLine data={sparkData} stroke={sparkStroke} />
         </div>
       </div>
 
       {/* Vertical divider, like a column break */}
       <div className="h-16 w-px shrink-0 bg-white/[0.06]" />
 
-      {/* Right column: 5 breakdown bars laid out as a 5-column grid so they
-          fit on a single row — keeps the card the same height as KPI cards. */}
-      <div className="grid min-w-0 flex-1 grid-cols-5 gap-2.5">
+      {/* Right column: stacked metric rows. justify-between distributes the
+          5 rows across the card's full height so they line up with the KPI
+          siblings without feeling cramped. */}
+      <div className="flex min-w-0 flex-1 flex-col justify-between self-stretch py-0.5">
         {entries.map(([k, v]) => (
-          <div key={k} className="flex flex-col gap-1">
-            <div className="flex items-baseline justify-between gap-1">
-              <span className="truncate text-[10px] font-medium text-slate-400">{k}</span>
-              <span className="text-[11px] font-semibold tabular-nums text-slate-300">{v}%</span>
-            </div>
-            <div className="h-1 overflow-hidden rounded-full bg-white/[0.07]">
+          <div key={k} className="flex items-center gap-2.5">
+            <span className="w-[68px] shrink-0 text-[11px] text-slate-400">{k}</span>
+            <div className="h-1 min-w-0 flex-1 overflow-hidden rounded-full bg-white/[0.07]">
               <div
                 className={`h-full rounded-full transition-all duration-500 ${v >= 80 ? "bg-emerald-400" : v >= 60 ? "bg-amber-400" : "bg-red-400"}`}
                 style={{ width: `${v}%` }}
               />
             </div>
+            <span className="w-9 shrink-0 text-right text-[11px] font-semibold tabular-nums text-slate-300">{v}%</span>
           </div>
         ))}
       </div>

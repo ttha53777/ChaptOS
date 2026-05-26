@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { Brother, PartyEvent, Deadline, InstagramTask, ActivityEntry, CalendarEvent } from "../../../data";
 import type { CurrentUser } from "../../../context/ChapterContext";
+import type { Announcement } from "../AnnouncementCard";
 import { MobileSummary } from "./MobileSummary";
 import { MobileTabBar, type MobileTab } from "./MobileTabBar";
 import { MobileOverviewTab } from "./MobileOverviewTab";
@@ -96,9 +97,9 @@ export interface MobileActions {
 }
 
 export interface MobileDashboardProps {
-  health: MobileHealth;
-  healthDelta: number | null;
   kpis: MobileKpis;
+  announcement: Announcement | null;
+  onEditAnnouncement: () => void;
   brothersData: MobileBrothersData;
   tasksData: MobileTasksData;
   moneyData: MobileMoneyData;
@@ -106,7 +107,7 @@ export interface MobileDashboardProps {
 }
 
 export function MobileDashboard(props: MobileDashboardProps) {
-  const { health, healthDelta, kpis, brothersData, tasksData, moneyData, actions } = props;
+  const { kpis, announcement, onEditAnnouncement, brothersData, tasksData, moneyData, actions } = props;
   const [activeTab, setActiveTab] = useState<MobileTab>("Overview");
 
   return (
@@ -114,10 +115,9 @@ export function MobileDashboard(props: MobileDashboardProps) {
       {/* Sticky summary + tab bar stay glanceable while a tab body scrolls */}
       <div className="page-ambient sticky top-0 z-10 border-b border-white/[0.06]">
         <MobileSummary
-          health={health}
-          healthDelta={healthDelta}
+          announcement={announcement}
           kpis={kpis}
-          onExpandHealth={() => actions.setWidgetDrawer("health")}
+          onEditAnnouncement={onEditAnnouncement}
           onOpenKpi={actions.setActiveDrawer}
         />
         <MobileTabBar activeTab={activeTab} onChange={setActiveTab} />
