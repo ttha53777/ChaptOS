@@ -23,7 +23,6 @@ export function AnnouncementEditor({
   async function handleSave() {
     setErr(null);
     if (!title.trim()) { setErr("Title is required"); return; }
-    if (!body.trim()) { setErr("Body is required"); return; }
     const hasLabel = ctaLabel.trim().length > 0;
     const hasUrl = ctaUrl.trim().length > 0;
     if (hasLabel !== hasUrl) {
@@ -69,19 +68,19 @@ export function AnnouncementEditor({
             onChange={e => setTitle(e.target.value)}
             maxLength={120}
             placeholder="Rush kickoff Saturday"
-            className="w-full rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-[13px] text-white placeholder:text-slate-600 focus:border-indigo-500/40 focus:outline-none"
+            className="w-full rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-[13px] text-white placeholder:text-slate-600 focus:border-red-500/40 focus:outline-none"
           />
         </div>
         <div>
-          <FieldLabel htmlFor="ann-body">Body</FieldLabel>
+          <FieldLabel htmlFor="ann-body">Body <span className="text-slate-600">(optional)</span></FieldLabel>
           <textarea
             id="ann-body"
             value={body}
             onChange={e => setBody(e.target.value)}
             maxLength={2000}
-            rows={4}
+            rows={3}
             placeholder="Doors open at 8pm. Wear letters."
-            className="w-full resize-y rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-[13px] text-white placeholder:text-slate-600 focus:border-indigo-500/40 focus:outline-none"
+            className="w-full resize-y rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-[13px] text-white placeholder:text-slate-600 focus:border-red-500/40 focus:outline-none"
           />
         </div>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -94,7 +93,7 @@ export function AnnouncementEditor({
               onChange={e => setCtaLabel(e.target.value)}
               maxLength={40}
               placeholder="RSVP"
-              className="w-full rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-[13px] text-white placeholder:text-slate-600 focus:border-indigo-500/40 focus:outline-none"
+              className="w-full rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-[13px] text-white placeholder:text-slate-600 focus:border-red-500/40 focus:outline-none"
             />
           </div>
           <div>
@@ -106,7 +105,7 @@ export function AnnouncementEditor({
               onChange={e => setCtaUrl(e.target.value)}
               maxLength={500}
               placeholder="https://"
-              className="w-full rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-[13px] text-white placeholder:text-slate-600 focus:border-indigo-500/40 focus:outline-none"
+              className="w-full rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-[13px] text-white placeholder:text-slate-600 focus:border-red-500/40 focus:outline-none"
             />
           </div>
         </div>
@@ -126,7 +125,7 @@ export function AnnouncementEditor({
           <button
             onClick={handleSave}
             disabled={saving}
-            className="rounded-lg bg-indigo-600 px-4 py-1.5 text-[13px] font-semibold text-white hover:bg-indigo-500 transition-colors disabled:opacity-50"
+            className="rounded-lg bg-red-600 px-4 py-1.5 text-[13px] font-semibold text-white hover:bg-red-500 transition-colors disabled:opacity-50"
           >
             {saving ? "Saving…" : "Save"}
           </button>
