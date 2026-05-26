@@ -244,3 +244,16 @@ model BudgetAllocation {
   @@unique([budgetId, category])
   @@index([budgetId])
 }
+
+// Single pinned chapter announcement shown at the top of the dashboard.
+// Always upserted at id = 1; the row may not exist (placeholder rendered).
+model ChapterAnnouncement {
+  id         Int      @id @default(1)
+  title      String
+  body       String
+  ctaLabel   String?
+  ctaUrl     String?
+  authorId   Int?
+  authorName String?
+  updatedAt  DateTime @updatedAt
+}
