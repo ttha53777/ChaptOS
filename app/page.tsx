@@ -1910,12 +1910,16 @@ export default function Home() {
                   </div>
                 </Card>
 
-                {/* Deadlines */}
+                {/* Deadlines — completed tasks fall out of this list (still in the
+                    drawer's Complete column and on the Tasks tab). */}
+                {(() => {
+                  const activeDeadlines = deadlineList.filter(d => d.status !== "Complete");
+                  return (
                 <Card id="sec-deadlines" style={{ background: "linear-gradient(to bottom, #818cf810 0%, #10121a 50%)" }} className="overflow-hidden cursor-pointer hover:border-white/[0.14] transition-colors" onClick={() => setWidgetDrawer("deadlines")}>
                   <div className="flex items-center justify-between border-b border-white/[0.07] px-4 py-3">
                     <h2 className="text-[13px] font-semibold text-white">Deadlines</h2>
                     <div className="flex items-center gap-2">
-                      <span className="text-[10px] text-slate-500">{deadlineList.length} tasks</span>
+                      <span className="text-[10px] text-slate-500">{activeDeadlines.length} tasks</span>
                       <button onClick={() => setWidgetDrawer("deadlines")} className="flex items-center gap-1 rounded-md bg-white/[0.05] px-2 py-0.5 text-[10px] font-medium text-slate-400 hover:bg-indigo-500/15 hover:text-indigo-300 transition-colors">
                         All
                         <svg className="h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
@@ -1924,9 +1928,9 @@ export default function Home() {
                     </div>
                   </div>
                   <div className="divide-y divide-white/[0.05]">
-                    {deadlineList.length === 0 ? (
-                      <p className="px-4 py-6 text-center text-[12px] text-slate-500">No deadlines — click + Add to create one</p>
-                    ) : deadlineList.map(d => (
+                    {activeDeadlines.length === 0 ? (
+                      <p className="px-4 py-6 text-center text-[12px] text-slate-500">No active deadlines</p>
+                    ) : activeDeadlines.map(d => (
                       <div key={d.id} onClick={e => e.stopPropagation()} className="group flex items-center gap-2 px-4 py-2.5 transition-colors hover:bg-white/[0.03]">
                         <div className="min-w-0 flex-1">
                           <p className={`truncate text-[12px] font-medium ${d.status === "Complete" ? "line-through text-slate-500" : "text-white"}`}>{d.title}</p>
@@ -1950,6 +1954,8 @@ export default function Home() {
                     ))}
                   </div>
                 </Card>
+                  );
+                })()}
 
                 {/* Instagram */}
                 <Card id="sec-instagram" style={{ background: "linear-gradient(to bottom, #f472b610 0%, #10121a 50%)" }} className="overflow-hidden cursor-pointer hover:border-white/[0.14] transition-colors" onClick={() => setWidgetDrawer("instagram")}>
