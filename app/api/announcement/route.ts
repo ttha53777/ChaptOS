@@ -89,7 +89,7 @@ export async function PUT(req: NextRequest) {
 
   if (!title) return Response.json({ error: "title is required" }, { status: 400 });
   if (title.length > TITLE_MAX) return Response.json({ error: `title must be ≤ ${TITLE_MAX} chars` }, { status: 400 });
-  if (!text) return Response.json({ error: "body is required" }, { status: 400 });
+  // Body is optional — a headline-only announcement is valid.
   if (text.length > BODY_MAX) return Response.json({ error: `body must be ≤ ${BODY_MAX} chars` }, { status: 400 });
 
   // CTA is optional but must be all-or-nothing — a label without a URL is a

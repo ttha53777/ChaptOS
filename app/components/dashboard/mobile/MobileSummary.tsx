@@ -15,7 +15,11 @@ export function MobileSummary({ announcement, kpis, onEditAnnouncement, onOpenKp
   onOpenKpi: (k: KPIDrawerKey) => void;
 }) {
   const title = announcement?.title ?? "Welcome to your chapter dashboard";
-  const preview = announcement?.body ?? "Tap to post the first announcement.";
+  const rawBody = announcement?.body ?? "";
+  // Show a one-line preview only when there's body content. Headline-only
+  // announcements (body intentionally blank) collapse to a tighter card.
+  const hasPreview = rawBody.trim().length > 0 || !announcement;
+  const preview = announcement ? rawBody : "Tap to post the first announcement.";
 
   // Each chip condenses a full KPICard into a glanceable tap target (no sparkline).
   const chips: { key: KPIDrawerKey; label: string; value: string; color: string }[] = [
@@ -32,17 +36,19 @@ export function MobileSummary({ announcement, kpis, onEditAnnouncement, onOpenKp
       {/* Compact pinned announcement */}
       <button
         onClick={onEditAnnouncement}
-        className="mb-2.5 flex w-full items-center gap-3 rounded-xl card-premium px-3 py-2 text-left active:border-white/[0.14]"
+        className="mb-2.5 flex w-full items-center gap-3 overflow-hidden rounded-xl card-premium px-3 py-2.5 text-left active:border-white/[0.14]"
       >
         <span
-          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-indigo-500/10 text-indigo-400"
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-red-500/10 text-red-400"
           aria-hidden
         >
-          <SvgIcon d={PIN_PATH} className="h-3.5 w-3.5" />
+          <SvgIcon d={PIN_PATH} className="h-4 w-4" />
         </span>
         <div className="min-w-0 flex-1">
-          <div className="truncate text-[13px] font-semibold text-white">{title}</div>
-          <p className="truncate text-[11px] text-slate-400">{preview}</p>
+          <div className="truncate text-[15px] font-bold leading-tight text-white">{title}</div>
+          {hasPreview && (
+            <p className="mt-0.5 truncate text-[11px] text-slate-400">{preview}</p>
+          )}
         </div>
         <svg className="h-4 w-4 shrink-0 text-slate-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden>
           <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536M9 11l6.586-6.586a2 2 0 112.828 2.828L11.828 13.828 9 14l.172-2.828z" />
