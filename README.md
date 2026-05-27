@@ -1,6 +1,6 @@
 # ChaptOS
 
-Chapter operations dashboard for Lambda Phi Epsilon — a single place to run a fraternity chapter. Tracks brothers, attendance, dues, GPA, service hours, deadlines, treasury and budget, party events, Instagram content, and meeting notes, with a live activity log and a weekly digest of what's on deck.
+Chapter operations dashboard for Lambda Phi Epsilon — a single place to run a fraternity chapter. Tracks brothers, attendance, dues, GPA, service hours, deadlines, treasury and budget, party events, Instagram content, community-service hours, meeting notes, and a pinned chapter docs library, with a live activity log, a pinned announcement, and a weekly digest of what's on deck.
 
 Built as one operations dashboard with a dedicated, app-like mobile layout. Includes a tool-calling AI assistant ("Ask the Chapter") that answers questions and proposes write actions, backed by an offline eval harness for measuring answer quality.
 
@@ -28,11 +28,13 @@ A few things worth showing off:
 
 - **Tool-calling AI assistant with self-correcting validation.** Eleven read tools + five write-proposal tools defined in one place ([lib/ai-tools.ts](lib/ai-tools.ts)) so the schema the model sees and the dispatcher that runs the tools can't drift. Arg validation ([lib/ai-tools.ts](lib/ai-tools.ts) `validateArgs`) walks the schema before dispatch — a wrong enum value returns a structured error the model self-corrects on the next iteration of the existing tool loop.
 - **Offline eval harness.** Hand-written cases at [evals/ask-the-chapter/cases.jsonl](evals/ask-the-chapter/cases.jsonl) drive the same loop as the production route in-process, graded on tool selection, args, and final-answer substrings. Lets prompt and model changes be measured instead of vibes-checked.
+- **Discord-style role system with permission bitfields.** Ten named permissions ([lib/permissions.ts](lib/permissions.ts)) packed into a 32-bit int on each `Role`. A brother's effective bits are the bitwise OR of every role they hold; `requirePermission()` ([lib/auth/require-permission.ts](lib/auth/require-permission.ts)) gates each API route. Role hierarchy ranks prevent privilege escalation — a caller can only grant/edit roles strictly below their own highest rank.
 - **Two-layer identity.** Supabase manages OAuth sessions; a separate `Brother` table holds chapter data. A signed-in user has zero access until their Google account is linked to a `Brother` row — admins can pre-create rows so new members onboard themselves on first login.
-- **Write proposals, never silent writes.** The AI's `propose_*` tools validate inputs server-side but never touch the database. The client surfaces a confirm card; only on user confirmation does it POST to the real `/api/*` route, where existing `requireUser` / `requireAdmin` guards decide whether the write actually happens.
+- **Write proposals, never silent writes.** The AI's `propose_*` tools validate inputs server-side but never touch the database. The client surfaces a confirm card; only on user confirmation does it POST to the real `/api/*` route, where existing `requireUser` / `requirePermission` guards decide whether the write actually happens.
 - **Structured server-side observability.** One JSON-per-line error log ([lib/observability.ts](lib/observability.ts)) with request IDs, route tags, and optional Sentry forwarding via a lazy dynamic import — no dependency cost until enabled.
 - **Soft deletes on financial data.** `Transaction` rows are never hard-deleted; `deletedAt` preserves history for audit and undo.
 - **CSS-only responsiveness.** Desktop and mobile dashboards are sibling trees toggled with Tailwind breakpoints — no JS viewport detection, no layout flash on hydration.
+- **Pinned chapter docs with auto-fetched OG metadata.** The Docs page stores arbitrary links with cached title/favicon/OG-image, probed server-side ([lib/og-metadata.ts](lib/og-metadata.ts)) on create or URL change. Embeds that block iframing (X-Frame-Options / frame-ancestors CSP) fall back to the OG image card automatically.
 
 ---
 
@@ -80,10 +82,10 @@ Browser
 
 - **Two-layer identity.** Supabase manages OAuth sessions; a separate `Brother` table holds chapter data. A signed-in user has no access until their Google account is linked to a `Brother` row (see [Auth Flow](#auth-flow)).
 - **Global state via `ChapterContext`.** All chapter data (brothers, deadlines, IG tasks, parties, transactions, treasury, activity) is fetched once on mount in `ChapterProvider` and shared app-wide. Pages do optimistic updates against context instead of refetching.
-- **All DB access through API routes.** Client components never touch Prisma. Every mutation goes through an API route that calls `requireUser()` (and `requireAdmin()` where appropriate) to verify the session before touching the database.
+- **All DB access through API routes.** Client components never touch Prisma. Every mutation goes through an API route that calls `requireUser()` (and `requirePermission()` where a specific capability is needed) to verify the session before touching the database.
 - **Persistent avatars.** Custom profile photos are stored in Supabase Storage and the URL is persisted on `Brother.avatarUrl`. That column — not the volatile Supabase auth metadata — is the source of truth, so a photo survives OAuth token refreshes that would otherwise revert it to the Google picture.
 - **Soft deletes on transactions.** `Transaction` rows are never hard-deleted — they get a `deletedAt` timestamp so financial history is preserved.
-- **CSS-only responsiveness.** The desktop and mobile dashboards are sibling trees toggled purely with Tailwind breakpoints (`md:hidden` / `hidden md:block`) — no JS viewport detection. The mobile dashboard is a tabbed layout: **Overview · Tasks · Money · Logs**.
+- **CSS-only responsiveness.** The desktop and mobile dashboards are sibling trees toggled purely with Tailwind breakpoints (`md:hidden` / `hidden md:block`) — no JS viewport detection. The mobile dashboard is a tabbed layout: **Overview · Tasks · Money · Brothers · Logs**.
 - **Rate-limited mutations.** A simple in-memory limiter ([lib/rate-limit.ts](lib/rate-limit.ts)) caps mutations and AI chat turns per brother per minute — keeps a runaway client from blowing up cost or contention.
 
 ---
@@ -141,13 +143,31 @@ Score: 24/31  (77.4%)
 
 ## Roles & Access
 
-| Role | How it's set | What it can do |
-|------|--------------|----------------|
-| **Brother** | Default for any linked `Brother` row | Full read access; self-service actions (log excuse, add deadline/IG task/event, +service hour, edit own profile) |
-| **Admin** | `Brother.isAdmin = true` | Everything a brother can, plus admin-only actions: log expenses/revenue, record attendance, manage other accounts, pay dues |
-| **Ghost** | `Brother.isGhost = true` | Full brother-level read access, but **hidden** from every brother listing, count, and attendance enrollment — an observer (e.g. an alumnus) with no footprint. Provisioned via the "Atomic Samurai" claim name; never granted admin. |
+Access is controlled by two orthogonal mechanisms — a binary `isAdmin` superuser flag and a Discord-style role system layered on top.
 
-`requireUser()` ([lib/auth/require-user.ts](lib/auth/require-user.ts)) gates every API route; `requireAdmin()` gates the admin-only ones.
+### Identity flags on `Brother`
+| Flag | What it does |
+|------|--------------|
+| **`isAdmin = true`** | Superuser. Bypasses every permission check at the guard layer — used for the executive board and bootstrap accounts. |
+| **`isGhost = true`** | Full brother-level read access, but **hidden** from every brother listing, count, and attendance enrollment — an observer (e.g. an alumnus) with no footprint. Provisioned via the "Atomic Samurai" claim name; never granted admin. |
+| *neither* | Default brother. Full read access plus self-service actions (log excuse, edit own profile, +service hour). Anything else depends on which roles they hold. |
+
+### Permission flags ([lib/permissions.ts](lib/permissions.ts))
+Ten named permissions packed into a 32-bit bitfield on each `Role`:
+
+```
+MANAGE_BROTHERS  MANAGE_TREASURY  MANAGE_EVENTS     MANAGE_PARTIES   MANAGE_INSTAGRAM
+MANAGE_SERVICE   MANAGE_ATTENDANCE  MANAGE_SEMESTERS  MANAGE_ROLES    MANAGE_DOCS
+```
+
+A brother's *effective* bitfield is the bitwise OR of every role they hold. UI surfaces and API routes both check the same `hasPermission(bits, "MANAGE_X")` helper.
+
+### Roles ([app/api/roles](app/api/roles))
+Each role bundles a name, optional color chip, a permission bitfield, and a hierarchy `rank`. Seeded system roles (e.g. **President** with `ALL_PERMISSIONS`) are protected from rename/delete. Custom roles are managed from **Settings → Roles** by anyone with `MANAGE_ROLES`.
+
+**Hierarchy guard:** a caller can only grant, edit, or revoke roles whose `rank` is *strictly less* than their own highest assigned role's rank. This prevents an officer with `MANAGE_ROLES` from promoting themselves or peers.
+
+`requireUser()` ([lib/auth/require-user.ts](lib/auth/require-user.ts)) gates every API route; `requirePermission()` ([lib/auth/require-permission.ts](lib/auth/require-permission.ts)) gates routes that need a specific capability; `requireAdmin()` is reserved for the few truly admin-only operations.
 
 ---
 
@@ -159,15 +179,18 @@ figurints/
 │   ├── api/                      # JSON API routes (all server-side)
 │   │   ├── ai/                   # chat (streaming SSE), digest, summarize-meeting
 │   │   ├── activity/             # activity log (+ /full)
+│   │   ├── announcement/         # single pinned chapter announcement (id=1)
 │   │   ├── attendance/           # record attendance per event
 │   │   ├── auth/                 # claim, me, signout, avatar, accounts, unlink-self
-│   │   ├── brothers/             # roster CRUD (+ /[id]/attendance)
+│   │   ├── brothers/             # roster CRUD (+ /[id]/attendance, /[id]/roles)
 │   │   ├── budget/               # semester budget + allocations
 │   │   ├── calendar/             # chapter events
 │   │   ├── deadlines/
+│   │   ├── docs/                 # pinned chapter links + /refresh-metadata
 │   │   ├── excuses/              # attendance excuses
 │   │   ├── instagram/            # content calendar
 │   │   ├── parties/              # party events + revenue
+│   │   ├── roles/                # role CRUD + permission bitfield editor
 │   │   ├── semesters/
 │   │   ├── service-events/       # community service log
 │   │   ├── transactions/         # treasury entries (+ /export CSV)
@@ -175,18 +198,26 @@ figurints/
 │   ├── auth/callback/            # OAuth redirect handler
 │   ├── components/
 │   │   ├── ChatWidget.tsx        # floating "Ask the Chapter" assistant
+│   │   ├── ChatWidgetGate.tsx    # show/hide gate (e.g. login page)
 │   │   ├── Sidebar.tsx
 │   │   ├── UserAvatar.tsx        # photo upload/remove menu
+│   │   ├── ProfileAvatar.tsx
 │   │   ├── BrotherAvatar.tsx     # avatar with initials fallback
-│   │   └── dashboard/
-│   │       ├── widgets.tsx       # KPI cards, health, activity feed, charts
-│   │       ├── DashboardCharts.tsx
-│   │       ├── drawers/          # BrotherDrawer, etc.
-│   │       ├── primitives.tsx    # Card, Modal, StatusBadge, ConfirmDialog
-│   │       └── mobile/           # MobileDashboard + Overview/Tasks/Money/Logs tabs
+│   │   ├── dashboard/
+│   │   │   ├── widgets.tsx       # KPI cards, health, activity feed, charts
+│   │   │   ├── AnnouncementCard.tsx / AnnouncementEditor.tsx
+│   │   │   ├── DashboardCharts.tsx · SparkLine.tsx · DrawerTrendChart.tsx
+│   │   │   ├── QuickActionsMenu.tsx · Toast.tsx · forms.tsx · styles.ts
+│   │   │   ├── drawers/          # BrotherDrawer, etc.
+│   │   │   ├── primitives.tsx    # Card, Modal, StatusBadge, ConfirmDialog
+│   │   │   └── mobile/           # MobileDashboard + Overview/Tasks/Money/Logs/Brothers tabs
+│   │   ├── timeline/             # CalendarEventForm
+│   │   └── treasury/             # BudgetView, TreasuryCharts, TxForm
 │   ├── context/ChapterContext.tsx
 │   ├── hooks/                    # useCurrentUser, useOrgLogo
 │   ├── generated/prisma/         # generated client (gitignored)
+│   ├── docs/                     # pinned chapter links page (DocCard, DocForm)
+│   ├── service/                  # community-service page
 │   ├── brothers/  chapter/  instagram/  login/  parties/
 │   ├── pending-access/           # account-claim page (new users)
 │   ├── settings/  timeline/  treasury/
@@ -196,14 +227,19 @@ figurints/
 │   ├── ai.ts                     # OpenAI client + shared narrate() helper
 │   ├── ai-prompt.ts              # buildSystemPrompt — shared by route + eval harness
 │   ├── ai-tools.ts               # tool schemas + dispatcher + validateArgs
-│   ├── auth/                     # require-user, require-admin
+│   ├── auth/                     # require-user, require-permission, require-admin
+│   ├── permissions.ts            # 10-bit permission flags + helpers
+│   ├── seed-roles.ts             # system role seeding (idempotent)
+│   ├── og-metadata.ts            # Doc URL probe (OG tags, favicon, embed-OK check)
 │   ├── supabase/                 # client.ts, server.ts, admin.ts
-│   ├── attendance.ts             # attendance recalculation
+│   ├── activity.ts · attendance.ts
+│   ├── avatar.ts · brother-avatar.ts · coerce.ts
 │   ├── observability.ts          # structured JSON logging + lazy Sentry
 │   ├── rate-limit.ts             # per-user mutation/chat rate limiter
 │   └── prisma.ts                 # Prisma singleton over pg.Pool
 ├── evals/ask-the-chapter/        # AI eval cases + how-to
-├── scripts/eval-ask-the-chapter.ts
+├── scripts/                      # eval-ask-the-chapter.ts, seed-roles.ts,
+│                                 # apply-roles-migration.ts, dedupe-*, diag-*
 ├── prisma/                       # schema, seed, migrations
 ├── supabase/                     # storage bucket + RLS SQL
 ├── proxy.ts                      # Next.js middleware (auth gate)
@@ -268,8 +304,12 @@ Defined in [prisma/schema.prisma](prisma/schema.prisma). Highlights:
 | authUserId | String? | Supabase user UUID, set on claim (unique) |
 | avatarUrl | String? | Custom profile photo (source of truth) |
 | email | String? | Cached from the session |
-| isAdmin | Boolean | Admin privileges |
+| isAdmin | Boolean | Superuser flag — bypasses every permission check |
 | isGhost | Boolean | Hidden observer — excluded from all listings/counts |
+| roles | BrotherRole[] | Many-to-many join to `Role` |
+
+### Role / BrotherRole
+`Role` is a named bundle of permission bits with a hierarchy `rank` and optional UI `color`. `permissions` is a 32-bit integer; meanings are defined in [lib/permissions.ts](lib/permissions.ts). `isSystem = true` protects seeded roles (e.g. **President**) from rename/delete. `BrotherRole` is the join table — a brother's effective permissions are the bitwise OR of every role they hold.
 
 ### CalendarEvent
 Chapter events: `title`, `date` (YYYY-MM-DD), optional `time`, `category`, `mandatory` (counts toward attendance), `description` (doubles as meeting notes), `location`, plus `notesSummary` + `notesSummaryAt` for AI-generated summaries.
@@ -297,6 +337,12 @@ Content calendar items with `status` (Urgent / Due Soon / Upcoming / Complete) a
 
 ### Deadline
 Chapter deadlines with `owner` (assigned brother) and `status`.
+
+### Doc
+Pinned chapter links with cached OG metadata (`ogImage`, `ogTitle`, `faviconUrl`) plus an `embedOk` flag — `null` = unprobed, `false` = the site blocks iframing, so the UI renders the OG image card instead of an `<iframe>`. Metadata is refreshed on create and on URL change.
+
+### ChapterAnnouncement
+The single pinned dashboard announcement. Always exactly one row at `id = 1` — GET returns it (or null), PUT upserts it. Records `title`, `body`, optional `ctaLabel`/`ctaUrl`, and the last editor.
 
 ### ActivityLog
 Audit/feed entries (`message`, `type`, `timestamp`, optional `actorId` → Brother, `SetNull` on delete).
