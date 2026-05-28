@@ -11,6 +11,7 @@ export function MobileTasksTab({ tasksData, actions }: {
   actions: MobileActions;
 }) {
   const { deadlineList, igTaskList } = tasksData;
+  const activeIgTasks = igTaskList.filter(t => t.status !== "Complete");
 
   return (
     <div className="space-y-4">
@@ -67,14 +68,14 @@ export function MobileTasksTab({ tasksData, actions }: {
         <div className="flex items-center justify-between border-b border-white/[0.07] px-4 py-3">
           <h2 className="text-[13px] font-semibold text-white">Instagram</h2>
           <div className="flex items-center gap-2">
-            <span className="text-[10px] text-slate-500">{igTaskList.length} posts</span>
+            <span className="text-[10px] text-slate-500">{activeIgTasks.length} posts</span>
             <button onClick={(e) => { e.stopPropagation(); actions.setActiveModal("ig"); }} className="rounded-md bg-indigo-500/15 px-2 py-0.5 text-[10px] font-semibold text-indigo-400 active:bg-indigo-500/25 transition-colors">+ Add</button>
           </div>
         </div>
         <div className="divide-y divide-white/[0.05]">
-          {igTaskList.length === 0 ? (
-            <p className="px-4 py-6 text-center text-[12px] text-slate-500">No IG tasks scheduled</p>
-          ) : igTaskList.slice(0, CAP).map(t => (
+          {activeIgTasks.length === 0 ? (
+            <p className="px-4 py-6 text-center text-[12px] text-slate-500">No active IG posts</p>
+          ) : activeIgTasks.slice(0, CAP).map(t => (
             <div key={t.id} onClick={e => e.stopPropagation()} className="flex items-center gap-2 px-4 py-2.5">
               <div className="min-w-0 flex-1">
                 <p className={`truncate text-[12px] font-medium ${t.status === "Complete" ? "line-through text-slate-500" : "text-white"}`}>{t.title}</p>
@@ -96,8 +97,8 @@ export function MobileTasksTab({ tasksData, actions }: {
               <TaskBadge status={t.status} />
             </div>
           ))}
-          {igTaskList.length > CAP && (
-            <button onClick={() => actions.setWidgetDrawer("instagram")} className="w-full px-4 py-2.5 text-center text-[11px] font-medium text-slate-400 active:bg-white/[0.03]">+{igTaskList.length - CAP} more · View all</button>
+          {activeIgTasks.length > CAP && (
+            <button onClick={() => actions.setWidgetDrawer("instagram")} className="w-full px-4 py-2.5 text-center text-[11px] font-medium text-slate-400 active:bg-white/[0.03]">+{activeIgTasks.length - CAP} more · View all</button>
           )}
         </div>
       </Card>
