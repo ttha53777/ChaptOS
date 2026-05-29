@@ -1,106 +1,32 @@
 import { NextRequest } from "next/server";
-import { db } from "@/lib/db";
-import { requireUser } from "@/lib/auth/require-user";
-import { logActivity } from "@/lib/activity";
-import type { Prisma } from "../../generated/prisma/client";
-import { checkMutationRate } from "@/lib/rate-limit";
+import { buildContext } from "@/lib/context";
+import { toResponse } from "@/lib/errors";
+import { createCalendarInput } from "@/lib/validation/calendar";
+import { createCalendar, listCalendar } from "@/lib/services/calendar-service";
 import { logError } from "@/lib/observability";
 
-const CALENDAR_CATEGORIES = ["chapter", "social", "fundy", "program", "party", "deadline", "service"] as const;
-const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
-
-function optionalString(value: unknown): string | null {
-  if (value == null) return null;
-  const trimmed = String(value).trim();
-  return trimmed ? trimmed : null;
-}
-
-function validateCalendarBody(body: Record<string, unknown>) {
-  const title = optionalString(body.title);
-  const date = optionalString(body.date);
-  const category = optionalString(body.category);
-
-  if (!title || !date || !category || body.mandatory == null) {
-    return { error: "Missing required fields" };
-  }
-  if (!DATE_RE.test(date)) {
-    return { error: "Date must use YYYY-MM-DD format" };
-  }
-  if (!CALENDAR_CATEGORIES.includes(category as typeof CALENDAR_CATEGORIES[number])) {
-    return { error: "Invalid calendar category" };
-  }
-  if (typeof body.mandatory !== "boolean") {
-    return { error: "Mandatory must be a boolean" };
-  }
-
-  if (category === "chapter" && !body.mandatory) {
-    return { error: "Chapter events must be mandatory" };
-  }
-  if (title.length > 200) return { error: "Title too long" };
-  const description = optionalString(body.description);
-  // 50k chars (~10 single-spaced pages) is more than any real chapter
-  // meeting will produce, while still protecting against truly absurd payloads.
-  if (description && description.length > 50000) return { error: "Description too long" };
-
-  return {
-    data: {
-      title,
-      date,
-      time: optionalString(body.time),
-      category,
-      mandatory: body.mandatory,
-      description,
-      location: optionalString(body.location),
-    },
-  };
-}
-
 export async function GET(req: NextRequest) {
-  const user = await requireUser();
-  if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  const { ctx, error } = await buildContext({ rateLimit: false });
+  if (error) return error;
   try {
     const { searchParams } = new URL(req.url);
-    const categoryParam = searchParams.get("category");
-    const where: Prisma.CalendarEventWhereInput =
-      categoryParam && CALENDAR_CATEGORIES.includes(categoryParam as typeof CALENDAR_CATEGORIES[number])
-        ? { category: categoryParam }
-        : {};
-    const events = await db(user.orgId).calendarEvent.findMany({
-      where,
-      orderBy: [{ date: "desc" }, { id: "desc" }],
-    });
-    return Response.json(events);
+    return Response.json(await listCalendar(ctx, { category: searchParams.get("category") }));
   } catch (e) {
-    logError(e, { route: "/api/calendar", method: "GET", userId: user.id });
-    return Response.json({ error: "Failed to fetch calendar events" }, { status: 500 });
+    logError(e, { route: "/api/calendar", method: "GET", userId: ctx.actorId, extra: { requestId: ctx.requestId } });
+    return toResponse(e);
   }
 }
 
 export async function POST(req: NextRequest) {
-  const user = await requireUser();
-  if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
-  const limited = checkMutationRate(user.id);
-  if (limited) return limited;
+  const { ctx, error } = await buildContext();
+  if (error) return error;
   try {
-    const body = await req.json();
-    const parsed = validateCalendarBody(body);
-
-    if ("error" in parsed) {
-      return Response.json({ error: parsed.error }, { status: 400 });
-    }
-
-    const event = await db(user.orgId).calendarEvent.create({ data: parsed.data });
-
-    await logActivity({
-      actorId: user.id,
-      type: "info",
-      message: `${user.name} scheduled ${event.title} for ${event.date}`,
-      orgId: user.orgId,
-    });
-
+    const body = await req.json().catch(() => ({}));
+    const input = createCalendarInput.parse(body);
+    const event = await createCalendar(ctx, input);
     return Response.json(event, { status: 201 });
   } catch (e) {
-    logError(e, { route: "/api/calendar", method: "POST", userId: user.id });
-    return Response.json({ error: "Failed to create calendar event" }, { status: 500 });
+    logError(e, { route: "/api/calendar", method: "POST", userId: ctx.actorId, extra: { requestId: ctx.requestId } });
+    return toResponse(e);
   }
 }

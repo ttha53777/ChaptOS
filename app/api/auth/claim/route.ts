@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "../../../generated/prisma/client";
-import { db } from "@/lib/db";
+import { db } from "@/lib/db"; // lint-modules:ignore (claim runs pre-Brother row; can't use buildContext)
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { parseAvatarFromMetadata } from "@/lib/avatar";

@@ -28,6 +28,7 @@ model Organization {
   budgets            Budget[]
   activityLogs       ActivityLog[]
   announcements      ChapterAnnouncement[]
+  operationalEvents  OperationalEvent[]
 }
 
 // Links a Brother (Supabase identity + profile) to an Organization.
@@ -296,6 +297,29 @@ model ActivityLog {
 
   @@index([organizationId, timestamp])
   @@index([actorId])
+}
+
+// Structured operational event log. The raw fact-stream from which the UI
+// activity feed, audit log, analytics, notifications, and AI context are
+// projected. Free-text ActivityLog rows are dual-written from logActivity()
+// for backwards-compat until Phase 3 cuts the UI over to event projections.
+model OperationalEvent {
+  id             BigInt   @id @default(autoincrement())
+  organizationId Int
+  requestId      String
+  actorId        Int?
+  action         String   // verb.subject e.g. "excuse.approved", "transaction.created"
+  subjectType    String   // model name e.g. "AttendanceExcuse", "Transaction"
+  subjectId      Int
+  metadata       Json     @default("{}")
+  occurredAt     DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId, occurredAt])
+  @@index([organizationId, action, occurredAt])
+  @@index([subjectType, subjectId])
+  @@index([requestId])
 }
 
 model Transaction {

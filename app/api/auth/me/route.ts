@@ -1,7 +1,7 @@
 import { requireUser } from "@/lib/auth/require-user";
 import { resolvePermissions } from "@/lib/auth/require-permission";
 import { parseAvatarFromMetadata } from "@/lib/avatar";
-import { db } from "@/lib/db";
+import { db } from "@/lib/db"; // lint-modules:ignore (auth bootstrap; runs before buildContext is viable)
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { logError } from "@/lib/observability";
 
@@ -53,6 +53,8 @@ export async function GET() {
       avatarUrl,
       hasCustomAvatar,
       org: org ? { name: org.name, slug: org.slug } : null,
+      orgId: user.orgId,
+      memberships: user.memberships,
       permissions: perms.permissions,
       maxRank: Number.isFinite(perms.maxRank) ? perms.maxRank : null,
       roles: perms.roles,

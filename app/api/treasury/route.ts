@@ -1,19 +1,19 @@
-import { db } from "@/lib/db";
-import { requireUser } from "@/lib/auth/require-user";
+import { buildContext } from "@/lib/context";
+import { toResponse } from "@/lib/errors";
 import { logError } from "@/lib/observability";
 
 const MONTH_LABELS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
 export async function GET() {
-  const user = await requireUser();
-  if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  const { ctx, error } = await buildContext({ rateLimit: false });
+  if (error) return error;
   try {
     const [parties, transactions] = await Promise.all([
-      db(user.orgId).partyEvent.findMany({
+      ctx.db.partyEvent.findMany({
         orderBy: { date: "asc" },
         select: { date: true, doorRevenue: true },
       }),
-      db(user.orgId).transaction.findMany({
+      ctx.db.transaction.findMany({
         where: { deletedAt: null },
         orderBy: { date: "asc" },
         select: { date: true, type: true, amount: true },
@@ -28,7 +28,6 @@ export async function GET() {
     }
     const netBalance = totalDoorRevenue + totalIncome - totalExpenses;
 
-    // Build a combined month map: net delta per YYYY-MM
     const monthMap = new Map<string, number>();
     for (const p of parties) {
       const month = p.date.slice(0, 7);
@@ -54,7 +53,7 @@ export async function GET() {
       trend,
     });
   } catch (e) {
-    logError(e, { route: "/api/treasury", method: "GET", userId: user?.id });
-    return Response.json({ error: "Failed to fetch treasury data" }, { status: 500 });
+    logError(e, { route: "/api/treasury", method: "GET", userId: ctx.actorId, extra: { requestId: ctx.requestId } });
+    return toResponse(e);
   }
 }

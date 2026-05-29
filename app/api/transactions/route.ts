@@ -1,89 +1,37 @@
 import { NextRequest } from "next/server";
-import { Prisma } from "../../generated/prisma/client";
-import { db } from "@/lib/db";
-import { requireUser } from "@/lib/auth/require-user";
-import { requirePermission } from "@/lib/auth/require-permission";
-import { logActivity } from "@/lib/activity";
-import { isValidDateString } from "@/lib/coerce";
-import { checkMutationRate } from "@/lib/rate-limit";
+import { buildContext } from "@/lib/context";
+import { toResponse } from "@/lib/errors";
+import { createTransactionInput } from "@/lib/validation/transaction";
+import { createTransaction, listTransactions } from "@/lib/services/transaction-service";
 import { logError } from "@/lib/observability";
 
 export async function GET(req: NextRequest) {
-  const user = await requireUser();
-  if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
-  const { searchParams } = new URL(req.url);
-  const type     = searchParams.get("type");
-  const semester = searchParams.get("semester");
-  const category = searchParams.get("category");
-
+  const { ctx, error } = await buildContext({ rateLimit: false });
+  if (error) return error;
   try {
-    const transactions = await db(user.orgId).transaction.findMany({
-      where: {
-        deletedAt: null,
-        ...(type     ? { type }     : {}),
-        ...(semester ? { semester } : {}),
-        ...(category ? { category } : {}),
-      },
-      orderBy: { date: "desc" },
+    const { searchParams } = new URL(req.url);
+    const transactions = await listTransactions(ctx, {
+      type:     searchParams.get("type")     ?? undefined,
+      semester: searchParams.get("semester") ?? undefined,
+      category: searchParams.get("category") ?? undefined,
     });
     return Response.json(transactions);
-  } catch {
-    return Response.json({ error: "Failed to fetch transactions" }, { status: 500 });
+  } catch (e) {
+    logError(e, { route: "/api/transactions", method: "GET", userId: ctx.actorId, extra: { requestId: ctx.requestId } });
+    return toResponse(e);
   }
 }
 
 export async function POST(req: NextRequest) {
-  const { user, error } = await requirePermission("MANAGE_TREASURY");
+  const { ctx, error } = await buildContext({ requirePerm: "MANAGE_TREASURY" });
   if (error) return error;
-  const limited = checkMutationRate(user.id);
-  if (limited) return limited;
-  let body: Record<string, unknown>;
-  try { body = await req.json(); }
-  catch { return Response.json({ error: "Invalid JSON body" }, { status: 400 }); }
-
-  const { type, category, amount, date, description, paymentMethod, paidTo, semester } = body;
-
-  if (!type || !category || amount == null || !date || description == null) {
-    return Response.json({ error: "Missing required fields" }, { status: 400 });
-  }
-  if (type !== "income" && type !== "expense") {
-    return Response.json({ error: "type must be income or expense" }, { status: 400 });
-  }
-  const numAmount = Number(amount);
-  if (isNaN(numAmount) || numAmount < 0) {
-    return Response.json({ error: "amount must be a non-negative number" }, { status: 400 });
-  }
-  if (!isValidDateString(date)) {
-    return Response.json({ error: "date must use YYYY-MM-DD format" }, { status: 400 });
-  }
-
   try {
-    const tx = await db(user.orgId).transaction.create({
-      data: {
-        type:          String(type),
-        category:      String(category),
-        amount:        numAmount,
-        date:          String(date),
-        description:   String(description),
-        paymentMethod: paymentMethod ? String(paymentMethod) : null,
-        paidTo:        paidTo        ? String(paidTo)        : null,
-        semester:      semester      ? String(semester)      : null,
-      },
-    });
-
-    await logActivity({
-      actorId: user.id,
-      type: tx.type === "income" ? "success" : "warning",
-      message: `${user.name} added a $${tx.amount.toFixed(2)} ${tx.type} for ${tx.category}: ${tx.description}`,
-      orgId: user.orgId,
-    });
-
+    const body = await req.json().catch(() => ({}));
+    const input = createTransactionInput.parse(body);
+    const tx = await createTransaction(ctx, input);
     return Response.json(tx, { status: 201 });
   } catch (e) {
-    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
-      return Response.json({ error: "Duplicate entry" }, { status: 409 });
-    }
-    logError(e, { route: "/api/transactions", method: "POST", userId: user?.id });
-    return Response.json({ error: "Failed to create transaction" }, { status: 500 });
+    logError(e, { route: "/api/transactions", method: "POST", userId: ctx.actorId, extra: { requestId: ctx.requestId } });
+    return toResponse(e);
   }
 }

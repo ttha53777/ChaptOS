@@ -1,61 +1,30 @@
 import { NextRequest } from "next/server";
-import { db } from "@/lib/db";
-import { requireUser } from "@/lib/auth/require-user";
-import { logActivity } from "@/lib/activity";
-import { isValidDateString } from "@/lib/coerce";
-import { checkMutationRate } from "@/lib/rate-limit";
+import { buildContext } from "@/lib/context";
+import { toResponse } from "@/lib/errors";
+import { createInstagramTaskInput } from "@/lib/validation/instagram";
+import { createInstagramTask, listInstagramTasks } from "@/lib/services/instagram-service";
 import { logError } from "@/lib/observability";
 
 export async function GET() {
-  const user = await requireUser();
-  if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
-  try {
-    const tasks = await db(user.orgId).instagramTask.findMany({ orderBy: { id: "asc" } });
-    return Response.json(tasks);
-  } catch (e) {
-    logError(e, { route: "/api/instagram", method: "GET", userId: user?.id });
-    return Response.json({ error: "Failed to fetch instagram tasks" }, { status: 500 });
+  const { ctx, error } = await buildContext({ rateLimit: false });
+  if (error) return error;
+  try { return Response.json(await listInstagramTasks(ctx)); }
+  catch (e) {
+    logError(e, { route: "/api/instagram", method: "GET", userId: ctx.actorId, extra: { requestId: ctx.requestId } });
+    return toResponse(e);
   }
 }
 
 export async function POST(req: NextRequest) {
-  const user = await requireUser();
-  if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
-  const limited = checkMutationRate(user.id);
-  if (limited) return limited;
+  const { ctx, error } = await buildContext();
+  if (error) return error;
   try {
-    const body = await req.json();
-    const { title, dueDate, owner, status, type } = body;
-
-    if (!title || !dueDate || !owner || !status || !type) {
-      return Response.json({ error: "Missing required fields" }, { status: 400 });
-    }
-    if (String(title).length > 200) return Response.json({ error: "Title too long" }, { status: 400 });
-    if (String(owner).length > 200) return Response.json({ error: "Owner too long" }, { status: 400 });
-    if (!isValidDateString(dueDate)) {
-      return Response.json({ error: "dueDate must use YYYY-MM-DD format" }, { status: 400 });
-    }
-
-    const task = await db(user.orgId).instagramTask.create({
-      data: {
-        title: String(title),
-        dueDate: String(dueDate),
-        owner: String(owner),
-        status: String(status),
-        type: String(type),
-      },
-    });
-
-    await logActivity({
-      actorId: user.id,
-      type: "info",
-      message: `${user.name} added IG task ${task.title}`,
-      orgId: user.orgId,
-    });
-
-    return Response.json(task, { status: 201 });
+    const body = await req.json().catch(() => ({}));
+    const input = createInstagramTaskInput.parse(body);
+    const t = await createInstagramTask(ctx, input);
+    return Response.json(t, { status: 201 });
   } catch (e) {
-    logError(e, { route: "/api/instagram", method: "POST", userId: user?.id });
-    return Response.json({ error: "Failed to create instagram task" }, { status: 500 });
+    logError(e, { route: "/api/instagram", method: "POST", userId: ctx.actorId, extra: { requestId: ctx.requestId } });
+    return toResponse(e);
   }
 }
