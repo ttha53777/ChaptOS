@@ -50,6 +50,7 @@ export async function POST(req: NextRequest) {
   try {
     const party = await prisma.partyEvent.create({
       data: {
+        organizationId: 1,
         name:        String(name),
         date:        String(date),
         partyType:   partyType === "Closed" ? "Closed" : "Open",

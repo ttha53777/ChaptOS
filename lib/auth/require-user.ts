@@ -24,15 +24,27 @@ export async function requireUser() {
 
   const brother = await prisma.brother.findUnique({
     where: { authUserId: user.id },
-    select: { id: true, role: true, name: true, isAdmin: true },
+    select: {
+      id: true,
+      role: true,
+      name: true,
+      isAdmin: true,
+      organizationId: true,
+      platformAdmin: { select: { id: true } },
+    },
   });
   if (!brother) return null;
+
+  const isPlatformAdmin = brother.isAdmin || !!brother.platformAdmin;
 
   return {
     id: brother.id,
     role: brother.role,
     name: brother.name,
+    /** @deprecated use isPlatformAdmin. Kept for compatibility during Phase 0→1 migration. */
     isAdmin: brother.isAdmin,
+    isPlatformAdmin,
+    orgId: brother.organizationId,
     authUserId: user.id,
     email: user.email ?? null,
   };

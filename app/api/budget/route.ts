@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
 
   try {
     const budget = await prisma.budget.findUnique({
-      where: { semester },
+      where: { organizationId_semester: { organizationId: 1, semester } },
       include: { allocations: true },
     });
     if (!budget) return Response.json(null);
@@ -92,8 +92,8 @@ export async function PUT(req: NextRequest) {
     // allocations.
     const result = await prisma.$transaction(async (tx) => {
       const budget = await tx.budget.upsert({
-        where: { semester },
-        create: { semester, carryoverBalance: carryover, reserveAmount: reserve },
+        where: { organizationId_semester: { organizationId: 1, semester } },
+        create: { organizationId: 1, semester, carryoverBalance: carryover, reserveAmount: reserve },
         update: { carryoverBalance: carryover, reserveAmount: reserve },
       });
       await tx.budgetAllocation.deleteMany({ where: { budgetId: budget.id } });

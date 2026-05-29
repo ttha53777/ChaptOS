@@ -38,6 +38,7 @@ export async function POST(req: NextRequest) {
 
     const task = await prisma.instagramTask.create({
       data: {
+        organizationId: 1,
         title: String(title),
         dueDate: String(dueDate),
         owner: String(owner),

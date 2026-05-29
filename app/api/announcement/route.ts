@@ -125,6 +125,7 @@ export async function PUT(req: NextRequest) {
       where: { id: SINGLE_ROW_ID },
       create: {
         id: SINGLE_ROW_ID,
+        organizationId: 1,
         title,
         body: text,
         ctaLabel,

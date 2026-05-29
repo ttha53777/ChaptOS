@@ -49,6 +49,7 @@ export async function POST(req: NextRequest) {
     const { serviceEvent, calendarEvent } = await prisma.$transaction(async (tx) => {
       const calendarEvent = await tx.calendarEvent.create({
         data: {
+          organizationId: 1,
           title:       titleStr,
           date:        dateStr,
           time:        timeStr || null,
@@ -60,6 +61,7 @@ export async function POST(req: NextRequest) {
       });
       const serviceEvent = await tx.serviceEvent.create({
         data: {
+          organizationId: 1,
           title:           titleStr,
           date:            dateStr,
           location:        locationStr,

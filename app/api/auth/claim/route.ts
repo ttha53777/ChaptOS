@@ -53,6 +53,7 @@ export async function POST(req: NextRequest) {
     try {
       created = await prisma.brother.create({
         data: {
+          organizationId: 1,
           name: user.email ?? "Atomic Samurai",
           role: "Brother",
           attendance: 0,

@@ -79,7 +79,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const role = await prisma.role.create({
-      data: { name, color: color || null, rank, permissions, isSystem: false },
+      data: { organizationId: 1, name, color: color || null, rank, permissions, isSystem: false },
     });
 
     await logActivity({
