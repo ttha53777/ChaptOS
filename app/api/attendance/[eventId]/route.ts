@@ -13,7 +13,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ eve
     const calendarEventId = Number(eventId);
     if (!Number.isInteger(calendarEventId) || calendarEventId <= 0) throw new ValidationError("Invalid eventId");
 
-    const semester = await getActiveSemester();
+    const semester = await getActiveSemester(ctx.orgId);
     if (!semester) throw new ValidationError("No active semester");
 
     const [records, excuses] = await Promise.all([

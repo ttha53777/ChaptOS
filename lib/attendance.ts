@@ -1,14 +1,19 @@
 import { prisma } from "./prisma";
 
-export async function getActiveSemester() {
-  return prisma.semester.findFirst({ where: { isActive: true } });
+export async function getActiveSemester(orgId: number) {
+  return prisma.semester.findFirst({ where: { organizationId: orgId, isActive: true } });
 }
 
 /**
- * Compute one brother's attendance ratio from their records/excuses for the semester
- * and write it. Single update — atomic by itself.
+ * Recompute one brother's attendance ratio for the semester.
+ * Reads only records/excuses belonging to that brother; writes only that
+ * brother's row and scopes the update to the owning org.
  */
-export async function recalcBrotherAttendance(brotherId: number, semesterId: number): Promise<number> {
+export async function recalcBrotherAttendance(
+  brotherId: number,
+  semesterId: number,
+  orgId: number,
+): Promise<number> {
   const [records, excuses] = await Promise.all([
     prisma.attendanceRecord.findMany({ where: { brotherId, semesterId } }),
     prisma.attendanceExcuse.findMany({ where: { brotherId, semesterId, status: "approved" } }),
@@ -17,50 +22,83 @@ export async function recalcBrotherAttendance(brotherId: number, semesterId: num
   const excusedEventIds = new Set(excuses.map(e => e.calendarEventId));
   const eligible = records.filter(r => !excusedEventIds.has(r.calendarEventId));
 
-  const numerator = eligible.filter(r => r.attended).length;
+  const numerator   = eligible.filter(r => r.attended).length;
   const denominator = eligible.length;
-  const ratio = denominator === 0 ? 0 : Math.round((numerator / denominator) * 100);
+  const ratio       = denominator === 0 ? 0 : Math.round((numerator / denominator) * 100);
 
-  await prisma.brother.update({ where: { id: brotherId }, data: { attendance: ratio } });
+  // Scope the write to orgId so a bug in the caller cannot update a brother
+  // from a different org.
+  await prisma.brother.updateMany({
+    where: { id: brotherId, organizationId: orgId },
+    data: { attendance: ratio },
+  });
+
   return ratio;
 }
 
 /**
- * Recompute every brother's attendance for the semester. All ratios are computed
- * up front, then committed inside a single `$transaction` so either every row
- * updates or none do (no partial commits on transient failure).
+ * Recompute every non-ghost brother's attendance ratio for the semester.
+ *
+ * Strategy: fetch all records + excuses in two queries, compute ratios in
+ * memory grouped by distinct ratio value, then issue one updateMany per
+ * distinct value.  This reduces N individual UPDATEs to at most ~101 batch
+ * statements (one per 0–100 percentage point) regardless of chapter size.
+ *
+ * All writes go inside a single $transaction so either every brother's ratio
+ * updates or none do.
  */
-export async function recalcAllBrothersInSemester(semesterId: number): Promise<void> {
+export async function recalcAllBrothersInSemester(
+  semesterId: number,
+  orgId: number,
+): Promise<void> {
   const [brothers, allRecords, allExcuses] = await Promise.all([
-    prisma.brother.findMany({ where: { isGhost: false }, select: { id: true } }),
+    prisma.brother.findMany({
+      where: { organizationId: orgId, isGhost: false },
+      select: { id: true },
+    }),
     prisma.attendanceRecord.findMany({ where: { semesterId } }),
     prisma.attendanceExcuse.findMany({ where: { semesterId, status: "approved" } }),
   ]);
 
-  const recordsByBrother = new Map<number, typeof allRecords>();
+  const recordsByBrother  = new Map<number, typeof allRecords>();
+  const excusedByBrother  = new Map<number, Set<number>>();
+
   for (const r of allRecords) {
     const arr = recordsByBrother.get(r.brotherId) ?? [];
     arr.push(r);
     recordsByBrother.set(r.brotherId, arr);
   }
-  const excusedEventIdsByBrother = new Map<number, Set<number>>();
   for (const e of allExcuses) {
-    const set = excusedEventIdsByBrother.get(e.brotherId) ?? new Set<number>();
+    const set = excusedByBrother.get(e.brotherId) ?? new Set<number>();
     set.add(e.calendarEventId);
-    excusedEventIdsByBrother.set(e.brotherId, set);
+    excusedByBrother.set(e.brotherId, set);
   }
 
-  const writes = brothers.map(b => {
-    const records = recordsByBrother.get(b.id) ?? [];
-    const excused = excusedEventIdsByBrother.get(b.id) ?? new Set<number>();
+  // Group brother IDs by computed ratio so we can batch updateMany per ratio value.
+  const byRatio = new Map<number, number[]>();
+  for (const b of brothers) {
+    const records  = recordsByBrother.get(b.id) ?? [];
+    const excused  = excusedByBrother.get(b.id) ?? new Set<number>();
     const eligible = records.filter(r => !excused.has(r.calendarEventId));
-    const numerator = eligible.filter(r => r.attended).length;
-    const denominator = eligible.length;
-    const ratio = denominator === 0 ? 0 : Math.round((numerator / denominator) * 100);
-    return prisma.brother.update({ where: { id: b.id }, data: { attendance: ratio } });
-  });
+    const num      = eligible.filter(r => r.attended).length;
+    const den      = eligible.length;
+    const ratio    = den === 0 ? 0 : Math.round((num / den) * 100);
+    const ids      = byRatio.get(ratio) ?? [];
+    ids.push(b.id);
+    byRatio.set(ratio, ids);
+  }
 
-  // All-or-nothing commit. If any row fails, the transaction rolls back and no
-  // brother's attendance is updated — better than a half-applied semester.
-  await prisma.$transaction(writes);
+  // One updateMany per distinct ratio. In a transaction so partial commits
+  // cannot happen. The `organizationId` guard ensures we never update
+  // brothers from a different org even if the semesterId were reused.
+  const writes = Array.from(byRatio.entries()).map(([ratio, ids]) =>
+    prisma.brother.updateMany({
+      where: { id: { in: ids }, organizationId: orgId },
+      data: { attendance: ratio },
+    }),
+  );
+
+  if (writes.length > 0) {
+    await prisma.$transaction(writes);
+  }
 }

@@ -12,7 +12,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     const brotherId = Number(id);
     if (!Number.isInteger(brotherId) || brotherId <= 0) throw new ValidationError("Invalid brother ID");
 
-    const semester = await getActiveSemester();
+    const semester = await getActiveSemester(ctx.orgId);
     if (!semester) return Response.json([], { status: 200 });
 
     const [records, excuses, events] = await Promise.all([

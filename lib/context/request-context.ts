@@ -1,9 +1,18 @@
 /**
  * RequestContext — one object created per request, threaded into services.
  *
- * Replaces the requireUser + requirePermission + checkMutationRate + db(orgId)
- * preamble that opens every route handler. Resolves Membership and assigns a
- * requestId so structured events + error logs can be correlated across calls.
+ * Authorization model (three tiers, checked in order):
+ *
+ *   isPlatformAdmin  Cross-org superuser. All permission bits set. Can operate
+ *                    on any org via the active-org cookie. Subject to rate
+ *                    limiting. All actions auditable via PlatformAdmin table.
+ *
+ *   isOrgAdmin       Per-org admin. All permission bits set WITHIN ctx.orgId
+ *                    only. Switching to a different org yields a regular member
+ *                    context. Does not bypass rate limiting.
+ *
+ *   Regular member   Permission bitfield from assigned BrotherRole rows.
+ *                    maxRank = highest role rank held.
  *
  * Design: explicit param passing, no AsyncLocalStorage. Easier to test, easier
  * to reason about, no accidental ambient state.
@@ -26,12 +35,13 @@ export interface RequestContext {
   membershipId:    number | null;
   permissions:     number;
   maxRank:         number;
+  isOrgAdmin:      boolean;
   isPlatformAdmin: boolean;
   db:              ReturnType<typeof db>;
 }
 
 export interface BuildContextOpts {
-  /** Require this permission; 403 if missing (platform admins bypass). */
+  /** Require this permission; 403 if missing (platform admins and org admins bypass). */
   requirePerm?: Permission;
   /** Allow this brother id through even without the permission (self-edit). */
   selfId?: number;
@@ -57,10 +67,19 @@ export async function buildContext(opts: BuildContextOpts = {}): Promise<BuildCo
     return { error: Response.json({ error: "Unauthorized" }, { status: 401 }) };
   }
 
-  // Resolve permission bitfield + maxRank. Platform admins bypass.
+  // ── Resolve isOrgAdmin for the active org ─────────────────────────────────
+  // requireUser() already loaded memberships; find the one for the active org.
+  const activeMembership = user.memberships.find(m => m.organizationId === user.orgId);
+  const isOrgAdmin = activeMembership?.isOrgAdmin ?? false;
+
+  // ── Resolve permission bitfield + maxRank ─────────────────────────────────
   let permissions = 0;
   let maxRank = 0;
-  if (user.isPlatformAdmin) {
+
+  if (user.isPlatformAdmin || isOrgAdmin) {
+    // Both elevated tiers get all permission bits within the active org.
+    // The distinction between them lives in audit trails and cross-org access,
+    // not in per-request capabilities.
     permissions = ~0 >>> 0;
     maxRank = Number.POSITIVE_INFINITY;
   } else {
@@ -79,15 +98,21 @@ export async function buildContext(opts: BuildContextOpts = {}): Promise<BuildCo
     }
   }
 
-  // Permission gate (after computing, so the returned ctx is accurate even on 403).
-  if (opts.requirePerm && !user.isPlatformAdmin) {
+  // ── Permission gate ────────────────────────────────────────────────────────
+  // Platform admins and org admins bypass (both have all bits set above, so
+  // hasPermission would pass anyway — the explicit check prevents short-circuit
+  // bugs if the ~0 value ever changes).
+  if (opts.requirePerm && !user.isPlatformAdmin && !isOrgAdmin) {
     const allowedAsSelf = opts.selfId !== undefined && opts.selfId === user.id;
     if (!allowedAsSelf && !hasPermission(permissions, opts.requirePerm)) {
       return { error: Response.json({ error: "Forbidden" }, { status: 403 }) };
     }
   }
 
-  // Rate limit (default on, opt-out with rateLimit: false).
+  // ── Rate limit ────────────────────────────────────────────────────────────
+  // Applies to all tiers including platform admins and org admins. Privileged
+  // actors are still subject to rate limits — they should never need to fire
+  // 30 mutations in 10 seconds in normal operation.
   if (opts.rateLimit !== false) {
     const { limit, windowMs } = typeof opts.rateLimit === "object"
       ? opts.rateLimit
@@ -96,18 +121,10 @@ export async function buildContext(opts: BuildContextOpts = {}): Promise<BuildCo
     if (!rl.ok) return { error: tooManyRequests(rl) };
   }
 
-  // Resolve Membership for this org. May not exist for platform admins acting
-  // on an org they don't belong to — kept null in that case.
-  let membershipId: number | null = null;
-  try {
-    const m = await prisma.membership.findUnique({
-      where: { brotherId_organizationId: { brotherId: user.id, organizationId: user.orgId } },
-      select: { id: true },
-    });
-    membershipId = m?.id ?? null;
-  } catch {
-    // Membership table missing pre-migration — non-fatal.
-  }
+  // ── Resolve Membership id ─────────────────────────────────────────────────
+  // We already have the membership from requireUser(); use it directly when
+  // available to avoid a redundant DB round-trip.
+  const membershipId = activeMembership?.id ?? null;
 
   const ctx: RequestContext = {
     requestId:       randomUUID(),
@@ -119,6 +136,7 @@ export async function buildContext(opts: BuildContextOpts = {}): Promise<BuildCo
     membershipId,
     permissions,
     maxRank,
+    isOrgAdmin,
     isPlatformAdmin: user.isPlatformAdmin,
     db:              db(user.orgId),
   };

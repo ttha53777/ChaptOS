@@ -5,9 +5,18 @@
  * handlers in sequence, isolating failures so one bad handler can't break
  * another.
  *
+ * Each handler is subject to HANDLER_TIMEOUT_MS so a slow side-effect (e.g.
+ * attendance recalc on a large org) cannot block the HTTP response indefinitely.
+ * A timed-out handler is logged and skipped; the business write already
+ * committed before dispatch runs, so data is safe.
+ *
  * Phase 2.5: synchronous, in-process. Phase 2.6: flip dispatchHandlers to
- * enqueue via Inngest — handler signatures stay the same.
+ * enqueue via Inngest — handler signatures stay the same, only this function
+ * changes.
  */
+
+/** Maximum wall-clock time for a single handler invocation. */
+const HANDLER_TIMEOUT_MS = 3_000;
 
 import { logError } from "@/lib/observability";
 import type { RequestContext } from "@/lib/context";
@@ -41,7 +50,15 @@ export async function dispatchHandlers<A extends Action>(
 
   for (const handler of handlers) {
     try {
-      await handler(ctx, { subject, metadata });
+      await Promise.race([
+        handler(ctx, { subject, metadata }),
+        new Promise<never>((_, reject) =>
+          setTimeout(
+            () => reject(new Error(`Handler timed out after ${HANDLER_TIMEOUT_MS}ms`)),
+            HANDLER_TIMEOUT_MS,
+          )
+        ),
+      ]);
     } catch (e) {
       logError(e, {
         route: "events/dispatch",
@@ -50,12 +67,12 @@ export async function dispatchHandlers<A extends Action>(
         extra: {
           action,
           subjectType: subject.type,
-          subjectId: subject.id,
-          requestId: ctx.requestId,
+          subjectId:   subject.id,
+          requestId:   ctx.requestId,
         },
       });
-      // Continue dispatching other handlers; a single handler's failure does
-      // not block the rest.
+      // Continue dispatching other handlers; a single handler's failure or
+      // timeout does not block the rest or roll back the business write.
     }
   }
 }
@@ -99,6 +116,8 @@ export function formatActivityMessage(ctx: RequestContext, action: Action, m: an
       return `${who} granted role "${m.roleName}" to ${m.brotherName}`;
     case "role.revoked":
       return `${who} revoked role "${m.roleName}" from ${m.brotherName}`;
+    case "brother.claimed":
+      return `${m.name} claimed their profile (${m.email ?? "no email"})`;
     case "brother.added":
       return `${who} added ${m.name} as ${m.role}`;
     case "brother.updated":
