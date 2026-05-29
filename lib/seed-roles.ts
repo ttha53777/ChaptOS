@@ -65,12 +65,13 @@ export async function seedSystemRoles(prisma: PrismaClient): Promise<Map<string,
   for (const spec of SYSTEM_ROLES) {
     const bits = bitsFor(spec);
     const row = await prisma.role.upsert({
-      where: { name: spec.name },
+      where: { organizationId_name: { organizationId: 1, name: spec.name } },
       // Only refresh permission bits on system roles whose spec changed; never
       // wipe a chapter's customizations to `color` or `rank` once they've been
       // edited via the UI.
       update: { permissions: bits, isSystem: true },
       create: {
+        organizationId: 1,
         name: spec.name,
         color: spec.color,
         rank: spec.rank,

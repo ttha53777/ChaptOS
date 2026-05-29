@@ -14,7 +14,7 @@ declare global {
 }
 
 /** Bump when Prisma schema changes so `next dev` hot reload gets a fresh client. */
-const PRISMA_SCHEMA_REVISION = "doc-model-v1-20260525";
+const PRISMA_SCHEMA_REVISION = "phase0-tenancy-20260528";
 /** Bump when pool options change so `next dev` hot reload picks up new config. */
 const POOL_REVISION = "pool-timeout-20s-v1-20260520";
 
@@ -29,7 +29,12 @@ function clientSupportsCurrentSchema(client: PrismaClient | undefined): boolean 
     && "avatarUrl" in Prisma.BrotherScalarFieldEnum
     && "email" in Prisma.BrotherScalarFieldEnum
     && "isGhost" in Prisma.BrotherScalarFieldEnum
-    && "id" in Prisma.DocScalarFieldEnum;
+    && "id" in Prisma.DocScalarFieldEnum
+    // Phase 0: tenancy models
+    && "id" in Prisma.OrganizationScalarFieldEnum
+    && "id" in Prisma.MembershipScalarFieldEnum
+    && "id" in Prisma.PlatformAdminScalarFieldEnum
+    && "organizationId" in Prisma.BrotherScalarFieldEnum;
 }
 
 // Reuse pool and client across hot-reloads in dev; create once in prod.
@@ -70,7 +75,10 @@ const needsFreshClient =
   !cachedPrisma.attendanceRecord ||
   !cachedPrisma.attendanceExcuse ||
   !cachedPrisma.serviceEvent ||
-  !cachedPrisma.doc;
+  !cachedPrisma.doc ||
+  !cachedPrisma.organization ||
+  !cachedPrisma.membership ||
+  !cachedPrisma.platformAdmin;
 
 export const prisma = needsFreshClient ? new PrismaClient({ adapter }) : cachedPrisma;
 

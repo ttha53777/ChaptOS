@@ -21,23 +21,23 @@ type RequireResult =
 
 /**
  * Returns { user } when the caller is authenticated AND either has the named
- * permission OR is a super-admin (isAdmin = true). Returns { error: Response }
- * with the appropriate 401/403 the route should return verbatim.
+ * permission OR is a platform admin (isPlatformAdmin = true). Returns
+ * { error: Response } with the appropriate 401/403 the route should return verbatim.
  *
  *   const { user, error } = await requirePermission("MANAGE_TREASURY");
  *   if (error) return error;
  *
- * Super-admin (`Brother.isAdmin = true`) bypasses the bitfield check entirely
- * and is reported with permissions = ALL_PERMISSIONS, maxRank = +Infinity.
- * This is the safety hatch: as long as one super-admin exists, the role system
- * can never lock the chapter out of its own settings.
+ * Platform admins bypass the bitfield check entirely and are reported with
+ * permissions = ALL_PERMISSIONS, maxRank = +Infinity. This is the safety hatch:
+ * as long as one platform admin exists, the role system can never lock the
+ * chapter out of its own settings.
  */
 export async function requirePermission(perm: Permission): Promise<RequireResult> {
   const user = await requireUser();
   if (!user) return { error: Response.json({ error: "Unauthorized" }, { status: 401 }) };
 
-  // Super-admin bypass: no DB hit for roles, no bitfield check.
-  if (user.isAdmin) {
+  // Platform-admin bypass: no DB hit for roles, no bitfield check.
+  if (user.isPlatformAdmin) {
     return {
       user: { ...user, permissions: ~0 >>> 0, maxRank: Number.POSITIVE_INFINITY },
     };
@@ -72,9 +72,6 @@ export async function requirePermission(perm: Permission): Promise<RequireResult
  *
  * The returned `permissions` bitfield is still the caller's actual permissions
  * — self-access doesn't grant the permission, it just lets the request through.
- * Routes that need to know "did this caller pass because they have the perm or
- * because it's their own row?" should check `hasPermission(user.permissions, perm)`
- * themselves.
  */
 export async function requirePermissionOrSelf(
   perm: Permission,
@@ -83,7 +80,7 @@ export async function requirePermissionOrSelf(
   const user = await requireUser();
   if (!user) return { error: Response.json({ error: "Unauthorized" }, { status: 401 }) };
 
-  if (user.isAdmin) {
+  if (user.isPlatformAdmin) {
     return { user: { ...user, permissions: ~0 >>> 0, maxRank: Number.POSITIVE_INFINITY } };
   }
 
@@ -109,12 +106,7 @@ export async function requirePermissionOrSelf(
 /**
  * Resolve a brother's permissions + max rank without a permission check —
  * used by /api/auth/me to populate the client's ChapterContext, and by the
- * role-management routes to enforce hierarchy ("can the caller grant a role
- * with rank R?"). Super-admins still report ALL_PERMISSIONS and +Infinity rank.
- *
- * Degrades to "no roles" if the BrotherRole/Role tables don't exist yet
- * (e.g. code shipped before `prisma migrate dev` ran). This keeps /api/auth/me
- * up so super-admins can still sign in and run the migration from the UI.
+ * role-management routes to enforce hierarchy.
  */
 export async function resolvePermissions(user: AuthedUser): Promise<{ permissions: number; maxRank: number; roles: { id: number; name: string; color: string | null; rank: number; permissions: number }[] }> {
   let rows: { role: { id: number; name: string; color: string | null; rank: number; permissions: number } }[] = [];
@@ -124,12 +116,10 @@ export async function resolvePermissions(user: AuthedUser): Promise<{ permission
       select: { role: { select: { id: true, name: true, color: true, rank: true, permissions: true } } },
     });
   } catch (e) {
-    // Pre-migration: BrotherRole table doesn't exist. Log once, then continue
-    // with an empty role set. Super-admins still get full access via isAdmin.
     console.warn("resolvePermissions: BrotherRole lookup failed (run prisma migrate?):", (e as Error).message);
   }
 
-  if (user.isAdmin) {
+  if (user.isPlatformAdmin) {
     return {
       permissions: ~0 >>> 0,
       maxRank: Number.POSITIVE_INFINITY,

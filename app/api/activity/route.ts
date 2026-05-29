@@ -50,7 +50,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const log = await prisma.activityLog.create({
-      data: { message, type, actorId: user.id },
+      data: { message, type, actorId: user.id, organizationId: 1 },
     });
     return Response.json(
       { id: log.id, message: log.message, type: log.type, timestamp: relativeTime(log.timestamp) },

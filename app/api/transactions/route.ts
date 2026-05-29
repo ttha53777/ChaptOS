@@ -60,6 +60,7 @@ export async function POST(req: NextRequest) {
   try {
     const tx = await prisma.transaction.create({
       data: {
+        organizationId: 1,
         type:          String(type),
         category:      String(category),
         amount:        numAmount,

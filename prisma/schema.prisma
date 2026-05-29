@@ -7,8 +7,56 @@ datasource db {
   provider = "postgresql"
 }
 
+// The tenant. One row per chapter (or any org). All domain rows carry a FK here.
+model Organization {
+  id          Int      @id @default(autoincrement())
+  name        String
+  slug        String   @unique
+  createdAt   DateTime @default(now())
+
+  memberships        Membership[]
+  brothers           Brother[]
+  roles              Role[]
+  semesters          Semester[]
+  calendarEvents     CalendarEvent[]
+  serviceEvents      ServiceEvent[]
+  partyEvents        PartyEvent[]
+  deadlines          Deadline[]
+  instagramTasks     InstagramTask[]
+  docs               Doc[]
+  transactions       Transaction[]
+  budgets            Budget[]
+  activityLogs       ActivityLog[]
+  announcements      ChapterAnnouncement[]
+}
+
+// Links a Brother (Supabase identity + profile) to an Organization.
+// isOrgAdmin replaces Brother.isAdmin for per-org admin authority.
+model Membership {
+  id             Int          @id @default(autoincrement())
+  brotherId      Int
+  organizationId Int
+  isOrgAdmin     Boolean      @default(false)
+  joinedAt       DateTime     @default(now())
+
+  brother      Brother      @relation(fields: [brotherId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([brotherId, organizationId])
+  @@index([organizationId])
+}
+
+// Platform-level super-admin (you, support staff). Distinct from per-org isOrgAdmin.
+// Replaces the Brother.isAdmin boolean for platform-staff access.
+model PlatformAdmin {
+  id        Int     @id @default(autoincrement())
+  brotherId Int     @unique
+  brother   Brother @relation(fields: [brotherId], references: [id])
+}
+
 model Brother {
   id                Int                @id @default(autoincrement())
+  organizationId    Int
   name              String
   role              String
   attendance        Float
@@ -26,28 +74,36 @@ model Brother {
   attendanceExcuses AttendanceExcuse[]
   authoredLogs      ActivityLog[]
   roles             BrotherRole[]
+  memberships       Membership[]
+  platformAdmin     PlatformAdmin?
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId])
 }
 
 // Discord-style role: a named bundle of permission bits with a hierarchy rank.
-// `isAdmin = true` on Brother still bypasses every check — roles are additive
-// on top of that, never required.
+// name is unique per org (not globally) — two orgs may both have a "President" role.
 model Role {
-  id          Int           @id @default(autoincrement())
-  name        String        @unique
+  id             Int           @id @default(autoincrement())
+  organizationId Int
+  name           String
   // Optional hex color (e.g. "#5865F2") for the UI chip; null = neutral.
-  color       String?
+  color          String?
   // Hierarchy rank. A caller can only grant/edit roles whose rank is STRICTLY
   // LESS than their own highest assigned role's rank. Higher = more authority.
-  rank        Int           @default(0)
-  // Bitfield of PERMISSIONS flags (see lib/permissions.ts). 32 bits is plenty
-  // for the foreseeable permission surface.
-  permissions Int           @default(0)
+  rank           Int           @default(0)
+  // Bitfield of PERMISSIONS flags (see lib/permissions.ts).
+  permissions    Int           @default(0)
   // System roles are seeded by migration and protected from deletion/rename.
-  isSystem    Boolean       @default(false)
-  createdAt   DateTime      @default(now())
-  brothers    BrotherRole[]
+  isSystem       Boolean       @default(false)
+  createdAt      DateTime      @default(now())
+  brothers       BrotherRole[]
 
-  @@index([rank])
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@unique([organizationId, name])
+  @@index([organizationId, rank])
 }
 
 // Join table: a brother can hold any number of roles. Their effective
@@ -64,15 +120,19 @@ model BrotherRole {
 }
 
 model Semester {
-  id        Int                @id @default(autoincrement())
-  label     String             @unique
-  startDate String
-  endDate   String
-  isActive  Boolean            @default(false)
-  records   AttendanceRecord[]
-  excuses   AttendanceExcuse[]
+  id             Int                @id @default(autoincrement())
+  organizationId Int
+  label          String
+  startDate      String
+  endDate        String
+  isActive       Boolean            @default(false)
+  records        AttendanceRecord[]
+  excuses        AttendanceExcuse[]
 
-  @@index([isActive])
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@unique([organizationId, label])
+  @@index([organizationId, isActive])
 }
 
 model AttendanceRecord {
@@ -114,61 +174,80 @@ model AttendanceExcuse {
 }
 
 model Deadline {
-  id      Int    @id @default(autoincrement())
-  title   String
-  dueDate String
-  owner   String
-  status  String
+  id             Int    @id @default(autoincrement())
+  organizationId Int
+  title          String
+  dueDate        String
+  owner          String
+  status         String
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId])
 }
 
 model InstagramTask {
-  id      Int    @id @default(autoincrement())
-  title   String
-  dueDate String
-  owner   String
-  status  String
-  type    String
+  id             Int    @id @default(autoincrement())
+  organizationId Int
+  title          String
+  dueDate        String
+  owner          String
+  status         String
+  type           String
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId])
 }
 
 // A pinned external resource (Google Doc, website, shared drive folder, …)
 // shown on the Docs page. We cache OG metadata so cards can fall back to a
 // thumbnail when the destination refuses to load in an iframe.
 model Doc {
-  id          Int      @id @default(autoincrement())
-  title       String
-  url         String
-  description String?
+  id             Int      @id @default(autoincrement())
+  organizationId Int
+  title          String
+  url            String
+  description    String?
   // Cached metadata, refreshed on create / URL change. `embedOk = null` means
   // we haven't probed yet; `false` means the site sent X-Frame-Options or a
   // frame-ancestors CSP that blocks our origin → render the OG image instead.
-  ogImage     String?
-  ogTitle     String?
-  faviconUrl  String?
-  embedOk     Boolean?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  createdById Int?
+  ogImage        String?
+  ogTitle        String?
+  faviconUrl     String?
+  embedOk        Boolean?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  createdById    Int?
 
-  @@index([createdAt])
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId, createdAt])
 }
 
 model PartyEvent {
-  id          Int       @id @default(autoincrement())
-  name        String
-  date        String
-  partyType   String    @default("Open")
-  theme       String    @default("")
-  collabOrg   String    @default("")
-  doorRevenue Float     @default(0)
-  attendance  Int       @default(0)
-  expenses    Float     @default(0)
-  notes       String    @default("")
-  completed   Boolean   @default(false)
-  completedAt DateTime?
+  id             Int       @id @default(autoincrement())
+  organizationId Int
+  name           String
+  date           String
+  partyType      String    @default("Open")
+  theme          String    @default("")
+  collabOrg      String    @default("")
+  doorRevenue    Float     @default(0)
+  attendance     Int       @default(0)
+  expenses       Float     @default(0)
+  notes          String    @default("")
+  completed      Boolean   @default(false)
+  completedAt    DateTime?
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId])
 }
 
 model CalendarEvent {
   id                Int                @id @default(autoincrement())
+  organizationId    Int
   title             String
   date              String
   time              String?
@@ -182,56 +261,75 @@ model CalendarEvent {
   attendanceRecords AttendanceRecord[]
   attendanceExcuses AttendanceExcuse[]
 
-  @@index([category, date])
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId, category, date])
 }
 
 model ServiceEvent {
   id              Int      @id @default(autoincrement())
+  organizationId  Int
   title           String
   date            String
   location        String   @default("")
   notes           String   @default("")
   calendarEventId Int?     @unique
   createdAt       DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId])
 }
 
 model ActivityLog {
-  id        Int      @id @default(autoincrement())
-  message   String
-  type      String
-  timestamp DateTime @default(now())
-  actorId   Int?
-  actor     Brother? @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  id             Int      @id @default(autoincrement())
+  organizationId Int
+  message        String
+  type           String
+  timestamp      DateTime @default(now())
+  actorId        Int?
+  actor          Brother? @relation(fields: [actorId], references: [id], onDelete: SetNull)
 
-  @@index([timestamp])
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId, timestamp])
   @@index([actorId])
 }
 
 model Transaction {
-  id            Int       @id @default(autoincrement())
-  type          String
-  category      String
-  amount        Float
-  date          String
-  description   String
-  paymentMethod String?
-  paidTo        String?
-  semester      String?
-  deletedAt     DateTime?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id             Int       @id @default(autoincrement())
+  organizationId Int
+  type           String
+  category       String
+  amount         Float
+  date           String
+  description    String
+  paymentMethod  String?
+  paidTo         String?
+  semester       String?
+  deletedAt      DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
-  @@index([deletedAt])
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId, deletedAt])
 }
 
 model Budget {
-  id                Int                @id @default(autoincrement())
-  semester          String             @unique
-  carryoverBalance  Float              @default(0)
-  reserveAmount     Float              @default(0)
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @updatedAt
-  allocations       BudgetAllocation[]
+  id               Int                @id @default(autoincrement())
+  organizationId   Int
+  semester         String
+  carryoverBalance Float              @default(0)
+  reserveAmount    Float              @default(0)
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  allocations      BudgetAllocation[]
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@unique([organizationId, semester])
+  @@index([organizationId])
 }
 
 model BudgetAllocation {
@@ -245,15 +343,20 @@ model BudgetAllocation {
   @@index([budgetId])
 }
 
-// Single pinned chapter announcement shown at the top of the dashboard.
-// Always upserted at id = 1; the row may not exist (placeholder rendered).
+// Pinned chapter announcement shown at the top of the dashboard.
+// Was a singleton (id=1); now per-org, multiple rows allowed.
 model ChapterAnnouncement {
-  id         Int      @id @default(1)
-  title      String
-  body       String
-  ctaLabel   String?
-  ctaUrl     String?
-  authorId   Int?
-  authorName String?
-  updatedAt  DateTime @updatedAt
+  id             Int      @id @default(autoincrement())
+  organizationId Int
+  title          String
+  body           String
+  ctaLabel       String?
+  ctaUrl         String?
+  authorId       Int?
+  authorName     String?
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId])
 }

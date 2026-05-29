@@ -59,6 +59,7 @@ export async function POST(req: NextRequest) {
 
     const brother = await prisma.brother.create({
       data: {
+        organizationId: 1,
         name: String(name),
         role: String(role),
         attendance: 0, // system-managed — always starts at 0

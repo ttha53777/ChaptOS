@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
     // Deactivate all existing semesters, then create the new active one
     await prisma.semester.updateMany({ data: { isActive: false } });
     const semester = await prisma.semester.create({
-      data: { label, startDate, endDate, isActive: true },
+      data: { organizationId: 1, label, startDate, endDate, isActive: true },
     });
 
     await logActivity({

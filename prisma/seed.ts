@@ -27,43 +27,58 @@ const TARGET_ATTENDANCE: Record<string, number> = {
   "Thalha Thabish":    90,
 };
 
+const ORG_ID = 1;
+
 async function main() {
+  // Ensure the seed org exists (idempotent)
+  await prisma.organization.upsert({
+    where: { id: ORG_ID },
+    update: {},
+    create: { id: ORG_ID, name: "Lambda Phi Epsilon", slug: "lpe" },
+  });
+
   // Strip `id` so Prisma autoincrement generates its own IDs — avoids sequence conflicts
 
-  const brotherData = brothers.map(({ id: _id, ...rest }) => rest);
+  const brotherData = brothers.map(({ id: _id, ...rest }) => ({ ...rest, organizationId: ORG_ID }));
   const createdBrothers = await prisma.brother.createManyAndReturn({ data: brotherData });
   console.log(`Seeded ${brotherData.length} brothers.`);
 
-  const deadlineData = deadlines.map(({ id: _id, ...rest }) => rest);
+  // Seed Membership rows for each brother
+  await prisma.membership.createMany({
+    data: createdBrothers.map(b => ({ brotherId: b.id, organizationId: ORG_ID, isOrgAdmin: b.isAdmin })),
+  });
+
+  const deadlineData = deadlines.map(({ id: _id, ...rest }) => ({ ...rest, organizationId: ORG_ID }));
   await prisma.deadline.createMany({ data: deadlineData });
   console.log(`Seeded ${deadlineData.length} deadlines.`);
 
-  const igData = instagramTasks.map(({ id: _id, ...rest }) => rest);
+  const igData = instagramTasks.map(({ id: _id, ...rest }) => ({ ...rest, organizationId: ORG_ID }));
   await prisma.instagramTask.createMany({ data: igData });
   console.log(`Seeded ${igData.length} instagram tasks.`);
 
-  const partyData = partyEvents.map(({ id: _id, ...rest }) => rest);
+  const partyData = partyEvents.map(({ id: _id, ...rest }) => ({ ...rest, organizationId: ORG_ID }));
   await prisma.partyEvent.createMany({ data: partyData });
   console.log(`Seeded ${partyData.length} party events.`);
 
-  const calData = calendarEvents.map(({ id: _id, ...rest }) => rest);
+  const calData = calendarEvents.map(({ id: _id, ...rest }) => ({ ...rest, organizationId: ORG_ID }));
   const createdEvents = await prisma.calendarEvent.createManyAndReturn({ data: calData });
   console.log(`Seeded ${calData.length} calendar events.`);
 
   // Strip both `id` and `timestamp` — DB generates timestamp via @default(now())
-  const activityData = seedActivity.map(({ id: _id, timestamp: _ts, ...rest }) => rest);
+  const activityData = seedActivity.map(({ id: _id, timestamp: _ts, ...rest }) => ({ ...rest, organizationId: ORG_ID }));
   await prisma.activityLog.createMany({ data: activityData });
   console.log(`Seeded ${activityData.length} activity entries.`);
 
-  await prisma.transaction.createMany({ data: seedTransactions });
-  console.log(`Seeded ${seedTransactions.length} transactions.`);
+  const txData = seedTransactions.map(t => ({ ...t, organizationId: ORG_ID }));
+  await prisma.transaction.createMany({ data: txData });
+  console.log(`Seeded ${txData.length} transactions.`);
 
   // ── Semester ──────────────────────────────────────────────────────────────
 
   const semester = await prisma.semester.upsert({
-    where: { label: "SPR26" },
+    where: { organizationId_label: { organizationId: ORG_ID, label: "SPR26" } },
     update: {},
-    create: { label: "SPR26", startDate: "2026-01-01", endDate: "2026-06-30", isActive: true },
+    create: { organizationId: ORG_ID, label: "SPR26", startDate: "2026-01-01", endDate: "2026-06-30", isActive: true },
   });
   console.log(`Seeded semester: ${semester.label}`);
 
@@ -84,6 +99,7 @@ async function main() {
 
   const syntheticEvents = await prisma.calendarEvent.createManyAndReturn({
     data: syntheticPastDates.map(date => ({
+      organizationId: ORG_ID,
       title: "Chapter Meeting",
       date,
       time: "7:00 PM",

@@ -89,7 +89,7 @@ export async function POST(req: NextRequest) {
       return Response.json({ error: parsed.error }, { status: 400 });
     }
 
-    const event = await prisma.calendarEvent.create({ data: parsed.data });
+    const event = await prisma.calendarEvent.create({ data: { ...parsed.data, organizationId: 1 } });
 
     await logActivity({
       actorId: user.id,

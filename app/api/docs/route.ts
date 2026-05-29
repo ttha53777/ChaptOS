@@ -66,6 +66,7 @@ export async function POST(req: NextRequest) {
 
     const doc = await prisma.doc.create({
       data: {
+        organizationId: 1,
         title,
         url: urlCheck.url,
         description,
