@@ -1,0 +1,17 @@
+services:
+  postgres-test:
+    image: postgres:16-alpine
+    container_name: figurints-test-db
+    environment:
+      POSTGRES_USER: figurints_test
+      POSTGRES_PASSWORD: figurints_test
+      POSTGRES_DB: figurints_test
+    ports:
+      - "54330:5432"
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U figurints_test"]
+      interval: 1s
+      timeout: 3s
+      retries: 30

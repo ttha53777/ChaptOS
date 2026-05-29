@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useOrgLogo } from "../hooks/useOrgLogo";
+import { useChapter } from "../context/ChapterContext";
+import { OrgSwitcher } from "./OrgSwitcher";
 
 // ─── Icon paths ───────────────────────────────────────────────────────────────
 
@@ -58,6 +60,8 @@ export function Sidebar({ open, onClose, activeSection, onNavClick }: {
   const pathname = usePathname();
   const router   = useRouter();
   const { logoUrl } = useOrgLogo();
+  const { currentUser } = useChapter();
+  const orgName = currentUser?.org?.name ?? "Operations";
 
   const semesterLabel = (() => {
     const m = new Date().getMonth(); // 0-based
@@ -94,10 +98,15 @@ export function Sidebar({ open, onClose, activeSection, onNavClick }: {
             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-indigo-700 text-[11px] font-bold text-white shadow-[0_2px_8px_rgba(99,102,241,0.3)]">ΛΦΕ</div>
           )}
           <div className="min-w-0">
-            <p className="truncate text-[12px] font-semibold leading-tight text-white">Lambda Phi Epsilon</p>
+            <p className="truncate text-[12px] font-semibold leading-tight text-white">{orgName}</p>
             <p className="text-[10px] leading-tight text-white/35">{semesterLabel}</p>
           </div>
         </Link>
+        {currentUser && currentUser.memberships.length > 1 && (
+          <div className="border-b border-white/[0.05] px-4 py-2">
+            <OrgSwitcher />
+          </div>
+        )}
 
         <nav className="flex-1 overflow-y-auto px-2 py-3" aria-label="Main navigation">
           <div className="space-y-0.5">

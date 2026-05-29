@@ -1,27 +1,23 @@
 import { NextRequest } from "next/server";
-import { db } from "@/lib/db";
-import { requirePermission } from "@/lib/auth/require-permission";
+import { buildContext } from "@/lib/context";
+import { toResponse } from "@/lib/errors";
 import { logError } from "@/lib/observability";
 
 function csvSafeStr(s: string | null | undefined): string {
   const v = (s ?? "").replace(/"/g, '""');
   return /^[=+\-@\t\r]/.test(v) ? `'${v}` : v;
 }
-
-/** Quote every string cell so embedded commas/newlines don't shift columns. */
-function quote(s: string | null | undefined): string {
-  return `"${csvSafeStr(s)}"`;
-}
+function quote(s: string | null | undefined): string { return `"${csvSafeStr(s)}"`; }
 
 export async function GET(req: NextRequest) {
-  const { user, error } = await requirePermission("MANAGE_TREASURY");
+  const { ctx, error } = await buildContext({ requirePerm: "MANAGE_TREASURY", rateLimit: false });
   if (error) return error;
   try {
     const { searchParams } = new URL(req.url);
     const semester = searchParams.get("semester") ?? "all";
     const safeSemester = semester.replace(/[^A-Za-z0-9_-]/g, "");
 
-    const transactions = await db(user.orgId).transaction.findMany({
+    const transactions = await ctx.db.transaction.findMany({
       where: safeSemester && safeSemester !== "all"
         ? { deletedAt: null, semester: safeSemester }
         : { deletedAt: null },
@@ -53,7 +49,7 @@ export async function GET(req: NextRequest) {
       },
     });
   } catch (e) {
-    logError(e, { route: "/api/transactions/export", method: "GET", userId: user.id });
-    return Response.json({ error: "Failed to export transactions" }, { status: 500 });
+    logError(e, { route: "/api/transactions/export", method: "GET", userId: ctx.actorId, extra: { requestId: ctx.requestId } });
+    return toResponse(e);
   }
 }

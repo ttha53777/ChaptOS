@@ -1,46 +1,37 @@
 import { NextRequest } from "next/server";
-import { db } from "@/lib/db";
+import { buildContext } from "@/lib/context";
+import { toResponse, ValidationError } from "@/lib/errors";
 import { getActiveSemester } from "@/lib/attendance";
-import { requireUser } from "@/lib/auth/require-user";
+import { ExcuseStatus } from "@/lib/state";
 import { logError } from "@/lib/observability";
 
-export async function GET(
-  _req: NextRequest,
-  { params }: { params: Promise<{ eventId: string }> }
-) {
-  const user = await requireUser();
-  if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
+export async function GET(_req: NextRequest, { params }: { params: Promise<{ eventId: string }> }) {
+  const { ctx, error } = await buildContext({ rateLimit: false });
+  if (error) return error;
   try {
     const { eventId } = await params;
     const calendarEventId = Number(eventId);
-    if (!Number.isInteger(calendarEventId) || calendarEventId <= 0) {
-      return Response.json({ error: "Invalid eventId" }, { status: 400 });
-    }
+    if (!Number.isInteger(calendarEventId) || calendarEventId <= 0) throw new ValidationError("Invalid eventId");
 
     const semester = await getActiveSemester();
-    if (!semester) return Response.json({ error: "No active semester" }, { status: 400 });
+    if (!semester) throw new ValidationError("No active semester");
 
     const [records, excuses] = await Promise.all([
-      db(user.orgId).attendanceRecord.findMany({
+      ctx.db.attendanceRecord.findMany({
         where: { calendarEventId, semesterId: semester.id },
         include: { brother: { select: { id: true, name: true } } },
       }),
-      db(user.orgId).attendanceExcuse.findMany({
-        where: { calendarEventId, semesterId: semester.id, status: "approved" },
+      ctx.db.attendanceExcuse.findMany({
+        where: { calendarEventId, semesterId: semester.id, status: ExcuseStatus.Approved },
         include: { brother: { select: { id: true, name: true } } },
       }),
     ]);
 
     const excusedBrotherIds = new Set(excuses.map(e => e.brotherId));
-
-    const attended = records
-      .filter(r => r.attended && !excusedBrotherIds.has(r.brotherId))
+    const attended = records.filter(r => r.attended && !excusedBrotherIds.has(r.brotherId))
       .map(r => ({ brotherId: r.brotherId, brotherName: r.brother.name }));
-
-    const unexcused = records
-      .filter(r => !r.attended && !excusedBrotherIds.has(r.brotherId))
+    const unexcused = records.filter(r => !r.attended && !excusedBrotherIds.has(r.brotherId))
       .map(r => ({ brotherId: r.brotherId, brotherName: r.brother.name }));
-
     const excused = excuses.map(e => ({
       brotherId: e.brotherId,
       brotherName: e.brother.name,
@@ -50,7 +41,7 @@ export async function GET(
 
     return Response.json({ excused, unexcused, attended });
   } catch (e) {
-    logError(e, { route: "/api/attendance/[eventId]", method: "GET", userId: user?.id });
-    return Response.json({ error: "Failed to fetch attendance" }, { status: 500 });
+    logError(e, { route: "/api/attendance/[eventId]", method: "GET", userId: ctx.actorId, extra: { requestId: ctx.requestId } });
+    return toResponse(e);
   }
 }

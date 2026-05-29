@@ -1,5 +1,5 @@
 import { requireUser } from "@/lib/auth/require-user";
-import { db } from "@/lib/db";
+import { db } from "@/lib/db"; // lint-modules:ignore (read-only listing for admin UI)
 import { logError } from "@/lib/observability";
 
 export async function GET() {

@@ -253,8 +253,24 @@ export function db(orgId: number) {
     organization:        prisma.organization,
     platformAdmin:       prisma.platformAdmin,
 
-    // Interactive transaction pass-through. Inside the callback, callers must
-    // inject organizationId: orgId manually — the tx client can't be wrapped.
-    $transaction: prisma.$transaction.bind(prisma),
+    // Interactive transaction pass-through. Sets app.org_id via SET LOCAL so
+    // Postgres RLS policies can enforce org scoping at the DB layer for the
+    // duration of the transaction. Callers inside the callback must still
+    // inject organizationId: orgId manually on writes — the tx client itself
+    // can't be wrapped without invasive surgery.
+    //
+    // Note on pgbouncer: SET LOCAL is rolled back at COMMIT, so it stays
+    // scoped to this transaction even under transaction-mode pooling.
+    $transaction: ((
+      fn: Parameters<typeof prisma.$transaction>[0],
+      opts?: Parameters<typeof prisma.$transaction>[1],
+    ) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return prisma.$transaction(async (tx: any) => {
+        await tx.$executeRawUnsafe(`SET LOCAL app.org_id = '${orgId}'`);
+        return fn(tx);
+      }, opts);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    }) as any as typeof prisma.$transaction,
   };
 }

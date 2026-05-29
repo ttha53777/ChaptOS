@@ -8,7 +8,13 @@
     "start": "next start",
     "postinstall": "prisma generate",
     "lint:prisma": "bash scripts/lint-direct-prisma.sh",
-    "lint:prisma:strict": "bash scripts/lint-direct-prisma.sh --strict"
+    "lint:prisma:strict": "bash scripts/lint-direct-prisma.sh --strict",
+    "lint:modules": "bash scripts/lint-module-boundaries.sh",
+    "lint:modules:strict": "bash scripts/lint-module-boundaries.sh --strict",
+    "test:db:up": "docker compose -f docker-compose.test.yml up -d --wait",
+    "test:db:down": "docker compose -f docker-compose.test.yml down -v",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.8.0",
@@ -20,7 +26,8 @@
     "pg": "^8.20.0",
     "react": "19.2.4",
     "react-dom": "19.2.4",
-    "recharts": "^3.8.1"
+    "recharts": "^3.8.1",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
@@ -32,6 +39,7 @@
     "prisma": "^7.8.0",
     "tailwindcss": "^4",
     "tsx": "^4.21.0",
-    "typescript": "^6.0.3"
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.7"
   }
 }

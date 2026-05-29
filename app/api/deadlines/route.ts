@@ -1,60 +1,30 @@
 import { NextRequest } from "next/server";
-import { db } from "@/lib/db";
-import { requireUser } from "@/lib/auth/require-user";
-import { logActivity } from "@/lib/activity";
-import { isValidDateString } from "@/lib/coerce";
-import { checkMutationRate } from "@/lib/rate-limit";
+import { buildContext } from "@/lib/context";
+import { toResponse } from "@/lib/errors";
+import { createDeadlineInput } from "@/lib/validation/deadline";
+import { createDeadline, listDeadlines } from "@/lib/services/deadline-service";
 import { logError } from "@/lib/observability";
 
 export async function GET() {
-  const user = await requireUser();
-  if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
-  try {
-    const deadlines = await db(user.orgId).deadline.findMany({ orderBy: { id: "asc" } });
-    return Response.json(deadlines);
-  } catch (e) {
-    logError(e, { route: "/api/deadlines", method: "GET", userId: user?.id });
-    return Response.json({ error: "Failed to fetch deadlines" }, { status: 500 });
+  const { ctx, error } = await buildContext({ rateLimit: false });
+  if (error) return error;
+  try { return Response.json(await listDeadlines(ctx)); }
+  catch (e) {
+    logError(e, { route: "/api/deadlines", method: "GET", userId: ctx.actorId, extra: { requestId: ctx.requestId } });
+    return toResponse(e);
   }
 }
 
 export async function POST(req: NextRequest) {
-  const user = await requireUser();
-  if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
-  const limited = checkMutationRate(user.id);
-  if (limited) return limited;
+  const { ctx, error } = await buildContext();
+  if (error) return error;
   try {
-    const body = await req.json();
-    const { title, dueDate, owner, status } = body;
-
-    if (!title || !dueDate || !owner || !status) {
-      return Response.json({ error: "Missing required fields" }, { status: 400 });
-    }
-    if (String(title).length > 200) return Response.json({ error: "Title too long" }, { status: 400 });
-    if (String(owner).length > 200) return Response.json({ error: "Owner too long" }, { status: 400 });
-    if (!isValidDateString(dueDate)) {
-      return Response.json({ error: "dueDate must use YYYY-MM-DD format" }, { status: 400 });
-    }
-
-    const deadline = await db(user.orgId).deadline.create({
-      data: {
-        title: String(title),
-        dueDate: String(dueDate),
-        owner: String(owner),
-        status: String(status),
-      },
-    });
-
-    await logActivity({
-      actorId: user.id,
-      type: "info",
-      message: `${user.name} added deadline ${deadline.title} (due ${deadline.dueDate})`,
-      orgId: user.orgId,
-    });
-
-    return Response.json(deadline, { status: 201 });
+    const body = await req.json().catch(() => ({}));
+    const input = createDeadlineInput.parse(body);
+    const d = await createDeadline(ctx, input);
+    return Response.json(d, { status: 201 });
   } catch (e) {
-    logError(e, { route: "/api/deadlines", method: "POST", userId: user?.id });
-    return Response.json({ error: "Failed to create deadline" }, { status: 500 });
+    logError(e, { route: "/api/deadlines", method: "POST", userId: ctx.actorId, extra: { requestId: ctx.requestId } });
+    return toResponse(e);
   }
 }

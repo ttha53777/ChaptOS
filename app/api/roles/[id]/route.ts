@@ -1,132 +1,38 @@
 import { NextRequest } from "next/server";
-import { Prisma } from "../../../generated/prisma/client";
-import { db } from "@/lib/db";
-import { requirePermission } from "@/lib/auth/require-permission";
-import { logActivity } from "@/lib/activity";
-import { checkMutationRate } from "@/lib/rate-limit";
+import { buildContext } from "@/lib/context";
+import { toResponse, ValidationError } from "@/lib/errors";
+import { updateRoleInput } from "@/lib/validation/role";
+import { deleteRole, updateRole } from "@/lib/services/role-service";
 import { logError } from "@/lib/observability";
 
-const NAME_MAX = 60;
-const COLOR_RE = /^#[0-9a-fA-F]{6}$/;
-const MAX_PERM_BITS = 0xffffffff;
-
-export async function PATCH(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
-  const { user, error } = await requirePermission("MANAGE_ROLES");
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { ctx, error } = await buildContext({ requirePerm: "MANAGE_ROLES" });
   if (error) return error;
-  const limited = checkMutationRate(user.id);
-  if (limited) return limited;
-
-  const { id } = await params;
-  const numId = Number(id);
-  if (!Number.isInteger(numId) || numId <= 0) {
-    return Response.json({ error: "Invalid ID" }, { status: 400 });
-  }
-
-  const existing = await db(user.orgId).role.findUnique({ where: { id: numId } });
-  if (!existing) return Response.json({ error: "Role not found" }, { status: 404 });
-
-  if (existing.rank >= user.maxRank) {
-    return Response.json({ error: "Cannot edit a role at or above your own rank" }, { status: 403 });
-  }
-
-  let body: Record<string, unknown>;
-  try { body = await req.json(); }
-  catch { return Response.json({ error: "Invalid JSON body" }, { status: 400 }); }
-
-  const data: { name?: string; color?: string | null; rank?: number; permissions?: number } = {};
-
-  if ("name" in body) {
-    if (existing.isSystem) return Response.json({ error: "System roles cannot be renamed" }, { status: 400 });
-    const name = typeof body.name === "string" ? body.name.trim() : "";
-    if (!name || name.length > NAME_MAX) return Response.json({ error: "name must be 1–60 chars" }, { status: 400 });
-    data.name = name;
-  }
-  if ("color" in body) {
-    const c = body.color;
-    if (c === null || c === "") data.color = null;
-    else if (typeof c === "string" && COLOR_RE.test(c.trim())) data.color = c.trim();
-    else return Response.json({ error: "color must be #RRGGBB or null" }, { status: 400 });
-  }
-  if ("rank" in body) {
-    // Require a real number — `Number("")`, `Number(null)`, and `Number([])`
-    // all coerce to 0 silently, which would let a typo lower an officer
-    // role's rank to 0 by accident.
-    if (typeof body.rank !== "number" || !Number.isInteger(body.rank) || body.rank < 0) {
-      return Response.json({ error: "rank must be a non-negative integer" }, { status: 400 });
-    }
-    // Promoting a role to rank ≥ caller's own max would let them lose control of it.
-    if (body.rank >= user.maxRank) return Response.json({ error: "Cannot raise rank to or above your own" }, { status: 403 });
-    data.rank = body.rank;
-  }
-  if ("permissions" in body) {
-    if (typeof body.permissions !== "number" || !Number.isInteger(body.permissions) || body.permissions < 0 || body.permissions > MAX_PERM_BITS) {
-      return Response.json({ error: "permissions must be a valid 32-bit bitfield" }, { status: 400 });
-    }
-    data.permissions = body.permissions;
-  }
-
-  if (Object.keys(data).length === 0) {
-    return Response.json({ error: "No valid fields provided" }, { status: 400 });
-  }
-
   try {
-    const role = await db(user.orgId).role.update({ where: { id: numId }, data });
-    await logActivity({
-      actorId: user.id,
-      type: "info",
-      message: `${user.name} updated role "${role.name}"`,
-      orgId: user.orgId,
-    });
+    const { id } = await params;
+    const numId = Number(id);
+    if (!Number.isInteger(numId) || numId <= 0) throw new ValidationError("Invalid ID");
+    const body = await req.json().catch(() => ({}));
+    const input = updateRoleInput.parse(body);
+    const role = await updateRole(ctx, numId, input);
     return Response.json(role);
   } catch (e) {
-    if (e instanceof Prisma.PrismaClientKnownRequestError) {
-      if (e.code === "P2002") return Response.json({ error: "Name already in use" }, { status: 409 });
-      if (e.code === "P2025") return Response.json({ error: "Role not found" }, { status: 404 });
-    }
-    logError(e, { route: "/api/roles/[id]", method: "PATCH", userId: user.id });
-    return Response.json({ error: "Failed to update role" }, { status: 500 });
+    logError(e, { route: "/api/roles/[id]", method: "PATCH", userId: ctx.actorId, extra: { requestId: ctx.requestId } });
+    return toResponse(e);
   }
 }
 
-export async function DELETE(
-  _req: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
-  const { user, error } = await requirePermission("MANAGE_ROLES");
+export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { ctx, error } = await buildContext({ requirePerm: "MANAGE_ROLES" });
   if (error) return error;
-  const limited = checkMutationRate(user.id);
-  if (limited) return limited;
-
-  const { id } = await params;
-  const numId = Number(id);
-  if (!Number.isInteger(numId) || numId <= 0) {
-    return Response.json({ error: "Invalid ID" }, { status: 400 });
-  }
-
-  const existing = await db(user.orgId).role.findUnique({ where: { id: numId } });
-  if (!existing) return Response.json({ error: "Role not found" }, { status: 404 });
-  if (existing.isSystem) return Response.json({ error: "System roles cannot be deleted" }, { status: 400 });
-  if (existing.rank >= user.maxRank) {
-    return Response.json({ error: "Cannot delete a role at or above your own rank" }, { status: 403 });
-  }
-
   try {
-    const memberCount = await db(user.orgId).brotherRole.count({ where: { roleId: numId } });
-    await db(user.orgId).role.delete({ where: { id: numId } });
-
-    await logActivity({
-      actorId: user.id,
-      type: "warning",
-      message: `${user.name} deleted role "${existing.name}" (was held by ${memberCount} brother${memberCount === 1 ? "" : "s"})`,
-      orgId: user.orgId,
-    });
-
+    const { id } = await params;
+    const numId = Number(id);
+    if (!Number.isInteger(numId) || numId <= 0) throw new ValidationError("Invalid ID");
+    await deleteRole(ctx, numId);
     return new Response(null, { status: 204 });
   } catch (e) {
-    logError(e, { route: "/api/roles/[id]", method: "DELETE", userId: user.id });
-    return Response.json({ error: "Failed to delete role" }, { status: 500 });
+    logError(e, { route: "/api/roles/[id]", method: "DELETE", userId: ctx.actorId, extra: { requestId: ctx.requestId } });
+    return toResponse(e);
   }
 }

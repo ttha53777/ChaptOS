@@ -36,6 +36,14 @@ export interface CurrentUserRole {
   permissions: number;
 }
 
+export interface MembershipSummary {
+  id: number;
+  organizationId: number;
+  isOrgAdmin: boolean;
+  orgName: string;
+  orgSlug: string;
+}
+
 export interface CurrentUser {
   id: number;
   name: string;
@@ -53,6 +61,11 @@ export interface CurrentUser {
   /** Roles assigned to this user. Empty for super-admins who haven't been
    *  given any actual role assignments. */
   roles: CurrentUserRole[];
+  /** Current active org (resolved by active_org_id cookie or default). */
+  org: { name: string; slug: string } | null;
+  orgId: number;
+  /** All orgs this user belongs to. UI renders a switcher when length > 1. */
+  memberships: MembershipSummary[];
 }
 
 interface ChapterContextValue {

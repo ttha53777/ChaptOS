@@ -61,17 +61,27 @@ function bitsFor(spec: SystemRoleSpec): number {
 }
 
 export async function seedSystemRoles(prisma: PrismaClient): Promise<Map<string, number>> {
+  return seedSystemRolesForOrgWithMap(prisma, 1);
+}
+
+/** Idempotent system-role seed for a specific org. Returns count seeded. */
+export async function seedSystemRolesForOrg(prisma: PrismaClient, organizationId: number): Promise<number> {
+  const map = await seedSystemRolesForOrgWithMap(prisma, organizationId);
+  return map.size;
+}
+
+async function seedSystemRolesForOrgWithMap(prisma: PrismaClient, organizationId: number): Promise<Map<string, number>> {
   const idByName = new Map<string, number>();
   for (const spec of SYSTEM_ROLES) {
     const bits = bitsFor(spec);
     const row = await prisma.role.upsert({
-      where: { organizationId_name: { organizationId: 1, name: spec.name } },
+      where: { organizationId_name: { organizationId, name: spec.name } },
       // Only refresh permission bits on system roles whose spec changed; never
       // wipe a chapter's customizations to `color` or `rank` once they've been
       // edited via the UI.
       update: { permissions: bits, isSystem: true },
       create: {
-        organizationId: 1,
+        organizationId,
         name: spec.name,
         color: spec.color,
         rank: spec.rank,

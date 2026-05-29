@@ -1,102 +1,31 @@
 import { NextRequest } from "next/server";
-import { Prisma } from "../../generated/prisma/client";
-import { db } from "@/lib/db";
-import { requireUser } from "@/lib/auth/require-user";
-import { requirePermission } from "@/lib/auth/require-permission";
-import { logActivity } from "@/lib/activity";
-import { checkMutationRate } from "@/lib/rate-limit";
+import { buildContext } from "@/lib/context";
+import { toResponse } from "@/lib/errors";
+import { createRoleInput } from "@/lib/validation/role";
+import { createRole, listRoles } from "@/lib/services/role-service";
 import { logError } from "@/lib/observability";
 
-const NAME_MAX = 60;
-const COLOR_RE = /^#[0-9a-fA-F]{6}$/;
-// 32-bit unsigned cap — keeps `permissions` inside the JSON-safe range and
-// rejects bit ≥ 32 (we don't define any yet, so anything above that is junk).
-const MAX_PERM_BITS = 0xffffffff;
-
 export async function GET() {
-  // Anyone signed in can read the role list — the UI needs it for chips and
-  // for the "Assign role" picker (which is also visible to non-admins so they
-  // can see what their teammates are).
-  const user = await requireUser();
-  if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
-
+  const { ctx, error } = await buildContext({ rateLimit: false });
+  if (error) return error;
   try {
-    const roles = await db(user.orgId).role.findMany({
-      orderBy: [{ rank: "desc" }, { name: "asc" }],
-    });
-    const memberCounts = await Promise.all(
-      roles.map(r => db(user.orgId).brotherRole.count({ where: { roleId: r.id } }))
-    );
-    return Response.json(
-      roles.map((r, i) => ({
-        id: r.id,
-        name: r.name,
-        color: r.color,
-        rank: r.rank,
-        permissions: r.permissions,
-        isSystem: r.isSystem,
-        memberCount: memberCounts[i],
-      })),
-    );
+    return Response.json(await listRoles(ctx));
   } catch (e) {
-    logError(e, { route: "/api/roles", method: "GET", userId: user.id });
-    return Response.json({ error: "Failed to fetch roles" }, { status: 500 });
+    logError(e, { route: "/api/roles", method: "GET", userId: ctx.actorId, extra: { requestId: ctx.requestId } });
+    return toResponse(e);
   }
 }
 
 export async function POST(req: NextRequest) {
-  const { user, error } = await requirePermission("MANAGE_ROLES");
+  const { ctx, error } = await buildContext({ requirePerm: "MANAGE_ROLES" });
   if (error) return error;
-  const limited = checkMutationRate(user.id);
-  if (limited) return limited;
-
-  let body: Record<string, unknown>;
-  try { body = await req.json(); }
-  catch { return Response.json({ error: "Invalid JSON body" }, { status: 400 }); }
-
-  const name = typeof body.name === "string" ? body.name.trim() : "";
-  const color = typeof body.color === "string" ? body.color.trim() : null;
-  // rank/permissions default to 0 only when the key is missing entirely. If
-  // it's present but not a real number (eg `""` or `null`), reject — a typo
-  // shouldn't silently coerce to 0.
-  const rankRaw = body.rank ?? 0;
-  const permsRaw = body.permissions ?? 0;
-
-  if (!name) return Response.json({ error: "name is required" }, { status: 400 });
-  if (name.length > NAME_MAX) return Response.json({ error: `name must be ≤ ${NAME_MAX} chars` }, { status: 400 });
-  if (color && !COLOR_RE.test(color)) return Response.json({ error: "color must be #RRGGBB" }, { status: 400 });
-  if (typeof rankRaw !== "number" || !Number.isInteger(rankRaw) || rankRaw < 0) {
-    return Response.json({ error: "rank must be a non-negative integer" }, { status: 400 });
-  }
-  if (typeof permsRaw !== "number" || !Number.isInteger(permsRaw) || permsRaw < 0 || permsRaw > MAX_PERM_BITS) {
-    return Response.json({ error: "permissions must be a valid 32-bit bitfield" }, { status: 400 });
-  }
-  const rank = rankRaw;
-  const permissions = permsRaw;
-  // Hierarchy: callers can only create roles strictly below their own max rank.
-  // Super-admins (Infinity maxRank) bypass this.
-  if (rank >= user.maxRank) {
-    return Response.json({ error: "Cannot create a role at or above your own rank" }, { status: 403 });
-  }
-
   try {
-    const role = await db(user.orgId).role.create({
-      data: { name, color: color || null, rank, permissions, isSystem: false },
-    });
-
-    await logActivity({
-      actorId: user.id,
-      type: "info",
-      message: `${user.name} created role "${role.name}" (rank ${role.rank})`,
-      orgId: user.orgId,
-    });
-
+    const body = await req.json().catch(() => ({}));
+    const input = createRoleInput.parse(body);
+    const role = await createRole(ctx, input);
     return Response.json(role, { status: 201 });
   } catch (e) {
-    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
-      return Response.json({ error: "A role with that name already exists" }, { status: 409 });
-    }
-    logError(e, { route: "/api/roles", method: "POST", userId: user.id });
-    return Response.json({ error: "Failed to create role" }, { status: 500 });
+    logError(e, { route: "/api/roles", method: "POST", userId: ctx.actorId, extra: { requestId: ctx.requestId } });
+    return toResponse(e);
   }
 }
