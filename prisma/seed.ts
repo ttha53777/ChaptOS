@@ -148,7 +148,7 @@ async function main() {
 
   // Recalculate and write ratios back to Brother.attendance
   for (const brother of createdBrothers) {
-    const ratio = await recalcBrotherAttendance(brother.id, semester.id);
+    const ratio = await recalcBrotherAttendance(brother.id, semester.id, ORG_ID);
     console.log(`  ${brother.name}: ${ratio}%`);
   }
   console.log("Attendance ratios written back to brothers.");

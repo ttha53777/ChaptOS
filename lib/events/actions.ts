@@ -49,10 +49,11 @@ export interface EventMetadata {
   "role.deleted":  { name: string; affectedBrothers: number };
   "role.granted":  { roleName: string; brotherName: string; brotherId: number };
   "role.revoked":  { roleName: string; brotherName: string; brotherId: number };
-  "brother.added":   { name: string; role: string };
-  "brother.updated": { name: string; changedFields: string[] };
-  "brother.removed": { name: string };
-  "brother.admin_changed": { name: string; isAdmin: boolean };
+  "brother.claimed":          { name: string; email: string | null; orgId: number };
+  "brother.added":            { name: string; role: string };
+  "brother.updated":          { name: string; changedFields: string[] };
+  "brother.removed":          { name: string };
+  "brother.admin_changed":    { name: string; isAdmin: boolean };
   "brother.account_unlinked": { name: string; bySelf: boolean };
 
   // Calendar / Events
@@ -90,7 +91,7 @@ const KNOWN_ACTIONS = new Set<Action>([
   "excuse.submitted", "excuse.approved", "excuse.rejected", "attendance.recorded",
   "transaction.created", "transaction.updated", "transaction.soft_deleted", "budget.upserted",
   "role.created", "role.updated", "role.deleted", "role.granted", "role.revoked",
-  "brother.added", "brother.updated", "brother.removed", "brother.admin_changed", "brother.account_unlinked",
+  "brother.claimed", "brother.added", "brother.updated", "brother.removed", "brother.admin_changed", "brother.account_unlinked",
   "calendar.created", "calendar.updated", "calendar.deleted",
   "service_event.created", "service_event.updated", "service_event.deleted",
   "party.created", "party.updated", "party.completed", "party.deleted",

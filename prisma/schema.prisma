@@ -379,7 +379,7 @@ model BudgetAllocation {
 }
 
 // Pinned chapter announcement shown at the top of the dashboard.
-// Was a singleton (id=1); now per-org, multiple rows allowed.
+// One row per org (enforced by the unique constraint below).
 model ChapterAnnouncement {
   id             Int      @id @default(autoincrement())
   organizationId Int
@@ -393,5 +393,5 @@ model ChapterAnnouncement {
 
   organization Organization @relation(fields: [organizationId], references: [id])
 
-  @@index([organizationId])
+  @@unique([organizationId])
 }

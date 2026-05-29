@@ -1,4 +1,3 @@
-import { prisma } from "@/lib/prisma";
 import type { RequestContext } from "@/lib/context";
 import { emit } from "@/lib/events";
 import { ValidationError } from "@/lib/errors";
@@ -8,14 +7,7 @@ import type { UpsertBudgetInput } from "@/lib/validation/budget";
 const VALID_CATEGORIES = new Set<string>(EXPENSE_CATEGORIES);
 
 export async function getBudget(ctx: RequestContext, semester: string) {
-  // Direct prisma — scoped wrapper doesn't preserve `include` types and we
-  // need allocations joined. Where clause includes organizationId so org-scope
-  // is enforced.
-  // lint-direct-prisma:ignore (include not typed through scoped wrapper)
-  return prisma.budget.findUnique({
-    where: { organizationId_semester: { organizationId: ctx.orgId, semester } },
-    include: { allocations: true },
-  });
+  return ctx.db.budget.findUniqueWithAllocations(semester);
 }
 
 export async function upsertBudget(ctx: RequestContext, input: UpsertBudgetInput) {

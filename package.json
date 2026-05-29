@@ -9,6 +9,7 @@
     "postinstall": "prisma generate",
     "lint:prisma": "bash scripts/lint-direct-prisma.sh",
     "lint:prisma:strict": "bash scripts/lint-direct-prisma.sh --strict",
+    "lint:services": "bash scripts/check-raw-prisma.sh",
     "lint:modules": "bash scripts/lint-module-boundaries.sh",
     "lint:modules:strict": "bash scripts/lint-module-boundaries.sh --strict",
     "test:db:up": "docker compose -f docker-compose.test.yml up -d --wait",

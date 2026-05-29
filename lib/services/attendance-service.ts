@@ -8,7 +8,7 @@ import type { RecordAttendanceInput } from "@/lib/validation/attendance";
 export async function recordAttendance(ctx: RequestContext, input: RecordAttendanceInput) {
   const [event, semester] = await Promise.all([
     ctx.db.calendarEvent.findUnique({ where: { id: input.calendarEventId } }),
-    getActiveSemester(),
+    getActiveSemester(ctx.orgId),
   ]);
   if (!event)            throw new NotFoundError("Event");
   if (!event.mandatory)  throw new ValidationError("Only mandatory events track attendance");

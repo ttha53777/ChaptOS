@@ -12,7 +12,6 @@
  * after migration.
  */
 
-import { prisma } from "@/lib/prisma";
 import type { RequestContext } from "@/lib/context";
 import { emit } from "@/lib/events";
 import { ConflictError, NotFoundError, ValidationError } from "@/lib/errors";
@@ -81,7 +80,7 @@ export async function submitExcuse(
   const autoApproved = canManage;
 
   const [semester, brother, existingRecord] = await Promise.all([
-    getActiveSemester(),
+    getActiveSemester(ctx.orgId),
     ctx.db.brother.findUnique({ where: { id: brotherId }, select: { id: true, name: true } }),
     ctx.db.attendanceRecord.findUnique({
       where: { calendarEventId_brotherId: { calendarEventId: input.calendarEventId, brotherId } },
@@ -95,7 +94,7 @@ export async function submitExcuse(
   const status = autoApproved ? ExcuseStatus.Approved : ExcuseStatus.Pending;
 
   let conflict: "approved" | "pending" | null = null;
-  await prisma.$transaction(async (tx) => {
+  await ctx.db.$transaction(async (tx) => {
     const current = await tx.attendanceExcuse.findUnique({
       where: { calendarEventId_brotherId: { calendarEventId: input.calendarEventId, brotherId } },
       select: { status: true },

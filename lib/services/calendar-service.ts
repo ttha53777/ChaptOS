@@ -59,7 +59,12 @@ export async function updateCalendar(ctx: RequestContext, id: number, input: Upd
     if (input.location !== undefined) svcData.location = String(input.location ?? "");
     if (input.description !== undefined) svcData.notes = String(input.description ?? "");
     if (Object.keys(svcData).length > 0) {
-      await tx.serviceEvent.updateMany({ where: { calendarEventId: id }, data: svcData });
+      // Include organizationId: the tx client is raw (no scoped wrapper), so we
+      // must guard explicitly to prevent touching service events from another org.
+      await tx.serviceEvent.updateMany({
+        where: { calendarEventId: id, organizationId: ctx.orgId },
+        data: svcData,
+      });
     }
     return updated;
   });
@@ -78,7 +83,8 @@ export async function deleteCalendar(ctx: RequestContext, id: number) {
   if (!target) throw new NotFoundError("Calendar event");
 
   await ctx.db.$transaction(async (tx) => {
-    await tx.serviceEvent.deleteMany({ where: { calendarEventId: id } });
+    // Explicit organizationId: tx client is raw, no scoped wrapper.
+    await tx.serviceEvent.deleteMany({ where: { calendarEventId: id, organizationId: ctx.orgId } });
     await tx.calendarEvent.delete({ where: { id } });
   });
 

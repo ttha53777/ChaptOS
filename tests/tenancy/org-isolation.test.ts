@@ -7,11 +7,17 @@
  *
  * If this file ever goes red, every other test that relies on isolation is
  * suspect. Treat regressions here as P0.
+ *
+ * Coverage: all 13 org-scoped models in lib/db/tenant.ts.
  */
 
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { testPrisma, resetDb } from "../setup/prisma";
-import { createOrg, createBrother, createSemester, createCalendarEvent, createTransaction } from "../setup/factories";
+import {
+  createOrg, createBrother, createSemester, createCalendarEvent, createTransaction,
+  createServiceEvent, createPartyEvent, createDeadline, createInstagramTask,
+  createDoc, createBudget, createActivityLog, createAnnouncement,
+} from "../setup/factories";
 import { db } from "@/lib/db";
 
 beforeEach(async () => {
@@ -22,8 +28,11 @@ afterAll(async () => {
   await testPrisma.$disconnect();
 });
 
-describe("tenancy: cross-org isolation via db(orgId) wrapper", () => {
-  it("Brother.findMany only returns the active org's rows", async () => {
+// ---------------------------------------------------------------------------
+// Brother
+// ---------------------------------------------------------------------------
+describe("tenancy: Brother", () => {
+  it("findMany only returns the active org's rows", async () => {
     const orgA = await createOrg("Alpha", "alpha");
     const orgB = await createOrg("Beta", "beta");
     await createBrother({ orgId: orgA.id, name: "A1" });
@@ -37,22 +46,15 @@ describe("tenancy: cross-org isolation via db(orgId) wrapper", () => {
     expect(fromB.map(b => b.name)).toEqual(["B1"]);
   });
 
-  it("Brother.create injects organizationId automatically", async () => {
+  it("create injects organizationId automatically", async () => {
     const orgA = await createOrg("Alpha", "alpha");
     const created = await db(orgA.id).brother.create({
-      data: {
-        name: "Injected",
-        role: "Brother",
-        attendance: 0,
-        duesOwed: 0,
-        gpa: 0,
-        serviceHours: 0,
-      },
+      data: { name: "Injected", role: "Brother", attendance: 0, duesOwed: 0, gpa: 0, serviceHours: 0 },
     });
     expect(created.organizationId).toBe(orgA.id);
   });
 
-  it("Brother.count is org-scoped", async () => {
+  it("count is org-scoped", async () => {
     const orgA = await createOrg("Alpha", "alpha");
     const orgB = await createOrg("Beta", "beta");
     await createBrother({ orgId: orgA.id });
@@ -62,17 +64,73 @@ describe("tenancy: cross-org isolation via db(orgId) wrapper", () => {
     expect(await db(orgB.id).brother.count()).toBe(2);
   });
 
-  it("Semester findMany is org-scoped", async () => {
+  it("findFirst with cross-org id returns null", async () => {
     const orgA = await createOrg("Alpha", "alpha");
     const orgB = await createOrg("Beta", "beta");
-    await createSemester({ orgId: orgA.id, label: "SPR26", isActive: true });
-    await createSemester({ orgId: orgB.id, label: "SPR26", isActive: true });
+    const b = await createBrother({ orgId: orgB.id, name: "Across-org" });
+    const leak = await db(orgA.id).brother.findFirst({ where: { id: b.id } });
+    expect(leak).toBeNull();
+  });
+
+  it("updateMany only updates rows in the active org", async () => {
+    const orgA = await createOrg("Alpha", "alpha");
+    const orgB = await createOrg("Beta", "beta");
+    await createBrother({ orgId: orgA.id });
+    await createBrother({ orgId: orgB.id });
+    await db(orgA.id).brother.updateMany({ where: {}, data: { duesOwed: 99 } });
+    const bBrothers = await db(orgB.id).brother.findMany();
+    expect(bBrothers.every(b => b.duesOwed === 0)).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Role
+// ---------------------------------------------------------------------------
+describe("tenancy: Role", () => {
+  it("findMany is org-scoped", async () => {
+    const orgA = await createOrg("Alpha", "alpha");
+    const orgB = await createOrg("Beta", "beta");
+    await db(orgA.id).role.create({ data: { name: "President", rank: 100, permissions: 0, isSystem: true } });
+    await db(orgB.id).role.create({ data: { name: "President", rank: 100, permissions: 0, isSystem: true } });
+    expect(await db(orgA.id).role.count()).toBe(1);
+    expect(await db(orgB.id).role.count()).toBe(1);
+  });
+
+  it("create injects organizationId", async () => {
+    const org = await createOrg("Alpha", "alpha");
+    const r = await db(org.id).role.create({ data: { name: "VP", rank: 50, permissions: 0 } });
+    expect(r.organizationId).toBe(org.id);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Semester
+// ---------------------------------------------------------------------------
+describe("tenancy: Semester", () => {
+  it("findMany is org-scoped", async () => {
+    const orgA = await createOrg("Alpha", "alpha");
+    const orgB = await createOrg("Beta", "beta");
+    await createSemester({ orgId: orgA.id, label: "SPR26" });
+    await createSemester({ orgId: orgB.id, label: "SPR26" });
     const fromA = await db(orgA.id).semester.findMany();
     expect(fromA.every(s => s.organizationId === orgA.id)).toBe(true);
     expect(fromA).toHaveLength(1);
   });
 
-  it("CalendarEvent findMany is org-scoped", async () => {
+  it("create injects organizationId", async () => {
+    const org = await createOrg("Alpha", "alpha");
+    const s = await db(org.id).semester.create({
+      data: { label: "FA26", startDate: "2026-08-01", endDate: "2026-12-15" },
+    });
+    expect(s.organizationId).toBe(org.id);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// CalendarEvent
+// ---------------------------------------------------------------------------
+describe("tenancy: CalendarEvent", () => {
+  it("findMany is org-scoped", async () => {
     const orgA = await createOrg("Alpha", "alpha");
     const orgB = await createOrg("Beta", "beta");
     await createCalendarEvent({ orgId: orgA.id, title: "A meeting" });
@@ -81,7 +139,20 @@ describe("tenancy: cross-org isolation via db(orgId) wrapper", () => {
     expect(fromA.map(e => e.title)).toEqual(["A meeting"]);
   });
 
-  it("Transaction findMany is org-scoped", async () => {
+  it("create injects organizationId", async () => {
+    const org = await createOrg("Alpha", "alpha");
+    const e = await db(org.id).calendarEvent.create({
+      data: { title: "Injected", date: "2026-05-01", category: "chapter", mandatory: false },
+    });
+    expect(e.organizationId).toBe(org.id);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Transaction
+// ---------------------------------------------------------------------------
+describe("tenancy: Transaction", () => {
+  it("findMany is org-scoped", async () => {
     const orgA = await createOrg("Alpha", "alpha");
     const orgB = await createOrg("Beta", "beta");
     await createTransaction({ orgId: orgA.id, description: "A tx" });
@@ -90,38 +161,260 @@ describe("tenancy: cross-org isolation via db(orgId) wrapper", () => {
     expect(fromA.map(t => t.description)).toEqual(["A tx"]);
   });
 
-  it("Role uniqueness is per-org (two orgs can both have President)", async () => {
+  it("create injects organizationId", async () => {
+    const org = await createOrg("Alpha", "alpha");
+    const t = await db(org.id).transaction.create({
+      data: { type: "income", category: "Dues", amount: 50, amountCents: BigInt(5000), date: "2026-05-01", description: "test" },
+    });
+    expect(t.organizationId).toBe(org.id);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// ServiceEvent
+// ---------------------------------------------------------------------------
+describe("tenancy: ServiceEvent", () => {
+  it("findMany is org-scoped", async () => {
     const orgA = await createOrg("Alpha", "alpha");
     const orgB = await createOrg("Beta", "beta");
-    await db(orgA.id).role.create({
-      data: { name: "President", color: "#F59E0B", rank: 100, permissions: 0, isSystem: true },
-    });
-    // Should not throw — different org, same name is allowed.
-    await db(orgB.id).role.create({
-      data: { name: "President", color: "#F59E0B", rank: 100, permissions: 0, isSystem: true },
-    });
-    expect(await db(orgA.id).role.count()).toBe(1);
-    expect(await db(orgB.id).role.count()).toBe(1);
+    await createServiceEvent({ orgId: orgA.id, title: "A service" });
+    await createServiceEvent({ orgId: orgB.id, title: "B service" });
+    const fromA = await db(orgA.id).serviceEvent.findMany();
+    expect(fromA.map(e => e.title)).toEqual(["A service"]);
   });
 
-  it("findUnique by id with org-mismatched id returns null after filter — proven via findFirst", async () => {
+  it("create injects organizationId", async () => {
+    const org = await createOrg("Alpha", "alpha");
+    const e = await db(org.id).serviceEvent.create({
+      data: { title: "Injected Service", date: "2026-05-01", location: "Park" },
+    });
+    expect(e.organizationId).toBe(org.id);
+  });
+
+  it("count is org-scoped", async () => {
     const orgA = await createOrg("Alpha", "alpha");
     const orgB = await createOrg("Beta", "beta");
-    const b = await createBrother({ orgId: orgB.id, name: "Across-org" });
-    // findFirst with org wrapper finds nothing for orgA even though id exists in orgB.
-    const leak = await db(orgA.id).brother.findFirst({ where: { id: b.id } });
-    expect(leak).toBeNull();
+    await createServiceEvent({ orgId: orgA.id });
+    await createServiceEvent({ orgId: orgB.id });
+    await createServiceEvent({ orgId: orgB.id });
+    expect(await db(orgA.id).serviceEvent.count()).toBe(1);
+    expect(await db(orgB.id).serviceEvent.count()).toBe(2);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// PartyEvent
+// ---------------------------------------------------------------------------
+describe("tenancy: PartyEvent", () => {
+  it("findMany is org-scoped", async () => {
+    const orgA = await createOrg("Alpha", "alpha");
+    const orgB = await createOrg("Beta", "beta");
+    await createPartyEvent({ orgId: orgA.id, name: "Alpha Party" });
+    await createPartyEvent({ orgId: orgB.id, name: "Beta Party" });
+    const fromA = await db(orgA.id).partyEvent.findMany();
+    expect(fromA.map(p => p.name)).toEqual(["Alpha Party"]);
   });
 
-  it("Membership pass-through still respects org via brother FK", async () => {
+  it("create injects organizationId", async () => {
+    const org = await createOrg("Alpha", "alpha");
+    const p = await db(org.id).partyEvent.create({
+      data: { name: "Injected Party", date: "2026-06-01", partyType: "Open" },
+    });
+    expect(p.organizationId).toBe(org.id);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Deadline
+// ---------------------------------------------------------------------------
+describe("tenancy: Deadline", () => {
+  it("findMany is org-scoped", async () => {
+    const orgA = await createOrg("Alpha", "alpha");
+    const orgB = await createOrg("Beta", "beta");
+    await createDeadline({ orgId: orgA.id, title: "A deadline" });
+    await createDeadline({ orgId: orgB.id, title: "B deadline" });
+    const fromA = await db(orgA.id).deadline.findMany();
+    expect(fromA.map(d => d.title)).toEqual(["A deadline"]);
+  });
+
+  it("create injects organizationId", async () => {
+    const org = await createOrg("Alpha", "alpha");
+    const d = await db(org.id).deadline.create({
+      data: { title: "Injected", dueDate: "2026-07-01", owner: "Test", status: "pending" },
+    });
+    expect(d.organizationId).toBe(org.id);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// InstagramTask
+// ---------------------------------------------------------------------------
+describe("tenancy: InstagramTask", () => {
+  it("findMany is org-scoped", async () => {
+    const orgA = await createOrg("Alpha", "alpha");
+    const orgB = await createOrg("Beta", "beta");
+    await createInstagramTask({ orgId: orgA.id, title: "A task" });
+    await createInstagramTask({ orgId: orgB.id, title: "B task" });
+    const fromA = await db(orgA.id).instagramTask.findMany();
+    expect(fromA.map(t => t.title)).toEqual(["A task"]);
+  });
+
+  it("create injects organizationId", async () => {
+    const org = await createOrg("Alpha", "alpha");
+    const t = await db(org.id).instagramTask.create({
+      data: { title: "Injected IG", dueDate: "2026-06-01", owner: "Test", status: "draft", type: "post" },
+    });
+    expect(t.organizationId).toBe(org.id);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Doc
+// ---------------------------------------------------------------------------
+describe("tenancy: Doc", () => {
+  it("findMany is org-scoped", async () => {
+    const orgA = await createOrg("Alpha", "alpha");
+    const orgB = await createOrg("Beta", "beta");
+    await createDoc({ orgId: orgA.id, title: "A doc" });
+    await createDoc({ orgId: orgB.id, title: "B doc" });
+    const fromA = await db(orgA.id).doc.findMany();
+    expect(fromA.map(d => d.title)).toEqual(["A doc"]);
+  });
+
+  it("create injects organizationId", async () => {
+    const org = await createOrg("Alpha", "alpha");
+    const d = await db(org.id).doc.create({
+      data: { title: "Injected Doc", url: "https://example.com" },
+    });
+    expect(d.organizationId).toBe(org.id);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Budget
+// ---------------------------------------------------------------------------
+describe("tenancy: Budget", () => {
+  it("findMany is org-scoped", async () => {
+    const orgA = await createOrg("Alpha", "alpha");
+    const orgB = await createOrg("Beta", "beta");
+    await createBudget({ orgId: orgA.id, semester: "SPR26" });
+    await createBudget({ orgId: orgB.id, semester: "SPR26" });
+    const fromA = await db(orgA.id).budget.findMany();
+    expect(fromA.every(b => b.organizationId === orgA.id)).toBe(true);
+    expect(fromA).toHaveLength(1);
+  });
+
+  it("create injects organizationId", async () => {
+    const org = await createOrg("Alpha", "alpha");
+    const b = await db(org.id).budget.create({
+      data: { semester: "FA26", carryoverBalance: 0, carryoverBalanceCents: BigInt(0), reserveAmount: 0, reserveAmountCents: BigInt(0) },
+    });
+    expect(b.organizationId).toBe(org.id);
+  });
+
+  it("findUniqueWithAllocations is org-scoped", async () => {
+    const orgA = await createOrg("Alpha", "alpha");
+    const orgB = await createOrg("Beta", "beta");
+    await createBudget({ orgId: orgA.id, semester: "SPR26" });
+    await createBudget({ orgId: orgB.id, semester: "SPR26" });
+    const fromA = await db(orgA.id).budget.findUniqueWithAllocations("SPR26");
+    expect(fromA?.organizationId).toBe(orgA.id);
+    // orgB's budget for the same semester must not be returned
+    const fromB = await db(orgA.id).budget.findUniqueWithAllocations("SPR26");
+    expect(fromB?.organizationId).not.toBe(orgB.id);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// ActivityLog
+// ---------------------------------------------------------------------------
+describe("tenancy: ActivityLog", () => {
+  it("findMany is org-scoped", async () => {
+    const orgA = await createOrg("Alpha", "alpha");
+    const orgB = await createOrg("Beta", "beta");
+    await createActivityLog({ orgId: orgA.id, message: "A log" });
+    await createActivityLog({ orgId: orgB.id, message: "B log" });
+    const fromA = await db(orgA.id).activityLog.findMany();
+    expect(fromA.map(l => l.message)).toEqual(["A log"]);
+  });
+
+  it("create injects organizationId", async () => {
+    const org = await createOrg("Alpha", "alpha");
+    const l = await db(org.id).activityLog.create({
+      data: { type: "info", message: "Injected log" },
+    });
+    expect(l.organizationId).toBe(org.id);
+  });
+
+  it("count is org-scoped", async () => {
+    const orgA = await createOrg("Alpha", "alpha");
+    const orgB = await createOrg("Beta", "beta");
+    await createActivityLog({ orgId: orgA.id });
+    await createActivityLog({ orgId: orgB.id });
+    await createActivityLog({ orgId: orgB.id });
+    expect(await db(orgA.id).activityLog.count()).toBe(1);
+    expect(await db(orgB.id).activityLog.count()).toBe(2);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// ChapterAnnouncement
+// ---------------------------------------------------------------------------
+describe("tenancy: ChapterAnnouncement", () => {
+  it("findFirst is org-scoped", async () => {
+    const orgA = await createOrg("Alpha", "alpha");
+    const orgB = await createOrg("Beta", "beta");
+    await createAnnouncement({ orgId: orgA.id, title: "Alpha News" });
+    await createAnnouncement({ orgId: orgB.id, title: "Beta News" });
+    const fromA = await db(orgA.id).chapterAnnouncement.findFirst({ where: {} });
+    expect(fromA?.title).toBe("Alpha News");
+    expect(fromA?.organizationId).toBe(orgA.id);
+  });
+
+  it("create injects organizationId", async () => {
+    const org = await createOrg("Alpha", "alpha");
+    const a = await db(org.id).chapterAnnouncement.create({
+      data: { title: "Injected", body: "Body" },
+    });
+    expect(a.organizationId).toBe(org.id);
+  });
+
+  it("upsert updates existing row for same org", async () => {
+    const org = await createOrg("Alpha", "alpha");
+    await createAnnouncement({ orgId: org.id, title: "Old Title" });
+    await db(org.id).chapterAnnouncement.upsert({
+      where:  { organizationId: org.id },
+      create: { organizationId: org.id, title: "New Title", body: "New" },
+      update: { title: "New Title" },
+    });
+    const rows = await db(org.id).chapterAnnouncement.findFirst({ where: {} });
+    expect(rows?.title).toBe("New Title");
+    const total = await testPrisma.chapterAnnouncement.count({ where: { organizationId: org.id } });
+    expect(total).toBe(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Membership (pass-through — no organizationId injection, but org integrity)
+// ---------------------------------------------------------------------------
+describe("tenancy: Membership (pass-through integrity)", () => {
+  it("memberships seed correctly per org via createBrother factory", async () => {
     const orgA = await createOrg("Alpha", "alpha");
     const orgB = await createOrg("Beta", "beta");
     await createBrother({ orgId: orgA.id });
     await createBrother({ orgId: orgB.id });
-    // Memberships table itself is pass-through; assert it was seeded correctly per org.
     const aMembers = await testPrisma.membership.count({ where: { organizationId: orgA.id } });
     const bMembers = await testPrisma.membership.count({ where: { organizationId: orgB.id } });
     expect(aMembers).toBe(1);
     expect(bMembers).toBe(1);
+  });
+
+  it("isOrgAdmin is set correctly on membership", async () => {
+    const org = await createOrg("Alpha", "alpha");
+    const admin = await createBrother({ orgId: org.id, isOrgAdmin: true });
+    const m = await testPrisma.membership.findUnique({
+      where: { brotherId_organizationId: { brotherId: admin.id, organizationId: org.id } },
+    });
+    expect(m?.isOrgAdmin).toBe(true);
   });
 });

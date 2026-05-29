@@ -187,6 +187,12 @@ function scopedBudget(orgId: number) {
     findMany:   (args?: Prisma.BudgetFindManyArgs)         => prisma.budget.findMany({ ...args, where: org(args?.where) }),
     findFirst:  (args?: Prisma.BudgetFindFirstArgs)        => prisma.budget.findFirst({ ...args, where: org(args?.where) }),
     findUnique: (args: Prisma.BudgetFindUniqueArgs)        => prisma.budget.findUnique(args),
+    /** Org-safe findUnique with allocations included. Use instead of raw prisma.budget.findUnique. */
+    findUniqueWithAllocations: (semester: string) =>
+      prisma.budget.findUnique({
+        where: { organizationId_semester: { organizationId: orgId, semester } },
+        include: { allocations: true },
+      }),
     create:     (args: Omit<Prisma.BudgetCreateArgs, "data"> & { data: Omit<Prisma.BudgetUncheckedCreateInput, "organizationId"> }) =>
       prisma.budget.create({ ...args, data: { ...args.data, organizationId: orgId } }),
     update:     (args: Prisma.BudgetUpdateArgs)            => prisma.budget.update(args),

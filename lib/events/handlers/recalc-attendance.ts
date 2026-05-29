@@ -10,18 +10,18 @@
 import { on } from "../dispatch";
 import { recalcBrotherAttendance, recalcAllBrothersInSemester } from "@/lib/attendance";
 
-on("excuse.approved", async (_ctx, { metadata }) => {
-  await recalcBrotherAttendance(metadata.brotherId, metadata.semesterId);
+on("excuse.approved", async (ctx, { metadata }) => {
+  await recalcBrotherAttendance(metadata.brotherId, metadata.semesterId, ctx.orgId);
 });
 
-on("excuse.submitted", async (_ctx, { metadata }) => {
+on("excuse.submitted", async (ctx, { metadata }) => {
   // Submit-flow auto-approves for admins; that path needs the recalc.
   // Pending submissions don't change attendance math.
   if (metadata.autoApproved) {
-    await recalcBrotherAttendance(metadata.brotherId, metadata.semesterId);
+    await recalcBrotherAttendance(metadata.brotherId, metadata.semesterId, ctx.orgId);
   }
 });
 
-on("attendance.recorded", async (_ctx, { metadata }) => {
-  await recalcAllBrothersInSemester(metadata.semesterId);
+on("attendance.recorded", async (ctx, { metadata }) => {
+  await recalcAllBrothersInSemester(metadata.semesterId, ctx.orgId);
 });
