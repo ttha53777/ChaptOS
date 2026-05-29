@@ -17,9 +17,17 @@ function LoginContent() {
     setError(null);
     try {
       const supabase = createClient();
+      // Preserve the ?org= slug through the OAuth round-trip so /auth/callback
+      // can thread it to /pending-access and then to /api/auth/claim.
+      // On subdomain deployments this isn't needed (Host header resolves the org),
+      // but it's harmless and necessary for single-domain / localhost flows.
+      const orgSlug = searchParams.get("org");
+      const callbackUrl = orgSlug
+        ? `${window.location.origin}/auth/callback?org=${encodeURIComponent(orgSlug)}`
+        : `${window.location.origin}/auth/callback`;
       const { error: oauthError } = await supabase.auth.signInWithOAuth({
         provider: "google",
-        options: { redirectTo: `${window.location.origin}/auth/callback` },
+        options: { redirectTo: callbackUrl },
       });
       if (oauthError) {
         setError("Sign-in failed. Please try again.");
