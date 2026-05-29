@@ -1,10 +1,12 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 
-export default function PendingAccessPage() {
+function PendingAccessContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const orgSlug = searchParams.get("org");
   const [name, setName] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -14,7 +16,10 @@ export default function PendingAccessPage() {
     setLoading(true);
     setError(null);
 
-    const res = await fetch("/api/auth/claim", {
+    const url = orgSlug
+      ? `/api/auth/claim?org=${encodeURIComponent(orgSlug)}`
+      : "/api/auth/claim";
+    const res = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name: name.trim() }),
@@ -38,7 +43,7 @@ export default function PendingAccessPage() {
     } catch {
       // Network failure — still redirect
     }
-    router.push("/login");
+    router.push(orgSlug ? `/login?org=${encodeURIComponent(orgSlug)}` : "/login");
   }
 
   return (
@@ -86,5 +91,13 @@ export default function PendingAccessPage() {
         </button>
       </div>
     </div>
+  );
+}
+
+export default function PendingAccessPage() {
+  return (
+    <Suspense>
+      <PendingAccessContent />
+    </Suspense>
   );
 }
