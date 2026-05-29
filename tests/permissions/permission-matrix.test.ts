@@ -13,7 +13,7 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { testPrisma, resetDb } from "../setup/prisma";
 import { createOrg, createBrother } from "../setup/factories";
-import { computePermissions, hasPermission, PERMISSIONS } from "@/lib/permissions";
+import { computePermissions, hasPermission, PERMISSIONS, ALL_PERMISSIONS } from "@/lib/permissions";
 import { db } from "@/lib/db";
 
 beforeEach(async () => {
@@ -106,7 +106,7 @@ describe("role assignment: permission resolution from DB", () => {
 
     // Assign a powerful role in orgB (as if the brother somehow had cross-org access)
     const roleB = await db(orgB.id).role.create({
-      data: { name: "President", rank: 100, permissions: ~0 >>> 0 },
+      data: { name: "President", rank: 100, permissions: ALL_PERMISSIONS },
     });
     await testPrisma.brotherRole.create({ data: { brotherId: bro.id, roleId: roleB.id } });
 
