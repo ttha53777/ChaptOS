@@ -62,6 +62,8 @@ function scopedSemester(orgId: number) {
     create:     (args: Omit<Prisma.SemesterCreateArgs, "data"> & { data: Omit<Prisma.SemesterUncheckedCreateInput, "organizationId"> }) =>
       prisma.semester.create({ ...args, data: { ...args.data, organizationId: orgId } }),
     update:     (args: Prisma.SemesterUpdateArgs)     => prisma.semester.update(args),
+    updateMany: (args: Omit<Prisma.SemesterUpdateManyArgs, "where"> & { where?: W }) =>
+      prisma.semester.updateMany({ ...args, where: org(args.where) }),
     delete:     (args: Prisma.SemesterDeleteArgs)     => prisma.semester.delete(args),
     count:      (args?: Prisma.SemesterCountArgs)     => prisma.semester.count({ ...args, where: org(args?.where) }),
   };
@@ -250,5 +252,9 @@ export function db(orgId: number) {
     membership:          prisma.membership,
     organization:        prisma.organization,
     platformAdmin:       prisma.platformAdmin,
+
+    // Interactive transaction pass-through. Inside the callback, callers must
+    // inject organizationId: orgId manually — the tx client can't be wrapped.
+    $transaction: prisma.$transaction.bind(prisma),
   };
 }

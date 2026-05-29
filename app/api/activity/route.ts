@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth/require-user";
 import { checkMutationRate } from "@/lib/rate-limit";
 import { logError } from "@/lib/observability";
@@ -18,7 +18,7 @@ export async function GET() {
   const user = await requireUser();
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
   try {
-    const logs = await prisma.activityLog.findMany({
+    const logs = await db(user.orgId).activityLog.findMany({
       orderBy: { timestamp: "desc" },
       take: 20,
     });
@@ -49,8 +49,8 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const log = await prisma.activityLog.create({
-      data: { message, type, actorId: user.id, organizationId: 1 },
+    const log = await db(user.orgId).activityLog.create({
+      data: { message, type, actorId: user.id },
     });
     return Response.json(
       { id: log.id, message: log.message, type: log.type, timestamp: relativeTime(log.timestamp) },

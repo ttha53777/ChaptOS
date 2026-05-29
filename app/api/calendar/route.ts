@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth/require-user";
 import { logActivity } from "@/lib/activity";
 import type { Prisma } from "../../generated/prisma/client";
@@ -65,7 +65,7 @@ export async function GET(req: NextRequest) {
       categoryParam && CALENDAR_CATEGORIES.includes(categoryParam as typeof CALENDAR_CATEGORIES[number])
         ? { category: categoryParam }
         : {};
-    const events = await prisma.calendarEvent.findMany({
+    const events = await db(user.orgId).calendarEvent.findMany({
       where,
       orderBy: [{ date: "desc" }, { id: "desc" }],
     });
@@ -89,12 +89,13 @@ export async function POST(req: NextRequest) {
       return Response.json({ error: parsed.error }, { status: 400 });
     }
 
-    const event = await prisma.calendarEvent.create({ data: { ...parsed.data, organizationId: 1 } });
+    const event = await db(user.orgId).calendarEvent.create({ data: parsed.data });
 
     await logActivity({
       actorId: user.id,
       type: "info",
       message: `${user.name} scheduled ${event.title} for ${event.date}`,
+      orgId: user.orgId,
     });
 
     return Response.json(event, { status: 201 });

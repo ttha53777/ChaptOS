@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { Prisma } from "../../generated/prisma/client";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
 import { getActiveSemester, recalcBrotherAttendance } from "@/lib/attendance";
 import { requireUser } from "@/lib/auth/require-user";
 import { requirePermission } from "@/lib/auth/require-permission";
@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
   const where: Prisma.AttendanceExcuseWhereInput = pendingOnly ? { status: "pending" } : {};
 
   try {
-    const excuses = await prisma.attendanceExcuse.findMany({
+    const excuses = await db(user.orgId).attendanceExcuse.findMany({
       where,
       orderBy: { submittedAt: "asc" },
       include: {
@@ -69,8 +69,8 @@ export async function POST(req: NextRequest) {
 
     const [semester, brotherExists, existingRecord] = await Promise.all([
       getActiveSemester(),
-      prisma.brother.findUnique({ where: { id: brotherId }, select: { id: true } }),
-      prisma.attendanceRecord.findUnique({ where: { calendarEventId_brotherId: { calendarEventId, brotherId } } }),
+      db(user.orgId).brother.findUnique({ where: { id: brotherId }, select: { id: true } }),
+      db(user.orgId).attendanceRecord.findUnique({ where: { calendarEventId_brotherId: { calendarEventId, brotherId } } }),
     ]);
     if (!semester) return Response.json({ error: "No active semester" }, { status: 400 });
     if (!brotherExists) return Response.json({ error: "Brother not found" }, { status: 404 });
@@ -89,7 +89,7 @@ export async function POST(req: NextRequest) {
     // above and the upsert below).
     type StatusConflict = "approved" | "pending";
     let conflict: StatusConflict | null = null;
-    await prisma.$transaction(async (tx) => {
+    await db(user.orgId).$transaction(async (tx) => {
       const current = await tx.attendanceExcuse.findUnique({
         where: { calendarEventId_brotherId: { calendarEventId, brotherId } },
         select: { status: true },
@@ -135,10 +135,10 @@ export async function POST(req: NextRequest) {
     const newAttendance = status === "approved"
       ? await recalcBrotherAttendance(brotherId, semester.id)
       : null;
-    const brother = await prisma.brother.findUnique({ where: { id: brotherId } });
+    const brother = await db(user.orgId).brother.findUnique({ where: { id: brotherId } });
     if (!brother) return Response.json({ error: "Brother not found" }, { status: 404 });
 
-    const event = await prisma.calendarEvent.findUnique({
+    const event = await db(user.orgId).calendarEvent.findUnique({
       where: { id: calendarEventId },
       select: { title: true },
     });
@@ -148,6 +148,7 @@ export async function POST(req: NextRequest) {
       message: status === "approved"
         ? `${user.name} ${isRetroactive ? "submitted retroactive excuse for" : "excused"} ${brother.name} from ${event?.title ?? "an event"}`
         : `${user.name} submitted excuse for review (${event?.title ?? "an event"})`,
+      orgId: user.orgId,
     });
 
     return Response.json({

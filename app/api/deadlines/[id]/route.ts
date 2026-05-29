@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { Prisma } from "../../../generated/prisma/client";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth/require-user";
 import { requirePermission } from "@/lib/auth/require-permission";
 import { logActivity } from "@/lib/activity";
@@ -40,7 +40,7 @@ export async function PATCH(
       return Response.json({ error: "No valid fields provided" }, { status: 400 });
     }
 
-    const deadline = await prisma.deadline.update({
+    const deadline = await db(user.orgId).deadline.update({
       where: { id: numId },
       data,
     });
@@ -49,6 +49,7 @@ export async function PATCH(
       actorId: user.id,
       type: "info",
       message: `${user.name} updated deadline ${deadline.title}`,
+      orgId: user.orgId,
     });
 
     return Response.json(deadline);
@@ -73,16 +74,17 @@ export async function DELETE(
     if (!Number.isInteger(numId) || numId <= 0) {
       return Response.json({ error: "Invalid ID" }, { status: 400 });
     }
-    const target = await prisma.deadline.findUnique({
+    const target = await db(user.orgId).deadline.findUnique({
       where: { id: numId },
       select: { title: true },
     });
-    await prisma.deadline.delete({ where: { id: numId } });
+    await db(user.orgId).deadline.delete({ where: { id: numId } });
 
     await logActivity({
       actorId: user.id,
       type: "warning",
       message: `${user.name} deleted deadline ${target?.title ?? `#${numId}`}`,
+      orgId: user.orgId,
     });
 
     return new Response(null, { status: 204 });

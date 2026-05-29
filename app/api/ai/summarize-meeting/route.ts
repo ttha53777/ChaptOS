@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { Prisma } from "../../../generated/prisma/client";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth/require-user";
 import { checkMutationRate } from "@/lib/rate-limit";
 import { aiEnabled, getOpenAI, CHAT_MODEL } from "@/lib/ai";
@@ -45,7 +45,7 @@ export async function POST(req: NextRequest) {
     return Response.json({ error: "id required" }, { status: 400 });
   }
 
-  const event = await prisma.calendarEvent.findUnique({
+  const event = await db(user.orgId).calendarEvent.findUnique({
     where: { id },
     select: { id: true, title: true, date: true, description: true, category: true },
   });
@@ -85,7 +85,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const updated = await prisma.calendarEvent.update({
+    const updated = await db(user.orgId).calendarEvent.update({
       where: { id },
       data: { notesSummary: summary, notesSummaryAt: new Date() },
       select: { id: true, notesSummary: true, notesSummaryAt: true },
@@ -95,6 +95,7 @@ export async function POST(req: NextRequest) {
       actorId: user.id,
       type: "info",
       message: `${user.name} summarized notes for ${event.title}`,
+      orgId: user.orgId,
     });
 
     return Response.json({

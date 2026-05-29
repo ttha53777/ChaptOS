@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { Prisma } from "../../../generated/prisma/client";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth/require-user";
 import { requirePermission } from "@/lib/auth/require-permission";
 import { logActivity } from "@/lib/activity";
@@ -64,11 +64,9 @@ export async function PATCH(
       return Response.json({ error: "Description too long" }, { status: 400 });
     }
 
-    const event = await prisma.$transaction(async (tx) => {
+    const event = await db(user.orgId).$transaction(async (tx) => {
       const updated = await tx.calendarEvent.update({ where: { id: numId }, data });
 
-      // Keep any linked ServiceEvent in sync. Map calendar field names → service
-      // field names (description→notes; other shared names are identical).
       const svcData: Record<string, string> = {};
       if ("title"    in data && typeof data.title    === "string") svcData.title    = data.title    ?? "";
       if ("date"     in data && typeof data.date     === "string") svcData.date     = data.date     ?? "";
@@ -85,6 +83,7 @@ export async function PATCH(
       actorId: user.id,
       type: "info",
       message: `${user.name} updated event ${event.title}`,
+      orgId: user.orgId,
     });
 
     return Response.json(event);
@@ -109,14 +108,12 @@ export async function DELETE(
     if (!Number.isInteger(numId) || numId <= 0) {
       return Response.json({ error: "Invalid ID" }, { status: 400 });
     }
-    const target = await prisma.calendarEvent.findUnique({
+    const target = await db(user.orgId).calendarEvent.findUnique({
       where: { id: numId },
       select: { title: true },
     });
 
-    await prisma.$transaction(async (tx) => {
-      // Remove any linked ServiceEvent before deleting the CalendarEvent so the
-      // service-events page doesn't retain a stale orphaned row.
+    await db(user.orgId).$transaction(async (tx) => {
       await tx.serviceEvent.deleteMany({ where: { calendarEventId: numId } });
       await tx.calendarEvent.delete({ where: { id: numId } });
     });
@@ -125,6 +122,7 @@ export async function DELETE(
       actorId: user.id,
       type: "warning",
       message: `${user.name} deleted event ${target?.title ?? `#${numId}`}`,
+      orgId: user.orgId,
     });
 
     return new Response(null, { status: 204 });

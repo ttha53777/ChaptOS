@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { requireAdmin } from "@/lib/auth/require-admin";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
 import { logActivity } from "@/lib/activity";
 import { logError } from "@/lib/observability";
 
@@ -35,7 +35,7 @@ export async function PATCH(
   }
 
   try {
-    const updated = await prisma.brother.update({
+    const updated = await db(user.orgId).brother.update({
       where: { id: numId },
       data: { isAdmin: body.isAdmin },
       select: { id: true, isAdmin: true, name: true },
@@ -45,6 +45,7 @@ export async function PATCH(
       actorId: user.id,
       type: "warning",
       message: `${user.name} ${body.isAdmin ? "promoted" : "demoted"} ${updated.name}`,
+      orgId: user.orgId,
     });
 
     return Response.json({ id: updated.id, isAdmin: updated.isAdmin });
@@ -72,8 +73,7 @@ export async function DELETE(
   }
 
   try {
-    // Prevent unlinking yourself — would lock you out
-    const target = await prisma.brother.findUnique({
+    const target = await db(user.orgId).brother.findUnique({
       where: { id: numId },
       select: { authUserId: true, name: true },
     });
@@ -82,7 +82,7 @@ export async function DELETE(
       return Response.json({ error: "You cannot unlink your own account" }, { status: 400 });
     }
 
-    await prisma.brother.update({
+    await db(user.orgId).brother.update({
       where: { id: numId },
       data: { authUserId: null },
     });
@@ -91,6 +91,7 @@ export async function DELETE(
       actorId: user.id,
       type: "warning",
       message: `${user.name} unlinked ${target.name}'s Google account`,
+      orgId: user.orgId,
     });
 
     return new Response(null, { status: 204 });

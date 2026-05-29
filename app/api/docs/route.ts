@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth/require-user";
 import { requirePermission } from "@/lib/auth/require-permission";
 import { logActivity } from "@/lib/activity";
@@ -33,7 +33,7 @@ export async function GET() {
     // Pre-migration safety: if the Doc table doesn't exist yet (mirror of the
     // BrotherRole pattern in require-permission.ts), return an empty list
     // rather than 500 — the page should still render.
-    const docs = await prisma.doc.findMany({ orderBy: [{ createdAt: "desc" }, { id: "desc" }] });
+    const docs = await db(user.orgId).doc.findMany({ orderBy: [{ createdAt: "desc" }, { id: "desc" }] });
     return Response.json(docs);
   } catch (e) {
     logError(e, { route: "/api/docs", method: "GET", userId: user.id });
@@ -64,9 +64,8 @@ export async function POST(req: NextRequest) {
     // failure is swallowed; the row is still created with embedOk = null.
     const meta = await scrapeMetadata(urlCheck.url).catch(() => null);
 
-    const doc = await prisma.doc.create({
+    const doc = await db(user.orgId).doc.create({
       data: {
-        organizationId: 1,
         title,
         url: urlCheck.url,
         description,
@@ -82,6 +81,7 @@ export async function POST(req: NextRequest) {
       actorId: user.id,
       type: "info",
       message: `${user.name} added doc: ${doc.title}`,
+      orgId: user.orgId,
     });
 
     return Response.json(doc, { status: 201 });

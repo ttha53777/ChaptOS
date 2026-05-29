@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
 import { requirePermission } from "@/lib/auth/require-permission";
 import { logError } from "@/lib/observability";
 
@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
     const semester = searchParams.get("semester") ?? "all";
     const safeSemester = semester.replace(/[^A-Za-z0-9_-]/g, "");
 
-    const transactions = await prisma.transaction.findMany({
+    const transactions = await db(user.orgId).transaction.findMany({
       where: safeSemester && safeSemester !== "all"
         ? { deletedAt: null, semester: safeSemester }
         : { deletedAt: null },

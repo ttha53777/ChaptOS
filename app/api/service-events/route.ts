@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth/require-user";
 import { logActivity } from "@/lib/activity";
 import { checkMutationRate } from "@/lib/rate-limit";
@@ -9,7 +9,7 @@ export async function GET() {
   const user = await requireUser();
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
   try {
-    const events = await prisma.serviceEvent.findMany({ orderBy: { date: "asc" } });
+    const events = await db(user.orgId).serviceEvent.findMany({ orderBy: { date: "asc" } });
     return Response.json(events);
   } catch (e) {
     logError(e, { route: "/api/service-events", method: "GET", userId: user?.id });
@@ -46,10 +46,11 @@ export async function POST(req: NextRequest) {
   const mandatoryBool = typeof mandatory === "boolean" ? mandatory : false;
 
   try {
-    const { serviceEvent, calendarEvent } = await prisma.$transaction(async (tx) => {
+    const orgId = user.orgId;
+    const { serviceEvent, calendarEvent } = await db(orgId).$transaction(async (tx) => {
       const calendarEvent = await tx.calendarEvent.create({
         data: {
-          organizationId: 1,
+          organizationId: orgId,
           title:       titleStr,
           date:        dateStr,
           time:        timeStr || null,
@@ -61,7 +62,7 @@ export async function POST(req: NextRequest) {
       });
       const serviceEvent = await tx.serviceEvent.create({
         data: {
-          organizationId: 1,
+          organizationId: orgId,
           title:           titleStr,
           date:            dateStr,
           location:        locationStr,
@@ -76,6 +77,7 @@ export async function POST(req: NextRequest) {
       actorId: user.id,
       type: "info",
       message: `${user.name} added service event ${serviceEvent.title} on ${serviceEvent.date}`,
+      orgId: user.orgId,
     });
 
     // Top-level fields preserve the original ServiceEvent shape for the service

@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth/require-user";
 import { getActiveSemester } from "@/lib/attendance";
 import { logError } from "@/lib/observability";
@@ -22,15 +22,15 @@ export async function GET(
     if (!semester) return Response.json([], { status: 200 });
 
     const [records, excuses, events] = await Promise.all([
-      prisma.attendanceRecord.findMany({
+      db(user.orgId).attendanceRecord.findMany({
         where: { brotherId, semesterId: semester.id },
         select: { calendarEventId: true, attended: true },
       }),
-      prisma.attendanceExcuse.findMany({
+      db(user.orgId).attendanceExcuse.findMany({
         where: { brotherId, semesterId: semester.id },
         select: { calendarEventId: true, reason: true, status: true, rejectionNote: true },
       }),
-      prisma.calendarEvent.findMany({
+      db(user.orgId).calendarEvent.findMany({
         where: { mandatory: true },
         orderBy: { date: "asc" },
         select: { id: true, title: true, date: true },

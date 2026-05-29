@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth/require-user";
 import { requirePermission } from "@/lib/auth/require-permission";
 import { logActivity } from "@/lib/activity";
@@ -10,7 +10,7 @@ export async function GET() {
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
   try {
-    const semesters = await prisma.semester.findMany({ orderBy: { id: "desc" } });
+    const semesters = await db(user.orgId).semester.findMany({ orderBy: { id: "desc" } });
     return Response.json(semesters);
   } catch (e) {
     logError(e, { route: "/api/semesters", method: "GET", userId: user?.id });
@@ -37,16 +37,16 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    // Deactivate all existing semesters, then create the new active one
-    await prisma.semester.updateMany({ data: { isActive: false } });
-    const semester = await prisma.semester.create({
-      data: { organizationId: 1, label, startDate, endDate, isActive: true },
+    await db(user.orgId).semester.updateMany({ data: { isActive: false } });
+    const semester = await db(user.orgId).semester.create({
+      data: { label, startDate, endDate, isActive: true },
     });
 
     await logActivity({
       actorId: user.id,
       type: "info",
       message: `${user.name} created semester ${semester.label} and made it active`,
+      orgId: user.orgId,
     });
 
     return Response.json(semester, { status: 201 });

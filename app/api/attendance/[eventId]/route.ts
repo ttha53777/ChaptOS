@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
 import { getActiveSemester } from "@/lib/attendance";
 import { requireUser } from "@/lib/auth/require-user";
 import { logError } from "@/lib/observability";
@@ -21,13 +21,11 @@ export async function GET(
     if (!semester) return Response.json({ error: "No active semester" }, { status: 400 });
 
     const [records, excuses] = await Promise.all([
-      prisma.attendanceRecord.findMany({
+      db(user.orgId).attendanceRecord.findMany({
         where: { calendarEventId, semesterId: semester.id },
         include: { brother: { select: { id: true, name: true } } },
       }),
-      // Only approved excuses exclude a brother from the attended/absent tallies.
-      // Pending and rejected excuses leave the brother in the regular attendance flow.
-      prisma.attendanceExcuse.findMany({
+      db(user.orgId).attendanceExcuse.findMany({
         where: { calendarEventId, semesterId: semester.id, status: "approved" },
         include: { brother: { select: { id: true, name: true } } },
       }),

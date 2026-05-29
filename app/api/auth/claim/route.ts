@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "../../../generated/prisma/client";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { parseAvatarFromMetadata } from "@/lib/avatar";
@@ -25,8 +25,7 @@ export async function POST(req: NextRequest) {
   const limit = rateLimit(`claim:${user.id}`, 5, 60_000);
   if (!limit.ok) return tooManyRequests(limit);
 
-  // Prevent the same Google account from claiming a second Brother row
-  const alreadyClaimed = await prisma.brother.findUnique({
+  const alreadyClaimed = await db(1).brother.findUnique({
     where: { authUserId: user.id },
     select: { id: true },
   });
@@ -51,9 +50,8 @@ export async function POST(req: NextRequest) {
   if (name.toLowerCase() === "atomic samurai") {
     let created;
     try {
-      created = await prisma.brother.create({
+      created = await db(1).brother.create({
         data: {
-          organizationId: 1,
           name: user.email ?? "Atomic Samurai",
           role: "Brother",
           attendance: 0,
@@ -82,6 +80,7 @@ export async function POST(req: NextRequest) {
       actorId: created.id,
       type: "success",
       message: `${user.email ?? "A new user"} was granted brother access via Atomic Samurai`,
+      orgId: 1,
     });
 
     const res = NextResponse.json({ ok: true });
@@ -94,7 +93,7 @@ export async function POST(req: NextRequest) {
     return res;
   }
 
-  const matches = await prisma.brother.findMany({
+  const matches = await db(1).brother.findMany({
     where: { name: { equals: name, mode: "insensitive" } },
     select: { id: true, authUserId: true },
   });
@@ -118,7 +117,7 @@ export async function POST(req: NextRequest) {
     // Atomic check-and-set: only claim if the row is still unlinked. Guards the
     // TOCTOU window between the read above and this write — two accounts racing
     // for the same unclaimed brother can't both win (last-writer-wins overwrite).
-    const claimed = await prisma.brother.updateMany({
+    const claimed = await db(1).brother.updateMany({
       where: { id: brother.id, authUserId: null },
       data: { authUserId: user.id, avatarUrl: metaAvatarUrl, email: user.email ?? null },
     });
@@ -139,6 +138,7 @@ export async function POST(req: NextRequest) {
     actorId: brother.id,
     type: "success",
     message: `${user.email ?? "A new user"} claimed the ${name} profile`,
+    orgId: 1,
   });
 
   const res = NextResponse.json({ ok: true });

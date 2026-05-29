@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { Prisma } from "../../../generated/prisma/client";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth/require-user";
 import { requirePermission } from "@/lib/auth/require-permission";
 import { logActivity } from "@/lib/activity";
@@ -75,7 +75,7 @@ export async function PATCH(
   const completing = body.completed === true;
 
   try {
-    const party = await prisma.partyEvent.update({
+    const party = await db(user.orgId).partyEvent.update({
       where: { id: numId },
       data,
     });
@@ -86,6 +86,7 @@ export async function PATCH(
       message: completing
         ? `${user.name} marked ${party.name} complete`
         : `${user.name} updated ${party.name}`,
+      orgId: user.orgId,
     });
 
     return Response.json(party);
@@ -111,16 +112,17 @@ export async function DELETE(
   }
 
   try {
-    const target = await prisma.partyEvent.findUnique({
+    const target = await db(user.orgId).partyEvent.findUnique({
       where: { id: numId },
       select: { name: true },
     });
-    await prisma.partyEvent.delete({ where: { id: numId } });
+    await db(user.orgId).partyEvent.delete({ where: { id: numId } });
 
     await logActivity({
       actorId: user.id,
       type: "warning",
       message: `${user.name} deleted party ${target?.name ?? `#${numId}`}`,
+      orgId: user.orgId,
     });
 
     return new Response(null, { status: 204 });

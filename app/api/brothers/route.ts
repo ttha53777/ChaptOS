@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth/require-user";
 import { requirePermission } from "@/lib/auth/require-permission";
 import { logActivity } from "@/lib/activity";
@@ -13,7 +13,7 @@ export async function GET() {
   try {
     // Ghost members (Atomic Samurai backdoor) are excluded from every listing —
     // they have full read access but never appear in the brotherhood.
-    const brothers = await prisma.brother.findMany({ where: { isGhost: false }, orderBy: { id: "asc" } });
+    const brothers = await db(user.orgId).brother.findMany({ where: { isGhost: false }, orderBy: { id: "asc" } });
     const hydrated = await hydrateBrotherAvatars(brothers);
     return Response.json(hydrated.map(publicBrother));
   } catch (e) {
@@ -57,12 +57,11 @@ export async function POST(req: NextRequest) {
     if (parsedGpa === null)   return Response.json({ error: "gpa must be a non-negative number" }, { status: 400 });
     if (parsedHours === null) return Response.json({ error: "serviceHours must be a non-negative number" }, { status: 400 });
 
-    const brother = await prisma.brother.create({
+    const brother = await db(user.orgId).brother.create({
       data: {
-        organizationId: 1,
         name: String(name),
         role: String(role),
-        attendance: 0, // system-managed — always starts at 0
+        attendance: 0,
         duesOwed: parsedDues,
         gpa: parsedGpa,
         serviceHours: parsedHours,
@@ -73,6 +72,7 @@ export async function POST(req: NextRequest) {
       actorId: user.id,
       type: "info",
       message: `${user.name} added ${brother.name} as ${brother.role}`,
+      orgId: user.orgId,
     });
 
     return Response.json(brother, { status: 201 });

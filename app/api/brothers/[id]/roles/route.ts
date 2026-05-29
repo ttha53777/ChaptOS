@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { Prisma } from "../../../../generated/prisma/client";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
 import { requirePermission } from "@/lib/auth/require-permission";
 import { logActivity } from "@/lib/activity";
 import { checkMutationRate } from "@/lib/rate-limit";
@@ -38,23 +38,23 @@ export async function POST(
 
   try {
     const [brother, role] = await Promise.all([
-      prisma.brother.findUnique({ where: { id: brotherId }, select: { id: true, name: true } }),
-      prisma.role.findUnique({ where: { id: roleId }, select: { id: true, name: true, rank: true } }),
+      db(user.orgId).brother.findUnique({ where: { id: brotherId }, select: { id: true, name: true } }),
+      db(user.orgId).role.findUnique({ where: { id: roleId }, select: { id: true, name: true, rank: true } }),
     ]);
     if (!brother) return Response.json({ error: "Brother not found" }, { status: 404 });
     if (!role)    return Response.json({ error: "Role not found" }, { status: 404 });
 
-    // Hierarchy: the target role's rank must be strictly less than the caller's.
     if (role.rank >= user.maxRank) {
       return Response.json({ error: "Cannot grant a role at or above your own rank" }, { status: 403 });
     }
 
-    await prisma.brotherRole.create({ data: { brotherId, roleId } });
+    await db(user.orgId).brotherRole.create({ data: { brotherId, roleId } });
 
     await logActivity({
       actorId: user.id,
       type: "info",
       message: `${user.name} granted role "${role.name}" to ${brother.name}`,
+      orgId: user.orgId,
     });
 
     return Response.json({ brotherId, roleId }, { status: 201 });

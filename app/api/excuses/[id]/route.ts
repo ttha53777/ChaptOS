@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { Prisma } from "../../../generated/prisma/client";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
 import { recalcBrotherAttendance } from "@/lib/attendance";
 import { requirePermission } from "@/lib/auth/require-permission";
 import { logActivity } from "@/lib/activity";
@@ -35,7 +35,7 @@ export async function PATCH(
     // updateMany lets us scope the where clause to `status: "pending"` so a race with a
     // resubmission can't silently overwrite a freshly-pending row, and so a double-click
     // doesn't re-decide an already-decided row. count===0 means the row already moved on.
-    const result = await prisma.attendanceExcuse.updateMany({
+    const result = await db(user.orgId).attendanceExcuse.updateMany({
       where: { id: numId, status: "pending" },
       data: {
         status:        action === "approve" ? "approved" : "rejected",
@@ -47,7 +47,7 @@ export async function PATCH(
     if (result.count === 0) {
       return Response.json({ error: "Excuse is no longer pending" }, { status: 409 });
     }
-    const updated = await prisma.attendanceExcuse.findUnique({
+    const updated = await db(user.orgId).attendanceExcuse.findUnique({
       where: { id: numId },
       include: {
         brother:       { select: { id: true, name: true } },
@@ -68,6 +68,7 @@ export async function PATCH(
       message: action === "approve"
         ? `${user.name} approved excuse for ${updated.brother.name} (${updated.calendarEvent.title})`
         : `${user.name} rejected excuse for ${updated.brother.name} (${updated.calendarEvent.title})`,
+      orgId: user.orgId,
     });
 
     return Response.json({

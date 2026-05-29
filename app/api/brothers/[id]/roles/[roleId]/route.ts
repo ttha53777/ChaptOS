@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { Prisma } from "../../../../../generated/prisma/client";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
 import { requirePermission } from "@/lib/auth/require-permission";
 import { logActivity } from "@/lib/activity";
 import { checkMutationRate } from "@/lib/rate-limit";
@@ -30,8 +30,8 @@ export async function DELETE(
 
   try {
     const [brother, role] = await Promise.all([
-      prisma.brother.findUnique({ where: { id: brotherId }, select: { id: true, name: true } }),
-      prisma.role.findUnique({ where: { id: roleId }, select: { id: true, name: true, rank: true } }),
+      db(user.orgId).brother.findUnique({ where: { id: brotherId }, select: { id: true, name: true } }),
+      db(user.orgId).role.findUnique({ where: { id: roleId }, select: { id: true, name: true, rank: true } }),
     ]);
     if (!brother) return Response.json({ error: "Brother not found" }, { status: 404 });
     if (!role)    return Response.json({ error: "Role not found" }, { status: 404 });
@@ -39,7 +39,7 @@ export async function DELETE(
       return Response.json({ error: "Cannot revoke a role at or above your own rank" }, { status: 403 });
     }
 
-    await prisma.brotherRole.delete({
+    await db(user.orgId).brotherRole.delete({
       where: { brotherId_roleId: { brotherId, roleId } },
     });
 
@@ -47,6 +47,7 @@ export async function DELETE(
       actorId: user.id,
       type: "info",
       message: `${user.name} revoked role "${role.name}" from ${brother.name}`,
+      orgId: user.orgId,
     });
 
     return new Response(null, { status: 204 });

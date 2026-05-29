@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { Prisma } from "../../../generated/prisma/client";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
 import { requirePermission } from "@/lib/auth/require-permission";
 import { logActivity } from "@/lib/activity";
 import { checkMutationRate } from "@/lib/rate-limit";
@@ -25,10 +25,9 @@ export async function PATCH(
     return Response.json({ error: "Invalid ID" }, { status: 400 });
   }
 
-  const existing = await prisma.role.findUnique({ where: { id: numId } });
+  const existing = await db(user.orgId).role.findUnique({ where: { id: numId } });
   if (!existing) return Response.json({ error: "Role not found" }, { status: 404 });
 
-  // Hierarchy: can't edit a role at or above your own rank.
   if (existing.rank >= user.maxRank) {
     return Response.json({ error: "Cannot edit a role at or above your own rank" }, { status: 403 });
   }
@@ -74,11 +73,12 @@ export async function PATCH(
   }
 
   try {
-    const role = await prisma.role.update({ where: { id: numId }, data });
+    const role = await db(user.orgId).role.update({ where: { id: numId }, data });
     await logActivity({
       actorId: user.id,
       type: "info",
       message: `${user.name} updated role "${role.name}"`,
+      orgId: user.orgId,
     });
     return Response.json(role);
   } catch (e) {
@@ -106,7 +106,7 @@ export async function DELETE(
     return Response.json({ error: "Invalid ID" }, { status: 400 });
   }
 
-  const existing = await prisma.role.findUnique({ where: { id: numId } });
+  const existing = await db(user.orgId).role.findUnique({ where: { id: numId } });
   if (!existing) return Response.json({ error: "Role not found" }, { status: 404 });
   if (existing.isSystem) return Response.json({ error: "System roles cannot be deleted" }, { status: 400 });
   if (existing.rank >= user.maxRank) {
@@ -114,15 +114,14 @@ export async function DELETE(
   }
 
   try {
-    // BrotherRole cascades on Role deletion (schema-defined), so we don't need
-    // to clear assignments manually — but log the count for the audit trail.
-    const memberCount = await prisma.brotherRole.count({ where: { roleId: numId } });
-    await prisma.role.delete({ where: { id: numId } });
+    const memberCount = await db(user.orgId).brotherRole.count({ where: { roleId: numId } });
+    await db(user.orgId).role.delete({ where: { id: numId } });
 
     await logActivity({
       actorId: user.id,
       type: "warning",
       message: `${user.name} deleted role "${existing.name}" (was held by ${memberCount} brother${memberCount === 1 ? "" : "s"})`,
+      orgId: user.orgId,
     });
 
     return new Response(null, { status: 204 });

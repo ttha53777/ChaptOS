@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { Prisma } from "../../../generated/prisma/client";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth/require-user";
 import { requirePermission } from "@/lib/auth/require-permission";
 import { logActivity } from "@/lib/activity";
@@ -36,7 +36,7 @@ export async function PATCH(
       return Response.json({ error: "No valid fields provided" }, { status: 400 });
     }
 
-    const task = await prisma.instagramTask.update({
+    const task = await db(user.orgId).instagramTask.update({
       where: { id: Number(id) },
       data,
     });
@@ -45,6 +45,7 @@ export async function PATCH(
       actorId: user.id,
       type: "info",
       message: `${user.name} updated IG task ${task.title}`,
+      orgId: user.orgId,
     });
 
     return Response.json(task);
@@ -66,16 +67,17 @@ export async function DELETE(
   try {
     const { id } = await params;
     const numId = Number(id);
-    const target = await prisma.instagramTask.findUnique({
+    const target = await db(user.orgId).instagramTask.findUnique({
       where: { id: numId },
       select: { title: true },
     });
-    await prisma.instagramTask.delete({ where: { id: numId } });
+    await db(user.orgId).instagramTask.delete({ where: { id: numId } });
 
     await logActivity({
       actorId: user.id,
       type: "warning",
       message: `${user.name} deleted IG task ${target?.title ?? `#${numId}`}`,
+      orgId: user.orgId,
     });
 
     return new Response(null, { status: 204 });
