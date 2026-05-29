@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth/require-user";
 import { logActivity } from "@/lib/activity";
 import { isValidDateString } from "@/lib/coerce";
@@ -10,7 +10,7 @@ export async function GET() {
   const user = await requireUser();
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
   try {
-    const deadlines = await prisma.deadline.findMany({ orderBy: { id: "asc" } });
+    const deadlines = await db(user.orgId).deadline.findMany({ orderBy: { id: "asc" } });
     return Response.json(deadlines);
   } catch (e) {
     logError(e, { route: "/api/deadlines", method: "GET", userId: user?.id });
@@ -36,9 +36,8 @@ export async function POST(req: NextRequest) {
       return Response.json({ error: "dueDate must use YYYY-MM-DD format" }, { status: 400 });
     }
 
-    const deadline = await prisma.deadline.create({
+    const deadline = await db(user.orgId).deadline.create({
       data: {
-        organizationId: 1,
         title: String(title),
         dueDate: String(dueDate),
         owner: String(owner),
@@ -50,6 +49,7 @@ export async function POST(req: NextRequest) {
       actorId: user.id,
       type: "info",
       message: `${user.name} added deadline ${deadline.title} (due ${deadline.dueDate})`,
+      orgId: user.orgId,
     });
 
     return Response.json(deadline, { status: 201 });

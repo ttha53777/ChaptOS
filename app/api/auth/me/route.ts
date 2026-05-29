@@ -1,7 +1,7 @@
 import { requireUser } from "@/lib/auth/require-user";
 import { resolvePermissions } from "@/lib/auth/require-permission";
 import { parseAvatarFromMetadata } from "@/lib/avatar";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { logError } from "@/lib/observability";
 
@@ -10,10 +10,14 @@ export async function GET() {
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
   try {
-    const [brother, supabase, perms] = await Promise.all([
-      prisma.brother.findUnique({
+    const [brother, org, supabase, perms] = await Promise.all([
+      db(user.orgId).brother.findUnique({
         where: { id: user.id },
         select: { name: true, email: true, avatarUrl: true },
+      }),
+      db(user.orgId).organization.findUnique({
+        where: { id: user.orgId },
+        select: { name: true, slug: true },
       }),
       createServerSupabaseClient(),
       resolvePermissions(user),
@@ -34,7 +38,7 @@ export async function GET() {
     // First time they hit /me after this ships, persist the session email so it
     // shows up in Settings without forcing a relink.
     if (brother && !brother.email && user.email) {
-      prisma.brother.update({
+      db(user.orgId).brother.update({
         where: { id: user.id },
         data: { email: user.email },
       }).catch(e => logError(e, { route: "/api/auth/me", method: "GET", userId: user.id, extra: { stage: "email_backfill" } }));
@@ -48,9 +52,7 @@ export async function GET() {
       email: user.email ?? "",
       avatarUrl,
       hasCustomAvatar,
-      // Role/permission surface for the client. `permissions` is the effective
-      // bitfield (union over `roles`); super-admins report ~0 >>> 0 and an
-      // Infinity maxRank — serialize Infinity as null so JSON round-trips cleanly.
+      org: org ? { name: org.name, slug: org.slug } : null,
       permissions: perms.permissions,
       maxRank: Number.isFinite(perms.maxRank) ? perms.maxRank : null,
       roles: perms.roles,

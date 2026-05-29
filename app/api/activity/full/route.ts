@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth/require-admin";
 import { logError } from "@/lib/observability";
 
@@ -15,7 +15,7 @@ export async function GET(req: NextRequest) {
     const where = typeParam && (TYPES as readonly string[]).includes(typeParam)
       ? { type: typeParam as ActivityType }
       : {};
-    const logs = await prisma.activityLog.findMany({
+    const logs = await db(user.orgId).activityLog.findMany({
       where,
       orderBy: { timestamp: "desc" },
       take: 500,

@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { Prisma } from "../../generated/prisma/client";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth/require-user";
 import { logActivity } from "@/lib/activity";
 import { checkMutationRate } from "@/lib/rate-limit";
@@ -56,7 +56,7 @@ function isTableMissing(e: unknown): boolean {
 
 export async function GET() {
   try {
-    const row = await prisma.chapterAnnouncement.findUnique({
+    const row = await db(1).chapterAnnouncement.findUnique({
       where: { id: SINGLE_ROW_ID },
     });
     return Response.json(row ? serialize(row) : null);
@@ -121,11 +121,12 @@ export async function PUT(req: NextRequest) {
   const authorId = user?.id ?? null;
 
   try {
-    const row = await prisma.chapterAnnouncement.upsert({
+    const orgId = user?.orgId ?? 1;
+    const row = await db(orgId).chapterAnnouncement.upsert({
       where: { id: SINGLE_ROW_ID },
       create: {
         id: SINGLE_ROW_ID,
-        organizationId: 1,
+        organizationId: orgId,
         title,
         body: text,
         ctaLabel,
@@ -147,6 +148,7 @@ export async function PUT(req: NextRequest) {
       actorId: authorId,
       type: "info",
       message: `${authorName ?? "Someone"} updated the chapter announcement`,
+      orgId,
     });
 
     return Response.json(serialize(row));

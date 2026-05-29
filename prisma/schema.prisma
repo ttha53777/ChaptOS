@@ -128,6 +128,8 @@ model Semester {
   isActive       Boolean            @default(false)
   records        AttendanceRecord[]
   excuses        AttendanceExcuse[]
+  transactions   Transaction[]
+  budgets        Budget[]
 
   organization Organization @relation(fields: [organizationId], references: [id])
 
@@ -302,34 +304,43 @@ model Transaction {
   type           String
   category       String
   amount         Float
+  amountCents    BigInt?
   date           String
   description    String
   paymentMethod  String?
   paidTo         String?
   semester       String?
+  semesterId     Int?
   deletedAt      DateTime?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
   organization Organization @relation(fields: [organizationId], references: [id])
+  semesterRef  Semester?    @relation(fields: [semesterId], references: [id], onDelete: SetNull)
 
   @@index([organizationId, deletedAt])
+  @@index([semesterId])
 }
 
 model Budget {
-  id               Int                @id @default(autoincrement())
-  organizationId   Int
-  semester         String
-  carryoverBalance Float              @default(0)
-  reserveAmount    Float              @default(0)
-  createdAt        DateTime           @default(now())
-  updatedAt        DateTime           @updatedAt
-  allocations      BudgetAllocation[]
+  id                    Int                @id @default(autoincrement())
+  organizationId        Int
+  semester              String
+  semesterId            Int?
+  carryoverBalance      Float              @default(0)
+  carryoverBalanceCents BigInt?
+  reserveAmount         Float              @default(0)
+  reserveAmountCents    BigInt?
+  createdAt             DateTime           @default(now())
+  updatedAt             DateTime           @updatedAt
+  allocations           BudgetAllocation[]
 
   organization Organization @relation(fields: [organizationId], references: [id])
+  semesterRef  Semester?    @relation(fields: [semesterId], references: [id])
 
   @@unique([organizationId, semester])
   @@index([organizationId])
+  @@index([semesterId])
 }
 
 model BudgetAllocation {

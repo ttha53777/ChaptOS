@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { Prisma } from "../../../generated/prisma/client";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
 import { requirePermission } from "@/lib/auth/require-permission";
 import { logActivity } from "@/lib/activity";
 import { logError } from "@/lib/observability";
@@ -77,12 +77,13 @@ export async function PATCH(
       data.embedOk = meta?.embedOk ?? null;
     }
 
-    const doc = await prisma.doc.update({ where: { id: numId }, data });
+    const doc = await db(user.orgId).doc.update({ where: { id: numId }, data });
 
     await logActivity({
       actorId: user.id,
       type: "info",
       message: `${user.name} updated doc: ${doc.title}`,
+      orgId: user.orgId,
     });
 
     return Response.json(doc);
@@ -107,13 +108,14 @@ export async function DELETE(
     if (!Number.isInteger(numId) || numId <= 0) {
       return Response.json({ error: "Invalid ID" }, { status: 400 });
     }
-    const target = await prisma.doc.findUnique({ where: { id: numId }, select: { title: true } });
-    await prisma.doc.delete({ where: { id: numId } });
+    const target = await db(user.orgId).doc.findUnique({ where: { id: numId }, select: { title: true } });
+    await db(user.orgId).doc.delete({ where: { id: numId } });
 
     await logActivity({
       actorId: user.id,
       type: "warning",
       message: `${user.name} deleted doc: ${target?.title ?? `#${numId}`}`,
+      orgId: user.orgId,
     });
 
     return new Response(null, { status: 204 });

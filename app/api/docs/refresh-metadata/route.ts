@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { Prisma } from "../../../generated/prisma/client";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth/require-user";
 import { checkMutationRate } from "@/lib/rate-limit";
 import { logError } from "@/lib/observability";
@@ -28,12 +28,12 @@ export async function POST(req: NextRequest) {
     if (!Number.isInteger(id) || id <= 0) {
       return Response.json({ error: "Invalid ID" }, { status: 400 });
     }
-    const existing = await prisma.doc.findUnique({ where: { id }, select: { url: true } });
+    const existing = await db(user.orgId).doc.findUnique({ where: { id }, select: { url: true } });
     if (!existing) return Response.json({ error: "Doc not found" }, { status: 404 });
 
     const meta = await scrapeMetadata(existing.url).catch(() => null);
 
-    const updated = await prisma.doc.update({
+    const updated = await db(user.orgId).doc.update({
       where: { id },
       data: {
         ogImage: meta?.ogImage ?? null,

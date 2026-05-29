@@ -10,11 +10,12 @@ STRICT=0
 [[ "$1" == "--strict" ]] && STRICT=1
 
 # Grep for direct prisma.* calls (not inside lib/db/ or lib/prisma.ts itself)
+# Lines containing "lint-direct-prisma:ignore" are intentionally exempted.
 HITS=$(grep -rn \
   --include="*.ts" --include="*.tsx" \
   'prisma\.\(brother\|role\|semester\|calendarEvent\|serviceEvent\|partyEvent\|deadline\|instagramTask\|doc\|transaction\|budget\|activityLog\|chapterAnnouncement\)\.' \
   app/api/ \
-  2>/dev/null)
+  2>/dev/null | grep -v 'lint-direct-prisma:ignore')
 
 if [[ -z "$HITS" ]]; then
   echo "lint-direct-prisma: OK — no direct prisma model calls in app/api/"

@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { Prisma } from "../../generated/prisma/client";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth/require-user";
 import { logActivity } from "@/lib/activity";
 import { isValidDateString } from "@/lib/coerce";
@@ -11,7 +11,7 @@ export async function GET() {
   const user = await requireUser();
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
   try {
-    const parties = await prisma.partyEvent.findMany({ orderBy: { id: "asc" } });
+    const parties = await db(user.orgId).partyEvent.findMany({ orderBy: { id: "asc" } });
     return Response.json(parties);
   } catch {
     return Response.json({ error: "Failed to fetch party events" }, { status: 500 });
@@ -48,9 +48,8 @@ export async function POST(req: NextRequest) {
     return Response.json({ error: "expenses must be a non-negative number" }, { status: 400 });
 
   try {
-    const party = await prisma.partyEvent.create({
+    const party = await db(user.orgId).partyEvent.create({
       data: {
-        organizationId: 1,
         name:        String(name),
         date:        String(date),
         partyType:   partyType === "Closed" ? "Closed" : "Open",
@@ -68,6 +67,7 @@ export async function POST(req: NextRequest) {
       actorId: user.id,
       type: "info",
       message: `${user.name} scheduled ${party.name} on ${party.date}`,
+      orgId: user.orgId,
     });
 
     return Response.json(party, { status: 201 });

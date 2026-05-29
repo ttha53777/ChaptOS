@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { Prisma } from "../../../generated/prisma/client";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth/require-user";
 import { requirePermission } from "@/lib/auth/require-permission";
 import { logActivity } from "@/lib/activity";
@@ -36,7 +36,7 @@ export async function PATCH(
   }
 
   try {
-    const event = await prisma.$transaction(async (tx) => {
+    const event = await db(user.orgId).$transaction(async (tx) => {
       const updated = await tx.serviceEvent.update({ where: { id: numId }, data });
       if (updated.calendarEventId) {
         const calData: Prisma.CalendarEventUpdateInput = {};
@@ -55,6 +55,7 @@ export async function PATCH(
       actorId: user.id,
       type: "info",
       message: `${user.name} updated service event ${event.title}`,
+      orgId: user.orgId,
     });
 
     return Response.json(event);
@@ -80,7 +81,7 @@ export async function DELETE(
   }
 
   try {
-    const deleted = await prisma.$transaction(async (tx) => {
+    const deleted = await db(user.orgId).$transaction(async (tx) => {
       const existing = await tx.serviceEvent.findUnique({
         where: { id: numId },
         select: { calendarEventId: true, title: true },
@@ -106,6 +107,7 @@ export async function DELETE(
       actorId: user.id,
       type: "warning",
       message: `${user.name} deleted service event ${deleted.title}`,
+      orgId: user.orgId,
     });
 
     return new Response(null, { status: 204 });

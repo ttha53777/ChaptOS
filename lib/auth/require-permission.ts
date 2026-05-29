@@ -49,7 +49,7 @@ export async function requirePermission(perm: Permission): Promise<RequireResult
   let flatRoles: { permissions: number; rank: number }[] = [];
   try {
     const rows = await prisma.brotherRole.findMany({
-      where: { brotherId: user.id },
+      where: { brotherId: user.id, role: { organizationId: user.orgId } },
       select: { role: { select: { permissions: true, rank: true } } },
     });
     flatRoles = rows.map(r => r.role);
@@ -87,7 +87,7 @@ export async function requirePermissionOrSelf(
   let flatRoles: { permissions: number; rank: number }[] = [];
   try {
     const rows = await prisma.brotherRole.findMany({
-      where: { brotherId: user.id },
+      where: { brotherId: user.id, role: { organizationId: user.orgId } },
       select: { role: { select: { permissions: true, rank: true } } },
     });
     flatRoles = rows.map(r => r.role);
@@ -112,7 +112,7 @@ export async function resolvePermissions(user: AuthedUser): Promise<{ permission
   let rows: { role: { id: number; name: string; color: string | null; rank: number; permissions: number } }[] = [];
   try {
     rows = await prisma.brotherRole.findMany({
-      where: { brotherId: user.id },
+      where: { brotherId: user.id, role: { organizationId: user.orgId } },
       select: { role: { select: { id: true, name: true, color: true, rank: true, permissions: true } } },
     });
   } catch (e) {

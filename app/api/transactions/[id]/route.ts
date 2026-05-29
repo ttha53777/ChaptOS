@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { Prisma } from "../../../generated/prisma/client";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
 import { requirePermission } from "@/lib/auth/require-permission";
 import { logActivity } from "@/lib/activity";
 import { coerceString, coerceNumber, isValidDateString } from "@/lib/coerce";
@@ -55,7 +55,7 @@ export async function PATCH(
   }
 
   try {
-    const tx = await prisma.transaction.update({
+    const tx = await db(user.orgId).transaction.update({
       where: { id: numId },
       data,
     });
@@ -64,6 +64,7 @@ export async function PATCH(
       actorId: user.id,
       type: "info",
       message: `${user.name} updated transaction #${tx.id} (${tx.description})`,
+      orgId: user.orgId,
     });
 
     return Response.json(tx);
@@ -91,11 +92,11 @@ export async function DELETE(
   }
 
   try {
-    const existing = await prisma.transaction.findUnique({
+    const existing = await db(user.orgId).transaction.findUnique({
       where: { id: numId },
       select: { description: true, amount: true },
     });
-    await prisma.transaction.update({
+    await db(user.orgId).transaction.update({
       where: { id: numId },
       data: { deletedAt: new Date() },
     });
@@ -105,6 +106,7 @@ export async function DELETE(
         actorId: user.id,
         type: "warning",
         message: `${user.name} deleted transaction: ${existing.description} ($${existing.amount.toFixed(2)})`,
+        orgId: user.orgId,
       });
     }
 

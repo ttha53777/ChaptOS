@@ -1,4 +1,4 @@
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth/require-user";
 import { logError } from "@/lib/observability";
 
@@ -9,11 +9,11 @@ export async function GET() {
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
   try {
     const [parties, transactions] = await Promise.all([
-      prisma.partyEvent.findMany({
+      db(user.orgId).partyEvent.findMany({
         orderBy: { date: "asc" },
         select: { date: true, doorRevenue: true },
       }),
-      prisma.transaction.findMany({
+      db(user.orgId).transaction.findMany({
         where: { deletedAt: null },
         orderBy: { date: "asc" },
         select: { date: true, type: true, amount: true },

@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { Prisma } from "../../generated/prisma/client";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth/require-user";
 import { requirePermission } from "@/lib/auth/require-permission";
 import { logActivity } from "@/lib/activity";
@@ -21,19 +21,21 @@ export async function GET() {
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
   try {
-    const roles = await prisma.role.findMany({
+    const roles = await db(user.orgId).role.findMany({
       orderBy: [{ rank: "desc" }, { name: "asc" }],
-      include: { _count: { select: { brothers: true } } },
     });
+    const memberCounts = await Promise.all(
+      roles.map(r => db(user.orgId).brotherRole.count({ where: { roleId: r.id } }))
+    );
     return Response.json(
-      roles.map(r => ({
+      roles.map((r, i) => ({
         id: r.id,
         name: r.name,
         color: r.color,
         rank: r.rank,
         permissions: r.permissions,
         isSystem: r.isSystem,
-        memberCount: r._count.brothers,
+        memberCount: memberCounts[i],
       })),
     );
   } catch (e) {
@@ -78,14 +80,15 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const role = await prisma.role.create({
-      data: { organizationId: 1, name, color: color || null, rank, permissions, isSystem: false },
+    const role = await db(user.orgId).role.create({
+      data: { name, color: color || null, rank, permissions, isSystem: false },
     });
 
     await logActivity({
       actorId: user.id,
       type: "info",
       message: `${user.name} created role "${role.name}" (rank ${role.rank})`,
+      orgId: user.orgId,
     });
 
     return Response.json(role, { status: 201 });

@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { Prisma } from "../../../generated/prisma/client";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
 import { requirePermission, requirePermissionOrSelf } from "@/lib/auth/require-permission";
 import { hasPermission } from "@/lib/permissions";
 import { logActivity } from "@/lib/activity";
@@ -51,7 +51,7 @@ export async function PATCH(
       return Response.json({ error: "No valid fields provided" }, { status: 400 });
     }
 
-    const brother = await prisma.brother.update({
+    const brother = await db(user.orgId).brother.update({
       where: { id: numId },
       data,
     });
@@ -60,6 +60,7 @@ export async function PATCH(
       actorId: user.id,
       type: "info",
       message: `${user.name} updated ${brother.name}'s ${Object.keys(data).join(", ")}`,
+      orgId: user.orgId,
     });
 
     return Response.json(brother);
@@ -81,12 +82,12 @@ export async function DELETE(
   try {
     const { id } = await params;
     const numId = Number(id);
-    const target = await prisma.brother.findUnique({
+    const target = await db(user.orgId).brother.findUnique({
       where: { id: numId },
       select: { name: true, isAdmin: true },
     });
     if (target?.isAdmin) {
-      const adminCount = await prisma.brother.count({ where: { isAdmin: true } });
+      const adminCount = await db(user.orgId).brother.count({ where: { isAdmin: true } });
       if (adminCount <= 1) {
         return Response.json(
           { error: "Cannot delete the last admin. Promote another brother first." },
@@ -94,12 +95,13 @@ export async function DELETE(
         );
       }
     }
-    await prisma.brother.delete({ where: { id: numId } });
+    await db(user.orgId).brother.delete({ where: { id: numId } });
 
     await logActivity({
       actorId: user.id,
       type: "warning",
       message: `${user.name} removed ${target?.name ?? `brother #${numId}`}`,
+      orgId: user.orgId,
     });
 
     return new Response(null, { status: 204 });

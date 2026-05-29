@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { Prisma } from "../../generated/prisma/client";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth/require-user";
 import { requirePermission } from "@/lib/auth/require-permission";
 import { logActivity } from "@/lib/activity";
@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
   const category = searchParams.get("category");
 
   try {
-    const transactions = await prisma.transaction.findMany({
+    const transactions = await db(user.orgId).transaction.findMany({
       where: {
         deletedAt: null,
         ...(type     ? { type }     : {}),
@@ -58,9 +58,8 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const tx = await prisma.transaction.create({
+    const tx = await db(user.orgId).transaction.create({
       data: {
-        organizationId: 1,
         type:          String(type),
         category:      String(category),
         amount:        numAmount,
@@ -76,6 +75,7 @@ export async function POST(req: NextRequest) {
       actorId: user.id,
       type: tx.type === "income" ? "success" : "warning",
       message: `${user.name} added a $${tx.amount.toFixed(2)} ${tx.type} for ${tx.category}: ${tx.description}`,
+      orgId: user.orgId,
     });
 
     return Response.json(tx, { status: 201 });

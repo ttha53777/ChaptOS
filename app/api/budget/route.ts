@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import { db } from "@/lib/db";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth/require-user";
 import { requirePermission } from "@/lib/auth/require-permission";
@@ -18,8 +19,8 @@ export async function GET(req: NextRequest) {
   if (!semester) return Response.json({ error: "semester is required" }, { status: 400 });
 
   try {
-    const budget = await prisma.budget.findUnique({
-      where: { organizationId_semester: { organizationId: 1, semester } },
+    const budget = await prisma.budget.findUnique({ // lint-direct-prisma:ignore (include not typed through scoped wrapper)
+      where: { organizationId_semester: { organizationId: user.orgId, semester } },
       include: { allocations: true },
     });
     if (!budget) return Response.json(null);
@@ -87,13 +88,11 @@ export async function PUT(req: NextRequest) {
   }
 
   try {
-    // Atomic: budget upsert + full allocation replace must succeed or roll back
-    // together, otherwise a mid-write failure could leave the budget with zero
-    // allocations.
-    const result = await prisma.$transaction(async (tx) => {
+    const orgId = user.orgId;
+    const result = await db(orgId).$transaction(async (tx) => {
       const budget = await tx.budget.upsert({
-        where: { organizationId_semester: { organizationId: 1, semester } },
-        create: { organizationId: 1, semester, carryoverBalance: carryover, reserveAmount: reserve },
+        where: { organizationId_semester: { organizationId: orgId, semester } },
+        create: { organizationId: orgId, semester, carryoverBalance: carryover, reserveAmount: reserve },
         update: { carryoverBalance: carryover, reserveAmount: reserve },
       });
       await tx.budgetAllocation.deleteMany({ where: { budgetId: budget.id } });
@@ -112,6 +111,7 @@ export async function PUT(req: NextRequest) {
       actorId: user.id,
       type: "info",
       message: `${user.name} updated the ${semester} budget`,
+      orgId: user.orgId,
     });
 
     return Response.json({

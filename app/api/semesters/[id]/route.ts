@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
 import { requirePermission } from "@/lib/auth/require-permission";
 import { logActivity } from "@/lib/activity";
 import { logError } from "@/lib/observability";
@@ -19,8 +19,8 @@ export async function PATCH(
   }
 
   try {
-    await prisma.semester.updateMany({ data: { isActive: false } });
-    const semester = await prisma.semester.update({
+    await db(user.orgId).semester.updateMany({ data: { isActive: false } });
+    const semester = await db(user.orgId).semester.update({
       where: { id: numId },
       data: { isActive: true },
     });
@@ -29,6 +29,7 @@ export async function PATCH(
       actorId: user.id,
       type: "info",
       message: `${user.name} set the active semester to ${semester.label}`,
+      orgId: user.orgId,
     });
 
     return Response.json(semester);

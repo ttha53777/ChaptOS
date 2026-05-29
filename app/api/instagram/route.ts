@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth/require-user";
 import { logActivity } from "@/lib/activity";
 import { isValidDateString } from "@/lib/coerce";
@@ -10,7 +10,7 @@ export async function GET() {
   const user = await requireUser();
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
   try {
-    const tasks = await prisma.instagramTask.findMany({ orderBy: { id: "asc" } });
+    const tasks = await db(user.orgId).instagramTask.findMany({ orderBy: { id: "asc" } });
     return Response.json(tasks);
   } catch (e) {
     logError(e, { route: "/api/instagram", method: "GET", userId: user?.id });
@@ -36,9 +36,8 @@ export async function POST(req: NextRequest) {
       return Response.json({ error: "dueDate must use YYYY-MM-DD format" }, { status: 400 });
     }
 
-    const task = await prisma.instagramTask.create({
+    const task = await db(user.orgId).instagramTask.create({
       data: {
-        organizationId: 1,
         title: String(title),
         dueDate: String(dueDate),
         owner: String(owner),
@@ -51,6 +50,7 @@ export async function POST(req: NextRequest) {
       actorId: user.id,
       type: "info",
       message: `${user.name} added IG task ${task.title}`,
+      orgId: user.orgId,
     });
 
     return Response.json(task, { status: 201 });

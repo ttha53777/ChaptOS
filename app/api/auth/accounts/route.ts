@@ -1,5 +1,5 @@
 import { requireUser } from "@/lib/auth/require-user";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
 import { logError } from "@/lib/observability";
 
 export async function GET() {
@@ -20,7 +20,7 @@ export async function GET() {
       roles?: { role: { id: number; name: string; color: string | null; rank: number } }[];
     }>;
     try {
-      brothers = await prisma.brother.findMany({
+      brothers = await db(user.orgId).brother.findMany({
         where: { isGhost: false },
         select: {
           id: true, name: true, role: true, authUserId: true, isAdmin: true, email: true,
@@ -33,7 +33,7 @@ export async function GET() {
         orderBy: { name: "asc" },
       });
     } catch {
-      brothers = await prisma.brother.findMany({
+      brothers = await db(user.orgId).brother.findMany({
         where: { isGhost: false },
         select: { id: true, name: true, role: true, authUserId: true, isAdmin: true, email: true },
         orderBy: { name: "asc" },
