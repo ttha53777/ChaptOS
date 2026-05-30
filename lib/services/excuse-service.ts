@@ -79,16 +79,18 @@ export async function submitExcuse(
   const brotherId = canManage && input.brotherId ? input.brotherId : ctx.actorId;
   const autoApproved = canManage;
 
-  const [semester, brother, existingRecord] = await Promise.all([
+  const [semester, brother, calendarEvent, existingRecord] = await Promise.all([
     getActiveSemester(ctx.orgId),
     ctx.db.brother.findUnique({ where: { id: brotherId }, select: { id: true, name: true } }),
+    ctx.db.calendarEvent.findUnique({ where: { id: input.calendarEventId }, select: { id: true, title: true } }),
     ctx.db.attendanceRecord.findUnique({
       where: { calendarEventId_brotherId: { calendarEventId: input.calendarEventId, brotherId } },
     }),
   ]);
 
-  if (!semester) throw new ValidationError("No active semester");
-  if (!brother)  throw new NotFoundError("Brother");
+  if (!semester)       throw new ValidationError("No active semester");
+  if (!brother)        throw new NotFoundError("Brother");
+  if (!calendarEvent)  throw new NotFoundError("Event");
 
   const isRetroactive = !!existingRecord;
   const status = autoApproved ? ExcuseStatus.Approved : ExcuseStatus.Pending;
@@ -135,11 +137,7 @@ export async function submitExcuse(
     );
   }
 
-  const event = await ctx.db.calendarEvent.findUnique({
-    where: { id: input.calendarEventId },
-    select: { id: true, title: true },
-  });
-  const eventTitle = event?.title ?? "an event";
+  const eventTitle = calendarEvent.title;
 
   // Look up the created excuse row to get its id for the event subject.
   const created = await ctx.db.attendanceExcuse.findUnique({

@@ -1,5 +1,4 @@
 import type { Prisma } from "@/app/generated/prisma/client";
-import { Prisma as PrismaErr } from "@/app/generated/prisma/client";
 import type { RequestContext } from "@/lib/context";
 import { emit } from "@/lib/events";
 import { NotFoundError } from "@/lib/errors";
@@ -60,16 +59,24 @@ export async function updateServiceEvent(ctx: RequestContext, id: number, input:
     changedFields.push(k);
   }
 
+  // Pre-verify org ownership and fetch calendarEventId before the transaction.
+  // The raw tx client cannot use the org-scoped wrapper for point mutations.
+  const existing = await ctx.db.serviceEvent.findUnique({
+    where: { id },
+    select: { id: true, calendarEventId: true },
+  });
+  if (!existing) throw new NotFoundError("Service event");
+
   const event = await ctx.db.$transaction(async (tx) => {
-    const updated = await tx.serviceEvent.update({ where: { id }, data });
-    if (updated.calendarEventId) {
+    const updated = await tx.serviceEvent.update({ where: { id: existing.id }, data });
+    if (existing.calendarEventId) {
       const calData: Prisma.CalendarEventUpdateInput = {};
       if (input.title    !== undefined) calData.title       = String(input.title);
       if (input.date     !== undefined) calData.date        = String(input.date);
       if (input.location !== undefined) calData.location    = String(input.location) || null;
       if (input.notes    !== undefined) calData.description = String(input.notes)    || null;
       if (Object.keys(calData).length > 0) {
-        await tx.calendarEvent.update({ where: { id: updated.calendarEventId }, data: calData });
+        await tx.calendarEvent.update({ where: { id: existing.calendarEventId }, data: calData });
       }
     }
     return updated;
@@ -82,29 +89,22 @@ export async function updateServiceEvent(ctx: RequestContext, id: number, input:
 }
 
 export async function deleteServiceEvent(ctx: RequestContext, id: number) {
-  const deleted = await ctx.db.$transaction(async (tx) => {
-    const existing = await tx.serviceEvent.findUnique({
-      where: { id },
-      select: { calendarEventId: true, title: true },
-    });
-    if (!existing) {
-      throw new PrismaErr.PrismaClientKnownRequestError("Not found", { code: "P2025", clientVersion: "" });
-    }
+  // Pre-verify org ownership before the transaction. The org-scoped findUnique
+  // also fetches calendarEventId so the transaction doesn't need its own lookup.
+  const existing = await ctx.db.serviceEvent.findUnique({
+    where: { id },
+    select: { title: true, calendarEventId: true },
+  });
+  if (!existing) throw new NotFoundError("Service event");
+
+  await ctx.db.$transaction(async (tx) => {
+    // Both ids are pre-verified above — safe to use in the raw tx client.
     await tx.serviceEvent.delete({ where: { id } });
     if (existing.calendarEventId) {
-      const cal = await tx.calendarEvent.findUnique({
-        where: { id: existing.calendarEventId },
-        select: { id: true },
-      });
-      if (cal) await tx.calendarEvent.delete({ where: { id: existing.calendarEventId } });
+      // FK constraint guarantees the CalendarEvent exists if the FK is set.
+      await tx.calendarEvent.delete({ where: { id: existing.calendarEventId } });
     }
-    return existing;
-  }).catch(e => {
-    if (e instanceof PrismaErr.PrismaClientKnownRequestError && e.code === "P2025") {
-      throw new NotFoundError("Service event");
-    }
-    throw e;
   });
 
-  await emit(ctx, "service_event.deleted", { type: "ServiceEvent", id }, { title: deleted.title });
+  await emit(ctx, "service_event.deleted", { type: "ServiceEvent", id }, { title: existing.title });
 }

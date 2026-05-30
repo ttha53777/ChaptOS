@@ -49,8 +49,13 @@ export async function updateCalendar(ctx: RequestContext, id: number, input: Upd
     data.notesUpdatedAt = new Date();
   }
 
+  // Verify org ownership before entering the transaction — the raw tx client
+  // cannot use the org-scoped wrapper for point mutations.
+  const existing = await ctx.db.calendarEvent.findUnique({ where: { id }, select: { id: true } });
+  if (!existing) throw new NotFoundError("Calendar event");
+
   const event = await ctx.db.$transaction(async (tx) => {
-    const updated = await tx.calendarEvent.update({ where: { id }, data });
+    const updated = await tx.calendarEvent.update({ where: { id: existing.id }, data });
 
     // Sync linked ServiceEvent. description→notes, others map 1:1.
     const svcData: Record<string, string> = {};
