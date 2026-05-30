@@ -98,6 +98,18 @@ export async function buildContext(opts: BuildContextOpts = {}): Promise<BuildCo
     }
   }
 
+  // ── Rate limit ────────────────────────────────────────────────────────────
+  // Checked before the permission gate so that authenticated actors cannot
+  // enumerate permission states without consuming rate-limit tokens. Applies
+  // to all tiers — privileged actors should never need 30 mutations in 10s.
+  if (opts.rateLimit !== false) {
+    const { limit, windowMs } = typeof opts.rateLimit === "object"
+      ? opts.rateLimit
+      : { limit: 30, windowMs: 10_000 };
+    const rl = rateLimit(`mutate:${user.id}`, limit, windowMs);
+    if (!rl.ok) return { error: tooManyRequests(rl) };
+  }
+
   // ── Permission gate ────────────────────────────────────────────────────────
   // Platform admins and org admins bypass (both have all bits set above, so
   // hasPermission would pass anyway — the explicit check prevents short-circuit
@@ -107,18 +119,6 @@ export async function buildContext(opts: BuildContextOpts = {}): Promise<BuildCo
     if (!allowedAsSelf && !hasPermission(permissions, opts.requirePerm)) {
       return { error: Response.json({ error: "Forbidden" }, { status: 403 }) };
     }
-  }
-
-  // ── Rate limit ────────────────────────────────────────────────────────────
-  // Applies to all tiers including platform admins and org admins. Privileged
-  // actors are still subject to rate limits — they should never need to fire
-  // 30 mutations in 10 seconds in normal operation.
-  if (opts.rateLimit !== false) {
-    const { limit, windowMs } = typeof opts.rateLimit === "object"
-      ? opts.rateLimit
-      : { limit: 30, windowMs: 10_000 };
-    const rl = rateLimit(`mutate:${user.id}`, limit, windowMs);
-    if (!rl.ok) return { error: tooManyRequests(rl) };
   }
 
   // ── Resolve Membership id ─────────────────────────────────────────────────

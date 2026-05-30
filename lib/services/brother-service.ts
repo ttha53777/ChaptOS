@@ -1,4 +1,5 @@
 import type { Prisma } from "@/app/generated/prisma/client";
+import { prisma } from "@/lib/prisma";
 import type { RequestContext } from "@/lib/context";
 import { emit } from "@/lib/events";
 import { ConflictError, NotFoundError } from "@/lib/errors";
@@ -62,14 +63,22 @@ export async function updateBrother(
 export async function deleteBrother(ctx: RequestContext, brotherId: number) {
   const target = await ctx.db.brother.findUnique({
     where: { id: brotherId },
-    select: { name: true, isAdmin: true },
+    select: { name: true },
   });
   if (!target) throw new NotFoundError("Brother");
 
-  if (target.isAdmin) {
-    const adminCount = await ctx.db.brother.count({ where: { isAdmin: true } });
+  // Guard: prevent deletion of the last org admin (Phase 2.5 model).
+  // Org admin authority lives in Membership.isOrgAdmin, not the deprecated Brother.isAdmin.
+  const targetMembership = await prisma.membership.findFirst({ // lint-direct-prisma:ignore
+    where: { brotherId, organizationId: ctx.orgId, isOrgAdmin: true },
+    select: { id: true },
+  });
+  if (targetMembership) {
+    const adminCount = await prisma.membership.count({ // lint-direct-prisma:ignore
+      where: { organizationId: ctx.orgId, isOrgAdmin: true },
+    });
     if (adminCount <= 1) {
-      throw new ConflictError("Cannot delete the last admin. Promote another brother first.");
+      throw new ConflictError("Cannot delete the last org admin. Promote another member first.");
     }
   }
 

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { prisma } from "@/lib/prisma";
+import { logError } from "@/lib/observability";
 
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url);
@@ -10,7 +11,7 @@ export async function GET(request: NextRequest) {
   const orgSlug = searchParams.get("org");
 
   if (!code) {
-    return NextResponse.redirect(buildUrl(origin, "/login", orgSlug, "error=auth"));
+    return NextResponse.redirect(buildUrl(origin, "/login", orgSlug, "error=no_code"));
   }
 
   // Build a response first so we can write cookies onto it
@@ -34,7 +35,13 @@ export async function GET(request: NextRequest) {
   const { data, error } = await supabase.auth.exchangeCodeForSession(code);
 
   if (error || !data.user) {
-    return NextResponse.redirect(buildUrl(origin, "/login", orgSlug, "error=auth"));
+    // Distinguish expiry (common) from other failures so the login page can show
+    // a more helpful message. Supabase error codes: "otp_expired" for expired codes.
+    const errorCode = error?.code === "otp_expired" ? "expired" : "auth_failed";
+    logError(error ?? new Error("No user returned from exchangeCodeForSession"), {
+      route: "/auth/callback", method: "GET", extra: { errorCode },
+    });
+    return NextResponse.redirect(buildUrl(origin, "/login", orgSlug, `error=${errorCode}`));
   }
 
   const brother = await prisma.brother.findUnique({

@@ -9,6 +9,19 @@
  * Usage:
  *   import { db } from "@/lib/db";
  *   const brothers = await db(orgId).brother.findMany({ where: { isGhost: false } });
+ *
+ * Scoping rules:
+ *   - findMany, findFirst, count, updateMany:  org filter injected into WHERE.
+ *   - create:                                  organizationId injected into data.
+ *   - findUnique:                              converted to findFirst + org filter
+ *                                              (findUnique cannot add extra WHERE
+ *                                               conditions — only unique fields are
+ *                                               allowed — so findFirst is the correct
+ *                                               substitution; it returns null on miss).
+ *   - update, delete, upsert:                  organizationId injected into WHERE so
+ *                                              a cross-org ID is treated as not found
+ *                                              (P2025) rather than silently mutating
+ *                                              another org's row.
  */
 
 import { prisma } from "@/lib/prisma";
@@ -24,13 +37,18 @@ function scopedBrother(orgId: number) {
   return {
     findMany:   (args?: Prisma.BrotherFindManyArgs)   => prisma.brother.findMany({ ...args, where: org(args?.where) }),
     findFirst:  (args?: Prisma.BrotherFindFirstArgs)  => prisma.brother.findFirst({ ...args, where: org(args?.where) }),
-    findUnique: (args: Prisma.BrotherFindUniqueArgs)  => prisma.brother.findUnique(args),
+    // findUnique converted to findFirst so we can inject the org filter.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    findUnique: (args: Prisma.BrotherFindUniqueArgs)  => prisma.brother.findFirst({ ...(args as any), where: org(args.where as W) }),
     create:     (args: Omit<Prisma.BrotherCreateArgs, "data"> & { data: Omit<Prisma.BrotherUncheckedCreateInput, "organizationId"> }) =>
       prisma.brother.create({ ...args, data: { ...args.data, organizationId: orgId } }),
-    update:     (args: Prisma.BrotherUpdateArgs)      => prisma.brother.update(args),
+    // update/delete inject orgId so a cross-org id hits P2025 (not found).
+    update:     (args: Prisma.BrotherUpdateArgs) =>
+      prisma.brother.update({ ...args, where: { ...args.where, organizationId: orgId } }),
     updateMany: (args: Omit<Prisma.BrotherUpdateManyArgs, "where"> & { where?: W }) =>
       prisma.brother.updateMany({ ...args, where: org(args.where) }),
-    delete:     (args: Prisma.BrotherDeleteArgs)      => prisma.brother.delete(args),
+    delete:     (args: Prisma.BrotherDeleteArgs) =>
+      prisma.brother.delete({ ...args, where: { ...args.where, organizationId: orgId } }),
     count:      (args?: Prisma.BrotherCountArgs)      => prisma.brother.count({ ...args, where: org(args?.where) }),
   };
 }
@@ -41,13 +59,16 @@ function scopedRole(orgId: number) {
   return {
     findMany:   (args?: Prisma.RoleFindManyArgs)      => prisma.role.findMany({ ...args, where: org(args?.where) }),
     findFirst:  (args?: Prisma.RoleFindFirstArgs)     => prisma.role.findFirst({ ...args, where: org(args?.where) }),
-    findUnique: (args: Prisma.RoleFindUniqueArgs)     => prisma.role.findUnique(args),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    findUnique: (args: Prisma.RoleFindUniqueArgs)     => prisma.role.findFirst({ ...(args as any), where: org(args.where as W) }),
     create:     (args: Omit<Prisma.RoleCreateArgs, "data"> & { data: Omit<Prisma.RoleUncheckedCreateInput, "organizationId"> }) =>
       prisma.role.create({ ...args, data: { ...args.data, organizationId: orgId } }),
-    update:     (args: Prisma.RoleUpdateArgs)         => prisma.role.update(args),
+    update:     (args: Prisma.RoleUpdateArgs) =>
+      prisma.role.update({ ...args, where: { ...args.where, organizationId: orgId } }),
     updateMany: (args: Omit<Prisma.RoleUpdateManyArgs, "where"> & { where?: W }) =>
       prisma.role.updateMany({ ...args, where: org(args.where) }),
-    delete:     (args: Prisma.RoleDeleteArgs)         => prisma.role.delete(args),
+    delete:     (args: Prisma.RoleDeleteArgs) =>
+      prisma.role.delete({ ...args, where: { ...args.where, organizationId: orgId } }),
     count:      (args?: Prisma.RoleCountArgs)         => prisma.role.count({ ...args, where: org(args?.where) }),
   };
 }
@@ -58,13 +79,16 @@ function scopedSemester(orgId: number) {
   return {
     findMany:   (args?: Prisma.SemesterFindManyArgs)  => prisma.semester.findMany({ ...args, where: org(args?.where) }),
     findFirst:  (args?: Prisma.SemesterFindFirstArgs) => prisma.semester.findFirst({ ...args, where: org(args?.where) }),
-    findUnique: (args: Prisma.SemesterFindUniqueArgs) => prisma.semester.findUnique(args),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    findUnique: (args: Prisma.SemesterFindUniqueArgs) => prisma.semester.findFirst({ ...(args as any), where: org(args.where as W) }),
     create:     (args: Omit<Prisma.SemesterCreateArgs, "data"> & { data: Omit<Prisma.SemesterUncheckedCreateInput, "organizationId"> }) =>
       prisma.semester.create({ ...args, data: { ...args.data, organizationId: orgId } }),
-    update:     (args: Prisma.SemesterUpdateArgs)     => prisma.semester.update(args),
+    update:     (args: Prisma.SemesterUpdateArgs) =>
+      prisma.semester.update({ ...args, where: { ...args.where, organizationId: orgId } }),
     updateMany: (args: Omit<Prisma.SemesterUpdateManyArgs, "where"> & { where?: W }) =>
       prisma.semester.updateMany({ ...args, where: org(args.where) }),
-    delete:     (args: Prisma.SemesterDeleteArgs)     => prisma.semester.delete(args),
+    delete:     (args: Prisma.SemesterDeleteArgs) =>
+      prisma.semester.delete({ ...args, where: { ...args.where, organizationId: orgId } }),
     count:      (args?: Prisma.SemesterCountArgs)     => prisma.semester.count({ ...args, where: org(args?.where) }),
   };
 }
@@ -75,11 +99,14 @@ function scopedCalendarEvent(orgId: number) {
   return {
     findMany:   (args?: Prisma.CalendarEventFindManyArgs)  => prisma.calendarEvent.findMany({ ...args, where: org(args?.where) }),
     findFirst:  (args?: Prisma.CalendarEventFindFirstArgs) => prisma.calendarEvent.findFirst({ ...args, where: org(args?.where) }),
-    findUnique: (args: Prisma.CalendarEventFindUniqueArgs) => prisma.calendarEvent.findUnique(args),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    findUnique: (args: Prisma.CalendarEventFindUniqueArgs) => prisma.calendarEvent.findFirst({ ...(args as any), where: org(args.where as W) }),
     create:     (args: Omit<Prisma.CalendarEventCreateArgs, "data"> & { data: Omit<Prisma.CalendarEventUncheckedCreateInput, "organizationId"> }) =>
       prisma.calendarEvent.create({ ...args, data: { ...args.data, organizationId: orgId } }),
-    update:     (args: Prisma.CalendarEventUpdateArgs)     => prisma.calendarEvent.update(args),
-    delete:     (args: Prisma.CalendarEventDeleteArgs)     => prisma.calendarEvent.delete(args),
+    update:     (args: Prisma.CalendarEventUpdateArgs) =>
+      prisma.calendarEvent.update({ ...args, where: { ...args.where, organizationId: orgId } }),
+    delete:     (args: Prisma.CalendarEventDeleteArgs) =>
+      prisma.calendarEvent.delete({ ...args, where: { ...args.where, organizationId: orgId } }),
     count:      (args?: Prisma.CalendarEventCountArgs)     => prisma.calendarEvent.count({ ...args, where: org(args?.where) }),
   };
 }
@@ -90,11 +117,14 @@ function scopedServiceEvent(orgId: number) {
   return {
     findMany:   (args?: Prisma.ServiceEventFindManyArgs)   => prisma.serviceEvent.findMany({ ...args, where: org(args?.where) }),
     findFirst:  (args?: Prisma.ServiceEventFindFirstArgs)  => prisma.serviceEvent.findFirst({ ...args, where: org(args?.where) }),
-    findUnique: (args: Prisma.ServiceEventFindUniqueArgs)  => prisma.serviceEvent.findUnique(args),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    findUnique: (args: Prisma.ServiceEventFindUniqueArgs)  => prisma.serviceEvent.findFirst({ ...(args as any), where: org(args.where as W) }),
     create:     (args: Omit<Prisma.ServiceEventCreateArgs, "data"> & { data: Omit<Prisma.ServiceEventUncheckedCreateInput, "organizationId"> }) =>
       prisma.serviceEvent.create({ ...args, data: { ...args.data, organizationId: orgId } }),
-    update:     (args: Prisma.ServiceEventUpdateArgs)      => prisma.serviceEvent.update(args),
-    delete:     (args: Prisma.ServiceEventDeleteArgs)      => prisma.serviceEvent.delete(args),
+    update:     (args: Prisma.ServiceEventUpdateArgs) =>
+      prisma.serviceEvent.update({ ...args, where: { ...args.where, organizationId: orgId } }),
+    delete:     (args: Prisma.ServiceEventDeleteArgs) =>
+      prisma.serviceEvent.delete({ ...args, where: { ...args.where, organizationId: orgId } }),
     count:      (args?: Prisma.ServiceEventCountArgs)      => prisma.serviceEvent.count({ ...args, where: org(args?.where) }),
   };
 }
@@ -105,13 +135,16 @@ function scopedPartyEvent(orgId: number) {
   return {
     findMany:   (args?: Prisma.PartyEventFindManyArgs)     => prisma.partyEvent.findMany({ ...args, where: org(args?.where) }),
     findFirst:  (args?: Prisma.PartyEventFindFirstArgs)    => prisma.partyEvent.findFirst({ ...args, where: org(args?.where) }),
-    findUnique: (args: Prisma.PartyEventFindUniqueArgs)    => prisma.partyEvent.findUnique(args),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    findUnique: (args: Prisma.PartyEventFindUniqueArgs)    => prisma.partyEvent.findFirst({ ...(args as any), where: org(args.where as W) }),
     create:     (args: Omit<Prisma.PartyEventCreateArgs, "data"> & { data: Omit<Prisma.PartyEventUncheckedCreateInput, "organizationId"> }) =>
       prisma.partyEvent.create({ ...args, data: { ...args.data, organizationId: orgId } }),
-    update:     (args: Prisma.PartyEventUpdateArgs)        => prisma.partyEvent.update(args),
+    update:     (args: Prisma.PartyEventUpdateArgs) =>
+      prisma.partyEvent.update({ ...args, where: { ...args.where, organizationId: orgId } }),
     updateMany: (args: Omit<Prisma.PartyEventUpdateManyArgs, "where"> & { where?: W }) =>
       prisma.partyEvent.updateMany({ ...args, where: org(args.where) }),
-    delete:     (args: Prisma.PartyEventDeleteArgs)        => prisma.partyEvent.delete(args),
+    delete:     (args: Prisma.PartyEventDeleteArgs) =>
+      prisma.partyEvent.delete({ ...args, where: { ...args.where, organizationId: orgId } }),
     count:      (args?: Prisma.PartyEventCountArgs)        => prisma.partyEvent.count({ ...args, where: org(args?.where) }),
   };
 }
@@ -122,11 +155,14 @@ function scopedDeadline(orgId: number) {
   return {
     findMany:   (args?: Prisma.DeadlineFindManyArgs)       => prisma.deadline.findMany({ ...args, where: org(args?.where) }),
     findFirst:  (args?: Prisma.DeadlineFindFirstArgs)      => prisma.deadline.findFirst({ ...args, where: org(args?.where) }),
-    findUnique: (args: Prisma.DeadlineFindUniqueArgs)      => prisma.deadline.findUnique(args),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    findUnique: (args: Prisma.DeadlineFindUniqueArgs)      => prisma.deadline.findFirst({ ...(args as any), where: org(args.where as W) }),
     create:     (args: Omit<Prisma.DeadlineCreateArgs, "data"> & { data: Omit<Prisma.DeadlineUncheckedCreateInput, "organizationId"> }) =>
       prisma.deadline.create({ ...args, data: { ...args.data, organizationId: orgId } }),
-    update:     (args: Prisma.DeadlineUpdateArgs)          => prisma.deadline.update(args),
-    delete:     (args: Prisma.DeadlineDeleteArgs)          => prisma.deadline.delete(args),
+    update:     (args: Prisma.DeadlineUpdateArgs) =>
+      prisma.deadline.update({ ...args, where: { ...args.where, organizationId: orgId } }),
+    delete:     (args: Prisma.DeadlineDeleteArgs) =>
+      prisma.deadline.delete({ ...args, where: { ...args.where, organizationId: orgId } }),
     count:      (args?: Prisma.DeadlineCountArgs)          => prisma.deadline.count({ ...args, where: org(args?.where) }),
   };
 }
@@ -137,11 +173,14 @@ function scopedInstagramTask(orgId: number) {
   return {
     findMany:   (args?: Prisma.InstagramTaskFindManyArgs)  => prisma.instagramTask.findMany({ ...args, where: org(args?.where) }),
     findFirst:  (args?: Prisma.InstagramTaskFindFirstArgs) => prisma.instagramTask.findFirst({ ...args, where: org(args?.where) }),
-    findUnique: (args: Prisma.InstagramTaskFindUniqueArgs) => prisma.instagramTask.findUnique(args),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    findUnique: (args: Prisma.InstagramTaskFindUniqueArgs) => prisma.instagramTask.findFirst({ ...(args as any), where: org(args.where as W) }),
     create:     (args: Omit<Prisma.InstagramTaskCreateArgs, "data"> & { data: Omit<Prisma.InstagramTaskUncheckedCreateInput, "organizationId"> }) =>
       prisma.instagramTask.create({ ...args, data: { ...args.data, organizationId: orgId } }),
-    update:     (args: Prisma.InstagramTaskUpdateArgs)     => prisma.instagramTask.update(args),
-    delete:     (args: Prisma.InstagramTaskDeleteArgs)     => prisma.instagramTask.delete(args),
+    update:     (args: Prisma.InstagramTaskUpdateArgs) =>
+      prisma.instagramTask.update({ ...args, where: { ...args.where, organizationId: orgId } }),
+    delete:     (args: Prisma.InstagramTaskDeleteArgs) =>
+      prisma.instagramTask.delete({ ...args, where: { ...args.where, organizationId: orgId } }),
     count:      (args?: Prisma.InstagramTaskCountArgs)     => prisma.instagramTask.count({ ...args, where: org(args?.where) }),
   };
 }
@@ -152,11 +191,14 @@ function scopedDoc(orgId: number) {
   return {
     findMany:   (args?: Prisma.DocFindManyArgs)            => prisma.doc.findMany({ ...args, where: org(args?.where) }),
     findFirst:  (args?: Prisma.DocFindFirstArgs)           => prisma.doc.findFirst({ ...args, where: org(args?.where) }),
-    findUnique: (args: Prisma.DocFindUniqueArgs)           => prisma.doc.findUnique(args),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    findUnique: (args: Prisma.DocFindUniqueArgs)           => prisma.doc.findFirst({ ...(args as any), where: org(args.where as W) }),
     create:     (args: Omit<Prisma.DocCreateArgs, "data"> & { data: Omit<Prisma.DocUncheckedCreateInput, "organizationId"> }) =>
       prisma.doc.create({ ...args, data: { ...args.data, organizationId: orgId } }),
-    update:     (args: Prisma.DocUpdateArgs)               => prisma.doc.update(args),
-    delete:     (args: Prisma.DocDeleteArgs)               => prisma.doc.delete(args),
+    update:     (args: Prisma.DocUpdateArgs) =>
+      prisma.doc.update({ ...args, where: { ...args.where, organizationId: orgId } }),
+    delete:     (args: Prisma.DocDeleteArgs) =>
+      prisma.doc.delete({ ...args, where: { ...args.where, organizationId: orgId } }),
     count:      (args?: Prisma.DocCountArgs)               => prisma.doc.count({ ...args, where: org(args?.where) }),
   };
 }
@@ -167,13 +209,16 @@ function scopedTransaction(orgId: number) {
   return {
     findMany:   (args?: Prisma.TransactionFindManyArgs)    => prisma.transaction.findMany({ ...args, where: org(args?.where) }),
     findFirst:  (args?: Prisma.TransactionFindFirstArgs)   => prisma.transaction.findFirst({ ...args, where: org(args?.where) }),
-    findUnique: (args: Prisma.TransactionFindUniqueArgs)   => prisma.transaction.findUnique(args),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    findUnique: (args: Prisma.TransactionFindUniqueArgs)   => prisma.transaction.findFirst({ ...(args as any), where: org(args.where as W) }),
     create:     (args: Omit<Prisma.TransactionCreateArgs, "data"> & { data: Omit<Prisma.TransactionUncheckedCreateInput, "organizationId"> }) =>
       prisma.transaction.create({ ...args, data: { ...args.data, organizationId: orgId } }),
-    update:     (args: Prisma.TransactionUpdateArgs)       => prisma.transaction.update(args),
+    update:     (args: Prisma.TransactionUpdateArgs) =>
+      prisma.transaction.update({ ...args, where: { ...args.where, organizationId: orgId } }),
     updateMany: (args: Omit<Prisma.TransactionUpdateManyArgs, "where"> & { where?: W }) =>
       prisma.transaction.updateMany({ ...args, where: org(args.where) }),
-    delete:     (args: Prisma.TransactionDeleteArgs)       => prisma.transaction.delete(args),
+    delete:     (args: Prisma.TransactionDeleteArgs) =>
+      prisma.transaction.delete({ ...args, where: { ...args.where, organizationId: orgId } }),
     count:      (args?: Prisma.TransactionCountArgs)       => prisma.transaction.count({ ...args, where: org(args?.where) }),
     aggregate:  (args: Omit<Prisma.TransactionAggregateArgs, "where"> & { where?: W }) =>
       prisma.transaction.aggregate({ ...args, where: org(args?.where) }),
@@ -186,7 +231,8 @@ function scopedBudget(orgId: number) {
   return {
     findMany:   (args?: Prisma.BudgetFindManyArgs)         => prisma.budget.findMany({ ...args, where: org(args?.where) }),
     findFirst:  (args?: Prisma.BudgetFindFirstArgs)        => prisma.budget.findFirst({ ...args, where: org(args?.where) }),
-    findUnique: (args: Prisma.BudgetFindUniqueArgs)        => prisma.budget.findUnique(args),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    findUnique: (args: Prisma.BudgetFindUniqueArgs)        => prisma.budget.findFirst({ ...(args as any), where: org(args.where as W) }),
     /** Org-safe findUnique with allocations included. Use instead of raw prisma.budget.findUnique. */
     findUniqueWithAllocations: (semester: string) =>
       prisma.budget.findUnique({
@@ -195,9 +241,17 @@ function scopedBudget(orgId: number) {
       }),
     create:     (args: Omit<Prisma.BudgetCreateArgs, "data"> & { data: Omit<Prisma.BudgetUncheckedCreateInput, "organizationId"> }) =>
       prisma.budget.create({ ...args, data: { ...args.data, organizationId: orgId } }),
-    update:     (args: Prisma.BudgetUpdateArgs)            => prisma.budget.update(args),
-    upsert:     (args: Prisma.BudgetUpsertArgs)            => prisma.budget.upsert(args),
-    delete:     (args: Prisma.BudgetDeleteArgs)            => prisma.budget.delete(args),
+    update:     (args: Prisma.BudgetUpdateArgs) =>
+      prisma.budget.update({ ...args, where: { ...args.where, organizationId: orgId } }),
+    // upsert: inject orgId into both the lookup (where) and the create branch.
+    upsert:     (args: Prisma.BudgetUpsertArgs) =>
+      prisma.budget.upsert({
+        ...args,
+        where:  { ...args.where,  organizationId: orgId } as Prisma.BudgetWhereUniqueInput,
+        create: { ...args.create, organizationId: orgId } as Prisma.BudgetUncheckedCreateInput,
+      }),
+    delete:     (args: Prisma.BudgetDeleteArgs) =>
+      prisma.budget.delete({ ...args, where: { ...args.where, organizationId: orgId } }),
     count:      (args?: Prisma.BudgetCountArgs)            => prisma.budget.count({ ...args, where: org(args?.where) }),
   };
 }
@@ -220,12 +274,21 @@ function scopedChapterAnnouncement(orgId: number) {
   return {
     findMany:   (args?: Prisma.ChapterAnnouncementFindManyArgs)  => prisma.chapterAnnouncement.findMany({ ...args, where: org(args?.where) }),
     findFirst:  (args?: Prisma.ChapterAnnouncementFindFirstArgs) => prisma.chapterAnnouncement.findFirst({ ...args, where: org(args?.where) }),
-    findUnique: (args: Prisma.ChapterAnnouncementFindUniqueArgs) => prisma.chapterAnnouncement.findUnique(args),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    findUnique: (args: Prisma.ChapterAnnouncementFindUniqueArgs) => prisma.chapterAnnouncement.findFirst({ ...(args as any), where: org(args.where as W) }),
     create:     (args: Omit<Prisma.ChapterAnnouncementCreateArgs, "data"> & { data: Omit<Prisma.ChapterAnnouncementUncheckedCreateInput, "organizationId"> }) =>
       prisma.chapterAnnouncement.create({ ...args, data: { ...args.data, organizationId: orgId } }),
-    update:     (args: Prisma.ChapterAnnouncementUpdateArgs)     => prisma.chapterAnnouncement.update(args),
-    upsert:     (args: Prisma.ChapterAnnouncementUpsertArgs)     => prisma.chapterAnnouncement.upsert(args),
-    delete:     (args: Prisma.ChapterAnnouncementDeleteArgs)     => prisma.chapterAnnouncement.delete(args),
+    update:     (args: Prisma.ChapterAnnouncementUpdateArgs) =>
+      prisma.chapterAnnouncement.update({ ...args, where: { ...args.where, organizationId: orgId } }),
+    // upsert: inject orgId into both the lookup (where) and the create branch.
+    upsert:     (args: Prisma.ChapterAnnouncementUpsertArgs) =>
+      prisma.chapterAnnouncement.upsert({
+        ...args,
+        where:  { ...args.where,  organizationId: orgId } as Prisma.ChapterAnnouncementWhereUniqueInput,
+        create: { ...args.create, organizationId: orgId } as Prisma.ChapterAnnouncementUncheckedCreateInput,
+      }),
+    delete:     (args: Prisma.ChapterAnnouncementDeleteArgs) =>
+      prisma.chapterAnnouncement.delete({ ...args, where: { ...args.where, organizationId: orgId } }),
   };
 }
 
@@ -273,7 +336,8 @@ export function db(orgId: number) {
     ) => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       return prisma.$transaction(async (tx: any) => {
-        await tx.$executeRawUnsafe(`SET LOCAL app.org_id = '${orgId}'`);
+        // Use Number() to ensure the value is numeric even under unexpected coercions.
+        await tx.$executeRawUnsafe(`SET LOCAL app.org_id = '${Number(orgId)}'`);
         return fn(tx);
       }, opts);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

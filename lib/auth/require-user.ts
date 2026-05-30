@@ -53,7 +53,11 @@ export async function requireUser() {
   });
   if (!brother) return null;
 
-  const isPlatformAdmin = brother.isAdmin || !!brother.platformAdmin;
+  // isPlatformAdmin is authoritative via the PlatformAdmin table only.
+  // Brother.isAdmin is a Phase 0 remnant kept for schema compatibility; it no
+  // longer grants elevated access so that org admins cannot accidentally acquire
+  // cross-org superuser powers through the legacy boolean.
+  const isPlatformAdmin = !!brother.platformAdmin;
 
   const memberships: MembershipSummary[] = brother.memberships.map(m => ({
     id:             m.id,
