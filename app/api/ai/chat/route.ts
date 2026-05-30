@@ -57,7 +57,7 @@ export async function POST(req: NextRequest) {
   const openai = getOpenAI();
   if (!openai) return Response.json({ enabled: false });
 
-  const systemPrompt = await buildSystemPrompt();
+  const systemPrompt = await buildSystemPrompt(user.orgId);
   const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
     { role: "system", content: systemPrompt },
     ...history.map(m => ({ role: m.role, content: m.content }) as OpenAI.Chat.Completions.ChatCompletionMessageParam),
@@ -158,7 +158,7 @@ export async function POST(req: NextRequest) {
             let resultPayload: unknown;
             let proposalEvent: { send: true; proposal: ReturnType<typeof runProposal> } | null = null;
             if (isReadTool(tc.name)) {
-              resultPayload = await runTool(tc.name, argsObj);
+              resultPayload = await runTool(tc.name, argsObj, user.orgId);
             } else if (isProposalTool(tc.name)) {
               const proposal = runProposal(tc.name, argsObj);
               if ("error" in proposal) {
