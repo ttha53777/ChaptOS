@@ -29,6 +29,7 @@ model Organization {
   activityLogs       ActivityLog[]
   announcements      ChapterAnnouncement[]
   operationalEvents  OperationalEvent[]
+  brotherRoles       BrotherRole[]
 }
 
 // Links a Brother (Supabase identity + profile) to an Organization.
@@ -109,15 +110,20 @@ model Role {
 
 // Join table: a brother can hold any number of roles. Their effective
 // permission bitfield is the bitwise OR of every assigned role's `permissions`.
+// organizationId is denormalized here so the table is self-contained for org
+// isolation — prevents a user from assigning roles that belong to a different org.
 model BrotherRole {
-  brotherId  Int
-  roleId     Int
-  assignedAt DateTime @default(now())
-  brother    Brother  @relation(fields: [brotherId], references: [id], onDelete: Cascade)
-  role       Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  brotherId      Int
+  roleId         Int
+  organizationId Int
+  assignedAt     DateTime     @default(now())
+  brother        Brother      @relation(fields: [brotherId], references: [id], onDelete: Cascade)
+  role           Role         @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  organization   Organization @relation(fields: [organizationId], references: [id])
 
   @@id([brotherId, roleId])
   @@index([roleId])
+  @@index([organizationId])
 }
 
 model Semester {
