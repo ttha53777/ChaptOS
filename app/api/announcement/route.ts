@@ -51,7 +51,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function PUT(req: NextRequest) {
-  const { ctx, error } = await buildContext();
+  const { ctx, error } = await buildContext({ requirePerm: "MANAGE_ANNOUNCEMENTS" });
   if (error) return error;
   try {
     const body = await req.json().catch(() => ({}));
