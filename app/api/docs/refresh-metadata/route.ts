@@ -5,7 +5,7 @@ import { refreshDocMetadata } from "@/lib/services/doc-service";
 import { logError } from "@/lib/observability";
 
 export async function POST(req: NextRequest) {
-  const { ctx, error } = await buildContext();
+  const { ctx, error } = await buildContext({ requirePerm: "MANAGE_DOCS" });
   if (error) return error;
   try {
     const body = await req.json().catch(() => ({}));

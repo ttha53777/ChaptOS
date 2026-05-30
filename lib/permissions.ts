@@ -20,7 +20,8 @@ export const PERMISSIONS = {
   MANAGE_ATTENDANCE: 1 << 6,
   MANAGE_SEMESTERS:  1 << 7,
   MANAGE_ROLES:      1 << 8,
-  MANAGE_DOCS:       1 << 9,
+  MANAGE_DOCS:          1 << 9,
+  MANAGE_ANNOUNCEMENTS: 1 << 10,
 } as const;
 
 export type Permission = keyof typeof PERMISSIONS;
