@@ -129,8 +129,8 @@ function AddBrotherForm({ onSubmit, onCancel }: {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function BrothersPage() {
-  const { currentUser, brotherList, setBrotherList, isLoading, avatarRevision } = useChapter();
-  const isAdmin = currentUser?.isAdmin ?? false;
+  const { currentUser, brotherList, setBrotherList, isLoading, avatarRevision, can } = useChapter();
+  const canBrothers = can("MANAGE_BROTHERS");
   const selfId = currentUser?.id ?? null;
 
   const [sidebarOpen,      setSidebarOpen]      = useState(false);
@@ -322,7 +322,7 @@ export default function BrothersPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
               </svg>
             </button>
-            {isAdmin && (
+            {canBrothers && (
               <button
                 onClick={() => setShowAddModal(true)}
                 className="flex h-8 items-center gap-1.5 rounded-full border border-indigo-500/20 bg-white/[0.04] px-3.5 text-[12px] font-semibold text-indigo-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] transition-all hover:border-indigo-400/35 hover:bg-indigo-500/[0.08] hover:text-white"
@@ -566,7 +566,7 @@ export default function BrothersPage() {
         onPayDues={payDues}
         onAddServiceHours={addServiceHours}
         onDelete={deleteBrother}
-        isAdmin={isAdmin}
+        isAdmin={canBrothers}
         selfId={selfId}
       />
     </div>

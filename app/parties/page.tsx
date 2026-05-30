@@ -373,8 +373,8 @@ function DetailPanel({ party, onEdit, onWrapUp, onDelete, canDelete }: {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function PartiesPage() {
-  const { currentUser, partyList, setPartyList, isLoading } = useChapter();
-  const isAdmin = currentUser?.isAdmin ?? false;
+  const { currentUser, partyList, setPartyList, isLoading, can } = useChapter();
+  const canParties = can("MANAGE_PARTIES");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectedId,  setSelectedId]  = useState<number | null>(null);
   const [modal,       setModal]       = useState<ModalKind | null>(null);
@@ -752,7 +752,7 @@ export default function PartiesPage() {
                     onEdit={() => openEdit(selected)}
                     onWrapUp={() => openWrapUp(selected)}
                     onDelete={() => setConfirmDeleteId(selected.id)}
-                    canDelete={isAdmin}
+                    canDelete={canParties}
                   />
                 ) : (
                   <Card className="flex flex-col items-center justify-center gap-2 py-16 text-center">
