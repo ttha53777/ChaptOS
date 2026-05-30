@@ -6,7 +6,7 @@ import { deleteInstagramTask, updateInstagramTask } from "@/lib/services/instagr
 import { logError } from "@/lib/observability";
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const { ctx, error } = await buildContext();
+  const { ctx, error } = await buildContext({ requirePerm: "MANAGE_INSTAGRAM" });
   if (error) return error;
   try {
     const { id } = await params;

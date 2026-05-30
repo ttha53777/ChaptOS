@@ -6,7 +6,7 @@ import { deleteCalendar, updateCalendar } from "@/lib/services/calendar-service"
 import { logError } from "@/lib/observability";
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const { ctx, error } = await buildContext();
+  const { ctx, error } = await buildContext({ requirePerm: "MANAGE_EVENTS" });
   if (error) return error;
   try {
     const { id } = await params;
