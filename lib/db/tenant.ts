@@ -371,6 +371,35 @@ function scopedActivityLog(orgId: number) {
   };
 }
 
+function scopedBrotherRole(orgId: number) {
+  type W = Prisma.BrotherRoleWhereInput;
+  const org = (w?: W): W => ({ ...w, organizationId: orgId });
+
+  // BrotherRole PK is (brotherId, roleId). Ownership verification confirms that
+  // the row's organizationId matches this context before any mutation.
+  async function verifyComposite(brotherId: number, roleId: number): Promise<void> {
+    const row = await prisma.brotherRole.findFirst({
+      where: { brotherId, roleId, organizationId: orgId },
+      select: { brotherId: true },
+    });
+    if (!row) notInOrg();
+  }
+
+  return {
+    findMany: (args?: Prisma.BrotherRoleFindManyArgs) =>
+      prisma.brotherRole.findMany({ ...args, where: org(args?.where) }),
+    count: (args?: Prisma.BrotherRoleCountArgs) =>
+      prisma.brotherRole.count({ ...args, where: org(args?.where) }),
+    create: (args: Omit<Prisma.BrotherRoleCreateArgs, "data"> & { data: Omit<Prisma.BrotherRoleUncheckedCreateInput, "organizationId"> }) =>
+      prisma.brotherRole.create({ ...args, data: { ...args.data, organizationId: orgId } }),
+    delete: async (args: Prisma.BrotherRoleDeleteArgs) => {
+      const { brotherId, roleId } = (args.where as { brotherId_roleId: { brotherId: number; roleId: number } }).brotherId_roleId;
+      await verifyComposite(brotherId, roleId);
+      return prisma.brotherRole.delete(args);
+    },
+  };
+}
+
 function scopedChapterAnnouncement(orgId: number) {
   type W = Prisma.ChapterAnnouncementWhereInput;
   const org = (w?: W): W => ({ ...w, organizationId: orgId });
@@ -416,12 +445,13 @@ export function db(orgId: number) {
     activityLog:         scopedActivityLog(orgId),
     chapterAnnouncement: scopedChapterAnnouncement(orgId),
 
-    // Pass-through for join tables and models that don't carry organizationId
-    // directly. They are always accessed through a scoped parent's verified id
-    // (e.g. brotherRole queries filter by role.organizationId in buildContext).
-    // Exception: BrotherRole needs an organizationId column added (tracked
-    // separately) to fully close the cross-org role-assignment vector.
-    brotherRole:         prisma.brotherRole,
+    brotherRole:         scopedBrotherRole(orgId),
+
+    // Pass-through for join tables that have no organizationId column and are
+    // always accessed through a verified parent id.
+    // AttendanceRecord / AttendanceExcuse: reached via CalendarEvent (org-scoped).
+    // BudgetAllocation: reached via Budget (org-scoped).
+    // These three are candidates for the next hardening pass.
     attendanceRecord:    prisma.attendanceRecord,
     attendanceExcuse:    prisma.attendanceExcuse,
     budgetAllocation:    prisma.budgetAllocation,

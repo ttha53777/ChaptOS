@@ -53,6 +53,17 @@ const pool = globalThis._pgPool ?? new Pool({
   max:                     10,      // stay under Supabase free-tier connection limit
 });
 
+// Initialize app.org_id to '' on every new physical connection so the Phase
+// 2.5 RLS policies default to "no rows" (NULLIF('', '') → NULL) for any query
+// that hasn't explicitly set the var via db().$transaction(). Safe no-op when
+// connecting as a BYPASSRLS role (postgres superuser) since those policies
+// aren't evaluated anyway.
+if (needsFreshPool) {
+  pool.on("connect", client => {
+    client.query("SET app.org_id = ''").catch(() => undefined);
+  });
+}
+
 // Pre-warm the connection so the first real request doesn't pay the cold-start penalty
 if (needsFreshPool) {
   pool.query("SELECT 1").catch(() => undefined);
