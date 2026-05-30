@@ -6,7 +6,7 @@ import { deleteParty, updateParty } from "@/lib/services/party-service";
 import { logError } from "@/lib/observability";
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const { ctx, error } = await buildContext();
+  const { ctx, error } = await buildContext({ requirePerm: "MANAGE_PARTIES" });
   if (error) return error;
   try {
     const { id } = await params;
