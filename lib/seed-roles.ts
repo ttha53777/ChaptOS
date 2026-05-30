@@ -107,7 +107,7 @@ export async function assignSystemRolesByTitle(
 ): Promise<{ assigned: number; brothersTouched: number }> {
   const brothers = await prisma.brother.findMany({
     where: { isAdmin: false, isGhost: false },
-    select: { id: true, role: true },
+    select: { id: true, role: true, organizationId: true },
   });
 
   let assigned = 0;
@@ -136,7 +136,7 @@ export async function assignSystemRolesByTitle(
     for (const roleId of matchedRoleIds) {
       try {
         await prisma.brotherRole.create({
-          data: { brotherId: b.id, roleId },
+          data: { brotherId: b.id, roleId, organizationId: b.organizationId },
         });
         assigned++;
       } catch {

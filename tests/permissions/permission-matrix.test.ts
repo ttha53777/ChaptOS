@@ -88,7 +88,7 @@ describe("role assignment: permission resolution from DB", () => {
     const role = await db(org.id).role.create({
       data: { name: "Treasurer", rank: 50, permissions: PERMISSIONS.MANAGE_TREASURY },
     });
-    await testPrisma.brotherRole.create({ data: { brotherId: bro.id, roleId: role.id } });
+    await testPrisma.brotherRole.create({ data: { brotherId: bro.id, roleId: role.id, organizationId: org.id } });
 
     const rows = await testPrisma.brotherRole.findMany({
       where: { brotherId: bro.id, role: { organizationId: org.id } },
@@ -108,7 +108,7 @@ describe("role assignment: permission resolution from DB", () => {
     const roleB = await db(orgB.id).role.create({
       data: { name: "President", rank: 100, permissions: ALL_PERMISSIONS },
     });
-    await testPrisma.brotherRole.create({ data: { brotherId: bro.id, roleId: roleB.id } });
+    await testPrisma.brotherRole.create({ data: { brotherId: bro.id, roleId: roleB.id, organizationId: orgB.id } });
 
     // Permission lookup MUST filter by organizationId: orgA — orgB role must not count
     const rows = await testPrisma.brotherRole.findMany({
