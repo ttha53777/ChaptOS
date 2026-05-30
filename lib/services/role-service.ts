@@ -112,7 +112,7 @@ export async function grantRole(ctx: RequestContext, brotherId: number, roleId: 
   }
 
   try {
-    await ctx.db.brotherRole.create({ data: { brotherId, roleId, organizationId: ctx.orgId } });
+    await ctx.db.brotherRole.create({ data: { brotherId, roleId } });
   } catch (e) {
     // P2002 = already assigned
     if (e && typeof e === "object" && "code" in e && (e as { code: string }).code === "P2002") {
