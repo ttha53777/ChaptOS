@@ -273,9 +273,9 @@ const ICON_PARTY  = "M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function TreasuryPage() {
-  const { currentUser, treasuryData, transactionList, setTransactionList, partyList, setPartyList, brotherList, setBrotherList, isLoading, avatarRevision } = useChapter();
+  const { currentUser, treasuryData, transactionList, setTransactionList, partyList, setPartyList, brotherList, setBrotherList, isLoading, avatarRevision, can } = useChapter();
   const selfId = currentUser?.id ?? null;
-  const isAdmin = currentUser?.isAdmin ?? false;
+  const canTreasury = can("MANAGE_TREASURY");
 
   const [sidebarOpen,   setSidebarOpen]   = useState(false);
   const [semester,      setSemester]      = useState(CURRENT_SEMESTER);
@@ -580,7 +580,7 @@ export default function TreasuryPage() {
 
           {/* Action buttons */}
           <div className="flex items-center gap-2">
-            {isAdmin && (
+            {canTreasury && (
               <TreasuryIconButton onClick={handleExport} title="Export CSV">
                 <svg className="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d={ICON_EXPORT} />
@@ -592,7 +592,7 @@ export default function TreasuryPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" d={ICON_PARTY} />
               </svg>
             </TreasuryIconButton>
-            {isAdmin && (
+            {canTreasury && (
               <button
                 onClick={() => setTxModal({ kind: "addTx" })}
                 className="flex h-8 items-center gap-1.5 rounded-full border border-indigo-500/20 bg-white/[0.04] px-3.5 text-[12px] font-semibold text-indigo-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_8px_24px_-18px_rgba(99,102,241,0.45)] transition-all hover:border-indigo-400/35 hover:bg-indigo-500/[0.08] hover:text-white"
@@ -817,7 +817,7 @@ export default function TreasuryPage() {
                   semester={semester}
                   transactions={activeTxns}
                   currentBalance={balance}
-                  isAdmin={isAdmin}
+                  isAdmin={canTreasury}
                   onError={msg => setMutErr(msg)}
                 />
               </div>
@@ -859,7 +859,7 @@ export default function TreasuryPage() {
                           ? <span className="shrink-0 tabular-nums text-[14px] font-semibold text-amber-400">{fmt$(b.duesOwed)}</span>
                           : <span className="shrink-0 tabular-nums text-[13px] text-slate-600">—</span>
                         }
-                        {isAdmin && (
+                        {canTreasury && (
                           <div className="flex items-center gap-1">
                             {b.duesOwed > 0 && (
                               <button
@@ -970,7 +970,7 @@ export default function TreasuryPage() {
                       <p className="text-[13px] tabular-nums text-slate-400">{partyList.length}</p>
                     </div>
                   </div>
-                  {isAdmin && (
+                  {canTreasury && (
                     <div className="mt-auto pt-2">
                       <button
                         onClick={handleExport}
@@ -1021,7 +1021,7 @@ export default function TreasuryPage() {
                     {txTab === "all" && tabTotals.all >= 0 && "+"}{fmt$(Math.round(tabTotals[txTab]))}
                   </span>
                 </div>
-                {isAdmin && (
+                {canTreasury && (
                   <div className="flex items-center gap-2">
                     <button onClick={handleExport} className="flex items-center gap-1.5 rounded-lg border border-white/[0.07] bg-white/[0.03] px-2.5 py-1.5 text-[11px] font-medium text-slate-500 transition-all hover:border-white/[0.14] hover:text-slate-200">
                       <svg className="h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d={ICON_EXPORT} /></svg>
@@ -1071,7 +1071,7 @@ export default function TreasuryPage() {
                             {fmt$(Math.round(t.running))}
                           </td>
                           <td className="px-4 py-3">
-                            {isAdmin && (
+                            {canTreasury && (
                               <div className="flex items-center gap-0.5 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100">
                                 <IconBtn path={ICON_EDIT}  label="Edit"   onClick={() => setTxModal({ kind: "editTx", tx: t })}      className="text-slate-600 hover:bg-indigo-500/20 hover:text-indigo-400" />
                                 <IconBtn path={ICON_TRASH} label="Delete" onClick={() => setDeleteModal({ kind: "tx", tx: t })}      className="text-slate-600 hover:bg-red-500/20 hover:text-red-400" />
@@ -1126,7 +1126,7 @@ export default function TreasuryPage() {
                               <td className="px-4 py-3">
                                 <div className="flex items-center gap-0.5 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100">
                                   <IconBtn path={ICON_EDIT}  label="Edit"   onClick={() => setPartyModal({ kind: "editParty", event: p })} className="text-slate-600 hover:bg-indigo-500/20 hover:text-indigo-400" />
-                                  {isAdmin && (
+                                  {canTreasury && (
                                     <IconBtn path={ICON_TRASH} label="Delete" onClick={() => setDeleteModal({ kind: "party", event: p })}   className="text-slate-600 hover:bg-red-500/20 hover:text-red-400" />
                                   )}
                                 </div>
@@ -1163,7 +1163,7 @@ export default function TreasuryPage() {
                     <p className="text-[11px] text-slate-500">Projected end-of-semester</p>
                     <p className="text-[20px] font-semibold tabular-nums text-slate-300">{fmt$(Math.round(projected))}</p>
                   </div>
-                  {isAdmin && (
+                  {canTreasury && (
                     <button
                       onClick={handleExport}
                       className="flex items-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.03] px-4 py-2.5 text-[12px] font-medium text-slate-400 transition-all hover:border-white/[0.16] hover:bg-white/[0.06] hover:text-white"

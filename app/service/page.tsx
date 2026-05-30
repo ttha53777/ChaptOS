@@ -48,9 +48,9 @@ const EMPTY_FORM = { title: "", date: "", location: "", notes: "" };
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function ServicePage() {
-  const { currentUser, brotherList, setBrotherList, isLoading, avatarRevision } = useChapter();
-  const isAdmin = currentUser?.isAdmin ?? false;
-  const selfId  = currentUser?.id ?? null;
+  const { currentUser, brotherList, setBrotherList, isLoading, avatarRevision, can } = useChapter();
+  const canService = can("MANAGE_SERVICE");
+  const selfId     = currentUser?.id ?? null;
 
   const [sidebarOpen,   setSidebarOpen]   = useState(false);
   const [search,        setSearch]        = useState("");
@@ -294,9 +294,9 @@ export default function ServicePage() {
                       </div>
                     ) : (
                       <button
-                        onClick={() => { if (isAdmin || b.id === selfId) startEdit(b); }}
-                        disabled={!isAdmin && b.id !== selfId}
-                        title={isAdmin || b.id === selfId ? "Click to edit" : "Only admins can edit other brothers' hours"}
+                        onClick={() => { if (canService || b.id === selfId) startEdit(b); }}
+                        disabled={!canService && b.id !== selfId}
+                        title={canService || b.id === selfId ? "Click to edit" : "Only admins can edit other brothers' hours"}
                         className={`tabular-nums text-[15px] font-semibold transition-colors hover:opacity-70 disabled:cursor-default disabled:hover:opacity-100 ${onTrack ? "text-white" : "text-amber-400"}`}
                       >
                         {b.serviceHours}h
@@ -367,7 +367,7 @@ export default function ServicePage() {
                       </div>
                       <div className="flex shrink-0 items-center gap-0.5 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100">
                         <IconBtn path={ICON_EDIT}  label="Edit"   onClick={() => openEditEvent(ev)} className="text-slate-600 hover:bg-indigo-500/20 hover:text-indigo-400" />
-                        {isAdmin && (
+                        {canService && (
                           <IconBtn path={ICON_TRASH} label="Delete" onClick={() => handleDeleteEvent(ev)} className="text-slate-600 hover:bg-red-500/20 hover:text-red-400" />
                         )}
                       </div>
