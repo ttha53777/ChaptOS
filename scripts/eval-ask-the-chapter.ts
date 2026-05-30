@@ -88,7 +88,7 @@ interface TurnResult {
 
 const MAX_ITERS = 10; // match route
 
-async function runCase(c: EvalCase, openai: OpenAI, systemPrompt: string): Promise<TurnResult> {
+async function runCase(c: EvalCase, openai: OpenAI, systemPrompt: string, orgId: number): Promise<TurnResult> {
   const t0 = Date.now();
   const toolCalls: ToolCallRecord[] = [];
   const proposals: Proposal[] = [];
@@ -151,7 +151,7 @@ async function runCase(c: EvalCase, openai: OpenAI, systemPrompt: string): Promi
 
       let payload: unknown;
       if (isReadTool(tc.function.name)) {
-        payload = await runTool(tc.function.name, args);
+        payload = await runTool(tc.function.name, args, orgId);
       } else if (isProposalTool(tc.function.name)) {
         const p = runProposal(tc.function.name, args);
         if ("error" in p) {
@@ -320,8 +320,10 @@ async function main() {
 
   // Pin the date the model sees so cases that reference "this week" stay
   // reproducible across days. The actual DB is whatever the dev has seeded.
+  // EVAL_ORG_ID defaults to 1 (the seed org in dev); override via env var if needed.
+  const EVAL_ORG_ID = Number(process.env.EVAL_ORG_ID ?? 1);
   const PINNED_DATE = new Date("2026-05-23T12:00:00Z");
-  const systemPrompt = await buildSystemPrompt(PINNED_DATE);
+  const systemPrompt = await buildSystemPrompt(EVAL_ORG_ID, PINNED_DATE);
 
   console.log(`Model: ${CHAT_MODEL}`);
   console.log(`Cases: ${cases.length}`);
@@ -337,7 +339,7 @@ async function main() {
     while (cursor < cases.length) {
       const i = cursor++;
       try {
-        const r = await runCase(cases[i], openai, systemPrompt);
+        const r = await runCase(cases[i], openai, systemPrompt, EVAL_ORG_ID);
         results[i] = r;
         const mark = r.pass ? "PASS" : "FAIL";
         process.stdout.write(`[${mark}] ${cases[i].id} (${r.ms}ms, ${r.iters} iter)\n`);

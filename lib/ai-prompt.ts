@@ -1,45 +1,44 @@
 import { prisma } from "@/lib/prisma";
 
-// Cache the active semester for 5 minutes — it changes at most a few times a
-// year, and pulling it on every chat message adds a DB round trip before OpenAI
-// even starts. Shared between the chat route and the offline eval runner so a
-// prompt change in one can't silently desync from the other.
-let semesterCache: { line: string; expires: number } | null = null;
+// Per-org caches keyed by orgId. Active semester changes at most a few times a
+// year; caching for 5 minutes avoids a round trip before every chat message.
+const semesterCache = new Map<number, { line: string; expires: number }>();
 
-async function getSemesterLine(): Promise<string> {
+async function getSemesterLine(orgId: number): Promise<string> {
   const now = Date.now();
-  if (semesterCache && semesterCache.expires > now) return semesterCache.line;
+  const cached = semesterCache.get(orgId);
+  if (cached && cached.expires > now) return cached.line;
   let line = "";
   try {
     const s = await prisma.semester.findFirst({
-      where: { isActive: true },
+      where: { isActive: true, organizationId: orgId },
       select: { label: true, startDate: true, endDate: true },
     });
     if (s) line = `Active semester: ${s.label} (${s.startDate} → ${s.endDate}).`;
   } catch { /* DB blip — model still works without this line */ }
-  semesterCache = { line, expires: now + 5 * 60 * 1000 };
+  semesterCache.set(orgId, { line, expires: now + 5 * 60 * 1000 });
   return line;
 }
 
-// Last chapter meeting: same 5-min cache. Keyed by today's ISO date so the
-// cache naturally expires at the day boundary instead of going stale at 11:59 PM.
-let lastMeetingCache: { date: string; line: string; expires: number } | null = null;
+// Last chapter meeting: same 5-min cache, keyed by orgId + today's ISO date so
+// it expires at the day boundary rather than going stale at 11:59 PM.
+const lastMeetingCache = new Map<string, { line: string; expires: number }>();
 
-async function getLastMeetingLine(todayIso: string): Promise<string> {
+async function getLastMeetingLine(orgId: number, todayIso: string): Promise<string> {
+  const cacheKey = `${orgId}:${todayIso}`;
   const now = Date.now();
-  if (lastMeetingCache && lastMeetingCache.date === todayIso && lastMeetingCache.expires > now) {
-    return lastMeetingCache.line;
-  }
+  const cached = lastMeetingCache.get(cacheKey);
+  if (cached && cached.expires > now) return cached.line;
   let line = "";
   try {
     const m = await prisma.calendarEvent.findFirst({
-      where: { category: "chapter", date: { lt: todayIso } },
+      where: { organizationId: orgId, category: "chapter", date: { lt: todayIso } },
       orderBy: { date: "desc" },
       select: { date: true },
     });
     if (m) line = `Last chapter meeting: ${m.date}.`;
   } catch { /* DB blip — model still works without this line */ }
-  lastMeetingCache = { date: todayIso, line, expires: now + 5 * 60 * 1000 };
+  lastMeetingCache.set(cacheKey, { line, expires: now + 5 * 60 * 1000 });
   return line;
 }
 
@@ -65,14 +64,14 @@ function nextWeekBounds(today: Date): { start: string; end: string } {
 
 const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
-export async function buildSystemPrompt(now: Date = new Date()): Promise<string> {
+export async function buildSystemPrompt(orgId: number, now: Date = new Date()): Promise<string> {
   const today = now.toISOString().slice(0, 10);
   const weekday = WEEKDAYS[now.getDay()];
   const week = isoWeekBounds(now);
   const next = nextWeekBounds(now);
   const [semesterLine, lastMeetingLine] = await Promise.all([
-    getSemesterLine(),
-    getLastMeetingLine(today),
+    getSemesterLine(orgId),
+    getLastMeetingLine(orgId, today),
   ]);
 
   // Date anchors are kept on their own line so the model doesn't have to do
