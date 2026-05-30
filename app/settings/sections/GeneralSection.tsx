@@ -95,7 +95,6 @@ export function GeneralSection({
   function handleAddDeadline(d: { title: string; dueDate: string; owner: string; status: TaskStatus }) {
     const tempId = _nextId++;
     setDeadlineList(prev => [...prev, { id: tempId, ...d }]);
-    addActivity(`New deadline added: "${d.title}"`, "info");
     setActiveModal(null);
     persist(
       requestJson<Deadline>("/api/deadlines", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(d) }),
@@ -108,7 +107,6 @@ export function GeneralSection({
   function handleAddRevenue(e: { name: string; date: string; doorRevenue: number; attendance: number; notes: string }) {
     const tempId = _nextId++;
     setPartyList(prev => [...prev, { id: tempId, theme: "", collabOrg: "", expenses: 0, partyType: "Open", completed: false, completedAt: null, ...e }]);
-    addActivity(`Revenue logged: ${e.name} — ${fmt$(e.doorRevenue)}`, "success");
     setActiveModal(null);
     persist(
       requestJson<PartyEvent>("/api/parties", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(e) }),
@@ -121,7 +119,6 @@ export function GeneralSection({
   function handleAddIGTask(t: { title: string; dueDate: string; owner: string; type: string; status: TaskStatus }) {
     const tempId = _nextId++;
     setIgTaskList(prev => [...prev, { id: tempId, ...t }]);
-    addActivity(`IG task added: "${t.title}"`, "info");
     setActiveModal(null);
     persist(
       requestJson<InstagramTask>("/api/instagram", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(t) }),
