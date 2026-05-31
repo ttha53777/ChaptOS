@@ -5,7 +5,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { suggestSlug, validateSlugFormat, RESERVED_SLUGS, MAX_SLUG_LEN } from "@/lib/slug-rules";
+import { suggestSlug, validateSlugFormat, RESERVED_SLUGS, MAX_SLUG_LEN, containsProfanity, generateSlugVariants } from "@/lib/slug-rules";
 
 describe("slug-rules: validateSlugFormat", () => {
   it("accepts a basic well-formed slug", () => {
@@ -51,6 +51,79 @@ describe("slug-rules: validateSlugFormat", () => {
     for (const s of ["admin", "api", "login", "welcome", "settings"]) {
       expect(RESERVED_SLUGS.has(s)).toBe(true);
     }
+  });
+});
+
+describe("slug-rules: containsProfanity", () => {
+  it("flags common profanity", () => {
+    expect(containsProfanity("fuck")).toBe(true);
+    expect(containsProfanity("shit")).toBe(true);
+  });
+
+  it("flags profanity embedded in a longer slug", () => {
+    expect(containsProfanity("the-fuck-club")).toBe(true);
+  });
+
+  it("flags hyphen-split profanity (f-u-c-k)", () => {
+    expect(containsProfanity("f-u-c-k")).toBe(true);
+  });
+
+  it("allows clean slugs", () => {
+    expect(containsProfanity("lambda-phi-epsilon")).toBe(false);
+    expect(containsProfanity("alpha")).toBe(false);
+    expect(containsProfanity("chess-club")).toBe(false);
+  });
+
+  it("ignores empty input", () => {
+    expect(containsProfanity("")).toBe(false);
+    expect(containsProfanity("   ")).toBe(false);
+  });
+});
+
+describe("slug-rules: validateSlugFormat blocks profanity", () => {
+  it("returns issue=profane with a generic message", () => {
+    const result = validateSlugFormat("fuck");
+    expect(result.ok).toBe(false);
+    expect(result.issue).toBe("profane");
+    expect(result.message).not.toMatch(/fuck/);
+  });
+
+  it("blocks hyphen-split profanity", () => {
+    expect(validateSlugFormat("f-u-c-k").issue).toBe("profane");
+  });
+});
+
+describe("slug-rules: generateSlugVariants", () => {
+  it("returns numeric, year, and suffix variants", () => {
+    const variants = generateSlugVariants("lpe", { year: 2026, limit: 10 });
+    expect(variants).toContain("lpe-2");
+    expect(variants).toContain("lpe-3");
+    expect(variants).toContain("lpe-2026");
+    expect(variants).toContain("lpe-chapter");
+  });
+
+  it("respects the limit", () => {
+    expect(generateSlugVariants("lpe", { year: 2026, limit: 3 }).length).toBe(3);
+  });
+
+  it("returns nothing for empty input", () => {
+    expect(generateSlugVariants("")).toEqual([]);
+    expect(generateSlugVariants("   ")).toEqual([]);
+  });
+
+  it("filters out variants exceeding MAX_SLUG_LEN that become bad-format", () => {
+    // A 31-char base + "-chapter" exceeds 32 and gets truncated mid-suffix to
+    // bad shape; the function must drop those, not return malformed slugs.
+    const base = "a".repeat(31);
+    const variants = generateSlugVariants(base, { limit: 10 });
+    for (const v of variants) {
+      expect(validateSlugFormat(v).ok).toBe(true);
+    }
+  });
+
+  it("de-duplicates collisions between strategies", () => {
+    const variants = generateSlugVariants("lpe", { year: 2026, limit: 10 });
+    expect(new Set(variants).size).toBe(variants.length);
   });
 });
 

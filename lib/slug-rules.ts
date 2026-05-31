@@ -1,24 +1,31 @@
 /**
  * Slug validation rules for self-serve org creation.
  *
- * Pure module — no DB, no IO. Checks format + reserved list. Uniqueness is the
- * caller's responsibility (a DB query in the create-org service).
+ * Pure module — no DB, no IO. Checks format + reserved list + profanity.
+ * Uniqueness is the caller's responsibility (a DB query in the create-org
+ * service).
  *
  * Rules:
  *   - 3..32 characters
  *   - lowercase a-z, 0-9, single hyphens
  *   - no leading/trailing hyphen, no consecutive hyphens
- *   - not in the reserved set
+ *   - not in the reserved set (system routes, infra hosts, generic words)
+ *   - not flagged by the profanity matcher (obscenity, English preset)
  *
- * The reserved set blocks:
- *   - System routes that would collide with Next.js paths (login, api, …).
- *   - Generic words that look like the app itself ("admin", "dashboard").
- *   - A minimal profanity baseline. Replace with a real library in Milestone 4.
+ * The profanity matcher handles obfuscation (leetspeak, character substitution)
+ * the hardcoded list can't, and we run it against the de-hyphenated slug so
+ * "f-u-c-k" doesn't slip through by abusing the hyphen separator.
  */
 
 // ---------------------------------------------------------------------------
 // Reserved set
 // ---------------------------------------------------------------------------
+
+import {
+  RegExpMatcher,
+  englishDataset,
+  englishRecommendedTransformers,
+} from "obscenity";
 
 // Next.js routes and infra hostnames. Anything under app/ becomes a path; if a
 // future page named app/foo/ exists, /foo as an org slug would shadow it.
@@ -39,19 +46,38 @@ const GENERIC_WORDS: readonly string[] = [
   "sorority", "school", "university", "college",
 ];
 
-// Minimal placeholder until a real profanity library replaces it in Milestone 4.
-// Listing the common ones blocks the laziest abuse without being a moderation tool.
-const PROFANITY: readonly string[] = [
-  "fuck", "shit", "bitch", "ass", "asshole", "cunt", "dick", "piss",
-  "nigger", "nigga", "faggot", "retard",
-];
-
 export const RESERVED_SLUGS: ReadonlySet<string> = new Set([
   ...SYSTEM_ROUTES,
   ...INFRA_HOSTS,
   ...GENERIC_WORDS,
-  ...PROFANITY,
 ]);
+
+// ---------------------------------------------------------------------------
+// Profanity matcher
+// ---------------------------------------------------------------------------
+
+// Singleton — building the matcher costs a few ms. Lives at module scope so
+// every call shares the same compiled state machine.
+const profanityMatcher = new RegExpMatcher({
+  ...englishDataset.build(),
+  ...englishRecommendedTransformers,
+});
+
+/**
+ * True if the input contains profanity per the English dataset, accounting
+ * for leetspeak and character substitutions.
+ *
+ * We check both the raw slug AND the de-hyphenated form so an attacker can't
+ * sneak past by splitting words ("f-u-c-k" → "fuck" after hyphen removal).
+ */
+export function containsProfanity(raw: string): boolean {
+  const slug = raw.trim().toLowerCase();
+  if (!slug) return false;
+  if (profanityMatcher.hasMatch(slug)) return true;
+  const flat = slug.replace(/-/g, "");
+  if (flat !== slug && profanityMatcher.hasMatch(flat)) return true;
+  return false;
+}
 
 // ---------------------------------------------------------------------------
 // Validation
@@ -67,7 +93,8 @@ export type SlugIssue =
   | "too-short"
   | "too-long"
   | "bad-format"
-  | "reserved";
+  | "reserved"
+  | "profane";
 
 export interface SlugCheck {
   ok: boolean;
@@ -106,6 +133,10 @@ export function validateSlugFormat(raw: string): SlugCheck {
   if (RESERVED_SLUGS.has(slug)) {
     return { ok: false, issue: "reserved", message: "That slug is reserved. Try a different one." };
   }
+  if (containsProfanity(slug)) {
+    // Generic message — we deliberately don't echo back which word matched.
+    return { ok: false, issue: "profane", message: "That slug isn't allowed. Try a different one." };
+  }
   return { ok: true, issue: null, message: null };
 }
 
@@ -132,4 +163,52 @@ export function suggestSlug(name: string): string {
     .replace(/^-+|-+$/g, "")             // trim leading/trailing
     .replace(/-{2,}/g, "-")              // collapse runs
     .slice(0, MAX_SLUG_LEN);
+}
+
+// ---------------------------------------------------------------------------
+// Variant generation (used when a slug is taken)
+// ---------------------------------------------------------------------------
+
+const VARIANT_SUFFIXES: readonly string[] = ["chapter", "team", "club", "hq"];
+
+/**
+ * Generate up to `limit` candidate variants for a slug, ordered by how
+ * close they are to the original. The caller filters out variants that fail
+ * format/reserved/profanity rules or that exist in the DB.
+ *
+ * Variants tried (in order):
+ *   - <slug>-2, <slug>-3, <slug>-4    (numeric)
+ *   - <slug>-<current-year>           (e.g. lpe-2026)
+ *   - <slug>-chapter, -team, -club    (generic suffixes)
+ *
+ * The function is pure — caller wires in the uniqueness check.
+ */
+export function generateSlugVariants(
+  base: string,
+  options: { year?: number; limit?: number } = {},
+): string[] {
+  const trimmed = base.trim().toLowerCase();
+  if (!trimmed) return [];
+  const limit = options.limit ?? 5;
+  const year  = options.year  ?? new Date().getFullYear();
+
+  const candidates: string[] = [
+    `${trimmed}-2`,
+    `${trimmed}-3`,
+    `${trimmed}-${year}`,
+    ...VARIANT_SUFFIXES.map(s => `${trimmed}-${s}`),
+    `${trimmed}-4`,
+  ];
+
+  // De-dupe, truncate to MAX, filter format-invalid candidates.
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const c of candidates) {
+    const v = c.slice(0, MAX_SLUG_LEN);
+    if (seen.has(v)) continue;
+    seen.add(v);
+    if (validateSlugFormat(v).ok) out.push(v);
+    if (out.length >= limit) break;
+  }
+  return out;
 }

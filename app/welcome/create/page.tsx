@@ -22,7 +22,7 @@ type SlugState =
   | { kind: "checking" }
   | { kind: "ok" }
   | { kind: "bad"; message: string }
-  | { kind: "taken" };
+  | { kind: "taken"; suggestions: string[] };
 
 export default function CreateOrgPage() {
   const [orgName, setOrgName]   = useState("");
@@ -60,7 +60,7 @@ export default function CreateOrgPage() {
         if (data.ok) {
           setSlugState({ kind: "ok" });
         } else if (data.reason === "taken") {
-          setSlugState({ kind: "taken" });
+          setSlugState({ kind: "taken", suggestions: Array.isArray(data.suggestions) ? data.suggestions : [] });
         } else {
           setSlugState({ kind: "bad", message: data.message ?? "Invalid slug." });
         }
@@ -190,7 +190,16 @@ export default function CreateOrgPage() {
                     spellCheck={false}
                     className="w-full px-3 py-2.5 rounded-lg bg-zinc-900/80 border border-white/[0.08] text-white text-[14px] placeholder-white/30 focus:outline-none focus:border-indigo-500 font-mono"
                   />
-                  <SlugStatus state={slugState} />
+                  <SlugStatus
+                    state={slugState}
+                    onPickSuggestion={(s) => {
+                      // Treat picking a suggestion as a deliberate user choice:
+                      // mark slugTouched so the auto-suggest-from-name effect
+                      // doesn't immediately overwrite it.
+                      setSlugTouched(true);
+                      setSlug(s);
+                    }}
+                  />
                 </>
               }
             />
@@ -296,7 +305,13 @@ function Field({
   );
 }
 
-function SlugStatus({ state }: { state: SlugState }) {
+function SlugStatus({
+  state,
+  onPickSuggestion,
+}: {
+  state: SlugState;
+  onPickSuggestion: (slug: string) => void;
+}) {
   if (state.kind === "idle") return null;
   if (state.kind === "checking") {
     return <span className="text-[11px] text-white/40">Checking availability…</span>;
@@ -305,7 +320,26 @@ function SlugStatus({ state }: { state: SlugState }) {
     return <span className="text-[11px] text-emerald-400">Available ✓</span>;
   }
   if (state.kind === "taken") {
-    return <span className="text-[11px] text-red-400">Already taken</span>;
+    return (
+      <div className="flex flex-col gap-1.5">
+        <span className="text-[11px] text-red-400">Already taken</span>
+        {state.suggestions.length > 0 && (
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-[11px] text-white/40">Try:</span>
+            {state.suggestions.map((s) => (
+              <button
+                key={s}
+                type="button"
+                onClick={() => onPickSuggestion(s)}
+                className="px-2 py-0.5 rounded-md bg-indigo-500/15 border border-indigo-400/30 text-[11px] text-indigo-200 font-mono hover:bg-indigo-500/25 hover:border-indigo-400/50 transition-colors"
+              >
+                {s}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    );
   }
   // "bad"
   return <span className="text-[11px] text-red-400">{state.message}</span>;
