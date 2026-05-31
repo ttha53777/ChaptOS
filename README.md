@@ -1,8 +1,10 @@
 # ChaptOS
 
-Chapter operations dashboard for Lambda Phi Epsilon — a single place to run a fraternity chapter. Tracks brothers, attendance, dues, GPA, service hours, deadlines, treasury and budget, party events, Instagram content, community-service hours, meeting notes, and a pinned chapter docs library, with a live activity log, a pinned announcement, and a weekly digest of what's on deck.
+Chapter operations platform — a single place to run any chapter-based organization. Tracks members, attendance, dues, GPA, service hours, deadlines, treasury and budget, party events, Instagram content, community-service hours, meeting notes, and a pinned chapter docs library, with a live activity log, a pinned announcement, and a weekly digest of what's on deck.
 
 Built as one operations dashboard with a dedicated, app-like mobile layout. Includes a tool-calling AI assistant ("Ask the Chapter") that answers questions and proposes write actions, backed by an offline eval harness for measuring answer quality.
+
+Multi-org: each Organization is a fully isolated tenant. One Google account can belong to multiple orgs and switch between them via an `active_org_id` cookie.
 
 ---
 
@@ -11,6 +13,7 @@ Built as one operations dashboard with a dedicated, app-like mobile layout. Incl
 - [Highlights](#highlights)
 - [Tech Stack](#tech-stack)
 - [Architecture](#architecture)
+- [Tenancy Model](#tenancy-model)
 - [AI Features](#ai-features)
 - [Roles & Access](#roles--access)
 - [Project Structure](#project-structure)
@@ -26,15 +29,16 @@ Built as one operations dashboard with a dedicated, app-like mobile layout. Incl
 
 A few things worth showing off:
 
-- **Tool-calling AI assistant with self-correcting validation.** Eleven read tools + five write-proposal tools defined in one place ([lib/ai-tools.ts](lib/ai-tools.ts)) so the schema the model sees and the dispatcher that runs the tools can't drift. Arg validation ([lib/ai-tools.ts](lib/ai-tools.ts) `validateArgs`) walks the schema before dispatch — a wrong enum value returns a structured error the model self-corrects on the next iteration of the existing tool loop.
+- **Org-scoped DB wrapper with automatic tenancy injection.** `lib/db/tenant.ts` wraps every Prisma operation to inject `organizationId` automatically — services call `ctx.db.transaction.create(...)` and can't accidentally touch another org's data. `findUnique` is replaced by `findFirst + org filter`; updates and deletes run a verify-then-mutate pattern to preserve exact return types without needing composite unique constraints everywhere.
+- **Three-tier auth: PlatformAdmin → OrgAdmin → Member.** `buildContext()` in `lib/context` resolves all three tiers per request, emits a typed `RequestContext`, and optionally gates on a specific permission or rate-limits the caller. Route handlers open with `buildContext()`, parse with Zod, call a service, and map errors with `toResponse()` — no `prisma.*` calls in `app/api/**`.
+- **Side effects through events, never service-to-service calls.** Services call `emit(ctx, action, subject, metadata)` from `lib/events`. Reactions (recalcs, notifications, projections) live as `on(action, handler)` registrations in `lib/events/handlers/`. The event writer also dual-writes an `ActivityLog` row so the existing feed keeps working.
+- **Tool-calling AI assistant with self-correcting validation.** Eleven read tools + five write-proposal tools in one file ([lib/ai-tools.ts](lib/ai-tools.ts)) so schema and dispatcher can't drift. `validateArgs` walks the schema before dispatch — a wrong enum returns a structured error the model self-corrects on the next iteration.
 - **Offline eval harness.** Hand-written cases at [evals/ask-the-chapter/cases.jsonl](evals/ask-the-chapter/cases.jsonl) drive the same loop as the production route in-process, graded on tool selection, args, and final-answer substrings. Lets prompt and model changes be measured instead of vibes-checked.
-- **Discord-style role system with permission bitfields.** Ten named permissions ([lib/permissions.ts](lib/permissions.ts)) packed into a 32-bit int on each `Role`. A brother's effective bits are the bitwise OR of every role they hold; `requirePermission()` ([lib/auth/require-permission.ts](lib/auth/require-permission.ts)) gates each API route. Role hierarchy ranks prevent privilege escalation — a caller can only grant/edit roles strictly below their own highest rank.
-- **Two-layer identity.** Supabase manages OAuth sessions; a separate `Brother` table holds chapter data. A signed-in user has zero access until their Google account is linked to a `Brother` row — admins can pre-create rows so new members onboard themselves on first login.
-- **Write proposals, never silent writes.** The AI's `propose_*` tools validate inputs server-side but never touch the database. The client surfaces a confirm card; only on user confirmation does it POST to the real `/api/*` route, where existing `requireUser` / `requirePermission` guards decide whether the write actually happens.
+- **Discord-style role system with permission bitfields.** Eleven named permissions ([lib/permissions.ts](lib/permissions.ts)) packed into a 32-bit int on each `Role`. A member's effective bits are the bitwise OR of every role they hold. Role hierarchy ranks prevent privilege escalation — a caller can only grant/edit roles strictly below their own highest rank.
+- **Write proposals, never silent writes.** The AI's `propose_*` tools validate inputs server-side but never touch the database. The client renders a confirm card; only on user confirmation does it POST to the real `/api/*` route where `buildContext()` guards decide whether the write actually happens.
 - **Structured server-side observability.** One JSON-per-line error log ([lib/observability.ts](lib/observability.ts)) with request IDs, route tags, and optional Sentry forwarding via a lazy dynamic import — no dependency cost until enabled.
 - **Soft deletes on financial data.** `Transaction` rows are never hard-deleted; `deletedAt` preserves history for audit and undo.
 - **CSS-only responsiveness.** Desktop and mobile dashboards are sibling trees toggled with Tailwind breakpoints — no JS viewport detection, no layout flash on hydration.
-- **Pinned chapter docs with auto-fetched OG metadata.** The Docs page stores arbitrary links with cached title/favicon/OG-image, probed server-side ([lib/og-metadata.ts](lib/og-metadata.ts)) on create or URL change. Embeds that block iframing (X-Frame-Options / frame-ancestors CSP) fall back to the OG image card automatically.
 
 ---
 
@@ -66,7 +70,7 @@ Browser
   │     ├── proxy.ts (middleware) — auth gate on every request
   │     ├── app/layout.tsx — ChapterProvider wraps the whole app
   │     ├── app/page.tsx — the Operations Dashboard (desktop + mobile)
-  │     └── app/api/** — JSON API routes (all mutations server-side)
+  │     └── app/api/** — JSON API routes (thin controllers)
   │            ├── api/ai/chat        — streaming tool-calling assistant
   │            ├── api/ai/digest      — one-sentence weekly recap (cached)
   │            └── api/ai/summarize-meeting — meeting-notes summary (cached)
@@ -80,13 +84,29 @@ Browser
 
 **Key design decisions:**
 
-- **Two-layer identity.** Supabase manages OAuth sessions; a separate `Brother` table holds chapter data. A signed-in user has no access until their Google account is linked to a `Brother` row (see [Auth Flow](#auth-flow)).
-- **Global state via `ChapterContext`.** All chapter data (brothers, deadlines, IG tasks, parties, transactions, treasury, activity) is fetched once on mount in `ChapterProvider` and shared app-wide. Pages do optimistic updates against context instead of refetching.
-- **All DB access through API routes.** Client components never touch Prisma. Every mutation goes through an API route that calls `requireUser()` (and `requirePermission()` where a specific capability is needed) to verify the session before touching the database.
-- **Persistent avatars.** Custom profile photos are stored in Supabase Storage and the URL is persisted on `Brother.avatarUrl`. That column — not the volatile Supabase auth metadata — is the source of truth, so a photo survives OAuth token refreshes that would otherwise revert it to the Google picture.
-- **Soft deletes on transactions.** `Transaction` rows are never hard-deleted — they get a `deletedAt` timestamp so financial history is preserved.
-- **CSS-only responsiveness.** The desktop and mobile dashboards are sibling trees toggled purely with Tailwind breakpoints (`md:hidden` / `hidden md:block`) — no JS viewport detection. The mobile dashboard is a tabbed layout: **Overview · Tasks · Money · Brothers · Logs**.
-- **Rate-limited mutations.** A simple in-memory limiter ([lib/rate-limit.ts](lib/rate-limit.ts)) caps mutations and AI chat turns per brother per minute — keeps a runaway client from blowing up cost or contention.
+- **Route handlers are thin controllers.** Open with `buildContext()` from `@/lib/context`, parse with a Zod schema from `@/lib/validation`, call a service from `@/lib/services`, map errors with `toResponse()` from `@/lib/errors`. No `prisma.*` or raw `db()` calls in `app/api/**` outside the auth bootstrap routes.
+- **Side effects flow through events.** Services call `emit(ctx, action, subject, metadata)` from `@/lib/events`. Reactions live as `on(action, handler)` registrations in `lib/events/handlers/`. Never call another service from inside a service — emit an event.
+- **Three-layer identity.** Supabase manages OAuth sessions; `Brother` holds per-org profile data; `Membership` links the two and carries the org-admin flag. A signed-in user has no access until their Google account is linked to a `Brother` row within an org.
+- **Global state via `ChapterContext`.** All chapter data is fetched once on mount in `ChapterProvider` and shared app-wide. Pages do optimistic updates against context instead of refetching.
+- **All DB access through API routes.** Client components never touch Prisma. Every mutation goes through an API route that resolves `buildContext()` before touching the database.
+- **Persistent avatars.** Custom profile photos are stored in Supabase Storage and the URL is persisted on `Brother.avatarUrl`. That column — not the volatile Supabase auth metadata — is the source of truth.
+- **CSS-only responsiveness.** The desktop and mobile dashboards are sibling trees toggled purely with Tailwind breakpoints (`md:hidden` / `hidden md:block`). The mobile dashboard is a tabbed layout: **Overview · Tasks · Money · Brothers · Logs**.
+- **Rate-limited mutations.** A simple in-memory limiter ([lib/rate-limit.ts](lib/rate-limit.ts)) caps mutations and AI chat turns per member per minute.
+
+---
+
+## Tenancy Model
+
+Every organization is a fully isolated tenant. The enforcement layers, from outermost to innermost:
+
+1. **Active-org cookie.** `proxy.ts` reads the `active_org_id` cookie on every request and the resolved org flows into `requireUser()`.
+2. **`buildContext()`** resolves the `RequestContext` for the request, which includes `ctx.orgId` and an org-scoped `ctx.db` instance. Route handlers never resolve org context themselves.
+3. **`ctx.db` (org-scoped wrapper).** `lib/db/tenant.ts` wraps every Prisma model to inject `organizationId` on all reads and writes automatically. `findUnique` is silently promoted to `findFirst + org filter`; updates and deletes use a verify-then-mutate pattern to avoid needing `@@unique([id, organizationId])` on every model.
+4. **Postgres RLS.** Row-level security policies are the DB-layer backstop. Policies are currently permissive during Phase 2.5 rollout; enforcing policies will flip automatically without code changes.
+
+Every write must go through `ctx.db.<model>` (org-scoped) or carry an explicit `organizationId` in the data. Tenancy tests in `tests/tenancy/` guard this invariant.
+
+**Multi-org membership.** A single `Brother` (Google identity) can hold `Membership` rows in multiple orgs. The `active_org_id` cookie selects which org's data the current session operates on. Switching orgs updates the cookie.
 
 ---
 
@@ -100,18 +120,19 @@ Three AI surfaces, all server-side behind auth, all dormant when `OPENAI_API_KEY
 A floating chat widget that answers ad-hoc questions about chapter state — *"who has the worst attendance?"*, *"how much have we spent on Party Supplies?"*, *"add a deadline for next Friday"* — by calling tools instead of inventing answers.
 
 **How it's built:**
-- **Sixteen tools** declared in [lib/ai-tools.ts](lib/ai-tools.ts): 11 read tools (`list_brothers`, `list_deadlines`, `sum_transactions`, `get_treasury`, `weekly_digest`, …) and 5 write-proposal tools (`propose_add_deadline`, `propose_mark_dues_paid`, …). The schemas the model sees and the dispatcher that runs the tools live in the same file so they can't drift.
-- **Server-Sent Events streaming** with a Node-runtime endpoint, custom SSE framing, and a 10-iteration tool-call loop that lets the model chain queries (e.g. broaden a filter when it returns empty).
-- **Parallel tool calls.** When the model emits multiple calls in one turn ("how are dues *and* attendance?"), the server runs them concurrently via `Promise.all` — collapses round-trips.
-- **Schema-validated args** ([lib/ai-tools.ts](lib/ai-tools.ts) `validateArgs`). Wrong enums (`"urgent"` vs `"Urgent"`) return a structured error the model self-corrects on the next iteration instead of silently getting back unfiltered data.
-- **Writes are proposals, not executions.** `propose_*` tools validate inputs but never write — the client renders a confirm card and POSTs to the real route on user confirmation. Existing `requireUser`/`requireAdmin` guards still decide whether the write happens.
-- **Date context injected at prompt build time** ([lib/ai-prompt.ts](lib/ai-prompt.ts)): today's date + weekday, this week's Mon–Sun bounds, next week's bounds, last chapter-meeting date, active semester. The model doesn't waste tool calls on calendar math.
-- **History trimmed before send.** Last 12 turns, prior messages capped at 600 chars — keeps input tokens small without losing recent context.
+- **Sixteen tools** declared in [lib/ai-tools.ts](lib/ai-tools.ts): 11 read tools and 5 write-proposal tools. The schemas the model sees and the dispatcher that runs the tools live in the same file so they can't drift.
+- **Scoped to the authenticated org.** The system prompt and all tool data are bounded to `ctx.orgId`. The assistant can't read or propose writes against another org's data.
+- **Server-Sent Events streaming** with a Node-runtime endpoint, custom SSE framing, and a 10-iteration tool-call loop that lets the model chain queries.
+- **Parallel tool calls.** When the model emits multiple calls in one turn, the server runs them concurrently via `Promise.all`.
+- **Schema-validated args** (`validateArgs`). Wrong enums return a structured error the model self-corrects on the next iteration.
+- **Writes are proposals, not executions.** `propose_*` tools validate inputs but never write — the client renders a confirm card and POSTs to the real route on user confirmation. `buildContext()` guards still decide whether the write happens.
+- **Date context injected at prompt build time** ([lib/ai-prompt.ts](lib/ai-prompt.ts)): today's date + weekday, week bounds, last chapter-meeting date, active semester.
+- **History trimmed before send.** Last 12 turns, prior messages capped at 600 chars.
 
 ### Weekly digest narration
 [app/api/ai/digest/route.ts](app/api/ai/digest/route.ts)
 
-One short sentence summarizing this week's deadlines, IG tasks, mandatory events, parties, and at-risk brothers. Heavily cached: in-memory by content hash on the server, plus per-key localStorage on the client. Falls back gracefully when AI is disabled — the structured digest stands on its own.
+One short sentence summarizing this week's deadlines, IG tasks, mandatory events, parties, and at-risk members. Heavily cached: in-memory by content hash on the server, plus per-key localStorage on the client. Falls back gracefully when AI is disabled.
 
 ### Meeting-notes summarization
 [app/api/ai/summarize-meeting/route.ts](app/api/ai/summarize-meeting/route.ts)
@@ -119,16 +140,9 @@ One short sentence summarizing this week's deadlines, IG tasks, mandatory events
 On-demand summary of free-form chapter-meeting notes into Decisions / Action items / Discussed sections. Summary + content hash persist on the `CalendarEvent` row so a re-render doesn't re-summarize, but a content change does.
 
 ### Eval harness
-[evals/ask-the-chapter/cases.jsonl](evals/ask-the-chapter/cases.jsonl) · [scripts/eval-ask-the-chapter.ts](scripts/eval-ask-the-chapter.ts) · [README](evals/ask-the-chapter/README.md)
+[evals/ask-the-chapter/cases.jsonl](evals/ask-the-chapter/cases.jsonl) · [scripts/eval-ask-the-chapter.ts](scripts/eval-ask-the-chapter.ts)
 
-Offline pass/fail harness for the chat feature. Drives the same tool-calling loop as the production route in-process (no HTTP, no SSE — deterministic and fast), against the live seeded DB. Grades each case on:
-
-- Did the model call the expected tool(s)?
-- Did it pass the right args? (subset match on `expectedToolArgs`)
-- Does the final answer mention the right brother/number/date?
-- Did proposals fire the right `action`?
-
-Cases run concurrently (4 at a time) and ship a clear per-case pass/fail line plus a summary by category. Lets prompt edits and model swaps be measured instead of guessed.
+Offline pass/fail harness for the chat feature. Drives the same tool-calling loop as the production route in-process (no HTTP, no SSE), against the live seeded DB. Grades each case on tool selection, args, and final-answer substrings. Cases run concurrently (4 at a time).
 
 ```
 [PASS] super-attendance-worst (1820ms, 2 iter)
@@ -143,31 +157,42 @@ Score: 24/31  (77.4%)
 
 ## Roles & Access
 
-Access is controlled by two orthogonal mechanisms — a binary `isAdmin` superuser flag and a Discord-style role system layered on top.
+Access is controlled by three orthogonal tiers.
+
+### Auth tiers (checked in order)
+
+| Tier | What it does |
+|------|--------------|
+| **`PlatformAdmin`** | Cross-org superuser. A separate `PlatformAdmin` table row, not a flag on `Brother`. All permission bits set. Can operate on any org via the active-org cookie. All actions are auditable. |
+| **`isOrgAdmin = true`** on `Membership` | Per-org admin. All permission bits set within the active org only. Switching to a different org yields a regular member context. Does not bypass rate limiting. |
+| *Regular member* | Permission bitfield from assigned `BrotherRole` rows. No elevated bits. |
+
+`buildContext()` resolves these tiers per request and exposes `ctx.isPlatformAdmin` and `ctx.isOrgAdmin`.
 
 ### Identity flags on `Brother`
+
 | Flag | What it does |
 |------|--------------|
-| **`isAdmin = true`** | Superuser. Bypasses every permission check at the guard layer — used for the executive board and bootstrap accounts. |
-| **`isGhost = true`** | Full brother-level read access, but **hidden** from every brother listing, count, and attendance enrollment — an observer (e.g. an alumnus) with no footprint. Provisioned via the "Atomic Samurai" claim name; never granted admin. |
-| *neither* | Default brother. Full read access plus self-service actions (log excuse, edit own profile, +service hour). Anything else depends on which roles they hold. |
+| **`isAdmin = true`** | Legacy superuser flag. Still present in schema for backcompat; new code should use `Membership.isOrgAdmin` instead. |
+| **`isGhost = true`** | Full member-level read access, but hidden from every member listing, count, and attendance enrollment — an observer (e.g. an alumnus) with no footprint. Provisioned via the "Atomic Samurai" claim name; never granted admin. |
 
 ### Permission flags ([lib/permissions.ts](lib/permissions.ts))
-Ten named permissions packed into a 32-bit bitfield on each `Role`:
+
+Eleven named permissions packed into a 32-bit bitfield on each `Role`:
 
 ```
-MANAGE_BROTHERS  MANAGE_TREASURY  MANAGE_EVENTS     MANAGE_PARTIES   MANAGE_INSTAGRAM
-MANAGE_SERVICE   MANAGE_ATTENDANCE  MANAGE_SEMESTERS  MANAGE_ROLES    MANAGE_DOCS
+MANAGE_BROTHERS  MANAGE_TREASURY  MANAGE_EVENTS       MANAGE_PARTIES   MANAGE_INSTAGRAM
+MANAGE_SERVICE   MANAGE_ATTENDANCE  MANAGE_SEMESTERS  MANAGE_ROLES     MANAGE_DOCS
+MANAGE_ANNOUNCEMENTS
 ```
 
-A brother's *effective* bitfield is the bitwise OR of every role they hold. UI surfaces and API routes both check the same `hasPermission(bits, "MANAGE_X")` helper.
+A member's *effective* bitfield is the bitwise OR of every role they hold. UI surfaces and API routes both check the same `hasPermission(bits, "MANAGE_X")` helper.
 
-### Roles ([app/api/roles](app/api/roles))
-Each role bundles a name, optional color chip, a permission bitfield, and a hierarchy `rank`. Seeded system roles (e.g. **President** with `ALL_PERMISSIONS`) are protected from rename/delete. Custom roles are managed from **Settings → Roles** by anyone with `MANAGE_ROLES`.
+### Roles
 
-**Hierarchy guard:** a caller can only grant, edit, or revoke roles whose `rank` is *strictly less* than their own highest assigned role's rank. This prevents an officer with `MANAGE_ROLES` from promoting themselves or peers.
+Each role bundles a name, optional color chip, a permission bitfield, and a hierarchy `rank`. Seeded system roles (e.g. **President** with all permissions) are protected from rename/delete. Custom roles are managed from **Settings → Roles** by anyone with `MANAGE_ROLES`.
 
-`requireUser()` ([lib/auth/require-user.ts](lib/auth/require-user.ts)) gates every API route; `requirePermission()` ([lib/auth/require-permission.ts](lib/auth/require-permission.ts)) gates routes that need a specific capability; `requireAdmin()` is reserved for the few truly admin-only operations.
+**Hierarchy guard:** a caller can only grant, edit, or revoke roles whose `rank` is *strictly less* than their own highest assigned role's rank.
 
 ---
 
@@ -176,10 +201,10 @@ Each role bundles a name, optional color chip, a permission bitfield, and a hier
 ```
 figurints/
 ├── app/
-│   ├── api/                      # JSON API routes (all server-side)
+│   ├── api/                      # JSON API routes (thin controllers)
 │   │   ├── ai/                   # chat (streaming SSE), digest, summarize-meeting
 │   │   ├── activity/             # activity log (+ /full)
-│   │   ├── announcement/         # single pinned chapter announcement (id=1)
+│   │   ├── announcement/         # single pinned chapter announcement
 │   │   ├── attendance/           # record attendance per event
 │   │   ├── auth/                 # claim, me, signout, avatar, accounts, unlink-self
 │   │   ├── brothers/             # roster CRUD (+ /[id]/attendance, /[id]/roles)
@@ -198,10 +223,9 @@ figurints/
 │   ├── auth/callback/            # OAuth redirect handler
 │   ├── components/
 │   │   ├── ChatWidget.tsx        # floating "Ask the Chapter" assistant
-│   │   ├── ChatWidgetGate.tsx    # show/hide gate (e.g. login page)
+│   │   ├── ChatWidgetGate.tsx
 │   │   ├── Sidebar.tsx
 │   │   ├── UserAvatar.tsx        # photo upload/remove menu
-│   │   ├── ProfileAvatar.tsx
 │   │   ├── BrotherAvatar.tsx     # avatar with initials fallback
 │   │   ├── dashboard/
 │   │   │   ├── widgets.tsx       # KPI cards, health, activity feed, charts
@@ -216,19 +240,30 @@ figurints/
 │   ├── context/ChapterContext.tsx
 │   ├── hooks/                    # useCurrentUser, useOrgLogo
 │   ├── generated/prisma/         # generated client (gitignored)
-│   ├── docs/                     # pinned chapter links page (DocCard, DocForm)
-│   ├── service/                  # community-service page
-│   ├── brothers/  chapter/  instagram/  login/  parties/
-│   ├── pending-access/           # account-claim page (new users)
+│   ├── docs/  service/  brothers/  chapter/  instagram/
+│   ├── login/  pending-access/   # auth entry points
 │   ├── settings/  timeline/  treasury/
-│   ├── data.ts                   # shared types, thresholds, formatters (fmt$, fmtDate, fmtRange…)
+│   ├── data.ts                   # shared types, thresholds, formatters
 │   └── layout.tsx
 ├── lib/
+│   ├── context/                  # buildContext() — per-request auth + tenancy
+│   │   └── request-context.ts
+│   ├── db/                       # org-scoped Prisma wrapper (tenancy enforcement)
+│   │   └── tenant.ts
+│   ├── services/                 # domain services (brother-service, transaction-service, …)
+│   ├── events/                   # emit(), on(), action registry, handlers/
+│   │   ├── emit.ts
+│   │   ├── actions.ts
+│   │   └── handlers/             # recalc-attendance, …
+│   ├── state/                    # typed enums + guards for status columns
+│   ├── validation/               # shared Zod schemas
+│   ├── errors/                   # toResponse() — canonical error mapping
+│   ├── canonical.ts              # Member/Org/Period aliases
 │   ├── ai.ts                     # OpenAI client + shared narrate() helper
-│   ├── ai-prompt.ts              # buildSystemPrompt — shared by route + eval harness
+│   ├── ai-prompt.ts              # buildSystemPrompt
 │   ├── ai-tools.ts               # tool schemas + dispatcher + validateArgs
 │   ├── auth/                     # require-user, require-permission, require-admin
-│   ├── permissions.ts            # 10-bit permission flags + helpers
+│   ├── permissions.ts            # 11-bit permission flags + helpers
 │   ├── seed-roles.ts             # system role seeding (idempotent)
 │   ├── og-metadata.ts            # Doc URL probe (OG tags, favicon, embed-OK check)
 │   ├── supabase/                 # client.ts, server.ts, admin.ts
@@ -238,11 +273,11 @@ figurints/
 │   ├── rate-limit.ts             # per-user mutation/chat rate limiter
 │   └── prisma.ts                 # Prisma singleton over pg.Pool
 ├── evals/ask-the-chapter/        # AI eval cases + how-to
-├── scripts/                      # eval-ask-the-chapter.ts, seed-roles.ts,
-│                                 # apply-roles-migration.ts, dedupe-*, diag-*
+├── scripts/                      # eval-ask-the-chapter.ts, seed-roles.ts, diag-*, dedupe-*
 ├── prisma/                       # schema, seed, migrations
 ├── supabase/                     # storage bucket + RLS SQL
-├── proxy.ts                      # Next.js middleware (auth gate)
+├── tests/tenancy/                # tenancy isolation tests
+├── proxy.ts                      # Next.js middleware (auth gate + org resolution)
 ├── prisma.config.ts              # Prisma 7 datasource for CLI
 └── next.config.ts
 ```
@@ -257,30 +292,32 @@ figurints/
         ▼
 2. proxy.ts checks for a valid Supabase session cookie
         │
-        ├── No session ──────────────────────────────► /login
+        ├── No session ──────────────────────────────────► /login
         │
-        └── Session but no brother_linked cookie ─────► /pending-access
+        └── Session + active_org_id cookie ──────────────► app (org context resolved)
+                │
+                └── Session but no memberships ───────────► /pending-access
+                                                             (or /welcome — planned)
                 │
                 ▼
 3. /login — "Continue with Google" → Supabase OAuth
         │
         ▼
-4. /auth/callback — exchanges code for a session, checks the Brother table
+4. /auth/callback — exchanges code for session, checks Brother + Membership tables
         │
-        ├── Brother row with this authUserId exists
-        │       → set brother_linked cookie → /
+        ├── Membership found for this authUserId + org → set brother_linked cookie → /
         │
-        └── No Brother row yet → /pending-access
+        └── No Membership yet → /pending-access
                 │
                 ▼
 5. User types their name → POST /api/auth/claim
         │
-        ├── Name matches one unclaimed Brother row → link it
+        ├── Name matches one unclaimed Brother row → link it, create Membership
         └── Name is "Atomic Samurai" → provision a hidden ghost row (full access, no footprint)
                 │
                 ▼
-6. authUserId written to the Brother row
-        → set brother_linked cookie → /
+6. authUserId written to the Brother row, Membership created
+        → set brother_linked + active_org_id cookies → /
 ```
 
 **Admin workflow:** add a `Brother` row from the Brothers page **before** the person signs in. They claim it themselves on first login by entering their name exactly.
@@ -291,10 +328,20 @@ figurints/
 
 Defined in [prisma/schema.prisma](prisma/schema.prisma). Highlights:
 
+### Organization
+The tenant root. Every domain row carries an `organizationId` FK here. `slug` is unique and used for org routing.
+
+### Membership
+Links a `Brother` to an `Organization`. `isOrgAdmin` grants all permission bits within that org. One `Brother` can have many `Membership` rows (multi-org).
+
+### PlatformAdmin
+A separate table (not a flag on `Brother`) for cross-org superusers. One row per platform staff member.
+
 ### Brother
 | Column | Type | Notes |
 |--------|------|-------|
 | id | Int | PK |
+| organizationId | Int | FK → Organization |
 | name | String | |
 | role | String | e.g. "President · Rush" |
 | attendance | Float | 0–100, system-managed |
@@ -304,21 +351,25 @@ Defined in [prisma/schema.prisma](prisma/schema.prisma). Highlights:
 | authUserId | String? | Supabase user UUID, set on claim (unique) |
 | avatarUrl | String? | Custom profile photo (source of truth) |
 | email | String? | Cached from the session |
-| isAdmin | Boolean | Superuser flag — bypasses every permission check |
+| isAdmin | Boolean | Legacy flag; prefer `Membership.isOrgAdmin` in new code |
 | isGhost | Boolean | Hidden observer — excluded from all listings/counts |
 | roles | BrotherRole[] | Many-to-many join to `Role` |
+| memberships | Membership[] | Orgs this brother belongs to |
 
 ### Role / BrotherRole
-`Role` is a named bundle of permission bits with a hierarchy `rank` and optional UI `color`. `permissions` is a 32-bit integer; meanings are defined in [lib/permissions.ts](lib/permissions.ts). `isSystem = true` protects seeded roles (e.g. **President**) from rename/delete. `BrotherRole` is the join table — a brother's effective permissions are the bitwise OR of every role they hold.
+`Role` is a named bundle of permission bits with a hierarchy `rank` and optional UI `color`. `permissions` is a 32-bit integer; meanings are defined in [lib/permissions.ts](lib/permissions.ts). `isSystem = true` protects seeded roles from rename/delete. `BrotherRole` is the join table — a member's effective permissions are the bitwise OR of every role they hold.
+
+### OperationalEvent
+Structured audit log. Every meaningful state change emitted by a service lands here (`action`, `subjectType`, `subjectId`, `actorId`, `orgId`, `metadata` JSON). Drives reactions via the event handler registry and dual-writes to `ActivityLog` for the UI feed.
 
 ### CalendarEvent
-Chapter events: `title`, `date` (YYYY-MM-DD), optional `time`, `category`, `mandatory` (counts toward attendance), `description` (doubles as meeting notes), `location`, plus `notesSummary` + `notesSummaryAt` for AI-generated summaries.
+Chapter events: `title`, `date`, optional `time`, `category`, `mandatory`, `description` (doubles as meeting notes), `location`, plus `notesSummary` + `notesSummaryAt` for AI-generated summaries.
 
 ### AttendanceRecord / AttendanceExcuse
-`AttendanceRecord` links a `Brother` to a `CalendarEvent` in a `Semester` with an `attended` flag. `AttendanceExcuse` records an approved/pending excuse for a missed mandatory event (`isRetroactive`, `status`); approved excuses don't count against attendance.
+`AttendanceRecord` links a `Brother` to a `CalendarEvent` in a `Semester` with an `attended` flag. `AttendanceExcuse` records an approved/pending excuse; approved excuses don't count against attendance.
 
 ### Semester
-`label` (unique, e.g. `SPR26`), `startDate`, `endDate`, `isActive` (one active at a time).
+`label` (unique per org, e.g. `SPR26`), `startDate`, `endDate`, `isActive` (one active at a time per org).
 
 ### Transaction
 Treasury entries with `type` (`income`/`expense`), `category`, `amount`, `paymentMethod`. Soft-deleted via `deletedAt`.
@@ -326,26 +377,8 @@ Treasury entries with `type` (`income`/`expense`), `category`, `amount`, `paymen
 ### Budget / BudgetAllocation
 Per-semester budget (`carryoverBalance`, `reserveAmount`) with line-item `allocations`.
 
-### PartyEvent
-Door revenue, expenses, attendance count, theme/collab, and wrap-up status per party.
-
-### ServiceEvent
-Community-service log; optionally tied to a `CalendarEvent`.
-
-### InstagramTask
-Content calendar items with `status` (Urgent / Due Soon / Upcoming / Complete) and `type` (Feed Post, Reel, Story, Carousel, …).
-
-### Deadline
-Chapter deadlines with `owner` (assigned brother) and `status`.
-
-### Doc
-Pinned chapter links with cached OG metadata (`ogImage`, `ogTitle`, `faviconUrl`) plus an `embedOk` flag — `null` = unprobed, `false` = the site blocks iframing, so the UI renders the OG image card instead of an `<iframe>`. Metadata is refreshed on create and on URL change.
-
-### ChapterAnnouncement
-The single pinned dashboard announcement. Always exactly one row at `id = 1` — GET returns it (or null), PUT upserts it. Records `title`, `body`, optional `ctaLabel`/`ctaUrl`, and the last editor.
-
-### ActivityLog
-Audit/feed entries (`message`, `type`, `timestamp`, optional `actorId` → Brother, `SetNull` on delete).
+### PartyEvent / ServiceEvent / InstagramTask / Deadline / Doc / ChapterAnnouncement / ActivityLog
+See [prisma/schema.prisma](prisma/schema.prisma) for full field lists. All carry `organizationId`.
 
 ---
 
@@ -359,12 +392,12 @@ cp .env.example .env.local
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `DATABASE_URL` | Yes | Runtime Postgres connection. Use the Supabase **pooled** URL (PgBouncer, port 6543) — short-lived serverless functions need pooling. |
+| `DATABASE_URL` | Yes | Runtime Postgres connection. Use the Supabase **pooled** URL (PgBouncer, port 6543). |
 | `DIRECT_URL` | Recommended | A **direct** session connection (port 5432) used by Prisma CLI commands (`migrate`, `db seed`). Migrations hang over the pooled URL because PgBouncer doesn't support DDL/advisory locks. `prisma.config.ts` falls back to `DATABASE_URL` if unset. |
 | `NEXT_PUBLIC_SUPABASE_URL` | Yes | Your Supabase project URL. |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Yes | Supabase anon/public key. |
-| `SUPABASE_SERVICE_ROLE_KEY` | Optional | Server-only. Enables admin reads of auth metadata (e.g. backfilling avatars). Never expose to the client. |
-| `OPENAI_API_KEY` | Optional | Enables the AI features (chat, digest narration, meeting summaries). All three stay dormant and degrade gracefully when unset. |
+| `SUPABASE_SERVICE_ROLE_KEY` | Optional | Server-only. Enables admin reads of auth metadata. Never expose to the client. |
+| `OPENAI_API_KEY` | Optional | Enables AI features (chat, digest narration, meeting summaries). All three degrade gracefully when unset. |
 | `SENTRY_DSN` | Optional | When set, `logError` forwards to Sentry via a lazy dynamic import. No dependency cost when unset. |
 
 **Where to find these in Supabase:**
@@ -412,7 +445,7 @@ npx prisma generate
 Output goes to `app/generated/prisma/` (gitignored — generated locally and in CI).
 
 **6. Enable profile photos (optional)**
-Run the SQL in `supabase/` to create the `avatars` storage bucket and its RLS policies. Without it, sign-in still works but uploading a profile photo will fail.
+Run the SQL in `supabase/` to create the `avatars` storage bucket and its RLS policies.
 
 **7. Seed sample data (optional)**
 ```bash
@@ -423,7 +456,7 @@ npx prisma db seed
 ```bash
 npm run dev
 ```
-Open [http://localhost:3000](http://localhost:3000), sign in with Google, then claim your brother row on `/pending-access`.
+Open [http://localhost:3000](http://localhost:3000), sign in with Google, then claim your member row on `/pending-access`.
 
 **9. (Optional) Run the AI eval harness**
 With `OPENAI_API_KEY` set and the DB seeded:
@@ -446,7 +479,7 @@ Built for **Vercel** with a Supabase backend.
    ```
 4. **Deploy.** The `build` script runs `prisma generate && next build` on each push to `main`.
 
-> **Migrations are not run by the build.** `next build` only generates the Prisma client. Apply schema changes with `npx prisma migrate deploy` against the production database (locally with prod `DIRECT_URL`, or via your CI/pipeline) — otherwise new columns won't exist and queries will error.
+> **Migrations are not run by the build.** Apply schema changes with `npx prisma migrate deploy` against the production database (locally with prod `DIRECT_URL`, or via your CI/pipeline) — otherwise new columns won't exist and queries will error.
 
 > **Connection pooling.** Use the pooled URL (port 6543) for `DATABASE_URL` so short-lived Vercel functions don't exhaust connections, and the direct URL (port 5432) for `DIRECT_URL` so migrations work.
 
@@ -455,5 +488,5 @@ Built for **Vercel** with a Supabase backend.
 - [ ] Production redirect URL added in Supabase Auth
 - [ ] `npx prisma migrate deploy` run against the production database
 - [ ] `avatars` storage bucket + policies created (if using profile photos)
-- [ ] At least one `Brother` row exists (or an admin) so the first user can claim it
+- [ ] At least one `Organization` row and one `Brother` row exist (or seed them) so the first user can claim
 - [ ] (If using AI) `OPENAI_API_KEY` set; verify the chat widget appears
