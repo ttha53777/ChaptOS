@@ -1,7 +1,7 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { extractSlug } from "@/lib/slug-extract";
 
 // The /welcome route. Reached after Google sign-in when the authenticated user
 // has no linked Brother (i.e. they came in cold, with no ?org= hint that the
@@ -15,29 +15,7 @@ import { useEffect, useState } from "react";
 // The page does not need to be wrapped in Suspense — it does not read search
 // params synchronously like /login does.
 
-const URL_HOST_PATTERNS = [
-  // Common shapes the user might paste from a teammate's link.
-  /https?:\/\/[^/]*?([a-z0-9-]+)\./i, // subdomain (alpha.figurints.com)
-  /[?&]org=([a-z0-9-]+)/i,             // ?org= query param
-];
-
-/**
- * Extract a slug candidate from raw user input. Accepts either a bare slug
- * ("alpha") or a pasted URL. Returns the lowercased, trimmed candidate; the
- * format validator on the server does the final say.
- */
-function extractSlug(raw: string): string {
-  const trimmed = raw.trim();
-  if (!trimmed) return "";
-  for (const pat of URL_HOST_PATTERNS) {
-    const m = trimmed.match(pat);
-    if (m?.[1]) return m[1].toLowerCase();
-  }
-  return trimmed.toLowerCase();
-}
-
 export default function WelcomePage() {
-  const router = useRouter();
   const [mode, setMode] = useState<"choice" | "join">("choice");
 
   // If the user reaches /welcome but is already linked to an org (e.g. they
@@ -103,7 +81,7 @@ export default function WelcomePage() {
           {mode === "choice" ? (
             <ChoiceCards onJoin={() => setMode("join")} />
           ) : (
-            <JoinForm onCancel={() => setMode("choice")} router={router} />
+            <JoinForm onCancel={() => setMode("choice")} />
           )}
 
           <footer className="flex items-center justify-center gap-2">
@@ -167,13 +145,7 @@ function ChoiceCards({ onJoin }: { onJoin: () => void }) {
   );
 }
 
-function JoinForm({
-  onCancel,
-  router,
-}: {
-  onCancel: () => void;
-  router: ReturnType<typeof useRouter>;
-}) {
+function JoinForm({ onCancel }: { onCancel: () => void }) {
   const [input, setInput]   = useState("");
   const [error, setError]   = useState<string | null>(null);
   const [busy, setBusy]     = useState(false);
