@@ -25,7 +25,8 @@ export type SubjectType =
   | "InstagramTask"
   | "Doc"
   | "ChapterAnnouncement"
-  | "Semester";
+  | "Semester"
+  | "Organization";
 
 // Metadata schemas per action. Each key is an Action; each value is the shape
 // passed to emit() and received by handlers. Keep payloads small and stable —
@@ -83,6 +84,9 @@ export interface EventMetadata {
   "announcement.updated": { title: string };
   "semester.created":     { label: string };
   "semester.activated":   { label: string };
+
+  // Onboarding
+  "org.created": { name: string; slug: string; orgType: string; founderName: string };
 }
 
 export type Action = keyof EventMetadata;
@@ -99,6 +103,7 @@ const KNOWN_ACTIONS = new Set<Action>([
   "instagram_task.created", "instagram_task.updated", "instagram_task.deleted",
   "doc.created", "doc.updated", "doc.deleted",
   "announcement.updated", "semester.created", "semester.activated",
+  "org.created",
 ]);
 
 export function isKnownAction(action: string): action is Action {

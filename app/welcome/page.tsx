@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { extractSlug } from "@/lib/slug-extract";
 
@@ -117,28 +118,26 @@ function ChoiceCards({ onJoin }: { onJoin: () => void }) {
         </div>
       </button>
 
-      {/* Create is wired up in Milestone 3. Stub for now. */}
-      <button
-        disabled
-        title="Coming soon"
-        className="group relative overflow-hidden rounded-xl border border-white/[0.06] bg-white/[0.02] px-5 py-4 text-left opacity-60 cursor-not-allowed"
+      <Link
+        href="/welcome/create"
+        className="group relative overflow-hidden rounded-xl border border-white/[0.08] bg-white/[0.02] px-5 py-4 text-left transition-all hover:border-white/[0.16] hover:bg-white/[0.04] focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
       >
         <div className="flex items-start gap-3">
-          <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/[0.04] text-white/40">
+          <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/[0.06] text-white/70">
             <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
               <path d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" />
             </svg>
           </div>
           <div className="flex flex-col gap-1">
-            <span className="text-[14px] font-semibold text-white/70">
+            <span className="text-[14px] font-semibold text-white">
               Create a new organization
             </span>
-            <span className="text-[12px] text-white/40 leading-relaxed">
-              Coming soon — self-serve setup for a new chapter, club, or org.
+            <span className="text-[12px] text-white/50 leading-relaxed">
+              Start fresh — name your org, pick a type, and become its first admin.
             </span>
           </div>
         </div>
-      </button>
+      </Link>
 
       <SignOutLink />
     </div>
