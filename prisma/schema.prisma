@@ -8,11 +8,23 @@ datasource db {
 }
 
 // The tenant. One row per chapter (or any org). All domain rows carry a FK here.
+//
+// `orgType` is the registry key from lib/org-types.ts. It drives which workflow
+// template was applied at creation — enabled workflows, role seeds, vocabulary.
+// Nullable so existing rows (LPE) can backfill in a follow-up migration; new
+// orgs always get a value via the create-org flow.
+//
+// `createdByBrotherId` records which Brother provisioned the org. Nullable so
+// migration-seeded orgs (LPE) don't need a synthetic creator. Not enforced
+// with a FK constraint to avoid a circular Brother↔Organization dependency
+// during fresh provisioning (the Brother row is created in the same transaction).
 model Organization {
-  id          Int      @id @default(autoincrement())
-  name        String
-  slug        String   @unique
-  createdAt   DateTime @default(now())
+  id                 Int      @id @default(autoincrement())
+  name               String
+  slug               String   @unique
+  orgType            String?
+  createdByBrotherId Int?
+  createdAt          DateTime @default(now())
 
   memberships        Membership[]
   brothers           Brother[]
@@ -30,6 +42,31 @@ model Organization {
   announcements      ChapterAnnouncement[]
   operationalEvents  OperationalEvent[]
   brotherRoles       BrotherRole[]
+  config             OrganizationConfig?
+}
+
+// Per-org configuration extracted from Organization to keep the hot row small.
+// One row per org (enforced by the unique constraint). Created alongside the
+// Organization in the same transaction during self-serve provisioning.
+//
+// `enabledWorkflows` is the list of workflow registry keys the org has turned
+// on (e.g. ["events", "finance", "members"]). Consumed by the sidebar, the
+// dashboard, and route guards once the workflow registry ships.
+//
+// `vocabularyOverrides` is a sparse map of canonical-term overrides (e.g.
+// { "Member": "Brother", "Period": "Semester" }). Consumed by UI components
+// that respect canonical aliases. Empty by default.
+model OrganizationConfig {
+  id                  Int      @id @default(autoincrement())
+  organizationId      Int      @unique
+  enabledWorkflows    String[] @default([])
+  vocabularyOverrides Json     @default("{}")
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
 }
 
 // Links a Brother (Supabase identity + profile) to an Organization.

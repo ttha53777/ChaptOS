@@ -418,3 +418,57 @@ describe("tenancy: Membership (pass-through integrity)", () => {
     expect(m?.isOrgAdmin).toBe(true);
   });
 });
+
+// ---------------------------------------------------------------------------
+// OrganizationConfig (Milestone 1: org-type + config sibling)
+// ---------------------------------------------------------------------------
+describe("tenancy: OrganizationConfig", () => {
+  it("config rows are 1:1 with the org and isolated by organizationId", async () => {
+    const orgA = await createOrg("Alpha", "alpha");
+    const orgB = await createOrg("Beta", "beta");
+    await testPrisma.organizationConfig.create({
+      data: { organizationId: orgA.id, enabledWorkflows: ["members", "events"] },
+    });
+    await testPrisma.organizationConfig.create({
+      data: { organizationId: orgB.id, enabledWorkflows: ["finance"] },
+    });
+
+    const aCfg = await testPrisma.organizationConfig.findUnique({ where: { organizationId: orgA.id } });
+    const bCfg = await testPrisma.organizationConfig.findUnique({ where: { organizationId: orgB.id } });
+
+    expect(aCfg?.enabledWorkflows).toEqual(["members", "events"]);
+    expect(bCfg?.enabledWorkflows).toEqual(["finance"]);
+  });
+
+  it("organizationId is unique — second config insert for same org fails", async () => {
+    const org = await createOrg("Alpha", "alpha");
+    await testPrisma.organizationConfig.create({
+      data: { organizationId: org.id, enabledWorkflows: [] },
+    });
+    await expect(
+      testPrisma.organizationConfig.create({
+        data: { organizationId: org.id, enabledWorkflows: ["events"] },
+      }),
+    ).rejects.toThrow();
+  });
+
+  it("config cascades when the parent org is deleted", async () => {
+    const org = await createOrg("Alpha", "alpha");
+    await testPrisma.organizationConfig.create({
+      data: { organizationId: org.id, enabledWorkflows: ["members"] },
+    });
+    await testPrisma.organization.delete({ where: { id: org.id } });
+    const remaining = await testPrisma.organizationConfig.findMany({
+      where: { organizationId: org.id },
+    });
+    expect(remaining).toEqual([]);
+  });
+
+  it("Organization.orgType persists when set on create", async () => {
+    const org = await testPrisma.organization.create({
+      data: { name: "Alpha", slug: "alpha", orgType: "fraternity" },
+    });
+    const read = await testPrisma.organization.findUnique({ where: { id: org.id } });
+    expect(read?.orgType).toBe("fraternity");
+  });
+});
