@@ -88,14 +88,15 @@ export async function provisionOrg(
     throw new Error(`Template ${template.id} is missing a founder role`);
   }
 
+  // Inputs are already trimmed by Zod's z.string().trim() in createOrgInput.
   let result: ProvisionedOrg;
   try {
     result = await prisma.$transaction(async (tx) => {
       // 1. Organization.
       const org = await tx.organization.create({
         data: {
-          name:    input.name.trim(),
-          slug:    input.slug.trim(),
+          name:    input.name,
+          slug:    input.slug,
           orgType: template.id,
         },
         select: { id: true, slug: true },
@@ -110,13 +111,15 @@ export async function provisionOrg(
         },
       });
 
-      // 3. Founder Brother. Note: no role string token here ("Brother" by
-      // convention) — the role hierarchy is carried by BrotherRole now.
+      // 3. Founder Brother. The legacy `role` string is set to the founder
+      // role's name so existing UI bits that read it (sidebar header, brother
+      // table) show something meaningful. The real authority lives in
+      // BrotherRole below.
       const brother = await tx.brother.create({
         data: {
           organizationId: org.id,
-          name:           input.founderName.trim(),
-          role:           founderRoleSpec.name, // legacy string field — keep useful
+          name:           input.founderName,
+          role:           founderRoleSpec.name,
           attendance:     0,
           duesOwed:       0,
           gpa:            0,
@@ -184,7 +187,7 @@ export async function provisionOrg(
           subjectType:    "Organization",
           subjectId:      org.id,
           metadata: {
-            name:        input.name.trim(),
+            name:        input.name,
             slug:        org.slug,
             orgType:     template.id,
             founderName: brother.name,
@@ -196,8 +199,18 @@ export async function provisionOrg(
     });
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
-      // Race condition: another request grabbed this slug between the
-      // slug-check call and the create. Or the user is double-claiming.
+      // Two unique constraints can produce P2002 here:
+      //   * Organization.slug         — slug got taken between slug-check and create.
+      //   * Brother.authUserId        — the same Google user fired POST twice
+      //                                 (e.g. double-click) and the second one
+      //                                 lost the race to insert the Brother.
+      // Prisma's meta.target tells us which. Fall back to the slug message if
+      // the target shape is ambiguous — the user can still resolve by retrying.
+      const target = (e.meta as { target?: string[] | string } | undefined)?.target;
+      const fields = Array.isArray(target) ? target : typeof target === "string" ? [target] : [];
+      if (fields.some(f => f.includes("authUserId"))) {
+        throw new ConflictError("Your account is already linked to an organization.");
+      }
       throw new ConflictError("That slug is already taken. Try another.");
     }
     throw e;
@@ -208,7 +221,7 @@ export async function provisionOrg(
   await logActivity({
     actorId: result.brotherId,
     type:    "success",
-    message: `${input.founderName.trim()} created the ${input.name.trim()} organization`,
+    message: `${input.founderName} created the ${input.name} organization`,
     orgId:   result.organizationId,
   }).catch(err => {
     logError(err, {

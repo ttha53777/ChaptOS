@@ -133,9 +133,19 @@ describe("provisionOrg: rejection paths", () => {
 
   it("rejects when the auth user already has a Brother somewhere", async () => {
     await provisionOrg({ ...VALID, slug: "first" }, "u-e", null);
-    await expect(
-      provisionOrg({ ...VALID, slug: "second" }, "u-e", null),
-    ).rejects.toBeInstanceOf(ConflictError);
+    const err = await provisionOrg({ ...VALID, slug: "second" }, "u-e", null).catch(e => e);
+    expect(err).toBeInstanceOf(ConflictError);
+    // The user-facing message must mention the account link, not the slug —
+    // otherwise the founder thinks they need to try a different slug, which
+    // wouldn't help.
+    expect(err.message).toMatch(/account/i);
+  });
+
+  it("rejects duplicate slug with a slug-specific message (not account-linked)", async () => {
+    await provisionOrg(VALID, "u-slug-1", null);
+    const err = await provisionOrg(VALID, "u-slug-2", null).catch(e => e);
+    expect(err).toBeInstanceOf(ConflictError);
+    expect(err.message).toMatch(/slug/i);
   });
 
   it("leaves no orphans when provisioning fails inside the transaction", async () => {
@@ -152,9 +162,12 @@ describe("provisionOrg: rejection paths", () => {
 });
 
 describe("provisionOrg: trim + sanitization", () => {
-  it("trims org name, slug, founder name", async () => {
+  it("trims org name, slug, founder name (via Zod schema upstream)", async () => {
+    // provisionOrg expects already-parsed Zod output; the route calls
+    // createOrgInput.parse() first. We pass already-trimmed strings here to
+    // match the contract; the create-org route test confirms the parsing.
     const out = await provisionOrg(
-      { name: "  Test Org  ", slug: "  trimmed  ", orgType: "fraternity", founderName: "  Jordan  " },
+      { name: "Test Org", slug: "trimmed", orgType: "fraternity", founderName: "Jordan" },
       "u-trim",
       null,
     );
@@ -165,5 +178,24 @@ describe("provisionOrg: trim + sanitization", () => {
     expect(org!.name).toBe("Test Org");
     expect(org!.slug).toBe("trimmed");
     expect(org!.brothers[0]!.name).toBe("Jordan");
+  });
+});
+
+describe("provisionOrg → org discoverable by Join lookup", () => {
+  it("an org provisioned here is immediately findable by slug", async () => {
+    // Ensures the org-create → org-lookup loop is complete end-to-end.
+    // A regression where slug case or whitespace differed between the two
+    // paths would show up here first.
+    const out = await provisionOrg(
+      { name: "Lookup Test", slug: "lookup-test", orgType: "generic-org", founderName: "Alex" },
+      "u-discoverable",
+      null,
+    );
+    const found = await testPrisma.organization.findUnique({
+      where: { slug: "lookup-test" },
+      select: { id: true, name: true },
+    });
+    expect(found?.id).toBe(out.organizationId);
+    expect(found?.name).toBe("Lookup Test");
   });
 });
