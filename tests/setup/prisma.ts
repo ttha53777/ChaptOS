@@ -45,6 +45,7 @@ export async function resetDb(): Promise<void> {
       "Membership",
       "PlatformAdmin",
       "Brother",
+      "OrganizationConfig",
       "Organization"
     RESTART IDENTITY CASCADE;
   `);
