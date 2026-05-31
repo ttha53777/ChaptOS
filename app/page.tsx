@@ -1103,8 +1103,15 @@ export default function Home() {
   useEffect(() => {
     const controller = new AbortController();
     fetch("/api/calendar", { signal: controller.signal })
-      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
-      .then((data: CalendarEvent[]) => setCalendarList(data))
+      .then(r => {
+        // 401 here means the fetch raced the session cookie on a hard
+        // navigation. ChapterContext's redirect handler covers the real
+        // unauth case; treating this as an error just spams the console.
+        if (r.status === 401) return null;
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
+      .then((data: CalendarEvent[] | null) => { if (data) setCalendarList(data); })
       .catch(err => { if (err.name !== "AbortError") console.error("Failed to load calendar", err); });
     return () => controller.abort();
   }, []);
