@@ -50,9 +50,17 @@ export async function GET(request: NextRequest) {
       maxAge: 60 * 60 * 24 * 365,
     });
     // res already redirects to "/"
-  } else {
-    // Not yet linked — send to claim page, preserving the org slug.
+  } else if (orgSlug) {
+    // Unlinked but the org context was preserved through OAuth (e.g. they
+    // started at /login?org=lpe). Skip the choice screen — they already know
+    // which org they're joining.
     return NextResponse.redirect(buildUrl(origin, "/pending-access", orgSlug), {
+      headers: res.headers,
+    });
+  } else {
+    // Unlinked and no org hint — cold cross-org user. Drop them on /welcome
+    // to choose between joining an existing org and creating a new one.
+    return NextResponse.redirect(buildUrl(origin, "/welcome", null), {
       headers: res.headers,
     });
   }
