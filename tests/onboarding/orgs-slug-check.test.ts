@@ -44,6 +44,24 @@ describe("GET /api/orgs/slug-check", () => {
     expect(body.reason).toBe("taken");
   });
 
+  it("includes available suggestions on taken", async () => {
+    await createOrg("Alpha", "alpha");
+    const res = await GET(buildReq("alpha"));
+    const body = await res.json();
+    expect(Array.isArray(body.suggestions)).toBe(true);
+    expect(body.suggestions.length).toBeGreaterThan(0);
+    // None of the suggestions should be the original taken slug.
+    expect(body.suggestions).not.toContain("alpha");
+  });
+
+  it("filters out suggestions that are also taken", async () => {
+    await createOrg("Alpha", "alpha");
+    await createOrg("Alpha2", "alpha-2");
+    const res = await GET(buildReq("alpha"));
+    const body = await res.json();
+    expect(body.suggestions).not.toContain("alpha-2");
+  });
+
   it("returns reserved without hitting the DB", async () => {
     const res = await GET(buildReq("admin"));
     expect(res.status).toBe(200);
