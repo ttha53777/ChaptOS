@@ -13,10 +13,13 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(buildUrl(origin, "/login", orgSlug, "error=auth"));
   }
 
-  // Build a response first so we can write cookies onto it. Linked users land
-  // on the dashboard with ?toast=welcome so the client can show a brief
-  // "Welcome to <org>" toast (stripped from the URL on mount).
-  const res = NextResponse.redirect(`${origin}/?toast=welcome`);
+  // Single cookie-bearing response. Supabase's setAll writes the session
+  // cookies (or cookie-clears, on failure) onto `cookieJar`; every redirect we
+  // return MUST carry cookieJar's headers, otherwise those Set-Cookie headers
+  // are silently dropped. We start it pointed at the dashboard but rewrite the
+  // Location per branch via `redirectTo()` so the cookies survive regardless of
+  // where the user ends up.
+  const cookieJar = new NextResponse(null);
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -26,17 +29,23 @@ export async function GET(request: NextRequest) {
         getAll: () => request.cookies.getAll(),
         setAll: (list) => {
           list.forEach(({ name, value, options }) =>
-            res.cookies.set(name, value, options)
+            cookieJar.cookies.set(name, value, options)
           );
         },
       },
     }
   );
 
+  // Redirect to `url` while preserving any cookies Supabase wrote onto cookieJar.
+  const redirectTo = (url: string) =>
+    NextResponse.redirect(url, { headers: cookieJar.headers });
+
   const { data, error } = await supabase.auth.exchangeCodeForSession(code);
 
   if (error || !data.user) {
-    return NextResponse.redirect(buildUrl(origin, "/login", orgSlug, "error=auth"));
+    // Carry cookieJar headers here too: on a failed exchange Supabase may have
+    // expired a stale/invalid session cookie, and we want that clear to land.
+    return redirectTo(buildUrl(origin, "/login", orgSlug, "error=auth"));
   }
 
   const brother = await prisma.brother.findUnique({
@@ -45,29 +54,26 @@ export async function GET(request: NextRequest) {
   });
 
   if (brother) {
-    res.cookies.set("brother_linked", "1", {
+    // Linked user → dashboard with the welcome toast.
+    cookieJar.cookies.set("brother_linked", "1", {
       path: "/",
       httpOnly: true,
       sameSite: "lax",
       maxAge: 60 * 60 * 24 * 365,
     });
-    // res already redirects to "/"
-  } else if (orgSlug) {
+    return redirectTo(`${origin}/?toast=welcome`);
+  }
+
+  if (orgSlug) {
     // Unlinked but the org context was preserved through OAuth (e.g. they
     // started at /login?org=lpe). Skip the choice screen — they already know
     // which org they're joining.
-    return NextResponse.redirect(buildUrl(origin, "/pending-access", orgSlug), {
-      headers: res.headers,
-    });
-  } else {
-    // Unlinked and no org hint — cold cross-org user. Drop them on /welcome
-    // to choose between joining an existing org and creating a new one.
-    return NextResponse.redirect(buildUrl(origin, "/welcome", null), {
-      headers: res.headers,
-    });
+    return redirectTo(buildUrl(origin, "/pending-access", orgSlug));
   }
 
-  return res;
+  // Unlinked and no org hint — cold cross-org user. Drop them on /welcome
+  // to choose between joining an existing org and creating a new one.
+  return redirectTo(buildUrl(origin, "/welcome", null));
 }
 
 /**

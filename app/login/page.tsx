@@ -52,12 +52,46 @@ function LoginContent() {
   // On mount, decide State A vs B. A ?org= hint always forces State B with the
   // slug pre-filled so shared links don't get hijacked by a stale localStorage
   // entry for a different org.
+  //
+  // For a remembered org we REVALIDATE against /api/orgs/lookup before showing
+  // the one-click card: the org may have been renamed or deleted since we cached
+  // it, and trusting a stale slug would OAuth the user into a dead
+  // /pending-access. While the check is in flight `remembered` stays null (the
+  // placeholder shows). On a network error we trust the cache rather than lock
+  // the user out over a blip.
   useEffect(() => {
+    let cancelled = false;
     if (orgHint) {
       setRemembered(false);
       return;
     }
-    setRemembered(readLastOrg() ?? false);
+    const cached = readLastOrg();
+    if (!cached) {
+      setRemembered(false);
+      return;
+    }
+    (async () => {
+      try {
+        const res = await fetch(`/api/orgs/lookup?slug=${encodeURIComponent(cached.slug)}`);
+        if (cancelled) return;
+        if (res.ok) {
+          // Refresh the name in case it changed; re-persist for next time.
+          const data = (await res.json()) as RememberedOrg;
+          try { localStorage.setItem(LAST_ORG_KEY, JSON.stringify(data)); } catch { /* ignore */ }
+          setRemembered(data);
+        } else if (res.status === 404 || res.status === 400) {
+          // Org gone or slug no longer valid — drop the stale entry, show picker.
+          try { localStorage.removeItem(LAST_ORG_KEY); } catch { /* ignore */ }
+          setRemembered(false);
+        } else {
+          // Server hiccup (5xx/429) — fall back to the cached value.
+          setRemembered(cached);
+        }
+      } catch {
+        if (!cancelled) setRemembered(cached); // network error — trust the cache
+      }
+    })();
+    return () => { cancelled = true; };
   }, [orgHint]);
 
   // Still resolving localStorage — render nothing visible to avoid a flash of

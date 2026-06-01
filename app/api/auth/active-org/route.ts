@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ACTIVE_ORG_COOKIE, requireUser } from "@/lib/auth/require-user";
+import { isSameOrigin } from "@/lib/auth/same-origin";
 
 /**
  * POST /api/auth/active-org  body: { organizationId: number }
@@ -8,6 +9,12 @@ import { ACTIVE_ORG_COOKIE, requireUser } from "@/lib/auth/require-user";
  * target org (or be a platform admin).
  */
 export async function POST(req: NextRequest) {
+  // CSRF guard: this is a SameSite=Lax-cookie-gated state change, so reject
+  // cross-origin browser POSTs before doing anything.
+  if (!isSameOrigin(req)) {
+    return Response.json({ error: "Cross-origin request rejected" }, { status: 403 });
+  }
+
   const user = await requireUser();
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
