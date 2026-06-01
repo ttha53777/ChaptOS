@@ -10,19 +10,18 @@ import { ActiveOrgSync } from "./ActiveOrgSync";
  * runs server-side BEFORE any render and enforces access:
  *
  *   - Not signed in                  → /login?org=<slug>  (org-first sign-in)
- *   - Signed in, member of <slug>    → render; sync active_org_id cookie ← slug
- *   - Signed in, NOT a member, but
- *       the slug is a real org        → access-denied page (request access)
- *   - Signed in, slug isn't a real
- *       org for this user             → bounce to their own org / /welcome
- *   - Platform admin                 → always allowed (cross-org access)
+ *   - Signed in, member of <slug>    → render (sync cookie ← slug if stale)
+ *   - Signed in, has memberships but
+ *       not this slug                 → access-denied page (request access)
+ *   - Signed in, zero memberships     → /welcome (onboarding)
+ *   - Platform admin (non-member)     → render chrome only (see caveat below)
  *
  * Cookie sync note: Next forbids writing cookies during Server Component render
- * (see node_modules/next/dist/docs/.../cookies.md). So when the URL slug differs
+ * (see node_modules/next/dist/docs/.../cookies.md). So when the URL's org differs
  * from the cookie-resolved active org, we can't set the cookie here. Instead we
- * render <ActiveOrgSync> — a client component that POSTs /api/auth/active-org to
- * align the cookie, then refreshes data. For the common case (cookie already
- * matches the URL) it's a no-op.
+ * render <ActiveOrgSync> in place of the page — a client component that POSTs
+ * /api/auth/active-org to align the cookie, then reloads. The common case (cookie
+ * already matches the URL) skips it entirely — zero overhead.
  */
 export default async function OrgLayout({
   params,
@@ -46,29 +45,40 @@ export default async function OrgLayout({
 
   if (!membership) {
     if (user.isPlatformAdmin) {
-      // Platform admins may view any org. The data layer follows the active_org
-      // cookie, so they must explicitly switch via the cookie to load this org's
-      // data — ActiveOrgSync can't help them (they have no membership row to
-      // resolve an orgId from the slug). Cross-org admin viewing by URL is a
-      // follow-up; for now allow the chrome to render.
+      // Platform admins may view any org's CHROME by URL, but the data layer
+      // follows the active_org cookie — and requireUser() only honors that
+      // cookie when it points at one of the user's OWN memberships (see
+      // require-user.ts: cookieValid). A platform admin has no membership in a
+      // foreign org, so we can't sync the cookie to it without reworking
+      // requireUser to grant admins cross-org cookie authority (a core-auth
+      // change every API depends on). Until then, cross-org admin viewing by URL
+      // shows the admin's active-org data under a foreign slug — misleading, so
+      // admins should use /admin/orgs for cross-org work. Tracked as a follow-up.
       return <>{children}</>;
     }
-    // Member of nothing → onboarding. Member of something else → access-denied
-    // (the slug is a real org, just not theirs).
+    // Member of nothing → onboarding.
     if (user.memberships.length === 0) {
       redirect("/welcome");
     }
+    // Member of some org, but not this slug. We deliberately do NOT check
+    // whether <slug> is a real org here: requireUser only knows the user's own
+    // memberships, and a DB existence probe would leak which slugs exist. So
+    // both "real org you're not in" and "nonexistent slug" land on the same
+    // access-denied page — non-enumerable by design. If the slug is bogus, the
+    // "Request access" link's claim call fails gracefully with "Organization
+    // not found".
     return <AccessDenied slug={slug} homeSlug={homeSlug} />;
   }
 
-  // Authorized. Align the active-org cookie to this URL if it's stale (e.g. a
-  // bookmarked deep-link into a different org than the cookie remembers).
+  // Authorized. If the active-org cookie is stale vs this URL (e.g. a bookmarked
+  // deep-link into a different org than the cookie remembers), render the sync
+  // screen INSTEAD of the children — it aligns the cookie then reloads. Showing
+  // the page now would flash the wrong org's data (ChapterContext would fetch
+  // against the stale cookie before the reload).
   const needsSync = user.orgId !== membership.organizationId;
+  if (needsSync) {
+    return <ActiveOrgSync organizationId={membership.organizationId} />;
+  }
 
-  return (
-    <>
-      {needsSync && <ActiveOrgSync organizationId={membership.organizationId} />}
-      {children}
-    </>
-  );
+  return <>{children}</>;
 }

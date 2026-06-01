@@ -64,15 +64,17 @@ export function Sidebar({ open, onClose, activeSection, onNavClick }: {
   const { logoUrl } = useOrgLogo();
   const { currentUser } = useChapter();
   const orgName = currentUser?.org?.name ?? "Operations";
-  const slug = currentUser?.org?.slug ?? null;
 
-  // Path *within* the org, i.e. pathname with the "/[slug]" prefix removed.
-  // "/lpe" → "/", "/lpe/treasury" → "/treasury". Active-state checks below
-  // compare against this so they're slug-agnostic. Falls back to the raw
-  // pathname before the slug resolves.
-  const subPath = slug && (pathname === `/${slug}` || pathname.startsWith(`/${slug}/`))
-    ? pathname.slice(`/${slug}`.length) || "/"
-    : pathname;
+  // Path *within* the org, i.e. pathname with the leading "/[slug]" segment
+  // removed. "/lpe" → "/", "/lpe/treasury" → "/treasury". Active-state checks
+  // below compare against this so they're slug-agnostic. We strip by segment
+  // (not by the context slug) so it's correct even before /api/auth/me resolves
+  // — these links only ever render inside /[slug]/*, so segment 1 is the org.
+  const subPath = (() => {
+    if (!pathname || pathname === "/") return "/";
+    const rest = pathname.replace(/^\/[^/]+/, ""); // drop "/<slug>"
+    return rest === "" ? "/" : rest;
+  })();
 
   const semesterLabel = (() => {
     const m = new Date().getMonth(); // 0-based

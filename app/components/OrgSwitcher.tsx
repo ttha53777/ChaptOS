@@ -1,6 +1,5 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useChapter } from "../context/ChapterContext";
 
 /**
@@ -8,13 +7,18 @@ import { useChapter } from "../context/ChapterContext";
  *
  * Switching = navigating to the target org's URL (/<slug>). The /[slug] layout
  * guard reconciles the active_org_id cookie to the URL, so we don't POST here —
- * org identity now flows through the URL, and the cookie just follows. One code
- * path (the guard) keeps cookie ↔ URL in sync for deep-links, bookmarks, OAuth
- * returns, and this switcher alike.
+ * org identity flows through the URL and the cookie follows.
+ *
+ * We use a HARD navigation (location.assign), not router.push. Next caches and
+ * reuses the [slug] layout across navigations that stay within the same layout
+ * file — and /lpe → /other is the SAME layout, just a different param. A soft
+ * push risks the guard (and its cookie-sync <ActiveOrgSync>) not re-running, so
+ * the new org's data would never load. A hard nav guarantees the server layout
+ * re-executes, the cookie syncs, and ChapterContext remounts against the new
+ * org. Org switching is rare; correctness over SPA-smoothness here.
  */
 export function OrgSwitcher() {
   const { currentUser } = useChapter();
-  const router = useRouter();
 
   if (!currentUser || currentUser.memberships.length <= 1) return null;
 
@@ -23,7 +27,7 @@ export function OrgSwitcher() {
     if (!Number.isInteger(organizationId)) return;
     const target = currentUser?.memberships.find(m => m.organizationId === organizationId);
     if (!target) return;
-    router.push(`/${target.orgSlug}`);
+    window.location.assign(`/${target.orgSlug}`);
   }
 
   return (
