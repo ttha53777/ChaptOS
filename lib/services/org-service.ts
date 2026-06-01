@@ -18,9 +18,16 @@ import { randomUUID } from "node:crypto";
 import { Prisma } from "@/app/generated/prisma/client";
 // Provisioning runs before the org exists, so there is no ctx.db yet.
 // Same architectural exception as /api/auth/claim.
-import { prisma } from "@/lib/prisma"; // lint-direct-prisma:ignore (pre-org provisioning)
+//
+// We use the PRIVILEGED client (DIRECT_URL / postgres role) rather than the
+// normal `prisma` here. The figurints_app role cannot INSERT into
+// Organization on Supabase even with permissive WITH CHECK policies — root
+// cause is a Supabase-specific RLS behavior we couldn't pin down via the
+// standard Postgres model. Routing one bootstrap path through the postgres
+// role is the same posture as /api/auth/claim and preserves the app role's
+// RLS enforcement everywhere else.
+import { prismaPrivileged as prisma } from "@/lib/prisma-privileged"; // lint-direct-prisma:ignore (pre-org provisioning, BYPASSRLS by design)
 import { ConflictError, ValidationError } from "@/lib/errors";
-import { logActivity } from "@/lib/activity";
 import { logError } from "@/lib/observability";
 import { validateSlugFormat } from "@/lib/slug-rules";
 import { getOrgType } from "@/lib/org-types";
@@ -213,24 +220,45 @@ export async function provisionOrg(
       }
       throw new ConflictError("That slug is already taken. Try another.");
     }
+    // Any other Prisma error (P2021 missing table, P2003 FK, raw query failure)
+    // becomes an opaque 500 at the route. Log the Prisma code first so the
+    // server log gives the next person debugging this enough to act on.
+    logError(e, {
+      route: "lib/services/org-service",
+      method: "provisionOrg",
+      extra: {
+        slug:    input.slug,
+        orgType: input.orgType,
+        prismaCode: e instanceof Prisma.PrismaClientKnownRequestError ? e.code : undefined,
+      },
+    });
     throw e;
   }
 
-  // Dual-write ActivityLog so the in-product feed shows the org-create event.
-  // Outside the transaction — best-effort, mirrors emit()'s pattern.
-  await logActivity({
-    actorId: result.brotherId,
-    type:    "success",
-    message: `${input.founderName} created the ${input.name} organization`,
-    orgId:   result.organizationId,
-  }).catch(err => {
+  // Dual-write ActivityLog so the new org's dashboard feed shows its
+  // creation event on first load. Best-effort: if this fails, the
+  // OperationalEvent above is still the canonical record.
+  //
+  // Uses the privileged client (same reason as the transaction above): the
+  // figurints_app role can't INSERT into ActivityLog right now because
+  // app.org_id isn't set on this connection.
+  try {
+    await prisma.activityLog.create({
+      data: {
+        organizationId: result.organizationId,
+        actorId:        result.brotherId,
+        type:           "success",
+        message:        `${input.founderName} created the ${input.name} organization`,
+      },
+    });
+  } catch (err) {
     logError(err, {
       route: "lib/services/org-service",
-      method: "provisionOrg.logActivity",
+      method: "provisionOrg.activityLog",
       userId: result.brotherId,
       extra: { orgId: result.organizationId },
     });
-  });
+  }
 
   return result;
 }
