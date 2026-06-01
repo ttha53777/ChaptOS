@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useOrgLogo } from "../hooks/useOrgLogo";
+import { useOrgPath } from "../hooks/useOrgPath";
 import { useChapter } from "../context/ChapterContext";
 import { OrgSwitcher } from "./OrgSwitcher";
 
@@ -59,9 +60,19 @@ export function Sidebar({ open, onClose, activeSection, onNavClick }: {
 }) {
   const pathname = usePathname();
   const router   = useRouter();
+  const orgPath  = useOrgPath();
   const { logoUrl } = useOrgLogo();
   const { currentUser } = useChapter();
   const orgName = currentUser?.org?.name ?? "Operations";
+  const slug = currentUser?.org?.slug ?? null;
+
+  // Path *within* the org, i.e. pathname with the "/[slug]" prefix removed.
+  // "/lpe" → "/", "/lpe/treasury" → "/treasury". Active-state checks below
+  // compare against this so they're slug-agnostic. Falls back to the raw
+  // pathname before the slug resolves.
+  const subPath = slug && (pathname === `/${slug}` || pathname.startsWith(`/${slug}/`))
+    ? pathname.slice(`/${slug}`.length) || "/"
+    : pathname;
 
   const semesterLabel = (() => {
     const m = new Date().getMonth(); // 0-based
@@ -70,8 +81,8 @@ export function Sidebar({ open, onClose, activeSection, onNavClick }: {
   })();
 
   function goToDashboardSection(label: string) {
-    if (pathname !== "/") {
-      router.push("/");
+    if (subPath !== "/") {
+      router.push(orgPath("/"));
       sessionStorage.setItem("scrollTo", label);
     } else {
       onNavClick(label);
@@ -79,14 +90,14 @@ export function Sidebar({ open, onClose, activeSection, onNavClick }: {
     onClose();
   }
 
-  const settingsActive = pathname.startsWith("/settings");
+  const settingsActive = subPath.startsWith("/settings");
 
   return (
     <>
       {open && <div className="fixed inset-0 z-40 bg-black/60 lg:hidden" onClick={onClose} />}
       <aside className={`fixed inset-y-0 left-0 z-50 flex w-56 flex-col border-r border-white/[0.04] bg-[#070a10] transition-transform duration-200 ease-in-out lg:static lg:z-auto lg:translate-x-0 ${open ? "translate-x-0" : "-translate-x-full"}`}>
         <Link
-          href="/"
+          href={orgPath("/")}
           onClick={onClose}
           className="flex h-14 items-center gap-3 border-b border-white/[0.05] px-4 transition-colors hover:bg-white/[0.03]"
           aria-label="Go to dashboard home"
@@ -120,30 +131,30 @@ export function Sidebar({ open, onClose, activeSection, onNavClick }: {
               const isInstagram   = label === "Instagram";
               const isService     = label === "Service";
               const isStandalone  = isTimeline || isTreasury || isEvents || isBrotherhood || isChapter || isDocs || isInstagram || isService;
-              const standaloneHref = isTimeline ? "/timeline" : isTreasury ? "/treasury" : isEvents ? "/parties" : isChapter ? "/chapter" : isDocs ? "/docs" : isInstagram ? "/instagram" : isService ? "/service" : "/brothers";
+              const standaloneSub = isTimeline ? "/timeline" : isTreasury ? "/treasury" : isEvents ? "/parties" : isChapter ? "/chapter" : isDocs ? "/docs" : isInstagram ? "/instagram" : isService ? "/service" : "/brothers";
               const isActive = isTimeline
-                ? pathname === "/timeline"
+                ? subPath === "/timeline"
                 : isTreasury
-                  ? pathname.startsWith("/treasury")
+                  ? subPath.startsWith("/treasury")
                   : isEvents
-                    ? pathname.startsWith("/parties")
+                    ? subPath.startsWith("/parties")
                     : isBrotherhood
-                      ? pathname.startsWith("/brothers")
+                      ? subPath.startsWith("/brothers")
                       : isChapter
-                        ? pathname.startsWith("/chapter")
+                        ? subPath.startsWith("/chapter")
                         : isDocs
-                          ? pathname.startsWith("/docs")
+                          ? subPath.startsWith("/docs")
                           : isInstagram
-                            ? pathname.startsWith("/instagram")
+                            ? subPath.startsWith("/instagram")
                             : isService
-                              ? pathname.startsWith("/service")
-                              : pathname === "/" && activeSection === label;
+                              ? subPath.startsWith("/service")
+                              : subPath === "/" && activeSection === label;
 
               if (isStandalone) {
                 return (
                   <Link
                     key={label}
-                    href={standaloneHref}
+                    href={orgPath(standaloneSub)}
                     onClick={onClose}
                     aria-current={isActive ? "page" : undefined}
                     className={navItemClass(isActive)}
@@ -174,7 +185,7 @@ export function Sidebar({ open, onClose, activeSection, onNavClick }: {
         <div className="shrink-0 border-t border-white/[0.05] px-2 py-2">
           <nav aria-label="Settings">
             <Link
-              href="/settings"
+              href={orgPath("/settings")}
               onClick={onClose}
               aria-current={settingsActive ? "page" : undefined}
               className={navItemClass(settingsActive)}

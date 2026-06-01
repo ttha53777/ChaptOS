@@ -24,7 +24,7 @@ export default function WelcomePage() {
         const res = await fetch("/api/auth/me", { credentials: "same-origin" });
         if (!cancelled && res.ok) {
           const data = await res.json();
-          if (data?.org) window.location.assign("/");
+          if (data?.org?.slug) window.location.assign(`/${data.org.slug}`);
         }
       } catch {
         // Network failure — leave the user on /welcome.

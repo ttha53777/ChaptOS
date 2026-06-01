@@ -7,6 +7,7 @@ import { Modal } from "../../../components/dashboard/primitives";
 import { AddDeadlineForm, AddIGTaskForm, AddRevenueForm } from "../../../components/dashboard/forms";
 import { TaskStatus, ActivityEntry, Deadline, InstagramTask, PartyEvent, fmt$ } from "../../../data";
 import { useOrgLogo } from "../../../hooks/useOrgLogo";
+import { useOrgPath } from "../../../hooks/useOrgPath";
 import { requestJson } from "../../../lib/api";
 
 let _nextId = Date.now();
@@ -23,6 +24,7 @@ export function GeneralSection({
   const [activeModal, setActiveModal] = React.useState<ModalKey>(null);
   const [logoError, setLogoError] = React.useState<string | null>(null);
   const { logoUrl, setLogo, clearLogo } = useOrgLogo();
+  const orgPath = useOrgPath();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   function handleLogoFile(e: React.ChangeEvent<HTMLInputElement>) {
@@ -176,7 +178,7 @@ export function GeneralSection({
               </button>
             ))}
             <Link
-              href="/timeline"
+              href={orgPath("/timeline")}
               className="rounded-lg border border-white/[0.1] bg-white/[0.04] px-3 py-2 text-[12px] font-medium text-slate-300 transition-all hover:border-indigo-500/40 hover:bg-indigo-500/10 hover:text-indigo-400"
             >
               Log Attendance

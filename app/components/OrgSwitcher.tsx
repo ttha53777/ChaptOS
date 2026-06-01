@@ -1,38 +1,29 @@
 "use client";
 
-import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { useChapter } from "../context/ChapterContext";
 
 /**
  * Minimal active-org switcher. Renders only when the user has >1 membership.
- * On select: POSTs to /api/auth/active-org, then full-reloads so server-rendered
- * routes pick up the new orgId from the cookie.
+ *
+ * Switching = navigating to the target org's URL (/<slug>). The /[slug] layout
+ * guard reconciles the active_org_id cookie to the URL, so we don't POST here —
+ * org identity now flows through the URL, and the cookie just follows. One code
+ * path (the guard) keeps cookie ↔ URL in sync for deep-links, bookmarks, OAuth
+ * returns, and this switcher alike.
  */
 export function OrgSwitcher() {
   const { currentUser } = useChapter();
-  const [pending, setPending] = useState(false);
+  const router = useRouter();
 
   if (!currentUser || currentUser.memberships.length <= 1) return null;
 
-  async function onChange(e: React.ChangeEvent<HTMLSelectElement>) {
+  function onChange(e: React.ChangeEvent<HTMLSelectElement>) {
     const organizationId = Number(e.target.value);
     if (!Number.isInteger(organizationId)) return;
-    setPending(true);
-    try {
-      const res = await fetch("/api/auth/active-org", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ organizationId }),
-      });
-      if (!res.ok) {
-        setPending(false);
-        return;
-      }
-      // Cookie set; reload so server components re-render with the new org.
-      window.location.reload();
-    } catch {
-      setPending(false);
-    }
+    const target = currentUser?.memberships.find(m => m.organizationId === organizationId);
+    if (!target) return;
+    router.push(`/${target.orgSlug}`);
   }
 
   return (
@@ -42,7 +33,6 @@ export function OrgSwitcher() {
         className="rounded-md border border-zinc-700 bg-zinc-900 px-2 py-1 text-zinc-200 outline-none focus:border-indigo-500"
         value={currentUser.orgId}
         onChange={onChange}
-        disabled={pending}
         aria-label="Active organization"
       >
         {currentUser.memberships.map(m => (
