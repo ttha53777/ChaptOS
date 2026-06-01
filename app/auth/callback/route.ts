@@ -50,18 +50,30 @@ export async function GET(request: NextRequest) {
 
   const brother = await prisma.brother.findUnique({
     where: { authUserId: data.user.id },
-    select: { id: true },
+    select: {
+      id: true,
+      organization: { select: { slug: true } },
+      memberships: { select: { organization: { select: { slug: true } } } },
+    },
   });
 
   if (brother) {
-    // Linked user → dashboard with the welcome toast.
+    // Linked user → their org dashboard with the welcome toast.
     cookieJar.cookies.set("brother_linked", "1", {
       path: "/",
       httpOnly: true,
       sameSite: "lax",
       maxAge: 60 * 60 * 24 * 365,
     });
-    return redirectTo(`${origin}/?toast=welcome`);
+    // Target the org they signed in for (?org= hint) if they're a member of it,
+    // else their home org. Fall back to the root redirect if neither resolves.
+    const memberSlugs = new Set(
+      brother.memberships.map(m => m.organization.slug),
+    );
+    const targetSlug =
+      orgSlug && memberSlugs.has(orgSlug) ? orgSlug : brother.organization?.slug ?? null;
+    const dest = targetSlug ? `/${targetSlug}?toast=welcome` : "/?toast=welcome";
+    return redirectTo(`${origin}${dest}`);
   }
 
   if (orgSlug) {

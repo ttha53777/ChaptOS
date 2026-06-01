@@ -79,7 +79,7 @@ export default function CreateOrgPage() {
         const res = await fetch("/api/auth/me", { credentials: "same-origin" });
         if (!cancelled && res.ok) {
           const data = await res.json();
-          if (data?.org) window.location.assign("/");
+          if (data?.org?.slug) window.location.assign(`/${data.org.slug}`);
         }
       } catch {
         // Leave them on the page.
@@ -117,8 +117,9 @@ export default function CreateOrgPage() {
         }),
       });
       if (res.status === 201) {
-        // Hard navigation so ChapterContext remounts under the new org cookie.
-        window.location.assign("/");
+        // Hard navigation straight into the new org's URL so ChapterContext
+        // remounts under the new org cookie and lands on /[slug].
+        window.location.assign(`/${slug.trim()}`);
         return;
       }
       const data = await res.json().catch(() => ({}));

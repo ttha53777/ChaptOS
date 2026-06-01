@@ -29,7 +29,9 @@ function PendingAccessContent() {
       // Hard navigation so ChapterProvider remounts and reloads data with the
       // now-linked session. A soft router.push keeps the stale provider mounted,
       // so chapter data wouldn't load until a manual full refresh.
-      window.location.assign("/");
+      // Go straight into the org they just claimed into when we know its slug;
+      // otherwise let the root redirect resolve their active org.
+      window.location.assign(orgSlug ? `/${orgSlug}` : "/");
     } else {
       const data = await res.json();
       setError(data.error ?? "Something went wrong. Try again.");
