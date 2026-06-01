@@ -7,7 +7,7 @@ import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { parseAvatarFromMetadata } from "@/lib/avatar";
 import { logActivity } from "@/lib/activity";
-import { resolveOrgFromRequestOrFirst } from "@/lib/auth/org-resolution";
+import { resolveOrgFromRequest } from "@/lib/auth/org-resolution";
 import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
 import { logError } from "@/lib/observability";
 
@@ -45,11 +45,26 @@ async function emitClaimEvent(orgId: number, brotherId: number, name: string, em
 
 export async function POST(req: NextRequest) {
   // ── 1. Resolve org ────────────────────────────────────────────────────────
-  // Must happen before session validation so we can return a clear 404 when
-  // the org slug is unknown, rather than a confusing auth error.
-  const org = await resolveOrgFromRequestOrFirst(req).catch(() => null);
+  // Must happen before session validation so we can return a clear error when
+  // the org is unknown, rather than a confusing auth error.
+  //
+  // We require an EXPLICIT org (?org= slug, X-Org-Slug header, or subdomain) —
+  // no "first org in the DB" fallback. In a multi-org world that fallback would
+  // silently point a slug-less claim at org #1 and let a user claim a brother
+  // in an org they never named. The login flow always carries the slug here, so
+  // a missing org means a malformed entry; fail loudly.
+  const slugPresent = new URL(req.url).searchParams.has("org") ||
+    !!req.headers.get("x-org-slug");
+  const org = await resolveOrgFromRequest(req).catch(() => null);
   if (!org) {
-    return Response.json({ error: "Organization not found" }, { status: 404 });
+    return Response.json(
+      {
+        error: slugPresent
+          ? "Organization not found"
+          : "No organization specified. Start from your organization's sign-in link.",
+      },
+      { status: slugPresent ? 404 : 400 },
+    );
   }
   const orgId = org.id;
 
