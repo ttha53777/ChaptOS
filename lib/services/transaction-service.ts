@@ -10,6 +10,12 @@ export interface TxFilter {
   category?: string;
 }
 
+// amountCents is a BigInt mirror of `amount`, kept for exact-integer math on
+// the write side. It must be omitted from anything that gets JSON-serialized
+// (Response.json → JSON.stringify can't serialize BigInt) and the client never
+// reads it — the Transaction type in app/data.ts only has `amount: number`.
+const OMIT_BIGINT = { amountCents: true } as const;
+
 export async function listTransactions(ctx: RequestContext, filter: TxFilter = {}) {
   return ctx.db.transaction.findMany({
     where: {
@@ -18,6 +24,7 @@ export async function listTransactions(ctx: RequestContext, filter: TxFilter = {
       ...(filter.semester ? { semester: filter.semester } : {}),
       ...(filter.category ? { category: filter.category } : {}),
     },
+    omit: OMIT_BIGINT,
     orderBy: { date: "desc" },
   });
 }
@@ -35,6 +42,7 @@ export async function createTransaction(ctx: RequestContext, input: CreateTransa
       paidTo:        input.paidTo        ?? null,
       semester:      input.semester      ?? null,
     },
+    omit: OMIT_BIGINT,
   });
   await emit(ctx, "transaction.created", { type: "Transaction", id: tx.id }, {
     type:        tx.type as "income" | "expense",
@@ -60,7 +68,7 @@ export async function updateTransaction(ctx: RequestContext, id: number, input: 
     }
   }
 
-  const tx = await ctx.db.transaction.update({ where: { id }, data });
+  const tx = await ctx.db.transaction.update({ where: { id }, data, omit: OMIT_BIGINT });
   await emit(ctx, "transaction.updated", { type: "Transaction", id: tx.id }, {
     description:   tx.description,
     changedFields,
