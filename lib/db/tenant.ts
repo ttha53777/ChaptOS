@@ -341,11 +341,18 @@ function scopedBudget(orgId: number) {
     findMany:   (args?: Prisma.BudgetFindManyArgs)  => prisma.budget.findMany({ ...args, where: org(args?.where) }),
     findFirst:  (args?: Prisma.BudgetFindFirstArgs) => prisma.budget.findFirst({ ...args, where: org(args?.where) }),
     findUnique: (args: Prisma.BudgetFindUniqueArgs) => prisma.budget.findFirst({ ...args, where: org(args.where as W) }),
-    /** Org-safe findUnique with allocations. The @@unique([organizationId, semester]) key is already org-scoped. */
+    /**
+     * Org-safe findUnique with allocations. The @@unique([organizationId, semester])
+     * key is already org-scoped. Omits the *Cents BigInt mirror columns: they
+     * can't be JSON-serialized (Response.json → JSON.stringify throws on BigInt)
+     * and no consumer reads them — `carryoverBalance`/`reserveAmount` (Float)
+     * are the values the UI and DTOs use.
+     */
     findUniqueWithAllocations: (semester: string) =>
       prisma.budget.findUnique({
         where: { organizationId_semester: { organizationId: orgId, semester } },
         include: { allocations: true },
+        omit: { carryoverBalanceCents: true, reserveAmountCents: true },
       }),
     create:     (args: Omit<Prisma.BudgetCreateArgs, "data"> & { data: Omit<Prisma.BudgetUncheckedCreateInput, "organizationId"> }) =>
       prisma.budget.create({ ...args, data: { ...args.data, organizationId: orgId } }),

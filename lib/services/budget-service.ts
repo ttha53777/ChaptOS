@@ -47,7 +47,13 @@ export async function upsertBudget(ctx: RequestContext, input: UpsertBudgetInput
         data: input.allocations.map(a => ({ budgetId: budget.id, category: a.category, percent: a.percent })),
       });
     }
-    return tx.budget.findUnique({ where: { id: budget.id }, include: { allocations: true } });
+    // Omit the *Cents BigInt mirrors — not JSON-serializable, not read by any
+    // consumer (the Float carryoverBalance/reserveAmount are the live values).
+    return tx.budget.findUnique({
+      where: { id: budget.id },
+      include: { allocations: true },
+      omit: { carryoverBalanceCents: true, reserveAmountCents: true },
+    });
   });
 
   if (!result) throw new ValidationError("Failed to upsert budget");
