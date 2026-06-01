@@ -1,14 +1,14 @@
 "use client";
 
 import React, { useState, useEffect, useMemo, useRef } from "react";
-import { Sidebar } from "../components/Sidebar";
-import { BrotherAvatar } from "../components/BrotherAvatar";
-import { UserAvatar } from "../components/UserAvatar";
-import { Modal, FieldLabel } from "../components/dashboard/primitives";
-import { headerActionBtnCls, inputCls } from "../components/dashboard/styles";
-import { useChapter } from "../context/ChapterContext";
-import { Brother, THRESHOLDS, fmtDate } from "../data";
-import { requestJson } from "../lib/api";
+import { Sidebar } from "../../components/Sidebar";
+import { BrotherAvatar } from "../../components/BrotherAvatar";
+import { UserAvatar } from "../../components/UserAvatar";
+import { Modal, FieldLabel } from "../../components/dashboard/primitives";
+import { headerActionBtnCls, inputCls } from "../../components/dashboard/styles";
+import { useChapter } from "../../context/ChapterContext";
+import { Brother, THRESHOLDS, fmtDate } from "../../data";
+import { requestJson } from "../../lib/api";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 

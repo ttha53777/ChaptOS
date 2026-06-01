@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { useChapter } from "../../context/ChapterContext";
+import { useChapter } from "../../../context/ChapterContext";
 
 interface AvailableRole {
   id: number;

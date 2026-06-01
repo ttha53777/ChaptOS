@@ -1,13 +1,13 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { Sidebar } from "../components/Sidebar";
-import { UserAvatar } from "../components/UserAvatar";
-import { Modal, FieldLabel, ConfirmDialog, SaveIndicator, LoadingSpinner } from "../components/dashboard/primitives";
-import { useToast } from "../components/dashboard/Toast";
-import { useChapter } from "../context/ChapterContext";
-import { headerActionBtnCls, inputCls } from "../components/dashboard/styles";
-import { CalendarEvent, fmtDate } from "../data";
+import { Sidebar } from "../../components/Sidebar";
+import { UserAvatar } from "../../components/UserAvatar";
+import { Modal, FieldLabel, ConfirmDialog, SaveIndicator, LoadingSpinner } from "../../components/dashboard/primitives";
+import { useToast } from "../../components/dashboard/Toast";
+import { useChapter } from "../../context/ChapterContext";
+import { headerActionBtnCls, inputCls } from "../../components/dashboard/styles";
+import { CalendarEvent, fmtDate } from "../../data";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 

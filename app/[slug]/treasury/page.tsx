@@ -2,29 +2,29 @@
 
 import React, { useState, useMemo, useCallback } from "react";
 import dynamic from "next/dynamic";
-import { catColor } from "../components/treasury/TreasuryCharts";
-import { Sidebar } from "../components/Sidebar";
-import { BrotherAvatar } from "../components/BrotherAvatar";
-import { UserAvatar } from "../components/UserAvatar";
+import { catColor } from "../../components/treasury/TreasuryCharts";
+import { Sidebar } from "../../components/Sidebar";
+import { BrotherAvatar } from "../../components/BrotherAvatar";
+import { UserAvatar } from "../../components/UserAvatar";
 
 const TreasuryAreaChart = dynamic(
-  () => import("../components/treasury/TreasuryCharts").then(m => m.TreasuryAreaChart),
+  () => import("../../components/treasury/TreasuryCharts").then(m => m.TreasuryAreaChart),
   { ssr: false, loading: () => <div className="h-[232px] animate-pulse rounded-lg bg-white/[0.03]" /> }
 );
 const TreasuryDonutChart = dynamic(
-  () => import("../components/treasury/TreasuryCharts").then(m => m.TreasuryDonutChart),
+  () => import("../../components/treasury/TreasuryCharts").then(m => m.TreasuryDonutChart),
   { ssr: false, loading: () => <div className="h-[220px] animate-pulse rounded-full bg-white/[0.03] mx-auto max-w-[260px]" /> }
 );
-import { Modal, FieldLabel } from "../components/dashboard/primitives";
-import { inputCls } from "../components/dashboard/styles";
-import { BudgetView } from "../components/treasury/BudgetView";
-import { useChapter } from "../context/ChapterContext";
+import { Modal, FieldLabel } from "../../components/dashboard/primitives";
+import { inputCls } from "../../components/dashboard/styles";
+import { BudgetView } from "../../components/treasury/BudgetView";
+import { useChapter } from "../../context/ChapterContext";
 import {
   Transaction, PartyEvent, Brother,
   INCOME_CATEGORIES, EXPENSE_CATEGORIES,
   fmt$, fmtDate,
-} from "../data";
-import { TxForm } from "../components/treasury/TxForm";
+} from "../../data";
+import { TxForm } from "../../components/treasury/TxForm";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -45,8 +45,8 @@ type PartyModal =
 
 type TxTab = "all" | "income" | "expense";
 
-import { requestJson } from "../lib/api";
-import { todayStr } from "../lib/dates";
+import { requestJson } from "../../lib/api";
+import { todayStr } from "../../lib/dates";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 

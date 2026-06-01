@@ -1,8 +1,8 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ConfirmDialog } from "../../components/dashboard/primitives";
-import { useChapter } from "../../context/ChapterContext";
+import { ConfirmDialog } from "../../../components/dashboard/primitives";
+import { useChapter } from "../../../context/ChapterContext";
 import { PERMISSIONS, PERMISSION_LIST, hasPermission, type Permission } from "@/lib/permissions";
 
 interface RoleRow {

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import { THRESHOLDS } from "../../data";
+import { THRESHOLDS } from "../../../data";
 
 const STORAGE_KEY = "chaptos_thresholds";
 

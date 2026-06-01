@@ -2,12 +2,12 @@
 
 import React, { useMemo, useCallback, useRef } from "react";
 import Link from "next/link";
-import { useChapter } from "../../context/ChapterContext";
-import { Modal } from "../../components/dashboard/primitives";
-import { AddDeadlineForm, AddIGTaskForm, AddRevenueForm } from "../../components/dashboard/forms";
-import { TaskStatus, ActivityEntry, Deadline, InstagramTask, PartyEvent, fmt$ } from "../../data";
-import { useOrgLogo } from "../../hooks/useOrgLogo";
-import { requestJson } from "../../lib/api";
+import { useChapter } from "../../../context/ChapterContext";
+import { Modal } from "../../../components/dashboard/primitives";
+import { AddDeadlineForm, AddIGTaskForm, AddRevenueForm } from "../../../components/dashboard/forms";
+import { TaskStatus, ActivityEntry, Deadline, InstagramTask, PartyEvent, fmt$ } from "../../../data";
+import { useOrgLogo } from "../../../hooks/useOrgLogo";
+import { requestJson } from "../../../lib/api";
 
 let _nextId = Date.now();
 

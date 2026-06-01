@@ -1,13 +1,13 @@
 "use client";
 
 import React, { useState, useMemo, useCallback } from "react";
-import { Sidebar } from "../components/Sidebar";
-import { BrotherAvatar } from "../components/BrotherAvatar";
-import { UserAvatar } from "../components/UserAvatar";
-import { StatusBadge, Modal, FieldLabel, ConfirmDialog } from "../components/dashboard/primitives";
-import { inputCls } from "../components/dashboard/styles";
-import { BrotherDrawer } from "../components/dashboard/drawers/BrotherDrawer";
-import { useChapter } from "../context/ChapterContext";
+import { Sidebar } from "../../components/Sidebar";
+import { BrotherAvatar } from "../../components/BrotherAvatar";
+import { UserAvatar } from "../../components/UserAvatar";
+import { StatusBadge, Modal, FieldLabel, ConfirmDialog } from "../../components/dashboard/primitives";
+import { inputCls } from "../../components/dashboard/styles";
+import { BrotherDrawer } from "../../components/dashboard/drawers/BrotherDrawer";
+import { useChapter } from "../../context/ChapterContext";
 import {
   Brother,
   BrotherStatus,
@@ -15,9 +15,9 @@ import {
   getBrotherStatus,
   avg,
   fmt$,
-} from "../data";
-import { BROTHER_STYLES } from "../components/dashboard/styles";
-import { requestJson } from "../lib/api";
+} from "../../data";
+import { BROTHER_STYLES } from "../../components/dashboard/styles";
+import { requestJson } from "../../lib/api";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 

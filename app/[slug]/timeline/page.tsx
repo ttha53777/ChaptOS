@@ -1,16 +1,16 @@
 "use client";
 
 import React, { useState, useMemo, useEffect, useLayoutEffect, useRef } from "react";
-import { Sidebar } from "../components/Sidebar";
-import { BrotherAvatar } from "../components/BrotherAvatar";
-import { UserAvatar } from "../components/UserAvatar";
-import { CalendarEvent, CalEventCategory, CalLayer } from "../data";
-import { useChapter } from "../context/ChapterContext";
-import { Modal, ConfirmDialog } from "../components/dashboard/primitives";
-import { headerActionBtnCls, inputCls } from "../components/dashboard/styles";
-import { requestJson } from "../lib/api";
-import { pad, toDateStr, daysFromToday } from "../lib/dates";
-import { CalendarEventForm, type CalendarDraft } from "../components/timeline/CalendarEventForm";
+import { Sidebar } from "../../components/Sidebar";
+import { BrotherAvatar } from "../../components/BrotherAvatar";
+import { UserAvatar } from "../../components/UserAvatar";
+import { CalendarEvent, CalEventCategory, CalLayer } from "../../data";
+import { useChapter } from "../../context/ChapterContext";
+import { Modal, ConfirmDialog } from "../../components/dashboard/primitives";
+import { headerActionBtnCls, inputCls } from "../../components/dashboard/styles";
+import { requestJson } from "../../lib/api";
+import { pad, toDateStr, daysFromToday } from "../../lib/dates";
+import { CalendarEventForm, type CalendarDraft } from "../../components/timeline/CalendarEventForm";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
