@@ -1,14 +1,14 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { Sidebar } from "../components/Sidebar";
-import { UserAvatar } from "../components/UserAvatar";
-import { Modal } from "../components/dashboard/primitives";
-import { AddIGTaskForm } from "../components/dashboard/forms";
-import { InstagramTask, TaskStatus, fmtDate } from "../data";
-import { useChapter } from "../context/ChapterContext";
-import { requestJson } from "../lib/api";
-import { daysFromToday, todayStr } from "../lib/dates";
+import { Sidebar } from "../../components/Sidebar";
+import { UserAvatar } from "../../components/UserAvatar";
+import { Modal } from "../../components/dashboard/primitives";
+import { AddIGTaskForm } from "../../components/dashboard/forms";
+import { InstagramTask, TaskStatus, fmtDate } from "../../data";
+import { useChapter } from "../../context/ChapterContext";
+import { requestJson } from "../../lib/api";
+import { daysFromToday, todayStr } from "../../lib/dates";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 

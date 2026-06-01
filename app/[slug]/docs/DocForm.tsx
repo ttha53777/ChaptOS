@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { FieldLabel } from "../components/dashboard/primitives";
-import { inputCls } from "../components/dashboard/styles";
+import { FieldLabel } from "../../components/dashboard/primitives";
+import { inputCls } from "../../components/dashboard/styles";
 
 export type DocDraft = { title: string; url: string; description: string };
 

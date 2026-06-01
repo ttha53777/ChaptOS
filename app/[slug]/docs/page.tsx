@@ -1,12 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Sidebar } from "../components/Sidebar";
-import { UserAvatar } from "../components/UserAvatar";
-import { Modal, ConfirmDialog, LoadingSpinner } from "../components/dashboard/primitives";
-import { useToast } from "../components/dashboard/Toast";
-import { headerActionBtnCls } from "../components/dashboard/styles";
-import { useChapter } from "../context/ChapterContext";
+import { Sidebar } from "../../components/Sidebar";
+import { UserAvatar } from "../../components/UserAvatar";
+import { Modal, ConfirmDialog, LoadingSpinner } from "../../components/dashboard/primitives";
+import { useToast } from "../../components/dashboard/Toast";
+import { headerActionBtnCls } from "../../components/dashboard/styles";
+import { useChapter } from "../../context/ChapterContext";
 import { DocCard, type Doc } from "./DocCard";
 import { DocForm, type DocDraft } from "./DocForm";
 

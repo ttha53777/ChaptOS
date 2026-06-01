@@ -1,8 +1,8 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Modal } from "../../components/dashboard/primitives";
-import { useChapter } from "../../context/ChapterContext";
+import { Modal } from "../../../components/dashboard/primitives";
+import { useChapter } from "../../../context/ChapterContext";
 
 interface Semester {
   id: number;

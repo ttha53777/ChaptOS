@@ -1,14 +1,14 @@
 "use client";
 
 import React, { useState, useMemo, useCallback } from "react";
-import { Sidebar } from "../components/Sidebar";
-import { UserAvatar } from "../components/UserAvatar";
-import { Card, Modal, FieldLabel, ConfirmDialog } from "../components/dashboard/primitives";
-import { inputCls } from "../components/dashboard/styles";
-import { useChapter } from "../context/ChapterContext";
-import { PartyEvent, fmt$, fmtDate } from "../data";
-import { requestJson } from "../lib/api";
-import { todayStr } from "../lib/dates";
+import { Sidebar } from "../../components/Sidebar";
+import { UserAvatar } from "../../components/UserAvatar";
+import { Card, Modal, FieldLabel, ConfirmDialog } from "../../components/dashboard/primitives";
+import { inputCls } from "../../components/dashboard/styles";
+import { useChapter } from "../../context/ChapterContext";
+import { PartyEvent, fmt$, fmtDate } from "../../data";
+import { requestJson } from "../../lib/api";
+import { todayStr } from "../../lib/dates";
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 

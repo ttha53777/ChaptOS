@@ -2,8 +2,8 @@
 
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { ConfirmDialog } from "../../components/dashboard/primitives";
-import { useChapter } from "../../context/ChapterContext";
+import { ConfirmDialog } from "../../../components/dashboard/primitives";
+import { useChapter } from "../../../context/ChapterContext";
 import { BrotherRoleChips } from "./BrotherRoleChips";
 
 interface AssignedRoleSummary {
