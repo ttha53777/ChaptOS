@@ -27,6 +27,7 @@ import { Sidebar, SvgIcon, NAV_ICONS } from "./components/Sidebar";
 import { BrotherAvatar } from "./components/BrotherAvatar";
 import { UserAvatar } from "./components/UserAvatar";
 import { useChapter } from "./context/ChapterContext";
+import { useToast } from "./components/dashboard/Toast";
 import { AddDeadlineForm, AddIGTaskForm, AddRevenueForm, LogAttendanceForm, ExcuseForm } from "./components/dashboard/forms";
 import { QuickActionsMenu, type QuickActionKey } from "./components/dashboard/QuickActionsMenu";
 import { TxForm } from "./components/treasury/TxForm";
@@ -963,6 +964,8 @@ export default function Home() {
   const [payAmountStr, setPayAmountStr] = useState("");
   const mainRef = useRef<HTMLElement>(null);
   const attendanceReqRef = useRef<AbortController | null>(null);
+  const welcomeToastShownRef = useRef(false);
+  const toast = useToast();
 
   // ── Data state ─────────────────────────────────────────────────────────────
   const { currentUser, brotherList, setBrotherList, deadlineList, setDeadlineList, igTaskList, setIgTaskList, partyList, setPartyList, activityFeed, setActivityFeed, treasuryData, setTransactionList, isLoading, loadError, mutationError, setMutationError, refreshChapterData, avatarRevision, can } = useChapter();
@@ -976,6 +979,21 @@ export default function Home() {
   const canBrothers    = can("MANAGE_BROTHERS");
   const canAttendance  = can("MANAGE_ATTENDANCE");
   const selfId  = currentUser?.id ?? null;
+
+  // Welcome toast after sign-in. /auth/callback redirects linked users to
+  // /?toast=welcome; once the org name resolves we show a one-time toast and
+  // strip the param from the URL (replaceState, no navigation/Suspense needed).
+  const orgName = currentUser?.org?.name ?? null;
+  useEffect(() => {
+    if (welcomeToastShownRef.current || !orgName) return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("toast") !== "welcome") return;
+    welcomeToastShownRef.current = true;
+    toast.success(`Welcome to ${orgName}`);
+    params.delete("toast");
+    const qs = params.toString();
+    window.history.replaceState(null, "", `${window.location.pathname}${qs ? `?${qs}` : ""}`);
+  }, [orgName, toast]);
 
   // ── Treasury — live from DB, fall back to hardcoded constants while loading ─
   const liveBalance   = treasuryData?.balance   ?? TREASURY_BALANCE;

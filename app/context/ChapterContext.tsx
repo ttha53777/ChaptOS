@@ -209,8 +209,22 @@ export function ChapterProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    setCurrentUser(normalizeCurrentUser(meResult.value));
+    const me = normalizeCurrentUser(meResult.value);
+    setCurrentUser(me);
     setAvatarRevision(r => r + 1);
+
+    // Remember the active org so the login page can offer one-click re-entry
+    // (State A) on the user's next visit. Best-effort — storage may be blocked.
+    if (me.org) {
+      try {
+        localStorage.setItem(
+          "chaptos_last_org",
+          JSON.stringify({ slug: me.org.slug, name: me.org.name }),
+        );
+      } catch {
+        // Storage unavailable (private mode, quota) — login just falls back to State B.
+      }
+    }
 
     // Fan out the rest. allSettled so one slow/broken endpoint doesn't blank
     // the dashboard — see audit finding D4 / backend E3.

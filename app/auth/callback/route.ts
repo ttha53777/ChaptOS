@@ -13,8 +13,10 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(buildUrl(origin, "/login", orgSlug, "error=auth"));
   }
 
-  // Build a response first so we can write cookies onto it
-  const res = NextResponse.redirect(`${origin}/`);
+  // Build a response first so we can write cookies onto it. Linked users land
+  // on the dashboard with ?toast=welcome so the client can show a brief
+  // "Welcome to <org>" toast (stripped from the URL on mount).
+  const res = NextResponse.redirect(`${origin}/?toast=welcome`);
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,

@@ -47,6 +47,11 @@ export function UserAvatar() {
     try {
       await fetch("/api/auth/signout", { method: "POST" });
     } catch { /* network failure — still redirect */ }
+    // Clear the remembered org so the next /login visit starts at the org picker
+    // (State B) rather than offering one-click re-entry into the org they left.
+    try {
+      localStorage.removeItem("chaptos_last_org");
+    } catch { /* storage unavailable — nothing to clear */ }
     router.push("/login");
   }
 
