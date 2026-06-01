@@ -14,6 +14,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { validateSlugFormat } from "@/lib/slug-rules";
 
 export interface OrgRef {
   id:   number;
@@ -64,14 +65,24 @@ function extractSlug(req: Request): string | null {
   const parts = host.split(".");
   if (parts.length >= 3) {
     const sub = parts[0];
-    // Exclude "www" and other well-known non-org subdomains
-    if (isValidSlug(sub) && sub !== "www" && sub !== "api") return sub;
+    if (isValidSlug(sub)) return sub;
   }
 
   return null;
 }
 
+/**
+ * Gate before a DB lookup: is `s` something that could be a real org slug?
+ *
+ * Delegates to validateSlugFormat() in lib/slug-rules — the SAME rules orgs are
+ * created under (format, 3–32 length, reserved list, profanity). Two benefits:
+ *   - The resolver and the creator can't drift out of sync. Previously this had
+ *     its own 1–63-char regex that accepted slugs (e.g. 2-char, or reserved
+ *     names like "api") no org could ever own, so the lookup would always miss.
+ *   - Reserved slugs ("www", "api", "admin", …) are rejected here for free —
+ *     they live in RESERVED_SLUGS, so the old hardcoded www/api exclusions are
+ *     now redundant.
+ */
 function isValidSlug(s: string): boolean {
-  // Slugs: lowercase letters, digits, hyphens, 1–63 chars. No leading/trailing hyphens.
-  return /^[a-z0-9][a-z0-9-]{0,61}[a-z0-9]$/.test(s) || /^[a-z0-9]$/.test(s);
+  return validateSlugFormat(s).ok;
 }
