@@ -569,7 +569,7 @@ export default function PartiesPage() {
           </button>
           <div className="min-w-0 flex-1">
             <p className="text-[14px] font-semibold leading-tight text-white">Party Dashboard</p>
-            <p className="hidden text-[11px] leading-tight text-slate-400 sm:block">Lambda Phi Epsilon · Revenue &amp; Profit Tracker</p>
+            <p className="hidden text-[11px] leading-tight text-slate-400 sm:block">{currentUser?.org?.name ?? "ChaptOS"} · Revenue &amp; Profit Tracker</p>
           </div>
           <div className="absolute bottom-0 left-0 right-0 h-px"
                style={{ background: "linear-gradient(90deg,transparent,rgba(99,102,241,0.4) 30%,rgba(99,102,241,0.4) 70%,transparent)" }} />

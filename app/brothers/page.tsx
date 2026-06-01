@@ -310,7 +310,7 @@ export default function BrothersPage() {
           </button>
           <div className="min-w-0 flex-1">
             <p className="text-[14px] font-semibold leading-tight text-white">Brotherhood</p>
-            <p className="hidden text-[11px] leading-tight text-slate-400 sm:block">Lambda Phi Epsilon · Brotherhood Roster</p>
+            <p className="hidden text-[11px] leading-tight text-slate-400 sm:block">{currentUser?.org?.name ?? "ChaptOS"} · Brotherhood Roster</p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
             <button

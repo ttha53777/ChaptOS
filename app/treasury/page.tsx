@@ -558,7 +558,7 @@ export default function TreasuryPage() {
           {/* Title */}
           <div className="min-w-0 flex-1">
             <h1 className="text-[16px] font-semibold leading-tight text-white">Treasury</h1>
-            <p className="text-[11px] leading-tight text-slate-500">Lambda Phi Epsilon · Financial Overview</p>
+            <p className="text-[11px] leading-tight text-slate-500">{currentUser?.org?.name ?? "ChaptOS"} · Financial Overview</p>
           </div>
 
           {/* Semester pill */}
