@@ -29,7 +29,7 @@ const EMPTY_DRAFT: DocDraft = { title: "", url: "", description: "" };
 
 export default function DocsPage() {
   const toast = useToast();
-  const { can } = useChapter();
+  const { currentUser, can } = useChapter();
   const canManage = can("MANAGE_DOCS");
 
   const [sidebarOpen,  setSidebarOpen]  = useState(false);
@@ -148,7 +148,7 @@ export default function DocsPage() {
 
           <div className="min-w-0 flex-1">
             <p className="text-[14px] font-semibold leading-tight text-white">Resources</p>
-            <p className="hidden text-[11px] leading-tight text-slate-400 sm:block">Lambda Phi Epsilon · Reference Library</p>
+            <p className="hidden text-[11px] leading-tight text-slate-400 sm:block">{currentUser?.org?.name ?? "ChaptOS"} · Reference Library</p>
           </div>
 
           {canManage && (

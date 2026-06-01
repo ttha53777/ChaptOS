@@ -48,6 +48,7 @@ export function GeneralSection({
   }
 
   const {
+    currentUser,
     brotherList,
     deadlineList,
     setDeadlineList,
@@ -248,7 +249,7 @@ export function GeneralSection({
         <div>
           <h3 className="mb-2 text-[12px] font-semibold text-slate-300">Chapter</h3>
           <div className="space-y-1 text-[11px] text-slate-500">
-            <p>Lambda Phi Epsilon · ChaptOS</p>
+            <p>{currentUser?.org?.name ?? "ChaptOS"}</p>
             <p>{brotherList.length} brothers · {deadlineList.length} deadlines · {partyList.length} parties</p>
           </div>
         </div>

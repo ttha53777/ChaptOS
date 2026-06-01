@@ -1627,7 +1627,7 @@ export default function Home() {
 
           <div className="min-w-0 flex-1">
             <p className="text-[14px] font-semibold leading-tight text-white">Operations Dashboard</p>
-            <p className="hidden text-[11px] leading-tight text-slate-400 sm:block">Lambda Phi Epsilon · ChaptOS</p>
+            <p className="hidden text-[11px] leading-tight text-slate-400 sm:block">{currentUser?.org?.name ?? "ChaptOS"}</p>
           </div>
 
           {/* Quick Actions */}
@@ -2079,7 +2079,7 @@ export default function Home() {
 
             {/* ── Footer ─────────────────────────────────────────────────── */}
             <div className="border-t border-white/[0.06] pt-4 text-center">
-              <p className="text-[10px] text-slate-700">Lambda Phi Epsilon · ChaptOS · Prototype backed by seeded chapter data</p>
+              <p className="text-[10px] text-slate-700">{currentUser?.org?.name ?? "ChaptOS"} · Prototype backed by seeded chapter data</p>
             </div>
 
           </div>

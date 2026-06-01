@@ -16,8 +16,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Lambda Phi Epsilon Operations",
-  description: "Spring semester chapter operations dashboard",
+  title: "ChaptOS",
+  description: "Chapter operations dashboard",
 };
 
 // viewportFit:cover unlocks env(safe-area-inset-*) on notched iPhones.

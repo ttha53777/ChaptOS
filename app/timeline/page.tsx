@@ -1265,7 +1265,7 @@ export default function TimelinePage() {
           {/* Title */}
           <div className="relative min-w-0 shrink-0">
             <p className="text-[14px] font-semibold leading-tight text-white">Timeline</p>
-            <p className="hidden text-[11px] leading-tight text-slate-400 sm:block">Lambda Phi Epsilon · Chapter Timeline</p>
+            <p className="hidden text-[11px] leading-tight text-slate-400 sm:block">{currentUser?.org?.name ?? "ChaptOS"} · Chapter Timeline</p>
           </div>
 
           {/* Layer filter pills — centered on desktop, hidden on mobile (shown below) */}

@@ -364,7 +364,7 @@ function CalendarView({
 let _nextId = Date.now();
 
 export default function InstagramPage() {
-  const { igTaskList, setIgTaskList, brotherList, isLoading } = useChapter();
+  const { currentUser, igTaskList, setIgTaskList, brotherList, isLoading } = useChapter();
   const brotherNames = useMemo(() => brotherList.map(b => b.name), [brotherList]);
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -454,7 +454,7 @@ export default function InstagramPage() {
           {/* Title */}
           <div className="relative min-w-0 shrink-0">
             <p className="text-[14px] font-semibold leading-tight text-white">Instagram</p>
-            <p className="hidden text-[11px] leading-tight text-slate-400 sm:block">Lambda Phi Epsilon · Instagram Calendar</p>
+            <p className="hidden text-[11px] leading-tight text-slate-400 sm:block">{currentUser?.org?.name ?? "ChaptOS"} · Instagram Calendar</p>
           </div>
 
           {/* View toggle */}
