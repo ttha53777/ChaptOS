@@ -41,8 +41,18 @@ export async function proxy(request: NextRequest) {
   }
 
   // Otherwise: if the user hasn't claimed a Brother row yet, send them to claim.
-  // The brother_linked cookie is set by /auth/callback (returning users) and
-  // /api/auth/claim (new claims) and /api/orgs (founders).
+  // The brother_linked cookie is set by /auth/callback (returning users),
+  // /api/auth/claim (new claims), and /api/orgs (founders). It is a fast EDGE
+  // HINT, not the source of truth — the proxy can't reach the DB here.
+  //
+  // The cookie can't be set on a half-linked account: /api/auth/claim only sets
+  // it after the Membership write succeeds (else it 500s with no cookie). And it
+  // self-heals if it ever goes stale: requireUser() is the DB authority, and the
+  // server entry points that find it lying clear the cookie — /api/auth/me
+  // expires it on a 401 (no linked Brother), and a full signout sweeps it. So a
+  // stale brother_linked at worst costs one extra hop (proxy waves the user to a
+  // /[slug] page whose server layout redirects them out before any child
+  // renders — no protected data is exposed) before the cookie is cleared.
   const isLinked = request.cookies.get("brother_linked")?.value === "1";
   if (!isLinked) {
     // Carry the org hint so the claim form targets the right org. Without it a
