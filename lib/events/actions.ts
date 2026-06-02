@@ -26,7 +26,8 @@ export type SubjectType =
   | "Doc"
   | "ChapterAnnouncement"
   | "Semester"
-  | "Organization";
+  | "Organization"
+  | "OrgInvite";
 
 // Metadata schemas per action. Each key is an Action; each value is the shape
 // passed to emit() and received by handlers. Keep payloads small and stable —
@@ -87,6 +88,11 @@ export interface EventMetadata {
 
   // Onboarding
   "org.created": { name: string; slug: string; orgType: string; founderName: string };
+
+  // Invite links
+  "invite.created":  { mode: "open" | "claim"; expiry: string };
+  "invite.revoked":  { mode: "open" | "claim" };
+  "invite.redeemed": { mode: "open" | "claim"; orgId: number; brotherId: number; reused: boolean };
 }
 
 export type Action = keyof EventMetadata;
@@ -104,6 +110,7 @@ const KNOWN_ACTIONS = new Set<Action>([
   "doc.created", "doc.updated", "doc.deleted",
   "announcement.updated", "semester.created", "semester.activated",
   "org.created",
+  "invite.created", "invite.revoked", "invite.redeemed",
 ]);
 
 export function isKnownAction(action: string): action is Action {
@@ -117,6 +124,6 @@ export function isKnownAction(action: string): action is Action {
  */
 export function defaultActivityType(action: Action): "success" | "warning" | "info" {
   if (action.endsWith(".deleted") || action.endsWith(".soft_deleted") || action.endsWith(".rejected") || action === "brother.removed") return "warning";
-  if (action.endsWith(".approved") || action.endsWith(".completed") || action.endsWith(".granted") || action.endsWith(".activated") || action === "brother.added") return "success";
+  if (action.endsWith(".approved") || action.endsWith(".completed") || action.endsWith(".granted") || action.endsWith(".activated") || action === "brother.added" || action === "invite.redeemed") return "success";
   return "info";
 }

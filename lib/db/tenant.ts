@@ -432,6 +432,30 @@ function scopedChapterAnnouncement(orgId: number) {
   };
 }
 
+function scopedOrgInvite(orgId: number) {
+  type W = Prisma.OrgInviteWhereInput;
+  const org = (w?: W): W => ({ ...w, organizationId: orgId });
+
+  async function verify(where: Prisma.OrgInviteWhereUniqueInput): Promise<number> {
+    const row = await prisma.orgInvite.findFirst({ where: org(where as W), select: { id: true } });
+    if (!row) notInOrg();
+    return row.id;
+  }
+
+  return {
+    findMany:   (args?: Prisma.OrgInviteFindManyArgs)  => prisma.orgInvite.findMany({ ...args, where: org(args?.where) }),
+    findFirst:  (args?: Prisma.OrgInviteFindFirstArgs) => prisma.orgInvite.findFirst({ ...args, where: org(args?.where) }),
+    findUnique: (args: Prisma.OrgInviteFindUniqueArgs) => prisma.orgInvite.findFirst({ ...args, where: org(args.where as W) }),
+    create:     (args: Omit<Prisma.OrgInviteCreateArgs, "data"> & { data: Omit<Prisma.OrgInviteUncheckedCreateInput, "organizationId"> }) =>
+      prisma.orgInvite.create({ ...args, data: { ...args.data, organizationId: orgId } }),
+    update:     async (args: Prisma.OrgInviteUpdateArgs) =>
+      prisma.orgInvite.update({ ...args, where: { id: await verify(args.where) } }),
+    delete:     async (args: Prisma.OrgInviteDeleteArgs) =>
+      prisma.orgInvite.delete({ where: { id: await verify(args.where) } }),
+    count:      (args?: Prisma.OrgInviteCountArgs)     => prisma.orgInvite.count({ ...args, where: org(args?.where) }),
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Main export
 // ---------------------------------------------------------------------------
@@ -453,6 +477,7 @@ export function db(orgId: number) {
     chapterAnnouncement: scopedChapterAnnouncement(orgId),
 
     brotherRole:         scopedBrotherRole(orgId),
+    orgInvite:           scopedOrgInvite(orgId),
 
     // Pass-through for join tables that have no organizationId column and are
     // always accessed through a verified parent id.
@@ -465,6 +490,10 @@ export function db(orgId: number) {
     membership:          prisma.membership,
     organization:        prisma.organization,
     platformAdmin:       prisma.platformAdmin,
+    // InviteRedemption has no organizationId column — it's reached via an
+    // org-verified OrgInvite (count is per-invite), so it's a pass-through like
+    // the attendance join tables above.
+    inviteRedemption:    prisma.inviteRedemption,
 
     // Interactive transaction pass-through. Sets app.org_id via SET LOCAL so
     // Postgres RLS policies can enforce org scoping at the DB layer for the
