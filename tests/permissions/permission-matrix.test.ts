@@ -67,6 +67,14 @@ describe("hasPermission", () => {
     expect(hasPermission(PERMISSIONS.MANAGE_BROTHERS, "MANAGE_TREASURY")).toBe(false);
     expect(hasPermission(PERMISSIONS.MANAGE_TREASURY, "MANAGE_BROTHERS")).toBe(false);
   });
+
+  it("MANAGE_SETTINGS is a distinct bit, in ALL_PERMISSIONS, separate from MANAGE_BROTHERS", () => {
+    expect(PERMISSIONS.MANAGE_SETTINGS).toBe(1 << 11);
+    expect((ALL_PERMISSIONS & PERMISSIONS.MANAGE_SETTINGS) !== 0).toBe(true);
+    // Granting only MANAGE_BROTHERS must NOT grant settings, and vice versa.
+    expect(hasPermission(PERMISSIONS.MANAGE_BROTHERS, "MANAGE_SETTINGS")).toBe(false);
+    expect(hasPermission(PERMISSIONS.MANAGE_SETTINGS, "MANAGE_BROTHERS")).toBe(false);
+  });
 });
 
 describe("role assignment: permission resolution from DB", () => {

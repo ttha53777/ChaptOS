@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { Prisma } from "../../../generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { db } from "@/lib/db";
@@ -8,25 +8,9 @@ import { cookies } from "next/headers";
 import { parseAvatarFromMetadata } from "@/lib/avatar";
 import { logActivity } from "@/lib/activity";
 import { resolveOrgFromRequest } from "@/lib/auth/org-resolution";
-import { ACTIVE_ORG_COOKIE } from "@/lib/auth/require-user";
+import { claimedResponse } from "@/lib/auth/session-cookies";
 import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
 import { logError } from "@/lib/observability";
-
-const LINKED_COOKIE_OPTS = {
-  path: "/", httpOnly: true, sameSite: "lax" as const, maxAge: 60 * 60 * 24 * 365,
-};
-
-/**
- * Build the post-claim response, pre-selecting the org they just claimed into
- * via active_org_id so the first /[slug] render resolves to it without a
- * background cookie sync. Mirrors /api/orgs (org creation). Link status itself
- * is read from the DB by requireUser() — there's no separate cookie for it.
- */
-function claimedResponse(orgId: number): NextResponse {
-  const res = NextResponse.json({ ok: true });
-  res.cookies.set(ACTIVE_ORG_COOKIE, String(orgId), LINKED_COOKIE_OPTS);
-  return res;
-}
 
 /**
  * Emit a minimal structured OperationalEvent for the claim flow.

@@ -9,11 +9,12 @@ import { SemestersSection } from "./sections/SemestersSection";
 import { AccountsSection } from "./sections/AccountsSection";
 import { RolesSection } from "./sections/RolesSection";
 import { ActivityLogSection } from "./sections/ActivityLogSection";
+import { InvitationsSection } from "./sections/InvitationsSection";
 import { useChapter } from "../../context/ChapterContext";
 
 // ─── Nav config ───────────────────────────────────────────────────────────────
 
-type SectionId = "general" | "thresholds" | "semesters" | "accounts" | "roles" | "activity-log";
+type SectionId = "general" | "thresholds" | "semesters" | "accounts" | "invitations" | "roles" | "activity-log";
 
 interface NavItem {
   id: SectionId;
@@ -51,6 +52,14 @@ const NAV_ITEMS: NavItem[] = [
     description: "Manage brother Google account links",
     group: "System",
     icon: "M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z",
+  },
+  {
+    id: "invitations",
+    label: "Invitations",
+    description: "Generate and manage org invite links",
+    group: "System",
+    // Link / chain icon.
+    icon: "M13.828 10.172a4 4 0 010 5.656l-3 3a4 4 0 11-5.656-5.656l1.5-1.5M10.172 13.828a4 4 0 010-5.656l3-3a4 4 0 115.656 5.656l-1.5 1.5",
   },
   {
     id: "roles",
@@ -117,19 +126,23 @@ export default function SettingsPage() {
   // Mobile nav: show as horizontal scrollable strip on small screens
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
-  // Roles tab is hidden from callers who can't actually manage roles — section
-  // is unreachable so we don't need to render a gated message inside it.
-  const canManageRoles = can("MANAGE_ROLES");
-  const visibleNavItems = canManageRoles
-    ? NAV_ITEMS
-    : NAV_ITEMS.filter(n => n.id !== "roles");
+  // Permission-gated tabs are hidden from callers who can't use them — each
+  // section is then unreachable, so it needn't render its own gated message.
+  const canManageRoles    = can("MANAGE_ROLES");
+  const canManageSettings = can("MANAGE_SETTINGS");
+  const visibleNavItems = NAV_ITEMS.filter(n => {
+    if (n.id === "roles")       return canManageRoles;
+    if (n.id === "invitations") return canManageSettings;
+    return true;
+  });
 
-  // Defensive: if the user lost the permission mid-session (token refresh,
-  // role revoked from another browser), `activeId` could still point at "roles"
-  // even though the tab is gone. Snap back to the first visible section.
+  // Defensive: if the user lost a permission mid-session (token refresh, role
+  // revoked from another browser), `activeId` could still point at a now-hidden
+  // tab. Snap back to the first visible section.
   useEffect(() => {
     if (activeId === "roles" && !canManageRoles) setActiveId("general");
-  }, [activeId, canManageRoles]);
+    if (activeId === "invitations" && !canManageSettings) setActiveId("general");
+  }, [activeId, canManageRoles, canManageSettings]);
 
   useEffect(() => {
     if (!statusMsg) return;
@@ -275,6 +288,9 @@ export default function SettingsPage() {
               )}
               {activeId === "accounts" && (
                 <AccountsSection onStatus={setStatusMsg} onError={setPageError} />
+              )}
+              {activeId === "invitations" && (
+                <InvitationsSection onStatus={setStatusMsg} onError={setPageError} />
               )}
               {activeId === "roles" && (
                 <RolesSection onStatus={setStatusMsg} onError={setPageError} />

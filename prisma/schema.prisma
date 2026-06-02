@@ -43,6 +43,7 @@ model Organization {
   operationalEvents  OperationalEvent[]
   brotherRoles       BrotherRole[]
   config             OrganizationConfig?
+  invites            OrgInvite[]
 }
 
 // Per-org configuration extracted from Organization to keep the hot row small.
@@ -115,10 +116,56 @@ model Brother {
   roles             BrotherRole[]
   memberships       Membership[]
   platformAdmin     PlatformAdmin?
+  createdInvites    OrgInvite[]        @relation("InviteCreator")
+  inviteRedemptions InviteRedemption[]
 
   organization Organization @relation(fields: [organizationId], references: [id])
 
   @@index([organizationId])
+}
+
+// An admin-generated invite link for an org. Anyone with the link can join until
+// it expires or is revoked (reusable, multi-use).
+//
+//   mode      "open"  → redeeming creates a fresh Brother + Membership.
+//             "claim" → redeeming routes the user into the name-match claim flow.
+//   expiresAt null    → never expires.
+//   revokedAt null    → still active.
+//
+// `token` is stored in plaintext: it's a bearer credential that already lives in
+// the URL/clipboard/chat, so hashing it (vs a password) buys little here. If a
+// DB-dump threat model emerges, switch to storing sha256(token) and looking up
+// by hash. @unique gives a single-query lookup.
+model OrgInvite {
+  id                 Int       @id @default(autoincrement())
+  organizationId     Int
+  token              String    @unique
+  mode               String    // InviteMode union in @/lib/state
+  expiresAt          DateTime?
+  revokedAt          DateTime?
+  createdByBrotherId Int
+  createdAt          DateTime  @default(now())
+
+  organization Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy    Brother            @relation("InviteCreator", fields: [createdByBrotherId], references: [id])
+  redemptions  InviteRedemption[]
+
+  @@index([organizationId])
+}
+
+// One row per successful join through an OrgInvite — the audit trail + the
+// settings redemption count. @@unique makes re-clicking a link idempotent.
+model InviteRedemption {
+  id         Int      @id @default(autoincrement())
+  inviteId   Int
+  brotherId  Int
+  redeemedAt DateTime @default(now())
+
+  invite  OrgInvite @relation(fields: [inviteId], references: [id], onDelete: Cascade)
+  brother Brother   @relation(fields: [brotherId], references: [id], onDelete: Cascade)
+
+  @@unique([inviteId, brotherId])
+  @@index([inviteId])
 }
 
 // Discord-style role: a named bundle of permission bits with a hierarchy rank.

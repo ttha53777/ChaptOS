@@ -44,6 +44,7 @@ const PERMISSION_LABELS: Record<Permission, string> = {
   MANAGE_ROLES:      "Manage roles & assignments",
   MANAGE_DOCS:          "Manage docs (pin/edit/delete links)",
   MANAGE_ANNOUNCEMENTS: "Manage chapter announcement",
+  MANAGE_SETTINGS:      "Manage org settings & invite links",
 };
 
 function permissionSummary(bits: number): string {

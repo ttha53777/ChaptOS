@@ -121,6 +121,18 @@ export async function GET(request: NextRequest) {
   }
 
   // Unlinked from here down.
+
+  // Deep-link target first: a freshly-signed-in but still-unlinked user who was
+  // headed somewhere specific (e.g. an invite at /join/<token>) returns there.
+  // Must come BEFORE the orgSlug branch — otherwise an invite redeemer (who
+  // carries next= but no org=) would never hit it; and an org= deep-linker who
+  // turns out unlinked is correctly routed by the destination's own guard
+  // (the [slug] layout sends them to /pending-access). safeNext is the
+  // open-redirect-guarded local path from the proxy.
+  if (safeNext) {
+    return redirectTo(`${origin}${safeNext}`);
+  }
+
   if (orgSlug) {
     // Unlinked but the org context was preserved through OAuth (e.g. they
     // started at /login?org=lpe). Skip the choice screen — they already know

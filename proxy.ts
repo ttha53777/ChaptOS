@@ -77,9 +77,10 @@ export const config = {
   // /welcome stays BEHIND the proxy so its session cookie is refreshed (the
   // browser client reads it on /welcome/create). Authenticated users pass
   // straight through now that the link-status bounce is gone, so new founders
-  // reach the create flow without a detour. login/auth/pending-access/api are
-  // excluded — they must be reachable while signed out.
+  // reach the create flow without a detour. login/auth/join/pending-access/api
+  // are excluded — they must be reachable while signed out (/join lets an
+  // invited, signed-out user land and trigger OAuth themselves).
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|login|auth|pending-access|api|images|fonts).*)",
+    "/((?!_next/static|_next/image|favicon.ico|login|auth|join|pending-access|api|images|fonts).*)",
   ],
 };

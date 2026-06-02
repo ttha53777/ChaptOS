@@ -22,6 +22,9 @@ export const PERMISSIONS = {
   MANAGE_ROLES:      1 << 8,
   MANAGE_DOCS:          1 << 9,
   MANAGE_ANNOUNCEMENTS: 1 << 10,
+  // Org settings: general config + invite links. Distinct from MANAGE_BROTHERS
+  // (roster CRUD) so settings authority isn't bundled with roster editing.
+  MANAGE_SETTINGS:      1 << 11,
 } as const;
 
 export type Permission = keyof typeof PERMISSIONS;
