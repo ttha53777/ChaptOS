@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { isoWeekBounds } from "@/lib/dates";
 
 // Per-org caches keyed by orgId. Active semester changes at most a few times a
 // year; caching for 5 minutes avoids a round trip before every chat message.
@@ -40,20 +41,6 @@ async function getLastMeetingLine(orgId: number, todayIso: string): Promise<stri
   } catch { /* DB blip — model still works without this line */ }
   lastMeetingCache.set(cacheKey, { line, expires: now + 5 * 60 * 1000 });
   return line;
-}
-
-// Mon–Sun ISO bounds containing `today`. Mirrors isoWeekBoundsServer in
-// lib/ai-tools.ts so the system prompt's "this week" matches what
-// weekly_digest returns when the model calls it.
-function isoWeekBounds(today: Date): { start: string; end: string } {
-  const diffToMon = (today.getDay() + 6) % 7;
-  const monday = new Date(today);
-  monday.setDate(today.getDate() - diffToMon);
-  const sunday = new Date(monday);
-  sunday.setDate(monday.getDate() + 6);
-  const pad = (n: number) => String(n).padStart(2, "0");
-  const toISO = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-  return { start: toISO(monday), end: toISO(sunday) };
 }
 
 function nextWeekBounds(today: Date): { start: string; end: string } {

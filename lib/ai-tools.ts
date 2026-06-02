@@ -12,6 +12,7 @@
  */
 import type OpenAI from "openai";
 import { prisma } from "@/lib/prisma";
+import { isoWeekBounds } from "@/lib/dates";
 import { THRESHOLDS, getBrotherStatus, type Brother as BrotherType } from "@/app/data";
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -343,18 +344,6 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const r2 = (n: number) => Math.round(n * 100) / 100;
-
-/** Mon–Sun ISO bounds containing `today` (matches app/data.ts isoWeekBounds). */
-function isoWeekBoundsServer(today: Date) {
-  const diffToMon = (today.getDay() + 6) % 7;
-  const monday = new Date(today);
-  monday.setDate(today.getDate() - diffToMon);
-  const sunday = new Date(monday);
-  sunday.setDate(monday.getDate() + 6);
-  const pad = (n: number) => String(n).padStart(2, "0");
-  const toISO = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-  return { start: toISO(monday), end: toISO(sunday) };
-}
 
 function clampLimit(n: unknown, def = 100, max = 100): number {
   const v = typeof n === "number" ? Math.floor(n) : def;
@@ -773,7 +762,7 @@ async function recentActivity(args: ToolArgs, orgId: number): Promise<ToolResult
 }
 
 async function weeklyDigest(orgId: number): Promise<ToolResult> {
-  const { start, end } = isoWeekBoundsServer(new Date());
+  const { start, end } = isoWeekBounds(new Date());
   const inWeek = (iso: string) => iso >= start && iso <= end;
   const [deadlines, ig, events, parties, brothers] = await Promise.all([
     prisma.deadline.findMany({ where: { organizationId: orgId } }),
