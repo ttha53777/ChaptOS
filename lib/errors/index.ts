@@ -46,6 +46,15 @@ export class ConflictError extends DomainError {
   }
 }
 
+/**
+ * A Google account is already linked to a Brother somewhere. Subclass of
+ * ConflictError so it still maps to 409 for every existing caller, but the
+ * org-create route catches it specifically: a founder whose previous POST
+ * committed but lost its response shouldn't see a dead-end "already linked"
+ * error — they should be routed into the org they already created.
+ */
+export class AlreadyLinkedError extends ConflictError {}
+
 export class ForbiddenError extends DomainError {
   constructor(message = "Forbidden") {
     super("FORBIDDEN", message, 403);

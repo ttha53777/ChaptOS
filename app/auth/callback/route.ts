@@ -76,6 +76,19 @@ export async function GET(request: NextRequest) {
     return redirectTo(`${origin}${dest}`);
   }
 
+  // Unlinked from here down. CRITICAL: clear any stale brother_linked cookie.
+  // It's set with a 1-year maxAge when a LINKED user signs in. If a different,
+  // UNLINKED email then signs in on the same browser (without a clean signout),
+  // the old cookie would survive and the proxy would wave this unlinked user
+  // straight into the dashboard — skipping the claim flow and leaving them with
+  // no Brother. Expiring it here guarantees the proxy routes them to claim.
+  cookieJar.cookies.set("brother_linked", "", {
+    path: "/",
+    httpOnly: true,
+    sameSite: "lax",
+    maxAge: 0,
+  });
+
   if (orgSlug) {
     // Unlinked but the org context was preserved through OAuth (e.g. they
     // started at /login?org=lpe). Skip the choice screen — they already know
