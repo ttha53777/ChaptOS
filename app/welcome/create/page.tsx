@@ -15,11 +15,11 @@ import { APP_NAME } from "@/lib/domains";
 //   4. Your name — sets the founder's Brother.name (separate from Google name
 //      so they're not stuck with a legal name they don't use day-to-day)
 //
-// On submit: POST /api/orgs. The server sets the active_org + brother_linked
-// cookies and returns the org's slug (201 created, or 200 when the account was
-// already linked from a prior attempt whose response was lost). We hard-navigate
-// to that server-returned slug — or to / as a fallback, which server-resolves
-// the active org from the cookie — so ChapterContext remounts under the new org.
+// On submit: POST /api/orgs. The server sets the active_org cookie and returns
+// the org's slug (201 created, or 200 when the account was already linked from a
+// prior attempt whose response was lost). We hard-navigate to that server-
+// returned slug — or to / as a fallback, which server-resolves the active org
+// from the cookie — so ChapterContext remounts under the new org.
 
 type SlugState =
   | { kind: "idle" }
@@ -138,14 +138,12 @@ export default function CreateOrgPage() {
 
       // 201 = created. 200 = already-linked recovery (a prior POST committed but
       // lost its response): the server resolved the org we already have and set
-      // the session cookies, so we route in exactly the same way. Either way the
-      // server now owns the active_org_id + brother_linked cookies.
+      // the active_org cookie, so we route the same way either case.
       if (res.status === 201 || (res.status === 200 && data?.ok)) {
         // Navigate to the SERVER's slug (authoritative — it may have normalized
         // what we sent, and on recovery it's the org we already had, not this
         // form's input). Fall back to root, which server-resolves the active org
-        // from the freshly-set cookie — so we don't depend on the local slug or
-        // on the proxy reading brother_linked before the cookie has committed.
+        // from the freshly-set cookie.
         const dest = typeof data?.slug === "string" && data.slug ? `/${data.slug}` : "/";
         window.location.assign(dest);
         return;

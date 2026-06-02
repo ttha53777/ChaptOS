@@ -1,8 +1,8 @@
 /**
  * Integration tests for GET /api/orgs/slug-check.
  *
- * Like /api/orgs/lookup, this route is unauthenticated and only touches Prisma
- * + the in-memory rate limiter, so it can be called directly with a NextRequest.
+ * This route is unauthenticated and only touches Prisma + the in-memory rate
+ * limiter, so it can be called directly with a NextRequest.
  */
 
 import { afterAll, beforeEach, describe, expect, it } from "vitest";

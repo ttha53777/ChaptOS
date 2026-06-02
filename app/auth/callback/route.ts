@@ -14,6 +14,13 @@ export async function GET(request: NextRequest) {
   // CREATE an org, route them straight to the create form instead of the
   // /welcome chooser. Any other value is ignored.
   const intent = searchParams.get("intent");
+  // Deep-link target: the path the user originally requested before being
+  // bounced to /login (the proxy forwards it as ?next=). Honored for LINKED
+  // users so a signed-out deep-link to /<slug>/treasury returns there after
+  // sign-in. Must be a local path (leading "/", no "//") to prevent open
+  // redirects.
+  const nextParam = searchParams.get("next");
+  const safeNext = nextParam && /^\/(?!\/)/.test(nextParam) ? nextParam : null;
 
   if (!code) {
     return NextResponse.redirect(buildUrl(origin, "/login", orgSlug, "error=auth"));
@@ -66,29 +73,31 @@ export async function GET(request: NextRequest) {
   });
 
   if (brother) {
-    // Linked user → their org dashboard with the welcome toast.
-    cookieJar.cookies.set("brother_linked", "1", {
-      path: "/",
-      httpOnly: true,
-      sameSite: "lax",
-      maxAge: 60 * 60 * 24 * 365,
-    });
-    // ...unless they came specifically to found ANOTHER org ("Start a new
-    // chapter"). A Google account maps to one Brother, but that Brother can own
-    // multiple orgs via Membership (provisionOrg reuses the existing Brother).
-    // So honor the create intent instead of bouncing them to an org they
-    // already have. ?new=1 tells /welcome/create to skip its redirect-home
-    // guard for this already-onboarded user.
+    // "Start a new chapter": a linked user founding ANOTHER org. A Google
+    // account maps to one Brother, but that Brother can own multiple orgs via
+    // Membership (provisionOrg reuses the existing Brother). Honor the create
+    // intent instead of bouncing them to an org they already have. ?new=1 tells
+    // /welcome/create to skip its redirect-home guard for this onboarded user.
     if (intent === "create") {
       return redirectTo(buildUrl(origin, "/welcome/create", null, "new=1"));
     }
-    // Target the org they signed in for (?org= hint) if they're a member of it,
-    // else their home org. Fall back to the root redirect if neither resolves.
-    const target =
-      (orgSlug && brother.memberships.find(m => m.organization.slug === orgSlug)) ||
-      (brother.organization
-        ? { organizationId: brother.organization.id, organization: { slug: brother.organization.slug } }
-        : null);
+
+    // Resolve which org to land in, in priority order:
+    //   1. ?org= deep-link hint, if they're a member of it.
+    //   2. The active_org_id cookie, if it still points at one of their orgs.
+    //   3. Their home org (Brother.organization).
+    //   4. First membership (covers a multi-org founder whose home org row
+    //      lives elsewhere — see the multi-org founding work).
+    const bySlug = orgSlug ? brother.memberships.find(m => m.organization.slug === orgSlug) : null;
+    const cookieOrgId = Number(request.cookies.get(ACTIVE_ORG_COOKIE)?.value);
+    const byCookie = Number.isInteger(cookieOrgId)
+      ? brother.memberships.find(m => m.organizationId === cookieOrgId)
+      : null;
+    const home = brother.organization
+      ? { organizationId: brother.organization.id, organization: { slug: brother.organization.slug } }
+      : null;
+    const target = bySlug || byCookie || home || brother.memberships[0] || null;
+
     // Pre-set the active_org cookie to the org we're routing them into, so the
     // first /[slug] render resolves to the right org without a background sync.
     // Mirrors what /api/orgs does on org creation.
@@ -100,23 +109,18 @@ export async function GET(request: NextRequest) {
         maxAge: 60 * 60 * 24 * 365,
       });
     }
+
+    // Prefer the original deep-link path if it was preserved AND lands inside
+    // the org we resolved (so the cookie and URL agree). Otherwise the org
+    // dashboard with the welcome toast.
+    if (safeNext && target && safeNext.startsWith(`/${target.organization.slug}`)) {
+      return redirectTo(`${origin}${safeNext}`);
+    }
     const dest = target ? `/${target.organization.slug}?toast=welcome` : "/?toast=welcome";
     return redirectTo(`${origin}${dest}`);
   }
 
-  // Unlinked from here down. CRITICAL: clear any stale brother_linked cookie.
-  // It's set with a 1-year maxAge when a LINKED user signs in. If a different,
-  // UNLINKED email then signs in on the same browser (without a clean signout),
-  // the old cookie would survive and the proxy would wave this unlinked user
-  // straight into the dashboard — skipping the claim flow and leaving them with
-  // no Brother. Expiring it here guarantees the proxy routes them to claim.
-  cookieJar.cookies.set("brother_linked", "", {
-    path: "/",
-    httpOnly: true,
-    sameSite: "lax",
-    maxAge: 0,
-  });
-
+  // Unlinked from here down.
   if (orgSlug) {
     // Unlinked but the org context was preserved through OAuth (e.g. they
     // started at /login?org=lpe). Skip the choice screen — they already know

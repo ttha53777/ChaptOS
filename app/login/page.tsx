@@ -1,102 +1,58 @@
 "use client";
 
 import { createClient } from "@/lib/supabase/client";
-import { extractSlug } from "@/lib/slug-extract";
-import { orgHostLabel, domainSuffix, APP_NAME } from "@/lib/domains";
+import { APP_NAME } from "@/lib/domains";
 import { useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useRef, useState } from "react";
+import { Suspense, useState } from "react";
 
-// The org-first login page.
+// The login page — deliberately minimal.
 //
-// Instead of being branded to a single chapter, this page asks "which
-// organization?" first, then hands off to Google OAuth with the slug threaded
-// through ?org= so /auth/callback can route the user to the right place.
+// Auth is "sign in first, resolve org after": we DON'T ask which organization
+// before signing in. Google tells us who the user is, and /auth/callback routes
+// them from their Brother/Membership rows (their dashboard if linked, the claim
+// or create flow if not). The org slug is a post-auth TARGET, never a pre-auth
+// gate — so returning members reach their dashboard in one click with zero org
+// knowledge.
 //
-// Two visual states:
-//   A — Returning user: we remembered their last org in localStorage. Show it
-//       as a card with an immediate "Continue with Google" button. No re-entry.
-//   B — First visit / "different org": slug input with live lookup. The Google
-//       button stays disabled until a real org is confirmed.
-//
-// A ?org= query param (e.g. a link a friend shared) seeds State B with the slug
-// pre-filled and pre-validated, so shared links still work end to end.
-
-const LAST_ORG_KEY = "chaptos_last_org";
-
-type RememberedOrg = { slug: string; name: string };
-
-function readLastOrg(): RememberedOrg | null {
-  try {
-    const raw = localStorage.getItem(LAST_ORG_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as Partial<RememberedOrg>;
-    if (typeof parsed?.slug === "string" && typeof parsed?.name === "string") {
-      return { slug: parsed.slug, name: parsed.name };
-    }
-  } catch {
-    // Corrupt / unavailable storage — fall through to State B.
-  }
-  return null;
-}
+// Deep-link preservation: when the proxy bounces a signed-out user off a
+// protected route it forwards the original path as ?next= (and any org context
+// as ?org=). We thread both into the OAuth round-trip so the callback can send
+// the user back where they were headed.
 
 function LoginContent() {
   const searchParams = useSearchParams();
   const urlError = searchParams.get("error");
+  const next     = searchParams.get("next");
   const orgHint  = searchParams.get("org");
 
-  // null = not yet resolved on the client (avoids a flash before localStorage
-  // is read). Once resolved it's either a RememberedOrg (State A) or false
-  // (State B).
-  const [remembered, setRemembered] = useState<RememberedOrg | null | false>(null);
+  const [signingIn, setSigningIn] = useState(false);
+  const [creating, setCreating]   = useState(false);
+  const [error, setError]         = useState<string | null>(null);
 
-  // On mount, decide State A vs B. A ?org= hint always forces State B with the
-  // slug pre-filled so shared links don't get hijacked by a stale localStorage
-  // entry for a different org.
-  //
-  // For a remembered org we REVALIDATE against /api/orgs/lookup before showing
-  // the one-click card: the org may have been renamed or deleted since we cached
-  // it, and trusting a stale slug would OAuth the user into a dead
-  // /pending-access. While the check is in flight `remembered` stays null (the
-  // placeholder shows). On a network error we trust the cache rather than lock
-  // the user out over a blip.
-  useEffect(() => {
-    let cancelled = false;
-    if (orgHint) {
-      setRemembered(false);
-      return;
+  async function handleSignIn() {
+    setSigningIn(true);
+    setError(null);
+    const err = await signInWithGoogle({ next, org: orgHint });
+    if (err) {
+      setError(err);
+      setSigningIn(false);
     }
-    const cached = readLastOrg();
-    if (!cached) {
-      setRemembered(false);
-      return;
-    }
-    (async () => {
-      try {
-        const res = await fetch(`/api/orgs/lookup?slug=${encodeURIComponent(cached.slug)}`);
-        if (cancelled) return;
-        if (res.ok) {
-          // Refresh the name in case it changed; re-persist for next time.
-          const data = (await res.json()) as RememberedOrg;
-          try { localStorage.setItem(LAST_ORG_KEY, JSON.stringify(data)); } catch { /* ignore */ }
-          setRemembered(data);
-        } else if (res.status === 404 || res.status === 400) {
-          // Org gone or slug no longer valid — drop the stale entry, show picker.
-          try { localStorage.removeItem(LAST_ORG_KEY); } catch { /* ignore */ }
-          setRemembered(false);
-        } else {
-          // Server hiccup (5xx/429) — fall back to the cached value.
-          setRemembered(cached);
-        }
-      } catch {
-        if (!cancelled) setRemembered(cached); // network error — trust the cache
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [orgHint]);
+  }
 
-  // Still resolving localStorage — render nothing visible to avoid a flash of
-  // the wrong state. The ambient background still shows.
-  const showStateA = remembered !== null && remembered !== false;
+  // "Start a new chapter" — a founder. Sign in first (creating an org needs a
+  // session), then the callback routes the user to /welcome/create via
+  // intent=create.
+  async function handleCreate() {
+    setCreating(true);
+    setError(null);
+    const err = await signInWithGoogle({ intent: "create" });
+    if (err) {
+      setError(err);
+      setCreating(false);
+    }
+  }
+
+  const showError = urlError || error;
 
   return (
     <div className="relative min-h-screen flex items-center justify-center overflow-hidden bg-[#07090f]">
@@ -124,7 +80,7 @@ function LoginContent() {
           className="relative rounded-2xl border border-white/[0.08] bg-[#10121a]/90 backdrop-blur-xl px-8 py-10 flex flex-col gap-7"
           style={{ boxShadow: "0 4px 6px rgba(0,0,0,0.4), 0 24px 60px -20px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.05)" }}
         >
-          {/* Header — platform wordmark, not org-specific */}
+          {/* Header — platform wordmark */}
           <div className="flex flex-col items-center gap-4">
             <div className="relative">
               <div className="absolute inset-0 rounded-xl bg-indigo-500/30 blur-md" />
@@ -134,36 +90,60 @@ function LoginContent() {
             </div>
             <div className="flex flex-col items-center gap-1 text-center">
               <h1 className="text-[22px] font-semibold tracking-tight text-white leading-tight">
-                {showStateA ? "Welcome back" : "Sign in to your chapter"}
+                Sign in to {APP_NAME}
               </h1>
               <p className="text-[13px] text-white/40 font-medium">
-                {showStateA
-                  ? "Pick up where you left off."
-                  : "Enter your organization to continue."}
+                Continue with your Google account.
               </p>
             </div>
           </div>
 
-          {(urlError) && (
+          {showError && (
             <div className="flex items-center gap-2.5 rounded-lg border border-red-500/20 bg-red-500/8 px-3.5 py-2.5">
               <svg className="w-4 h-4 shrink-0 text-red-400" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                 <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z" clipRule="evenodd" />
               </svg>
-              <p className="text-[13px] text-red-400">Sign-in failed. Please try again.</p>
+              <p className="text-[13px] text-red-400">
+                {error ?? "Sign-in failed. Please try again."}
+              </p>
             </div>
           )}
 
-          {remembered === null ? (
-            // Resolving localStorage — placeholder keeps layout from jumping.
-            <div className="h-[120px]" aria-hidden />
-          ) : showStateA ? (
-            <ReturningOrg
-              org={remembered as RememberedOrg}
-              onSwitch={() => setRemembered(false)}
-            />
-          ) : (
-            <OrgPicker initialSlug={orgHint ?? ""} />
-          )}
+          <div className="flex flex-col gap-5">
+            <GoogleButton loading={signingIn} disabled={signingIn || creating} onClick={handleSignIn} />
+
+            {/* Divider */}
+            <div className="h-px w-full bg-white/[0.06]" />
+
+            {/* Create-org card — signs in first, then routes to /welcome/create. */}
+            <button
+              type="button"
+              onClick={handleCreate}
+              disabled={creating || signingIn}
+              className="group relative w-full overflow-hidden rounded-xl border border-white/[0.08] bg-white/[0.02] px-4 py-3.5 text-left transition-all hover:border-indigo-400/40 hover:bg-indigo-500/[0.06] disabled:opacity-60 disabled:cursor-not-allowed focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+            >
+              <div className="flex items-center gap-3">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-indigo-500/15 text-indigo-300">
+                  {creating ? (
+                    <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden>
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+                    </svg>
+                  ) : (
+                    <svg className="h-4.5 w-4.5" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
+                      <path d="M3 6a2 2 0 012-2h2.5l1 1.5H15a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2V6z" />
+                    </svg>
+                  )}
+                </div>
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-[13.5px] font-semibold text-white">Start a new chapter on {APP_NAME}</span>
+                  <span className="text-[12px] text-white/45">
+                    {creating ? "Redirecting to Google…" : "Create your organization →"}
+                  </span>
+                </div>
+              </div>
+            </button>
+          </div>
 
           {/* App name footer */}
           <div className="flex items-center justify-center gap-2 pt-1">
@@ -178,21 +158,26 @@ function LoginContent() {
 }
 
 /**
- * Kick off Google OAuth, threading either the org slug (join/sign-in) OR the
- * "create" intent (new founder) through the round-trip so /auth/callback can
- * route the user. Exactly one of `slug` / `intent: "create"` is meaningful;
- * the create path carries no slug because the org doesn't exist yet.
+ * Kick off Google OAuth. The callback URL carries forward whatever routing
+ * hints we have so /auth/callback can land the user in the right place:
+ *   - { next, org }      sign-in: original deep-link path + any org context
+ *   - { intent: "create" } new founder → /welcome/create after auth
+ * All hints are optional; sign-in works with none of them.
  */
 async function signInWithGoogle(
-  opts: { slug: string } | { intent: "create" },
+  opts: { next?: string | null; org?: string | null } | { intent: "create" },
 ): Promise<string | null> {
   try {
     const supabase = createClient();
-    const qs =
-      "intent" in opts
-        ? "intent=create"
-        : `org=${encodeURIComponent(opts.slug)}`;
-    const callbackUrl = `${window.location.origin}/auth/callback?${qs}`;
+    const params = new URLSearchParams();
+    if ("intent" in opts) {
+      params.set("intent", opts.intent);
+    } else {
+      if (opts.org)  params.set("org", opts.org);
+      if (opts.next) params.set("next", opts.next);
+    }
+    const qs = params.toString();
+    const callbackUrl = `${window.location.origin}/auth/callback${qs ? `?${qs}` : ""}`;
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: { redirectTo: callbackUrl },
@@ -204,213 +189,7 @@ async function signInWithGoogle(
   }
 }
 
-/** State A — a remembered org, one click from sign-in. */
-function ReturningOrg({ org, onSwitch }: { org: RememberedOrg; onSwitch: () => void }) {
-  const [loading, setLoading] = useState(false);
-  const [error, setError]     = useState<string | null>(null);
-
-  async function handle() {
-    setLoading(true);
-    setError(null);
-    const err = await signInWithGoogle({ slug: org.slug });
-    if (err) {
-      setError(err);
-      setLoading(false);
-    }
-  }
-
-  return (
-    <div className="flex flex-col gap-4">
-      {/* Org card */}
-      <div className="rounded-xl border border-indigo-400/25 bg-gradient-to-br from-indigo-500/10 to-indigo-600/[0.03] px-4 py-3.5">
-        <p className="text-[14px] font-semibold text-white leading-tight">{org.name}</p>
-        <p className="text-[12px] text-white/40 mt-0.5">{orgHostLabel(org.slug)}</p>
-      </div>
-
-      {error && <p className="text-[12px] text-red-400">{error}</p>}
-
-      <GoogleButton loading={loading} disabled={false} onClick={handle} />
-
-      <button
-        onClick={onSwitch}
-        className="text-center text-[12px] text-white/40 hover:text-white/70 transition-colors"
-      >
-        Not your org? Sign in to a different one →
-      </button>
-    </div>
-  );
-}
-
-/** State B — slug input with live lookup, then sign-in + a create-org card. */
-function OrgPicker({ initialSlug }: { initialSlug: string }) {
-  const [input, setInput]     = useState(initialSlug);
-  const [found, setFound]     = useState<RememberedOrg | null>(null);
-  const [error, setError]     = useState<string | null>(null);
-  const [checking, setChecking] = useState(false);
-  const [loading, setLoading]   = useState(false);
-  const [creating, setCreating] = useState(false);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const reqIdRef    = useRef(0);
-  // Empty until a real domain is configured — then the input shows a
-  // ".<domain>" suffix. See lib/domains.ts.
-  const suffix = domainSuffix();
-
-  // Debounced lookup. Runs whenever the input changes; the latest request wins
-  // (reqId guard) so out-of-order responses can't clobber a newer result.
-  useEffect(() => {
-    setFound(null);
-    setError(null);
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-
-    const slug = extractSlug(input);
-    if (!slug) {
-      setChecking(false);
-      return;
-    }
-
-    setChecking(true);
-    const myReqId = ++reqIdRef.current;
-    debounceRef.current = setTimeout(async () => {
-      try {
-        const res = await fetch(`/api/orgs/lookup?slug=${encodeURIComponent(slug)}`);
-        if (myReqId !== reqIdRef.current) return; // a newer keystroke superseded us
-        if (res.status === 404) {
-          setError("No organization found with that URL.");
-        } else if (res.status === 400) {
-          const data = await res.json().catch(() => ({}));
-          setError(data.error ?? "Invalid organization URL.");
-        } else if (!res.ok) {
-          setError("Lookup failed. Try again.");
-        } else {
-          const data = (await res.json()) as RememberedOrg;
-          setFound(data);
-        }
-      } catch {
-        if (myReqId === reqIdRef.current) setError("Couldn't reach the server.");
-      } finally {
-        if (myReqId === reqIdRef.current) setChecking(false);
-      }
-    }, 400);
-
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-    };
-  }, [input]);
-
-  async function handleContinue() {
-    if (!found) return;
-    setLoading(true);
-    setError(null);
-    const err = await signInWithGoogle({ slug: found.slug });
-    if (err) {
-      setError(err);
-      setLoading(false);
-    }
-  }
-
-  // "Start a new chapter" — a founder with no org yet. Sign in with Google
-  // first (creating an org requires a session), then /auth/callback routes the
-  // unlinked, org-less user straight to /welcome/create via intent=create.
-  async function handleCreate() {
-    setCreating(true);
-    setError(null);
-    const err = await signInWithGoogle({ intent: "create" });
-    if (err) {
-      setError(err);
-      setCreating(false);
-    }
-  }
-
-  return (
-    <div className="flex flex-col gap-5">
-      <div className="flex flex-col gap-2.5">
-        <label htmlFor="org-slug" className="text-[12px] font-medium text-white/60">
-          {suffix ? "Your organization’s URL" : "Your organization’s ID"}
-        </label>
-        <div className="flex items-stretch rounded-lg border border-white/[0.08] bg-zinc-900/80 focus-within:border-indigo-500 overflow-hidden">
-          <input
-            id="org-slug"
-            type="text"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder="your-chapter"
-            autoComplete="off"
-            autoCapitalize="off"
-            autoCorrect="off"
-            spellCheck={false}
-            autoFocus
-            className="flex-1 min-w-0 bg-transparent px-3 py-2.5 text-white text-[14px] placeholder-white/30 focus:outline-none"
-          />
-          {suffix && (
-            <span className="flex items-center px-3 text-[13px] text-white/30 border-l border-white/[0.06] select-none">
-              {suffix}
-            </span>
-          )}
-        </div>
-
-        {/* Status line — checking / found / error */}
-        <div className="min-h-[18px]">
-          {checking && (
-            <p className="text-[12px] text-white/40">Checking…</p>
-          )}
-          {!checking && found && (
-            <p className="flex items-center gap-1.5 text-[12px] text-emerald-400">
-              <svg className="h-3.5 w-3.5 shrink-0" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
-                <path fillRule="evenodd" d="M16.7 5.3a1 1 0 010 1.4l-7 7a1 1 0 01-1.4 0l-3-3a1 1 0 011.4-1.4L9 11.6l6.3-6.3a1 1 0 011.4 0z" clipRule="evenodd" />
-              </svg>
-              <span className="text-white/80">{found.name}</span>
-            </p>
-          )}
-          {!checking && error && (
-            <p className="text-[12px] text-red-400">{error}</p>
-          )}
-        </div>
-
-        <GoogleButton
-          loading={loading}
-          disabled={!found || loading}
-          onClick={handleContinue}
-        />
-      </div>
-
-      {/* Divider */}
-      <div className="h-px w-full bg-white/[0.06]" />
-
-      {/* Create-org card — prominent, equal weight to sign-in. Creating an org
-          needs a Google session, so this signs in first (intent=create) and the
-          callback lands the new founder on /welcome/create. */}
-      <button
-        type="button"
-        onClick={handleCreate}
-        disabled={creating}
-        className="group relative w-full overflow-hidden rounded-xl border border-white/[0.08] bg-white/[0.02] px-4 py-3.5 text-left transition-all hover:border-indigo-400/40 hover:bg-indigo-500/[0.06] disabled:opacity-60 disabled:cursor-not-allowed focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
-      >
-        <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-indigo-500/15 text-indigo-300">
-            {creating ? (
-              <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden>
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
-              </svg>
-            ) : (
-              <svg className="h-4.5 w-4.5" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
-                <path d="M3 6a2 2 0 012-2h2.5l1 1.5H15a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2V6z" />
-              </svg>
-            )}
-          </div>
-          <div className="flex flex-col gap-0.5">
-            <span className="text-[13.5px] font-semibold text-white">Start a new chapter on {APP_NAME}</span>
-            <span className="text-[12px] text-white/45">
-              {creating ? "Redirecting to Google…" : "Create your organization →"}
-            </span>
-          </div>
-        </div>
-      </button>
-    </div>
-  );
-}
-
-/** Shared Google sign-in button — same styling as before. */
+/** Shared Google sign-in button. */
 function GoogleButton({ loading, disabled, onClick }: { loading: boolean; disabled: boolean; onClick: () => void }) {
   return (
     <button

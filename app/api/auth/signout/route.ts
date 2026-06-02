@@ -15,9 +15,11 @@ import { logError } from "@/lib/observability";
 //   1. Invalidate the Supabase session server-side (auth.signOut), letting the
 //      SSR client expire the sb-* cookies onto `res` via setAll.
 //   2. Defensively expire every sb-* cookie we received, plus our own
-//      brother_linked + active_org_id cookies. Clearing active_org_id matters
-//      on shared devices: otherwise the next user inherits the previous user's
-//      last-active org via the stale cookie.
+//      active_org_id cookie. Clearing active_org_id matters on shared devices:
+//      otherwise the next user inherits the previous user's last-active org via
+//      the stale cookie. We also expire the legacy brother_linked cookie so
+//      sessions carried across the "drop brother_linked" deploy get cleaned up;
+//      nothing reads it anymore.
 
 export async function POST(req: NextRequest) {
   const res = NextResponse.json({ ok: true });
@@ -55,6 +57,8 @@ export async function POST(req: NextRequest) {
   }
 
   // Our own cookies — same flags used when setting, so the browser matches.
+  // brother_linked is legacy (no longer read); expired here to clean up sessions
+  // that predate its removal.
   res.cookies.set("brother_linked", "", {
     path: "/", httpOnly: true, sameSite: "lax", maxAge: 0,
   });

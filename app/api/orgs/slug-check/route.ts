@@ -21,8 +21,8 @@ import { logError } from "@/lib/observability";
 // and filter against the DB in one query so the form can offer one-tap
 // alternatives instead of forcing the user to invent something.
 //
-// Rate limit: per-IP, 120/min. Tighter than /api/orgs/lookup because the
-// client typically debounces; loose enough that fast typing won't trip it.
+// Rate limit: per-IP, 120/min. The create form debounces, so this is loose
+// enough that fast typing won't trip it.
 
 const LIMIT             = 120;
 const WINDOW            = 60_000;

@@ -1,6 +1,23 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextRequest, NextResponse } from "next/server";
 
+/**
+ * Auth proxy. Two jobs, nothing more:
+ *
+ *   1. Refresh the Supabase session cookie on every matched request, so the
+ *      browser client and server components read a fresh session. (This is why
+ *      the proxy must run on these routes at all — see the matcher.)
+ *   2. Bounce UNAUTHENTICATED users to /login, preserving where they were
+ *      headed so the callback can return them there after sign-in.
+ *
+ * It deliberately does NOT route by link status. Whether an authenticated user
+ * has claimed a Brother row is the DB's truth, resolved by requireUser() in the
+ * pages/layouts that need it ([slug]/layout.tsx, app/page.tsx). The old
+ * brother_linked cookie + /pending-access bounce here duplicated that state and
+ * has been removed — an authenticated-but-unlinked user is routed by
+ * /auth/callback (to claim/create) and gated by the [slug] guard if they reach
+ * a protected route directly.
+ */
 export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });
 
@@ -24,56 +41,30 @@ export async function proxy(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser();
 
   if (!user) {
-    return redirectPreservingOrg(request, "/login");
+    return redirectToLogin(request);
   }
 
-  // /welcome and /welcome/create are the onboarding choice + org-creation screens
-  // for an authenticated user who has NO Brother row yet (a brand-new founder).
-  // They are reachable only WITH a session, so we let any authenticated user
-  // through here regardless of link status — the page self-guards (sends users
-  // who already have an org to their dashboard). Crucially this keeps /welcome
-  // BEHIND the proxy, so the Supabase session cookie is refreshed for the next
-  // request and the client can read it. (Excluding /welcome from the matcher
-  // broke that — the browser client saw no session and looped to /login.)
-  const path = request.nextUrl.pathname;
-  if (path === "/welcome" || path.startsWith("/welcome/")) {
-    return response;
-  }
-
-  // Otherwise: if the user hasn't claimed a Brother row yet, send them to claim.
-  // The brother_linked cookie is set by /auth/callback (returning users),
-  // /api/auth/claim (new claims), and /api/orgs (founders). It is a fast EDGE
-  // HINT, not the source of truth — the proxy can't reach the DB here.
-  //
-  // The cookie can't be set on a half-linked account: /api/auth/claim only sets
-  // it after the Membership write succeeds (else it 500s with no cookie). And it
-  // self-heals if it ever goes stale: requireUser() is the DB authority, and the
-  // server entry points that find it lying clear the cookie — /api/auth/me
-  // expires it on a 401 (no linked Brother), and a full signout sweeps it. So a
-  // stale brother_linked at worst costs one extra hop (proxy waves the user to a
-  // /[slug] page whose server layout redirects them out before any child
-  // renders — no protected data is exposed) before the cookie is cleared.
-  const isLinked = request.cookies.get("brother_linked")?.value === "1";
-  if (!isLinked) {
-    // Carry the org hint so the claim form targets the right org. Without it a
-    // deep-link to /lpe/x would land on a slug-less /pending-access and the
-    // claim would fail with "No organization".
-    return redirectPreservingOrg(request, "/pending-access");
-  }
-
+  // Authenticated — let it through with the refreshed session cookie. Any
+  // link-status / membership gating happens in the page/layout via requireUser.
   return response;
 }
 
 /**
- * Redirect to `pathname`, carrying the deep-link's org slug as ?org=<slug> when
- * the request targets an org route. The first path segment of a matched route is
- * the org slug — EXCEPT the platform-level top-level routes below, which aren't
- * orgs. (login/auth/pending-access/api are excluded by the matcher, so they
- * never reach here.)
+ * Redirect an unauthenticated request to /login, preserving the destination:
+ *   - ?next=<original path+query> so the callback can return them there.
+ *   - ?org=<slug> when the request targets an org route, so the claim flow
+ *     (for a not-yet-linked user) can target the right org.
+ * The first path segment of an org route is the slug — except the platform-
+ * level segments below, which aren't orgs.
  */
-function redirectPreservingOrg(request: NextRequest, pathname: string) {
+function redirectToLogin(request: NextRequest) {
   const url = request.nextUrl.clone();
-  url.pathname = pathname;
+  const original = request.nextUrl.pathname + request.nextUrl.search;
+  url.pathname = "/login";
+  url.search = "";
+
+  url.searchParams.set("next", original);
+
   const firstSeg = request.nextUrl.pathname.split("/")[1] || "";
   const PLATFORM_SEGMENTS = new Set(["welcome", "admin"]);
   if (firstSeg && !PLATFORM_SEGMENTS.has(firstSeg)) {
@@ -83,11 +74,11 @@ function redirectPreservingOrg(request: NextRequest, pathname: string) {
 }
 
 export const config = {
-  // NOTE: `welcome` is intentionally NOT excluded here — it must run through the
-  // proxy so the Supabase session cookie is refreshed (the browser client reads
-  // it on /welcome/create). The proxy allows authenticated users through to
-  // /welcome explicitly (see the /welcome branch above), so new founders reach
-  // the create flow without being bounced to /pending-access.
+  // /welcome stays BEHIND the proxy so its session cookie is refreshed (the
+  // browser client reads it on /welcome/create). Authenticated users pass
+  // straight through now that the link-status bounce is gone, so new founders
+  // reach the create flow without a detour. login/auth/pending-access/api are
+  // excluded — they must be reachable while signed out.
   matcher: [
     "/((?!_next/static|_next/image|favicon.ico|login|auth|pending-access|api|images|fonts).*)",
   ],
