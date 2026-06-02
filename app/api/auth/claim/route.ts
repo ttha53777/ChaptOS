@@ -208,17 +208,24 @@ export async function POST(req: NextRequest) {
     return Response.json({ error: "Failed to link account. Please try again." }, { status: 500 });
   }
 
-  // Ensure a Membership row exists so requireUser() picks up the correct org.
-  // upsert is safe here: a Membership might already exist from provisioning.
-  await prisma.membership.upsert({
-    where:  { brotherId_organizationId: { brotherId: brother.id, organizationId: orgId } },
-    create: { brotherId: brother.id, organizationId: orgId, isOrgAdmin: false },
-    update: {},
-  }).catch(e => {
-    // Non-fatal: if this fails the user can still sign in, but their active org
-    // will fall back to Brother.organizationId (which is already orgId).
+  // Ensure a Membership row exists so requireUser() resolves this org. This is
+  // FATAL on failure: a claim that links the Brother but leaves zero memberships
+  // hands the user a brother_linked cookie (below) that the proxy trusts, while
+  // requireUser() finds no membership for this org — the exact gate-desync we're
+  // guarding against. The claimed brother's home org may also differ from the
+  // org they're joining, so "fall back to Brother.organizationId" is not safe.
+  // Better to fail the claim (no cookie) and let them retry than to wave a
+  // half-linked user past the gate.
+  try {
+    await prisma.membership.upsert({
+      where:  { brotherId_organizationId: { brotherId: brother.id, organizationId: orgId } },
+      create: { brotherId: brother.id, organizationId: orgId, isOrgAdmin: false },
+      update: {},
+    });
+  } catch (e) {
     logError(e, { route: "/api/auth/claim", method: "POST", userId: user.id, extra: { stage: "membership_upsert", orgId } });
-  });
+    return Response.json({ error: "Failed to link account. Please try again." }, { status: 500 });
+  }
 
   await logActivity({
     actorId: brother.id,
