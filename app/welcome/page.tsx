@@ -13,10 +13,12 @@ import { useEffect } from "react";
 // organization — or sign out and start over from /login.
 
 export default function WelcomePage() {
-  // If the user reaches /welcome but is already linked to an org (bookmarked the
-  // route, hit it directly while signed in), send them home. /api/auth/me returns
-  // 401 with no session — leave those users here silently; the actions below
-  // still work without a Brother row.
+  // The proxy gates authentication (unauthenticated users are bounced to /login
+  // before reaching here), so we only handle the already-onboarded case: a
+  // signed-in user who ALREADY has an org and hit /welcome directly gets sent to
+  // their dashboard. A signed-in founder with no org yet stays. /api/auth/me
+  // returns 401 for that founder (session but no Brother row) — we leave them
+  // here, NOT redirect.
   useEffect(() => {
     let cancelled = false;
     (async () => {

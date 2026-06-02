@@ -5,8 +5,9 @@ import { ACTIVE_ORG_COOKIE } from "@/lib/auth/require-user";
 import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
 import { createOrgInput } from "@/lib/validation/org";
 import { provisionOrg } from "@/lib/services/org-service";
-import { toResponse } from "@/lib/errors";
+import { AlreadyLinkedError, toResponse } from "@/lib/errors";
 import { logError } from "@/lib/observability";
+import { prisma } from "@/lib/prisma"; // lint-modules:ignore (pre-auth onboarding; user has no ctx yet)
 
 // POST /api/orgs — self-serve organization creation.
 //
@@ -55,6 +56,28 @@ export async function POST(req: NextRequest) {
   try {
     provisioned = await provisionOrg(input, user.id, user.email ?? null);
   } catch (e) {
+    // Recovery: the account is already linked to a Brother. The common cause
+    // here is NOT abuse — it's a founder whose previous POST committed the org
+    // but lost its response (network blip after the DB write). Retrying would
+    // otherwise dead-end on "already linked" with no path back into the org
+    // they just created. Instead, resolve that existing org, re-set the
+    // session cookies, and hand back a 200 with where to go — turning the
+    // dead-end into "you already have an org, here it is."
+    if (e instanceof AlreadyLinkedError) {
+      const recovered = await recoverExistingOrg(user.id).catch(() => null);
+      if (recovered) {
+        return setSessionCookies(
+          NextResponse.json(
+            { ok: true, organizationId: recovered.id, slug: recovered.slug, alreadyLinked: true },
+            { status: 200 },
+          ),
+          recovered.id,
+        );
+      }
+      // Linked, but we couldn't resolve the org (should be impossible — a
+      // linked Brother always has an organizationId). Fall through to the
+      // normal 409 so the user at least gets a clear message.
+    }
     // Domain errors (ValidationError, ConflictError) map cleanly via toResponse.
     // Anything else is genuinely unexpected — log it with correlation context.
     logError(e, {
@@ -69,19 +92,44 @@ export async function POST(req: NextRequest) {
   // ── 5. Set active-org + brother-linked cookies ─────────────────────────
   // Same cookie shape as /api/auth/active-org and the claim flow. The next
   // page load resolves the new org and the dashboard remounts under it.
-  const res = NextResponse.json(
-    {
-      ok: true,
-      organizationId: provisioned.organizationId,
-      slug: provisioned.slug,
-    },
-    { status: 201 },
+  return setSessionCookies(
+    NextResponse.json(
+      {
+        ok: true,
+        organizationId: provisioned.organizationId,
+        slug: provisioned.slug,
+      },
+      { status: 201 },
+    ),
+    provisioned.organizationId,
   );
-  res.cookies.set(ACTIVE_ORG_COOKIE, String(provisioned.organizationId), {
+}
+
+/**
+ * Set the active-org + brother_linked cookies that get the founder into their
+ * org on the next request. Shared by the create-success and already-linked
+ * recovery paths so they stay in lockstep with /api/auth/active-org's shape.
+ */
+function setSessionCookies(res: NextResponse, organizationId: number): NextResponse {
+  res.cookies.set(ACTIVE_ORG_COOKIE, String(organizationId), {
     path: "/", httpOnly: true, sameSite: "lax", maxAge: 60 * 60 * 24 * 365,
   });
   res.cookies.set("brother_linked", "1", {
     path: "/", httpOnly: true, sameSite: "lax", maxAge: 60 * 60 * 24 * 365,
   });
   return res;
+}
+
+/**
+ * Resolve the org a Google account is already linked to, for the
+ * already-linked recovery path. Returns the Brother's home org (the one a
+ * founder would have created on a prior attempt). null if no linked Brother
+ * or no slug — the caller falls back to a plain 409.
+ */
+async function recoverExistingOrg(authUserId: string): Promise<{ id: number; slug: string } | null> {
+  const brother = await prisma.brother.findUnique({
+    where: { authUserId },
+    select: { organization: { select: { id: true, slug: true } } },
+  });
+  return brother?.organization ?? null;
 }

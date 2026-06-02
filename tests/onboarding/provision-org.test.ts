@@ -9,7 +9,7 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { testPrisma, resetDb } from "../setup/prisma";
 import { provisionOrg } from "@/lib/services/org-service";
-import { ConflictError, ValidationError } from "@/lib/errors";
+import { AlreadyLinkedError, ConflictError, ValidationError } from "@/lib/errors";
 import { getOrgType } from "@/lib/org-types";
 import { ALL_PERMISSIONS } from "@/lib/permissions";
 
@@ -134,7 +134,10 @@ describe("provisionOrg: rejection paths", () => {
   it("rejects when the auth user already has a Brother somewhere", async () => {
     await provisionOrg({ ...VALID, slug: "first" }, "u-e", null);
     const err = await provisionOrg({ ...VALID, slug: "second" }, "u-e", null).catch(e => e);
-    expect(err).toBeInstanceOf(ConflictError);
+    // Specifically AlreadyLinkedError (not a bare ConflictError): the /api/orgs
+    // route catches this subclass to recover a founder whose prior POST committed
+    // but lost its response, routing them into the org they already created.
+    expect(err).toBeInstanceOf(AlreadyLinkedError);
     // The user-facing message must mention the account link, not the slug —
     // otherwise the founder thinks they need to try a different slug, which
     // wouldn't help.

@@ -27,7 +27,7 @@ import { Prisma } from "@/app/generated/prisma/client";
 // role is the same posture as /api/auth/claim and preserves the app role's
 // RLS enforcement everywhere else.
 import { prismaPrivileged as prisma } from "@/lib/prisma-privileged"; // lint-direct-prisma:ignore (pre-org provisioning, BYPASSRLS by design)
-import { ConflictError, ValidationError } from "@/lib/errors";
+import { AlreadyLinkedError, ConflictError, ValidationError } from "@/lib/errors";
 import { logError } from "@/lib/observability";
 import { validateSlugFormat } from "@/lib/slug-rules";
 import { getOrgType } from "@/lib/org-types";
@@ -85,7 +85,7 @@ export async function provisionOrg(
     select: { id: true },
   });
   if (existing) {
-    throw new ConflictError("Your account is already linked to an organization.");
+    throw new AlreadyLinkedError("Your account is already linked to an organization.");
   }
 
   // The first role in the template (rank 100, all=true) is the founder role.
@@ -216,7 +216,7 @@ export async function provisionOrg(
       const target = (e.meta as { target?: string[] | string } | undefined)?.target;
       const fields = Array.isArray(target) ? target : typeof target === "string" ? [target] : [];
       if (fields.some(f => f.includes("authUserId"))) {
-        throw new ConflictError("Your account is already linked to an organization.");
+        throw new AlreadyLinkedError("Your account is already linked to an organization.");
       }
       throw new ConflictError("That slug is already taken. Try another.");
     }

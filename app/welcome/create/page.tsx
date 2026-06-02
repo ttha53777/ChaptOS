@@ -14,8 +14,11 @@ import { suggestSlug } from "@/lib/slug-rules";
 //   4. Your name — sets the founder's Brother.name (separate from Google name
 //      so they're not stuck with a legal name they don't use day-to-day)
 //
-// On submit: POST /api/orgs. On 201 the server sets the active_org cookie;
-// we hard-navigate to / so ChapterContext picks up the new org.
+// On submit: POST /api/orgs. The server sets the active_org + brother_linked
+// cookies and returns the org's slug (201 created, or 200 when the account was
+// already linked from a prior attempt whose response was lost). We hard-navigate
+// to that server-returned slug — or to / as a fallback, which server-resolves
+// the active org from the cookie — so ChapterContext remounts under the new org.
 
 type SlugState =
   | { kind: "idle" }
@@ -71,7 +74,13 @@ export default function CreateOrgPage() {
     return () => clearTimeout(handle);
   }, [slug]);
 
-  // If the user already has an org, bounce them home — same guard as /welcome.
+  // The proxy gates authentication for this route (unauthenticated users are
+  // bounced to /login before they ever reach here), so we only need to handle
+  // the already-onboarded case: a signed-in user who ALREADY has an org and hit
+  // /welcome/create directly (bookmark, stale link) gets sent to their dashboard.
+  // A signed-in founder with no org yet — the intended audience — stays. Note
+  // /api/auth/me returns 401 for that founder (session but no Brother row); we
+  // simply leave them on the page in that case, NOT redirect.
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -82,7 +91,7 @@ export default function CreateOrgPage() {
           if (data?.org?.slug) window.location.assign(`/${data.org.slug}`);
         }
       } catch {
-        // Leave them on the page.
+        // Network error — leave them on the page; submit will surface any issue.
       }
     })();
     return () => { cancelled = true; };
@@ -116,13 +125,22 @@ export default function CreateOrgPage() {
           founderName: yourName.trim(),
         }),
       });
-      if (res.status === 201) {
-        // Hard navigation straight into the new org's URL so ChapterContext
-        // remounts under the new org cookie and lands on /[slug].
-        window.location.assign(`/${slug.trim()}`);
+      const data = await res.json().catch(() => ({}));
+
+      // 201 = created. 200 = already-linked recovery (a prior POST committed but
+      // lost its response): the server resolved the org we already have and set
+      // the session cookies, so we route in exactly the same way. Either way the
+      // server now owns the active_org_id + brother_linked cookies.
+      if (res.status === 201 || (res.status === 200 && data?.ok)) {
+        // Navigate to the SERVER's slug (authoritative — it may have normalized
+        // what we sent, and on recovery it's the org we already had, not this
+        // form's input). Fall back to root, which server-resolves the active org
+        // from the freshly-set cookie — so we don't depend on the local slug or
+        // on the proxy reading brother_linked before the cookie has committed.
+        const dest = typeof data?.slug === "string" && data.slug ? `/${data.slug}` : "/";
+        window.location.assign(dest);
         return;
       }
-      const data = await res.json().catch(() => ({}));
       setServerError(data?.error ?? "Couldn't create the organization. Try again.");
     } catch {
       setServerError("Couldn't reach the server. Check your connection.");
