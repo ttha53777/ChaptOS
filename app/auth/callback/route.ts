@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { prisma } from "@/lib/prisma";
+import { ACTIVE_ORG_COOKIE } from "@/lib/auth/require-user";
 
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url);
@@ -8,6 +9,11 @@ export async function GET(request: NextRequest) {
   // Org slug forwarded from the login page via redirectTo.
   // Passed through to /pending-access so the claim form can target the right org.
   const orgSlug = searchParams.get("org");
+  // Onboarding intent forwarded from the login page's "Start a new chapter"
+  // card (which has no org slug). When an unlinked, org-less user signed in to
+  // CREATE an org, route them straight to the create form instead of the
+  // /welcome chooser. Any other value is ignored.
+  const intent = searchParams.get("intent");
 
   if (!code) {
     return NextResponse.redirect(buildUrl(origin, "/login", orgSlug, "error=auth"));
@@ -52,8 +58,10 @@ export async function GET(request: NextRequest) {
     where: { authUserId: data.user.id },
     select: {
       id: true,
-      organization: { select: { slug: true } },
-      memberships: { select: { organization: { select: { slug: true } } } },
+      organization: { select: { id: true, slug: true } },
+      memberships: {
+        select: { organizationId: true, organization: { select: { slug: true } } },
+      },
     },
   });
 
@@ -65,14 +73,34 @@ export async function GET(request: NextRequest) {
       sameSite: "lax",
       maxAge: 60 * 60 * 24 * 365,
     });
+    // ...unless they came specifically to found ANOTHER org ("Start a new
+    // chapter"). A Google account maps to one Brother, but that Brother can own
+    // multiple orgs via Membership (provisionOrg reuses the existing Brother).
+    // So honor the create intent instead of bouncing them to an org they
+    // already have. ?new=1 tells /welcome/create to skip its redirect-home
+    // guard for this already-onboarded user.
+    if (intent === "create") {
+      return redirectTo(buildUrl(origin, "/welcome/create", null, "new=1"));
+    }
     // Target the org they signed in for (?org= hint) if they're a member of it,
     // else their home org. Fall back to the root redirect if neither resolves.
-    const memberSlugs = new Set(
-      brother.memberships.map(m => m.organization.slug),
-    );
-    const targetSlug =
-      orgSlug && memberSlugs.has(orgSlug) ? orgSlug : brother.organization?.slug ?? null;
-    const dest = targetSlug ? `/${targetSlug}?toast=welcome` : "/?toast=welcome";
+    const target =
+      (orgSlug && brother.memberships.find(m => m.organization.slug === orgSlug)) ||
+      (brother.organization
+        ? { organizationId: brother.organization.id, organization: { slug: brother.organization.slug } }
+        : null);
+    // Pre-set the active_org cookie to the org we're routing them into, so the
+    // first /[slug] render resolves to the right org without a background sync.
+    // Mirrors what /api/orgs does on org creation.
+    if (target) {
+      cookieJar.cookies.set(ACTIVE_ORG_COOKIE, String(target.organizationId), {
+        path: "/",
+        httpOnly: true,
+        sameSite: "lax",
+        maxAge: 60 * 60 * 24 * 365,
+      });
+    }
+    const dest = target ? `/${target.organization.slug}?toast=welcome` : "/?toast=welcome";
     return redirectTo(`${origin}${dest}`);
   }
 
@@ -96,8 +124,12 @@ export async function GET(request: NextRequest) {
     return redirectTo(buildUrl(origin, "/pending-access", orgSlug));
   }
 
-  // Unlinked and no org hint — cold cross-org user. Drop them on /welcome
-  // to choose between joining an existing org and creating a new one.
+  // Unlinked and no org hint. If they came to create an org, go straight to the
+  // create form (?new=1 for symmetry with the linked path); otherwise drop them
+  // on /welcome to choose between joining an existing org and creating a new one.
+  if (intent === "create") {
+    return redirectTo(buildUrl(origin, "/welcome/create", null, "new=1"));
+  }
   return redirectTo(buildUrl(origin, "/welcome", null));
 }
 

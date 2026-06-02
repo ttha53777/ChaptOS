@@ -56,13 +56,13 @@ export async function POST(req: NextRequest) {
   try {
     provisioned = await provisionOrg(input, user.id, user.email ?? null);
   } catch (e) {
-    // Recovery: the account is already linked to a Brother. The common cause
-    // here is NOT abuse — it's a founder whose previous POST committed the org
-    // but lost its response (network blip after the DB write). Retrying would
-    // otherwise dead-end on "already linked" with no path back into the org
-    // they just created. Instead, resolve that existing org, re-set the
-    // session cookies, and hand back a 200 with where to go — turning the
-    // dead-end into "you already have an org, here it is."
+    // Recovery for the narrow already-linked race. Note: a linked user founding
+    // an additional org now SUCCEEDS (provisionOrg reuses their Brother), so
+    // this branch no longer fires for ordinary multi-org creation. It only
+    // triggers when a brand-new account fires two concurrent creates and the
+    // second loses the authUserId insert race — in which case one org WAS
+    // created. Resolve that org, re-set the session cookies, and hand back a 200
+    // so the loser lands in the org that won instead of dead-ending on an error.
     if (e instanceof AlreadyLinkedError) {
       const recovered = await recoverExistingOrg(user.id).catch(() => null);
       if (recovered) {

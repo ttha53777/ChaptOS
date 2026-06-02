@@ -18,15 +18,3 @@ export async function requireAdmin(): Promise<RequireResult> {
   if (!user.isPlatformAdmin) return { error: Response.json({ error: "Forbidden" }, { status: 403 }) };
   return { user };
 }
-
-/**
- * Allows platform admins OR the brother whose id matches `selfBrotherId`.
- */
-export async function requireAdminOrSelf(selfBrotherId: number): Promise<RequireResult> {
-  const user = await requireUser();
-  if (!user) return { error: Response.json({ error: "Unauthorized" }, { status: 401 }) };
-  if (!user.isPlatformAdmin && user.id !== selfBrotherId) {
-    return { error: Response.json({ error: "Forbidden" }, { status: 403 }) };
-  }
-  return { user };
-}

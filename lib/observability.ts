@@ -91,18 +91,3 @@ export function logError(err: unknown, ctx: LogContext): string {
   void forwardToSentry(line, err);
   return requestId;
 }
-
-export function logWarn(message: string, ctx: LogContext): string {
-  const requestId = ctx.requestId ?? newRequestId();
-  emit({
-    level: "warn",
-    ts: new Date().toISOString(),
-    requestId,
-    route: ctx.route,
-    method: ctx.method,
-    userId: ctx.userId,
-    message,
-    extra: ctx.extra,
-  });
-  return requestId;
-}

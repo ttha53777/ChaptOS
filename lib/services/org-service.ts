@@ -76,17 +76,18 @@ export async function provisionOrg(
   const template = getOrgType(input.orgType);
   if (!template) throw new ValidationError("Unknown organization type");
 
-  // Pre-check: the auth user must not already be linked to a Brother anywhere.
-  // Same constraint /api/auth/claim enforces — a Google account belongs to one
-  // Brother row globally. We check outside the transaction so the error is
-  // returned immediately without rolling back any writes.
+  // A Google account maps to exactly one Brother row globally (authUserId is
+  // @unique). Founding an ADDITIONAL org therefore reuses that existing Brother
+  // rather than creating a second one (which would collide on the unique
+  // constraint anyway). We capture it here, outside the transaction, and below
+  // attach a new admin Membership + founder role to it for the new org. The
+  // Brother's home org (Brother.organizationId) stays their first org — a
+  // multi-org founder is an admin operator of the new org, not a roster member
+  // of it (the roster scopes by Brother.organizationId).
   const existing = await prisma.brother.findUnique({
     where: { authUserId },
-    select: { id: true },
+    select: { id: true, name: true },
   });
-  if (existing) {
-    throw new AlreadyLinkedError("Your account is already linked to an organization.");
-  }
 
   // The first role in the template (rank 100, all=true) is the founder role.
   const founderRoleSpec = template.roleSeeds.find(r => r.all && r.rank === 100);
@@ -118,36 +119,50 @@ export async function provisionOrg(
         },
       });
 
-      // 3. Founder Brother. The legacy `role` string is set to the founder
-      // role's name so existing UI bits that read it (sidebar header, brother
-      // table) show something meaningful. The real authority lives in
-      // BrotherRole below.
-      const brother = await tx.brother.create({
-        data: {
-          organizationId: org.id,
-          name:           input.founderName,
-          role:           founderRoleSpec.name,
-          attendance:     0,
-          duesOwed:       0,
-          gpa:            0,
-          serviceHours:   0,
-          authUserId,
-          email,
-        },
-        select: { id: true, name: true },
-      });
+      // 3. Founder Brother. For a brand-new account we create the Brother row;
+      // for an already-linked account founding an additional org we REUSE their
+      // existing Brother (authUserId is globally unique, and a multi-org founder
+      // is one identity). The legacy `role` string on a new Brother is set to
+      // the founder role's name so existing UI bits that read it (sidebar
+      // header, brother table) show something meaningful. The real authority
+      // lives in BrotherRole below. `input.founderName` only applies to a new
+      // Brother — a reused one keeps the name from their first org.
+      let brotherId: number;
+      let brotherName: string;
+      if (existing) {
+        brotherId   = existing.id;
+        brotherName = existing.name;
+      } else {
+        const brother = await tx.brother.create({
+          data: {
+            organizationId: org.id,
+            name:           input.founderName,
+            role:           founderRoleSpec.name,
+            attendance:     0,
+            duesOwed:       0,
+            gpa:            0,
+            serviceHours:   0,
+            authUserId,
+            email,
+          },
+          select: { id: true, name: true },
+        });
+        brotherId   = brother.id;
+        brotherName = brother.name;
+      }
 
       // 4. Backfill createdByBrotherId now that we have the founder id.
       await tx.organization.update({
         where: { id: org.id },
-        data:  { createdByBrotherId: brother.id },
+        data:  { createdByBrotherId: brotherId },
       });
 
       // 5. Membership with isOrgAdmin=true — founder bypasses every permission
-      // check at the guard layer.
+      // check at the guard layer. For a reused Brother this is their second
+      // (or later) Membership, granting admin access to the new org.
       await tx.membership.create({
         data: {
-          brotherId:      brother.id,
+          brotherId,
           organizationId: org.id,
           isOrgAdmin:     true,
         },
@@ -176,7 +191,7 @@ export async function provisionOrg(
       }
       await tx.brotherRole.create({
         data: {
-          brotherId:      brother.id,
+          brotherId,
           roleId:         founderRoleId,
           organizationId: org.id,
         },
@@ -189,7 +204,7 @@ export async function provisionOrg(
         data: {
           organizationId: org.id,
           requestId:      randomUUID(),
-          actorId:        brother.id,
+          actorId:        brotherId,
           action:         "org.created",
           subjectType:    "Organization",
           subjectId:      org.id,
@@ -197,20 +212,23 @@ export async function provisionOrg(
             name:        input.name,
             slug:        org.slug,
             orgType:     template.id,
-            founderName: brother.name,
+            founderName: brotherName,
           },
         },
       });
 
-      return { organizationId: org.id, slug: org.slug, brotherId: brother.id };
+      return { organizationId: org.id, slug: org.slug, brotherId };
     });
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
       // Two unique constraints can produce P2002 here:
       //   * Organization.slug         — slug got taken between slug-check and create.
-      //   * Brother.authUserId        — the same Google user fired POST twice
-      //                                 (e.g. double-click) and the second one
-      //                                 lost the race to insert the Brother.
+      //   * Brother.authUserId        — narrow race only: a BRAND-NEW account
+      //                                 fired POST twice concurrently, both saw
+      //                                 `existing` null in the pre-check, and the
+      //                                 second lost the insert race. (A
+      //                                 previously-linked account reuses its
+      //                                 Brother above and never inserts here.)
       // Prisma's meta.target tells us which. Fall back to the slug message if
       // the target shape is ambiguous — the user can still resolve by retrying.
       const target = (e.meta as { target?: string[] | string } | undefined)?.target;

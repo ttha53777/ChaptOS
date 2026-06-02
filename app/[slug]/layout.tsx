@@ -31,7 +31,11 @@ export default async function OrgLayout({
   children: React.ReactNode;
 }) {
   const { slug } = await params;
-  const user = await requireUser();
+  // Pass the URL slug so org resolution follows the URL (the source of truth for
+  // /[slug]/* routes) rather than the active_org cookie. For a member of <slug>
+  // this makes user.orgId == that membership's org, so the page renders this
+  // org's data immediately — no cookie-sync reload.
+  const user = await requireUser({ orgSlug: slug });
 
   if (!user) {
     redirect(`/login?org=${encodeURIComponent(slug)}`);
@@ -70,15 +74,20 @@ export default async function OrgLayout({
     return <AccessDenied slug={slug} homeSlug={homeSlug} />;
   }
 
-  // Authorized. If the active-org cookie is stale vs this URL (e.g. a bookmarked
-  // deep-link into a different org than the cookie remembers), render the sync
-  // screen INSTEAD of the children — it aligns the cookie then reloads. Showing
-  // the page now would flash the wrong org's data (ChapterContext would fetch
-  // against the stale cookie before the reload).
-  const needsSync = user.orgId !== membership.organizationId;
-  if (needsSync) {
-    return <ActiveOrgSync organizationId={membership.organizationId} />;
-  }
-
-  return <>{children}</>;
+  // Authorized, and org resolution already followed the URL slug (we passed it to
+  // requireUser), so this page renders the right org's data now — no reload.
+  //
+  // The active_org cookie may still be stale relative to this URL (it lags behind
+  // a bookmarked deep-link or a cross-org link). It still matters for slug-less
+  // entry points (/, the org switcher, API calls without slug context), so align
+  // it in the BACKGROUND — render the children immediately and let <ActiveOrgSync>
+  // POST the correction without blocking or reloading. Common case (cookie already
+  // matches) skips the POST entirely.
+  const cookieStale = user.cookieOrgId !== membership.organizationId;
+  return (
+    <>
+      {cookieStale && <ActiveOrgSync organizationId={membership.organizationId} />}
+      {children}
+    </>
+  );
 }

@@ -9,7 +9,7 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { testPrisma, resetDb } from "../setup/prisma";
 import { provisionOrg } from "@/lib/services/org-service";
-import { AlreadyLinkedError, ConflictError, ValidationError } from "@/lib/errors";
+import { ConflictError, ValidationError } from "@/lib/errors";
 import { getOrgType } from "@/lib/org-types";
 import { ALL_PERMISSIONS } from "@/lib/permissions";
 
@@ -131,17 +131,42 @@ describe("provisionOrg: rejection paths", () => {
     ).rejects.toBeInstanceOf(ConflictError);
   });
 
-  it("rejects when the auth user already has a Brother somewhere", async () => {
-    await provisionOrg({ ...VALID, slug: "first" }, "u-e", null);
-    const err = await provisionOrg({ ...VALID, slug: "second" }, "u-e", null).catch(e => e);
-    // Specifically AlreadyLinkedError (not a bare ConflictError): the /api/orgs
-    // route catches this subclass to recover a founder whose prior POST committed
-    // but lost its response, routing them into the org they already created.
-    expect(err).toBeInstanceOf(AlreadyLinkedError);
-    // The user-facing message must mention the account link, not the slug —
-    // otherwise the founder thinks they need to try a different slug, which
-    // wouldn't help.
-    expect(err.message).toMatch(/account/i);
+  it("lets an already-linked user found an ADDITIONAL org, reusing their Brother", async () => {
+    // A Google account maps to one Brother globally; founding a second org
+    // reuses that Brother + adds a new admin Membership (it does NOT create a
+    // second Brother, which would collide on the unique authUserId).
+    const first  = await provisionOrg({ ...VALID, slug: "first", founderName: "Jordan Lee" }, "u-e", "jordan@example.com");
+    const second = await provisionOrg({ ...VALID, slug: "second", founderName: "Ignored Name" }, "u-e", "jordan@example.com");
+
+    // Same Brother across both orgs.
+    expect(second.brotherId).toBe(first.brotherId);
+
+    // Exactly one Brother row exists for this account.
+    const brothers = await testPrisma.brother.findMany({ where: { authUserId: "u-e" } });
+    expect(brothers).toHaveLength(1);
+    // Their home org stays the first; founderName from the 2nd create is ignored.
+    expect(brothers[0]!.organizationId).toBe(first.organizationId);
+    expect(brothers[0]!.name).toBe("Jordan Lee");
+
+    // Two Memberships, both admin; the second is in the new org.
+    const memberships = await testPrisma.membership.findMany({
+      where: { brotherId: first.brotherId },
+      orderBy: { organizationId: "asc" },
+    });
+    expect(memberships).toHaveLength(2);
+    expect(memberships.every(m => m.isOrgAdmin)).toBe(true);
+    const secondMembership = memberships.find(m => m.organizationId === second.organizationId);
+    expect(secondMembership).toBeDefined();
+
+    // Founder BrotherRole was seeded in the NEW org too.
+    const rolesInSecond = await testPrisma.brotherRole.findMany({
+      where: { brotherId: first.brotherId, organizationId: second.organizationId },
+    });
+    expect(rolesInSecond.length).toBeGreaterThan(0);
+
+    // The new org records the reused Brother as its creator.
+    const org2 = await testPrisma.organization.findUnique({ where: { id: second.organizationId } });
+    expect(org2!.createdByBrotherId).toBe(first.brotherId);
   });
 
   it("rejects duplicate slug with a slug-specific message (not account-linked)", async () => {

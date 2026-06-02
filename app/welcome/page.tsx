@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect } from "react";
+import { APP_NAME } from "@/lib/domains";
 
 // The /welcome route — now a thin fallback.
 //
@@ -65,7 +66,7 @@ export default function WelcomePage() {
         >
           <header className="flex flex-col items-center gap-2 text-center">
             <h1 className="text-[22px] font-semibold tracking-tight text-white leading-tight">
-              Welcome to ChaptOS
+              Welcome to {APP_NAME}
             </h1>
             <p className="text-[13px] text-white/40">
               You&rsquo;re signed in but not part of an organization yet.
@@ -107,7 +108,7 @@ export default function WelcomePage() {
 
           <footer className="flex items-center justify-center gap-2">
             <div className="h-px w-8 bg-white/[0.06]" />
-            <span className="text-[11px] font-semibold tracking-[0.2em] uppercase text-white/20">ChaptOS</span>
+            <span className="text-[11px] font-semibold tracking-[0.2em] uppercase text-white/20">{APP_NAME}</span>
             <div className="h-px w-8 bg-white/[0.06]" />
           </footer>
         </div>
