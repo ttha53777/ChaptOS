@@ -2,8 +2,8 @@
 
 import { createClient } from "@/lib/supabase/client";
 import { extractSlug } from "@/lib/slug-extract";
+import { orgHostLabel, domainSuffix, APP_NAME } from "@/lib/domains";
 import { useSearchParams } from "next/navigation";
-import Link from "next/link";
 import { Suspense, useEffect, useRef, useState } from "react";
 
 // The org-first login page.
@@ -168,7 +168,7 @@ function LoginContent() {
           {/* App name footer */}
           <div className="flex items-center justify-center gap-2 pt-1">
             <div className="h-px w-8 bg-white/[0.06]" />
-            <span className="text-[11px] font-semibold tracking-[0.2em] uppercase text-white/20">ChaptOS</span>
+            <span className="text-[11px] font-semibold tracking-[0.2em] uppercase text-white/20">{APP_NAME}</span>
             <div className="h-px w-8 bg-white/[0.06]" />
           </div>
         </div>
@@ -177,11 +177,22 @@ function LoginContent() {
   );
 }
 
-/** Kick off Google OAuth, threading the org slug through the round-trip. */
-async function signInWithGoogle(slug: string): Promise<string | null> {
+/**
+ * Kick off Google OAuth, threading either the org slug (join/sign-in) OR the
+ * "create" intent (new founder) through the round-trip so /auth/callback can
+ * route the user. Exactly one of `slug` / `intent: "create"` is meaningful;
+ * the create path carries no slug because the org doesn't exist yet.
+ */
+async function signInWithGoogle(
+  opts: { slug: string } | { intent: "create" },
+): Promise<string | null> {
   try {
     const supabase = createClient();
-    const callbackUrl = `${window.location.origin}/auth/callback?org=${encodeURIComponent(slug)}`;
+    const qs =
+      "intent" in opts
+        ? "intent=create"
+        : `org=${encodeURIComponent(opts.slug)}`;
+    const callbackUrl = `${window.location.origin}/auth/callback?${qs}`;
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: { redirectTo: callbackUrl },
@@ -201,7 +212,7 @@ function ReturningOrg({ org, onSwitch }: { org: RememberedOrg; onSwitch: () => v
   async function handle() {
     setLoading(true);
     setError(null);
-    const err = await signInWithGoogle(org.slug);
+    const err = await signInWithGoogle({ slug: org.slug });
     if (err) {
       setError(err);
       setLoading(false);
@@ -213,7 +224,7 @@ function ReturningOrg({ org, onSwitch }: { org: RememberedOrg; onSwitch: () => v
       {/* Org card */}
       <div className="rounded-xl border border-indigo-400/25 bg-gradient-to-br from-indigo-500/10 to-indigo-600/[0.03] px-4 py-3.5">
         <p className="text-[14px] font-semibold text-white leading-tight">{org.name}</p>
-        <p className="text-[12px] text-white/40 mt-0.5">{org.slug}.chaptos.io</p>
+        <p className="text-[12px] text-white/40 mt-0.5">{orgHostLabel(org.slug)}</p>
       </div>
 
       {error && <p className="text-[12px] text-red-400">{error}</p>}
@@ -237,8 +248,12 @@ function OrgPicker({ initialSlug }: { initialSlug: string }) {
   const [error, setError]     = useState<string | null>(null);
   const [checking, setChecking] = useState(false);
   const [loading, setLoading]   = useState(false);
+  const [creating, setCreating] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reqIdRef    = useRef(0);
+  // Empty until a real domain is configured — then the input shows a
+  // ".<domain>" suffix. See lib/domains.ts.
+  const suffix = domainSuffix();
 
   // Debounced lookup. Runs whenever the input changes; the latest request wins
   // (reqId guard) so out-of-order responses can't clobber a newer result.
@@ -286,10 +301,23 @@ function OrgPicker({ initialSlug }: { initialSlug: string }) {
     if (!found) return;
     setLoading(true);
     setError(null);
-    const err = await signInWithGoogle(found.slug);
+    const err = await signInWithGoogle({ slug: found.slug });
     if (err) {
       setError(err);
       setLoading(false);
+    }
+  }
+
+  // "Start a new chapter" — a founder with no org yet. Sign in with Google
+  // first (creating an org requires a session), then /auth/callback routes the
+  // unlinked, org-less user straight to /welcome/create via intent=create.
+  async function handleCreate() {
+    setCreating(true);
+    setError(null);
+    const err = await signInWithGoogle({ intent: "create" });
+    if (err) {
+      setError(err);
+      setCreating(false);
     }
   }
 
@@ -297,7 +325,7 @@ function OrgPicker({ initialSlug }: { initialSlug: string }) {
     <div className="flex flex-col gap-5">
       <div className="flex flex-col gap-2.5">
         <label htmlFor="org-slug" className="text-[12px] font-medium text-white/60">
-          Your organization&rsquo;s URL
+          {suffix ? "Your organization’s URL" : "Your organization’s ID"}
         </label>
         <div className="flex items-stretch rounded-lg border border-white/[0.08] bg-zinc-900/80 focus-within:border-indigo-500 overflow-hidden">
           <input
@@ -313,9 +341,11 @@ function OrgPicker({ initialSlug }: { initialSlug: string }) {
             autoFocus
             className="flex-1 min-w-0 bg-transparent px-3 py-2.5 text-white text-[14px] placeholder-white/30 focus:outline-none"
           />
-          <span className="flex items-center px-3 text-[13px] text-white/30 border-l border-white/[0.06] select-none">
-            .chaptos.io
-          </span>
+          {suffix && (
+            <span className="flex items-center px-3 text-[13px] text-white/30 border-l border-white/[0.06] select-none">
+              {suffix}
+            </span>
+          )}
         </div>
 
         {/* Status line — checking / found / error */}
@@ -346,23 +376,36 @@ function OrgPicker({ initialSlug }: { initialSlug: string }) {
       {/* Divider */}
       <div className="h-px w-full bg-white/[0.06]" />
 
-      {/* Create-org card — prominent, equal weight to sign-in. */}
-      <Link
-        href="/welcome/create"
-        className="group relative overflow-hidden rounded-xl border border-white/[0.08] bg-white/[0.02] px-4 py-3.5 transition-all hover:border-indigo-400/40 hover:bg-indigo-500/[0.06] focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+      {/* Create-org card — prominent, equal weight to sign-in. Creating an org
+          needs a Google session, so this signs in first (intent=create) and the
+          callback lands the new founder on /welcome/create. */}
+      <button
+        type="button"
+        onClick={handleCreate}
+        disabled={creating}
+        className="group relative w-full overflow-hidden rounded-xl border border-white/[0.08] bg-white/[0.02] px-4 py-3.5 text-left transition-all hover:border-indigo-400/40 hover:bg-indigo-500/[0.06] disabled:opacity-60 disabled:cursor-not-allowed focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
       >
         <div className="flex items-center gap-3">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-indigo-500/15 text-indigo-300">
-            <svg className="h-4.5 w-4.5" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
-              <path d="M3 6a2 2 0 012-2h2.5l1 1.5H15a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2V6z" />
-            </svg>
+            {creating ? (
+              <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden>
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+              </svg>
+            ) : (
+              <svg className="h-4.5 w-4.5" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
+                <path d="M3 6a2 2 0 012-2h2.5l1 1.5H15a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2V6z" />
+              </svg>
+            )}
           </div>
           <div className="flex flex-col gap-0.5">
-            <span className="text-[13.5px] font-semibold text-white">Start a new chapter on ChaptOS</span>
-            <span className="text-[12px] text-white/45">Create your organization →</span>
+            <span className="text-[13.5px] font-semibold text-white">Start a new chapter on {APP_NAME}</span>
+            <span className="text-[12px] text-white/45">
+              {creating ? "Redirecting to Google…" : "Create your organization →"}
+            </span>
           </div>
         </div>
-      </Link>
+      </button>
     </div>
   );
 }

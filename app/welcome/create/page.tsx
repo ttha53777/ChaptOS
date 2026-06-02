@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { ORG_TYPES } from "@/lib/org-types";
 import { suggestSlug } from "@/lib/slug-rules";
+import { APP_NAME } from "@/lib/domains";
 
 // /welcome/create — self-serve org creation.
 //
@@ -81,7 +82,15 @@ export default function CreateOrgPage() {
   // A signed-in founder with no org yet — the intended audience — stays. Note
   // /api/auth/me returns 401 for that founder (session but no Brother row); we
   // simply leave them on the page in that case, NOT redirect.
+  //
+  // EXCEPTION: ?new=1 means an ALREADY-LINKED user deliberately came to found an
+  // ADDITIONAL org (via "Start a new chapter" → OAuth → callback). They have an
+  // org, so the guard below would bounce them home — skip it for them. Read from
+  // window.location (client-only effect) to avoid a Suspense boundary for
+  // useSearchParams.
   useEffect(() => {
+    const wantsNew = new URLSearchParams(window.location.search).get("new") === "1";
+    if (wantsNew) return; // founding another org on purpose — don't redirect home
     let cancelled = false;
     (async () => {
       try {
@@ -297,7 +306,7 @@ export default function CreateOrgPage() {
 
           <footer className="flex items-center justify-center gap-2">
             <div className="h-px w-8 bg-white/[0.06]" />
-            <span className="text-[11px] font-semibold tracking-[0.2em] uppercase text-white/20">ChaptOS</span>
+            <span className="text-[11px] font-semibold tracking-[0.2em] uppercase text-white/20">{APP_NAME}</span>
             <div className="h-px w-8 bg-white/[0.06]" />
           </footer>
         </div>

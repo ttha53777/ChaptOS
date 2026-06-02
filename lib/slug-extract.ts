@@ -9,15 +9,13 @@
  * pulling in the React tree.
  */
 
-// Apex hosts we treat as the platform itself rather than as a slug source.
-// Add new platform hosts as they ship.
-const APEX_HOSTS = new Set(["figurints.com", "localhost"]);
+import { slugFromHost } from "@/lib/domains";
 
 /**
  * Priority order:
  *   1. `?org=<slug>` — most reliable; that's the canonical link shape we mint.
- *   2. URL subdomain (alpha.figurints.com → alpha), skipping reserved hosts
- *      like "www" and the apex itself.
+ *   2. URL subdomain (alpha.chaptos.io → alpha), skipping reserved hosts like
+ *      "www" and the platform apex — see lib/domains.ts for the canonical list.
  *   3. Bare input — whatever the user typed, lowercased.
  */
 export function extractSlug(raw: string): string {
@@ -29,13 +27,8 @@ export function extractSlug(raw: string): string {
 
   try {
     const url = new URL(trimmed.startsWith("http") ? trimmed : `https://${trimmed}`);
-    const host = url.hostname.toLowerCase();
-    if (!APEX_HOSTS.has(host)) {
-      const labels = host.split(".");
-      if (labels.length >= 3 && labels[0] !== "www") {
-        return labels[0];
-      }
-    }
+    const sub = slugFromHost(url.hostname);
+    if (sub) return sub;
   } catch {
     // Not a parseable URL — fall through.
   }

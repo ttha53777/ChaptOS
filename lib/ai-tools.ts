@@ -4,8 +4,8 @@
  * Read tools run on the server and feed results back to the model. Write tools
  * NEVER execute writes — they validate inputs and return a structured proposal
  * the client renders as a confirm card; only on user confirm does the client
- * POST to the real /api/* route, where existing auth (requireUser/requireAdmin/
- * requireAdminOrSelf) decides if the write actually goes through.
+ * POST to the real /api/* route, where existing auth (requireUser/requireAdmin)
+ * decides if the write actually goes through.
  *
  * One source of truth: the JSON schemas the model sees AND the server-side
  * dispatcher live in this file so they can't drift.
@@ -798,7 +798,7 @@ async function weeklyDigest(orgId: number): Promise<ToolResult> {
 // Write proposal builders — VALIDATE only, NEVER touch the DB. The chat route
 // surfaces the returned Proposal over SSE as a confirm card on the client.
 // The client posts the validated payload to the existing /api/* route, whose
-// existing auth (requireUser / requireAdmin / requireAdminOrSelf) decides if
+// existing auth (requireUser / requireAdmin) decides if
 // the write actually happens.
 // ────────────────────────────────────────────────────────────────────────────
 

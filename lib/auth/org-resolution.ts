@@ -6,7 +6,7 @@
  * Resolution priority:
  *   1. `?org=<slug>` query parameter  (login page appends this)
  *   2. X-Org-Slug request header       (useful for API clients / tests)
- *   3. Subdomain of the Host header    (e.g. "alpha.figurints.com" → "alpha")
+ *   3. Subdomain of the Host header    (e.g. "alpha.chaptos.io" → "alpha")
  *   4. null — caller decides fallback
  *
  * Returns the minimal org shape needed for routing. Returns null when no
@@ -15,6 +15,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { validateSlugFormat } from "@/lib/slug-rules";
+import { slugFromHost } from "@/lib/domains";
 
 export interface OrgRef {
   id:   number;
@@ -59,14 +60,11 @@ function extractSlug(req: Request): string | null {
   const header = req.headers.get("x-org-slug");
   if (header && isValidSlug(header)) return header;
 
-  // 3. Subdomain — "alpha.figurints.com" → "alpha"
-  //    Skipped on localhost / IP addresses (no meaningful subdomain).
-  const host = (req.headers.get("host") ?? "").split(":")[0]; // strip port
-  const parts = host.split(".");
-  if (parts.length >= 3) {
-    const sub = parts[0];
-    if (isValidSlug(sub)) return sub;
-  }
+  // 3. Subdomain — "alpha.chaptos.io" → "alpha" (also the figurints.com alias).
+  //    Apex/www/localhost/IP all yield null via slugFromHost (lib/domains.ts),
+  //    keeping this in lockstep with the client-side slug-extract.
+  const sub = slugFromHost(req.headers.get("host") ?? "");
+  if (sub && isValidSlug(sub)) return sub;
 
   return null;
 }

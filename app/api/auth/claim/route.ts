@@ -8,8 +8,27 @@ import { cookies } from "next/headers";
 import { parseAvatarFromMetadata } from "@/lib/avatar";
 import { logActivity } from "@/lib/activity";
 import { resolveOrgFromRequest } from "@/lib/auth/org-resolution";
+import { ACTIVE_ORG_COOKIE } from "@/lib/auth/require-user";
 import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
 import { logError } from "@/lib/observability";
+
+const LINKED_COOKIE_OPTS = {
+  path: "/", httpOnly: true, sameSite: "lax" as const, maxAge: 60 * 60 * 24 * 365,
+};
+
+/**
+ * Build the post-claim response, setting both auth cookies:
+ *   - brother_linked: lets the proxy wave this now-linked user into the dashboard.
+ *   - active_org_id:  pre-selects the org they just claimed into, so the first
+ *     /[slug] render resolves to it without a background cookie sync. Mirrors
+ *     /api/orgs (org creation).
+ */
+function claimedResponse(orgId: number): NextResponse {
+  const res = NextResponse.json({ ok: true });
+  res.cookies.set("brother_linked", "1", LINKED_COOKIE_OPTS);
+  res.cookies.set(ACTIVE_ORG_COOKIE, String(orgId), LINKED_COOKIE_OPTS);
+  return res;
+}
 
 /**
  * Emit a minimal structured OperationalEvent for the claim flow.
@@ -144,11 +163,7 @@ export async function POST(req: NextRequest) {
     });
     void emitClaimEvent(orgId, created.id, created.name, user.email ?? null);
 
-    const res = NextResponse.json({ ok: true });
-    res.cookies.set("brother_linked", "1", {
-      path: "/", httpOnly: true, sameSite: "lax", maxAge: 60 * 60 * 24 * 365,
-    });
-    return res;
+    return claimedResponse(orgId);
   }
 
   // ── 6. Name-match claim ───────────────────────────────────────────────────
@@ -213,9 +228,5 @@ export async function POST(req: NextRequest) {
   });
   void emitClaimEvent(orgId, brother.id, name, user.email ?? null);
 
-  const res = NextResponse.json({ ok: true });
-  res.cookies.set("brother_linked", "1", {
-    path: "/", httpOnly: true, sameSite: "lax", maxAge: 60 * 60 * 24 * 365,
-  });
-  return res;
+  return claimedResponse(orgId);
 }
