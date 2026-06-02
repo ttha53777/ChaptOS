@@ -53,6 +53,26 @@ export function resolveActiveOrg(args: {
   return { activeOrgId, cookieOrgId };
 }
 
+/**
+ * True when a valid Supabase session exists, regardless of whether it's linked
+ * to a Brother. Lets callers distinguish "not signed in" (→ /login) from
+ * "signed in but no Brother yet" (→ claim/onboarding) when requireUser() returns
+ * null — requireUser collapses both to null. Cheap: one getUser() call, no DB.
+ */
+export async function hasSession(): Promise<boolean> {
+  const cookieStore = await cookies();
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: { getAll: () => cookieStore.getAll(), setAll: () => {} },
+      global: { fetch: withTimeout(5_000) },
+    }
+  );
+  const { data: { user } } = await supabase.auth.getUser();
+  return !!user;
+}
+
 export async function requireUser(opts?: { orgSlug?: string }) {
   const cookieStore = await cookies();
   const supabase = createServerClient(

@@ -3,10 +3,9 @@
  * is the platform, and what hosts are org subdomains."
  *
  * Everything here is config-driven so the platform can be pointed at any domain
- * (or none yet) WITHOUT a code change. Three surfaces consume it and must agree:
- *   - lib/slug-extract.ts        (client: parse a pasted org URL)
+ * (or none yet) WITHOUT a code change. Consumers:
  *   - lib/auth/org-resolution.ts (server: resolve org from the Host header)
- *   - app/login/page.tsx         (UI: render "<slug>.<domain>" branding)
+ *   - app/**                     (UI: APP_NAME wordmark)
  *
  * ── Configuration (all optional; sensible localhost defaults) ───────────────
  *   NEXT_PUBLIC_ROOT_DOMAIN   The bare apex, e.g. "example.com". Org subdomains
@@ -34,8 +33,8 @@ export const APP_NAME = (process.env.NEXT_PUBLIC_APP_NAME ?? "").trim() || "Chap
 
 /**
  * The user-facing root domain, e.g. "example.com". Defaults to "localhost" when
- * unset so there's no hardcoded product domain anywhere. Drives both UI branding
- * ("<slug>.<ROOT_DOMAIN>") and apex/subdomain detection.
+ * unset so there's no hardcoded product domain anywhere. Drives apex/subdomain
+ * detection (APEX_HOSTS, slugFromHost).
  */
 export const ROOT_DOMAIN = clean(process.env.NEXT_PUBLIC_ROOT_DOMAIN) || "localhost";
 
@@ -54,37 +53,13 @@ export const APEX_HOSTS: ReadonlySet<string> = new Set(
   [ROOT_DOMAIN, ...DOMAIN_ALIASES].flatMap(d => [d, `www.${d}`]).concat("localhost"),
 );
 
-/**
- * Whether a real product domain is configured. False when ROOT_DOMAIN is the
- * "localhost" placeholder — UI uses this to avoid rendering nonsense like
- * "alpha.localhost" before a domain exists.
- */
-export const HAS_REAL_DOMAIN = ROOT_DOMAIN !== "localhost";
-
-/**
- * The host label to display for an org, e.g. "alpha.example.com". When no real
- * domain is configured yet, returns just the slug — so branding degrades
- * gracefully instead of showing "alpha.localhost".
- */
-export function orgHostLabel(slug: string): string {
-  return HAS_REAL_DOMAIN ? `${slug}.${ROOT_DOMAIN}` : slug;
-}
-
-/**
- * The suffix shown after a slug input, e.g. ".example.com". Empty when no real
- * domain is configured.
- */
-export function domainSuffix(): string {
-  return HAS_REAL_DOMAIN ? `.${ROOT_DOMAIN}` : "";
-}
-
 /** Leading labels that are infra/reserved, never an org slug. */
 const RESERVED_SUBDOMAINS: ReadonlySet<string> = new Set(["www"]);
 
 /**
  * Extract an org slug from a hostname, or null if the host is a platform apex,
- * an IP, or otherwise has no org subdomain. Shared by slug-extract (client URL
- * paste) and org-resolution (server Host header) so they can't disagree.
+ * an IP, or otherwise has no org subdomain. Used by org-resolution (server Host
+ * header) to map a subdomain to its org.
  *
  * With ROOT_DOMAIN="example.com":
  *   "alpha.example.com"  → "alpha"

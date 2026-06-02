@@ -8,19 +8,7 @@ import { logError } from "@/lib/observability";
 
 export async function GET() {
   const user = await requireUser();
-  if (!user) {
-    // requireUser is the DB authority: null means there's no linked Brother row.
-    // If the proxy's brother_linked cookie still claims otherwise it's stale
-    // (a different account signed in on this browser, or a claim that never
-    // completed) — clear it so the next request is gated to /pending-access
-    // instead of being waved into the dashboard. Self-heals the gate without the
-    // proxy needing a DB call. See proxy.ts.
-    const res = NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    res.cookies.set("brother_linked", "", {
-      path: "/", httpOnly: true, sameSite: "lax", maxAge: 0,
-    });
-    return res;
-  }
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   try {
     const [brother, org, supabase, perms] = await Promise.all([

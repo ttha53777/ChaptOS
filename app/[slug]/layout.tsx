@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { requireUser } from "@/lib/auth/require-user";
+import { requireUser, hasSession } from "@/lib/auth/require-user";
 import { AccessDenied } from "./AccessDenied";
 import { ActiveOrgSync } from "./ActiveOrgSync";
 
@@ -38,6 +38,14 @@ export default async function OrgLayout({
   const user = await requireUser({ orgSlug: slug });
 
   if (!user) {
+    // requireUser returns null for BOTH "no session" and "session but no
+    // Brother". Distinguish them so an authenticated-but-unlinked user isn't
+    // bounced to /login (where they'd sit signed-in and stuck): send them to
+    // the claim flow for this org instead. (The proxy no longer gates link
+    // status — this layout owns it now.)
+    if (await hasSession()) {
+      redirect(`/pending-access?org=${encodeURIComponent(slug)}`);
+    }
     redirect(`/login?org=${encodeURIComponent(slug)}`);
   }
 

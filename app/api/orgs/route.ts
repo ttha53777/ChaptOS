@@ -106,15 +106,13 @@ export async function POST(req: NextRequest) {
 }
 
 /**
- * Set the active-org + brother_linked cookies that get the founder into their
- * org on the next request. Shared by the create-success and already-linked
- * recovery paths so they stay in lockstep with /api/auth/active-org's shape.
+ * Set the active-org cookie that lands the founder in their new org on the next
+ * request. Shared by the create-success and already-linked recovery paths so
+ * they stay in lockstep with /api/auth/active-org's shape. Link status is read
+ * from the DB by requireUser() — no separate cookie.
  */
 function setSessionCookies(res: NextResponse, organizationId: number): NextResponse {
   res.cookies.set(ACTIVE_ORG_COOKIE, String(organizationId), {
-    path: "/", httpOnly: true, sameSite: "lax", maxAge: 60 * 60 * 24 * 365,
-  });
-  res.cookies.set("brother_linked", "1", {
     path: "/", httpOnly: true, sameSite: "lax", maxAge: 60 * 60 * 24 * 365,
   });
   return res;

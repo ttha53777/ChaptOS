@@ -17,15 +17,13 @@ const LINKED_COOKIE_OPTS = {
 };
 
 /**
- * Build the post-claim response, setting both auth cookies:
- *   - brother_linked: lets the proxy wave this now-linked user into the dashboard.
- *   - active_org_id:  pre-selects the org they just claimed into, so the first
- *     /[slug] render resolves to it without a background cookie sync. Mirrors
- *     /api/orgs (org creation).
+ * Build the post-claim response, pre-selecting the org they just claimed into
+ * via active_org_id so the first /[slug] render resolves to it without a
+ * background cookie sync. Mirrors /api/orgs (org creation). Link status itself
+ * is read from the DB by requireUser() — there's no separate cookie for it.
  */
 function claimedResponse(orgId: number): NextResponse {
   const res = NextResponse.json({ ok: true });
-  res.cookies.set("brother_linked", "1", LINKED_COOKIE_OPTS);
   res.cookies.set(ACTIVE_ORG_COOKIE, String(orgId), LINKED_COOKIE_OPTS);
   return res;
 }
@@ -210,12 +208,11 @@ export async function POST(req: NextRequest) {
 
   // Ensure a Membership row exists so requireUser() resolves this org. This is
   // FATAL on failure: a claim that links the Brother but leaves zero memberships
-  // hands the user a brother_linked cookie (below) that the proxy trusts, while
-  // requireUser() finds no membership for this org — the exact gate-desync we're
-  // guarding against. The claimed brother's home org may also differ from the
-  // org they're joining, so "fall back to Brother.organizationId" is not safe.
-  // Better to fail the claim (no cookie) and let them retry than to wave a
-  // half-linked user past the gate.
+  // would let the [slug] guard see a linked user with no membership for this
+  // org — access denied despite a "successful" claim. The claimed brother's
+  // home org may also differ from the org they're joining, so "fall back to
+  // Brother.organizationId" is not safe. Better to fail the claim and let them
+  // retry than to leave them half-linked.
   try {
     await prisma.membership.upsert({
       where:  { brotherId_organizationId: { brotherId: brother.id, organizationId: orgId } },

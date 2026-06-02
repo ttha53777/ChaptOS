@@ -61,8 +61,7 @@ function extractSlug(req: Request): string | null {
   if (header && isValidSlug(header)) return header;
 
   // 3. Subdomain — "alpha.chaptos.io" → "alpha" (also the figurints.com alias).
-  //    Apex/www/localhost/IP all yield null via slugFromHost (lib/domains.ts),
-  //    keeping this in lockstep with the client-side slug-extract.
+  //    Apex/www/localhost/IP all yield null via slugFromHost (lib/domains.ts).
   const sub = slugFromHost(req.headers.get("host") ?? "");
   if (sub && isValidSlug(sub)) return sub;
 

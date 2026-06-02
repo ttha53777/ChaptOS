@@ -3,8 +3,9 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { buildContext } from "@/lib/context";
 import { emit } from "@/lib/events";
 
-// DELETE — unlink the currently signed-in user from their Brother row,
-// clear the brother_linked cookie, and sign them out of Supabase.
+// DELETE — unlink the currently signed-in user from their Brother row and sign
+// them out of Supabase. Also expires the legacy brother_linked cookie (no longer
+// read; cleared so sessions predating its removal don't keep it around).
 export async function DELETE() {
   const supabase = await createServerSupabaseClient();
   const { ctx, error } = await buildContext({ rateLimit: false });
