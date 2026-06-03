@@ -8,17 +8,18 @@ export async function listRoles(ctx: RequestContext) {
   const roles = await ctx.db.role.findMany({
     orderBy: [{ rank: "desc" }, { name: "asc" }],
   });
-  const memberCounts = await Promise.all(
-    roles.map(r => ctx.db.brotherRole.count({ where: { roleId: r.id } })),
-  );
-  return roles.map((r, i) => ({
+  // One batched groupBy instead of one COUNT() per role (N+1 → 2 queries).
+  // Org-scoped identically; a role with no members is absent from the map, so
+  // `?? 0` reproduces the previous per-role count of zero exactly.
+  const countByRole = await ctx.db.brotherRole.countByRole(roles.map(r => r.id));
+  return roles.map(r => ({
     id:          r.id,
     name:        r.name,
     color:       r.color,
     rank:        r.rank,
     permissions: r.permissions,
     isSystem:    r.isSystem,
-    memberCount: memberCounts[i],
+    memberCount: countByRole.get(r.id) ?? 0,
   }));
 }
 

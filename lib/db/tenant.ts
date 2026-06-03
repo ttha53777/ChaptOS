@@ -397,6 +397,22 @@ function scopedBrotherRole(orgId: number) {
       prisma.brotherRole.findMany({ ...args, where: org(args?.where) }),
     count: (args?: Prisma.BrotherRoleCountArgs) =>
       prisma.brotherRole.count({ ...args, where: org(args?.where) }),
+    /**
+     * Member count per role, batched into ONE groupBy instead of N per-role
+     * COUNT() round-trips (the listRoles N+1). Org-scoped exactly like count():
+     * the same `organizationId: orgId` filter is injected, so the result is
+     * identical to summing per-role counts. Returns a Map(roleId → count);
+     * roles with zero members are simply absent (callers default to 0).
+     */
+    countByRole: async (roleIds: number[]): Promise<Map<number, number>> => {
+      if (roleIds.length === 0) return new Map();
+      const rows = await prisma.brotherRole.groupBy({
+        by: ["roleId"],
+        where: org({ roleId: { in: roleIds } }),
+        _count: { roleId: true },
+      });
+      return new Map(rows.map(r => [r.roleId, r._count.roleId]));
+    },
     create: (args: Omit<Prisma.BrotherRoleCreateArgs, "data"> & { data: Omit<Prisma.BrotherRoleUncheckedCreateInput, "organizationId"> }) =>
       prisma.brotherRole.create({ ...args, data: { ...args.data, organizationId: orgId } }),
     delete: async (args: Prisma.BrotherRoleDeleteArgs) => {
@@ -446,6 +462,23 @@ function scopedOrgInvite(orgId: number) {
     findMany:   (args?: Prisma.OrgInviteFindManyArgs)  => prisma.orgInvite.findMany({ ...args, where: org(args?.where) }),
     findFirst:  (args?: Prisma.OrgInviteFindFirstArgs) => prisma.orgInvite.findFirst({ ...args, where: org(args?.where) }),
     findUnique: (args: Prisma.OrgInviteFindUniqueArgs) => prisma.orgInvite.findFirst({ ...args, where: org(args.where as W) }),
+    /**
+     * Redemption count per invite, batched into ONE groupBy instead of N
+     * per-invite COUNT() round-trips (the listInvites N+1). InviteRedemption has
+     * no organizationId column, but the caller passes invite ids it already
+     * fetched org-scoped via findMany, so grouping by those ids is equivalent to
+     * the per-invite counts. Returns a Map(inviteId → count); invites with zero
+     * redemptions are absent (callers default to 0).
+     */
+    redemptionCountByInvite: async (inviteIds: number[]): Promise<Map<number, number>> => {
+      if (inviteIds.length === 0) return new Map();
+      const rows = await prisma.inviteRedemption.groupBy({
+        by: ["inviteId"],
+        where: { inviteId: { in: inviteIds } },
+        _count: { inviteId: true },
+      });
+      return new Map(rows.map(r => [r.inviteId, r._count.inviteId]));
+    },
     create:     (args: Omit<Prisma.OrgInviteCreateArgs, "data"> & { data: Omit<Prisma.OrgInviteUncheckedCreateInput, "organizationId"> }) =>
       prisma.orgInvite.create({ ...args, data: { ...args.data, organizationId: orgId } }),
     update:     async (args: Prisma.OrgInviteUpdateArgs) =>

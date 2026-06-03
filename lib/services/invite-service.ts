@@ -64,10 +64,12 @@ export async function listInvites(ctx: RequestContext): Promise<InviteDto[]> {
     },
     orderBy: { createdAt: "desc" },
   });
-  const counts = await Promise.all(
-    invites.map(i => ctx.db.inviteRedemption.count({ where: { inviteId: i.id } })),
-  );
-  return invites.map((invite, i) => toDto(invite, counts[i] ?? 0));
+  // One batched groupBy instead of one COUNT() per invite (N+1 → 2 queries).
+  // The invite ids were just fetched org-scoped above, so grouping redemptions
+  // by them is equivalent. An invite with no redemptions is absent from the
+  // map, so `?? 0` reproduces the previous per-invite count of zero exactly.
+  const countByInvite = await ctx.db.orgInvite.redemptionCountByInvite(invites.map(i => i.id));
+  return invites.map(invite => toDto(invite, countByInvite.get(invite.id) ?? 0));
 }
 
 /** Revoke an invite (idempotent). Throws NotFoundError if it isn't this org's. */
