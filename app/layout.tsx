@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist, Geist_Mono, Fraunces } from "next/font/google";
 import "./globals.css";
 import { ChapterProvider } from "./context/ChapterContext";
 import { ChatWidgetGate } from "./components/ChatWidgetGate";
@@ -13,6 +13,17 @@ const geistSans = Geist({
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
+});
+
+// Editorial serif used only by the pre-auth pages (login / join / welcome /
+// create / pending-access) via --font-fraunces. The dashboard never references
+// it, so loading it here costs the authed app nothing at runtime.
+const fraunces = Fraunces({
+  variable: "--font-fraunces",
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
+  style: ["normal", "italic"],
+  display: "swap",
 });
 
 export const metadata: Metadata = {
@@ -39,7 +50,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} ${fraunces.variable} h-full antialiased`}
     >
       <body suppressHydrationWarning className="min-h-full flex flex-col"><ToastProvider><ChapterProvider>{children}<ChatWidgetGate /></ChapterProvider></ToastProvider></body>
     </html>

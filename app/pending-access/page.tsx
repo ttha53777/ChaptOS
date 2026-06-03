@@ -49,48 +49,63 @@ function PendingAccessContent() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-zinc-950">
-      <div className="w-full max-w-sm px-8 py-10 bg-zinc-900 rounded-2xl border border-zinc-800 shadow-xl flex flex-col gap-6">
-        <div className="flex flex-col gap-1">
-          <span className="text-lg font-semibold text-white">Link your account</span>
-          <span className="text-sm text-zinc-400">
-            Enter your full name exactly as it appears in the chapter roster.
-          </span>
+    <div className="auth-scope">
+      <div className="auth-page">
+        <div className="auth-topbar">
+          <div className="auth-wordmark">
+            <div className="auth-glyph">C</div>
+            <div className="auth-wm-txt">ChaptOS</div>
+          </div>
+          <div className="auth-meta">Link account</div>
         </div>
 
-        <form onSubmit={handleClaim} className="flex flex-col gap-3">
-          <input
-            type="text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Full name"
-            required
-            className="w-full px-3 py-2 rounded-lg bg-zinc-800 border border-zinc-700 text-white text-sm placeholder-zinc-500 focus:outline-none focus:border-indigo-500"
-          />
+        <div className="auth-main">
+          <div className="auth-col">
+            <div className="auth-index">One last step</div>
+            <h1 className="auth-h1">
+              Link your <em>account.</em>
+            </h1>
+            <p className="auth-lede">
+              Enter your full name exactly as it appears in the chapter roster, and we&rsquo;ll connect you to your record.
+            </p>
 
-          {error && (
-            <p className="text-sm text-red-400">{error}</p>
-          )}
+            <form onSubmit={handleClaim} className="auth-body auth-stack">
+              <div>
+                <label className="auth-label" htmlFor="full-name">Full name</label>
+                <input
+                  id="full-name"
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="e.g. Jordan Lee"
+                  required
+                  className="auth-input"
+                />
+              </div>
 
-          <button
-            type="submit"
-            disabled={loading || !name.trim()}
-            className="w-full px-4 py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium transition-colors"
-          >
-            {loading ? "Linking…" : "Link account"}
-          </button>
-        </form>
+              {error && (
+                <div className="auth-alert" role="alert">
+                  <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z" clipRule="evenodd" />
+                  </svg>
+                  {error}
+                </div>
+              )}
 
-        <p className="text-xs text-zinc-500">
-          If your name doesn't match or you share a name with another member, contact an officer to be linked manually.
-        </p>
+              <button type="submit" disabled={loading || !name.trim()} className="auth-btn-vio">
+                {loading ? "Linking…" : "Link account"}
+              </button>
+            </form>
 
-        <button
-          onClick={handleSignOut}
-          className="text-xs text-zinc-500 hover:text-zinc-400 transition-colors text-left"
-        >
-          Sign out
-        </button>
+            <p className="auth-footnote" style={{ marginTop: 22 }}>
+              If your name doesn&rsquo;t match or you share a name with another member, contact an officer to be linked manually.
+            </p>
+
+            <button onClick={handleSignOut} className="auth-link bare" style={{ marginTop: 14, alignSelf: "flex-start" }}>
+              Sign out
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );
