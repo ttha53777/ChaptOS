@@ -183,8 +183,14 @@ export async function decideExcuse(
     ? (input.rejectionNote ?? null)
     : null;
 
+  // Tenancy gate: AttendanceExcuse has no organizationId column and is a raw
+  // (unscoped) pass-through in db(), so a bare `id` WHERE would let a
+  // MANAGE_ATTENDANCE holder in org A decide an excuse belonging to org B
+  // (cross-tenant IDOR write + a recalc fired on a foreign brother). Scope the
+  // match through the excuse's brother (org-bound) so a foreign excuse matches
+  // zero rows and surfaces the same "no longer pending" conflict — non-leaky.
   const result = await ctx.db.attendanceExcuse.updateMany({
-    where: { id: excuseId, status: ExcuseStatus.Pending },
+    where: { id: excuseId, status: ExcuseStatus.Pending, brother: { organizationId: ctx.orgId } },
     data: {
       status:        input.action === "approve" ? ExcuseStatus.Approved : ExcuseStatus.Rejected,
       decidedById:   ctx.actorId,
@@ -196,8 +202,8 @@ export async function decideExcuse(
     throw new ConflictError("Excuse is no longer pending");
   }
 
-  const updated = await ctx.db.attendanceExcuse.findUnique({
-    where: { id: excuseId },
+  const updated = await ctx.db.attendanceExcuse.findFirst({
+    where: { id: excuseId, brother: { organizationId: ctx.orgId } },
     include: {
       brother:       { select: { id: true, name: true } },
       calendarEvent: { select: { id: true, title: true } },

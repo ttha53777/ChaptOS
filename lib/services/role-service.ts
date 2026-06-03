@@ -22,10 +22,25 @@ export async function listRoles(ctx: RequestContext) {
   }));
 }
 
+/**
+ * A role's permission bits may only include bits the actor already holds.
+ * Without this, a non-admin with MANAGE_ROLES could mint a lower-rank role
+ * carrying permissions they were never granted (e.g. MANAGE_TREASURY) and then
+ * grant it to themselves — a privilege-escalation path the rank check alone
+ * does not close. Org/platform admins have every bit (ctx.permissions = all),
+ * so ~ctx.permissions === 0 and this is a no-op for them.
+ */
+function assertAssignablePermissions(ctx: RequestContext, bits: number): void {
+  if ((bits & ~ctx.permissions) !== 0) {
+    throw new ForbiddenError("Cannot assign permissions you do not hold");
+  }
+}
+
 export async function createRole(ctx: RequestContext, input: CreateRoleInput) {
   if (input.rank >= ctx.maxRank) {
     throw new ForbiddenError("Cannot create a role at or above your own rank");
   }
+  assertAssignablePermissions(ctx, input.permissions);
   const role = await ctx.db.role.create({
     data: {
       name:        input.name,
@@ -70,6 +85,9 @@ export async function updateRole(ctx: RequestContext, roleId: number, input: Upd
     changedFields.push("rank");
   }
   if (input.permissions !== undefined) {
+    // Same escalation guard as createRole: never let an actor widen a role to
+    // bits they don't hold. Admins hold every bit, so this is a no-op for them.
+    assertAssignablePermissions(ctx, input.permissions);
     data.permissions = input.permissions;
     changedFields.push("permissions");
   }

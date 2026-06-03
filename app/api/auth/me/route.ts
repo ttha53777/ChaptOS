@@ -27,6 +27,19 @@ export async function GET() {
     const { data: { user: authUser } } = await supabase.auth.getUser();
     const meta = parseAvatarFromMetadata(authUser?.user_metadata);
 
+    // Elevate permissions for the elevated tiers so the CLIENT permission
+    // snapshot matches what buildContext() actually enforces server-side. An
+    // org admin (Membership.isOrgAdmin for the active org) holds every
+    // permission within that org even without an all-bits role; without this,
+    // resolvePermissions() would report only their explicit role bits and the
+    // UI would hide controls for actions the server permits. Platform admins are
+    // already elevated inside resolvePermissions().
+    const isOrgAdmin =
+      user.memberships.find(m => m.organizationId === user.orgId)?.isOrgAdmin ?? false;
+    const elevated = user.isPlatformAdmin || isOrgAdmin;
+    const effectivePermissions = elevated ? (~0 >>> 0) : perms.permissions;
+    const effectiveMaxRank = elevated ? Number.POSITIVE_INFINITY : perms.maxRank;
+
     // The persisted Brother.avatarUrl is the source of truth — it's written on
     // every upload/remove via syncBrotherAvatar and survives Supabase re-syncing
     // Google's OAuth claims into user_metadata on token refresh/re-login (which
@@ -56,8 +69,8 @@ export async function GET() {
       org: org ? { name: org.name, slug: org.slug } : null,
       orgId: user.orgId,
       memberships: user.memberships,
-      permissions: perms.permissions,
-      maxRank: Number.isFinite(perms.maxRank) ? perms.maxRank : null,
+      permissions: effectivePermissions,
+      maxRank: Number.isFinite(effectiveMaxRank) ? effectiveMaxRank : null,
       roles: perms.roles,
     });
   } catch (e) {

@@ -461,6 +461,15 @@ function scopedOrgInvite(orgId: number) {
 // ---------------------------------------------------------------------------
 
 export function db(orgId: number) {
+  // Hard gate at the single chokepoint: orgId must be a positive integer. Every
+  // scoped delegate injects this value into WHERE/data, and $transaction
+  // interpolates it into `SET LOCAL app.org_id`. A non-integer here would either
+  // silently mis-scope every query or (for the raw SET LOCAL) be a SQL-injection
+  // vector. Today orgId always comes from context as a number, but failing
+  // loudly here keeps that invariant from ever being violated by a future caller.
+  if (!Number.isInteger(orgId) || orgId <= 0) {
+    throw new Error(`db(): orgId must be a positive integer, got ${JSON.stringify(orgId)}`);
+  }
   return {
     brother:             scopedBrother(orgId),
     role:                scopedRole(orgId),
@@ -509,7 +518,10 @@ export function db(orgId: number) {
     ) => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       return prisma.$transaction(async (tx: any) => {
-        await tx.$executeRawUnsafe(`SET LOCAL app.org_id = '${orgId}'`);
+        // orgId is guaranteed a positive integer by the db() guard above, so
+        // this interpolation cannot carry SQL. Re-stringify the integer form
+        // explicitly so the safety is local to this line, not action-at-a-distance.
+        await tx.$executeRawUnsafe(`SET LOCAL app.org_id = '${Math.trunc(orgId)}'`);
         return fn(tx);
       }, opts);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
