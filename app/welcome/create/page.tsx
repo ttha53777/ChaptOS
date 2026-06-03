@@ -157,156 +157,140 @@ export default function CreateOrgPage() {
   }
 
   return (
-    <div className="relative min-h-screen flex items-center justify-center overflow-hidden bg-[#07090f] px-4 py-10">
-      {/* Ambient — matches /welcome and /login. */}
-      <div className="pointer-events-none absolute inset-0">
-        <div className="absolute left-1/2 top-0 -translate-x-1/2 h-[600px] w-[800px] rounded-full bg-indigo-600/10 blur-[140px]" />
-        <div className="absolute right-0 bottom-0 h-[400px] w-[500px] rounded-full bg-purple-700/8 blur-[120px]" />
-        <div className="absolute left-0 top-1/3 h-[300px] w-[300px] rounded-full bg-indigo-500/5 blur-[100px]" />
-      </div>
+    <div className="auth-scope">
+      <div className="auth-page">
+        <div className="auth-topbar">
+          <div className="auth-wordmark">
+            <div className="auth-glyph">C</div>
+            <div className="auth-wm-txt">{APP_NAME}</div>
+          </div>
+          <div className="auth-meta">Create</div>
+        </div>
 
-      <div className="relative z-10 w-full max-w-[520px]">
-        <div className="absolute -inset-px rounded-2xl bg-gradient-to-b from-indigo-500/20 via-indigo-500/5 to-transparent blur-sm" />
-        <div
-          className="relative rounded-2xl border border-white/[0.08] bg-[#10121a]/90 backdrop-blur-xl px-8 py-10 flex flex-col gap-7"
-          style={{
-            boxShadow:
-              "0 4px 6px rgba(0,0,0,0.4), 0 24px 60px -20px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.05)",
-          }}
-        >
-          <header className="flex flex-col gap-2">
-            <h1 className="text-[22px] font-semibold tracking-tight text-white">Create your organization</h1>
-            <p className="text-[13px] text-white/40">
-              We'll set up the workspace and make you the first admin. You can change everything later in Settings.
+        <div className="auth-main">
+          <div className="auth-col wide">
+            <div className="auth-index">New organization</div>
+            <h1 className="auth-h1">
+              Set up your <em>workspace.</em>
+            </h1>
+            <p className="auth-lede">
+              We&rsquo;ll make you the first admin. You can change everything later in Settings.
             </p>
-          </header>
 
-          <form onSubmit={handleSubmit} className="flex flex-col gap-6">
-            {/* Organization name */}
-            <Field
-              label="Organization name"
-              hint="The full name shown in the sidebar and on shared pages."
-              input={
-                <input
-                  type="text"
-                  value={orgName}
-                  onChange={(e) => setOrgName(e.target.value)}
-                  placeholder="e.g. Lambda Phi Epsilon"
-                  className="w-full px-3 py-2.5 rounded-lg bg-zinc-900/80 border border-white/[0.08] text-white text-[14px] placeholder-white/30 focus:outline-none focus:border-indigo-500"
-                />
-              }
-            />
-
-            {/* Slug */}
-            <Field
-              label="Slug"
-              hint="Used in URLs. Lowercase letters, numbers, and single hyphens."
-              input={
-                <>
+            <form onSubmit={handleSubmit} className="auth-body auth-stack-28">
+              {/* Organization name */}
+              <Field
+                htmlFor="org-name"
+                label="Organization name"
+                hint="The full name shown in the sidebar and on shared pages."
+                input={
                   <input
+                    id="org-name"
                     type="text"
-                    value={slug}
-                    onChange={(e) => {
-                      setSlugTouched(true);
-                      setSlug(e.target.value);
-                    }}
-                    placeholder="e.g. lpe"
-                    autoCapitalize="off"
-                    autoComplete="off"
-                    spellCheck={false}
-                    className="w-full px-3 py-2.5 rounded-lg bg-zinc-900/80 border border-white/[0.08] text-white text-[14px] placeholder-white/30 focus:outline-none focus:border-indigo-500 font-mono"
+                    value={orgName}
+                    onChange={(e) => setOrgName(e.target.value)}
+                    placeholder="e.g. Lambda Phi Epsilon"
+                    className="auth-input"
                   />
-                  <SlugStatus
-                    state={slugState}
-                    onPickSuggestion={(s) => {
-                      // Treat picking a suggestion as a deliberate user choice:
-                      // mark slugTouched so the auto-suggest-from-name effect
-                      // doesn't immediately overwrite it.
-                      setSlugTouched(true);
-                      setSlug(s);
-                    }}
-                  />
-                </>
-              }
-            />
+                }
+              />
 
-            {/* Org type */}
-            <Field
-              label="Organization type"
-              hint="Pick the closest match — it sets which workflows and roles get enabled."
-              input={
-                <div className="flex flex-col gap-2">
+              {/* Slug */}
+              <Field
+                htmlFor="org-slug"
+                label="Slug"
+                hint="Used in URLs. Lowercase letters, numbers, and single hyphens."
+                input={
+                  <>
+                    <input
+                      id="org-slug"
+                      type="text"
+                      value={slug}
+                      onChange={(e) => {
+                        setSlugTouched(true);
+                        setSlug(e.target.value);
+                      }}
+                      placeholder="e.g. lpe"
+                      autoCapitalize="off"
+                      autoComplete="off"
+                      spellCheck={false}
+                      className="auth-input mono"
+                    />
+                    <SlugStatus
+                      state={slugState}
+                      onPickSuggestion={(s) => {
+                        // Treat picking a suggestion as a deliberate user choice:
+                        // mark slugTouched so the auto-suggest-from-name effect
+                        // doesn't immediately overwrite it.
+                        setSlugTouched(true);
+                        setSlug(s);
+                      }}
+                    />
+                  </>
+                }
+              />
+
+              {/* Org type */}
+              <fieldset style={{ border: 0, padding: 0, margin: 0 }}>
+                <legend className="auth-label" style={{ padding: 0 }}>Organization type</legend>
+                <p className="auth-hint">Pick the closest match — it sets which workflows and roles get enabled.</p>
+                <div className="auth-radios">
                   {ORG_TYPES.map((t) => (
-                    <label
-                      key={t.id}
-                      className={[
-                        "flex items-start gap-3 cursor-pointer rounded-xl border px-4 py-3 transition-all",
-                        t.id === orgType
-                          ? "border-indigo-400/40 bg-indigo-500/10"
-                          : "border-white/[0.06] bg-white/[0.02] hover:border-white/[0.12]",
-                      ].join(" ")}
-                    >
+                    <label key={t.id} className={`auth-radio${t.id === orgType ? " on" : ""}`}>
                       <input
                         type="radio"
                         name="orgType"
                         value={t.id}
                         checked={t.id === orgType}
                         onChange={() => setOrgType(t.id)}
-                        className="mt-1 accent-indigo-500"
+                        className="sr-only"
                       />
-                      <div className="flex flex-col gap-0.5">
-                        <span className="text-[13px] font-semibold text-white">{t.label}</span>
-                        <span className="text-[12px] text-white/50 leading-snug">{t.description}</span>
+                      <span className="auth-dot" aria-hidden />
+                      <div>
+                        <div className="t">{t.label}</div>
+                        <div className="d">{t.description}</div>
                       </div>
                     </label>
                   ))}
                 </div>
-              }
-            />
+              </fieldset>
 
-            {/* Your name */}
-            <Field
-              label="Your name"
-              hint="Shown to other members. We don't use your Google account name for this."
-              input={
-                <input
-                  type="text"
-                  value={yourName}
-                  onChange={(e) => setYourName(e.target.value)}
-                  placeholder="e.g. Jordan Lee"
-                  className="w-full px-3 py-2.5 rounded-lg bg-zinc-900/80 border border-white/[0.08] text-white text-[14px] placeholder-white/30 focus:outline-none focus:border-indigo-500"
-                />
-              }
-            />
+              {/* Your name */}
+              <Field
+                htmlFor="your-name"
+                label="Your name"
+                hint="Shown to other members. We don't use your Google account name for this."
+                input={
+                  <input
+                    id="your-name"
+                    type="text"
+                    value={yourName}
+                    onChange={(e) => setYourName(e.target.value)}
+                    placeholder="e.g. Jordan Lee"
+                    className="auth-input"
+                  />
+                }
+              />
 
-            {serverError && (
-              <p className="rounded-lg border border-red-500/20 bg-red-500/8 px-3 py-2 text-[12px] text-red-400">
-                {serverError}
-              </p>
-            )}
+              {serverError && (
+                <div className="auth-alert" role="alert">
+                  <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z" clipRule="evenodd" />
+                  </svg>
+                  {serverError}
+                </div>
+              )}
 
-            <div className="flex flex-col gap-3 mt-2">
-              <button
-                type="submit"
-                disabled={!canSubmit}
-                className="w-full px-4 py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-[14px] font-medium transition-colors"
-              >
-                {submitting ? "Creating…" : `Create ${selectedType.label.toLowerCase()}`}
-              </button>
-              <Link
-                href="/welcome"
-                className="self-start text-[12px] text-white/40 hover:text-white/70 transition-colors"
-              >
-                ← Back
-              </Link>
-            </div>
-          </form>
-
-          <footer className="flex items-center justify-center gap-2">
-            <div className="h-px w-8 bg-white/[0.06]" />
-            <span className="text-[11px] font-semibold tracking-[0.2em] uppercase text-white/20">{APP_NAME}</span>
-            <div className="h-px w-8 bg-white/[0.06]" />
-          </footer>
+              <div className="auth-stack">
+                <button type="submit" disabled={!canSubmit} className="auth-btn-vio">
+                  {submitting ? "Creating…" : `Create ${selectedType.label.toLowerCase()}`}
+                </button>
+                <Link href="/welcome" className="auth-link bare" style={{ alignSelf: "flex-start" }}>
+                  ← Back
+                </Link>
+              </div>
+            </form>
+          </div>
         </div>
       </div>
     </div>
@@ -314,19 +298,21 @@ export default function CreateOrgPage() {
 }
 
 function Field({
+  htmlFor,
   label,
   hint,
   input,
 }: {
+  htmlFor: string;
   label: string;
   hint: string;
   input: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-col gap-1.5">
-      <span className="text-[12px] font-medium text-white/70">{label}</span>
-      <span className="text-[11px] text-white/40 -mt-0.5">{hint}</span>
-      <div className="mt-1.5 flex flex-col gap-1.5">{input}</div>
+    <div>
+      <label className="auth-label" htmlFor={htmlFor}>{label}</label>
+      <p className="auth-hint">{hint}</p>
+      {input}
     </div>
   );
 }
@@ -340,33 +326,30 @@ function SlugStatus({
 }) {
   if (state.kind === "idle") return null;
   if (state.kind === "checking") {
-    return <span className="text-[11px] text-white/40">Checking availability…</span>;
+    return <p className="auth-status muted">Checking availability…</p>;
   }
   if (state.kind === "ok") {
-    return <span className="text-[11px] text-emerald-400">Available ✓</span>;
+    return <p className="auth-status ok">Available ✓</p>;
   }
   if (state.kind === "taken") {
     return (
-      <div className="flex flex-col gap-1.5">
-        <span className="text-[11px] text-red-400">Already taken</span>
+      <div className="auth-suggest">
+        <span className="auth-status err" role="alert" style={{ marginTop: 0, minHeight: "auto" }}>
+          Already taken
+        </span>
         {state.suggestions.length > 0 && (
-          <div className="flex flex-wrap items-center gap-1.5">
-            <span className="text-[11px] text-white/40">Try:</span>
+          <>
+            <span className="auth-footnote">·&nbsp;Try:</span>
             {state.suggestions.map((s) => (
-              <button
-                key={s}
-                type="button"
-                onClick={() => onPickSuggestion(s)}
-                className="px-2 py-0.5 rounded-md bg-indigo-500/15 border border-indigo-400/30 text-[11px] text-indigo-200 font-mono hover:bg-indigo-500/25 hover:border-indigo-400/50 transition-colors"
-              >
+              <button key={s} type="button" onClick={() => onPickSuggestion(s)} className="auth-chip">
                 {s}
               </button>
             ))}
-          </div>
+          </>
         )}
       </div>
     );
   }
   // "bad"
-  return <span className="text-[11px] text-red-400">{state.message}</span>;
+  return <p className="auth-status err" role="alert">{state.message}</p>;
 }

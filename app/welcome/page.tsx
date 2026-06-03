@@ -39,78 +39,55 @@ export default function WelcomePage() {
   }, []);
 
   return (
-    <div className="relative min-h-screen flex items-center justify-center overflow-hidden bg-[#07090f] px-4">
-      {/* Ambient background — matches /login. */}
-      <div className="pointer-events-none absolute inset-0">
-        <div className="absolute left-1/2 top-0 -translate-x-1/2 h-[600px] w-[800px] rounded-full bg-indigo-600/10 blur-[140px]" />
-        <div className="absolute right-0 bottom-0 h-[400px] w-[500px] rounded-full bg-purple-700/8 blur-[120px]" />
-        <div className="absolute left-0 top-1/3 h-[300px] w-[300px] rounded-full bg-indigo-500/5 blur-[100px]" />
-      </div>
-      <div
-        className="pointer-events-none absolute inset-0 opacity-[0.015]"
-        style={{
-          backgroundImage:
-            "linear-gradient(rgba(255,255,255,0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.5) 1px, transparent 1px)",
-          backgroundSize: "64px 64px",
-        }}
-      />
-
-      <div className="relative z-10 w-full max-w-[440px]">
-        <div className="absolute -inset-px rounded-2xl bg-gradient-to-b from-indigo-500/20 via-indigo-500/5 to-transparent blur-sm" />
-        <div
-          className="relative rounded-2xl border border-white/[0.08] bg-[#10121a]/90 backdrop-blur-xl px-8 py-10 flex flex-col gap-8"
-          style={{
-            boxShadow:
-              "0 4px 6px rgba(0,0,0,0.4), 0 24px 60px -20px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.05)",
-          }}
-        >
-          <header className="flex flex-col items-center gap-2 text-center">
-            <h1 className="text-[22px] font-semibold tracking-tight text-white leading-tight">
-              Welcome to {APP_NAME}
-            </h1>
-            <p className="text-[13px] text-white/40">
-              You&rsquo;re signed in but not part of an organization yet.
-            </p>
-          </header>
-
-          <div className="flex flex-col gap-3">
-            <Link
-              href="/welcome/create"
-              className="group relative overflow-hidden rounded-xl border border-indigo-400/30 bg-gradient-to-br from-indigo-500/15 to-indigo-600/5 px-5 py-4 text-left transition-all hover:border-indigo-400/50 hover:from-indigo-500/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
-            >
-              <div className="flex items-start gap-3">
-                <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-indigo-500/20 text-indigo-300">
-                  <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
-                    <path d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" />
-                  </svg>
-                </div>
-                <div className="flex flex-col gap-1">
-                  <span className="text-[14px] font-semibold text-white">
-                    Create a new organization
-                  </span>
-                  <span className="text-[12px] text-white/50 leading-relaxed">
-                    Start fresh — name your org, pick a type, and become its first admin.
-                  </span>
-                </div>
-              </div>
-            </Link>
-
-            <p className="text-[12px] text-white/40 leading-relaxed">
-              Joining an existing chapter? Head back to{" "}
-              <Link href="/login" className="text-indigo-300 hover:text-indigo-200 underline underline-offset-2">
-                sign in with your org&rsquo;s URL
-              </Link>
-              .
-            </p>
-
-            <SignOutLink />
+    <div className="auth-scope">
+      <div className="auth-page">
+        <div className="auth-topbar">
+          <div className="auth-wordmark">
+            <div className="auth-glyph">C</div>
+            <div className="auth-wm-txt">{APP_NAME}</div>
           </div>
+          <div className="auth-meta">Welcome</div>
+        </div>
 
-          <footer className="flex items-center justify-center gap-2">
-            <div className="h-px w-8 bg-white/[0.06]" />
-            <span className="text-[11px] font-semibold tracking-[0.2em] uppercase text-white/20">{APP_NAME}</span>
-            <div className="h-px w-8 bg-white/[0.06]" />
-          </footer>
+        <div className="auth-main">
+          <div className="auth-col">
+            <div className="auth-index">Almost there</div>
+            <h1 className="auth-h1">
+              Welcome to <em>{APP_NAME}.</em>
+            </h1>
+            <p className="auth-lede">
+              You&rsquo;re signed in, but not part of an organization yet. Start one below — or head back to join an existing chapter.
+            </p>
+
+            <div className="auth-body auth-stack-22">
+              <Link href="/welcome/create" className="auth-tile feature">
+                <div className="auth-tile-row">
+                  <span className="auth-tile-num">＋</span>
+                  <div>
+                    <div className="auth-tile-title">Create a new organization</div>
+                    <div className="auth-tile-desc">
+                      Name your org, pick a type, and become its first admin.
+                    </div>
+                  </div>
+                  <span className="auth-tile-arrow" aria-hidden>
+                    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6">
+                      <path d="M5 10h10M11 6l4 4-4 4" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  </span>
+                </div>
+              </Link>
+
+              <p className="auth-footnote">
+                Joining an existing chapter? Head back to{" "}
+                <Link href="/login" className="auth-link vio">
+                  sign in
+                </Link>
+                .
+              </p>
+
+              <SignOutLink />
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -133,10 +110,7 @@ function SignOutLink() {
     window.location.assign("/login");
   }
   return (
-    <button
-      onClick={handle}
-      className="mt-1 text-[12px] text-white/30 hover:text-white/60 transition-colors text-left"
-    >
+    <button onClick={handle} className="auth-link bare" style={{ alignSelf: "flex-start" }}>
       Sign out
     </button>
   );
