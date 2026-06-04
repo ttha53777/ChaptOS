@@ -34,7 +34,7 @@ A few things worth showing off:
 - **Side effects through events, never service-to-service calls.** Services call `emit(ctx, action, subject, metadata)` from `lib/events`. Reactions (recalcs, notifications, projections) live as `on(action, handler)` registrations in `lib/events/handlers/`. The event writer also dual-writes an `ActivityLog` row so the existing feed keeps working.
 - **Tool-calling AI assistant with self-correcting validation.** Eleven read tools + five write-proposal tools in one file ([lib/ai-tools.ts](lib/ai-tools.ts)) so schema and dispatcher can't drift. `validateArgs` walks the schema before dispatch — a wrong enum returns a structured error the model self-corrects on the next iteration.
 - **Offline eval harness.** Hand-written cases at [evals/ask-the-chapter/cases.jsonl](evals/ask-the-chapter/cases.jsonl) drive the same loop as the production route in-process, graded on tool selection, args, and final-answer substrings. Lets prompt and model changes be measured instead of vibes-checked.
-- **Discord-style role system with permission bitfields.** Eleven named permissions ([lib/permissions.ts](lib/permissions.ts)) packed into a 32-bit int on each `Role`. A member's effective bits are the bitwise OR of every role they hold. Role hierarchy ranks prevent privilege escalation — a caller can only grant/edit roles strictly below their own highest rank.
+- **Discord-style role system with permission bitfields.** Twelve named permissions ([lib/permissions.ts](lib/permissions.ts)) packed into a 32-bit int on each `Role`. A member's effective bits are the bitwise OR of every role they hold. Role hierarchy ranks prevent privilege escalation — a caller can only grant/edit roles strictly below their own highest rank.
 - **Write proposals, never silent writes.** The AI's `propose_*` tools validate inputs server-side but never touch the database. The client renders a confirm card; only on user confirmation does it POST to the real `/api/*` route where `buildContext()` guards decide whether the write actually happens.
 - **Structured server-side observability.** One JSON-per-line error log ([lib/observability.ts](lib/observability.ts)) with request IDs, route tags, and optional Sentry forwarding via a lazy dynamic import — no dependency cost until enabled.
 - **Soft deletes on financial data.** `Transaction` rows are never hard-deleted; `deletedAt` preserves history for audit and undo.
@@ -178,13 +178,15 @@ Access is controlled by three orthogonal tiers.
 
 ### Permission flags ([lib/permissions.ts](lib/permissions.ts))
 
-Eleven named permissions packed into a 32-bit bitfield on each `Role`:
+Twelve named permissions packed into a 32-bit bitfield on each `Role`:
 
 ```
 MANAGE_BROTHERS  MANAGE_TREASURY  MANAGE_EVENTS       MANAGE_PARTIES   MANAGE_INSTAGRAM
 MANAGE_SERVICE   MANAGE_ATTENDANCE  MANAGE_SEMESTERS  MANAGE_ROLES     MANAGE_DOCS
-MANAGE_ANNOUNCEMENTS
+MANAGE_ANNOUNCEMENTS  MANAGE_SETTINGS
 ```
+
+`MANAGE_SETTINGS` covers org config + invite links, kept distinct from `MANAGE_BROTHERS` (roster CRUD) so settings authority isn't bundled with roster editing.
 
 A member's *effective* bitfield is the bitwise OR of every role they hold. UI surfaces and API routes both check the same `hasPermission(bits, "MANAGE_X")` helper.
 
@@ -238,7 +240,7 @@ figurints/
 │   │   ├── timeline/             # CalendarEventForm
 │   │   └── treasury/             # BudgetView, TreasuryCharts, TxForm
 │   ├── context/ChapterContext.tsx
-│   ├── hooks/                    # useCurrentUser, useOrgLogo
+│   ├── hooks/                    # useCurrentUser, useOrgLogo, useOrgPath
 │   ├── generated/prisma/         # generated client (gitignored)
 │   ├── docs/  service/  brothers/  chapter/  instagram/
 │   ├── login/  pending-access/   # auth entry points
@@ -263,12 +265,12 @@ figurints/
 │   ├── ai-prompt.ts              # buildSystemPrompt
 │   ├── ai-tools.ts               # tool schemas + dispatcher + validateArgs
 │   ├── auth/                     # require-user, require-permission, require-admin
-│   ├── permissions.ts            # 11-bit permission flags + helpers
+│   ├── permissions.ts            # 12-bit permission flags + helpers
 │   ├── seed-roles.ts             # system role seeding (idempotent)
 │   ├── og-metadata.ts            # Doc URL probe (OG tags, favicon, embed-OK check)
 │   ├── supabase/                 # client.ts, server.ts, admin.ts
 │   ├── activity.ts · attendance.ts
-│   ├── avatar.ts · brother-avatar.ts · coerce.ts
+│   ├── avatar.ts · brother-avatar.ts
 │   ├── observability.ts          # structured JSON logging + lazy Sentry
 │   ├── rate-limit.ts             # per-user mutation/chat rate limiter
 │   └── prisma.ts                 # Prisma singleton over pg.Pool
@@ -294,10 +296,13 @@ figurints/
         │
         ├── No session ──────────────────────────────────► /login
         │
-        └── Session + active_org_id cookie ──────────────► app (org context resolved)
+        └── Session present ──────────────────────────────► pass through (refreshed cookie)
                 │
-                └── Session but no memberships ───────────► /pending-access
-                                                             (or /welcome — planned)
+                ▼
+   [slug] layout gates link/membership status (proxy no longer does):
+        ├── Member of <slug> ─────────────────────────────► render org dashboard
+        ├── Signed in, no Brother linked ─────────────────► /pending-access
+        └── Linked, but not a member of <slug> ───────────► access-denied (or /welcome if zero memberships)
                 │
                 ▼
 3. /login — "Continue with Google" → Supabase OAuth
@@ -305,7 +310,7 @@ figurints/
         ▼
 4. /auth/callback — exchanges code for session, checks Brother + Membership tables
         │
-        ├── Membership found for this authUserId + org → set brother_linked cookie → /
+        ├── Membership found for this authUserId + org → set active_org_id cookie → /
         │
         └── No Membership yet → /pending-access
                 │
@@ -317,8 +322,10 @@ figurints/
                 │
                 ▼
 6. authUserId written to the Brother row, Membership created
-        → set brother_linked + active_org_id cookies → /
+        → set active_org_id cookie → /
 ```
+
+> **Note:** Link status is the DB's truth, resolved by `requireUser()` in the pages/layouts that need it — there is no `brother_linked` cookie. (A legacy `brother_linked` cookie was removed; signout/unlink only *expire* it to clean up sessions carried across that deploy.) The `[slug]` layout gates an authenticated-but-unlinked user into the claim flow.
 
 **Admin workflow:** add a `Brother` row from the Brothers page **before** the person signs in. They claim it themselves on first login by entering their name exactly.
 
@@ -397,6 +404,9 @@ cp .env.example .env.local
 | `NEXT_PUBLIC_SUPABASE_URL` | Yes | Your Supabase project URL. |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Yes | Supabase anon/public key. |
 | `SUPABASE_SERVICE_ROLE_KEY` | Optional | Server-only. Enables admin reads of auth metadata. Never expose to the client. |
+| `NEXT_PUBLIC_ROOT_DOMAIN` | Optional | Bare apex for org subdomain routing (e.g. `example.com`); org slugs resolve as `<slug>.<root>`. Defaults to `localhost` ([lib/domains.ts](lib/domains.ts)). |
+| `NEXT_PUBLIC_DOMAIN_ALIASES` | Optional | Comma-separated extra apexes that should also resolve org subdomains. |
+| `NEXT_PUBLIC_APP_NAME` | Optional | Display name for the wordmark/footer. Defaults to `ChaptOS`. |
 | `OPENAI_API_KEY` | Optional | Enables AI features (chat, digest narration, meeting summaries). All three degrade gracefully when unset. |
 | `SENTRY_DSN` | Optional | When set, `logError` forwards to Sentry via a lazy dynamic import. No dependency cost when unset. |
 
