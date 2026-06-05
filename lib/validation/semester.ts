@@ -1,5 +1,5 @@
 import { z } from "zod";
-const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+import { DATE_RE } from "@/lib/dates";
 
 export const createSemesterInput = z.object({
   label:     z.string().trim().min(1),

@@ -1,6 +1,5 @@
 import { z } from "zod";
-
-const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+import { DATE_RE } from "@/lib/dates";
 
 // Money cap. The service multiplies by 100 and stores into a BigInt cents
 // mirror; an Infinity or astronomically large value would make

@@ -22,7 +22,7 @@ import { useChapter } from "../../context/ChapterContext";
 import {
   Transaction, PartyEvent, Brother,
   INCOME_CATEGORIES, EXPENSE_CATEGORIES,
-  fmt$, fmtDate,
+  fmt$, fmtDate, round2,
 } from "../../data";
 import { TxForm } from "../../components/treasury/TxForm";
 
@@ -77,8 +77,8 @@ function buildRunningBalanceData(
     return {
       date: p.date,
       label: `${mm}/${dd}`,
-      balance: Math.round(running * 100) / 100,
-      expenses: Math.round(expenses * 100) / 100,
+      balance: round2(running),
+      expenses: round2(expenses),
     };
   });
 }
@@ -116,9 +116,9 @@ function buildBiweeklyData(
 
   return sorted.map(([, { income, expense }], i) => ({
     period:  labels[i],
-    income:  Math.round(income  * 100) / 100,
-    expense: Math.round(expense * 100) / 100,
-    net:     Math.round((income - expense) * 100) / 100,
+    income:  round2(income),
+    expense: round2(expense),
+    net:     round2(income - expense),
   }));
 }
 
@@ -133,13 +133,13 @@ function topCategoriesWithOther(
     .sort(([, a], [, b]) => b - a);
 
   if (sorted.length <= maxSlices) {
-    return sorted.map(([name, value]) => ({ name, value: Math.round(value * 100) / 100 }));
+    return sorted.map(([name, value]) => ({ name, value: round2(value) }));
   }
   const top = sorted.slice(0, maxSlices);
   const otherVal = sorted.slice(maxSlices).reduce((s, [, v]) => s + v, 0);
   return [
-    ...top.map(([name, value]) => ({ name, value: Math.round(value * 100) / 100 })),
-    { name: "Other", value: Math.round(otherVal * 100) / 100 },
+    ...top.map(([name, value]) => ({ name, value: round2(value) })),
+    { name: "Other", value: round2(otherVal) },
   ];
 }
 

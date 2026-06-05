@@ -12,8 +12,8 @@
  */
 import type OpenAI from "openai";
 import { prisma } from "@/lib/prisma";
-import { isoWeekBounds } from "@/lib/dates";
-import { THRESHOLDS, getBrotherStatus, type Brother as BrotherType } from "@/app/data";
+import { isoWeekBounds, DATE_RE } from "@/lib/dates";
+import { THRESHOLDS, getBrotherStatus, round2, type Brother as BrotherType } from "@/app/data";
 
 // ────────────────────────────────────────────────────────────────────────────
 // Tool schemas (OpenAI Chat Completions tool format)
@@ -342,8 +342,7 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
 // Helpers
 // ────────────────────────────────────────────────────────────────────────────
 
-const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
-const r2 = (n: number) => Math.round(n * 100) / 100;
+const r2 = round2;
 
 function clampLimit(n: unknown, def = 100, max = 100): number {
   const v = typeof n === "number" ? Math.floor(n) : def;

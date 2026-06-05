@@ -1,16 +1,7 @@
 import { z } from "zod";
+import { httpsUrl } from "./shared";
 
-const urlSchema = z.string().refine(
-  s => {
-    try {
-      const u = new URL(s);
-      return u.protocol === "http:" || u.protocol === "https:";
-    } catch {
-      return false;
-    }
-  },
-  { message: "URL must be valid http(s)" },
-);
+const urlSchema = httpsUrl("URL must be valid http(s)");
 
 export const createDocInput = z.object({
   title:       z.string().trim().min(1).max(200),

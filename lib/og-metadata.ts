@@ -13,7 +13,7 @@ const MAX_HTML_BYTES = 256 * 1024;
 const USER_AGENT =
   "Mozilla/5.0 (compatible; ChaptOS-Docs/1.0; +https://github.com/anthropics/claude-code)";
 
-export interface ScrapedMetadata {
+interface ScrapedMetadata {
   ogImage: string | null;
   ogTitle: string | null;
   faviconUrl: string | null;

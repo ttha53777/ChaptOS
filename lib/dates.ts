@@ -3,6 +3,10 @@
  * from both client and server code (no server-only deps).
  */
 
+// Matches a "YYYY-MM-DD" calendar-date string. Shared by the Zod validators
+// (z.string().regex(DATE_RE)) and the AI tool layer (DATE_RE.test(...)).
+export const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
 // Inclusive Mon–Sun bounds (as local "YYYY-MM-DD") of the calendar week
 // containing `today`. Uses local date components — toISOString() would shift
 // the date across the UTC boundary.

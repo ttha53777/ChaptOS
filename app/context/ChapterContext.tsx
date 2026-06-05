@@ -22,13 +22,13 @@ function normalizeCurrentUser(me: CurrentUser): CurrentUser {
   };
 }
 
-export interface TreasuryData {
+interface TreasuryData {
   balance: number;
   projected: number;
   trend: { month: string; balance: number }[];
 }
 
-export interface CurrentUserRole {
+interface CurrentUserRole {
   id: number;
   name: string;
   color: string | null;
@@ -105,7 +105,7 @@ interface ChapterContextValue {
   hasLoaded: boolean;
 }
 
-export type ChapterSection =
+type ChapterSection =
   | "me"
   | "brothers"
   | "deadlines"

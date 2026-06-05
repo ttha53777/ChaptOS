@@ -1,7 +1,6 @@
 import { z } from "zod";
 import { CALENDAR_CATEGORIES } from "@/lib/state";
-
-const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+import { DATE_RE } from "@/lib/dates";
 
 export const createCalendarInput = z.object({
   title:       z.string().trim().min(1).max(200),

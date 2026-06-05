@@ -333,6 +333,11 @@ export function avg(values: number[]): number {
   return values.reduce((a, b) => a + b, 0) / values.length;
 }
 
+/** Round to 2 decimal places (cents). */
+export function round2(n: number): number {
+  return Math.round(n * 100) / 100;
+}
+
 export function fmt$(n: number): string {
   return `$${(n ?? 0).toLocaleString()}`;
 }
