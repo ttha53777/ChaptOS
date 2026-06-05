@@ -1,5 +1,5 @@
 import { createServerClient } from "@supabase/ssr";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { prisma } from "@/lib/prisma";
 
 function withTimeout(ms: number): typeof fetch {
@@ -7,6 +7,15 @@ function withTimeout(ms: number): typeof fetch {
 }
 
 export const ACTIVE_ORG_COOKIE = "active_org_id";
+
+/**
+ * Header the client sets on every API request, carrying the org slug from the
+ * URL the user is actually viewing (/[slug]/*). The data layer trusts the URL
+ * over the active_org cookie, so a freshly-switched org never shows stale data
+ * while the cookie catches up. Only honored when it maps to one of the user's
+ * own memberships (resolveActiveOrg) — non-enumerable, can't read a foreign org.
+ */
+export const ORG_SLUG_HEADER = "x-org-slug";
 
 export interface MembershipSummary {
   id:             number;
@@ -120,13 +129,28 @@ export async function requireUser(opts?: { orgSlug?: string }) {
     orgSlug:        m.organization.slug,
   }));
 
+  // Slug hint precedence: an explicit opts.orgSlug (passed by /[slug]/layout,
+  // which knows the URL directly) wins; otherwise fall back to the x-org-slug
+  // header the API client sets from window.location. Both name the org the user
+  // is actually viewing, so the data layer follows the URL — not a lagging
+  // active_org cookie — and a freshly-switched org never shows stale data.
+  let orgSlug = opts?.orgSlug;
+  if (!orgSlug) {
+    try {
+      orgSlug = (await headers()).get(ORG_SLUG_HEADER) ?? undefined;
+    } catch {
+      // headers() is unavailable outside a request scope (shouldn't happen for
+      // callers that reach here) — fall through to cookie/home resolution.
+    }
+  }
+
   // Active-org resolution: slug hint > active_org cookie > home org. See
   // resolveActiveOrg for the full precedence rationale.
   const { activeOrgId, cookieOrgId } = resolveActiveOrg({
     memberships,
     cookieValue: cookieStore.get(ACTIVE_ORG_COOKIE)?.value,
     homeOrgId:   brother.organizationId,
-    orgSlug:     opts?.orgSlug,
+    orgSlug,
   });
 
   return {

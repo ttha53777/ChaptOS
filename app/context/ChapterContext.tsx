@@ -7,6 +7,7 @@ import {
 import { AVATAR_CHANGED_EVENT, parseAvatarFromMetadata } from "@/lib/avatar";
 import { createClient } from "@/lib/supabase/client";
 import { hasPermission, type Permission } from "@/lib/permissions";
+import { currentOrgSlug, ORG_SLUG_HEADER } from "../lib/api";
 
 function normalizeCurrentUser(me: CurrentUser): CurrentUser {
   return {
@@ -120,7 +121,10 @@ const ChapterContext = createContext<ChapterContextValue | null>(null);
 class UnauthenticatedError extends Error {}
 
 async function fetchJson<T>(url: string): Promise<T> {
-  const response = await fetch(url);
+  // Tag every read with the org slug from the URL so the API follows the org the
+  // user is viewing, not a lagging active_org cookie (see require-user.ts).
+  const slug = currentOrgSlug();
+  const response = await fetch(url, slug ? { headers: { [ORG_SLUG_HEADER]: slug } } : undefined);
   if (response.status === 401) throw new UnauthenticatedError();
   if (!response.ok) {
     throw new Error(`${url} returned ${response.status}`);

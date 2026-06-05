@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useState } from "react";
+import { orgFetch } from "../../../lib/api";
 
 type ActivityType = "success" | "warning" | "info";
 
@@ -38,7 +39,7 @@ function formatAbsolute(iso: string): string {
 
 async function requestActivity(filter: Filter): Promise<{ rows?: ActivityRow[]; forbidden?: boolean; error?: string }> {
   const url = filter === "all" ? "/api/activity/full" : `/api/activity/full?type=${filter}`;
-  const res = await fetch(url);
+  const res = await orgFetch(url);
   if (res.status === 403) return { forbidden: true };
   if (!res.ok) return { error: `Request failed (${res.status})` };
   const rows = await res.json() as ActivityRow[];

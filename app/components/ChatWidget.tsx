@@ -5,6 +5,7 @@
 // The button hides itself when the server reports no OPENAI_API_KEY.
 
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
+import { orgFetch } from "../lib/api";
 
 const STORAGE_KEY = "chaptos_chat_v1";
 const MAX_HISTORY = 50;
@@ -156,7 +157,7 @@ export function ChatWidget() {
     abortRef.current = controller;
 
     try {
-      const res = await fetch("/api/ai/chat", {
+      const res = await orgFetch("/api/ai/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ messages: payload }),
@@ -231,7 +232,7 @@ export function ChatWidget() {
   async function confirmProposal(msgId: string, card: ProposalCard) {
     updateProposal(msgId, card.id, { state: "confirming" });
     try {
-      const res = await fetch(card.endpoint, {
+      const res = await orgFetch(card.endpoint, {
         method: card.method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(card.payload),

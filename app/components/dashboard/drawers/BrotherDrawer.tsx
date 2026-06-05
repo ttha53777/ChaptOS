@@ -7,6 +7,7 @@ import { BrotherAvatar } from "../../BrotherAvatar";
 import { useChapter } from "../../../context/ChapterContext";
 import { FieldLabel, StatusBadge, ConfirmDialog } from "../primitives";
 import { inputCls } from "../styles";
+import { orgFetch } from "../../../lib/api";
 
 type AttendanceRow = {
   calendarEventId: number;
@@ -95,7 +96,7 @@ export function BrotherDrawer({
     setHistLoading(true);
     setHistError(null);
     try {
-      const res = await fetch(`/api/brothers/${id}/attendance`);
+      const res = await orgFetch(`/api/brothers/${id}/attendance`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       setHistory(await res.json());
     } catch {
@@ -152,7 +153,7 @@ export function BrotherDrawer({
     if (!brother || excusingEventId === null || !excuseReason.trim()) return;
     setExcuseSaving(true);
     try {
-      const res = await fetch("/api/excuses", {
+      const res = await orgFetch("/api/excuses", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ calendarEventId: excusingEventId, brotherId: brother.id, reason: excuseReason.trim() }),

@@ -44,8 +44,16 @@ import { MobileDashboard } from "../components/dashboard/mobile/MobileDashboard"
 
 let _nextId = Date.now();
 
+// Tag requests with the URL's org slug so reads/writes hit the org the user is
+// viewing, not a lagging active_org cookie (see require-user.ts / app/lib/api.ts).
+function withOrgSlugInit(init?: RequestInit): RequestInit {
+  const slug = typeof window !== "undefined" ? window.location.pathname.split("/")[1] || null : null;
+  if (!slug) return init ?? {};
+  return { ...init, headers: { ...init?.headers, "x-org-slug": slug } };
+}
+
 async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(url, init);
+  const response = await fetch(url, withOrgSlugInit(init));
   if (!response.ok) {
     let detail = "";
     try {
@@ -1120,7 +1128,7 @@ export default function Home() {
   // ── Fetch calendar events once for attendance event picker ────────────────
   useEffect(() => {
     const controller = new AbortController();
-    fetch("/api/calendar", { signal: controller.signal })
+    fetch("/api/calendar", withOrgSlugInit({ signal: controller.signal }))
       .then(r => {
         // 401 here means the fetch raced the session cookie on a hard
         // navigation. ChapterContext's redirect handler covers the real
@@ -1204,7 +1212,7 @@ export default function Home() {
     const controller = new AbortController();
     setDigestNarrationLoading(true);
     setDigestNarration(null);
-    fetch("/api/ai/digest", {
+    fetch("/api/ai/digest", withOrgSlugInit({
       method: "POST",
       headers: { "Content-Type": "application/json" },
       signal: controller.signal,
@@ -1217,7 +1225,7 @@ export default function Home() {
         parties:   weeklyDigest.partiesThisWeek.map(p => ({ name: p.name, date: p.date })),
         atRiskCount: weeklyDigest.atRiskCount,
       }),
-    })
+    }))
       .then(r => r.ok ? r.json() : null)
       .then((data: { narration?: string | null } | null) => {
         const text = data?.narration ?? null;
@@ -1535,7 +1543,7 @@ export default function Home() {
       setActiveModal("attendance");
     } else {
       // Refresh calendar list so newly-added events show up
-      fetch("/api/calendar")
+      fetch("/api/calendar", withOrgSlugInit())
         .then(r => r.ok ? r.json() : Promise.reject())
         .then((data: CalendarEvent[]) => setCalendarList(data))
         .catch(() => undefined);
@@ -1550,7 +1558,7 @@ export default function Home() {
     if (key === "revenue"  && !canTreasury) return;
     if (key === "excuse") {
       // Refresh calendar so the picker shows the latest mandatory events.
-      fetch("/api/calendar")
+      fetch("/api/calendar", withOrgSlugInit())
         .then(r => r.ok ? r.json() : Promise.reject())
         .then((data: CalendarEvent[]) => setCalendarList(data))
         .catch(() => undefined);

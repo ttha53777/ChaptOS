@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import type { Brother, CalendarEvent, TaskStatus } from "../../data";
 import { FieldLabel } from "./primitives";
 import { inputCls } from "./styles";
+import { orgFetch } from "../../lib/api";
 
 export function AddDeadlineForm({ brotherNames, onSubmit, initial }: {
   brotherNames: string[];
@@ -135,7 +136,7 @@ export function LogAttendanceForm({ event, bList, onSubmit }: {
   useEffect(() => {
     const controller = new AbortController();
     setLoading(true);
-    fetch(`/api/attendance/${event.id}`, { signal: controller.signal })
+    orgFetch(`/api/attendance/${event.id}`, { signal: controller.signal })
       .then(r => r.json())
       .then((data: { excused: { brotherId: number }[]; attended: { brotherId: number }[] }) => {
         const excusedIds = new Set(data.excused.map((e: { brotherId: number }) => e.brotherId));
@@ -238,7 +239,7 @@ export function ExcuseForm({ event, bList, isAdmin, selfBrotherId, onDone }: {
         brotherId: isAdmin ? Number(brotherId) : selfBrotherId ?? undefined,
         reason: trimmed,
       };
-      const res = await fetch("/api/excuses", {
+      const res = await orgFetch("/api/excuses", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),

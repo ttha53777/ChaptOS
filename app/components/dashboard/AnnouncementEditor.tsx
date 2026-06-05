@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import { Modal, FieldLabel } from "./primitives";
 import type { Announcement } from "./AnnouncementCard";
+import { orgFetch } from "../../lib/api";
 
 export function AnnouncementEditor({
   current,
@@ -31,7 +32,7 @@ export function AnnouncementEditor({
     }
     setSaving(true);
     try {
-      const res = await fetch("/api/announcement", {
+      const res = await orgFetch("/api/announcement", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
