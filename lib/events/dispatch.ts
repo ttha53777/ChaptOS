@@ -176,6 +176,8 @@ export function formatActivityMessage(ctx: RequestContext, action: Action, m: an
       return `${who} set the active semester to ${m.label}`;
     case "org.created":
       return `${m.founderName} created the ${m.name} organization`;
+    case "org.config.updated":
+      return `${who} updated the enabled workflows`;
     default:
       return `${who} performed ${action}`;
   }

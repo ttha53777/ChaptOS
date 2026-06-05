@@ -43,6 +43,17 @@ export const ALL_WORKFLOWS: readonly WorkflowId[] = [
   "operations",
 ] as const;
 
+/**
+ * Workflows that are always on and cannot be turned off in the page picker.
+ *
+ * "operations" backs the Dashboard, Timeline, and Chapter surfaces plus the
+ * internal audit/activity plumbing every org needs — disabling it would leave a
+ * member with no landing page. The org-config service force-enables these on
+ * every write, and the onboarding picker renders them as locked-on, so the two
+ * surfaces agree on what can never be removed.
+ */
+export const ALWAYS_ON_WORKFLOWS: readonly WorkflowId[] = ["operations"] as const;
+
 export interface RoleSeed {
   name: string;
   color: string;

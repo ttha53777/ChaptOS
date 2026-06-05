@@ -88,6 +88,7 @@ export interface EventMetadata {
 
   // Onboarding
   "org.created": { name: string; slug: string; orgType: string; founderName: string };
+  "org.config.updated": { enabledWorkflows: string[] };
 
   // Invite links
   "invite.created":  { mode: "open" | "claim"; expiry: string };
@@ -109,7 +110,7 @@ const KNOWN_ACTIONS = new Set<Action>([
   "instagram_task.created", "instagram_task.updated", "instagram_task.deleted",
   "doc.created", "doc.updated", "doc.deleted",
   "announcement.updated", "semester.created", "semester.activated",
-  "org.created",
+  "org.created", "org.config.updated",
   "invite.created", "invite.revoked", "invite.redeemed",
 ]);
 

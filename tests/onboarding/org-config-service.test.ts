@@ -1,0 +1,165 @@
+/**
+ * Tests for setWorkflows() — the org-config service behind the post-creation
+ * page picker (and any future Settings surface that toggles enabled workflows).
+ *
+ * We exercise the service directly against the test DB rather than the PATCH
+ * route: the route adds only buildContext() session resolution on top, which is
+ * covered elsewhere. The service is what normalizes the set, enforces the
+ * always-on workflows, gates on admin, and writes the row.
+ */
+
+import { afterAll, beforeEach, describe, expect, it } from "vitest";
+import { randomUUID } from "node:crypto";
+import { testPrisma, resetDb } from "../setup/prisma";
+import { createOrg, createBrother } from "../setup/factories";
+import { db } from "@/lib/db";
+import { setWorkflows } from "@/lib/services/org-config-service";
+import { ForbiddenError } from "@/lib/errors";
+import { ALWAYS_ON_WORKFLOWS } from "@/lib/org-types";
+import type { RequestContext } from "@/lib/context";
+
+beforeEach(async () => {
+  await resetDb();
+});
+
+afterAll(async () => {
+  await testPrisma.$disconnect();
+});
+
+/**
+ * Minimal RequestContext for the service. setWorkflows reads isOrgAdmin /
+ * isPlatformAdmin / db / orgId, and emit() reads requestId / actorId. Everything
+ * else is filler the service never touches.
+ */
+function ctxFor(orgId: number, actorId: number, opts: { isOrgAdmin?: boolean; isPlatformAdmin?: boolean } = {}): RequestContext {
+  return {
+    requestId:       randomUUID(),
+    orgId,
+    actorId,
+    actorName:       "Tester",
+    actorEmail:      null,
+    authUserId:      "auth-test",
+    membershipId:    null,
+    permissions:     0,
+    maxRank:         0,
+    isOrgAdmin:      opts.isOrgAdmin ?? false,
+    isPlatformAdmin: opts.isPlatformAdmin ?? false,
+    db:              db(orgId),
+  };
+}
+
+async function seedAdminOrg() {
+  const org = await createOrg("Config Org", "config-org");
+  const admin = await createBrother({ orgId: org.id, isOrgAdmin: true });
+  // Provision the config row the way org creation would.
+  await testPrisma.organizationConfig.create({
+    data: { organizationId: org.id, enabledWorkflows: ["members", "events", "operations"] },
+  });
+  return { org, admin };
+}
+
+describe("setWorkflows: happy path", () => {
+  it("replaces the enabled set with the chosen optional workflows", async () => {
+    const { org, admin } = await seedAdminOrg();
+    const ctx = ctxFor(org.id, admin.id, { isOrgAdmin: true });
+
+    const out = await setWorkflows(ctx, { enabledWorkflows: ["finance", "docs"] });
+
+    expect(out.enabledWorkflows).toContain("finance");
+    expect(out.enabledWorkflows).toContain("docs");
+    // Replaced, not merged: a previously-enabled workflow not in the new set is gone.
+    expect(out.enabledWorkflows).not.toContain("members");
+
+    const row = await testPrisma.organizationConfig.findUnique({ where: { organizationId: org.id } });
+    expect(new Set(row?.enabledWorkflows)).toEqual(new Set(out.enabledWorkflows));
+  });
+
+  it("always force-enables the always-on workflows even when omitted", async () => {
+    const { org, admin } = await seedAdminOrg();
+    const ctx = ctxFor(org.id, admin.id, { isOrgAdmin: true });
+
+    const out = await setWorkflows(ctx, { enabledWorkflows: [] });
+
+    for (const w of ALWAYS_ON_WORKFLOWS) {
+      expect(out.enabledWorkflows).toContain(w);
+    }
+  });
+
+  it("de-duplicates and returns a deterministic order", async () => {
+    const { org, admin } = await seedAdminOrg();
+    const ctx = ctxFor(org.id, admin.id, { isOrgAdmin: true });
+
+    const out = await setWorkflows(ctx, {
+      // Intentionally doubled + out of canonical order.
+      enabledWorkflows: ["docs", "finance", "docs", "finance"],
+    });
+
+    expect(out.enabledWorkflows.filter(w => w === "docs")).toHaveLength(1);
+    // Order follows ALL_WORKFLOWS: finance precedes docs.
+    expect(out.enabledWorkflows.indexOf("finance")).toBeLessThan(out.enabledWorkflows.indexOf("docs"));
+  });
+
+  it("self-heals a missing config row via upsert", async () => {
+    const org = await createOrg("No Config Org", "no-config-org");
+    const admin = await createBrother({ orgId: org.id, isOrgAdmin: true });
+    // Deliberately NO config row created.
+    const ctx = ctxFor(org.id, admin.id, { isOrgAdmin: true });
+
+    const out = await setWorkflows(ctx, { enabledWorkflows: ["finance"] });
+
+    const row = await testPrisma.organizationConfig.findUnique({ where: { organizationId: org.id } });
+    expect(row).not.toBeNull();
+    expect(new Set(row?.enabledWorkflows)).toEqual(new Set(out.enabledWorkflows));
+  });
+
+  it("emits an org.config.updated operational event", async () => {
+    const { org, admin } = await seedAdminOrg();
+    const ctx = ctxFor(org.id, admin.id, { isOrgAdmin: true });
+
+    await setWorkflows(ctx, { enabledWorkflows: ["finance"] });
+
+    const events = await testPrisma.operationalEvent.findMany({
+      where: { organizationId: org.id, action: "org.config.updated" },
+    });
+    expect(events).toHaveLength(1);
+  });
+});
+
+describe("setWorkflows: authorization", () => {
+  it("rejects a non-admin member with ForbiddenError", async () => {
+    const { org } = await seedAdminOrg();
+    const member = await createBrother({ orgId: org.id, isOrgAdmin: false });
+    const ctx = ctxFor(org.id, member.id, { isOrgAdmin: false });
+
+    await expect(setWorkflows(ctx, { enabledWorkflows: ["finance"] })).rejects.toBeInstanceOf(ForbiddenError);
+
+    // The config row must be unchanged.
+    const row = await testPrisma.organizationConfig.findUnique({ where: { organizationId: org.id } });
+    expect(new Set(row?.enabledWorkflows)).toEqual(new Set(["members", "events", "operations"]));
+  });
+
+  it("allows a platform admin", async () => {
+    const { org, admin } = await seedAdminOrg();
+    const ctx = ctxFor(org.id, admin.id, { isOrgAdmin: false, isPlatformAdmin: true });
+
+    const out = await setWorkflows(ctx, { enabledWorkflows: ["service"] });
+    expect(out.enabledWorkflows).toContain("service");
+  });
+});
+
+describe("setWorkflows: tenancy", () => {
+  it("only writes the actor's own org config", async () => {
+    const { org: orgA, admin: adminA } = await seedAdminOrg();
+    const orgB = await createOrg("Other Org", "other-org");
+    await testPrisma.organizationConfig.create({
+      data: { organizationId: orgB.id, enabledWorkflows: ["parties"] },
+    });
+
+    const ctx = ctxFor(orgA.id, adminA.id, { isOrgAdmin: true });
+    await setWorkflows(ctx, { enabledWorkflows: ["finance"] });
+
+    // Org B is untouched — the scoped db only ever addresses orgA's row.
+    const bRow = await testPrisma.organizationConfig.findUnique({ where: { organizationId: orgB.id } });
+    expect(bRow?.enabledWorkflows).toEqual(["parties"]);
+  });
+});

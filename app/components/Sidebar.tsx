@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import type { WorkflowId } from "@/lib/org-types";
 import { useOrgLogo } from "../hooks/useOrgLogo";
 import { useOrgPath } from "../hooks/useOrgPath";
 import { useChapter } from "../context/ChapterContext";
@@ -28,6 +29,33 @@ export const NAV_ICONS: Record<string, string> = {
 // Main nav — Settings is pinned at the bottom of the sidebar
 export const NAV = ["Dashboard", "Timeline", "Brotherhood", "Chapter", "Docs", "Instagram", "Treasury", "Service", "Events"];
 export const SETTINGS_NAV = "Settings";
+
+// Which workflow each nav surface belongs to. A label maps to `null` when it is
+// ALWAYS shown regardless of the org's enabled workflows:
+//   - Dashboard / Timeline: every org's home + planning surfaces (product rule).
+//   - Chapter: backed by the always-on "operations" workflow.
+// All other labels are hidden when their workflow isn't in the org's
+// enabledWorkflows. The onboarding page picker imports this map so the toggles
+// it shows are exactly the surfaces this filter can hide — one source of truth.
+export const NAV_WORKFLOW_MAP: Record<string, WorkflowId | null> = {
+  Dashboard:   null,
+  Timeline:    null,
+  Chapter:     null, // "operations" — always on
+  Brotherhood: "members",
+  Docs:        "docs",
+  Instagram:   "communications",
+  Treasury:    "finance",
+  Service:     "service",
+  Events:      "parties",
+};
+
+/** Returns true when a nav label should render for an org with these workflows.
+ *  Always-on labels (map value null) are visible unconditionally. */
+export function isNavVisible(label: string, enabledWorkflows: readonly string[]): boolean {
+  const wf = NAV_WORKFLOW_MAP[label];
+  if (wf == null) return true;
+  return enabledWorkflows.includes(wf);
+}
 
 // ─── SvgIcon ──────────────────────────────────────────────────────────────────
 
@@ -91,6 +119,16 @@ export function Sidebar({ open, onClose, activeSection, onNavClick }: {
 
   const settingsActive = subPath.startsWith("/settings");
 
+  // Filter nav surfaces by the org's enabled workflows. Until /api/auth/me
+  // resolves (currentUser null) we render the FULL nav so there's no flash of a
+  // half-empty sidebar; once the org loads we hide the surfaces it disabled.
+  // Always-on labels (Dashboard/Timeline/Chapter) survive the filter via
+  // isNavVisible's null-workflow rule.
+  const enabledWorkflows = currentUser?.org?.enabledWorkflows;
+  const visibleNav = enabledWorkflows
+    ? NAV.filter(label => isNavVisible(label, enabledWorkflows))
+    : NAV;
+
   return (
     <>
       {open && <div className="fixed inset-0 z-40 bg-black/60 lg:hidden" onClick={onClose} />}
@@ -120,7 +158,7 @@ export function Sidebar({ open, onClose, activeSection, onNavClick }: {
 
         <nav className="flex-1 overflow-y-auto px-2 py-3" aria-label="Main navigation">
           <div className="space-y-0.5">
-            {NAV.map(label => {
+            {visibleNav.map(label => {
               const isTimeline    = label === "Timeline";
               const isTreasury    = label === "Treasury";
               const isEvents      = label === "Events";

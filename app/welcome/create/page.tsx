@@ -142,9 +142,15 @@ export default function CreateOrgPage() {
       if (res.status === 201 || (res.status === 200 && data?.ok)) {
         // Navigate to the SERVER's slug (authoritative — it may have normalized
         // what we sent, and on recovery it's the org we already had, not this
-        // form's input). Fall back to root, which server-resolves the active org
-        // from the freshly-set cookie.
-        const dest = typeof data?.slug === "string" && data.slug ? `/${data.slug}` : "/";
+        // form's input). New founders go to the page picker first; on the
+        // already-linked recovery path (200) the org was created on a PRIOR
+        // attempt and is likely already set up, so we send them straight to the
+        // dashboard rather than re-running onboarding. When the server didn't
+        // return a slug we can't build the onboarding path — fall back to root,
+        // which server-resolves the active org from the freshly-set cookie.
+        const slug = typeof data?.slug === "string" && data.slug ? data.slug : null;
+        const isRecovery = res.status === 200;
+        const dest = slug ? (isRecovery ? `/${slug}` : `/${slug}/onboarding`) : "/";
         window.location.assign(dest);
         return;
       }

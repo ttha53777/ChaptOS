@@ -489,6 +489,31 @@ function scopedOrgInvite(orgId: number) {
   };
 }
 
+function scopedOrganizationConfig(orgId: number) {
+  // OrganizationConfig has a 1:1 relation to Organization with organizationId
+  // @unique, so every operation is selected by organizationId directly — there
+  // is exactly one row per org. No id-based verify() dance is needed because
+  // organizationId is itself the org-scoping filter AND a valid unique selector.
+  return {
+    find: () =>
+      prisma.organizationConfig.findUnique({ where: { organizationId: orgId } }),
+    update: (data: Prisma.OrganizationConfigUpdateInput) =>
+      prisma.organizationConfig.update({ where: { organizationId: orgId }, data }),
+    /**
+     * Create-or-update the single config row for this org. Used so a legacy org
+     * whose config row was somehow never provisioned still gets one rather than
+     * throwing P2025 on update. organizationId is injected, never taken from the
+     * caller, so it can't be spoofed across tenants.
+     */
+    upsert: (data: { enabledWorkflows: string[] }) =>
+      prisma.organizationConfig.upsert({
+        where:  { organizationId: orgId },
+        update: { enabledWorkflows: data.enabledWorkflows },
+        create: { organizationId: orgId, enabledWorkflows: data.enabledWorkflows },
+      }),
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Main export
 // ---------------------------------------------------------------------------
@@ -520,6 +545,7 @@ export function db(orgId: number) {
 
     brotherRole:         scopedBrotherRole(orgId),
     orgInvite:           scopedOrgInvite(orgId),
+    organizationConfig:  scopedOrganizationConfig(orgId),
 
     // Pass-through for join tables that have no organizationId column and are
     // always accessed through a verified parent id.

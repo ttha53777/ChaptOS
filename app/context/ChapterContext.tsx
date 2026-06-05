@@ -20,6 +20,10 @@ function normalizeCurrentUser(me: CurrentUser): CurrentUser {
     // hierarchy-aware UI can treat super-admins uniformly with role-holders.
     maxRank: me.maxRank == null ? Number.POSITIVE_INFINITY : me.maxRank,
     roles: me.roles ?? [],
+    // Defensive: an older/cached /me payload may omit enabledWorkflows. Default
+    // to an empty array so the sidebar filter never reads `.includes` of
+    // undefined — the Sidebar treats the always-on surfaces as visible regardless.
+    org: me.org ? { ...me.org, enabledWorkflows: me.org.enabledWorkflows ?? [] } : null,
   };
 }
 
@@ -62,8 +66,9 @@ export interface CurrentUser {
   /** Roles assigned to this user. Empty for super-admins who haven't been
    *  given any actual role assignments. */
   roles: CurrentUserRole[];
-  /** Current active org (resolved by active_org_id cookie or default). */
-  org: { name: string; slug: string } | null;
+  /** Current active org (resolved by active_org_id cookie or default).
+   *  `enabledWorkflows` drives which sidebar surfaces render — see Sidebar.tsx. */
+  org: { name: string; slug: string; enabledWorkflows: string[] } | null;
   orgId: number;
   /** All orgs this user belongs to. UI renders a switcher when length > 1. */
   memberships: MembershipSummary[];

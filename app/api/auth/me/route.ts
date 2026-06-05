@@ -4,6 +4,7 @@ import { resolvePermissions } from "@/lib/auth/require-permission";
 import { parseAvatarFromMetadata } from "@/lib/avatar";
 import { db } from "@/lib/db"; // lint-modules:ignore (auth bootstrap; runs before buildContext is viable)
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { ALL_WORKFLOWS } from "@/lib/org-types";
 import { logError } from "@/lib/observability";
 
 export async function GET() {
@@ -18,7 +19,13 @@ export async function GET() {
       }),
       db(user.orgId).organization.findUnique({
         where: { id: user.orgId },
-        select: { name: true, slug: true },
+        select: {
+          name: true,
+          slug: true,
+          // The sidebar and onboarding picker filter surfaces by the org's
+          // enabled workflows. Pull it in the same round-trip as the org name.
+          config: { select: { enabledWorkflows: true } },
+        },
       }),
       createServerSupabaseClient(),
       resolvePermissions(user),
@@ -66,7 +73,16 @@ export async function GET() {
       email: user.email ?? "",
       avatarUrl,
       hasCustomAvatar,
-      org: org ? { name: org.name, slug: org.slug } : null,
+      org: org
+        ? {
+            name: org.name,
+            slug: org.slug,
+            // Fall back to the full set when a config row is somehow absent (the
+            // Milestone-1 migration backfills every org, so this is belt-and-
+            // suspenders) — showing all pages is the safe default, hiding them is not.
+            enabledWorkflows: org.config?.enabledWorkflows ?? [...ALL_WORKFLOWS],
+          }
+        : null,
       orgId: user.orgId,
       memberships: user.memberships,
       permissions: effectivePermissions,
