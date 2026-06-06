@@ -27,12 +27,13 @@ import { Prisma } from "@/app/generated/prisma/client";
 // role is the same posture as /api/auth/claim and preserves the app role's
 // RLS enforcement everywhere else.
 import { prismaPrivileged as prisma } from "@/lib/prisma-privileged"; // lint-direct-prisma:ignore (pre-org provisioning, BYPASSRLS by design)
-import { AlreadyLinkedError, ConflictError, ValidationError } from "@/lib/errors";
+import { AlreadyLinkedError, ConflictError, ForbiddenError, NotFoundError, ValidationError } from "@/lib/errors";
 import { logError } from "@/lib/observability";
 import { validateSlugFormat } from "@/lib/slug-rules";
 import { getOrgType } from "@/lib/org-types";
 import { PERMISSIONS, ALL_PERMISSIONS, type Permission } from "@/lib/permissions";
 import type { CreateOrgInput } from "@/lib/validation/org";
+import type { RequestContext } from "@/lib/context";
 
 export interface ProvisionedOrg {
   organizationId: number;
@@ -285,4 +286,239 @@ function permissionBits(names: readonly Permission[]): number {
   let bits = 0;
   for (const n of names) bits |= PERMISSIONS[n];
   return bits;
+}
+
+// ---------------------------------------------------------------------------
+// Deletion
+// ---------------------------------------------------------------------------
+
+export interface OrgDeletionSummary {
+  organizationId: number;
+  name:    string;
+  slug:    string;
+  /** Brothers whose HOME org is this one (Brother.organizationId == orgId).
+   *  Those without another membership are deleted; the rest are re-homed. */
+  members:      number;
+  events:       number;
+  transactions: number;
+  docs:         number;
+  parties:      number;
+}
+
+/**
+ * Count what a deletion would remove, for the confirmation UI. Read-only.
+ * Scoped through ctx.db so it can only ever summarize the caller's active org.
+ *
+ * Admin-gated to match deleteOrg: this is the delete-confirmation surface, so a
+ * regular member has no reason to read it, and gating it keeps the two endpoints
+ * consistent (no "summary readable but delete forbidden" split).
+ */
+export async function summarizeOrgForDeletion(ctx: RequestContext): Promise<OrgDeletionSummary> {
+  if (!ctx.isOrgAdmin && !ctx.isPlatformAdmin) {
+    throw new ForbiddenError("Only an org admin can view deletion details");
+  }
+
+  const org = await ctx.db.organization.findUnique({
+    where: { id: ctx.orgId },
+    select: { id: true, name: true, slug: true },
+  });
+  if (!org) throw new NotFoundError("Organization");
+
+  // Exclude ghosts from the member count — they're roster placeholders the admin
+  // never sees elsewhere, so counting them would inflate the "what gets deleted"
+  // figure. Multi-org members are still counted here (they're real members of
+  // this org); deleteOrg re-homes rather than deletes them, which the UI copy
+  // calls out so the number isn't read as "accounts destroyed".
+  const [members, events, transactions, docs, parties] = await Promise.all([
+    ctx.db.brother.count({ where: { isGhost: false } }),
+    ctx.db.calendarEvent.count(),
+    ctx.db.transaction.count(),
+    ctx.db.doc.count(),
+    ctx.db.partyEvent.count(),
+  ]);
+
+  return {
+    organizationId: org.id,
+    name: org.name,
+    slug: org.slug,
+    members, events, transactions, docs, parties,
+  };
+}
+
+/**
+ * Permanently delete an organization and everything under it.
+ *
+ * Authorization: org admins only (platform admins also pass). This is the most
+ * destructive action in the app — gating on isOrgAdmin (not a delegated
+ * permission bit) keeps it an org-owner action, same posture as setWorkflows.
+ *
+ * The caller MUST pass the org's current slug as a confirmation token; if it
+ * doesn't match ctx's active org slug we refuse. The route also enforces a
+ * typed-name match client-side, but re-checking here means the service can't be
+ * driven to delete the wrong org by a malformed request.
+ *
+ * Why the privileged client + a hand-ordered cascade:
+ *   - The figurints_app role has only SELECT on Organization (no DELETE grant),
+ *     and Supabase RLS blocks the delete for non-postgres roles — same reason
+ *     provisionOrg() uses prismaPrivileged.
+ *   - Only OrganizationConfig / Membership / OrgInvite declare onDelete: Cascade
+ *     from Organization. The other ~14 child tables (Brother, Role, Semester,
+ *     CalendarEvent, Transaction, …) have plain FKs, so a bare
+ *     organization.delete() fails with a foreign-key violation. We delete leaf
+ *     tables first, inside ONE transaction, so a partial failure rolls back.
+ *
+ * Member handling: a Brother whose HOME org is this one is deleted UNLESS they
+ * belong to another org, in which case we re-home them (repoint organizationId
+ * to another membership) and keep the Brother — a multi-org founder shouldn't
+ * lose their account because one of their orgs was removed. Their Membership in
+ * THIS org is removed either way.
+ */
+export async function deleteOrg(ctx: RequestContext, confirmSlug: string): Promise<{ organizationId: number; slug: string }> {
+  if (!ctx.isOrgAdmin && !ctx.isPlatformAdmin) {
+    throw new ForbiddenError("Only an org admin can delete the organization");
+  }
+
+  const org = await ctx.db.organization.findUnique({
+    where: { id: ctx.orgId },
+    select: { id: true, slug: true, name: true },
+  });
+  if (!org) throw new NotFoundError("Organization");
+
+  if (confirmSlug !== org.slug) {
+    throw new ValidationError("Confirmation does not match the organization slug");
+  }
+
+  const orgId = org.id;
+
+  await prisma.$transaction(async (tx) => {
+    // Brother ids that call this org home — needed for the re-home/delete pass
+    // and to scope the no-org-column join tables (attendance) by brother too.
+    const homeBrothers = await tx.brother.findMany({
+      where: { organizationId: orgId },
+      select: { id: true },
+    });
+    const homeBrotherIds = homeBrothers.map(b => b.id);
+
+    // Calendar/Budget/Invite ids: parents of the join tables that carry no
+    // organizationId column, so we delete their children by these ids.
+    const [calendarEvents, budgets, invites] = await Promise.all([
+      tx.calendarEvent.findMany({ where: { organizationId: orgId }, select: { id: true } }),
+      tx.budget.findMany({ where: { organizationId: orgId }, select: { id: true } }),
+      tx.orgInvite.findMany({ where: { organizationId: orgId }, select: { id: true } }),
+    ]);
+    const calendarEventIds = calendarEvents.map(c => c.id);
+    const budgetIds        = budgets.map(b => b.id);
+    const inviteIds        = invites.map(i => i.id);
+
+    // ── 1. Audit / feed (reference the org + actor) ──────────────────────────
+    await tx.operationalEvent.deleteMany({ where: { organizationId: orgId } });
+    await tx.activityLog.deleteMany({ where: { organizationId: orgId } });
+
+    // ── 2. Join tables with no organizationId column ─────────────────────────
+    // Reached via their parents' ids (scoped above to THIS org), so this can't
+    // touch another tenant's rows.
+    if (calendarEventIds.length > 0) {
+      await tx.attendanceRecord.deleteMany({ where: { calendarEventId: { in: calendarEventIds } } });
+      await tx.attendanceExcuse.deleteMany({ where: { calendarEventId: { in: calendarEventIds } } });
+    }
+    if (budgetIds.length > 0) {
+      await tx.budgetAllocation.deleteMany({ where: { budgetId: { in: budgetIds } } });
+    }
+    if (inviteIds.length > 0) {
+      await tx.inviteRedemption.deleteMany({ where: { inviteId: { in: inviteIds } } });
+    }
+
+    // ── 3. Finance ───────────────────────────────────────────────────────────
+    await tx.transaction.deleteMany({ where: { organizationId: orgId } });
+    await tx.budget.deleteMany({ where: { organizationId: orgId } });
+
+    // ── 4. Events / content ────────────────────────────────────────────────────
+    // ServiceEvent before CalendarEvent (ServiceEvent.calendarEventId → CalendarEvent).
+    await tx.serviceEvent.deleteMany({ where: { organizationId: orgId } });
+    await tx.calendarEvent.deleteMany({ where: { organizationId: orgId } });
+    await tx.partyEvent.deleteMany({ where: { organizationId: orgId } });
+    await tx.deadline.deleteMany({ where: { organizationId: orgId } });
+    await tx.instagramTask.deleteMany({ where: { organizationId: orgId } });
+    await tx.doc.deleteMany({ where: { organizationId: orgId } });
+    await tx.chapterAnnouncement.deleteMany({ where: { organizationId: orgId } });
+
+    // ── 5. Semester (referenced by attendance/transactions, now gone) ──────────
+    await tx.semester.deleteMany({ where: { organizationId: orgId } });
+
+    // ── 6. Roles & assignments ─────────────────────────────────────────────────
+    await tx.brotherRole.deleteMany({ where: { organizationId: orgId } });
+    await tx.role.deleteMany({ where: { organizationId: orgId } });
+
+    // ── 7. Invites, config, memberships ────────────────────────────────────────
+    await tx.orgInvite.deleteMany({ where: { organizationId: orgId } });
+    await tx.organizationConfig.deleteMany({ where: { organizationId: orgId } });
+    await tx.membership.deleteMany({ where: { organizationId: orgId } });
+
+    // ── 8. Brothers (re-home multi-org members, delete home-only ones) ─────────
+    // Null out the back-reference first so deleting/repointing brothers can't
+    // trip Organization.createdByBrotherId (no FK constraint, but keep it clean).
+    await tx.organization.update({ where: { id: orgId }, data: { createdByBrotherId: null } });
+
+    if (homeBrotherIds.length > 0) {
+      // Split home brothers into those who still belong to ANOTHER org (re-home,
+      // keep the account) and those for whom this was their only org (delete).
+      // Memberships for THIS org were already deleted in step 7, so any surviving
+      // membership is necessarily in a different org.
+      const survivingMemberships = await tx.membership.findMany({
+        where: { brotherId: { in: homeBrotherIds } },
+        select: { brotherId: true, organizationId: true },
+      });
+      // First surviving membership per brother → their new home org.
+      const newHomeByBrother = new Map<number, number>();
+      for (const m of survivingMemberships) {
+        if (!newHomeByBrother.has(m.brotherId)) newHomeByBrother.set(m.brotherId, m.organizationId);
+      }
+      const toDelete = homeBrotherIds.filter(id => !newHomeByBrother.has(id));
+
+      // Re-home survivors. Grouped by target org so each org needs one updateMany
+      // (a multi-org member set is tiny — usually a single founder), rather than
+      // one round-trip per brother.
+      const brothersByNewHome = new Map<number, number[]>();
+      for (const [brotherId, newOrg] of newHomeByBrother) {
+        const list = brothersByNewHome.get(newOrg) ?? [];
+        list.push(brotherId);
+        brothersByNewHome.set(newOrg, list);
+      }
+      for (const [newOrg, ids] of brothersByNewHome) {
+        await tx.brother.updateMany({ where: { id: { in: ids } }, data: { organizationId: newOrg } });
+      }
+
+      // Delete home-only brothers. Their PlatformAdmin row (FK is NO ACTION, so it
+      // would otherwise block the delete) must go first; BrotherRole / Membership /
+      // InviteRedemption referencing them already cascaded or were deleted above,
+      // and attendance/invites only ever reference a brother's OWN home org (data
+      // is created org-scoped), which we deleted in steps 2 & 7. Batched into two
+      // deleteManys so a large roster is two round-trips, not 2N.
+      if (toDelete.length > 0) {
+        await tx.platformAdmin.deleteMany({ where: { brotherId: { in: toDelete } } });
+        await tx.brother.deleteMany({ where: { id: { in: toDelete } } });
+      }
+    }
+
+    // ── 9. The org itself ──────────────────────────────────────────────────────
+    await tx.organization.delete({ where: { id: orgId } });
+  }, { timeout: 30_000, maxWait: 10_000 });
+
+  // No emit() here: emit writes an OperationalEvent FK'd to the org, which no
+  // longer exists. The org's whole audit trail was just deleted with it. Record
+  // the deletion as a structured app-level log line instead (the only durable
+  // record once the tenant is gone) — same one-JSON-object-per-line shape the
+  // observability helper uses, so log tooling parses it the same way.
+  console.log(JSON.stringify({
+    level: "info",
+    ts: new Date().toISOString(),
+    event: "org.deleted",
+    requestId: ctx.requestId,
+    userId: ctx.actorId,
+    organizationId: orgId,
+    slug: org.slug,
+    name: org.name,
+  }));
+
+  return { organizationId: orgId, slug: org.slug };
 }

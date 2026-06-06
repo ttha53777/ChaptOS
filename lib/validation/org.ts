@@ -42,3 +42,14 @@ export const updateOrgConfigInput = z.object({
 });
 
 export type UpdateOrgConfigInput = z.infer<typeof updateOrgConfigInput>;
+
+// Input for DELETE /api/orgs — permanent org deletion. The client sends the
+// org's slug as a confirmation token; the service re-checks it against the
+// active org so a malformed/replayed request can't delete the wrong org. The
+// UI additionally makes the user type the org NAME, but the slug is the stable
+// machine token we verify on.
+export const deleteOrgInput = z.object({
+  confirmSlug: z.string().trim().min(1, "Confirmation is required"),
+});
+
+export type DeleteOrgInput = z.infer<typeof deleteOrgInput>;

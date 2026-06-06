@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useCallback, useRef } from "react";
+import React, { useMemo, useCallback, useRef, useState } from "react";
 import Link from "next/link";
 import { useChapter } from "../../../context/ChapterContext";
 import { Modal } from "../../../components/dashboard/primitives";
@@ -9,6 +9,7 @@ import { TaskStatus, ActivityEntry, Deadline, InstagramTask, PartyEvent, fmt$ } 
 import { useOrgLogo } from "../../../hooks/useOrgLogo";
 import { useOrgPath } from "../../../hooks/useOrgPath";
 import { requestJson } from "../../../lib/api";
+import { DangerZone } from "./DangerZone";
 
 let _nextId = Date.now();
 
@@ -255,6 +256,9 @@ export function GeneralSection({
             <p>{brotherList.length} brothers · {deadlineList.length} deadlines · {partyList.length} parties</p>
           </div>
         </div>
+
+        {/* Danger zone — org-admin only; renders nothing for everyone else. */}
+        <DangerZone onError={onError} />
       </div>
 
       {activeModal === "deadline" && (
