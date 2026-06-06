@@ -6,7 +6,7 @@ import { useChapter } from "../../context/ChapterContext";
 import { useOrgPath } from "../../hooks/useOrgPath";
 import { requestJson } from "../../lib/api";
 import { APP_NAME } from "@/lib/domains";
-import { NAV, NAV_WORKFLOW_MAP } from "../../components/Sidebar";
+import { NAV, NAV_WORKFLOW_MAP, NAV_DESCRIPTIONS } from "../../components/Sidebar";
 import { ALWAYS_ON_WORKFLOWS, type WorkflowId } from "@/lib/org-types";
 
 // /[slug]/onboarding — the post-creation "finish setup" page picker.
@@ -35,19 +35,10 @@ interface PickerItem {
   description: string;
 }
 
-const DESCRIPTIONS: Record<string, string> = {
-  Brotherhood: "Member roster, profiles, attendance, and dues.",
-  Treasury:    "Budget, transactions, and the running balance.",
-  Events:      "Parties and social events with door revenue tracking.",
-  Service:     "Service events and per-member service-hour totals.",
-  Instagram:   "Plan and track social posts and announcements.",
-  Docs:        "Pinned links and shared documents.",
-};
-
 const PICKER_ITEMS: PickerItem[] = NAV.flatMap((label) => {
   const workflow = NAV_WORKFLOW_MAP[label];
   if (workflow == null) return []; // always-on surface — not a toggle
-  return [{ label, workflow, description: DESCRIPTIONS[label] ?? "" }];
+  return [{ label, workflow, description: NAV_DESCRIPTIONS[label] ?? "" }];
 });
 
 // Always-on surfaces, shown as locked rows so the founder understands what they

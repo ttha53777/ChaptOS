@@ -48,6 +48,20 @@ export const NAV_WORKFLOW_MAP: Record<string, WorkflowId | null> = {
   Events:      "parties",
 };
 
+// One-line description of each hideable surface, keyed by nav label. Shown next
+// to the toggle in both the post-creation page picker (/[slug]/onboarding) and
+// the Workflows settings section, so the two surfaces describe a page the same
+// way. Only labels whose workflow is non-null in NAV_WORKFLOW_MAP need an entry;
+// the always-on surfaces (Dashboard/Timeline/Chapter) are never toggled.
+export const NAV_DESCRIPTIONS: Record<string, string> = {
+  Brotherhood: "Member roster, profiles, attendance, and dues.",
+  Treasury:    "Budget, transactions, and the running balance.",
+  Events:      "Parties and social events with door revenue tracking.",
+  Service:     "Service events and per-member service-hour totals.",
+  Instagram:   "Plan and track social posts and announcements.",
+  Docs:        "Pinned links and shared documents.",
+};
+
 /** Returns true when a nav label should render for an org with these workflows.
  *  Always-on labels (map value null) are visible unconditionally. */
 export function isNavVisible(label: string, enabledWorkflows: readonly string[]): boolean {

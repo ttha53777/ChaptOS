@@ -10,11 +10,12 @@ import { AccountsSection } from "./sections/AccountsSection";
 import { RolesSection } from "./sections/RolesSection";
 import { ActivityLogSection } from "./sections/ActivityLogSection";
 import { InvitationsSection } from "./sections/InvitationsSection";
+import { WorkflowsSection } from "./sections/WorkflowsSection";
 import { useChapter } from "../../context/ChapterContext";
 
 // ─── Nav config ───────────────────────────────────────────────────────────────
 
-type SectionId = "general" | "thresholds" | "semesters" | "accounts" | "invitations" | "roles" | "activity-log";
+type SectionId = "general" | "thresholds" | "semesters" | "accounts" | "invitations" | "workflows" | "roles" | "activity-log";
 
 interface NavItem {
   id: SectionId;
@@ -60,6 +61,14 @@ const NAV_ITEMS: NavItem[] = [
     group: "System",
     // Link / chain icon.
     icon: "M13.828 10.172a4 4 0 010 5.656l-3 3a4 4 0 11-5.656-5.656l1.5-1.5M10.172 13.828a4 4 0 010-5.656l3-3a4 4 0 115.656 5.656l-1.5 1.5",
+  },
+  {
+    id: "workflows",
+    label: "Workflows",
+    description: "Choose which pages this org shows",
+    group: "System",
+    // Squares / grid icon — signals toggling product surfaces on and off.
+    icon: "M4 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM14 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zM4 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1v-4zM14 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z",
   },
   {
     id: "roles",
@@ -133,6 +142,7 @@ export default function SettingsPage() {
   const visibleNavItems = NAV_ITEMS.filter(n => {
     if (n.id === "roles")       return canManageRoles;
     if (n.id === "invitations") return canManageSettings;
+    if (n.id === "workflows")   return canManageSettings;
     return true;
   });
 
@@ -142,6 +152,7 @@ export default function SettingsPage() {
   useEffect(() => {
     if (activeId === "roles" && !canManageRoles) setActiveId("general");
     if (activeId === "invitations" && !canManageSettings) setActiveId("general");
+    if (activeId === "workflows" && !canManageSettings) setActiveId("general");
   }, [activeId, canManageRoles, canManageSettings]);
 
   useEffect(() => {
@@ -291,6 +302,9 @@ export default function SettingsPage() {
               )}
               {activeId === "invitations" && (
                 <InvitationsSection onStatus={setStatusMsg} onError={setPageError} />
+              )}
+              {activeId === "workflows" && (
+                <WorkflowsSection onStatus={setStatusMsg} onError={setPageError} />
               )}
               {activeId === "roles" && (
                 <RolesSection onStatus={setStatusMsg} onError={setPageError} />
