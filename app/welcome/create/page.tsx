@@ -1,10 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ORG_TYPES } from "@/lib/org-types";
 import { suggestSlug } from "@/lib/slug-rules";
 import { APP_NAME } from "@/lib/domains";
+import { ORG_SLUG_HEADER } from "@/app/lib/api";
+
+const MAX_LOGO_BYTES = 2 * 1024 * 1024;
 
 // /welcome/create — self-serve org creation.
 //
@@ -35,9 +38,52 @@ export default function CreateOrgPage() {
   const [orgType, setOrgType]   = useState<string>(ORG_TYPES[0]!.id);
   const [yourName, setYourName] = useState("");
 
+  // Optional logo. We hold the File and an object-URL preview; the upload happens
+  // AFTER the org is created (POST /api/orgs/logo against the new org), so the
+  // create request stays a plain atomic JSON POST and an abandoned form leaves
+  // nothing in storage.
+  const [logoFile, setLogoFile]       = useState<File | null>(null);
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  const [logoError, setLogoError]     = useState<string | null>(null);
+  const logoInputRef = useRef<HTMLInputElement>(null);
+
   const [slugState, setSlugState] = useState<SlugState>({ kind: "idle" });
   const [submitting, setSubmitting] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
+  // Set once the org is created but the (optional) logo upload failed: the org
+  // exists and re-submitting would collide, so we stop showing the create button
+  // and offer an explicit "continue" instead of navigating away mid-warning.
+  const [createdSlug, setCreatedSlug] = useState<string | null>(null);
+
+  // Revoke the object URL when the preview changes or the component unmounts so
+  // we don't leak blob: URLs.
+  useEffect(() => {
+    if (!logoPreview) return;
+    return () => URL.revokeObjectURL(logoPreview);
+  }, [logoPreview]);
+
+  function handleLogoFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (logoInputRef.current) logoInputRef.current.value = "";
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      setLogoError("Please upload an image file (PNG, JPG, SVG, etc.).");
+      return;
+    }
+    if (file.size > MAX_LOGO_BYTES) {
+      setLogoError("Image must be under 2 MB.");
+      return;
+    }
+    setLogoError(null);
+    setLogoFile(file);
+    setLogoPreview(URL.createObjectURL(file));
+  }
+
+  function clearLogo() {
+    setLogoFile(null);
+    setLogoPreview(null);
+    setLogoError(null);
+  }
 
   // Auto-suggest slug from name until the user types in the slug field directly.
   useEffect(() => {
@@ -150,6 +196,25 @@ export default function CreateOrgPage() {
         // which server-resolves the active org from the freshly-set cookie.
         const slug = typeof data?.slug === "string" && data.slug ? data.slug : null;
         const isRecovery = res.status === 200;
+
+        // Upload the logo (if picked) AFTER the org exists. Only on the fresh
+        // create path — a recovery means the org was set up earlier and we don't
+        // want this form's logo to clobber whatever it already has. A failure
+        // here does NOT block entry: the org is already created and the founder
+        // can set the logo later in Settings, so we surface a soft warning and
+        // still navigate.
+        if (slug && logoFile && !isRecovery) {
+          const uploaded = await uploadLogo(slug, logoFile);
+          if (!uploaded) {
+            // Org is created; only the logo failed. Surface the warning and offer
+            // an explicit continue (navigating now would unmount before the user
+            // sees the message, and re-submitting would collide on the slug).
+            setCreatedSlug(slug);
+            setServerError("Your organization was created, but the logo couldn't be uploaded. You can continue and add it later in Settings.");
+            return;
+          }
+        }
+
         const dest = slug ? (isRecovery ? `/${slug}` : `/${slug}/onboarding`) : "/";
         window.location.assign(dest);
         return;
@@ -159,6 +224,26 @@ export default function CreateOrgPage() {
       setServerError("Couldn't reach the server. Check your connection.");
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  // Upload the org logo to the just-created org. We send the x-org-slug header
+  // explicitly: this page lives at /welcome/create, so the URL's first segment
+  // ("welcome") isn't the org slug the API needs — we pass the server-returned
+  // slug so buildContext resolves the new org (the founder is now its admin).
+  // Returns true on success; false on any failure (caller decides what to do).
+  async function uploadLogo(slug: string, file: File): Promise<boolean> {
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch("/api/orgs/logo", {
+        method: "POST",
+        headers: { [ORG_SLUG_HEADER]: slug },
+        body: fd,
+      });
+      return res.ok;
+    } catch {
+      return false;
     }
   }
 
@@ -278,6 +363,41 @@ export default function CreateOrgPage() {
                 }
               />
 
+              {/* Logo (optional) */}
+              <div>
+                <span className="auth-label">Logo <span className="auth-footnote">· optional</span></span>
+                <p className="auth-hint">Shown in the sidebar and on shared pages. PNG, JPG, or SVG · max 2 MB. You can change it later in Settings.</p>
+                <div className="auth-logo-row">
+                  <div className="auth-logo-preview" aria-hidden>
+                    {logoPreview ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={logoPreview} alt="" />
+                    ) : (
+                      <span>{initialsFor(orgName)}</span>
+                    )}
+                  </div>
+                  <div className="auth-logo-controls">
+                    <input
+                      ref={logoInputRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={handleLogoFile}
+                      className="sr-only"
+                      id="org-logo-input"
+                    />
+                    <label htmlFor="org-logo-input" className="auth-chip">
+                      {logoFile ? "Replace image" : "Upload image"}
+                    </label>
+                    {logoFile && (
+                      <button type="button" onClick={clearLogo} className="auth-chip">
+                        Remove
+                      </button>
+                    )}
+                  </div>
+                </div>
+                {logoError && <p className="auth-status err" role="alert">{logoError}</p>}
+              </div>
+
               {serverError && (
                 <div className="auth-alert" role="alert">
                   <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
@@ -288,12 +408,24 @@ export default function CreateOrgPage() {
               )}
 
               <div className="auth-stack">
-                <button type="submit" disabled={!canSubmit} className="auth-btn-vio">
-                  {submitting ? "Creating…" : `Create ${selectedType.label.toLowerCase()}`}
-                </button>
-                <Link href="/welcome" className="auth-link bare" style={{ alignSelf: "flex-start" }}>
-                  ← Back
-                </Link>
+                {createdSlug ? (
+                  <button
+                    type="button"
+                    onClick={() => window.location.assign(`/${createdSlug}/onboarding`)}
+                    className="auth-btn-vio"
+                  >
+                    Continue to your organization →
+                  </button>
+                ) : (
+                  <>
+                    <button type="submit" disabled={!canSubmit} className="auth-btn-vio">
+                      {submitting ? "Creating…" : `Create ${selectedType.label.toLowerCase()}`}
+                    </button>
+                    <Link href="/welcome" className="auth-link bare" style={{ alignSelf: "flex-start" }}>
+                      ← Back
+                    </Link>
+                  </>
+                )}
               </div>
             </form>
           </div>
@@ -301,6 +433,14 @@ export default function CreateOrgPage() {
       </div>
     </div>
   );
+}
+
+// First letters of up to two words, for the gradient fallback badge before a
+// logo is picked. Falls back to "New" when the name is still empty.
+function initialsFor(name: string): string {
+  const words = name.trim().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return "New";
+  return words.slice(0, 2).map(w => w[0]!.toUpperCase()).join("");
 }
 
 function Field({

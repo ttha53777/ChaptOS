@@ -22,6 +22,9 @@ export async function GET() {
         select: {
           name: true,
           slug: true,
+          // Org profile picture for the sidebar/login badge — null falls back to
+          // the gradient initials badge. Pulled in the same round-trip as name.
+          logoUrl: true,
           // The sidebar and onboarding picker filter surfaces by the org's
           // enabled workflows. Pull it in the same round-trip as the org name.
           config: { select: { enabledWorkflows: true } },
@@ -77,6 +80,7 @@ export async function GET() {
         ? {
             name: org.name,
             slug: org.slug,
+            logoUrl: org.logoUrl ?? null,
             // Fall back to the full set when a config row is somehow absent (the
             // Milestone-1 migration backfills every org, so this is belt-and-
             // suspenders) — showing all pages is the safe default, hiding them is not.

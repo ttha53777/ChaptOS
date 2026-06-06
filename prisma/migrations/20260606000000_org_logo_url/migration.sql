@@ -1,0 +1,11 @@
+-- Add Organization.logoUrl — the org's profile picture.
+--
+-- Nullable: existing orgs (and any org that never sets one) keep a null value and
+-- fall back to the gradient initials badge in the sidebar/login. The URL points
+-- at a public object in the Supabase Storage `org-logos` bucket; the column is
+-- the source of truth for which object belongs to the org (see
+-- supabase/storage-org-logos.sql for the storage/RLS posture).
+--
+-- Idempotent (IF NOT EXISTS) to match this repo's migration convention, so a
+-- DB that already had the column via `db push` is a no-op.
+ALTER TABLE "Organization" ADD COLUMN IF NOT EXISTS "logoUrl" TEXT;

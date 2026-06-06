@@ -29,9 +29,11 @@ import { Prisma } from "@/app/generated/prisma/client";
 import { prismaPrivileged as prisma } from "@/lib/prisma-privileged"; // lint-direct-prisma:ignore (pre-org provisioning, BYPASSRLS by design)
 import { AlreadyLinkedError, ConflictError, ForbiddenError, NotFoundError, ValidationError } from "@/lib/errors";
 import { logError } from "@/lib/observability";
+import { emit } from "@/lib/events";
 import { validateSlugFormat } from "@/lib/slug-rules";
 import { getOrgType } from "@/lib/org-types";
 import { PERMISSIONS, ALL_PERMISSIONS, type Permission } from "@/lib/permissions";
+import { uploadOrgLogoObject, removeOrgLogoObject } from "@/lib/supabase/org-logo";
 import type { CreateOrgInput } from "@/lib/validation/org";
 import type { RequestContext } from "@/lib/context";
 
@@ -289,6 +291,91 @@ function permissionBits(names: readonly Permission[]): number {
 }
 
 // ---------------------------------------------------------------------------
+// Logo
+// ---------------------------------------------------------------------------
+
+/**
+ * Set (or replace) the active org's profile picture.
+ *
+ * Authorization: org admins only (platform admins pass too). Setting the org's
+ * public identity is an org-owner action, same posture as setWorkflows() — we
+ * gate on isOrgAdmin rather than a delegated permission bit. The route ALSO
+ * requires MANAGE_SETTINGS as a coarse first gate; this re-check is the
+ * authoritative one so the service can't be driven by a permission-bit-only
+ * caller.
+ *
+ * Storage: the image is uploaded to the org-logos bucket under the actor's own
+ * auth.uid() folder (so the existing per-user RLS authorizes it); the resulting
+ * public URL becomes Organization.logoUrl. We replace the previous object's
+ * URL in the column, and best-effort delete the OLD object so a re-upload with a
+ * different extension doesn't leave the prior file orphaned.
+ *
+ * ctx.db.organization is a raw pass-through (not auto-scoped), so we select by
+ * id: ctx.orgId explicitly — the same pattern deleteOrg/summarize use. ctx.orgId
+ * is server-resolved, never client-supplied, so this can't touch another tenant.
+ */
+export async function setOrgLogo(ctx: RequestContext, file: File): Promise<{ logoUrl: string }> {
+  if (!ctx.isOrgAdmin && !ctx.isPlatformAdmin) {
+    throw new ForbiddenError("Only an org admin can change the organization logo");
+  }
+
+  const existing = await ctx.db.organization.findUnique({
+    where: { id: ctx.orgId },
+    select: { logoUrl: true },
+  });
+  if (!existing) throw new NotFoundError("Organization");
+
+  const logoUrl = await uploadOrgLogoObject(ctx.authUserId, ctx.orgId, file);
+
+  await ctx.db.organization.update({
+    where: { id: ctx.orgId },
+    data:  { logoUrl },
+  });
+
+  // Drop the previous object if it pointed at a DIFFERENT path (a re-upload with
+  // the same extension uses upsert and overwrites in place, so the old URL would
+  // equal the new one bar the ?v= cache-buster — removing it then would delete
+  // the file we just wrote). Best-effort; the column is the source of truth.
+  if (existing.logoUrl && stripCacheBuster(existing.logoUrl) !== stripCacheBuster(logoUrl)) {
+    await removeOrgLogoObject(existing.logoUrl);
+  }
+
+  await emit(ctx, "org.logo.updated", { type: "Organization", id: ctx.orgId }, { cleared: false });
+
+  return { logoUrl };
+}
+
+/**
+ * Remove the active org's profile picture: best-effort delete the storage
+ * object, then null the column. Org-admin only, same posture as setOrgLogo.
+ */
+export async function clearOrgLogo(ctx: RequestContext): Promise<void> {
+  if (!ctx.isOrgAdmin && !ctx.isPlatformAdmin) {
+    throw new ForbiddenError("Only an org admin can change the organization logo");
+  }
+
+  const existing = await ctx.db.organization.findUnique({
+    where: { id: ctx.orgId },
+    select: { logoUrl: true },
+  });
+  if (!existing) throw new NotFoundError("Organization");
+
+  await removeOrgLogoObject(existing.logoUrl);
+
+  await ctx.db.organization.update({
+    where: { id: ctx.orgId },
+    data:  { logoUrl: null },
+  });
+
+  await emit(ctx, "org.logo.updated", { type: "Organization", id: ctx.orgId }, { cleared: true });
+}
+
+/** Drop a `?v=...` cache-buster so two URLs for the same object compare equal. */
+function stripCacheBuster(url: string): string {
+  return url.split("?")[0];
+}
+
+// ---------------------------------------------------------------------------
 // Deletion
 // ---------------------------------------------------------------------------
 
@@ -380,7 +467,7 @@ export async function deleteOrg(ctx: RequestContext, confirmSlug: string): Promi
 
   const org = await ctx.db.organization.findUnique({
     where: { id: ctx.orgId },
-    select: { id: true, slug: true, name: true },
+    select: { id: true, slug: true, name: true, logoUrl: true },
   });
   if (!org) throw new NotFoundError("Organization");
 
@@ -503,6 +590,12 @@ export async function deleteOrg(ctx: RequestContext, confirmSlug: string): Promi
     // ── 9. The org itself ──────────────────────────────────────────────────────
     await tx.organization.delete({ where: { id: orgId } });
   }, { timeout: 30_000, maxWait: 10_000 });
+
+  // Best-effort: delete the org's logo object now the org is gone. We remove the
+  // SPECIFIC object the logoUrl named (not the founder's whole uid folder, which
+  // may hold logos for other orgs they created). Never throws — storage is not
+  // the source of truth and the org row is already gone.
+  await removeOrgLogoObject(org.logoUrl);
 
   // No emit() here: emit writes an OperationalEvent FK'd to the org, which no
   // longer exists. The org's whole audit trail was just deleted with it. Record

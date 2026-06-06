@@ -23,7 +23,7 @@ function normalizeCurrentUser(me: CurrentUser): CurrentUser {
     // Defensive: an older/cached /me payload may omit enabledWorkflows. Default
     // to an empty array so the sidebar filter never reads `.includes` of
     // undefined — the Sidebar treats the always-on surfaces as visible regardless.
-    org: me.org ? { ...me.org, enabledWorkflows: me.org.enabledWorkflows ?? [] } : null,
+    org: me.org ? { ...me.org, logoUrl: me.org.logoUrl ?? null, enabledWorkflows: me.org.enabledWorkflows ?? [] } : null,
   };
 }
 
@@ -67,8 +67,9 @@ export interface CurrentUser {
    *  given any actual role assignments. */
   roles: CurrentUserRole[];
   /** Current active org (resolved by active_org_id cookie or default).
-   *  `enabledWorkflows` drives which sidebar surfaces render — see Sidebar.tsx. */
-  org: { name: string; slug: string; enabledWorkflows: string[] } | null;
+   *  `enabledWorkflows` drives which sidebar surfaces render — see Sidebar.tsx.
+   *  `logoUrl` is the org profile picture (null → gradient initials badge). */
+  org: { name: string; slug: string; logoUrl: string | null; enabledWorkflows: string[] } | null;
   orgId: number;
   /** All orgs this user belongs to. UI renders a switcher when length > 1. */
   memberships: MembershipSummary[];

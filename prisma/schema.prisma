@@ -23,6 +23,12 @@ model Organization {
   name               String
   slug               String   @unique
   orgType            String?
+  // Public URL of the org's profile picture in Supabase Storage (org-logos
+  // bucket), or null for orgs that never set one (they fall back to a gradient
+  // initials badge in the sidebar/login). Set via /api/orgs/logo. Lives on the
+  // hot row, not OrganizationConfig, because the sidebar reads it in the same
+  // /api/auth/me round-trip as name/slug.
+  logoUrl            String?
   createdByBrotherId Int?
   createdAt          DateTime @default(now())
 

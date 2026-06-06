@@ -14,7 +14,7 @@ declare global {
 }
 
 /** Bump when Prisma schema changes so `next dev` hot reload gets a fresh client. */
-const PRISMA_SCHEMA_REVISION = "phase0-tenancy-20260528";
+const PRISMA_SCHEMA_REVISION = "org-logo-url-20260606";
 /** Bump when pool options change so `next dev` hot reload picks up new config. */
 const POOL_REVISION = "pool-timeout-20s-v1-20260520";
 
@@ -34,7 +34,8 @@ function clientSupportsCurrentSchema(client: PrismaClient | undefined): boolean 
     && "id" in Prisma.OrganizationScalarFieldEnum
     && "id" in Prisma.MembershipScalarFieldEnum
     && "id" in Prisma.PlatformAdminScalarFieldEnum
-    && "organizationId" in Prisma.BrotherScalarFieldEnum;
+    && "organizationId" in Prisma.BrotherScalarFieldEnum
+    && "logoUrl" in Prisma.OrganizationScalarFieldEnum;
 }
 
 // Reuse pool and client across hot-reloads in dev; create once in prod.

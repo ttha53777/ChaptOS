@@ -6,14 +6,21 @@ import { useChapter } from "../../../context/ChapterContext";
 import { Modal } from "../../../components/dashboard/primitives";
 import { AddDeadlineForm, AddIGTaskForm, AddRevenueForm } from "../../../components/dashboard/forms";
 import { TaskStatus, ActivityEntry, Deadline, InstagramTask, PartyEvent, fmt$ } from "../../../data";
-import { useOrgLogo } from "../../../hooks/useOrgLogo";
 import { useOrgPath } from "../../../hooks/useOrgPath";
-import { requestJson } from "../../../lib/api";
+import { orgFetch, requestJson } from "../../../lib/api";
 import { DangerZone } from "./DangerZone";
 
 let _nextId = Date.now();
 
 type ModalKey = "deadline" | "revenue" | "ig" | null;
+
+// Initials for the no-logo gradient fallback badge. Up to two words; falls back
+// to "Org" so the badge is never empty before /api/auth/me resolves.
+function orgInitials(name: string | undefined | null): string {
+  const words = (name ?? "").trim().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return "Org";
+  return words.slice(0, 2).map(w => w[0]!.toUpperCase()).join("");
+}
 
 export function GeneralSection({
   onStatus,
@@ -24,31 +31,9 @@ export function GeneralSection({
 }) {
   const [activeModal, setActiveModal] = React.useState<ModalKey>(null);
   const [logoError, setLogoError] = React.useState<string | null>(null);
-  const { logoUrl, setLogo, clearLogo } = useOrgLogo();
+  const [logoBusy, setLogoBusy] = React.useState(false);
   const orgPath = useOrgPath();
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  function handleLogoFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!fileInputRef.current) return;
-    fileInputRef.current.value = "";
-    if (!file) return;
-    if (!file.type.startsWith("image/")) {
-      setLogoError("Please upload an image file (PNG, JPG, SVG, etc.).");
-      return;
-    }
-    if (file.size > 1024 * 1024) {
-      setLogoError("Image must be under 1 MB.");
-      return;
-    }
-    setLogoError(null);
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      const result = ev.target?.result;
-      if (typeof result === "string") setLogo(result);
-    };
-    reader.readAsDataURL(file);
-  }
 
   const {
     currentUser,
@@ -65,6 +50,60 @@ export function GeneralSection({
   } = useChapter();
 
   const brotherNames = useMemo(() => brotherList.map(b => b.name), [brotherList]);
+
+  // Logo is now persisted on the org (Organization.logoUrl), surfaced via
+  // /api/auth/me → ChapterContext. Upload/remove go through /api/orgs/logo and
+  // then refresh the context so the sidebar updates everywhere live.
+  const logoUrl = currentUser?.org?.logoUrl ?? null;
+
+  async function handleLogoFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (fileInputRef.current) fileInputRef.current.value = "";
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      setLogoError("Please upload an image file (PNG, JPG, SVG, etc.).");
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      setLogoError("Image must be under 2 MB.");
+      return;
+    }
+    setLogoError(null);
+    setLogoBusy(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await orgFetch("/api/orgs/logo", { method: "POST", body: fd });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setLogoError(data?.error ?? "Couldn't upload the logo. Try again.");
+        return;
+      }
+      await refreshChapterData();
+    } catch {
+      setLogoError("Couldn't reach the server. Check your connection.");
+    } finally {
+      setLogoBusy(false);
+    }
+  }
+
+  async function handleClearLogo() {
+    setLogoError(null);
+    setLogoBusy(true);
+    try {
+      const res = await orgFetch("/api/orgs/logo", { method: "DELETE" });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setLogoError(data?.error ?? "Couldn't remove the logo. Try again.");
+        return;
+      }
+      await refreshChapterData();
+    } catch {
+      setLogoError("Couldn't reach the server. Check your connection.");
+    } finally {
+      setLogoBusy(false);
+    }
+  }
 
   const addActivity = useCallback((message: string, type: ActivityEntry["type"]) => {
     const optimisticId = _nextId++;
@@ -193,7 +232,7 @@ export function GeneralSection({
         <div>
           <h3 className="mb-1 text-[12px] font-semibold text-slate-300">Organization Icon</h3>
           <p className="mb-3 text-[11px] text-slate-500">
-            Replaces the ΛΦΕ badge on the login screen and in the sidebar. PNG, JPG, or SVG · max 1 MB.
+            Shown on the login screen and in the sidebar for everyone in the org. PNG, JPG, or SVG · max 2 MB.
           </p>
           <div className="flex items-center gap-4">
             {/* Preview */}
@@ -207,7 +246,7 @@ export function GeneralSection({
                 />
               ) : (
                 <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-700 text-[13px] font-bold text-white shadow-[0_2px_8px_rgba(99,102,241,0.3)]">
-                  ΛΦΕ
+                  {orgInitials(currentUser?.org?.name)}
                 </div>
               )}
             </div>
@@ -218,23 +257,26 @@ export function GeneralSection({
                 type="file"
                 accept="image/*"
                 onChange={handleLogoFile}
+                disabled={logoBusy}
                 className="hidden"
                 id="org-logo-upload"
               />
               <label
                 htmlFor="org-logo-upload"
-                className="cursor-pointer inline-flex items-center gap-1.5 rounded-lg border border-indigo-500/30 bg-indigo-500/10 px-3 py-2 text-[12px] font-medium text-indigo-400 hover:bg-indigo-500/20 transition-colors"
+                aria-disabled={logoBusy}
+                className={`inline-flex items-center gap-1.5 rounded-lg border border-indigo-500/30 bg-indigo-500/10 px-3 py-2 text-[12px] font-medium text-indigo-400 transition-colors ${logoBusy ? "cursor-not-allowed opacity-60" : "cursor-pointer hover:bg-indigo-500/20"}`}
               >
                 <svg className="h-3.5 w-3.5" viewBox="0 0 16 16" fill="currentColor">
                   <path d="M8.5 1.75a.75.75 0 0 0-1.5 0v5.19L5.03 4.97a.75.75 0 0 0-1.06 1.06l3.5 3.5a.75.75 0 0 0 1.06 0l3.5-3.5a.75.75 0 0 0-1.06-1.06L8.5 6.94V1.75Z" />
                   <path d="M2.5 9.75a.75.75 0 0 0-1.5 0v1.5A2.75 2.75 0 0 0 3.75 14h8.5A2.75 2.75 0 0 0 15 11.25v-1.5a.75.75 0 0 0-1.5 0v1.5c0 .69-.56 1.25-1.25 1.25h-8.5c-.69 0-1.25-.56-1.25-1.25v-1.5Z" />
                 </svg>
-                Upload image
+                {logoBusy ? "Working…" : logoUrl ? "Replace image" : "Upload image"}
               </label>
               {logoUrl && (
                 <button
-                  onClick={() => { clearLogo(); setLogoError(null); }}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-red-500/20 bg-red-500/[0.08] px-3 py-2 text-[12px] font-medium text-red-400 hover:bg-red-500/15 transition-colors"
+                  onClick={handleClearLogo}
+                  disabled={logoBusy}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-red-500/20 bg-red-500/[0.08] px-3 py-2 text-[12px] font-medium text-red-400 transition-colors hover:bg-red-500/15 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   Remove
                 </button>

@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import type { WorkflowId } from "@/lib/org-types";
-import { useOrgLogo } from "../hooks/useOrgLogo";
 import { useOrgPath } from "../hooks/useOrgPath";
 import { useChapter } from "../context/ChapterContext";
 import { OrgSwitcher } from "./OrgSwitcher";
@@ -86,9 +85,9 @@ export function Sidebar({ open, onClose, activeSection, onNavClick }: {
   const pathname = usePathname();
   const router   = useRouter();
   const orgPath  = useOrgPath();
-  const { logoUrl } = useOrgLogo();
   const { currentUser } = useChapter();
   const orgName = currentUser?.org?.name ?? "Operations";
+  const logoUrl = currentUser?.org?.logoUrl ?? null;
 
   // Path *within* the org, i.e. pathname with the leading "/[slug]" segment
   // removed. "/lpe" → "/", "/lpe/treasury" → "/treasury". Active-state checks
