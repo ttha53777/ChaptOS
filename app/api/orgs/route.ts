@@ -17,13 +17,19 @@ import { prisma } from "@/lib/prisma"; // lint-modules:ignore (pre-auth onboardi
 // atomically, then sets the active_org_id cookie so the new org loads on
 // the next request.
 //
-// Rate limit: 3 orgs per Google account per 24h. Same number suggested in
-// Milestone 1 — generous for real users who genuinely want multiple orgs
-// (chapter + alumni network, e.g.), tight enough that an abuser would need
-// many accounts to flood the namespace.
+// Rate limit: see LIMIT_PER_ACCOUNT below (default 3 orgs / account / 24h).
 
-const LIMIT_PER_ACCOUNT = 3;
-const WINDOW_24H        = 24 * 60 * 60 * 1000;
+// 3 orgs per Google account per 24h by default — generous for real users who
+// genuinely want multiple orgs (chapter + alumni network, e.g.), tight enough
+// that an abuser would need many accounts to flood the namespace. Overridable
+// via ORG_CREATE_LIMIT_PER_DAY so local dev/testing can loosen it without
+// touching the production default. A non-positive or unparseable value falls
+// back to 3.
+const LIMIT_PER_ACCOUNT = (() => {
+  const raw = Number(process.env.ORG_CREATE_LIMIT_PER_DAY);
+  return Number.isInteger(raw) && raw > 0 ? raw : 3;
+})();
+const WINDOW_24H = 24 * 60 * 60 * 1000;
 
 export async function POST(req: NextRequest) {
   // ── 1. Validate Supabase session ────────────────────────────────────────
