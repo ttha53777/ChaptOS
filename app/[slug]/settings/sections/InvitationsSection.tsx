@@ -13,6 +13,7 @@ interface InviteRow {
   expiresAt: string | null;
   createdAt: string;
   redemptionCount: number;
+  createdByName: string | null;
 }
 
 async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
@@ -52,6 +53,10 @@ function formatExpiry(iso: string | null): string {
   const d = new Date(iso);
   if (d.getTime() <= Date.now()) return "Expired";
   return `Expires ${d.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}`;
+}
+
+function formatDate(iso: string): string {
+  return new Date(iso).toLocaleDateString(undefined, { dateStyle: "medium" });
 }
 
 export function InvitationsSection({
@@ -200,6 +205,12 @@ export function InvitationsSection({
                   <span className="ml-auto text-[11px] text-white/40">
                     {row.redemptionCount} {row.redemptionCount === 1 ? "join" : "joins"}
                   </span>
+                </div>
+                <div className="flex items-center gap-1 text-[11px] text-white/30">
+                  <span>Created {formatDate(row.createdAt)}</span>
+                  {row.createdByName && (
+                    <><span>·</span><span>{row.createdByName}</span></>
+                  )}
                 </div>
                 <div className="flex items-stretch gap-2">
                   <code className="min-w-0 flex-1 truncate rounded-lg border border-white/[0.06] bg-zinc-900/80 px-3 py-2 text-[12px] text-white/70">
