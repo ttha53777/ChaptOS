@@ -4,7 +4,7 @@
 // Stores history per-session in localStorage. Streams answers from /api/ai/chat (SSE).
 // The button hides itself when the server reports no OPENAI_API_KEY.
 
-import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode } from "react";
 import { orgFetch } from "../lib/api";
 
 const STORAGE_KEY = "chaptos_chat_v1";
@@ -40,6 +40,96 @@ const STARTER_PROMPTS = [
 
 function newId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// MarkdownLite — renders the small markdown subset the assistant actually emits
+// (headings, bold/italic, inline code, bullet + numbered lists, paragraphs).
+// Deliberately NOT a full markdown engine: the bot's answers are short and
+// structured, so a dependency-free renderer keeps the bundle lean and lets us
+// style every element to match the dark-glass panel. Anything it doesn't
+// recognize falls through as plain text, so raw markdown never looks broken.
+// ────────────────────────────────────────────────────────────────────────────
+
+// Inline pass: split a line into bold / italic / code spans. Runs left-to-right
+// so nested-ish cases degrade gracefully rather than mis-parsing.
+function renderInline(text: string, keyPrefix: string): ReactNode[] {
+  const nodes: ReactNode[] = [];
+  // Matches **bold** | __bold__ | *italic* | _italic_ | `code`
+  const re = /(\*\*|__)(.+?)\1|(\*|_)(.+?)\3|`([^`]+?)`/g;
+  let last = 0;
+  let m: RegExpExecArray | null;
+  let i = 0;
+  while ((m = re.exec(text)) !== null) {
+    if (m.index > last) nodes.push(text.slice(last, m.index));
+    if (m[2] !== undefined) {
+      nodes.push(<strong key={`${keyPrefix}-b${i}`} className="font-semibold text-white">{m[2]}</strong>);
+    } else if (m[4] !== undefined) {
+      nodes.push(<em key={`${keyPrefix}-i${i}`} className="italic">{m[4]}</em>);
+    } else if (m[5] !== undefined) {
+      nodes.push(<code key={`${keyPrefix}-c${i}`} className="rounded bg-white/[0.08] px-1 py-0.5 text-[11px] text-indigo-200">{m[5]}</code>);
+    }
+    last = re.lastIndex;
+    i++;
+  }
+  if (last < text.length) nodes.push(text.slice(last));
+  return nodes;
+}
+
+function MarkdownLite({ text, trailing }: { text: string; trailing?: ReactNode }) {
+  const lines = text.split("\n");
+  const blocks: ReactNode[] = [];
+  let list: { ordered: boolean; items: string[] } | null = null;
+  let key = 0;
+
+  const flushList = () => {
+    if (!list) return;
+    const items = list.items.map((it, idx) => (
+      <li key={`li-${key}-${idx}`}>{renderInline(it, `li-${key}-${idx}`)}</li>
+    ));
+    blocks.push(list.ordered
+      ? <ol key={`ol-${key}`} className="my-1 ml-4 list-decimal space-y-0.5 marker:text-slate-500">{items}</ol>
+      : <ul key={`ul-${key}`} className="my-1 ml-4 list-disc space-y-0.5 marker:text-slate-500">{items}</ul>);
+    key++;
+    list = null;
+  };
+
+  for (const raw of lines) {
+    const line = raw.trimEnd();
+    const heading = /^(#{1,3})\s+(.*)$/.exec(line);
+    const bullet = /^\s*[-*]\s+(.*)$/.exec(line);
+    const numbered = /^\s*\d+\.\s+(.*)$/.exec(line);
+
+    if (bullet) {
+      if (list && list.ordered) flushList();
+      list = list ?? { ordered: false, items: [] };
+      list.items.push(bullet[1]);
+      continue;
+    }
+    if (numbered) {
+      if (list && !list.ordered) flushList();
+      list = list ?? { ordered: true, items: [] };
+      list.items.push(numbered[1]);
+      continue;
+    }
+    flushList();
+
+    if (line === "") continue; // blank line = block separator
+    if (heading) {
+      const level = heading[1].length;
+      const cls = level === 1 ? "mt-2 mb-1 text-[14px] font-bold text-white"
+        : level === 2 ? "mt-2 mb-0.5 text-[13px] font-bold text-white"
+        : "mt-1.5 mb-0.5 text-[13px] font-semibold text-slate-100";
+      blocks.push(<p key={`h-${key++}`} className={cls}>{renderInline(heading[2], `h-${key}`)}</p>);
+      continue;
+    }
+    blocks.push(<p key={`p-${key++}`} className="whitespace-pre-wrap">{renderInline(line, `p-${key}`)}</p>);
+  }
+  flushList();
+
+  // Attach the streaming cursor to the final block so it trails the text.
+  if (trailing) blocks.push(<span key="cursor">{trailing}</span>);
+  return <div className="space-y-1">{blocks}</div>;
 }
 
 // Sparkle icon — outlined, matches the app's heroicons-style SVG language.
@@ -367,7 +457,7 @@ export function ChatWidget() {
                   ) : (
                     <div className="max-w-[90%] rounded-2xl rounded-bl-md border border-white/[0.06] bg-white/[0.03] px-3 py-2 text-[13px] leading-relaxed text-slate-200">
                       {m.content
-                        ? <p className="whitespace-pre-wrap">{m.content}{streaming && m === messages[messages.length - 1] && <span className="ml-0.5 inline-block h-3 w-1 animate-pulse bg-indigo-400 align-middle" aria-hidden />}</p>
+                        ? <MarkdownLite text={m.content} trailing={streaming && m === messages[messages.length - 1] ? <span className="ml-0.5 inline-block h-3 w-1 animate-pulse bg-indigo-400 align-middle" aria-hidden /> : undefined} />
                         : (!m.proposals || m.proposals.length === 0) && <p className="text-slate-500 italic">Thinking…</p>}
                       {m.toolStatus && (
                         <p className="mt-2 flex items-center gap-1.5 text-[11px] text-slate-500">
