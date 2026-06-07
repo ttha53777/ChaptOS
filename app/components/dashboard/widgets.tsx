@@ -6,7 +6,8 @@ const SparkLine = dynamic(() => import("./SparkLine"), {
   loading: () => <div className="h-7 w-full rounded bg-white/[0.04]" />,
 });
 import type { ActivityEntry, Brother } from "../../data";
-import { THRESHOLDS, KPI_SPARKLINES } from "../../data";
+import { KPI_SPARKLINES } from "../../data";
+import { useThresholds } from "../../hooks/useThresholds";
 import { SvgIcon } from "../Sidebar";
 import { Card } from "./primitives";
 import { KPI_ICONS } from "./styles";
@@ -216,6 +217,7 @@ export function ActivityFeed({ entries, onExpand }: { entries: ActivityEntry[]; 
 }
 
 export function AttBar({ pct }: { pct: number }) {
+  const THRESHOLDS = useThresholds();
   const bar  = pct >= THRESHOLDS.attendanceWatch ? "bg-emerald-400" : pct >= THRESHOLDS.attendanceAtRisk ? "bg-amber-400" : "bg-red-400";
   const text = pct >= THRESHOLDS.attendanceWatch ? "text-white" : pct >= THRESHOLDS.attendanceAtRisk ? "text-amber-400" : "text-red-400";
   return (

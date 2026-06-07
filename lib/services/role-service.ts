@@ -155,7 +155,14 @@ export async function revokeRole(ctx: RequestContext, brotherId: number, roleId:
     ctx.db.role.findUnique({ where: { id: roleId }, select: { id: true, name: true, rank: true } }),
   ]);
   if (!brother) throw new NotFoundError("Brother");
-  if (!role)    throw new NotFoundError("Role");
+
+  // Revoke is idempotent: the goal is "this brother does not hold this role".
+  // If the role no longer exists in the org (e.g. it was deleted while a stale
+  // chip lingered in the client), that goal is already satisfied — return
+  // quietly rather than 404'ing on a chip the user is trying to clear. No emit:
+  // nothing actually changed.
+  if (!role) return { revoked: false as const };
+
   if (role.rank >= ctx.maxRank) {
     throw new ForbiddenError("Cannot revoke a role at or above your own rank");
   }
@@ -165,8 +172,10 @@ export async function revokeRole(ctx: RequestContext, brotherId: number, roleId:
       where: { brotherId_roleId: { brotherId, roleId } },
     });
   } catch (e) {
+    // P2025 = the brother didn't have that role. End-state already satisfied, so
+    // succeed idempotently instead of erroring on a no-op revoke.
     if (e && typeof e === "object" && "code" in e && (e as { code: string }).code === "P2025") {
-      throw new NotFoundError("Brother does not have that role");
+      return { revoked: false as const };
     }
     throw e;
   }
@@ -176,4 +185,6 @@ export async function revokeRole(ctx: RequestContext, brotherId: number, roleId:
     brotherName: brother.name,
     brotherId,
   });
+
+  return { revoked: true as const };
 }

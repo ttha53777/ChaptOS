@@ -17,6 +17,7 @@ import { emit } from "@/lib/events";
 import { ForbiddenError } from "@/lib/errors";
 import { ALWAYS_ON_WORKFLOWS, ALL_WORKFLOWS, type WorkflowId } from "@/lib/org-types";
 import { VOCAB_KEYS, type VocabKey, type VocabOverrides } from "@/lib/vocab";
+import { resolveThresholds, type Thresholds } from "@/lib/thresholds";
 
 export interface OrgConfigDTO {
   enabledWorkflows: WorkflowId[];
@@ -86,4 +87,39 @@ export async function setVocab(
   await emit(ctx, "org.config.updated", { type: "Organization", id: ctx.orgId }, {
     vocabularyOverrides: sanitized,
   });
+}
+
+/**
+ * Replace the org's member-status thresholds. Authorization: org admins only.
+ *
+ * The thresholds decide every At-Risk/Watch badge and the health score for the
+ * whole org, so changing them is an org-owner action — same gate as workflows
+ * and vocab, not a delegated permission bit.
+ *
+ * The Zod schema (thresholdsInput) already enforces the per-key bounds; we run
+ * the values back through resolveThresholds() before persisting so the stored
+ * column is always a complete, in-range object (defense in depth + self-healing
+ * for any legacy partial row).
+ */
+export async function setThresholds(
+  ctx: RequestContext,
+  input: Thresholds,
+): Promise<Thresholds> {
+  if (!ctx.isOrgAdmin && !ctx.isPlatformAdmin) {
+    throw new ForbiddenError("Only an org admin can change thresholds");
+  }
+
+  const thresholds = resolveThresholds(input);
+  // Plain record for the JSON column + event payload. The Thresholds interface
+  // has no index signature, so it isn't directly assignable to Prisma's
+  // InputJsonValue / the event's Record<string, number>.
+  const record: Record<string, number> = { ...thresholds };
+
+  await ctx.db.organizationConfig.upsert({ thresholds: record });
+
+  await emit(ctx, "org.config.updated", { type: "Organization", id: ctx.orgId }, {
+    thresholds: record,
+  });
+
+  return thresholds;
 }

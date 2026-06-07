@@ -8,7 +8,8 @@ import { Modal, FieldLabel } from "../../components/dashboard/primitives";
 import { headerActionBtnCls, inputCls } from "../../components/dashboard/styles";
 import { useChapter } from "../../context/ChapterContext";
 import { useVocab } from "../../hooks/useVocab";
-import { Brother, THRESHOLDS, fmtDate } from "../../data";
+import { useThresholds } from "../../hooks/useThresholds";
+import { Brother, fmtDate } from "../../data";
 import { requestJson } from "../../lib/api";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -51,6 +52,7 @@ const EMPTY_FORM = { title: "", date: "", location: "", notes: "" };
 export default function ServicePage() {
   const { currentUser, brotherList, setBrotherList, isLoading, avatarRevision, can } = useChapter();
   const v = useVocab();
+  const THRESHOLDS = useThresholds();
   const canService = can("MANAGE_SERVICE");
   const selfId     = currentUser?.id ?? null;
 
@@ -87,7 +89,7 @@ export default function ServicePage() {
 
   const onTrackCount = useMemo(
     () => brotherList.filter(b => b.serviceHours >= THRESHOLDS.serviceHoursGoal).length,
-    [brotherList]
+    [brotherList, THRESHOLDS]
   );
 
   // ── Hours editing ────────────────────────────────────────────────────────────

@@ -9,10 +9,10 @@ import { inputCls } from "../../components/dashboard/styles";
 import { BrotherDrawer } from "../../components/dashboard/drawers/BrotherDrawer";
 import { useChapter } from "../../context/ChapterContext";
 import { useVocab } from "../../hooks/useVocab";
+import { useThresholds } from "../../hooks/useThresholds";
 import {
   Brother,
   BrotherStatus,
-  THRESHOLDS,
   getBrotherStatus,
   avg,
   fmt$,
@@ -132,6 +132,7 @@ function AddBrotherForm({ onSubmit, onCancel }: {
 export default function BrothersPage() {
   const { currentUser, brotherList, setBrotherList, isLoading, avatarRevision, can } = useChapter();
   const v = useVocab();
+  const THRESHOLDS = useThresholds();
   const canBrothers = can("MANAGE_BROTHERS");
   const selfId = currentUser?.id ?? null;
 
@@ -153,25 +154,25 @@ export default function BrothersPage() {
   // ── KPIs ──────────────────────────────────────────────────────────────────
   const kpis = useMemo(() => {
     if (!brotherList.length) return null;
-    const attRisk  = brotherList.filter(b => getBrotherStatus(b) === "At Risk").length;
-    const watching = brotherList.filter(b => getBrotherStatus(b) === "Watch").length;
+    const attRisk  = brotherList.filter(b => getBrotherStatus(b, THRESHOLDS) === "At Risk").length;
+    const watching = brotherList.filter(b => getBrotherStatus(b, THRESHOLDS) === "Watch").length;
     const duesTotal = brotherList.reduce((s, b) => s + b.duesOwed, 0);
     const svcMet   = brotherList.filter(b => b.serviceHours >= THRESHOLDS.serviceHoursGoal).length;
     return { avgAtt: avg(brotherList.map(b => b.attendance)), avgGpa: avg(brotherList.map(b => b.gpa)), attRisk, watching, duesTotal, svcMet, total: brotherList.length };
-  }, [brotherList]);
+  }, [brotherList, THRESHOLDS]);
 
   const statusCounts = useMemo(() => {
     const counts = { All: brotherList.length, Good: 0, Watch: 0, "At Risk": 0 };
-    brotherList.forEach(b => { counts[getBrotherStatus(b)]++; });
+    brotherList.forEach(b => { counts[getBrotherStatus(b, THRESHOLDS)]++; });
     return counts;
-  }, [brotherList]);
+  }, [brotherList, THRESHOLDS]);
 
   // ── Filtered + sorted list ────────────────────────────────────────────────
   const filtered = useMemo(() => {
     let result = brotherList.filter(b => {
       const q = search.toLowerCase();
       const matchQ = !q || b.name.toLowerCase().includes(q) || b.role.toLowerCase().includes(q);
-      const matchS = statusFilter === "All" || getBrotherStatus(b) === statusFilter;
+      const matchS = statusFilter === "All" || getBrotherStatus(b, THRESHOLDS) === statusFilter;
       return matchQ && matchS;
     });
     if (sortKey) {
@@ -182,7 +183,7 @@ export default function BrothersPage() {
       });
     }
     return result;
-  }, [brotherList, search, statusFilter, sortKey, sortDir]);
+  }, [brotherList, search, statusFilter, sortKey, sortDir, THRESHOLDS]);
 
   // ── Mutations ─────────────────────────────────────────────────────────────
 
@@ -270,7 +271,7 @@ export default function BrothersPage() {
         b.gpa.toFixed(2),
         String(b.serviceHours),
         b.duesOwed.toFixed(2),
-        getBrotherStatus(b),
+        getBrotherStatus(b, THRESHOLDS),
       ]),
     ];
     const csv = rows.map(r => r.map(c => `"${c.replace(/"/g, '""')}"`).join(",")).join("\n");
@@ -468,7 +469,7 @@ export default function BrothersPage() {
                 <div className="py-12 text-center text-[12px] text-slate-600">No brothers match your filters.</div>
               ) : (
                 filtered.map(b => {
-                  const status = getBrotherStatus(b);
+                  const status = getBrotherStatus(b, THRESHOLDS);
                   const borderColor = BROTHER_STYLES[status].row;
                   return (
                     <button
@@ -523,7 +524,7 @@ export default function BrothersPage() {
                 <p className="mb-4 text-[11px] font-semibold uppercase tracking-widest text-slate-600">Attendance ranking</p>
                 <div className="space-y-2.5">
                   {[...brotherList].sort((a, b) => b.attendance - a.attendance).map((b, i) => {
-                    const status = getBrotherStatus(b);
+                    const status = getBrotherStatus(b, THRESHOLDS);
                     const barColor = status === "At Risk" ? "bg-red-500" : status === "Watch" ? "bg-amber-500" : "bg-emerald-500";
                     return (
                       <div key={b.id} className="flex items-center gap-3">

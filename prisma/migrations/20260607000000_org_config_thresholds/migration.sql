@@ -1,0 +1,23 @@
+-- Add OrganizationConfig.thresholds — the org's member-status cutoffs.
+--
+-- ── Why ─────────────────────────────────────────────────────────────────────
+-- Attendance/GPA/service-hour thresholds decide every At-Risk / Watch badge and
+-- feed the chapter health score. They were previously stored per-browser in
+-- localStorage (key "chaptos_thresholds"), so each officer saw their own rules
+-- and they vanished on a different device. Moving them onto the shared
+-- OrganizationConfig row makes one set of cutoffs apply to the whole org.
+--
+-- Shape: a sparse JSON object, e.g.
+--   { "attendanceAtRisk": 65, "attendanceWatch": 80,
+--     "gpaAtRisk": 2.7, "gpaWatch": 3.0, "serviceHoursGoal": 10 }
+-- Empty {} (the default) means "use the app defaults" — resolveThresholds() in
+-- lib/thresholds.ts fills any missing/out-of-range key, so existing rows need no
+-- backfill. Mirrors the existing vocabularyOverrides JSON column on this table.
+--
+-- No new sequence is created (this adds a column to an existing table), so no
+-- additional GRANT on the app role is needed — the figurints_app role already
+-- holds INSERT/UPDATE on "OrganizationConfig".
+--
+-- Idempotent (IF NOT EXISTS) to match this repo's migration convention, so a DB
+-- that already had the column via `db push` is a no-op.
+ALTER TABLE "OrganizationConfig" ADD COLUMN IF NOT EXISTS "thresholds" JSONB NOT NULL DEFAULT '{}';

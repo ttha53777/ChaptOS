@@ -5,6 +5,7 @@ import { parseAvatarFromMetadata } from "@/lib/avatar";
 import { db } from "@/lib/db"; // lint-modules:ignore (auth bootstrap; runs before buildContext is viable)
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { ALL_WORKFLOWS } from "@/lib/org-types";
+import { resolveThresholds } from "@/lib/thresholds";
 import { logError } from "@/lib/observability";
 
 export async function GET() {
@@ -27,7 +28,7 @@ export async function GET() {
           logoUrl: true,
           // The sidebar and onboarding picker filter surfaces by the org's
           // enabled workflows. Pull it in the same round-trip as the org name.
-          config: { select: { enabledWorkflows: true, vocabularyOverrides: true } },
+          config: { select: { enabledWorkflows: true, vocabularyOverrides: true, thresholds: true } },
         },
       }),
       createServerSupabaseClient(),
@@ -86,6 +87,9 @@ export async function GET() {
             // suspenders) — showing all pages is the safe default, hiding them is not.
             enabledWorkflows: org.config?.enabledWorkflows ?? [...ALL_WORKFLOWS],
             vocabularyOverrides: (org.config?.vocabularyOverrides ?? {}) as Record<string, string>,
+            // Always emit a complete, in-range object so the client never has to
+            // merge against defaults — resolveThresholds fills any missing key.
+            thresholds: resolveThresholds(org.config?.thresholds),
           }
         : null,
       orgId: user.orgId,

@@ -153,6 +153,7 @@ export default function SettingsPage() {
     if (n.id === "invitations") return canManageSettings;
     if (n.id === "workflows")   return canManageSettings;
     if (n.id === "vocabulary")  return canManageSettings;
+    if (n.id === "thresholds")  return canManageSettings;
     return true;
   });
 
@@ -164,6 +165,7 @@ export default function SettingsPage() {
     if (activeId === "invitations" && !canManageSettings) setActiveId("general");
     if (activeId === "workflows"   && !canManageSettings) setActiveId("general");
     if (activeId === "vocabulary"  && !canManageSettings) setActiveId("general");
+    if (activeId === "thresholds"  && !canManageSettings) setActiveId("general");
   }, [activeId, canManageRoles, canManageSettings]);
 
   useEffect(() => {
@@ -303,7 +305,7 @@ export default function SettingsPage() {
                 <GeneralSection onStatus={setStatusMsg} onError={setPageError} />
               )}
               {activeId === "thresholds" && (
-                <ThresholdsSection onStatus={setStatusMsg} />
+                <ThresholdsSection onStatus={setStatusMsg} onError={setPageError} />
               )}
               {activeId === "semesters" && (
                 <SemestersSection onStatus={setStatusMsg} onError={setPageError} />

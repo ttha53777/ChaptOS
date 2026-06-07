@@ -19,10 +19,11 @@ const DrawerTrendChart = dynamic(() => import("../components/dashboard/DrawerTre
 });
 import {
   Brother, CalendarEvent, TaskStatus, ActivityEntry, PartyEvent, Deadline, InstagramTask, Transaction,
-  treasuryTrend, TREASURY_BALANCE, TREASURY_PROJECTED, THRESHOLDS,
+  treasuryTrend, TREASURY_BALANCE, TREASURY_PROJECTED,
   KPI_SPARKLINES,
   getBrotherStatus, calcHealthScore, avg, fmt$, fmtDate, fmtRange, isoWeekBounds,
 } from "../data";
+import { useThresholds } from "../hooks/useThresholds";
 import { Sidebar, SvgIcon, NAV_ICONS } from "../components/Sidebar";
 import { BrotherAvatar } from "../components/BrotherAvatar";
 import { UserAvatar } from "../components/UserAvatar";
@@ -113,6 +114,7 @@ function KPIDetailDrawer({
   onOpenAttendance: () => void;
   isAdmin?: boolean;
 }) {
+  const THRESHOLDS = useThresholds();
   const isOpen = activeKey !== null;
   const cfg = activeKey ? DRAWER_CONFIGS[activeKey] : null;
 
@@ -948,6 +950,10 @@ function WidgetDetailDrawer({
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function Home() {
+  // Org-wide member-status cutoffs (shared via OrganizationConfig). Named
+  // THRESHOLDS so the many inline `THRESHOLDS.x` references below read the org
+  // value without per-line edits.
+  const THRESHOLDS = useThresholds();
   // ── UI state ──────────────────────────────────────────────────────────────
   const [search,         setSearch]         = useState("");
   const [statusFilter,   setStatusFilter]   = useState("All");
@@ -1049,7 +1055,7 @@ export default function Home() {
   // ── Health score ───────────────────────────────────────────────────────────
   // Still computed for ChapterMomentumWidget (in the KPI grid) and the health
   // detail drawer. The top-of-dashboard widget that surfaced the delta is gone.
-  const health = useMemo(() => calcHealthScore(brotherList, deadlineList), [brotherList, deadlineList]);
+  const health = useMemo(() => calcHealthScore(brotherList, deadlineList, THRESHOLDS), [brotherList, deadlineList, THRESHOLDS]);
 
   // ── Announcement (pinned single record) ───────────────────────────────────
   useEffect(() => {
@@ -1146,20 +1152,20 @@ export default function Home() {
   const avgAttendance   = useMemo(() => avg(brotherList.map(b => b.attendance)), [brotherList]);
   const outstandingDues = useMemo(() => brotherList.reduce((s, b) => s + b.duesOwed, 0), [brotherList]);
   const chapterGPA      = useMemo(() => avg(brotherList.map(b => b.gpa)), [brotherList]);
-  const belowAttCount   = useMemo(() => brotherList.filter(b => b.attendance < THRESHOLDS.attendanceWatch).length, [brotherList]);
+  const belowAttCount   = useMemo(() => brotherList.filter(b => b.attendance < THRESHOLDS.attendanceWatch).length, [brotherList, THRESHOLDS]);
   const owingCount      = useMemo(() => brotherList.filter(b => b.duesOwed > 0).length, [brotherList]);
-  const belowGpaCount   = useMemo(() => brotherList.filter(b => b.gpa < THRESHOLDS.gpaWatch).length, [brotherList]);
+  const belowGpaCount   = useMemo(() => brotherList.filter(b => b.gpa < THRESHOLDS.gpaWatch).length, [brotherList, THRESHOLDS]);
   const totalServiceHrs = useMemo(() => brotherList.reduce((s, b) => s + b.serviceHours, 0), [brotherList]);
   const totalDoorRev    = useMemo(() => partyList.reduce((s, e) => s + e.doorRevenue, 0), [partyList]);
-  const onTrackSvc      = useMemo(() => brotherList.filter(b => b.serviceHours >= THRESHOLDS.serviceHoursGoal).length, [brotherList]);
+  const onTrackSvc      = useMemo(() => brotherList.filter(b => b.serviceHours >= THRESHOLDS.serviceHoursGoal).length, [brotherList, THRESHOLDS]);
   const maxRevenue      = useMemo(() => partyList.length ? Math.max(...partyList.map(e => e.doorRevenue)) : 0, [partyList]);
   const bestEvent       = useMemo(() => partyList.length ? partyList.reduce((a, b) => b.doorRevenue > a.doorRevenue ? b : a) : null, [partyList]);
 
   const statusCounts = useMemo(() => ({
-    Good:      brotherList.filter(b => getBrotherStatus(b) === "Good").length,
-    Watch:     brotherList.filter(b => getBrotherStatus(b) === "Watch").length,
-    "At Risk": brotherList.filter(b => getBrotherStatus(b) === "At Risk").length,
-  }), [brotherList]);
+    Good:      brotherList.filter(b => getBrotherStatus(b, THRESHOLDS) === "Good").length,
+    Watch:     brotherList.filter(b => getBrotherStatus(b, THRESHOLDS) === "Watch").length,
+    "At Risk": brotherList.filter(b => getBrotherStatus(b, THRESHOLDS) === "At Risk").length,
+  }), [brotherList, THRESHOLDS]);
 
   // ── Weekly Digest ──────────────────────────────────────────────────────────
   // Forward-looking "this week's agenda" for the current calendar week (Mon–Sun).
@@ -1243,7 +1249,7 @@ export default function Home() {
     let result = brotherList.filter(b => {
       const q = search.toLowerCase();
       return (b.name.toLowerCase().includes(q) || b.role.toLowerCase().includes(q)) &&
-             (statusFilter === "All" || getBrotherStatus(b) === statusFilter);
+             (statusFilter === "All" || getBrotherStatus(b, THRESHOLDS) === statusFilter);
     });
     if (sortKey) {
       result = [...result].sort((a, b) => {
@@ -1252,7 +1258,7 @@ export default function Home() {
       });
     }
     return result;
-  }, [brotherList, search, statusFilter, sortKey, sortDir]);
+  }, [brotherList, search, statusFilter, sortKey, sortDir, THRESHOLDS]);
 
   function toggleSort(key: keyof Brother) {
     if (sortKey === key) setSortDir(d => d === "asc" ? "desc" : "asc");
@@ -1839,7 +1845,7 @@ export default function Home() {
                       {filteredBrothers.length === 0 ? (
                         <tr><td colSpan={7} className="py-10 text-center text-sm text-slate-500">No brothers match your filters.</td></tr>
                       ) : filteredBrothers.map(b => {
-                        const status = getBrotherStatus(b);
+                        const status = getBrotherStatus(b, THRESHOLDS);
                         return (
                           <tr key={b.id} onClick={() => setSelectedBrotherId(b.id)} className="cursor-pointer transition-colors hover:bg-white/[0.03] active:bg-white/[0.06]">
                             <td className={`border-l-2 py-3 pl-4 pr-3 ${BROTHER_STYLES[status].row}`}>

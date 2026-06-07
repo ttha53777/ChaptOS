@@ -13,7 +13,22 @@
 import type OpenAI from "openai";
 import { prisma } from "@/lib/prisma";
 import { isoWeekBounds, DATE_RE } from "@/lib/dates";
-import { THRESHOLDS, getBrotherStatus, round2, type Brother as BrotherType } from "@/app/data";
+import { getBrotherStatus, round2, type Brother as BrotherType } from "@/app/data";
+import { resolveThresholds, type Thresholds } from "@/lib/thresholds";
+
+/**
+ * Resolve the org's member-status thresholds so the assistant reports the same
+ * At-Risk/Watch status the dashboard shows. Reads the shared OrganizationConfig
+ * row (set in Settings → Thresholds); falls back to the app defaults when the
+ * org hasn't customized them.
+ */
+async function orgThresholds(orgId: number): Promise<Thresholds> {
+  const config = await prisma.organizationConfig.findUnique({
+    where: { organizationId: orgId },
+    select: { thresholds: true },
+  });
+  return resolveThresholds(config?.thresholds);
+}
 
 // ────────────────────────────────────────────────────────────────────────────
 // Tool schemas (OpenAI Chat Completions tool format)
@@ -549,6 +564,7 @@ async function listBrothers(args: ToolArgs, orgId: number): Promise<ToolResult> 
   });
   const owesOnly = args.owes_dues_only === true;
   const statusFilter = typeof args.status === "string" ? args.status : "Any";
+  const thresholds = await orgThresholds(orgId);
 
   const mapped = rows
     .map(b => ({
@@ -559,7 +575,7 @@ async function listBrothers(args: ToolArgs, orgId: number): Promise<ToolResult> 
       gpa: r2(b.gpa),
       duesOwed: r2(b.duesOwed),
       serviceHours: r2(b.serviceHours),
-      status: getBrotherStatus(b as BrotherType),
+      status: getBrotherStatus(b as BrotherType, thresholds),
       isAdmin: b.isAdmin,
     }))
     .filter(b => (statusFilter === "Any" ? true : b.status === statusFilter))
@@ -575,11 +591,13 @@ async function getBrother(args: ToolArgs, orgId: number): Promise<ToolResult> {
   const name = typeof args.name === "string" ? args.name.trim() : undefined;
   if (id == null && !name) return { error: "Provide id or name." };
 
+  const thresholds = await orgThresholds(orgId);
+
   // ID path → single record
   if (id != null) {
     const b = await prisma.brother.findFirst({ where: { id, organizationId: orgId } });
     if (!b || b.isGhost) return { error: "Brother not found." };
-    return formatBrotherDetail(b);
+    return formatBrotherDetail(b, thresholds);
   }
 
   // Name path → fuzzy. Try exact (case-insensitive) first; fall back to
@@ -604,10 +622,13 @@ async function getBrother(args: ToolArgs, orgId: number): Promise<ToolResult> {
       candidates: matches.map(b => ({ id: b.id, name: b.name, role: b.role })),
     };
   }
-  return formatBrotherDetail(matches[0]);
+  return formatBrotherDetail(matches[0], thresholds);
 }
 
-async function formatBrotherDetail(b: { id: number; name: string; role: string; attendance: number; gpa: number; duesOwed: number; serviceHours: number; isAdmin: boolean; email: string | null; isGhost: boolean }) {
+async function formatBrotherDetail(
+  b: { id: number; name: string; role: string; attendance: number; gpa: number; duesOwed: number; serviceHours: number; isAdmin: boolean; email: string | null; isGhost: boolean },
+  thresholds: Thresholds,
+) {
   const attendanceCount = await prisma.attendanceRecord.count({ where: { brotherId: b.id, attended: true } });
   return {
     id: b.id,
@@ -617,7 +638,7 @@ async function formatBrotherDetail(b: { id: number; name: string; role: string; 
     gpa: r2(b.gpa),
     duesOwed: r2(b.duesOwed),
     serviceHours: r2(b.serviceHours),
-    status: getBrotherStatus(b as BrotherType),
+    status: getBrotherStatus(b as BrotherType, thresholds),
     isAdmin: b.isAdmin,
     email: b.email,
     eventsAttended: attendanceCount,
@@ -861,7 +882,8 @@ async function weeklyDigest(orgId: number): Promise<ToolResult> {
     prisma.partyEvent.findMany({ where: { organizationId: orgId } }),
     prisma.brother.findMany({ where: { organizationId: orgId, isGhost: false } }),
   ]);
-  const atRiskCount = brothers.filter(b => getBrotherStatus(b as BrotherType) === "At Risk").length;
+  const thresholds = await orgThresholds(orgId);
+  const atRiskCount = brothers.filter(b => getBrotherStatus(b as BrotherType, thresholds) === "At Risk").length;
   return {
     weekRange: { start, end },
     deadlinesDue: deadlines.filter(d => inWeek(d.dueDate)).map(d => ({ id: d.id, title: d.title, dueDate: d.dueDate, owner: d.owner, status: d.status })),
@@ -869,7 +891,7 @@ async function weeklyDigest(orgId: number): Promise<ToolResult> {
     events:       events.filter(e => inWeek(e.date)).map(e => ({ id: e.id, title: e.title, date: e.date, time: e.time })),
     parties:      parties.filter(p => inWeek(p.date)).map(p => ({ id: p.id, name: p.name, date: p.date })),
     atRiskCount,
-    thresholds: THRESHOLDS,
+    thresholds,
   };
 }
 

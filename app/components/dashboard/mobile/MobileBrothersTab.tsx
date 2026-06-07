@@ -4,6 +4,7 @@ import { getBrotherStatus } from "../../../data";
 import { BrotherAvatar } from "../../BrotherAvatar";
 import { AttBar } from "../widgets";
 import { BROTHER_STYLES, inputCls } from "../styles";
+import { useThresholds } from "../../../hooks/useThresholds";
 import type { MobileActions, MobileBrothersData, StatusFilter } from "./MobileDashboard";
 
 const FILTERS: StatusFilter[] = ["All", "Good", "Watch", "At Risk"];
@@ -13,6 +14,7 @@ export function MobileBrothersTab({ brothersData, actions }: {
   actions: MobileActions;
 }) {
   const { filteredBrothers, brotherList, statusCounts, search, statusFilter, selfId, currentUser, avatarRevision } = brothersData;
+  const THRESHOLDS = useThresholds();
 
   return (
     <div className="space-y-3">
@@ -47,7 +49,7 @@ export function MobileBrothersTab({ brothersData, actions }: {
         {filteredBrothers.length === 0 ? (
           <li className="py-10 text-center text-sm text-slate-500">No brothers match your filters.</li>
         ) : filteredBrothers.map(b => {
-          const status = getBrotherStatus(b);
+          const status = getBrotherStatus(b, THRESHOLDS);
           return (
             <li
               key={b.id}

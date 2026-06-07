@@ -29,6 +29,17 @@ export type CreateOrgInput = z.infer<typeof createOrgInput>;
 // dropped so a typo surfaces as a 400. The service layer enforces the always-on
 // workflows (it appends "operations" and the mandatory surfaces), so callers
 // can't accidentally disable core plumbing by omitting it here.
+// Member-status thresholds. A full replace of the org's cutoff set (mirrors the
+// vocab/workflow fields: present → mutate, absent → leave alone). Bounds match
+// lib/thresholds.ts so a value the resolver would reject can't be persisted.
+export const thresholdsInput = z.object({
+  attendanceAtRisk: z.number().min(0).max(100),
+  attendanceWatch:  z.number().min(0).max(100),
+  gpaAtRisk:        z.number().min(0).max(4),
+  gpaWatch:         z.number().min(0).max(4),
+  serviceHoursGoal: z.number().min(0).max(1000),
+});
+
 export const updateOrgConfigInput = z.object({
   enabledWorkflows: z
     .array(
@@ -43,6 +54,7 @@ export const updateOrgConfigInput = z.object({
   vocabularyOverrides: z
     .record(z.string(), z.string().trim().max(40, "Label must be 40 characters or fewer"))
     .optional(),
+  thresholds: thresholdsInput.optional(),
 });
 
 export type UpdateOrgConfigInput = z.infer<typeof updateOrgConfigInput>;

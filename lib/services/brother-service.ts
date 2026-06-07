@@ -10,8 +10,12 @@ export async function listVisibleBrothers(ctx: RequestContext) {
   // Excludes ghost members (Atomic Samurai backdoor users).
   const brothers = await ctx.db.brother.findMany({ where: { isGhost: false }, orderBy: { id: "asc" } });
   const brotherIds = brothers.map(b => b.id);
+  // Scope role assignments to the active org. A multi-org member has BrotherRole
+  // rows in several orgs; without this filter another org's roles leak into this
+  // org's UI as chips that can't be revoked here (the revoke path is org-scoped,
+  // so deleting a foreign-org role 404s / no-ops and the chip reappears on reload).
   const brotherRoles = await prisma.brotherRole.findMany({
-    where: { brotherId: { in: brotherIds } },
+    where: { brotherId: { in: brotherIds }, organizationId: ctx.orgId },
     select: { brotherId: true, role: { select: { id: true, name: true, color: true, rank: true } } },
   });
   const rolesByBrotherId = new Map<number, { id: number; name: string; color: string | null; rank: number }[]>();

@@ -2,9 +2,10 @@
 
 import React, { useEffect, useState, useCallback } from "react";
 import type { Brother } from "../../../data";
-import { THRESHOLDS, fmt$, getBrotherStatus } from "../../../data";
+import { fmt$, getBrotherStatus } from "../../../data";
 import { BrotherAvatar } from "../../BrotherAvatar";
 import { useChapter } from "../../../context/ChapterContext";
+import { useThresholds } from "../../../hooks/useThresholds";
 import { FieldLabel, StatusBadge, ConfirmDialog } from "../primitives";
 import { inputCls } from "../styles";
 import { orgFetch } from "../../../lib/api";
@@ -47,6 +48,7 @@ export function BrotherDrawer({
   selfId?: number | null;
 }) {
   const { currentUser, avatarRevision, can } = useChapter();
+  const THRESHOLDS = useThresholds();
   const canManageRoles = can("MANAGE_ROLES");
   const isSelf = brotherId !== null && selfId === brotherId;
   const canEditProfile = isAdmin || isSelf;        // name, role, gpa, serviceHours
@@ -186,7 +188,7 @@ export function BrotherDrawer({
     }
   }
 
-  const status   = brother ? getBrotherStatus(brother) : "Good";
+  const status   = brother ? getBrotherStatus(brother, THRESHOLDS) : "Good";
 
   const statusRing: Record<typeof status, string> = {
     "Good":    "ring-emerald-500/40 bg-emerald-500/15 text-emerald-400",

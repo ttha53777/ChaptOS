@@ -13,10 +13,19 @@ import { randomUUID } from "node:crypto";
 import { testPrisma, resetDb } from "../setup/prisma";
 import { createOrg, createBrother } from "../setup/factories";
 import { db } from "@/lib/db";
-import { setWorkflows } from "@/lib/services/org-config-service";
+import { setWorkflows, setThresholds } from "@/lib/services/org-config-service";
 import { ForbiddenError } from "@/lib/errors";
 import { ALWAYS_ON_WORKFLOWS } from "@/lib/org-types";
+import { DEFAULT_THRESHOLDS, type Thresholds } from "@/lib/thresholds";
 import type { RequestContext } from "@/lib/context";
+
+const SAMPLE_THRESHOLDS: Thresholds = {
+  attendanceAtRisk: 50,
+  attendanceWatch:  70,
+  gpaAtRisk:        2.0,
+  gpaWatch:         2.5,
+  serviceHoursGoal: 25,
+};
 
 beforeEach(async () => {
   await resetDb();
@@ -161,5 +170,78 @@ describe("setWorkflows: tenancy", () => {
     // Org B is untouched — the scoped db only ever addresses orgA's row.
     const bRow = await testPrisma.organizationConfig.findUnique({ where: { organizationId: orgB.id } });
     expect(bRow?.enabledWorkflows).toEqual(["parties"]);
+  });
+});
+
+describe("setThresholds: happy path", () => {
+  it("persists the chosen cutoffs and returns the resolved set", async () => {
+    const { org, admin } = await seedAdminOrg();
+    const ctx = ctxFor(org.id, admin.id, { isOrgAdmin: true });
+
+    const out = await setThresholds(ctx, SAMPLE_THRESHOLDS);
+    expect(out).toEqual(SAMPLE_THRESHOLDS);
+
+    const row = await testPrisma.organizationConfig.findUnique({ where: { organizationId: org.id } });
+    expect(row?.thresholds).toEqual(SAMPLE_THRESHOLDS);
+  });
+
+  it("self-heals a missing config row via upsert", async () => {
+    const org = await createOrg("No Config Org", "no-config-org");
+    const admin = await createBrother({ orgId: org.id, isOrgAdmin: true });
+    // Deliberately NO config row created.
+    const ctx = ctxFor(org.id, admin.id, { isOrgAdmin: true });
+
+    await setThresholds(ctx, SAMPLE_THRESHOLDS);
+
+    const row = await testPrisma.organizationConfig.findUnique({ where: { organizationId: org.id } });
+    expect(row).not.toBeNull();
+    expect(row?.thresholds).toEqual(SAMPLE_THRESHOLDS);
+  });
+
+  it("emits an org.config.updated operational event", async () => {
+    const { org, admin } = await seedAdminOrg();
+    const ctx = ctxFor(org.id, admin.id, { isOrgAdmin: true });
+
+    await setThresholds(ctx, SAMPLE_THRESHOLDS);
+
+    const events = await testPrisma.operationalEvent.findMany({
+      where: { organizationId: org.id, action: "org.config.updated" },
+    });
+    expect(events).toHaveLength(1);
+  });
+});
+
+describe("setThresholds: authorization", () => {
+  it("rejects a non-admin member with ForbiddenError", async () => {
+    const { org } = await seedAdminOrg();
+    const member = await createBrother({ orgId: org.id, isOrgAdmin: false });
+    const ctx = ctxFor(org.id, member.id, { isOrgAdmin: false });
+
+    await expect(setThresholds(ctx, SAMPLE_THRESHOLDS)).rejects.toBeInstanceOf(ForbiddenError);
+
+    // The config row keeps its default thresholds.
+    const row = await testPrisma.organizationConfig.findUnique({ where: { organizationId: org.id } });
+    expect(row?.thresholds).toEqual({});
+  });
+
+  it("allows a platform admin", async () => {
+    const { org, admin } = await seedAdminOrg();
+    const ctx = ctxFor(org.id, admin.id, { isOrgAdmin: false, isPlatformAdmin: true });
+
+    const out = await setThresholds(ctx, SAMPLE_THRESHOLDS);
+    expect(out.serviceHoursGoal).toBe(SAMPLE_THRESHOLDS.serviceHoursGoal);
+  });
+});
+
+describe("setThresholds: sanitization", () => {
+  it("drops out-of-range values back to defaults before persisting", async () => {
+    const { org, admin } = await seedAdminOrg();
+    const ctx = ctxFor(org.id, admin.id, { isOrgAdmin: true });
+
+    // GPA of 9 is out of the 0–4 range; the resolver replaces it with the default.
+    const out = await setThresholds(ctx, { ...SAMPLE_THRESHOLDS, gpaWatch: 9 });
+
+    expect(out.gpaWatch).toBe(DEFAULT_THRESHOLDS.gpaWatch);
+    expect(out.attendanceAtRisk).toBe(SAMPLE_THRESHOLDS.attendanceAtRisk);
   });
 });

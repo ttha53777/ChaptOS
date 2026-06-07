@@ -1,40 +1,30 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
-import { THRESHOLDS } from "../../../data";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useChapter } from "../../../context/ChapterContext";
+import { requestJson } from "../../../lib/api";
+import { DEFAULT_THRESHOLDS, THRESHOLD_KEYS, type Thresholds } from "@/lib/thresholds";
 
-const STORAGE_KEY = "chaptos_thresholds";
-
-type ThresholdValues = {
-  attendanceAtRisk: number;
-  attendanceWatch: number;
-  gpaAtRisk: number;
-  gpaWatch: number;
-  serviceHoursGoal: number;
-};
-
-function loadThresholds(): ThresholdValues {
-  if (typeof window === "undefined") return { ...THRESHOLDS };
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return { ...THRESHOLDS };
-    return { ...THRESHOLDS, ...JSON.parse(raw) };
-  } catch {
-    return { ...THRESHOLDS };
-  }
-}
+// Settings → Thresholds. Org-wide member-status cutoffs that drive every
+// At-Risk/Watch badge and the health score. Persisted to OrganizationConfig
+// (not localStorage), so every officer shares one set of rules across devices.
+//
+// Follows the VocabSection pattern: ChapterContext is the source of truth, the
+// draft diffs locally to detect unsaved changes, save PATCHes /api/orgs/config
+// then calls refreshChapterData() so the dashboard reflects the new cutoffs
+// without a manual reload.
 
 function ThresholdRow({
   label, field, value, unit = "", step = 1, min = 0, max = 100, onChange,
 }: {
   label: string;
-  field: keyof ThresholdValues;
+  field: keyof Thresholds;
   value: number;
   unit?: string;
   step?: number;
   min?: number;
   max?: number;
-  onChange: (field: keyof ThresholdValues, value: number) => void;
+  onChange: (field: keyof Thresholds, value: number) => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(String(value));
@@ -91,67 +81,104 @@ function ThresholdRow({
   );
 }
 
-export function ThresholdsSection({ onStatus }: { onStatus: (msg: string) => void }) {
-  const [thresholds, setThresholds] = useState<ThresholdValues>({ ...THRESHOLDS });
-  const [loaded, setLoaded] = useState(false);
-  const [dirty, setDirty] = useState(false);
+export function ThresholdsSection({
+  onStatus,
+  onError,
+}: {
+  onStatus: (msg: string) => void;
+  onError: (msg: string) => void;
+}) {
+  const { currentUser, refreshChapterData } = useChapter();
 
+  // Source of truth: the org's resolved thresholds from /me (always complete).
+  const persisted = useMemo<Thresholds>(
+    () => currentUser?.org?.thresholds ?? DEFAULT_THRESHOLDS,
+    [currentUser?.org?.thresholds],
+  );
+  const persistedKey = useMemo(() => JSON.stringify(persisted), [persisted]);
+
+  const [draft, setDraft] = useState<Thresholds>(() => ({ ...persisted }));
+  const [saving, setSaving] = useState(false);
+
+  // Re-sync the draft if the persisted value changes underneath us (another
+  // tab/officer saved, or the first /me load landed after mount).
+  const lastSyncedKey = useRef(persistedKey);
   useEffect(() => {
-    setThresholds(loadThresholds());
-    setLoaded(true);
-  }, []);
+    if (lastSyncedKey.current === persistedKey) return;
+    lastSyncedKey.current = persistedKey;
+    setDraft({ ...persisted });
+  }, [persistedKey, persisted]);
 
-  function update(field: keyof ThresholdValues, value: number) {
-    setThresholds(prev => ({ ...prev, [field]: value }));
-    setDirty(true);
-  }
+  const dirty = useMemo(
+    () => THRESHOLD_KEYS.some(k => draft[k] !== persisted[k]),
+    [draft, persisted],
+  );
 
-  function save() {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(thresholds));
-    setDirty(false);
-    onStatus("Thresholds saved — reload the dashboard to apply.");
+  function update(field: keyof Thresholds, value: number) {
+    setDraft(prev => ({ ...prev, [field]: value }));
   }
 
   function reset() {
-    setThresholds({ ...THRESHOLDS });
-    localStorage.removeItem(STORAGE_KEY);
-    setDirty(false);
-    onStatus("Thresholds reset to defaults.");
+    setDraft({ ...DEFAULT_THRESHOLDS });
   }
 
-  if (!loaded) return <div className="py-8 text-center text-[11px] text-slate-600">Loading…</div>;
+  const save = useCallback(async () => {
+    if (saving) return;
+    setSaving(true);
+    try {
+      await requestJson("/api/orgs/config", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ thresholds: draft }),
+      });
+      await refreshChapterData().catch(() => undefined);
+      onStatus("Thresholds saved for everyone in this org.");
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "";
+      onError(
+        message.includes("403") || /forbidden/i.test(message)
+          ? "Only an org admin can change thresholds."
+          : "Couldn't save your changes. Try again.",
+      );
+    } finally {
+      setSaving(false);
+    }
+  }, [saving, draft, refreshChapterData, onStatus, onError]);
 
   return (
     <div className="space-y-6">
       <p className="text-[12px] text-slate-500">
-        Click any value to edit it inline. Changes are saved locally and applied on next dashboard load.
+        Click any value to edit it inline. These cutoffs apply to everyone in your
+        org and drive the At-Risk / Watch badges and the health score. Saving
+        updates the dashboard for all members.
       </p>
 
       <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-4">
         <p className="pt-4 pb-1 text-[11px] font-semibold uppercase tracking-widest text-slate-600">Attendance</p>
-        <ThresholdRow label="At risk below" field="attendanceAtRisk" value={thresholds.attendanceAtRisk} unit="%" step={1} min={0} max={100} onChange={update} />
-        <ThresholdRow label="Watch below"   field="attendanceWatch"  value={thresholds.attendanceWatch}  unit="%" step={1} min={0} max={100} onChange={update} />
+        <ThresholdRow label="At risk below" field="attendanceAtRisk" value={draft.attendanceAtRisk} unit="%" step={1} min={0} max={100} onChange={update} />
+        <ThresholdRow label="Watch below"   field="attendanceWatch"  value={draft.attendanceWatch}  unit="%" step={1} min={0} max={100} onChange={update} />
 
         <p className="pt-5 pb-1 text-[11px] font-semibold uppercase tracking-widest text-slate-600">GPA</p>
-        <ThresholdRow label="At risk below" field="gpaAtRisk" value={thresholds.gpaAtRisk} unit="" step={0.1} min={0} max={4} onChange={update} />
-        <ThresholdRow label="Watch below"   field="gpaWatch"   value={thresholds.gpaWatch}   unit="" step={0.1} min={0} max={4} onChange={update} />
+        <ThresholdRow label="At risk below" field="gpaAtRisk" value={draft.gpaAtRisk} unit="" step={0.1} min={0} max={4} onChange={update} />
+        <ThresholdRow label="Watch below"   field="gpaWatch"   value={draft.gpaWatch}   unit="" step={0.1} min={0} max={4} onChange={update} />
 
         <p className="pt-5 pb-1 text-[11px] font-semibold uppercase tracking-widest text-slate-600">Service</p>
-        <ThresholdRow label="Hours goal" field="serviceHoursGoal" value={thresholds.serviceHoursGoal} unit="h" step={1} min={0} max={200} onChange={update} />
+        <ThresholdRow label="Hours goal" field="serviceHoursGoal" value={draft.serviceHoursGoal} unit="h" step={1} min={0} max={1000} onChange={update} />
         <div className="pb-1" />
       </div>
 
       <div className="flex items-center gap-2">
         <button
           onClick={save}
-          disabled={!dirty}
+          disabled={!dirty || saving}
           className="rounded-lg bg-indigo-600 px-4 py-2 text-[12px] font-semibold text-white transition-all hover:bg-indigo-500 disabled:cursor-default disabled:opacity-30"
         >
-          Save thresholds
+          {saving ? "Saving…" : "Save thresholds"}
         </button>
         <button
           onClick={reset}
-          className="rounded-lg border border-white/[0.1] bg-white/[0.04] px-4 py-2 text-[12px] font-medium text-slate-400 transition-colors hover:bg-white/[0.08]"
+          disabled={saving}
+          className="rounded-lg border border-white/[0.1] bg-white/[0.04] px-4 py-2 text-[12px] font-medium text-slate-400 transition-colors hover:bg-white/[0.08] disabled:cursor-default disabled:opacity-30"
         >
           Reset to defaults
         </button>

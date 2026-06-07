@@ -63,11 +63,18 @@ model Organization {
 // `vocabularyOverrides` is a sparse map of canonical-term overrides (e.g.
 // { "Member": "Brother", "Period": "Semester" }). Consumed by UI components
 // that respect canonical aliases. Empty by default.
+//
+// `thresholds` is a sparse map of the org's at-risk/watch cutoffs (attendance,
+// GPA, service-hours goal). Drives every member-status badge and the health
+// score. Empty {} means "use the app defaults" (lib/thresholds.ts DEFAULT_THRESHOLDS).
+// Previously stored per-browser in localStorage — moved here so every officer
+// shares one set of rules.
 model OrganizationConfig {
   id                  Int      @id @default(autoincrement())
   organizationId      Int      @unique
   enabledWorkflows    String[] @default([])
   vocabularyOverrides Json     @default("{}")
+  thresholds          Json     @default("{}")
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 

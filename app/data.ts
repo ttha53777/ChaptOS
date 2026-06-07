@@ -88,13 +88,14 @@ export interface CalendarEvent {
 
 // ─── Thresholds ───────────────────────────────────────────────────────────────
 
-export const THRESHOLDS = {
-  attendanceAtRisk: 65,
-  attendanceWatch: 80,
-  gpaAtRisk: 2.7,
-  gpaWatch: 3.0,
-  serviceHoursGoal: 10,
-} as const;
+// Canonical default cutoffs now live in lib/thresholds.ts so server code can
+// import them without reaching into app/. Re-exported here under the historical
+// name so existing `import { THRESHOLDS } from "../data"` call sites keep working
+// as the app-wide fallback. Per-org overrides flow through useThresholds() /
+// resolveThresholds() and are passed explicitly to the helpers below.
+import { DEFAULT_THRESHOLDS, type Thresholds } from "@/lib/thresholds";
+export type { Thresholds } from "@/lib/thresholds";
+export const THRESHOLDS = DEFAULT_THRESHOLDS;
 
 // ─── Mock Data ────────────────────────────────────────────────────────────────
 
@@ -292,12 +293,13 @@ export const KPI_SPARKLINES = {
 
 export function calcHealthScore(
   bList: Brother[],
-  dList: Deadline[]
+  dList: Deadline[],
+  thresholds: Thresholds = THRESHOLDS,
 ): { score: number; label: "Healthy" | "Needs Attention" | "Critical"; breakdown: Record<string, number> } {
   const attScore  = Math.min(100, avg(bList.map(b => b.attendance)));
   const gpaScore  = Math.min(100, Math.max(0, ((avg(bList.map(b => b.gpa)) - 2.0) / 2.0) * 100));
   const duesScore = bList.length ? (bList.filter(b => b.duesOwed === 0).length / bList.length) * 100 : 0;
-  const svcScore  = bList.length ? (bList.filter(b => b.serviceHours >= THRESHOLDS.serviceHoursGoal).length / bList.length) * 100 : 0;
+  const svcScore  = bList.length ? (bList.filter(b => b.serviceHours >= thresholds.serviceHoursGoal).length / bList.length) * 100 : 0;
   const urgentPenalty = dList.filter(d => d.status === "Urgent").length * 15;
   const dlScore   = Math.max(0, 100 - urgentPenalty);
   const score = Math.min(100, Math.max(0, Math.round(attScore * 0.30 + gpaScore * 0.25 + duesScore * 0.20 + svcScore * 0.15 + dlScore * 0.10)));
@@ -317,13 +319,13 @@ export function calcHealthScore(
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-export function getBrotherStatus(b: Brother): BrotherStatus {
-  if (b.attendance < THRESHOLDS.attendanceAtRisk || b.gpa < THRESHOLDS.gpaAtRisk) return "At Risk";
+export function getBrotherStatus(b: Brother, thresholds: Thresholds = THRESHOLDS): BrotherStatus {
+  if (b.attendance < thresholds.attendanceAtRisk || b.gpa < thresholds.gpaAtRisk) return "At Risk";
   if (
-    b.attendance < THRESHOLDS.attendanceWatch ||
-    b.gpa < THRESHOLDS.gpaWatch ||
+    b.attendance < thresholds.attendanceWatch ||
+    b.gpa < thresholds.gpaWatch ||
     b.duesOwed > 0 ||
-    b.serviceHours < THRESHOLDS.serviceHoursGoal
+    b.serviceHours < thresholds.serviceHoursGoal
   )
     return "Watch";
   return "Good";
