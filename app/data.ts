@@ -37,6 +37,7 @@ export interface Brother {
   gpa: number;
   serviceHours: number;
   avatarUrl?: string | null;
+  roles?: { id: number; name: string; color: string | null; rank: number }[];
 }
 
 export interface Deadline {

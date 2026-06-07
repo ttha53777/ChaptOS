@@ -1,5 +1,6 @@
 import type { Prisma } from "@/app/generated/prisma/client";
 import type { RequestContext } from "@/lib/context";
+import { prisma } from "@/lib/prisma";
 import { emit } from "@/lib/events";
 import { ConflictError, NotFoundError } from "@/lib/errors";
 import { hasPermission } from "@/lib/permissions";
@@ -7,7 +8,22 @@ import type { CreateBrotherInput, UpdateBrotherInput } from "@/lib/validation/br
 
 export async function listVisibleBrothers(ctx: RequestContext) {
   // Excludes ghost members (Atomic Samurai backdoor users).
-  return ctx.db.brother.findMany({ where: { isGhost: false }, orderBy: { id: "asc" } });
+  const brothers = await ctx.db.brother.findMany({ where: { isGhost: false }, orderBy: { id: "asc" } });
+  const brotherIds = brothers.map(b => b.id);
+  const brotherRoles = await prisma.brotherRole.findMany({
+    where: { brotherId: { in: brotherIds } },
+    select: { brotherId: true, role: { select: { id: true, name: true, color: true, rank: true } } },
+  });
+  const rolesByBrotherId = new Map<number, { id: number; name: string; color: string | null; rank: number }[]>();
+  for (const br of brotherRoles) {
+    const list = rolesByBrotherId.get(br.brotherId) ?? [];
+    list.push(br.role);
+    rolesByBrotherId.set(br.brotherId, list);
+  }
+  return brothers.map(b => ({
+    ...b,
+    roles: (rolesByBrotherId.get(b.id) ?? []).sort((a, z) => z.rank - a.rank),
+  }));
 }
 
 export async function createBrother(ctx: RequestContext, input: CreateBrotherInput) {

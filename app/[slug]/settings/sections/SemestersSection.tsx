@@ -109,8 +109,8 @@ export function SemestersSection({
   onStatus: (msg: string) => void;
   onError: (msg: string) => void;
 }) {
-  const { currentUser } = useChapter();
-  const isAdmin = currentUser?.isAdmin ?? false;
+  const { can } = useChapter();
+  const canManage = can("MANAGE_SEMESTERS");
   const [semesters, setSemesters] = useState<Semester[]>([]);
   const [loading, setLoading] = useState(true);
   const [activating, setActivating] = useState<number | null>(null);
@@ -146,7 +146,7 @@ export function SemestersSection({
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <p className="text-[12px] text-slate-500">Switch the active semester or create a new one.</p>
-          {isAdmin && (
+          {canManage && (
             <button
               onClick={() => setNewOpen(true)}
               className="flex items-center gap-1.5 rounded-lg border border-indigo-500/30 bg-indigo-500/10 px-3 py-1.5 text-[11px] font-medium text-indigo-400 transition-colors hover:bg-indigo-500/20"
@@ -181,7 +181,7 @@ export function SemestersSection({
                   </div>
                   <p className="mt-0.5 text-[11px] text-slate-600">{s.startDate} – {s.endDate}</p>
                 </div>
-                {!s.isActive && isAdmin && (
+                {!s.isActive && canManage && (
                   <button
                     onClick={() => setActive(s.id)}
                     disabled={activating === s.id}

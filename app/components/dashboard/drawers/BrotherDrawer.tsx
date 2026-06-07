@@ -8,6 +8,7 @@ import { useChapter } from "../../../context/ChapterContext";
 import { FieldLabel, StatusBadge, ConfirmDialog } from "../primitives";
 import { inputCls } from "../styles";
 import { orgFetch } from "../../../lib/api";
+import { BrotherRoleChips } from "../../../[slug]/settings/sections/BrotherRoleChips";
 
 type AttendanceRow = {
   calendarEventId: number;
@@ -45,7 +46,8 @@ export function BrotherDrawer({
   /** Brother id of the current viewer; used to allow self-edits when not admin. */
   selfId?: number | null;
 }) {
-  const { currentUser, avatarRevision } = useChapter();
+  const { currentUser, avatarRevision, can } = useChapter();
+  const canManageRoles = can("MANAGE_ROLES");
   const isSelf = brotherId !== null && selfId === brotherId;
   const canEditProfile = isAdmin || isSelf;        // name, role, gpa, serviceHours
   const canManageDues  = isAdmin;                  // duesOwed field + "Mark Paid"
@@ -62,6 +64,7 @@ export function BrotherDrawer({
   const [addHours,     setAddHours]     = useState("");
   const [dirty,        setDirty]        = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [roleError, setRoleError] = useState<string | null>(null);
 
   // Attendance history
   const [history,      setHistory]      = useState<AttendanceRow[]>([]);
@@ -88,6 +91,7 @@ export function BrotherDrawer({
     setHistError(null);
     setExcusingEventId(null);
     setExcuseReason("");
+    setRoleError(null);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [brotherId]);
 
@@ -379,6 +383,21 @@ export function BrotherDrawer({
                       ))}
                     </div>
                   </div>
+
+                  {/* Roles — visible to anyone who can manage roles */}
+                  {canManageRoles && (
+                    <div>
+                      <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500">Roles</p>
+                      {roleError && (
+                        <p className="mb-1.5 text-[11px] text-red-400">{roleError}</p>
+                      )}
+                      <BrotherRoleChips
+                        brotherId={brother.id}
+                        initialRoles={brother.roles ?? []}
+                        onError={setRoleError}
+                      />
+                    </div>
+                  )}
 
                   {/* Edit form — only when admin or viewing self */}
                   {canEditProfile && (
