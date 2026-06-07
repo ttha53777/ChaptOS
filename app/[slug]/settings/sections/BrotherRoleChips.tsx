@@ -110,7 +110,15 @@ export function BrotherRoleChips({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ roleId: role.id }),
       });
-      setAssigned(prev => [...prev, role].sort((a, b) => b.rank - a.rank));
+      // Idempotent insert: never add a role the brother already holds. Guards
+      // against a double-click / fast re-grant racing ahead of this state update,
+      // which would otherwise show the same role chip twice (the DB composite PK
+      // already rejects a true duplicate row — this keeps the UI in sync).
+      setAssigned(prev =>
+        prev.some(r => r.id === role.id)
+          ? prev
+          : [...prev, role].sort((a, b) => b.rank - a.rank)
+      );
       setPicking(false);
       onChange?.();
     } catch (err) {

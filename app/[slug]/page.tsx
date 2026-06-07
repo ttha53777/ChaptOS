@@ -1638,6 +1638,18 @@ export default function Home() {
             <p className="hidden text-[11px] leading-tight text-slate-400 sm:block">{currentUser?.org?.name ?? "ChaptOS"}</p>
           </div>
 
+          {/* My Standing — opens the member's own record in the existing Brother
+              drawer (dues / attendance / service / excuse history). Only shown when
+              the signed-in user has a roster record to open. */}
+          {selfId !== null && brotherList.some(b => b.id === selfId) && (
+            <button onClick={() => setSelectedBrotherId(selfId)} className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-1.5 text-[12px] font-medium text-slate-300 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition-all duration-150 hover:border-indigo-500/40 hover:bg-indigo-500/10 hover:text-indigo-200 focus:outline-none">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="h-3.5 w-3.5 text-slate-400">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+              </svg>
+              <span className="hidden sm:inline">My Standing</span>
+            </button>
+          )}
+
           {/* Quick Actions */}
           <div className="hidden items-center gap-1.5 lg:flex">
             <QuickActionsMenu isAdmin={isAdmin || canTreasury || canAttendance} onSelect={handleQuickAction} />

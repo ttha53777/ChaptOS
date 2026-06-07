@@ -35,7 +35,13 @@ export interface MembershipSummary {
  *      honored if it maps to one of the user's memberships (non-enumerable).
  *   2. active_org_id cookie — for slug-less entry points (/, switcher, slug-less
  *      API calls). Wins only if it points at a membership.
- *   3. homeOrgId — the legacy Brother.organizationId default.
+ *   3. homeOrgId — the legacy Brother.organizationId default, but ONLY when it's
+ *      still an actual membership. A stale home org (the user was removed from
+ *      that org but Brother.organizationId still points there) must NOT silently
+ *      grant access, so we fall back to the first real membership instead. When
+ *      there are no memberships at all we still return homeOrgId to keep the
+ *      numeric contract — buildContext() denies the actual access (a non-member,
+ *      non-platform-admin gets a 403 there, not here).
  *
  * `cookieOrgId` is the org the cookie alone resolves to (null if unset/invalid),
  * surfaced so a slug-driven caller can detect a stale cookie and align it.
@@ -58,7 +64,15 @@ export function resolveActiveOrg(args: {
       ? parsed
       : null;
 
-  const activeOrgId = slugMembership?.organizationId ?? cookieOrgId ?? homeOrgId;
+  // Only trust homeOrgId when it's still a real membership; otherwise fall back
+  // to the first membership so a stale Brother.organizationId can't steer the
+  // user into an org they were removed from. The trailing homeOrgId keeps the
+  // return numeric when the user has zero memberships (buildContext gates that).
+  const homeIsMember = memberships.some(m => m.organizationId === homeOrgId);
+  const activeOrgId =
+    slugMembership?.organizationId ??
+    cookieOrgId ??
+    (homeIsMember ? homeOrgId : memberships[0]?.organizationId ?? homeOrgId);
   return { activeOrgId, cookieOrgId };
 }
 

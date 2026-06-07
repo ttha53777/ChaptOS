@@ -70,6 +70,19 @@ export async function buildContext(opts: BuildContextOpts = {}): Promise<BuildCo
   // ── Resolve isOrgAdmin for the active org ─────────────────────────────────
   // requireUser() already loaded memberships; find the one for the active org.
   const activeMembership = user.memberships.find(m => m.organizationId === user.orgId);
+
+  // ── Membership gate (authoritative tenancy check) ─────────────────────────
+  // Org access requires an actual Membership in the resolved org. resolveActiveOrg
+  // can still surface an org (e.g. a stale Brother.organizationId, or a platform
+  // admin's home org) without a matching membership, and most read routes don't
+  // pass requirePerm — so without this gate a removed member would keep org-scoped
+  // ctx.db access. Platform admins are exempt: they may operate on any org (their
+  // active-org cookie drives which), matching the /[slug] layout's documented
+  // cross-org allowance.
+  if (!activeMembership && !user.isPlatformAdmin) {
+    return { error: Response.json({ error: "Forbidden" }, { status: 403 }) };
+  }
+
   const isOrgAdmin = activeMembership?.isOrgAdmin ?? false;
 
   // ── Resolve permission bitfield + maxRank ─────────────────────────────────

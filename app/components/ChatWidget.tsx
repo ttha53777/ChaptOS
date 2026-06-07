@@ -96,9 +96,10 @@ function MarkdownLite({ text, trailing }: { text: string; trailing?: ReactNode }
 
   for (const raw of lines) {
     const line = raw.trimEnd();
-    const heading = /^(#{1,3})\s+(.*)$/.exec(line);
+    const heading = /^(#{1,6})\s+(.*)$/.exec(line);
     const bullet = /^\s*[-*]\s+(.*)$/.exec(line);
-    const numbered = /^\s*\d+\.\s+(.*)$/.exec(line);
+    // Match both "1." and "1)" — the model uses either for ordered lists.
+    const numbered = /^\s*\d+[.)]\s+(.*)$/.exec(line);
 
     if (bullet) {
       if (list && list.ordered) flushList();

@@ -75,6 +75,28 @@ describe("resolveActiveOrg", () => {
     expect(cookieOrgId).toBeNull();
   });
 
+  it("does NOT fall back to a stale home org the user is no longer a member of", () => {
+    // The user was removed from org 1 (their old home org) but Brother.organizationId
+    // still points at it. With no slug and no cookie, the resolver must NOT steer them
+    // back into org 1 — it falls back to a real membership instead. (buildContext is the
+    // authoritative gate, but this stops the silent mis-steer at the source.)
+    const { activeOrgId } = resolveActiveOrg({
+      memberships: [{ organizationId: 2, orgSlug: "beta" }],
+      cookieValue: undefined,
+      homeOrgId: 1, // stale: not in memberships
+    });
+    expect(activeOrgId).toBe(2);
+  });
+
+  it("returns homeOrgId when the user has zero memberships (numeric contract; buildContext denies access)", () => {
+    const { activeOrgId } = resolveActiveOrg({
+      memberships: [],
+      cookieValue: undefined,
+      homeOrgId: 1,
+    });
+    expect(activeOrgId).toBe(1);
+  });
+
   it("reports cookieOrgId independently of the slug-driven activeOrgId (stale-cookie detection)", () => {
     // Cookie still points at alpha, but the URL drove us to beta. The layout
     // uses cookieOrgId !== membership.org to fire a background cookie sync.
