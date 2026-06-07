@@ -88,7 +88,7 @@ export interface EventMetadata {
 
   // Onboarding
   "org.created": { name: string; slug: string; orgType: string; founderName: string };
-  "org.config.updated": { enabledWorkflows: string[] };
+  "org.config.updated": { enabledWorkflows?: string[]; vocabularyOverrides?: Record<string, string> };
   "org.logo.updated": { cleared: boolean };
 
   // Invite links

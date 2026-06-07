@@ -6,6 +6,7 @@ import { UserAvatar } from "../../components/UserAvatar";
 import { Modal, FieldLabel, ConfirmDialog, SaveIndicator, LoadingSpinner } from "../../components/dashboard/primitives";
 import { useToast } from "../../components/dashboard/Toast";
 import { useChapter } from "../../context/ChapterContext";
+import { useVocab } from "../../hooks/useVocab";
 import { headerActionBtnCls, inputCls } from "../../components/dashboard/styles";
 import { CalendarEvent, fmtDate } from "../../data";
 
@@ -436,6 +437,7 @@ function MeetingDetailOverlay({
 export default function ChapterPage() {
   const toast = useToast();
   const { currentUser } = useChapter();
+  const v = useVocab();
   const [sidebarOpen,   setSidebarOpen]   = useState(false);
   const [events,        setEvents]        = useState<CalendarEvent[]>([]);
   const [loading,       setLoading]       = useState(true);
@@ -670,8 +672,8 @@ export default function ChapterPage() {
           </button>
 
           <div className="min-w-0 flex-1">
-            <p className="text-[14px] font-semibold leading-tight text-white">Chapter</p>
-            <p className="hidden text-[11px] leading-tight text-slate-400 sm:block">{currentUser?.org?.name ?? "ChaptOS"} · Chapter Meetings</p>
+            <p className="text-[14px] font-semibold leading-tight text-white">{v("Meetings")}</p>
+            <p className="hidden text-[11px] leading-tight text-slate-400 sm:block">{currentUser?.org?.name ?? "ChaptOS"} · {v("Meetings")}</p>
           </div>
 
           <button

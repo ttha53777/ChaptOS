@@ -23,7 +23,7 @@ function normalizeCurrentUser(me: CurrentUser): CurrentUser {
     // Defensive: an older/cached /me payload may omit enabledWorkflows. Default
     // to an empty array so the sidebar filter never reads `.includes` of
     // undefined — the Sidebar treats the always-on surfaces as visible regardless.
-    org: me.org ? { ...me.org, logoUrl: me.org.logoUrl ?? null, enabledWorkflows: me.org.enabledWorkflows ?? [] } : null,
+    org: me.org ? { ...me.org, logoUrl: me.org.logoUrl ?? null, enabledWorkflows: me.org.enabledWorkflows ?? [], vocabularyOverrides: me.org.vocabularyOverrides ?? {} } : null,
   };
 }
 
@@ -68,8 +68,10 @@ export interface CurrentUser {
   roles: CurrentUserRole[];
   /** Current active org (resolved by active_org_id cookie or default).
    *  `enabledWorkflows` drives which sidebar surfaces render — see Sidebar.tsx.
-   *  `logoUrl` is the org profile picture (null → gradient initials badge). */
-  org: { name: string; slug: string; logoUrl: string | null; enabledWorkflows: string[] } | null;
+   *  `logoUrl` is the org profile picture (null → gradient initials badge).
+   *  `vocabularyOverrides` is a sparse map of canonical-term substitutions —
+   *  read via useVocab() rather than directly. */
+  org: { name: string; slug: string; logoUrl: string | null; enabledWorkflows: string[]; vocabularyOverrides: Record<string, string> } | null;
   orgId: number;
   /** All orgs this user belongs to. UI renders a switcher when length > 1. */
   memberships: MembershipSummary[];

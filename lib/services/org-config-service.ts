@@ -16,7 +16,7 @@ import type { RequestContext } from "@/lib/context";
 import { emit } from "@/lib/events";
 import { ForbiddenError } from "@/lib/errors";
 import { ALWAYS_ON_WORKFLOWS, ALL_WORKFLOWS, type WorkflowId } from "@/lib/org-types";
-import type { UpdateOrgConfigInput } from "@/lib/validation/org";
+import { VOCAB_KEYS, type VocabKey, type VocabOverrides } from "@/lib/vocab";
 
 export interface OrgConfigDTO {
   enabledWorkflows: WorkflowId[];
@@ -41,7 +41,7 @@ export interface OrgConfigDTO {
  */
 export async function setWorkflows(
   ctx: RequestContext,
-  input: UpdateOrgConfigInput,
+  input: { enabledWorkflows: string[] },
 ): Promise<OrgConfigDTO> {
   if (!ctx.isOrgAdmin && !ctx.isPlatformAdmin) {
     throw new ForbiddenError("Only an org admin can change enabled workflows");
@@ -63,4 +63,27 @@ export async function setWorkflows(
   });
 
   return { enabledWorkflows };
+}
+
+/** Replace the org's vocabulary overrides. Authorization: org admins only. */
+export async function setVocab(
+  ctx: RequestContext,
+  overrides: Record<string, string>,
+): Promise<void> {
+  if (!ctx.isOrgAdmin && !ctx.isPlatformAdmin) {
+    throw new ForbiddenError("Only an org admin can change vocabulary");
+  }
+
+  // Strip unknown keys so arbitrary client input can't pollute the JSON column.
+  const validKeys = new Set<string>(VOCAB_KEYS);
+  const sanitized: VocabOverrides = {};
+  for (const [k, v] of Object.entries(overrides)) {
+    if (validKeys.has(k)) sanitized[k as VocabKey] = v;
+  }
+
+  await ctx.db.organizationConfig.upsert({ vocabularyOverrides: sanitized });
+
+  await emit(ctx, "org.config.updated", { type: "Organization", id: ctx.orgId }, {
+    vocabularyOverrides: sanitized,
+  });
 }

@@ -505,11 +505,11 @@ function scopedOrganizationConfig(orgId: number) {
      * throwing P2025 on update. organizationId is injected, never taken from the
      * caller, so it can't be spoofed across tenants.
      */
-    upsert: (data: { enabledWorkflows: string[] }) =>
+    upsert: (data: { enabledWorkflows?: string[]; vocabularyOverrides?: Record<string, string> }) =>
       prisma.organizationConfig.upsert({
         where:  { organizationId: orgId },
-        update: { enabledWorkflows: data.enabledWorkflows },
-        create: { organizationId: orgId, enabledWorkflows: data.enabledWorkflows },
+        update: data,
+        create: { organizationId: orgId, ...data },
       }),
   };
 }

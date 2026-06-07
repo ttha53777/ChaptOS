@@ -11,11 +11,12 @@ import { RolesSection } from "./sections/RolesSection";
 import { ActivityLogSection } from "./sections/ActivityLogSection";
 import { InvitationsSection } from "./sections/InvitationsSection";
 import { WorkflowsSection } from "./sections/WorkflowsSection";
+import { VocabSection } from "./sections/VocabSection";
 import { useChapter } from "../../context/ChapterContext";
 
 // ─── Nav config ───────────────────────────────────────────────────────────────
 
-type SectionId = "general" | "thresholds" | "semesters" | "accounts" | "invitations" | "workflows" | "roles" | "activity-log";
+type SectionId = "general" | "thresholds" | "semesters" | "accounts" | "invitations" | "workflows" | "vocabulary" | "roles" | "activity-log";
 
 interface NavItem {
   id: SectionId;
@@ -69,6 +70,14 @@ const NAV_ITEMS: NavItem[] = [
     group: "System",
     // Squares / grid icon — signals toggling product surfaces on and off.
     icon: "M4 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM14 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zM4 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1v-4zM14 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z",
+  },
+  {
+    id: "vocabulary",
+    label: "Vocabulary",
+    description: "Rename canonical terms to match your org's language",
+    group: "System",
+    // Chat bubble / speech icon — signals language/terminology.
+    icon: "M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z",
   },
   {
     id: "roles",
@@ -143,6 +152,7 @@ export default function SettingsPage() {
     if (n.id === "roles")       return canManageRoles;
     if (n.id === "invitations") return canManageSettings;
     if (n.id === "workflows")   return canManageSettings;
+    if (n.id === "vocabulary")  return canManageSettings;
     return true;
   });
 
@@ -152,7 +162,8 @@ export default function SettingsPage() {
   useEffect(() => {
     if (activeId === "roles" && !canManageRoles) setActiveId("general");
     if (activeId === "invitations" && !canManageSettings) setActiveId("general");
-    if (activeId === "workflows" && !canManageSettings) setActiveId("general");
+    if (activeId === "workflows"   && !canManageSettings) setActiveId("general");
+    if (activeId === "vocabulary"  && !canManageSettings) setActiveId("general");
   }, [activeId, canManageRoles, canManageSettings]);
 
   useEffect(() => {
@@ -305,6 +316,9 @@ export default function SettingsPage() {
               )}
               {activeId === "workflows" && (
                 <WorkflowsSection onStatus={setStatusMsg} onError={setPageError} />
+              )}
+              {activeId === "vocabulary" && (
+                <VocabSection onStatus={setStatusMsg} onError={setPageError} />
               )}
               {activeId === "roles" && (
                 <RolesSection onStatus={setStatusMsg} onError={setPageError} />

@@ -27,7 +27,7 @@ export async function GET() {
           logoUrl: true,
           // The sidebar and onboarding picker filter surfaces by the org's
           // enabled workflows. Pull it in the same round-trip as the org name.
-          config: { select: { enabledWorkflows: true } },
+          config: { select: { enabledWorkflows: true, vocabularyOverrides: true } },
         },
       }),
       createServerSupabaseClient(),
@@ -85,6 +85,7 @@ export async function GET() {
             // Milestone-1 migration backfills every org, so this is belt-and-
             // suspenders) — showing all pages is the safe default, hiding them is not.
             enabledWorkflows: org.config?.enabledWorkflows ?? [...ALL_WORKFLOWS],
+            vocabularyOverrides: (org.config?.vocabularyOverrides ?? {}) as Record<string, string>,
           }
         : null,
       orgId: user.orgId,

@@ -7,6 +7,7 @@ import { UserAvatar } from "../../components/UserAvatar";
 import { Modal, FieldLabel } from "../../components/dashboard/primitives";
 import { headerActionBtnCls, inputCls } from "../../components/dashboard/styles";
 import { useChapter } from "../../context/ChapterContext";
+import { useVocab } from "../../hooks/useVocab";
 import { Brother, THRESHOLDS, fmtDate } from "../../data";
 import { requestJson } from "../../lib/api";
 
@@ -49,6 +50,7 @@ const EMPTY_FORM = { title: "", date: "", location: "", notes: "" };
 
 export default function ServicePage() {
   const { currentUser, brotherList, setBrotherList, isLoading, avatarRevision, can } = useChapter();
+  const v = useVocab();
   const canService = can("MANAGE_SERVICE");
   const selfId     = currentUser?.id ?? null;
 
@@ -187,7 +189,7 @@ export default function ServicePage() {
               </svg>
             </button>
             <div>
-              <h1 className="text-[15px] font-semibold text-white">Community Service</h1>
+              <h1 className="text-[15px] font-semibold text-white">{v("Service")}</h1>
               <p className="text-[11px] text-slate-500">{onTrackCount} / {brotherList.length} on track · {THRESHOLDS.serviceHoursGoal}h goal</p>
             </div>
           </div>

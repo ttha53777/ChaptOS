@@ -38,7 +38,11 @@ export const updateOrgConfigInput = z.object({
           message: "Unknown workflow",
         }),
     )
-    .max(ALL_WORKFLOWS.length, "Too many workflows"),
+    .max(ALL_WORKFLOWS.length, "Too many workflows")
+    .optional(),
+  vocabularyOverrides: z
+    .record(z.string(), z.string().trim().max(40, "Label must be 40 characters or fewer"))
+    .optional(),
 });
 
 export type UpdateOrgConfigInput = z.infer<typeof updateOrgConfigInput>;

@@ -103,9 +103,8 @@ const FRATERNITY: OrgTypeTemplate = {
     { name: "PR",        color: "#3B82F6", rank: 50, permissions: ["MANAGE_INSTAGRAM"] },
   ],
   vocabularyOverrides: {
-    Member: "Brother",
-    Period: "Semester",
-    Org:    "Chapter",
+    Member:   "Brother",
+    Meetings: "Chapter",
   },
 };
 

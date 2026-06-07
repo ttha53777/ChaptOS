@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import type { WorkflowId } from "@/lib/org-types";
 import { useOrgPath } from "../hooks/useOrgPath";
 import { useChapter } from "../context/ChapterContext";
+import { useVocab } from "../hooks/useVocab";
 import { OrgSwitcher } from "./OrgSwitcher";
 
 // ─── Icon paths ───────────────────────────────────────────────────────────────
@@ -100,8 +101,20 @@ export function Sidebar({ open, onClose, activeSection, onNavClick }: {
   const router   = useRouter();
   const orgPath  = useOrgPath();
   const { currentUser } = useChapter();
+  const v = useVocab();
   const orgName = currentUser?.org?.name ?? "Operations";
   const logoUrl = currentUser?.org?.logoUrl ?? null;
+
+  // Display labels for vocab-driven nav items. Routing keys (NAV_WORKFLOW_MAP,
+  // NAV_ICONS, isStandalone checks) remain the original string — only the
+  // rendered text changes.
+  const NAV_DISPLAY: Record<string, string> = {
+    Brotherhood: v("Member", true),
+    Chapter:     v("Meetings"),
+    Treasury:    v("Treasury"),
+    Service:     v("Service"),
+    Events:      v("Event", true),
+  };
 
   // Path *within* the org, i.e. pathname with the leading "/[slug]" segment
   // removed. "/lpe" → "/", "/lpe/treasury" → "/treasury". Active-state checks
@@ -200,6 +213,8 @@ export function Sidebar({ open, onClose, activeSection, onNavClick }: {
                               ? subPath.startsWith("/service")
                               : subPath === "/" && activeSection === label;
 
+              const displayLabel = NAV_DISPLAY[label] ?? label;
+
               if (isStandalone) {
                 return (
                   <Link
@@ -210,7 +225,7 @@ export function Sidebar({ open, onClose, activeSection, onNavClick }: {
                     className={navItemClass(isActive)}
                   >
                     <SvgIcon d={NAV_ICONS[label] ?? ""} className="h-4 w-4 shrink-0 opacity-75" />
-                    {label}
+                    {displayLabel}
                     {isActive && <span className="ml-auto h-1.5 w-1.5 rounded-full bg-indigo-400" aria-hidden="true" />}
                   </Link>
                 );
@@ -224,7 +239,7 @@ export function Sidebar({ open, onClose, activeSection, onNavClick }: {
                   className={navItemClass(isActive)}
                 >
                   <SvgIcon d={NAV_ICONS[label] ?? ""} className="h-4 w-4 shrink-0 opacity-75" />
-                  {label}
+                  {displayLabel}
                   {isActive && <span className="ml-auto h-1.5 w-1.5 rounded-full bg-indigo-400" aria-hidden="true" />}
                 </button>
               );

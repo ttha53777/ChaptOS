@@ -19,6 +19,7 @@ import { Modal, FieldLabel } from "../../components/dashboard/primitives";
 import { inputCls } from "../../components/dashboard/styles";
 import { BudgetView } from "../../components/treasury/BudgetView";
 import { useChapter } from "../../context/ChapterContext";
+import { useVocab } from "../../hooks/useVocab";
 import {
   Transaction, PartyEvent, Brother,
   INCOME_CATEGORIES, EXPENSE_CATEGORIES,
@@ -274,6 +275,7 @@ const ICON_PARTY  = "M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-
 
 export default function TreasuryPage() {
   const { currentUser, treasuryData, transactionList, setTransactionList, partyList, setPartyList, brotherList, setBrotherList, isLoading, avatarRevision, can } = useChapter();
+  const v = useVocab();
   const selfId = currentUser?.id ?? null;
   const canTreasury = can("MANAGE_TREASURY");
 
@@ -557,7 +559,7 @@ export default function TreasuryPage() {
 
           {/* Title */}
           <div className="min-w-0 flex-1">
-            <h1 className="text-[16px] font-semibold leading-tight text-white">Treasury</h1>
+            <h1 className="text-[16px] font-semibold leading-tight text-white">{v("Treasury")}</h1>
             <p className="text-[11px] leading-tight text-slate-500">{currentUser?.org?.name ?? "ChaptOS"} · Financial Overview</p>
           </div>
 

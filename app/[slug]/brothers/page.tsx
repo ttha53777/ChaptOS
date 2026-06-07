@@ -8,6 +8,7 @@ import { StatusBadge, Modal, FieldLabel, ConfirmDialog } from "../../components/
 import { inputCls } from "../../components/dashboard/styles";
 import { BrotherDrawer } from "../../components/dashboard/drawers/BrotherDrawer";
 import { useChapter } from "../../context/ChapterContext";
+import { useVocab } from "../../hooks/useVocab";
 import {
   Brother,
   BrotherStatus,
@@ -130,6 +131,7 @@ function AddBrotherForm({ onSubmit, onCancel }: {
 
 export default function BrothersPage() {
   const { currentUser, brotherList, setBrotherList, isLoading, avatarRevision, can } = useChapter();
+  const v = useVocab();
   const canBrothers = can("MANAGE_BROTHERS");
   const selfId = currentUser?.id ?? null;
 
@@ -309,8 +311,8 @@ export default function BrothersPage() {
             </svg>
           </button>
           <div className="min-w-0 flex-1">
-            <p className="text-[14px] font-semibold leading-tight text-white">Brotherhood</p>
-            <p className="hidden text-[11px] leading-tight text-slate-400 sm:block">{currentUser?.org?.name ?? "ChaptOS"} · Brotherhood Roster</p>
+            <p className="text-[14px] font-semibold leading-tight text-white">{v("Member", true)}</p>
+            <p className="hidden text-[11px] leading-tight text-slate-400 sm:block">{currentUser?.org?.name ?? "ChaptOS"} · {v("Member")} Roster</p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
             <button
