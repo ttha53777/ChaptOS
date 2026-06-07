@@ -16,13 +16,21 @@ A case passes only when every assertion holds.
 ## Prerequisites
 
 1. `OPENAI_API_KEY` in `.env.local` (the runner reads it via `dotenv`).
-2. A dev Postgres seeded with `npx prisma db seed` — the runner queries the real DB through Prisma exactly like the route does.
+2. A dev Postgres seeded with `npx prisma db seed` — the runner queries the real DB through Prisma exactly like the route does. When `DIRECT_URL` is set (Supabase), the runner uses it instead of the transaction-pooler `DATABASE_URL`, which drops connections under load (see `scripts/eval-preload.ts`).
 
 ## Run
 
 ```
-npx tsx scripts/eval-ask-the-chapter.ts
+npm run eval:chat          # or: npx tsx scripts/eval-ask-the-chapter.ts
 ```
+
+Env knobs:
+
+- `EVAL_CONCURRENCY=N` — cases run in parallel (default 4). Drop to `1` on an OpenAI key with a tight per-minute token budget; transient 429s/5xx are retried with backoff regardless.
+- `EVAL_FILTER=substr[,substr]` — run only cases whose `id` or `category` contains a listed substring. Fast iteration on one area.
+- `EVAL_ORG_ID=N` — org to query (default 1, the seed org).
+
+This is a **pre-merge gate for AI changes**: run it (and keep it ≥ baseline, ideally all-green) before shipping a change to the chat route, tools, prompt, or model. It is intentionally *not* in the `tsc` gate — it needs a key, a seeded DB, and spends tokens.
 
 Output is one line per case, then a summary:
 
@@ -45,7 +53,8 @@ Exit code: `0` if every case passes, `1` if any case fails.
 
 - The system clock the model sees is pinned to **2026-05-23** (see `PINNED_DATE` in the runner) so cases referencing "this week" stay reproducible across days. The DB itself is whatever `prisma db seed` produced.
 - The model is sampled at `temperature: 0.3` (matching production), so a small amount of run-to-run variance is expected — typically 1–2 cases on the margin. Re-run before declaring a regression.
-- Cases run concurrently (4 at a time) to keep wall-clock under a minute; this is bounded to stay friendly with OpenAI rate limits and the local DB pool.
+- Cases run concurrently (default 4, see `EVAL_CONCURRENCY`) to keep wall-clock down; this is bounded to stay friendly with OpenAI rate limits and the DB pool. Transient OpenAI 429/5xx are retried with exponential backoff so a tight token budget doesn't fail cases spuriously.
+- **Assertions are seed-coupled.** `mustInclude` values (brother names, dollar amounts) are derived from the seeded dev DB. If the seed changes, re-derive them — a failing data case may mean a stale assertion, not a model regression.
 
 ## Adding new cases
 

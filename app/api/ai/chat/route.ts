@@ -2,7 +2,7 @@ import type { NextRequest } from "next/server";
 import OpenAI from "openai";
 import { requireUser } from "@/lib/auth/require-user";
 import { checkMutationRate } from "@/lib/rate-limit";
-import { aiEnabled, getOpenAI, CHAT_MODEL } from "@/lib/ai";
+import { aiEnabled, getOpenAI, CHAT_MODEL, MAX_COMPLETION_TOKENS } from "@/lib/ai";
 import { TOOLS, runTool, isReadTool, runProposal, isProposalTool } from "@/lib/ai-tools";
 import { buildSystemPrompt } from "@/lib/ai-prompt";
 import { logError } from "@/lib/observability";
@@ -88,10 +88,10 @@ export async function POST(req: NextRequest) {
             // Lower temperature → terser, more decisive responses (less hedging).
             // Same token cost, faster perceived time-to-useful-answer.
             temperature: 0.3,
-            // Cap output length. Chat answers are short by design; this prevents
-            // the model from streaming a long preamble before getting to the point.
-            // Doesn't affect tool-call planning turns (those barely emit text).
-            max_tokens: 400,
+            // Cap output length. Chat answers are short by design; on gpt-5.x this
+            // is max_completion_tokens (counts reasoning tokens too — see lib/ai),
+            // so it's higher than the old gpt-4o cap to leave reasoning headroom.
+            max_completion_tokens: MAX_COMPLETION_TOKENS,
             stream: true,
           });
 
@@ -156,11 +156,11 @@ export async function POST(req: NextRequest) {
 
           const results = await Promise.all(prepared.map(async ({ tc, argsObj }) => {
             let resultPayload: unknown;
-            let proposalEvent: { send: true; proposal: ReturnType<typeof runProposal> } | null = null;
+            let proposalEvent: { send: true; proposal: Awaited<ReturnType<typeof runProposal>> } | null = null;
             if (isReadTool(tc.name)) {
               resultPayload = await runTool(tc.name, argsObj, user.orgId);
             } else if (isProposalTool(tc.name)) {
-              const proposal = runProposal(tc.name, argsObj);
+              const proposal = await runProposal(tc.name, argsObj, user.orgId);
               if ("error" in proposal) {
                 resultPayload = proposal;
               } else {

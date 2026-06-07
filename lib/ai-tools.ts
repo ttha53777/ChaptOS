@@ -234,6 +234,78 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
       parameters: { type: "object", properties: {} },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "get_event_attendance",
+      description:
+        "Attendance for one calendar event: who attended, who was absent, and who has an excuse. " +
+        "Identify the event by id, or by an event_name fragment (case-insensitive) plus optional date to disambiguate. " +
+        "Use this for 'who missed last chapter?', 'who showed up to the car wash?', 'who's excused from the meeting?'. " +
+        "For 'last chapter meeting', the system prompt gives its date — pass event_name='Chapter Meeting' with that date.",
+      parameters: {
+        type: "object",
+        properties: {
+          id:         { type: "integer", description: "Calendar event id (preferred when known)." },
+          event_name: { type: "string", description: "Event title or fragment (case-insensitive). Used when id is unknown." },
+          date:       { type: "string", description: "YYYY-MM-DD to disambiguate when multiple events share a name." },
+        },
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_brother_attendance",
+      description:
+        "One brother's attendance detail this semester: counts of events attended / missed / excused, plus the list of missed events with any excuse reason. " +
+        "Identify the brother by id or by a name fragment (same matching as get_brother). " +
+        "Use for 'how many meetings has X missed?', 'what's X's attendance record?', 'is X's absence excused?'.",
+      parameters: {
+        type: "object",
+        properties: {
+          id:   { type: "integer", description: "Brother id." },
+          name: { type: "string", description: "Full name or any fragment (case-insensitive)." },
+        },
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "list_roles",
+      description:
+        "Officer roles in this org and who holds each (e.g. President, Treasurer, Social, PR). " +
+        "Use for 'who's the treasurer?', 'who are our officers?', 'what role does X have?'. " +
+        "Pass role_name to look up holders of one role; pass brother_name to list one brother's roles; omit both to list all roles.",
+      parameters: {
+        type: "object",
+        properties: {
+          role_name:    { type: "string", description: "Filter to one role by name fragment (e.g. 'treasurer')." },
+          brother_name: { type: "string", description: "Filter to the roles held by one brother (name fragment)." },
+        },
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "list_service_events",
+      description:
+        "Community-service events/opportunities (title, date, location, notes). " +
+        "For 'next/upcoming service' set start=<today>, order='asc', small limit. " +
+        "If a date-filtered query returns empty, broaden before saying there's none.",
+      parameters: {
+        type: "object",
+        properties: {
+          start: { type: "string", description: "Inclusive YYYY-MM-DD start." },
+          end:   { type: "string", description: "Inclusive YYYY-MM-DD end." },
+          order: { type: "string", enum: ["asc", "desc"], description: "Sort by date (default asc)." },
+          limit: { type: "integer", minimum: 1, maximum: 100, description: "Default 100; use ~5 for 'next'." },
+        },
+      },
+    },
+  },
   // ── Write proposals (server validates and returns a confirm card; never executes) ──
   {
     type: "function",
@@ -347,6 +419,24 @@ const r2 = round2;
 function clampLimit(n: unknown, def = 100, max = 100): number {
   const v = typeof n === "number" ? Math.floor(n) : def;
   return Math.max(1, Math.min(max, v));
+}
+
+// List-tool return shaping. A bare `[]` reads ambiguously to the model — it can't
+// tell "no rows match this filter" from "this resource is empty" and sometimes
+// reports "none" without broadening. When the result is non-empty we return the
+// array unchanged (so existing answers/behavior are untouched); when it's empty we
+// return an explicit envelope that names the contract: broaden before saying none.
+// `filtered` is whether any narrowing filter was applied — only then is broadening
+// meaningful advice.
+function listResult<T>(items: T[], filtered: boolean): T[] | { count: 0; items: []; hint: string } {
+  if (items.length > 0) return items;
+  return {
+    count: 0,
+    items: [],
+    hint: filtered
+      ? "No rows matched these filters. Broaden — drop a filter or switch to a sort — before telling the user there are none."
+      : "This resource has no rows yet. It's safe to tell the user there are none.",
+  };
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -476,7 +566,8 @@ async function listBrothers(args: ToolArgs, orgId: number): Promise<ToolResult> 
     .filter(b => (owesOnly ? b.duesOwed > 0 : true));
 
   // Apply limit AFTER filtering so ranking + filtering compose cleanly.
-  return mapped.slice(0, clampLimit(args.limit));
+  const filtered = statusFilter !== "Any" || owesOnly;
+  return listResult(mapped.slice(0, clampLimit(args.limit)), filtered);
 }
 
 async function getBrother(args: ToolArgs, orgId: number): Promise<ToolResult> {
@@ -548,7 +639,7 @@ async function listDeadlines(args: ToolArgs, orgId: number): Promise<ToolResult>
     .filter(d => (end   ? d.dueDate <= end   : true))
     .filter(d => (status ? d.status === status : true))
     .filter(d => (openOnly ? d.status !== "Complete" : true));
-  return filtered.slice(0, clampLimit(args.limit));
+  return listResult(filtered.slice(0, clampLimit(args.limit)), !!(start || end || status || openOnly));
 }
 
 async function listInstagram(args: ToolArgs, orgId: number): Promise<ToolResult> {
@@ -568,7 +659,7 @@ async function listInstagram(args: ToolArgs, orgId: number): Promise<ToolResult>
     .filter(t => (status ? t.status === status : true))
     .filter(t => (typeFilter ? t.type === typeFilter : true))
     .filter(t => (openOnly ? t.status !== "Complete" : true));
-  return filtered.slice(0, clampLimit(args.limit));
+  return listResult(filtered.slice(0, clampLimit(args.limit)), !!(start || end || status || typeFilter || openOnly));
 }
 
 async function listCalendar(args: ToolArgs, orgId: number): Promise<ToolResult> {
@@ -586,7 +677,7 @@ async function listCalendar(args: ToolArgs, orgId: number): Promise<ToolResult> 
     .filter(e => (end   ? e.date <= end   : true))
     .filter(e => (category ? e.category === category : true))
     .filter(e => (mandatoryOnly ? e.mandatory : true));
-  return filtered.slice(0, clampLimit(args.limit));
+  return listResult(filtered.slice(0, clampLimit(args.limit)), !!(start || end || category || mandatoryOnly));
 }
 
 async function listParties(args: ToolArgs, orgId: number): Promise<ToolResult> {
@@ -607,7 +698,7 @@ async function listParties(args: ToolArgs, orgId: number): Promise<ToolResult> {
       doorRevenue: r2(p.doorRevenue), expenses: r2(p.expenses),
       attendance: p.attendance, completed: p.completed,
     }));
-  return filtered.slice(0, clampLimit(args.limit));
+  return listResult(filtered.slice(0, clampLimit(args.limit)), !!(start || end || completedOnly));
 }
 
 async function sumTransactions(args: ToolArgs, orgId: number): Promise<ToolResult> {
@@ -782,6 +873,179 @@ async function weeklyDigest(orgId: number): Promise<ToolResult> {
   };
 }
 
+async function getEventAttendance(args: ToolArgs, orgId: number): Promise<ToolResult> {
+  const id = typeof args.id === "number" ? args.id : undefined;
+  const name = typeof args.event_name === "string" ? args.event_name.trim() : undefined;
+  const date = typeof args.date === "string" && DATE_RE.test(args.date) ? args.date : undefined;
+  if (id == null && !name) return { error: "Provide id or event_name." };
+
+  // Resolve the event (org-scoped). ID path is exact; name path is fuzzy and may
+  // need the date to disambiguate duplicate-titled events (e.g. recurring meetings).
+  let event: { id: number; title: string; date: string } | null = null;
+  if (id != null) {
+    event = await prisma.calendarEvent.findFirst({
+      where: { id, organizationId: orgId },
+      select: { id: true, title: true, date: true },
+    });
+  } else {
+    const matches = await prisma.calendarEvent.findMany({
+      where: {
+        organizationId: orgId,
+        title: { contains: name!, mode: "insensitive" },
+        ...(date ? { date } : {}),
+      },
+      orderBy: { date: "desc" },
+      select: { id: true, title: true, date: true },
+      take: 10,
+    });
+    if (matches.length === 0) return { error: `No event matched "${name}"${date ? ` on ${date}` : ""}.` };
+    if (matches.length > 1) {
+      return {
+        matches: matches.length,
+        note: "Multiple events match — pass a date or id to pick one.",
+        candidates: matches.map(e => ({ id: e.id, title: e.title, date: e.date })),
+      };
+    }
+    event = matches[0];
+  }
+  if (!event) return { error: "Event not found." };
+
+  const [records, excuses] = await Promise.all([
+    prisma.attendanceRecord.findMany({
+      where: { calendarEventId: event.id },
+      include: { brother: { select: { name: true, isGhost: true } } },
+    }),
+    prisma.attendanceExcuse.findMany({
+      where: { calendarEventId: event.id },
+      include: { brother: { select: { name: true } } },
+    }),
+  ]);
+
+  // Ghosts are excluded everywhere else in the roster; keep them out here too.
+  const visible = records.filter(r => !r.brother.isGhost);
+  const excusedByName = new Map(excuses.map(e => [e.brother.name, e.status] as const));
+  const attended = visible.filter(r => r.attended).map(r => r.brother.name);
+  const absent = visible.filter(r => !r.attended).map(r => r.brother.name);
+
+  return {
+    event: { id: event.id, title: event.title, date: event.date },
+    counts: { attended: attended.length, absent: absent.length, excused: excuses.length },
+    attended,
+    absent,
+    excused: excuses.map(e => ({ name: e.brother.name, status: e.status, reason: e.reason })),
+    ...(visible.length === 0 ? { note: "No attendance has been logged for this event yet." } : {}),
+  };
+}
+
+async function getBrotherAttendance(args: ToolArgs, orgId: number): Promise<ToolResult> {
+  const id = typeof args.id === "number" ? args.id : undefined;
+  const name = typeof args.name === "string" ? args.name.trim() : undefined;
+  if (id == null && !name) return { error: "Provide id or name." };
+
+  // Reuse the same fuzzy resolution as get_brother so name handling can't drift.
+  let brother: { id: number; name: string } | null = null;
+  if (id != null) {
+    const b = await prisma.brother.findFirst({ where: { id, organizationId: orgId, isGhost: false }, select: { id: true, name: true } });
+    brother = b ?? null;
+  } else {
+    const exact = await prisma.brother.findMany({
+      where: { name: { equals: name!, mode: "insensitive" }, isGhost: false, organizationId: orgId },
+      select: { id: true, name: true },
+    });
+    const matches = exact.length > 0 ? exact : await prisma.brother.findMany({
+      where: { name: { contains: name!, mode: "insensitive" }, isGhost: false, organizationId: orgId },
+      orderBy: { name: "asc" }, take: 10, select: { id: true, name: true },
+    });
+    if (matches.length === 0) return { error: `No brother matched "${name}".` };
+    if (matches.length > 1) {
+      return {
+        matches: matches.length,
+        note: "Multiple brothers match — narrow by id, or ask the user which one.",
+        candidates: matches,
+      };
+    }
+    brother = matches[0];
+  }
+  if (!brother) return { error: "Brother not found." };
+
+  const [records, excuses] = await Promise.all([
+    prisma.attendanceRecord.findMany({
+      where: { brotherId: brother.id },
+      include: { calendarEvent: { select: { title: true, date: true } } },
+    }),
+    prisma.attendanceExcuse.findMany({
+      where: { brotherId: brother.id },
+      include: { calendarEvent: { select: { title: true, date: true } } },
+    }),
+  ]);
+  const excusedEventIds = new Set(excuses.map(e => e.calendarEventId));
+  const missed = records.filter(r => !r.attended);
+  return {
+    brother: { id: brother.id, name: brother.name },
+    counts: {
+      total: records.length,
+      attended: records.filter(r => r.attended).length,
+      missed: missed.length,
+      excused: excuses.length,
+    },
+    missedEvents: missed.map(r => ({
+      title: r.calendarEvent.title,
+      date: r.calendarEvent.date,
+      excused: excusedEventIds.has(r.calendarEventId),
+    })),
+    excuses: excuses.map(e => ({ title: e.calendarEvent.title, date: e.calendarEvent.date, status: e.status, reason: e.reason })),
+  };
+}
+
+async function listRoles(args: ToolArgs, orgId: number): Promise<ToolResult> {
+  const roleName = typeof args.role_name === "string" ? args.role_name.trim() : undefined;
+  const brotherName = typeof args.brother_name === "string" ? args.brother_name.trim() : undefined;
+
+  const roles = await prisma.role.findMany({
+    where: {
+      organizationId: orgId,
+      ...(roleName ? { name: { contains: roleName, mode: "insensitive" } } : {}),
+    },
+    orderBy: { rank: "desc" },
+    include: {
+      brothers: {
+        include: { brother: { select: { id: true, name: true, isGhost: true } } },
+      },
+    },
+  });
+
+  const mapped = roles
+    .map(r => ({
+      role: r.name,
+      rank: r.rank,
+      holders: r.brothers
+        .map(br => br.brother)
+        .filter(b => !b.isGhost)
+        .filter(b => (brotherName ? b.name.toLowerCase().includes(brotherName.toLowerCase()) : true))
+        .map(b => ({ id: b.id, name: b.name })),
+    }))
+    // When filtering by brother, drop roles they don't hold so the answer is tight.
+    .filter(r => (brotherName ? r.holders.length > 0 : true));
+
+  return mapped;
+}
+
+async function listServiceEvents(args: ToolArgs, orgId: number): Promise<ToolResult> {
+  const start = typeof args.start === "string" && DATE_RE.test(args.start) ? args.start : undefined;
+  const end   = typeof args.end   === "string" && DATE_RE.test(args.end)   ? args.end   : undefined;
+  const orderDir = args.order === "desc" ? "desc" : "asc";
+
+  const rows = await prisma.serviceEvent.findMany({
+    where: { organizationId: orgId },
+    orderBy: { date: orderDir },
+  });
+  const filtered = rows
+    .filter(s => (start ? s.date >= start : true))
+    .filter(s => (end   ? s.date <= end   : true))
+    .map(s => ({ id: s.id, title: s.title, date: s.date, location: s.location, notes: s.notes }));
+  return listResult(filtered.slice(0, clampLimit(args.limit)), !!(start || end));
+}
+
 // ────────────────────────────────────────────────────────────────────────────
 // Write proposal builders — VALIDATE only, NEVER touch the DB. The chat route
 // surfaces the returned Proposal over SSE as a confirm card on the client.
@@ -879,22 +1143,49 @@ function proposeLogTransaction(args: ToolArgs): Proposal | { error: string } {
   };
 }
 
-function proposeMarkDuesPaid(args: ToolArgs): Proposal | { error: string } {
+// Async so it can read the brother's CURRENT duesOwed (org-scoped) and surface it
+// on the confirm card — "currently owes $135" gives the officer the before-state so
+// they can sanity-check the change before clicking. Still VALIDATE-ONLY: it never
+// writes; the read is purely to enrich the card. A read failure degrades to the
+// plain summary rather than blocking the proposal.
+async function proposeMarkDuesPaid(args: ToolArgs, orgId: number): Promise<Proposal | { error: string }> {
   const id = typeof args.brother_id === "number" ? args.brother_id : Number(args.brother_id);
   const name = typeof args.brother_name === "string" ? args.brother_name.trim() : "";
   if (!Number.isFinite(id) || id <= 0) return badProposal("brother_id required.");
   if (!name) return badProposal("brother_name required for the confirm card.");
+
+  let currentOwed: number | null = null;
+  try {
+    const b = await prisma.brother.findFirst({
+      where: { id, organizationId: orgId, isGhost: false },
+      select: { duesOwed: true },
+    });
+    if (b) currentOwed = r2(b.duesOwed);
+  } catch { /* read-only enrichment — fall back to the plain summary */ }
+
+  const owedNote = currentOwed === null
+    ? ""
+    : currentOwed > 0
+      ? ` (currently owes $${currentOwed.toFixed(2)})`
+      : " (already paid up — owes $0)";
+
   return {
     kind: "proposal",
     action: "propose_mark_dues_paid",
     endpoint: `/api/brothers/${id}`,
     method: "PATCH",
     payload: { duesOwed: 0 },
-    summary: `Mark ${name}'s dues as paid (set duesOwed = 0). Admin or self required.`,
+    summary: `Mark ${name}'s dues as paid (set duesOwed = 0)${owedNote}. Admin or self required.`,
   };
 }
 
-const PROPOSAL_HANDLERS: Record<string, (args: ToolArgs) => Proposal | { error: string }> = {
+// Handlers may be sync or async; runProposal awaits either. orgId lets a handler
+// read current state to enrich the card (validate-only — never a write).
+type ProposalHandler = (args: ToolArgs, orgId: number) =>
+  | (Proposal | { error: string })
+  | Promise<Proposal | { error: string }>;
+
+const PROPOSAL_HANDLERS: Record<string, ProposalHandler> = {
   propose_add_deadline:       proposeAddDeadline,
   propose_add_instagram_task: proposeAddInstagram,
   propose_add_calendar_event: proposeAddCalendarEvent,
@@ -907,13 +1198,13 @@ export function isProposalTool(name: string): boolean {
   return name in PROPOSAL_HANDLERS;
 }
 
-/** Run a proposal tool. Always returns synchronously-shaped result; never throws. */
-export function runProposal(name: string, args: ToolArgs): Proposal | { error: string } {
+/** Run a proposal tool. Validate-only — never writes. Never throws. */
+export async function runProposal(name: string, args: ToolArgs, orgId: number): Promise<Proposal | { error: string }> {
   const handler = PROPOSAL_HANDLERS[name];
   if (!handler) return { error: `Unknown proposal: ${name}` };
   const v = validateArgs(name, args);
   if (!v.ok) return { error: v.error };
-  try { return handler(args); }
+  try { return await handler(args, orgId); }
   catch (e) { return { error: e instanceof Error ? e.message : "Proposal failed" }; }
 }
 
@@ -933,6 +1224,10 @@ const READ_HANDLERS: Record<string, (args: ToolArgs, orgId: number) => Promise<T
   get_budget:           (_args, orgId) => getBudget(orgId),
   recent_activity:      recentActivity,
   weekly_digest:        (_args, orgId) => weeklyDigest(orgId),
+  get_event_attendance: getEventAttendance,
+  get_brother_attendance: getBrotherAttendance,
+  list_roles:           listRoles,
+  list_service_events:  listServiceEvents,
 };
 
 /**

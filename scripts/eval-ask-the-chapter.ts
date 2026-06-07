@@ -12,14 +12,15 @@
  * Requires: OPENAI_API_KEY in .env.local, seeded dev DB (npx prisma db seed).
  * See evals/ask-the-chapter/README.md.
  */
-import { config } from "dotenv";
-config({ path: ".env.local" });
+// MUST be first: loads .env.local and points DATABASE_URL at the stable session
+// connection before lib/prisma's pool is built. See scripts/eval-preload.ts for why.
+import "./eval-preload";
 
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import type OpenAI from "openai";
 
-import { getOpenAI, CHAT_MODEL, aiEnabled } from "../lib/ai";
+import { getOpenAI, CHAT_MODEL, aiEnabled, MAX_COMPLETION_TOKENS } from "../lib/ai";
 import {
   TOOLS,
   runTool,
@@ -88,6 +89,47 @@ interface TurnResult {
 
 const MAX_ITERS = 10; // match route
 
+// Retry transient OpenAI failures (429 rate limit, 5xx) with exponential backoff.
+// A rate-limit blip is an environmental hiccup, not a model failure — without this
+// a low per-minute token budget marks every case FAIL and the score is noise.
+// Honors the server's suggested wait when present, else backs off 2^n seconds.
+const MAX_RETRIES = 6;
+
+function isRetryableError(e: unknown): boolean {
+  const status = (e as { status?: number })?.status;
+  return status === 429 || (typeof status === "number" && status >= 500);
+}
+
+/** Parse the "try again in 730ms" hint OpenAI puts in 429 messages, in ms. */
+function suggestedWaitMs(e: unknown): number | null {
+  const msg = (e as { message?: string })?.message ?? "";
+  const m = /try again in ([\d.]+)(ms|s)\b/i.exec(msg);
+  if (!m) return null;
+  const n = parseFloat(m[1]);
+  return m[2].toLowerCase() === "s" ? n * 1000 : n;
+}
+
+const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
+
+async function createWithRetry(
+  openai: OpenAI,
+  params: OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming,
+): Promise<OpenAI.Chat.Completions.ChatCompletion> {
+  let lastErr: unknown;
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      return await openai.chat.completions.create(params);
+    } catch (e) {
+      lastErr = e;
+      if (!isRetryableError(e) || attempt === MAX_RETRIES) throw e;
+      // Suggested wait + jitter, or exponential backoff (1s, 2s, 4s, …) + jitter.
+      const base = suggestedWaitMs(e) ?? 1000 * 2 ** attempt;
+      await sleep(base + Math.random() * 400);
+    }
+  }
+  throw lastErr;
+}
+
 async function runCase(c: EvalCase, openai: OpenAI, systemPrompt: string, orgId: number): Promise<TurnResult> {
   const t0 = Date.now();
   const toolCalls: ToolCallRecord[] = [];
@@ -102,14 +144,14 @@ async function runCase(c: EvalCase, openai: OpenAI, systemPrompt: string, orgId:
 
   for (let i = 0; i < MAX_ITERS; i++) {
     iters = i + 1;
-    const completion = await openai.chat.completions.create({
+    const completion = await createWithRetry(openai, {
       model: CHAT_MODEL,
       messages,
       tools: TOOLS,
       tool_choice: "auto",
       parallel_tool_calls: true,
       temperature: 0.3,
-      max_tokens: 400,
+      max_completion_tokens: MAX_COMPLETION_TOKENS,
       // Non-streaming in the eval — we don't need progressive tokens, and the
       // non-streaming response is easier to parse. The model behavior is the
       // same; only the transport differs.
@@ -153,7 +195,7 @@ async function runCase(c: EvalCase, openai: OpenAI, systemPrompt: string, orgId:
       if (isReadTool(tc.function.name)) {
         payload = await runTool(tc.function.name, args, orgId);
       } else if (isProposalTool(tc.function.name)) {
-        const p = runProposal(tc.function.name, args);
+        const p = await runProposal(tc.function.name, args, orgId);
         if ("error" in p) {
           payload = p;
         } else {
@@ -197,6 +239,8 @@ async function runCase(c: EvalCase, openai: OpenAI, systemPrompt: string, orgId:
 const REFUSAL_HINTS = [
   "can't help",
   "cannot help",
+  "can only help",
+  "only help with",
   "outside",
   "out of scope",
   "don't have",
@@ -310,13 +354,22 @@ async function main() {
   const openai: OpenAI = maybeClient;
 
   const casesPath = resolve(__dirname, "../evals/ask-the-chapter/cases.jsonl");
-  const cases = readFileSync(casesPath, "utf8")
+  let cases = readFileSync(casesPath, "utf8")
     .split("\n")
     .filter(Boolean)
     .map((line, i) => {
       try { return JSON.parse(line) as EvalCase; }
       catch (e) { throw new Error(`cases.jsonl line ${i + 1}: ${(e as Error).message}`); }
     });
+
+  // EVAL_FILTER=substr[,substr...] runs only cases whose id or category contains
+  // a listed substring — fast iteration on one area without burning the whole
+  // suite (and the per-minute token budget) on every change.
+  const filter = (process.env.EVAL_FILTER ?? "").split(",").map(s => s.trim()).filter(Boolean);
+  if (filter.length > 0) {
+    cases = cases.filter(c => filter.some(f => c.id.includes(f) || (c.category ?? "").includes(f)));
+    if (cases.length === 0) { console.error(`EVAL_FILTER matched no cases: ${filter.join(", ")}`); process.exit(2); }
+  }
 
   // Pin the date the model sees so cases that reference "this week" stay
   // reproducible across days. The actual DB is whatever the dev has seeded.
@@ -331,9 +384,10 @@ async function main() {
   console.log("");
 
   const results: TurnResult[] = [];
-  // Run concurrently — independent cases, big wall-clock win. Cap at 4 to keep
-  // OpenAI rate limits and DB pool happy.
-  const CONCURRENCY = 4;
+  // Run concurrently — independent cases, big wall-clock win. Default 4 to keep
+  // OpenAI rate limits and DB pool happy; lower via EVAL_CONCURRENCY=1 on accounts
+  // with a tight per-minute token budget (retry/backoff handles the rest).
+  const CONCURRENCY = Math.max(1, Number(process.env.EVAL_CONCURRENCY ?? 4));
   let cursor = 0;
   async function worker() {
     while (cursor < cases.length) {

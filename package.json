@@ -15,7 +15,8 @@
     "test:db:up": "docker compose -f docker-compose.test.yml up -d --wait",
     "test:db:down": "docker compose -f docker-compose.test.yml down -v",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "eval:chat": "tsx scripts/eval-ask-the-chapter.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.8.0",

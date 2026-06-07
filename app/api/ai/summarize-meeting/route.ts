@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { buildContext } from "@/lib/context";
 import { toResponse, ValidationError } from "@/lib/errors";
-import { aiEnabled, getOpenAI, CHAT_MODEL } from "@/lib/ai";
+import { aiEnabled, getOpenAI, CHAT_MODEL, MAX_COMPLETION_TOKENS } from "@/lib/ai";
 import { logError } from "@/lib/observability";
 
 const SYSTEM = `You are an assistant that summarizes fraternity chapter meeting notes for officers who couldn't attend.
@@ -45,7 +45,7 @@ export async function POST(req: NextRequest) {
     try {
       const completion = await openai.chat.completions.create({
         model: CHAT_MODEL,
-        max_tokens: 400,
+        max_completion_tokens: MAX_COMPLETION_TOKENS,
         temperature: 0.3,
         messages: [
           { role: "system", content: SYSTEM },

@@ -4,7 +4,12 @@ import OpenAI from "openai";
 // and must never reach the browser. All AI calls go through API routes behind auth,
 // mirroring the "all DB access through API routes" rule.
 
-const MODEL = "gpt-4o";
+// gpt-5.2 is a current-generation model — stronger tool selection and reasoning
+// than gpt-4o at comparable latency for our short, tool-heavy turns. Note the API
+// shape differs: gpt-5.x reject the legacy `max_tokens` param and require
+// `max_completion_tokens` (which also counts reasoning tokens). All call sites use
+// MAX_COMPLETION_TOKENS below so a model swap stays a one-place change.
+const MODEL = "gpt-5.2";
 
 let client: OpenAI | null = null;
 function getClient(): OpenAI | null {
@@ -28,6 +33,14 @@ export function getOpenAI(): OpenAI | null {
 export const CHAT_MODEL = MODEL;
 
 /**
+ * Output-token cap for chat turns. On gpt-5.x this is `max_completion_tokens` and
+ * counts reasoning tokens too, so it's set well above gpt-4o's old 400 — a low cap
+ * can starve the visible answer when the model spends budget on reasoning. Chat
+ * answers are still short by design; this just leaves reasoning headroom.
+ */
+export const MAX_COMPLETION_TOKENS = 2000;
+
+/**
  * Generate a short natural-language narration from a system prompt + user content.
  * Returns null on any failure (missing key, network, API error) so callers can
  * degrade gracefully — the structured data always stands on its own.
@@ -38,7 +51,10 @@ export async function narrate(system: string, user: string): Promise<string | nu
   try {
     const completion = await openai.chat.completions.create({
       model: MODEL,
-      max_tokens: 60, // one short sentence — keep it cheap
+      // one short sentence of output, plus reasoning headroom (gpt-5.x counts
+      // reasoning tokens against this cap). max_completion_tokens replaces the
+      // legacy max_tokens, which gpt-5.x rejects.
+      max_completion_tokens: 400,
       messages: [
         { role: "system", content: system },
         { role: "user", content: user },
