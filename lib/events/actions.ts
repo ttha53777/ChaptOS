@@ -91,6 +91,9 @@ export interface EventMetadata {
   "org.config.updated": { enabledWorkflows?: string[]; vocabularyOverrides?: Record<string, string>; thresholds?: Record<string, number> };
   "org.logo.updated": { cleared: boolean };
 
+  // Membership
+  "membership.left": { brotherId: number; name: string; orgName: string };
+
   // Invite links
   "invite.created":  { mode: "open" | "claim"; expiry: string };
   "invite.revoked":  { mode: "open" | "claim" };
@@ -112,6 +115,7 @@ const KNOWN_ACTIONS = new Set<Action>([
   "doc.created", "doc.updated", "doc.deleted",
   "announcement.updated", "semester.created", "semester.activated",
   "org.created", "org.config.updated", "org.logo.updated",
+  "membership.left",
   "invite.created", "invite.revoked", "invite.redeemed",
 ]);
 

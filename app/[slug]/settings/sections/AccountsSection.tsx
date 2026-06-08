@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { ConfirmDialog } from "../../../components/dashboard/primitives";
 import { useChapter } from "../../../context/ChapterContext";
+import { LeaveOrgModal } from "../../../components/LeaveOrgModal";
 import { BrotherRoleChips } from "./BrotherRoleChips";
 
 interface AssignedRoleSummary {
@@ -278,6 +279,54 @@ export function AccountsSection({
           )}
         </div>
       )}
+
+      <LeaveOrgZone onError={onError} />
     </div>
   );
 }
+
+// ─── Leave organization ─────────────────────────────────────────────────────
+// Self-serve "disconnect from this org" for any member (not admin-gated). Mirrors
+// the DangerZone delete flow — type the org name to confirm — but in a neutral
+// amber tone since it's reversible (the user can be re-invited) and only affects
+// the caller, not the whole org.
+
+function LeaveOrgZone({ onError }: { onError: (msg: string) => void }) {
+  const { currentUser } = useChapter();
+  const [open, setOpen] = useState(false);
+
+  if (!currentUser?.org) return null;
+
+  return (
+    <>
+      <div className="rounded-xl border border-amber-500/20 bg-amber-500/[0.03] p-4">
+        <h3 className="mb-1 text-[12px] font-semibold text-amber-300">Leave organization</h3>
+        <p className="mb-3 text-[11px] text-slate-400">
+          Disconnect yourself from <span className="font-medium text-slate-300">{currentUser.org.name}</span>.
+          You&apos;ll lose access immediately. Your data stays with the org and you can be re-invited later.
+        </p>
+        <button
+          onClick={() => setOpen(true)}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[12px] font-semibold text-amber-300 transition-colors hover:bg-amber-500/20"
+        >
+          <svg className="h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+          </svg>
+          Leave this organization
+        </button>
+      </div>
+
+      {open && (
+        <LeaveOrgModal
+          orgName={currentUser.org.name}
+          orgSlug={currentUser.org.slug}
+          memberships={currentUser.memberships}
+          activeOrgId={currentUser.orgId}
+          onClose={() => setOpen(false)}
+          onError={onError}
+        />
+      )}
+    </>
+  );
+}
+

@@ -4,7 +4,9 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { ProfileAvatar } from "./ProfileAvatar";
+import { LeaveOrgModal } from "./LeaveOrgModal";
 import { useCurrentUser } from "../hooks/useCurrentUser";
+import { useChapter } from "../context/ChapterContext";
 
 async function syncAvatarSession() {
   const supabase = createClient();
@@ -13,11 +15,16 @@ async function syncAvatarSession() {
 
 export function UserAvatar() {
   const { user, loading, avatarRevision, setAvatarUrl } = useCurrentUser();
+  // Org + memberships for the "Leave organization" action live on the full
+  // ChapterContext user, not the slimmed useCurrentUser projection.
+  const { currentUser } = useChapter();
   const [open, setOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [removing, setRemoving] = useState(false);
   const [photoError, setPhotoError] = useState<string | null>(null);
+  const [leaveOpen, setLeaveOpen] = useState(false);
+  const [leaveError, setLeaveError] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
@@ -205,6 +212,28 @@ export function UserAvatar() {
             )}
           </div>
 
+          {currentUser?.org && (
+            <>
+              <div className="h-px bg-white/[0.06]" />
+              <div className="p-2 space-y-0.5">
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => { setLeaveError(null); setOpen(false); setLeaveOpen(true); }}
+                  className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] font-medium text-slate-400 transition-all hover:bg-amber-500/10 hover:text-amber-400"
+                >
+                  <svg className="h-4 w-4 shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3" />
+                  </svg>
+                  Leave organization
+                </button>
+                {leaveError && (
+                  <p className="px-3 py-1 text-[11px] text-red-400">{leaveError}</p>
+                )}
+              </div>
+            </>
+          )}
+
           <div className="h-px bg-white/[0.06]" />
 
           <div className="p-2">
@@ -221,6 +250,19 @@ export function UserAvatar() {
             </button>
           </div>
         </div>
+      )}
+
+      {leaveOpen && currentUser?.org && (
+        <LeaveOrgModal
+          orgName={currentUser.org.name}
+          orgSlug={currentUser.org.slug}
+          memberships={currentUser.memberships}
+          activeOrgId={currentUser.orgId}
+          onClose={() => setLeaveOpen(false)}
+          // On failure the modal closes itself; re-open the dropdown so the inline
+          // error (e.g. the last-admin guard) is actually visible to the user.
+          onError={(msg) => { setLeaveError(msg); setOpen(true); }}
+        />
       )}
     </div>
   );
