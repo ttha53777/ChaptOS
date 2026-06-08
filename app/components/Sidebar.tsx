@@ -30,6 +30,12 @@ export const NAV_ICONS: Record<string, string> = {
 export const NAV = ["Dashboard", "Timeline", "Brotherhood", "Chapter", "Docs", "Instagram", "Treasury", "Service", "Events"];
 export const SETTINGS_NAV = "Settings";
 
+const NAV_GROUPS: Array<{ label: string; items: string[] }> = [
+  { label: "Overview", items: ["Dashboard", "Timeline"] },
+  { label: "Members", items: ["Brotherhood", "Chapter"] },
+  { label: "Operations", items: ["Docs", "Instagram", "Service", "Events", "Treasury"] },
+];
+
 // Which workflow each nav surface belongs to. A label maps to `null` when it is
 // ALWAYS shown regardless of the org's enabled workflows:
 //   - Dashboard / Timeline: every org's home + planning surfaces (product rule).
@@ -113,7 +119,9 @@ export function Sidebar({ open, onClose, activeSection, onNavClick }: {
     Chapter:     v("Meetings"),
     Treasury:    v("Treasury"),
     Service:     v("Service"),
-    Events:      v("Event", true),
+    // Instagram and Events intentionally omitted — they fall back (via
+    // NAV_DISPLAY[label] ?? label) to their default nav labels "Instagram" and
+    // "Events" rather than the generic "Communications"/"Social".
   };
 
   // Path *within* the org, i.e. pathname with the leading "/[slug]" segment
@@ -154,6 +162,68 @@ export function Sidebar({ open, onClose, activeSection, onNavClick }: {
   const visibleNav = enabledWorkflows
     ? NAV.filter(label => isNavVisible(label, enabledWorkflows))
     : NAV;
+  const visibleNavSet = new Set(visibleNav);
+
+  function renderNavItem(label: string) {
+    const isTimeline    = label === "Timeline";
+    const isTreasury    = label === "Treasury";
+    const isEvents      = label === "Events";
+    const isBrotherhood = label === "Brotherhood";
+    const isChapter     = label === "Chapter";
+    const isDocs        = label === "Docs";
+    const isInstagram   = label === "Instagram";
+    const isService     = label === "Service";
+    const isStandalone  = isTimeline || isTreasury || isEvents || isBrotherhood || isChapter || isDocs || isInstagram || isService;
+    const standaloneSub = isTimeline ? "/timeline" : isTreasury ? "/treasury" : isEvents ? "/parties" : isChapter ? "/chapter" : isDocs ? "/docs" : isInstagram ? "/instagram" : isService ? "/service" : "/brothers";
+    const isActive = isTimeline
+      ? subPath === "/timeline"
+      : isTreasury
+        ? subPath.startsWith("/treasury")
+        : isEvents
+          ? subPath.startsWith("/parties")
+          : isBrotherhood
+            ? subPath.startsWith("/brothers")
+            : isChapter
+              ? subPath.startsWith("/chapter")
+              : isDocs
+                ? subPath.startsWith("/docs")
+                : isInstagram
+                  ? subPath.startsWith("/instagram")
+                  : isService
+                    ? subPath.startsWith("/service")
+                    : subPath === "/" && activeSection === label;
+
+    const displayLabel = NAV_DISPLAY[label] ?? label;
+
+    if (isStandalone) {
+      return (
+        <Link
+          key={label}
+          href={orgPath(standaloneSub)}
+          onClick={onClose}
+          aria-current={isActive ? "page" : undefined}
+          className={navItemClass(isActive)}
+        >
+          <SvgIcon d={NAV_ICONS[label] ?? ""} className="h-4 w-4 shrink-0 opacity-75" />
+          {displayLabel}
+          {isActive && <span className="ml-auto h-1.5 w-1.5 rounded-full bg-indigo-400" aria-hidden="true" />}
+        </Link>
+      );
+    }
+
+    return (
+      <button
+        key={label}
+        onClick={() => goToDashboardSection(label)}
+        aria-current={isActive ? "page" : undefined}
+        className={navItemClass(isActive)}
+      >
+        <SvgIcon d={NAV_ICONS[label] ?? ""} className="h-4 w-4 shrink-0 opacity-75" />
+        {displayLabel}
+        {isActive && <span className="ml-auto h-1.5 w-1.5 rounded-full bg-indigo-400" aria-hidden="true" />}
+      </button>
+    );
+  }
 
   return (
     <>
@@ -183,65 +253,20 @@ export function Sidebar({ open, onClose, activeSection, onNavClick }: {
         )}
 
         <nav className="flex-1 overflow-y-auto px-2 py-3" aria-label="Main navigation">
-          <div className="space-y-0.5">
-            {visibleNav.map(label => {
-              const isTimeline    = label === "Timeline";
-              const isTreasury    = label === "Treasury";
-              const isEvents      = label === "Events";
-              const isBrotherhood = label === "Brotherhood";
-              const isChapter     = label === "Chapter";
-              const isDocs        = label === "Docs";
-              const isInstagram   = label === "Instagram";
-              const isService     = label === "Service";
-              const isStandalone  = isTimeline || isTreasury || isEvents || isBrotherhood || isChapter || isDocs || isInstagram || isService;
-              const standaloneSub = isTimeline ? "/timeline" : isTreasury ? "/treasury" : isEvents ? "/parties" : isChapter ? "/chapter" : isDocs ? "/docs" : isInstagram ? "/instagram" : isService ? "/service" : "/brothers";
-              const isActive = isTimeline
-                ? subPath === "/timeline"
-                : isTreasury
-                  ? subPath.startsWith("/treasury")
-                  : isEvents
-                    ? subPath.startsWith("/parties")
-                    : isBrotherhood
-                      ? subPath.startsWith("/brothers")
-                      : isChapter
-                        ? subPath.startsWith("/chapter")
-                        : isDocs
-                          ? subPath.startsWith("/docs")
-                          : isInstagram
-                            ? subPath.startsWith("/instagram")
-                            : isService
-                              ? subPath.startsWith("/service")
-                              : subPath === "/" && activeSection === label;
-
-              const displayLabel = NAV_DISPLAY[label] ?? label;
-
-              if (isStandalone) {
-                return (
-                  <Link
-                    key={label}
-                    href={orgPath(standaloneSub)}
-                    onClick={onClose}
-                    aria-current={isActive ? "page" : undefined}
-                    className={navItemClass(isActive)}
-                  >
-                    <SvgIcon d={NAV_ICONS[label] ?? ""} className="h-4 w-4 shrink-0 opacity-75" />
-                    {displayLabel}
-                    {isActive && <span className="ml-auto h-1.5 w-1.5 rounded-full bg-indigo-400" aria-hidden="true" />}
-                  </Link>
-                );
-              }
-
+          <div className="space-y-5">
+            {NAV_GROUPS.map(group => {
+              const items = group.items.filter(label => visibleNavSet.has(label));
+              if (items.length === 0) return null;
+              const headingId = `sidebar-group-${group.label.toLowerCase().replace(/\s+/g, "-")}`;
               return (
-                <button
-                  key={label}
-                  onClick={() => goToDashboardSection(label)}
-                  aria-current={isActive ? "page" : undefined}
-                  className={navItemClass(isActive)}
-                >
-                  <SvgIcon d={NAV_ICONS[label] ?? ""} className="h-4 w-4 shrink-0 opacity-75" />
-                  {displayLabel}
-                  {isActive && <span className="ml-auto h-1.5 w-1.5 rounded-full bg-indigo-400" aria-hidden="true" />}
-                </button>
+                <section key={group.label} aria-labelledby={headingId}>
+                  <p id={headingId} className="mb-1 px-3 text-[10px] font-semibold uppercase tracking-widest text-white/25">
+                    {group.label}
+                  </p>
+                  <div className="space-y-0.5">
+                    {items.map(renderNavItem)}
+                  </div>
+                </section>
               );
             })}
           </div>

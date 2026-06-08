@@ -18,7 +18,7 @@ const VOCAB_GROUPS: { label: string; keys: VocabKey[] }[] = [
   },
   {
     label: "Features",
-    keys: ["Treasury", "Meetings", "Service", "Attendance", "Announcement", "Doc"],
+    keys: ["Treasury", "Dues", "Meetings", "Service", "Attendance", "Announcement", "Doc"],
   },
   {
     label: "Time",

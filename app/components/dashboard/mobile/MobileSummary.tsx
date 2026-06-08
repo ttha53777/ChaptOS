@@ -2,6 +2,7 @@
 
 import { fmt$ } from "../../../data";
 import { SvgIcon } from "../../Sidebar";
+import { useVocab } from "../../../hooks/useVocab";
 import { KPI_ICONS } from "../styles";
 import type { Announcement } from "../AnnouncementCard";
 import type { KPIDrawerKey, MobileKpis } from "./MobileDashboard";
@@ -14,6 +15,7 @@ export function MobileSummary({ announcement, kpis, onEditAnnouncement, onOpenKp
   onEditAnnouncement: () => void;
   onOpenKpi: (k: KPIDrawerKey) => void;
 }) {
+  const v = useVocab();
   const title = announcement?.title ?? "Welcome to your chapter dashboard";
   const rawBody = announcement?.body ?? "";
   // Show a one-line preview only when there's body content. Headline-only
@@ -24,7 +26,7 @@ export function MobileSummary({ announcement, kpis, onEditAnnouncement, onOpenKp
   // Each chip condenses a full KPICard into a glanceable tap target (no sparkline).
   const chips: { key: KPIDrawerKey; label: string; value: string; color: string }[] = [
     { key: "attendance", label: "Att",    value: `${kpis.avgAttendance.toFixed(0)}%`,           color: "text-blue-400"    },
-    { key: "dues",       label: "Dues",   value: fmt$(kpis.outstandingDues),                    color: kpis.outstandingDues > 0 ? "text-amber-400" : "text-white" },
+    { key: "dues",       label: v("Dues"), value: fmt$(kpis.outstandingDues),                    color: kpis.outstandingDues > 0 ? "text-amber-400" : "text-white" },
     { key: "gpa",        label: "GPA",    value: kpis.chapterGPA.toFixed(2),                    color: "text-violet-400"  },
     { key: "service",    label: "Svc",    value: `${kpis.totalServiceHrs}h`,                    color: "text-emerald-400" },
     { key: "treasury",   label: "Bank",   value: fmt$(kpis.liveBalance),                        color: "text-indigo-400"  },
@@ -63,9 +65,9 @@ export function MobileSummary({ announcement, kpis, onEditAnnouncement, onOpenKp
             onClick={() => onOpenKpi(c.key)}
             className="flex flex-col gap-0.5 rounded-xl card-premium px-2.5 py-2 text-left active:border-white/[0.14]"
           >
-            <div className="flex items-center gap-1 text-slate-500">
-              <SvgIcon d={KPI_ICONS[c.key] ?? ""} className="h-3 w-3" />
-              <span className="text-[10px] font-semibold uppercase tracking-wide">{c.label}</span>
+            <div className="flex items-center gap-1 text-slate-500 min-w-0">
+              <SvgIcon d={KPI_ICONS[c.key] ?? ""} className="h-3 w-3 shrink-0" />
+              <span className="truncate text-[10px] font-semibold uppercase tracking-wide">{c.label}</span>
             </div>
             <span className={`truncate text-[14px] font-bold tabular-nums ${c.color}`}>{c.value}</span>
           </button>

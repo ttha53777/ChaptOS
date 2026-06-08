@@ -5,6 +5,7 @@ import { BrotherAvatar } from "../../BrotherAvatar";
 import { AttBar } from "../widgets";
 import { BROTHER_STYLES, inputCls } from "../styles";
 import { useThresholds } from "../../../hooks/useThresholds";
+import { useVocab } from "../../../hooks/useVocab";
 import type { MobileActions, MobileBrothersData, StatusFilter } from "./MobileDashboard";
 
 const FILTERS: StatusFilter[] = ["All", "Good", "Watch", "At Risk"];
@@ -15,6 +16,7 @@ export function MobileBrothersTab({ brothersData, actions }: {
 }) {
   const { filteredBrothers, brotherList, statusCounts, search, statusFilter, selfId, currentUser, avatarRevision } = brothersData;
   const THRESHOLDS = useThresholds();
+  const v = useVocab();
 
   return (
     <div className="space-y-3">
@@ -23,7 +25,7 @@ export function MobileBrothersTab({ brothersData, actions }: {
         type="text"
         value={search}
         onChange={e => actions.setSearch(e.target.value)}
-        placeholder="Search brothers…"
+        placeholder={`Search ${v("Member", true).toLowerCase()}…`}
         className={inputCls}
       />
 
@@ -47,7 +49,7 @@ export function MobileBrothersTab({ brothersData, actions }: {
       {/* Brother card list — tap a row to open the BrotherDrawer */}
       <ul className="overflow-hidden rounded-xl card-premium divide-y divide-white/[0.04]">
         {filteredBrothers.length === 0 ? (
-          <li className="py-10 text-center text-sm text-slate-500">No brothers match your filters.</li>
+          <li className="py-10 text-center text-sm text-slate-500">No {v("Member", true).toLowerCase()} match your filters.</li>
         ) : filteredBrothers.map(b => {
           const status = getBrotherStatus(b, THRESHOLDS);
           return (

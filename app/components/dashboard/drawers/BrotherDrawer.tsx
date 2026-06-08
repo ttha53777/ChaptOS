@@ -6,6 +6,7 @@ import { fmt$, getBrotherStatus } from "../../../data";
 import { BrotherAvatar } from "../../BrotherAvatar";
 import { useChapter } from "../../../context/ChapterContext";
 import { useThresholds } from "../../../hooks/useThresholds";
+import { useVocab } from "../../../hooks/useVocab";
 import { FieldLabel, StatusBadge, ConfirmDialog } from "../primitives";
 import { inputCls } from "../styles";
 import { orgFetch } from "../../../lib/api";
@@ -49,6 +50,7 @@ export function BrotherDrawer({
 }) {
   const { currentUser, avatarRevision, can } = useChapter();
   const THRESHOLDS = useThresholds();
+  const v = useVocab();
   const canManageRoles = can("MANAGE_ROLES");
   const isSelf = brotherId !== null && selfId === brotherId;
   const canEditProfile = isAdmin || isSelf;        // name, role, gpa, serviceHours
@@ -232,13 +234,13 @@ export function BrotherDrawer({
           tip:  `Goal ≥ ${THRESHOLDS.gpaWatch}`,
         },
         {
-          label: "Dues", val: brother.duesOwed === 0 ? "Paid" : fmt$(brother.duesOwed),
+          label: v("Dues"), val: brother.duesOwed === 0 ? "Paid" : fmt$(brother.duesOwed),
           ok:   brother.duesOwed === 0,
           warn: false,
           tip:  "Must be $0",
         },
         {
-          label: "Service", val: `${brother.serviceHours}h`,
+          label: v("Service"), val: `${brother.serviceHours}h`,
           ok:   brother.serviceHours >= THRESHOLDS.serviceHoursGoal,
           warn: false,
           tip:  `Goal ${THRESHOLDS.serviceHoursGoal}h`,
@@ -255,7 +257,7 @@ export function BrotherDrawer({
     <>
       {confirmDelete && brother && (
         <ConfirmDialog
-          title="Remove Brother"
+          title={`Remove ${v("Member")}`}
           confirmLabel="Remove"
           message={
             <>Remove <span className="font-semibold text-white">{brother.name}</span> from the roster? This cannot be undone.</>
@@ -337,7 +339,7 @@ export function BrotherDrawer({
                     </div>
                     {/* Dues */}
                     <div className={`rounded-lg px-3 py-2.5 border ${brother.duesOwed > 0 ? "bg-amber-500/10 border-amber-500/20" : "bg-white/[0.04] border-white/[0.06]"}`}>
-                      <p className="text-[9px] font-semibold uppercase tracking-wider text-slate-500 mb-0.5">Dues Owed</p>
+                      <p className="text-[9px] font-semibold uppercase tracking-wider text-slate-500 mb-0.5">{v("Dues")} Owed</p>
                       <p className={`text-[20px] font-bold tabular-nums leading-none ${brother.duesOwed > 0 ? "text-amber-400" : "text-emerald-400"}`}>
                         {brother.duesOwed > 0 ? fmt$(brother.duesOwed) : "Clear"}
                       </p>
@@ -421,7 +423,7 @@ export function BrotherDrawer({
                           </div>
                           {canManageDues && (
                             <div>
-                              <FieldLabel>Dues ($)</FieldLabel>
+                              <FieldLabel>{v("Dues")} ($)</FieldLabel>
                               <input type="number" min="0" className={inputCls} value={duesOwed} onChange={e => { setDuesOwed(e.target.value); setDirty(true); }} />
                             </div>
                           )}
@@ -439,7 +441,7 @@ export function BrotherDrawer({
               {tab === "attendance" && (
                 <div>
                   <p className="mb-3 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
-                    Mandatory Event History — Active Semester
+                    Mandatory Event History — Active {v("Period")}
                   </p>
 
                   {histLoading && (

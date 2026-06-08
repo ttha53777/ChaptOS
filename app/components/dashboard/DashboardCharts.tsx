@@ -6,6 +6,7 @@ import {
 import { fmt$ } from "../../data";
 import { tooltipStyle } from "./styles";
 import { ChartWidget } from "./widgets";
+import { useVocab } from "../../hooks/useVocab";
 
 interface Props {
   liveBalance: number;
@@ -35,6 +36,8 @@ export default function DashboardCharts({
   serviceHoursGoal,
   svcChartData,
 }: Props) {
+  // `vocab` not `v` — the recharts Tooltip formatters below bind `v` as the value.
+  const vocab = useVocab();
   return (
     <div id="sec-treasury" className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
       <ChartWidget title="Treasury Trend" stat={fmt$(liveBalance)} caption="Jan – May 2026" accentColor="#818cf8">
@@ -67,13 +70,13 @@ export default function DashboardCharts({
         </ResponsiveContainer>
       </ChartWidget>
 
-      <ChartWidget title="Status Mix" stat={`${goodCount} / ${brotherCount} Good`} caption={`${brotherCount} brothers`} accentColor="#34d399">
+      <ChartWidget title="Status Mix" stat={`${goodCount} / ${brotherCount} Good`} caption={`${brotherCount} ${vocab("Member", true).toLowerCase()}`} accentColor="#34d399">
         <ResponsiveContainer width="100%" height="100%" minWidth={0} debounce={1}>
           <BarChart data={statusChartData} margin={{ top: 4, right: 8, bottom: 0, left: -22 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
             <XAxis dataKey="name" tick={{ fontSize: 10, fill: "#475569" }} axisLine={false} tickLine={false} />
             <YAxis tick={{ fontSize: 10, fill: "#475569" }} axisLine={false} tickLine={false} allowDecimals={false} />
-            <Tooltip formatter={(v) => [v, "Brothers"]} contentStyle={tooltipStyle} cursor={{ fill: "rgba(255,255,255,0.04)" }} />
+            <Tooltip formatter={(v) => [v, vocab("Member", true)]} contentStyle={tooltipStyle} cursor={{ fill: "rgba(255,255,255,0.04)" }} />
             <Bar dataKey="count" radius={[3, 3, 0, 0]}>
               {statusChartData.map((entry, idx) => <Cell key={`sc-${idx}`} fill={entry.fill} />)}
             </Bar>

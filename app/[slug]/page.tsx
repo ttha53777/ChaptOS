@@ -24,6 +24,7 @@ import {
   getBrotherStatus, calcHealthScore, avg, fmt$, fmtDate, fmtRange, isoWeekBounds,
 } from "../data";
 import { useThresholds } from "../hooks/useThresholds";
+import { useVocab } from "../hooks/useVocab";
 import { Sidebar, SvgIcon, NAV_ICONS } from "../components/Sidebar";
 import { BrotherAvatar } from "../components/BrotherAvatar";
 import { UserAvatar } from "../components/UserAvatar";
@@ -115,8 +116,17 @@ function KPIDetailDrawer({
   isAdmin?: boolean;
 }) {
   const THRESHOLDS = useThresholds();
+  const v = useVocab();
   const isOpen = activeKey !== null;
   const cfg = activeKey ? DRAWER_CONFIGS[activeKey] : null;
+  // DRAWER_CONFIGS is a module const built before vocab exists; resolve the
+  // org-specific titles here at render time. Keys without an override fall back
+  // to the static cfg.title.
+  const titleOverride: Partial<Record<KPIDrawerKey, string>> = {
+    dues: v("Dues"),
+    gpa:  `${v("Meetings")} GPA`,
+  };
+  const drawerTitle = activeKey ? (titleOverride[activeKey] ?? cfg?.title) : cfg?.title;
 
   useEffect(() => {
     if (!isOpen) return;
@@ -138,7 +148,7 @@ function KPIDetailDrawer({
             <div className="grid grid-cols-3 gap-2 mb-5">
               <div className="rounded-lg bg-white/[0.04] px-3 py-2.5 text-center">
                 <p className="text-[18px] font-bold text-blue-400 tabular-nums">{avgAttendance.toFixed(1)}%</p>
-                <p className="text-[10px] text-slate-500 mt-0.5">Chapter avg</p>
+                <p className="text-[10px] text-slate-500 mt-0.5">{v("Meetings")} avg</p>
               </div>
               <div className="rounded-lg bg-white/[0.04] px-3 py-2.5 text-center">
                 <p className="text-[18px] font-bold text-amber-400 tabular-nums">{belowWatch.length}</p>
@@ -149,7 +159,7 @@ function KPIDetailDrawer({
                 <p className="text-[10px] text-slate-500 mt-0.5">At risk</p>
               </div>
             </div>
-            <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500">All Brothers — Lowest First</p>
+            <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500">All {v("Member", true)} — Lowest First</p>
             <div className="space-y-1.5 mb-5">
               {sorted.map(b => {
                 const bar = b.attendance >= THRESHOLDS.attendanceWatch ? "bg-emerald-400" : b.attendance >= THRESHOLDS.attendanceAtRisk ? "bg-amber-400" : "bg-red-400";
@@ -192,7 +202,7 @@ function KPIDetailDrawer({
               </div>
               <div className="rounded-lg bg-white/[0.04] px-3 py-2.5 text-center">
                 <p className="text-[18px] font-bold text-red-400 tabular-nums">{oweList.length}</p>
-                <p className="text-[10px] text-slate-500 mt-0.5">Brothers owe</p>
+                <p className="text-[10px] text-slate-500 mt-0.5">{v("Member", true)} owe</p>
               </div>
               <div className="rounded-lg bg-white/[0.04] px-3 py-2.5 text-center">
                 <p className="text-[18px] font-bold text-emerald-400 tabular-nums">{paidList.length}</p>
@@ -235,7 +245,7 @@ function KPIDetailDrawer({
             )}
             {outstandingDues === 0 && (
               <div className="rounded-lg bg-emerald-500/10 border border-emerald-500/20 px-3 py-3 text-center">
-                <p className="text-[12px] text-emerald-400 font-medium">All brothers are paid up.</p>
+                <p className="text-[12px] text-emerald-400 font-medium">All {v("Member", true).toLowerCase()} are paid up.</p>
               </div>
             )}
           </>
@@ -251,7 +261,7 @@ function KPIDetailDrawer({
             <div className="grid grid-cols-3 gap-2 mb-5">
               <div className="rounded-lg bg-white/[0.04] px-3 py-2.5 text-center">
                 <p className="text-[18px] font-bold text-violet-400 tabular-nums">{chapterGPA.toFixed(2)}</p>
-                <p className="text-[10px] text-slate-500 mt-0.5">Chapter avg</p>
+                <p className="text-[10px] text-slate-500 mt-0.5">{v("Meetings")} avg</p>
               </div>
               <div className="rounded-lg bg-white/[0.04] px-3 py-2.5 text-center">
                 <p className="text-[18px] font-bold text-amber-400 tabular-nums">{belowWatch.length}</p>
@@ -262,7 +272,7 @@ function KPIDetailDrawer({
                 <p className="text-[10px] text-slate-500 mt-0.5">At risk</p>
               </div>
             </div>
-            <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500">All Brothers — Lowest First</p>
+            <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500">All {v("Member", true)} — Lowest First</p>
             <div className="space-y-1.5 mb-5">
               {sorted.map(b => {
                 const col = b.gpa < THRESHOLDS.gpaAtRisk ? "text-red-400" : b.gpa < THRESHOLDS.gpaWatch ? "text-amber-400" : "text-white";
@@ -293,7 +303,7 @@ function KPIDetailDrawer({
               </div>
             ) : (
               <div className="rounded-lg bg-emerald-500/10 border border-emerald-500/20 px-3 py-2.5 text-center">
-                <p className="text-[12px] text-emerald-400 font-medium">All brothers meeting academic standards.</p>
+                <p className="text-[12px] text-emerald-400 font-medium">All {v("Member", true).toLowerCase()} meeting academic standards.</p>
               </div>
             )}
           </>
@@ -319,7 +329,7 @@ function KPIDetailDrawer({
                 <p className="text-[10px] text-slate-500 mt-0.5">Below goal</p>
               </div>
             </div>
-            <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500">All Brothers — Fewest Hours First</p>
+            <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500">All {v("Member", true)} — Fewest Hours First</p>
             <div className="space-y-1.5 mb-5">
               {sorted.map(b => {
                 const isOnTrack = b.serviceHours >= THRESHOLDS.serviceHoursGoal;
@@ -351,7 +361,7 @@ function KPIDetailDrawer({
               </div>
             ) : (
               <div className="rounded-lg bg-emerald-500/10 border border-emerald-500/20 px-3 py-2.5 text-center">
-                <p className="text-[12px] text-emerald-400 font-medium">All brothers have met the service hours goal!</p>
+                <p className="text-[12px] text-emerald-400 font-medium">All {v("Member", true).toLowerCase()} have met the service hours goal!</p>
               </div>
             )}
           </>
@@ -485,7 +495,7 @@ function KPIDetailDrawer({
               <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${cfg.iconBg}`}>
                 <SvgIcon d={KPI_ICONS[cfg.iconKey] ?? ""} className={`h-4 w-4 ${cfg.iconColor}`} />
               </div>
-              <h2 className={`flex-1 text-[15px] font-semibold ${cfg.accent}`}>{cfg.title}</h2>
+              <h2 className={`flex-1 text-[15px] font-semibold ${cfg.accent}`}>{drawerTitle}</h2>
               <button onClick={onClose} className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-white/[0.07] hover:text-white transition-colors">
                 <svg className="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -543,6 +553,7 @@ function WidgetDetailDrawer({
   onDeleteIG:         (id: number) => void;
   onEditIG:           (id: number) => void;
 }) {
+  const v = useVocab();
   const isOpen = activeKey !== null;
 
   useEffect(() => {
@@ -553,7 +564,7 @@ function WidgetDetailDrawer({
   }, [isOpen, onClose]);
 
   const WIDGET_CONFIGS: Record<WidgetDrawerKey, { title: string; accent: string; bar: string }> = {
-    health:     { title: "Chapter Health Score", accent: "text-white",      bar: "bg-indigo-500"    },
+    health:     { title: `${v("Meetings")} Health Score`, accent: "text-white",      bar: "bg-indigo-500"    },
     digest:     { title: "Weekly Digest",          accent: "text-white",      bar: "bg-indigo-500/70" },
     deadlines:  { title: "Deadlines",             accent: "text-white",      bar: "bg-indigo-500/60" },
     instagram:  { title: "Instagram",             accent: "text-white",      bar: "bg-pink-500/60"   },
@@ -622,7 +633,7 @@ function WidgetDetailDrawer({
                 {health.score >= 80
                   ? "Chapter is performing well across all metrics."
                   : health.score >= 60
-                  ? "Some areas need attention — address urgent deadlines and at-risk brothers."
+                  ? `Some areas need attention — address urgent deadlines and at-risk ${v("Member", true).toLowerCase()}.`
                   : "Immediate action required — multiple metrics are critically low."
                 }
               </p>
@@ -954,6 +965,7 @@ export default function Home() {
   // THRESHOLDS so the many inline `THRESHOLDS.x` references below read the org
   // value without per-line edits.
   const THRESHOLDS = useThresholds();
+  const v = useVocab();
   // ── UI state ──────────────────────────────────────────────────────────────
   const [search,         setSearch]         = useState("");
   const [statusFilter,   setStatusFilter]   = useState("All");

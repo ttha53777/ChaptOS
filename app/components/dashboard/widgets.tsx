@@ -8,6 +8,7 @@ const SparkLine = dynamic(() => import("./SparkLine"), {
 import type { ActivityEntry, Brother } from "../../data";
 import { KPI_SPARKLINES } from "../../data";
 import { useThresholds } from "../../hooks/useThresholds";
+import { useVocab } from "../../hooks/useVocab";
 import { SvgIcon } from "../Sidebar";
 import { Card } from "./primitives";
 import { KPI_ICONS } from "./styles";
@@ -23,6 +24,8 @@ export function ChapterMomentumWidget({ score, label, breakdown, onExpand }: {
   breakdown: Record<string, number>;      // metric → 0-100 (Attendance, GPA, Dues, Service, Deadlines)
   onExpand?: () => void;
 }) {
+  // `vocab` not `v` — this component uses `v` as a loop var in .map() below.
+  const vocab = useVocab();
   const accent     = score >= 80 ? "text-emerald-400" : score >= 60 ? "text-amber-400" : "text-red-400";
   const iconBg     = score >= 80 ? "bg-emerald-500/10" : score >= 60 ? "bg-amber-500/10" : "bg-red-500/10";
   const iconColor  = score >= 80 ? "text-emerald-400" : score >= 60 ? "text-amber-400" : "text-red-400";
@@ -45,7 +48,7 @@ export function ChapterMomentumWidget({ score, label, breakdown, onExpand }: {
             </svg>
           </div>
           <div className="min-w-0">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.07em] text-slate-500">Chapter Health</p>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.07em] text-slate-500">{vocab("Meetings")} Health</p>
             <p className={`mt-0.5 text-[22px] font-bold leading-none tracking-tight ${accent}`}>
               {score}<span className="text-[14px] text-slate-500">/100</span>
             </p>

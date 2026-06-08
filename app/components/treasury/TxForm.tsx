@@ -5,6 +5,7 @@ import { FieldLabel } from "../dashboard/primitives";
 import { inputCls } from "../dashboard/styles";
 import { Transaction, INCOME_CATEGORIES, EXPENSE_CATEGORIES, PAYMENT_METHODS } from "../../data";
 import { todayStr } from "../../lib/dates";
+import { useVocab } from "../../hooks/useVocab";
 
 const CURRENT_SEMESTER = "SPR26";
 
@@ -30,6 +31,7 @@ export function TxForm({
   const [paymentMethod, setPaymentMethod] = useState(initial?.paymentMethod ?? "");
   const [paidTo,        setPaidTo]        = useState(initial?.paidTo ?? "");
   const [semester,      setSemester]      = useState(initial?.semester ?? CURRENT_SEMESTER);
+  const v = useVocab();
 
   const categories = type === "income" ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
 
@@ -81,14 +83,14 @@ export function TxForm({
           </select>
         </div>
         <div>
-          <FieldLabel>Semester</FieldLabel>
+          <FieldLabel>{v("Period")}</FieldLabel>
           <input type="text" value={semester} onChange={e => setSemester(e.target.value)} placeholder="SPR26" className={inputCls} />
         </div>
       </div>
       {type === "expense" && (
         <div>
           <FieldLabel>Paid To</FieldLabel>
-          <input type="text" value={paidTo} onChange={e => setPaidTo(e.target.value)} placeholder="Brother name" className={inputCls} />
+          <input type="text" value={paidTo} onChange={e => setPaidTo(e.target.value)} placeholder={`${v("Member")} name`} className={inputCls} />
         </div>
       )}
       <div className="flex justify-end gap-2 pt-1">
