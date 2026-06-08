@@ -130,7 +130,12 @@ export function UserAvatar() {
       />
 
       <button
-        onClick={() => setOpen(v => !v)}
+        onClick={() => {
+          // Clear a stale leave error when opening so a past failure doesn't
+          // linger in the menu on an unrelated open.
+          if (!open) setLeaveError(null);
+          setOpen(v => !v);
+        }}
         className="flex h-8 w-8 items-center justify-center rounded-full ring-2 ring-white/[0.08] transition-all hover:ring-indigo-500/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
         aria-label="Open profile menu"
         aria-expanded={open}
