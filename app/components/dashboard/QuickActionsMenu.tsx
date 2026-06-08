@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import type { WorkflowId } from "@/lib/org-types";
 
 export type QuickActionKey =
   | "expense"
@@ -15,6 +16,9 @@ interface QuickAction {
   label: string;
   icon: ReactNode;
   adminOnly: boolean;
+  /** When set, the action is hidden unless the org has this workflow enabled.
+   *  e.g. "Log Expense"/"Log Revenue" disappear when the Treasury page is off. */
+  workflow?: WorkflowId;
 }
 
 const ICON_CLS = "h-3.5 w-3.5 shrink-0";
@@ -65,8 +69,8 @@ const IgIcon = (
 );
 
 const QUICK_ACTIONS: QuickAction[] = [
-  { key: "expense",  label: "Log Expense",  icon: ExpenseIcon,  adminOnly: true  },
-  { key: "revenue",  label: "Log Revenue",  icon: RevenueIcon,  adminOnly: true  },
+  { key: "expense",  label: "Log Expense",  icon: ExpenseIcon,  adminOnly: true,  workflow: "finance" },
+  { key: "revenue",  label: "Log Revenue",  icon: RevenueIcon,  adminOnly: true,  workflow: "finance" },
   { key: "excuse",   label: "Log Excuse",   icon: ExcuseIcon,   adminOnly: false },
   { key: "deadline", label: "Add Deadline", icon: DeadlineIcon, adminOnly: false },
   { key: "event",    label: "New Event",    icon: EventIcon,    adminOnly: false },
@@ -77,10 +81,16 @@ export function QuickActionsMenu({
   isAdmin,
   onSelect,
   variant = "desktop",
+  enabledWorkflows,
 }: {
   isAdmin: boolean;
   onSelect: (key: QuickActionKey) => void;
   variant?: "desktop" | "mobile";
+  /** The org's enabled workflows. Actions tagged with a `workflow` are hidden
+   *  when that workflow isn't enabled (e.g. finance actions when Treasury is
+   *  off). Undefined (still loading) shows all — same forgiving default the
+   *  sidebar uses to avoid a flash of a half-empty menu. */
+  enabledWorkflows?: readonly string[];
 }) {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -101,7 +111,13 @@ export function QuickActionsMenu({
     };
   }, [open]);
 
-  const items = QUICK_ACTIONS.filter(a => !a.adminOnly || isAdmin);
+  const items = QUICK_ACTIONS.filter(a => {
+    if (a.adminOnly && !isAdmin) return false;
+    // Hide a workflow-gated action when the org has that workflow disabled.
+    // When enabledWorkflows is undefined (still loading) keep the action.
+    if (a.workflow && enabledWorkflows && !enabledWorkflows.includes(a.workflow)) return false;
+    return true;
+  });
   const showDivider = isAdmin && items.some(a => a.adminOnly) && items.some(a => !a.adminOnly);
 
   function handlePick(key: QuickActionKey) {

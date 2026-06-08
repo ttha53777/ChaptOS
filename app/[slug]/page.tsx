@@ -1670,7 +1670,7 @@ export default function Home() {
 
           {/* Quick Actions */}
           <div className="hidden items-center gap-1.5 lg:flex">
-            <QuickActionsMenu isAdmin={isAdmin || canTreasury || canAttendance} onSelect={handleQuickAction} />
+            <QuickActionsMenu isAdmin={isAdmin || canTreasury || canAttendance} onSelect={handleQuickAction} enabledWorkflows={currentUser?.org?.enabledWorkflows} />
             {canAttendance && (
               <button onClick={() => openAttendanceLog()}
                 className="rounded-lg border border-white/[0.08] bg-white/[0.03] px-2.5 py-1.5 text-[11px] font-medium text-slate-300 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition-all duration-150 hover:border-indigo-500/40 hover:bg-indigo-500/10 hover:text-indigo-200">
@@ -1681,7 +1681,7 @@ export default function Home() {
 
           {/* Mobile: quick actions menu */}
           <div className="lg:hidden">
-            <QuickActionsMenu isAdmin={isAdmin || canTreasury || canAttendance} onSelect={handleQuickAction} variant="mobile" />
+            <QuickActionsMenu isAdmin={isAdmin || canTreasury || canAttendance} onSelect={handleQuickAction} variant="mobile" enabledWorkflows={currentUser?.org?.enabledWorkflows} />
           </div>
 
           <p className="hidden text-[11px] text-slate-500 xl:block shrink-0">{new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</p>
