@@ -46,7 +46,7 @@ export async function GET(req: NextRequest) {
   } catch (e) {
     if (isTableMissing(e)) return Response.json(null);
     logError(e, { route: "/api/announcement", method: "GET" });
-    return Response.json({ error: "Failed to fetch announcement" }, { status: 500 });
+    return toResponse(e);
   }
 }
 

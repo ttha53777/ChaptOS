@@ -9,13 +9,17 @@ import { useChapter } from "../../context/ChapterContext";
 import { useVocab } from "../../hooks/useVocab";
 import { headerActionBtnCls, inputCls } from "../../components/dashboard/styles";
 import { CalendarEvent, fmtDate } from "../../data";
+import { orgFetch } from "../../lib/api";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 type HttpError = Error & { status: number };
 
+// Local wrapper kept (instead of lib/api's requestJson) because callers need
+// err.status for the 409 attendance-conflict message. Routed through orgFetch
+// so requests carry the x-org-slug header.
 async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(url, init);
+  const res = await orgFetch(url, init);
   if (!res.ok) {
     let detail = "";
     try { const b = await res.json(); detail = typeof b?.error === "string" ? `: ${b.error}` : ""; } catch { /* ignore */ }

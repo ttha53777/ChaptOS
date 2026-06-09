@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma"; // lint-modules:ignore (pre-auth onboarding helper)
 import { rateLimit, clientIp, tooManyRequests } from "@/lib/rate-limit";
 import { validateSlugFormat, generateSlugVariants } from "@/lib/slug-rules";
+import { toResponse } from "@/lib/errors";
 import { logError } from "@/lib/observability";
 
 // GET /api/orgs/slug-check?slug=...
@@ -72,6 +73,6 @@ export async function GET(req: NextRequest) {
     });
   } catch (e) {
     logError(e, { route: "/api/orgs/slug-check", method: "GET" });
-    return Response.json({ error: "Slug check failed." }, { status: 500 });
+    return toResponse(e);
   }
 }

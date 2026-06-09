@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { buildContext } from "@/lib/context";
-import { toResponse } from "@/lib/errors";
+import { NotFoundError, toResponse } from "@/lib/errors";
 import { submitExcuseInput } from "@/lib/validation/excuse";
 import { listExcuses, submitExcuse } from "@/lib/services/excuse-service";
 import { logError } from "@/lib/observability";
@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
 
     // Preserve legacy response shape: full Brother row + excuseStatus.
     const brother = await ctx.db.brother.findUnique({ where: { id: result.brotherId } });
-    if (!brother) return toResponse(new Error("Brother not found after submit"));
+    if (!brother) return toResponse(new NotFoundError("Brother"));
     return Response.json({
       ...brother,
       attendance: result.attendance ?? brother.attendance,

@@ -9,21 +9,7 @@ import { headerActionBtnCls } from "../../components/dashboard/styles";
 import { useChapter } from "../../context/ChapterContext";
 import { DocCard, type Doc } from "./DocCard";
 import { DocForm, type DocDraft } from "./DocForm";
-
-type HttpError = Error & { status: number };
-
-async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(url, init);
-  if (!res.ok) {
-    let detail = "";
-    try { const b = await res.json(); detail = typeof b?.error === "string" ? `: ${b.error}` : ""; } catch { /* ignore */ }
-    const err = new Error(`${url} returned ${res.status}${detail}`) as HttpError;
-    err.status = res.status;
-    throw err;
-  }
-  if (res.status === 204) return undefined as T;
-  return res.json() as Promise<T>;
-}
+import { requestJson } from "../../lib/api";
 
 const EMPTY_DRAFT: DocDraft = { title: "", url: "", description: "" };
 

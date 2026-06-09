@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { ConfirmDialog } from "../../../components/dashboard/primitives";
 import { useChapter } from "../../../context/ChapterContext";
 import { PERMISSIONS, PERMISSION_LIST, hasPermission, type Permission } from "@/lib/permissions";
+import { requestJson } from "../../../lib/api";
 
 interface RoleRow {
   id: number;
@@ -13,20 +14,6 @@ interface RoleRow {
   permissions: number;
   isSystem: boolean;
   memberCount: number;
-}
-
-async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(url, init);
-  if (!res.ok) {
-    let detail = "";
-    try {
-      const body = await res.json();
-      detail = typeof body?.error === "string" ? `: ${body.error}` : "";
-    } catch { /* ignore */ }
-    throw new Error(`${url} returned ${res.status}${detail}`);
-  }
-  if (res.status === 204) return undefined as T;
-  return res.json() as Promise<T>;
 }
 
 const DEFAULT_COLOR = "#5865F2";

@@ -6,6 +6,7 @@ import { ConfirmDialog } from "../../../components/dashboard/primitives";
 import { useChapter } from "../../../context/ChapterContext";
 import { LeaveOrgModal } from "../../../components/LeaveOrgModal";
 import { BrotherRoleChips } from "./BrotherRoleChips";
+import { requestJson } from "../../../lib/api";
 
 interface AssignedRoleSummary {
   id: number;
@@ -23,20 +24,6 @@ interface AccountRow {
   isAdmin: boolean;
   email: string | null;
   roles: AssignedRoleSummary[];
-}
-
-async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(url, init);
-  if (!res.ok) {
-    let detail = "";
-    try {
-      const body = await res.json();
-      detail = typeof body?.error === "string" ? `: ${body.error}` : "";
-    } catch { /* ignore */ }
-    throw new Error(`${url} returned ${res.status}${detail}`);
-  }
-  if (res.status === 204) return undefined as T;
-  return res.json() as Promise<T>;
 }
 
 export function AccountsSection({

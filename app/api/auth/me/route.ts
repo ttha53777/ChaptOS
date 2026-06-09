@@ -6,6 +6,7 @@ import { db } from "@/lib/db"; // lint-modules:ignore (auth bootstrap; runs befo
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { ALL_WORKFLOWS } from "@/lib/org-types";
 import { resolveThresholds } from "@/lib/thresholds";
+import { toResponse } from "@/lib/errors";
 import { logError } from "@/lib/observability";
 
 export async function GET() {
@@ -100,6 +101,6 @@ export async function GET() {
     });
   } catch (e) {
     logError(e, { route: "/api/auth/me", method: "GET", userId: user?.id });
-    return Response.json({ error: "Failed to fetch user" }, { status: 500 });
+    return toResponse(e);
   }
 }

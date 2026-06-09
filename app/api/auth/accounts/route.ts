@@ -1,5 +1,6 @@
 import { requireUser } from "@/lib/auth/require-user";
 import { db } from "@/lib/db"; // lint-modules:ignore (read-only listing for admin UI)
+import { toResponse } from "@/lib/errors";
 import { logError } from "@/lib/observability";
 
 export async function GET() {
@@ -56,6 +57,6 @@ export async function GET() {
     );
   } catch (e) {
     logError(e, { route: "/api/auth/accounts", method: "GET", userId: user?.id });
-    return Response.json({ error: "Failed to fetch accounts" }, { status: 500 });
+    return toResponse(e);
   }
 }

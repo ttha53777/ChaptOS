@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma"; // lint-modules:ignore (cross-org platform-admin surface)
 import { requireAdmin } from "@/lib/auth/require-admin";
+import { toResponse } from "@/lib/errors";
 import { logError } from "@/lib/observability";
 
 // GET /api/admin/orgs — cross-org list for PlatformAdmin audit.
@@ -54,6 +55,6 @@ export async function GET() {
     });
   } catch (e) {
     logError(e, { route: "/api/admin/orgs", method: "GET", userId: user.id });
-    return Response.json({ error: "Failed to fetch organizations." }, { status: 500 });
+    return toResponse(e);
   }
 }

@@ -5,6 +5,7 @@ import { ConfirmDialog } from "../../../components/dashboard/primitives";
 import { useChapter } from "../../../context/ChapterContext";
 import { INVITE_EXPIRY_PRESETS, type InviteExpiry } from "@/lib/validation/invite";
 import type { InviteMode } from "@/lib/state";
+import { requestJson } from "../../../lib/api";
 
 interface InviteRow {
   id: number;
@@ -14,20 +15,6 @@ interface InviteRow {
   createdAt: string;
   redemptionCount: number;
   createdByName: string | null;
-}
-
-async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(url, init);
-  if (!res.ok) {
-    let detail = "";
-    try {
-      const body = await res.json();
-      detail = typeof body?.error === "string" ? `: ${body.error}` : "";
-    } catch { /* ignore */ }
-    throw new Error(`${url} returned ${res.status}${detail}`);
-  }
-  if (res.status === 204) return undefined as T;
-  return res.json() as Promise<T>;
 }
 
 const EXPIRY_LABELS: Record<InviteExpiry, string> = {
