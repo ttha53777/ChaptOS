@@ -26,6 +26,7 @@ import {
 import { useThresholds } from "../hooks/useThresholds";
 import { useVocab } from "../hooks/useVocab";
 import { useFeature } from "../hooks/useFeature";
+import { WORKFLOW_FEATURES, type DisabledFeatures } from "@/lib/workflow-features";
 import { Sidebar, SvgIcon, NAV_ICONS } from "../components/Sidebar";
 import { BrotherAvatar } from "../components/BrotherAvatar";
 import { UserAvatar } from "../components/UserAvatar";
@@ -38,7 +39,7 @@ import { CalendarEventForm, type CalendarDraft } from "../components/timeline/Ca
 import { BrotherDrawer } from "../components/dashboard/drawers/BrotherDrawer";
 import { Card, Modal, StatusBadge, TaskBadge, ConfirmDialog, FieldLabel } from "../components/dashboard/primitives";
 import { BROTHER_STYLES, KPI_ICONS, SECTION_IDS, inputCls } from "../components/dashboard/styles";
-import { ActivityFeed, AttBar, ChapterMomentumWidget, KPICard, SortTh } from "../components/dashboard/widgets";
+import { ActivityFeed, AttBar, ChapterMomentumWidget, KPICard, SortTh, WidgetHideButton } from "../components/dashboard/widgets";
 import { AnnouncementCard, type Announcement } from "../components/dashboard/AnnouncementCard";
 import { AnnouncementEditor } from "../components/dashboard/AnnouncementEditor";
 import { MobileDashboard } from "../components/dashboard/mobile/MobileDashboard";
@@ -988,6 +989,44 @@ export default function Home() {
   const canAttendance  = can("MANAGE_ATTENDANCE");
   const selfId  = currentUser?.id ?? null;
 
+  // Whether the viewer is an admin of the *active* org. This — not a permission
+  // bit — is what gates the inline "hide widget" affordance, because the server
+  // (setDisabledFeatures) authorizes on isOrgAdmin/isPlatformAdmin, not on
+  // MANAGE_SETTINGS. Resolved the same way /api/auth/me does. Platform admins
+  // pass because /me marks their active membership isOrgAdmin.
+  const isActiveOrgAdmin =
+    currentUser?.memberships?.find(m => m.organizationId === currentUser.orgId)?.isOrgAdmin ?? false;
+
+  // The dashboard's currently-hidden widgets, intersected with the registry so a
+  // stale/unknown id never leaks into the tray. Drives the "Hidden widgets" tray.
+  const hiddenOps = useMemo(() => {
+    const disabled = new Set((currentUser?.org?.disabledFeatures as DisabledFeatures | undefined)?.operations ?? []);
+    return WORKFLOW_FEATURES.operations.filter(f => disabled.has(f.id));
+  }, [currentUser?.org?.disabledFeatures]);
+
+  // Hide or re-show a dashboard widget by rewriting the org's disabledFeatures
+  // map (operations workflow) through the same PATCH the settings panel uses.
+  // Sending only disabledFeatures leaves enabledWorkflows/vocab/thresholds
+  // untouched (each setter is independent server-side). Admin-gated at the call
+  // sites; the server re-checks isOrgAdmin regardless.
+  const setWidgetHidden = useCallback(async (featureId: string, hidden: boolean) => {
+    const current = (currentUser?.org?.disabledFeatures ?? {}) as DisabledFeatures;
+    const ops = new Set(current.operations ?? []);
+    if (hidden) ops.add(featureId); else ops.delete(featureId);
+    const next: DisabledFeatures = { ...current };
+    if (ops.size) next.operations = [...ops]; else delete next.operations;
+    try {
+      await requestJson("/api/orgs/config", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ disabledFeatures: next }),
+      });
+      await refreshChapterData().catch(() => undefined);
+    } catch {
+      setMutationError("Couldn't update the dashboard. Try again.");
+    }
+  }, [currentUser?.org?.disabledFeatures, refreshChapterData, setMutationError]);
+
   // Welcome toast after sign-in. /auth/callback redirects linked users to
   // /?toast=welcome; once the org name resolves we show a one-time toast and
   // strip the param from the URL (replaceState, no navigation/Suspense needed).
@@ -1749,62 +1788,87 @@ export default function Home() {
           <div className="mx-auto hidden max-w-[1400px] space-y-5 px-4 py-6 sm:px-6 md:block">
             {/* ── Pinned Announcement ─────────────────────────────────────── */}
             {feature("operations", "announcement") && (
-              <section id="sec-dashboard" aria-label="Chapter announcement">
+              <section id="sec-dashboard" aria-label="Chapter announcement" className="group relative">
                 <AnnouncementCard announcement={announcement} onEdit={() => setAnnouncementEditorOpen(true)} />
+                {isActiveOrgAdmin && <WidgetHideButton label="Announcement" onHide={() => setWidgetHidden("announcement", true)} />}
               </section>
             )}
 
             {/* ── KPI Cards ──────────────────────────────────────────────── */}
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6">
-              {feature("operations", "kpi-attendance") && <KPICard label="Avg Attendance" value={`${avgAttendance.toFixed(1)}%`}
-                trend={`${belowAttCount} below threshold`}
-                iconKey="attendance" sparkData={KPI_SPARKLINES.attendance}
-                iconBg="bg-blue-500/10" iconColor="text-blue-400" strokeColor="#60a5fa" glowColor="#60a5fa"
-                onClick={() => setActiveDrawer("attendance")} />}
-              {feature("operations", "kpi-dues") && <KPICard label="Dues" value={fmt$(outstandingDues)}
-                trend={`${owingCount} brothers owe`}
-                iconKey="dues" sparkData={KPI_SPARKLINES.dues}
-                accent={outstandingDues > 0 ? "text-amber-400" : "text-white"}
-                iconBg="bg-amber-500/10" iconColor="text-amber-400" strokeColor="#fbbf24" glowColor="#fbbf24"
-                onClick={() => setActiveDrawer("dues")} />}
-              {feature("operations", "kpi-gpa") && <KPICard label="Chapter GPA" value={chapterGPA.toFixed(2)}
-                trend={`${belowGpaCount} below 3.0`}
-                iconKey="gpa" sparkData={KPI_SPARKLINES.gpa}
-                iconBg="bg-violet-500/10" iconColor="text-violet-400" strokeColor="#a78bfa" glowColor="#a78bfa"
-                onClick={() => setActiveDrawer("gpa")} />}
-              {feature("operations", "kpi-service") && <KPICard label="Service Hours" value={`${totalServiceHrs}h`}
-                trend={`${onTrackSvc} of ${brotherList.length} on track`}
-                iconKey="service" sparkData={KPI_SPARKLINES.service}
-                iconBg="bg-emerald-500/10" iconColor="text-emerald-400" strokeColor="#34d399" glowColor="#34d399"
-                onClick={() => setActiveDrawer("service")} />}
+              {feature("operations", "kpi-attendance") && (
+                <div className="group relative">
+                  <KPICard label="Avg Attendance" value={`${avgAttendance.toFixed(1)}%`}
+                    trend={`${belowAttCount} below threshold`}
+                    iconKey="attendance" sparkData={KPI_SPARKLINES.attendance}
+                    iconBg="bg-blue-500/10" iconColor="text-blue-400" strokeColor="#60a5fa" glowColor="#60a5fa"
+                    onClick={() => setActiveDrawer("attendance")} />
+                  {isActiveOrgAdmin && <WidgetHideButton label="Attendance KPI" onHide={() => setWidgetHidden("kpi-attendance", true)} />}
+                </div>
+              )}
+              {feature("operations", "kpi-dues") && (
+                <div className="group relative">
+                  <KPICard label="Dues" value={fmt$(outstandingDues)}
+                    trend={`${owingCount} brothers owe`}
+                    iconKey="dues" sparkData={KPI_SPARKLINES.dues}
+                    accent={outstandingDues > 0 ? "text-amber-400" : "text-white"}
+                    iconBg="bg-amber-500/10" iconColor="text-amber-400" strokeColor="#fbbf24" glowColor="#fbbf24"
+                    onClick={() => setActiveDrawer("dues")} />
+                  {isActiveOrgAdmin && <WidgetHideButton label="Dues KPI" onHide={() => setWidgetHidden("kpi-dues", true)} />}
+                </div>
+              )}
+              {feature("operations", "kpi-gpa") && (
+                <div className="group relative">
+                  <KPICard label="Chapter GPA" value={chapterGPA.toFixed(2)}
+                    trend={`${belowGpaCount} below 3.0`}
+                    iconKey="gpa" sparkData={KPI_SPARKLINES.gpa}
+                    iconBg="bg-violet-500/10" iconColor="text-violet-400" strokeColor="#a78bfa" glowColor="#a78bfa"
+                    onClick={() => setActiveDrawer("gpa")} />
+                  {isActiveOrgAdmin && <WidgetHideButton label="GPA KPI" onHide={() => setWidgetHidden("kpi-gpa", true)} />}
+                </div>
+              )}
+              {feature("operations", "kpi-service") && (
+                <div className="group relative">
+                  <KPICard label="Service Hours" value={`${totalServiceHrs}h`}
+                    trend={`${onTrackSvc} of ${brotherList.length} on track`}
+                    iconKey="service" sparkData={KPI_SPARKLINES.service}
+                    iconBg="bg-emerald-500/10" iconColor="text-emerald-400" strokeColor="#34d399" glowColor="#34d399"
+                    onClick={() => setActiveDrawer("service")} />
+                  {isActiveOrgAdmin && <WidgetHideButton label="Service Hours KPI" onHide={() => setWidgetHidden("kpi-service", true)} />}
+                </div>
+              )}
               {feature("operations", "health") && (
-                <div className="sm:col-span-2 xl:col-span-2 min-h-full">
+                <div className="group relative sm:col-span-2 xl:col-span-2 min-h-full">
                   <ChapterMomentumWidget
                     score={health.score}
                     label={health.label}
                     breakdown={health.breakdown}
                     onExpand={() => setWidgetDrawer("health")}
                   />
+                  {isActiveOrgAdmin && <WidgetHideButton label="Health widget" onHide={() => setWidgetHidden("health", true)} />}
                 </div>
               )}
             </div>
 
             {/* ── Charts ─────────────────────────────────────────────────── */}
             {feature("operations", "charts") && (
-              <DashboardCharts
-                liveBalance={liveBalance}
-                liveProjected={liveProjected}
-                liveTrend={liveTrend}
-                totalDoorRev={totalDoorRev}
-                partyCount={partyList.length}
-                partyChartData={partyChartData}
-                brotherCount={brotherList.length}
-                goodCount={statusCounts.Good}
-                statusChartData={statusChartData}
-                onTrackSvc={onTrackSvc}
-                serviceHoursGoal={THRESHOLDS.serviceHoursGoal}
-                svcChartData={svcChartData}
-              />
+              <div className="group relative">
+                <DashboardCharts
+                  liveBalance={liveBalance}
+                  liveProjected={liveProjected}
+                  liveTrend={liveTrend}
+                  totalDoorRev={totalDoorRev}
+                  partyCount={partyList.length}
+                  partyChartData={partyChartData}
+                  brotherCount={brotherList.length}
+                  goodCount={statusCounts.Good}
+                  statusChartData={statusChartData}
+                  onTrackSvc={onTrackSvc}
+                  serviceHoursGoal={THRESHOLDS.serviceHoursGoal}
+                  svcChartData={svcChartData}
+                />
+                {isActiveOrgAdmin && <WidgetHideButton label="Charts" onHide={() => setWidgetHidden("charts", true)} />}
+              </div>
             )}
 
             {/* ── Main grid: table + right panel ─────────────────────────── */}
@@ -1812,7 +1876,9 @@ export default function Home() {
 
               {/* Brother Tracking Table */}
               {feature("operations", "brother-tracking") && (
-              <Card style={{ background: "linear-gradient(to bottom, #ffffff08 0%, #10121a 45%)" }} className="overflow-hidden xl:col-span-2">
+              <div className="group relative xl:col-span-2">
+              {isActiveOrgAdmin && <WidgetHideButton label="Member tracking" onHide={() => setWidgetHidden("brother-tracking", true)} />}
+              <Card style={{ background: "linear-gradient(to bottom, #ffffff08 0%, #10121a 45%)" }} className="overflow-hidden">
                 <div className="border-b border-white/[0.07] px-5 py-3.5">
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                     <div>
@@ -1914,6 +1980,7 @@ export default function Home() {
                   </p>
                 </div>
               </Card>
+              </div>
               )}
 
               {/* Right panel */}
@@ -2104,6 +2171,33 @@ export default function Home() {
                 </div>
               </Card>
             </div>
+
+            {/* ── Hidden widgets tray ────────────────────────────────────── */}
+            {/* Admin-only un-hide path for widgets hidden inline (or in Settings).
+                Visible only when something is hidden, so it never adds noise to a
+                fully-populated dashboard, and it's the way back after hiding the
+                last widget. Labels come from the registry. */}
+            {isActiveOrgAdmin && hiddenOps.length > 0 && (
+              <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-3">
+                <p className="mb-2 text-[11px] font-semibold uppercase tracking-widest text-slate-600">Hidden widgets</p>
+                <div className="flex flex-wrap gap-2">
+                  {hiddenOps.map(f => (
+                    <button
+                      key={f.id}
+                      onClick={() => setWidgetHidden(f.id, false)}
+                      title={`Show ${f.label}`}
+                      className="flex items-center gap-1.5 rounded-lg border border-white/[0.1] bg-white/[0.04] px-2.5 py-1 text-[12px] text-slate-300 transition-colors hover:border-indigo-500/40 hover:text-white"
+                    >
+                      <svg className="h-3.5 w-3.5 shrink-0 opacity-70" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                      </svg>
+                      {f.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* ── Footer ─────────────────────────────────────────────────── */}
             <div className="border-t border-white/[0.06] pt-4 text-center">
