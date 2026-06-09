@@ -41,6 +41,7 @@ export async function createTransaction(ctx: RequestContext, input: CreateTransa
       paymentMethod: input.paymentMethod ?? null,
       paidTo:        input.paidTo        ?? null,
       semester:      input.semester      ?? null,
+      status:        input.status        ?? "posted",
     },
     omit: OMIT_BIGINT,
   });

@@ -439,6 +439,7 @@ model Transaction {
   paidTo         String?
   semester       String?
   semesterId     Int?
+  status         String    @default("posted")
   deletedAt      DateTime?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt

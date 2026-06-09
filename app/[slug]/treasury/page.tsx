@@ -458,6 +458,20 @@ export default function TreasuryPage() {
     }
   }, [setTransactionList]);
 
+  const handleMarkPaid = useCallback(async (tx: Transaction) => {
+    setTransactionList(prev => prev.map(t => t.id === tx.id ? { ...t, status: "posted" } : t));
+    setMutErr(null);
+    try {
+      const saved = await requestJson<Transaction>(`/api/transactions/${tx.id}`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: "posted" }),
+      });
+      setTransactionList(prev => prev.map(t => t.id === tx.id ? saved : t));
+    } catch {
+      setTransactionList(prev => prev.map(t => t.id === tx.id ? tx : t));
+      setMutErr("Failed to mark transaction as paid.");
+    }
+  }, [setTransactionList]);
+
   const handleDeleteTx = useCallback(async (tx: Transaction) => {
     setTransactionList(prev => prev.filter(t => t.id !== tx.id));
     setDeleteModal(null);
@@ -546,8 +560,10 @@ export default function TreasuryPage() {
   // ─── Render ───────────────────────────────────────────────────────────────
 
   // Compute balance live from local state so it updates immediately after add/edit/delete
-  const balance   = totalIncome - totalExpenses + totalDoorRev;
-  const projected = Math.round(balance * 1.3);
+  const postedExpenses  = useMemo(() => expenseTxns.filter(t => t.status !== "scheduled").reduce((s, t) => s + t.amount, 0), [expenseTxns]);
+  const scheduledDrain  = useMemo(() => expenseTxns.filter(t => t.status === "scheduled").reduce((s, t) => s + t.amount, 0), [expenseTxns]);
+  const balance   = totalIncome - postedExpenses + totalDoorRev;
+  const projected = Math.round((balance - scheduledDrain) * 1.3);
 
   const NAV_TABS: NavTab[] = ["Overview", "Budget", "Transactions", "Reports"];
 
@@ -683,6 +699,11 @@ export default function TreasuryPage() {
                         </span>
                       )}
                     </div>
+                    {scheduledDrain > 0 && (
+                      <span className="mt-1.5 inline-flex items-center rounded-full bg-amber-500/10 px-2.5 py-0.5 text-[11px] font-semibold text-amber-400 ring-1 ring-inset ring-amber-500/20">
+                        −{fmt$(Math.round(scheduledDrain))} scheduled → {fmt$(Math.round(balance - scheduledDrain))} projected
+                      </span>
+                    )}
                     <p className="mt-1 text-[12px] text-slate-500">
                       {semester} · Projected <span className="text-slate-400">{fmt$(Math.round(projected))}</span>
                     </p>
@@ -938,9 +959,16 @@ export default function TreasuryPage() {
                           <p className="truncate text-[13px] font-medium text-slate-200">{t.description || t.category}</p>
                           <p className="text-[10px] text-slate-500">{fmtDate(t.date)}</p>
                         </div>
-                        <p className={`shrink-0 text-[13px] font-semibold tabular-nums ${t.type === "income" ? "text-emerald-400" : "text-red-400"}`}>
-                          {t.type === "income" ? "+" : "-"}{fmt$(t.amount)}
-                        </p>
+                        <div className="flex shrink-0 items-center gap-2">
+                          {t.status === "scheduled" && (
+                            <span className="rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-400 ring-1 ring-inset ring-amber-500/20">
+                              Scheduled
+                            </span>
+                          )}
+                          <p className={`text-[13px] font-semibold tabular-nums ${t.type === "income" ? "text-emerald-400" : "text-red-400"}`}>
+                            {t.type === "income" ? "+" : "-"}{fmt$(t.amount)}
+                          </p>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -1115,13 +1143,20 @@ export default function TreasuryPage() {
                         <tr key={t.id} className="group transition-colors hover:bg-white/[0.02]">
                           <td className="whitespace-nowrap px-4 py-3 text-[12px] text-slate-500">{fmtDate(t.date)}</td>
                           <td className="px-4 py-3">
-                            <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium ${
-                              t.type === "income"
-                                ? "bg-emerald-500/10 text-emerald-400 ring-1 ring-inset ring-emerald-500/20"
-                                : "bg-red-500/10 text-red-400 ring-1 ring-inset ring-red-500/20"
-                            }`}>
-                              {t.category}
-                            </span>
+                            <div className="flex flex-wrap items-center gap-1">
+                              <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                                t.type === "income"
+                                  ? "bg-emerald-500/10 text-emerald-400 ring-1 ring-inset ring-emerald-500/20"
+                                  : "bg-red-500/10 text-red-400 ring-1 ring-inset ring-red-500/20"
+                              }`}>
+                                {t.category}
+                              </span>
+                              {t.status === "scheduled" && (
+                                <span className="inline-flex items-center rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-400 ring-1 ring-inset ring-amber-500/20">
+                                  Scheduled
+                                </span>
+                              )}
+                            </div>
                           </td>
                           <td className="max-w-[200px] px-4 py-3">
                             <p className="truncate text-[12px] text-slate-300">{t.description || "—"}</p>
@@ -1136,7 +1171,15 @@ export default function TreasuryPage() {
                           </td>
                           <td className="px-4 py-3">
                             {canTreasury && (
-                              <div className="flex items-center gap-0.5 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100">
+                              <div className="flex items-center gap-1 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100">
+                                {t.status === "scheduled" && (
+                                  <button
+                                    onClick={() => handleMarkPaid(t)}
+                                    className="rounded-md bg-emerald-500/15 px-2 py-1 text-[11px] font-semibold text-emerald-400 ring-1 ring-inset ring-emerald-500/25 hover:bg-emerald-500/25 transition-colors"
+                                  >
+                                    Mark Paid
+                                  </button>
+                                )}
                                 <IconBtn path={ICON_EDIT}  label="Edit"   onClick={() => setTxModal({ kind: "editTx", tx: t })}      className="text-slate-600 hover:bg-indigo-500/20 hover:text-indigo-400" />
                                 <IconBtn path={ICON_TRASH} label="Delete" onClick={() => setDeleteModal({ kind: "tx", tx: t })}      className="text-slate-600 hover:bg-red-500/20 hover:text-red-400" />
                               </div>

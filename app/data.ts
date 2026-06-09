@@ -23,6 +23,7 @@ export interface Transaction {
   paymentMethod?: string;
   paidTo?: string;
   semester?: string;
+  status?: string;
   deletedAt?: string | null;
   createdAt: string;
   updatedAt: string;

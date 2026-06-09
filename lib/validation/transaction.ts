@@ -18,6 +18,7 @@ export const createTransactionInput = z.object({
   paymentMethod: z.string().optional().nullable(),
   paidTo:        z.string().optional().nullable(),
   semester:      z.string().optional().nullable(),
+  status:        z.enum(["posted", "scheduled"]).optional().default("posted"),
 });
 export type CreateTransactionInput = z.infer<typeof createTransactionInput>;
 
@@ -30,5 +31,6 @@ export const updateTransactionInput = z.object({
   paymentMethod: z.string().nullable().optional(),
   paidTo:        z.string().nullable().optional(),
   semester:      z.string().nullable().optional(),
+  status:        z.enum(["posted", "scheduled"]).optional(),
 });
 export type UpdateTransactionInput = z.infer<typeof updateTransactionInput>;
