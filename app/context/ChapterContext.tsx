@@ -116,6 +116,12 @@ interface ChapterContextValue {
   mutationError: string | null;
   setMutationError: React.Dispatch<React.SetStateAction<string | null>>;
   refreshChapterData: () => Promise<void>;
+  /**
+   * Patch the active org's `disabledFeatures` in local state without a refetch.
+   * For optimistic show/hide of dashboard widgets — update locally, PATCH in the
+   * background, roll back on failure. No-op if there's no active org.
+   */
+  setDisabledFeaturesLocal: (disabledFeatures: Record<string, string[]>) => void;
   hasLoaded: boolean;
 }
 
@@ -193,6 +199,15 @@ export function ChapterProvider({ children }: { children: React.ReactNode }) {
     }
     window.addEventListener(AVATAR_CHANGED_EVENT, onAvatarChanged);
     return () => window.removeEventListener(AVATAR_CHANGED_EVENT, onAvatarChanged);
+  }, []);
+
+  // Patch the active org's disabledFeatures in local state only — no network.
+  // Lets callers update the hidden-section map optimistically (the widget shows/
+  // hides on the next render) and fire the PATCH in the background, instead of
+  // waiting on a full refreshChapterData() round-trip + 8-endpoint refetch.
+  // Mirrors setAvatarUrl's targeted setCurrentUser patch.
+  const setDisabledFeaturesLocal = useCallback((disabledFeatures: Record<string, string[]>) => {
+    setCurrentUser(prev => (prev?.org ? { ...prev, org: { ...prev.org, disabledFeatures } } : prev));
   }, []);
 
   const refreshChapterData = useCallback(async () => {
@@ -357,6 +372,7 @@ export function ChapterProvider({ children }: { children: React.ReactNode }) {
     isLoading, loadError, sectionErrors,
     mutationError, setMutationError,
     refreshChapterData, hasLoaded,
+    setDisabledFeaturesLocal,
   }), [
     currentUser,
     avatarRevision,
@@ -366,6 +382,7 @@ export function ChapterProvider({ children }: { children: React.ReactNode }) {
     activityFeed, treasuryData, transactionList,
     isLoading, loadError, sectionErrors, mutationError, hasLoaded,
     refreshChapterData,
+    setDisabledFeaturesLocal,
   ]);
 
   return (

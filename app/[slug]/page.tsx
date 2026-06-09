@@ -977,7 +977,7 @@ export default function Home() {
   const toast = useToast();
 
   // ── Data state ─────────────────────────────────────────────────────────────
-  const { currentUser, brotherList, setBrotherList, deadlineList, setDeadlineList, igTaskList, setIgTaskList, partyList, setPartyList, activityFeed, setActivityFeed, treasuryData, setTransactionList, isLoading, loadError, mutationError, setMutationError, refreshChapterData, avatarRevision, can } = useChapter();
+  const { currentUser, brotherList, setBrotherList, deadlineList, setDeadlineList, igTaskList, setIgTaskList, partyList, setPartyList, activityFeed, setActivityFeed, treasuryData, setTransactionList, isLoading, loadError, mutationError, setMutationError, refreshChapterData, setDisabledFeaturesLocal, avatarRevision, can } = useChapter();
   const isAdmin = currentUser?.isAdmin ?? false;
   // Granular permission gates for new UI checks. Existing `isAdmin` is kept
   // unchanged for prop-chains into QuickActionsMenu / KPIDrawer / Modal title
@@ -1005,7 +1005,10 @@ export default function Home() {
   }, [currentUser?.org?.disabledFeatures]);
 
   // Hide or re-show a dashboard widget by rewriting the org's disabledFeatures
-  // map (operations workflow) through the same PATCH the settings panel uses.
+  // map (operations workflow). Optimistic: we patch local state first so the
+  // widget appears/disappears on the very next render (no network wait), then
+  // PATCH in the background and roll back only if it fails. This avoids the
+  // round-trip + full refreshChapterData() refetch the slow path would incur.
   // Sending only disabledFeatures leaves enabledWorkflows/vocab/thresholds
   // untouched (each setter is independent server-side). Admin-gated at the call
   // sites; the server re-checks isOrgAdmin regardless.
@@ -1015,17 +1018,21 @@ export default function Home() {
     if (hidden) ops.add(featureId); else ops.delete(featureId);
     const next: DisabledFeatures = { ...current };
     if (ops.size) next.operations = [...ops]; else delete next.operations;
+
+    // Optimistic local update — instant visual change.
+    setDisabledFeaturesLocal(next as Record<string, string[]>);
     try {
       await requestJson("/api/orgs/config", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ disabledFeatures: next }),
       });
-      await refreshChapterData().catch(() => undefined);
     } catch {
+      // Roll back to the pre-toggle map and surface the error.
+      setDisabledFeaturesLocal(current as Record<string, string[]>);
       setMutationError("Couldn't update the dashboard. Try again.");
     }
-  }, [currentUser?.org?.disabledFeatures, refreshChapterData, setMutationError]);
+  }, [currentUser?.org?.disabledFeatures, setDisabledFeaturesLocal, setMutationError]);
 
   // Welcome toast after sign-in. /auth/callback redirects linked users to
   // /?toast=welcome; once the org name resolves we show a one-time toast and
