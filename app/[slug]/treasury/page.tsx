@@ -285,6 +285,7 @@ export default function TreasuryPage() {
   const [chartRange,    setChartRange]    = useState<"2W"|"1M"|"3M"|"YTD"|"ALL">("ALL");
   const [txTab,         setTxTab]         = useState<TxTab>("all");
   const [txCategory,    setTxCategory]    = useState<string>("all");
+  const [txSearch,      setTxSearch]      = useState("");
   const [donutMode,     setDonutMode]     = useState<"expense" | "income">("expense");
   const [txModal,       setTxModal]       = useState<TxModal>(null);
   const [partyModal,    setPartyModal]    = useState<PartyModal>(null);
@@ -326,10 +327,18 @@ export default function TreasuryPage() {
       running += t.type === "income" ? t.amount : -t.amount;
       balanceMap.set(t.id, running);
     });
-    return visibleTxns
+    const needle = txSearch.trim().toLowerCase();
+    const filtered = needle
+      ? visibleTxns.filter(t =>
+          t.description?.toLowerCase().includes(needle) ||
+          t.category.toLowerCase().includes(needle) ||
+          t.paidTo?.toLowerCase().includes(needle)
+        )
+      : visibleTxns;
+    return filtered
       .map(t => ({ ...t, running: balanceMap.get(t.id) ?? 0 }))
       .sort((a, b) => b.date.localeCompare(a.date));
-  }, [activeTxns, visibleTxns]);
+  }, [activeTxns, visibleTxns, txSearch]);
 
   const semesters = useMemo(() => {
     const seen = new Set<string>();
@@ -990,7 +999,35 @@ export default function TreasuryPage() {
             </div>}{/* end Overview bottom row */}
 
             {/* ── Full Transaction Log ── Overview + Transactions tabs ────── */}
-            {(navTab === "Overview" || navTab === "Transactions") && <FinanceCard className="mt-4 overflow-hidden">
+            {(navTab === "Overview" || navTab === "Transactions") && <>
+
+            {/* Search bar — shown above the card on Transactions tab only */}
+            {navTab === "Transactions" && (
+              <div className="relative mt-4 flex items-center">
+                <svg className="pointer-events-none absolute left-3.5 h-4 w-4 text-slate-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
+                </svg>
+                <input
+                  type="text"
+                  value={txSearch}
+                  onChange={e => setTxSearch(e.target.value)}
+                  placeholder="Search transactions by description, category, or payee…"
+                  className="w-full rounded-xl border border-white/[0.08] bg-white/[0.03] py-2.5 pl-10 pr-9 text-[13px] text-slate-300 placeholder-slate-600 transition-colors hover:border-white/[0.14] focus:border-indigo-500/50 focus:outline-none"
+                />
+                {txSearch && (
+                  <button
+                    onClick={() => setTxSearch("")}
+                    className="absolute right-3 flex h-5 w-5 items-center justify-center rounded text-slate-500 hover:text-slate-200"
+                  >
+                    <svg className="h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                )}
+              </div>
+            )}
+
+            <FinanceCard className="mt-4 overflow-hidden">
               <div className="flex flex-col gap-2 border-b border-white/[0.05] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-center gap-3 flex-wrap">
                   <h2 className="text-[14px] font-semibold text-white">Transaction Log</h2>
@@ -998,7 +1035,7 @@ export default function TreasuryPage() {
                     {(["all", "income", "expense"] as TxTab[]).map(tab => (
                       <button
                         key={tab}
-                        onClick={() => { setTxTab(tab); setTxCategory("all"); }}
+                        onClick={() => { setTxTab(tab); setTxCategory("all"); setTxSearch(""); }}
                         className={`rounded-lg px-2.5 py-1 text-[11px] font-medium transition-all ${
                           txTab === tab
                             ? "bg-white/[0.10] text-white"
@@ -1019,6 +1056,31 @@ export default function TreasuryPage() {
                       <option key={c} value={c}>{c}</option>
                     ))}
                   </select>
+                  {/* Search input — shown inline on Overview tab */}
+                  {navTab === "Overview" && (
+                  <div className="relative flex items-center">
+                    <svg className="pointer-events-none absolute left-2 h-3 w-3 text-slate-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
+                    </svg>
+                    <input
+                      type="text"
+                      value={txSearch}
+                      onChange={e => setTxSearch(e.target.value)}
+                      placeholder="Search…"
+                      className="w-32 rounded-lg border border-white/[0.07] bg-white/[0.03] py-1 pl-6 pr-6 text-[11px] text-slate-300 placeholder-slate-600 transition-colors hover:border-white/[0.14] focus:border-indigo-500/60 focus:outline-none"
+                    />
+                    {txSearch && (
+                      <button
+                        onClick={() => setTxSearch("")}
+                        className="absolute right-1.5 flex h-4 w-4 items-center justify-center rounded text-slate-600 hover:text-slate-300"
+                      >
+                        <svg className="h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    )}
+                  </div>
+                  )}
                   <span className={`text-[12px] font-semibold tabular-nums ${txTab === "expense" ? "text-red-400" : txTab === "income" ? "text-emerald-400" : tabTotals.all >= 0 ? "text-emerald-400" : "text-red-400"}`}>
                     {txTab === "all" && tabTotals.all >= 0 && "+"}{fmt$(Math.round(tabTotals[txTab]))}
                   </span>
@@ -1086,7 +1148,8 @@ export default function TreasuryPage() {
                   </table>
                 </div>
               )}
-            </FinanceCard>}
+            </FinanceCard>
+            </>}
 
             {/* ── Party Events ── Overview tab only ────────────────────────── */}
             {navTab === "Overview" && (() => {
