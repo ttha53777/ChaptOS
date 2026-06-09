@@ -131,7 +131,9 @@ function setSessionCookies(res: NextResponse, organizationId: number): NextRespo
  * or no slug — the caller falls back to a plain 409.
  */
 async function recoverExistingOrg(authUserId: string): Promise<{ id: number; slug: string } | null> {
-  const brother = await prisma.brother.findUnique({
+  // db(orgId) can't apply here: this lookup runs precisely because the org is
+  // unknown — it resolves WHICH org the already-linked account belongs to.
+  const brother = await prisma.brother.findUnique({ // lint-direct-prisma:ignore (pre-org recovery lookup)
     where: { authUserId },
     select: { organization: { select: { id: true, slug: true } } },
   });

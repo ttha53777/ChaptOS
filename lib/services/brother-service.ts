@@ -1,6 +1,5 @@
 import type { Prisma } from "@/app/generated/prisma/client";
 import type { RequestContext } from "@/lib/context";
-import { prisma } from "@/lib/prisma";
 import { emit } from "@/lib/events";
 import { ConflictError, NotFoundError } from "@/lib/errors";
 import { hasPermission } from "@/lib/permissions";
@@ -11,13 +10,11 @@ export async function listVisibleBrothers(ctx: RequestContext) {
   const brothers = await ctx.db.brother.findMany({ where: { isGhost: false }, orderBy: { id: "asc" } });
   const brotherIds = brothers.map(b => b.id);
   // Scope role assignments to the active org. A multi-org member has BrotherRole
-  // rows in several orgs; without this filter another org's roles leak into this
-  // org's UI as chips that can't be revoked here (the revoke path is org-scoped,
-  // so deleting a foreign-org role 404s / no-ops and the chip reappears on reload).
-  const brotherRoles = await prisma.brotherRole.findMany({
-    where: { brotherId: { in: brotherIds }, organizationId: ctx.orgId },
-    select: { brotherId: true, role: { select: { id: true, name: true, color: true, rank: true } } },
-  });
+  // rows in several orgs; without the org-scoped wrapper's filter another org's
+  // roles leak into this org's UI as chips that can't be revoked here (the revoke
+  // path is org-scoped, so deleting a foreign-org role 404s / no-ops and the chip
+  // reappears on reload). ctx.db injects organizationId: ctx.orgId automatically.
+  const brotherRoles = await ctx.db.brotherRole.listWithRole(brotherIds);
   const rolesByBrotherId = new Map<number, { id: number; name: string; color: string | null; rank: number }[]>();
   for (const br of brotherRoles) {
     const list = rolesByBrotherId.get(br.brotherId) ?? [];

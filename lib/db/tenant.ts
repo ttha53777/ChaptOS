@@ -413,6 +413,17 @@ function scopedBrotherRole(orgId: number) {
       });
       return new Map(rows.map(r => [r.roleId, r._count.roleId]));
     },
+    /**
+     * Role assignments (with role summary) for a set of brothers in this org.
+     * Named method because the wrapper's findMany signature is not generic, so
+     * a relation `select` wouldn't narrow the return type. Same org filter as
+     * findMany — organizationId is injected, never taken from the caller.
+     */
+    listWithRole: (brotherIds: number[]) =>
+      prisma.brotherRole.findMany({
+        where: org({ brotherId: { in: brotherIds } }),
+        select: { brotherId: true, role: { select: { id: true, name: true, color: true, rank: true } } },
+      }),
     create: (args: Omit<Prisma.BrotherRoleCreateArgs, "data"> & { data: Omit<Prisma.BrotherRoleUncheckedCreateInput, "organizationId"> }) =>
       prisma.brotherRole.create({ ...args, data: { ...args.data, organizationId: orgId } }),
     delete: async (args: Prisma.BrotherRoleDeleteArgs) => {
