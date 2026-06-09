@@ -5,18 +5,24 @@ import { useChapter } from "../../../context/ChapterContext";
 import { requestJson } from "../../../lib/api";
 import { NAV, NAV_WORKFLOW_MAP, NAV_DESCRIPTIONS } from "../../../components/Sidebar";
 import { ALWAYS_ON_WORKFLOWS, type WorkflowId } from "@/lib/org-types";
+import { WORKFLOW_FEATURES, type DisabledFeatures } from "@/lib/workflow-features";
 
 // Settings → Workflows. Lets an org admin choose which optional pages the org
-// exposes, at any time after creation. This is the in-app counterpart to the
-// one-time post-creation picker at /[slug]/onboarding — same underlying service
-// (setWorkflows) and route (PATCH /api/orgs/config), same NAV-derived toggle
-// list, just styled like the other settings sections instead of the auth wizard.
+// exposes, AND which sections within a page are shown, at any time after
+// creation. This is the in-app counterpart to the one-time post-creation picker
+// at /[slug]/onboarding — same underlying service (setWorkflows /
+// setDisabledFeatures) and route (PATCH /api/orgs/config), same NAV-derived
+// toggle list, just styled like the other settings sections.
 //
-// Disabling a page is a VISIBILITY change only. It rewrites the org's
-// enabledWorkflows set (which drives the sidebar) and touches no domain data —
-// a page's members/transactions/docs/etc. are kept and reappear unchanged when
-// the page is turned back on. We never delete or cascade anything here, and the
-// save sends only the workflow set.
+// Both kinds of toggle are a VISIBILITY change only. Disabling a page rewrites
+// the org's enabledWorkflows set (drives the sidebar); hiding a section rewrites
+// disabledFeatures (drives the page's own rendering). Neither touches domain data
+// — a page/section's members/transactions/docs/etc. are kept and reappear
+// unchanged when turned back on. We never delete or cascade anything here.
+//
+// Feature toggles are OPT-OUT: the persisted disabledFeatures map records only
+// the sections turned OFF. We mirror that in local state (a per-workflow set of
+// disabled ids) so the wire format and the UI never drift.
 
 interface PickerItem {
   label: string;
@@ -42,6 +48,22 @@ const TOGGLEABLE_WORKFLOWS = new Set<WorkflowId>(PICKER_ITEMS.map((i) => i.workf
 // Always-on surfaces (Dashboard/Timeline/Chapter map to null), shown as locked
 // rows so admins understand what every org gets regardless of their choices.
 const ALWAYS_ON_LABELS = NAV.filter((label) => NAV_WORKFLOW_MAP[label] == null);
+
+// Dashboard widgets live under the always-on "operations" workflow. The page
+// can't be turned off, but its widgets can — so we surface that feature group on
+// its own (it has no toggleable PICKER_ITEMS row to nest under). Other workflows'
+// features nest under their page toggle (rendered only when that page is enabled).
+const DASHBOARD_FEATURES = WORKFLOW_FEATURES.operations;
+
+// A stable, order-independent content key for a disabled-features map, used to
+// re-seed local state only when the *stored* map actually changes (not on every
+// /me refresh, which recreates an equal object).
+function disabledKey(map: DisabledFeatures): string {
+  return Object.keys(map)
+    .sort()
+    .map((w) => `${w}:${[...(map[w as WorkflowId] ?? [])].sort().join("|")}`)
+    .join(",");
+}
 
 export function WorkflowsSection({
   onStatus,
@@ -80,14 +102,66 @@ export function WorkflowsSection({
     setSelected(new Set(persisted));
   }, [persistedKey, persisted]);
 
-  // Dirty = the optional picks differ from what's persisted. We only diff the
-  // toggleable ids; the always-on ids are forced on by the service either way.
+  // ── Feature toggles (OPT-OUT: we track the DISABLED ids) ──────────────────
+  // The persisted map is the source of truth. Mirror it as Map<workflow, Set<id>>
+  // for ergonomic per-feature toggling; absent workflow / id means "enabled".
+  const persistedDisabled = useMemo(() => {
+    const raw = (currentUser?.org?.disabledFeatures ?? {}) as DisabledFeatures;
+    const map = new Map<WorkflowId, Set<string>>();
+    for (const [w, ids] of Object.entries(raw)) {
+      if (ids && ids.length) map.set(w as WorkflowId, new Set(ids));
+    }
+    return map;
+  }, [currentUser?.org?.disabledFeatures]);
+
+  const persistedDisabledKey = useMemo(
+    () => disabledKey(Object.fromEntries([...persistedDisabled].map(([w, s]) => [w, [...s]])) as DisabledFeatures),
+    [persistedDisabled],
+  );
+
+  const [disabled, setDisabled] = useState<Map<WorkflowId, Set<string>>>(
+    () => new Map([...persistedDisabled].map(([w, s]) => [w, new Set(s)])),
+  );
+
+  // Re-seed the feature toggles when the stored map changes (same rationale as the
+  // workflow re-seed above: post-save normalization + cross-tab edits).
+  const lastSyncedDisabledKey = useRef(persistedDisabledKey);
+  useEffect(() => {
+    if (lastSyncedDisabledKey.current === persistedDisabledKey) return;
+    lastSyncedDisabledKey.current = persistedDisabledKey;
+    setDisabled(new Map([...persistedDisabled].map(([w, s]) => [w, new Set(s)])));
+  }, [persistedDisabledKey, persistedDisabled]);
+
+  // Dirty = the optional page picks OR the feature picks differ from persisted.
+  // Always-on workflow ids are forced on by the service either way, so we don't
+  // diff them; disabled-feature ids are diffed via the content key.
   const dirty = useMemo(() => {
     for (const { workflow } of PICKER_ITEMS) {
       if (selected.has(workflow) !== persisted.has(workflow)) return true;
     }
+    const currentDisabledKey = disabledKey(
+      Object.fromEntries([...disabled].map(([w, s]) => [w, [...s]])) as DisabledFeatures,
+    );
+    if (currentDisabledKey !== persistedDisabledKey) return true;
     return false;
-  }, [selected, persisted]);
+  }, [selected, persisted, disabled, persistedDisabledKey]);
+
+  // A feature is ON when it's NOT in the workflow's disabled set.
+  function featureOn(workflow: WorkflowId, id: string): boolean {
+    return !disabled.get(workflow)?.has(id);
+  }
+
+  function toggleFeature(workflow: WorkflowId, id: string) {
+    setDisabled((prev) => {
+      const next = new Map([...prev].map(([w, s]) => [w, new Set(s)]));
+      const set = next.get(workflow) ?? new Set<string>();
+      if (set.has(id)) set.delete(id);
+      else set.add(id);
+      if (set.size) next.set(workflow, set);
+      else next.delete(workflow);
+      return next;
+    });
+  }
 
   function toggle(workflow: WorkflowId) {
     setSelected((prev) => {
@@ -100,6 +174,7 @@ export function WorkflowsSection({
 
   function reset() {
     setSelected(new Set(persisted));
+    setDisabled(new Map([...persistedDisabled].map(([w, s]) => [w, new Set(s)])));
   }
 
   const save = useCallback(async () => {
@@ -121,13 +196,23 @@ export function WorkflowsSection({
       ...ALWAYS_ON_WORKFLOWS,
     ]);
 
+    // The disabled-features map — only non-empty sets. The service normalizes
+    // (drops unknown ids/workflows), so sending the raw working state is safe.
+    const disabledFeatures: DisabledFeatures = {};
+    for (const [w, s] of disabled) {
+      if (s.size) disabledFeatures[w] = [...s];
+    }
+
     try {
+      // Both fields go in one PATCH so a combined edit (page + section toggles)
+      // applies atomically and only triggers one /me refresh.
       await requestJson("/api/orgs/config", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ enabledWorkflows: [...chosen] }),
+        body: JSON.stringify({ enabledWorkflows: [...chosen], disabledFeatures }),
       });
-      // Re-fetch /me so the sidebar reflects the new set immediately (no reload).
+      // Re-fetch /me so the sidebar and page sections reflect the new state
+      // immediately (no reload).
       await refreshChapterData().catch(() => undefined);
       onStatus("Pages updated.");
     } catch (e) {
@@ -140,14 +225,58 @@ export function WorkflowsSection({
     } finally {
       setSaving(false);
     }
-  }, [saving, selected, persisted, refreshChapterData, onStatus, onError]);
+  }, [saving, selected, persisted, disabled, refreshChapterData, onStatus, onError]);
+
+  // Renders the indented feature checkboxes for one workflow. Shared by the
+  // always-on Dashboard group and the per-page nested groups.
+  function renderFeatureGroup(workflow: WorkflowId) {
+    const features = WORKFLOW_FEATURES[workflow];
+    if (!features.length) return null;
+    return (
+      <div className="mt-2 space-y-1.5 border-l border-white/[0.08] pl-4">
+        {features.map((f) => {
+          const on = featureOn(workflow, f.id);
+          return (
+            <label
+              key={f.id}
+              className="flex cursor-pointer items-start gap-2.5 rounded-lg px-2 py-1.5 transition-colors hover:bg-white/[0.03]"
+            >
+              <input
+                type="checkbox"
+                checked={on}
+                onChange={() => toggleFeature(workflow, f.id)}
+                className="sr-only"
+              />
+              <span
+                aria-hidden
+                className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-[5px] border transition-colors ${
+                  on ? "border-indigo-400 bg-indigo-500 text-white" : "border-white/20 bg-transparent"
+                }`}
+              >
+                {on && (
+                  <svg className="h-3 w-3" viewBox="0 0 16 16" fill="currentColor">
+                    <path d="M13.78 4.22a.75.75 0 0 1 0 1.06l-6.5 6.5a.75.75 0 0 1-1.06 0l-3-3a.75.75 0 1 1 1.06-1.06L6.75 10.19l5.97-5.97a.75.75 0 0 1 1.06 0Z" />
+                  </svg>
+                )}
+              </span>
+              <div className="min-w-0">
+                <div className="text-[12px] font-medium text-slate-300">{f.label}</div>
+                <div className="text-[11px] text-slate-500">{f.description}</div>
+              </div>
+            </label>
+          );
+        })}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
       <p className="text-[12px] text-slate-500">
-        Choose which pages this organization shows in the sidebar. Turning a page
-        off just hides it — your data is kept and comes back exactly as it was
-        when you turn it on again.
+        Choose which pages this organization shows in the sidebar, and which
+        sections appear within a page. Turning a page or section off just hides
+        it — your data is kept and comes back exactly as it was when you turn it
+        on again.
       </p>
 
       {/* Always-on surfaces — locked */}
@@ -167,6 +296,18 @@ export function WorkflowsSection({
         </div>
       </div>
 
+      {/* Dashboard widgets — features of the always-on "operations" workflow.
+          The Dashboard can't be turned off, but its sections can. */}
+      {DASHBOARD_FEATURES.length > 0 && (
+        <div>
+          <p className="mb-1 text-[11px] font-semibold uppercase tracking-widest text-slate-600">Dashboard widgets</p>
+          <p className="mb-2 text-[11px] text-slate-500">Unselected widgets are hidden from the dashboard.</p>
+          <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-2 py-2">
+            {renderFeatureGroup("operations")}
+          </div>
+        </div>
+      )}
+
       {/* Toggleable pages */}
       <fieldset className="m-0 border-0 p-0">
         <legend className="mb-1 p-0 text-[11px] font-semibold uppercase tracking-widest text-slate-600">Optional pages</legend>
@@ -174,38 +315,43 @@ export function WorkflowsSection({
         <div className="space-y-2">
           {PICKER_ITEMS.map((item) => {
             const on = selected.has(item.workflow);
+            const hasFeatures = WORKFLOW_FEATURES[item.workflow].length > 0;
             return (
-              <label
+              <div
                 key={item.workflow}
-                className={`flex cursor-pointer items-start gap-3 rounded-xl border px-4 py-3 transition-colors ${
+                className={`rounded-xl border px-4 py-3 transition-colors ${
                   on
                     ? "border-indigo-500/30 bg-indigo-500/[0.08]"
                     : "border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.04]"
                 }`}
               >
-                <input
-                  type="checkbox"
-                  checked={on}
-                  onChange={() => toggle(item.workflow)}
-                  className="sr-only"
-                />
-                <span
-                  aria-hidden
-                  className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-[5px] border transition-colors ${
-                    on ? "border-indigo-400 bg-indigo-500 text-white" : "border-white/20 bg-transparent"
-                  }`}
-                >
-                  {on && (
-                    <svg className="h-3 w-3" viewBox="0 0 16 16" fill="currentColor">
-                      <path d="M13.78 4.22a.75.75 0 0 1 0 1.06l-6.5 6.5a.75.75 0 0 1-1.06 0l-3-3a.75.75 0 1 1 1.06-1.06L6.75 10.19l5.97-5.97a.75.75 0 0 1 1.06 0Z" />
-                    </svg>
-                  )}
-                </span>
-                <div className="min-w-0">
-                  <div className="text-[12px] font-medium text-slate-200">{item.label}</div>
-                  <div className="text-[11px] text-slate-500">{item.description}</div>
-                </div>
-              </label>
+                <label className="flex cursor-pointer items-start gap-3">
+                  <input
+                    type="checkbox"
+                    checked={on}
+                    onChange={() => toggle(item.workflow)}
+                    className="sr-only"
+                  />
+                  <span
+                    aria-hidden
+                    className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-[5px] border transition-colors ${
+                      on ? "border-indigo-400 bg-indigo-500 text-white" : "border-white/20 bg-transparent"
+                    }`}
+                  >
+                    {on && (
+                      <svg className="h-3 w-3" viewBox="0 0 16 16" fill="currentColor">
+                        <path d="M13.78 4.22a.75.75 0 0 1 0 1.06l-6.5 6.5a.75.75 0 0 1-1.06 0l-3-3a.75.75 0 1 1 1.06-1.06L6.75 10.19l5.97-5.97a.75.75 0 0 1 1.06 0Z" />
+                      </svg>
+                    )}
+                  </span>
+                  <div className="min-w-0">
+                    <div className="text-[12px] font-medium text-slate-200">{item.label}</div>
+                    <div className="text-[11px] text-slate-500">{item.description}</div>
+                  </div>
+                </label>
+                {/* Section toggles for this page — only while the page is enabled. */}
+                {on && hasFeatures && renderFeatureGroup(item.workflow)}
+              </div>
             );
           })}
         </div>

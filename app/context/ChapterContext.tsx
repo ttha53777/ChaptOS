@@ -24,7 +24,7 @@ function normalizeCurrentUser(me: CurrentUser): CurrentUser {
     // Defensive: an older/cached /me payload may omit enabledWorkflows. Default
     // to an empty array so the sidebar filter never reads `.includes` of
     // undefined — the Sidebar treats the always-on surfaces as visible regardless.
-    org: me.org ? { ...me.org, logoUrl: me.org.logoUrl ?? null, enabledWorkflows: me.org.enabledWorkflows ?? [], vocabularyOverrides: me.org.vocabularyOverrides ?? {}, thresholds: me.org.thresholds ?? DEFAULT_THRESHOLDS } : null,
+    org: me.org ? { ...me.org, logoUrl: me.org.logoUrl ?? null, enabledWorkflows: me.org.enabledWorkflows ?? [], vocabularyOverrides: me.org.vocabularyOverrides ?? {}, thresholds: me.org.thresholds ?? DEFAULT_THRESHOLDS, disabledFeatures: me.org.disabledFeatures ?? {} } : null,
   };
 }
 
@@ -73,8 +73,10 @@ export interface CurrentUser {
    *  `vocabularyOverrides` is a sparse map of canonical-term substitutions —
    *  read via useVocab() rather than directly.
    *  `thresholds` is the org's complete (resolved) member-status cutoff set —
-   *  read via useThresholds() rather than directly. */
-  org: { name: string; slug: string; logoUrl: string | null; enabledWorkflows: string[]; vocabularyOverrides: Record<string, string>; thresholds: Thresholds } | null;
+   *  read via useThresholds() rather than directly.
+   *  `disabledFeatures` is the OPT-OUT map of hidden page sections (workflow id →
+   *  feature ids) — read via useFeature() rather than directly. */
+  org: { name: string; slug: string; logoUrl: string | null; enabledWorkflows: string[]; vocabularyOverrides: Record<string, string>; thresholds: Thresholds; disabledFeatures: Record<string, string[]> } | null;
   orgId: number;
   /** All orgs this user belongs to. UI renders a switcher when length > 1. */
   memberships: MembershipSummary[];

@@ -75,6 +75,7 @@ model OrganizationConfig {
   enabledWorkflows    String[] @default([])
   vocabularyOverrides Json     @default("{}")
   thresholds          Json     @default("{}")
+  disabledFeatures    Json     @default("{}")
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 

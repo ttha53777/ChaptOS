@@ -13,7 +13,7 @@ import { randomUUID } from "node:crypto";
 import { testPrisma, resetDb } from "../setup/prisma";
 import { createOrg, createBrother } from "../setup/factories";
 import { db } from "@/lib/db";
-import { setWorkflows, setThresholds } from "@/lib/services/org-config-service";
+import { setWorkflows, setThresholds, setDisabledFeatures } from "@/lib/services/org-config-service";
 import { ForbiddenError } from "@/lib/errors";
 import { ALWAYS_ON_WORKFLOWS } from "@/lib/org-types";
 import { DEFAULT_THRESHOLDS, type Thresholds } from "@/lib/thresholds";
@@ -243,5 +243,109 @@ describe("setThresholds: sanitization", () => {
 
     expect(out.gpaWatch).toBe(DEFAULT_THRESHOLDS.gpaWatch);
     expect(out.attendanceAtRisk).toBe(SAMPLE_THRESHOLDS.attendanceAtRisk);
+  });
+});
+
+describe("setDisabledFeatures: happy path", () => {
+  it("persists the chosen disabled sections and returns the normalized map", async () => {
+    const { org, admin } = await seedAdminOrg();
+    const ctx = ctxFor(org.id, admin.id, { isOrgAdmin: true });
+
+    const out = await setDisabledFeatures(ctx, {
+      disabledFeatures: { operations: ["health", "kpi-dues"] },
+    });
+    expect(new Set(out.operations)).toEqual(new Set(["health", "kpi-dues"]));
+
+    const row = await testPrisma.organizationConfig.findUnique({ where: { organizationId: org.id } });
+    expect(new Set((row?.disabledFeatures as Record<string, string[]>).operations))
+      .toEqual(new Set(["health", "kpi-dues"]));
+  });
+
+  it("self-heals a missing config row via upsert", async () => {
+    const org = await createOrg("No Config Org", "no-config-org");
+    const admin = await createBrother({ orgId: org.id, isOrgAdmin: true });
+    // Deliberately NO config row created.
+    const ctx = ctxFor(org.id, admin.id, { isOrgAdmin: true });
+
+    await setDisabledFeatures(ctx, { disabledFeatures: { operations: ["charts"] } });
+
+    const row = await testPrisma.organizationConfig.findUnique({ where: { organizationId: org.id } });
+    expect(row).not.toBeNull();
+    expect((row?.disabledFeatures as Record<string, string[]>).operations).toEqual(["charts"]);
+  });
+
+  it("emits an org.config.updated operational event", async () => {
+    const { org, admin } = await seedAdminOrg();
+    const ctx = ctxFor(org.id, admin.id, { isOrgAdmin: true });
+
+    await setDisabledFeatures(ctx, { disabledFeatures: { operations: ["health"] } });
+
+    const events = await testPrisma.operationalEvent.findMany({
+      where: { organizationId: org.id, action: "org.config.updated" },
+    });
+    expect(events).toHaveLength(1);
+  });
+});
+
+describe("setDisabledFeatures: normalization", () => {
+  it("drops unknown workflow ids, unknown feature ids, and empty lists", async () => {
+    const { org, admin } = await seedAdminOrg();
+    const ctx = ctxFor(org.id, admin.id, { isOrgAdmin: true });
+
+    const out = await setDisabledFeatures(ctx, {
+      disabledFeatures: {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        operations: ["health", "not-a-real-feature"] as any,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ["not-a-workflow" as any]: ["whatever"],
+        // Empty list — dropped entirely.
+        finance: [],
+      },
+    });
+
+    expect(out.operations).toEqual(["health"]);
+    expect(out).not.toHaveProperty("not-a-workflow");
+    expect(out).not.toHaveProperty("finance");
+  });
+});
+
+describe("setDisabledFeatures: authorization", () => {
+  it("rejects a non-admin member with ForbiddenError", async () => {
+    const { org } = await seedAdminOrg();
+    const member = await createBrother({ orgId: org.id, isOrgAdmin: false });
+    const ctx = ctxFor(org.id, member.id, { isOrgAdmin: false });
+
+    await expect(
+      setDisabledFeatures(ctx, { disabledFeatures: { operations: ["health"] } }),
+    ).rejects.toBeInstanceOf(ForbiddenError);
+
+    // The config row keeps its default (empty) disabled map.
+    const row = await testPrisma.organizationConfig.findUnique({ where: { organizationId: org.id } });
+    expect(row?.disabledFeatures).toEqual({});
+  });
+
+  it("allows a platform admin", async () => {
+    const { org, admin } = await seedAdminOrg();
+    const ctx = ctxFor(org.id, admin.id, { isOrgAdmin: false, isPlatformAdmin: true });
+
+    const out = await setDisabledFeatures(ctx, { disabledFeatures: { operations: ["charts"] } });
+    expect(out.operations).toEqual(["charts"]);
+  });
+});
+
+describe("setDisabledFeatures: tenancy", () => {
+  it("only writes the actor's own org config", async () => {
+    const { org: orgA, admin: adminA } = await seedAdminOrg();
+    const orgB = await createOrg("Other Org", "other-org");
+    await testPrisma.organizationConfig.create({
+      data: { organizationId: orgB.id, enabledWorkflows: ["parties"], disabledFeatures: { operations: ["charts"] } },
+    });
+
+    const ctx = ctxFor(orgA.id, adminA.id, { isOrgAdmin: true });
+    await setDisabledFeatures(ctx, { disabledFeatures: { operations: ["health"] } });
+
+    // Org B is untouched — the scoped db only ever addresses orgA's row.
+    const bRow = await testPrisma.organizationConfig.findUnique({ where: { organizationId: orgB.id } });
+    expect(bRow?.disabledFeatures).toEqual({ operations: ["charts"] });
   });
 });

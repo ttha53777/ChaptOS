@@ -25,6 +25,7 @@ import {
 } from "../data";
 import { useThresholds } from "../hooks/useThresholds";
 import { useVocab } from "../hooks/useVocab";
+import { useFeature } from "../hooks/useFeature";
 import { Sidebar, SvgIcon, NAV_ICONS } from "../components/Sidebar";
 import { BrotherAvatar } from "../components/BrotherAvatar";
 import { UserAvatar } from "../components/UserAvatar";
@@ -943,6 +944,10 @@ export default function Home() {
   // value without per-line edits.
   const THRESHOLDS = useThresholds();
   const v = useVocab();
+  // Per-section visibility for the dashboard's toggleable widgets. Each is keyed
+  // under the always-on "operations" workflow; a section is shown unless an admin
+  // hid it. The mobile layout reads the same flags via its own useFeature() calls.
+  const feature = useFeature();
   // ── UI state ──────────────────────────────────────────────────────────────
   const [search,         setSearch]         = useState("");
   const [statusFilter,   setStatusFilter]   = useState("All");
@@ -1743,63 +1748,70 @@ export default function Home() {
           {/* ── Desktop view (md and up) — original layout, unchanged ───────── */}
           <div className="mx-auto hidden max-w-[1400px] space-y-5 px-4 py-6 sm:px-6 md:block">
             {/* ── Pinned Announcement ─────────────────────────────────────── */}
-            <section id="sec-dashboard" aria-label="Chapter announcement">
-              <AnnouncementCard announcement={announcement} onEdit={() => setAnnouncementEditorOpen(true)} />
-            </section>
+            {feature("operations", "announcement") && (
+              <section id="sec-dashboard" aria-label="Chapter announcement">
+                <AnnouncementCard announcement={announcement} onEdit={() => setAnnouncementEditorOpen(true)} />
+              </section>
+            )}
 
             {/* ── KPI Cards ──────────────────────────────────────────────── */}
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6">
-              <KPICard label="Avg Attendance" value={`${avgAttendance.toFixed(1)}%`}
+              {feature("operations", "kpi-attendance") && <KPICard label="Avg Attendance" value={`${avgAttendance.toFixed(1)}%`}
                 trend={`${belowAttCount} below threshold`}
                 iconKey="attendance" sparkData={KPI_SPARKLINES.attendance}
                 iconBg="bg-blue-500/10" iconColor="text-blue-400" strokeColor="#60a5fa" glowColor="#60a5fa"
-                onClick={() => setActiveDrawer("attendance")} />
-              <KPICard label="Dues" value={fmt$(outstandingDues)}
+                onClick={() => setActiveDrawer("attendance")} />}
+              {feature("operations", "kpi-dues") && <KPICard label="Dues" value={fmt$(outstandingDues)}
                 trend={`${owingCount} brothers owe`}
                 iconKey="dues" sparkData={KPI_SPARKLINES.dues}
                 accent={outstandingDues > 0 ? "text-amber-400" : "text-white"}
                 iconBg="bg-amber-500/10" iconColor="text-amber-400" strokeColor="#fbbf24" glowColor="#fbbf24"
-                onClick={() => setActiveDrawer("dues")} />
-              <KPICard label="Chapter GPA" value={chapterGPA.toFixed(2)}
+                onClick={() => setActiveDrawer("dues")} />}
+              {feature("operations", "kpi-gpa") && <KPICard label="Chapter GPA" value={chapterGPA.toFixed(2)}
                 trend={`${belowGpaCount} below 3.0`}
                 iconKey="gpa" sparkData={KPI_SPARKLINES.gpa}
                 iconBg="bg-violet-500/10" iconColor="text-violet-400" strokeColor="#a78bfa" glowColor="#a78bfa"
-                onClick={() => setActiveDrawer("gpa")} />
-              <KPICard label="Service Hours" value={`${totalServiceHrs}h`}
+                onClick={() => setActiveDrawer("gpa")} />}
+              {feature("operations", "kpi-service") && <KPICard label="Service Hours" value={`${totalServiceHrs}h`}
                 trend={`${onTrackSvc} of ${brotherList.length} on track`}
                 iconKey="service" sparkData={KPI_SPARKLINES.service}
                 iconBg="bg-emerald-500/10" iconColor="text-emerald-400" strokeColor="#34d399" glowColor="#34d399"
-                onClick={() => setActiveDrawer("service")} />
-              <div className="sm:col-span-2 xl:col-span-2 min-h-full">
-                <ChapterMomentumWidget
-                  score={health.score}
-                  label={health.label}
-                  breakdown={health.breakdown}
-                  onExpand={() => setWidgetDrawer("health")}
-                />
-              </div>
+                onClick={() => setActiveDrawer("service")} />}
+              {feature("operations", "health") && (
+                <div className="sm:col-span-2 xl:col-span-2 min-h-full">
+                  <ChapterMomentumWidget
+                    score={health.score}
+                    label={health.label}
+                    breakdown={health.breakdown}
+                    onExpand={() => setWidgetDrawer("health")}
+                  />
+                </div>
+              )}
             </div>
 
             {/* ── Charts ─────────────────────────────────────────────────── */}
-            <DashboardCharts
-              liveBalance={liveBalance}
-              liveProjected={liveProjected}
-              liveTrend={liveTrend}
-              totalDoorRev={totalDoorRev}
-              partyCount={partyList.length}
-              partyChartData={partyChartData}
-              brotherCount={brotherList.length}
-              goodCount={statusCounts.Good}
-              statusChartData={statusChartData}
-              onTrackSvc={onTrackSvc}
-              serviceHoursGoal={THRESHOLDS.serviceHoursGoal}
-              svcChartData={svcChartData}
-            />
+            {feature("operations", "charts") && (
+              <DashboardCharts
+                liveBalance={liveBalance}
+                liveProjected={liveProjected}
+                liveTrend={liveTrend}
+                totalDoorRev={totalDoorRev}
+                partyCount={partyList.length}
+                partyChartData={partyChartData}
+                brotherCount={brotherList.length}
+                goodCount={statusCounts.Good}
+                statusChartData={statusChartData}
+                onTrackSvc={onTrackSvc}
+                serviceHoursGoal={THRESHOLDS.serviceHoursGoal}
+                svcChartData={svcChartData}
+              />
+            )}
 
             {/* ── Main grid: table + right panel ─────────────────────────── */}
             <div id="sec-brothers" className="grid grid-cols-1 gap-4 xl:grid-cols-3">
 
               {/* Brother Tracking Table */}
+              {feature("operations", "brother-tracking") && (
               <Card style={{ background: "linear-gradient(to bottom, #ffffff08 0%, #10121a 45%)" }} className="overflow-hidden xl:col-span-2">
                 <div className="border-b border-white/[0.07] px-5 py-3.5">
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -1902,6 +1914,7 @@ export default function Home() {
                   </p>
                 </div>
               </Card>
+              )}
 
               {/* Right panel */}
               <div className="space-y-4 xl:self-start xl:sticky xl:top-5 xl:max-h-[calc(100vh-6rem)] xl:overflow-y-auto">

@@ -177,7 +177,7 @@ export function formatActivityMessage(ctx: RequestContext, action: Action, m: an
     case "org.created":
       return `${m.founderName} created the ${m.name} organization`;
     case "org.config.updated":
-      return `${who} updated the enabled workflows`;
+      return `${who} updated organization settings`;
     case "membership.left":
       return `${who} left ${m.orgName}`;
     default:

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { MAX_SLUG_LEN, MIN_SLUG_LEN } from "@/lib/slug-rules";
 import { ORG_TYPE_IDS, ALL_WORKFLOWS, type WorkflowId } from "@/lib/org-types";
+import { featureExists } from "@/lib/workflow-features";
 
 // Input for POST /api/orgs (self-serve org creation).
 //
@@ -55,6 +56,32 @@ export const updateOrgConfigInput = z.object({
     .record(z.string(), z.string().trim().max(40, "Label must be 40 characters or fewer"))
     .optional(),
   thresholds: thresholdsInput.optional(),
+  // OPT-OUT map of workflow id → feature ids the org has hidden. Keys must be
+  // known workflows; each value's ids must be registered features of that
+  // workflow (featureExists). A full replace like the other fields: present →
+  // mutate, absent → leave alone. The service normalizes (drops unknowns/empties)
+  // as defense in depth.
+  disabledFeatures: z
+    .record(
+      z.string().refine((v): v is WorkflowId => (ALL_WORKFLOWS as readonly string[]).includes(v), {
+        message: "Unknown workflow",
+      }),
+      z.array(z.string()),
+    )
+    .superRefine((map, ctx) => {
+      for (const [workflow, features] of Object.entries(map)) {
+        for (const feature of features) {
+          if (!featureExists(workflow, feature)) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              message: `Unknown feature "${feature}" for workflow "${workflow}"`,
+              path: [workflow],
+            });
+          }
+        }
+      }
+    })
+    .optional(),
 });
 
 export type UpdateOrgConfigInput = z.infer<typeof updateOrgConfigInput>;

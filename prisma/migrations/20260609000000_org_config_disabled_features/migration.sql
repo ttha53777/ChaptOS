@@ -1,0 +1,23 @@
+-- Add OrganizationConfig.disabledFeatures — per-org hidden page sections.
+--
+-- ── Why ─────────────────────────────────────────────────────────────────────
+-- Admins can already turn whole workflows (pages) on/off via enabledWorkflows.
+-- This adds finer control: hiding individual *sections* of a page that stays on
+-- — e.g. the Dashboard's Health widget or a KPI card — without removing the page.
+-- Hiding a section is a visibility change only; no domain data is touched.
+--
+-- Polarity is OPT-OUT: this column records only the features an admin turned
+-- *off*, keyed by workflow id. Shape: a sparse JSON object, e.g.
+--   { "operations": ["health", "kpi-dues"], "finance": ["reports"] }
+-- A feature is enabled unless it appears here, so empty {} (the default) means
+-- "every feature on". Existing rows need no backfill, and newly added features
+-- default on. The registry + predicate live in lib/workflow-features.ts. Mirrors
+-- the vocabularyOverrides / thresholds JSON columns on this table.
+--
+-- No new sequence is created (this adds a column to an existing table), so no
+-- additional GRANT on the app role is needed — the figurints_app role already
+-- holds INSERT/UPDATE on "OrganizationConfig".
+--
+-- Idempotent (IF NOT EXISTS) to match this repo's migration convention, so a DB
+-- that already had the column via `db push` is a no-op.
+ALTER TABLE "OrganizationConfig" ADD COLUMN IF NOT EXISTS "disabledFeatures" JSONB NOT NULL DEFAULT '{}';

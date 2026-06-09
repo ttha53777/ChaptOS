@@ -3,11 +3,22 @@
 import { fmt$ } from "../../../data";
 import { SvgIcon } from "../../Sidebar";
 import { useVocab } from "../../../hooks/useVocab";
+import { useFeature } from "../../../hooks/useFeature";
 import { KPI_ICONS } from "../styles";
 import type { Announcement } from "../AnnouncementCard";
 import type { KPIDrawerKey, MobileKpis } from "./MobileDashboard";
 
 const PIN_PATH = "M5 11l5-5 7 7-5 5-7-7zm12 6l4 4M9 7l8 8";
+
+// Maps a mobile KPI chip to its dashboard feature id, so a chip hides in lockstep
+// with the desktop KPI card. The "treasury"/"door" chips are mobile-only summaries
+// with no toggleable feature — absent here, they always show.
+const CHIP_FEATURE: Partial<Record<KPIDrawerKey, string>> = {
+  attendance: "kpi-attendance",
+  dues:       "kpi-dues",
+  gpa:        "kpi-gpa",
+  service:    "kpi-service",
+};
 
 export function MobileSummary({ announcement, kpis, onEditAnnouncement, onOpenKpi }: {
   announcement: Announcement | null;
@@ -16,6 +27,7 @@ export function MobileSummary({ announcement, kpis, onEditAnnouncement, onOpenKp
   onOpenKpi: (k: KPIDrawerKey) => void;
 }) {
   const v = useVocab();
+  const feature = useFeature();
   const title = announcement?.title ?? "Welcome to your chapter dashboard";
   const rawBody = announcement?.body ?? "";
   // Show a one-line preview only when there's body content. Headline-only
@@ -33,9 +45,17 @@ export function MobileSummary({ announcement, kpis, onEditAnnouncement, onOpenKp
     { key: "door",       label: "Door",   value: fmt$(kpis.totalDoorRev),                       color: "text-pink-400"    },
   ];
 
+  // Hide chips whose dashboard feature has been turned off; mobile-only chips
+  // (no CHIP_FEATURE entry) always show.
+  const visibleChips = chips.filter(c => {
+    const f = CHIP_FEATURE[c.key];
+    return !f || feature("operations", f);
+  });
+
   return (
     <div className="px-3 pt-3 pb-2">
       {/* Compact pinned announcement */}
+      {feature("operations", "announcement") && (
       <button
         onClick={onEditAnnouncement}
         className="mb-2.5 flex w-full items-center gap-3 overflow-hidden rounded-xl card-premium px-3 py-2.5 text-left active:border-white/[0.14]"
@@ -56,10 +76,11 @@ export function MobileSummary({ announcement, kpis, onEditAnnouncement, onOpenKp
           <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536M9 11l6.586-6.586a2 2 0 112.828 2.828L11.828 13.828 9 14l.172-2.828z" />
         </svg>
       </button>
+      )}
 
       {/* KPI strip — 2 rows of 3 */}
       <div className="grid grid-cols-3 gap-2">
-        {chips.map(c => (
+        {visibleChips.map(c => (
           <button
             key={c.key}
             onClick={() => onOpenKpi(c.key)}

@@ -18,6 +18,7 @@ import { ForbiddenError } from "@/lib/errors";
 import { ALWAYS_ON_WORKFLOWS, ALL_WORKFLOWS, type WorkflowId } from "@/lib/org-types";
 import { VOCAB_KEYS, type VocabKey, type VocabOverrides } from "@/lib/vocab";
 import { resolveThresholds, type Thresholds } from "@/lib/thresholds";
+import { normalizeDisabledFeatures, type DisabledFeatures } from "@/lib/workflow-features";
 
 export interface OrgConfigDTO {
   enabledWorkflows: WorkflowId[];
@@ -122,4 +123,37 @@ export async function setThresholds(
   });
 
   return thresholds;
+}
+
+/**
+ * Replace the org's disabled-feature set. Authorization: org admins only.
+ *
+ * Features are the toggleable sub-sections of a workflow's page (e.g. the
+ * Dashboard's Health widget). Hiding one is a visibility change — same gate and
+ * posture as setWorkflows: an org-owner action, not a delegated permission bit.
+ *
+ * The map is OPT-OUT — it records only the features turned *off*. It is
+ * normalized before persisting (unknown workflow/feature ids and empty lists
+ * dropped, ordered by the registry) so the stored JSON is clean and stable, the
+ * same defense-in-depth role the ALL_WORKFLOWS filter plays for setWorkflows.
+ */
+export async function setDisabledFeatures(
+  ctx: RequestContext,
+  input: { disabledFeatures: DisabledFeatures },
+): Promise<DisabledFeatures> {
+  if (!ctx.isOrgAdmin && !ctx.isPlatformAdmin) {
+    throw new ForbiddenError("Only an org admin can change which sections are shown");
+  }
+
+  const disabledFeatures = normalizeDisabledFeatures(input.disabledFeatures);
+
+  // upsert (not update) so a legacy org missing its config row self-heals.
+  // organizationId is injected by ctx.db — never client-supplied.
+  await ctx.db.organizationConfig.upsert({ disabledFeatures });
+
+  await emit(ctx, "org.config.updated", { type: "Organization", id: ctx.orgId }, {
+    disabledFeatures,
+  });
+
+  return disabledFeatures;
 }

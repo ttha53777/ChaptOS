@@ -29,7 +29,7 @@ export async function GET() {
           logoUrl: true,
           // The sidebar and onboarding picker filter surfaces by the org's
           // enabled workflows. Pull it in the same round-trip as the org name.
-          config: { select: { enabledWorkflows: true, vocabularyOverrides: true, thresholds: true } },
+          config: { select: { enabledWorkflows: true, vocabularyOverrides: true, thresholds: true, disabledFeatures: true } },
         },
       }),
       createServerSupabaseClient(),
@@ -91,6 +91,9 @@ export async function GET() {
             // Always emit a complete, in-range object so the client never has to
             // merge against defaults — resolveThresholds fills any missing key.
             thresholds: resolveThresholds(org.config?.thresholds),
+            // OPT-OUT map of hidden page sections. Empty {} (or a missing config
+            // row) means every feature is on — the safe default, same as workflows.
+            disabledFeatures: (org.config?.disabledFeatures ?? {}) as Record<string, string[]>,
           }
         : null,
       orgId: user.orgId,

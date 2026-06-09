@@ -5,6 +5,7 @@ import { fmt$ } from "../../../data";
 import { SvgIcon } from "../../Sidebar";
 import { Card } from "../primitives";
 import { KPI_ICONS } from "../styles";
+import { useFeature } from "../../../hooks/useFeature";
 import type { MobileActions, MobileMoneyData } from "./MobileDashboard";
 
 // Same dynamic, ssr:false import as the desktop dashboard. Because this tab only
@@ -30,6 +31,7 @@ export function MobileMoneyTab({ moneyData, actions }: {
     partyChartData, statusChartData, svcChartData, goodCount, brotherCount,
     onTrackSvc, serviceHoursGoal, maxRevenue, bestEvent,
   } = moneyData;
+  const feature = useFeature();
 
   return (
     <div className="space-y-4">
@@ -90,20 +92,22 @@ export function MobileMoneyTab({ moneyData, actions }: {
       </Card>
 
       {/* Charts — mount only while this tab is open */}
-      <DashboardCharts
-        liveBalance={liveBalance}
-        liveProjected={liveProjected}
-        liveTrend={liveTrend}
-        totalDoorRev={totalDoorRev}
-        partyCount={partyList.length}
-        partyChartData={partyChartData}
-        brotherCount={brotherCount}
-        goodCount={goodCount}
-        statusChartData={statusChartData}
-        onTrackSvc={onTrackSvc}
-        serviceHoursGoal={serviceHoursGoal}
-        svcChartData={svcChartData}
-      />
+      {feature("operations", "charts") && (
+        <DashboardCharts
+          liveBalance={liveBalance}
+          liveProjected={liveProjected}
+          liveTrend={liveTrend}
+          totalDoorRev={totalDoorRev}
+          partyCount={partyList.length}
+          partyChartData={partyChartData}
+          brotherCount={brotherCount}
+          goodCount={goodCount}
+          statusChartData={statusChartData}
+          onTrackSvc={onTrackSvc}
+          serviceHoursGoal={serviceHoursGoal}
+          svcChartData={svcChartData}
+        />
+      )}
     </div>
   );
 }
