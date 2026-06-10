@@ -5,6 +5,8 @@ import { aiEnabled, recommendSetup, type RawSetupRecommendation } from "@/lib/ai
 import { ALL_WORKFLOWS, type WorkflowId } from "@/lib/org-types";
 import { WORKFLOW_FEATURES, normalizeDisabledFeatures, type DisabledFeatures } from "@/lib/workflow-features";
 import { VOCAB_KEYS, DEFAULT_LABELS, type VocabKey } from "@/lib/vocab";
+import { PERMISSIONS, type Permission } from "@/lib/permissions";
+import { THRESHOLD_KEYS, DEFAULT_THRESHOLDS, resolveThresholds, type Thresholds } from "@/lib/thresholds";
 
 // POST /api/ai/recommend-setup — suggest a starting org setup from a free-text
 // description, for the post-creation onboarding step. The model only PROPOSES;
@@ -23,13 +25,34 @@ import { VOCAB_KEYS, DEFAULT_LABELS, type VocabKey } from "@/lib/vocab";
 // always-on "operations" workflow.
 const DASHBOARD_WIDGET_IDS = WORKFLOW_FEATURES.operations.map(f => f.id);
 
+// A validated non-founder role: name + rank (<100) + a permission BITFIELD (names
+// already resolved) + color. The founder admin role is NOT in here — the apply
+// step always (re)creates that one itself.
+export interface ValidatedRole {
+  name: string;
+  rank: number;
+  permissions: number;   // bitfield
+  color: string;
+}
+
+const ROLE_RANK_MAX = 90;        // founder admin role owns 100; proposals stay below
+const DEFAULT_ROLE_COLOR = "#6366F1";
+const COLOR_RE = /^#[0-9a-fA-F]{6}$/;
+
 // Validated recommendation handed to the client. Shapes onto the existing config
 // dimensions so the client can PATCH it directly.
 export interface ValidatedRecommendation {
   enabledWorkflows: WorkflowId[];
   disabledFeatures: DisabledFeatures;          // inverse of the shown widgets
   vocabularyOverrides: Partial<Record<VocabKey, string>>;
+  thresholds: Thresholds;                      // resolved (clamped + defaults filled)
+  roles: ValidatedRole[];                      // non-founder roles only
   rationale: string;
+}
+
+/** Map permission NAMES to a bitfield, dropping any unknown name. */
+function permissionNamesToBits(names: string[]): number {
+  return names.reduce((bits, n) => (n in PERMISSIONS ? bits | PERMISSIONS[n as Permission] : bits), 0);
 }
 
 /**
@@ -60,10 +83,36 @@ export function validateRecommendation(raw: RawSetupRecommendation): ValidatedRe
       vocabularyOverrides[key] = v.trim().slice(0, 40);
     }
   }
+  // Thresholds: keep only known keys, then resolve (clamps out-of-range to
+  // defaults + fills any the model omitted). resolveThresholds is the same
+  // sanitizer setThresholds uses, so a wild number can never persist.
+  const thresholdInput: Record<string, number> = {};
+  for (const key of THRESHOLD_KEYS) {
+    const v = raw.thresholds[key];
+    if (typeof v === "number" && Number.isFinite(v)) thresholdInput[key] = v;
+  }
+  const thresholds = resolveThresholds(thresholdInput);
+  // Roles: drop nameless; map perm names→bits (unknown names dropped); clamp rank
+  // to [0, 90] so it's always below the founder's rank-100 admin role; validate
+  // color. The founder admin role is never in this list — the apply step owns it.
+  const roles: ValidatedRole[] = [];
+  for (const r of raw.roles) {
+    const name = typeof r.name === "string" ? r.name.trim().slice(0, 60) : "";
+    if (!name) continue;
+    const rank = Number.isFinite(r.rank) ? Math.max(0, Math.min(ROLE_RANK_MAX, Math.round(r.rank))) : 0;
+    roles.push({
+      name,
+      rank,
+      permissions: permissionNamesToBits(Array.isArray(r.permissions) ? r.permissions : []),
+      color: typeof r.color === "string" && COLOR_RE.test(r.color) ? r.color : DEFAULT_ROLE_COLOR,
+    });
+  }
   return {
     enabledWorkflows,
     disabledFeatures,
     vocabularyOverrides,
+    thresholds,
+    roles,
     rationale: typeof raw.rationale === "string" ? raw.rationale.slice(0, 200) : "",
   };
 }
@@ -91,6 +140,12 @@ Only show a widget when the org plausibly tracks that data. e.g. a hobby club wi
 VOCABULARY (optional label overrides) — return "vocabulary" as an ARRAY of {key, label} pairs, only for keys whose default doesn't fit:
 ${vocabList}
 e.g. a sports team → [{key:"Member",label:"Player"},{key:"Period",label:"Season"}]; a volunteer group → [{key:"Member",label:"Volunteer"},{key:"Service",label:"Volunteering"}]. Omit a key (don't include a pair) to keep its default. Empty array if nothing needs renaming.
+
+THRESHOLDS (member-status cutoffs) — return all five numbers in "thresholds". Defaults are ${JSON.stringify(DEFAULT_THRESHOLDS)}. Tune to the org: a competitive team wants a higher attendance bar (e.g. attendanceAtRisk 80, attendanceWatch 90); a casual club lower (e.g. 40/60). gpaAtRisk/gpaWatch are 0–4 (use the defaults, or low values if the org doesn't track grades). serviceHoursGoal is hours per member (0 if no service tracking). Return the defaults when unsure.
+
+ROLES — propose 2–4 officer roles in "roles" that fit the org (e.g. team → Captain, Co-Captain, Coach; club → President, Vice President, Treasurer, Secretary). Do NOT propose the top admin/founder role — it's added automatically at rank 100. Each role: a short "name", a "rank" 0–90 (higher = more senior), a "color" hex like "#10B981", and "permissions" — an array of ONLY these exact names, just the ones that role needs:
+${Object.keys(PERMISSIONS).map(p => `  - ${p}`).join("\n")}
+e.g. a Treasurer gets ["MANAGE_TREASURY"]; a generalist VP might get several. Empty permissions for a purely honorific role.
 
 Return concise choices. The "rationale" is ONE short sentence (max ~20 words) the founder reads to understand the suggestion. No markdown.`;
 }

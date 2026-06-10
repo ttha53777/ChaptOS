@@ -4,12 +4,14 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useChapter } from "../../context/ChapterContext";
 import { useOrgPath } from "../../hooks/useOrgPath";
-import { requestJson } from "../../lib/api";
+import { requestJson, ORG_SLUG_HEADER, currentOrgSlug } from "../../lib/api";
 import { APP_NAME } from "@/lib/domains";
 import { NAV, NAV_WORKFLOW_MAP, NAV_DESCRIPTIONS } from "../../components/Sidebar";
 import { ALWAYS_ON_WORKFLOWS, type WorkflowId } from "@/lib/org-types";
 import { WORKFLOW_FEATURES, type DisabledFeatures } from "@/lib/workflow-features";
 import { VOCAB_KEYS, DEFAULT_LABELS, type VocabKey } from "@/lib/vocab";
+import { THRESHOLD_KEYS, DEFAULT_THRESHOLDS, type Thresholds } from "@/lib/thresholds";
+import { PERMISSIONS, type Permission } from "@/lib/permissions";
 
 // /[slug]/onboarding — the post-creation "finish setup" page picker.
 //
@@ -52,11 +54,41 @@ const ALWAYS_ON_LABELS = NAV.filter((label) => NAV_WORKFLOW_MAP[label] == null);
 const DASHBOARD_WIDGETS = WORKFLOW_FEATURES.operations;
 const DASHBOARD_WIDGET_IDS = DASHBOARD_WIDGETS.map(w => w.id);
 
+// A proposed non-founder role (rank < 100, permissions as a bitfield).
+interface RecommendedRole {
+  name: string;
+  rank: number;
+  permissions: number;
+  color: string;
+}
+
+// Human-readable threshold labels for the review mini-form.
+const THRESHOLD_LABELS: Record<keyof Thresholds, string> = {
+  attendanceAtRisk: "Attendance — At Risk below (%)",
+  attendanceWatch:  "Attendance — Watch below (%)",
+  gpaAtRisk:        "GPA — At Risk below",
+  gpaWatch:         "GPA — Watch below",
+  serviceHoursGoal: "Service hours goal",
+};
+
+// Render a role's permission bitfield as a short readable summary for the review
+// card (e.g. "Treasury, Events"). "Full access" when every bit is set; "View
+// only" when none.
+function summarizePermissions(bits: number): string {
+  const names = (Object.keys(PERMISSIONS) as Permission[]).filter(p => (bits & PERMISSIONS[p]) !== 0);
+  if (names.length === 0) return "View only";
+  if (names.length === Object.keys(PERMISSIONS).length) return "Full access";
+  // Drop the MANAGE_ prefix and title-case for a friendlier read.
+  return names.map(n => n.replace(/^MANAGE_/, "").toLowerCase().replace(/\b\w/g, c => c.toUpperCase())).join(", ");
+}
+
 // Shape of the validated recommendation returned by /api/ai/recommend-setup.
 interface SetupRecommendation {
   enabledWorkflows: string[];
   disabledFeatures: DisabledFeatures;
   vocabularyOverrides: Partial<Record<VocabKey, string>>;
+  thresholds: Thresholds;
+  roles: RecommendedRole[];
   rationale: string;
 }
 
@@ -91,20 +123,30 @@ export default function OnboardingPage() {
   // recommend route (GET probe), since aiEnabled isn't on /me and lib/ai is
   // server-only. null = unknown (probing); false hides the step entirely.
   const [aiOn, setAiOn] = useState<boolean | null>(null);
-  const [description, setDescription] = useState("");
-  const [recommending, setRecommending] = useState(false);
-  const [rationale, setRationale] = useState<string | null>(null);
+  const [draft, setDraft] = useState("");          // the in-progress chat input
+  const [thinking, setThinking] = useState(false); // a reply is streaming
   const [recError, setRecError] = useState<string | null>(null);
+  // The conversation transcript. The assistant opens with a greeting.
+  const [chat, setChat] = useState<{ role: "user" | "assistant"; content: string }[]>([
+    { role: "assistant", content: "Hi! Tell me about your organization — what do you do, and what would you like to keep track of? I'll set things up to match." },
+  ]);
   // Which dashboard widgets stay shown (start all-on; the AI step trims).
   const [shownWidgets, setShownWidgets] = useState<Set<string>>(() => new Set(DASHBOARD_WIDGET_IDS));
   // Vocabulary overrides the founder can edit (only keys with a non-default value).
   const [vocab, setVocab] = useState<Partial<Record<VocabKey, string>>>({});
+  // Member-status thresholds (start at defaults; the AI step tunes them). Shown
+  // as an editable mini-form only after the AI suggests a setup.
+  const [thresholds, setThresholds] = useState<Thresholds>(DEFAULT_THRESHOLDS);
+  // Proposed non-founder roles (empty until the AI suggests; founder can remove).
+  const [roles, setRoles] = useState<RecommendedRole[]>([]);
+  // True once a recommendation has arrived — gates the review cards.
+  const [recommended, setRecommended] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const res = await requestJson<{ enabled: boolean }>("/api/ai/recommend-setup");
+        const res = await requestJson<{ enabled: boolean }>("/api/ai/setup-chat");
         if (!cancelled) setAiOn(!!res.enabled);
       } catch {
         if (!cancelled) setAiOn(false); // probe failed — behave as AI-off
@@ -113,37 +155,80 @@ export default function OnboardingPage() {
     return () => { cancelled = true; };
   }, []);
 
-  async function handleRecommend() {
-    const desc = description.trim();
-    if (recommending || !desc) return;
-    setRecommending(true);
+  // Pre-seed every config dimension from a validated proposal (shared by the
+  // streamed `proposal` event). The founder edits from here.
+  function seedFromRecommendation(rec: SetupRecommendation) {
+    setSelected(new Set(PICKER_ITEMS.filter(i => rec.enabledWorkflows.includes(i.workflow)).map(i => i.workflow)));
+    const hidden = new Set(rec.disabledFeatures.operations ?? []);
+    setShownWidgets(new Set(DASHBOARD_WIDGET_IDS.filter(id => !hidden.has(id))));
+    setVocab(rec.vocabularyOverrides ?? {});
+    setThresholds(rec.thresholds ?? DEFAULT_THRESHOLDS);
+    setRoles(rec.roles ?? []);
+    setRecommended(true);
+  }
+
+  // Send the founder's message + stream the assistant's reply from setup-chat.
+  // Appends `text` deltas to a live assistant bubble; on a `proposal` event,
+  // seeds the review cards below. Falls back gracefully on any stream error.
+  async function sendMessage() {
+    const text = draft.trim();
+    if (thinking || !text) return;
+    const nextChat = [...chat, { role: "user" as const, content: text }];
+    setChat([...nextChat, { role: "assistant" as const, content: "" }]);
+    setDraft("");
+    setThinking(true);
     setRecError(null);
+
+    const appendToAssistant = (delta: string) =>
+      setChat(prev => {
+        const copy = [...prev];
+        const last = copy[copy.length - 1];
+        if (last && last.role === "assistant") copy[copy.length - 1] = { ...last, content: last.content + delta };
+        return copy;
+      });
+
     try {
-      const res = await requestJson<{ enabled: boolean; recommendation: SetupRecommendation | null }>(
-        "/api/ai/recommend-setup",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ description: desc }),
-        },
-      );
-      if (!res.enabled) { setAiOn(false); return; }
-      const rec = res.recommendation;
-      if (!rec) {
-        // Model/parse failure — keep the founder's current (template-preset) picks.
-        setRecError("Couldn't generate a suggestion — adjust the pages below yourself.");
-        return;
+      const res = await fetch("/api/ai/setup-chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(currentOrgSlug() ? { [ORG_SLUG_HEADER]: currentOrgSlug()! } : {}) },
+        body: JSON.stringify({ messages: nextChat }),
+      });
+      if (!res.ok || !res.body) throw new Error("stream failed");
+
+      // Parse the SSE stream (event:/data: frames).
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let sawAny = false;
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const frames = buffer.split("\n\n");
+        buffer = frames.pop() ?? "";
+        for (const frame of frames) {
+          const evLine = frame.split("\n").find(l => l.startsWith("event:"));
+          const dataLine = frame.split("\n").find(l => l.startsWith("data:"));
+          if (!evLine || !dataLine) continue;
+          const event = evLine.slice(6).trim();
+          const data = JSON.parse(dataLine.slice(5).trim());
+          if (event === "text" && typeof data.delta === "string") {
+            sawAny = true;
+            appendToAssistant(data.delta);
+          } else if (event === "proposal" && data.recommendation) {
+            seedFromRecommendation(data.recommendation as SetupRecommendation);
+          }
+        }
       }
-      // Pre-seed all three dimensions from the recommendation.
-      setSelected(new Set(PICKER_ITEMS.filter(i => rec.enabledWorkflows.includes(i.workflow)).map(i => i.workflow)));
-      const hidden = new Set(rec.disabledFeatures.operations ?? []);
-      setShownWidgets(new Set(DASHBOARD_WIDGET_IDS.filter(id => !hidden.has(id))));
-      setVocab(rec.vocabularyOverrides ?? {});
-      setRationale(rec.rationale || null);
+      // If the assistant said nothing AND gave no proposal, drop the empty bubble.
+      if (!sawAny) {
+        setChat(prev => prev[prev.length - 1]?.content === "" ? prev.slice(0, -1) : prev);
+      }
     } catch {
-      setRecError("Couldn't reach the assistant. You can still set things up below.");
+      setChat(prev => prev[prev.length - 1]?.content === "" ? prev.slice(0, -1) : prev);
+      setRecError("Couldn't reach the assistant. You can still set things up manually below.");
     } finally {
-      setRecommending(false);
+      setThinking(false);
     }
   }
 
@@ -191,11 +276,37 @@ export default function OnboardingPage() {
     }
 
     try {
+      // Config (workflows + widgets + vocab + thresholds) — one atomic PATCH.
+      // Thresholds only sent when the AI tuned them (recommended), so a no-AI
+      // founder keeps the defaults without an extra write.
       await requestJson("/api/orgs/config", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ enabledWorkflows: chosen, disabledFeatures, vocabularyOverrides }),
+        body: JSON.stringify({
+          enabledWorkflows: chosen,
+          disabledFeatures,
+          vocabularyOverrides,
+          ...(recommended ? { thresholds } : {}),
+        }),
       });
+
+      // Roles — applied via the onboarding-only setup-apply route. Best-effort
+      // AFTER config so a role hiccup never blocks entry (mirrors logo upload in
+      // create). Only when the AI proposed roles.
+      if (recommended && roles.length > 0) {
+        try {
+          await requestJson("/api/orgs/setup-apply", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ roles }),
+          });
+        } catch {
+          // Soft warning — config already saved; the founder can set roles in
+          // Settings. Don't block dashboard entry.
+          setServerError("Your setup was saved, but tailored roles couldn't be applied — you can adjust them in Settings → Roles.");
+        }
+      }
+
       // Refresh the cached /me so the sidebar picks up the new workflow set
       // immediately, then navigate into the dashboard.
       await refreshChapterData().catch(() => undefined);
@@ -209,6 +320,10 @@ export default function OnboardingPage() {
       );
       setSubmitting(false);
     }
+  }
+
+  function removeRole(idx: number) {
+    setRoles((prev) => prev.filter((_, i) => i !== idx));
   }
 
   return (
@@ -234,35 +349,59 @@ export default function OnboardingPage() {
             </p>
 
             <div className="auth-body auth-stack-28">
-              {/* AI-assisted describe step — only when AI is configured. The
-                  founder describes the org; we pre-seed the pickers below from a
-                  validated recommendation. Hidden entirely when AI is off. */}
+              {/* AI-assisted conversational setup — only when AI is configured. A
+                  short chat where the founder describes the org; the assistant asks
+                  ≤2 follow-ups then proposes a setup that pre-seeds the pickers
+                  below. Hidden entirely when AI is off. */}
               {aiOn && (
                 <div>
-                  <p className="auth-label" style={{ padding: 0 }}>Describe your organization <span className="auth-footnote">· optional</span></p>
-                  <p className="auth-hint">Tell us what you do and what you track — we&rsquo;ll suggest the right pages, dashboard widgets, and labels. You can change everything below.</p>
-                  <textarea
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                    rows={3}
-                    maxLength={800}
-                    placeholder="e.g. A volunteer group that runs monthly beach cleanups and tracks volunteer hours and event turnout."
+                  <p className="auth-label" style={{ padding: 0 }}>Set up with AI <span className="auth-footnote">· optional</span></p>
+                  <p className="auth-hint">Chat about your organization and we&rsquo;ll suggest pages, widgets, labels, roles, and cutoffs. You can edit everything below.</p>
+                  <div
                     className="auth-input"
-                    style={{ resize: "vertical", minHeight: 72 }}
-                  />
-                  <div className="auth-stack" style={{ marginTop: 10 }}>
+                    style={{ display: "flex", flexDirection: "column", gap: 10, maxHeight: 280, overflowY: "auto", padding: 12 }}
+                  >
+                    {chat.map((m, i) => (
+                      <div
+                        key={i}
+                        style={{
+                          alignSelf: m.role === "user" ? "flex-end" : "flex-start",
+                          maxWidth: "85%",
+                          padding: "8px 11px",
+                          borderRadius: 12,
+                          fontSize: 13,
+                          lineHeight: 1.45,
+                          background: m.role === "user" ? "var(--vio-12, rgba(99,102,241,0.14))" : "rgba(255,255,255,0.05)",
+                          whiteSpace: "pre-wrap",
+                        }}
+                      >
+                        {m.content || (thinking && i === chat.length - 1 ? "…" : "")}
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+                    <input
+                      type="text"
+                      value={draft}
+                      onChange={(e) => setDraft(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void sendMessage(); } }}
+                      maxLength={800}
+                      disabled={thinking}
+                      placeholder="e.g. A soccer club — we track attendance and game turnout, no dues."
+                      className="auth-input"
+                      style={{ flex: 1 }}
+                    />
                     <button
                       type="button"
-                      onClick={handleRecommend}
-                      disabled={recommending || !description.trim()}
+                      onClick={() => void sendMessage()}
+                      disabled={thinking || !draft.trim()}
                       className="auth-chip"
-                      style={{ alignSelf: "flex-start" }}
                     >
-                      {recommending ? "Thinking…" : "Suggest a setup"}
+                      {thinking ? "…" : "Send"}
                     </button>
                   </div>
-                  {rationale && (
-                    <p className="auth-status ok" style={{ marginTop: 8 }}>{rationale}</p>
+                  {recommended && (
+                    <p className="auth-status ok" style={{ marginTop: 8 }}>Setup suggested below — review and adjust, then continue.</p>
                   )}
                   {recError && (
                     <p className="auth-status err" role="alert" style={{ marginTop: 8 }}>{recError}</p>
@@ -364,6 +503,60 @@ export default function OnboardingPage() {
                           onChange={(e) => setVocab((prev) => ({ ...prev, [key]: e.target.value }))}
                           placeholder={DEFAULT_LABELS[key]}
                           className="auth-input"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </fieldset>
+              )}
+
+              {/* Roles — shown after the AI proposes a set. Replaces the default
+                  President/Treasurer roles; the founder keeps full admin. */}
+              {recommended && roles.length > 0 && (
+                <fieldset style={{ border: 0, padding: 0, margin: 0 }}>
+                  <legend className="auth-label" style={{ padding: 0 }}>Roles</legend>
+                  <p className="auth-hint">Suggested officer roles for your organization. You stay an admin with full access. Remove any you don&rsquo;t need — you can fine-tune them later in Settings.</p>
+                  <div className="auth-radios">
+                    {roles.map((r, idx) => (
+                      <div key={`${r.name}-${idx}`} className="auth-radio on" style={{ cursor: "default" }}>
+                        <span className="auth-dot" aria-hidden style={{ background: r.color }} />
+                        <div>
+                          <div className="t">{r.name}</div>
+                          <div className="d">{summarizePermissions(r.permissions)}</div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => removeRole(idx)}
+                          className="auth-chip"
+                          style={{ marginLeft: "auto", alignSelf: "center" }}
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </fieldset>
+              )}
+
+              {/* Thresholds — member-status cutoffs, shown after the AI tunes them. */}
+              {recommended && (
+                <fieldset style={{ border: 0, padding: 0, margin: 0 }}>
+                  <legend className="auth-label" style={{ padding: 0 }}>Member status cutoffs</legend>
+                  <p className="auth-hint">When a member is flagged Watch or At Risk. Tuned to your organization — adjust if needed.</p>
+                  <div className="auth-stack-28">
+                    {THRESHOLD_KEYS.map((key) => (
+                      <div key={key} style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                        <span className="auth-footnote" style={{ minWidth: 200 }}>{THRESHOLD_LABELS[key]}</span>
+                        <input
+                          type="number"
+                          value={thresholds[key]}
+                          step={key.startsWith("gpa") ? 0.1 : 1}
+                          onChange={(e) => {
+                            const n = parseFloat(e.target.value);
+                            setThresholds((prev) => ({ ...prev, [key]: Number.isFinite(n) ? n : prev[key] }));
+                          }}
+                          className="auth-input"
+                          style={{ maxWidth: 120 }}
                         />
                       </div>
                     ))}

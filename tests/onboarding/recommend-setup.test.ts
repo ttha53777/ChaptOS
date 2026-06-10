@@ -9,6 +9,8 @@ import { describe, expect, it } from "vitest";
 import { validateRecommendation } from "@/app/api/ai/recommend-setup/route";
 import { ALL_WORKFLOWS } from "@/lib/org-types";
 import { WORKFLOW_FEATURES } from "@/lib/workflow-features";
+import { PERMISSIONS } from "@/lib/permissions";
+import { DEFAULT_THRESHOLDS } from "@/lib/thresholds";
 import type { RawSetupRecommendation } from "@/lib/ai";
 
 const ALL_WIDGET_IDS = WORKFLOW_FEATURES.operations.map(f => f.id);
@@ -18,6 +20,8 @@ function raw(over: Partial<RawSetupRecommendation> = {}): RawSetupRecommendation
     enabledWorkflows: [],
     shownWidgets: [],
     vocabulary: {},
+    thresholds: {},
+    roles: [],
     rationale: "",
     ...over,
   };
@@ -100,5 +104,70 @@ describe("validateRecommendation: rationale", () => {
   it("caps the rationale length", () => {
     const out = validateRecommendation(raw({ rationale: "y".repeat(500) }));
     expect(out.rationale.length).toBe(200);
+  });
+});
+
+describe("validateRecommendation: thresholds", () => {
+  it("clamps out-of-range values back to defaults and fills missing keys", () => {
+    const out = validateRecommendation(raw({
+      thresholds: {
+        attendanceAtRisk: 80,     // valid → kept
+        attendanceWatch: 999,     // out of [0,100] → default
+        gpaAtRisk: 5,             // out of [0,4] → default
+        // gpaWatch + serviceHoursGoal omitted → defaults
+      },
+    }));
+    expect(out.thresholds.attendanceAtRisk).toBe(80);
+    expect(out.thresholds.attendanceWatch).toBe(DEFAULT_THRESHOLDS.attendanceWatch);
+    expect(out.thresholds.gpaAtRisk).toBe(DEFAULT_THRESHOLDS.gpaAtRisk);
+    expect(out.thresholds.gpaWatch).toBe(DEFAULT_THRESHOLDS.gpaWatch);
+    expect(out.thresholds.serviceHoursGoal).toBe(DEFAULT_THRESHOLDS.serviceHoursGoal);
+  });
+
+  it("returns all defaults for an empty thresholds object", () => {
+    const out = validateRecommendation(raw({ thresholds: {} }));
+    expect(out.thresholds).toEqual(DEFAULT_THRESHOLDS);
+  });
+});
+
+describe("validateRecommendation: roles", () => {
+  it("maps permission names to a bitfield, dropping unknown names", () => {
+    const out = validateRecommendation(raw({
+      roles: [{ name: "Treasurer", rank: 50, permissions: ["MANAGE_TREASURY", "NOT_A_PERM"], color: "#10B981" }],
+    }));
+    expect(out.roles).toHaveLength(1);
+    expect(out.roles[0]!.permissions).toBe(PERMISSIONS.MANAGE_TREASURY);
+  });
+
+  it("clamps rank into [0, 90] so it stays below the founder's rank-100 role", () => {
+    const out = validateRecommendation(raw({
+      roles: [
+        { name: "TooHigh", rank: 100, permissions: [], color: "#fff000" },
+        { name: "WayHigh", rank: 250, permissions: [], color: "#fff000" },
+        { name: "Negative", rank: -5, permissions: [], color: "#fff000" },
+      ],
+    }));
+    expect(out.roles.every(r => r.rank <= 90 && r.rank >= 0)).toBe(true);
+    expect(out.roles.find(r => r.name === "TooHigh")!.rank).toBe(90);
+    expect(out.roles.find(r => r.name === "Negative")!.rank).toBe(0);
+  });
+
+  it("drops nameless roles and defaults a bad color", () => {
+    const out = validateRecommendation(raw({
+      roles: [
+        { name: "   ", rank: 10, permissions: [], color: "#10B981" },        // dropped
+        { name: "Captain", rank: 80, permissions: [], color: "not-a-color" }, // color → default
+      ],
+    }));
+    expect(out.roles).toHaveLength(1);
+    expect(out.roles[0]!.name).toBe("Captain");
+    expect(out.roles[0]!.color).toMatch(/^#[0-9a-fA-F]{6}$/);
+  });
+
+  it("never includes a rank-100 founder role (apply step owns that)", () => {
+    const out = validateRecommendation(raw({
+      roles: [{ name: "President", rank: 100, permissions: Object.keys(PERMISSIONS), color: "#F59E0B" }],
+    }));
+    expect(out.roles.every(r => r.rank < 100)).toBe(true);
   });
 });

@@ -73,10 +73,23 @@ export async function narrate(system: string, user: string): Promise<string | nu
  * model's free choice and MUST be validated/intersected against the real
  * registries by the caller before use — never trust these ids/keys directly.
  */
+export interface RawSetupRoleProposal {
+  name: string;
+  rank: number;
+  permissions: string[];   // permission NAMES (e.g. "MANAGE_TREASURY"), not bits
+  color: string;
+}
+
 export interface RawSetupRecommendation {
   enabledWorkflows: string[];
   shownWidgets: string[];
   vocabulary: Record<string, string>;
+  // Proposed member-status cutoffs. Numbers only; the caller clamps to bounds
+  // via resolveThresholds(). Partial — missing keys fall back to defaults.
+  thresholds: Record<string, number>;
+  // Proposed non-founder roles. The caller maps permission names→bits, clamps
+  // ranks <100, and the founder admin role is added by the apply step, not here.
+  roles: RawSetupRoleProposal[];
   rationale: string;
 }
 
@@ -120,10 +133,40 @@ export async function recommendSetup(system: string, user: string): Promise<RawS
                   required: ["key", "label"],
                 },
               },
+              // Member-status cutoffs. strict mode requires every key in `required`,
+              // so the model always returns all five (it returns defaults when unsure).
+              thresholds: {
+                type: "object",
+                additionalProperties: false,
+                properties: {
+                  attendanceAtRisk: { type: "number" },
+                  attendanceWatch:  { type: "number" },
+                  gpaAtRisk:        { type: "number" },
+                  gpaWatch:         { type: "number" },
+                  serviceHoursGoal: { type: "number" },
+                },
+                required: ["attendanceAtRisk", "attendanceWatch", "gpaAtRisk", "gpaWatch", "serviceHoursGoal"],
+              },
+              // Proposed non-founder roles (the founder admin role is added by the
+              // apply step). permissions are NAMES; the caller maps them to bits.
+              roles: {
+                type: "array",
+                items: {
+                  type: "object",
+                  additionalProperties: false,
+                  properties: {
+                    name:        { type: "string" },
+                    rank:        { type: "number" },
+                    permissions: { type: "array", items: { type: "string" } },
+                    color:       { type: "string" },
+                  },
+                  required: ["name", "rank", "permissions", "color"],
+                },
+              },
               rationale: { type: "string" },
             },
             // strict mode requires EVERY property listed in `required`.
-            required: ["enabledWorkflows", "shownWidgets", "vocabulary", "rationale"],
+            required: ["enabledWorkflows", "shownWidgets", "vocabulary", "thresholds", "roles", "rationale"],
           },
         },
       },
@@ -138,6 +181,8 @@ export async function recommendSetup(system: string, user: string): Promise<RawS
       enabledWorkflows?: unknown;
       shownWidgets?: unknown;
       vocabulary?: unknown;
+      thresholds?: unknown;
+      roles?: unknown;
       rationale?: unknown;
     };
     if (!Array.isArray(parsed.enabledWorkflows) || !Array.isArray(parsed.shownWidgets)) {
@@ -152,10 +197,34 @@ export async function recommendSetup(system: string, user: string): Promise<RawS
         }
       }
     }
+    // Thresholds: keep only finite numbers; the caller clamps via resolveThresholds.
+    const thresholds: Record<string, number> = {};
+    if (parsed.thresholds && typeof parsed.thresholds === "object") {
+      for (const [k, v] of Object.entries(parsed.thresholds as Record<string, unknown>)) {
+        if (typeof v === "number" && Number.isFinite(v)) thresholds[k] = v;
+      }
+    }
+    // Roles: keep well-formed proposals; the caller maps perms→bits + clamps ranks.
+    const roles: RawSetupRoleProposal[] = [];
+    if (Array.isArray(parsed.roles)) {
+      for (const r of parsed.roles as Array<Record<string, unknown>>) {
+        if (typeof r?.name !== "string") continue;
+        roles.push({
+          name: r.name,
+          rank: typeof r.rank === "number" && Number.isFinite(r.rank) ? r.rank : 0,
+          permissions: Array.isArray(r.permissions)
+            ? (r.permissions as unknown[]).filter((p): p is string => typeof p === "string")
+            : [],
+          color: typeof r.color === "string" ? r.color : "",
+        });
+      }
+    }
     return {
       enabledWorkflows: parsed.enabledWorkflows.filter((w): w is string => typeof w === "string"),
       shownWidgets: parsed.shownWidgets.filter((w): w is string => typeof w === "string"),
       vocabulary,
+      thresholds,
+      roles,
       rationale: typeof parsed.rationale === "string" ? parsed.rationale : "",
     };
   } catch (e) {
