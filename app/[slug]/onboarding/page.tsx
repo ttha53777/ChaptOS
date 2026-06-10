@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useChapter } from "../../context/ChapterContext";
 import { useOrgPath } from "../../hooks/useOrgPath";
@@ -139,13 +139,15 @@ export default function OnboardingPage() {
   const [recError, setRecError] = useState<string | null>(null);
   // The conversation transcript. The assistant opens with one question.
   const [chat, setChat] = useState<{ role: "user" | "assistant"; content: string }[]>([
-    { role: "assistant", content: "Hi! What kind of organization is this, and what would you like to keep track of? I'll set everything up to match." },
+    { role: "assistant", content: "Welcome to ChaptOS! Tell me more about your organization ... " },
   ]);
   // The assistant's one-line rationale from the proposal — shown in the collapsed
   // review header so the conversation's conclusion stays visible.
   const [rationale, setRationale] = useState<string | null>(null);
   // Auto-scroll the transcript to the newest message while streaming.
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const reviewRef = useRef<HTMLDivElement>(null);
   // Which dashboard widgets stay shown (start all-on; the AI step trims).
   const [shownWidgets, setShownWidgets] = useState<Set<string>>(() => new Set(DASHBOARD_WIDGET_IDS));
   // Vocabulary overrides the founder can edit (only keys with a non-default value).
@@ -174,6 +176,22 @@ export default function OnboardingPage() {
   // Keep the transcript scrolled to the newest message as replies stream in.
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [chat, thinking]);
 
+  // Auto-grow the composer to fit its content. Keyed on `draft` so EVERY path
+  // that changes it resizes — typing, a starter chip seeding a multi-line
+  // answer, or the post-send reset — not just the onChange handler. useLayout-
+  // Effect runs before paint, so the textarea never flashes at the wrong height.
+  useLayoutEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  }, [draft]);
+
+  // Scroll to the review section when a proposal first arrives.
+  useEffect(() => {
+    if (recommended) setTimeout(() => reviewRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
+  }, [recommended]);
+
   // Pre-seed every config dimension from a validated proposal (shared by the
   // streamed `proposal` event). The founder edits from here.
   function seedFromRecommendation(rec: SetupRecommendation) {
@@ -196,7 +214,7 @@ export default function OnboardingPage() {
     if (thinking || !msg) return;
     const nextChat = [...chat, { role: "user" as const, content: msg }];
     setChat([...nextChat, { role: "assistant" as const, content: "" }]);
-    setDraft("");
+    setDraft(""); // the auto-grow effect (keyed on draft) collapses the composer
     setThinking(true);
     setRecError(null);
 
@@ -375,67 +393,70 @@ export default function OnboardingPage() {
               {/* ── Interview state ── Conversation-first: the chat is the whole
                   screen until the assistant proposes a setup. Only when AI is on. */}
               {aiOn && !recommended && (
-                <div>
-                  <div
-                    className="auth-input"
-                    style={{ display: "flex", flexDirection: "column", gap: 10, minHeight: 220, maxHeight: 360, overflowY: "auto", padding: 14 }}
-                  >
-                    {chat.map((m, i) => (
-                      <div
-                        key={i}
-                        style={{
-                          alignSelf: m.role === "user" ? "flex-end" : "flex-start",
-                          maxWidth: "85%",
-                          padding: "9px 12px",
-                          borderRadius: 13,
-                          fontSize: 13.5,
-                          lineHeight: 1.5,
-                          background: m.role === "user" ? "rgba(167,139,250,0.18)" : "rgba(255,255,255,0.05)",
-                          whiteSpace: "pre-wrap",
-                        }}
-                      >
-                        {m.content || (thinking && i === chat.length - 1 ? "…" : "")}
-                      </div>
-                    ))}
+                <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                  {/* Transcript — messages float on the paper. The assistant speaks
+                      in the brand serif (the interviewer's voice); the founder's
+                      answers are clean sans bubbles. */}
+                  <div className="chat-transcript">
+                    {chat.map((m, i) => {
+                      const isThinking = !m.content && thinking && i === chat.length - 1;
+                      return (
+                        <div key={i} className={`chat-msg ${m.role === "user" ? "from-user" : "from-ai"}`}>
+                          {m.content || (isThinking
+                            ? <span className="thinking-dots"><span /><span /><span /></span>
+                            : "")}
+                        </div>
+                      );
+                    })}
                     <div ref={messagesEndRef} />
                   </div>
 
-                  {/* Starter chips — one-tap answers, shown only at the opening turn
-                      (before the founder has sent anything). */}
+                  {/* Starter suggestions — quiet inline prompts, only at the opening
+                      turn. Tapping one seeds the composer (doesn't auto-send), so the
+                      founder can edit before sending. */}
                   {chat.length === 1 && !thinking && (
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 10 }}>
+                    <div className="starter-row">
+                      <span className="label">Try</span>
                       {STARTER_CHIPS.map((c) => (
-                        <button key={c.label} type="button" className="auth-chip" onClick={() => void sendMessage(c.seed)}>
+                        <button key={c.label} type="button" className="starter" onClick={() => { setDraft(c.seed); inputRef.current?.focus(); }}>
                           {c.label}
                         </button>
                       ))}
                     </div>
                   )}
 
-                  <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-                    <input
-                      type="text"
+                  {/* Composer — one unified surface: textarea + send inside a single
+                      focusable pill. The auto-grow effect (keyed on draft) sizes it. */}
+                  <div className="composer">
+                    <textarea
+                      ref={inputRef}
+                      rows={1}
                       value={draft}
                       onChange={(e) => setDraft(e.target.value)}
                       onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void sendMessage(); } }}
                       maxLength={800}
                       disabled={thinking}
-                      placeholder="Type your answer, or pick one above…"
-                      className="auth-input"
-                      style={{ flex: 1 }}
+                      placeholder="Tell me about your organization…"
                       autoFocus
                     />
                     <button
                       type="button"
+                      className="composer-send"
                       onClick={() => void sendMessage()}
                       disabled={thinking || !draft.trim()}
-                      className="auth-chip"
+                      aria-label="Send"
                     >
-                      {thinking ? "…" : "Send"}
+                      {thinking
+                        ? <span className="thinking-dots"><span /><span /><span /></span>
+                        : (
+                          <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+                            <path d="M10 16V4M10 4l-5 5M10 4l5 5" strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
+                        )}
                     </button>
                   </div>
                   {recError && (
-                    <p className="auth-status err" role="alert" style={{ marginTop: 8 }}>{recError}</p>
+                    <p className="auth-status err" role="alert" style={{ marginTop: 2 }}>{recError}</p>
                   )}
                 </div>
               )}
@@ -443,7 +464,7 @@ export default function OnboardingPage() {
               {/* ── Review header ── After a proposal: the conversation collapses to
                   its rationale, with a way back into the chat. */}
               {aiOn && recommended && (
-                <div className="auth-radio on" style={{ cursor: "default", alignItems: "flex-start" }}>
+                <div ref={reviewRef} className="auth-radio on" style={{ cursor: "default", alignItems: "flex-start", animation: "review-rise 0.5s cubic-bezier(.16,1,.3,1) both" }}>
                   <span className="auth-dot" aria-hidden style={{ background: "var(--ok)" }} />
                   <div style={{ flex: 1 }}>
                     <div className="t">Here&rsquo;s your starting setup</div>
@@ -457,7 +478,7 @@ export default function OnboardingPage() {
 
               {/* The editable form — hidden during the AI interview, shown after a
                   proposal (or immediately when AI is off). */}
-              {showForm && (<>
+              {showForm && (<div style={{ animation: recommended ? "review-rise 0.55s cubic-bezier(.16,1,.3,1) both" : undefined, animationDelay: recommended ? "80ms" : undefined }}>
               {/* Locked, always-on surfaces */}
               <div>
                 <p className="auth-label" style={{ padding: 0 }}>Always included</p>
@@ -481,7 +502,7 @@ export default function OnboardingPage() {
               </div>
 
               {/* Toggleable pages */}
-              <fieldset style={{ border: 0, padding: 0, margin: 0 }}>
+              <fieldset style={{ border: 0, padding: 0, margin: 0, borderTop: "1px solid var(--line-soft)", paddingTop: 20 }}>
                 <legend className="auth-label" style={{ padding: 0 }}>Optional pages</legend>
                 <p className="auth-hint">Toggle the ones you want. Unselected pages are hidden from the sidebar.</p>
                 <div className="auth-radios">
@@ -508,7 +529,7 @@ export default function OnboardingPage() {
 
               {/* Dashboard widgets — which summary cards show on the home page.
                   Always available; the AI step pre-trims it to what fits the org. */}
-              <fieldset style={{ border: 0, padding: 0, margin: 0 }}>
+              <fieldset style={{ border: 0, padding: 0, margin: 0, borderTop: "1px solid var(--line-soft)", paddingTop: 20 }}>
                 <legend className="auth-label" style={{ padding: 0 }}>Dashboard widgets</legend>
                 <p className="auth-hint">Pick the summary cards for your dashboard. Unselected ones are hidden — you can change these anytime in Settings.</p>
                 <div className="auth-radios">
@@ -532,12 +553,12 @@ export default function OnboardingPage() {
                   })}
                 </div>
               </fieldset>
-              </>)}
+              </div>)}
 
               {/* Vocabulary — only shown when the AI suggested label overrides, so
                   a no-AI founder isn't faced with 12 empty label fields. */}
               {Object.keys(vocab).length > 0 && (
-                <fieldset style={{ border: 0, padding: 0, margin: 0 }}>
+                <fieldset style={{ border: 0, padding: 0, margin: 0, borderTop: "1px solid var(--line-soft)", paddingTop: 20 }}>
                   <legend className="auth-label" style={{ padding: 0 }}>Labels</legend>
                   <p className="auth-hint">We suggested wording that fits your organization. Edit or clear any of these.</p>
                   <div className="auth-stack-28">
@@ -563,16 +584,16 @@ export default function OnboardingPage() {
               {/* Roles — shown after the AI proposes a set. Replaces the default
                   President/Treasurer roles; the founder keeps full admin. */}
               {recommended && roles.length > 0 && (
-                <fieldset style={{ border: 0, padding: 0, margin: 0 }}>
+                <fieldset style={{ border: 0, padding: 0, margin: 0, borderTop: "1px solid var(--line-soft)", paddingTop: 20 }}>
                   <legend className="auth-label" style={{ padding: 0 }}>Roles</legend>
                   <p className="auth-hint">Suggested officer roles for your organization. You stay an admin with full access. Remove any you don&rsquo;t need — you can fine-tune them later in Settings.</p>
                   <div className="auth-radios">
                     {roles.map((r, idx) => (
                       <div key={`${r.name}-${idx}`} className="auth-radio on" style={{ cursor: "default" }}>
                         <span className="auth-dot" aria-hidden style={{ background: r.color }} />
-                        <div>
-                          <div className="t">{r.name}</div>
-                          <div className="d">{summarizePermissions(r.permissions)}</div>
+                        <div style={{ minWidth: 0 }}>
+                          <div className="t" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.name}</div>
+                          <div className="d" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{summarizePermissions(r.permissions)}</div>
                         </div>
                         <button
                           type="button"
@@ -590,7 +611,7 @@ export default function OnboardingPage() {
 
               {/* Thresholds — member-status cutoffs, shown after the AI tunes them. */}
               {recommended && (
-                <fieldset style={{ border: 0, padding: 0, margin: 0 }}>
+                <fieldset style={{ border: 0, padding: 0, margin: 0, borderTop: "1px solid var(--line-soft)", paddingTop: 20 }}>
                   <legend className="auth-label" style={{ padding: 0 }}>Member status cutoffs</legend>
                   <p className="auth-hint">When a member is flagged Watch or At Risk. Tuned to your organization — adjust if needed.</p>
                   <div className="auth-stack-28">

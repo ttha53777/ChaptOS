@@ -9,6 +9,7 @@ import { createClient } from "@/lib/supabase/client";
 import { hasPermission, type Permission } from "@/lib/permissions";
 import { DEFAULT_THRESHOLDS, type Thresholds } from "@/lib/thresholds";
 import { currentOrgSlug, ORG_SLUG_HEADER } from "../lib/api";
+import { isDashboardRoute } from "../lib/routes";
 
 function normalizeCurrentUser(me: CurrentUser): CurrentUser {
   return {
@@ -244,6 +245,19 @@ export function ChapterProvider({ children }: { children: React.ReactNode }) {
     const me = normalizeCurrentUser(meResult.value);
     setCurrentUser(me);
     setAvatarRevision(r => r + 1);
+
+    // The org-scoped fan-out below only makes sense inside an org dashboard
+    // (/[slug]/…). On platform/auth routes (/welcome, /welcome/create, /login,
+    // /pending-access, …) there's no org slug in the URL, so these reads would
+    // resolve to a non-membership org context and 403. A signed-in but
+    // already-onboarded user can legitimately sit on /welcome/create (founding
+    // another org), so we skip the section fetches there rather than firing a
+    // wall of doomed 403s. currentUser is already set from /api/auth/me above.
+    if (typeof window !== "undefined" && !isDashboardRoute(window.location.pathname)) {
+      setIsLoading(false);
+      setHasLoaded(true);
+      return;
+    }
 
     // Fan out the rest. allSettled so one slow/broken endpoint doesn't blank
     // the dashboard — see audit finding D4 / backend E3.

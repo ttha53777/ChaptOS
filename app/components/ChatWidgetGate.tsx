@@ -17,25 +17,8 @@
 // added.
 import { usePathname } from "next/navigation";
 import { useChapter } from "../context/ChapterContext";
+import { isDashboardRoute } from "../lib/routes";
 import { ChatWidget } from "./ChatWidget";
-
-// First-path segments that are platform/auth routes, NOT org dashboards.
-const RESERVED_SEGMENTS = new Set([
-  "login",
-  "welcome",
-  "pending-access",
-  "join",
-  "auth",
-  "admin",
-  "api",
-]);
-
-function isDashboardRoute(pathname: string | null): boolean {
-  if (!pathname) return false;
-  const seg = pathname.split("/")[1] ?? ""; // "" for "/"
-  if (seg === "") return false; // root redirect
-  return !RESERVED_SEGMENTS.has(seg);
-}
 
 export function ChatWidgetGate() {
   const pathname = usePathname();

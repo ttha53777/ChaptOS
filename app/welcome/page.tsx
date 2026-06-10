@@ -20,7 +20,13 @@ export default function WelcomePage() {
   // their dashboard. A signed-in founder with no org yet stays. /api/auth/me
   // returns 401 for that founder (session but no Brother row) — we leave them
   // here, NOT redirect.
+  //
+  // EXCEPTION: ?new=1 means an already-onboarded user deliberately came here to
+  // found ANOTHER org. Skip the redirect-home guard so they stay and can click
+  // through to the create form (which carries the same intent forward).
   useEffect(() => {
+    const wantsNew = new URLSearchParams(window.location.search).get("new") === "1";
+    if (wantsNew) return; // founding another org on purpose — don't redirect home
     let cancelled = false;
     (async () => {
       try {
@@ -60,7 +66,7 @@ export default function WelcomePage() {
             </p>
 
             <div className="auth-body auth-stack-22">
-              <Link href="/welcome/create" className="auth-tile feature">
+              <Link href="/welcome/create?new=1" className="auth-tile feature">
                 <div className="auth-tile-row">
                   <span className="auth-tile-num">＋</span>
                   <div>

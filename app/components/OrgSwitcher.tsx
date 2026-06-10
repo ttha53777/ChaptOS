@@ -23,6 +23,12 @@ export function OrgSwitcher() {
   if (!currentUser || currentUser.memberships.length <= 1) return null;
 
   function onChange(e: React.ChangeEvent<HTMLSelectElement>) {
+    // Sentinel: "found another org" — carry ?new=1 so /welcome/create skips its
+    // redirect-home guard for this already-onboarded user.
+    if (e.target.value === "__new__") {
+      window.location.assign("/welcome/create?new=1");
+      return;
+    }
     const organizationId = Number(e.target.value);
     if (!Number.isInteger(organizationId)) return;
     const target = currentUser?.memberships.find(m => m.organizationId === organizationId);
@@ -44,6 +50,7 @@ export function OrgSwitcher() {
             {m.orgName}
           </option>
         ))}
+        <option value="__new__">＋ Create a new organization…</option>
       </select>
     </label>
   );

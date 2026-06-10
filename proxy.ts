@@ -19,6 +19,14 @@ import { NextRequest, NextResponse } from "next/server";
  * a protected route directly.
  */
 export async function proxy(request: NextRequest) {
+  // Inject the request pathname so server layouts can read it via headers().
+  // App Router layouts receive params but not the full URL path; [slug]/layout
+  // reads x-pathname for its onboarding-gate check (is this /[slug]/onboarding?).
+  // This MUST be set on the REQUEST headers (forwarded to server components),
+  // not the response headers — headers() in a Server Component reads the
+  // incoming request, so a response-only header is invisible there and the
+  // onboarding gate would loop-redirect /[slug]/onboarding onto itself.
+  request.headers.set("x-pathname", request.nextUrl.pathname);
   let response = NextResponse.next({ request });
 
   const supabase = createServerClient(
@@ -43,14 +51,6 @@ export async function proxy(request: NextRequest) {
   if (!user) {
     return redirectToLogin(request);
   }
-
-  // Inject the request pathname so server layouts can read it via headers().
-  // App Router layouts receive params but not the full URL path; [slug]/layout
-  // reads x-pathname for its onboarding-gate check (is this /[slug]/onboarding?).
-  // Set on the (possibly cookie-refreshed) response we return below. Merged here
-  // from the former middleware.ts — Next 16 forbids both a middleware and a proxy
-  // file, and the proxy already runs on every route the layout needs it on.
-  response.headers.set("x-pathname", request.nextUrl.pathname);
 
   // Authenticated — let it through with the refreshed session cookie. Any
   // link-status / membership gating happens in the page/layout via requireUser.
