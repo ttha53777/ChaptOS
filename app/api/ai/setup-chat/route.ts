@@ -43,7 +43,7 @@ const SETUP_TOOL: OpenAI.Chat.Completions.ChatCompletionTool = {
   type: "function",
   function: {
     name: "emit_setup_proposal",
-    description: "Emit the final recommended org setup once you have enough information. Call this exactly once, after at most two clarifying questions.",
+    description: "Emit the recommended org setup. Call this exactly once, as soon as the founder has described their organization (their first answer is usually enough).",
     parameters: {
       type: "object",
       additionalProperties: false,
@@ -99,10 +99,9 @@ function buildConversationPrompt(): string {
   return `You are a friendly setup assistant for a multi-purpose organization operations app. Help a founder configure their new organization through a SHORT conversation.
 
 Rules:
-- Open by briefly asking what the organization is and what it tracks, UNLESS the founder already described it.
-- Ask AT MOST TWO clarifying questions, only if you genuinely need them (e.g. "Do you collect dues?", "Do you track attendance?"). Keep questions to one sentence.
-- As soon as you have enough, call emit_setup_proposal exactly once. Do not over-ask.
-- Keep all prose short and warm. No markdown.
+- The founder's FIRST message describes their organization. As soon as you have that, call emit_setup_proposal exactly once — do NOT ask follow-up questions when the description is usable.
+- Only ask ONE short clarifying question if the first message is empty or truly unusable (e.g. "ok", a greeting); otherwise propose immediately.
+- Before emitting the proposal you may write ONE short warm sentence (e.g. "Got it — here's a setup for your soccer club:"). Keep all prose short. No markdown.
 
 When you call emit_setup_proposal, choose ONLY from these exact ids/keys:
 WORKFLOWS: ${ALL_WORKFLOWS.join(", ")} (always include "operations").

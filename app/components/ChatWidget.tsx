@@ -6,6 +6,7 @@
 
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode } from "react";
 import { orgFetch } from "../lib/api";
+import { iterSSE } from "../lib/sse";
 
 const STORAGE_KEY = "chaptos_chat_v1";
 const MAX_HISTORY = 50;
@@ -158,32 +159,6 @@ function saveHistory(msgs: ChatMessage[]) {
   if (typeof window === "undefined") return;
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(msgs.slice(-MAX_HISTORY))); }
   catch { /* localStorage full — silently drop */ }
-}
-
-// Simple SSE-line parser for fetch() ReadableStream — keeps us off EventSource
-// (which only supports GET). Yields {event, data} per dispatch.
-async function* iterSSE(stream: ReadableStream<Uint8Array>): AsyncGenerator<{ event: string; data: string }> {
-  const reader = stream.getReader();
-  const decoder = new TextDecoder();
-  let buf = "";
-  while (true) {
-    const { value, done } = await reader.read();
-    if (done) break;
-    buf += decoder.decode(value, { stream: true });
-    // SSE dispatches are separated by a blank line ("\n\n").
-    let idx;
-    while ((idx = buf.indexOf("\n\n")) !== -1) {
-      const raw = buf.slice(0, idx);
-      buf = buf.slice(idx + 2);
-      let event = "message";
-      const dataLines: string[] = [];
-      for (const line of raw.split("\n")) {
-        if (line.startsWith("event:")) event = line.slice(6).trim();
-        else if (line.startsWith("data:")) dataLines.push(line.slice(5).trimStart());
-      }
-      if (dataLines.length > 0) yield { event, data: dataLines.join("\n") };
-    }
-  }
 }
 
 export function ChatWidget() {

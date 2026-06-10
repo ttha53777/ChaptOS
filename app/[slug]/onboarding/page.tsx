@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useChapter } from "../../context/ChapterContext";
 import { useOrgPath } from "../../hooks/useOrgPath";
 import { requestJson, ORG_SLUG_HEADER, currentOrgSlug } from "../../lib/api";
+import { iterSSE } from "../../lib/sse";
 import { APP_NAME } from "@/lib/domains";
 import { NAV, NAV_WORKFLOW_MAP, NAV_DESCRIPTIONS } from "../../components/Sidebar";
 import { ALWAYS_ON_WORKFLOWS, type WorkflowId } from "@/lib/org-types";
@@ -92,6 +93,16 @@ interface SetupRecommendation {
   rationale: string;
 }
 
+// One-tap starter answers shown under the opening question, so the founder can
+// begin without a blank box. Tapping a chip sends `seed` as their first message;
+// the assistant then proposes a setup. Typing a real answer is always available.
+const STARTER_CHIPS: { label: string; seed: string }[] = [
+  { label: "Sports team",     seed: "We're a competitive sports team. We track practice attendance and game turnout. No dues or GPA." },
+  { label: "Volunteer group", seed: "We're a volunteer group. We track volunteer hours and event turnout. No dues or GPA." },
+  { label: "Student club",    seed: "We're a student club with members, regular meetings, dues, and events." },
+  { label: "Greek life",      seed: "We're a fraternity/sorority chapter — brothers, chapter meetings, attendance, dues, service hours, and social events." },
+];
+
 export default function OnboardingPage() {
   const router = useRouter();
   const orgPath = useOrgPath();
@@ -126,10 +137,15 @@ export default function OnboardingPage() {
   const [draft, setDraft] = useState("");          // the in-progress chat input
   const [thinking, setThinking] = useState(false); // a reply is streaming
   const [recError, setRecError] = useState<string | null>(null);
-  // The conversation transcript. The assistant opens with a greeting.
+  // The conversation transcript. The assistant opens with one question.
   const [chat, setChat] = useState<{ role: "user" | "assistant"; content: string }[]>([
-    { role: "assistant", content: "Hi! Tell me about your organization — what do you do, and what would you like to keep track of? I'll set things up to match." },
+    { role: "assistant", content: "Hi! What kind of organization is this, and what would you like to keep track of? I'll set everything up to match." },
   ]);
+  // The assistant's one-line rationale from the proposal — shown in the collapsed
+  // review header so the conversation's conclusion stays visible.
+  const [rationale, setRationale] = useState<string | null>(null);
+  // Auto-scroll the transcript to the newest message while streaming.
+  const messagesEndRef = useRef<HTMLDivElement>(null);
   // Which dashboard widgets stay shown (start all-on; the AI step trims).
   const [shownWidgets, setShownWidgets] = useState<Set<string>>(() => new Set(DASHBOARD_WIDGET_IDS));
   // Vocabulary overrides the founder can edit (only keys with a non-default value).
@@ -155,6 +171,9 @@ export default function OnboardingPage() {
     return () => { cancelled = true; };
   }, []);
 
+  // Keep the transcript scrolled to the newest message as replies stream in.
+  useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [chat, thinking]);
+
   // Pre-seed every config dimension from a validated proposal (shared by the
   // streamed `proposal` event). The founder edits from here.
   function seedFromRecommendation(rec: SetupRecommendation) {
@@ -164,16 +183,18 @@ export default function OnboardingPage() {
     setVocab(rec.vocabularyOverrides ?? {});
     setThresholds(rec.thresholds ?? DEFAULT_THRESHOLDS);
     setRoles(rec.roles ?? []);
+    setRationale(rec.rationale || null);
     setRecommended(true);
   }
 
   // Send the founder's message + stream the assistant's reply from setup-chat.
-  // Appends `text` deltas to a live assistant bubble; on a `proposal` event,
-  // seeds the review cards below. Falls back gracefully on any stream error.
-  async function sendMessage() {
-    const text = draft.trim();
-    if (thinking || !text) return;
-    const nextChat = [...chat, { role: "user" as const, content: text }];
+  // `text` defaults to the input draft, but a starter chip passes its seed in
+  // directly. Appends `text` deltas to a live assistant bubble; on a `proposal`
+  // event, seeds the review cards below. Degrades gracefully on any stream error.
+  async function sendMessage(text: string = draft) {
+    const msg = text.trim();
+    if (thinking || !msg) return;
+    const nextChat = [...chat, { role: "user" as const, content: msg }];
     setChat([...nextChat, { role: "assistant" as const, content: "" }]);
     setDraft("");
     setThinking(true);
@@ -195,29 +216,14 @@ export default function OnboardingPage() {
       });
       if (!res.ok || !res.body) throw new Error("stream failed");
 
-      // Parse the SSE stream (event:/data: frames).
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = "";
       let sawAny = false;
-      for (;;) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        const frames = buffer.split("\n\n");
-        buffer = frames.pop() ?? "";
-        for (const frame of frames) {
-          const evLine = frame.split("\n").find(l => l.startsWith("event:"));
-          const dataLine = frame.split("\n").find(l => l.startsWith("data:"));
-          if (!evLine || !dataLine) continue;
-          const event = evLine.slice(6).trim();
-          const data = JSON.parse(dataLine.slice(5).trim());
-          if (event === "text" && typeof data.delta === "string") {
-            sawAny = true;
-            appendToAssistant(data.delta);
-          } else if (event === "proposal" && data.recommendation) {
-            seedFromRecommendation(data.recommendation as SetupRecommendation);
-          }
+      for await (const { event, data: dataStr } of iterSSE(res.body)) {
+        const data = JSON.parse(dataStr);
+        if (event === "text" && typeof data.delta === "string") {
+          sawAny = true;
+          appendToAssistant(data.delta);
+        } else if (event === "proposal" && data.recommendation) {
+          seedFromRecommendation(data.recommendation as SetupRecommendation);
         }
       }
       // If the assistant said nothing AND gave no proposal, drop the empty bubble.
@@ -230,6 +236,14 @@ export default function OnboardingPage() {
     } finally {
       setThinking(false);
     }
+  }
+
+  // Re-open the conversation to talk to the assistant again after a proposal.
+  // Keeps the founder's current picks (they can still continue) but lets them
+  // refine by chatting; a new proposal re-seeds everything.
+  function restartConversation() {
+    setRecommended(false);
+    setRecError(null);
   }
 
   function toggle(workflow: WorkflowId) {
@@ -326,6 +340,12 @@ export default function OnboardingPage() {
     setRoles((prev) => prev.filter((_, i) => i !== idx));
   }
 
+  // Show the editable form (pages/widgets/labels/roles/thresholds + Continue) once
+  // the AI has proposed a setup — OR immediately when AI is off, where there's no
+  // conversation and the founder picks manually (today's fallback behavior). While
+  // AI is on and still interviewing, the form stays hidden so the chat is the focus.
+  const showForm = recommended || !aiOn;
+
   return (
     <div className="auth-scope">
       <div className="auth-page">
@@ -339,27 +359,26 @@ export default function OnboardingPage() {
 
         <div className="auth-main">
           <div className="auth-col wide">
-            <div className="auth-index">Almost there</div>
+            <div className="auth-index">{showForm ? "Review your setup" : "Let's get started"}</div>
             <h1 className="auth-h1">
-              Choose your <em>pages.</em>
+              {aiOn && !recommended
+                ? <>Tell me about <em>{orgName}.</em></>
+                : <>Your <em>setup.</em></>}
             </h1>
             <p className="auth-lede">
-              Pick the pages <strong>{orgName}</strong> needs. You can turn any of
-              these on or off later in Settings.
+              {aiOn && !recommended
+                ? <>Answer one quick question and I&rsquo;ll tailor {orgName}&rsquo;s pages, dashboard, labels, roles, and cutoffs. You can change everything before you finish.</>
+                : <>Review what&rsquo;s set up for <strong>{orgName}</strong> and adjust anything. You can change it all later in Settings.</>}
             </p>
 
             <div className="auth-body auth-stack-28">
-              {/* AI-assisted conversational setup — only when AI is configured. A
-                  short chat where the founder describes the org; the assistant asks
-                  ≤2 follow-ups then proposes a setup that pre-seeds the pickers
-                  below. Hidden entirely when AI is off. */}
-              {aiOn && (
+              {/* ── Interview state ── Conversation-first: the chat is the whole
+                  screen until the assistant proposes a setup. Only when AI is on. */}
+              {aiOn && !recommended && (
                 <div>
-                  <p className="auth-label" style={{ padding: 0 }}>Set up with AI <span className="auth-footnote">· optional</span></p>
-                  <p className="auth-hint">Chat about your organization and we&rsquo;ll suggest pages, widgets, labels, roles, and cutoffs. You can edit everything below.</p>
                   <div
                     className="auth-input"
-                    style={{ display: "flex", flexDirection: "column", gap: 10, maxHeight: 280, overflowY: "auto", padding: 12 }}
+                    style={{ display: "flex", flexDirection: "column", gap: 10, minHeight: 220, maxHeight: 360, overflowY: "auto", padding: 14 }}
                   >
                     {chat.map((m, i) => (
                       <div
@@ -367,18 +386,32 @@ export default function OnboardingPage() {
                         style={{
                           alignSelf: m.role === "user" ? "flex-end" : "flex-start",
                           maxWidth: "85%",
-                          padding: "8px 11px",
-                          borderRadius: 12,
-                          fontSize: 13,
-                          lineHeight: 1.45,
-                          background: m.role === "user" ? "var(--vio-12, rgba(99,102,241,0.14))" : "rgba(255,255,255,0.05)",
+                          padding: "9px 12px",
+                          borderRadius: 13,
+                          fontSize: 13.5,
+                          lineHeight: 1.5,
+                          background: m.role === "user" ? "rgba(167,139,250,0.18)" : "rgba(255,255,255,0.05)",
                           whiteSpace: "pre-wrap",
                         }}
                       >
                         {m.content || (thinking && i === chat.length - 1 ? "…" : "")}
                       </div>
                     ))}
+                    <div ref={messagesEndRef} />
                   </div>
+
+                  {/* Starter chips — one-tap answers, shown only at the opening turn
+                      (before the founder has sent anything). */}
+                  {chat.length === 1 && !thinking && (
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 10 }}>
+                      {STARTER_CHIPS.map((c) => (
+                        <button key={c.label} type="button" className="auth-chip" onClick={() => void sendMessage(c.seed)}>
+                          {c.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
                   <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
                     <input
                       type="text"
@@ -387,9 +420,10 @@ export default function OnboardingPage() {
                       onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void sendMessage(); } }}
                       maxLength={800}
                       disabled={thinking}
-                      placeholder="e.g. A soccer club — we track attendance and game turnout, no dues."
+                      placeholder="Type your answer, or pick one above…"
                       className="auth-input"
                       style={{ flex: 1 }}
+                      autoFocus
                     />
                     <button
                       type="button"
@@ -400,15 +434,30 @@ export default function OnboardingPage() {
                       {thinking ? "…" : "Send"}
                     </button>
                   </div>
-                  {recommended && (
-                    <p className="auth-status ok" style={{ marginTop: 8 }}>Setup suggested below — review and adjust, then continue.</p>
-                  )}
                   {recError && (
                     <p className="auth-status err" role="alert" style={{ marginTop: 8 }}>{recError}</p>
                   )}
                 </div>
               )}
 
+              {/* ── Review header ── After a proposal: the conversation collapses to
+                  its rationale, with a way back into the chat. */}
+              {aiOn && recommended && (
+                <div className="auth-radio on" style={{ cursor: "default", alignItems: "flex-start" }}>
+                  <span className="auth-dot" aria-hidden style={{ background: "var(--ok)" }} />
+                  <div style={{ flex: 1 }}>
+                    <div className="t">Here&rsquo;s your starting setup</div>
+                    {rationale && <div className="d">{rationale}</div>}
+                  </div>
+                  <button type="button" className="auth-chip" style={{ alignSelf: "center" }} onClick={restartConversation}>
+                    Talk again
+                  </button>
+                </div>
+              )}
+
+              {/* The editable form — hidden during the AI interview, shown after a
+                  proposal (or immediately when AI is off). */}
+              {showForm && (<>
               {/* Locked, always-on surfaces */}
               <div>
                 <p className="auth-label" style={{ padding: 0 }}>Always included</p>
@@ -483,6 +532,7 @@ export default function OnboardingPage() {
                   })}
                 </div>
               </fieldset>
+              </>)}
 
               {/* Vocabulary — only shown when the AI suggested label overrides, so
                   a no-AI founder isn't faced with 12 empty label fields. */}
@@ -573,16 +623,18 @@ export default function OnboardingPage() {
                 </div>
               )}
 
-              <div className="auth-stack">
-                <button
-                  type="button"
-                  onClick={handleContinue}
-                  disabled={submitting}
-                  className="auth-btn-vio"
-                >
-                  {submitting ? "Saving…" : "Continue to dashboard"}
-                </button>
-              </div>
+              {showForm && (
+                <div className="auth-stack">
+                  <button
+                    type="button"
+                    onClick={handleContinue}
+                    disabled={submitting}
+                    className="auth-btn-vio"
+                  >
+                    {submitting ? "Saving…" : "Continue to dashboard"}
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>
