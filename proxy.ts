@@ -44,6 +44,14 @@ export async function proxy(request: NextRequest) {
     return redirectToLogin(request);
   }
 
+  // Inject the request pathname so server layouts can read it via headers().
+  // App Router layouts receive params but not the full URL path; [slug]/layout
+  // reads x-pathname for its onboarding-gate check (is this /[slug]/onboarding?).
+  // Set on the (possibly cookie-refreshed) response we return below. Merged here
+  // from the former middleware.ts — Next 16 forbids both a middleware and a proxy
+  // file, and the proxy already runs on every route the layout needs it on.
+  response.headers.set("x-pathname", request.nextUrl.pathname);
+
   // Authenticated — let it through with the refreshed session cookie. Any
   // link-status / membership gating happens in the page/layout via requireUser.
   return response;

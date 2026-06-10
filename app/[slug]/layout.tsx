@@ -1,5 +1,7 @@
 import { redirect } from "next/navigation";
+import { headers } from "next/headers";
 import { requireUser, hasSession } from "@/lib/auth/require-user";
+import { prisma } from "@/lib/prisma";
 import { AccessDenied } from "./AccessDenied";
 import { ActiveOrgSync } from "./ActiveOrgSync";
 
@@ -80,6 +82,21 @@ export default async function OrgLayout({
     // "Request access" link's claim call fails gracefully with "Organization
     // not found".
     return <AccessDenied slug={slug} homeSlug={homeSlug} />;
+  }
+
+  // Onboarding gate: if the org has never saved its workflow config (empty
+  // enabledWorkflows), the founder hasn't finished setup. Redirect every route
+  // except /[slug]/onboarding itself so a second tab can't bypass the wizard.
+  const requestPath = (await headers()).get("x-pathname") ?? "";
+  const isOnboardingRoute = requestPath === `/${slug}/onboarding`;
+  if (!isOnboardingRoute) {
+    const config = await prisma.organizationConfig.findUnique({
+      where: { organizationId: membership.organizationId },
+      select: { enabledWorkflows: true },
+    });
+    if (!config || config.enabledWorkflows.length === 0) {
+      redirect(`/${slug}/onboarding`);
+    }
   }
 
   // Authorized, and org resolution already followed the URL slug (we passed it to
