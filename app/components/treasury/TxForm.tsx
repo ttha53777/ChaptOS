@@ -100,9 +100,9 @@ export function TxForm({
             <span className={`absolute top-0.5 h-3 w-3 rounded-full bg-white shadow transition-transform ${status === "scheduled" ? "translate-x-3" : "translate-x-0.5"}`} />
           </span>
           <span className="text-[12px] text-slate-400">
-            Mark as{" "}
-            <span className={status === "scheduled" ? "font-semibold text-amber-400" : "text-slate-400"}>scheduled</span>
-            {status === "scheduled" ? " — not yet paid" : " (mark when not yet paid)"}
+            {status === "scheduled"
+              ? <><span className="font-semibold text-amber-400">Scheduled</span> — not paid yet</>
+              : <>Scheduled <span className="text-slate-500">(toggle if not paid)</span></>}
           </span>
           <svg className={`ml-auto h-3.5 w-3.5 shrink-0 ${status === "scheduled" ? "text-amber-400" : "text-slate-600"}`} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d={ICON_SCHEDULE} />
