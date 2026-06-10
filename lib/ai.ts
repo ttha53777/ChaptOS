@@ -67,3 +67,99 @@ export async function narrate(system: string, user: string): Promise<string | nu
     return null;
   }
 }
+
+/**
+ * The raw, UNVALIDATED setup recommendation from the model. Every field is the
+ * model's free choice and MUST be validated/intersected against the real
+ * registries by the caller before use — never trust these ids/keys directly.
+ */
+export interface RawSetupRecommendation {
+  enabledWorkflows: string[];
+  shownWidgets: string[];
+  vocabulary: Record<string, string>;
+  rationale: string;
+}
+
+/**
+ * Ask the model to recommend a starting org setup from a free-text description.
+ * Output is constrained to a JSON schema so the shape is stable; the ID/KEY
+ * VALUES are still arbitrary model output and the caller must validate them
+ * against ALL_WORKFLOWS / WORKFLOW_FEATURES / VOCAB_KEYS.
+ *
+ * `system` should enumerate the valid workflow ids, widget ids, and vocab keys
+ * so the model is grounded. Returns null on missing key, network/API error, or
+ * unparseable output — the caller falls back to the org-type preset.
+ */
+export async function recommendSetup(system: string, user: string): Promise<RawSetupRecommendation | null> {
+  const openai = getClient();
+  if (!openai) return null;
+  try {
+    const completion = await openai.chat.completions.create({
+      model: MODEL,
+      max_completion_tokens: MAX_COMPLETION_TOKENS,
+      response_format: {
+        type: "json_schema",
+        json_schema: {
+          name: "setup_recommendation",
+          strict: true,
+          schema: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+              enabledWorkflows: { type: "array", items: { type: "string" } },
+              shownWidgets:     { type: "array", items: { type: "string" } },
+              // Vocabulary as an ARRAY of {key,label} pairs, not an open object:
+              // OpenAI strict json_schema rejects objects with open-ended
+              // additionalProperties. The caller filters keys to VOCAB_KEYS.
+              vocabulary: {
+                type: "array",
+                items: {
+                  type: "object",
+                  additionalProperties: false,
+                  properties: { key: { type: "string" }, label: { type: "string" } },
+                  required: ["key", "label"],
+                },
+              },
+              rationale: { type: "string" },
+            },
+            // strict mode requires EVERY property listed in `required`.
+            required: ["enabledWorkflows", "shownWidgets", "vocabulary", "rationale"],
+          },
+        },
+      },
+      messages: [
+        { role: "system", content: system },
+        { role: "user", content: user },
+      ],
+    });
+    const text = completion.choices[0]?.message?.content?.trim();
+    if (!text) return null;
+    const parsed = JSON.parse(text) as {
+      enabledWorkflows?: unknown;
+      shownWidgets?: unknown;
+      vocabulary?: unknown;
+      rationale?: unknown;
+    };
+    if (!Array.isArray(parsed.enabledWorkflows) || !Array.isArray(parsed.shownWidgets)) {
+      return null;
+    }
+    // Flatten the {key,label}[] into the Record the caller validates.
+    const vocabulary: Record<string, string> = {};
+    if (Array.isArray(parsed.vocabulary)) {
+      for (const pair of parsed.vocabulary as Array<{ key?: unknown; label?: unknown }>) {
+        if (typeof pair?.key === "string" && typeof pair?.label === "string") {
+          vocabulary[pair.key] = pair.label;
+        }
+      }
+    }
+    return {
+      enabledWorkflows: parsed.enabledWorkflows.filter((w): w is string => typeof w === "string"),
+      shownWidgets: parsed.shownWidgets.filter((w): w is string => typeof w === "string"),
+      vocabulary,
+      rationale: typeof parsed.rationale === "string" ? parsed.rationale : "",
+    };
+  } catch (e) {
+    console.error("recommendSetup() failed:", e);
+    return null;
+  }
+}

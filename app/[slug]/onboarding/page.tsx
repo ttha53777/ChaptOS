@@ -8,6 +8,8 @@ import { requestJson } from "../../lib/api";
 import { APP_NAME } from "@/lib/domains";
 import { NAV, NAV_WORKFLOW_MAP, NAV_DESCRIPTIONS } from "../../components/Sidebar";
 import { ALWAYS_ON_WORKFLOWS, type WorkflowId } from "@/lib/org-types";
+import { WORKFLOW_FEATURES, type DisabledFeatures } from "@/lib/workflow-features";
+import { VOCAB_KEYS, DEFAULT_LABELS, type VocabKey } from "@/lib/vocab";
 
 // /[slug]/onboarding — the post-creation "finish setup" page picker.
 //
@@ -45,6 +47,19 @@ const PICKER_ITEMS: PickerItem[] = NAV.flatMap((label) => {
 // get regardless of their choices. Dashboard/Timeline/Chapter map to null.
 const ALWAYS_ON_LABELS = NAV.filter((label) => NAV_WORKFLOW_MAP[label] == null);
 
+// The toggleable dashboard widgets (always-on "operations" workflow). The AI step
+// recommends which to keep; the rest become disabledFeatures on save.
+const DASHBOARD_WIDGETS = WORKFLOW_FEATURES.operations;
+const DASHBOARD_WIDGET_IDS = DASHBOARD_WIDGETS.map(w => w.id);
+
+// Shape of the validated recommendation returned by /api/ai/recommend-setup.
+interface SetupRecommendation {
+  enabledWorkflows: string[];
+  disabledFeatures: DisabledFeatures;
+  vocabularyOverrides: Partial<Record<VocabKey, string>>;
+  rationale: string;
+}
+
 export default function OnboardingPage() {
   const router = useRouter();
   const orgPath = useOrgPath();
@@ -71,11 +86,81 @@ export default function OnboardingPage() {
   const [submitting, setSubmitting] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
 
+  // ── AI-assisted setup state ───────────────────────────────────────────────
+  // The describe step renders only when AI is configured. We learn that from the
+  // recommend route (GET probe), since aiEnabled isn't on /me and lib/ai is
+  // server-only. null = unknown (probing); false hides the step entirely.
+  const [aiOn, setAiOn] = useState<boolean | null>(null);
+  const [description, setDescription] = useState("");
+  const [recommending, setRecommending] = useState(false);
+  const [rationale, setRationale] = useState<string | null>(null);
+  const [recError, setRecError] = useState<string | null>(null);
+  // Which dashboard widgets stay shown (start all-on; the AI step trims).
+  const [shownWidgets, setShownWidgets] = useState<Set<string>>(() => new Set(DASHBOARD_WIDGET_IDS));
+  // Vocabulary overrides the founder can edit (only keys with a non-default value).
+  const [vocab, setVocab] = useState<Partial<Record<VocabKey, string>>>({});
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await requestJson<{ enabled: boolean }>("/api/ai/recommend-setup");
+        if (!cancelled) setAiOn(!!res.enabled);
+      } catch {
+        if (!cancelled) setAiOn(false); // probe failed — behave as AI-off
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  async function handleRecommend() {
+    const desc = description.trim();
+    if (recommending || !desc) return;
+    setRecommending(true);
+    setRecError(null);
+    try {
+      const res = await requestJson<{ enabled: boolean; recommendation: SetupRecommendation | null }>(
+        "/api/ai/recommend-setup",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ description: desc }),
+        },
+      );
+      if (!res.enabled) { setAiOn(false); return; }
+      const rec = res.recommendation;
+      if (!rec) {
+        // Model/parse failure — keep the founder's current (template-preset) picks.
+        setRecError("Couldn't generate a suggestion — adjust the pages below yourself.");
+        return;
+      }
+      // Pre-seed all three dimensions from the recommendation.
+      setSelected(new Set(PICKER_ITEMS.filter(i => rec.enabledWorkflows.includes(i.workflow)).map(i => i.workflow)));
+      const hidden = new Set(rec.disabledFeatures.operations ?? []);
+      setShownWidgets(new Set(DASHBOARD_WIDGET_IDS.filter(id => !hidden.has(id))));
+      setVocab(rec.vocabularyOverrides ?? {});
+      setRationale(rec.rationale || null);
+    } catch {
+      setRecError("Couldn't reach the assistant. You can still set things up below.");
+    } finally {
+      setRecommending(false);
+    }
+  }
+
   function toggle(workflow: WorkflowId) {
     setSelected((prev) => {
       const next = new Set(prev);
       if (next.has(workflow)) next.delete(workflow);
       else next.add(workflow);
+      return next;
+    });
+  }
+
+  function toggleWidget(id: string) {
+    setShownWidgets((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
       return next;
     });
   }
@@ -92,11 +177,24 @@ export default function OnboardingPage() {
       ...PICKER_ITEMS.filter((i) => selected.has(i.workflow)).map((i) => i.workflow),
     ];
 
+    // Invert the shown-widget set into disabledFeatures (operations workflow):
+    // any registry widget the founder isn't showing is hidden. Mirrors how the
+    // settings panel builds this map. Omitted entirely when nothing is hidden.
+    const hiddenOps = DASHBOARD_WIDGET_IDS.filter((id) => !shownWidgets.has(id));
+    const disabledFeatures: DisabledFeatures = hiddenOps.length ? { operations: hiddenOps } : {};
+
+    // Only send non-empty vocab values for known keys (the server re-sanitizes).
+    const vocabularyOverrides: Record<string, string> = {};
+    for (const key of VOCAB_KEYS) {
+      const val = vocab[key]?.trim();
+      if (val) vocabularyOverrides[key] = val;
+    }
+
     try {
       await requestJson("/api/orgs/config", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ enabledWorkflows: chosen }),
+        body: JSON.stringify({ enabledWorkflows: chosen, disabledFeatures, vocabularyOverrides }),
       });
       // Refresh the cached /me so the sidebar picks up the new workflow set
       // immediately, then navigate into the dashboard.
@@ -136,6 +234,42 @@ export default function OnboardingPage() {
             </p>
 
             <div className="auth-body auth-stack-28">
+              {/* AI-assisted describe step — only when AI is configured. The
+                  founder describes the org; we pre-seed the pickers below from a
+                  validated recommendation. Hidden entirely when AI is off. */}
+              {aiOn && (
+                <div>
+                  <p className="auth-label" style={{ padding: 0 }}>Describe your organization <span className="auth-footnote">· optional</span></p>
+                  <p className="auth-hint">Tell us what you do and what you track — we&rsquo;ll suggest the right pages, dashboard widgets, and labels. You can change everything below.</p>
+                  <textarea
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    rows={3}
+                    maxLength={800}
+                    placeholder="e.g. A volunteer group that runs monthly beach cleanups and tracks volunteer hours and event turnout."
+                    className="auth-input"
+                    style={{ resize: "vertical", minHeight: 72 }}
+                  />
+                  <div className="auth-stack" style={{ marginTop: 10 }}>
+                    <button
+                      type="button"
+                      onClick={handleRecommend}
+                      disabled={recommending || !description.trim()}
+                      className="auth-chip"
+                      style={{ alignSelf: "flex-start" }}
+                    >
+                      {recommending ? "Thinking…" : "Suggest a setup"}
+                    </button>
+                  </div>
+                  {rationale && (
+                    <p className="auth-status ok" style={{ marginTop: 8 }}>{rationale}</p>
+                  )}
+                  {recError && (
+                    <p className="auth-status err" role="alert" style={{ marginTop: 8 }}>{recError}</p>
+                  )}
+                </div>
+              )}
+
               {/* Locked, always-on surfaces */}
               <div>
                 <p className="auth-label" style={{ padding: 0 }}>Always included</p>
@@ -183,6 +317,59 @@ export default function OnboardingPage() {
                   })}
                 </div>
               </fieldset>
+
+              {/* Dashboard widgets — which summary cards show on the home page.
+                  Always available; the AI step pre-trims it to what fits the org. */}
+              <fieldset style={{ border: 0, padding: 0, margin: 0 }}>
+                <legend className="auth-label" style={{ padding: 0 }}>Dashboard widgets</legend>
+                <p className="auth-hint">Pick the summary cards for your dashboard. Unselected ones are hidden — you can change these anytime in Settings.</p>
+                <div className="auth-radios">
+                  {DASHBOARD_WIDGETS.map((w) => {
+                    const on = shownWidgets.has(w.id);
+                    return (
+                      <label key={w.id} className={`auth-radio${on ? " on" : ""}`}>
+                        <input
+                          type="checkbox"
+                          checked={on}
+                          onChange={() => toggleWidget(w.id)}
+                          className="sr-only"
+                        />
+                        <span className="auth-dot" aria-hidden />
+                        <div>
+                          <div className="t">{w.label}</div>
+                          <div className="d">{w.description}</div>
+                        </div>
+                      </label>
+                    );
+                  })}
+                </div>
+              </fieldset>
+
+              {/* Vocabulary — only shown when the AI suggested label overrides, so
+                  a no-AI founder isn't faced with 12 empty label fields. */}
+              {Object.keys(vocab).length > 0 && (
+                <fieldset style={{ border: 0, padding: 0, margin: 0 }}>
+                  <legend className="auth-label" style={{ padding: 0 }}>Labels</legend>
+                  <p className="auth-hint">We suggested wording that fits your organization. Edit or clear any of these.</p>
+                  <div className="auth-stack-28">
+                    {VOCAB_KEYS.filter((k) => k in vocab).map((key) => (
+                      <div key={key} style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                        <span className="auth-footnote" style={{ minWidth: 110 }}>
+                          {DEFAULT_LABELS[key]} →
+                        </span>
+                        <input
+                          type="text"
+                          value={vocab[key] ?? ""}
+                          maxLength={40}
+                          onChange={(e) => setVocab((prev) => ({ ...prev, [key]: e.target.value }))}
+                          placeholder={DEFAULT_LABELS[key]}
+                          className="auth-input"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </fieldset>
+              )}
 
               {serverError && (
                 <div className="auth-alert" role="alert">
