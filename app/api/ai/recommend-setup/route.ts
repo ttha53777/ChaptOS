@@ -161,8 +161,16 @@ Given a founder's plain-language description of their organization, recommend a 
 Choose ONLY from these exact ids/keys — never invent new ones.
 
 WORKFLOWS (pages the org can enable), choose the relevant subset by id:
-${ALL_WORKFLOWS.map(w => `  - ${w}`).join("\n")}
-Always include "operations" (it backs the always-on Dashboard/Timeline pages).
+  - members: Member roster, profiles, attendance tracking, and dues.
+  - events: Programming board — plan programs, socials, fundraisers, and community service events with stage-based prep tracking.
+  - attendance: Meeting attendance tracking and per-member attendance rates.
+  - finance: Budget, transactions, and running balance (Treasury page).
+  - parties: Social events with door revenue and wrap-up tracking.
+  - service: Service events and per-member service-hour totals.
+  - communications: Social post planning and announcements (Instagram page).
+  - docs: Pinned links and shared documents.
+  - operations: Always-on — backs Dashboard, Timeline, and Chapter pages.
+Always include "operations" (it backs the always-on Dashboard/Timeline pages). Include "events" for any org that plans and tracks programs, events, or activities.
 
 DASHBOARD WIDGETS (return the ones to SHOW in "shownWidgets"; omitted ones are hidden):
 ${widgetList}
