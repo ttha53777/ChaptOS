@@ -42,6 +42,8 @@ model Organization {
   deadlines          Deadline[]
   instagramTasks     InstagramTask[]
   docs               Doc[]
+  programmingEvents  ProgrammingEvent[]
+  programmingEventDocs ProgrammingEventDoc[]
   transactions       Transaction[]
   budgets            Budget[]
   activityLogs       ActivityLog[]
@@ -334,7 +336,8 @@ model Doc {
   updatedAt      DateTime @updatedAt
   createdById    Int?
 
-  organization Organization @relation(fields: [organizationId], references: [id])
+  organization     Organization          @relation(fields: [organizationId], references: [id])
+  programmingLinks ProgrammingEventDoc[]
 
   @@index([organizationId, createdAt])
 }
@@ -377,10 +380,50 @@ model CalendarEvent {
   status            String             @default("Upcoming")
   attendanceRecords AttendanceRecord[]
   attendanceExcuses AttendanceExcuse[]
+  programmingEvent  ProgrammingEvent?
 
   organization Organization @relation(fields: [organizationId], references: [id])
 
   @@index([organizationId, category, date])
+}
+
+model ProgrammingEvent {
+  id              Int      @id @default(autoincrement())
+  organizationId  Int
+  calendarEventId Int      @unique
+  owner           String   @default("")
+  collabOrg       String   @default("")
+  itineraryUrl    String?
+  roomStatus      String   @default("not_submitted")
+  flyerPosted     Boolean  @default(false)
+  socialsMeeting  Boolean  @default(false)
+  spendingCents   Int      @default(0)
+  successRating   Int?
+  wrapUpNotes     String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  organization  Organization          @relation(fields: [organizationId], references: [id])
+  calendarEvent CalendarEvent         @relation(fields: [calendarEventId], references: [id], onDelete: Cascade)
+  docs          ProgrammingEventDoc[]
+
+  @@index([organizationId, calendarEventId])
+}
+
+model ProgrammingEventDoc {
+  id                 Int      @id @default(autoincrement())
+  organizationId     Int
+  programmingEventId Int
+  docId              Int
+  createdAt          DateTime @default(now())
+
+  organization     Organization     @relation(fields: [organizationId], references: [id])
+  programmingEvent ProgrammingEvent @relation(fields: [programmingEventId], references: [id], onDelete: Cascade)
+  doc              Doc              @relation(fields: [docId], references: [id], onDelete: Cascade)
+
+  @@unique([programmingEventId, docId])
+  @@index([organizationId, programmingEventId])
+  @@index([organizationId, docId])
 }
 
 model ServiceEvent {

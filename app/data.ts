@@ -68,6 +68,17 @@ export interface ProgrammingTask {
   time?: string | null;
   status: TaskStatus;
   type: string;
+  collab: string | null;
+  owner: string;
+  description: string | null;
+  itineraryUrl: string | null;
+  roomStatus: "na" | "not_submitted" | "submitted" | "confirmed";
+  flyerPosted: boolean;
+  socialsMeeting: boolean;
+  spendingCents: number;
+  successRating: number | null;
+  wrapUpNotes: string | null;
+  docCount: number;
 }
 
 export interface PartyEvent {

@@ -299,6 +299,60 @@ function scopedDoc(orgId: number) {
   };
 }
 
+function scopedProgrammingEvent(orgId: number) {
+  type W = Prisma.ProgrammingEventWhereInput;
+  const org = (w?: W): W => ({ ...w, organizationId: orgId });
+
+  async function verify(where: Prisma.ProgrammingEventWhereUniqueInput): Promise<number> {
+    const row = await prisma.programmingEvent.findFirst({ where: org(where as W), select: { id: true } });
+    if (!row) notInOrg();
+    return row.id;
+  }
+
+  return {
+    findMany:   (args?: Prisma.ProgrammingEventFindManyArgs)  => prisma.programmingEvent.findMany({ ...args, where: org(args?.where) }),
+    findFirst:  (args?: Prisma.ProgrammingEventFindFirstArgs) => prisma.programmingEvent.findFirst({ ...args, where: org(args?.where) }),
+    findUnique: (args: Prisma.ProgrammingEventFindUniqueArgs) => prisma.programmingEvent.findFirst({ ...args, where: org(args.where as W) }),
+    create:     (args: Omit<Prisma.ProgrammingEventCreateArgs, "data"> & { data: Omit<Prisma.ProgrammingEventUncheckedCreateInput, "organizationId"> }) =>
+      prisma.programmingEvent.create({ ...args, data: { ...args.data, organizationId: orgId } }),
+    update:     async (args: Prisma.ProgrammingEventUpdateArgs) =>
+      prisma.programmingEvent.update({ ...args, where: { id: await verify(args.where) } }),
+    upsertByCalendarEventId: (calendarEventId: number, data: Omit<Prisma.ProgrammingEventUncheckedCreateInput, "organizationId" | "calendarEventId">) =>
+      prisma.programmingEvent.upsert({
+        where:  { calendarEventId },
+        update: data,
+        create: { ...data, calendarEventId, organizationId: orgId },
+      }),
+    delete:     async (args: Prisma.ProgrammingEventDeleteArgs) =>
+      prisma.programmingEvent.delete({ where: { id: await verify(args.where) } }),
+    count:      (args?: Prisma.ProgrammingEventCountArgs)     => prisma.programmingEvent.count({ ...args, where: org(args?.where) }),
+  };
+}
+
+function scopedProgrammingEventDoc(orgId: number) {
+  type W = Prisma.ProgrammingEventDocWhereInput;
+  const org = (w?: W): W => ({ ...w, organizationId: orgId });
+
+  async function verify(where: Prisma.ProgrammingEventDocWhereUniqueInput): Promise<number> {
+    const row = await prisma.programmingEventDoc.findFirst({ where: org(where as W), select: { id: true } });
+    if (!row) notInOrg();
+    return row.id;
+  }
+
+  return {
+    findMany:   (args?: Prisma.ProgrammingEventDocFindManyArgs)  => prisma.programmingEventDoc.findMany({ ...args, where: org(args?.where) }),
+    findFirst:  (args?: Prisma.ProgrammingEventDocFindFirstArgs) => prisma.programmingEventDoc.findFirst({ ...args, where: org(args?.where) }),
+    findUnique: (args: Prisma.ProgrammingEventDocFindUniqueArgs) => prisma.programmingEventDoc.findFirst({ ...args, where: org(args.where as W) }),
+    create:     (args: Omit<Prisma.ProgrammingEventDocCreateArgs, "data"> & { data: Omit<Prisma.ProgrammingEventDocUncheckedCreateInput, "organizationId"> }) =>
+      prisma.programmingEventDoc.create({ ...args, data: { ...args.data, organizationId: orgId } }),
+    delete:     async (args: Prisma.ProgrammingEventDocDeleteArgs) =>
+      prisma.programmingEventDoc.delete({ where: { id: await verify(args.where) } }),
+    deleteMany: (args?: Prisma.ProgrammingEventDocDeleteManyArgs) =>
+      prisma.programmingEventDoc.deleteMany({ ...args, where: org(args?.where) }),
+    count:      (args?: Prisma.ProgrammingEventDocCountArgs)     => prisma.programmingEventDoc.count({ ...args, where: org(args?.where) }),
+  };
+}
+
 function scopedTransaction(orgId: number) {
   type W = Prisma.TransactionWhereInput;
   const org = (w?: W): W => ({ ...w, organizationId: orgId });
@@ -634,6 +688,8 @@ export function db(orgId: number) {
     deadline:            scopedDeadline(orgId),
     instagramTask:       scopedInstagramTask(orgId),
     doc:                 scopedDoc(orgId),
+    programmingEvent:    scopedProgrammingEvent(orgId),
+    programmingEventDoc: scopedProgrammingEventDoc(orgId),
     transaction:         scopedTransaction(orgId),
     budget:              scopedBudget(orgId),
     activityLog:         scopedActivityLog(orgId),

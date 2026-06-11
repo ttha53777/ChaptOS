@@ -30,21 +30,28 @@ export function CalendarEventForm({
   initialEvent,
   submitLabel,
   onSubmit,
+  allowedCategories,
+  defaultCategory = "chapter",
 }: {
   initialEvent?: CalendarEvent;
   submitLabel: string;
   onSubmit: (draft: CalendarDraft) => void;
+  /** When set, only these categories appear in the dropdown (e.g. programming page). */
+  allowedCategories?: CalEventCategory[];
+  defaultCategory?: CalEventCategory;
 }) {
   const [title, setTitle] = useState(initialEvent?.title ?? "");
   const [date, setDate] = useState(initialEvent?.date ?? toDateStr(TODAY.year, TODAY.month, TODAY.day));
   const [time, setTime] = useState(initialEvent?.time ?? "");
-  const [category, setCategory] = useState<CalEventCategory>(initialEvent?.category ?? "chapter");
+  const [category, setCategory] = useState<CalEventCategory>(initialEvent?.category ?? defaultCategory);
   const [mandatory, setMandatory] = useState(initialEvent?.mandatory ?? false);
   const [location, setLocation] = useState(initialEvent?.location ?? "");
   const [description, setDescription] = useState(initialEvent?.description ?? "");
-  const categoryOptions = CATEGORY_OPTIONS.filter(option =>
-    option.id !== "deadline" && option.id !== "party" || option.id === initialEvent?.category
-  );
+  const categoryOptions = allowedCategories
+    ? CATEGORY_OPTIONS.filter(o => allowedCategories.includes(o.id))
+    : CATEGORY_OPTIONS.filter(option =>
+        option.id !== "deadline" && option.id !== "party" || option.id === initialEvent?.category
+      );
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();

@@ -7,7 +7,10 @@ import type { CreateDocInput, UpdateDocInput } from "@/lib/validation/doc";
 
 export async function listDocs(ctx: RequestContext) {
   try {
-    return await ctx.db.doc.findMany({ orderBy: [{ createdAt: "desc" }, { id: "desc" }] });
+    return await ctx.db.doc.findMany({
+      where: { programmingLinks: { none: {} } },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    });
   } catch {
     // Pre-migration safety mirroring the previous behavior.
     return [];

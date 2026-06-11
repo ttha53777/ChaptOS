@@ -288,6 +288,47 @@ describe("tenancy: Doc", () => {
     });
     expect(d.organizationId).toBe(org.id);
   });
+
+  it("event-scoped docs are org-isolated", async () => {
+    const orgA = await createOrg("Alpha", "alpha");
+    const orgB = await createOrg("Beta", "beta");
+    const eventA = await createCalendarEvent({ orgId: orgA.id, title: "Event A", category: "program", mandatory: false });
+    const eventB = await createCalendarEvent({ orgId: orgB.id, title: "Event B", category: "program", mandatory: false });
+
+    const programmingA = await testPrisma.programmingEvent.create({
+      data: { organizationId: orgA.id, calendarEventId: eventA.id },
+    });
+    const programmingB = await testPrisma.programmingEvent.create({
+      data: { organizationId: orgB.id, calendarEventId: eventB.id },
+    });
+
+    const docA = await testPrisma.doc.create({
+      data: {
+        organizationId:  orgA.id,
+        title:           "A attachment",
+        url:             "https://example.com/a",
+      },
+    });
+    const docB = await testPrisma.doc.create({
+      data: {
+        organizationId:  orgB.id,
+        title:           "B attachment",
+        url:             "https://example.com/b",
+      },
+    });
+    await testPrisma.programmingEventDoc.create({
+      data: { organizationId: orgA.id, programmingEventId: programmingA.id, docId: docA.id },
+    });
+    await testPrisma.programmingEventDoc.create({
+      data: { organizationId: orgB.id, programmingEventId: programmingB.id, docId: docB.id },
+    });
+
+    const fromA = await db(orgA.id).programmingEventDoc.findMany({
+      where: { programmingEventId: programmingA.id },
+      include: { doc: true },
+    }) as unknown as { doc: { title: string } }[];
+    expect(fromA.map(link => link.doc.title)).toEqual(["A attachment"]);
+  });
 });
 
 // ---------------------------------------------------------------------------

@@ -123,14 +123,14 @@ export function AddIGTaskForm({ brotherNames, onSubmit, initial }: {
 
 export function AddProgrammingTaskForm({ onSubmit, initial }: {
   onSubmit: (t: { title: string; dueDate: string; location: string; time?: string | null; collab?: string | null; type: string; status: TaskStatus }) => void;
-  initial?: { title: string; dueDate: string; location: string; time?: string | null; type: string; status: TaskStatus };
+  initial?: { title: string; dueDate: string; location: string; time?: string | null; collab?: string | null; type: string; status: TaskStatus };
 }) {
   const parsedInitial = initial ? parseProgrammingTitle(initial.title) : null;
-  const [title,    setTitle]    = useState(parsedInitial?.title ?? "");
+  const [title,    setTitle]    = useState(parsedInitial?.title ?? initial?.title ?? "");
   const [dueDate,  setDueDate]  = useState(initial?.dueDate  ?? "");
   const [location, setLocation] = useState(initial?.location ?? "");
   const [time,     setTime]     = useState(initial?.time     ?? "");
-  const [collab,   setCollab]   = useState(parsedInitial?.collab ?? "");
+  const [collab,   setCollab]   = useState(initial?.collab ?? parsedInitial?.collab ?? "");
   const [type,     setType]     = useState(initial?.type      ?? "Program");
   const [status,   setStatus]   = useState<TaskStatus>(initial?.status ?? "Upcoming");
 
