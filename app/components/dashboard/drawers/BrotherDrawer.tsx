@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useRef, useState, useCallback } from "react";
 import type { Brother } from "../../../data";
 import { fmt$, getBrotherStatus } from "../../../data";
 import { BrotherAvatar } from "../../BrotherAvatar";
@@ -11,6 +11,8 @@ import { FieldLabel, StatusBadge, ConfirmDialog } from "../primitives";
 import { inputCls } from "../styles";
 import { orgFetch } from "../../../lib/api";
 import { BrotherRoleChips } from "../../../[slug]/settings/sections/BrotherRoleChips";
+import type { CustomFieldValues } from "@/lib/custom-member-fields";
+import type { BrotherMetricRow } from "@/lib/services/metric-value-service";
 
 type AttendanceRow = {
   calendarEventId: number;
@@ -23,7 +25,7 @@ type AttendanceRow = {
   excuseRejection: string | null;
 };
 
-type Tab = "profile" | "attendance";
+type Tab = "profile" | "attendance" | "metrics";
 
 export function BrotherDrawer({
   brotherId,
@@ -49,6 +51,7 @@ export function BrotherDrawer({
   selfId?: number | null;
 }) {
   const { currentUser, avatarRevision, can } = useChapter();
+  const customFieldDefs = currentUser?.org?.customMemberFields ?? [];
   const THRESHOLDS = useThresholds();
   const v = useVocab();
   const canManageRoles = can("MANAGE_ROLES");
@@ -66,14 +69,25 @@ export function BrotherDrawer({
   const [duesOwed,     setDuesOwed]     = useState("");
   const [serviceHours, setServiceHours] = useState("");
   const [addHours,     setAddHours]     = useState("");
+  const [customFields, setCustomFields] = useState<CustomFieldValues>({});
   const [dirty,        setDirty]        = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [roleError, setRoleError] = useState<string | null>(null);
+  const [customFieldError, setCustomFieldError] = useState<string | null>(null);
 
   // Attendance history
   const [history,      setHistory]      = useState<AttendanceRow[]>([]);
   const [histLoading,  setHistLoading]  = useState(false);
   const [histError,    setHistError]    = useState<string | null>(null);
+
+  // Custom metric values
+  const [metrics,        setMetrics]        = useState<BrotherMetricRow[]>([]);
+  const [metricsLoading, setMetricsLoading] = useState(false);
+  const [metricsError,   setMetricsError]   = useState<string | null>(null);
+  const [metricEdits,    setMetricEdits]    = useState<Record<number, string>>({});
+  const [metricsSaving,  setMetricsSaving]  = useState(false);
+  const [metricsDirty,   setMetricsDirty]   = useState(false);
+  const metricsLoadedFor = useRef<number | null>(null);
 
   // Excuse form state: calendarEventId being excused
   const [excusingEventId, setExcusingEventId] = useState<number | null>(null);
@@ -88,6 +102,7 @@ export function BrotherDrawer({
     setGpa(String(brother.gpa));
     setDuesOwed(String(brother.duesOwed));
     setServiceHours(String(brother.serviceHours));
+    setCustomFields({ ...(brother.customFields ?? {}) });
     setAddHours("");
     setDirty(false);
     setTab("profile");
@@ -96,6 +111,12 @@ export function BrotherDrawer({
     setExcusingEventId(null);
     setExcuseReason("");
     setRoleError(null);
+    setCustomFieldError(null);
+    setMetrics([]);
+    setMetricEdits({});
+    setMetricsDirty(false);
+    setMetricsError(null);
+    metricsLoadedFor.current = null;
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [brotherId]);
 
@@ -120,6 +141,70 @@ export function BrotherDrawer({
     }
   }, [tab, brotherId, history.length, histLoading, fetchHistory]);
 
+  const fetchMetrics = useCallback(async (id: number, signal: AbortSignal) => {
+    setMetricsLoading(true);
+    setMetricsError(null);
+    try {
+      const res = await orgFetch(`/api/brothers/${id}/metrics`, { signal });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const rows: BrotherMetricRow[] = await res.json();
+      setMetrics(rows);
+      metricsLoadedFor.current = id;
+      const edits: Record<number, string> = {};
+      for (const row of rows) {
+        edits[row.definitionId] = row.value !== null ? String(row.value) : "";
+      }
+      setMetricEdits(edits);
+      setMetricsDirty(false);
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") return;
+      setMetricsError("Could not load metric values.");
+    } finally {
+      if (!signal.aborted) setMetricsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (tab !== "metrics" || brotherId === null || metricsLoadedFor.current === brotherId || metricsLoading) return;
+    const controller = new AbortController();
+    fetchMetrics(brotherId, controller.signal);
+    return () => controller.abort();
+  }, [tab, brotherId, metricsLoading, fetchMetrics]);
+
+  async function handleMetricsSave() {
+    if (!brotherId || metricsSaving) return;
+    setMetricsSaving(true);
+    try {
+      // Only include definitions with non-empty values
+      const values: Record<string, number> = {};
+      for (const row of metrics) {
+        const raw = metricEdits[row.definitionId];
+        if (raw === undefined || raw === "") continue;
+        const parsed = parseFloat(raw);
+        if (!isFinite(parsed) || parsed < 0) continue;
+        values[String(row.definitionId)] = parsed;
+      }
+      const res = await orgFetch(`/api/brothers/${brotherId}/metrics`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ values }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const updated: BrotherMetricRow[] = await res.json();
+      setMetrics(updated);
+      const edits: Record<number, string> = {};
+      for (const row of updated) {
+        edits[row.definitionId] = row.value !== null ? String(row.value) : "";
+      }
+      setMetricEdits(edits);
+      setMetricsDirty(false);
+    } catch {
+      setMetricsError("Failed to save metric values. Please try again.");
+    } finally {
+      setMetricsSaving(false);
+    }
+  }
+
   useEffect(() => {
     if (!isOpen) return;
     const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
@@ -129,6 +214,19 @@ export function BrotherDrawer({
 
   function handleSave() {
     if (!brother) return;
+
+    // Validate required custom fields before submitting.
+    setCustomFieldError(null);
+    for (const def of customFieldDefs) {
+      if (def.required) {
+        const val = customFields[def.id];
+        if (val === null || val === undefined || String(val).trim() === "") {
+          setCustomFieldError(`"${def.label}" is required.`);
+          return;
+        }
+      }
+    }
+
     onSave(brother.id, {
       name:         name.trim()  || brother.name,
       role:         role.trim()  || brother.role,
@@ -136,6 +234,7 @@ export function BrotherDrawer({
       duesOwed:     Math.max(0,              parseFloat(duesOwed)   || 0),
       serviceHours: Math.max(0,              parseFloat(serviceHours) || 0),
       attendance:   brother.attendance,
+      customFields,
     });
     setDirty(false);
     onClose();
@@ -189,6 +288,9 @@ export function BrotherDrawer({
       setExcuseSaving(false);
     }
   }
+
+  const orgMetricCount = currentUser?.org?.metricDefinitionCount ?? 0;
+  const hasMetrics = orgMetricCount > 0;
 
   const status   = brother ? getBrotherStatus(brother, THRESHOLDS) : "Good";
 
@@ -302,7 +404,7 @@ export function BrotherDrawer({
 
             {/* Tabs */}
             <div className="flex shrink-0 border-b border-white/[0.07]">
-              {(["profile", "attendance"] as Tab[]).map(t => (
+              {(["profile", "attendance", ...(hasMetrics ? ["metrics" as const] : [])] as Tab[]).map(t => (
                 <button
                   key={t}
                   onClick={() => setTab(t)}
@@ -388,6 +490,58 @@ export function BrotherDrawer({
                     </div>
                   </div>
 
+                  {/* Custom member fields — shown when the org has defined any */}
+                  {customFieldDefs.length > 0 && (
+                    <div>
+                      <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500">Member Details</p>
+                      {customFieldError && (
+                        <p className="mb-1.5 text-[11px] text-red-400">{customFieldError}</p>
+                      )}
+                      <div className="space-y-2 rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-3">
+                        {customFieldDefs.map(def => {
+                          const val = customFields[def.id];
+                          const displayVal = val !== null && val !== undefined && String(val).trim() !== "" ? String(val) : null;
+                          const isRequired = def.required;
+                          const isEmpty = displayVal === null;
+
+                          if (!canEditProfile) {
+                            return (
+                              <div key={def.id} className="flex items-center gap-3">
+                                <span className="w-28 shrink-0 truncate text-[12px] font-medium text-slate-400">{def.label}</span>
+                                <span className={`text-[12px] ${isEmpty ? "text-slate-600 italic" : "text-slate-200"}`}>
+                                  {displayVal ?? "—"}
+                                </span>
+                              </div>
+                            );
+                          }
+
+                          return (
+                            <div key={def.id} className="flex items-center gap-3">
+                              <label className="w-28 shrink-0 truncate text-[12px] font-medium text-slate-400">
+                                {def.label}
+                                {isRequired && <span className="ml-0.5 text-red-400">*</span>}
+                              </label>
+                              <input
+                                type={def.type === "number" ? "number" : "text"}
+                                value={val !== null && val !== undefined ? String(val) : ""}
+                                onChange={e => {
+                                  const newVal = def.type === "number"
+                                    ? (e.target.value === "" ? null : Number(e.target.value))
+                                    : e.target.value;
+                                  setCustomFields(prev => ({ ...prev, [def.id]: newVal }));
+                                  setDirty(true);
+                                }}
+                                placeholder={def.placeholder ?? `Enter ${def.label.toLowerCase()}…`}
+                                maxLength={def.type === "number" ? undefined : 255}
+                                className="min-w-0 flex-1 rounded-lg border border-white/[0.08] bg-white/[0.04] px-2.5 py-1 text-[12px] text-slate-200 placeholder:text-slate-600 focus:border-indigo-500/50 focus:outline-none focus:ring-1 focus:ring-indigo-500/30"
+                              />
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
                   {/* Roles — visible to anyone who can manage roles */}
                   {canManageRoles && (
                     <div>
@@ -436,6 +590,88 @@ export function BrotherDrawer({
                     </div>
                   )}
                 </>
+              )}
+
+              {tab === "metrics" && (
+                <div>
+                  <p className="mb-3 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                    Custom Metrics
+                  </p>
+
+                  {metricsLoading && (
+                    <div className="space-y-2">
+                      {[...Array(3)].map((_, i) => (
+                        <div key={i} className="h-10 rounded-lg bg-white/[0.03] animate-pulse" />
+                      ))}
+                    </div>
+                  )}
+
+                  {metricsError && (
+                    <div className="rounded-lg border border-red-500/20 bg-red-500/10 px-4 py-3 text-[12px] text-red-400">
+                      {metricsError}
+                      <button onClick={() => { metricsLoadedFor.current = null; setMetricsError(null); }} className="ml-2 underline">Retry</button>
+                    </div>
+                  )}
+
+                  {!metricsLoading && !metricsError && metrics.length === 0 && (
+                    <p className="text-[12px] text-slate-600">No metrics defined yet.</p>
+                  )}
+
+                  {!metricsLoading && !metricsError && metrics.length > 0 && (
+                    <div className="space-y-2 rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-3">
+                      {metrics.map(row => {
+                        const statusDot =
+                          row.status === "on_track" ? "bg-emerald-400"
+                          : row.status === "watch"    ? "bg-amber-400"
+                          : row.status === "at_risk"  ? "bg-red-400"
+                          : "bg-slate-700";
+                        const valColor =
+                          row.status === "on_track" ? "text-emerald-400"
+                          : row.status === "watch"    ? "text-amber-400"
+                          : row.status === "at_risk"  ? "text-red-400"
+                          : "text-slate-400";
+
+                        if (!canEditProfile) {
+                          return (
+                            <div key={row.definitionId} className="flex items-center gap-3">
+                              <div className={`h-2 w-2 shrink-0 rounded-full ${statusDot}`} />
+                              <span className="w-28 shrink-0 truncate text-[12px] font-medium text-slate-400">
+                                {row.name}{row.unit ? ` (${row.unit})` : ""}
+                              </span>
+                              <span className={`tabular-nums text-[12px] font-semibold ${valColor}`}>
+                                {row.value !== null ? row.value : "—"}
+                              </span>
+                              <span className="ml-auto shrink-0 text-[10px] text-slate-600">Goal {row.goal}{row.unit ? row.unit : ""}</span>
+                            </div>
+                          );
+                        }
+
+                        return (
+                          <div key={row.definitionId} className="flex items-center gap-3">
+                            <div className={`h-2 w-2 shrink-0 rounded-full ${statusDot}`} />
+                            <label className="w-28 shrink-0 truncate text-[12px] font-medium text-slate-400">
+                              {row.name}{row.unit ? ` (${row.unit})` : ""}
+                            </label>
+                            <input
+                              type="number"
+                              min="0"
+                              max="1000000"
+                              step="any"
+                              value={metricEdits[row.definitionId] ?? ""}
+                              onChange={e => {
+                                setMetricEdits(prev => ({ ...prev, [row.definitionId]: e.target.value }));
+                                setMetricsDirty(true);
+                              }}
+                              placeholder="—"
+                              className="min-w-0 flex-1 rounded-lg border border-white/[0.08] bg-white/[0.04] px-2.5 py-1 text-[12px] text-slate-200 placeholder:text-slate-600 focus:border-indigo-500/50 focus:outline-none focus:ring-1 focus:ring-indigo-500/30"
+                            />
+                            <span className="shrink-0 text-[10px] text-slate-600">/{row.goal}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
               )}
 
               {tab === "attendance" && (
@@ -547,6 +783,15 @@ export function BrotherDrawer({
                   className={`w-full rounded-lg px-4 py-2.5 text-[13px] font-semibold transition-all ${dirty ? "bg-indigo-600 text-white hover:bg-indigo-500 cursor-pointer" : "bg-white/[0.04] text-slate-600 cursor-not-allowed"}`}
                 >
                   Save Changes
+                </button>
+              )}
+              {tab === "metrics" && canEditProfile && (
+                <button
+                  onClick={handleMetricsSave}
+                  disabled={!metricsDirty || metricsSaving}
+                  className={`w-full rounded-lg px-4 py-2.5 text-[13px] font-semibold transition-all ${metricsDirty && !metricsSaving ? "bg-indigo-600 text-white hover:bg-indigo-500 cursor-pointer" : "bg-white/[0.04] text-slate-600 cursor-not-allowed"}`}
+                >
+                  {metricsSaving ? "Saving…" : "Save Metrics"}
                 </button>
               )}
               {onDelete && canDelete && (

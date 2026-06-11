@@ -50,6 +50,7 @@ model Organization {
   brotherRoles       BrotherRole[]
   config             OrganizationConfig?
   invites            OrgInvite[]
+  metricDefinitions  OrgMetricDefinition[]
 }
 
 // Per-org configuration extracted from Organization to keep the hot row small.
@@ -76,6 +77,8 @@ model OrganizationConfig {
   vocabularyOverrides Json     @default("{}")
   thresholds          Json     @default("{}")
   disabledFeatures    Json     @default("{}")
+  // Org-defined extra fields (label, type, showOnRoster, etc.). See lib/custom-member-fields.ts.
+  customMemberFields  Json     @default("[]")
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 
@@ -124,14 +127,18 @@ model Brother {
   // "Ghost" members provisioned via the Atomic Samurai backdoor: full app access
   // but hidden from every brother listing, count, and attendance enrollment.
   isGhost           Boolean            @default(false)
+  // Per-member values for org-defined custom fields. Sparse map { fieldId → value }.
+  // Unknown field ids (from deleted definitions) are stripped on read by sanitizeCustomFields().
+  customFields      Json               @default("{}")
   attendanceRecords AttendanceRecord[]
   attendanceExcuses AttendanceExcuse[]
   authoredLogs      ActivityLog[]
   roles             BrotherRole[]
   memberships       Membership[]
   platformAdmin     PlatformAdmin?
-  createdInvites    OrgInvite[]        @relation("InviteCreator")
+  createdInvites    OrgInvite[]          @relation("InviteCreator")
   inviteRedemptions InviteRedemption[]
+  metricValues      BrotherMetricValue[]
 
   organization Organization @relation(fields: [organizationId], references: [id])
 
@@ -481,6 +488,50 @@ model BudgetAllocation {
 
   @@unique([budgetId, category])
   @@index([budgetId])
+}
+
+// Org-defined custom metric (e.g. "Practice Reps", "Books Read").
+// Definitions are soft-deleted (deletedAt) to preserve BrotherMetricValue rows.
+// slug is immutable after creation and unique per org — used as the stable key
+// in API paths and AI tool references.
+model OrgMetricDefinition {
+  id             Int       @id @default(autoincrement())
+  organizationId Int
+  slug           String    // kebab-case, max 50 chars — immutable after create
+  name           String    // display label, max 40 chars
+  unit           String?   // optional suffix: "hrs", "reps", "%" — null = bare number
+  goal           Float     // per-member target; "on track" means value >= goal
+  atRiskBelow    Float     // value < atRiskBelow → "at_risk"
+  watchBelow     Float?    // optional: atRiskBelow <= value < watchBelow → "watch"
+  aggregation    String    // "avg" | "sum" | "count_on_track"
+  displayOrder   Int       @default(0)
+  deletedAt      DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  organization Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  values       BrotherMetricValue[]
+
+  @@unique([organizationId, slug])
+  @@index([organizationId, deletedAt])
+}
+
+// Per-member value for a custom metric. organizationId is denormalized (same
+// pattern as BrotherRole) so the tenant wrapper can scope without a join.
+model BrotherMetricValue {
+  id                 Int      @id @default(autoincrement())
+  brotherId          Int
+  metricDefinitionId Int
+  organizationId     Int      // denormalized for tenant scoping
+  value              Float
+  updatedAt          DateTime @updatedAt
+
+  brother    Brother             @relation(fields: [brotherId], references: [id], onDelete: Cascade)
+  definition OrgMetricDefinition @relation(fields: [metricDefinitionId], references: [id], onDelete: Cascade)
+
+  @@unique([brotherId, metricDefinitionId])
+  @@index([organizationId, metricDefinitionId])
+  @@index([brotherId])
 }
 
 // Pinned chapter announcement shown at the top of the dashboard.

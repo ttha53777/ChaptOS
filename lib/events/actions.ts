@@ -27,7 +27,9 @@ export type SubjectType =
   | "ChapterAnnouncement"
   | "Semester"
   | "Organization"
-  | "OrgInvite";
+  | "OrgInvite"
+  | "OrgMetricDefinition"
+  | "BrotherMetricValue";
 
 // Metadata schemas per action. Each key is an Action; each value is the shape
 // passed to emit() and received by handlers. Keep payloads small and stable —
@@ -88,7 +90,7 @@ export interface EventMetadata {
 
   // Onboarding
   "org.created": { name: string; slug: string; orgType: string; founderName: string };
-  "org.config.updated": { enabledWorkflows?: string[]; vocabularyOverrides?: Record<string, string>; thresholds?: Record<string, number>; disabledFeatures?: Record<string, string[]> };
+  "org.config.updated": { enabledWorkflows?: string[]; vocabularyOverrides?: Record<string, string>; thresholds?: Record<string, number>; disabledFeatures?: Record<string, string[]>; customMemberFields?: string[] };
   "org.logo.updated": { cleared: boolean };
 
   // Membership
@@ -98,6 +100,12 @@ export interface EventMetadata {
   "invite.created":  { mode: "open" | "claim"; expiry: string };
   "invite.revoked":  { mode: "open" | "claim" };
   "invite.redeemed": { mode: "open" | "claim"; orgId: number; brotherId: number; reused: boolean };
+
+  // Custom metrics
+  "metric_definition.created": { slug: string; name: string };
+  "metric_definition.updated": { slug: string; name: string; changedFields: string[] };
+  "metric_definition.deleted": { slug: string; name: string };
+  "metric_value.updated":      { brotherId: number; brotherName: string; updatedSlugs: string[] };
 }
 
 export type Action = keyof EventMetadata;
@@ -117,6 +125,8 @@ const KNOWN_ACTIONS = new Set<Action>([
   "org.created", "org.config.updated", "org.logo.updated",
   "membership.left",
   "invite.created", "invite.revoked", "invite.redeemed",
+  "metric_definition.created", "metric_definition.updated", "metric_definition.deleted",
+  "metric_value.updated",
 ]);
 
 export function isKnownAction(action: string): action is Action {

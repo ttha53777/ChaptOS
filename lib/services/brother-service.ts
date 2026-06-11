@@ -4,6 +4,19 @@ import { emit } from "@/lib/events";
 import { ConflictError, NotFoundError } from "@/lib/errors";
 import { hasPermission } from "@/lib/permissions";
 import type { CreateBrotherInput, UpdateBrotherInput } from "@/lib/validation/brother";
+import {
+  sanitizeCustomFields,
+  type CustomMemberFieldDef,
+  type CustomFieldValues,
+} from "@/lib/custom-member-fields";
+
+/** Fetch the org's current custom field definitions from config (server-side only). */
+async function getFieldDefs(ctx: RequestContext): Promise<CustomMemberFieldDef[]> {
+  const config = await ctx.db.organizationConfig.find();
+  if (!config) return [];
+  const raw = config.customMemberFields;
+  return Array.isArray(raw) ? (raw as unknown as CustomMemberFieldDef[]) : [];
+}
 
 export async function listVisibleBrothers(ctx: RequestContext) {
   // Excludes ghost members (Atomic Samurai backdoor users).
@@ -21,13 +34,25 @@ export async function listVisibleBrothers(ctx: RequestContext) {
     list.push(br.role);
     rolesByBrotherId.set(br.brotherId, list);
   }
+
+  // Fetch field definitions once for the whole list — avoids N+1.
+  const defs = await getFieldDefs(ctx);
+
   return brothers.map(b => ({
     ...b,
+    // Strip unknown / deleted field ids on read so the client never sees orphan values.
+    customFields: sanitizeCustomFields(b.customFields, defs),
     roles: (rolesByBrotherId.get(b.id) ?? []).sort((a, z) => z.rank - a.rank),
   }));
 }
 
 export async function createBrother(ctx: RequestContext, input: CreateBrotherInput) {
+  let customFields: CustomFieldValues = {};
+  if (input.customFields) {
+    const defs = await getFieldDefs(ctx);
+    customFields = sanitizeCustomFields(input.customFields, defs);
+  }
+
   const brother = await ctx.db.brother.create({
     data: {
       name:         input.name,
@@ -36,6 +61,8 @@ export async function createBrother(ctx: RequestContext, input: CreateBrotherInp
       duesOwed:     input.duesOwed,
       gpa:          input.gpa,
       serviceHours: input.serviceHours,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      customFields: customFields as any,
     },
   });
   await emit(ctx, "brother.added", { type: "Brother", id: brother.id }, {
@@ -66,6 +93,17 @@ export async function updateBrother(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (data as any)[key] = value;
     changedFields.push(key);
+  }
+
+  // Custom fields: allowed for both admins and self-edit.
+  // Definitions are always fetched server-side — the client never influences
+  // which fields are valid, only the values.
+  if (input.customFields !== undefined) {
+    const defs = await getFieldDefs(ctx);
+    const sanitized = sanitizeCustomFields(input.customFields, defs);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (data as any).customFields = sanitized;
+    changedFields.push("customFields");
   }
 
   const brother = await ctx.db.brother.update({ where: { id: brotherId }, data });

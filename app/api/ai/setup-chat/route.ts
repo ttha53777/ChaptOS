@@ -300,6 +300,7 @@ export async function POST(req: NextRequest) {
               vocabulary,
               thresholds: parsed.thresholds && typeof parsed.thresholds === "object" ? parsed.thresholds : {},
               roles: Array.isArray(parsed.roles) ? parsed.roles : [],
+              customMemberFields: Array.isArray(parsed.customMemberFields) ? parsed.customMemberFields : [],
               rationale: typeof parsed.rationale === "string" ? parsed.rationale : "",
             };
           } catch {

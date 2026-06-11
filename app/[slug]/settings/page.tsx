@@ -12,11 +12,13 @@ import { ActivityLogSection } from "./sections/ActivityLogSection";
 import { InvitationsSection } from "./sections/InvitationsSection";
 import { WorkflowsSection } from "./sections/WorkflowsSection";
 import { VocabSection } from "./sections/VocabSection";
+import { MemberFieldsSection } from "./sections/MemberFieldsSection";
+import { CustomMetricsSection } from "./sections/CustomMetricsSection";
 import { useChapter } from "../../context/ChapterContext";
 
 // ─── Nav config ───────────────────────────────────────────────────────────────
 
-type SectionId = "general" | "thresholds" | "semesters" | "accounts" | "invitations" | "workflows" | "vocabulary" | "roles" | "activity-log";
+type SectionId = "general" | "thresholds" | "semesters" | "accounts" | "invitations" | "workflows" | "vocabulary" | "member-fields" | "custom-metrics" | "roles" | "activity-log";
 
 interface NavItem {
   id: SectionId;
@@ -78,6 +80,22 @@ const NAV_ITEMS: NavItem[] = [
     group: "System",
     // Chat bubble / speech icon — signals language/terminology.
     icon: "M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z",
+  },
+  {
+    id: "member-fields",
+    label: "Member fields",
+    description: "Define custom per-member data fields",
+    group: "System",
+    // Bars / list icon — signals structured extra data.
+    icon: "M4 6h16M4 10h16M4 14h10",
+  },
+  {
+    id: "custom-metrics",
+    label: "Custom metrics",
+    description: "Define org-specific tracked metrics beyond the built-ins",
+    group: "Chapter",
+    // Chart bar icon — signals numeric tracking.
+    icon: "M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z",
   },
   {
     id: "roles",
@@ -149,11 +167,13 @@ export default function SettingsPage() {
   const canManageRoles    = can("MANAGE_ROLES");
   const canManageSettings = can("MANAGE_SETTINGS");
   const visibleNavItems = NAV_ITEMS.filter(n => {
-    if (n.id === "roles")       return canManageRoles;
-    if (n.id === "invitations") return canManageSettings;
-    if (n.id === "workflows")   return canManageSettings;
-    if (n.id === "vocabulary")  return canManageSettings;
-    if (n.id === "thresholds")  return canManageSettings;
+    if (n.id === "roles")          return canManageRoles;
+    if (n.id === "invitations")    return canManageSettings;
+    if (n.id === "workflows")      return canManageSettings;
+    if (n.id === "vocabulary")     return canManageSettings;
+    if (n.id === "thresholds")     return canManageSettings;
+    if (n.id === "member-fields")   return canManageSettings;
+    if (n.id === "custom-metrics")  return canManageSettings;
     return true;
   });
 
@@ -161,11 +181,13 @@ export default function SettingsPage() {
   // revoked from another browser), `activeId` could still point at a now-hidden
   // tab. Snap back to the first visible section.
   useEffect(() => {
-    if (activeId === "roles" && !canManageRoles) setActiveId("general");
-    if (activeId === "invitations" && !canManageSettings) setActiveId("general");
-    if (activeId === "workflows"   && !canManageSettings) setActiveId("general");
-    if (activeId === "vocabulary"  && !canManageSettings) setActiveId("general");
-    if (activeId === "thresholds"  && !canManageSettings) setActiveId("general");
+    if (activeId === "roles"          && !canManageRoles)    setActiveId("general");
+    if (activeId === "invitations"    && !canManageSettings) setActiveId("general");
+    if (activeId === "workflows"      && !canManageSettings) setActiveId("general");
+    if (activeId === "vocabulary"     && !canManageSettings) setActiveId("general");
+    if (activeId === "thresholds"     && !canManageSettings) setActiveId("general");
+    if (activeId === "member-fields"   && !canManageSettings) setActiveId("general");
+    if (activeId === "custom-metrics"  && !canManageSettings) setActiveId("general");
   }, [activeId, canManageRoles, canManageSettings]);
 
   useEffect(() => {
@@ -321,6 +343,12 @@ export default function SettingsPage() {
               )}
               {activeId === "vocabulary" && (
                 <VocabSection onStatus={setStatusMsg} onError={setPageError} />
+              )}
+              {activeId === "member-fields" && (
+                <MemberFieldsSection onStatus={setStatusMsg} onError={setPageError} />
+              )}
+              {activeId === "custom-metrics" && (
+                <CustomMetricsSection onStatus={setStatusMsg} onError={setPageError} />
               )}
               {activeId === "roles" && (
                 <RolesSection onStatus={setStatusMsg} onError={setPageError} />

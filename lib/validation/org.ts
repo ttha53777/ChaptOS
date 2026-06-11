@@ -2,6 +2,7 @@ import { z } from "zod";
 import { MAX_SLUG_LEN, MIN_SLUG_LEN } from "@/lib/slug-rules";
 import { ORG_TYPE_IDS, ALL_WORKFLOWS, type WorkflowId } from "@/lib/org-types";
 import { featureExists } from "@/lib/workflow-features";
+import { isValidFieldId, MAX_FIELDS, MAX_LABEL } from "@/lib/custom-member-fields";
 
 // Input for POST /api/orgs (self-serve org creation).
 //
@@ -40,6 +41,29 @@ export const thresholdsInput = z.object({
   gpaWatch:         z.number().min(0).max(4),
   serviceHoursGoal: z.number().min(0).max(1000),
 });
+
+// ─── Custom member field definitions ─────────────────────────────────────────
+
+const fieldTypeSchema = z.enum(["text", "number", "select"]);
+
+export const customMemberFieldDefSchema = z.object({
+  id:           z.string().refine(isValidFieldId, { message: "Field id must be 1-48 lowercase alphanumeric/underscore chars" }),
+  label:        z.string().min(1, "Label is required").max(MAX_LABEL, `Label must be ${MAX_LABEL} chars or fewer`),
+  type:         fieldTypeSchema.default("text"),
+  required:     z.boolean().default(false),
+  showOnRoster: z.boolean().default(false),
+  rosterOrder:  z.number().int().min(0).max(99).default(0),
+  placeholder:  z.string().max(120).optional(),
+  options:      z.array(z.string().max(64)).max(20).optional(),
+});
+
+export const customMemberFieldsInput = z
+  .array(customMemberFieldDefSchema)
+  .max(MAX_FIELDS, `Cannot define more than ${MAX_FIELDS} custom fields`);
+
+export type CustomMemberFieldDefInput = z.infer<typeof customMemberFieldDefSchema>;
+
+// ─── Org config update ────────────────────────────────────────────────────────
 
 export const updateOrgConfigInput = z.object({
   enabledWorkflows: z
@@ -82,6 +106,7 @@ export const updateOrgConfigInput = z.object({
       }
     })
     .optional(),
+  customMemberFields: customMemberFieldsInput.optional(),
 });
 
 export type UpdateOrgConfigInput = z.infer<typeof updateOrgConfigInput>;

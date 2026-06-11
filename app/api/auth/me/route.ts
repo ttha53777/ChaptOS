@@ -6,6 +6,7 @@ import { db } from "@/lib/db"; // lint-modules:ignore (auth bootstrap; runs befo
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { ALL_WORKFLOWS } from "@/lib/org-types";
 import { resolveThresholds } from "@/lib/thresholds";
+import { sanitizeFieldDefs, type CustomMemberFieldDef } from "@/lib/custom-member-fields";
 import { toResponse } from "@/lib/errors";
 import { logError } from "@/lib/observability";
 
@@ -14,7 +15,7 @@ export async function GET() {
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   try {
-    const [brother, org, supabase, perms] = await Promise.all([
+    const [brother, org, supabase, perms, metricDefinitionCount] = await Promise.all([
       db(user.orgId).brother.findUnique({
         where: { id: user.id },
         select: { name: true, email: true, avatarUrl: true },
@@ -33,11 +34,12 @@ export async function GET() {
           logoUrl: true,
           // The sidebar and onboarding picker filter surfaces by the org's
           // enabled workflows. Pull it in the same round-trip as the org name.
-          config: { select: { enabledWorkflows: true, vocabularyOverrides: true, thresholds: true, disabledFeatures: true } },
+          config: { select: { enabledWorkflows: true, vocabularyOverrides: true, thresholds: true, disabledFeatures: true, customMemberFields: true } },
         },
       }),
       createServerSupabaseClient(),
       resolvePermissions(user),
+      db(user.orgId).orgMetricDefinition.count({ where: { deletedAt: null } }),
     ]);
 
     const { data: { user: authUser } } = await supabase.auth.getUser();
@@ -99,6 +101,15 @@ export async function GET() {
             // OPT-OUT map of hidden page sections. Empty {} (or a missing config
             // row) means every feature is on — the safe default, same as workflows.
             disabledFeatures: (org.config?.disabledFeatures ?? {}) as Record<string, string[]>,
+            // Org-defined extra fields. Empty [] means no custom fields — roster
+            // and drawer render identically to today. Sanitized through the same
+            // helper used by the service so the client always gets a clean list.
+            customMemberFields: sanitizeFieldDefs(
+              Array.isArray(org.config?.customMemberFields) ? org.config.customMemberFields as unknown as CustomMemberFieldDef[] : [],
+            ),
+            // Count of active metric definitions — used by BrotherDrawer to decide
+            // whether to show the "metrics" tab (avoids a separate API call).
+            metricDefinitionCount,
           }
         : null,
       orgId: user.orgId,
@@ -108,6 +119,7 @@ export async function GET() {
       roles: perms.roles,
     });
   } catch (e) {
+    console.error("[/api/auth/me] 500 cause:", e);
     logError(e, { route: "/api/auth/me", method: "GET", userId: user?.id });
     return toResponse(e);
   }

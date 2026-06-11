@@ -434,6 +434,91 @@ function scopedBrotherRole(orgId: number) {
   };
 }
 
+function scopedOrgMetricDefinition(orgId: number) {
+  type W = Prisma.OrgMetricDefinitionWhereInput;
+  const org = (w?: W): W => ({ ...w, organizationId: orgId });
+
+  async function verify(where: Prisma.OrgMetricDefinitionWhereUniqueInput): Promise<number> {
+    const row = await prisma.orgMetricDefinition.findFirst({ where: org(where as W), select: { id: true } });
+    if (!row) notInOrg();
+    return row.id;
+  }
+
+  return {
+    findMany:   (args?: Prisma.OrgMetricDefinitionFindManyArgs)  => prisma.orgMetricDefinition.findMany({ ...args, where: org(args?.where) }),
+    findFirst:  (args?: Prisma.OrgMetricDefinitionFindFirstArgs) => prisma.orgMetricDefinition.findFirst({ ...args, where: org(args?.where) }),
+    findUnique: (args: Prisma.OrgMetricDefinitionFindUniqueArgs) => prisma.orgMetricDefinition.findFirst({ ...args, where: org(args.where as W) }),
+    create:     (args: Omit<Prisma.OrgMetricDefinitionCreateArgs, "data"> & { data: Omit<Prisma.OrgMetricDefinitionUncheckedCreateInput, "organizationId"> }) =>
+      prisma.orgMetricDefinition.create({ ...args, data: { ...args.data, organizationId: orgId } }),
+    update:     async (args: Prisma.OrgMetricDefinitionUpdateArgs) =>
+      prisma.orgMetricDefinition.update({ ...args, where: { id: await verify(args.where) } }),
+    delete:     async (args: Prisma.OrgMetricDefinitionDeleteArgs) =>
+      prisma.orgMetricDefinition.delete({ where: { id: await verify(args.where) } }),
+    count:      (args?: Prisma.OrgMetricDefinitionCountArgs) => prisma.orgMetricDefinition.count({ ...args, where: org(args?.where) }),
+  };
+}
+
+function scopedBrotherMetricValue(orgId: number) {
+  type W = Prisma.BrotherMetricValueWhereInput;
+  const org = (w?: W): W => ({ ...w, organizationId: orgId });
+
+  async function verify(where: Prisma.BrotherMetricValueWhereUniqueInput): Promise<number> {
+    const row = await prisma.brotherMetricValue.findFirst({ where: org(where as W), select: { id: true } });
+    if (!row) notInOrg();
+    return row.id;
+  }
+
+  return {
+    findMany:   (args?: Prisma.BrotherMetricValueFindManyArgs)  => prisma.brotherMetricValue.findMany({ ...args, where: org(args?.where) }),
+    findFirst:  (args?: Prisma.BrotherMetricValueFindFirstArgs) => prisma.brotherMetricValue.findFirst({ ...args, where: org(args?.where) }),
+    create:     (args: Omit<Prisma.BrotherMetricValueCreateArgs, "data"> & { data: Omit<Prisma.BrotherMetricValueUncheckedCreateInput, "organizationId"> }) =>
+      prisma.brotherMetricValue.create({ ...args, data: { ...args.data, organizationId: orgId } }),
+    upsert:     (args: Prisma.BrotherMetricValueUpsertArgs) => prisma.brotherMetricValue.upsert(args),
+    update:     async (args: Prisma.BrotherMetricValueUpdateArgs) =>
+      prisma.brotherMetricValue.update({ ...args, where: { id: await verify(args.where) } }),
+    delete:     async (args: Prisma.BrotherMetricValueDeleteArgs) =>
+      prisma.brotherMetricValue.delete({ where: { id: await verify(args.where) } }),
+    count:      (args?: Prisma.BrotherMetricValueCountArgs) => prisma.brotherMetricValue.count({ ...args, where: org(args?.where) }),
+    /**
+     * Value sum + avg per metric definition, batched into ONE groupBy.
+     * Org-scoped via the injected organizationId filter. Returns a Map of
+     * metricDefinitionId → { _avg, _sum, _count }; definitions with no values
+     * are absent (callers should default). Mirrors countByRole pattern.
+     */
+    aggregateByDefinition: async (defIds: number[]) => {
+      if (defIds.length === 0) return new Map<number, { avg: number | null; sum: number; count: number }>();
+      const rows = await prisma.brotherMetricValue.groupBy({
+        by: ["metricDefinitionId"],
+        where: org({ metricDefinitionId: { in: defIds } }),
+        _avg:   { value: true },
+        _sum:   { value: true },
+        _count: { value: true },
+      });
+      return new Map(rows.map(r => [
+        r.metricDefinitionId,
+        { avg: r._avg.value, sum: r._sum.value ?? 0, count: r._count.value },
+      ]));
+    },
+    /**
+     * Count of members whose value >= threshold for a set of (defId, threshold)
+     * pairs. Issues one COUNT per pair — acceptable at ≤20 definitions.
+     * Returns a Map of metricDefinitionId → count.
+     */
+    countOnTrack: async (defs: { id: number; goal: number }[]): Promise<Map<number, number>> => {
+      if (defs.length === 0) return new Map();
+      const entries = await Promise.all(
+        defs.map(async d => {
+          const n = await prisma.brotherMetricValue.count({
+            where: org({ metricDefinitionId: d.id, value: { gte: d.goal } }),
+          });
+          return [d.id, n] as [number, number];
+        }),
+      );
+      return new Map(entries);
+    },
+  };
+}
+
 function scopedChapterAnnouncement(orgId: number) {
   type W = Prisma.ChapterAnnouncementWhereInput;
   const org = (w?: W): W => ({ ...w, organizationId: orgId });
@@ -516,7 +601,7 @@ function scopedOrganizationConfig(orgId: number) {
      * throwing P2025 on update. organizationId is injected, never taken from the
      * caller, so it can't be spoofed across tenants.
      */
-    upsert: (data: { enabledWorkflows?: string[]; vocabularyOverrides?: Record<string, string>; thresholds?: Prisma.InputJsonValue; disabledFeatures?: Prisma.InputJsonValue }) =>
+    upsert: (data: { enabledWorkflows?: string[]; vocabularyOverrides?: Record<string, string>; thresholds?: Prisma.InputJsonValue; disabledFeatures?: Prisma.InputJsonValue; customMemberFields?: Prisma.InputJsonValue }) =>
       prisma.organizationConfig.upsert({
         where:  { organizationId: orgId },
         update: data,
@@ -554,9 +639,11 @@ export function db(orgId: number) {
     activityLog:         scopedActivityLog(orgId),
     chapterAnnouncement: scopedChapterAnnouncement(orgId),
 
-    brotherRole:         scopedBrotherRole(orgId),
-    orgInvite:           scopedOrgInvite(orgId),
-    organizationConfig:  scopedOrganizationConfig(orgId),
+    brotherRole:          scopedBrotherRole(orgId),
+    orgInvite:            scopedOrgInvite(orgId),
+    organizationConfig:   scopedOrganizationConfig(orgId),
+    orgMetricDefinition:  scopedOrgMetricDefinition(orgId),
+    brotherMetricValue:   scopedBrotherMetricValue(orgId),
 
     // Pass-through for join tables that have no organizationId column and are
     // always accessed through a verified parent id.

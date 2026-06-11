@@ -8,6 +8,7 @@ import { AVATAR_CHANGED_EVENT, parseAvatarFromMetadata } from "@/lib/avatar";
 import { createClient } from "@/lib/supabase/client";
 import { hasPermission, type Permission } from "@/lib/permissions";
 import { DEFAULT_THRESHOLDS, type Thresholds } from "@/lib/thresholds";
+import type { CustomMemberFieldDef } from "@/lib/custom-member-fields";
 import { currentOrgSlug, ORG_SLUG_HEADER } from "../lib/api";
 import { isDashboardRoute } from "../lib/routes";
 
@@ -25,7 +26,7 @@ function normalizeCurrentUser(me: CurrentUser): CurrentUser {
     // Defensive: an older/cached /me payload may omit enabledWorkflows. Default
     // to an empty array so the sidebar filter never reads `.includes` of
     // undefined — the Sidebar treats the always-on surfaces as visible regardless.
-    org: me.org ? { ...me.org, logoUrl: me.org.logoUrl ?? null, enabledWorkflows: me.org.enabledWorkflows ?? [], vocabularyOverrides: me.org.vocabularyOverrides ?? {}, thresholds: me.org.thresholds ?? DEFAULT_THRESHOLDS, disabledFeatures: me.org.disabledFeatures ?? {} } : null,
+    org: me.org ? { ...me.org, logoUrl: me.org.logoUrl ?? null, enabledWorkflows: me.org.enabledWorkflows ?? [], vocabularyOverrides: me.org.vocabularyOverrides ?? {}, thresholds: me.org.thresholds ?? DEFAULT_THRESHOLDS, disabledFeatures: me.org.disabledFeatures ?? {}, customMemberFields: me.org.customMemberFields ?? [], metricDefinitionCount: me.org.metricDefinitionCount ?? 0 } : null,
   };
 }
 
@@ -77,7 +78,7 @@ export interface CurrentUser {
    *  read via useThresholds() rather than directly.
    *  `disabledFeatures` is the OPT-OUT map of hidden page sections (workflow id →
    *  feature ids) — read via useFeature() rather than directly. */
-  org: { name: string; slug: string; orgType: string | null; logoUrl: string | null; enabledWorkflows: string[]; vocabularyOverrides: Record<string, string>; thresholds: Thresholds; disabledFeatures: Record<string, string[]> } | null;
+  org: { name: string; slug: string; orgType: string | null; logoUrl: string | null; enabledWorkflows: string[]; vocabularyOverrides: Record<string, string>; thresholds: Thresholds; disabledFeatures: Record<string, string[]>; customMemberFields: CustomMemberFieldDef[]; metricDefinitionCount: number } | null;
   orgId: number;
   /** All orgs this user belongs to. UI renders a switcher when length > 1. */
   memberships: MembershipSummary[];

@@ -90,6 +90,7 @@ interface SetupRecommendation {
   vocabularyOverrides: Partial<Record<VocabKey, string>>;
   thresholds: Thresholds;
   roles: RecommendedRole[];
+  customMemberFields?: Array<{ id: string; label: string; type: string; showOnRoster: boolean; required: boolean; rosterOrder: number }>;
   rationale: string;
 }
 
@@ -168,6 +169,8 @@ export default function OnboardingPage() {
   const [thresholds, setThresholds] = useState<Thresholds>(DEFAULT_THRESHOLDS);
   // Proposed non-founder roles (empty until the AI suggests; founder can remove).
   const [roles, setRoles] = useState<RecommendedRole[]>([]);
+  // Proposed custom member fields (empty until the AI suggests; founder can remove).
+  const [customMemberFields, setCustomMemberFields] = useState<NonNullable<SetupRecommendation["customMemberFields"]>>([]);
   // True once a recommendation has arrived — gates the review cards.
   const [recommended, setRecommended] = useState(false);
 
@@ -212,6 +215,7 @@ export default function OnboardingPage() {
     setVocab(rec.vocabularyOverrides ?? {});
     setThresholds(rec.thresholds ?? DEFAULT_THRESHOLDS);
     setRoles(rec.roles ?? []);
+    setCustomMemberFields(rec.customMemberFields ?? []);
     setRationale(rec.rationale || null);
     setRecommended(true);
   }
@@ -348,6 +352,7 @@ export default function OnboardingPage() {
           disabledFeatures,
           vocabularyOverrides,
           ...(recommended ? { thresholds } : {}),
+          ...(recommended && customMemberFields.length > 0 ? { customMemberFields } : {}),
         }),
       });
 
@@ -385,6 +390,10 @@ export default function OnboardingPage() {
 
   function removeRole(idx: number) {
     setRoles((prev) => prev.filter((_, i) => i !== idx));
+  }
+
+  function removeCustomField(idx: number) {
+    setCustomMemberFields((prev) => prev.filter((_, i) => i !== idx));
   }
 
   // Show the editable form (pages/widgets/labels/roles/thresholds + Continue) once
@@ -687,6 +696,34 @@ export default function OnboardingPage() {
                         <button
                           type="button"
                           onClick={() => removeRole(idx)}
+                          className="auth-chip"
+                          style={{ marginLeft: "auto", alignSelf: "center" }}
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </fieldset>
+              )}
+
+              {/* Custom member fields — shown after the AI proposes them. */}
+              {recommended && customMemberFields.length > 0 && (
+                <fieldset style={{ border: 0, padding: 0, margin: 0, borderTop: "1px solid var(--line-soft)", paddingTop: 20 }}>
+                  <legend className="auth-label" style={{ padding: 0 }}>Member fields</legend>
+                  <p className="auth-hint">Extra per-member data fields for your roster. Remove any you don&rsquo;t need — you can add or edit them later in Settings → Member fields.</p>
+                  <div className="auth-radios">
+                    {customMemberFields.map((f, idx) => (
+                      <div key={f.id} className="auth-radio on" style={{ cursor: "default" }}>
+                        <div style={{ minWidth: 0 }}>
+                          <div className="t" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{f.label}</div>
+                          <div className="d" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            {f.type}{f.showOnRoster ? " · roster column" : ""}{f.required ? " · required" : ""}
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => removeCustomField(idx)}
                           className="auth-chip"
                           style={{ marginLeft: "auto", alignSelf: "center" }}
                         >

@@ -19,6 +19,12 @@ import { ALWAYS_ON_WORKFLOWS, ALL_WORKFLOWS, type WorkflowId } from "@/lib/org-t
 import { VOCAB_KEYS, type VocabKey, type VocabOverrides } from "@/lib/vocab";
 import { resolveThresholds, type Thresholds } from "@/lib/thresholds";
 import { normalizeDisabledFeatures, type DisabledFeatures } from "@/lib/workflow-features";
+import {
+  sanitizeFieldDefs,
+  generateFieldId,
+  isValidFieldId,
+  type CustomMemberFieldDef,
+} from "@/lib/custom-member-fields";
 
 export interface OrgConfigDTO {
   enabledWorkflows: WorkflowId[];
@@ -156,4 +162,48 @@ export async function setDisabledFeatures(
   });
 
   return disabledFeatures;
+}
+
+/**
+ * Replace the org's custom member field definitions. Authorization: org admins only.
+ *
+ * The incoming list is sanitized (unknown types defaulted to "text", labels
+ * truncated, list capped at MAX_FIELDS) before persisting. New definitions
+ * (those missing a valid id) receive a generated slug id. Existing definitions
+ * that carry a valid id are kept as-is so that already-stored Brother.customFields
+ * values remain resolvable by id.
+ */
+export async function setCustomMemberFields(
+  ctx: RequestContext,
+  input: CustomMemberFieldDef[],
+): Promise<CustomMemberFieldDef[]> {
+  if (!ctx.isOrgAdmin && !ctx.isPlatformAdmin) {
+    throw new ForbiddenError("Only an org admin can change custom member fields");
+  }
+
+  // Collect ids that are already valid so we can avoid collisions when
+  // generating ids for newly-added definitions.
+  const incomingValidIds = input
+    .filter(f => isValidFieldId(f.id))
+    .map(f => f.id);
+
+  // Assign ids to any definition that doesn't have one yet (new field added
+  // via the settings editor before save — the client sends id: "" or omits it).
+  const withIds: CustomMemberFieldDef[] = input.map(f => {
+    if (isValidFieldId(f.id)) return f;
+    const newId = generateFieldId(f.label, incomingValidIds);
+    incomingValidIds.push(newId);
+    return { ...f, id: newId };
+  });
+
+  const sanitized = sanitizeFieldDefs(withIds);
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await ctx.db.organizationConfig.upsert({ customMemberFields: sanitized as any });
+
+  await emit(ctx, "org.config.updated", { type: "Organization", id: ctx.orgId }, {
+    customMemberFields: sanitized.map(f => f.id),
+  });
+
+  return sanitized;
 }

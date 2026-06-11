@@ -134,6 +134,11 @@ export default function BrothersPage() {
   const v = useVocab();
   const THRESHOLDS = useThresholds();
   const canBrothers = can("MANAGE_BROTHERS");
+  const customFieldDefs = useMemo(
+    () => (currentUser?.org?.customMemberFields ?? []).filter(f => f.showOnRoster).sort((a, b) => a.rosterOrder - b.rosterOrder),
+    [currentUser?.org?.customMemberFields],
+  );
+  const gridTemplate = `grid-cols-[1fr_auto_auto_auto_auto_auto${customFieldDefs.map(() => "_auto").join("")}]`;
   const selfId = currentUser?.id ?? null;
 
   const [sidebarOpen,      setSidebarOpen]      = useState(false);
@@ -446,13 +451,16 @@ export default function BrothersPage() {
               </div>
 
               {/* Column headers */}
-              <div className="grid min-w-[560px] grid-cols-[1fr_auto_auto_auto_auto_auto] items-center gap-x-4 border-b border-white/[0.04] px-5 py-2">
+              <div className={`grid min-w-[560px] ${gridTemplate} items-center gap-x-4 border-b border-white/[0.04] px-5 py-2`}>
                 <SortButton label="Name"    sortKey="name"         activeKey={sortKey} dir={sortDir} onClick={toggleSort} />
                 <SortButton label="Att."    sortKey="attendance"   activeKey={sortKey} dir={sortDir} onClick={toggleSort} />
                 <SortButton label="GPA"     sortKey="gpa"          activeKey={sortKey} dir={sortDir} onClick={toggleSort} />
                 <SortButton label="Service" sortKey="serviceHours" activeKey={sortKey} dir={sortDir} onClick={toggleSort} />
                 <SortButton label="Dues"    sortKey="duesOwed"     activeKey={sortKey} dir={sortDir} onClick={toggleSort} />
                 <span className="text-[11px] font-medium text-slate-600">Status</span>
+                {customFieldDefs.map(f => (
+                  <span key={f.id} className="text-[11px] font-medium text-slate-600 text-right">{f.label}</span>
+                ))}
               </div>
 
               {/* Rows */}
@@ -475,7 +483,7 @@ export default function BrothersPage() {
                     <button
                       key={b.id}
                       onClick={() => setSelectedId(selectedId === b.id ? null : b.id)}
-                      className={`grid w-full min-w-[560px] grid-cols-[1fr_auto_auto_auto_auto_auto] items-center gap-x-4 border-b border-l-2 border-white/[0.03] px-5 py-3.5 text-left transition-colors last:border-b-0 hover:bg-white/[0.03] ${borderColor} ${selectedId === b.id ? "bg-white/[0.03]" : ""}`}
+                      className={`grid w-full min-w-[560px] ${gridTemplate} items-center gap-x-4 border-b border-l-2 border-white/[0.03] px-5 py-3.5 text-left transition-colors last:border-b-0 hover:bg-white/[0.03] ${borderColor} ${selectedId === b.id ? "bg-white/[0.03]" : ""}`}
                     >
                       <div className="flex min-w-0 items-center gap-2.5">
                         <BrotherAvatar
@@ -506,6 +514,11 @@ export default function BrothersPage() {
                         {b.duesOwed > 0 ? fmt$(b.duesOwed) : "—"}
                       </span>
                       <StatusBadge status={status} />
+                      {customFieldDefs.map(f => (
+                        <span key={f.id} className="w-16 text-right text-[12px] tabular-nums text-slate-400 truncate">
+                          {b.customFields?.[f.id] != null ? String(b.customFields[f.id]) : "—"}
+                        </span>
+                      ))}
                     </button>
                   );
                 })

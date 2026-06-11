@@ -39,6 +39,8 @@ export interface Brother {
   serviceHours: number;
   avatarUrl?: string | null;
   roles?: { id: number; name: string; color: string | null; rank: number }[];
+  /** Per-member values for org-defined custom fields. Absent on old cached data — treat as {}. */
+  customFields?: Record<string, string | number | null>;
 }
 
 export interface Deadline {

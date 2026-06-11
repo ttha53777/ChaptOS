@@ -44,6 +44,7 @@ import { AnnouncementCard, type Announcement } from "../components/dashboard/Ann
 import { AnnouncementEditor } from "../components/dashboard/AnnouncementEditor";
 import { MobileDashboard } from "../components/dashboard/mobile/MobileDashboard";
 import { orgFetch, requestJson } from "../lib/api";
+import type { MetricSnapshot } from "@/lib/metrics";
 
 // ─── Activity ID counter (module-level, reset-safe) ───────────────────────────
 
@@ -937,6 +938,93 @@ function WidgetDetailDrawer({
   );
 }
 
+// ─── Custom Metric Detail Drawer ──────────────────────────────────────────────
+
+function CustomMetricDetailDrawer({
+  snap,
+  onClose,
+}: {
+  snap: MetricSnapshot | null;
+  onClose: () => void;
+}) {
+  const isOpen = snap !== null;
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [isOpen, onClose]);
+
+  return (
+    <>
+      <div
+        className={`fixed inset-0 z-40 bg-black/40 backdrop-blur-[1px] transition-opacity duration-200 ${isOpen ? "opacity-100" : "opacity-0 pointer-events-none"}`}
+        onClick={onClose}
+      />
+      <div
+        className={`fixed inset-y-0 right-0 z-50 flex w-full flex-col bg-[#0c0e14] border-l border-white/[0.07] shadow-2xl transition-transform duration-300 ease-in-out sm:w-[420px] ${isOpen ? "translate-x-0" : "translate-x-full pointer-events-none"}`}
+      >
+        {snap && (
+          <>
+            <div className="flex h-14 shrink-0 items-center gap-3 border-b border-white/[0.07] px-5">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-indigo-500/10">
+                <SvgIcon d={KPI_ICONS["custom"] ?? ""} className="h-4 w-4 text-indigo-400" />
+              </div>
+              <h2 className="flex-1 truncate text-[15px] font-semibold text-white">{snap.name}</h2>
+              <button onClick={onClose} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-500 hover:bg-white/[0.07] hover:text-white transition-colors">
+                <svg className="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto px-5 py-5 space-y-5">
+              <div className="grid grid-cols-3 gap-3">
+                <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2.5 text-center">
+                  <p className="text-[9px] font-semibold uppercase tracking-wider text-slate-500 mb-0.5">On Track</p>
+                  <p className="text-[18px] font-bold text-emerald-400 tabular-nums">{snap.onTrackCount}</p>
+                </div>
+                <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2.5 text-center">
+                  <p className="text-[9px] font-semibold uppercase tracking-wider text-slate-500 mb-0.5">Not on Track</p>
+                  <p className="text-[18px] font-bold text-amber-400 tabular-nums">{snap.totalCount - snap.onTrackCount}</p>
+                </div>
+                <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2.5 text-center">
+                  <p className="text-[9px] font-semibold uppercase tracking-wider text-slate-500 mb-0.5">Goal</p>
+                  <p className="text-[18px] font-bold text-white tabular-nums">{snap.goal}{snap.unit ?? ""}</p>
+                </div>
+              </div>
+              <div>
+                <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500">Summary</p>
+                <div className="space-y-1.5 rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[12px] text-slate-400">Aggregation</span>
+                    <span className="text-[12px] font-medium text-white capitalize">{snap.aggregation.replace("_", " ")}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[12px] text-slate-400">
+                      {snap.aggregation === "avg" ? "Chapter avg" : snap.aggregation === "sum" ? "Chapter total" : "On track"}
+                    </span>
+                    <span className="text-[12px] font-semibold text-indigo-300 tabular-nums">
+                      {Number.isInteger(snap.headline) ? snap.headline : snap.headline.toFixed(1)}{snap.unit ?? ""}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[12px] text-slate-400">Members recorded</span>
+                    <span className="text-[12px] font-medium text-white tabular-nums">{snap.totalCount}</span>
+                  </div>
+                </div>
+              </div>
+              <p className="text-[11px] text-slate-600">
+                Open a member&apos;s profile drawer and switch to the Metrics tab to view or update individual values.
+              </p>
+            </div>
+          </>
+        )}
+      </div>
+    </>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function Home() {
@@ -967,6 +1055,8 @@ export default function Home() {
   const [selectedBrotherId, setSelectedBrotherId] = useState<number | null>(null);
   const [announcement, setAnnouncement] = useState<Announcement | null>(null);
   const [announcementEditorOpen, setAnnouncementEditorOpen] = useState(false);
+  const [customMetricSnapshots, setCustomMetricSnapshots] = useState<MetricSnapshot[]>([]);
+  const [activeCustomMetricId, setActiveCustomMetricId] = useState<number | null>(null);
   const [activeSection,  setActiveSection]  = useState("Dashboard");
   const [confirmDelete, setConfirmDelete] = useState<{ kind: "deadline" | "ig"; id: number; label: string } | null>(null);
   const [payTarget,    setPayTarget]    = useState<Brother | null>(null);
@@ -1103,6 +1193,14 @@ export default function Home() {
     requestJson<Announcement | null>("/api/announcement")
       .then(data => { if (!cancelled) setAnnouncement(data); })
       .catch(() => { /* placeholder renders on null — non-fatal */ });
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    requestJson<MetricSnapshot[]>("/api/metrics/snapshot")
+      .then(data => { if (!cancelled) setCustomMetricSnapshots(data); })
+      .catch(() => { /* non-fatal — dashboard renders without custom metrics */ });
     return () => { cancelled = true; };
   }, []);
 
@@ -1855,6 +1953,34 @@ export default function Home() {
                   {isActiveOrgAdmin && <WidgetHideButton label="Health widget" onHide={() => setWidgetHidden("health", true)} />}
                 </div>
               )}
+              {customMetricSnapshots.map(snap => {
+                const fmtHeadline = Number.isInteger(snap.headline) ? String(snap.headline) : snap.headline.toFixed(1);
+                const headline =
+                  snap.aggregation === "count_on_track"
+                    ? `${snap.headline} / ${snap.totalCount}`
+                    : snap.unit
+                    ? `${fmtHeadline}${snap.unit}`
+                    : fmtHeadline;
+                const trend =
+                  snap.aggregation === "count_on_track"
+                    ? `${snap.onTrackCount} on track`
+                    : `Goal ${snap.goal}${snap.unit ?? ""}`;
+                return (
+                  <KPICard
+                    key={snap.definitionId}
+                    label={snap.name}
+                    value={headline}
+                    trend={trend}
+                    iconKey="custom"
+                    sparkData={[]}
+                    iconBg="bg-indigo-500/10"
+                    iconColor="text-indigo-400"
+                    strokeColor="#818cf8"
+                    glowColor="#818cf8"
+                    onClick={() => setActiveCustomMetricId(snap.definitionId)}
+                  />
+                );
+              })}
             </div>
 
             {/* ── Charts ─────────────────────────────────────────────────── */}
@@ -2454,6 +2580,10 @@ export default function Home() {
         onOpenModal={setActiveModal}
         onOpenAttendance={openAttendanceLog}
         isAdmin={isAdmin}
+      />
+      <CustomMetricDetailDrawer
+        snap={customMetricSnapshots.find(s => s.definitionId === activeCustomMetricId) ?? null}
+        onClose={() => setActiveCustomMetricId(null)}
       />
     </div>
   );

@@ -80,6 +80,13 @@ export interface RawSetupRoleProposal {
   color: string;
 }
 
+export interface RawSetupCustomField {
+  label: string;
+  type: "text" | "number" | "select";
+  showOnRoster: boolean;
+  required: boolean;
+}
+
 export interface RawSetupRecommendation {
   enabledWorkflows: string[];
   shownWidgets: string[];
@@ -90,6 +97,10 @@ export interface RawSetupRecommendation {
   // Proposed non-founder roles. The caller maps permission names→bits, clamps
   // ranks <100, and the founder admin role is added by the apply step, not here.
   roles: RawSetupRoleProposal[];
+  // Proposed custom member fields (2–4 max, capped by caller). No id/rosterOrder
+  // — those are generated server-side in validateCustomMemberFields(). Optional so
+  // existing callers (tests, setup-chat) can omit it before upgrading.
+  customMemberFields?: RawSetupCustomField[];
   rationale: string;
 }
 
@@ -163,10 +174,25 @@ export async function recommendSetup(system: string, user: string): Promise<RawS
                   required: ["name", "rank", "permissions", "color"],
                 },
               },
+              // Custom member fields (2–4 per org; caller caps at 5 + generates ids).
+              customMemberFields: {
+                type: "array",
+                items: {
+                  type: "object",
+                  additionalProperties: false,
+                  properties: {
+                    label:        { type: "string" },
+                    type:         { type: "string", enum: ["text", "number", "select"] },
+                    showOnRoster: { type: "boolean" },
+                    required:     { type: "boolean" },
+                  },
+                  required: ["label", "type", "showOnRoster", "required"],
+                },
+              },
               rationale: { type: "string" },
             },
             // strict mode requires EVERY property listed in `required`.
-            required: ["enabledWorkflows", "shownWidgets", "vocabulary", "thresholds", "roles", "rationale"],
+            required: ["enabledWorkflows", "shownWidgets", "vocabulary", "thresholds", "roles", "customMemberFields", "rationale"],
           },
         },
       },
@@ -183,6 +209,7 @@ export async function recommendSetup(system: string, user: string): Promise<RawS
       vocabulary?: unknown;
       thresholds?: unknown;
       roles?: unknown;
+      customMemberFields?: unknown;
       rationale?: unknown;
     };
     if (!Array.isArray(parsed.enabledWorkflows) || !Array.isArray(parsed.shownWidgets)) {
@@ -219,12 +246,25 @@ export async function recommendSetup(system: string, user: string): Promise<RawS
         });
       }
     }
+    const customMemberFields: RawSetupCustomField[] = [];
+    if (Array.isArray(parsed.customMemberFields)) {
+      for (const f of parsed.customMemberFields as Array<Record<string, unknown>>) {
+        if (typeof f?.label !== "string") continue;
+        customMemberFields.push({
+          label:        f.label,
+          type:         (f.type === "text" || f.type === "number" || f.type === "select") ? f.type : "text",
+          showOnRoster: Boolean(f.showOnRoster),
+          required:     Boolean(f.required),
+        });
+      }
+    }
     return {
       enabledWorkflows: parsed.enabledWorkflows.filter((w): w is string => typeof w === "string"),
       shownWidgets: parsed.shownWidgets.filter((w): w is string => typeof w === "string"),
       vocabulary,
       thresholds,
       roles,
+      customMemberFields,
       rationale: typeof parsed.rationale === "string" ? parsed.rationale : "",
     };
   } catch (e) {

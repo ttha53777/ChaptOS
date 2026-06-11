@@ -7,6 +7,7 @@ import { WORKFLOW_FEATURES, normalizeDisabledFeatures, type DisabledFeatures } f
 import { VOCAB_KEYS, DEFAULT_LABELS, type VocabKey } from "@/lib/vocab";
 import { PERMISSIONS, type Permission } from "@/lib/permissions";
 import { THRESHOLD_KEYS, DEFAULT_THRESHOLDS, resolveThresholds, type Thresholds } from "@/lib/thresholds";
+import { generateFieldId, type CustomMemberFieldDef } from "@/lib/custom-member-fields";
 
 // POST /api/ai/recommend-setup — suggest a starting org setup from a free-text
 // description, for the post-creation onboarding step. The model only PROPOSES;
@@ -47,7 +48,33 @@ export interface ValidatedRecommendation {
   vocabularyOverrides: Partial<Record<VocabKey, string>>;
   thresholds: Thresholds;                      // resolved (clamped + defaults filled)
   roles: ValidatedRole[];                      // non-founder roles only
+  customMemberFields: CustomMemberFieldDef[];  // 0–5 proposed fields with server-generated ids
   rationale: string;
+}
+
+const MAX_AI_FIELDS = 5;
+const ALLOWED_FIELD_TYPES = new Set(["text", "number", "select"]);
+
+/** Validate + generate ids for AI-proposed custom member field definitions. */
+function validateCustomMemberFields(raw: NonNullable<RawSetupRecommendation["customMemberFields"]>): CustomMemberFieldDef[] {
+  const usedIds: string[] = [];
+  return raw
+    .slice(0, MAX_AI_FIELDS)
+    .filter(f => typeof f.label === "string" && f.label.trim().length > 0)
+    .map((f, i) => {
+      const label = f.label.trim().slice(0, 64);
+      const id = generateFieldId(label, usedIds);
+      usedIds.push(id);
+      return {
+        id,
+        label,
+        type: ALLOWED_FIELD_TYPES.has(f.type) ? f.type : "text",
+        showOnRoster: Boolean(f.showOnRoster),
+        required: Boolean(f.required),
+        rosterOrder: i,
+      } satisfies CustomMemberFieldDef;
+    })
+    .filter((f, i, arr) => arr.findIndex(x => x.id === f.id) === i);
 }
 
 /** Map permission NAMES to a bitfield, dropping any unknown name. */
@@ -107,12 +134,16 @@ export function validateRecommendation(raw: RawSetupRecommendation): ValidatedRe
       color: typeof r.color === "string" && COLOR_RE.test(r.color) ? r.color : DEFAULT_ROLE_COLOR,
     });
   }
+  const customMemberFields = validateCustomMemberFields(
+    Array.isArray(raw.customMemberFields) ? raw.customMemberFields : [],
+  );
   return {
     enabledWorkflows,
     disabledFeatures,
     vocabularyOverrides,
     thresholds,
     roles,
+    customMemberFields,
     rationale: typeof raw.rationale === "string" ? raw.rationale.slice(0, 200) : "",
   };
 }
@@ -146,6 +177,14 @@ THRESHOLDS (member-status cutoffs) — return all five numbers in "thresholds". 
 ROLES — propose 2–4 officer roles in "roles" that fit the org (e.g. team → Captain, Co-Captain, Coach; club → President, Vice President, Treasurer, Secretary). Do NOT propose the top admin/founder role — it's added automatically at rank 100. Each role: a short "name", a "rank" 0–90 (higher = more senior), a "color" hex like "#10B981", and "permissions" — an array of ONLY these exact names, just the ones that role needs:
 ${Object.keys(PERMISSIONS).map(p => `  - ${p}`).join("\n")}
 e.g. a Treasurer gets ["MANAGE_TREASURY"]; a generalist VP might get several. Empty permissions for a purely honorific role.
+
+CUSTOM MEMBER FIELDS — propose 2–4 fields that this org type commonly tracks per-person. Return them in "customMemberFields". Each field: a short "label", a "type" ("text", "number", or "select"), "showOnRoster" (true if this belongs as a visible roster column), and "required" (true only if the field is essential). Return [] if custom fields don't make sense for this org.
+Examples by org type:
+  - Fraternity/sorority: [{label:"Pledge Class",type:"text",showOnRoster:true,required:false},{label:"Major",type:"text",showOnRoster:false,required:false}]
+  - Marching band: [{label:"Instrument",type:"text",showOnRoster:true,required:false},{label:"Section",type:"text",showOnRoster:true,required:false}]
+  - Sports team: [{label:"Jersey #",type:"number",showOnRoster:true,required:false},{label:"Position",type:"text",showOnRoster:true,required:false}]
+  - Generic club: [{label:"Major",type:"text",showOnRoster:false,required:false},{label:"Graduation Year",type:"number",showOnRoster:false,required:false}]
+Keep the list short (2–4 fields). Only include fields the org type commonly tracks.
 
 Return concise choices. The "rationale" is ONE short sentence (max ~20 words) the founder reads to understand the suggestion. No markdown.`;
 }
