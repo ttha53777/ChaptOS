@@ -243,6 +243,8 @@ table {
   border-radius: 999px; padding: 5px 12px; font-family: var(--sans); font-size: 12.5px; color: var(--ink-60);
   transition: border-color var(--ease), color var(--ease), background var(--ease); }
 .auth-scope .starter:hover { border-color: var(--vio-line); color: var(--ink); background: var(--vio-soft); }
+/* Selected state for multi-select choice pills. */
+.auth-scope .starter.on { border-color: var(--vio-line); color: var(--ink); background: var(--vio-soft); }
 
 .auth-scope .auth-status { min-height: 18px; font-size: 12.5px; display: flex; align-items: center; gap: 7px; margin-top: 9px; }
 .auth-scope .auth-status.ok { color: var(--ok); }

@@ -24,6 +24,10 @@ export async function GET() {
         select: {
           name: true,
           slug: true,
+          // The org-type registry key (lib/org-types.ts) chosen at creation. The
+          // onboarding AI interview uses it as a starting prior so its questions
+          // and proposal begin from that template instead of cold.
+          orgType: true,
           // Org profile picture for the sidebar/login badge — null falls back to
           // the gradient initials badge. Pulled in the same round-trip as name.
           logoUrl: true,
@@ -82,6 +86,7 @@ export async function GET() {
         ? {
             name: org.name,
             slug: org.slug,
+            orgType: org.orgType ?? null,
             logoUrl: org.logoUrl ?? null,
             // Fall back to the full set when a config row is somehow absent (the
             // Milestone-1 migration backfills every org, so this is belt-and-

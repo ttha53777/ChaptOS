@@ -103,6 +103,11 @@ const STARTER_CHIPS: { label: string; seed: string }[] = [
   { label: "Greek life",      seed: "We're a fraternity/sorority chapter — brothers, chapter meetings, attendance, dues, service hours, and social events." },
 ];
 
+// Sentinel the founder's "Build my setup now" button sends. The setup-chat
+// system prompt keys off this exact string to propose immediately instead of
+// asking another question. Kept in sync with route.ts's BUILD_NOW.
+const BUILD_NOW = "[BUILD_NOW]";
+
 export default function OnboardingPage() {
   const router = useRouter();
   const orgPath = useOrgPath();
@@ -137,9 +142,15 @@ export default function OnboardingPage() {
   const [draft, setDraft] = useState("");          // the in-progress chat input
   const [thinking, setThinking] = useState(false); // a reply is streaming
   const [recError, setRecError] = useState<string | null>(null);
+  // Suggested answers for the assistant's latest question (from the setup-chat
+  // `choices` event). `multi` lets the founder pick several before sending;
+  // `picked` tracks the selection in that mode. Cleared at the start of every send.
+  const [choices, setChoices] = useState<string[]>([]);
+  const [choicesMulti, setChoicesMulti] = useState(false);
+  const [picked, setPicked] = useState<Set<string>>(new Set());
   // The conversation transcript. The assistant opens with one question.
   const [chat, setChat] = useState<{ role: "user" | "assistant"; content: string }[]>([
-    { role: "assistant", content: "Welcome to ChaptOS! Tell me more about your organization ... " },
+    { role: "assistant", content: "Welcome! To get started, what kind of organization is this and what do you want to keep track of?" },
   ]);
   // The assistant's one-line rationale from the proposal — shown in the collapsed
   // review header so the conversation's conclusion stays visible.
@@ -206,15 +217,26 @@ export default function OnboardingPage() {
   }
 
   // Send the founder's message + stream the assistant's reply from setup-chat.
-  // `text` defaults to the input draft, but a starter chip passes its seed in
-  // directly. Appends `text` deltas to a live assistant bubble; on a `proposal`
-  // event, seeds the review cards below. Degrades gracefully on any stream error.
+  // `text` defaults to the input draft; a starter chip or a choice pill passes
+  // its value in directly. Appends `text` deltas to a live assistant bubble; on
+  // a `choices` event surfaces one-tap answers; on a `proposal` event seeds the
+  // review cards below. Degrades gracefully on any stream error.
+  //
+  // The BUILD_NOW sentinel is special: the API needs the literal "[BUILD_NOW]"
+  // (the prompt keys off it to propose immediately), but the transcript should
+  // show a friendly "Build my setup" bubble — so display and payload diverge.
   async function sendMessage(text: string = draft) {
     const msg = text.trim();
     if (thinking || !msg) return;
-    const nextChat = [...chat, { role: "user" as const, content: msg }];
-    setChat([...nextChat, { role: "assistant" as const, content: "" }]);
+    const isBuildNow = msg === BUILD_NOW;
+    const displayMsg = isBuildNow ? "Build my setup" : msg;
+    // What the transcript shows; what the API receives (carries the sentinel).
+    const displayChat = [...chat, { role: "user" as const, content: displayMsg }];
+    const payloadChat = [...chat, { role: "user" as const, content: msg }];
+    setChat([...displayChat, { role: "assistant" as const, content: "" }]);
     setDraft(""); // the auto-grow effect (keyed on draft) collapses the composer
+    setChoices([]); // stale suggestions don't outlive the question they answered
+    setPicked(new Set()); // clear any in-progress multi-select selection
     setThinking(true);
     setRecError(null);
 
@@ -230,16 +252,21 @@ export default function OnboardingPage() {
       const res = await fetch("/api/ai/setup-chat", {
         method: "POST",
         headers: { "Content-Type": "application/json", ...(currentOrgSlug() ? { [ORG_SLUG_HEADER]: currentOrgSlug()! } : {}) },
-        body: JSON.stringify({ messages: nextChat }),
+        body: JSON.stringify({ messages: payloadChat, orgType: currentUser?.org?.orgType ?? undefined }),
       });
       if (!res.ok || !res.body) throw new Error("stream failed");
 
       let sawAny = false;
+      let nextChoices: string[] = [];
+      let nextMulti = false;
       for await (const { event, data: dataStr } of iterSSE(res.body)) {
         const data = JSON.parse(dataStr);
         if (event === "text" && typeof data.delta === "string") {
           sawAny = true;
           appendToAssistant(data.delta);
+        } else if (event === "choices" && Array.isArray(data.choices)) {
+          nextChoices = data.choices.filter((c: unknown): c is string => typeof c === "string");
+          nextMulti = data.multi === true;
         } else if (event === "proposal" && data.recommendation) {
           seedFromRecommendation(data.recommendation as SetupRecommendation);
         }
@@ -248,6 +275,8 @@ export default function OnboardingPage() {
       if (!sawAny) {
         setChat(prev => prev[prev.length - 1]?.content === "" ? prev.slice(0, -1) : prev);
       }
+      setChoices(nextChoices); // surface this question's choices (empty if none)
+      setChoicesMulti(nextMulti);
     } catch {
       setChat(prev => prev[prev.length - 1]?.content === "" ? prev.slice(0, -1) : prev);
       setRecError("Couldn't reach the assistant. You can still set things up manually below.");
@@ -385,7 +414,7 @@ export default function OnboardingPage() {
             </h1>
             <p className="auth-lede">
               {aiOn && !recommended
-                ? <>Answer one quick question and I&rsquo;ll tailor {orgName}&rsquo;s pages, dashboard, labels, roles, and cutoffs. You can change everything before you finish.</>
+                ? <>Tell me a bit about how {orgName} runs and I&rsquo;ll tailor its pages, dashboard, labels, roles, and cutoffs. You can change everything before you finish.</>
                 : <>Review what&rsquo;s set up for <strong>{orgName}</strong> and adjust anything. You can change it all later in Settings.</>}
             </p>
 
@@ -425,6 +454,54 @@ export default function OnboardingPage() {
                     </div>
                   )}
 
+                  {/* Suggested answers for the assistant's latest question. Pick-one
+                      questions send on tap; pick-many questions let the founder
+                      toggle several pills then hit Done. The composer stays open for
+                      a free-typed answer in either mode. */}
+                  {choices.length > 0 && !thinking && (
+                    choicesMulti ? (
+                      <div className="starter-row" style={{ flexDirection: "column", alignItems: "flex-start", gap: 10 }}>
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
+                          {choices.map((c) => {
+                            const on = picked.has(c);
+                            return (
+                              <button
+                                key={c}
+                                type="button"
+                                className={`starter${on ? " on" : ""}`}
+                                aria-pressed={on}
+                                onClick={() => setPicked(prev => {
+                                  const next = new Set(prev);
+                                  if (next.has(c)) next.delete(c); else next.add(c);
+                                  return next;
+                                })}
+                              >
+                                {on ? "✓ " : ""}{c}
+                              </button>
+                            );
+                          })}
+                        </div>
+                        <button
+                          type="button"
+                          className="auth-btn-vio"
+                          style={{ width: "auto", padding: "8px 18px", fontSize: 13 }}
+                          disabled={picked.size === 0}
+                          onClick={() => void sendMessage(choices.filter(c => picked.has(c)).join(", "))}
+                        >
+                          Done{picked.size > 0 ? ` (${picked.size})` : ""}
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="starter-row">
+                        {choices.map((c) => (
+                          <button key={c} type="button" className="starter" onClick={() => void sendMessage(c)}>
+                            {c}
+                          </button>
+                        ))}
+                      </div>
+                    )
+                  )}
+
                   {/* Composer — one unified surface: textarea + send inside a single
                       focusable pill. The auto-grow effect (keyed on draft) sizes it. */}
                   <div className="composer">
@@ -436,7 +513,7 @@ export default function OnboardingPage() {
                       onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void sendMessage(); } }}
                       maxLength={800}
                       disabled={thinking}
-                      placeholder="Tell me about your organization…"
+                      placeholder="Type your answer…"
                       autoFocus
                     />
                     <button
@@ -455,6 +532,18 @@ export default function OnboardingPage() {
                         )}
                     </button>
                   </div>
+                  {/* Skip-ahead: once the founder has answered at least once, they
+                      can build from what's known so far instead of answering more. */}
+                  {chat.length > 1 && !thinking && (
+                    <button
+                      type="button"
+                      className="auth-link"
+                      style={{ alignSelf: "center", marginTop: 2 }}
+                      onClick={() => void sendMessage(BUILD_NOW)}
+                    >
+                      Build my setup now →
+                    </button>
+                  )}
                   {recError && (
                     <p className="auth-status err" role="alert" style={{ marginTop: 2 }}>{recError}</p>
                   )}

@@ -77,7 +77,7 @@ export interface CurrentUser {
    *  read via useThresholds() rather than directly.
    *  `disabledFeatures` is the OPT-OUT map of hidden page sections (workflow id →
    *  feature ids) — read via useFeature() rather than directly. */
-  org: { name: string; slug: string; logoUrl: string | null; enabledWorkflows: string[]; vocabularyOverrides: Record<string, string>; thresholds: Thresholds; disabledFeatures: Record<string, string[]> } | null;
+  org: { name: string; slug: string; orgType: string | null; logoUrl: string | null; enabledWorkflows: string[]; vocabularyOverrides: Record<string, string>; thresholds: Thresholds; disabledFeatures: Record<string, string[]> } | null;
   orgId: number;
   /** All orgs this user belongs to. UI renders a switcher when length > 1. */
   memberships: MembershipSummary[];
