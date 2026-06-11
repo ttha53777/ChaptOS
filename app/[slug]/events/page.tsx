@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Sidebar } from "../../components/Sidebar";
 import { UserAvatar } from "../../components/UserAvatar";
 import { Modal, ConfirmDialog } from "../../components/dashboard/primitives";
@@ -8,6 +8,7 @@ import { AddProgrammingTaskForm } from "../../components/dashboard/forms";
 import { ProgrammingBoard } from "../../components/programming/ProgrammingBoard";
 import { ProgrammingCalendarView } from "../../components/programming/ProgrammingCalendarView";
 import { ProgrammingInspector } from "../../components/programming/ProgrammingInspector";
+import { ProgrammingTable } from "../../components/programming/ProgrammingTable";
 import type { ProgrammingTask, TaskStatus } from "../../data";
 import { useChapter } from "../../context/ChapterContext";
 import { requestJson } from "../../lib/api";
@@ -15,7 +16,7 @@ import type { ProgrammingStage } from "@/lib/state/programming-stage";
 
 const TYPE_FILTERS = ["All", "Program", "Social", "Fundraiser", "Community Service"] as const;
 type TypeFilter = (typeof TYPE_FILTERS)[number];
-type View = "board" | "calendar";
+type View = "board" | "calendar" | "table";
 
 type ApiPatch = Record<string, unknown>;
 
@@ -36,10 +37,41 @@ export default function ProgrammingPage() {
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("All");
   const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [isClosingDrawer, setIsClosingDrawer] = useState(false);
   const [modal, setModal] = useState<"add" | "edit" | null>(null);
   const [editTarget, setEditTarget] = useState<ProgrammingTask | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ProgrammingTask | null>(null);
   const [promotePrompt, setPromotePrompt] = useState<{ id: number; stage: ProgrammingStage } | null>(null);
+
+  // Animate the inspector drawer out before unmounting.
+  const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const closeDrawer = useCallback(() => {
+    setIsClosingDrawer(true);
+    closeTimerRef.current = setTimeout(() => { setSelectedId(null); setIsClosingDrawer(false); }, 280);
+  }, []);
+
+  // Escape key closes the inspector (or modals — Modal component handles its own Escape).
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape" && selectedId !== null && modal === null) closeDrawer();
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [selectedId, modal, closeDrawer]);
+
+  // Click-outside closes the inspector on desktop (mobile uses the backdrop).
+  const panelRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!selectedId || isClosingDrawer) return;
+    function onPointerDown(e: PointerEvent) {
+      if (panelRef.current && !panelRef.current.contains(e.target as Node)) {
+        closeDrawer();
+      }
+    }
+    // Use pointerdown so it fires before any click handlers on the board.
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => document.removeEventListener("pointerdown", onPointerDown);
+  }, [selectedId, isClosingDrawer, closeDrawer]);
 
   useEffect(() => {
     requestJson<ProgrammingTask[]>("/api/programming")
@@ -191,7 +223,7 @@ export default function ProgrammingPage() {
             <p className="hidden text-[11px] leading-tight text-slate-400 sm:block">{currentUser?.org?.name ?? "ChaptOS"} · Plan &amp; track org events</p>
           </div>
           <div className="flex items-center rounded-lg border border-white/[0.08] bg-white/[0.02] p-0.5 text-[12px]">
-            {(["board", "calendar"] as View[]).map(v => (
+            {(["board", "calendar", "table"] as View[]).map(v => (
               <button key={v} onClick={() => setView(v)}
                 className={`rounded-md px-3 py-1 font-medium capitalize transition-colors ${view === v ? "bg-white/[0.10] text-white" : "text-slate-400 hover:text-slate-200"}`}>
                 {v}
@@ -252,50 +284,64 @@ export default function ProgrammingPage() {
                 </div>
               </div>
 
-              <div className={`grid gap-4 ${selected ? "xl:grid-cols-[minmax(0,1fr)_380px]" : "grid-cols-1"}`}>
+              <div className={`grid gap-4 ${(selected || isClosingDrawer) ? "xl:grid-cols-[minmax(0,1fr)_380px]" : "grid-cols-1"}`}>
                 <div className="min-w-0">
                   {view === "board" ? (
                     <ProgrammingBoard
                       tasks={filtered}
                       selectedId={selectedId}
                       canManage={canManage}
-                      onSelect={id => setSelectedId(id === selectedId ? null : id)}
+                      onSelect={id => {
+                        if (id === selectedId) { closeDrawer(); return; }
+                        // Cancel any in-flight close animation, then swap to the new card.
+                        if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
+                        setIsClosingDrawer(false);
+                        setSelectedId(id);
+                      }}
                       onMoveStage={moveStage}
                     />
-                  ) : (
+                  ) : view === "calendar" ? (
                     <ProgrammingCalendarView
                       tasks={filtered}
                       selectedId={selectedId}
-                      onSelect={id => setSelectedId(id === selectedId ? null : id)}
+                      onSelect={id => {
+                        if (id === selectedId) { closeDrawer(); return; }
+                        if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
+                        setIsClosingDrawer(false);
+                        setSelectedId(id);
+                      }}
+                    />
+                  ) : (
+                    <ProgrammingTable
+                      tasks={filtered}
+                      selectedId={selectedId}
+                      canManage={canManage}
+                      onSelect={id => {
+                        if (id === selectedId) { closeDrawer(); return; }
+                        if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
+                        setIsClosingDrawer(false);
+                        setSelectedId(id);
+                      }}
+                      onPatch={patchEvent}
                     />
                   )}
                 </div>
 
-                {selected && (
+                {(selected || isClosingDrawer) && (
                   <>
-                    {/* Mobile: full-screen drawer. Desktop (xl+): inline side panel. */}
-                    <div
-                      onClick={() => setSelectedId(null)}
-                      className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm xl:hidden"
-                    />
-                    <div className="fixed inset-x-0 bottom-0 top-14 z-50 overflow-hidden rounded-t-2xl border-t border-white/[0.1] xl:static xl:inset-auto xl:top-auto xl:z-auto xl:min-h-[420px] xl:rounded-none xl:border-0">
-                      <button
-                        onClick={() => setSelectedId(null)}
-                        className="absolute right-3 top-3 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-white/[0.08] text-slate-300 hover:bg-white/[0.15] xl:hidden"
-                        aria-label="Close"
-                      >
-                        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                      </button>
-                      <ProgrammingInspector
-                        event={selected}
-                        canManage={canManage}
-                        onPatch={patchEvent}
-                        onStage={moveStage as unknown as (id: number, stage: ProgrammingStage) => Promise<void>}
-                        onEdit={() => openEdit(selected)}
-                        onDelete={() => setDeleteTarget(selected)}
-                      />
+                    {/* Mobile: dimmed backdrop behind the drawer. */}
+                    <div className={`fixed inset-0 z-40 bg-black/60 backdrop-blur-sm transition-opacity duration-[280ms] xl:hidden ${isClosingDrawer ? "opacity-0" : "opacity-100"}`} />
+                    <div ref={panelRef} className={`fixed inset-x-0 bottom-0 top-14 z-50 overflow-hidden rounded-t-2xl border-t border-white/[0.1] transition-[transform,opacity] duration-[280ms] ease-in-out xl:static xl:inset-auto xl:top-auto xl:z-auto xl:min-h-[420px] xl:rounded-none xl:border-0 xl:opacity-100 xl:translate-y-0 ${isClosingDrawer ? "translate-y-full opacity-0" : "translate-y-0 opacity-100"}`}>
+                      {selected && (
+                        <ProgrammingInspector
+                          event={selected}
+                          canManage={canManage}
+                          onPatch={patchEvent}
+                          onStage={moveStage as unknown as (id: number, stage: ProgrammingStage) => Promise<void>}
+                          onEdit={() => openEdit(selected)}
+                          onDelete={() => setDeleteTarget(selected)}
+                        />
+                      )}
                     </div>
                   </>
                 )}

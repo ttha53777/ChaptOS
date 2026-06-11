@@ -159,6 +159,8 @@ table {
 .auth-scope .auth-col.wide { max-width: 540px; }
 @keyframes auth-rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
 @keyframes review-rise { from { opacity: 0; transform: translateY(28px) scale(0.97); } to { opacity: 1; transform: none; } }
+@keyframes fade-slide-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+.animate-fade-slide-in { animation: fade-slide-in 200ms ease-out both; }
 
 .auth-scope .auth-index { font-family: var(--mono); font-size: 11px; letter-spacing: .18em; color: var(--vio);
   text-transform: uppercase; margin-bottom: 20px; display: flex; align-items: center; gap: 10px; }

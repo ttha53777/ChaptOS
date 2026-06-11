@@ -21,12 +21,16 @@ export function ProgrammingCard({
   task,
   selected,
   draggable = true,
+  isDragging = false,
+  animIndex = 0,
   onClick,
   onDragStart,
 }: {
   task: ProgrammingTask;
   selected: boolean;
   draggable?: boolean;
+  isDragging?: boolean;
+  animIndex?: number;
   onClick: () => void;
   onDragStart: () => void;
 }) {
@@ -40,13 +44,16 @@ export function ProgrammingCard({
       draggable={draggable}
       onDragStart={draggable ? onDragStart : undefined}
       onClick={onClick}
-      className={`cursor-pointer rounded-lg border p-3 transition-colors ${
-        selected
-          ? "border-indigo-500/40 bg-indigo-500/[0.06] ring-1 ring-inset ring-indigo-500/20"
-          : isDone
-            ? "border-white/[0.06] bg-[#0e1119] opacity-80 hover:opacity-100"
-            : "border-white/[0.07] bg-[#10131c] hover:border-white/[0.14]"
+      className={`animate-fade-slide-in cursor-pointer rounded-lg border p-3 transition-[colors,opacity,transform] duration-150 ${
+        isDragging
+          ? "scale-95 opacity-40"
+          : selected
+            ? "border-indigo-500/40 bg-indigo-500/[0.06] ring-1 ring-inset ring-indigo-500/20"
+            : isDone
+              ? "border-white/[0.06] bg-[#0e1119] opacity-80 hover:opacity-100"
+              : "border-white/[0.07] bg-[#10131c] hover:border-white/[0.14]"
       }`}
+      style={{ animationDelay: `${Math.min(animIndex, 6) * 40}ms` }}
     >
       <div className="mb-1.5 flex items-center justify-between gap-1.5">
         <TypeBadge type={task.type} />

@@ -10,6 +10,8 @@ import React, { useEffect, useRef, useState } from "react";
  * palette. Pages supply a `columns` config and `rows`; cell behavior is declared
  * per column via a `kind` + accessor/patch callbacks. Group bands (e.g. months)
  * are passed as ordered sections so the grid can render spanning header rows.
+ * Columns may declare a `summary` to get an aggregate footer row (pinned to the
+ * bottom of the scroll area), like a CRM grid's sum/avg bar.
  *
  * This is the shared primitive behind matrix-style pages (Programming today,
  * Service / Parties later). Keep it page-agnostic — anything domain-specific
@@ -43,6 +45,8 @@ export interface SheetColumn<Row> {
   accent?: boolean;
   /** Render the cell. Receives the row and the shared edit-permission flag. */
   render: (row: Row, canManage: boolean) => React.ReactNode;
+  /** Aggregate across all rows, shown in the pinned footer (e.g. a sum). */
+  summary?: (rows: Row[]) => React.ReactNode;
 }
 
 export interface SheetSection<Row> {
@@ -75,16 +79,23 @@ export function SheetGrid<Row extends { id: number }>({
   onSelectRow?: (id: number) => void;
 }) {
   const totalCols = columns.length + 1; // + leading row-number column
+  const allRows = sections.flatMap(s => s.rows);
+  const hasSummary = columns.some(c => c.summary);
 
   return (
     <div className="overflow-hidden rounded-xl border border-white/[0.08] bg-[#0a0c12] shadow-[0_24px_70px_-46px_rgba(0,0,0,0.95)] ring-1 ring-inset ring-white/[0.02]">
-      <div className="flex h-9 items-center gap-2 border-b border-white/[0.06] bg-gradient-to-b from-[#161a26] to-[#12151f] px-3.5">
-        <div className="flex h-4 w-4 items-center justify-center rounded-[5px] bg-indigo-500/15 ring-1 ring-inset ring-indigo-400/25">
-          <div className="h-1.5 w-1.5 rounded-full bg-indigo-400" />
+      <div className="flex h-10 items-center gap-2.5 border-b border-white/[0.06] bg-gradient-to-b from-[#141826] to-[#10131d] px-3.5">
+        <div className="flex h-5 w-5 items-center justify-center rounded-md bg-indigo-500/15 ring-1 ring-inset ring-indigo-400/25">
+          <svg className="h-3 w-3 text-indigo-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" d="M3 9h18M3 15h18M9 4v16M4 4h16a1 1 0 011 1v14a1 1 0 01-1 1H4a1 1 0 01-1-1V5a1 1 0 011-1z" />
+          </svg>
         </div>
-        <p className="text-[11.5px] font-semibold tracking-tight text-slate-200">{title}</p>
+        <p className="text-[12px] font-semibold tracking-tight text-slate-200">{title}</p>
         {badge && (
-          <span className="rounded-md bg-white/[0.04] px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-slate-500 ring-1 ring-inset ring-white/[0.04]">{badge}</span>
+          <span className="rounded-full bg-white/[0.05] px-2 py-0.5 text-[10px] font-medium tabular-nums text-slate-400 ring-1 ring-inset ring-white/[0.06]">{badge}</span>
+        )}
+        {onSelectRow && (
+          <span className="ml-auto hidden text-[10.5px] text-slate-600 sm:block">Click a row to open</span>
         )}
       </div>
 
@@ -109,22 +120,28 @@ export function SheetGrid<Row extends { id: number }>({
           <tbody>
             {sections.length === 0 ? (
               <tr>
-                <td colSpan={totalCols} className="border-b border-white/[0.06] py-16 text-center text-slate-500">
-                  {emptyLabel}
+                <td colSpan={totalCols} className="border-b border-white/[0.06] py-16 text-center">
+                  <div className="flex flex-col items-center gap-2 text-slate-500">
+                    <svg className="h-6 w-6 text-slate-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
+                      <path strokeLinecap="round" d="M3 9h18M3 15h18M9 4v16M4 4h16a1 1 0 011 1v14a1 1 0 01-1 1H4a1 1 0 01-1-1V5a1 1 0 011-1z" />
+                    </svg>
+                    {emptyLabel}
+                  </div>
                 </td>
               </tr>
             ) : (
               sections.map(section => (
                 <React.Fragment key={section.key}>
                   <tr>
-                    <td className="sticky left-0 z-[1] border-r border-b border-white/[0.06] bg-[#0d1018] px-2 py-2" aria-hidden />
+                    <td className="sticky left-0 z-[1] border-r border-b border-white/[0.06] bg-[#0d1018] px-2 py-1.5" aria-hidden />
                     <td
                       colSpan={columns.length}
-                      className="border-b border-white/[0.06] bg-[#0d1018] px-3 py-2 text-[10.5px] font-semibold uppercase tracking-[0.14em] text-slate-500"
+                      className="border-b border-white/[0.06] bg-[#0d1018] px-3 py-1.5"
                     >
                       <span className="inline-flex items-center gap-2">
                         <span className="h-3 w-0.5 rounded-full bg-indigo-400/70" />
-                        {section.label}
+                        <span className="text-[11px] font-semibold text-slate-300">{section.label}</span>
+                        <span className="rounded bg-white/[0.05] px-1.5 py-px text-[9.5px] font-medium tabular-nums text-slate-500">{section.rows.length}</span>
                       </span>
                     </td>
                   </tr>
@@ -143,6 +160,26 @@ export function SheetGrid<Row extends { id: number }>({
               ))
             )}
           </tbody>
+
+          {hasSummary && allRows.length > 0 && (
+            <tfoot>
+              <tr>
+                <td className="sticky bottom-0 left-0 z-20 border-r border-t border-white/[0.07] bg-[#10131d] px-2 py-1.5 text-center text-[10px] text-slate-600">
+                  Σ
+                </td>
+                {columns.map(col => (
+                  <td
+                    key={col.key}
+                    className={`sticky bottom-0 z-10 border-t border-white/[0.07] bg-[#10131d] px-2.5 py-1.5 text-[10.5px] font-medium tabular-nums text-slate-400 ${
+                      col.align === "center" ? "text-center" : ""
+                    }`}
+                  >
+                    {col.summary?.(allRows) ?? null}
+                  </td>
+                ))}
+              </tr>
+            </tfoot>
+          )}
         </table>
       </div>
     </div>
@@ -150,7 +187,7 @@ export function SheetGrid<Row extends { id: number }>({
 }
 
 const HEADER_BASE =
-  "border-b border-white/[0.07] bg-[#11141d] px-2.5 py-2 text-[10px] font-semibold uppercase tracking-[0.09em] text-slate-500";
+  "h-8 border-b border-white/[0.07] border-r border-r-white/[0.04] bg-[#10131d] px-2.5 text-[11px] font-medium text-slate-400 transition-colors hover:bg-[#141828] hover:text-slate-300";
 
 function HeaderChip({
   label,
@@ -176,7 +213,7 @@ function HeaderChip({
         width,
         className,
         sticky ? "sticky left-0 z-20" : "",
-        accent ? "text-slate-400" : "",
+        accent ? "text-slate-300" : "",
       ]
         .filter(Boolean)
         .join(" ")}
@@ -189,7 +226,7 @@ function HeaderChip({
   );
 }
 
-const CELL = "border-b border-white/[0.05] px-2.5 py-2 align-middle";
+const CELL = "h-9 border-b border-white/[0.04] border-r border-r-white/[0.03] px-2.5 py-1.5 align-middle";
 
 function SheetRow<Row extends { id: number }>({
   row,
@@ -209,28 +246,50 @@ function SheetRow<Row extends { id: number }>({
   return (
     <tr
       onClick={() => onSelect?.(row.id)}
-      className={`group transition-colors ${onSelect ? "cursor-pointer" : ""} ${
+      tabIndex={onSelect ? 0 : undefined}
+      onKeyDown={e => {
+        if (onSelect && (e.key === "Enter" || e.key === " ") && e.target === e.currentTarget) {
+          e.preventDefault();
+          onSelect(row.id);
+        }
+      }}
+      className={`group transition-colors focus-visible:outline-none ${onSelect ? "cursor-pointer" : ""} ${
         selected
-          ? "bg-indigo-500/[0.09]"
-          : "bg-[#0a0c12] hover:bg-white/[0.02]"
+          ? "bg-indigo-500/[0.08]"
+          : "bg-[#0a0c12] hover:bg-white/[0.025] focus-visible:bg-white/[0.04]"
       }`}
     >
       <td
-        className={`${CELL} sticky left-0 z-[1] w-10 border-r border-white/[0.06] bg-inherit text-center text-[10px] tabular-nums ${
-          selected ? "font-semibold text-indigo-300" : "text-slate-700 group-hover:text-slate-500"
+        className={`${CELL} sticky left-0 z-[1] w-10 border-r-white/[0.06] bg-inherit text-center text-[10px] tabular-nums ${
+          selected
+            ? "font-semibold text-indigo-300 shadow-[inset_2px_0_0_0_rgba(129,140,248,0.9)]"
+            : "text-slate-700"
         }`}
       >
         {selected ? (
           <span className="inline-block h-1.5 w-1.5 rounded-full bg-indigo-400" />
         ) : (
-          rowNumber
+          <>
+            <span className={onSelect ? "group-hover:hidden" : ""}>{rowNumber}</span>
+            {onSelect && (
+              <svg
+                className="mx-auto hidden h-3 w-3 text-slate-400 group-hover:block"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={2}
+                aria-hidden
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 4h5v5M20 4l-7 7M9 20H4v-5M4 20l7-7" />
+              </svg>
+            )}
+          </>
         )}
       </td>
       {columns.map(col => (
         <td
           key={col.key}
           className={`${CELL} ${col.align === "center" ? "text-center" : ""}`}
-          onClick={ev => ev.stopPropagation()}
         >
           {col.render(row, canManage)}
         </td>
@@ -348,6 +407,7 @@ export function SheetTextCell({
       value={draft}
       placeholder={placeholder}
       className={`${SHEET_INPUT} ${className}`}
+      onClick={e => e.stopPropagation()}
       onChange={e => setDraft(e.target.value)}
       onBlur={() => {
         const next = type === "number" ? draft : draft.trim();
@@ -382,8 +442,9 @@ export function SheetCheckboxCell({
       type="checkbox"
       checked={checked}
       disabled={!canManage}
+      onClick={e => e.stopPropagation()}
       onChange={e => onChange(e.target.checked)}
-      className="h-3.5 w-3.5 accent-indigo-500"
+      className={`h-4 w-4 rounded accent-indigo-500 ${canManage ? "cursor-pointer" : ""}`}
     />
   );
 }
@@ -405,7 +466,8 @@ export function SheetLinkCell({
         href={url}
         target="_blank"
         rel="noopener noreferrer"
-        className="inline-flex items-center gap-1 rounded-md border border-white/[0.08] bg-white/[0.03] px-2 py-0.5 text-[11px] text-indigo-300 hover:bg-indigo-500/10"
+        onClick={e => e.stopPropagation()}
+        className="inline-flex items-center gap-1 rounded-md border border-white/[0.08] bg-white/[0.03] px-2 py-0.5 text-[11px] text-indigo-300 transition-colors hover:border-indigo-500/30 hover:bg-indigo-500/10"
       >
         <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6M9 16h6M9 8h2M7 3h7l5 5v11a2 2 0 01-2 2H7a2 2 0 01-2-2V5a2 2 0 012-2z" />
@@ -416,7 +478,7 @@ export function SheetLinkCell({
   }
   if (canManage && onAdd) {
     return (
-      <button onClick={onAdd} className="text-[10px] text-slate-500 hover:text-indigo-400">
+      <button onClick={e => { e.stopPropagation(); onAdd(); }} className="cursor-pointer text-[10px] text-slate-500 transition-colors hover:text-indigo-400">
         Add
       </button>
     );

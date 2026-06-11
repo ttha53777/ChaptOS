@@ -36,6 +36,9 @@ export function ProgrammingDetailPanel({
   const [showAddDoc, setShowAddDoc] = useState(false);
   const [docSubmitting, setDocSubmitting] = useState(false);
   const [notes, setNotes] = useState(event.wrapUpNotes ?? "");
+  const [stageLoading, setStageLoading] = useState(false);
+  // Animate prep bar from 0 → real value on mount/event change.
+  const [prepPct, setPrepPct] = useState(0);
 
   const isPast = event.dueDate != null && event.dueDate < todayStr();
   const prep = programmingPrepScore(event);
@@ -43,6 +46,14 @@ export function ProgrammingDetailPanel({
   useEffect(() => {
     setNotes(event.wrapUpNotes ?? "");
   }, [event.id, event.wrapUpNotes]);
+
+  // Kick off prep-bar animation after first paint so the CSS transition fires.
+  useEffect(() => {
+    const id = requestAnimationFrame(() => {
+      setPrepPct(prep.total ? (prep.done / prep.total) * 100 : 0);
+    });
+    return () => cancelAnimationFrame(id);
+  }, [event.id, prep.done, prep.total]);
 
   useEffect(() => {
     setDocsLoading(true);
@@ -93,13 +104,26 @@ export function ProgrammingDetailPanel({
                 <span className="text-[11px] text-slate-500">w/ {event.collab}</span>
               )}
               {onStage && canManage && (
-                <select
-                  value={event.stage}
-                  onChange={e => onStage(event.id, e.target.value as ProgrammingStage)}
-                  className="rounded-md border border-white/[0.1] bg-white/[0.04] px-2 py-0.5 text-[11px] font-medium text-slate-200 focus:border-indigo-500/40 focus:outline-none"
-                >
-                  {STAGES.map(s => <option key={s} value={s} className="bg-[#10131c]">{STAGE_LABELS[s]}</option>)}
-                </select>
+                <div className="relative flex items-center">
+                  <select
+                    value={event.stage}
+                    disabled={stageLoading}
+                    onChange={async e => {
+                      setStageLoading(true);
+                      try { await onStage(event.id, e.target.value as ProgrammingStage); }
+                      finally { setStageLoading(false); }
+                    }}
+                    className={`rounded-md border border-white/[0.1] bg-white/[0.04] px-2 py-0.5 text-[11px] font-medium text-slate-200 focus:border-indigo-500/40 focus:outline-none transition-opacity ${stageLoading ? "opacity-40" : ""}`}
+                  >
+                    {STAGES.map(s => <option key={s} value={s} className="bg-[#10131c]">{STAGE_LABELS[s]}</option>)}
+                  </select>
+                  {stageLoading && (
+                    <svg className="ml-1.5 h-3 w-3 animate-spin text-slate-400" viewBox="0 0 24 24" fill="none">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"/>
+                    </svg>
+                  )}
+                </div>
               )}
             </div>
           </div>
@@ -121,8 +145,8 @@ export function ProgrammingDetailPanel({
           </div>
           <div className="h-1.5 overflow-hidden rounded-full bg-white/[0.06]">
             <div
-              className="h-full rounded-full bg-indigo-500 transition-all duration-300"
-              style={{ width: `${prep.total ? (prep.done / prep.total) * 100 : 0}%` }}
+              className="h-full rounded-full bg-indigo-500 transition-all duration-500 ease-out"
+              style={{ width: `${prepPct}%` }}
             />
           </div>
         </div>

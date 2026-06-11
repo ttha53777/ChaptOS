@@ -57,7 +57,7 @@ export function ProgrammingBoard({
             onDragOver={dndEnabled ? e => { e.preventDefault(); setOverStage(stage); } : undefined}
             onDragLeave={() => setOverStage(s => (s === stage ? null : s))}
             onDrop={dndEnabled ? () => handleDrop(stage) : undefined}
-            className={`flex min-w-0 flex-col rounded-xl border bg-[#0c0f16] transition-colors ${
+            className={`flex min-w-0 flex-col rounded-xl border bg-[#0c0f16] transition-colors duration-150 ${
               isOver ? "border-indigo-500/40 ring-1 ring-inset ring-indigo-500/20" : "border-white/[0.06]"
             }`}
           >
@@ -68,18 +68,20 @@ export function ProgrammingBoard({
                 <span className="rounded-full bg-white/[0.06] px-1.5 text-[10px] font-medium tabular-nums text-slate-400">{items.length}</span>
               </div>
             </div>
-            <div className="flex flex-col gap-2.5 p-2.5 sm:min-h-[120px]">
+            <div className={`flex flex-col gap-2.5 p-2.5 sm:min-h-[120px] transition-colors duration-150 ${isOver ? "bg-indigo-500/[0.05]" : ""}`}>
               {items.length === 0 ? (
                 <p className="px-1 py-4 text-center text-[11px] text-slate-600 sm:py-6">
                   {dndEnabled ? "Drop events here" : "Nothing here"}
                 </p>
               ) : (
-                items.map(task => (
+                items.map((task, i) => (
                   <ProgrammingCard
                     key={task.id}
                     task={task}
                     selected={selectedId === task.id}
                     draggable={dndEnabled}
+                    isDragging={dragId === task.id}
+                    animIndex={i}
                     onClick={() => onSelect(task.id)}
                     onDragStart={() => setDragId(task.id)}
                   />
