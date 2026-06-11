@@ -2,6 +2,8 @@
 
 Chapter operations platform — a single place to run any chapter-based organization. Tracks members, attendance, dues, GPA, service hours, deadlines, treasury and budget, party events, Instagram content, community-service hours, meeting notes, and a pinned chapter docs library, with a live activity log, a pinned announcement, and a weekly digest of what's on deck.
 
+Each org self-configures to its own shape: an AI onboarding interview tailors the enabled pages, vocabulary, status thresholds, officer roles, **custom per-member fields**, and **custom org-defined metrics** to the kind of organization being set up — a sports team, a marching band, a volunteer group, or a fraternity all get a fitting starting setup rather than a chapter-only one.
+
 Built as one operations dashboard with a dedicated, app-like mobile layout. Includes a tool-calling AI assistant ("Ask the Chapter") that answers questions and proposes write actions, backed by an offline eval harness for measuring answer quality.
 
 Multi-org: each Organization is a fully isolated tenant. One Google account can belong to multiple orgs and switch between them via an `active_org_id` cookie.
@@ -32,7 +34,9 @@ A few things worth showing off:
 - **Org-scoped DB wrapper with automatic tenancy injection.** `lib/db/tenant.ts` wraps every Prisma operation to inject `organizationId` automatically — services call `ctx.db.transaction.create(...)` and can't accidentally touch another org's data. `findUnique` is replaced by `findFirst + org filter`; updates and deletes run a verify-then-mutate pattern to preserve exact return types without needing composite unique constraints everywhere.
 - **Three-tier auth: PlatformAdmin → OrgAdmin → Member.** `buildContext()` in `lib/context` resolves all three tiers per request, emits a typed `RequestContext`, and optionally gates on a specific permission or rate-limits the caller. Route handlers open with `buildContext()`, parse with Zod, call a service, and map errors with `toResponse()` — no `prisma.*` calls in `app/api/**`.
 - **Side effects through events, never service-to-service calls.** Services call `emit(ctx, action, subject, metadata)` from `lib/events`. Reactions (recalcs, notifications, projections) live as `on(action, handler)` registrations in `lib/events/handlers/`. The event writer also dual-writes an `ActivityLog` row so the existing feed keeps working.
-- **Tool-calling AI assistant with self-correcting validation.** Eleven read tools + five write-proposal tools in one file ([lib/ai-tools.ts](lib/ai-tools.ts)) so schema and dispatcher can't drift. `validateArgs` walks the schema before dispatch — a wrong enum returns a structured error the model self-corrects on the next iteration.
+- **Tool-calling AI assistant with self-correcting validation.** Sixteen read tools + five write-proposal tools in one file ([lib/ai-tools.ts](lib/ai-tools.ts)) so schema and dispatcher can't drift. `validateArgs` walks the schema before dispatch — a wrong enum returns a structured error the model self-corrects on the next iteration.
+- **AI onboarding interview that configures the org safely.** A founder describes their organization in plain language; a conversational agent ([app/api/ai/setup-chat/route.ts](app/api/ai/setup-chat/route.ts)) runs an adaptive interview and *proposes* a starting setup — enabled workflows, vocabulary overrides, status thresholds, officer roles, and custom member fields. Every id/key the model returns is intersected with the real registries in [validateRecommendation()](app/api/ai/recommend-setup/route.ts) before it can reach the client or be persisted, so a hallucinated workflow or permission can never leak through.
+- **Org-defined custom fields and metrics.** Admins can add per-member fields (stored sparsely on `Brother.customFields`) and define their own KPIs (`OrgMetricDefinition` + `BrotherMetricValue`) with goal / watch / at-risk bands and an aggregation (`avg` / `sum` / `count_on_track`) — so a team can track "Jersey #" and a band can track "Section" without schema changes. Pure status/headline math lives in [lib/metrics.ts](lib/metrics.ts) and [lib/custom-member-fields.ts](lib/custom-member-fields.ts), importable from both server and client.
 - **Offline eval harness.** Hand-written cases at [evals/ask-the-chapter/cases.jsonl](evals/ask-the-chapter/cases.jsonl) drive the same loop as the production route in-process, graded on tool selection, args, and final-answer substrings. Lets prompt and model changes be measured instead of vibes-checked.
 - **Discord-style role system with permission bitfields.** Twelve named permissions ([lib/permissions.ts](lib/permissions.ts)) packed into a 32-bit int on each `Role`. A member's effective bits are the bitwise OR of every role they hold. Role hierarchy ranks prevent privilege escalation — a caller can only grant/edit roles strictly below their own highest rank.
 - **Write proposals, never silent writes.** The AI's `propose_*` tools validate inputs server-side but never touch the database. The client renders a confirm card; only on user confirmation does it POST to the real `/api/*` route where `buildContext()` guards decide whether the write actually happens.
@@ -55,7 +59,7 @@ A few things worth showing off:
 | ORM | Prisma 7 with `@prisma/adapter-pg` |
 | Connection pooling | `pg.Pool` + Supabase pooler (PgBouncer) |
 | File storage | Supabase Storage (`avatars` bucket) |
-| AI | OpenAI Chat Completions (`gpt-4o`) with parallel tool calls |
+| AI | OpenAI Chat Completions (`gpt-5.2`) with parallel tool calls |
 
 > **Note:** This project pins recent, fast-moving versions (Next 16, React 19, Prisma 7, Tailwind 4). APIs and conventions may differ from older majors — check `node_modules/next/dist/docs/` and the Prisma 7 docs before assuming older patterns apply. In Prisma 7, datasource connection URLs live in `prisma.config.ts`, **not** in `schema.prisma`.
 
@@ -72,12 +76,14 @@ Browser
   │     ├── app/page.tsx — the Operations Dashboard (desktop + mobile)
   │     └── app/api/** — JSON API routes (thin controllers)
   │            ├── api/ai/chat        — streaming tool-calling assistant
+  │            ├── api/ai/setup-chat  — streaming onboarding interview (proposes org config)
+  │            ├── api/ai/recommend-setup — single-shot setup recommendation
   │            ├── api/ai/digest      — one-sentence weekly recap (cached)
   │            └── api/ai/summarize-meeting — meeting-notes summary (cached)
   │
   ├── Supabase Auth — Google OAuth, cookie-based sessions
   ├── Supabase Storage — custom profile photos (avatars bucket)
-  ├── OpenAI API — gpt-4o, server-side only
+  ├── OpenAI API — gpt-5.2, server-side only
   │
   └── PostgreSQL (Supabase) — Prisma ORM over a pg.Pool
 ```
@@ -112,7 +118,7 @@ Every write must go through `ctx.db.<model>` (org-scoped) or carry an explicit `
 
 ## AI Features
 
-Three AI surfaces, all server-side behind auth, all dormant when `OPENAI_API_KEY` is unset:
+Four AI surfaces, all server-side behind auth, all dormant when `OPENAI_API_KEY` is unset:
 
 ### Ask the Chapter — tool-calling assistant
 [app/api/ai/chat/route.ts](app/api/ai/chat/route.ts) · [app/components/ChatWidget.tsx](app/components/ChatWidget.tsx)
@@ -120,7 +126,7 @@ Three AI surfaces, all server-side behind auth, all dormant when `OPENAI_API_KEY
 A floating chat widget that answers ad-hoc questions about chapter state — *"who has the worst attendance?"*, *"how much have we spent on Party Supplies?"*, *"add a deadline for next Friday"* — by calling tools instead of inventing answers.
 
 **How it's built:**
-- **Sixteen tools** declared in [lib/ai-tools.ts](lib/ai-tools.ts): 11 read tools and 5 write-proposal tools. The schemas the model sees and the dispatcher that runs the tools live in the same file so they can't drift.
+- **Twenty-one tools** declared in [lib/ai-tools.ts](lib/ai-tools.ts): 16 read tools and 5 write-proposal tools. The schemas the model sees and the dispatcher that runs the tools live in the same file so they can't drift.
 - **Scoped to the authenticated org.** The system prompt and all tool data are bounded to `ctx.orgId`. The assistant can't read or propose writes against another org's data.
 - **Server-Sent Events streaming** with a Node-runtime endpoint, custom SSE framing, and a 10-iteration tool-call loop that lets the model chain queries.
 - **Parallel tool calls.** When the model emits multiple calls in one turn, the server runs them concurrently via `Promise.all`.
@@ -128,6 +134,16 @@ A floating chat widget that answers ad-hoc questions about chapter state — *"w
 - **Writes are proposals, not executions.** `propose_*` tools validate inputs but never write — the client renders a confirm card and POSTs to the real route on user confirmation. `buildContext()` guards still decide whether the write happens.
 - **Date context injected at prompt build time** ([lib/ai-prompt.ts](lib/ai-prompt.ts)): today's date + weekday, week bounds, last chapter-meeting date, active semester.
 - **History trimmed before send.** Last 12 turns, prior messages capped at 600 chars.
+
+### Onboarding interview — conversational org setup
+[app/api/ai/setup-chat/route.ts](app/api/ai/setup-chat/route.ts) · [app/api/ai/recommend-setup/route.ts](app/api/ai/recommend-setup/route.ts) · [app/[slug]/onboarding/page.tsx](app/%5Bslug%5D/onboarding/page.tsx)
+
+Right after creating an org, the founder describes it in plain language and an adaptive agent interviews them (a handful of questions, capped server-side) before proposing a complete starting setup: which workflow pages to enable, vocabulary overrides (e.g. *Member → Player*, *Period → Season*), member-status thresholds, 2–4 officer roles with permission bitfields, and 2–4 custom member fields.
+
+**How it's built:**
+- **Same SSE posture as the chat route** (`requireUser` → `aiEnabled` → `checkMutationRate`) with one tool, `emit_setup_proposal`, whose arguments mirror the single-shot `recommend-setup` schema so one validator handles both paths.
+- **Proposes, never writes.** The model's output is untrusted: `validateRecommendation()` intersects every workflow id, vocab key, threshold, permission name, and field type with the real registries before it leaves the route. The founder confirms in the UI, and the apply step saves through the existing admin-gated `PATCH /api/orgs/config`.
+- **Org-type priors.** [lib/org-types.ts](lib/org-types.ts) seeds a sensible preset per org type, so the flow still works (and falls back gracefully) when AI is disabled or the model errors.
 
 ### Weekly digest narration
 [app/api/ai/digest/route.ts](app/api/ai/digest/route.ts)
@@ -204,7 +220,9 @@ Each role bundles a name, optional color chip, a permission bitfield, and a hier
 figurints/
 ├── app/
 │   ├── api/                      # JSON API routes (thin controllers)
-│   │   ├── ai/                   # chat (streaming SSE), digest, summarize-meeting
+│   │   ├── ai/                   # chat (SSE), setup-chat (SSE), recommend-setup, digest, summarize-meeting
+│   │   ├── metrics/              # custom metric definitions + dashboard snapshot
+│   │   │                         #   (per-member values live under brothers/[id]/metrics)
 │   │   ├── activity/             # activity log (+ /full)
 │   │   ├── announcement/         # single pinned chapter announcement
 │   │   ├── attendance/           # record attendance per event
@@ -264,6 +282,9 @@ figurints/
 │   ├── ai.ts                     # OpenAI client + shared narrate() helper
 │   ├── ai-prompt.ts              # buildSystemPrompt
 │   ├── ai-tools.ts               # tool schemas + dispatcher + validateArgs
+│   ├── org-types.ts              # org-type presets + workflow registry (onboarding priors)
+│   ├── metrics.ts                # custom-metric status/headline math (pure)
+│   ├── custom-member-fields.ts   # custom member-field types + helpers (pure)
 │   ├── auth/                     # require-user, require-permission, require-admin
 │   ├── permissions.ts            # 12-bit permission flags + helpers
 │   ├── seed-roles.ts             # system role seeding (idempotent)
@@ -360,11 +381,16 @@ A separate table (not a flag on `Brother`) for cross-org superusers. One row per
 | email | String? | Cached from the session |
 | isAdmin | Boolean | Legacy flag; prefer `Membership.isOrgAdmin` in new code |
 | isGhost | Boolean | Hidden observer — excluded from all listings/counts |
+| customFields | Json | Sparse `{ fieldId → value }` map for org-defined member fields |
 | roles | BrotherRole[] | Many-to-many join to `Role` |
 | memberships | Membership[] | Orgs this brother belongs to |
+| metricValues | BrotherMetricValue[] | Per-member values for custom org metrics |
 
 ### Role / BrotherRole
 `Role` is a named bundle of permission bits with a hierarchy `rank` and optional UI `color`. `permissions` is a 32-bit integer; meanings are defined in [lib/permissions.ts](lib/permissions.ts). `isSystem = true` protects seeded roles from rename/delete. `BrotherRole` is the join table — a member's effective permissions are the bitwise OR of every role they hold.
+
+### OrgMetricDefinition / BrotherMetricValue
+Org-defined custom KPIs. `OrgMetricDefinition` carries a `slug` (immutable after create), display `name`, optional `unit`, a per-member `goal`, `atRiskBelow` / optional `watchBelow` bands, and an `aggregation` (`avg` / `sum` / `count_on_track`) used to compute the dashboard headline. `BrotherMetricValue` holds one member's value for one definition (`organizationId` denormalized for tenant scoping). Status/headline math is pure and lives in [lib/metrics.ts](lib/metrics.ts). Custom **member fields** (lighter-weight, free-text/number/select) are not separate tables — definitions live on `OrganizationConfig.customMemberFields` (JSON) and values sparsely on `Brother.customFields` (JSON); see [lib/custom-member-fields.ts](lib/custom-member-fields.ts).
 
 ### OperationalEvent
 Structured audit log. Every meaningful state change emitted by a service lands here (`action`, `subjectType`, `subjectId`, `actorId`, `orgId`, `metadata` JSON). Drives reactions via the event handler registry and dual-writes to `ActivityLog` for the UI feed.
