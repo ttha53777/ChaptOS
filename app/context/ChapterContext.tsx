@@ -2,7 +2,7 @@
 
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import {
-  Brother, Deadline, InstagramTask, PartyEvent, ActivityEntry, Transaction,
+  Brother, Deadline, InstagramTask, ProgrammingTask, PartyEvent, ActivityEntry, Transaction,
 } from "../data";
 import { AVATAR_CHANGED_EVENT, parseAvatarFromMetadata } from "@/lib/avatar";
 import { createClient } from "@/lib/supabase/client";
@@ -98,6 +98,8 @@ interface ChapterContextValue {
   setDeadlineList: React.Dispatch<React.SetStateAction<Deadline[]>>;
   igTaskList: InstagramTask[];
   setIgTaskList: React.Dispatch<React.SetStateAction<InstagramTask[]>>;
+  programmingTaskList: ProgrammingTask[];
+  setProgrammingTaskList: React.Dispatch<React.SetStateAction<ProgrammingTask[]>>;
   partyList: PartyEvent[];
   setPartyList: React.Dispatch<React.SetStateAction<PartyEvent[]>>;
   activityFeed: ActivityEntry[];
@@ -132,6 +134,7 @@ type ChapterSection =
   | "brothers"
   | "deadlines"
   | "instagram"
+  | "programming"
   | "parties"
   | "activity"
   | "treasury"
@@ -161,6 +164,7 @@ export function ChapterProvider({ children }: { children: React.ReactNode }) {
   const [brotherList,      setBrotherList]      = useState<Brother[]>([]);
   const [deadlineList,     setDeadlineList]     = useState<Deadline[]>([]);
   const [igTaskList,       setIgTaskList]       = useState<InstagramTask[]>([]);
+  const [programmingTaskList, setProgrammingTaskList] = useState<ProgrammingTask[]>([]);
   const [partyList,        setPartyList]        = useState<PartyEvent[]>([]);
   const [activityFeed,     setActivityFeed]     = useState<ActivityEntry[]>([]);
   const [treasuryData,     setTreasuryData]     = useState<TreasuryData | null>(null);
@@ -262,10 +266,11 @@ export function ChapterProvider({ children }: { children: React.ReactNode }) {
 
     // Fan out the rest. allSettled so one slow/broken endpoint doesn't blank
     // the dashboard — see audit finding D4 / backend E3.
-    const [brothers, deadlines, instagram, parties, activity, treasury, transactions] = await Promise.allSettled([
+    const [brothers, deadlines, instagram, programming, parties, activity, treasury, transactions] = await Promise.allSettled([
       fetchJson<Brother[]>("/api/brothers"),
       fetchJson<Deadline[]>("/api/deadlines"),
       fetchJson<InstagramTask[]>("/api/instagram"),
+      fetchJson<ProgrammingTask[]>("/api/programming"),
       fetchJson<PartyEvent[]>("/api/parties"),
       fetchJson<ActivityEntry[]>("/api/activity"),
       fetchJson<TreasuryData>("/api/treasury"),
@@ -290,6 +295,9 @@ export function ChapterProvider({ children }: { children: React.ReactNode }) {
 
     if (instagram.status === "fulfilled")    setIgTaskList(instagram.value);
     else                                     trackFailure("instagram", instagram);
+
+    if (programming.status === "fulfilled")  setProgrammingTaskList(programming.value);
+    else                                     trackFailure("programming", programming);
 
     if (parties.status === "fulfilled") {
       setPartyList(parties.value.map(p => ({
@@ -380,6 +388,7 @@ export function ChapterProvider({ children }: { children: React.ReactNode }) {
     brotherList, setBrotherList,
     deadlineList, setDeadlineList,
     igTaskList, setIgTaskList,
+    programmingTaskList, setProgrammingTaskList,
     partyList, setPartyList,
     activityFeed, setActivityFeed,
     treasuryData, setTreasuryData,
@@ -393,7 +402,7 @@ export function ChapterProvider({ children }: { children: React.ReactNode }) {
     avatarRevision,
     setAvatarUrl,
     can,
-    brotherList, deadlineList, igTaskList, partyList,
+    brotherList, deadlineList, igTaskList, programmingTaskList, partyList,
     activityFeed, treasuryData, transactionList,
     isLoading, loadError, sectionErrors, mutationError, hasLoaded,
     refreshChapterData,

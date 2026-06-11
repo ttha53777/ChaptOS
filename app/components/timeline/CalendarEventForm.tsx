@@ -15,7 +15,7 @@ export const CATEGORY_OPTIONS: { id: CalEventCategory; label: string }[] = [
   { id: "program", label: "Program" },
   { id: "party", label: "Party" },
   { id: "deadline", label: "Deadline" },
-  { id: "service", label: "Service" },
+  { id: "service", label: "Community Service" },
 ];
 
 function optionalValue(value: string): string | undefined {

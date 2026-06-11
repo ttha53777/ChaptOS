@@ -60,6 +60,16 @@ export interface InstagramTask {
   type: string;
 }
 
+export interface ProgrammingTask {
+  id: number;
+  title: string;
+  dueDate: string;
+  location: string;
+  time?: string | null;
+  status: TaskStatus;
+  type: string;
+}
+
 export interface PartyEvent {
   id: number;
   name: string;
@@ -166,7 +176,7 @@ export const calendarEvents: CalendarEvent[] = [
   { id: 401, title: "Academic Workshop",       date: "2026-05-16", time: "3:00 PM",  category: "program",  mandatory: true,  location: "Library Rm 204" },
   { id: 402, title: "Spring Banquet",          date: "2026-05-30", time: "6:00 PM",  category: "program",  mandatory: true,  location: "Grand Ballroom",  description: "Annual spring banquet — formal attire" },
   { id: 403, title: "Leadership Retreat",      date: "2026-06-07", time: "9:00 AM",  category: "program",  mandatory: true,  description: "Officer transition & planning retreat" },
-  { id: 404, title: "IFC Community Service",   date: "2026-06-12", time: "10:00 AM", category: "program",  mandatory: true,  location: "Community Center" },
+  { id: 404, title: "IFC Community Service",   date: "2026-06-12", time: "10:00 AM", category: "service",  mandatory: true,  location: "Community Center" },
 
   // ── Parties ───────────────────────────────────────────────────────────────
   { id: 501, title: "End-of-Year Kickback",    date: "2026-05-22", time: "9:00 PM",  category: "party",    mandatory: false, description: "End-of-year celebration" },

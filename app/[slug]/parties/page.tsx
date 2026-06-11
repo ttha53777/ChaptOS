@@ -556,7 +556,7 @@ export default function PartiesPage() {
   // ── render ────────────────────────────────────────────────────────────────────
   return (
     <div className="flex h-screen overflow-hidden bg-[#07090f]">
-      <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} activeSection="Events" onNavClick={() => {}} />
+      <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} activeSection="Parties" onNavClick={() => {}} />
 
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
 

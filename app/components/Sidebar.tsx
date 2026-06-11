@@ -18,8 +18,8 @@ export const NAV_ICONS: Record<string, string> = {
   Instagram: "M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z",
   Treasury:  "M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z",
   Service:   "M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z",
-  Events:    "M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3",
   Parties:   "M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3",
+  Programming: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2",
   Timeline:  "M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z M9 17h6M9 13h6",
   Chapter:   "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4",
   Docs:      "M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1",
@@ -27,13 +27,13 @@ export const NAV_ICONS: Record<string, string> = {
 };
 
 // Main nav — Settings is pinned at the bottom of the sidebar
-export const NAV = ["Dashboard", "Timeline", "Brotherhood", "Chapter", "Docs", "Instagram", "Treasury", "Service", "Events"];
+export const NAV = ["Dashboard", "Timeline", "Brotherhood", "Chapter", "Docs", "Instagram", "Programming", "Treasury", "Service", "Parties"];
 export const SETTINGS_NAV = "Settings";
 
 const NAV_GROUPS: Array<{ label: string; items: string[] }> = [
   { label: "Overview", items: ["Dashboard", "Timeline"] },
   { label: "Members", items: ["Brotherhood", "Chapter"] },
-  { label: "Operations", items: ["Docs", "Instagram", "Service", "Events", "Treasury"] },
+  { label: "Operations", items: ["Docs", "Instagram", "Programming", "Service", "Parties", "Treasury"] },
 ];
 
 // Which workflow each nav surface belongs to. A label maps to `null` when it is
@@ -52,7 +52,8 @@ export const NAV_WORKFLOW_MAP: Record<string, WorkflowId | null> = {
   Instagram:   "communications",
   Treasury:    "finance",
   Service:     "service",
-  Events:      "parties",
+  Programming: "events",
+  Parties:     "parties",
 };
 
 // One-line description of each hideable surface, keyed by nav label. Shown next
@@ -63,8 +64,9 @@ export const NAV_WORKFLOW_MAP: Record<string, WorkflowId | null> = {
 export const NAV_DESCRIPTIONS: Record<string, string> = {
   Brotherhood: "Member roster, profiles, attendance, and dues.",
   Treasury:    "Budget, transactions, and the running balance.",
-  Events:      "Parties and social events with door revenue tracking.",
+  Parties:     "Social events with door revenue and wrap-up tracking.",
   Service:     "Service events and per-member service-hour totals.",
+  Programming: "Plan programs, socials, fundraisers, and community service.",
   Instagram:   "Plan and track social posts and announcements.",
   Docs:        "Pinned links and shared documents.",
 };
@@ -119,9 +121,9 @@ export function Sidebar({ open, onClose, activeSection, onNavClick }: {
     Chapter:     v("Meetings"),
     Treasury:    v("Treasury"),
     Service:     v("Service"),
-    // Instagram and Events intentionally omitted — they fall back (via
+    // Instagram and Parties intentionally omitted — they fall back (via
     // NAV_DISPLAY[label] ?? label) to their default nav labels "Instagram" and
-    // "Events" rather than the generic "Communications"/"Social".
+    // "Parties" rather than the generic "Communications"/"Social".
   };
 
   // Path *within* the org, i.e. pathname with the leading "/[slug]" segment
@@ -167,20 +169,23 @@ export function Sidebar({ open, onClose, activeSection, onNavClick }: {
   function renderNavItem(label: string) {
     const isTimeline    = label === "Timeline";
     const isTreasury    = label === "Treasury";
-    const isEvents      = label === "Events";
+    const isParties     = label === "Parties";
+    const isProgramming = label === "Programming";
     const isBrotherhood = label === "Brotherhood";
     const isChapter     = label === "Chapter";
     const isDocs        = label === "Docs";
     const isInstagram   = label === "Instagram";
     const isService     = label === "Service";
-    const isStandalone  = isTimeline || isTreasury || isEvents || isBrotherhood || isChapter || isDocs || isInstagram || isService;
-    const standaloneSub = isTimeline ? "/timeline" : isTreasury ? "/treasury" : isEvents ? "/parties" : isChapter ? "/chapter" : isDocs ? "/docs" : isInstagram ? "/instagram" : isService ? "/service" : "/brothers";
+    const isStandalone  = isTimeline || isTreasury || isParties || isProgramming || isBrotherhood || isChapter || isDocs || isInstagram || isService;
+    const standaloneSub = isTimeline ? "/timeline" : isTreasury ? "/treasury" : isParties ? "/parties" : isProgramming ? "/events" : isChapter ? "/chapter" : isDocs ? "/docs" : isInstagram ? "/instagram" : isService ? "/service" : "/brothers";
     const isActive = isTimeline
       ? subPath === "/timeline"
       : isTreasury
         ? subPath.startsWith("/treasury")
-        : isEvents
+        : isParties
           ? subPath.startsWith("/parties")
+          : isProgramming
+            ? subPath.startsWith("/events")
           : isBrotherhood
             ? subPath.startsWith("/brothers")
             : isChapter

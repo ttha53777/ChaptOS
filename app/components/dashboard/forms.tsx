@@ -3,6 +3,7 @@ import type { Brother, CalendarEvent, TaskStatus } from "../../data";
 import { FieldLabel } from "./primitives";
 import { inputCls } from "./styles";
 import { orgFetch } from "../../lib/api";
+import { parseProgrammingTitle } from "@/lib/programming";
 
 export function AddDeadlineForm({ brotherNames, onSubmit, initial }: {
   brotherNames: string[];
@@ -115,6 +116,63 @@ export function AddIGTaskForm({ brotherNames, onSubmit, initial }: {
       </div>
       <button type="submit" className="w-full rounded-lg bg-indigo-600 px-4 py-2.5 text-[13px] font-semibold text-white hover:bg-indigo-500 transition-colors">
         {initial ? "Save Changes" : "Add IG Task"}
+      </button>
+    </form>
+  );
+}
+
+export function AddProgrammingTaskForm({ onSubmit, initial }: {
+  onSubmit: (t: { title: string; dueDate: string; location: string; time?: string | null; collab?: string | null; type: string; status: TaskStatus }) => void;
+  initial?: { title: string; dueDate: string; location: string; time?: string | null; type: string; status: TaskStatus };
+}) {
+  const parsedInitial = initial ? parseProgrammingTitle(initial.title) : null;
+  const [title,    setTitle]    = useState(parsedInitial?.title ?? "");
+  const [dueDate,  setDueDate]  = useState(initial?.dueDate  ?? "");
+  const [location, setLocation] = useState(initial?.location ?? "");
+  const [time,     setTime]     = useState(initial?.time     ?? "");
+  const [collab,   setCollab]   = useState(parsedInitial?.collab ?? "");
+  const [type,     setType]     = useState(initial?.type      ?? "Program");
+  const [status,   setStatus]   = useState<TaskStatus>(initial?.status ?? "Upcoming");
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!title.trim() || !dueDate || !location.trim()) return;
+    onSubmit({
+      title: title.trim(),
+      dueDate,
+      location: location.trim(),
+      time: time.trim() || null,
+      collab: collab.trim() || null,
+      type,
+      status,
+    });
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div><FieldLabel>Event Title</FieldLabel><input className={inputCls} value={title} onChange={e => setTitle(e.target.value)} placeholder="Event name…" required /></div>
+      <div><FieldLabel>Collab <span className="font-normal text-slate-500">(optional)</span></FieldLabel><input className={inputCls} value={collab} onChange={e => setCollab(e.target.value)} placeholder="KDF, DSP…" /></div>
+      <div className="grid grid-cols-2 gap-3">
+        <div><FieldLabel>Event Date</FieldLabel><input type="date" className={inputCls} value={dueDate} onChange={e => setDueDate(e.target.value)} required /></div>
+        <div><FieldLabel>Time <span className="font-normal text-slate-500">(optional)</span></FieldLabel><input className={inputCls} value={time} onChange={e => setTime(e.target.value)} placeholder="7:00 PM" /></div>
+      </div>
+      <div><FieldLabel>Where</FieldLabel><input className={inputCls} value={location} onChange={e => setLocation(e.target.value)} placeholder="Student Union, Room 204…" required /></div>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <FieldLabel>Type</FieldLabel>
+          <select className={inputCls} value={type} onChange={e => setType(e.target.value)}>
+            {["Program", "Social", "Fundraiser", "Community Service"].map(t => <option key={t}>{t}</option>)}
+          </select>
+        </div>
+        <div>
+          <FieldLabel>Status</FieldLabel>
+          <select className={inputCls} value={status} onChange={e => setStatus(e.target.value as TaskStatus)}>
+            {(["Upcoming", "Due Soon", "Urgent"] as TaskStatus[]).map(s => <option key={s}>{s}</option>)}
+          </select>
+        </div>
+      </div>
+      <button type="submit" className="w-full rounded-lg bg-indigo-600 px-4 py-2.5 text-[13px] font-semibold text-white hover:bg-indigo-500 transition-colors">
+        {initial ? "Save Changes" : "Add Event"}
       </button>
     </form>
   );

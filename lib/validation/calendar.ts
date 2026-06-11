@@ -10,6 +10,8 @@ export const createCalendarInput = z.object({
   time:        z.string().nullable().optional(),
   description: z.string().max(50000).nullable().optional(),
   location:    z.string().nullable().optional(),
+  owner:       z.string().max(200).optional(),
+  status:      z.string().max(50).optional(),
 }).refine(d => d.category !== "chapter" || d.mandatory, {
   message: "Chapter events must be mandatory",
   path: ["mandatory"],
@@ -24,5 +26,7 @@ export const updateCalendarInput = z.object({
   mandatory:   z.boolean().optional(),
   description: z.string().max(50000).nullable().optional(),
   location:    z.string().nullable().optional(),
+  owner:       z.string().max(200).optional(),
+  status:      z.string().max(50).optional(),
 });
 export type UpdateCalendarInput = z.infer<typeof updateCalendarInput>;

@@ -73,7 +73,7 @@ const QUICK_ACTIONS: QuickAction[] = [
   { key: "revenue",  label: "Log Revenue",  icon: RevenueIcon,  adminOnly: true,  workflow: "finance" },
   { key: "excuse",   label: "Log Excuse",   icon: ExcuseIcon,   adminOnly: false },
   { key: "deadline", label: "Add Deadline", icon: DeadlineIcon, adminOnly: false },
-  { key: "event",    label: "New Event",    icon: EventIcon,    adminOnly: false },
+  { key: "event",    label: "New Event",    icon: EventIcon,    adminOnly: false, workflow: "events" },
   { key: "ig",       label: "Add IG Task",  icon: IgIcon,       adminOnly: false },
 ];
 

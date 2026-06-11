@@ -168,7 +168,7 @@ const CAT_META: Record<CalEventCategory, {
     iconPath: "M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z",
   },
   service: {
-    label: "Service",
+    label: "Community Service",
     dot: "bg-teal-400",
     dotGlow: "shadow-teal-500/60",
     ring: "ring-teal-500/25",

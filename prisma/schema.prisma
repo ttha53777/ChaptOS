@@ -372,6 +372,9 @@ model CalendarEvent {
   notesSummary      String?
   notesSummaryAt    DateTime?
   notesUpdatedAt    DateTime?
+  // Used by the Programming page (events workflow). Chapter/Timeline rows keep defaults.
+  owner             String             @default("")
+  status            String             @default("Upcoming")
   attendanceRecords AttendanceRecord[]
   attendanceExcuses AttendanceExcuse[]
 
