@@ -44,6 +44,7 @@ model Organization {
   docs               Doc[]
   programmingEvents  ProgrammingEvent[]
   programmingEventDocs ProgrammingEventDoc[]
+  programmingChecklistItems ProgrammingChecklistItem[]
   transactions       Transaction[]
   budgets            Budget[]
   activityLogs       ActivityLog[]
@@ -390,7 +391,19 @@ model CalendarEvent {
 model ProgrammingEvent {
   id              Int      @id @default(autoincrement())
   organizationId  Int
-  calendarEventId Int      @unique
+  calendarEventId Int?     @unique
+  // Owning planning fields. A CalendarEvent is created only once the event
+  // leaves the "idea" stage (Planning+); until then these live here alone.
+  title           String
+  date            String?
+  category        String
+  location        String?
+  time            String?
+  description     String?
+  status          String   @default("Upcoming")
+  stage           String   @default("idea")
+  mandatory       Boolean  @default(false)
+  // Prep / ops fields.
   owner           String   @default("")
   collabOrg       String   @default("")
   itineraryUrl    String?
@@ -403,11 +416,30 @@ model ProgrammingEvent {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  organization  Organization          @relation(fields: [organizationId], references: [id])
-  calendarEvent CalendarEvent         @relation(fields: [calendarEventId], references: [id], onDelete: Cascade)
+  organization  Organization               @relation(fields: [organizationId], references: [id])
+  calendarEvent CalendarEvent?             @relation(fields: [calendarEventId], references: [id], onDelete: SetNull)
   docs          ProgrammingEventDoc[]
+  checklist     ProgrammingChecklistItem[]
 
   @@index([organizationId, calendarEventId])
+  @@index([organizationId, stage])
+  @@index([organizationId, date])
+}
+
+model ProgrammingChecklistItem {
+  id                 Int      @id @default(autoincrement())
+  organizationId     Int
+  programmingEventId Int
+  label              String
+  done               Boolean  @default(false)
+  sortOrder          Int      @default(0)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  organization     Organization     @relation(fields: [organizationId], references: [id])
+  programmingEvent ProgrammingEvent @relation(fields: [programmingEventId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, programmingEventId])
 }
 
 model ProgrammingEventDoc {

@@ -136,6 +136,10 @@ export function formatActivityMessage(ctx: RequestContext, action: Action, m: an
       return `${who} updated event ${m.title}`;
     case "calendar.deleted":
       return `${who} deleted event ${m.title}`;
+    case "programming.created":
+      return `${who} added event idea ${m.title}`;
+    case "programming.deleted":
+      return `${who} deleted programming event ${m.title}`;
     case "service_event.created":
       return `${who} added service event ${m.title} on ${m.date}`;
     case "service_event.updated":

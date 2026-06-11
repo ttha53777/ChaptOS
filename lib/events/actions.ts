@@ -19,6 +19,7 @@ export type SubjectType =
   | "BrotherRole"
   | "Brother"
   | "CalendarEvent"
+  | "ProgrammingEvent"
   | "ServiceEvent"
   | "PartyEvent"
   | "Deadline"
@@ -64,6 +65,8 @@ export interface EventMetadata {
   "calendar.created":  { title: string; date: string; category: string };
   "calendar.updated":  { title: string; changedFields: string[] };
   "calendar.deleted":  { title: string };
+  "programming.created": { title: string; stage: string };
+  "programming.deleted": { title: string };
   "service_event.created": { title: string; date: string; calendarEventId: number };
   "service_event.updated": { title: string; changedFields: string[] };
   "service_event.deleted": { title: string };
@@ -116,6 +119,7 @@ const KNOWN_ACTIONS = new Set<Action>([
   "role.created", "role.updated", "role.deleted", "role.granted", "role.revoked",
   "brother.claimed", "brother.added", "brother.updated", "brother.removed", "brother.admin_changed", "brother.account_unlinked",
   "calendar.created", "calendar.updated", "calendar.deleted",
+  "programming.created", "programming.deleted",
   "service_event.created", "service_event.updated", "service_event.deleted",
   "party.created", "party.updated", "party.completed", "party.deleted",
   "deadline.created", "deadline.updated", "deadline.deleted",

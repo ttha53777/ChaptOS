@@ -6,10 +6,12 @@ import { fmt$, fmtDate } from "../../data";
 import { Card, FieldLabel, Modal } from "../dashboard/primitives";
 import { inputCls } from "../dashboard/styles";
 import { PrepStatusPill, StarRating, TypeBadge } from "./PrepStatusPill";
+import { ProgrammingChecklist } from "./ProgrammingChecklist";
 import { DocCard, type Doc } from "@/app/[slug]/docs/DocCard";
 import { DocForm, type DocDraft } from "@/app/[slug]/docs/DocForm";
 import { requestJson } from "../../lib/api";
 import { programmingPrepScore } from "@/lib/programming";
+import { STAGE_LABELS, STAGES, type ProgrammingStage } from "@/lib/state/programming-stage";
 import { todayStr } from "../../lib/dates";
 
 const EMPTY_DOC: DocDraft = { title: "", url: "", description: "" };
@@ -18,12 +20,14 @@ export function ProgrammingDetailPanel({
   event,
   canManage,
   onPatch,
+  onStage,
   onEdit,
   onDelete,
 }: {
   event: ProgrammingTask;
   canManage: boolean;
   onPatch: (id: number, patch: Partial<ProgrammingTask>) => Promise<void>;
+  onStage?: (id: number, stage: ProgrammingStage) => Promise<void>;
   onEdit: () => void;
   onDelete: () => void;
 }) {
@@ -33,7 +37,7 @@ export function ProgrammingDetailPanel({
   const [docSubmitting, setDocSubmitting] = useState(false);
   const [notes, setNotes] = useState(event.wrapUpNotes ?? "");
 
-  const isPast = event.dueDate < todayStr();
+  const isPast = event.dueDate != null && event.dueDate < todayStr();
   const prep = programmingPrepScore(event);
 
   useEffect(() => {
@@ -75,18 +79,27 @@ export function ProgrammingDetailPanel({
   }
 
   return (
-    <Card className="flex flex-col overflow-hidden" style={{ background: "linear-gradient(to bottom,#ffffff08 0%,#10121a 45%)" }}>
-      <div className="border-b border-white/[0.07] px-5 py-4">
+    <Card className="flex h-full flex-col overflow-hidden rounded-t-2xl xl:h-auto" style={{ background: "linear-gradient(to bottom,#ffffff08 0%,#10121a 45%)" }}>
+      <div className="border-b border-white/[0.07] px-5 py-4 pr-14 xl:pr-5">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <h2 className="text-[16px] font-bold text-white">{event.title}</h2>
             <p className="mt-1 text-[12px] text-slate-400">
-              {fmtDate(event.dueDate)}{event.time ? ` · ${event.time}` : ""}{event.location ? ` · ${event.location}` : ""}
+              {event.dueDate ? fmtDate(event.dueDate) : "No date set"}{event.time ? ` · ${event.time}` : ""}{event.location ? ` · ${event.location}` : ""}
             </p>
             <div className="mt-2 flex flex-wrap items-center gap-2">
               <TypeBadge type={event.type} />
               {event.collab && (
                 <span className="text-[11px] text-slate-500">w/ {event.collab}</span>
+              )}
+              {onStage && canManage && (
+                <select
+                  value={event.stage}
+                  onChange={e => onStage(event.id, e.target.value as ProgrammingStage)}
+                  className="rounded-md border border-white/[0.1] bg-white/[0.04] px-2 py-0.5 text-[11px] font-medium text-slate-200 focus:border-indigo-500/40 focus:outline-none"
+                >
+                  {STAGES.map(s => <option key={s} value={s} className="bg-[#10131c]">{STAGE_LABELS[s]}</option>)}
+                </select>
               )}
             </div>
           </div>
@@ -118,7 +131,7 @@ export function ProgrammingDetailPanel({
       <div className="flex-1 space-y-5 overflow-y-auto px-5 py-4">
         <section className="space-y-3">
           <h3 className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Checklist</h3>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <FieldLabel>Room confirmed</FieldLabel>
               <PrepStatusPill
@@ -186,6 +199,13 @@ export function ProgrammingDetailPanel({
             )}
           </div>
         </section>
+
+        <ProgrammingChecklist
+          eventId={event.id}
+          items={event.checklist}
+          canManage={canManage}
+          onChange={items => onPatch(event.id, { checklist: items })}
+        />
 
         <section>
           <div className="mb-2 flex items-center justify-between">

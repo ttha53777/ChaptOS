@@ -317,12 +317,6 @@ function scopedProgrammingEvent(orgId: number) {
       prisma.programmingEvent.create({ ...args, data: { ...args.data, organizationId: orgId } }),
     update:     async (args: Prisma.ProgrammingEventUpdateArgs) =>
       prisma.programmingEvent.update({ ...args, where: { id: await verify(args.where) } }),
-    upsertByCalendarEventId: (calendarEventId: number, data: Omit<Prisma.ProgrammingEventUncheckedCreateInput, "organizationId" | "calendarEventId">) =>
-      prisma.programmingEvent.upsert({
-        where:  { calendarEventId },
-        update: data,
-        create: { ...data, calendarEventId, organizationId: orgId },
-      }),
     delete:     async (args: Prisma.ProgrammingEventDeleteArgs) =>
       prisma.programmingEvent.delete({ where: { id: await verify(args.where) } }),
     count:      (args?: Prisma.ProgrammingEventCountArgs)     => prisma.programmingEvent.count({ ...args, where: org(args?.where) }),
@@ -350,6 +344,34 @@ function scopedProgrammingEventDoc(orgId: number) {
     deleteMany: (args?: Prisma.ProgrammingEventDocDeleteManyArgs) =>
       prisma.programmingEventDoc.deleteMany({ ...args, where: org(args?.where) }),
     count:      (args?: Prisma.ProgrammingEventDocCountArgs)     => prisma.programmingEventDoc.count({ ...args, where: org(args?.where) }),
+  };
+}
+
+function scopedProgrammingChecklistItem(orgId: number) {
+  type W = Prisma.ProgrammingChecklistItemWhereInput;
+  const org = (w?: W): W => ({ ...w, organizationId: orgId });
+
+  async function verify(where: Prisma.ProgrammingChecklistItemWhereUniqueInput): Promise<number> {
+    const row = await prisma.programmingChecklistItem.findFirst({ where: org(where as W), select: { id: true } });
+    if (!row) notInOrg();
+    return row.id;
+  }
+
+  return {
+    findMany:   (args?: Prisma.ProgrammingChecklistItemFindManyArgs)  => prisma.programmingChecklistItem.findMany({ ...args, where: org(args?.where) }),
+    findFirst:  (args?: Prisma.ProgrammingChecklistItemFindFirstArgs) => prisma.programmingChecklistItem.findFirst({ ...args, where: org(args?.where) }),
+    findUnique: (args: Prisma.ProgrammingChecklistItemFindUniqueArgs) => prisma.programmingChecklistItem.findFirst({ ...args, where: org(args.where as W) }),
+    create:     (args: Omit<Prisma.ProgrammingChecklistItemCreateArgs, "data"> & { data: Omit<Prisma.ProgrammingChecklistItemUncheckedCreateInput, "organizationId"> }) =>
+      prisma.programmingChecklistItem.create({ ...args, data: { ...args.data, organizationId: orgId } }),
+    update:     async (args: Prisma.ProgrammingChecklistItemUpdateArgs) =>
+      prisma.programmingChecklistItem.update({ ...args, where: { id: await verify(args.where) } }),
+    delete:     async (args: Prisma.ProgrammingChecklistItemDeleteArgs) =>
+      prisma.programmingChecklistItem.delete({ where: { id: await verify(args.where) } }),
+    deleteMany: (args?: Prisma.ProgrammingChecklistItemDeleteManyArgs) =>
+      prisma.programmingChecklistItem.deleteMany({ ...args, where: org(args?.where) }),
+    count:      (args?: Prisma.ProgrammingChecklistItemCountArgs)     => prisma.programmingChecklistItem.count({ ...args, where: org(args?.where) }),
+    aggregate:  (args: Omit<Prisma.ProgrammingChecklistItemAggregateArgs, "where"> & { where?: W }) =>
+      prisma.programmingChecklistItem.aggregate({ ...args, where: org(args?.where) }),
   };
 }
 
@@ -690,6 +712,7 @@ export function db(orgId: number) {
     doc:                 scopedDoc(orgId),
     programmingEvent:    scopedProgrammingEvent(orgId),
     programmingEventDoc: scopedProgrammingEventDoc(orgId),
+    programmingChecklistItem: scopedProgrammingChecklistItem(orgId),
     transaction:         scopedTransaction(orgId),
     budget:              scopedBudget(orgId),
     activityLog:         scopedActivityLog(orgId),

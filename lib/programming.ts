@@ -1,7 +1,7 @@
-import type { TaskStatus } from "@/app/data";
+import type { ProgrammingChecklistItem, TaskStatus } from "@/app/data";
 import { fmtDate } from "@/app/data";
-import type { CalendarCategory } from "@/lib/state/calendar-category";
 import type { RoomStatus } from "@/lib/state/programming-prep";
+import type { ProgrammingStage } from "@/lib/state/programming-stage";
 
 /** Calendar categories managed by the Programming (events) workflow page. */
 export const PROGRAMMING_CATEGORIES = ["program", "social", "fundy", "service"] as const;
@@ -69,43 +69,47 @@ export function programmingTaskMeta(task: {
   type?: string;
   location: string;
   time?: string | null;
-  dueDate: string;
+  dueDate: string | null;
 }): string {
-  return [task.type, task.location, task.time, fmtDate(task.dueDate)].filter(Boolean).join(" · ");
+  return [task.type, task.location, task.time, task.dueDate ? fmtDate(task.dueDate) : null]
+    .filter(Boolean)
+    .join(" · ");
 }
 
+/** A ProgrammingEvent row (now the owning record) as selected by the service. */
 export interface ProgrammingTaskRow {
   id: number;
   title: string;
-  date: string;
+  date: string | null;
   location: string | null;
   time: string | null;
   status: string;
+  stage: string;
   category: string;
-  description?: string | null;
-  programmingEvent?: {
-    id: number;
-    owner: string;
-    collabOrg: string;
-    itineraryUrl: string | null;
-    roomStatus: string;
-    flyerPosted: boolean;
-    socialsMeeting: boolean;
-    spendingCents: number;
-    successRating: number | null;
-    wrapUpNotes: string | null;
-    _count?: { docs: number };
-  } | null;
+  description: string | null;
+  collabOrg: string;
+  owner: string;
+  itineraryUrl: string | null;
+  roomStatus: string;
+  flyerPosted: boolean;
+  socialsMeeting: boolean;
+  spendingCents: number;
+  successRating: number | null;
+  wrapUpNotes: string | null;
+  calendarEventId: number | null;
+  _count?: { docs: number };
+  checklist?: { id: number; label: string; done: boolean; sortOrder: number }[];
 }
 
 export interface ProgrammingTaskDto {
   id: number;
   title: string;
-  dueDate: string;
+  dueDate: string | null;
   location: string;
   time: string | null;
   status: TaskStatus;
   type: string;
+  stage: ProgrammingStage;
   collab: string | null;
   owner: string;
   description: string | null;
@@ -117,14 +121,14 @@ export interface ProgrammingTaskDto {
   successRating: number | null;
   wrapUpNotes: string | null;
   docCount: number;
+  checklist: ProgrammingChecklistItem[];
 }
 
-/** Map a CalendarEvent row to the task shape the Programming page expects. */
+/** Map a ProgrammingEvent row to the task shape the Programming page expects. */
 export function toProgrammingTask(row: ProgrammingTaskRow): ProgrammingTaskDto {
-  const ext = row.programmingEvent;
   const { title, collab } = resolveProgrammingDisplay({
     title: row.title,
-    collabOrg: ext?.collabOrg,
+    collabOrg: row.collabOrg,
   });
   return {
     id:              row.id,
@@ -134,28 +138,32 @@ export function toProgrammingTask(row: ProgrammingTaskRow): ProgrammingTaskDto {
     time:            row.time ?? null,
     status:          (row.status ?? "Upcoming") as TaskStatus,
     type:            categoryToTypeLabel(row.category),
+    stage:           row.stage as ProgrammingStage,
     collab,
-    owner:           ext?.owner ?? "",
+    owner:           row.owner ?? "",
     description:     row.description ?? null,
-    itineraryUrl:    ext?.itineraryUrl ?? null,
-    roomStatus:      (ext?.roomStatus ?? "not_submitted") as RoomStatus,
-    flyerPosted:     ext?.flyerPosted ?? false,
-    socialsMeeting:  ext?.socialsMeeting ?? false,
-    spendingCents:   ext?.spendingCents ?? 0,
-    successRating:   ext?.successRating ?? null,
-    wrapUpNotes:     ext?.wrapUpNotes ?? null,
-    docCount:        ext?._count?.docs ?? 0,
+    itineraryUrl:    row.itineraryUrl ?? null,
+    roomStatus:      (row.roomStatus ?? "not_submitted") as RoomStatus,
+    flyerPosted:     row.flyerPosted ?? false,
+    socialsMeeting:  row.socialsMeeting ?? false,
+    spendingCents:   row.spendingCents ?? 0,
+    successRating:   row.successRating ?? null,
+    wrapUpNotes:     row.wrapUpNotes ?? null,
+    docCount:        row._count?.docs ?? 0,
+    checklist:       (row.checklist ?? []).map(c => ({
+      id: c.id, label: c.label, done: c.done, sortOrder: c.sortOrder,
+    })),
   };
 }
 
 export interface ProgrammingTaskInput {
   title:    string;
-  dueDate:  string;
-  location: string;
+  dueDate?: string | null;
+  location?: string | null;
   time?:    string | null;
   collab?:  string | null;
   owner?:   string;
-  status:   string;
+  status?:  string;
   type:     string;
 }
 
@@ -164,23 +172,44 @@ function optionalTime(value: string | null | undefined): string | null {
   return trimmed ? trimmed : null;
 }
 
-/** Map form/API input to CalendarEvent and ProgrammingEvent create fields. */
+/** Map form/API input to ProgrammingEvent create fields (always starts at Idea). */
 export function fromProgrammingInput(input: ProgrammingTaskInput) {
-  const collabOrg = input.collab?.trim() ?? "";
   return {
-    calendarEvent: {
-      title:     input.title.trim(),
-      date:      input.dueDate,
-      location:  input.location.trim(),
-      time:      optionalTime(input.time),
-      status:    input.status,
-      category:  typeLabelToCategory(input.type) as CalendarCategory,
-      mandatory: false,
-    },
-    programmingEvent: {
-      owner:     input.owner?.trim() ?? "",
-      collabOrg,
-    },
+    title:     input.title.trim(),
+    date:      optionalTime(input.dueDate),
+    location:  input.location?.trim() || null,
+    time:      optionalTime(input.time),
+    status:    input.status ?? "Upcoming",
+    category:  typeLabelToCategory(input.type),
+    stage:     "idea",
+    mandatory: false,
+    owner:     input.owner?.trim() ?? "",
+    collabOrg: input.collab?.trim() ?? "",
+  };
+}
+
+/** Calendar-relevant subset of a programming row, for mirroring to CalendarEvent. */
+export function toCalendarFields(row: {
+  title: string;
+  collabOrg: string;
+  date: string | null;
+  location: string | null;
+  time: string | null;
+  description: string | null;
+  status: string;
+  category: string;
+  mandatory: boolean;
+}) {
+  const { title } = resolveProgrammingDisplay({ title: row.title, collabOrg: row.collabOrg });
+  return {
+    title,
+    date:        row.date ?? "",
+    location:    row.location,
+    time:        row.time,
+    description: row.description,
+    status:      row.status,
+    category:    row.category,
+    mandatory:   row.mandatory,
   };
 }
 
@@ -204,12 +233,12 @@ export function programmingPrepScore(event: {
 
 /** Whether an upcoming event needs officer attention. */
 export function programmingNeedsAttention(event: {
-  dueDate: string;
+  dueDate: string | null;
   roomStatus: RoomStatus;
   itineraryUrl: string | null;
   docCount: number;
 }, todayStr: string): boolean {
-  if (event.dueDate < todayStr) return false;
+  if (event.dueDate && event.dueDate < todayStr) return false;
   return (
     event.roomStatus === "not_submitted" ||
     !event.itineraryUrl?.trim() ||

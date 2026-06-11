@@ -41,6 +41,14 @@ export function PrepStatusPill({
   );
 }
 
+/** Category → dot color, shared by the badge, board card, and calendar chips. */
+export const TYPE_DOT: Record<string, string> = {
+  Program:             "bg-sky-400",
+  Social:              "bg-violet-400",
+  Fundraiser:          "bg-amber-400",
+  "Community Service": "bg-teal-400",
+};
+
 export function TypeBadge({ type }: { type: string }) {
   const cls: Record<string, { chip: string; dot: string }> = {
     Program:             { chip: "bg-sky-500/[0.08] text-sky-300 ring-sky-500/20",      dot: "bg-sky-400" },

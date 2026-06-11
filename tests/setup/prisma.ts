@@ -33,6 +33,7 @@ export async function resetDb(): Promise<void> {
       "Budget",
       "Transaction",
       "ChapterAnnouncement",
+      "ProgrammingChecklistItem",
       "ProgrammingEventDoc",
       "ProgrammingEvent",
       "Doc",

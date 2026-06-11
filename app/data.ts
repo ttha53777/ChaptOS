@@ -60,14 +60,22 @@ export interface InstagramTask {
   type: string;
 }
 
+export interface ProgrammingChecklistItem {
+  id: number;
+  label: string;
+  done: boolean;
+  sortOrder: number;
+}
+
 export interface ProgrammingTask {
   id: number;
   title: string;
-  dueDate: string;
+  dueDate: string | null;
   location: string;
   time?: string | null;
   status: TaskStatus;
   type: string;
+  stage: "idea" | "planning" | "confirmed" | "done";
   collab: string | null;
   owner: string;
   description: string | null;
@@ -79,6 +87,7 @@ export interface ProgrammingTask {
   successRating: number | null;
   wrapUpNotes: string | null;
   docCount: number;
+  checklist: ProgrammingChecklistItem[];
 }
 
 export interface PartyEvent {

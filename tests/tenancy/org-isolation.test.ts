@@ -296,10 +296,10 @@ describe("tenancy: Doc", () => {
     const eventB = await createCalendarEvent({ orgId: orgB.id, title: "Event B", category: "program", mandatory: false });
 
     const programmingA = await testPrisma.programmingEvent.create({
-      data: { organizationId: orgA.id, calendarEventId: eventA.id },
+      data: { organizationId: orgA.id, calendarEventId: eventA.id, title: "Event A", category: "program", stage: "confirmed" },
     });
     const programmingB = await testPrisma.programmingEvent.create({
-      data: { organizationId: orgB.id, calendarEventId: eventB.id },
+      data: { organizationId: orgB.id, calendarEventId: eventB.id, title: "Event B", category: "program", stage: "confirmed" },
     });
 
     const docA = await testPrisma.doc.create({

@@ -122,8 +122,8 @@ export function AddIGTaskForm({ brotherNames, onSubmit, initial }: {
 }
 
 export function AddProgrammingTaskForm({ onSubmit, initial }: {
-  onSubmit: (t: { title: string; dueDate: string; location: string; time?: string | null; collab?: string | null; type: string; status: TaskStatus }) => void;
-  initial?: { title: string; dueDate: string; location: string; time?: string | null; collab?: string | null; type: string; status: TaskStatus };
+  onSubmit: (t: { title: string; dueDate: string | null; location: string | null; time?: string | null; collab?: string | null; type: string; status: TaskStatus }) => void;
+  initial?: { title: string; dueDate: string | null; location: string; time?: string | null; collab?: string | null; type: string; status: TaskStatus };
 }) {
   const parsedInitial = initial ? parseProgrammingTitle(initial.title) : null;
   const [title,    setTitle]    = useState(parsedInitial?.title ?? initial?.title ?? "");
@@ -136,11 +136,11 @@ export function AddProgrammingTaskForm({ onSubmit, initial }: {
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!title.trim() || !dueDate || !location.trim()) return;
+    if (!title.trim()) return;
     onSubmit({
       title: title.trim(),
-      dueDate,
-      location: location.trim(),
+      dueDate: dueDate || null,
+      location: location.trim() || null,
       time: time.trim() || null,
       collab: collab.trim() || null,
       type,
@@ -153,10 +153,10 @@ export function AddProgrammingTaskForm({ onSubmit, initial }: {
       <div><FieldLabel>Event Title</FieldLabel><input className={inputCls} value={title} onChange={e => setTitle(e.target.value)} placeholder="Event name…" required /></div>
       <div><FieldLabel>Collab <span className="font-normal text-slate-500">(optional)</span></FieldLabel><input className={inputCls} value={collab} onChange={e => setCollab(e.target.value)} placeholder="KDF, DSP…" /></div>
       <div className="grid grid-cols-2 gap-3">
-        <div><FieldLabel>Event Date</FieldLabel><input type="date" className={inputCls} value={dueDate} onChange={e => setDueDate(e.target.value)} required /></div>
+        <div><FieldLabel>Event Date <span className="font-normal text-slate-500">(optional)</span></FieldLabel><input type="date" className={inputCls} value={dueDate} onChange={e => setDueDate(e.target.value)} /></div>
         <div><FieldLabel>Time <span className="font-normal text-slate-500">(optional)</span></FieldLabel><input className={inputCls} value={time} onChange={e => setTime(e.target.value)} placeholder="7:00 PM" /></div>
       </div>
-      <div><FieldLabel>Where</FieldLabel><input className={inputCls} value={location} onChange={e => setLocation(e.target.value)} placeholder="Student Union, Room 204…" required /></div>
+      <div><FieldLabel>Where <span className="font-normal text-slate-500">(optional)</span></FieldLabel><input className={inputCls} value={location} onChange={e => setLocation(e.target.value)} placeholder="Student Union, Room 204…" /></div>
       <div className="grid grid-cols-2 gap-3">
         <div>
           <FieldLabel>Type</FieldLabel>

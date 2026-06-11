@@ -90,6 +90,13 @@ export async function deleteCalendar(ctx: RequestContext, id: number) {
   await ctx.db.$transaction(async (tx) => {
     // Explicit organizationId: tx client is raw, no scoped wrapper.
     await tx.serviceEvent.deleteMany({ where: { calendarEventId: id, organizationId: ctx.orgId } });
+    // A programming event backed by this calendar entry falls back to Idea
+    // (the FK SET NULLs the link; resetting the stage keeps the CHECK valid and
+    // returns the event to the board's Idea column instead of destroying it).
+    await tx.programmingEvent.updateMany({
+      where: { calendarEventId: id, organizationId: ctx.orgId },
+      data:  { stage: "idea", calendarEventId: null },
+    });
     await tx.calendarEvent.delete({ where: { id } });
   });
 

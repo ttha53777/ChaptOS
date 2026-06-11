@@ -1,6 +1,6 @@
 /**
- * Tests for the programming service — CalendarEvent rows in program/social/fundy/service
- * categories, exposed as tasks via /api/programming.
+ * Tests for the programming service. ProgrammingEvent is the owning record;
+ * a CalendarEvent exists only once an event is promoted out of the Idea stage.
  */
 
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
@@ -9,16 +9,21 @@ import { testPrisma, resetDb } from "../setup/prisma";
 import { createOrg, createBrother, createCalendarEvent } from "../setup/factories";
 import { db } from "@/lib/db";
 import {
+  addChecklistItem,
   attachProgrammingDoc,
   createProgrammingTask,
+  deleteChecklistItem,
   deleteProgrammingTask,
   detachProgrammingDoc,
+  listChecklist,
   listProgrammingEventDocs,
   listProgrammingTasks,
+  setStage,
+  updateChecklistItem,
   updateProgrammingTask,
 } from "@/lib/services/programming-service";
 import { listDocs } from "@/lib/services/doc-service";
-import { NotFoundError } from "@/lib/errors";
+import { NotFoundError, ValidationError } from "@/lib/errors";
 import type { RequestContext } from "@/lib/context";
 
 beforeEach(async () => {
@@ -52,17 +57,53 @@ async function seedOrg() {
   return { org, admin };
 }
 
-describe("listProgrammingTasks", () => {
-  it("returns program, social, fundy, and service calendar events", async () => {
+/** Create + promote to confirmed (gives the event a CalendarEvent). */
+async function createConfirmed(ctx: RequestContext, input: Parameters<typeof createProgrammingTask>[1]) {
+  const task = await createProgrammingTask(ctx, input);
+  return setStage(ctx, task.id, { stage: "confirmed" });
+}
+
+describe("createProgrammingTask", () => {
+  it("starts in Idea with no CalendarEvent", async () => {
     const { org, admin } = await seedOrg();
     const ctx = ctxFor(org.id, admin.id);
 
-    await createCalendarEvent({ orgId: org.id, title: "Program Night", category: "program", mandatory: false });
-    await createCalendarEvent({ orgId: org.id, title: "Mixer", category: "social", mandatory: false });
-    await createCalendarEvent({ orgId: org.id, title: "Philanthropy", category: "fundy", mandatory: false });
-    await createCalendarEvent({ orgId: org.id, title: "Park Cleanup", category: "service", mandatory: false });
+    const task = await createProgrammingTask(ctx, { title: "Speaker Series", type: "Program" });
+
+    expect(task.stage).toBe("idea");
+    expect(task.type).toBe("Program");
+    expect(task.dueDate).toBeNull();
+
+    const pe = await testPrisma.programmingEvent.findUnique({ where: { id: task.id } });
+    expect(pe?.calendarEventId).toBeNull();
+    expect(pe?.category).toBe("program");
+    expect(await testPrisma.calendarEvent.count({ where: { organizationId: org.id } })).toBe(0);
+  });
+
+  it("stores collab in collabOrg with a clean title", async () => {
+    const { org, admin } = await seedOrg();
+    const ctx = ctxFor(org.id, admin.id);
+
+    const task = await createProgrammingTask(ctx, { title: "Brotherhood Social", collab: "KDF", type: "Social" });
+    expect(task.title).toBe("Brotherhood Social");
+    expect(task.collab).toBe("KDF");
+
+    const pe = await testPrisma.programmingEvent.findUnique({ where: { id: task.id } });
+    expect(pe?.collabOrg).toBe("KDF");
+  });
+});
+
+describe("listProgrammingTasks", () => {
+  it("returns program, social, fundy, and service programming events", async () => {
+    const { org, admin } = await seedOrg();
+    const ctx = ctxFor(org.id, admin.id);
+
+    await createProgrammingTask(ctx, { title: "Program Night", type: "Program" });
+    await createProgrammingTask(ctx, { title: "Mixer", type: "Social" });
+    await createProgrammingTask(ctx, { title: "Philanthropy", type: "Fundraiser" });
+    await createProgrammingTask(ctx, { title: "Park Cleanup", type: "Community Service" });
+    // A non-programming calendar row should not surface as a task.
     await createCalendarEvent({ orgId: org.id, title: "Chapter Mtg", category: "chapter" });
-    await createCalendarEvent({ orgId: org.id, title: "Rager", category: "party", mandatory: false });
 
     const tasks = await listProgrammingTasks(ctx);
     expect(tasks).toHaveLength(4);
@@ -71,208 +112,192 @@ describe("listProgrammingTasks", () => {
   });
 });
 
-describe("createProgrammingTask", () => {
-  it("maps type label to category and persists location/time/status", async () => {
+describe("setStage", () => {
+  it("requires a date to promote out of Idea", async () => {
     const { org, admin } = await seedOrg();
     const ctx = ctxFor(org.id, admin.id);
+    const task = await createProgrammingTask(ctx, { title: "Undated", type: "Program" });
 
-    const task = await createProgrammingTask(ctx, {
-      title:    "Speaker Series",
-      dueDate:  "2026-09-15",
-      location: "EMU Ballroom",
-      time:     "7:00 PM",
-      status:   "Upcoming",
-      type:     "Program",
-    });
-
-    expect(task.type).toBe("Program");
-    expect(task.location).toBe("EMU Ballroom");
-    expect(task.time).toBe("7:00 PM");
-    expect(task.status).toBe("Upcoming");
-
-    const row = await testPrisma.calendarEvent.findUnique({ where: { id: task.id } });
-    expect(row?.category).toBe("program");
-    expect(row?.date).toBe("2026-09-15");
-    expect(row?.location).toBe("EMU Ballroom");
-    expect(row?.time).toBe("7:00 PM");
-    expect(row?.status).toBe("Upcoming");
-    expect(row?.mandatory).toBe(false);
+    await expect(setStage(ctx, task.id, { stage: "planning" })).rejects.toThrow(ValidationError);
   });
 
-  it("creates a linked ServiceEvent for community service type", async () => {
+  it("promotes to Planning+ by creating a CalendarEvent", async () => {
     const { org, admin } = await seedOrg();
     const ctx = ctxFor(org.id, admin.id);
-
     const task = await createProgrammingTask(ctx, {
-      title:    "Park Cleanup",
-      dueDate:  "2026-09-18",
-      location: "City Park",
-      status:   "Upcoming",
-      type:     "Community Service",
+      title: "Speaker Series", dueDate: "2026-09-15", location: "EMU", time: "7:00 PM", type: "Program",
     });
 
-    expect(task.type).toBe("Community Service");
+    const promoted = await setStage(ctx, task.id, { stage: "planning" });
+    expect(promoted.stage).toBe("planning");
 
-    const row = await testPrisma.calendarEvent.findUnique({ where: { id: task.id } });
-    expect(row?.category).toBe("service");
-
-    const serviceRow = await testPrisma.serviceEvent.findUnique({ where: { calendarEventId: task.id } });
-    expect(serviceRow?.title).toBe("Park Cleanup");
-    expect(serviceRow?.location).toBe("City Park");
+    const pe = await testPrisma.programmingEvent.findUnique({ where: { id: task.id } });
+    expect(pe?.calendarEventId).not.toBeNull();
+    const ce = await testPrisma.calendarEvent.findUnique({ where: { id: pe!.calendarEventId! } });
+    expect(ce?.title).toBe("Speaker Series");
+    expect(ce?.date).toBe("2026-09-15");
+    expect(ce?.category).toBe("program");
   });
 
-  it("stores collab in collabOrg with clean title", async () => {
+  it("creates a ServiceEvent when a service event is promoted", async () => {
     const { org, admin } = await seedOrg();
     const ctx = ctxFor(org.id, admin.id);
-
     const task = await createProgrammingTask(ctx, {
-      title:    "Brotherhood Social",
-      collab:   "KDF",
-      dueDate:  "2026-09-20",
-      location: "Campus Center",
-      status:   "Upcoming",
-      type:     "Social",
+      title: "Park Cleanup", dueDate: "2026-09-18", location: "City Park", type: "Community Service",
     });
 
-    expect(task.title).toBe("Brotherhood Social");
-    expect(task.collab).toBe("KDF");
-
-    const row = await testPrisma.calendarEvent.findUnique({ where: { id: task.id } });
-    expect(row?.title).toBe("Brotherhood Social");
-    const programming = await testPrisma.programmingEvent.findUnique({ where: { calendarEventId: task.id } });
-    expect(programming?.collabOrg).toBe("KDF");
+    const promoted = await setStage(ctx, task.id, { stage: "confirmed" });
+    const pe = await testPrisma.programmingEvent.findUnique({ where: { id: promoted.id } });
+    const svc = await testPrisma.serviceEvent.findUnique({ where: { calendarEventId: pe!.calendarEventId! } });
+    expect(svc?.title).toBe("Park Cleanup");
+    expect(svc?.location).toBe("City Park");
   });
 
-  it("stores null time when omitted", async () => {
+  it("demotes to Idea by deleting the CalendarEvent (and ServiceEvent), keeping the event", async () => {
     const { org, admin } = await seedOrg();
     const ctx = ctxFor(org.id, admin.id);
-
-    const task = await createProgrammingTask(ctx, {
-      title:    "Tabling",
-      dueDate:  "2026-10-01",
-      location: "Student Union",
-      status:   "Upcoming",
-      type:     "Social",
+    const confirmed = await createConfirmed(ctx, {
+      title: "Park Cleanup", dueDate: "2026-09-18", location: "City Park", type: "Community Service",
     });
+    const calId = (await testPrisma.programmingEvent.findUnique({ where: { id: confirmed.id } }))!.calendarEventId!;
 
-    expect(task.time).toBeNull();
-    const row = await testPrisma.calendarEvent.findUnique({ where: { id: task.id } });
-    expect(row?.time).toBeNull();
+    const demoted = await setStage(ctx, confirmed.id, { stage: "idea" });
+    expect(demoted.stage).toBe("idea");
+
+    const pe = await testPrisma.programmingEvent.findUnique({ where: { id: confirmed.id } });
+    expect(pe).not.toBeNull();                 // event preserved
+    expect(pe?.calendarEventId).toBeNull();    // link removed
+    expect(await testPrisma.calendarEvent.findUnique({ where: { id: calId } })).toBeNull();
+    expect(await testPrisma.serviceEvent.findUnique({ where: { calendarEventId: calId } })).toBeNull();
+  });
+
+  it("re-promoting after demotion recreates a CalendarEvent", async () => {
+    const { org, admin } = await seedOrg();
+    const ctx = ctxFor(org.id, admin.id);
+    const confirmed = await createConfirmed(ctx, { title: "Mixer", dueDate: "2026-09-01", type: "Social" });
+    await setStage(ctx, confirmed.id, { stage: "idea" });
+
+    const re = await setStage(ctx, confirmed.id, { stage: "confirmed" });
+    expect(re.stage).toBe("confirmed");
+    const pe = await testPrisma.programmingEvent.findUnique({ where: { id: confirmed.id } });
+    expect(pe?.calendarEventId).not.toBeNull();
   });
 });
 
 describe("updateProgrammingTask / deleteProgrammingTask", () => {
-  it("rejects non-programming calendar rows", async () => {
+  it("rejects unknown programming events", async () => {
     const { org, admin } = await seedOrg();
     const ctx = ctxFor(org.id, admin.id);
-    const chapter = await createCalendarEvent({ orgId: org.id, category: "chapter" });
 
-    await expect(
-      updateProgrammingTask(ctx, chapter.id, { status: "Complete" }),
-    ).rejects.toThrow(NotFoundError);
-
-    await expect(
-      deleteProgrammingTask(ctx, chapter.id),
-    ).rejects.toThrow(NotFoundError);
+    await expect(updateProgrammingTask(ctx, 999999, { status: "Complete" })).rejects.toThrow(NotFoundError);
+    await expect(deleteProgrammingTask(ctx, 999999)).rejects.toThrow(NotFoundError);
   });
 
-  it("updates a programming event", async () => {
+  it("updates fields and mirrors to the CalendarEvent once promoted", async () => {
     const { org, admin } = await seedOrg();
     const ctx = ctxFor(org.id, admin.id);
-
-    const created = await createProgrammingTask(ctx, {
-      title:    "Tabling",
-      dueDate:  "2026-10-01",
-      location: "Main Quad",
-      status:   "Upcoming",
-      type:     "Social",
+    const confirmed = await createConfirmed(ctx, {
+      title: "Tabling", dueDate: "2026-10-01", location: "Main Quad", type: "Social",
     });
 
-    const updated = await updateProgrammingTask(ctx, created.id, {
-      status:   "Complete",
-      type:     "Fundraiser",
-      location: "Parking Lot B",
-      time:     "11:00 AM",
-      collab:   "DSP",
+    const updated = await updateProgrammingTask(ctx, confirmed.id, {
+      status: "Complete", type: "Fundraiser", location: "Parking Lot B", time: "11:00 AM", collab: "DSP",
     });
-
-    expect(updated.status).toBe("Complete");
     expect(updated.type).toBe("Fundraiser");
     expect(updated.location).toBe("Parking Lot B");
-    expect(updated.time).toBe("11:00 AM");
-    expect(updated.title).toBe("Tabling");
     expect(updated.collab).toBe("DSP");
 
-    const row = await testPrisma.calendarEvent.findUnique({ where: { id: created.id } });
-    expect(row?.category).toBe("fundy");
-    expect(row?.status).toBe("Complete");
-    const programming = await testPrisma.programmingEvent.findUnique({ where: { calendarEventId: created.id } });
-    expect(programming?.collabOrg).toBe("DSP");
+    const pe = await testPrisma.programmingEvent.findUnique({ where: { id: confirmed.id } });
+    expect(pe?.category).toBe("fundy");
+    expect(pe?.collabOrg).toBe("DSP");
+    const ce = await testPrisma.calendarEvent.findUnique({ where: { id: pe!.calendarEventId! } });
+    expect(ce?.category).toBe("fundy");
+    expect(ce?.location).toBe("Parking Lot B");
+  });
+
+  it("rejects clearing the date on a promoted event", async () => {
+    const { org, admin } = await seedOrg();
+    const ctx = ctxFor(org.id, admin.id);
+    const confirmed = await createConfirmed(ctx, { title: "Mixer", dueDate: "2026-09-01", type: "Social" });
+
+    await expect(updateProgrammingTask(ctx, confirmed.id, { dueDate: null })).rejects.toThrow(ValidationError);
+  });
+
+  it("allows clearing the date on an Idea event", async () => {
+    const { org, admin } = await seedOrg();
+    const ctx = ctxFor(org.id, admin.id);
+    const task = await createProgrammingTask(ctx, { title: "Idea", dueDate: "2026-09-01", type: "Social" });
+
+    const updated = await updateProgrammingTask(ctx, task.id, { dueDate: null });
+    expect(updated.dueDate).toBeNull();
   });
 
   it("updates ops fields", async () => {
     const { org, admin } = await seedOrg();
     const ctx = ctxFor(org.id, admin.id);
+    const task = await createProgrammingTask(ctx, { title: "Block Party", type: "Social" });
 
-    const created = await createProgrammingTask(ctx, {
-      title:    "Block Party",
-      dueDate:  "2026-08-15",
-      location: "Campus Podium",
-      status:   "Upcoming",
-      type:     "Social",
+    const updated = await updateProgrammingTask(ctx, task.id, {
+      roomStatus: "confirmed", itineraryUrl: "https://docs.google.com/document/d/test",
+      flyerPosted: true, socialsMeeting: true, spendingCents: 12500, successRating: 4,
     });
-
-    const updated = await updateProgrammingTask(ctx, created.id, {
-      roomStatus:     "confirmed",
-      itineraryUrl: "https://docs.google.com/document/d/test",
-      flyerPosted:    true,
-      socialsMeeting: true,
-      spendingCents:  12500,
-      successRating:  4,
-    });
-
     expect(updated.roomStatus).toBe("confirmed");
-    expect(updated.itineraryUrl).toBe("https://docs.google.com/document/d/test");
     expect(updated.flyerPosted).toBe(true);
-    expect(updated.socialsMeeting).toBe(true);
     expect(updated.spendingCents).toBe(12500);
     expect(updated.successRating).toBe(4);
   });
 
-  it("removes linked ServiceEvent when type changes away from community service", async () => {
+  it("removes the ServiceEvent when type changes away from community service", async () => {
     const { org, admin } = await seedOrg();
     const ctx = ctxFor(org.id, admin.id);
-
-    const created = await createProgrammingTask(ctx, {
-      title:    "Park Cleanup",
-      dueDate:  "2026-09-18",
-      location: "City Park",
-      status:   "Upcoming",
-      type:     "Community Service",
+    const confirmed = await createConfirmed(ctx, {
+      title: "Park Cleanup", dueDate: "2026-09-18", location: "City Park", type: "Community Service",
     });
+    const calId = (await testPrisma.programmingEvent.findUnique({ where: { id: confirmed.id } }))!.calendarEventId!;
 
-    await updateProgrammingTask(ctx, created.id, { type: "Program" });
-
-    const serviceRow = await testPrisma.serviceEvent.findUnique({ where: { calendarEventId: created.id } });
-    expect(serviceRow).toBeNull();
+    await updateProgrammingTask(ctx, confirmed.id, { type: "Program" });
+    expect(await testPrisma.serviceEvent.findUnique({ where: { calendarEventId: calId } })).toBeNull();
   });
 
-  it("deletes linked ServiceEvent when removing a community service event", async () => {
+  it("deletes the CalendarEvent + ServiceEvent when removing a promoted service event", async () => {
     const { org, admin } = await seedOrg();
     const ctx = ctxFor(org.id, admin.id);
-
-    const created = await createProgrammingTask(ctx, {
-      title:    "Park Cleanup",
-      dueDate:  "2026-09-18",
-      location: "City Park",
-      status:   "Upcoming",
-      type:     "Community Service",
+    const confirmed = await createConfirmed(ctx, {
+      title: "Park Cleanup", dueDate: "2026-09-18", location: "City Park", type: "Community Service",
     });
+    const calId = (await testPrisma.programmingEvent.findUnique({ where: { id: confirmed.id } }))!.calendarEventId!;
 
-    await deleteProgrammingTask(ctx, created.id);
+    await deleteProgrammingTask(ctx, confirmed.id);
 
-    expect(await testPrisma.calendarEvent.findUnique({ where: { id: created.id } })).toBeNull();
-    expect(await testPrisma.serviceEvent.findUnique({ where: { calendarEventId: created.id } })).toBeNull();
+    expect(await testPrisma.programmingEvent.findUnique({ where: { id: confirmed.id } })).toBeNull();
+    expect(await testPrisma.calendarEvent.findUnique({ where: { id: calId } })).toBeNull();
+    expect(await testPrisma.serviceEvent.findUnique({ where: { calendarEventId: calId } })).toBeNull();
+  });
+});
+
+describe("checklist", () => {
+  it("adds, lists, toggles, and deletes items", async () => {
+    const { org, admin } = await seedOrg();
+    const ctx = ctxFor(org.id, admin.id);
+    const task = await createProgrammingTask(ctx, { title: "Mixer", type: "Social" });
+
+    const a = await addChecklistItem(ctx, task.id, { label: "Book room" });
+    const b = await addChecklistItem(ctx, task.id, { label: "Design flyer" });
+    expect(b.sortOrder).toBeGreaterThan(a.sortOrder);
+
+    let items = await listChecklist(ctx, task.id);
+    expect(items.map(i => i.label)).toEqual(["Book room", "Design flyer"]);
+
+    await updateChecklistItem(ctx, task.id, a.id, { done: true });
+    items = await listChecklist(ctx, task.id);
+    expect(items.find(i => i.id === a.id)?.done).toBe(true);
+
+    // Checklist surfaces on the task DTO.
+    const tasks = await listProgrammingTasks(ctx);
+    expect(tasks.find(t => t.id === task.id)?.checklist).toHaveLength(2);
+
+    await deleteChecklistItem(ctx, task.id, b.id);
+    expect(await listChecklist(ctx, task.id)).toHaveLength(1);
   });
 });
 
@@ -280,23 +305,14 @@ describe("programming event docs", () => {
   it("attaches, lists, and detaches docs on an event", async () => {
     const { org, admin } = await seedOrg();
     const ctx = ctxFor(org.id, admin.id);
-
-    const task = await createProgrammingTask(ctx, {
-      title:    "Philanthropy Week",
-      dueDate:  "2026-11-01",
-      location: "Student Union",
-      status:   "Upcoming",
-      type:     "Fundraiser",
-    });
+    const task = await createProgrammingTask(ctx, { title: "Philanthropy Week", type: "Fundraiser" });
 
     const doc = await attachProgrammingDoc(ctx, task.id, {
-      title: "Budget Sheet",
-      url:   "https://docs.google.com/spreadsheets/d/test",
+      title: "Budget Sheet", url: "https://docs.google.com/spreadsheets/d/test",
     });
 
-    const programming = await testPrisma.programmingEvent.findUnique({ where: { calendarEventId: task.id } });
     const link = await testPrisma.programmingEventDoc.findFirst({
-      where: { programmingEventId: programming!.id, docId: doc.id },
+      where: { programmingEventId: task.id, docId: doc.id },
     });
     expect(link).not.toBeNull();
 
@@ -311,37 +327,21 @@ describe("programming event docs", () => {
     expect(await listProgrammingEventDocs(ctx, task.id)).toHaveLength(0);
   });
 
-  it("excludes event docs from org Resources list", async () => {
+  it("excludes event docs from the org Resources list", async () => {
     const { org, admin } = await seedOrg();
     const ctx = ctxFor(org.id, admin.id);
-
     await testPrisma.doc.create({
-      data: {
-        organizationId: org.id,
-        title:          "Chapter Bylaws",
-        url:            "https://example.com/bylaws",
-      },
+      data: { organizationId: org.id, title: "Chapter Bylaws", url: "https://example.com/bylaws" },
     });
-
-    const task = await createProgrammingTask(ctx, {
-      title:    "Mixer",
-      dueDate:  "2026-09-01",
-      location: "House",
-      status:   "Upcoming",
-      type:     "Social",
-    });
-
-    await attachProgrammingDoc(ctx, task.id, {
-      title: "Run of Show",
-      url:   "https://docs.google.com/document/d/ros",
-    });
+    const task = await createProgrammingTask(ctx, { title: "Mixer", type: "Social" });
+    await attachProgrammingDoc(ctx, task.id, { title: "Run of Show", url: "https://docs.google.com/document/d/ros" });
 
     const resources = await listDocs(ctx);
     expect(resources).toHaveLength(1);
     expect(resources[0].title).toBe("Chapter Bylaws");
   });
 
-  it("rejects doc ops on non-programming events", async () => {
+  it("rejects doc ops on non-programming ids", async () => {
     const { org, admin } = await seedOrg();
     const ctx = ctxFor(org.id, admin.id);
     const chapter = await createCalendarEvent({ orgId: org.id, category: "chapter" });
