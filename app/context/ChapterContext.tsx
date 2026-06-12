@@ -224,13 +224,42 @@ export function ChapterProvider({ children }: { children: React.ReactNode }) {
     setLoadError(null);
     setSectionErrors(new Set());
 
+    // The org-scoped fan-out below only makes sense inside an org dashboard
+    // (/[slug]/…). On platform/auth routes (/welcome, /welcome/create, /login,
+    // /pending-access, …) there's no org slug in the URL, so these reads would
+    // resolve to a non-membership org context and 403. A signed-in but
+    // already-onboarded user can legitimately sit on /welcome/create (founding
+    // another org), so we skip the section fetches there rather than firing a
+    // wall of doomed 403s. The route check only needs the URL, so it happens
+    // up front — letting the fan-out start in PARALLEL with /api/auth/me
+    // instead of waterfalling behind it (saves a full round-trip per load).
+    const onDashboard = typeof window !== "undefined" && isDashboardRoute(window.location.pathname);
+
     // Each endpoint loads independently. A failure in one section (e.g. treasury)
     // marks that section as errored but lets the rest of the dashboard render.
     // Auth failure is the one exception — if /api/auth/me fails, we abort the
-    // whole refresh because the rest of the data is meaningless without a user.
-    const meResult        = await Promise.resolve().then(() => fetchJson<CurrentUser>("/api/auth/me"))
+    // whole refresh (section results are discarded) because the rest of the
+    // data is meaningless without a user.
+    const mePromise = fetchJson<CurrentUser>("/api/auth/me")
       .then(value => ({ ok: true as const, value }))
       .catch(error => ({ ok: false as const, error }));
+
+    // Fan out alongside /me. allSettled so one slow/broken endpoint doesn't
+    // blank the dashboard — see audit finding D4 / backend E3.
+    const sectionsPromise = onDashboard
+      ? Promise.allSettled([
+          fetchJson<Brother[]>("/api/brothers"),
+          fetchJson<Deadline[]>("/api/deadlines"),
+          fetchJson<InstagramTask[]>("/api/instagram"),
+          fetchJson<ProgrammingTask[]>("/api/programming"),
+          fetchJson<PartyEvent[]>("/api/parties"),
+          fetchJson<ActivityEntry[]>("/api/activity"),
+          fetchJson<TreasuryData>("/api/treasury"),
+          fetchJson<Transaction[]>("/api/transactions"),
+        ])
+      : null;
+
+    const meResult = await mePromise;
 
     if (!isLatest()) return;
 
@@ -251,31 +280,13 @@ export function ChapterProvider({ children }: { children: React.ReactNode }) {
     setCurrentUser(me);
     setAvatarRevision(r => r + 1);
 
-    // The org-scoped fan-out below only makes sense inside an org dashboard
-    // (/[slug]/…). On platform/auth routes (/welcome, /welcome/create, /login,
-    // /pending-access, …) there's no org slug in the URL, so these reads would
-    // resolve to a non-membership org context and 403. A signed-in but
-    // already-onboarded user can legitimately sit on /welcome/create (founding
-    // another org), so we skip the section fetches there rather than firing a
-    // wall of doomed 403s. currentUser is already set from /api/auth/me above.
-    if (typeof window !== "undefined" && !isDashboardRoute(window.location.pathname)) {
+    if (!sectionsPromise) {
       setIsLoading(false);
       setHasLoaded(true);
       return;
     }
 
-    // Fan out the rest. allSettled so one slow/broken endpoint doesn't blank
-    // the dashboard — see audit finding D4 / backend E3.
-    const [brothers, deadlines, instagram, programming, parties, activity, treasury, transactions] = await Promise.allSettled([
-      fetchJson<Brother[]>("/api/brothers"),
-      fetchJson<Deadline[]>("/api/deadlines"),
-      fetchJson<InstagramTask[]>("/api/instagram"),
-      fetchJson<ProgrammingTask[]>("/api/programming"),
-      fetchJson<PartyEvent[]>("/api/parties"),
-      fetchJson<ActivityEntry[]>("/api/activity"),
-      fetchJson<TreasuryData>("/api/treasury"),
-      fetchJson<Transaction[]>("/api/transactions"),
-    ]);
+    const [brothers, deadlines, instagram, programming, parties, activity, treasury, transactions] = await sectionsPromise;
 
     if (!isLatest()) return;
 
