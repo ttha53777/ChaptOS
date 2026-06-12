@@ -48,6 +48,8 @@ const TASK_STATUSES = ["Upcoming", "Due Soon", "Urgent", "Complete"] as const;
 const IG_TYPES = ["Feed Post", "Reel", "Story", "Carousel", "Story + Feed"] as const;
 const CAL_CATEGORIES = ["chapter", "social", "fundy", "program", "party", "deadline", "service"] as const;
 const TX_TYPES = ["income", "expense"] as const;
+const PROGRAMMING_TYPES = ["Program", "Social", "Fundraiser", "Community Service"] as const;
+const PROGRAMMING_STAGES = ["idea", "planning", "confirmed", "done"] as const;
 
 export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
   {
@@ -420,6 +422,50 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
           brother_name: { type: "string", description: "Provide the name too for the confirm card preview." },
         },
         required: ["brother_id", "brother_name"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "list_programming_events",
+      description:
+        "Programming board events (title, type, stage, date, owner, category). " +
+        "Stages: idea → planning → confirmed → done. Types: Program, Social, Fundraiser, Community Service. " +
+        "For 'upcoming programs' set start=<today>, order='asc', small limit. " +
+        "For 'what's in planning?' filter by stage='planning'. " +
+        "For 'what socials do we have?' filter by type='Social'. " +
+        "If a filtered query returns empty, broaden before saying there are none.",
+      parameters: {
+        type: "object",
+        properties: {
+          start:    { type: "string", description: "Inclusive YYYY-MM-DD start (filters by date)." },
+          end:      { type: "string", description: "Inclusive YYYY-MM-DD end." },
+          stage:    { type: "string", enum: [...PROGRAMMING_STAGES], description: "Filter by stage." },
+          type:     { type: "string", enum: [...PROGRAMMING_TYPES], description: "Filter by event type." },
+          order_by: { type: "string", enum: ["date", "title", "stage"], description: "Sort field (default date)." },
+          order:    { type: "string", enum: ["asc", "desc"], description: "Default asc." },
+          limit:    { type: "integer", minimum: 1, maximum: 100, description: "Default 100; use ~5 for 'next' or 'top'." },
+        },
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "propose_add_programming_event",
+      description:
+        "Propose adding a programming event (program, social, fundraiser, or community service). Returns a confirm card; the event is NOT created until confirmed. " +
+        "Only ask the user for the required fields (title, type). Omit date/owner/stage unless the user mentions them — defaults handle the rest.",
+      parameters: {
+        type: "object",
+        properties: {
+          title: { type: "string", description: "Short descriptive title." },
+          type:  { type: "string", enum: [...PROGRAMMING_TYPES], description: "Event type." },
+          date:  { type: "string", description: "Optional YYYY-MM-DD. Only include if the user mentions a date." },
+          owner: { type: "string", description: "Optional brother name responsible. Only include if the user mentions one." },
+        },
+        required: ["title", "type"],
       },
     },
   },
@@ -1068,6 +1114,55 @@ async function listServiceEvents(args: ToolArgs, orgId: number): Promise<ToolRes
   return listResult(filtered.slice(0, clampLimit(args.limit)), !!(start || end));
 }
 
+async function listProgrammingEvents(args: ToolArgs, orgId: number): Promise<ToolResult> {
+  const start = typeof args.start === "string" && DATE_RE.test(args.start) ? args.start : undefined;
+  const end   = typeof args.end   === "string" && DATE_RE.test(args.end)   ? args.end   : undefined;
+  const stageFilter = typeof args.stage === "string" ? args.stage : undefined;
+  const typeFilter  = typeof args.type  === "string" ? args.type  : undefined;
+  const orderByField = typeof args.order_by === "string" && ["date", "title", "stage"].includes(args.order_by)
+    ? args.order_by as "date" | "title" | "stage" : "date";
+  const orderDir = args.order === "desc" ? "desc" : "asc";
+
+  // category↔type mapping mirrors lib/programming.ts
+  const TYPE_TO_CATEGORY: Record<string, string> = {
+    "Program": "program", "Social": "social", "Fundraiser": "fundy", "Community Service": "service",
+  };
+  const CATEGORY_TO_TYPE: Record<string, string> = {
+    "program": "Program", "social": "Social", "fundy": "Fundraiser", "service": "Community Service",
+  };
+  const categoryFilter = typeFilter ? TYPE_TO_CATEGORY[typeFilter] : undefined;
+
+  const rows = await prisma.programmingEvent.findMany({
+    where: {
+      organizationId: orgId,
+      category: { in: ["program", "social", "fundy", "service"] },
+      ...(categoryFilter ? { category: categoryFilter } : {}),
+      ...(stageFilter    ? { stage: stageFilter }        : {}),
+    },
+    orderBy: { [orderByField]: orderDir },
+    select: {
+      id: true, title: true, date: true, category: true, stage: true,
+      owner: true, location: true, collabOrg: true,
+    },
+  });
+
+  const filtered = rows
+    .filter(e => (start ? (e.date ?? "") >= start : true))
+    .filter(e => (end   ? (e.date ?? "") <= end   : true))
+    .map(e => ({
+      id:       e.id,
+      title:    e.title,
+      type:     CATEGORY_TO_TYPE[e.category] ?? e.category,
+      stage:    e.stage,
+      date:     e.date ?? null,
+      owner:    e.owner,
+      location: e.location ?? null,
+      collabOrg: e.collabOrg || null,
+    }));
+
+  return listResult(filtered.slice(0, clampLimit(args.limit)), !!(start || end || stageFilter || typeFilter));
+}
+
 // ────────────────────────────────────────────────────────────────────────────
 // Write proposal builders — VALIDATE only, NEVER touch the DB. The chat route
 // surfaces the returned Proposal over SSE as a confirm card on the client.
@@ -1201,6 +1296,29 @@ async function proposeMarkDuesPaid(args: ToolArgs, orgId: number): Promise<Propo
   };
 }
 
+function proposeAddProgrammingEvent(args: ToolArgs): Proposal | { error: string } {
+  const title = String(args.title ?? "").trim();
+  const type  = String(args.type  ?? "").trim();
+  if (!title || !type) return badProposal("Missing required fields.");
+  if (!(PROGRAMMING_TYPES as readonly string[]).includes(type)) {
+    return badProposal(`type must be one of ${PROGRAMMING_TYPES.join(", ")}.`);
+  }
+  if (title.length > 200) return badProposal("Title too long.");
+  const date  = typeof args.date  === "string" && DATE_RE.test(args.date)  ? args.date  : undefined;
+  const owner = typeof args.owner === "string" && args.owner.trim() ? args.owner.trim() : undefined;
+  const payload: Record<string, unknown> = { title, type };
+  if (date)  payload.dueDate = date;
+  if (owner) payload.owner = owner;
+  return {
+    kind: "proposal",
+    action: "propose_add_programming_event",
+    endpoint: "/api/programming",
+    method: "POST",
+    payload,
+    summary: `Add ${type} "${title}"${date ? ` on ${date}` : ""}${owner ? `, owner ${owner}` : ""} to Programming board.`,
+  };
+}
+
 // Handlers may be sync or async; runProposal awaits either. orgId lets a handler
 // read current state to enrich the card (validate-only — never a write).
 type ProposalHandler = (args: ToolArgs, orgId: number) =>
@@ -1208,11 +1326,12 @@ type ProposalHandler = (args: ToolArgs, orgId: number) =>
   | Promise<Proposal | { error: string }>;
 
 const PROPOSAL_HANDLERS: Record<string, ProposalHandler> = {
-  propose_add_deadline:       proposeAddDeadline,
-  propose_add_instagram_task: proposeAddInstagram,
-  propose_add_calendar_event: proposeAddCalendarEvent,
-  propose_log_transaction:    proposeLogTransaction,
-  propose_mark_dues_paid:     proposeMarkDuesPaid,
+  propose_add_deadline:           proposeAddDeadline,
+  propose_add_instagram_task:     proposeAddInstagram,
+  propose_add_calendar_event:     proposeAddCalendarEvent,
+  propose_log_transaction:        proposeLogTransaction,
+  propose_mark_dues_paid:         proposeMarkDuesPaid,
+  propose_add_programming_event:  proposeAddProgrammingEvent,
 };
 
 /** True when the tool name is a write proposal (server validates but never writes). */
@@ -1235,21 +1354,22 @@ export async function runProposal(name: string, args: ToolArgs, orgId: number): 
 // ────────────────────────────────────────────────────────────────────────────
 
 const READ_HANDLERS: Record<string, (args: ToolArgs, orgId: number) => Promise<ToolResult>> = {
-  list_brothers:        listBrothers,
-  get_brother:          getBrother,
-  list_deadlines:       listDeadlines,
-  list_instagram_tasks: listInstagram,
-  list_calendar_events: listCalendar,
-  list_parties:         listParties,
-  sum_transactions:     sumTransactions,
-  get_treasury:         (_args, orgId) => getTreasury(orgId),
-  get_budget:           (_args, orgId) => getBudget(orgId),
-  recent_activity:      recentActivity,
-  weekly_digest:        (_args, orgId) => weeklyDigest(orgId),
-  get_event_attendance: getEventAttendance,
-  get_brother_attendance: getBrotherAttendance,
-  list_roles:           listRoles,
-  list_service_events:  listServiceEvents,
+  list_brothers:           listBrothers,
+  get_brother:             getBrother,
+  list_deadlines:          listDeadlines,
+  list_instagram_tasks:    listInstagram,
+  list_calendar_events:    listCalendar,
+  list_parties:            listParties,
+  sum_transactions:        sumTransactions,
+  get_treasury:            (_args, orgId) => getTreasury(orgId),
+  get_budget:              (_args, orgId) => getBudget(orgId),
+  recent_activity:         recentActivity,
+  weekly_digest:           (_args, orgId) => weeklyDigest(orgId),
+  get_event_attendance:    getEventAttendance,
+  get_brother_attendance:  getBrotherAttendance,
+  list_roles:              listRoles,
+  list_service_events:     listServiceEvents,
+  list_programming_events: listProgrammingEvents,
 };
 
 /**

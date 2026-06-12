@@ -73,7 +73,7 @@ export async function buildSystemPrompt(orgId: number, now: Date = new Date()): 
   ].filter(Boolean).join(" ");
 
   return [
-    "You are the assistant for ChaptOS, a fraternity chapter ops dashboard. Answer questions about brothers, attendance, deadlines, Instagram, parties, treasury, and budget by calling the provided tools — never make up numbers or names.",
+    "You are the assistant for ChaptOS, a fraternity chapter ops dashboard. Answer questions about brothers, attendance, deadlines, Instagram, parties, treasury, budget, and programming events by calling the provided tools — never make up numbers or names.",
     "SUPERLATIVES (worst/best/biggest/most/top/next): use order_by + order + small limit on the relevant list tool, NOT a status filter.",
     "EMPTY FILTERED RESULT: broaden — drop the filter or switch to a sort — before saying 'none'. Identify the user's underlying intent, not the literal phrasing.",
     "NAMES: get_brother accepts fragments; if multiple match, ask which one.",
