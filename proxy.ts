@@ -49,6 +49,10 @@ export async function proxy(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser();
 
   if (!user) {
+    // Root is the public marketing page — anonymous visitors see it instead of
+    // being bounced to /login. Signed-in users still hit app/page.tsx, which
+    // routes them into their org. Everything else stays gated.
+    if (request.nextUrl.pathname === "/") return response;
     return redirectToLogin(request);
   }
 

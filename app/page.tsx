@@ -1,25 +1,35 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { requireUser, hasSession } from "@/lib/auth/require-user";
+import { LandingPage } from "./components/landing/LandingPage";
+import { APP_NAME } from "@/lib/domains";
+
+export const metadata: Metadata = {
+  title: `${APP_NAME} — The chapter operating system`,
+  description:
+    "Dues, attendance, programming, people — one calm, intelligent home for " +
+    "everything your fraternity, sorority, or student org runs on.",
+};
 
 /**
- * Root entry point. Org-scoped app lives under /[slug]; this route just routes
- * the visitor to the right place:
+ * Root entry point. Org-scoped app lives under /[slug]; this route shows the
+ * marketing landing page to anonymous visitors and routes everyone else:
  *
- *   - Not signed in              → /login
+ *   - Not signed in              → landing page (CTAs → /login)
  *   - Signed in, no Brother yet  → /welcome (join or create)
  *   - Signed in, has an org      → /<active-org-slug>  (cookie-resolved, else first membership)
  *   - Signed in, Brother but zero memberships → /welcome
  *
- * Server-side redirect — no flash, runs before any render.
+ * Redirects are server-side — no flash, run before any render.
  */
 export default async function RootPage() {
   const user = await requireUser();
   if (!user) {
     // null = no session OR session-without-Brother. An authenticated-but-
     // unlinked user has no org context at root, so send them to onboarding
-    // rather than looping them back to /login.
+    // rather than showing them the marketing page again.
     if (await hasSession()) redirect("/welcome");
-    redirect("/login");
+    return <LandingPage />;
   }
 
   // requireUser() resolves orgId from the active_org_id cookie (falling back to
