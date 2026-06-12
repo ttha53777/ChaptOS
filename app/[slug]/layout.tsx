@@ -33,6 +33,18 @@ export default async function OrgLayout({
   children: React.ReactNode;
 }) {
   const { slug } = await params;
+  // Onboarding-gate lookup (consumed further down) starts in parallel with auth
+  // so it doesn't add a sequential DB round-trip to every page render.
+  // Organization.slug is unique, so this resolves the same config row the
+  // post-membership findUnique used to; the result is only USED after the
+  // membership gate below passes, so nothing leaks on the deny paths.
+  const configPromise = prisma.organizationConfig.findFirst({
+    where: { organization: { slug } },
+    select: { enabledWorkflows: true },
+  });
+  // Pre-handle rejection for the paths that redirect before awaiting it; the
+  // explicit await below still surfaces the original error when the value is used.
+  configPromise.catch(() => undefined);
   // Pass the URL slug so org resolution follows the URL (the source of truth for
   // /[slug]/* routes) rather than the active_org cookie. For a member of <slug>
   // this makes user.orgId == that membership's org, so the page renders this
@@ -90,10 +102,7 @@ export default async function OrgLayout({
   const requestPath = (await headers()).get("x-pathname") ?? "";
   const isOnboardingRoute = requestPath === `/${slug}/onboarding`;
   if (!isOnboardingRoute) {
-    const config = await prisma.organizationConfig.findUnique({
-      where: { organizationId: membership.organizationId },
-      select: { enabledWorkflows: true },
-    });
+    const config = await configPromise;
     if (!config || config.enabledWorkflows.length === 0) {
       redirect(`/${slug}/onboarding`);
     }
