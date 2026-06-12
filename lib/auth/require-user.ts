@@ -129,6 +129,16 @@ export async function requireUser(opts?: { orgSlug?: string }) {
           organization: { select: { name: true, slug: true } },
         },
       },
+      // Role assignments across ALL orgs, fetched in the same round-trip so
+      // buildContext / resolvePermissions don't need a second sequential query
+      // per request. Callers filter by role.organizationId for the active org.
+      roles: {
+        select: {
+          role: {
+            select: { id: true, name: true, color: true, rank: true, permissions: true, organizationId: true },
+          },
+        },
+      },
     },
   });
   if (!brother) return null;
@@ -180,7 +190,14 @@ export async function requireUser(opts?: { orgSlug?: string }) {
     // cookie and align it in the background, without re-reading the cookie.
     cookieOrgId,
     memberships,
+    // Role rows across all orgs (filter by organizationId for the active org).
+    // Loaded in the same query as the Brother row so permission resolution
+    // doesn't cost an extra DB round-trip per request.
+    roleRows: brother.roles.map(r => r.role),
     authUserId: user.id,
     email: user.email ?? null,
+    // The Supabase auth user's metadata, surfaced so callers (e.g. /api/auth/me)
+    // don't need a second auth.getUser() network round-trip to read it.
+    userMetadata: (user.user_metadata ?? undefined) as Record<string, unknown> | undefined,
   };
 }

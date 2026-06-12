@@ -19,7 +19,6 @@
  */
 
 import { randomUUID } from "node:crypto";
-import { prisma } from "@/lib/prisma";
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth/require-user";
 import { type Permission, computePermissions, hasPermission } from "@/lib/permissions";
@@ -96,19 +95,11 @@ export async function buildContext(opts: BuildContextOpts = {}): Promise<BuildCo
     permissions = ~0 >>> 0;
     maxRank = Number.POSITIVE_INFINITY;
   } else {
-    try {
-      const rows = await prisma.brotherRole.findMany({
-        where: { brotherId: user.id, role: { organizationId: user.orgId } },
-        select: { role: { select: { permissions: true, rank: true } } },
-      });
-      const roles = rows.map(r => r.role);
-      permissions = computePermissions(roles);
-      maxRank = roles.reduce((m, r) => Math.max(m, r.rank), 0);
-    } catch (e) {
-      // Pre-migration table missing — treat as no roles. Same posture as
-      // require-permission.ts before this refactor.
-      console.warn("buildContext: role lookup failed:", (e as Error).message);
-    }
+    // requireUser() already loaded every role assignment in its Brother query;
+    // filter to the active org here instead of a second DB round-trip.
+    const roles = user.roleRows.filter(r => r.organizationId === user.orgId);
+    permissions = computePermissions(roles);
+    maxRank = roles.reduce((m, r) => Math.max(m, r.rank), 0);
   }
 
   // ── Permission gate ────────────────────────────────────────────────────────
