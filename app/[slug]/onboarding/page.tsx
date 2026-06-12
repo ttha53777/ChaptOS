@@ -50,6 +50,12 @@ const PICKER_ITEMS: PickerItem[] = NAV.flatMap((label) => {
 // get regardless of their choices. Dashboard/Timeline/Chapter map to null.
 const ALWAYS_ON_LABELS = NAV.filter((label) => NAV_WORKFLOW_MAP[label] == null);
 
+const ALWAYS_ON_DESCRIPTIONS: Record<string, string> = {
+  Dashboard: "Your org's home — attendance, dues, GPA, and activity at a glance.",
+  Timeline:  "A shared calendar for all upcoming events and meetings.",
+  Chapter:   "Meeting minutes, agenda, and chapter-wide records.",
+};
+
 // The toggleable dashboard widgets (always-on "operations" workflow). The AI step
 // recommends which to keep; the rest become disabledFeatures on save.
 const DASHBOARD_WIDGETS = WORKFLOW_FEATURES.operations;
@@ -587,6 +593,7 @@ export default function OnboardingPage() {
                       <span className="auth-dot" aria-hidden />
                       <div>
                         <div className="t">{label}</div>
+                        {ALWAYS_ON_DESCRIPTIONS[label] && <div className="d">{ALWAYS_ON_DESCRIPTIONS[label]}</div>}
                       </div>
                       <span
                         aria-hidden
@@ -625,32 +632,6 @@ export default function OnboardingPage() {
                 </div>
               </fieldset>
 
-              {/* Dashboard widgets — which summary cards show on the home page.
-                  Always available; the AI step pre-trims it to what fits the org. */}
-              <fieldset style={{ border: 0, padding: 0, margin: 0, borderTop: "1px solid var(--line-soft)", paddingTop: 20 }}>
-                <legend className="auth-label" style={{ padding: 0 }}>Dashboard widgets</legend>
-                <p className="auth-hint">Pick the summary cards for your dashboard. Unselected ones are hidden — you can change these anytime in Settings.</p>
-                <div className="auth-radios">
-                  {DASHBOARD_WIDGETS.map((w) => {
-                    const on = shownWidgets.has(w.id);
-                    return (
-                      <label key={w.id} className={`auth-radio${on ? " on" : ""}`}>
-                        <input
-                          type="checkbox"
-                          checked={on}
-                          onChange={() => toggleWidget(w.id)}
-                          className="sr-only"
-                        />
-                        <span className="auth-dot" aria-hidden />
-                        <div>
-                          <div className="t">{w.label}</div>
-                          <div className="d">{w.description}</div>
-                        </div>
-                      </label>
-                    );
-                  })}
-                </div>
-              </fieldset>
               </div>)}
 
               {/* Vocabulary — only shown when the AI suggested label overrides, so
