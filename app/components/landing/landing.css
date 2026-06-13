@@ -103,6 +103,8 @@
   justify-content: space-between;
   gap: 24px;
   height: 72px;
+  width: 100%;
+  padding: 0 clamp(20px, 3.5vw, 40px);
 }
 .lp-wordmark {
   display: flex;
@@ -906,9 +908,16 @@
 
 .lp-wfband {
   position: relative;
-  background: #141021;
-  border-top: 1px solid rgba(167, 139, 250, 0.14);
-  border-bottom: 1px solid rgba(167, 139, 250, 0.14);
+  /* Eases in from the pillars' warm paper and out into the intelligence
+     band's indigo, so the violet chapter reads as a gradual change of light
+     rather than a stacked slab. */
+  background: linear-gradient(
+    180deg,
+    var(--paper) 0%,
+    #141021 clamp(200px, 26vw, 340px),
+    #141021 calc(100% - clamp(160px, 20vw, 280px)),
+    #0a0d16 100%
+  );
   overflow: clip;
 }
 .lp-wfband::before {
@@ -917,20 +926,31 @@
   inset: 0;
   pointer-events: none;
   background:
-    radial-gradient(36% 42% at 12% 0%, rgba(124, 58, 237, 0.16), transparent 70%),
-    radial-gradient(30% 38% at 92% 100%, rgba(124, 58, 237, 0.12), transparent 70%);
+    radial-gradient(70% 46% at 50% 0%, rgba(124, 58, 237, 0.1), transparent 72%),
+    radial-gradient(30% 38% at 92% 100%, rgba(124, 58, 237, 0.08), transparent 70%);
 }
 .lp-wfband > .lp-container { position: relative; }
 
-.lp-grid {
+/* Editorial bento: 6-column grid, feature cells span 3, standard cells span 2,
+   and the timeline strip runs the full width. Reveal wrappers are the grid
+   children, so spans live on them and the cell fills the wrapper's height. */
+.lp-bento {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(6, 1fr);
   gap: 12px;
   margin-top: clamp(36px, 4.5vw, 56px);
 }
+.lp-bento > .lp-reveal { min-width: 0; height: 100%; }
+.lp-bspan-2 { grid-column: span 2; }
+.lp-bspan-3 { grid-column: span 3; }
+.lp-bspan-6 { grid-column: span 6; }
+
 /* Each cell carries its own hue via --cell (set inline in markup). */
-.lp-cell {
+.lp-bcell {
   --cell: var(--vio);
+  height: 100%;
+  display: flex;
+  flex-direction: column;
   border: 1px solid rgba(236, 231, 221, 0.08);
   background: rgba(236, 231, 221, 0.025);
   border-radius: 14px;
@@ -938,15 +958,22 @@
   transition: border-color 220ms var(--ease-out), background 220ms var(--ease-out),
     transform 220ms var(--ease-out), box-shadow 260ms var(--ease-out);
 }
-.lp-cell:hover {
+.lp-bcell:hover {
   border-color: color-mix(in srgb, var(--cell) 45%, transparent);
   background: color-mix(in srgb, var(--cell) 6%, transparent);
   transform: translateY(-3px);
   box-shadow: 0 18px 44px -18px color-mix(in srgb, var(--cell) 35%, rgba(0, 0, 0, 0.6));
 }
-.lp-cell .ic {
+.lp-bcell .bhead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+.lp-bcell .ic {
   height: 38px;
   width: 38px;
+  flex: none;
   border-radius: 10px;
   border: 1px solid color-mix(in srgb, var(--cell) 30%, transparent);
   background: color-mix(in srgb, var(--cell) 9%, transparent);
@@ -954,12 +981,132 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-bottom: 16px;
   transition: transform 220ms var(--ease-out);
 }
-.lp-cell:hover .ic { transform: scale(1.08) rotate(-3deg); }
-.lp-cell h4 { font-size: 15px; font-weight: 600; color: var(--ink); margin: 0; }
-.lp-cell p { font-size: 13px; line-height: 1.55; color: var(--ink-55); margin: 6px 0 0; }
+.lp-bcell:hover .ic { transform: scale(1.08) rotate(-3deg); }
+.lp-bcell .bnum {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  color: color-mix(in srgb, var(--cell) 60%, transparent);
+}
+.lp-bcell h3 { font-size: 15px; font-weight: 600; color: var(--ink); margin: 0; }
+.lp-bcell p { font-size: 13px; line-height: 1.55; color: var(--ink-55); margin: 6px 0 0; }
+
+/* Micro-visuals: pinned to the bottom so cells in a row stay aligned. */
+.lp-bcell .bmini { margin-top: auto; padding-top: 18px; }
+.lp-bcell .bmini svg { display: block; width: 100%; height: auto; }
+.lp-bcell .brow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-40);
+  margin-bottom: 8px;
+}
+.lp-bcell .brow .bamt { font-family: var(--serif); font-size: 16px; color: var(--ink); letter-spacing: 0; text-transform: none; }
+.lp-bcell .bavas { display: flex; align-items: center; margin-bottom: 12px; }
+.lp-bcell .bavas .lp-ava {
+  height: 26px;
+  width: 26px;
+  font-size: 9px;
+  border: 2px solid #15121e;
+  margin-left: -8px;
+}
+.lp-bcell .bavas .lp-ava:first-child { margin-left: 0; }
+.lp-bcell .bavas .more {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--ink-40);
+  margin-left: 10px;
+}
+.lp-bcell .bbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 0;
+}
+.lp-bcell .bbar .who { font-size: 11px; color: var(--ink-55); width: 104px; flex: none; }
+.lp-bcell .bbar .track {
+  flex: 1;
+  height: 5px;
+  border-radius: 3px;
+  background: rgba(236, 231, 221, 0.08);
+  overflow: hidden;
+}
+.lp-bcell .bbar .track i {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  background: var(--cell);
+}
+.lp-bcell .bbar .pct { font-family: var(--mono); font-size: 9.5px; color: var(--ink-40); width: 30px; text-align: right; flex: none; }
+.lp-bcell .bstages {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-55);
+}
+.lp-bcell .bstages span { display: flex; align-items: center; gap: 7px; }
+.lp-bcell .bstages i { height: 5px; width: 5px; border-radius: 50%; flex: none; }
+.lp-bcell .bstat {
+  font-family: var(--serif);
+  font-size: 34px;
+  font-weight: 500;
+  line-height: 1;
+  color: var(--ink);
+}
+.lp-bcell .bstat span {
+  font-family: var(--sans);
+  font-size: 12px;
+  color: var(--ink-55);
+  margin-left: 9px;
+}
+
+/* Timeline strip: horizontal cell with a right-fading activity ticker. */
+.lp-bcell.is-strip {
+  flex-direction: row;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+}
+.lp-bcell.is-strip .bhead { margin-bottom: 0; gap: 12px; justify-content: flex-start; }
+.lp-bcell.is-strip .bcopy h3 { margin: 0; }
+.lp-bcell.is-strip .bcopy p { margin: 4px 0 0; }
+.lp-bcell.is-strip .blog {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  margin-left: auto;
+  overflow: hidden;
+  mask-image: linear-gradient(90deg, #000 86%, transparent);
+  -webkit-mask-image: linear-gradient(90deg, #000 86%, transparent);
+}
+.lp-bcell.is-strip .blog span {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--ink-55);
+  white-space: nowrap;
+  flex: none;
+}
+.lp-bcell.is-strip .blog i {
+  height: 5px;
+  width: 5px;
+  border-radius: 50%;
+  background: var(--cell);
+  flex: none;
+}
+.lp-bcell.is-strip .blog em { font-style: normal; color: var(--ink-28); }
 
 .lp-grid-note {
   margin-top: 28px;
@@ -1105,7 +1252,7 @@
   line-height: 1;
   color: var(--vio-ivory);
 }
-.lp-step h4 {
+.lp-step h3 {
   font-family: var(--serif);
   font-weight: 500;
   font-size: 21px;
@@ -1140,7 +1287,7 @@
   background: radial-gradient(50% 50% at 50% 50%, rgba(124, 58, 237, 0.22), transparent 70%);
   animation: lp-aurora-a 18s ease-in-out infinite alternate;
 }
-.lp-final .lp-h2 { font-size: clamp(36px, 5.6vw, 60px); max-width: 16ch; margin-left: auto; margin-right: auto; }
+.lp-final .lp-h2 { font-size: clamp(36px, 5.6vw, 60px); max-width: 24ch; margin-left: auto; margin-right: auto; }
 .lp-final .lp-hero-ctas { margin-top: 40px; }
 
 /* ── Footer ──────────────────────────────────────────────────────────────── */
@@ -1182,7 +1329,10 @@
   .lp-pillar.flip .lp-pillar-copy { order: 1; }
   .lp-pillar.flip .lp-pillar-visual { order: 2; }
   .lp-intel { grid-template-columns: 1fr; }
-  .lp-grid { grid-template-columns: repeat(2, 1fr); }
+  /* Bento collapses to two columns: every cell spans 3 of 6 tracks, the
+     timeline strip keeps the full width. */
+  .lp-bspan-2,
+  .lp-bspan-3 { grid-column: span 3; }
   .lp-float-pos { display: none; }
 }
 
@@ -1199,7 +1349,17 @@
 }
 
 @media (max-width: 560px) {
-  .lp-grid { grid-template-columns: 1fr; }
+  .lp-bento { grid-template-columns: 1fr; }
+  .lp-bspan-2,
+  .lp-bspan-3,
+  .lp-bspan-6 { grid-column: auto; }
+  .lp-bcell.is-strip .blog {
+    margin-left: 0;
+    width: 100%;
+    flex-wrap: wrap;
+    mask-image: none;
+    -webkit-mask-image: none;
+  }
   .lp-mock-cols { grid-template-columns: 1fr; }
   .lp-hero-ctas .lp-btn { width: 100%; }
 }

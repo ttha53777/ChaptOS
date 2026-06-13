@@ -43,7 +43,7 @@ export function LandingPage() {
 function Topbar() {
   return (
     <header className="lp-topbar">
-      <div className="lp-container lp-topbar-inner">
+      <div className="lp-topbar-inner">
         <Link href="/" className="lp-wordmark" aria-label={`${APP_NAME} home`}>
           <span className="lp-glyph" aria-hidden="true">C</span>
           <span className="lp-wm-txt">{APP_NAME}</span>
@@ -51,7 +51,7 @@ function Topbar() {
         <nav className="lp-nav" aria-label="Sections">
           <a href="#product">Product</a>
           <a href="#workflows">Workflows</a>
-          <a href="#intelligence">Intelligence</a>
+          <a href="#intelligence">AI</a>
         </nav>
         <div className="lp-topbar-actions">
           <Link href="/login" className="lp-signin">Sign in</Link>
@@ -75,6 +75,7 @@ function Footer() {
         <div className="links">
           <a href="#product">Product</a>
           <a href="#workflows">Workflows</a>
+          <a href="#intelligence">AI</a>
           <Link href="/login">Sign in</Link>
         </div>
         <div className="legal">© {new Date().getFullYear()} {APP_NAME}</div>
@@ -97,16 +98,17 @@ function Hero() {
         <div className="lp-rise d1">
           <span className="lp-hero-eyebrow">
             <span className="dot" aria-hidden="true" />
-            The chapter operating system
+            The AI-native operating system for student orgs
           </span>
         </div>
         <h1 className="lp-h1 lp-rise d2">
           Run your chapter like an <em>institution</em>.
         </h1>
         <p className="lp-hero-lede lp-rise d3">
-          Dues, attendance, programming, people — {APP_NAME} brings every
-          workflow your organization runs on into one calm, intelligent home.
-          Built for fraternities, sororities, and every student org in between.
+          Dues, attendance, programming, people — one calm, intelligent home
+          with an AI that handles the busywork, so your time goes back to why
+          you joined. If it has members and a mission, {APP_NAME}{" "}
+          runs it.
         </p>
         <div className="lp-hero-ctas lp-rise d4">
           <Link href="/login" className="lp-btn lp-btn-primary">
@@ -325,15 +327,15 @@ function StatsStrip() {
           <div className="lp-stats">
             <div className="lp-stat hue-vio">
               <div className="n">One <em>home</em>.</div>
-              <p className="c">Dues, attendance, events, and people — a single source of truth the whole chapter can see.</p>
+              <p className="c">Money, meetings, events, service, docs, people — every workflow your org runs on, in a single source of truth.</p>
             </div>
             <div className="lp-stat hue-gold">
-              <div className="n">Built in <em>minutes</em>.</div>
-              <p className="c">Describe your org once and the AI builds your workspace before your next meeting.</p>
+              <div className="n">Built by <em>AI</em>.</div>
+              <p className="c">Describe your org once and the AI architects your whole workspace — workflows, roles, vocabulary — before your next meeting.</p>
             </div>
             <div className="lp-stat hue-green">
-              <div className="n">Zero <em>busywork</em>.</div>
-              <p className="c">Statuses, tallies, and records keep themselves current as the semester runs.</p>
+              <div className="n">An agent on <em>exec board</em>.</div>
+              <p className="c">Ask it anything, hand it the busywork — it answers from your real data and drafts the changes for one-tap approval.</p>
             </div>
           </div>
         </Reveal>
@@ -528,64 +530,41 @@ function ProgrammingVignette() {
   );
 }
 
-/* ── Workflow grid ───────────────────────────────────────────────────────── */
+/* ── Workflow bento ──────────────────────────────────────────────────────── */
 
-const WORKFLOW_CELLS = [
-  {
-    title: "Treasury",
-    desc: "Dues, fines, budgets, and balances — the full financial picture.",
-    icon: <IconDollar />,
-    hue: "#DDB36A",
-  },
-  {
-    title: "Brotherhood",
-    desc: "The living roster: roles, standing, and every member's story.",
-    icon: <IconUsers />,
-    hue: "#A78BFA",
-  },
-  {
-    title: "Chapter",
-    desc: "Meetings and one-tap attendance, archived by semester.",
-    icon: <IconCalendarCheck />,
-    hue: "#7FB08A",
-  },
-  {
-    title: "Programming",
-    desc: "Stage-based event planning, from first pitch to the calendar.",
-    icon: <IconKanban />,
-    hue: "#7EA6E0",
-  },
-  {
-    title: "Service",
-    desc: "Hours logged per member, tallied for the chapter automatically.",
-    icon: <IconHeart />,
-    hue: "#D98BA3",
-  },
-  {
-    title: "Parties",
-    desc: "Guest lists, capacity, and risk — handled before the doors open.",
-    icon: <IconSparkles />,
-    hue: "#E09A6A",
-  },
-  {
-    title: "Docs",
-    desc: "Bylaws, minutes, and links in one shared, organized library.",
-    icon: <IconFile />,
-    hue: "#6FB5AC",
-  },
-  {
-    title: "Communications",
-    desc: "Announcements pinned where the whole chapter will see them.",
-    icon: <IconMegaphone />,
-    hue: "#E0B65C",
-  },
-  {
-    title: "Timeline",
-    desc: "Every change in the chapter, on the record and searchable.",
-    icon: <IconHistory />,
-    hue: "#9BA7E0",
-  },
-];
+/** Cell scaffolding: numbered editorial header, then title/copy, then an
+ *  optional aria-hidden micro-visual pinned to the cell's bottom edge. */
+function WfCell({
+  num,
+  hue,
+  icon,
+  title,
+  desc,
+  children,
+}: {
+  num: string;
+  hue: string;
+  icon: React.ReactNode;
+  title: string;
+  desc: string;
+  children?: React.ReactNode;
+}) {
+  return (
+    <div className="lp-bcell" style={{ "--cell": hue } as React.CSSProperties}>
+      <div className="bhead">
+        <span className="ic">{icon}</span>
+        <span className="bnum">{num}</span>
+      </div>
+      <h3>{title}</h3>
+      <p>{desc}</p>
+      {children && (
+        <div className="bmini" aria-hidden="true">
+          {children}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function WorkflowGrid() {
   return (
@@ -595,29 +574,150 @@ function WorkflowGrid() {
           <div className="lp-section-head centered">
             <span className="lp-eyebrow centered">Workflows</span>
             <h2 className="lp-h2">
-              Nine workflows. <em>One operating system.</em>
+              Whatever your org runs on, <em>it runs here</em>.
             </h2>
             <p className="lp-lede">
-              Fraternity, sorority, club, or something else entirely — enable
-              the pages your org actually uses and {APP_NAME} stays exactly as
-              simple as you need it to be.
+              Treasury to timeline, rush week to alumni weekend — {APP_NAME}{" "}
+              covers the full life of an organization, then shapes itself to
+              yours. Turn on what you need today; everything else is one toggle
+              away when you grow into it.
             </p>
           </div>
         </Reveal>
-        <div className="lp-grid">
-          {WORKFLOW_CELLS.map((cell, i) => (
-            <Reveal key={cell.title} delay={(i % 3) * 70}>
-              <div className="lp-cell" style={{ "--cell": cell.hue } as React.CSSProperties}>
-                <div className="ic">{cell.icon}</div>
-                <h4>{cell.title}</h4>
-                <p>{cell.desc}</p>
+        <div className="lp-bento">
+          <Reveal className="lp-bspan-3">
+            <WfCell
+              num="01"
+              hue="#DDB36A"
+              icon={<IconDollar />}
+              title="Treasury"
+              desc="Dues, fines, budgets, and balances — the full financial picture."
+            >
+              <div className="brow">
+                <span>Semester balance</span>
+                <span className="bamt">$12,480</span>
               </div>
-            </Reveal>
-          ))}
+              <BalanceChart color="#DDB36A" gid="lpWfSpark" />
+            </WfCell>
+          </Reveal>
+          <Reveal className="lp-bspan-3" delay={70}>
+            <WfCell
+              num="02"
+              hue="#A78BFA"
+              icon={<IconUsers />}
+              title="Brotherhood"
+              desc="The living roster: roles, standing, and every member's story."
+            >
+              <div className="bavas">
+                <span className="lp-ava" style={{ background: "#7c5cd4" }}>MK</span>
+                <span className="lp-ava" style={{ background: "#4f8a6b" }}>DR</span>
+                <span className="lp-ava" style={{ background: "#a8743d" }}>JT</span>
+                <span className="lp-ava" style={{ background: "#b35d7a" }}>AS</span>
+                <span className="lp-ava" style={{ background: "#5b7fb3" }}>CW</span>
+                <span className="more">+41</span>
+              </div>
+              <div className="brow">
+                <span>46 members</span>
+                <span className="bamt">7 exec roles</span>
+              </div>
+            </WfCell>
+          </Reveal>
+          <Reveal className="lp-bspan-2">
+            <WfCell
+              num="03"
+              hue="#7FB08A"
+              icon={<IconCalendarCheck />}
+              title="Chapter"
+              desc="Meetings and one-tap attendance, archived by semester."
+            >
+              <div className="bbar">
+                <span className="who">Chapter meeting</span>
+                <span className="track"><i style={{ width: "92%" }} /></span>
+                <span className="pct">92%</span>
+              </div>
+              <div className="bbar">
+                <span className="who">Service Saturday</span>
+                <span className="track"><i style={{ width: "74%" }} /></span>
+                <span className="pct">74%</span>
+              </div>
+            </WfCell>
+          </Reveal>
+          <Reveal className="lp-bspan-2" delay={70}>
+            <WfCell
+              num="04"
+              hue="#7EA6E0"
+              icon={<IconKanban />}
+              title="Programming"
+              desc="Stage-based event planning, from first pitch to the calendar."
+            >
+              <div className="bstages">
+                <span><i style={{ background: "#D98BA3" }} />Idea 3</span>
+                <span><i style={{ background: "#D9A05B" }} />Planned 2</span>
+                <span><i style={{ background: "#7FB08A" }} />Live 1</span>
+              </div>
+            </WfCell>
+          </Reveal>
+          <Reveal className="lp-bspan-2" delay={140}>
+            <WfCell
+              num="05"
+              hue="#D98BA3"
+              icon={<IconHeart />}
+              title="Service"
+              desc="Hours logged per member, tallied for the chapter automatically."
+            >
+              <div className="bstat">
+                312<span>hours this semester</span>
+              </div>
+            </WfCell>
+          </Reveal>
+          <Reveal className="lp-bspan-2">
+            <WfCell
+              num="06"
+              hue="#E09A6A"
+              icon={<IconSparkles />}
+              title="Parties"
+              desc="Guest lists, capacity, and risk — handled before the doors open."
+            />
+          </Reveal>
+          <Reveal className="lp-bspan-2" delay={70}>
+            <WfCell
+              num="07"
+              hue="#6FB5AC"
+              icon={<IconFile />}
+              title="Docs"
+              desc="Bylaws, minutes, and links in one shared, organized library."
+            />
+          </Reveal>
+          <Reveal className="lp-bspan-2" delay={140}>
+            <WfCell
+              num="08"
+              hue="#E0B65C"
+              icon={<IconMegaphone />}
+              title="Communications"
+              desc="Announcements pinned where the whole chapter will see them."
+            />
+          </Reveal>
+          <Reveal className="lp-bspan-6">
+            <div className="lp-bcell is-strip" style={{ "--cell": "#9BA7E0" } as React.CSSProperties}>
+              <div className="bhead">
+                <span className="ic"><IconHistory /></span>
+                <span className="bnum">09</span>
+              </div>
+              <div className="bcopy">
+                <h3>Timeline</h3>
+                <p>Every change in the chapter, on the record and searchable.</p>
+              </div>
+              <div className="blog" aria-hidden="true">
+                <span><i />Dues received — Marcus Kim<em>2m</em></span>
+                <span><i />Attendance closed — 41 of 46<em>1h</em></span>
+                <span><i />Alumni mixer published<em>3h</em></span>
+              </div>
+            </div>
+          </Reveal>
         </div>
         <Reveal>
           <p className="lp-grid-note">
-            Every workflow is optional · toggle them anytime in settings
+            Toggle workflows as your org grows · the AI works across all of them
           </p>
         </Reveal>
       </div>
@@ -634,9 +734,9 @@ function Intelligence() {
         <div className="lp-intel">
           <Reveal>
             <div>
-              <span className="lp-eyebrow">Chapter intelligence</span>
+              <span className="lp-eyebrow">Agentic AI, built in</span>
               <h2 className="lp-h2">
-                Ask the chapter. <em>Get the answer.</em>
+                Ask anything. <em>Delegate everything.</em>
               </h2>
               <p className="lp-lede">
                 {/* {" "} is load-bearing: this Next's JSX transform drops the
@@ -645,11 +745,18 @@ function Intelligence() {
                 Your roster, your books, your calendar — {APP_NAME}{" "}
                 already knows, so you can just ask. Who owes dues? How was
                 turnout last week? Answers in seconds, grounded in your
-                chapter&apos;s real data.
+                chapter&apos;s real data — never a generic chatbot guess.
               </p>
               <p className="lp-lede" style={{ marginTop: 14 }}>
-                It starts before day one: describe your organization in a
-                sentence and {APP_NAME} configures your workspace — workflows,
+                {/* Same space-drop quirk as above. */}
+                Then hand it the work. Schedule the mixer, log the
+                reimbursement, mark dues paid — {APP_NAME}{" "}
+                drafts the change across any workflow and you approve it with
+                one tap. You stay in charge; it does the typing.
+              </p>
+              <p className="lp-lede" style={{ marginTop: 14 }}>
+                It&apos;s even your first hire: describe your organization in a
+                sentence and the AI architects your workspace — workflows,
                 roles, even your vocabulary.
               </p>
             </div>
@@ -678,9 +785,28 @@ function Intelligence() {
               <div className="a">
                 41 of 46 brothers — 89%, up six points from the week before.
               </div>
+              <div className="q">Put the alumni mixer on the calendar — Friday, 6:30.</div>
+              <div className="a">
+                Drafted and ready — approve it and it&apos;s live for the whole
+                chapter.
+                <div className="sub">
+                  <span>
+                    <span className="lp-ava" style={{ background: "#5b7fb3" }}>
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <path d="M8 2v4" />
+                        <path d="M16 2v4" />
+                        <rect x="3" y="4" width="18" height="18" rx="2" />
+                        <path d="M3 10h18" />
+                      </svg>
+                    </span>
+                    Alumni mixer · Fri 6:30 PM
+                    <span className="lp-pill ok" style={{ marginLeft: "auto" }}>Approve</span>
+                  </span>
+                </div>
+              </div>
               <div className="lp-chat-bar">
                 <span className="caret" />
-                Ask the chapter anything…
+                Ask anything — or hand it the task…
                 <span className="send"><ArrowUp /></span>
               </div>
             </div>
@@ -710,17 +836,18 @@ function IvorySteps() {
           <Reveal delay={0}>
             <div className="lp-step">
               <div className="num">01</div>
-              <h4>Describe your chapter</h4>
+              <h3>Describe your org</h3>
               <p>
-                A short AI interview builds your workspace — the right
-                workflows, the right roles, even the words your org uses.
+                A short AI interview architects your workspace — the right
+                workflows, the right roles, even the words your org uses. No
+                forms, no setup wizard, no IT person.
               </p>
             </div>
           </Reveal>
           <Reveal delay={90}>
             <div className="lp-step">
               <div className="num">02</div>
-              <h4>Send one link</h4>
+              <h3>Send one link</h3>
               <p>
                 Members join with Google in seconds. Roles and permissions come
                 pre-seeded, so the exec board is exec from day one.
@@ -730,10 +857,11 @@ function IvorySteps() {
           <Reveal delay={180}>
             <div className="lp-step">
               <div className="num">03</div>
-              <h4>Run the semester</h4>
+              <h3>Run the semester</h3>
               <p>
                 Dues, attendance, programming, service — live from the first
-                meeting, with the whole chapter looking at the same truth.
+                meeting, with an AI teammate answering questions and drafting
+                the busywork while everyone looks at the same truth.
               </p>
             </div>
           </Reveal>
@@ -752,7 +880,7 @@ function FinalCta() {
         <Reveal>
           <span className="lp-eyebrow centered">Ready when you are</span>
           <h2 className="lp-h2">
-            Give your chapter an <em>operating system</em>.
+            Give your org an operating system — <em>and an AI to run it with</em>.
           </h2>
           <div className="lp-hero-ctas">
             <Link href="/login" className="lp-btn lp-btn-glow">
@@ -761,7 +889,8 @@ function FinalCta() {
             </Link>
           </div>
           <p className="lp-hero-micro">
-            Set up in minutes<span aria-hidden="true">·</span>Sign in with Google
+            Set up in minutes<span aria-hidden="true">·</span>AI included
+            <span aria-hidden="true">·</span>Sign in with Google
           </p>
         </Reveal>
       </div>
