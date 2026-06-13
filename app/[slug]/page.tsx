@@ -3,16 +3,6 @@
 import React, { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import dynamic from "next/dynamic";
 
-const DashboardCharts = dynamic(() => import("../components/dashboard/DashboardCharts"), {
-  ssr: false,
-  loading: () => (
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-      {[...Array(4)].map((_, i) => (
-        <div key={i} className="h-[148px] rounded-xl border border-white/[0.06] bg-[#10121a] animate-pulse" />
-      ))}
-    </div>
-  ),
-});
 const DrawerTrendChart = dynamic(() => import("../components/dashboard/DrawerTrendChart"), {
   ssr: false,
   loading: () => <div className="h-[110px] w-full rounded-lg bg-white/[0.04] animate-pulse" />,
@@ -21,7 +11,7 @@ import {
   Brother, CalendarEvent, TaskStatus, ActivityEntry, PartyEvent, Deadline, InstagramTask, Transaction,
   treasuryTrend, TREASURY_BALANCE, TREASURY_PROJECTED,
   KPI_SPARKLINES,
-  getBrotherStatus, calcHealthScore, avg, fmt$, fmtDate, fmtRange, isoWeekBounds,
+  getBrotherStatus, calcHealthScore, deriveNeedsAttention, avg, fmt$, fmtDate, fmtRange, isoWeekBounds,
 } from "../data";
 import { useThresholds } from "../hooks/useThresholds";
 import { useVocab } from "../hooks/useVocab";
@@ -37,12 +27,25 @@ import { QuickActionsMenu, type QuickActionKey } from "../components/dashboard/Q
 import { TxForm } from "../components/treasury/TxForm";
 import { CalendarEventForm, type CalendarDraft } from "../components/timeline/CalendarEventForm";
 import { BrotherDrawer } from "../components/dashboard/drawers/BrotherDrawer";
-import { Card, Modal, StatusBadge, TaskBadge, ConfirmDialog, FieldLabel } from "../components/dashboard/primitives";
-import { BROTHER_STYLES, KPI_ICONS, SECTION_IDS, inputCls } from "../components/dashboard/styles";
-import { ActivityFeed, AttBar, ChapterMomentumWidget, KPICard, SortTh, WidgetHideButton } from "../components/dashboard/widgets";
-import { AnnouncementCard, type Announcement } from "../components/dashboard/AnnouncementCard";
+import { Card, Modal, TaskBadge, ConfirmDialog, FieldLabel } from "../components/dashboard/primitives";
+import { KPI_ICONS, SECTION_IDS, inputCls } from "../components/dashboard/styles";
+import { type Announcement } from "../components/dashboard/AnnouncementCard";
 import { AnnouncementEditor } from "../components/dashboard/AnnouncementEditor";
 import { MobileDashboard } from "../components/dashboard/mobile/MobileDashboard";
+import "../components/dashboard/dashboard-ledger.css";
+import { BriefingHeader } from "../components/dashboard/ledger/BriefingHeader";
+import { HealthDial } from "../components/dashboard/ledger/HealthDial";
+import { PinnedAnnouncement } from "../components/dashboard/ledger/PinnedAnnouncement";
+import { LedgerStrip, Measure } from "../components/dashboard/ledger/LedgerStrip";
+import { LedgerSparkline } from "../components/dashboard/ledger/LedgerSparkline";
+import { NeedsAttention } from "../components/dashboard/ledger/NeedsAttention";
+import { RosterTable } from "../components/dashboard/ledger/RosterTable";
+import { ThisWeek } from "../components/dashboard/ledger/ThisWeek";
+import { TreasuryRail } from "../components/dashboard/ledger/TreasuryRail";
+import { SocialsRail } from "../components/dashboard/ledger/SocialsRail";
+import { InstagramRail } from "../components/dashboard/ledger/InstagramRail";
+import { ActivityRail } from "../components/dashboard/ledger/ActivityRail";
+import { DashHideButton } from "../components/dashboard/ledger/DashHideButton";
 import { orgFetch, requestJson } from "../lib/api";
 import type { MetricSnapshot } from "@/lib/metrics";
 
@@ -1183,8 +1186,8 @@ export default function Home() {
   }
 
   // ── Health score ───────────────────────────────────────────────────────────
-  // Still computed for ChapterMomentumWidget (in the KPI grid) and the health
-  // detail drawer. The top-of-dashboard widget that surfaced the delta is gone.
+  // Drives the briefing HealthDial (score + ATT/GPA/DUES/SVC/DDL breakdown) and
+  // the health detail drawer.
   const health = useMemo(() => calcHealthScore(brotherList, deadlineList, THRESHOLDS), [brotherList, deadlineList, THRESHOLDS]);
 
   // ── Announcement (pinned single record) ───────────────────────────────────
@@ -1304,6 +1307,14 @@ export default function Home() {
     Watch:     brotherList.filter(b => getBrotherStatus(b, THRESHOLDS) === "Watch").length,
     "At Risk": brotherList.filter(b => getBrotherStatus(b, THRESHOLDS) === "At Risk").length,
   }), [brotherList, THRESHOLDS]);
+
+  // ── Needs-attention queue ───────────────────────────────────────────────────
+  // Overdue deadlines, outstanding dues (aggregated), and at-risk members.
+  const todayISO = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const needsAttention = useMemo(
+    () => deriveNeedsAttention(brotherList, deadlineList, THRESHOLDS, todayISO),
+    [brotherList, deadlineList, THRESHOLDS, todayISO],
+  );
 
   // ── Weekly Digest ──────────────────────────────────────────────────────────
   // Forward-looking "this week's agenda" for the current calendar week (Mon–Sun).
@@ -1770,23 +1781,23 @@ export default function Home() {
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
 
         {/* ── Toolbar ─────────────────────────────────────────────────────── */}
-        <header className="toolbar-frosted relative z-20 flex h-14 shrink-0 items-center gap-2 border-b border-white/[0.05] px-3 sm:gap-3 sm:px-5">
-          <button onClick={() => setSidebarOpen(true)} className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-white/[0.07] lg:hidden">
+        <header className="toolbar-frosted dash-toolbar relative z-20 flex h-14 shrink-0 items-center gap-2 border-b border-white/[0.05] px-3 sm:gap-3 sm:px-5">
+          <button onClick={() => setSidebarOpen(true)} className="tb-icon-btn flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-white/[0.07] lg:hidden">
             <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
             </svg>
           </button>
 
           <div className="min-w-0 flex-1">
-            <p className="text-[14px] font-semibold leading-tight text-white">Operations Dashboard</p>
-            <p className="hidden text-[11px] leading-tight text-slate-400 sm:block">{currentUser?.org?.name ?? "ChaptOS"}</p>
+            <p className="tb-title text-[14px] font-semibold leading-tight text-white">Operations Dashboard</p>
+            <p className="tb-org hidden text-[11px] leading-tight text-slate-400 sm:block">{currentUser?.org?.name ?? "ChaptOS"}</p>
           </div>
 
           {/* My Standing — opens the member's own record in the existing Brother
               drawer (dues / attendance / service / excuse history). Only shown when
               the signed-in user has a roster record to open. */}
           {selfId !== null && brotherList.some(b => b.id === selfId) && (
-            <button onClick={() => setSelectedBrotherId(selfId)} className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-1.5 text-[12px] font-medium text-slate-300 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition-all duration-150 hover:border-indigo-500/40 hover:bg-indigo-500/10 hover:text-indigo-200 focus:outline-none">
+            <button onClick={() => setSelectedBrotherId(selfId)} className="tb-btn inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-1.5 text-[12px] font-medium text-slate-300 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition-all duration-150 hover:border-indigo-500/40 hover:bg-indigo-500/10 hover:text-indigo-200 focus:outline-none">
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="h-3.5 w-3.5 text-slate-400">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
               </svg>
@@ -1795,11 +1806,11 @@ export default function Home() {
           )}
 
           {/* Quick Actions */}
-          <div className="hidden items-center gap-1.5 lg:flex">
+          <div className="tb-actions hidden items-center gap-1.5 lg:flex">
             <QuickActionsMenu isAdmin={isAdmin || canTreasury || canAttendance} onSelect={handleQuickAction} enabledWorkflows={currentUser?.org?.enabledWorkflows} />
             {canAttendance && (
               <button onClick={() => openAttendanceLog()}
-                className="rounded-lg border border-white/[0.08] bg-white/[0.03] px-2.5 py-1.5 text-[11px] font-medium text-slate-300 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition-all duration-150 hover:border-indigo-500/40 hover:bg-indigo-500/10 hover:text-indigo-200">
+                className="tb-btn rounded-lg border border-white/[0.08] bg-white/[0.03] px-2.5 py-1.5 text-[11px] font-medium text-slate-300 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition-all duration-150 hover:border-indigo-500/40 hover:bg-indigo-500/10 hover:text-indigo-200">
                 Log Att.
               </button>
             )}
@@ -1810,9 +1821,9 @@ export default function Home() {
             <QuickActionsMenu isAdmin={isAdmin || canTreasury || canAttendance} onSelect={handleQuickAction} variant="mobile" enabledWorkflows={currentUser?.org?.enabledWorkflows} />
           </div>
 
-          <p className="hidden text-[11px] text-slate-500 xl:block shrink-0">{new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</p>
+          <p className="tb-date hidden text-[11px] text-slate-500 xl:block shrink-0">{new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</p>
 
-          <div className="relative hidden sm:block">
+          <div className="tb-search-wrap relative hidden sm:block">
             <svg className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
             </svg>
@@ -1820,7 +1831,7 @@ export default function Home() {
               className="w-36 rounded-lg border border-white/[0.08] bg-white/[0.03] py-1.5 pl-8 pr-3 text-[13px] text-white placeholder:text-slate-500 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] transition-colors focus:border-indigo-500/60 focus:bg-white/[0.06] focus:outline-none focus:ring-2 focus:ring-indigo-500/15 sm:w-44" />
           </div>
 
-          <button onClick={() => window.print()} className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-1.5 text-[12px] font-medium text-slate-300 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition-all duration-150 hover:border-white/[0.16] hover:bg-white/[0.06] focus:outline-none">
+          <button onClick={() => window.print()} className="tb-btn inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-1.5 text-[12px] font-medium text-slate-300 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition-all duration-150 hover:border-white/[0.16] hover:bg-white/[0.06] focus:outline-none">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3 text-slate-400">
               <path fillRule="evenodd" d="M11.5 4.5a3.5 3.5 0 1 1-7 0 3.5 3.5 0 0 1 7 0ZM4.25 8.5a3.25 3.25 0 0 0-3.25 3.25v.5A1.75 1.75 0 0 0 2.75 14h10.5A1.75 1.75 0 0 0 15 12.25v-.5A3.25 3.25 0 0 0 11.75 8.5h-7.5Z" clipRule="evenodd" />
             </svg>
@@ -1889,453 +1900,207 @@ export default function Home() {
             />
           </div>
 
-          {/* ── Desktop view (md and up) — original layout, unchanged ───────── */}
-          <div className="mx-auto hidden max-w-[1400px] space-y-5 px-4 py-6 sm:px-6 md:block">
-            {/* ── Pinned Announcement ─────────────────────────────────────── */}
-            {feature("operations", "announcement") && (
-              <section id="sec-dashboard" aria-label="Chapter announcement" className="group relative">
-                <AnnouncementCard announcement={announcement} onEdit={() => setAnnouncementEditorOpen(true)} />
-                {isActiveOrgAdmin && <WidgetHideButton label="Announcement" onHide={() => setWidgetHidden("announcement", true)} />}
-              </section>
-            )}
+          {/* ── Desktop view (md and up) — "Chapter Ledger" redesign ──────── */}
+          {/* Warm editorial pane, scoped under `.dash` (dashboard-ledger.css). The
+              sidebar, toolbar (warmed separately at md+), drawers, and modals are
+              outside this wrapper and keep their own styling. */}
+          <div className="dash hidden md:block" data-dashboard-theme="dusk">
 
-            {/* ── KPI Cards ──────────────────────────────────────────────── */}
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6">
-              {feature("operations", "kpi-attendance") && (
-                <div className="group relative">
-                  <KPICard label="Avg Attendance" value={`${avgAttendance.toFixed(1)}%`}
-                    trend={`${belowAttCount} below threshold`}
-                    iconKey="attendance" sparkData={KPI_SPARKLINES.attendance}
-                    iconBg="bg-blue-500/10" iconColor="text-blue-400" strokeColor="#60a5fa" glowColor="#60a5fa"
-                    onClick={() => setActiveDrawer("attendance")} />
-                  {isActiveOrgAdmin && <WidgetHideButton label="Attendance KPI" onHide={() => setWidgetHidden("kpi-attendance", true)} />}
-                </div>
-              )}
-              {feature("operations", "kpi-dues") && (
-                <div className="group relative">
-                  <KPICard label="Dues" value={fmt$(outstandingDues)}
-                    trend={`${owingCount} brothers owe`}
-                    iconKey="dues" sparkData={KPI_SPARKLINES.dues}
-                    accent={outstandingDues > 0 ? "text-amber-400" : "text-white"}
-                    iconBg="bg-amber-500/10" iconColor="text-amber-400" strokeColor="#fbbf24" glowColor="#fbbf24"
-                    onClick={() => setActiveDrawer("dues")} />
-                  {isActiveOrgAdmin && <WidgetHideButton label="Dues KPI" onHide={() => setWidgetHidden("kpi-dues", true)} />}
-                </div>
-              )}
-              {feature("operations", "kpi-gpa") && (
-                <div className="group relative">
-                  <KPICard label="Chapter GPA" value={chapterGPA.toFixed(2)}
-                    trend={`${belowGpaCount} below 3.0`}
-                    iconKey="gpa" sparkData={KPI_SPARKLINES.gpa}
-                    iconBg="bg-violet-500/10" iconColor="text-violet-400" strokeColor="#a78bfa" glowColor="#a78bfa"
-                    onClick={() => setActiveDrawer("gpa")} />
-                  {isActiveOrgAdmin && <WidgetHideButton label="GPA KPI" onHide={() => setWidgetHidden("kpi-gpa", true)} />}
-                </div>
-              )}
-              {feature("operations", "kpi-service") && (
-                <div className="group relative">
-                  <KPICard label="Service Hours" value={`${totalServiceHrs}h`}
-                    trend={`${onTrackSvc} of ${brotherList.length} on track`}
-                    iconKey="service" sparkData={KPI_SPARKLINES.service}
-                    iconBg="bg-emerald-500/10" iconColor="text-emerald-400" strokeColor="#34d399" glowColor="#34d399"
-                    onClick={() => setActiveDrawer("service")} />
-                  {isActiveOrgAdmin && <WidgetHideButton label="Service Hours KPI" onHide={() => setWidgetHidden("kpi-service", true)} />}
-                </div>
-              )}
-              {feature("operations", "health") && (
-                <div className="group relative sm:col-span-2 xl:col-span-2 min-h-full">
-                  <ChapterMomentumWidget
+            {/* ── Briefing + health dial ──────────────────────────────────── */}
+            <BriefingHeader
+              firstName={currentUser?.name?.split(" ")[0] ?? "there"}
+              weekStart={weekRange.start}
+              weekEnd={weekRange.end}
+              digest={digestNarration}
+              digestLoading={digestNarrationLoading}
+              health={feature("operations", "health") ? (
+                <div className="dash-group">
+                  <HealthDial
                     score={health.score}
                     label={health.label}
                     breakdown={health.breakdown}
                     onExpand={() => setWidgetDrawer("health")}
                   />
-                  {isActiveOrgAdmin && <WidgetHideButton label="Health widget" onHide={() => setWidgetHidden("health", true)} />}
+                  {isActiveOrgAdmin && <DashHideButton label="Health widget" onHide={() => setWidgetHidden("health", true)} />}
                 </div>
-              )}
-              {customMetricSnapshots.map(snap => {
-                const fmtHeadline = Number.isInteger(snap.headline) ? String(snap.headline) : snap.headline.toFixed(1);
-                const headline =
-                  snap.aggregation === "count_on_track"
-                    ? `${snap.headline} / ${snap.totalCount}`
-                    : snap.unit
-                    ? `${fmtHeadline}${snap.unit}`
-                    : fmtHeadline;
-                const trend =
-                  snap.aggregation === "count_on_track"
-                    ? `${snap.onTrackCount} on track`
-                    : `Goal ${snap.goal}${snap.unit ?? ""}`;
-                return (
-                  <KPICard
-                    key={snap.definitionId}
-                    label={snap.name}
-                    value={headline}
-                    trend={trend}
-                    iconKey="custom"
-                    sparkData={[]}
-                    iconBg="bg-indigo-500/10"
-                    iconColor="text-indigo-400"
-                    strokeColor="#818cf8"
-                    glowColor="#818cf8"
-                    onClick={() => setActiveCustomMetricId(snap.definitionId)}
-                  />
-                );
-              })}
-            </div>
+              ) : null}
+            />
 
-            {/* ── Charts ─────────────────────────────────────────────────── */}
-            {feature("operations", "charts") && (
-              <div className="group relative">
-                <DashboardCharts
-                  liveBalance={liveBalance}
-                  liveProjected={liveProjected}
-                  liveTrend={liveTrend}
-                  totalDoorRev={totalDoorRev}
-                  partyCount={partyList.length}
-                  partyChartData={partyChartData}
-                  brotherCount={brotherList.length}
-                  goodCount={statusCounts.Good}
-                  statusChartData={statusChartData}
-                  onTrackSvc={onTrackSvc}
-                  serviceHoursGoal={THRESHOLDS.serviceHoursGoal}
-                  svcChartData={svcChartData}
-                />
-                {isActiveOrgAdmin && <WidgetHideButton label="Charts" onHide={() => setWidgetHidden("charts", true)} />}
-              </div>
+            {/* ── Pinned announcement ─────────────────────────────────────── */}
+            {feature("operations", "announcement") && (
+              <PinnedAnnouncement
+                announcement={announcement}
+                onEdit={() => setAnnouncementEditorOpen(true)}
+                hideButton={isActiveOrgAdmin ? <DashHideButton label="Announcement" onHide={() => setWidgetHidden("announcement", true)} /> : undefined}
+              />
             )}
 
-            {/* ── Main grid: table + right panel ─────────────────────────── */}
-            <div id="sec-brothers" className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+            {/* ── Ledger strip ────────────────────────────────────────────── */}
+            {(feature("operations", "kpi-attendance") || feature("operations", "kpi-dues") ||
+              feature("operations", "kpi-gpa") || feature("operations", "kpi-service") ||
+              feature("operations", "kpi-treasury") || customMetricSnapshots.length > 0) && (
+              <LedgerStrip>
+                {feature("operations", "kpi-attendance") && (
+                  <Measure
+                    label="Attendance"
+                    value={avgAttendance.toFixed(1)}
+                    unit="%"
+                    note={`${belowAttCount} below ${THRESHOLDS.attendanceWatch}%`}
+                    noteWarn={belowAttCount > 0}
+                    spark={<LedgerSparkline data={KPI_SPARKLINES.attendance} stroke="var(--gold)" />}
+                    onClick={() => setActiveDrawer("attendance")}
+                    hideButton={isActiveOrgAdmin ? <DashHideButton label="Attendance KPI" onHide={() => setWidgetHidden("kpi-attendance", true)} /> : undefined}
+                  />
+                )}
+                {feature("operations", "kpi-dues") && (
+                  <Measure
+                    label="Dues outstanding"
+                    unitLeading="$"
+                    value={outstandingDues.toLocaleString()}
+                    note={`${owingCount} ${owingCount === 1 ? "brother" : "brothers"} owe`}
+                    noteWarn={owingCount > 0}
+                    spark={<LedgerSparkline data={KPI_SPARKLINES.dues} stroke="var(--ok)" />}
+                    onClick={() => setActiveDrawer("dues")}
+                    hideButton={isActiveOrgAdmin ? <DashHideButton label="Dues KPI" onHide={() => setWidgetHidden("kpi-dues", true)} /> : undefined}
+                  />
+                )}
+                {feature("operations", "kpi-gpa") && (
+                  <Measure
+                    label="Chapter GPA"
+                    value={chapterGPA.toFixed(2)}
+                    note={`${belowGpaCount} below ${THRESHOLDS.gpaWatch.toFixed(1)}`}
+                    spark={<LedgerSparkline data={KPI_SPARKLINES.gpa} stroke="var(--vio)" />}
+                    onClick={() => setActiveDrawer("gpa")}
+                    hideButton={isActiveOrgAdmin ? <DashHideButton label="GPA KPI" onHide={() => setWidgetHidden("kpi-gpa", true)} /> : undefined}
+                  />
+                )}
+                {feature("operations", "kpi-service") && (
+                  <Measure
+                    label="Service"
+                    value={`${totalServiceHrs}`}
+                    unit="h"
+                    note={`${onTrackSvc} of ${brotherList.length} on track`}
+                    spark={<LedgerSparkline data={KPI_SPARKLINES.service} stroke="var(--vio)" />}
+                    onClick={() => setActiveDrawer("service")}
+                    hideButton={isActiveOrgAdmin ? <DashHideButton label="Service Hours KPI" onHide={() => setWidgetHidden("kpi-service", true)} /> : undefined}
+                  />
+                )}
+                {feature("operations", "kpi-treasury") && (
+                  <Measure
+                    label="Treasury"
+                    unitLeading="$"
+                    value={liveBalance.toLocaleString()}
+                    note={`proj. ${fmt$(liveProjected)}`}
+                    spark={<LedgerSparkline data={KPI_SPARKLINES.treasury} stroke="var(--ok)" />}
+                    onClick={() => setActiveDrawer("treasury")}
+                    hideButton={isActiveOrgAdmin ? <DashHideButton label="Treasury KPI" onHide={() => setWidgetHidden("kpi-treasury", true)} /> : undefined}
+                  />
+                )}
+                {customMetricSnapshots.map(snap => {
+                  const fmtHeadline = Number.isInteger(snap.headline) ? String(snap.headline) : snap.headline.toFixed(1);
+                  const headline =
+                    snap.aggregation === "count_on_track"
+                      ? `${snap.headline} / ${snap.totalCount}`
+                      : snap.unit
+                      ? `${fmtHeadline}${snap.unit}`
+                      : fmtHeadline;
+                  const note =
+                    snap.aggregation === "count_on_track"
+                      ? `${snap.onTrackCount} on track`
+                      : `Goal ${snap.goal}${snap.unit ?? ""}`;
+                  return (
+                    <Measure
+                      key={snap.definitionId}
+                      label={snap.name}
+                      value={headline}
+                      note={note}
+                      onClick={() => setActiveCustomMetricId(snap.definitionId)}
+                    />
+                  );
+                })}
+              </LedgerStrip>
+            )}
 
-              {/* Brother Tracking Table */}
-              {feature("operations", "brother-tracking") && (
-              <div className="group relative xl:col-span-2">
-              {isActiveOrgAdmin && <WidgetHideButton label="Member tracking" onHide={() => setWidgetHidden("brother-tracking", true)} />}
-              <Card style={{ background: "linear-gradient(to bottom, #ffffff08 0%, #10121a 45%)" }} className="overflow-hidden">
-                <div className="border-b border-white/[0.07] px-5 py-3.5">
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                    <div>
-                      <h2 className="text-[14px] font-semibold text-white">Brother Tracking</h2>
-                      <p className="text-[11px] text-slate-500">Click a row to view profile · Edit att. inline · Pay dues · +1h</p>
-                    </div>
-                    <div className="flex flex-wrap gap-1">
-                      {(["All", "Good", "Watch", "At Risk"] as const).map(f => (
-                        <button key={f} onClick={() => setStatusFilter(f)}
-                          className={`rounded-md px-2.5 py-1 text-[11px] font-medium transition-all duration-150 ${statusFilter === f ? "bg-white/[0.12] text-white" : "border border-white/[0.1] text-slate-400 hover:border-white/[0.2] hover:text-slate-200"}`}>
-                          {f}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="hidden overflow-x-auto md:block">
-                  <table className="min-w-[640px]">
-                    <thead>
-                      <tr className="border-b border-white/[0.06] bg-white/[0.02]">
-                        <th className="py-2.5 pl-5 pr-3 text-left text-[10px] font-semibold uppercase tracking-[0.07em] text-slate-500">Brother</th>
-                        <th className="hidden px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-[0.07em] text-slate-500 sm:table-cell">Role</th>
-                        {([["attendance","Att."],["duesOwed","Dues"],["gpa","GPA"],["serviceHours","Svc"]] as [keyof Brother, string][]).map(([k, label]) => (
-                          <SortTh key={k} label={label} colKey={k} active={sortKey === k} dir={sortDir} onClick={() => toggleSort(k)} />
-                        ))}
-                        <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-[0.07em] text-slate-500">Status</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-white/[0.04]">
-                      {filteredBrothers.length === 0 ? (
-                        <tr><td colSpan={7} className="py-10 text-center text-sm text-slate-500">No brothers match your filters.</td></tr>
-                      ) : filteredBrothers.map(b => {
-                        const status = getBrotherStatus(b, THRESHOLDS);
-                        return (
-                          <tr key={b.id} onClick={() => setSelectedBrotherId(b.id)} className="cursor-pointer transition-colors hover:bg-white/[0.03] active:bg-white/[0.06]">
-                            <td className={`border-l-2 py-3 pl-4 pr-3 ${BROTHER_STYLES[status].row}`}>
-                              <div className="flex items-center gap-2.5">
-                                <BrotherAvatar
-                                  brother={b}
-                                  selfId={selfId}
-                                  selfAvatarUrl={currentUser?.avatarUrl}
-                                  avatarRevision={avatarRevision}
-                                  size="xs"
-                                />
-                                <p className="text-[13px] font-semibold text-white">{b.name}</p>
-                              </div>
-                            </td>
-                            <td className="hidden max-w-[160px] px-3 py-3 sm:table-cell">
-                              <p className="truncate text-[12px] text-slate-400">{b.role}</p>
-                            </td>
-                            {/* Attendance — read-only ratio */}
-                            <td className="px-3 py-3">
-                              <AttBar pct={b.attendance} />
-                            </td>
-                            {/* Dues — Pay button */}
-                            <td className="px-3 py-3">
-                              {b.duesOwed > 0 ? (
-                                <div className="flex items-center gap-2">
-                                  <span className="tabular-nums text-[13px] font-medium text-amber-400">{fmt$(b.duesOwed)}</span>
-                                  {canBrothers && (
-                                    <button onClick={e => { e.stopPropagation(); openPayDues(b); }} className="rounded-md bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-400 ring-1 ring-inset ring-emerald-500/25 hover:bg-emerald-500/25 transition-colors">Pay</button>
-                                  )}
-                                </div>
-                              ) : (
-                                <span className="tabular-nums text-[13px] font-medium text-slate-600">—</span>
-                              )}
-                            </td>
-                            <td className="px-3 py-3">
-                              <span className={`tabular-nums text-[13px] font-semibold ${b.gpa < THRESHOLDS.gpaAtRisk ? "text-red-400" : b.gpa < THRESHOLDS.gpaWatch ? "text-amber-400" : "text-white"}`}>
-                                {b.gpa.toFixed(1)}
-                              </span>
-                            </td>
-                            {/* Service hours — +1h button */}
-                            <td className="px-3 py-3">
-                              <div className="flex items-center gap-2">
-                                <span className={`tabular-nums text-[13px] font-medium ${b.serviceHours < THRESHOLDS.serviceHoursGoal ? "text-amber-400" : "text-white"}`}>
-                                  {b.serviceHours}h
-                                </span>
-                                <button onClick={e => { e.stopPropagation(); addServiceHour(b); }} className="rounded-md bg-white/[0.05] px-1.5 py-0.5 text-[10px] font-semibold text-slate-400 ring-1 ring-inset ring-white/[0.1] hover:bg-indigo-500/15 hover:text-indigo-400 hover:ring-indigo-500/25 transition-colors">
-                                  +1h
-                                </button>
-                              </div>
-                            </td>
-                            <td className="px-3 py-3"><StatusBadge status={status} /></td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-
-                <div className="border-t border-white/[0.06] bg-white/[0.02] px-5 py-2.5">
-                  <p className="text-[11px] text-slate-500">
-                    {filteredBrothers.length} / {brotherList.length} brothers ·{" "}
-                    <span className="font-medium text-emerald-400">{statusCounts.Good} good</span> ·{" "}
-                    <span className="font-medium text-amber-400">{statusCounts.Watch} watch</span> ·{" "}
-                    <span className="font-medium text-red-400">{statusCounts["At Risk"]} at risk</span>
-                  </p>
-                </div>
-              </Card>
+            {/* ── Two-column grid ─────────────────────────────────────────── */}
+            <div className="grid">
+              {/* Left column */}
+              <div className="col">
+                {feature("operations", "needs-attention") && (
+                  <NeedsAttention
+                    items={needsAttention}
+                    onMarkDone={completeDeadline}
+                    onOpenProfile={(id) => setSelectedBrotherId(id)}
+                    onSendReminder={() => setActiveDrawer("dues")}
+                    hideButton={isActiveOrgAdmin ? <DashHideButton label="Needs attention" onHide={() => setWidgetHidden("needs-attention", true)} /> : undefined}
+                  />
+                )}
+                {feature("operations", "brother-tracking") && (
+                  <RosterTable
+                    brothers={filteredBrothers}
+                    statusCounts={statusCounts}
+                    statusFilter={statusFilter}
+                    onFilter={setStatusFilter}
+                    sortKey={sortKey}
+                    sortDir={sortDir}
+                    onSort={toggleSort}
+                    onRowClick={(id) => setSelectedBrotherId(id)}
+                    thresholds={THRESHOLDS}
+                    selfId={selfId}
+                    selfAvatarUrl={currentUser?.avatarUrl}
+                    avatarRevision={avatarRevision}
+                    canBrothers={canBrothers}
+                    onPayDues={openPayDues}
+                    onAddServiceHour={addServiceHour}
+                    hideButton={isActiveOrgAdmin ? <DashHideButton label="Member tracking" onHide={() => setWidgetHidden("brother-tracking", true)} /> : undefined}
+                  />
+                )}
               </div>
-              )}
 
-              {/* Right panel */}
-              <div className="space-y-4 xl:self-start xl:sticky xl:top-5 xl:max-h-[calc(100vh-6rem)] xl:overflow-y-auto">
-                {/* Weekly Digest */}
-                <Card style={{ background: "linear-gradient(to bottom, #818cf810 0%, #10121a 50%)" }} className="overflow-hidden cursor-pointer hover:border-white/[0.14] transition-colors" onClick={() => setWidgetDrawer("digest")}>
-                  <div className="h-[3px] bg-indigo-500/70" />
-                  <div className="px-4 py-3">
-                    <div className="mb-3 flex items-center justify-between">
-                      <div>
-                        <h2 className="text-[13px] font-semibold text-white">Weekly Digest</h2>
-                        <p className="text-[11px] text-slate-500">{fmtRange(weekRange.start, weekRange.end)}</p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {weeklyDigest.atRiskCount > 0 && <span className="rounded-full bg-amber-500/20 px-2 py-0.5 text-[10px] font-semibold text-amber-400">{weeklyDigest.atRiskCount} at risk</span>}
-                        <button onClick={() => setWidgetDrawer("digest")} className="flex items-center gap-1 rounded-md bg-white/[0.05] px-2 py-0.5 text-[10px] font-medium text-slate-400 hover:bg-indigo-500/15 hover:text-indigo-300 transition-colors">
-                          All
-                          <svg className="h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
-                        </button>
-                      </div>
-                    </div>
-                    {digestTotal === 0 ? (
-                      <p className="py-4 text-center text-[12px] text-slate-500">Nothing on the agenda this week</p>
-                    ) : (
-                      <div className="grid grid-cols-2 gap-2">
-                        {([
-                          ["Deadlines", weeklyDigest.deadlinesDue.length, "text-indigo-300"],
-                          ["Instagram", weeklyDigest.igDue.length,        "text-pink-300"],
-                          ["Events",    weeklyDigest.eventsThisWeek.length, "text-blue-300"],
-                          ["Parties",   weeklyDigest.partiesThisWeek.length, "text-violet-300"],
-                        ] as const).map(([label, count, color]) => (
-                          <div key={label} className={`flex items-center justify-between rounded-md px-2.5 py-1.5 ${count > 0 ? "bg-white/[0.04]" : "bg-white/[0.015]"}`}>
-                            <span className={`text-[11px] ${count > 0 ? "text-slate-300" : "text-slate-600"}`}>{label}</span>
-                            <span className={`text-[13px] font-bold tabular-nums ${count > 0 ? color : "text-slate-700"}`}>{count}</span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                    {(digestNarration || digestNarrationLoading) && (
-                      <div className="mt-3 flex items-start gap-1.5 border-t border-white/[0.06] pt-2.5">
-                        <span className="mt-px shrink-0 rounded bg-indigo-500/15 px-1 py-0.5 text-[8px] font-bold uppercase tracking-wider text-indigo-300">AI</span>
-                        {digestNarrationLoading
-                          ? <span className="text-[11px] italic text-slate-500">Summarizing…</span>
-                          : <p className="text-[11px] italic leading-snug text-slate-400">{digestNarration}</p>}
-                      </div>
-                    )}
-                  </div>
-                </Card>
-
-                {/* Deadlines — completed tasks fall out of this list (still in the
-                    drawer's Complete column and on the Tasks tab). */}
-                {(() => {
-                  const activeDeadlines = deadlineList.filter(d => d.status !== "Complete");
-                  return (
-                <Card id="sec-deadlines" style={{ background: "linear-gradient(to bottom, #818cf810 0%, #10121a 50%)" }} className="overflow-hidden cursor-pointer hover:border-white/[0.14] transition-colors" onClick={() => setWidgetDrawer("deadlines")}>
-                  <div className="flex items-center justify-between border-b border-white/[0.07] px-4 py-3">
-                    <h2 className="text-[13px] font-semibold text-white">Deadlines</h2>
-                    <div className="flex items-center gap-2">
-                      <span className="text-[10px] text-slate-500">{activeDeadlines.length} tasks</span>
-                      <button onClick={() => setWidgetDrawer("deadlines")} className="flex items-center gap-1 rounded-md bg-white/[0.05] px-2 py-0.5 text-[10px] font-medium text-slate-400 hover:bg-indigo-500/15 hover:text-indigo-300 transition-colors">
-                        All
-                        <svg className="h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
-                      </button>
-                      <button onClick={(e) => { e.stopPropagation(); setActiveModal("deadline"); }} className="rounded-md bg-indigo-500/15 px-2 py-0.5 text-[10px] font-semibold text-indigo-400 hover:bg-indigo-500/25 transition-colors">+ Add</button>
-                    </div>
-                  </div>
-                  <div className="divide-y divide-white/[0.05]">
-                    {activeDeadlines.length === 0 ? (
-                      <p className="px-4 py-6 text-center text-[12px] text-slate-500">No active deadlines</p>
-                    ) : activeDeadlines.map(d => (
-                      <div key={d.id} onClick={e => e.stopPropagation()} className="group flex items-center gap-2 px-4 py-2.5 transition-colors hover:bg-white/[0.03]">
-                        <div className="min-w-0 flex-1">
-                          <p className={`truncate text-[12px] font-medium ${d.status === "Complete" ? "line-through text-slate-500" : "text-white"}`}>{d.title}</p>
-                          <p className="text-[11px] text-slate-500">{fmtDate(d.dueDate)} · {d.owner.split(" ")[0]}</p>
-                        </div>
-                        <div className="flex items-center gap-0.5 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity shrink-0">
-                          {d.status !== "Complete" && (
-                            <button onClick={() => completeDeadline(d.id)} title="Mark complete" className="flex h-6 w-6 items-center justify-center rounded hover:bg-emerald-500/20 text-slate-600 hover:text-emerald-400 transition-colors">
-                              <svg className="h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
-                            </button>
-                          )}
-                          <button onClick={() => openEditDeadline(d.id)} title="Edit" className="flex h-6 w-6 items-center justify-center rounded hover:bg-indigo-500/20 text-slate-600 hover:text-indigo-400 transition-colors">
-                            <svg className="h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
-                          </button>
-                          <button onClick={() => deleteDeadline(d.id)} title="Delete" className="flex h-6 w-6 items-center justify-center rounded hover:bg-red-500/20 text-slate-600 hover:text-red-400 transition-colors">
-                            <svg className="h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                          </button>
-                        </div>
-                        <TaskBadge status={d.status} />
-                      </div>
-                    ))}
-                  </div>
-                </Card>
-                  );
-                })()}
-
-                {/* Instagram — completed posts fall out of this list (still in the
-                    drawer's Complete column and on the Tasks tab). */}
-                {(() => {
-                  const activeIgTasks = igTaskList.filter(t => t.status !== "Complete");
-                  return (
-                <Card id="sec-instagram" style={{ background: "linear-gradient(to bottom, #f472b610 0%, #10121a 50%)" }} className="overflow-hidden cursor-pointer hover:border-white/[0.14] transition-colors" onClick={() => setWidgetDrawer("instagram")}>
-                  <div className="flex items-center justify-between border-b border-white/[0.07] px-4 py-3">
-                    <h2 className="text-[13px] font-semibold text-white">Instagram</h2>
-                    <div className="flex items-center gap-2">
-                      <span className="text-[10px] text-slate-500">{activeIgTasks.length} posts</span>
-                      <button onClick={() => setWidgetDrawer("instagram")} className="flex items-center gap-1 rounded-md bg-white/[0.05] px-2 py-0.5 text-[10px] font-medium text-slate-400 hover:bg-pink-500/15 hover:text-pink-400 transition-colors">
-                        All
-                        <svg className="h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
-                      </button>
-                      <button onClick={(e) => { e.stopPropagation(); setActiveModal("ig"); }} className="rounded-md bg-indigo-500/15 px-2 py-0.5 text-[10px] font-semibold text-indigo-400 hover:bg-indigo-500/25 transition-colors">+ Add</button>
-                    </div>
-                  </div>
-                  <div className="divide-y divide-white/[0.05]">
-                    {activeIgTasks.length === 0 ? (
-                      <p className="px-4 py-6 text-center text-[12px] text-slate-500">No active IG posts</p>
-                    ) : activeIgTasks.map(t => (
-                      <div key={t.id} onClick={e => e.stopPropagation()} className="group flex items-center gap-2 px-4 py-2.5 transition-colors hover:bg-white/[0.03]">
-                        <div className="min-w-0 flex-1">
-                          <p className={`truncate text-[12px] font-medium ${t.status === "Complete" ? "line-through text-slate-500" : "text-white"}`}>{t.title}</p>
-                          <p className="text-[11px] text-slate-500">{fmtDate(t.dueDate)} · {t.type}</p>
-                        </div>
-                        <div className="flex items-center gap-0.5 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity shrink-0">
-                          {t.status !== "Complete" && (
-                            <button onClick={() => completeIG(t.id)} title="Mark complete" className="flex h-6 w-6 items-center justify-center rounded hover:bg-emerald-500/20 text-slate-600 hover:text-emerald-400 transition-colors">
-                              <svg className="h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
-                            </button>
-                          )}
-                          <button onClick={() => openEditIG(t.id)} title="Edit" className="flex h-6 w-6 items-center justify-center rounded hover:bg-indigo-500/20 text-slate-600 hover:text-indigo-400 transition-colors">
-                            <svg className="h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
-                          </button>
-                          <button onClick={() => deleteIG(t.id)} title="Delete" className="flex h-6 w-6 items-center justify-center rounded hover:bg-red-500/20 text-slate-600 hover:text-red-400 transition-colors">
-                            <svg className="h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                          </button>
-                        </div>
-                        <TaskBadge status={t.status} />
-                      </div>
-                    ))}
-                  </div>
-                </Card>
-                  );
-                })()}
+              {/* Right rail */}
+              <div className="col">
+                <ThisWeek
+                  events={weeklyDigest.eventsThisWeek}
+                  deadlines={weeklyDigest.deadlinesDue}
+                  weekStart={weekRange.start}
+                  weekEnd={weekRange.end}
+                  today={todayISO}
+                  onAll={() => setWidgetDrawer("deadlines")}
+                  onAddDeadline={() => setActiveModal("deadline")}
+                />
+                <TreasuryRail balance={liveBalance} projected={liveProjected} trend={liveTrend} />
+                <SocialsRail
+                  parties={partyList}
+                  totalDoorRev={totalDoorRev}
+                  maxRevenue={maxRevenue}
+                  bestEvent={bestEvent}
+                  today={todayISO}
+                  onAdd={() => setActiveModal("revenue")}
+                  onAll={() => setWidgetDrawer("parties")}
+                />
+                <InstagramRail
+                  tasks={igTaskList.filter(t => t.status !== "Complete")}
+                  today={todayISO}
+                  onAdd={() => setActiveModal("ig")}
+                  onAll={() => setWidgetDrawer("instagram")}
+                />
+                <ActivityRail entries={activityFeed} onAll={() => setWidgetDrawer("activity")} />
               </div>
             </div>
 
-            {/* ── Bottom row: Activity Feed + Party Events ────────────────── */}
-            <div id="sec-parties" className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-              <ActivityFeed entries={activityFeed} onExpand={() => setWidgetDrawer("activity")} />
-
-              <Card style={{ background: "linear-gradient(to bottom, #818cf810 0%, #10121a 50%)" }} className="overflow-hidden cursor-pointer hover:border-white/[0.14] transition-colors" onClick={() => setWidgetDrawer("parties")}>
-                <div className="flex items-center justify-between border-b border-white/[0.07] px-5 py-3.5">
-                  <div>
-                    <h2 className="text-[13px] font-semibold text-white">Party Events</h2>
-                    <p className="text-[11px] text-slate-500">Door revenue by event</p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <p className="text-[16px] font-bold text-white">{fmt$(totalDoorRev)}</p>
-                    <button onClick={() => setWidgetDrawer("parties")} className="flex items-center gap-1 rounded-md bg-white/[0.05] px-2 py-0.5 text-[10px] font-medium text-slate-400 hover:bg-indigo-500/15 hover:text-indigo-300 transition-colors">
-                      All
-                      <svg className="h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
-                    </button>
-                    <button onClick={() => setActiveModal("revenue")} className="rounded-md bg-indigo-500/15 px-2 py-0.5 text-[10px] font-semibold text-indigo-400 hover:bg-indigo-500/25 transition-colors">+ Add</button>
-                  </div>
-                </div>
-                <div className="space-y-3 px-5 py-4">
-                  {partyList.length === 0 ? (
-                    <p className="py-4 text-center text-[12px] text-slate-500">No events logged — click + Add to log revenue</p>
-                  ) : partyList.map(e => {
-                    const barPct = Math.round((e.doorRevenue / maxRevenue) * 100);
-                    const isTop  = bestEvent ? e.id === bestEvent.id : false;
-                    return (
-                      <div key={e.id} className="flex items-center gap-3">
-                        <div className="w-24 shrink-0">
-                          <p className={`truncate text-[12px] font-medium ${isTop ? "text-indigo-400" : "text-slate-300"}`}>{e.name}</p>
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="h-1.5 overflow-hidden rounded-full bg-white/[0.07]">
-                            <div className={`h-full rounded-full transition-all duration-500 ${isTop ? "bg-indigo-400" : "bg-white/[0.18]"}`} style={{ width: `${barPct}%` }} />
-                          </div>
-                        </div>
-                        <div className="flex shrink-0 items-center gap-2">
-                          <span className="hidden text-[10px] text-slate-500 sm:block">{e.attendance}</span>
-                          <span className="w-12 tabular-nums text-right text-[12px] font-semibold text-white">{fmt$(e.doorRevenue)}</span>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </Card>
-            </div>
-
-            {/* ── Hidden widgets tray ────────────────────────────────────── */}
-            {/* Admin-only un-hide path for widgets hidden inline (or in Settings).
-                Visible only when something is hidden, so it never adds noise to a
-                fully-populated dashboard, and it's the way back after hiding the
-                last widget. Labels come from the registry. */}
+            {/* ── Hidden widgets tray (admin un-hide path) ────────────────── */}
             {isActiveOrgAdmin && hiddenOps.length > 0 && (
-              <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-3">
-                <p className="mb-2 text-[11px] font-semibold uppercase tracking-widest text-slate-600">Hidden widgets</p>
-                <div className="flex flex-wrap gap-2">
+              <div className="hidden-tray">
+                <p className="lbl">Hidden widgets</p>
+                <div className="chips">
                   {hiddenOps.map(f => (
-                    <button
-                      key={f.id}
-                      onClick={() => setWidgetHidden(f.id, false)}
-                      title={`Show ${f.label}`}
-                      className="flex items-center gap-1.5 rounded-lg border border-white/[0.1] bg-white/[0.04] px-2.5 py-1 text-[12px] text-slate-300 transition-colors hover:border-indigo-500/40 hover:text-white"
-                    >
-                      <svg className="h-3.5 w-3.5 shrink-0 opacity-70" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                      </svg>
-                      {f.label}
-                    </button>
+                    <button key={f.id} onClick={() => setWidgetHidden(f.id, false)} title={`Show ${f.label}`}>{f.label}</button>
                   ))}
                 </div>
               </div>
             )}
 
-            {/* ── Footer ─────────────────────────────────────────────────── */}
-            <div className="border-t border-white/[0.06] pt-4 text-center">
-              <p className="text-[10px] text-slate-700">{currentUser?.org?.name ?? "ChaptOS"} · Prototype backed by seeded chapter data</p>
-            </div>
+            {/* ── Footer ──────────────────────────────────────────────────── */}
+            <footer>{currentUser?.org?.name ?? "ChaptOS"} · Backed by seeded chapter data</footer>
 
           </div>
         </main>

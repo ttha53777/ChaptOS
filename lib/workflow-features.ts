@@ -46,13 +46,17 @@ export interface WorkflowFeature {
 export const WORKFLOW_FEATURES: Record<WorkflowId, readonly WorkflowFeature[]> = {
   operations: [
     { id: "announcement",     label: "Announcement",     description: "Pinned chapter announcement at the top of the dashboard." },
-    { id: "kpi-attendance",   label: "Attendance KPI",   description: "Average attendance summary card." },
-    { id: "kpi-dues",         label: "Dues KPI",         description: "Outstanding dues summary card." },
-    { id: "kpi-gpa",          label: "GPA KPI",          description: "Chapter GPA summary card." },
-    { id: "kpi-service",      label: "Service Hours KPI", description: "Service-hours summary card." },
-    { id: "health",          label: "Health widget",     description: "Chapter momentum / health score widget." },
-    { id: "charts",          label: "Charts",            description: "Balance, status, and service trend charts." },
-    { id: "brother-tracking", label: "Member tracking",  description: "The sortable member tracking table." },
+    { id: "kpi-attendance",   label: "Attendance KPI",   description: "Attendance measure in the ledger strip." },
+    { id: "kpi-dues",         label: "Dues KPI",         description: "Outstanding-dues measure in the ledger strip." },
+    { id: "kpi-gpa",          label: "GPA KPI",          description: "Chapter-GPA measure in the ledger strip." },
+    { id: "kpi-service",      label: "Service Hours KPI", description: "Service-hours measure in the ledger strip." },
+    { id: "kpi-treasury",     label: "Treasury KPI",     description: "Treasury-balance measure in the ledger strip." },
+    { id: "health",          label: "Health widget",     description: "Chapter health dial and metric breakdown." },
+    { id: "needs-attention", label: "Needs attention",   description: "Queue of overdue deadlines, outstanding dues, and at-risk members." },
+    // `charts` now governs the mobile-only Recharts panels (MobileMoneyTab); the
+    // desktop redesign folds those numbers into the ledger strip + Treasury/Socials rail.
+    { id: "charts",          label: "Charts",            description: "Balance, status, and service trend charts (mobile)." },
+    { id: "brother-tracking", label: "Member tracking",  description: "The sortable member roster table." },
   ],
   finance: [],
   members: [],
