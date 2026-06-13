@@ -41,6 +41,14 @@ export const CHAT_MODEL = MODEL;
 export const MAX_COMPLETION_TOKENS = 2000;
 
 /**
+ * Reasoning effort for chat turns. Chat questions are short, tool-heavy lookups
+ * — the hard part is picking the right tool + args, which "low" handles as well
+ * as the default while spending far fewer reasoning tokens. Cuts time-to-first-
+ * token substantially. Bump if eval tool-selection scores regress.
+ */
+export const CHAT_REASONING_EFFORT: OpenAI.ReasoningEffort = "low";
+
+/**
  * Generate a short natural-language narration from a system prompt + user content.
  * Returns null on any failure (missing key, network, API error) so callers can
  * degrade gracefully — the structured data always stands on its own.

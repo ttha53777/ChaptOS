@@ -2,7 +2,7 @@ import type { NextRequest } from "next/server";
 import OpenAI from "openai";
 import { requireUser } from "@/lib/auth/require-user";
 import { checkMutationRate } from "@/lib/rate-limit";
-import { aiEnabled, getOpenAI, CHAT_MODEL, MAX_COMPLETION_TOKENS } from "@/lib/ai";
+import { aiEnabled, getOpenAI, CHAT_MODEL, MAX_COMPLETION_TOKENS, CHAT_REASONING_EFFORT } from "@/lib/ai";
 import { TOOLS, runTool, isReadTool, runProposal, isProposalTool } from "@/lib/ai-tools";
 import { buildSystemPrompt } from "@/lib/ai-prompt";
 import { logError } from "@/lib/observability";
@@ -57,11 +57,10 @@ export async function POST(req: NextRequest) {
   const openai = getOpenAI();
   if (!openai) return Response.json({ enabled: false });
 
-  const systemPrompt = await buildSystemPrompt(user.orgId);
-  const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
-    { role: "system", content: systemPrompt },
-    ...history.map(m => ({ role: m.role, content: m.content }) as OpenAI.Chat.Completions.ChatCompletionMessageParam),
-  ];
+  // Kick off the prompt build but don't await it here — awaiting before
+  // constructing the Response delays the SSE headers (and the client's
+  // "thinking" state) by a DB round trip on cache miss. The stream awaits it.
+  const systemPromptPromise = buildSystemPrompt(user.orgId);
 
   const encoder = new TextEncoder();
   const stream = new ReadableStream<Uint8Array>({
@@ -69,6 +68,12 @@ export async function POST(req: NextRequest) {
       const send = (event: string, data: unknown) => controller.enqueue(encoder.encode(sseEvent(event, data)));
 
       try {
+        const systemPrompt = await systemPromptPromise;
+        const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
+          { role: "system", content: systemPrompt },
+          ...history.map(m => ({ role: m.role, content: m.content }) as OpenAI.Chat.Completions.ChatCompletionMessageParam),
+        ];
+
         for (let iter = 0; iter < MAX_ITERS; iter++) {
           // Accumulate one assistant turn from the streamed deltas
           const assistantContent: string[] = [];
@@ -85,9 +90,19 @@ export async function POST(req: NextRequest) {
             // instead of round-tripping for each — big latency win on questions
             // that need two or three lookups (e.g. "how are dues and attendance?").
             parallel_tool_calls: true,
-            // Lower temperature → terser, more decisive responses (less hedging).
-            // Same token cost, faster perceived time-to-useful-answer.
-            temperature: 0.3,
+            // Low reasoning effort: tool-selection turns don't benefit from deep
+            // reasoning, and fewer reasoning tokens = faster first visible token.
+            // NOTE: setting reasoning_effort makes gpt-5.2 reject any non-default
+            // temperature (400: "only the default (1) value is supported"), so no
+            // temperature here — terseness comes from the system prompt.
+            reasoning_effort: CHAT_REASONING_EFFORT,
+            // Sticky cache routing: the tools + system prompt prefix is ~5k
+            // tokens and identical across an org's chat turns (the date line
+            // changes daily, thresholds/semester every 5 min at most). Keying
+            // by org routes repeat requests to the same cache shard, so the
+            // prefix is served from OpenAI's prompt cache — lower TTFT on
+            // every model call, including the per-tool-loop iterations.
+            prompt_cache_key: `chat-org-${user.orgId}`,
             // Cap output length. Chat answers are short by design; on gpt-5.x this
             // is max_completion_tokens (counts reasoning tokens too — see lib/ai),
             // so it's higher than the old gpt-4o cap to leave reasoning headroom.

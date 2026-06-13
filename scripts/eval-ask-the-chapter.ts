@@ -20,7 +20,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import type OpenAI from "openai";
 
-import { getOpenAI, CHAT_MODEL, aiEnabled, MAX_COMPLETION_TOKENS } from "../lib/ai";
+import { getOpenAI, CHAT_MODEL, aiEnabled, MAX_COMPLETION_TOKENS, CHAT_REASONING_EFFORT } from "../lib/ai";
 import {
   TOOLS,
   runTool,
@@ -130,7 +130,7 @@ async function createWithRetry(
   throw lastErr;
 }
 
-async function runCase(c: EvalCase, openai: OpenAI, systemPrompt: string, orgId: number): Promise<TurnResult> {
+async function runCase(c: EvalCase, openai: OpenAI, systemPrompt: string, orgId: number, now: Date): Promise<TurnResult> {
   const t0 = Date.now();
   const toolCalls: ToolCallRecord[] = [];
   const proposals: Proposal[] = [];
@@ -150,7 +150,10 @@ async function runCase(c: EvalCase, openai: OpenAI, systemPrompt: string, orgId:
       tools: TOOLS,
       tool_choice: "auto",
       parallel_tool_calls: true,
-      temperature: 0.3,
+      // Match the route exactly — the eval must measure prod params. No
+      // temperature: gpt-5.2 rejects non-default temperature once
+      // reasoning_effort is set.
+      reasoning_effort: CHAT_REASONING_EFFORT,
       max_completion_tokens: MAX_COMPLETION_TOKENS,
       // Non-streaming in the eval — we don't need progressive tokens, and the
       // non-streaming response is easier to parse. The model behavior is the
@@ -193,7 +196,9 @@ async function runCase(c: EvalCase, openai: OpenAI, systemPrompt: string, orgId:
 
       let payload: unknown;
       if (isReadTool(tc.function.name)) {
-        payload = await runTool(tc.function.name, args, orgId);
+        // Pass the pinned date so date-relative tools (weekly_digest) agree
+        // with the pinned system prompt instead of using the real today.
+        payload = await runTool(tc.function.name, args, orgId, now);
       } else if (isProposalTool(tc.function.name)) {
         const p = await runProposal(tc.function.name, args, orgId);
         if ("error" in p) {
@@ -393,12 +398,19 @@ async function main() {
     while (cursor < cases.length) {
       const i = cursor++;
       try {
-        const r = await runCase(cases[i], openai, systemPrompt, EVAL_ORG_ID);
+        const r = await runCase(cases[i], openai, systemPrompt, EVAL_ORG_ID, PINNED_DATE);
         results[i] = r;
         const mark = r.pass ? "PASS" : "FAIL";
         process.stdout.write(`[${mark}] ${cases[i].id} (${r.ms}ms, ${r.iters} iter)\n`);
         if (!r.pass) {
           for (const reason of r.reasons) process.stdout.write(`        ↳ ${reason}\n`);
+          // EVAL_DEBUG=1: show what the model actually did on a failing case —
+          // the tool calls (with args) and the final text — so a fail is
+          // diagnosable from the run output without re-instrumenting.
+          if (process.env.EVAL_DEBUG === "1") {
+            for (const t of r.toolCalls) process.stdout.write(`        · ${t.name} ${JSON.stringify(t.args)}\n`);
+            process.stdout.write(`        · final: ${r.finalText.replace(/\n/g, " ").slice(0, 300)}\n`);
+          }
         }
       } catch (e) {
         results[i] = {
