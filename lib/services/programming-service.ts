@@ -38,6 +38,8 @@ const ROW_SELECT = {
   owner:           true,
   collabOrg:       true,
   itineraryUrl:    true,
+  attachmentUrl:   true,
+  attachmentDocId: true,
   roomStatus:      true,
   flyerPosted:     true,
   socialsMeeting:  true,
@@ -144,7 +146,9 @@ export async function updateProgrammingTask(ctx: RequestContext, id: number, inp
   if (input.owner !== undefined)        { data.owner = input.owner.trim(); changedFields.push("owner"); }
   if (input.status !== undefined)       { data.status = input.status; changedFields.push("status"); }
   if (input.description !== undefined)  { data.description = input.description; changedFields.push("description"); }
-  if (input.itineraryUrl !== undefined) { data.itineraryUrl = input.itineraryUrl; changedFields.push("itineraryUrl"); }
+  if (input.itineraryUrl !== undefined)  { data.itineraryUrl = input.itineraryUrl; changedFields.push("itineraryUrl"); }
+  if (input.attachmentUrl !== undefined) { data.attachmentUrl = input.attachmentUrl; changedFields.push("attachmentUrl"); }
+  if (input.attachmentDocId !== undefined) { data.attachmentDocId = input.attachmentDocId; changedFields.push("attachmentDocId"); }
   if (input.roomStatus !== undefined)   { data.roomStatus = input.roomStatus; changedFields.push("roomStatus"); }
   if (input.flyerPosted !== undefined)  { data.flyerPosted = input.flyerPosted; changedFields.push("flyerPosted"); }
   if (input.socialsMeeting !== undefined) { data.socialsMeeting = input.socialsMeeting; changedFields.push("socialsMeeting"); }

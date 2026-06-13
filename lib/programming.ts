@@ -90,6 +90,8 @@ export interface ProgrammingTaskRow {
   collabOrg: string;
   owner: string;
   itineraryUrl: string | null;
+  attachmentUrl: string | null;
+  attachmentDocId: number | null;
   roomStatus: string;
   flyerPosted: boolean;
   socialsMeeting: boolean;
@@ -113,14 +115,14 @@ export interface ProgrammingTaskDto {
   collab: string | null;
   owner: string;
   description: string | null;
-  itineraryUrl: string | null;
+  attachmentUrl: string | null;
+  attachmentDocId: number | null;
   roomStatus: RoomStatus;
   flyerPosted: boolean;
   socialsMeeting: boolean;
   spendingCents: number;
   successRating: number | null;
   wrapUpNotes: string | null;
-  docCount: number;
   checklist: ProgrammingChecklistItem[];
 }
 
@@ -142,14 +144,14 @@ export function toProgrammingTask(row: ProgrammingTaskRow): ProgrammingTaskDto {
     collab,
     owner:           row.owner ?? "",
     description:     row.description ?? null,
-    itineraryUrl:    row.itineraryUrl ?? null,
+    attachmentUrl:   row.attachmentUrl ?? null,
+    attachmentDocId: row.attachmentDocId ?? null,
     roomStatus:      (row.roomStatus ?? "not_submitted") as RoomStatus,
     flyerPosted:     row.flyerPosted ?? false,
     socialsMeeting:  row.socialsMeeting ?? false,
     spendingCents:   row.spendingCents ?? 0,
     successRating:   row.successRating ?? null,
     wrapUpNotes:     row.wrapUpNotes ?? null,
-    docCount:        row._count?.docs ?? 0,
     checklist:       (row.checklist ?? []).map(c => ({
       id: c.id, label: c.label, done: c.done, sortOrder: c.sortOrder,
     })),
@@ -216,17 +218,14 @@ export function toCalendarFields(row: {
 /** Prep checklist progress for mobile progress bar. */
 export function programmingPrepScore(event: {
   roomStatus: RoomStatus;
-  itineraryUrl: string | null;
+  attachmentUrl: string | null;
+  attachmentDocId: number | null;
   flyerPosted: boolean;
-  socialsMeeting: boolean;
-  docCount: number;
 }): { done: number; total: number } {
   const checks = [
     event.roomStatus === "confirmed" || event.roomStatus === "na",
-    Boolean(event.itineraryUrl?.trim()),
+    Boolean(event.attachmentUrl?.trim() || event.attachmentDocId),
     event.flyerPosted,
-    event.socialsMeeting,
-    event.docCount > 0,
   ];
   return { done: checks.filter(Boolean).length, total: checks.length };
 }
@@ -235,13 +234,12 @@ export function programmingPrepScore(event: {
 export function programmingNeedsAttention(event: {
   dueDate: string | null;
   roomStatus: RoomStatus;
-  itineraryUrl: string | null;
-  docCount: number;
+  attachmentUrl: string | null;
+  attachmentDocId: number | null;
 }, todayStr: string): boolean {
   if (event.dueDate && event.dueDate < todayStr) return false;
   return (
     event.roomStatus === "not_submitted" ||
-    !event.itineraryUrl?.trim() ||
-    event.docCount === 0
+    !Boolean(event.attachmentUrl?.trim() || event.attachmentDocId)
   );
 }

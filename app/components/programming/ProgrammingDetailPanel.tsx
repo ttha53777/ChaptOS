@@ -7,14 +7,12 @@ import { Card, FieldLabel, Modal } from "../dashboard/primitives";
 import { inputCls } from "../dashboard/styles";
 import { PrepStatusPill, StarRating, TypeBadge } from "./PrepStatusPill";
 import { ProgrammingChecklist } from "./ProgrammingChecklist";
-import { DocCard, type Doc } from "@/app/[slug]/docs/DocCard";
-import { DocForm, type DocDraft } from "@/app/[slug]/docs/DocForm";
+import { AttachmentField } from "./AttachmentField";
+import type { Doc } from "@/app/[slug]/docs/DocCard";
 import { requestJson } from "../../lib/api";
 import { programmingPrepScore } from "@/lib/programming";
 import { STAGE_LABELS, STAGES, type ProgrammingStage } from "@/lib/state/programming-stage";
 import { todayStr } from "../../lib/dates";
-
-const EMPTY_DOC: DocDraft = { title: "", url: "", description: "" };
 
 export function ProgrammingDetailPanel({
   event,
@@ -31,10 +29,7 @@ export function ProgrammingDetailPanel({
   onEdit: () => void;
   onDelete: () => void;
 }) {
-  const [docs, setDocs] = useState<Doc[]>([]);
-  const [docsLoading, setDocsLoading] = useState(true);
-  const [showAddDoc, setShowAddDoc] = useState(false);
-  const [docSubmitting, setDocSubmitting] = useState(false);
+  const [resourceDocs, setResourceDocs] = useState<Doc[]>([]);
   const [notes, setNotes] = useState(event.wrapUpNotes ?? "");
   const [stageLoading, setStageLoading] = useState(false);
   // Animate prep bar from 0 → real value on mount/event change.
@@ -55,39 +50,12 @@ export function ProgrammingDetailPanel({
     return () => cancelAnimationFrame(id);
   }, [event.id, prep.done, prep.total]);
 
+  // Fetch Resources docs once for the / picker.
   useEffect(() => {
-    setDocsLoading(true);
-    requestJson<Doc[]>(`/api/programming/${event.id}/docs`)
-      .then(setDocs)
-      .catch(() => setDocs([]))
-      .finally(() => setDocsLoading(false));
-  }, [event.id, event.docCount]);
-
-  async function handleAddDoc(draft: DocDraft) {
-    setDocSubmitting(true);
-    try {
-      const created = await requestJson<Doc>(`/api/programming/${event.id}/docs`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: draft.title.trim(),
-          url: draft.url.trim(),
-          description: draft.description.trim() || null,
-        }),
-      });
-      setDocs(prev => [created, ...prev]);
-      setShowAddDoc(false);
-      await onPatch(event.id, { docCount: event.docCount + 1 });
-    } finally {
-      setDocSubmitting(false);
-    }
-  }
-
-  async function handleDeleteDoc(doc: Doc) {
-    await requestJson<void>(`/api/programming/${event.id}/docs/${doc.id}`, { method: "DELETE" });
-    setDocs(prev => prev.filter(d => d.id !== doc.id));
-    await onPatch(event.id, { docCount: Math.max(0, event.docCount - 1) });
-  }
+    requestJson<Doc[]>("/api/docs")
+      .then(setResourceDocs)
+      .catch(() => setResourceDocs([]));
+  }, []);
 
   return (
     <Card className="flex h-full flex-col overflow-hidden rounded-t-2xl xl:h-auto" style={{ background: "linear-gradient(to bottom,#ffffff08 0%,#10121a 45%)" }}>
@@ -165,21 +133,16 @@ export function ProgrammingDetailPanel({
               />
             </div>
             <div>
-              <FieldLabel>Itinerary</FieldLabel>
-              {canManage ? (
-                <input
-                  className={inputCls}
-                  value={event.itineraryUrl ?? ""}
-                  placeholder="https://…"
-                  onChange={e => onPatch(event.id, { itineraryUrl: e.target.value.trim() || null })}
-                />
-              ) : event.itineraryUrl ? (
-                <a href={event.itineraryUrl} target="_blank" rel="noopener noreferrer" className="text-[12px] text-indigo-400 hover:underline truncate block">
-                  Open itinerary
-                </a>
-              ) : (
-                <span className="text-[12px] text-slate-600">—</span>
-              )}
+              <FieldLabel>Attachments</FieldLabel>
+              <AttachmentField
+                attachmentUrl={event.attachmentUrl}
+                attachmentDocId={event.attachmentDocId}
+                docs={resourceDocs}
+                canManage={canManage}
+                onUrlCommit={url => onPatch(event.id, { attachmentUrl: url, attachmentDocId: null })}
+                onDocPick={id => onPatch(event.id, { attachmentDocId: id, attachmentUrl: null })}
+                onClear={() => onPatch(event.id, { attachmentUrl: null, attachmentDocId: null })}
+              />
             </div>
           </div>
           <div className="flex flex-wrap gap-4">
@@ -192,16 +155,6 @@ export function ProgrammingDetailPanel({
                 className="h-4 w-4 rounded accent-indigo-500"
               />
               Flyer posted
-            </label>
-            <label className={`flex items-center gap-2 text-[12px] ${canManage ? "cursor-pointer" : ""} text-slate-300`}>
-              <input
-                type="checkbox"
-                checked={event.socialsMeeting}
-                disabled={!canManage}
-                onChange={e => onPatch(event.id, { socialsMeeting: e.target.checked })}
-                className="h-4 w-4 rounded accent-indigo-500"
-              />
-              Socials meeting
             </label>
           </div>
           <div>
@@ -231,38 +184,6 @@ export function ProgrammingDetailPanel({
           onChange={items => onPatch(event.id, { checklist: items })}
         />
 
-        <section>
-          <div className="mb-2 flex items-center justify-between">
-            <h3 className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Attachments</h3>
-            {canManage && (
-              <button
-                onClick={() => setShowAddDoc(true)}
-                className="text-[11px] font-semibold text-indigo-400 hover:text-indigo-300"
-              >
-                + Add link
-              </button>
-            )}
-          </div>
-          {docsLoading ? (
-            <p className="text-[12px] text-slate-600">Loading…</p>
-          ) : docs.length === 0 ? (
-            <p className="text-[12px] text-slate-600">No files linked yet.</p>
-          ) : (
-            <div className="space-y-2">
-              {docs.map(doc => (
-                <div key={doc.id} className="relative">
-                  <DocCard
-                    doc={doc}
-                    canManage={canManage}
-                    onEdit={() => {}}
-                    onDelete={() => handleDeleteDoc(doc)}
-                  />
-                </div>
-              ))}
-            </div>
-          )}
-        </section>
-
         {isPast && (
           <section className="space-y-2">
             <h3 className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Post-event</h3>
@@ -291,17 +212,6 @@ export function ProgrammingDetailPanel({
           </section>
         )}
       </div>
-
-      {showAddDoc && (
-        <Modal title="Add attachment" onClose={() => !docSubmitting && setShowAddDoc(false)}>
-          <DocForm
-            initial={EMPTY_DOC}
-            submitLabel={docSubmitting ? "Adding…" : "Add"}
-            onSubmit={handleAddDoc}
-            onClose={() => setShowAddDoc(false)}
-          />
-        </Modal>
-      )}
     </Card>
   );
 }

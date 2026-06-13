@@ -30,7 +30,9 @@ export const updateProgrammingTaskInput = z.object({
   status:          z.string().min(1).optional(),
   type:            z.string().min(1).optional(),
   description:     z.string().max(5000).nullable().optional(),
-  itineraryUrl:    optionalHttpsUrl,
+  itineraryUrl:    optionalHttpsUrl, // deprecated — use attachmentUrl
+  attachmentUrl:   optionalHttpsUrl,
+  attachmentDocId: z.number().int().positive().nullable().optional(),
   roomStatus:      z.enum(ROOM_STATUSES).optional(),
   flyerPosted:     z.boolean().optional(),
   socialsMeeting:  z.boolean().optional(),

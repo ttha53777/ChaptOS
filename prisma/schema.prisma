@@ -337,8 +337,9 @@ model Doc {
   updatedAt      DateTime @updatedAt
   createdById    Int?
 
-  organization     Organization          @relation(fields: [organizationId], references: [id])
-  programmingLinks ProgrammingEventDoc[]
+  organization          Organization          @relation(fields: [organizationId], references: [id])
+  programmingLinks      ProgrammingEventDoc[]
+  programmingAttachments ProgrammingEvent[]
 
   @@index([organizationId, createdAt])
 }
@@ -406,7 +407,9 @@ model ProgrammingEvent {
   // Prep / ops fields.
   owner           String   @default("")
   collabOrg       String   @default("")
-  itineraryUrl    String?
+  itineraryUrl    String?  // deprecated — backfilled into attachmentUrl
+  attachmentUrl   String?
+  attachmentDocId Int?
   roomStatus      String   @default("not_submitted")
   flyerPosted     Boolean  @default(false)
   socialsMeeting  Boolean  @default(false)
@@ -416,10 +419,11 @@ model ProgrammingEvent {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  organization  Organization               @relation(fields: [organizationId], references: [id])
-  calendarEvent CalendarEvent?             @relation(fields: [calendarEventId], references: [id], onDelete: SetNull)
-  docs          ProgrammingEventDoc[]
-  checklist     ProgrammingChecklistItem[]
+  organization    Organization               @relation(fields: [organizationId], references: [id])
+  calendarEvent   CalendarEvent?             @relation(fields: [calendarEventId], references: [id], onDelete: SetNull)
+  attachmentDoc   Doc?                       @relation(fields: [attachmentDocId], references: [id], onDelete: SetNull)
+  docs            ProgrammingEventDoc[]
+  checklist       ProgrammingChecklistItem[]
 
   @@index([organizationId, calendarEventId])
   @@index([organizationId, stage])

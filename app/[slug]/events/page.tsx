@@ -10,6 +10,7 @@ import { ProgrammingCalendarView } from "../../components/programming/Programmin
 import { ProgrammingInspector } from "../../components/programming/ProgrammingInspector";
 import { ProgrammingTable } from "../../components/programming/ProgrammingTable";
 import type { ProgrammingTask, TaskStatus } from "../../data";
+import type { Doc } from "../docs/DocCard";
 import { useChapter } from "../../context/ChapterContext";
 import { requestJson } from "../../lib/api";
 import type { ProgrammingStage } from "@/lib/state/programming-stage";
@@ -31,6 +32,7 @@ export default function ProgrammingPage() {
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [events, setEvents] = useState<ProgrammingTask[]>([]);
+  const [docs, setDocs] = useState<Doc[]>([]);
   const [loading, setLoading] = useState(true);
   const [pageError, setPageError] = useState<string | null>(null);
   const [view, setView] = useState<View>("board");
@@ -83,12 +85,25 @@ export default function ProgrammingPage() {
       .finally(() => setLoading(false));
   }, [setProgrammingTaskList]);
 
+  // Keep a ref to the latest events so syncEvents can compute the next list
+  // without nesting setProgrammingTaskList inside setEvents' updater (calling
+  // another component's setter from within an updater triggers React's
+  // "update a component while rendering a different component" warning, since
+  // updaters run during render).
+  const eventsRef = useRef<ProgrammingTask[]>(events);
+  useEffect(() => { eventsRef.current = events; }, [events]);
+
+  // Resources docs, used to resolve a doc attachment's URL so the table's
+  // paperclip can open the doc directly.
+  useEffect(() => {
+    requestJson<Doc[]>("/api/docs").then(setDocs).catch(() => setDocs([]));
+  }, []);
+
   const syncEvents = useCallback((updater: (prev: ProgrammingTask[]) => ProgrammingTask[]) => {
-    setEvents(prev => {
-      const next = updater(prev);
-      setProgrammingTaskList(next);
-      return next;
-    });
+    const next = updater(eventsRef.current);
+    eventsRef.current = next;
+    setEvents(next);
+    setProgrammingTaskList(next);
   }, [setProgrammingTaskList]);
 
   const reload = useCallback(() => {
@@ -314,6 +329,7 @@ export default function ProgrammingPage() {
                   ) : (
                     <ProgrammingTable
                       tasks={filtered}
+                      docs={docs}
                       selectedId={selectedId}
                       canManage={canManage}
                       onSelect={id => {

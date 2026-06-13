@@ -79,14 +79,14 @@ export interface ProgrammingTask {
   collab: string | null;
   owner: string;
   description: string | null;
-  itineraryUrl: string | null;
+  attachmentUrl: string | null;
+  attachmentDocId: number | null;
   roomStatus: "na" | "not_submitted" | "submitted" | "confirmed";
   flyerPosted: boolean;
   socialsMeeting: boolean;
   spendingCents: number;
   successRating: number | null;
   wrapUpNotes: string | null;
-  docCount: number;
   checklist: ProgrammingChecklistItem[];
 }
 

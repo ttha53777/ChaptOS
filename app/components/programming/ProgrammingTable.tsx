@@ -5,6 +5,7 @@ import type { SheetSection } from "../grid/SheetGrid";
 import { SheetGrid } from "../grid/SheetGrid";
 import { programmingTableColumns } from "./programmingTableColumns";
 import type { ProgrammingTask } from "../../data";
+import type { Doc } from "../../[slug]/docs/DocCard";
 
 const NO_DATE_KEY = "zzzz-no-date"; // sorts after every "YYYY-MM" key
 
@@ -16,18 +17,32 @@ function monthLabel(key: string): string {
 
 export function ProgrammingTable({
   tasks,
+  docs,
   selectedId,
   canManage,
   onSelect,
   onPatch,
 }: {
   tasks: ProgrammingTask[];
+  docs: Doc[];
   selectedId: number | null;
   canManage: boolean;
   onSelect: (id: number) => void;
   onPatch: (id: number, patch: Record<string, unknown>) => void;
 }) {
-  const columns = useMemo(() => programmingTableColumns({ onPatch, onSelect }), [onPatch, onSelect]);
+  // Resolve a row's attachment to an openable URL: raw URL wins, else the
+  // picked doc's URL (looked up by id). null when the doc isn't in the list.
+  const resolveAttachmentUrl = useMemo(() => {
+    const byId = new Map(docs.map(d => [d.id, d.url]));
+    return (task: ProgrammingTask): string | null =>
+      task.attachmentUrl?.trim() ||
+      (task.attachmentDocId != null ? byId.get(task.attachmentDocId) ?? null : null);
+  }, [docs]);
+
+  const columns = useMemo(
+    () => programmingTableColumns({ onPatch, onSelect, resolveAttachmentUrl }),
+    [onPatch, onSelect, resolveAttachmentUrl],
+  );
 
   const sections = useMemo<SheetSection<ProgrammingTask>[]>(() => {
     const byMonth = new Map<string, ProgrammingTask[]>();
