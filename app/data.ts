@@ -364,6 +364,66 @@ export function getBrotherStatus(b: Brother, thresholds: Thresholds = THRESHOLDS
   return "Good";
 }
 
+// ─── Needs-attention queue ──────────────────────────────────────────────────
+// Pure derivation behind the dashboard's "Needs attention" block. Co-located
+// with calcHealthScore / getBrotherStatus because it shares their Brother /
+// Deadline / Thresholds inputs. `today` is injectable so the unit test is
+// deterministic.
+
+export type AttentionItem =
+  | { kind: "deadline-overdue"; id: number; title: string; owner: string; dueDate: string; daysLate: number }
+  | { kind: "dues"; total: number; brothers: { id: number; name: string; amount: number }[] }
+  | { kind: "member-risk"; brotherId: number; name: string; attendance: number; gpa: number; serviceHours: number };
+
+/** Whole days from ISO `from` to ISO `to` (both yyyy-mm-dd), via UTC to dodge DST. */
+function isoDaysBetween(from: string, to: string): number {
+  const [fy, fm, fd] = from.split("-").map(Number);
+  const [ty, tm, td] = to.split("-").map(Number);
+  return Math.round((Date.UTC(ty, tm - 1, td) - Date.UTC(fy, fm - 1, fd)) / 86_400_000);
+}
+
+export function deriveNeedsAttention(
+  brothers: Brother[],
+  deadlines: Deadline[],
+  thresholds: Thresholds = THRESHOLDS,
+  today: string = new Date().toISOString().slice(0, 10),
+): AttentionItem[] {
+  const items: AttentionItem[] = [];
+
+  // Overdue deadlines (rose): incomplete and strictly past due, oldest first.
+  const overdue = deadlines
+    .filter(d => d.status !== "Complete" && d.dueDate < today)
+    .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
+  for (const d of overdue) {
+    items.push({
+      kind: "deadline-overdue",
+      id: d.id, title: d.title, owner: d.owner, dueDate: d.dueDate,
+      daysLate: isoDaysBetween(d.dueDate, today),
+    });
+  }
+
+  // Outstanding dues (gold): aggregated into a single row, largest balance first.
+  const owing = [...brothers].filter(b => b.duesOwed > 0).sort((a, b) => b.duesOwed - a.duesOwed);
+  if (owing.length > 0) {
+    items.push({
+      kind: "dues",
+      total: owing.reduce((s, b) => s + b.duesOwed, 0),
+      brothers: owing.map(b => ({ id: b.id, name: b.name, amount: b.duesOwed })),
+    });
+  }
+
+  // At-risk members (rose): one row each.
+  for (const b of brothers.filter(b => getBrotherStatus(b, thresholds) === "At Risk")) {
+    items.push({
+      kind: "member-risk",
+      brotherId: b.id, name: b.name,
+      attendance: b.attendance, gpa: b.gpa, serviceHours: b.serviceHours,
+    });
+  }
+
+  return items;
+}
+
 export function avg(values: number[]): number {
   if (!values.length) return 0;
   return values.reduce((a, b) => a + b, 0) / values.length;
