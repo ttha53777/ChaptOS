@@ -142,14 +142,15 @@ type ChapterSection =
 
 const ChapterContext = createContext<ChapterContextValue | null>(null);
 
-class UnauthenticatedError extends Error {}
 
-async function fetchJson<T>(url: string): Promise<T> {
+async function fetchJson<T>(url: string): Promise<T | null> {
   // Tag every read with the org slug from the URL so the API follows the org the
   // user is viewing, not a lagging active_org cookie (see require-user.ts).
   const slug = currentOrgSlug();
   const response = await fetch(url, slug ? { headers: { [ORG_SLUG_HEADER]: slug } } : undefined);
-  if (response.status === 401) throw new UnauthenticatedError();
+  // 401 is the normal "no session" path — return null so callers can handle it
+  // without throwing (avoids spurious console errors in browser devtools).
+  if (response.status === 401) return null;
   if (!response.ok) {
     throw new Error(`${url} returned ${response.status}`);
   }
@@ -242,7 +243,7 @@ export function ChapterProvider({ children }: { children: React.ReactNode }) {
     // data is meaningless without a user.
     const mePromise = fetchJson<CurrentUser>("/api/auth/me")
       .then(value => ({ ok: true as const, value }))
-      .catch(error => ({ ok: false as const, error }));
+      .catch((error: unknown) => ({ ok: false as const, error }));
 
     // Fan out alongside /me. allSettled so one slow/broken endpoint doesn't
     // blank the dashboard — see audit finding D4 / backend E3.
@@ -263,12 +264,14 @@ export function ChapterProvider({ children }: { children: React.ReactNode }) {
 
     if (!isLatest()) return;
 
+    // null = 401 (no session) — silent no-op, not an error.
+    if (meResult.ok && meResult.value === null) {
+      setIsLoading(false);
+      setHasLoaded(true);
+      return;
+    }
+
     if (!meResult.ok) {
-      if (meResult.error instanceof UnauthenticatedError) {
-        setIsLoading(false);
-        setHasLoaded(true);
-        return;
-      }
       console.error("[ChapterContext] /api/auth/me failed:", meResult.error);
       setLoadError("Could not load your account. Please refresh.");
       setIsLoading(false);
@@ -276,7 +279,7 @@ export function ChapterProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    const me = normalizeCurrentUser(meResult.value);
+    const me = normalizeCurrentUser(meResult.value as CurrentUser);
     setCurrentUser(me);
     setAvatarRevision(r => r + 1);
 
@@ -342,8 +345,8 @@ export function ChapterProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    createClient().auth.getSession().then(({ data }) => {
-      if (data.session) {
+    createClient().auth.getUser().then(({ data }) => {
+      if (data.user) {
         refreshChapterData().catch(() => undefined);
       } else {
         setIsLoading(false);

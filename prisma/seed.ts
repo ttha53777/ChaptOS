@@ -30,6 +30,19 @@ const TARGET_ATTENDANCE: Record<string, number> = {
 const ORG_ID = 1;
 
 async function main() {
+  // Guard: everything below is createMany with no natural-key dedupe, so a
+  // re-run multiplies every row (this happened — 3× events/deadlines/txs).
+  // Refuse to seed into an org that already has data; FORCE_RESEED=1 overrides
+  // for someone who has wiped the org manually and knows what they're doing.
+  const existing = await prisma.brother.count({ where: { organizationId: ORG_ID } });
+  if (existing > 0 && process.env.FORCE_RESEED !== "1") {
+    console.error(
+      `Org ${ORG_ID} already has ${existing} brothers — re-seeding would duplicate every row. ` +
+      `Aborting. Set FORCE_RESEED=1 to override (only after manually clearing the org's data).`,
+    );
+    process.exit(1);
+  }
+
   // Ensure the seed org exists (idempotent)
   await prisma.organization.upsert({
     where: { id: ORG_ID },

@@ -10,19 +10,16 @@ import { createOrg, createBrother, createCalendarEvent } from "../setup/factorie
 import { db } from "@/lib/db";
 import {
   addChecklistItem,
-  attachProgrammingDoc,
   createProgrammingTask,
   deleteChecklistItem,
   deleteProgrammingTask,
-  detachProgrammingDoc,
   listChecklist,
-  listProgrammingEventDocs,
   listProgrammingTasks,
   setStage,
   updateChecklistItem,
   updateProgrammingTask,
 } from "@/lib/services/programming-service";
-import { listDocs } from "@/lib/services/doc-service";
+import { programmingPrepScore } from "@/lib/programming";
 import { NotFoundError, ValidationError } from "@/lib/errors";
 import type { RequestContext } from "@/lib/context";
 
@@ -301,53 +298,53 @@ describe("checklist", () => {
   });
 });
 
-describe("programming event docs", () => {
-  it("attaches, lists, and detaches docs on an event", async () => {
+describe("attachment", () => {
+  it("stores and patches attachmentUrl", async () => {
     const { org, admin } = await seedOrg();
     const ctx = ctxFor(org.id, admin.id);
-    const task = await createProgrammingTask(ctx, { title: "Philanthropy Week", type: "Fundraiser" });
+    const task = await createProgrammingTask(ctx, { title: "Block Party", type: "Social" });
 
-    const doc = await attachProgrammingDoc(ctx, task.id, {
-      title: "Budget Sheet", url: "https://docs.google.com/spreadsheets/d/test",
+    const updated = await updateProgrammingTask(ctx, task.id, {
+      attachmentUrl: "https://docs.google.com/document/d/runofshow",
     });
-
-    const link = await testPrisma.programmingEventDoc.findFirst({
-      where: { programmingEventId: task.id, docId: doc.id },
-    });
-    expect(link).not.toBeNull();
-
-    const docs = await listProgrammingEventDocs(ctx, task.id);
-    expect(docs).toHaveLength(1);
-    expect(docs[0].title).toBe("Budget Sheet");
-
-    const tasks = await listProgrammingTasks(ctx);
-    expect(tasks.find(t => t.id === task.id)?.docCount).toBe(1);
-
-    await detachProgrammingDoc(ctx, task.id, doc.id);
-    expect(await listProgrammingEventDocs(ctx, task.id)).toHaveLength(0);
+    expect(updated.attachmentUrl).toBe("https://docs.google.com/document/d/runofshow");
+    expect(updated.attachmentDocId).toBeNull();
   });
 
-  it("excludes event docs from the org Resources list", async () => {
+  it("stores and patches attachmentDocId", async () => {
     const { org, admin } = await seedOrg();
     const ctx = ctxFor(org.id, admin.id);
-    await testPrisma.doc.create({
-      data: { organizationId: org.id, title: "Chapter Bylaws", url: "https://example.com/bylaws" },
+    const doc = await testPrisma.doc.create({
+      data: { organizationId: org.id, title: "Bylaws", url: "https://example.com/bylaws" },
     });
+    const task = await createProgrammingTask(ctx, { title: "Chapter Night", type: "Program" });
+
+    const updated = await updateProgrammingTask(ctx, task.id, { attachmentDocId: doc.id });
+    expect(updated.attachmentDocId).toBe(doc.id);
+    expect(updated.attachmentUrl).toBeNull();
+  });
+
+  it("clears attachment when both set to null", async () => {
+    const { org, admin } = await seedOrg();
+    const ctx = ctxFor(org.id, admin.id);
     const task = await createProgrammingTask(ctx, { title: "Mixer", type: "Social" });
-    await attachProgrammingDoc(ctx, task.id, { title: "Run of Show", url: "https://docs.google.com/document/d/ros" });
+    await updateProgrammingTask(ctx, task.id, { attachmentUrl: "https://example.com/link" });
 
-    const resources = await listDocs(ctx);
-    expect(resources).toHaveLength(1);
-    expect(resources[0].title).toBe("Chapter Bylaws");
+    const cleared = await updateProgrammingTask(ctx, task.id, { attachmentUrl: null });
+    expect(cleared.attachmentUrl).toBeNull();
+    expect(cleared.attachmentDocId).toBeNull();
   });
 
-  it("rejects doc ops on non-programming ids", async () => {
-    const { org, admin } = await seedOrg();
-    const ctx = ctxFor(org.id, admin.id);
-    const chapter = await createCalendarEvent({ orgId: org.id, category: "chapter" });
+  it("prep score treats has-attachment as complete", () => {
+    const base = { roomStatus: "not_submitted" as const, flyerPosted: false };
+    const none = programmingPrepScore({ ...base, attachmentUrl: null, attachmentDocId: null });
+    expect(none.done).toBe(0);
+    expect(none.total).toBe(3);
 
-    await expect(
-      attachProgrammingDoc(ctx, chapter.id, { title: "X", url: "https://example.com/x" }),
-    ).rejects.toThrow(NotFoundError);
+    const withUrl = programmingPrepScore({ ...base, attachmentUrl: "https://example.com", attachmentDocId: null });
+    expect(withUrl.done).toBe(1);
+
+    const withDoc = programmingPrepScore({ ...base, attachmentUrl: null, attachmentDocId: 42 });
+    expect(withDoc.done).toBe(1);
   });
 });

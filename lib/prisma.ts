@@ -16,7 +16,7 @@ declare global {
 /** Bump when Prisma schema changes so `next dev` hot reload gets a fresh client. */
 const PRISMA_SCHEMA_REVISION = "programming-event-extension-20260611";
 /** Bump when pool options change so `next dev` hot reload picks up new config. */
-const POOL_REVISION = "pool-timeout-20s-v1-20260520";
+const POOL_REVISION = "pool-prewarm-2-20260612";
 
 function clientSupportsCurrentSchema(client: PrismaClient | undefined): boolean {
   return !!client
@@ -69,9 +69,18 @@ if (needsFreshPool) {
   });
 }
 
-// Pre-warm the connection so the first real request doesn't pay the cold-start penalty
+// Pre-warm connections so the first real request doesn't pay the cold-start
+// penalty. Warm at least 2: OrgLayout (and other hot paths) fire two queries in
+// parallel — org-config alongside auth — and if the pool has only one physical
+// connection at that moment, both land on the same pg client. pg then emits a
+// "client.query() while already executing a query" deprecation warning (it
+// serializes them correctly today, but the pattern throws in pg@9). Two warm
+// clients let each parallel query check out its own connection.
 if (needsFreshPool) {
-  pool.query("SELECT 1").catch(() => undefined);
+  void Promise.all([
+    pool.query("SELECT 1").catch(() => undefined),
+    pool.query("SELECT 1").catch(() => undefined),
+  ]);
   // Drain the pool on graceful shutdown so in-flight queries finish cleanly
   process.once("SIGTERM", () => { pool.end().catch(() => undefined); });
 }
