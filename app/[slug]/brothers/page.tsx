@@ -3,7 +3,6 @@
 import React, { useState, useMemo, useCallback } from "react";
 import { Sidebar } from "../../components/Sidebar";
 import { BrotherAvatar } from "../../components/BrotherAvatar";
-import { UserAvatar } from "../../components/UserAvatar";
 import { StatusBadge, Modal, FieldLabel, ConfirmDialog } from "../../components/dashboard/primitives";
 import { inputCls } from "../../components/dashboard/styles";
 import { BrotherDrawer } from "../../components/dashboard/drawers/BrotherDrawer";
@@ -341,7 +340,6 @@ export default function BrothersPage() {
                 <span className="hidden sm:inline">New Brother</span>
               </button>
             )}
-            <UserAvatar />
           </div>
         </header>
 

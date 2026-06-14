@@ -2,7 +2,6 @@
 
 import { useState, useMemo } from "react";
 import { Sidebar } from "../../components/Sidebar";
-import { UserAvatar } from "../../components/UserAvatar";
 import { Modal } from "../../components/dashboard/primitives";
 import { AddIGTaskForm } from "../../components/dashboard/forms";
 import { InstagramTask, TaskStatus, fmtDate } from "../../data";
@@ -487,7 +486,6 @@ export default function InstagramPage() {
               </svg>
               <span className="hidden sm:inline">Add Post</span>
             </button>
-            <UserAvatar />
           </div>
         </header>
 

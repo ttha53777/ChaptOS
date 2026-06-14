@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { Sidebar } from "../../components/Sidebar";
-import { UserAvatar } from "../../components/UserAvatar";
 import { Modal, FieldLabel, ConfirmDialog, SaveIndicator, LoadingSpinner } from "../../components/dashboard/primitives";
 import { useToast } from "../../components/dashboard/Toast";
 import { useChapter } from "../../context/ChapterContext";
@@ -690,7 +689,6 @@ export default function ChapterPage() {
             <span className="hidden sm:inline">Add Meeting</span>
           </button>
 
-          <UserAvatar />
         </header>
 
         {/* ── Error banners ───────────────────────────────────────────────────── */}

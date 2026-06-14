@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Sidebar } from "../../components/Sidebar";
-import { UserAvatar } from "../../components/UserAvatar";
 import { Modal, ConfirmDialog, LoadingSpinner } from "../../components/dashboard/primitives";
 import { useToast } from "../../components/dashboard/Toast";
 import { headerActionBtnCls } from "../../components/dashboard/styles";
@@ -146,7 +145,6 @@ export default function DocsPage() {
             </button>
           )}
 
-          <UserAvatar />
         </header>
 
         {/* ── Error banner ────────────────────────────────────────────────── */}

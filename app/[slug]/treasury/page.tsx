@@ -5,7 +5,6 @@ import dynamic from "next/dynamic";
 import { catColor } from "../../components/treasury/TreasuryCharts";
 import { Sidebar } from "../../components/Sidebar";
 import { BrotherAvatar } from "../../components/BrotherAvatar";
-import { UserAvatar } from "../../components/UserAvatar";
 
 const TreasuryAreaChart = dynamic(
   () => import("../../components/treasury/TreasuryCharts").then(m => m.TreasuryAreaChart),
@@ -631,7 +630,6 @@ export default function TreasuryPage() {
               </button>
             )}
           </div>
-          <UserAvatar />
         </header>
 
         {/* ── Nav tabs ─────────────────────────────────────────────────────── */}

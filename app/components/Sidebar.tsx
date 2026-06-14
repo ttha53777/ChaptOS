@@ -7,6 +7,7 @@ import { useOrgPath } from "../hooks/useOrgPath";
 import { useChapter } from "../context/ChapterContext";
 import { useVocab } from "../hooks/useVocab";
 import { OrgSwitcher } from "./OrgSwitcher";
+import { SidebarProfile } from "./SidebarProfile";
 
 // ─── Icon paths ───────────────────────────────────────────────────────────────
 
@@ -89,12 +90,21 @@ export function SvgIcon({ d, className = "h-4 w-4" }: { d: string; className?: s
   );
 }
 
+// Warm "Chapter Ledger" nav item — flat card-2 fill + a violet edge bar when
+// active (the dashboard mock's signature), warm muted ink otherwise. Mirrors the
+// dusk palette in dashboard-ledger.css so the shell reads as one surface.
 function navItemClass(isActive: boolean) {
-  return `flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] font-medium transition-all duration-150 ${
+  return `relative flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] font-medium transition-all duration-150 ${
     isActive
-      ? "bg-gradient-to-r from-indigo-500/15 to-indigo-500/[0.04] text-indigo-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] ring-1 ring-inset ring-indigo-500/15"
-      : "text-white/45 hover:bg-white/[0.04] hover:text-white/80"
+      ? "bg-[#1b1813] text-[#ece7dd]"
+      : "text-[#958d7c] hover:bg-[rgba(236,231,221,0.05)] hover:text-[#c9c2b4]"
   }`;
+}
+
+// Violet accent rail shown on the active nav item — echoes `.nav a.active::before`
+// from the dashboard redesign mock. Parent must be `relative` (navItemClass is).
+function ActiveBar() {
+  return <span aria-hidden="true" className="absolute left-0 top-1/2 h-3.5 w-[3px] -translate-y-1/2 rounded-r-full bg-[#a78bfa]" />;
 }
 
 // ─── Sidebar ──────────────────────────────────────────────────────────────────
@@ -153,8 +163,6 @@ export function Sidebar({ open, onClose, activeSection, onNavClick }: {
     onClose();
   }
 
-  const settingsActive = subPath.startsWith("/settings");
-
   // Filter nav surfaces by the org's enabled workflows. Until /api/auth/me
   // resolves (currentUser null) we render the FULL nav so there's no flash of a
   // half-empty sidebar; once the org loads we hide the surfaces it disabled.
@@ -209,9 +217,9 @@ export function Sidebar({ open, onClose, activeSection, onNavClick }: {
           aria-current={isActive ? "page" : undefined}
           className={navItemClass(isActive)}
         >
+          {isActive && <ActiveBar />}
           <SvgIcon d={NAV_ICONS[label] ?? ""} className="h-4 w-4 shrink-0 opacity-75" />
           {displayLabel}
-          {isActive && <span className="ml-auto h-1.5 w-1.5 rounded-full bg-indigo-400" aria-hidden="true" />}
         </Link>
       );
     }
@@ -223,9 +231,9 @@ export function Sidebar({ open, onClose, activeSection, onNavClick }: {
         aria-current={isActive ? "page" : undefined}
         className={navItemClass(isActive)}
       >
+        {isActive && <ActiveBar />}
         <SvgIcon d={NAV_ICONS[label] ?? ""} className="h-4 w-4 shrink-0 opacity-75" />
         {displayLabel}
-        {isActive && <span className="ml-auto h-1.5 w-1.5 rounded-full bg-indigo-400" aria-hidden="true" />}
       </button>
     );
   }
@@ -233,26 +241,26 @@ export function Sidebar({ open, onClose, activeSection, onNavClick }: {
   return (
     <>
       {open && <div className="fixed inset-0 z-40 bg-black/60 lg:hidden" onClick={onClose} />}
-      <aside className={`fixed inset-y-0 left-0 z-50 flex w-56 flex-col border-r border-white/[0.04] bg-[#070a10] transition-transform duration-200 ease-in-out lg:static lg:z-auto lg:translate-x-0 ${open ? "translate-x-0" : "-translate-x-full"}`}>
+      <aside className={`fixed inset-y-0 left-0 z-50 flex w-56 flex-col border-r border-[rgba(236,231,221,0.09)] bg-[#14120e] transition-transform duration-200 ease-in-out lg:static lg:z-auto lg:translate-x-0 ${open ? "translate-x-0" : "-translate-x-full"}`}>
         <Link
           href={orgPath("/")}
           onClick={onClose}
-          className="flex h-14 items-center gap-3 border-b border-white/[0.05] px-4 transition-colors hover:bg-white/[0.03]"
+          className="flex h-14 items-center gap-3 border-b border-[rgba(236,231,221,0.06)] px-4 transition-colors hover:bg-[rgba(236,231,221,0.03)]"
           aria-label="Go to dashboard home"
         >
           {logoUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={logoUrl} alt="Org logo" className="h-8 w-8 shrink-0 rounded-lg object-cover shadow-[0_2px_8px_rgba(0,0,0,0.4)]" />
           ) : (
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-indigo-700 text-[11px] font-bold text-white shadow-[0_2px_8px_rgba(99,102,241,0.3)]">ΛΦΕ</div>
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#a78bfa] to-[#7c3aed] text-[11px] font-bold text-white shadow-[0_2px_8px_rgba(167,139,250,0.3)]">ΛΦΕ</div>
           )}
           <div className="min-w-0">
-            <p className="truncate text-[12px] font-semibold leading-tight text-white">{orgName}</p>
-            <p className="text-[10px] leading-tight text-white/35">{semesterLabel}</p>
+            <p className="truncate text-[13px] font-semibold leading-tight text-[#ece7dd]" style={{ fontFamily: "var(--font-fraunces), Georgia, serif" }}>{orgName}</p>
+            <p className="mt-0.5 font-mono text-[9px] uppercase leading-tight tracking-[0.14em] text-[#6b6354]">{semesterLabel}</p>
           </div>
         </Link>
         {currentUser && currentUser.memberships.length > 1 && (
-          <div className="border-b border-white/[0.05] px-4 py-2">
+          <div className="border-b border-[rgba(236,231,221,0.06)] px-4 py-2">
             <OrgSwitcher />
           </div>
         )}
@@ -265,7 +273,7 @@ export function Sidebar({ open, onClose, activeSection, onNavClick }: {
               const headingId = `sidebar-group-${group.label.toLowerCase().replace(/\s+/g, "-")}`;
               return (
                 <section key={group.label} aria-labelledby={headingId}>
-                  <p id={headingId} className="mb-1 px-3 text-[10px] font-semibold uppercase tracking-widest text-white/25">
+                  <p id={headingId} className="mb-1.5 px-3 font-mono text-[9.5px] font-medium uppercase tracking-[0.18em] text-[#6b6354]">
                     {group.label}
                   </p>
                   <div className="space-y-0.5">
@@ -277,36 +285,9 @@ export function Sidebar({ open, onClose, activeSection, onNavClick }: {
           </div>
         </nav>
 
-        <div className="shrink-0 border-t border-white/[0.05] px-2 py-2">
-          <nav aria-label="Settings">
-            <Link
-              href={orgPath("/settings")}
-              onClick={onClose}
-              aria-current={settingsActive ? "page" : undefined}
-              className={navItemClass(settingsActive)}
-            >
-              <SvgIcon d={NAV_ICONS[SETTINGS_NAV] ?? ""} className="h-4 w-4 shrink-0 opacity-75" />
-              {SETTINGS_NAV}
-              {settingsActive && <span className="ml-auto h-1.5 w-1.5 rounded-full bg-indigo-400" aria-hidden="true" />}
-            </Link>
-          </nav>
-          <button
-            onClick={async () => {
-              try {
-                await fetch("/api/auth/signout", { method: "POST" });
-              } catch {
-                // Network failure — still redirect so the user isn't stuck
-              }
-              router.push("/login");
-            }}
-            className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] font-medium text-white/35 hover:bg-white/[0.04] hover:text-white/60 transition-all duration-150"
-          >
-            <svg className="h-4 w-4 shrink-0 opacity-75" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-            </svg>
-            Sign out
-          </button>
-          <p className="px-3 pb-1 pt-2 text-[10px] tracking-wide text-white/25">ChaptOS · v1.0</p>
+        <div className="shrink-0 border-t border-[rgba(236,231,221,0.06)] px-2 py-2">
+          <SidebarProfile onNavigate={onClose} />
+          <p className="px-3 pb-1 pt-2 font-mono text-[9px] uppercase tracking-[0.14em] text-[#6b6354]">ChaptOS · v1.0</p>
         </div>
       </aside>
     </>

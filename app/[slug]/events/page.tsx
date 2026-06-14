@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Sidebar } from "../../components/Sidebar";
-import { UserAvatar } from "../../components/UserAvatar";
 import { Modal, ConfirmDialog } from "../../components/dashboard/primitives";
 import { AddProgrammingTaskForm } from "../../components/dashboard/forms";
 import { ProgrammingBoard } from "../../components/programming/ProgrammingBoard";
@@ -255,7 +254,6 @@ export default function ProgrammingPage() {
               <span className="hidden sm:inline">New Event</span>
             </button>
           )}
-          <UserAvatar />
         </header>
 
         {pageError && (
