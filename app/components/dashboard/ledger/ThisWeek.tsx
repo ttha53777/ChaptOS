@@ -59,13 +59,12 @@ export function ThisWeek({
   ].sort((a, b) => a.date.localeCompare(b.date));
 
   return (
-    <section id="sec-deadlines" className="card" aria-label="This week">
+    <section id="sec-deadlines" className={`card${onAll ? " cursor-pointer" : ""}`} aria-label="This week" onClick={onAll}>
       <div className="card-h">
         <h2>This week</h2>
         <div className="right">
           <span className="sub">{fmtRange(weekStart, weekEnd)}</span>
-          {onAll && <button type="button" className="card-act" onClick={onAll}>All</button>}
-          {onAddDeadline && <button type="button" className="card-act" onClick={onAddDeadline}>+ Add</button>}
+          {onAddDeadline && <button type="button" className="card-act" onClick={(e) => { e.stopPropagation(); onAddDeadline(); }}>+ Add</button>}
         </div>
       </div>
       {items.length === 0 ? (

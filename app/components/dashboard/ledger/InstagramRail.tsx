@@ -28,13 +28,12 @@ export function InstagramRail({
   const sub = overdue > 0 ? `${overdue} of ${tasks.length} overdue` : `${tasks.length} queued`;
 
   return (
-    <section id="sec-instagram" className="card" aria-label="Instagram">
+    <section id="sec-instagram" className={`card${onAll ? " cursor-pointer" : ""}`} aria-label="Instagram" onClick={onAll}>
       <div className="card-h">
         <h2>Instagram</h2>
         <div className="right">
           <span className="sub">{sub}</span>
-          {onAll && <button type="button" className="card-act" onClick={onAll}>All</button>}
-          {onAdd && <button type="button" className="card-act" onClick={onAdd}>+ Add</button>}
+          {onAdd && <button type="button" className="card-act" onClick={(e) => { e.stopPropagation(); onAdd(); }}>+ Add</button>}
         </div>
       </div>
       {tasks.length === 0 ? (

@@ -1,0 +1,376 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+   Detail drawers — "Chapter Ledger" redesign (companion to dashboard-ledger.css)
+   The KPI / Widget / Custom-Metric / Brother drawers render as fixed overlays
+   OUTSIDE the `.dash` wrapper, so they can't inherit its dusk tokens. This file
+   redeclares the same dusk palette under `.dash-drawer` and ports the editorial
+   component vocabulary (serif headings, mono labels, --card/--vio/--gold/--rose/
+   --ok) the dashboard itself uses, so the drawers read as the same surface.
+
+   ISOLATION: every selector begins with `.dash-drawer`. Fonts come from the
+   next/font vars already on <html>. Shared primitives (FieldLabel, inputCls,
+   StatusBadge, BrotherRoleChips) are re-skinned only when they render INSIDE a
+   `.dash-drawer`, so the cold modals elsewhere are untouched.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+.dash-drawer {
+  --serif: var(--font-fraunces), Georgia, serif;
+  --sans:  var(--font-geist-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --mono:  var(--font-geist-mono), ui-monospace, Menlo, monospace;
+
+  --paper:    #0f0d0a;
+  --card:     #161310;
+  --card-2:   #1b1813;
+  --ink:      #ece7dd;
+  --ink-soft: #c9c2b4;
+  --muted:    #958d7c;
+  --faint:    #6b6354;
+  --line:     rgba(236,231,221,.09);
+  --line-soft:rgba(236,231,221,.05);
+  --vio:      #a78bfa;
+  --vio-deep: #7c3aed;
+  --vio-bg:   rgba(167,139,250,.10);
+  --gold:     #ddb36a;
+  --gold-bg:  rgba(221,179,106,.10);
+  --rose:     #d98ba3;
+  --rose-bg:  rgba(217,139,163,.10);
+  --ok:       #7fb08a;
+  --ok-bg:    rgba(127,176,138,.10);
+  --info:     #8fb0d6;
+  --info-bg:  rgba(143,176,214,.10);
+  --shadow:   0 1px 0 rgba(0,0,0,.4), 0 16px 40px -24px rgba(0,0,0,.7);
+}
+
+/* ── Backdrop + panel shell ──────────────────────────────────────────────────── */
+.dash-drawer-backdrop { position: fixed; inset: 0; z-index: 40; background: rgba(0,0,0,.5);
+  backdrop-filter: blur(1px); transition: opacity .2s; }
+.dash-drawer-backdrop.closed { opacity: 0; pointer-events: none; }
+
+.dash-drawer { position: fixed; inset-block: 0; right: 0; z-index: 50; display: flex; flex-direction: column;
+  width: 100%; background: var(--paper); color: var(--ink); font-family: var(--sans); font-size: 13.5px;
+  line-height: 1.45; border-left: 1px solid var(--line); box-shadow: var(--shadow);
+  transition: transform .3s ease-in-out; -webkit-font-smoothing: antialiased; }
+@media (min-width: 640px) { .dash-drawer { width: 420px; } }
+.dash-drawer.closed { transform: translateX(100%); pointer-events: none; }
+.dash-drawer ::selection { background: var(--vio-bg); }
+
+/* accent hairline at the very top (Widget drawer) */
+.dash-drawer .dd-accent { height: 2px; flex-shrink: 0; background: var(--vio); opacity: .7; }
+.dash-drawer .dd-accent.gold { background: var(--gold); }
+.dash-drawer .dd-accent.rose { background: var(--rose); }
+.dash-drawer .dd-accent.ok   { background: var(--ok); }
+
+/* ── Header ──────────────────────────────────────────────────────────────────── */
+.dash-drawer .dd-head { display: flex; flex-shrink: 0; align-items: center; gap: 12px;
+  min-height: 56px; padding: 0 18px; border-bottom: 1px solid var(--line); }
+.dash-drawer .dd-icon { display: grid; place-items: center; height: 32px; width: 32px; flex-shrink: 0;
+  border-radius: 9px; background: var(--vio-bg); color: var(--vio); }
+.dash-drawer .dd-icon.gold { background: var(--gold-bg); color: var(--gold); }
+.dash-drawer .dd-icon.ok   { background: var(--ok-bg);   color: var(--ok); }
+.dash-drawer .dd-icon.rose { background: var(--rose-bg); color: var(--rose); }
+.dash-drawer .dd-icon.info { background: var(--info-bg); color: var(--info); }
+.dash-drawer .dd-icon svg { height: 16px; width: 16px; }
+.dash-drawer .dd-title { flex: 1; min-width: 0; font-family: var(--serif); font-weight: 500; font-size: 17px;
+  letter-spacing: -.01em; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dash-drawer .dd-sub { font-family: var(--mono); font-size: 9.5px; letter-spacing: .14em; text-transform: uppercase;
+  color: var(--faint); margin-top: 2px; }
+.dash-drawer .dd-x { display: grid; place-items: center; height: 30px; width: 30px; flex-shrink: 0;
+  border-radius: 8px; color: var(--muted); background: none; border: 0; cursor: pointer; transition: .15s; }
+.dash-drawer .dd-x:hover { color: var(--ink); background: var(--card-2); }
+.dash-drawer .dd-x svg { height: 16px; width: 16px; }
+
+/* avatar tinted ring (Brother header) */
+.dash-drawer .dd-avatar-ring { box-shadow: 0 0 0 2px var(--paper), 0 0 0 4px var(--ok); border-radius: 50%; }
+.dash-drawer .dd-avatar-ring.watch { box-shadow: 0 0 0 2px var(--paper), 0 0 0 4px var(--gold); }
+.dash-drawer .dd-avatar-ring.risk  { box-shadow: 0 0 0 2px var(--paper), 0 0 0 4px var(--rose); }
+
+/* ── Tabs (Brother drawer) ───────────────────────────────────────────────────── */
+.dash-drawer .dd-tabs { display: flex; flex-shrink: 0; border-bottom: 1px solid var(--line); }
+.dash-drawer .dd-tab { position: relative; padding: 10px 18px; font-family: var(--mono); font-size: 10px;
+  letter-spacing: .12em; text-transform: uppercase; color: var(--faint); background: none; border: 0; cursor: pointer; transition: color .15s; }
+.dash-drawer .dd-tab:hover { color: var(--muted); }
+.dash-drawer .dd-tab.on { color: var(--ink); }
+.dash-drawer .dd-tab.on::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 2px;
+  border-radius: 2px 2px 0 0; background: var(--vio); }
+
+/* ── Scroll body ─────────────────────────────────────────────────────────────── */
+.dash-drawer .dd-body { flex: 1; overflow-y: auto; padding: 20px 18px; }
+.dash-drawer .dd-body > * + * { margin-top: 20px; }
+
+/* section label — mono caps, like the dashboard's .card-h .sub */
+.dash-drawer .dd-label { font-family: var(--mono); font-size: 9px; font-weight: 500; letter-spacing: .16em;
+  text-transform: uppercase; color: var(--muted); margin-bottom: 10px; }
+.dash-drawer .dd-label .ct { color: var(--faint); }
+
+/* ── Stat tiles (the 2–4-up summary at the top of most drawers) ──────────────── */
+.dash-drawer .dd-stats { display: grid; gap: 8px; }
+.dash-drawer .dd-stats.c2 { grid-template-columns: repeat(2,1fr); }
+.dash-drawer .dd-stats.c3 { grid-template-columns: repeat(3,1fr); }
+.dash-drawer .dd-stats.c4 { grid-template-columns: repeat(4,1fr); }
+.dash-drawer .dd-stat { border: 1px solid var(--line); border-radius: 10px; background: var(--card);
+  padding: 11px 10px; text-align: center; }
+.dash-drawer .dd-stat .n { font-family: var(--mono); font-size: 18px; font-weight: 500; letter-spacing: -.02em;
+  color: var(--ink); font-variant-numeric: tabular-nums; line-height: 1.1; }
+.dash-drawer .dd-stat .n.vio  { color: var(--vio); }
+.dash-drawer .dd-stat .n.gold { color: var(--gold); }
+.dash-drawer .dd-stat .n.rose { color: var(--rose); }
+.dash-drawer .dd-stat .n.ok   { color: var(--ok); }
+.dash-drawer .dd-stat .n.info { color: var(--info); }
+.dash-drawer .dd-stat .l { font-family: var(--mono); font-size: 9px; letter-spacing: .06em; color: var(--faint);
+  margin-top: 4px; line-height: 1.3; }
+
+/* ── List rows: name + progress bar + value (attendance/gpa/service) ─────────── */
+.dash-drawer .dd-rows { display: flex; flex-direction: column; gap: 2px; }
+.dash-drawer .dd-bar-row { display: flex; align-items: center; gap: 11px; border-radius: 8px; padding: 6px 8px;
+  cursor: default; }
+.dash-drawer .dd-bar-row.act { cursor: pointer; }
+.dash-drawer .dd-bar-row:hover { background: var(--card-2); }
+.dash-drawer .dd-bar-row .nm { flex-shrink: 0; width: 84px; font-size: 12px; font-weight: 500; color: var(--ink-soft);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dash-drawer .dd-track { flex: 1; height: 4px; border-radius: 2px; background: var(--line); overflow: hidden; }
+.dash-drawer .dd-track i { display: block; height: 100%; border-radius: 2px; background: var(--vio); }
+.dash-drawer .dd-track i.gold { background: var(--gold); }
+.dash-drawer .dd-track i.rose { background: var(--rose); }
+.dash-drawer .dd-track i.ok   { background: var(--ok); }
+.dash-drawer .dd-track i.muted{ background: var(--muted); opacity: .5; }
+.dash-drawer .dd-bar-row .val { flex-shrink: 0; width: 42px; text-align: right; font-family: var(--mono);
+  font-size: 11.5px; font-variant-numeric: tabular-nums; color: var(--ink); }
+.dash-drawer .dd-bar-row .val.gold { color: var(--gold); }
+.dash-drawer .dd-bar-row .val.rose { color: var(--rose); }
+.dash-drawer .dd-bar-row .val.ok   { color: var(--ok); }
+.dash-drawer .dd-bar-row .hint { flex-shrink: 0; width: 36px; text-align: right; font-family: var(--mono);
+  font-size: 10px; color: var(--faint); }
+.dash-drawer .dd-bar-row .hint.ok { color: var(--ok); }
+.dash-drawer .dd-bar-row .hint.rose { color: var(--rose); }
+
+/* small inline row action ("+1h", "Pay") — quiet mono chip on hover */
+.dash-drawer .dd-row-act { flex-shrink: 0; font-family: var(--mono); font-size: 10px; letter-spacing: .04em;
+  color: var(--muted); border: 1px solid var(--line); background: transparent; border-radius: 6px;
+  padding: 2px 7px; cursor: pointer; transition: .15s; }
+.dash-drawer .dd-row-act:hover { color: var(--vio); border-color: var(--vio); }
+.dash-drawer .dd-row-act.ok:hover { color: var(--ok); border-color: var(--ok); }
+
+/* ── Person rows / itemized cards (dues, parties, events) ────────────────────── */
+.dash-drawer .dd-item { display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  border: 1px solid var(--line); border-radius: 10px; background: var(--card); padding: 10px 12px; }
+.dash-drawer .dd-item.gold { border-color: var(--gold-bg); background: var(--gold-bg); }
+.dash-drawer .dd-item.vio  { border-color: var(--vio-bg);  background: var(--vio-bg); }
+.dash-drawer .dd-item .who { min-width: 0; }
+.dash-drawer .dd-item .who .t { font-size: 13px; font-weight: 600; color: var(--ink); }
+.dash-drawer .dd-item .who .s { font-size: 11px; color: var(--faint); margin-top: 1px; }
+.dash-drawer .dd-item .amt { flex-shrink: 0; display: flex; align-items: center; gap: 8px; }
+.dash-drawer .dd-item .amt .m { font-family: var(--mono); font-size: 13px; font-weight: 500; color: var(--gold);
+  font-variant-numeric: tabular-nums; }
+
+/* paid-up / quiet line row */
+.dash-drawer .dd-line { display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  border-radius: 8px; padding: 5px 10px; }
+.dash-drawer .dd-line:hover { background: var(--card-2); }
+.dash-drawer .dd-line .nm { font-size: 12px; color: var(--ink-soft); }
+.dash-drawer .dd-line .ok { font-family: var(--mono); font-size: 10.5px; color: var(--ok); }
+
+/* ── Itemized revenue/event card (door / parties) ────────────────────────────── */
+.dash-drawer .dd-event { border: 1px solid var(--line); border-radius: 10px; background: var(--card); padding: 11px 13px; }
+.dash-drawer .dd-event.top { border-color: var(--vio-bg); background: var(--vio-bg); }
+.dash-drawer .dd-event .eh { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+.dash-drawer .dd-event .eh .t { display: flex; align-items: center; gap: 7px; font-size: 12.5px; font-weight: 600; color: var(--ink-soft); }
+.dash-drawer .dd-event.top .eh .t { color: var(--vio); }
+.dash-drawer .dd-event .eh .t .best { font-family: var(--mono); font-size: 8.5px; font-weight: 600; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--vio); background: var(--vio-bg); border-radius: 4px; padding: 2px 5px; }
+.dash-drawer .dd-event .eh .m { flex-shrink: 0; font-family: var(--mono); font-size: 13px; font-weight: 500;
+  color: var(--ink); font-variant-numeric: tabular-nums; }
+.dash-drawer .dd-event .meta { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 8px;
+  font-family: var(--mono); font-size: 9.5px; letter-spacing: .04em; color: var(--faint); }
+.dash-drawer .dd-event .meta .note { font-style: italic; font-family: var(--serif); letter-spacing: 0;
+  font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 160px; }
+
+/* ── Callout note (advice band at the bottom of each KPI view) ───────────────── */
+.dash-drawer .dd-note { border: 1px solid var(--vio-bg); border-radius: 10px; background: var(--vio-bg);
+  padding: 11px 13px; font-size: 11.5px; line-height: 1.5; color: var(--ink-soft); font-style: italic; font-family: var(--serif); }
+.dash-drawer .dd-note.gold { border-color: var(--gold-bg); background: var(--gold-bg); }
+.dash-drawer .dd-note.rose { border-color: var(--rose-bg); background: var(--rose-bg); }
+.dash-drawer .dd-note.ok   { border-color: var(--ok-bg);   background: var(--ok-bg); }
+.dash-drawer .dd-note.center { text-align: center; }
+.dash-drawer .dd-note b { font-weight: 600; font-style: normal; color: var(--ink); }
+
+/* ── Score breakdown (health) ────────────────────────────────────────────────── */
+.dash-drawer .dd-hero { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 22px 0;
+  border: 1px solid var(--line); border-radius: 12px; background: var(--card); }
+.dash-drawer .dd-hero .ring { display: grid; place-items: center; height: 76px; width: 76px; border-radius: 50%;
+  background: var(--ok-bg); margin-bottom: 6px; }
+.dash-drawer .dd-hero .ring.watch { background: var(--gold-bg); }
+.dash-drawer .dd-hero .ring.risk  { background: var(--rose-bg); }
+.dash-drawer .dd-hero .ring span { font-family: var(--serif); font-size: 30px; font-weight: 500; color: var(--ok); line-height: 1; }
+.dash-drawer .dd-hero .ring.watch span { color: var(--gold); }
+.dash-drawer .dd-hero .ring.risk  span { color: var(--rose); }
+.dash-drawer .dd-hero .state { font-family: var(--serif); font-style: italic; font-size: 16px; color: var(--ok); }
+.dash-drawer .dd-hero .state.watch { color: var(--gold); }
+.dash-drawer .dd-hero .state.risk  { color: var(--rose); }
+.dash-drawer .dd-hero .cap { font-family: var(--mono); font-size: 9.5px; letter-spacing: .08em; color: var(--faint); margin-top: 2px; }
+
+.dash-drawer .dd-score { }
+.dash-drawer .dd-score + .dd-score { margin-top: 16px; }
+.dash-drawer .dd-score .sh { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 6px; }
+.dash-drawer .dd-score .sh .k { font-size: 12.5px; font-weight: 600; color: var(--ink); }
+.dash-drawer .dd-score .sh .pct { font-family: var(--mono); font-size: 12px; font-variant-numeric: tabular-nums; }
+.dash-drawer .dd-score .sh .pct.ok { color: var(--ok); } .dash-drawer .dd-score .sh .pct.watch { color: var(--gold); } .dash-drawer .dd-score .sh .pct.risk { color: var(--rose); }
+.dash-drawer .dd-score .track { height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; }
+.dash-drawer .dd-score .track i { display: block; height: 100%; border-radius: 3px; transition: width .5s; }
+.dash-drawer .dd-score .track i.ok { background: var(--ok); } .dash-drawer .dd-score .track i.watch { background: var(--gold); } .dash-drawer .dd-score .track i.risk { background: var(--rose); }
+.dash-drawer .dd-score .desc { font-size: 10.5px; color: var(--faint); margin-top: 5px; }
+
+/* ── Digest / task list rows with left accent ───────────────────────────────── */
+.dash-drawer .dd-feed { display: flex; flex-direction: column; gap: 6px; }
+.dash-drawer .dd-feed-row { display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  border-left: 2.5px solid var(--line); border-radius: 0 8px 8px 0; background: var(--card); padding: 7px 11px; }
+.dash-drawer .dd-feed-row.vio  { border-left-color: var(--vio); }
+.dash-drawer .dd-feed-row.gold { border-left-color: var(--gold); }
+.dash-drawer .dd-feed-row.rose { border-left-color: var(--rose); }
+.dash-drawer .dd-feed-row.ok   { border-left-color: var(--ok); }
+.dash-drawer .dd-feed-row.info { border-left-color: var(--info); }
+.dash-drawer .dd-feed-row .t { min-width: 0; flex: 1; font-size: 12px; color: var(--ink-soft);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dash-drawer .dd-feed-row .t.done { text-decoration: line-through; color: var(--faint); }
+.dash-drawer .dd-feed-row .m { flex-shrink: 0; font-family: var(--mono); font-size: 10px; color: var(--faint); }
+/* stacked: two-line title+meta column + trailing actions */
+.dash-drawer .dd-feed-row.stacked { align-items: flex-start; padding: 9px 11px; }
+.dash-drawer .dd-feed-row.stacked .t { white-space: normal; }
+.dash-drawer .dd-feed-row.stacked .m { margin-top: 2px; }
+
+/* row icon-action buttons (complete / edit / delete) */
+.dash-drawer .dd-acts { display: flex; align-items: center; gap: 2px; flex-shrink: 0; }
+.dash-drawer .dd-act { display: grid; place-items: center; height: 24px; width: 24px; border-radius: 6px;
+  color: var(--muted); background: none; border: 0; cursor: pointer; transition: .15s; }
+.dash-drawer .dd-act svg { height: 14px; width: 14px; }
+.dash-drawer .dd-act:hover { color: var(--vio); background: var(--card-2); }
+.dash-drawer .dd-act.ok:hover   { color: var(--ok); }
+.dash-drawer .dd-act.danger:hover { color: var(--rose); }
+@media (min-width: 768px) { .dash-drawer .dd-acts.hover-reveal { opacity: 0; transition: opacity .15s; }
+  .dash-drawer .dd-feed-card:hover .dd-acts.hover-reveal,
+  .dash-drawer .dd-feed-row:hover .dd-acts.hover-reveal,
+  .dash-drawer .dd-item:hover .dd-acts.hover-reveal { opacity: 1; } }
+
+/* tag chips (IG type, status pills) */
+.dash-drawer .dd-chip { font-family: var(--mono); font-size: 9px; letter-spacing: .06em; text-transform: uppercase;
+  border-radius: 5px; padding: 2px 6px; background: var(--card-2); color: var(--muted); }
+.dash-drawer .dd-chip.vio  { background: var(--vio-bg);  color: var(--vio); }
+.dash-drawer .dd-chip.gold { background: var(--gold-bg); color: var(--gold); }
+.dash-drawer .dd-chip.rose { background: var(--rose-bg); color: var(--rose); }
+.dash-drawer .dd-chip.ok   { background: var(--ok-bg);   color: var(--ok); }
+.dash-drawer .dd-chip.info { background: var(--info-bg); color: var(--info); }
+
+/* card wrapper for IG task / activity-style blocks */
+.dash-drawer .dd-feed-card { border: 1px solid var(--line); border-radius: 10px; background: var(--card); padding: 10px 12px; }
+
+/* activity history list */
+.dash-drawer .dd-history { border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.dash-drawer .dd-history .a { display: flex; align-items: flex-start; gap: 11px; padding: 9px 13px; border-bottom: 1px solid var(--line-soft); }
+.dash-drawer .dd-history .a:last-child { border-bottom: 0; }
+.dash-drawer .dd-history .a:hover { background: var(--card-2); }
+.dash-drawer .dd-history .a .dot { margin-top: 6px; width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; }
+.dash-drawer .dd-history .a .dot.ok { background: var(--ok); } .dash-drawer .dd-history .a .dot.gold { background: var(--gold); } .dash-drawer .dd-history .a .dot.info { background: var(--info); }
+.dash-drawer .dd-history .a p { flex: 1; font-size: 12px; line-height: 1.4; color: var(--ink-soft); }
+.dash-drawer .dd-history .a time { flex-shrink: 0; font-family: var(--mono); font-size: 9.5px; color: var(--faint); }
+
+/* AI narration band */
+.dash-drawer .dd-ai { display: flex; align-items: flex-start; gap: 9px; border: 1px solid var(--vio-bg);
+  border-radius: 10px; background: var(--vio-bg); padding: 10px 12px; }
+.dash-drawer .dd-ai .tag { flex-shrink: 0; font-family: var(--mono); font-size: 8px; font-weight: 600; letter-spacing: .12em;
+  text-transform: uppercase; color: var(--vio); background: var(--vio-bg); border: 1px solid var(--vio-bg);
+  border-radius: 4px; padding: 2px 5px; }
+.dash-drawer .dd-ai p { font-size: 12px; line-height: 1.5; color: var(--ink-soft); font-style: italic; font-family: var(--serif); }
+
+/* empty-state line */
+.dash-drawer .dd-empty { padding: 22px 0; text-align: center; font-size: 12px; color: var(--faint);
+  font-style: italic; font-family: var(--serif); }
+
+/* ── Brother drawer: status-factor + key/value list ─────────────────────────── */
+.dash-drawer .dd-panel { border: 1px solid var(--line); border-radius: 10px; background: var(--card); padding: 12px 13px; }
+.dash-drawer .dd-panel > * + * { margin-top: 9px; }
+.dash-drawer .dd-factor { display: flex; align-items: center; gap: 11px; }
+.dash-drawer .dd-factor .d { flex-shrink: 0; width: 7px; height: 7px; border-radius: 50%; background: var(--ok); }
+.dash-drawer .dd-factor .d.watch { background: var(--gold); } .dash-drawer .dd-factor .d.risk { background: var(--rose); }
+.dash-drawer .dd-factor .k { flex-shrink: 0; width: 92px; font-size: 12px; color: var(--muted); }
+.dash-drawer .dd-factor .v { font-family: var(--mono); font-size: 12px; font-weight: 500; color: var(--ink); }
+.dash-drawer .dd-factor .v.watch { color: var(--gold); } .dash-drawer .dd-factor .v.risk { color: var(--rose); }
+.dash-drawer .dd-factor .tip { margin-left: auto; font-family: var(--mono); font-size: 9.5px; color: var(--faint); }
+.dash-drawer .dd-kv { display: flex; align-items: center; gap: 11px; }
+.dash-drawer .dd-kv .k { flex-shrink: 0; width: 110px; font-size: 12px; color: var(--muted); }
+.dash-drawer .dd-kv .v { font-size: 12px; color: var(--ink-soft); }
+.dash-drawer .dd-kv .v.empty { color: var(--faint); font-style: italic; }
+
+/* Brother profile metric tiles (live attendance / gpa / dues / service) */
+.dash-drawer .dd-tiles { display: grid; grid-template-columns: repeat(2,1fr); gap: 8px; }
+.dash-drawer .dd-tile { border: 1px solid var(--line); border-radius: 10px; background: var(--card); padding: 10px 12px; }
+.dash-drawer .dd-tile.warn { border-color: var(--gold-bg); background: var(--gold-bg); }
+.dash-drawer .dd-tile.risk { border-color: var(--rose-bg); background: var(--rose-bg); }
+.dash-drawer .dd-tile .l { font-family: var(--mono); font-size: 9px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+.dash-drawer .dd-tile .n { font-family: var(--mono); font-size: 20px; font-weight: 500; color: var(--ink);
+  font-variant-numeric: tabular-nums; line-height: 1; margin-top: 5px; }
+.dash-drawer .dd-tile .n.gold { color: var(--gold); } .dash-drawer .dd-tile .n.rose { color: var(--rose); } .dash-drawer .dd-tile .n.ok { color: var(--ok); }
+.dash-drawer .dd-tile .n small { font-size: 12px; color: var(--muted); font-weight: 400; }
+.dash-drawer .dd-tile .tt { height: 3px; border-radius: 2px; background: var(--line); overflow: hidden; margin-top: 7px; }
+.dash-drawer .dd-tile .tt i { display: block; height: 100%; border-radius: 2px; background: var(--vio); }
+.dash-drawer .dd-tile .tt i.gold { background: var(--gold); } .dash-drawer .dd-tile .tt i.rose { background: var(--rose); }
+.dash-drawer .dd-tile-act { margin-top: 8px; width: 100%; font-family: var(--mono); font-size: 10px; font-weight: 600;
+  letter-spacing: .06em; text-transform: uppercase; color: var(--ok); background: var(--ok-bg);
+  border: 1px solid var(--ok-bg); border-radius: 7px; padding: 3px; cursor: pointer; transition: .15s; }
+.dash-drawer .dd-tile-act:hover { border-color: var(--ok); }
+.dash-drawer .dd-tile-form { display: flex; gap: 5px; margin-top: 8px; }
+.dash-drawer .dd-tile-form input { flex: 1; min-width: 0; }
+.dash-drawer .dd-tile-form button { flex-shrink: 0; font-family: var(--mono); font-size: 12px; color: var(--muted);
+  background: var(--card-2); border: 1px solid var(--line); border-radius: 7px; padding: 0 10px; cursor: pointer; }
+.dash-drawer .dd-tile-form button:hover { color: var(--vio); border-color: var(--vio); }
+
+/* attendance-history rows (Brother drawer) */
+.dash-drawer .dd-att { border: 1px solid var(--line); border-radius: 10px; background: var(--card); padding: 9px 12px; }
+.dash-drawer .dd-att .top { display: flex; align-items: center; gap: 10px; }
+.dash-drawer .dd-att .d { flex-shrink: 0; width: 7px; height: 7px; border-radius: 50%; }
+.dash-drawer .dd-att .d.ok { background: var(--ok); } .dash-drawer .dd-att .d.gold { background: var(--gold); }
+.dash-drawer .dd-att .d.risk { background: var(--rose); } .dash-drawer .dd-att .d.none { background: var(--faint); }
+.dash-drawer .dd-att .body { min-width: 0; flex: 1; }
+.dash-drawer .dd-att .body .t { font-size: 12px; font-weight: 500; color: var(--ink-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dash-drawer .dd-att .body .m { font-family: var(--mono); font-size: 9.5px; color: var(--faint); margin-top: 2px; }
+.dash-drawer .dd-att .body .rej { font-size: 10px; color: var(--rose); font-style: italic; margin-top: 3px; }
+.dash-drawer .dd-att .excuse { flex-shrink: 0; font-family: var(--mono); font-size: 9.5px; letter-spacing: .04em;
+  text-transform: uppercase; color: var(--gold); border: 1px solid var(--gold-bg); background: transparent;
+  border-radius: 6px; padding: 4px 9px; cursor: pointer; transition: .15s; }
+.dash-drawer .dd-att .excuse:hover { border-color: var(--gold); }
+
+/* loading skeletons */
+.dash-drawer .dd-skel { height: 40px; border-radius: 10px; background: var(--card); animation: dd-pulse 1.4s ease-in-out infinite; }
+.dash-drawer .dd-skel + .dd-skel { margin-top: 8px; }
+@keyframes dd-pulse { 0%,100% { opacity: 1; } 50% { opacity: .5; } }
+
+/* error band */
+.dash-drawer .dd-err { border: 1px solid var(--rose-bg); border-radius: 10px; background: var(--rose-bg);
+  padding: 11px 13px; font-size: 12px; color: var(--rose); }
+.dash-drawer .dd-err button { margin-left: 6px; color: var(--rose); text-decoration: underline; background: none; border: 0; cursor: pointer; }
+
+/* ── Footer (Brother drawer) ─────────────────────────────────────────────────── */
+.dash-drawer .dd-foot { flex-shrink: 0; border-top: 1px solid var(--line); padding: 14px 18px; }
+.dash-drawer .dd-foot > * + * { margin-top: 8px; }
+
+/* ── Buttons ─────────────────────────────────────────────────────────────────── */
+.dash-drawer .dd-btn-primary { width: 100%; font-size: 13px; font-weight: 600; color: #fff; background: var(--vio-deep);
+  border: 0; border-radius: 9px; padding: 10px 14px; cursor: pointer; transition: filter .15s; }
+.dash-drawer .dd-btn-primary:hover { filter: brightness(1.1); }
+.dash-drawer .dd-btn-primary:disabled { background: var(--card-2); color: var(--faint); cursor: not-allowed; filter: none; }
+.dash-drawer .dd-btn-ghost { width: 100%; font-size: 13px; font-weight: 500; color: var(--ink-soft); background: var(--card);
+  border: 1px solid var(--line); border-radius: 9px; padding: 10px 14px; cursor: pointer; transition: .15s; }
+.dash-drawer .dd-btn-ghost:hover { color: var(--vio); border-color: var(--vio); background: var(--vio-bg); }
+.dash-drawer .dd-btn-danger { width: 100%; font-size: 12px; font-weight: 500; color: var(--rose); background: var(--rose-bg);
+  border: 1px solid var(--rose-bg); border-radius: 9px; padding: 9px 14px; cursor: pointer; transition: .15s; }
+.dash-drawer .dd-btn-danger:hover { border-color: var(--rose); }
+
+/* meta note line */
+.dash-drawer .dd-meta { font-size: 11px; color: var(--faint); line-height: 1.5; }
+
+/* ── Re-skin shared cold primitives when nested in a drawer ──────────────────── */
+.dash-drawer input:not([type="checkbox"]):not([type="radio"]), .dash-drawer textarea {
+  background: var(--card) !important; border-color: var(--line) !important; color: var(--ink) !important;
+  border-radius: 8px; font-size: 12.5px; }
+.dash-drawer input::placeholder, .dash-drawer textarea::placeholder { color: var(--faint) !important; }
+.dash-drawer input:focus, .dash-drawer textarea:focus {
+  border-color: var(--vio) !important; box-shadow: 0 0 0 2px var(--vio-bg) !important; outline: none; }
+.dash-drawer .dd-field-label { display: block; font-family: var(--mono); font-size: 9px; letter-spacing: .12em;
+  text-transform: uppercase; color: var(--muted); margin-bottom: 5px; }

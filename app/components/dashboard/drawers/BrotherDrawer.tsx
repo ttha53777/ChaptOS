@@ -7,7 +7,7 @@ import { BrotherAvatar } from "../../BrotherAvatar";
 import { useChapter } from "../../../context/ChapterContext";
 import { useThresholds } from "../../../hooks/useThresholds";
 import { useVocab } from "../../../hooks/useVocab";
-import { FieldLabel, StatusBadge, ConfirmDialog } from "../primitives";
+import { StatusBadge, ConfirmDialog } from "../primitives";
 import { inputCls } from "../styles";
 import { orgFetch } from "../../../lib/api";
 import { BrotherRoleChips } from "../../../[slug]/settings/sections/BrotherRoleChips";
@@ -294,32 +294,25 @@ export function BrotherDrawer({
 
   const status   = brother ? getBrotherStatus(brother, THRESHOLDS) : "Good";
 
-  const statusRing: Record<typeof status, string> = {
-    "Good":    "ring-emerald-500/40 bg-emerald-500/15 text-emerald-400",
-    "Watch":   "ring-amber-500/40  bg-amber-500/15   text-amber-400",
-    "At Risk": "ring-red-500/40    bg-red-500/15     text-red-400",
+  // Warm dusk avatar ring tint, keyed off the member's composite status.
+  const statusRingClass: Record<typeof status, string> = {
+    "Good":    "",
+    "Watch":   "watch",
+    "At Risk": "risk",
   };
 
-  const attColor = brother
-    ? brother.attendance < THRESHOLDS.attendanceAtRisk ? "text-red-400"
-      : brother.attendance < THRESHOLDS.attendanceWatch ? "text-amber-400"
-      : "text-white"
-    : "text-white";
-  const attBar = brother
-    ? brother.attendance < THRESHOLDS.attendanceAtRisk ? "bg-red-400"
-      : brother.attendance < THRESHOLDS.attendanceWatch ? "bg-amber-400"
-      : "bg-blue-400"
-    : "bg-blue-400";
-  const gpaColor = brother
-    ? brother.gpa < THRESHOLDS.gpaAtRisk ? "text-red-400"
-      : brother.gpa < THRESHOLDS.gpaWatch ? "text-amber-400"
-      : "text-white"
-    : "text-white";
-  const gpaBar = brother
-    ? brother.gpa < THRESHOLDS.gpaAtRisk ? "bg-red-400"
-      : brother.gpa < THRESHOLDS.gpaWatch ? "bg-amber-400"
-      : "bg-violet-400"
-    : "bg-violet-400";
+  // tone = "" (on track) | "gold" (watch) | "rose" (at risk) — drives the
+  // profile metric tile color + bar fill via the .dd-tile / .dd-track classes.
+  const attTone = brother
+    ? brother.attendance < THRESHOLDS.attendanceAtRisk ? "rose"
+      : brother.attendance < THRESHOLDS.attendanceWatch ? "gold"
+      : ""
+    : "";
+  const gpaTone = brother
+    ? brother.gpa < THRESHOLDS.gpaAtRisk ? "rose"
+      : brother.gpa < THRESHOLDS.gpaWatch ? "gold"
+      : ""
+    : "";
 
   const statusFactors = brother
     ? [
@@ -371,94 +364,86 @@ export function BrotherDrawer({
 
       {/* Backdrop */}
       <div
-        className={`fixed inset-0 z-40 bg-black/40 backdrop-blur-[1px] transition-opacity duration-200 ${isOpen ? "opacity-100" : "opacity-0 pointer-events-none"}`}
+        className={`dash-drawer-backdrop ${isOpen ? "" : "closed"}`}
         onClick={onClose}
       />
       {/* Panel */}
-      <div
-        className={`fixed inset-y-0 right-0 z-50 flex w-full flex-col bg-[#0c0e14] border-l border-white/[0.07] shadow-2xl transition-transform duration-300 ease-in-out sm:w-[420px] ${isOpen ? "translate-x-0" : "translate-x-full pointer-events-none"}`}
-      >
+      <div className={`dash-drawer ${isOpen ? "" : "closed"}`}>
         {brother && (
           <>
             {/* Header */}
-            <div className="flex h-14 shrink-0 items-center gap-3 border-b border-white/[0.07] px-5">
+            <div className="dd-head">
               <BrotherAvatar
                 brother={brother}
                 selfId={currentUser?.id ?? null}
                 selfAvatarUrl={currentUser?.avatarUrl}
                 avatarRevision={avatarRevision}
                 size="lg"
-                ringClassName={`ring-2 ${statusRing[status]}`}
+                ringClassName={`dd-avatar-ring ${statusRingClass[status]}`}
               />
               <div className="min-w-0 flex-1">
-                <h2 className="truncate text-[15px] font-semibold text-white">{brother.name}</h2>
-                <p className="truncate text-[10px] text-slate-500">{brother.role}</p>
+                <h2 className="dd-title">{brother.name}</h2>
+                <p className="dd-sub" style={{ textTransform: "none", letterSpacing: 0 }}>{brother.role}</p>
               </div>
               <StatusBadge status={status} />
-              <button onClick={onClose} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-500 hover:bg-white/[0.07] hover:text-white transition-colors">
-                <svg className="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <button onClick={onClose} className="dd-x" aria-label="Close">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
             </div>
 
             {/* Tabs */}
-            <div className="flex shrink-0 border-b border-white/[0.07]">
+            <div className="dd-tabs">
               {(["profile", "attendance", ...(hasMetrics ? ["metrics" as const] : [])] as Tab[]).map(t => (
                 <button
                   key={t}
                   onClick={() => setTab(t)}
-                  className={`px-5 py-2.5 text-[12px] font-medium capitalize transition-colors relative ${tab === t ? "text-white" : "text-slate-500 hover:text-slate-300"}`}
+                  className={`dd-tab ${tab === t ? "on" : ""}`}
                 >
                   {t}
-                  {tab === t && <span className="absolute bottom-0 left-0 right-0 h-[2px] rounded-full bg-indigo-400" />}
                 </button>
               ))}
             </div>
 
             {/* Scrollable body */}
-            <div className="flex-1 overflow-y-auto px-5 py-5 space-y-5">
+            <div className="dd-body">
 
               {tab === "profile" && (
                 <>
                   {/* Live stat tiles */}
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="dd-tiles">
                     {/* Attendance */}
-                    <div className={`rounded-lg px-3 py-2.5 border ${brother.attendance < THRESHOLDS.attendanceAtRisk ? "bg-red-500/10 border-red-500/20" : brother.attendance < THRESHOLDS.attendanceWatch ? "bg-amber-500/10 border-amber-500/20" : "bg-white/[0.04] border-white/[0.06]"}`}>
-                      <p className="text-[9px] font-semibold uppercase tracking-wider text-slate-500 mb-0.5">Attendance</p>
-                      <p className={`text-[20px] font-bold tabular-nums leading-none ${attColor}`}>{brother.attendance}%</p>
-                      <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-white/[0.08]">
-                        <div className={`h-full rounded-full ${attBar}`} style={{ width: `${brother.attendance}%` }} />
-                      </div>
+                    <div className={`dd-tile ${attTone === "rose" ? "risk" : attTone === "gold" ? "warn" : ""}`}>
+                      <p className="l">Attendance</p>
+                      <p className={`n ${attTone}`}>{brother.attendance}%</p>
+                      <div className="tt"><i className={attTone} style={{ width: `${brother.attendance}%` }} /></div>
                     </div>
                     {/* GPA */}
-                    <div className={`rounded-lg px-3 py-2.5 border ${brother.gpa < THRESHOLDS.gpaAtRisk ? "bg-red-500/10 border-red-500/20" : brother.gpa < THRESHOLDS.gpaWatch ? "bg-amber-500/10 border-amber-500/20" : "bg-white/[0.04] border-white/[0.06]"}`}>
-                      <p className="text-[9px] font-semibold uppercase tracking-wider text-slate-500 mb-0.5">GPA</p>
-                      <p className={`text-[20px] font-bold tabular-nums leading-none ${gpaColor}`}>{brother.gpa.toFixed(2)}</p>
-                      <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-white/[0.08]">
-                        <div className={`h-full rounded-full ${gpaBar}`} style={{ width: `${Math.min(100, Math.max(5, ((brother.gpa - 2.0) / 2.0) * 100))}%` }} />
-                      </div>
+                    <div className={`dd-tile ${gpaTone === "rose" ? "risk" : gpaTone === "gold" ? "warn" : ""}`}>
+                      <p className="l">GPA</p>
+                      <p className={`n ${gpaTone}`}>{brother.gpa.toFixed(2)}</p>
+                      <div className="tt"><i className={gpaTone} style={{ width: `${Math.min(100, Math.max(5, ((brother.gpa - 2.0) / 2.0) * 100))}%` }} /></div>
                     </div>
                     {/* Dues */}
-                    <div className={`rounded-lg px-3 py-2.5 border ${brother.duesOwed > 0 ? "bg-amber-500/10 border-amber-500/20" : "bg-white/[0.04] border-white/[0.06]"}`}>
-                      <p className="text-[9px] font-semibold uppercase tracking-wider text-slate-500 mb-0.5">{v("Dues")} Owed</p>
-                      <p className={`text-[20px] font-bold tabular-nums leading-none ${brother.duesOwed > 0 ? "text-amber-400" : "text-emerald-400"}`}>
+                    <div className={`dd-tile ${brother.duesOwed > 0 ? "warn" : ""}`}>
+                      <p className="l">{v("Dues")} Owed</p>
+                      <p className={`n ${brother.duesOwed > 0 ? "gold" : "ok"}`}>
                         {brother.duesOwed > 0 ? fmt$(brother.duesOwed) : "Clear"}
                       </p>
                       {brother.duesOwed > 0 && canManageDues && (
-                        <button onClick={handleQuickPayDues} className="mt-1.5 w-full rounded-md bg-emerald-500/15 py-0.5 text-[10px] font-semibold text-emerald-400 ring-1 ring-inset ring-emerald-500/25 hover:bg-emerald-500/25 transition-colors">
+                        <button onClick={handleQuickPayDues} className="dd-tile-act">
                           Mark Paid
                         </button>
                       )}
                     </div>
                     {/* Service */}
-                    <div className={`rounded-lg px-3 py-2.5 border ${brother.serviceHours < THRESHOLDS.serviceHoursGoal ? "bg-amber-500/10 border-amber-500/20" : "bg-white/[0.04] border-white/[0.06]"}`}>
-                      <p className="text-[9px] font-semibold uppercase tracking-wider text-slate-500 mb-0.5">Service Hours</p>
-                      <p className={`leading-none ${brother.serviceHours < THRESHOLDS.serviceHoursGoal ? "text-amber-400" : "text-emerald-400"}`}>
-                        <span className="text-[20px] font-bold tabular-nums">{brother.serviceHours}</span>
-                        <span className="text-[12px] font-medium text-slate-500"> / {THRESHOLDS.serviceHoursGoal}h</span>
+                    <div className={`dd-tile ${brother.serviceHours < THRESHOLDS.serviceHoursGoal ? "warn" : ""}`}>
+                      <p className="l">Service Hours</p>
+                      <p className={`n ${brother.serviceHours < THRESHOLDS.serviceHoursGoal ? "gold" : "ok"}`}>
+                        {brother.serviceHours}<small> / {THRESHOLDS.serviceHoursGoal}h</small>
                       </p>
-                      <form onSubmit={handleAddHoursSubmit} className="mt-1.5 flex gap-1">
+                      <form onSubmit={handleAddHoursSubmit} className="dd-tile-form">
                         <input
                           type="number"
                           min="0.5"
@@ -466,38 +451,38 @@ export function BrotherDrawer({
                           value={addHours}
                           onChange={e => setAddHours(e.target.value)}
                           placeholder="hrs"
-                          className="w-full rounded-md bg-white/[0.05] px-2 py-0.5 text-[10px] text-slate-300 placeholder:text-slate-600 ring-1 ring-inset ring-white/[0.1] focus:outline-none focus:ring-indigo-500/40"
                         />
-                        <button type="submit" className="shrink-0 rounded-md bg-white/[0.05] px-2 py-0.5 text-[10px] font-semibold text-slate-400 ring-1 ring-inset ring-white/[0.1] hover:bg-indigo-500/15 hover:text-indigo-400 hover:ring-indigo-500/25 transition-colors">
-                          +
-                        </button>
+                        <button type="submit">+</button>
                       </form>
                     </div>
                   </div>
 
                   {/* Status factors */}
                   <div>
-                    <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500">Status Factors</p>
-                    <div className="space-y-2 rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-3">
-                      {statusFactors.map(({ label, val, ok, warn, tip }) => (
-                        <div key={label} className="flex items-center gap-3">
-                          <div className={`h-2 w-2 shrink-0 rounded-full ${ok ? "bg-emerald-400" : warn ? "bg-amber-400" : "bg-red-400"}`} />
-                          <span className="w-24 shrink-0 text-[12px] font-medium text-slate-400">{label}</span>
-                          <span className={`tabular-nums text-[12px] font-semibold ${ok ? "text-white" : warn ? "text-amber-400" : "text-red-400"}`}>{val}</span>
-                          {!ok && <span className="ml-auto shrink-0 text-[10px] text-slate-600">{tip}</span>}
-                        </div>
-                      ))}
+                    <p className="dd-label">Status Factors</p>
+                    <div className="dd-panel">
+                      {statusFactors.map(({ label, val, ok, warn, tip }) => {
+                        const tone = ok ? "" : warn ? "watch" : "risk";
+                        return (
+                          <div key={label} className="dd-factor">
+                            <div className={`d ${tone}`} />
+                            <span className="k">{label}</span>
+                            <span className={`v ${tone}`}>{val}</span>
+                            {!ok && <span className="tip">{tip}</span>}
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
 
                   {/* Custom member fields — shown when the org has defined any */}
                   {customFieldDefs.length > 0 && (
                     <div>
-                      <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500">Member Details</p>
+                      <p className="dd-label">Member Details</p>
                       {customFieldError && (
-                        <p className="mb-1.5 text-[11px] text-red-400">{customFieldError}</p>
+                        <p className="dd-err" style={{ marginBottom: 8 }}>{customFieldError}</p>
                       )}
-                      <div className="space-y-2 rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-3">
+                      <div className="dd-panel">
                         {customFieldDefs.map(def => {
                           const val = customFields[def.id];
                           const displayVal = val !== null && val !== undefined && String(val).trim() !== "" ? String(val) : null;
@@ -506,9 +491,9 @@ export function BrotherDrawer({
 
                           if (!canEditProfile) {
                             return (
-                              <div key={def.id} className="flex items-center gap-3">
-                                <span className="w-28 shrink-0 truncate text-[12px] font-medium text-slate-400">{def.label}</span>
-                                <span className={`text-[12px] ${isEmpty ? "text-slate-600 italic" : "text-slate-200"}`}>
+                              <div key={def.id} className="dd-kv">
+                                <span className="k">{def.label}</span>
+                                <span className={`v ${isEmpty ? "empty" : ""}`}>
                                   {displayVal ?? "—"}
                                 </span>
                               </div>
@@ -516,10 +501,10 @@ export function BrotherDrawer({
                           }
 
                           return (
-                            <div key={def.id} className="flex items-center gap-3">
-                              <label className="w-28 shrink-0 truncate text-[12px] font-medium text-slate-400">
+                            <div key={def.id} className="dd-kv">
+                              <label className="k">
                                 {def.label}
-                                {isRequired && <span className="ml-0.5 text-red-400">*</span>}
+                                {isRequired && <span style={{ color: "var(--rose)", marginLeft: 2 }}>*</span>}
                               </label>
                               <input
                                 type={def.type === "number" ? "number" : "text"}
@@ -533,7 +518,7 @@ export function BrotherDrawer({
                                 }}
                                 placeholder={def.placeholder ?? `Enter ${def.label.toLowerCase()}…`}
                                 maxLength={def.type === "number" ? undefined : 255}
-                                className="min-w-0 flex-1 rounded-lg border border-white/[0.08] bg-white/[0.04] px-2.5 py-1 text-[12px] text-slate-200 placeholder:text-slate-600 focus:border-indigo-500/50 focus:outline-none focus:ring-1 focus:ring-indigo-500/30"
+                                style={{ flex: 1, minWidth: 0 }}
                               />
                             </div>
                           );
@@ -545,9 +530,9 @@ export function BrotherDrawer({
                   {/* Roles — visible to anyone who can manage roles */}
                   {canManageRoles && (
                     <div>
-                      <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500">Roles</p>
+                      <p className="dd-label">Roles</p>
                       {roleError && (
-                        <p className="mb-1.5 text-[11px] text-red-400">{roleError}</p>
+                        <p className="dd-err" style={{ marginBottom: 8 }}>{roleError}</p>
                       )}
                       <BrotherRoleChips
                         brotherId={brother.id}
@@ -560,29 +545,29 @@ export function BrotherDrawer({
                   {/* Edit form — only when admin or viewing self */}
                   {canEditProfile && (
                     <div>
-                      <p className="mb-3 text-[10px] font-semibold uppercase tracking-wider text-slate-500">Edit Profile</p>
+                      <p className="dd-label">Edit Profile</p>
                       <div className="space-y-3">
                         <div>
-                          <FieldLabel>Name</FieldLabel>
+                          <label className="dd-field-label">Name</label>
                           <input className={inputCls} value={name} onChange={e => { setName(e.target.value); setDirty(true); }} />
                         </div>
                         <div>
-                          <FieldLabel>Role / Committees</FieldLabel>
+                          <label className="dd-field-label">Role / Committees</label>
                           <input className={inputCls} value={role} onChange={e => { setRole(e.target.value); setDirty(true); }} placeholder="President · Rush · …" />
                         </div>
                         <div className={`grid grid-cols-1 gap-3 ${canManageDues ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}>
                           <div>
-                            <FieldLabel>GPA</FieldLabel>
+                            <label className="dd-field-label">GPA</label>
                             <input type="number" min="0" max="4" step="0.01" className={inputCls} value={gpa} onChange={e => { setGpa(e.target.value); setDirty(true); }} />
                           </div>
                           {canManageDues && (
                             <div>
-                              <FieldLabel>{v("Dues")} ($)</FieldLabel>
+                              <label className="dd-field-label">{v("Dues")} ($)</label>
                               <input type="number" min="0" className={inputCls} value={duesOwed} onChange={e => { setDuesOwed(e.target.value); setDirty(true); }} />
                             </div>
                           )}
                           <div>
-                            <FieldLabel>Service (h)</FieldLabel>
+                            <label className="dd-field-label">Service (h)</label>
                             <input type="number" min="0" className={inputCls} value={serviceHours} onChange={e => { setServiceHours(e.target.value); setDirty(true); }} />
                           </div>
                         </div>
@@ -594,64 +579,58 @@ export function BrotherDrawer({
 
               {tab === "metrics" && (
                 <div>
-                  <p className="mb-3 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
-                    Custom Metrics
-                  </p>
+                  <p className="dd-label">Custom Metrics</p>
 
                   {metricsLoading && (
-                    <div className="space-y-2">
+                    <div>
                       {[...Array(3)].map((_, i) => (
-                        <div key={i} className="h-10 rounded-lg bg-white/[0.03] animate-pulse" />
+                        <div key={i} className="dd-skel" />
                       ))}
                     </div>
                   )}
 
                   {metricsError && (
-                    <div className="rounded-lg border border-red-500/20 bg-red-500/10 px-4 py-3 text-[12px] text-red-400">
+                    <div className="dd-err">
                       {metricsError}
-                      <button onClick={() => { metricsLoadedFor.current = null; setMetricsError(null); }} className="ml-2 underline">Retry</button>
+                      <button onClick={() => { metricsLoadedFor.current = null; setMetricsError(null); }}>Retry</button>
                     </div>
                   )}
 
                   {!metricsLoading && !metricsError && metrics.length === 0 && (
-                    <p className="text-[12px] text-slate-600">No metrics defined yet.</p>
+                    <p className="dd-empty">No metrics defined yet.</p>
                   )}
 
                   {!metricsLoading && !metricsError && metrics.length > 0 && (
-                    <div className="space-y-2 rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-3">
+                    <div className="dd-panel">
                       {metrics.map(row => {
-                        const statusDot =
-                          row.status === "on_track" ? "bg-emerald-400"
-                          : row.status === "watch"    ? "bg-amber-400"
-                          : row.status === "at_risk"  ? "bg-red-400"
-                          : "bg-slate-700";
-                        const valColor =
-                          row.status === "on_track" ? "text-emerald-400"
-                          : row.status === "watch"    ? "text-amber-400"
-                          : row.status === "at_risk"  ? "text-red-400"
-                          : "text-slate-400";
+                        const tone =
+                          row.status === "on_track" ? ""
+                          : row.status === "watch"    ? "watch"
+                          : row.status === "at_risk"  ? "risk"
+                          : "";
+                        const valTone =
+                          row.status === "on_track" ? ""
+                          : row.status === "watch"    ? "watch"
+                          : row.status === "at_risk"  ? "risk"
+                          : "";
 
                         if (!canEditProfile) {
                           return (
-                            <div key={row.definitionId} className="flex items-center gap-3">
-                              <div className={`h-2 w-2 shrink-0 rounded-full ${statusDot}`} />
-                              <span className="w-28 shrink-0 truncate text-[12px] font-medium text-slate-400">
-                                {row.name}{row.unit ? ` (${row.unit})` : ""}
-                              </span>
-                              <span className={`tabular-nums text-[12px] font-semibold ${valColor}`}>
+                            <div key={row.definitionId} className="dd-factor">
+                              <div className={`d ${tone}`} />
+                              <span className="k">{row.name}{row.unit ? ` (${row.unit})` : ""}</span>
+                              <span className={`v ${valTone}`}>
                                 {row.value !== null ? row.value : "—"}
                               </span>
-                              <span className="ml-auto shrink-0 text-[10px] text-slate-600">Goal {row.goal}{row.unit ? row.unit : ""}</span>
+                              <span className="tip">Goal {row.goal}{row.unit ? row.unit : ""}</span>
                             </div>
                           );
                         }
 
                         return (
-                          <div key={row.definitionId} className="flex items-center gap-3">
-                            <div className={`h-2 w-2 shrink-0 rounded-full ${statusDot}`} />
-                            <label className="w-28 shrink-0 truncate text-[12px] font-medium text-slate-400">
-                              {row.name}{row.unit ? ` (${row.unit})` : ""}
-                            </label>
+                          <div key={row.definitionId} className="dd-factor">
+                            <div className={`d ${tone}`} />
+                            <label className="k">{row.name}{row.unit ? ` (${row.unit})` : ""}</label>
                             <input
                               type="number"
                               min="0"
@@ -663,9 +642,9 @@ export function BrotherDrawer({
                                 setMetricsDirty(true);
                               }}
                               placeholder="—"
-                              className="min-w-0 flex-1 rounded-lg border border-white/[0.08] bg-white/[0.04] px-2.5 py-1 text-[12px] text-slate-200 placeholder:text-slate-600 focus:border-indigo-500/50 focus:outline-none focus:ring-1 focus:ring-indigo-500/30"
+                              style={{ flex: 1, minWidth: 0 }}
                             />
-                            <span className="shrink-0 text-[10px] text-slate-600">/{row.goal}</span>
+                            <span className="tip">/{row.goal}</span>
                           </div>
                         );
                       })}
@@ -676,46 +655,44 @@ export function BrotherDrawer({
 
               {tab === "attendance" && (
                 <div>
-                  <p className="mb-3 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
-                    Mandatory Event History — Active {v("Period")}
-                  </p>
+                  <p className="dd-label">Mandatory Event History — Active {v("Period")}</p>
 
                   {histLoading && (
-                    <div className="space-y-2">
+                    <div>
                       {[...Array(5)].map((_, i) => (
-                        <div key={i} className="h-10 rounded-lg bg-white/[0.03] animate-pulse" />
+                        <div key={i} className="dd-skel" />
                       ))}
                     </div>
                   )}
 
                   {histError && (
-                    <div className="rounded-lg border border-red-500/20 bg-red-500/10 px-4 py-3 text-[12px] text-red-400">
+                    <div className="dd-err">
                       {histError}
-                      <button onClick={() => brotherId !== null && fetchHistory(brotherId)} className="ml-2 underline">Retry</button>
+                      <button onClick={() => brotherId !== null && fetchHistory(brotherId)}>Retry</button>
                     </div>
                   )}
 
                   {!histLoading && !histError && history.length === 0 && (
-                    <p className="text-[12px] text-slate-600">No mandatory events recorded yet.</p>
+                    <p className="dd-empty">No mandatory events recorded yet.</p>
                   )}
 
                   {!histLoading && !histError && history.length > 0 && (
-                    <div className="space-y-1.5">
+                    <div className="dd-feed">
                       {history.map(row => {
                         const isExcusing = excusingEventId === row.calendarEventId;
                         const pendingExcuse  = row.excuseStatus === "pending";
                         const rejectedExcuse = row.excuseStatus === "rejected";
-                        const dot = row.excused
-                          ? "bg-amber-400"
+                        const dotTone = row.excused
+                          ? "gold"
                           : pendingExcuse
-                            ? "bg-amber-400/40"
+                            ? "gold"
                             : rejectedExcuse
-                              ? "bg-red-400/60"
+                              ? "risk"
                               : row.attended === true
-                                ? "bg-emerald-400"
+                                ? "ok"
                                 : row.attended === false
-                                  ? "bg-red-400"
-                                  : "bg-slate-700";
+                                  ? "risk"
+                                  : "none";
                         const label = row.excused
                           ? "Excused"
                           : pendingExcuse
@@ -727,39 +704,40 @@ export function BrotherDrawer({
                         const canSubmitExcuse = row.attended === false && !row.excused && !pendingExcuse && onDelete;
 
                         return (
-                          <div key={row.calendarEventId} className="rounded-lg border border-white/[0.05] bg-white/[0.02] px-3 py-2.5">
-                            <div className="flex items-center gap-2.5">
-                              <div className={`h-2 w-2 shrink-0 rounded-full ${dot}`} />
-                              <div className="min-w-0 flex-1">
-                                <p className="truncate text-[12px] font-medium text-slate-200">{row.title}</p>
-                                <p className="text-[10px] text-slate-600">{fmtDate(row.date)} · {label}</p>
+                          <div key={row.calendarEventId} className="dd-att">
+                            <div className="top">
+                              <div className={`d ${dotTone}`} />
+                              <div className="body">
+                                <p className="t">{row.title}</p>
+                                <p className="m">{fmtDate(row.date)} · {label}</p>
                                 {rejectedExcuse && row.excuseRejection && (
-                                  <p className="mt-1 text-[10px] italic text-red-300/80">Reason: {row.excuseRejection}</p>
+                                  <p className="rej">Reason: {row.excuseRejection}</p>
                                 )}
                               </div>
                               {canSubmitExcuse && (
                                 <button
                                   onClick={() => { setExcusingEventId(isExcusing ? null : row.calendarEventId); setExcuseReason(""); }}
-                                  className="shrink-0 rounded-md bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold text-amber-400 ring-1 ring-inset ring-amber-500/20 hover:bg-amber-500/20 transition-colors"
+                                  className="excuse"
                                 >
                                   {isExcusing ? "Cancel" : rejectedExcuse ? "Re-submit" : "Excuse"}
                                 </button>
                               )}
                             </div>
                             {isExcusing && (
-                              <form onSubmit={handleExcuseSubmit} className="mt-2 flex gap-2">
+                              <form onSubmit={handleExcuseSubmit} className="dd-tile-form" style={{ marginTop: 10 }}>
                                 <input
                                   autoFocus
                                   value={excuseReason}
                                   onChange={e => setExcuseReason(e.target.value)}
                                   placeholder="Reason for absence…"
                                   required
-                                  className="flex-1 rounded-md border border-white/[0.08] bg-[#0a0d14] px-2.5 py-1.5 text-[11px] text-white placeholder:text-slate-600 focus:border-indigo-500/60 focus:outline-none"
+                                  style={{ flex: 1 }}
                                 />
                                 <button
                                   type="submit"
                                   disabled={excuseSaving || !excuseReason.trim()}
-                                  className="shrink-0 rounded-md bg-indigo-600 px-3 py-1.5 text-[11px] font-semibold text-white hover:bg-indigo-500 disabled:opacity-40 transition-colors"
+                                  className="dd-btn-primary"
+                                  style={{ width: "auto", padding: "6px 14px", fontSize: 11 }}
                                 >
                                   {excuseSaving ? "…" : "Save"}
                                 </button>
@@ -775,30 +753,19 @@ export function BrotherDrawer({
             </div>
 
             {/* Footer */}
-            <div className="shrink-0 border-t border-white/[0.07] px-5 py-4 space-y-2">
+            <div className="dd-foot">
               {tab === "profile" && canEditProfile && (
-                <button
-                  onClick={handleSave}
-                  disabled={!dirty}
-                  className={`w-full rounded-lg px-4 py-2.5 text-[13px] font-semibold transition-all ${dirty ? "bg-indigo-600 text-white hover:bg-indigo-500 cursor-pointer" : "bg-white/[0.04] text-slate-600 cursor-not-allowed"}`}
-                >
+                <button onClick={handleSave} disabled={!dirty} className="dd-btn-primary">
                   Save Changes
                 </button>
               )}
               {tab === "metrics" && canEditProfile && (
-                <button
-                  onClick={handleMetricsSave}
-                  disabled={!metricsDirty || metricsSaving}
-                  className={`w-full rounded-lg px-4 py-2.5 text-[13px] font-semibold transition-all ${metricsDirty && !metricsSaving ? "bg-indigo-600 text-white hover:bg-indigo-500 cursor-pointer" : "bg-white/[0.04] text-slate-600 cursor-not-allowed"}`}
-                >
+                <button onClick={handleMetricsSave} disabled={!metricsDirty || metricsSaving} className="dd-btn-primary">
                   {metricsSaving ? "Saving…" : "Save Metrics"}
                 </button>
               )}
               {onDelete && canDelete && (
-                <button
-                  onClick={() => setConfirmDelete(true)}
-                  className="w-full rounded-lg border border-red-500/20 bg-red-500/[0.06] px-4 py-2 text-[12px] font-medium text-red-400 hover:bg-red-500/15 transition-colors"
-                >
+                <button onClick={() => setConfirmDelete(true)} className="dd-btn-danger">
                   Remove from Roster
                 </button>
               )}

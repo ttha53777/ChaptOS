@@ -29,13 +29,12 @@ export function SocialsRail({
     .sort((a, b) => a.date.localeCompare(b.date))[0] ?? null;
 
   return (
-    <section id="sec-parties" className="card" aria-label="Socials">
+    <section id="sec-parties" className={`card${onAll ? " cursor-pointer" : ""}`} aria-label="Socials" onClick={onAll}>
       <div className="card-h">
         <h2>Socials</h2>
         <div className="right">
           <span className="sub">{fmt$(totalDoorRev)} at the door</span>
-          {onAll && <button type="button" className="card-act" onClick={onAll}>All</button>}
-          {onAdd && <button type="button" className="card-act" onClick={onAdd}>+ Add</button>}
+          {onAdd && <button type="button" className="card-act" onClick={(e) => { e.stopPropagation(); onAdd(); }}>+ Add</button>}
         </div>
       </div>
       {ranked.length === 0 ? (

@@ -19,7 +19,6 @@ import { useFeature } from "../hooks/useFeature";
 import { WORKFLOW_FEATURES, type DisabledFeatures } from "@/lib/workflow-features";
 import { Sidebar, SvgIcon, NAV_ICONS } from "../components/Sidebar";
 import { BrotherAvatar } from "../components/BrotherAvatar";
-import { UserAvatar } from "../components/UserAvatar";
 import { useChapter } from "../context/ChapterContext";
 import { useToast } from "../components/dashboard/Toast";
 import { AddDeadlineForm, AddIGTaskForm, AddRevenueForm, LogAttendanceForm, ExcuseForm } from "../components/dashboard/forms";
@@ -27,12 +26,13 @@ import { QuickActionsMenu, type QuickActionKey } from "../components/dashboard/Q
 import { TxForm } from "../components/treasury/TxForm";
 import { CalendarEventForm, type CalendarDraft } from "../components/timeline/CalendarEventForm";
 import { BrotherDrawer } from "../components/dashboard/drawers/BrotherDrawer";
-import { Card, Modal, TaskBadge, ConfirmDialog, FieldLabel } from "../components/dashboard/primitives";
+import { Card, Modal, ConfirmDialog, FieldLabel } from "../components/dashboard/primitives";
 import { KPI_ICONS, SECTION_IDS, inputCls } from "../components/dashboard/styles";
 import { type Announcement } from "../components/dashboard/AnnouncementCard";
 import { AnnouncementEditor } from "../components/dashboard/AnnouncementEditor";
 import { MobileDashboard } from "../components/dashboard/mobile/MobileDashboard";
 import "../components/dashboard/dashboard-ledger.css";
+import "../components/dashboard/drawer-ledger.css";
 import { BriefingHeader } from "../components/dashboard/ledger/BriefingHeader";
 import { HealthDial } from "../components/dashboard/ledger/HealthDial";
 import { PinnedAnnouncement } from "../components/dashboard/ledger/PinnedAnnouncement";
@@ -57,13 +57,15 @@ let _nextId = Date.now();
 
 type KPIDrawerKey = "attendance" | "dues" | "gpa" | "service" | "treasury" | "door";
 
-const DRAWER_CONFIGS: Record<KPIDrawerKey, { title: string; accent: string; iconKey: string; iconBg: string; iconColor: string }> = {
-  attendance: { title: "Avg Attendance",   accent: "text-blue-400",    iconKey: "attendance", iconBg: "bg-blue-500/10",    iconColor: "text-blue-400"    },
-  dues:       { title: "Dues",             accent: "text-amber-400",   iconKey: "dues",       iconBg: "bg-amber-500/10",   iconColor: "text-amber-400"   },
-  gpa:        { title: "Chapter GPA",      accent: "text-violet-400",  iconKey: "gpa",        iconBg: "bg-violet-500/10",  iconColor: "text-violet-400"  },
-  service:    { title: "Service Hours",    accent: "text-emerald-400", iconKey: "service",    iconBg: "bg-emerald-500/10", iconColor: "text-emerald-400" },
-  treasury:   { title: "Treasury Balance", accent: "text-indigo-400",  iconKey: "treasury",   iconBg: "bg-indigo-500/10",  iconColor: "text-indigo-400"  },
-  door:       { title: "Door Revenue",     accent: "text-pink-400",    iconKey: "door",       iconBg: "bg-pink-500/10",    iconColor: "text-pink-400"    },
+// `tone` selects the warm dusk accent (info/gold/vio/ok) used for the header icon
+// tile and headline stat — mirroring the dashboard's category palette.
+const DRAWER_CONFIGS: Record<KPIDrawerKey, { title: string; tone: string; iconKey: string }> = {
+  attendance: { title: "Avg Attendance",   tone: "info", iconKey: "attendance" },
+  dues:       { title: "Dues",             tone: "gold", iconKey: "dues"       },
+  gpa:        { title: "Chapter GPA",      tone: "vio",  iconKey: "gpa"        },
+  service:    { title: "Service Hours",    tone: "ok",   iconKey: "service"    },
+  treasury:   { title: "Treasury Balance", tone: "vio",  iconKey: "treasury"   },
+  door:       { title: "Door Revenue",     tone: "rose", iconKey: "door"       },
 };
 
 function KPIDetailDrawer({
@@ -128,45 +130,33 @@ function KPIDetailDrawer({
         const atRisk = brotherList.filter(b => b.attendance < THRESHOLDS.attendanceAtRisk);
         return (
           <>
-            <div className="grid grid-cols-3 gap-2 mb-5">
-              <div className="rounded-lg bg-white/[0.04] px-3 py-2.5 text-center">
-                <p className="text-[18px] font-bold text-blue-400 tabular-nums">{avgAttendance.toFixed(1)}%</p>
-                <p className="text-[10px] text-slate-500 mt-0.5">{v("Meetings")} avg</p>
-              </div>
-              <div className="rounded-lg bg-white/[0.04] px-3 py-2.5 text-center">
-                <p className="text-[18px] font-bold text-amber-400 tabular-nums">{belowWatch.length}</p>
-                <p className="text-[10px] text-slate-500 mt-0.5">Below 80%</p>
-              </div>
-              <div className="rounded-lg bg-white/[0.04] px-3 py-2.5 text-center">
-                <p className="text-[18px] font-bold text-red-400 tabular-nums">{atRisk.length}</p>
-                <p className="text-[10px] text-slate-500 mt-0.5">At risk</p>
-              </div>
+            <div className="dd-stats c3">
+              <div className="dd-stat"><p className="n info">{avgAttendance.toFixed(1)}%</p><p className="l">{v("Meetings")} avg</p></div>
+              <div className="dd-stat"><p className="n gold">{belowWatch.length}</p><p className="l">Below 80%</p></div>
+              <div className="dd-stat"><p className="n rose">{atRisk.length}</p><p className="l">At risk</p></div>
             </div>
-            <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500">All {v("Member", true)} — Lowest First</p>
-            <div className="space-y-1.5 mb-5">
-              {sorted.map(b => {
-                const bar = b.attendance >= THRESHOLDS.attendanceWatch ? "bg-emerald-400" : b.attendance >= THRESHOLDS.attendanceAtRisk ? "bg-amber-400" : "bg-red-400";
-                const col = b.attendance >= THRESHOLDS.attendanceWatch ? "text-white" : b.attendance >= THRESHOLDS.attendanceAtRisk ? "text-amber-400" : "text-red-400";
-                return (
-                  <div key={b.id} className="flex items-center gap-3 rounded-lg px-2 py-1.5 hover:bg-white/[0.03] transition-colors">
-                    <span className="w-24 shrink-0 truncate text-[12px] font-medium text-slate-300">{b.name.split(" ")[0]}</span>
-                    <div className="flex-1 h-1.5 overflow-hidden rounded-full bg-white/[0.08]">
-                      <div className={`h-full rounded-full ${bar}`} style={{ width: `${b.attendance}%` }} />
+            <div>
+              <p className="dd-label">All {v("Member", true)} — Lowest First</p>
+              <div className="dd-rows">
+                {sorted.map(b => {
+                  const tone = b.attendance >= THRESHOLDS.attendanceWatch ? "" : b.attendance >= THRESHOLDS.attendanceAtRisk ? "gold" : "rose";
+                  return (
+                    <div key={b.id} className="dd-bar-row">
+                      <span className="nm">{b.name.split(" ")[0]}</span>
+                      <div className="dd-track"><i className={tone} style={{ width: `${b.attendance}%` }} /></div>
+                      <span className={`val ${tone}`}>{b.attendance}%</span>
                     </div>
-                    <span className={`w-9 shrink-0 text-right tabular-nums text-[12px] font-semibold ${col}`}>{b.attendance}%</span>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
             </div>
-            <div className="rounded-lg bg-indigo-500/10 border border-indigo-500/20 px-3 py-2.5 mb-3">
-              <p className="text-[11px] text-indigo-300">
-                {atRisk.length > 0
-                  ? <><span className="font-semibold">{atRisk.length} brother{atRisk.length > 1 ? "s" : ""} need{atRisk.length === 1 ? "s" : ""} immediate follow-up.</span>{" "}Attendance goal is 80%+.</>
-                  : "No brothers are at attendance risk. Chapter goal is 80%+."
-                }
-              </p>
+            <div className="dd-note">
+              {atRisk.length > 0
+                ? <><b>{atRisk.length} brother{atRisk.length > 1 ? "s" : ""} need{atRisk.length === 1 ? "s" : ""} immediate follow-up.</b>{" "}Attendance goal is 80%+.</>
+                : "No brothers are at attendance risk. Chapter goal is 80%+."
+              }
             </div>
-            <button onClick={() => { onOpenAttendance(); onClose(); }} className="w-full rounded-lg bg-indigo-600 px-4 py-2.5 text-[13px] font-semibold text-white hover:bg-indigo-500 transition-colors">
+            <button onClick={() => { onOpenAttendance(); onClose(); }} className="dd-btn-primary">
               Log Attendance
             </button>
           </>
@@ -178,58 +168,47 @@ function KPIDetailDrawer({
         const paidList = brotherList.filter(b => b.duesOwed === 0);
         return (
           <>
-            <div className="grid grid-cols-3 gap-2 mb-5">
-              <div className="rounded-lg bg-white/[0.04] px-3 py-2.5 text-center">
-                <p className="text-[17px] font-bold text-amber-400 tabular-nums">{fmt$(outstandingDues)}</p>
-                <p className="text-[10px] text-slate-500 mt-0.5">Total owed</p>
-              </div>
-              <div className="rounded-lg bg-white/[0.04] px-3 py-2.5 text-center">
-                <p className="text-[18px] font-bold text-red-400 tabular-nums">{oweList.length}</p>
-                <p className="text-[10px] text-slate-500 mt-0.5">{v("Member", true)} owe</p>
-              </div>
-              <div className="rounded-lg bg-white/[0.04] px-3 py-2.5 text-center">
-                <p className="text-[18px] font-bold text-emerald-400 tabular-nums">{paidList.length}</p>
-                <p className="text-[10px] text-slate-500 mt-0.5">Paid up</p>
-              </div>
+            <div className="dd-stats c3">
+              <div className="dd-stat"><p className="n gold">{fmt$(outstandingDues)}</p><p className="l">Total owed</p></div>
+              <div className="dd-stat"><p className="n rose">{oweList.length}</p><p className="l">{v("Member", true)} owe</p></div>
+              <div className="dd-stat"><p className="n ok">{paidList.length}</p><p className="l">Paid up</p></div>
             </div>
             {oweList.length > 0 && (
-              <>
-                <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500">Outstanding Balances</p>
-                <div className="space-y-2 mb-5">
+              <div>
+                <p className="dd-label">Outstanding Balances</p>
+                <div className="dd-feed">
                   {oweList.map(b => (
-                    <div key={b.id} className="flex items-center justify-between gap-3 rounded-lg bg-amber-500/[0.07] px-3 py-2.5 border border-amber-500/20">
-                      <div>
-                        <p className="text-[13px] font-semibold text-white">{b.name}</p>
-                        <p className="text-[11px] text-slate-500">{b.role.split(" · ")[0]}</p>
+                    <div key={b.id} className="dd-item gold">
+                      <div className="who">
+                        <p className="t">{b.name}</p>
+                        <p className="s">{b.role.split(" · ")[0]}</p>
                       </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        <span className="text-[14px] font-bold text-amber-400 tabular-nums">{fmt$(b.duesOwed)}</span>
+                      <div className="amt">
+                        <span className="m">{fmt$(b.duesOwed)}</span>
                         {isAdmin && (
-                          <button onClick={() => openPayDues(b)} className="rounded-md bg-emerald-500/15 px-2 py-1 text-[11px] font-semibold text-emerald-400 ring-1 ring-inset ring-emerald-500/25 hover:bg-emerald-500/25 transition-colors">Pay</button>
+                          <button onClick={() => openPayDues(b)} className="dd-row-act ok">Pay</button>
                         )}
                       </div>
                     </div>
                   ))}
                 </div>
-              </>
+              </div>
             )}
             {paidList.length > 0 && (
-              <>
-                <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500">Paid Up ({paidList.length})</p>
-                <div className="space-y-1 mb-4">
+              <div>
+                <p className="dd-label">Paid Up <span className="ct">({paidList.length})</span></p>
+                <div className="dd-rows">
                   {paidList.map(b => (
-                    <div key={b.id} className="flex items-center justify-between gap-3 rounded-lg px-3 py-1.5 hover:bg-white/[0.02] transition-colors">
-                      <p className="text-[12px] text-slate-400">{b.name}</p>
-                      <span className="text-[11px] text-emerald-400 font-medium">✓ Clear</span>
+                    <div key={b.id} className="dd-line">
+                      <p className="nm">{b.name}</p>
+                      <span className="ok">✓ Clear</span>
                     </div>
                   ))}
                 </div>
-              </>
+              </div>
             )}
             {outstandingDues === 0 && (
-              <div className="rounded-lg bg-emerald-500/10 border border-emerald-500/20 px-3 py-3 text-center">
-                <p className="text-[12px] text-emerald-400 font-medium">All {v("Member", true).toLowerCase()} are paid up.</p>
-              </div>
+              <div className="dd-note ok center">All {v("Member", true).toLowerCase()} are paid up.</div>
             )}
           </>
         );
@@ -241,53 +220,37 @@ function KPIDetailDrawer({
         const atRisk = brotherList.filter(b => b.gpa < THRESHOLDS.gpaAtRisk);
         return (
           <>
-            <div className="grid grid-cols-3 gap-2 mb-5">
-              <div className="rounded-lg bg-white/[0.04] px-3 py-2.5 text-center">
-                <p className="text-[18px] font-bold text-violet-400 tabular-nums">{chapterGPA.toFixed(2)}</p>
-                <p className="text-[10px] text-slate-500 mt-0.5">{v("Meetings")} avg</p>
-              </div>
-              <div className="rounded-lg bg-white/[0.04] px-3 py-2.5 text-center">
-                <p className="text-[18px] font-bold text-amber-400 tabular-nums">{belowWatch.length}</p>
-                <p className="text-[10px] text-slate-500 mt-0.5">Below 3.0</p>
-              </div>
-              <div className="rounded-lg bg-white/[0.04] px-3 py-2.5 text-center">
-                <p className="text-[18px] font-bold text-red-400 tabular-nums">{atRisk.length}</p>
-                <p className="text-[10px] text-slate-500 mt-0.5">At risk</p>
-              </div>
+            <div className="dd-stats c3">
+              <div className="dd-stat"><p className="n vio">{chapterGPA.toFixed(2)}</p><p className="l">{v("Meetings")} avg</p></div>
+              <div className="dd-stat"><p className="n gold">{belowWatch.length}</p><p className="l">Below 3.0</p></div>
+              <div className="dd-stat"><p className="n rose">{atRisk.length}</p><p className="l">At risk</p></div>
             </div>
-            <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500">All {v("Member", true)} — Lowest First</p>
-            <div className="space-y-1.5 mb-5">
-              {sorted.map(b => {
-                const col = b.gpa < THRESHOLDS.gpaAtRisk ? "text-red-400" : b.gpa < THRESHOLDS.gpaWatch ? "text-amber-400" : "text-white";
-                const bar = b.gpa < THRESHOLDS.gpaAtRisk ? "bg-red-400" : b.gpa < THRESHOLDS.gpaWatch ? "bg-amber-400" : "bg-violet-400";
-                const barPct = Math.round(Math.max(5, ((b.gpa - 2.0) / 2.0) * 100));
-                return (
-                  <div key={b.id} className="flex items-center gap-3 rounded-lg px-2 py-1.5 hover:bg-white/[0.03] transition-colors">
-                    <span className="w-24 shrink-0 truncate text-[12px] font-medium text-slate-300">{b.name.split(" ")[0]}</span>
-                    <div className="flex-1 h-1.5 overflow-hidden rounded-full bg-white/[0.08]">
-                      <div className={`h-full rounded-full ${bar}`} style={{ width: `${barPct}%` }} />
+            <div>
+              <p className="dd-label">All {v("Member", true)} — Lowest First</p>
+              <div className="dd-rows">
+                {sorted.map(b => {
+                  const tone = b.gpa < THRESHOLDS.gpaAtRisk ? "rose" : b.gpa < THRESHOLDS.gpaWatch ? "gold" : "";
+                  const barPct = Math.round(Math.max(5, ((b.gpa - 2.0) / 2.0) * 100));
+                  return (
+                    <div key={b.id} className="dd-bar-row">
+                      <span className="nm">{b.name.split(" ")[0]}</span>
+                      <div className="dd-track"><i className={tone} style={{ width: `${barPct}%` }} /></div>
+                      <span className={`val ${tone}`}>{b.gpa.toFixed(1)}</span>
                     </div>
-                    <span className={`w-9 shrink-0 text-right tabular-nums text-[12px] font-semibold ${col}`}>{b.gpa.toFixed(1)}</span>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
             </div>
             {atRisk.length > 0 ? (
-              <div className="rounded-lg bg-red-500/10 border border-red-500/20 px-3 py-2.5">
-                <p className="text-[11px] text-red-300">
-                  <span className="font-semibold">{atRisk.length} brother{atRisk.length > 1 ? "s" : ""} below 2.7 GPA</span> — consider academic check-in or intervention.
-                </p>
+              <div className="dd-note rose">
+                <b>{atRisk.length} brother{atRisk.length > 1 ? "s" : ""} below 2.7 GPA</b> — consider academic check-in or intervention.
               </div>
             ) : belowWatch.length > 0 ? (
-              <div className="rounded-lg bg-amber-500/10 border border-amber-500/20 px-3 py-2.5">
-                <p className="text-[11px] text-amber-300">
-                  <span className="font-semibold">{belowWatch.length} brother{belowWatch.length > 1 ? "s" : ""} below 3.0</span> — monitor and encourage academic support.
-                </p>
+              <div className="dd-note gold">
+                <b>{belowWatch.length} brother{belowWatch.length > 1 ? "s" : ""} below 3.0</b> — monitor and encourage academic support.
               </div>
             ) : (
-              <div className="rounded-lg bg-emerald-500/10 border border-emerald-500/20 px-3 py-2.5 text-center">
-                <p className="text-[12px] text-emerald-400 font-medium">All {v("Member", true).toLowerCase()} meeting academic standards.</p>
-              </div>
+              <div className="dd-note ok center">All {v("Member", true).toLowerCase()} meeting academic standards.</div>
             )}
           </>
         );
@@ -298,54 +261,37 @@ function KPIDetailDrawer({
         const belowGoal = brotherList.filter(b => b.serviceHours < THRESHOLDS.serviceHoursGoal);
         return (
           <>
-            <div className="grid grid-cols-3 gap-2 mb-5">
-              <div className="rounded-lg bg-white/[0.04] px-3 py-2.5 text-center">
-                <p className="text-[18px] font-bold text-emerald-400 tabular-nums">{totalServiceHrs}h</p>
-                <p className="text-[10px] text-slate-500 mt-0.5">Total hours</p>
-              </div>
-              <div className="rounded-lg bg-white/[0.04] px-3 py-2.5 text-center">
-                <p className="text-[18px] font-bold text-white tabular-nums">{onTrackSvc}</p>
-                <p className="text-[10px] text-slate-500 mt-0.5">On track</p>
-              </div>
-              <div className="rounded-lg bg-white/[0.04] px-3 py-2.5 text-center">
-                <p className="text-[18px] font-bold text-amber-400 tabular-nums">{belowGoal.length}</p>
-                <p className="text-[10px] text-slate-500 mt-0.5">Below goal</p>
-              </div>
+            <div className="dd-stats c3">
+              <div className="dd-stat"><p className="n ok">{totalServiceHrs}h</p><p className="l">Total hours</p></div>
+              <div className="dd-stat"><p className="n">{onTrackSvc}</p><p className="l">On track</p></div>
+              <div className="dd-stat"><p className="n gold">{belowGoal.length}</p><p className="l">Below goal</p></div>
             </div>
-            <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500">All {v("Member", true)} — Fewest Hours First</p>
-            <div className="space-y-1.5 mb-5">
-              {sorted.map(b => {
-                const isOnTrack = b.serviceHours >= THRESHOLDS.serviceHoursGoal;
-                const barPct = Math.min(100, Math.round((b.serviceHours / THRESHOLDS.serviceHoursGoal) * 100));
-                const bar = isOnTrack ? "bg-emerald-400" : "bg-amber-400";
-                const col = isOnTrack ? "text-white" : "text-amber-400";
-                const remaining = Math.max(0, THRESHOLDS.serviceHoursGoal - b.serviceHours);
-                return (
-                  <div key={b.id} className="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-white/[0.03] transition-colors group">
-                    <span className="w-20 shrink-0 truncate text-[12px] font-medium text-slate-300">{b.name.split(" ")[0]}</span>
-                    <div className="flex-1 h-1.5 overflow-hidden rounded-full bg-white/[0.08]">
-                      <div className={`h-full rounded-full ${bar}`} style={{ width: `${barPct}%` }} />
+            <div>
+              <p className="dd-label">All {v("Member", true)} — Fewest Hours First</p>
+              <div className="dd-rows">
+                {sorted.map(b => {
+                  const isOnTrack = b.serviceHours >= THRESHOLDS.serviceHoursGoal;
+                  const barPct = Math.min(100, Math.round((b.serviceHours / THRESHOLDS.serviceHoursGoal) * 100));
+                  const tone = isOnTrack ? "ok" : "gold";
+                  const remaining = Math.max(0, THRESHOLDS.serviceHoursGoal - b.serviceHours);
+                  return (
+                    <div key={b.id} className="dd-bar-row act group">
+                      <span className="nm">{b.name.split(" ")[0]}</span>
+                      <div className="dd-track"><i className={tone} style={{ width: `${barPct}%` }} /></div>
+                      <span className={`val ${tone}`}>{b.serviceHours}h</span>
+                      <span className={`hint ${isOnTrack ? "ok" : ""}`}>{isOnTrack ? "✓" : `-${remaining}h`}</span>
+                      <button onClick={() => addServiceHour(b)} className="dd-row-act">+1h</button>
                     </div>
-                    <span className={`w-8 shrink-0 text-right tabular-nums text-[12px] font-semibold ${col}`}>{b.serviceHours}h</span>
-                    {isOnTrack
-                      ? <span className="text-[10px] text-emerald-500 w-10 shrink-0 text-right">✓</span>
-                      : <span className="text-[10px] text-slate-600 w-10 shrink-0 text-right">-{remaining}h</span>
-                    }
-                    <button onClick={() => addServiceHour(b)} className="opacity-100 md:opacity-0 md:group-hover:opacity-100 shrink-0 rounded bg-white/[0.07] px-1.5 py-0.5 text-[10px] font-semibold text-slate-400 hover:bg-indigo-500/15 hover:text-indigo-400 transition-all">+1h</button>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
             </div>
             {belowGoal.length > 0 ? (
-              <div className="rounded-lg bg-amber-500/10 border border-amber-500/20 px-3 py-2.5">
-                <p className="text-[11px] text-amber-300">
-                  <span className="font-semibold">{belowGoal.length} brother{belowGoal.length > 1 ? "s" : ""} still need{belowGoal.length === 1 ? "s" : ""} service hours</span> before the semester ends. Goal: {THRESHOLDS.serviceHoursGoal}h each.
-                </p>
+              <div className="dd-note gold">
+                <b>{belowGoal.length} brother{belowGoal.length > 1 ? "s" : ""} still need{belowGoal.length === 1 ? "s" : ""} service hours</b> before the semester ends. Goal: {THRESHOLDS.serviceHoursGoal}h each.
               </div>
             ) : (
-              <div className="rounded-lg bg-emerald-500/10 border border-emerald-500/20 px-3 py-2.5 text-center">
-                <p className="text-[12px] text-emerald-400 font-medium">All {v("Member", true).toLowerCase()} have met the service hours goal!</p>
-              </div>
+              <div className="dd-note ok center">All {v("Member", true).toLowerCase()} have met the service hours goal!</div>
             )}
           </>
         );
@@ -358,45 +304,37 @@ function KPIDetailDrawer({
         const growthPct = Math.round((growth / firstMonth.balance) * 100);
         return (
           <>
-            <div className="grid grid-cols-2 gap-2 mb-5">
-              <div className="rounded-lg bg-white/[0.04] px-3 py-2.5 text-center">
-                <p className="text-[18px] font-bold text-indigo-400 tabular-nums">{fmt$(liveBalance)}</p>
-                <p className="text-[10px] text-slate-500 mt-0.5">Current balance</p>
-              </div>
-              <div className="rounded-lg bg-white/[0.04] px-3 py-2.5 text-center">
-                <p className="text-[18px] font-bold text-emerald-400 tabular-nums">{fmt$(liveProjected)}</p>
-                <p className="text-[10px] text-slate-500 mt-0.5">Projected end</p>
-              </div>
+            <div className="dd-stats c2">
+              <div className="dd-stat"><p className="n vio">{fmt$(liveBalance)}</p><p className="l">Current balance</p></div>
+              <div className="dd-stat"><p className="n ok">{fmt$(liveProjected)}</p><p className="l">Projected end</p></div>
             </div>
-            <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500">Treasury Trend</p>
-            <div className="mb-5">
+            <div>
+              <p className="dd-label">Treasury Trend</p>
               <DrawerTrendChart data={liveTrend} />
             </div>
-            <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500">Monthly Breakdown</p>
-            <div className="space-y-1.5 mb-5">
-              {liveTrend.map((t, i) => {
-                const prev = i > 0 ? liveTrend[i - 1].balance : t.balance;
-                const delta = t.balance - prev;
-                return (
-                  <div key={t.month} className="flex items-center gap-3 rounded-lg px-2 py-1.5">
-                    <span className="text-[12px] font-medium text-slate-300 w-8 shrink-0">{t.month}</span>
-                    <div className="flex-1 h-1 overflow-hidden rounded-full bg-white/[0.07]">
-                      <div className="h-full rounded-full bg-indigo-400" style={{ width: `${Math.round((t.balance / liveProjected) * 100)}%` }} />
+            <div>
+              <p className="dd-label">Monthly Breakdown</p>
+              <div className="dd-rows">
+                {liveTrend.map((t, i) => {
+                  const prev = i > 0 ? liveTrend[i - 1].balance : t.balance;
+                  const delta = t.balance - prev;
+                  return (
+                    <div key={t.month} className="dd-bar-row">
+                      <span className="nm" style={{ width: 32 }}>{t.month}</span>
+                      <div className="dd-track"><i style={{ width: `${Math.round((t.balance / liveProjected) * 100)}%` }} /></div>
+                      <span className="val" style={{ width: 56 }}>{fmt$(t.balance)}</span>
+                      {i > 0 && (
+                        <span className={`hint ${delta >= 0 ? "ok" : "rose"}`} style={{ width: 52 }}>
+                          {delta >= 0 ? "+" : ""}{fmt$(delta)}
+                        </span>
+                      )}
                     </div>
-                    <span className="tabular-nums text-[12px] font-semibold text-white w-14 shrink-0 text-right">{fmt$(t.balance)}</span>
-                    {i > 0 && (
-                      <span className={`tabular-nums text-[10px] w-14 shrink-0 text-right ${delta >= 0 ? "text-emerald-400" : "text-red-400"}`}>
-                        {delta >= 0 ? "+" : ""}{fmt$(delta)}
-                      </span>
-                    )}
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
             </div>
-            <div className="rounded-lg bg-indigo-500/10 border border-indigo-500/20 px-3 py-2.5">
-              <p className="text-[11px] text-indigo-300">
-                Treasury grew by <span className="font-semibold">{fmt$(growth)} ({growthPct}%)</span> this semester. Projected end balance: <span className="font-semibold">{fmt$(liveProjected)}</span>.
-              </p>
+            <div className="dd-note">
+              Treasury grew by <b>{fmt$(growth)} ({growthPct}%)</b> this semester. Projected end balance: <b>{fmt$(liveProjected)}</b>.
             </div>
           </>
         );
@@ -407,50 +345,36 @@ function KPIDetailDrawer({
         const avgRevenue = partyList.length > 0 ? Math.round(totalDoorRev / partyList.length) : 0;
         return (
           <>
-            <div className="grid grid-cols-3 gap-2 mb-5">
-              <div className="rounded-lg bg-white/[0.04] px-3 py-2.5 text-center">
-                <p className="text-[17px] font-bold text-pink-400 tabular-nums">{fmt$(totalDoorRev)}</p>
-                <p className="text-[10px] text-slate-500 mt-0.5">Total revenue</p>
-              </div>
-              <div className="rounded-lg bg-white/[0.04] px-3 py-2.5 text-center">
-                <p className="text-[18px] font-bold text-white tabular-nums">{partyList.length}</p>
-                <p className="text-[10px] text-slate-500 mt-0.5">Events</p>
-              </div>
-              <div className="rounded-lg bg-white/[0.04] px-3 py-2.5 text-center">
-                <p className="text-[17px] font-bold text-slate-300 tabular-nums">{fmt$(avgRevenue)}</p>
-                <p className="text-[10px] text-slate-500 mt-0.5">Avg/event</p>
+            <div className="dd-stats c3">
+              <div className="dd-stat"><p className="n rose">{fmt$(totalDoorRev)}</p><p className="l">Total revenue</p></div>
+              <div className="dd-stat"><p className="n">{partyList.length}</p><p className="l">Events</p></div>
+              <div className="dd-stat"><p className="n">{fmt$(avgRevenue)}</p><p className="l">Avg/event</p></div>
+            </div>
+            <div>
+              <p className="dd-label">Revenue by Event — Best First</p>
+              <div className="dd-feed">
+                {sortedEvents.map(e => {
+                  const barPct = maxRevenue > 0 ? Math.round((e.doorRevenue / maxRevenue) * 100) : 0;
+                  const isTop = bestEvent ? e.id === bestEvent.id : false;
+                  return (
+                    <div key={e.id} className={`dd-event ${isTop ? "top" : ""}`}>
+                      <div className="eh">
+                        <p className="t">{isTop && <span className="best">Best</span>}{e.name}</p>
+                        <span className="m">{fmt$(e.doorRevenue)}</span>
+                      </div>
+                      <div className="dd-track"><i className={isTop ? "" : "muted"} style={{ width: `${barPct}%` }} /></div>
+                      <div className="meta">
+                        <span>{e.date}</span>
+                        <span>{e.attendance} attendees</span>
+                        {e.notes && <span className="note">{e.notes}</span>}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
-            <p className="mb-3 text-[10px] font-semibold uppercase tracking-wider text-slate-500">Revenue by Event — Best First</p>
-            <div className="space-y-2.5 mb-5">
-              {sortedEvents.map(e => {
-                const barPct = maxRevenue > 0 ? Math.round((e.doorRevenue / maxRevenue) * 100) : 0;
-                const isTop = bestEvent ? e.id === bestEvent.id : false;
-                return (
-                  <div key={e.id} className={`rounded-lg px-3 py-2.5 ${isTop ? "bg-pink-500/[0.08] border border-pink-500/20" : "bg-white/[0.03] border border-white/[0.05]"}`}>
-                    <div className="flex items-center justify-between mb-1.5">
-                      <p className={`text-[12px] font-semibold flex items-center gap-1.5 ${isTop ? "text-pink-300" : "text-slate-300"}`}>
-                        {isTop && <span className="text-[10px] bg-pink-500/20 text-pink-400 rounded px-1 py-0.5">Best</span>}
-                        {e.name}
-                      </p>
-                      <span className="tabular-nums text-[13px] font-bold text-white shrink-0 ml-2">{fmt$(e.doorRevenue)}</span>
-                    </div>
-                    <div className="h-1 overflow-hidden rounded-full bg-white/[0.07] mb-1.5">
-                      <div className={`h-full rounded-full ${isTop ? "bg-pink-400" : "bg-white/[0.25]"}`} style={{ width: `${barPct}%` }} />
-                    </div>
-                    <div className="flex items-center gap-3 flex-wrap">
-                      <span className="text-[10px] text-slate-500">{e.date}</span>
-                      <span className="text-[10px] text-slate-500">{e.attendance} attendees</span>
-                      {e.notes && <span className="text-[10px] text-slate-600 truncate">{e.notes}</span>}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-            <div className="rounded-lg bg-pink-500/10 border border-pink-500/20 px-3 py-2.5">
-              <p className="text-[11px] text-pink-300">
-                {bestEvent ? <>Best event: <span className="font-semibold">{bestEvent.name}</span> at <span className="font-semibold">{fmt$(bestEvent.doorRevenue)}</span>. Avg per event: <span className="font-semibold">{fmt$(avgRevenue)}</span>.</> : "No events logged yet."}
-              </p>
+            <div className="dd-note rose">
+              {bestEvent ? <>Best event: <b>{bestEvent.name}</b> at <b>{fmt$(bestEvent.doorRevenue)}</b>. Avg per event: <b>{fmt$(avgRevenue)}</b>.</> : "No events logged yet."}
             </div>
           </>
         );
@@ -463,29 +387,22 @@ function KPIDetailDrawer({
 
   return (
     <>
-      {/* Backdrop */}
-      <div
-        className={`fixed inset-0 z-40 bg-black/40 backdrop-blur-[1px] transition-opacity duration-200 ${isOpen ? "opacity-100" : "opacity-0 pointer-events-none"}`}
-        onClick={onClose}
-      />
-      {/* Drawer panel */}
-      <div
-        className={`fixed inset-y-0 right-0 z-50 flex w-full flex-col bg-[#0c0e14] border-l border-white/[0.07] shadow-2xl transition-transform duration-300 ease-in-out sm:w-[400px] ${isOpen ? "translate-x-0" : "translate-x-full pointer-events-none"}`}
-      >
+      <div className={`dash-drawer-backdrop ${isOpen ? "" : "closed"}`} onClick={onClose} />
+      <div className={`dash-drawer ${isOpen ? "" : "closed"}`}>
         {cfg && (
           <>
-            <div className="flex h-14 shrink-0 items-center gap-3 border-b border-white/[0.07] px-5">
-              <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${cfg.iconBg}`}>
-                <SvgIcon d={KPI_ICONS[cfg.iconKey] ?? ""} className={`h-4 w-4 ${cfg.iconColor}`} />
+            <div className="dd-head">
+              <div className={`dd-icon ${cfg.tone}`}>
+                <SvgIcon d={KPI_ICONS[cfg.iconKey] ?? ""} />
               </div>
-              <h2 className={`flex-1 text-[15px] font-semibold ${cfg.accent}`}>{drawerTitle}</h2>
-              <button onClick={onClose} className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-white/[0.07] hover:text-white transition-colors">
-                <svg className="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <h2 className="dd-title">{drawerTitle}</h2>
+              <button onClick={onClose} className="dd-x" aria-label="Close">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
             </div>
-            <div className="flex-1 overflow-y-auto px-5 py-5">
+            <div className="dd-body">
               {renderContent()}
             </div>
           </>
@@ -546,21 +463,22 @@ function WidgetDetailDrawer({
     return () => document.removeEventListener("keydown", handler);
   }, [isOpen, onClose]);
 
-  const WIDGET_CONFIGS: Record<WidgetDrawerKey, { title: string; accent: string; bar: string }> = {
-    health:     { title: `${v("Meetings")} Health Score`, accent: "text-white",      bar: "bg-indigo-500"    },
-    digest:     { title: "Weekly Digest",          accent: "text-white",      bar: "bg-indigo-500/70" },
-    deadlines:  { title: "Deadlines",             accent: "text-white",      bar: "bg-indigo-500/60" },
-    instagram:  { title: "Instagram",             accent: "text-white",      bar: "bg-pink-500/60"   },
-    activity:   { title: "Activity Feed",         accent: "text-white",      bar: "bg-emerald-500/50"},
-    parties:    { title: "Party Events",          accent: "text-white",      bar: "bg-indigo-500/60" },
+  // `tone` drives the top accent hairline + header — warm dusk accents only.
+  const WIDGET_CONFIGS: Record<WidgetDrawerKey, { title: string; tone: string }> = {
+    health:     { title: `${v("Meetings")} Health Score`, tone: ""     },
+    digest:     { title: "Weekly Digest",          tone: ""     },
+    deadlines:  { title: "Deadlines",             tone: ""     },
+    instagram:  { title: "Instagram",             tone: "rose" },
+    activity:   { title: "Activity Feed",         tone: "ok"   },
+    parties:    { title: "Party Events",          tone: ""     },
   };
 
   const cfg = activeKey ? WIDGET_CONFIGS[activeKey] : null;
 
   const dot: Record<ActivityEntry["type"], string> = {
-    success: "bg-emerald-400",
-    warning: "bg-amber-400",
-    info:    "bg-blue-400",
+    success: "ok",
+    warning: "gold",
+    info:    "info",
   };
 
   function renderContent() {
@@ -568,8 +486,8 @@ function WidgetDetailDrawer({
 
     switch (activeKey) {
       case "health": {
-        const ringColor = health.score >= 80 ? "text-emerald-400" : health.score >= 60 ? "text-amber-400" : "text-red-400";
-        const circleBg  = health.score >= 80 ? "bg-emerald-500/15" : health.score >= 60 ? "bg-amber-500/15" : "bg-red-500/15";
+        const scoreTone = health.score >= 80 ? "" : health.score >= 60 ? "watch" : "risk";
+        const noteTone  = health.score >= 80 ? "ok" : health.score >= 60 ? "gold" : "rose";
         const METRIC_DESC: Record<string, string> = {
           Attendance: "30% weight — avg chapter attendance percentage",
           GPA:        "25% weight — scaled from 2.0–4.0 range",
@@ -579,47 +497,36 @@ function WidgetDetailDrawer({
         };
         return (
           <>
-            <div className="flex flex-col items-center py-6 mb-6 rounded-xl bg-white/[0.03] border border-white/[0.06]">
-              <div className={`flex h-20 w-20 items-center justify-center rounded-full ${circleBg} mb-3`}>
-                <span className={`text-[32px] font-bold tabular-nums leading-none ${ringColor}`}>{health.score}</span>
+            <div className="dd-hero">
+              <div className={`ring ${scoreTone}`}><span>{health.score}</span></div>
+              <span className={`state ${scoreTone}`}>{health.label}</span>
+              <p className="cap">out of 100 · weighted composite</p>
+            </div>
+            <div>
+              <p className="dd-label">Score Breakdown</p>
+              <div>
+                {Object.entries(health.breakdown).map(([k, val]) => {
+                  const tone = val >= 80 ? "ok" : val >= 60 ? "watch" : "risk";
+                  return (
+                    <div key={k} className="dd-score">
+                      <div className="sh">
+                        <span className="k">{k}</span>
+                        <span className={`pct ${tone}`}>{val}%</span>
+                      </div>
+                      <div className="track"><i className={tone} style={{ width: `${val}%` }} /></div>
+                      <p className="desc">{METRIC_DESC[k] ?? ""}</p>
+                    </div>
+                  );
+                })}
               </div>
-              <span className={`text-[16px] font-bold ${ringColor}`}>{health.label}</span>
-              <p className="mt-1 text-[11px] text-slate-500">out of 100 · weighted composite</p>
             </div>
-            <p className="mb-3 text-[10px] font-semibold uppercase tracking-wider text-slate-500">Score Breakdown</p>
-            <div className="space-y-4 mb-6">
-              {Object.entries(health.breakdown).map(([k, v]) => {
-                const barColor = v >= 80 ? "bg-emerald-400" : v >= 60 ? "bg-amber-400" : "bg-red-400";
-                const textColor = v >= 80 ? "text-emerald-400" : v >= 60 ? "text-amber-400" : "text-red-400";
-                return (
-                  <div key={k}>
-                    <div className="flex items-center justify-between mb-1.5">
-                      <span className="text-[12px] font-semibold text-white">{k}</span>
-                      <span className={`tabular-nums text-[13px] font-bold ${textColor}`}>{v}%</span>
-                    </div>
-                    <div className="h-2 overflow-hidden rounded-full bg-white/[0.07] mb-1">
-                      <div className={`h-full rounded-full transition-all duration-500 ${barColor}`} style={{ width: `${v}%` }} />
-                    </div>
-                    <p className="text-[10px] text-slate-600">{METRIC_DESC[k] ?? ""}</p>
-                  </div>
-                );
-              })}
-            </div>
-            <div className={`rounded-lg px-3 py-2.5 border ${
-              health.score >= 80
-                ? "bg-emerald-500/10 border-emerald-500/20"
+            <div className={`dd-note ${noteTone}`}>
+              {health.score >= 80
+                ? "Chapter is performing well across all metrics."
                 : health.score >= 60
-                ? "bg-amber-500/10 border-amber-500/20"
-                : "bg-red-500/10 border-red-500/20"
-            }`}>
-              <p className={`text-[11px] ${health.score >= 80 ? "text-emerald-300" : health.score >= 60 ? "text-amber-300" : "text-red-300"}`}>
-                {health.score >= 80
-                  ? "Chapter is performing well across all metrics."
-                  : health.score >= 60
-                  ? `Some areas need attention — address urgent deadlines and at-risk ${v("Member", true).toLowerCase()}.`
-                  : "Immediate action required — multiple metrics are critically low."
-                }
-              </p>
+                ? `Some areas need attention — address urgent deadlines and at-risk ${v("Member", true).toLowerCase()}.`
+                : "Immediate action required — multiple metrics are critically low."
+              }
             </div>
           </>
         );
@@ -628,54 +535,46 @@ function WidgetDetailDrawer({
       case "digest": {
         const { deadlinesDue, igDue, eventsThisWeek, partiesThisWeek, atRiskCount } = weeklyDigest;
         const total = deadlinesDue.length + igDue.length + eventsThisWeek.length + partiesThisWeek.length;
-        const sections: { label: string; left: string; count: number; rows: { key: string; title: string; meta: string }[] }[] = [
-          { label: "Deadlines", left: "border-l-indigo-400", count: deadlinesDue.length,
+        const sections: { label: string; tone: string; count: number; rows: { key: string; title: string; meta: string }[] }[] = [
+          { label: "Deadlines", tone: "vio", count: deadlinesDue.length,
             rows: deadlinesDue.map(d => ({ key: `d${d.id}`, title: d.title, meta: `${fmtDate(d.dueDate)} · ${d.owner.split(" ")[0]}` })) },
-          { label: "Instagram", left: "border-l-pink-400", count: igDue.length,
+          { label: "Instagram", tone: "rose", count: igDue.length,
             rows: igDue.map(t => ({ key: `i${t.id}`, title: t.title, meta: `${fmtDate(t.dueDate)} · ${t.type}` })) },
-          { label: "Events", left: "border-l-blue-400", count: eventsThisWeek.length,
+          { label: "Events", tone: "info", count: eventsThisWeek.length,
             rows: eventsThisWeek.map(e => ({ key: `e${e.id}`, title: e.title, meta: e.time ? `${fmtDate(e.date)} · ${e.time}` : fmtDate(e.date) })) },
-          { label: "Parties", left: "border-l-violet-400", count: partiesThisWeek.length,
+          { label: "Parties", tone: "vio", count: partiesThisWeek.length,
             rows: partiesThisWeek.map(p => ({ key: `p${p.id}`, title: p.name, meta: fmtDate(p.date) })) },
         ];
         return (
           <>
-            <div className="mb-4 flex items-center justify-between">
-              <p className="text-[12px] font-medium text-slate-400">{fmtRange(weekRange.start, weekRange.end)}</p>
+            <div className="flex items-center justify-between">
+              <p className="dd-meta" style={{ fontSize: 12 }}>{fmtRange(weekRange.start, weekRange.end)}</p>
               {atRiskCount > 0 && (
-                <span className="rounded-full bg-amber-500/20 px-2 py-0.5 text-[10px] font-semibold text-amber-400">{atRiskCount} at risk</span>
+                <span className="dd-chip gold">{atRiskCount} at risk</span>
               )}
             </div>
             {digestNarration && (
-              <div className="mb-5 flex items-start gap-2 rounded-lg border border-indigo-500/20 bg-indigo-500/[0.06] px-3 py-2.5">
-                <span className="mt-px shrink-0 rounded bg-indigo-500/20 px-1 py-0.5 text-[8px] font-bold uppercase tracking-wider text-indigo-300">AI</span>
-                <p className="text-[12px] leading-relaxed text-slate-300">{digestNarration}</p>
+              <div className="dd-ai">
+                <span className="tag">AI</span>
+                <p>{digestNarration}</p>
               </div>
             )}
-            <div className="grid grid-cols-4 gap-2 mb-5">
+            <div className="dd-stats c4">
               {sections.map(s => (
-                <div key={s.label} className="rounded-lg bg-white/[0.04] px-2 py-2.5 text-center">
-                  <p className="text-[18px] font-bold tabular-nums text-white">{s.count}</p>
-                  <p className="text-[10px] text-slate-500 mt-0.5">{s.label}</p>
-                </div>
+                <div key={s.label} className="dd-stat"><p className="n">{s.count}</p><p className="l">{s.label}</p></div>
               ))}
             </div>
             {total === 0 ? (
-              <div className="rounded-lg bg-emerald-500/10 border border-emerald-500/20 px-3 py-6 text-center">
-                <p className="text-[12px] text-emerald-400 font-medium">Nothing on the agenda this week</p>
-              </div>
+              <div className="dd-note ok center">Nothing on the agenda this week</div>
             ) : (
               sections.map(s => s.rows.length > 0 && (
-                <div key={s.label} className="mb-5">
-                  <div className="mb-2 flex items-center gap-2">
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">{s.label}</p>
-                    <span className="rounded-full bg-white/[0.08] px-1.5 py-0.5 text-[10px] font-semibold text-slate-400">{s.rows.length}</span>
-                  </div>
-                  <div className="space-y-1.5">
+                <div key={s.label}>
+                  <p className="dd-label">{s.label} <span className="ct">({s.rows.length})</span></p>
+                  <div className="dd-feed">
                     {s.rows.map(r => (
-                      <div key={r.key} className={`flex items-center justify-between gap-2 rounded-md border-l-[2.5px] bg-white/[0.03] px-2.5 py-1.5 ${s.left}`}>
-                        <p className="min-w-0 flex-1 truncate text-[12px] leading-snug text-slate-300">{r.title}</p>
-                        <p className="shrink-0 text-[11px] text-slate-500">{r.meta}</p>
+                      <div key={r.key} className={`dd-feed-row ${s.tone}`}>
+                        <p className="t">{r.title}</p>
+                        <p className="m">{r.meta}</p>
                       </div>
                     ))}
                   </div>
@@ -693,50 +592,47 @@ function WidgetDetailDrawer({
           Upcoming: deadlineList.filter(d => d.status === "Upcoming"),
           Complete: deadlineList.filter(d => d.status === "Complete"),
         };
-        const statusStyles: Record<TaskStatus, { left: string; bg: string }> = {
-          "Urgent":   { left: "border-l-red-500",   bg: "bg-red-500/10"    },
-          "Due Soon": { left: "border-l-amber-400", bg: "bg-amber-500/10"  },
-          "Upcoming": { left: "border-l-white/20",  bg: "bg-white/[0.03]"  },
-          "Complete": { left: "border-l-emerald-400", bg: "bg-emerald-500/10"},
+        const statusTone: Record<TaskStatus, string> = {
+          "Urgent":   "rose",
+          "Due Soon": "gold",
+          "Upcoming": "",
+          "Complete": "ok",
         };
         return (
           <>
-            <div className="grid grid-cols-4 gap-1.5 mb-5">
-              {([["Urgent", byStatus.Urgent.length, "text-red-400"], ["Due Soon", byStatus["Due Soon"].length, "text-amber-400"], ["Upcoming", byStatus.Upcoming.length, "text-slate-300"], ["Complete", byStatus.Complete.length, "text-emerald-400"]] as const).map(([label, count, color]) => (
-                <div key={label} className="rounded-lg bg-white/[0.04] px-2 py-2 text-center">
-                  <p className={`text-[16px] font-bold tabular-nums ${color}`}>{count}</p>
-                  <p className="text-[9px] text-slate-500 mt-0.5 leading-tight">{label}</p>
-                </div>
+            <div className="dd-stats c4">
+              {([["Urgent", byStatus.Urgent.length, "rose"], ["Due Soon", byStatus["Due Soon"].length, "gold"], ["Upcoming", byStatus.Upcoming.length, ""], ["Complete", byStatus.Complete.length, "ok"]] as const).map(([label, count, tone]) => (
+                <div key={label} className="dd-stat"><p className={`n ${tone}`}>{count}</p><p className="l">{label}</p></div>
               ))}
             </div>
             {deadlineList.length === 0 ? (
-              <p className="py-6 text-center text-[12px] text-slate-500">No deadlines — click + Add to create one</p>
+              <p className="dd-empty">No deadlines — click + Add to create one</p>
             ) : (
               (["Urgent", "Due Soon", "Upcoming", "Complete"] as TaskStatus[]).map(status => {
                 const items = byStatus[status as keyof typeof byStatus];
                 if (!items || items.length === 0) return null;
-                const { left, bg } = statusStyles[status];
+                const tone = statusTone[status];
                 return (
-                  <div key={status} className="mb-5">
-                    <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500">{status} ({items.length})</p>
-                    <div className="space-y-1.5">
+                  <div key={status}>
+                    <p className="dd-label">{status} <span className="ct">({items.length})</span></p>
+                    <div className="dd-feed">
                       {items.map(d => (
-                        <div key={d.id} className={`group flex items-start justify-between gap-2 rounded-md border-l-[2.5px] px-3 py-2 ${left} ${bg}`}>
+                        <div key={d.id} className={`dd-feed-row stacked ${tone}`}>
                           <div className="min-w-0 flex-1">
-                            <p className={`text-[12px] font-medium ${d.status === "Complete" ? "line-through text-slate-500" : "text-white"}`}>{d.title}</p>
-                            <p className="text-[10px] text-slate-500 mt-0.5">{fmtDate(d.dueDate)} · {d.owner.split(" ")[0]}</p>
+                            <p className={`t ${d.status === "Complete" ? "done" : ""}`} style={{ fontWeight: 500 }}>{d.title}</p>
+                            <p className="m">{fmtDate(d.dueDate)} · {d.owner.split(" ")[0]}</p>
                           </div>
-                          <div className="flex items-center gap-0.5 shrink-0 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                          <div className="dd-acts hover-reveal">
                             {d.status !== "Complete" && (
-                              <button onClick={() => onCompleteDeadline(d.id)} title="Mark complete" className="flex h-6 w-6 items-center justify-center rounded hover:bg-emerald-500/20 text-slate-500 hover:text-emerald-400 transition-colors">
-                                <svg className="h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+                              <button onClick={() => onCompleteDeadline(d.id)} title="Mark complete" className="dd-act ok">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
                               </button>
                             )}
-                            <button onClick={() => onEditDeadline(d.id)} title="Edit" className="flex h-6 w-6 items-center justify-center rounded hover:bg-indigo-500/20 text-slate-500 hover:text-indigo-400 transition-colors">
-                              <svg className="h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                            <button onClick={() => onEditDeadline(d.id)} title="Edit" className="dd-act">
+                              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
                             </button>
-                            <button onClick={() => onDeleteDeadline(d.id)} title="Delete" className="flex h-6 w-6 items-center justify-center rounded hover:bg-red-500/20 text-slate-500 hover:text-red-400 transition-colors">
-                              <svg className="h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                            <button onClick={() => onDeleteDeadline(d.id)} title="Delete" className="dd-act danger">
+                              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                             </button>
                           </div>
                         </div>
@@ -746,7 +642,7 @@ function WidgetDetailDrawer({
                 );
               })
             )}
-            <button onClick={() => { onOpenModal("deadline"); onClose(); }} className="w-full rounded-lg border border-white/[0.1] bg-white/[0.04] px-4 py-2.5 text-[13px] font-medium text-slate-300 hover:border-indigo-500/40 hover:bg-indigo-500/10 hover:text-indigo-300 transition-colors">
+            <button onClick={() => { onOpenModal("deadline"); onClose(); }} className="dd-btn-ghost">
               + Add Deadline
             </button>
           </>
@@ -758,61 +654,54 @@ function WidgetDetailDrawer({
         const dueSoon  = igTaskList.filter(t => t.status === "Due Soon");
         const upcoming = igTaskList.filter(t => t.status === "Upcoming");
         const complete = igTaskList.filter(t => t.status === "Complete");
-        const typeColors: Record<string, string> = {
-          "Feed Post":    "bg-pink-500/15 text-pink-400",
-          "Reel":         "bg-purple-500/15 text-purple-400",
-          "Story + Feed": "bg-indigo-500/15 text-indigo-400",
-          "Carousel":     "bg-blue-500/15 text-blue-400",
-          "Story":        "bg-slate-500/15 text-slate-400",
+        const statusTone: Record<TaskStatus, string> = {
+          "Urgent": "rose", "Due Soon": "gold", "Upcoming": "", "Complete": "ok",
         };
         return (
           <>
-            <div className="grid grid-cols-4 gap-1.5 mb-5">
-              {([["Urgent", urgent.length, "text-red-400"], ["Due Soon", dueSoon.length, "text-amber-400"], ["Upcoming", upcoming.length, "text-slate-300"], ["Complete", complete.length, "text-emerald-400"]] as const).map(([label, count, color]) => (
-                <div key={label} className="rounded-lg bg-white/[0.04] px-2 py-2 text-center">
-                  <p className={`text-[16px] font-bold tabular-nums ${color}`}>{count}</p>
-                  <p className="text-[9px] text-slate-500 mt-0.5 leading-tight">{label}</p>
-                </div>
+            <div className="dd-stats c4">
+              {([["Urgent", urgent.length, "rose"], ["Due Soon", dueSoon.length, "gold"], ["Upcoming", upcoming.length, ""], ["Complete", complete.length, "ok"]] as const).map(([label, count, tone]) => (
+                <div key={label} className="dd-stat"><p className={`n ${tone}`}>{count}</p><p className="l">{label}</p></div>
               ))}
             </div>
             {igTaskList.length === 0 ? (
-              <p className="py-6 text-center text-[12px] text-slate-500">No IG tasks scheduled</p>
+              <p className="dd-empty">No IG tasks scheduled</p>
             ) : (
-              <div className="space-y-2 mb-5">
+              <div className="dd-feed">
                 {[...igTaskList].sort((a, b) => {
                   const order = { Urgent: 0, "Due Soon": 1, Upcoming: 2, Complete: 3 };
                   return (order[a.status] ?? 99) - (order[b.status] ?? 99);
                 }).map(t => (
-                  <div key={t.id} className="group rounded-lg bg-white/[0.03] border border-white/[0.06] px-3 py-2.5">
-                    <div className="flex items-start justify-between gap-2 mb-1">
-                      <p className={`text-[12px] font-semibold flex-1 ${t.status === "Complete" ? "line-through text-slate-500" : "text-white"}`}>{t.title}</p>
+                  <div key={t.id} className="dd-feed-card">
+                    <div className="flex items-start justify-between gap-2" style={{ marginBottom: 6 }}>
+                      <p className={`flex-1 t ${t.status === "Complete" ? "done" : ""}`} style={{ fontSize: 12.5, fontWeight: 600, whiteSpace: "normal" }}>{t.title}</p>
                       <div className="flex items-center gap-1 shrink-0">
-                        <div className="flex items-center gap-0.5 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                        <div className="dd-acts hover-reveal">
                           {t.status !== "Complete" && (
-                            <button onClick={() => onCompleteIG(t.id)} title="Mark complete" className="flex h-6 w-6 items-center justify-center rounded hover:bg-emerald-500/20 text-slate-500 hover:text-emerald-400 transition-colors">
-                              <svg className="h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+                            <button onClick={() => onCompleteIG(t.id)} title="Mark complete" className="dd-act ok">
+                              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
                             </button>
                           )}
-                          <button onClick={() => onEditIG(t.id)} title="Edit" className="flex h-6 w-6 items-center justify-center rounded hover:bg-indigo-500/20 text-slate-500 hover:text-indigo-400 transition-colors">
-                            <svg className="h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                          <button onClick={() => onEditIG(t.id)} title="Edit" className="dd-act">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
                           </button>
-                          <button onClick={() => onDeleteIG(t.id)} title="Delete" className="flex h-6 w-6 items-center justify-center rounded hover:bg-red-500/20 text-slate-500 hover:text-red-400 transition-colors">
-                            <svg className="h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                          <button onClick={() => onDeleteIG(t.id)} title="Delete" className="dd-act danger">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                           </button>
                         </div>
-                        <TaskBadge status={t.status} />
+                        <span className={`dd-chip ${statusTone[t.status]}`}>{t.status}</span>
                       </div>
                     </div>
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium ${typeColors[t.type] ?? "bg-slate-500/15 text-slate-400"}`}>{t.type}</span>
-                      <span className="text-[10px] text-slate-500">{fmtDate(t.dueDate)}</span>
-                      <span className="text-[10px] text-slate-500">{t.owner.split(" ")[0]}</span>
+                      <span className="dd-chip">{t.type}</span>
+                      <span className="dd-meta" style={{ fontSize: 10 }}>{fmtDate(t.dueDate)}</span>
+                      <span className="dd-meta" style={{ fontSize: 10 }}>{t.owner.split(" ")[0]}</span>
                     </div>
                   </div>
                 ))}
               </div>
             )}
-            <button onClick={() => { onOpenModal("ig"); onClose(); }} className="w-full rounded-lg border border-white/[0.1] bg-white/[0.04] px-4 py-2.5 text-[13px] font-medium text-slate-300 hover:border-indigo-500/40 hover:bg-indigo-500/10 hover:text-indigo-300 transition-colors">
+            <button onClick={() => { onOpenModal("ig"); onClose(); }} className="dd-btn-ghost">
               + Add IG Task
             </button>
           </>
@@ -822,32 +711,31 @@ function WidgetDetailDrawer({
       case "activity": {
         return (
           <>
-            <div className="grid grid-cols-3 gap-2 mb-5">
+            <div className="dd-stats c3">
               {([
-                ["Success", activityFeed.filter(e => e.type === "success").length, "text-emerald-400"],
-                ["Warning", activityFeed.filter(e => e.type === "warning").length, "text-amber-400"],
-                ["Info",    activityFeed.filter(e => e.type === "info").length,    "text-blue-400"],
-              ] as const).map(([label, count, color]) => (
-                <div key={label} className="rounded-lg bg-white/[0.04] px-3 py-2.5 text-center">
-                  <p className={`text-[18px] font-bold tabular-nums ${color}`}>{count}</p>
-                  <p className="text-[10px] text-slate-500 mt-0.5">{label}</p>
-                </div>
+                ["Success", activityFeed.filter(e => e.type === "success").length, "ok"],
+                ["Warning", activityFeed.filter(e => e.type === "warning").length, "gold"],
+                ["Info",    activityFeed.filter(e => e.type === "info").length,    "info"],
+              ] as const).map(([label, count, tone]) => (
+                <div key={label} className="dd-stat"><p className={`n ${tone}`}>{count}</p><p className="l">{label}</p></div>
               ))}
             </div>
-            <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500">Full History ({activityFeed.length} entries)</p>
-            {activityFeed.length === 0 ? (
-              <p className="py-6 text-center text-[12px] text-slate-500">No activity yet</p>
-            ) : (
-              <div className="space-y-0 divide-y divide-white/[0.04] rounded-lg border border-white/[0.06] overflow-hidden">
-                {activityFeed.map(e => (
-                  <div key={e.id} className="flex items-start gap-3 px-4 py-2.5 hover:bg-white/[0.03] transition-colors">
-                    <span className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${dot[e.type]}`} />
-                    <p className="flex-1 text-[12px] leading-snug text-slate-300">{e.message}</p>
-                    <span className="shrink-0 text-[10px] text-slate-500">{e.timestamp}</span>
-                  </div>
-                ))}
-              </div>
-            )}
+            <div>
+              <p className="dd-label">Full History <span className="ct">({activityFeed.length} entries)</span></p>
+              {activityFeed.length === 0 ? (
+                <p className="dd-empty">No activity yet</p>
+              ) : (
+                <div className="dd-history">
+                  {activityFeed.map(e => (
+                    <div key={e.id} className="a">
+                      <span className={`dot ${dot[e.type]}`} />
+                      <p>{e.message}</p>
+                      <time>{e.timestamp}</time>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </>
         );
       }
@@ -858,48 +746,36 @@ function WidgetDetailDrawer({
         const totalAttendees = partyList.reduce((s, e) => s + e.attendance, 0);
         return (
           <>
-            <div className="grid grid-cols-3 gap-2 mb-5">
-              <div className="rounded-lg bg-white/[0.04] px-3 py-2.5 text-center">
-                <p className="text-[17px] font-bold text-indigo-400 tabular-nums">{fmt$(totalDoorRev)}</p>
-                <p className="text-[10px] text-slate-500 mt-0.5">Total revenue</p>
-              </div>
-              <div className="rounded-lg bg-white/[0.04] px-3 py-2.5 text-center">
-                <p className="text-[18px] font-bold text-white tabular-nums">{partyList.length}</p>
-                <p className="text-[10px] text-slate-500 mt-0.5">Events</p>
-              </div>
-              <div className="rounded-lg bg-white/[0.04] px-3 py-2.5 text-center">
-                <p className="text-[18px] font-bold text-slate-300 tabular-nums">{totalAttendees}</p>
-                <p className="text-[10px] text-slate-500 mt-0.5">Attendees</p>
+            <div className="dd-stats c3">
+              <div className="dd-stat"><p className="n vio">{fmt$(totalDoorRev)}</p><p className="l">Total revenue</p></div>
+              <div className="dd-stat"><p className="n">{partyList.length}</p><p className="l">Events</p></div>
+              <div className="dd-stat"><p className="n">{totalAttendees}</p><p className="l">Attendees</p></div>
+            </div>
+            <div>
+              <p className="dd-label">Events — Best First</p>
+              <div className="dd-feed">
+                {sorted.map(e => {
+                  const barPct = maxRevenue > 0 ? Math.round((e.doorRevenue / maxRevenue) * 100) : 0;
+                  const isTop = bestEvent ? e.id === bestEvent.id : false;
+                  return (
+                    <div key={e.id} className={`dd-event ${isTop ? "top" : ""}`}>
+                      <div className="eh">
+                        <p className="t">{isTop && <span className="best">Best</span>}{e.name}</p>
+                        <span className="m">{fmt$(e.doorRevenue)}</span>
+                      </div>
+                      <div className="dd-track"><i className={isTop ? "" : "muted"} style={{ width: `${barPct}%` }} /></div>
+                      <div className="meta">
+                        <span>{e.date}</span>
+                        <span>{e.attendance} attendees</span>
+                        <span>{fmt$(Math.round(e.doorRevenue / Math.max(1, e.attendance)))} / head</span>
+                        {e.notes && <span className="note">{e.notes}</span>}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
-            <p className="mb-3 text-[10px] font-semibold uppercase tracking-wider text-slate-500">Events — Best First</p>
-            <div className="space-y-2.5 mb-5">
-              {sorted.map(e => {
-                const barPct = maxRevenue > 0 ? Math.round((e.doorRevenue / maxRevenue) * 100) : 0;
-                const isTop = bestEvent ? e.id === bestEvent.id : false;
-                return (
-                  <div key={e.id} className={`rounded-lg px-3 py-2.5 ${isTop ? "bg-indigo-500/[0.08] border border-indigo-500/20" : "bg-white/[0.03] border border-white/[0.05]"}`}>
-                    <div className="flex items-center justify-between mb-1.5">
-                      <p className={`text-[12px] font-semibold flex items-center gap-1.5 ${isTop ? "text-indigo-300" : "text-slate-300"}`}>
-                        {isTop && <span className="text-[10px] bg-indigo-500/20 text-indigo-400 rounded px-1 py-0.5">Best</span>}
-                        {e.name}
-                      </p>
-                      <span className="tabular-nums text-[13px] font-bold text-white shrink-0 ml-2">{fmt$(e.doorRevenue)}</span>
-                    </div>
-                    <div className="h-1 overflow-hidden rounded-full bg-white/[0.07] mb-1.5">
-                      <div className={`h-full rounded-full ${isTop ? "bg-indigo-400" : "bg-white/[0.25]"}`} style={{ width: `${barPct}%` }} />
-                    </div>
-                    <div className="flex items-center gap-3 flex-wrap">
-                      <span className="text-[10px] text-slate-500">{e.date}</span>
-                      <span className="text-[10px] text-slate-500">{e.attendance} attendees</span>
-                      <span className="text-[10px] text-slate-500">{fmt$(Math.round(e.doorRevenue / Math.max(1, e.attendance)))} / head</span>
-                      {e.notes && <span className="text-[10px] text-slate-600 truncate">{e.notes}</span>}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-            <button onClick={() => { onOpenModal("revenue"); onClose(); }} className="w-full rounded-lg border border-white/[0.1] bg-white/[0.04] px-4 py-2.5 text-[13px] font-medium text-slate-300 hover:border-indigo-500/40 hover:bg-indigo-500/10 hover:text-indigo-300 transition-colors">
+            <button onClick={() => { onOpenModal("revenue"); onClose(); }} className="dd-btn-ghost">
               + Log Revenue
             </button>
           </>
@@ -913,25 +789,20 @@ function WidgetDetailDrawer({
 
   return (
     <>
-      <div
-        className={`fixed inset-0 z-40 bg-black/40 backdrop-blur-[1px] transition-opacity duration-200 ${isOpen ? "opacity-100" : "opacity-0 pointer-events-none"}`}
-        onClick={onClose}
-      />
-      <div
-        className={`fixed inset-y-0 right-0 z-50 flex w-full flex-col bg-[#0c0e14] border-l border-white/[0.07] shadow-2xl transition-transform duration-300 ease-in-out sm:w-[400px] ${isOpen ? "translate-x-0" : "translate-x-full pointer-events-none"}`}
-      >
+      <div className={`dash-drawer-backdrop ${isOpen ? "" : "closed"}`} onClick={onClose} />
+      <div className={`dash-drawer ${isOpen ? "" : "closed"}`}>
         {cfg && (
           <>
-            <div className={`h-[3px] ${cfg.bar}`} />
-            <div className="flex h-13 shrink-0 items-center gap-3 border-b border-white/[0.07] px-5 py-3.5">
-              <h2 className={`flex-1 text-[15px] font-semibold ${cfg.accent}`}>{cfg.title}</h2>
-              <button onClick={onClose} className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-white/[0.07] hover:text-white transition-colors">
-                <svg className="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <div className={`dd-accent ${cfg.tone}`} />
+            <div className="dd-head">
+              <h2 className="dd-title">{cfg.title}</h2>
+              <button onClick={onClose} className="dd-x" aria-label="Close">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
             </div>
-            <div className="flex-1 overflow-y-auto px-5 py-5">
+            <div className="dd-body">
               {renderContent()}
             </div>
           </>
@@ -961,63 +832,49 @@ function CustomMetricDetailDrawer({
 
   return (
     <>
-      <div
-        className={`fixed inset-0 z-40 bg-black/40 backdrop-blur-[1px] transition-opacity duration-200 ${isOpen ? "opacity-100" : "opacity-0 pointer-events-none"}`}
-        onClick={onClose}
-      />
-      <div
-        className={`fixed inset-y-0 right-0 z-50 flex w-full flex-col bg-[#0c0e14] border-l border-white/[0.07] shadow-2xl transition-transform duration-300 ease-in-out sm:w-[420px] ${isOpen ? "translate-x-0" : "translate-x-full pointer-events-none"}`}
-      >
+      <div className={`dash-drawer-backdrop ${isOpen ? "" : "closed"}`} onClick={onClose} />
+      <div className={`dash-drawer ${isOpen ? "" : "closed"}`}>
         {snap && (
           <>
-            <div className="flex h-14 shrink-0 items-center gap-3 border-b border-white/[0.07] px-5">
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-indigo-500/10">
-                <SvgIcon d={KPI_ICONS["custom"] ?? ""} className="h-4 w-4 text-indigo-400" />
+            <div className="dd-head">
+              <div className="dd-icon">
+                <SvgIcon d={KPI_ICONS["custom"] ?? ""} />
               </div>
-              <h2 className="flex-1 truncate text-[15px] font-semibold text-white">{snap.name}</h2>
-              <button onClick={onClose} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-500 hover:bg-white/[0.07] hover:text-white transition-colors">
-                <svg className="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <h2 className="dd-title">{snap.name}</h2>
+              <button onClick={onClose} className="dd-x" aria-label="Close">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
             </div>
-            <div className="flex-1 overflow-y-auto px-5 py-5 space-y-5">
-              <div className="grid grid-cols-3 gap-3">
-                <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2.5 text-center">
-                  <p className="text-[9px] font-semibold uppercase tracking-wider text-slate-500 mb-0.5">On Track</p>
-                  <p className="text-[18px] font-bold text-emerald-400 tabular-nums">{snap.onTrackCount}</p>
-                </div>
-                <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2.5 text-center">
-                  <p className="text-[9px] font-semibold uppercase tracking-wider text-slate-500 mb-0.5">Not on Track</p>
-                  <p className="text-[18px] font-bold text-amber-400 tabular-nums">{snap.totalCount - snap.onTrackCount}</p>
-                </div>
-                <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2.5 text-center">
-                  <p className="text-[9px] font-semibold uppercase tracking-wider text-slate-500 mb-0.5">Goal</p>
-                  <p className="text-[18px] font-bold text-white tabular-nums">{snap.goal}{snap.unit ?? ""}</p>
-                </div>
+            <div className="dd-body">
+              <div className="dd-stats c3">
+                <div className="dd-stat"><p className="n ok">{snap.onTrackCount}</p><p className="l">On Track</p></div>
+                <div className="dd-stat"><p className="n gold">{snap.totalCount - snap.onTrackCount}</p><p className="l">Not on Track</p></div>
+                <div className="dd-stat"><p className="n">{snap.goal}{snap.unit ?? ""}</p><p className="l">Goal</p></div>
               </div>
               <div>
-                <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500">Summary</p>
-                <div className="space-y-1.5 rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[12px] text-slate-400">Aggregation</span>
-                    <span className="text-[12px] font-medium text-white capitalize">{snap.aggregation.replace("_", " ")}</span>
+                <p className="dd-label">Summary</p>
+                <div className="dd-panel">
+                  <div className="dd-kv" style={{ justifyContent: "space-between" }}>
+                    <span className="k" style={{ width: "auto" }}>Aggregation</span>
+                    <span className="v" style={{ textTransform: "capitalize" }}>{snap.aggregation.replace("_", " ")}</span>
                   </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-[12px] text-slate-400">
+                  <div className="dd-kv" style={{ justifyContent: "space-between" }}>
+                    <span className="k" style={{ width: "auto" }}>
                       {snap.aggregation === "avg" ? "Chapter avg" : snap.aggregation === "sum" ? "Chapter total" : "On track"}
                     </span>
-                    <span className="text-[12px] font-semibold text-indigo-300 tabular-nums">
+                    <span className="v" style={{ color: "var(--vio)", fontFamily: "var(--mono)" }}>
                       {Number.isInteger(snap.headline) ? snap.headline : snap.headline.toFixed(1)}{snap.unit ?? ""}
                     </span>
                   </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-[12px] text-slate-400">Members recorded</span>
-                    <span className="text-[12px] font-medium text-white tabular-nums">{snap.totalCount}</span>
+                  <div className="dd-kv" style={{ justifyContent: "space-between" }}>
+                    <span className="k" style={{ width: "auto" }}>Members recorded</span>
+                    <span className="v" style={{ fontFamily: "var(--mono)" }}>{snap.totalCount}</span>
                   </div>
                 </div>
               </div>
-              <p className="text-[11px] text-slate-600">
+              <p className="dd-meta">
                 Open a member&apos;s profile drawer and switch to the Metrics tab to view or update individual values.
               </p>
             </div>
@@ -1837,7 +1694,6 @@ export default function Home() {
             </svg>
             <span className="hidden sm:inline">Export</span>
           </button>
-          <UserAvatar />
         </header>
 
         {/* ── Scrollable body ──────────────────────────────────────────────── */}

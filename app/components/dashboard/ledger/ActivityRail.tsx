@@ -19,12 +19,11 @@ export function ActivityRail({
   onAll?: () => void;
 }) {
   return (
-    <section className="card" aria-label="Activity">
+    <section className={`card${onAll ? " cursor-pointer" : ""}`} aria-label="Activity" onClick={onAll}>
       <div className="card-h">
         <h2>Activity</h2>
         <div className="right">
           <span className="sub">Recent</span>
-          {onAll && <button type="button" className="card-act" onClick={onAll}>All</button>}
         </div>
       </div>
       {entries.length === 0 ? (
