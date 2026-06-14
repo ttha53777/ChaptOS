@@ -1,0 +1,83 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+   Add / Edit Calendar Event form — dusk "Agenda" language
+   The form renders inside the <Modal> primitive, which mounts OUTSIDE the page's
+   `.dash` wrapper, so the dusk tokens (--ink, --vio, --card, --mono, …) don't
+   reach it by inheritance. We wrap the form itself in `.dash[data-dashboard-theme]`
+   (see CalendarEventForm.tsx) so dashboard-ledger.css's :root-scoped tokens resolve
+   here too. Selectors mirror the existing rail event-form vocabulary
+   (.ev-att-form, .ev-btn-primary) in timeline-ledger.css.
+   The category --c-* dots come from timeline-ledger.css on the timeline page; the
+   dashboard imports only dashboard-ledger.css, so we re-declare them below.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+.dash[data-dashboard-theme="dusk"] {
+  --c-chapter:  #8fb0d6;
+  --c-social:   #ddb36a;
+  --c-fundy:    #86b988;
+  --c-program:  #a78bfa;
+  --c-party:    #d98ba3;
+  --c-deadline: #e0796b;
+  --c-service:  #5fbdb0;
+}
+
+.dash .cef { display: flex; flex-direction: column; gap: 18px; }
+
+/* ── Field block ─────────────────────────────────────────────────────────────── */
+.dash .cef-field { display: flex; flex-direction: column; gap: 7px; }
+.dash .cef-label { font-family: var(--mono); font-size: 9px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+.dash .cef-label .opt { color: var(--faint); letter-spacing: .1em; margin-left: 6px; }
+
+/* ── Inputs ──────────────────────────────────────────────────────────────────── */
+.dash .cef-input,
+.dash .cef-textarea {
+  width: 100%; font-family: var(--sans); font-size: 13px; color: var(--ink);
+  background: var(--card-2); border: 1px solid var(--line); border-radius: 9px;
+  padding: 9px 12px; outline: none; transition: border-color .12s, box-shadow .12s;
+}
+.dash .cef-input::placeholder,
+.dash .cef-textarea::placeholder { color: var(--faint); }
+.dash .cef-input:focus,
+.dash .cef-textarea:focus { border-color: var(--vio); box-shadow: 0 0 0 3px var(--vio-bg); }
+.dash .cef-textarea { min-height: 76px; resize: none; line-height: 1.5; }
+/* Native date control — keep the picker indicator legible on dark paper */
+.dash[data-dashboard-theme="dusk"] .cef-input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(.7); cursor: pointer; }
+
+/* ── When: date grows, time is a fixed sidecar ───────────────────────────────── */
+.dash .cef-when { display: grid; grid-template-columns: 1fr 128px; gap: 12px; }
+
+/* ── Category chips — echo the timeline node dots ────────────────────────────── */
+.dash .cef-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.dash .cef-chip {
+  display: inline-flex; align-items: center; gap: 8px; cursor: pointer;
+  font-family: var(--mono); font-size: 9.5px; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--muted); background: var(--card-2); border: 1px solid var(--line);
+  border-radius: 999px; padding: 6px 12px; transition: color .12s, border-color .12s, background .12s;
+}
+.dash .cef-chip:hover { color: var(--ink-soft); border-color: var(--muted); }
+.dash .cef-chip .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; background: var(--cdot); }
+.dash .cef-chip.on { color: var(--ink); border-color: var(--cdot); background: color-mix(in srgb, var(--cdot) 14%, transparent); }
+.dash .cef-hint { font-family: var(--serif); font-style: italic; font-size: 11.5px; color: var(--faint); }
+
+/* ── Required-attendance toggle ──────────────────────────────────────────────── */
+.dash .cef-toggle {
+  display: flex; align-items: flex-start; gap: 11px; cursor: pointer;
+  border: 1px solid var(--line); border-radius: 11px; background: var(--card); padding: 11px 13px;
+  transition: border-color .12s, background .12s;
+}
+.dash .cef-toggle:hover { border-color: var(--muted); }
+.dash .cef-toggle.on { border-color: var(--vio); background: var(--vio-bg); }
+.dash .cef-toggle input { margin-top: 1px; width: 15px; height: 15px; accent-color: var(--vio-deep); cursor: pointer; flex-shrink: 0; }
+.dash .cef-toggle .ttl { display: block; font-size: 12.5px; font-weight: 600; color: var(--ink); }
+.dash .cef-toggle .sub { display: block; font-size: 11px; color: var(--faint); margin-top: 2px; }
+
+/* ── Optional details, set off below a divider ───────────────────────────────── */
+.dash .cef-details { display: flex; flex-direction: column; gap: 16px; border-top: 1px solid var(--line-soft); padding-top: 16px; }
+.dash .cef-details-lbl { font-family: var(--mono); font-size: 9px; letter-spacing: .14em; text-transform: uppercase; color: var(--faint); }
+
+/* ── Submit ──────────────────────────────────────────────────────────────────── */
+.dash .cef-submit {
+  width: 100%; font-size: 13px; font-weight: 600; color: #fff;
+  background: var(--vio-deep); border: 0; border-radius: 10px; padding: 11px 16px;
+  cursor: pointer; transition: filter .12s;
+}
+.dash .cef-submit:hover { filter: brightness(1.08); }

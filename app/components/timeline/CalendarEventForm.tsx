@@ -2,9 +2,8 @@
 
 import React, { useState } from "react";
 import type { CalendarEvent, CalEventCategory } from "../../data";
-import { FieldLabel } from "../dashboard/primitives";
-import { inputCls } from "../dashboard/styles";
 import { toDateStr } from "../../lib/dates";
+import "./calendar-event-form.css";
 
 export type CalendarDraft = Omit<CalendarEvent, "id">;
 
@@ -66,46 +65,86 @@ export function CalendarEventForm({
     });
   }
 
+  // The Modal mounts outside the page's `.dash` wrapper, so we re-establish the
+  // dusk theme here to inherit dashboard-ledger.css's tokens (--ink, --vio, …).
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <div>
-        <FieldLabel>Title</FieldLabel>
-        <input className={inputCls} value={title} onChange={e => setTitle(e.target.value)} placeholder="Chapter meeting..." required />
-      </div>
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <FieldLabel>Date</FieldLabel>
-          <input type="date" className={inputCls} value={date} onChange={e => setDate(e.target.value)} required />
+    <div className="dash" data-dashboard-theme="dusk">
+      <form onSubmit={handleSubmit} className="cef">
+        {/* Title — the one thing every event needs */}
+        <div className="cef-field">
+          <label className="cef-label" htmlFor="event-title">Title</label>
+          <input
+            id="event-title"
+            className="cef-input"
+            value={title}
+            onChange={e => setTitle(e.target.value)}
+            placeholder="Chapter meeting…"
+            autoFocus
+            required
+          />
         </div>
-        <div>
-          <FieldLabel>Time</FieldLabel>
-          <input className={inputCls} value={time} onChange={e => setTime(e.target.value)} placeholder="7:00 PM" />
+
+        {/* When — date grows, optional time sits beside it */}
+        <div className="cef-when">
+          <div className="cef-field">
+            <label className="cef-label" htmlFor="event-date">Date</label>
+            <input id="event-date" type="date" className="cef-input" value={date} onChange={e => setDate(e.target.value)} required />
+          </div>
+          <div className="cef-field">
+            <label className="cef-label" htmlFor="event-time">Time<span className="opt">opt</span></label>
+            <input id="event-time" className="cef-input" value={time} onChange={e => setTime(e.target.value)} placeholder="7:00 PM" />
+          </div>
         </div>
-      </div>
-      <div>
-        <FieldLabel>Category</FieldLabel>
-        <select className={inputCls} value={category} onChange={e => setCategory(e.target.value as CalEventCategory)}>
-          {categoryOptions.map(option => (
-            <option key={option.id} value={option.id}>{option.label}</option>
-          ))}
-        </select>
-        <p className="mt-1 text-[10px] text-slate-600">Deadlines and parties are managed from their dashboard lists.</p>
-      </div>
-      <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-white/[0.07] bg-white/[0.02] px-3 py-2 text-[12px] text-slate-300">
-        <input type="checkbox" checked={mandatory} onChange={e => setMandatory(e.target.checked)} className="h-4 w-4 rounded border-white/[0.12] bg-[#0a0d14] accent-indigo-500" />
-        Required attendance
-      </label>
-      <div>
-        <FieldLabel>Location</FieldLabel>
-        <input className={inputCls} value={location} onChange={e => setLocation(e.target.value)} placeholder="Chapter Room" />
-      </div>
-      <div>
-        <FieldLabel>Description</FieldLabel>
-        <textarea className={`${inputCls} min-h-20 resize-none`} value={description} onChange={e => setDescription(e.target.value)} placeholder="Optional notes..." />
-      </div>
-      <button type="submit" className="w-full rounded-lg bg-indigo-600 px-4 py-2.5 text-[13px] font-semibold text-white transition-colors hover:bg-indigo-500">
-        {submitLabel}
-      </button>
-    </form>
+
+        {/* Category — color-coded chips matching the timeline node dots */}
+        <div className="cef-field">
+          <span className="cef-label">Category</span>
+          <div className="cef-chips" role="radiogroup" aria-label="Category">
+            {categoryOptions.map(option => {
+              const selected = category === option.id;
+              return (
+                <button
+                  key={option.id}
+                  type="button"
+                  role="radio"
+                  aria-checked={selected}
+                  onClick={() => setCategory(option.id)}
+                  className={`cef-chip${selected ? " on" : ""}`}
+                  style={{ ["--cdot" as string]: `var(--c-${option.id})` }}
+                >
+                  <span className="dot" />
+                  {option.label}
+                </button>
+              );
+            })}
+          </div>
+          <p className="cef-hint">Deadlines and parties are managed from their dashboard lists.</p>
+        </div>
+
+        {/* Required attendance */}
+        <label className={`cef-toggle${mandatory ? " on" : ""}`}>
+          <input type="checkbox" checked={mandatory} onChange={e => setMandatory(e.target.checked)} />
+          <span>
+            <span className="ttl">Required attendance</span>
+            <span className="sub">Track who shows up and who's excused.</span>
+          </span>
+        </label>
+
+        {/* Optional details — folded below a divider so the essentials read first */}
+        <div className="cef-details">
+          <span className="cef-details-lbl">Details · optional</span>
+          <div className="cef-field">
+            <label className="cef-label" htmlFor="event-location">Location</label>
+            <input id="event-location" className="cef-input" value={location} onChange={e => setLocation(e.target.value)} placeholder="Chapter Room" />
+          </div>
+          <div className="cef-field">
+            <label className="cef-label" htmlFor="event-description">Description</label>
+            <textarea id="event-description" className="cef-textarea" value={description} onChange={e => setDescription(e.target.value)} placeholder="Notes, agenda, links…" />
+          </div>
+        </div>
+
+        <button type="submit" className="cef-submit">{submitLabel}</button>
+      </form>
+    </div>
   );
 }
