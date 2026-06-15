@@ -1,0 +1,626 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dusk">
+<!--
+  ChaptOS · Timeline Redesign — "The Agenda"
+  ────────────────────────────────────────────────
+  ASSUMPTIONS / REASONING
+  · Companion to _design/Dashboard Redesign.html. The current timeline page
+    (app/[slug]/timeline/page.tsx) fights the brand the landing page + dashboard
+    redesign established: it is cold slate, leans on SEVEN saturated category
+    colors plus emerald/red/amber/indigo state chips, and stacks chips, glows and
+    badges on every card. Lots of signal, little hierarchy.
+  · This mock rebuilds it in the "Chapter Ledger" language — Fraunces serif,
+    warm paper, Geist Mono labels, violet accent + gold/rose/sage semantics,
+    hairline dividers. Same Dusk/Ivory toggle (press T).
+  · IA redesign for SIMPLICITY + CLARITY, not a reskin:
+      1. A real chronological SPINE. One vertical line through time. Date on the
+         left, a category node on the line, the event to the right. Past recedes
+         (dim, quiet), TODAY is the one bright anchor, the future is crisp.
+      2. Briefing-first, like the dashboard: serif headline + one AI digest
+         sentence + a four-measure glance strip (this week / required / deadlines /
+         overdue). You learn the state of the calendar before you read a single row.
+      3. The 7-color rainbow becomes ONE restrained, muted category palette used
+         only as small node dots + a legend in the rail. Color stops shouting.
+      4. Past months collapse to a single quiet bar. The eye lands on now.
+      5. Right rail is just "what's next" — the imminent event, then the next two,
+         then a legend. No duplicate KPI cards (the glance strip already owns that).
+  · Data is the real seeded calendar from app/data.ts (calendarEvents), with
+    today pinned to Sat Jun 13 2026. Counts (26 events · 18 required · 7 deadlines)
+    and relative dates are derived from that seed — nothing fabricated.
+-->
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ChaptOS — Timeline Redesign · The Agenda</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..700;1,9..144,300..700&family=Geist:wght@300..700&family=Geist+Mono:wght@300..600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --serif: "Fraunces", Georgia, serif;
+    --sans: "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --mono: "Geist Mono", ui-monospace, Menlo, monospace;
+  }
+  [data-theme="dusk"] {
+    --paper:    #0f0d0a;
+    --paper-2:  #14120e;
+    --card:     #161310;
+    --card-2:   #1b1813;
+    --ink:      #ece7dd;
+    --ink-soft: #c9c2b4;
+    --muted:    #958d7c;
+    --faint:    #6b6354;
+    --line:     rgba(236,231,221,.09);
+    --line-soft:rgba(236,231,221,.05);
+    --vio:      #a78bfa;
+    --vio-deep: #7c3aed;
+    --vio-bg:   rgba(167,139,250,.10);
+    --gold:     #ddb36a;
+    --gold-bg:  rgba(221,179,106,.10);
+    --rose:     #d98ba3;
+    --rose-bg:  rgba(217,139,163,.10);
+    --ok:       #7fb08a;
+    --ok-bg:    rgba(127,176,138,.10);
+    --shadow:   0 1px 0 rgba(0,0,0,.4), 0 16px 40px -24px rgba(0,0,0,.7);
+    /* restrained, muted category hues — used only as node dots + legend */
+    --c-chapter:  #8fb0d6;
+    --c-social:   #ddb36a;
+    --c-fundy:    #86b988;
+    --c-program:  #a78bfa;
+    --c-party:    #d98ba3;
+    --c-deadline: #e0796b;
+    --c-service:  #5fbdb0;
+  }
+  [data-theme="ivory"] {
+    --paper:    #f2ede3;
+    --paper-2:  #ece6d9;
+    --card:     #faf7f0;
+    --card-2:   #f4f0e6;
+    --ink:      #171410;
+    --ink-soft: #3d382f;
+    --muted:    #6f675a;
+    --faint:    #9a917f;
+    --line:     rgba(23,20,16,.13);
+    --line-soft:rgba(23,20,16,.07);
+    --vio:      #6d28d9;
+    --vio-deep: #5b21b6;
+    --vio-bg:   rgba(109,40,217,.08);
+    --gold:     #9a7224;
+    --gold-bg:  rgba(154,114,36,.10);
+    --rose:     #b34f72;
+    --rose-bg:  rgba(179,79,114,.09);
+    --ok:       #3f7a50;
+    --ok-bg:    rgba(63,122,80,.10);
+    --shadow:   0 1px 2px rgba(23,20,16,.05), 0 14px 34px -26px rgba(23,20,16,.35);
+    --c-chapter:  #3f6ea3;
+    --c-social:   #9a7224;
+    --c-fundy:    #4a7d4c;
+    --c-program:  #6d28d9;
+    --c-party:    #b34f72;
+    --c-deadline: #c14a37;
+    --c-service:  #2f8579;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { background: var(--paper); color: var(--ink); font-family: var(--sans); }
+  body { font-size: 13.5px; line-height: 1.45; -webkit-font-smoothing: antialiased; }
+  ::selection { background: var(--vio-bg); }
+
+  .shell { display: grid; grid-template-columns: 228px 1fr; min-height: 100vh; }
+
+  /* ── Sidebar (shared with dashboard mock) ────────────── */
+  .side {
+    border-right: 1px solid var(--line);
+    background: var(--paper-2);
+    padding: 26px 0 20px;
+    display: flex; flex-direction: column; gap: 26px;
+    position: sticky; top: 0; height: 100vh;
+  }
+  .wordmark { padding: 0 24px; }
+  .wordmark .product {
+    font-family: var(--serif); font-style: italic; font-weight: 600;
+    font-size: 19px; letter-spacing: .01em; color: var(--ink);
+  }
+  .wordmark .org {
+    margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line-soft);
+    font-family: var(--mono); font-size: 10px; letter-spacing: .14em;
+    text-transform: uppercase; color: var(--muted); line-height: 1.7;
+  }
+  .nav { display: flex; flex-direction: column; gap: 1px; padding: 0 12px; }
+  .nav a {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 12px; border-radius: 7px; text-decoration: none;
+    font-family: var(--mono); font-size: 11px; letter-spacing: .12em;
+    text-transform: uppercase; color: var(--muted);
+  }
+  .nav a:hover { color: var(--ink-soft); background: var(--line-soft); }
+  .nav a.active { color: var(--ink); background: var(--card-2); }
+  .nav a.active::before { content: ""; width: 3px; height: 14px; border-radius: 2px; background: var(--vio); margin-left: -6px; }
+  .side .spacer { flex: 1; }
+  .user { margin: 0 12px; padding: 12px; border-top: 1px solid var(--line-soft); display: flex; gap: 10px; align-items: center; }
+  .user .avatar { width: 30px; height: 30px; border-radius: 50%; background: var(--vio-bg); color: var(--vio);
+    display: grid; place-items: center; font-family: var(--mono); font-size: 10px; font-weight: 600; }
+  .user .who p:first-child { font-size: 12.5px; font-weight: 600; color: var(--ink); }
+  .user .who p:last-child { font-family: var(--mono); font-size: 9.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--faint); margin-top: 1px; }
+
+  /* ── Main ────────────────────────────────────────────── */
+  .main { padding: 30px 38px 40px; max-width: 1180px; }
+
+  .briefing { display: flex; justify-content: space-between; gap: 36px; align-items: flex-start; }
+  .kicker { font-family: var(--mono); font-size: 10.5px; letter-spacing: .18em; text-transform: uppercase; color: var(--muted); }
+  .kicker .today { color: var(--vio); }
+  h1.greeting { font-family: var(--serif); font-weight: 400; font-size: 33px; letter-spacing: -.01em; margin-top: 8px; color: var(--ink); }
+  h1.greeting em { font-style: italic; color: var(--vio); }
+  .digest { margin-top: 12px; display: flex; gap: 9px; align-items: baseline; max-width: 600px; }
+  .ai-chip { flex-shrink: 0; font-family: var(--mono); font-size: 8.5px; font-weight: 600; letter-spacing: .14em;
+    color: var(--vio); border: 1px solid var(--vio-bg); background: var(--vio-bg); border-radius: 4px; padding: 2px 5px; transform: translateY(-1px); }
+  .digest p { font-size: 13.5px; color: var(--ink-soft); font-style: italic; font-family: var(--serif); font-weight: 350; }
+
+  /* add-event action (top right of briefing) */
+  .add-btn { flex-shrink: 0; display: inline-flex; align-items: center; gap: 7px;
+    font-family: var(--mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--vio); background: var(--vio-bg); border: 1px solid var(--vio-bg); border-radius: 8px;
+    padding: 8px 14px; cursor: pointer; }
+  .add-btn:hover { border-color: var(--vio); }
+  .add-btn svg { stroke: var(--vio); }
+
+  .theme-toggle { position: fixed; top: 18px; right: 20px; z-index: 50;
+    font-family: var(--mono); font-size: 10px; letter-spacing: .12em; text-transform: uppercase;
+    color: var(--muted); background: var(--card); border: 1px solid var(--line); border-radius: 999px;
+    padding: 6px 14px; cursor: pointer; }
+  .theme-toggle:hover { color: var(--ink); border-color: var(--vio); }
+
+  /* ── Glance strip (four measures) ────────────────────── */
+  .glance { margin-top: 22px; display: grid; grid-template-columns: repeat(4, 1fr);
+    border: 1px solid var(--line); border-radius: 12px; background: var(--card); box-shadow: var(--shadow); overflow: hidden; }
+  .measure { padding: 15px 18px 14px; border-right: 1px solid var(--line-soft); }
+  .measure:last-child { border-right: none; }
+  .measure .k { font-family: var(--mono); font-size: 9px; letter-spacing: .16em; text-transform: uppercase; color: var(--muted); }
+  .measure .v { font-family: var(--mono); font-size: 23px; font-weight: 500; letter-spacing: -.02em; color: var(--ink); margin-top: 7px; font-variant-numeric: tabular-nums; }
+  .measure .note { font-size: 11px; color: var(--faint); margin-top: 3px; }
+  .measure .note.warn { color: var(--gold); }
+  .measure .note.bad  { color: var(--rose); }
+  .measure.flag .v { color: var(--rose); }
+
+  /* ── Filter row ──────────────────────────────────────── */
+  .toolbar { margin-top: 18px; display: flex; align-items: center; gap: 12px; }
+  .seg { display: inline-flex; gap: 2px; padding: 3px; border: 1px solid var(--line); border-radius: 9px; background: var(--card); }
+  .seg button { display: inline-flex; align-items: center; gap: 6px;
+    font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--muted); border: none; background: transparent; border-radius: 6px; padding: 6px 11px; cursor: pointer; }
+  .seg button:hover { color: var(--ink-soft); }
+  .seg button.on { color: var(--ink); background: var(--card-2); box-shadow: inset 0 0 0 1px var(--line); }
+  .seg button .ct { font-size: 9px; color: var(--faint); }
+  .seg button.on .ct { color: var(--vio); }
+  .toolbar .scope { margin-left: auto; font-family: var(--mono); font-size: 10px; letter-spacing: .08em; color: var(--faint); }
+
+  /* ── Layout: spine + rail ────────────────────────────── */
+  .layout { margin-top: 18px; display: grid; grid-template-columns: 1fr 316px; gap: 30px; align-items: start; }
+
+  /* collapsed past bar */
+  .past-bar { display: flex; align-items: center; gap: 12px; padding: 11px 16px; margin-bottom: 10px;
+    border: 1px dashed var(--line); border-radius: 10px; background: transparent; cursor: pointer; }
+  .past-bar:hover { background: var(--card); border-style: solid; }
+  .past-bar .pm { font-family: var(--serif); font-style: italic; font-size: 15px; color: var(--muted); }
+  .past-bar .pc { font-family: var(--mono); font-size: 10px; letter-spacing: .1em; color: var(--faint); }
+  .past-bar .show { margin-left: auto; font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); }
+  .past-bar:hover .show { color: var(--vio); }
+
+  /* month header */
+  .tl-month { display: flex; align-items: baseline; gap: 14px; margin: 26px 0 14px; }
+  .tl-month:first-of-type { margin-top: 4px; }
+  .tl-month h2 { font-family: var(--serif); font-weight: 400; font-size: 25px; letter-spacing: -.01em; color: var(--ink); white-space: nowrap; }
+  .tl-month h2 .yr { color: var(--faint); font-style: italic; font-size: 17px; margin-left: 6px; }
+  .tl-month .rule { flex: 1; height: 1px; background: var(--line); }
+  .tl-month .cnt { font-family: var(--mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); white-space: nowrap; }
+  .tl-month.now .cnt { color: var(--vio); }
+
+  /* the spine */
+  .spine { position: relative; }
+  .spine::before { content: ""; position: absolute; left: 65px; top: 4px; bottom: 20px; width: 1px; background: var(--line); }
+
+  .tl-row { display: flex; align-items: stretch; text-decoration: none; }
+  .tl-date { width: 54px; flex-shrink: 0; text-align: right; padding-right: 14px; padding-top: 1px; }
+  .tl-date .dow { font-family: var(--mono); font-size: 8.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--faint); }
+  .tl-date .dnum { font-family: var(--serif); font-size: 22px; font-weight: 400; line-height: 1; color: var(--ink-soft); margin-top: 2px; }
+  .tl-node { width: 22px; flex-shrink: 0; position: relative; }
+  .tl-node .dot { position: absolute; left: 50%; top: 5px; transform: translateX(-50%);
+    width: 11px; height: 11px; border-radius: 50%; background: var(--paper);
+    box-shadow: 0 0 0 1px var(--line); }
+  .tl-node .dot i { position: absolute; inset: 2.5px; border-radius: 50%; background: var(--catc); }
+  .tl-body { flex: 1; min-width: 0; padding: 0 0 20px 16px; }
+  .tl-card { border: 1px solid var(--line); border-radius: 10px; background: var(--card); box-shadow: var(--shadow);
+    padding: 11px 14px; display: flex; align-items: center; gap: 12px; cursor: pointer; }
+  .tl-card:hover { background: var(--card-2); }
+  .tl-card .t { font-size: 13.5px; font-weight: 550; color: var(--ink); }
+  .tl-card .m { font-size: 11.5px; color: var(--faint); margin-top: 2px; display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center; }
+  .tl-card .m .cat { color: var(--catc); font-family: var(--mono); font-size: 9px; letter-spacing: .1em; text-transform: uppercase; }
+  .tl-card .grow { flex: 1; min-width: 0; }
+  .tl-card .when { font-family: var(--mono); font-size: 10px; letter-spacing: .06em; color: var(--faint); flex-shrink: 0; white-space: nowrap; }
+  .tl-card .chev { flex-shrink: 0; opacity: 0; transition: opacity .12s; }
+  .tl-card:hover .chev { opacity: .7; }
+
+  .req { font-family: var(--mono); font-size: 8px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase;
+    color: var(--gold); background: var(--gold-bg); border-radius: 4px; padding: 2px 5px; }
+  .overdue { font-family: var(--mono); font-size: 8px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase;
+    color: var(--rose); background: var(--rose-bg); border-radius: 4px; padding: 2px 5px; }
+
+  /* past events recede */
+  .tl-row.past .tl-date .dnum { color: var(--faint); }
+  .tl-row.past .tl-node .dot { background: var(--paper); }
+  .tl-row.past .tl-node .dot i { opacity: .4; }
+  .tl-row.past .tl-card { background: transparent; box-shadow: none; border-color: var(--line-soft); }
+  .tl-row.past .tl-card:hover { background: var(--card); }
+  .tl-row.past .tl-card .t { color: var(--muted); font-weight: 500; }
+
+  /* today anchor */
+  .today-marker { display: flex; align-items: center; gap: 12px; margin: 4px 0 16px; padding-left: 68px; }
+  .today-marker .pill { font-family: var(--mono); font-size: 9px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase;
+    color: var(--vio); background: var(--vio-bg); border: 1px solid var(--vio-bg); border-radius: 999px; padding: 3px 10px; white-space: nowrap; }
+  .today-marker .line { flex: 1; height: 1px; background: linear-gradient(90deg, var(--vio), transparent); opacity: .5; }
+  .tl-row.today .tl-date .dow, .tl-row.today .tl-date .dnum { color: var(--vio); }
+  .tl-row.today .tl-node .dot { box-shadow: 0 0 0 1px var(--vio), 0 0 0 4px var(--vio-bg); }
+  .tl-row.today .tl-card { border-color: var(--vio); background: var(--card-2); box-shadow: 0 0 0 1px var(--vio-bg), var(--shadow); }
+
+  .tl-end { display: flex; align-items: center; gap: 10px; padding: 6px 0 0 70px; }
+  .tl-end .e-dot { width: 7px; height: 7px; border-radius: 50%; border: 1px solid var(--line); margin-left: -8px; }
+  .tl-end p { font-size: 11.5px; color: var(--faint); font-style: italic; font-family: var(--serif); }
+  .tl-end a { font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); text-decoration: none; margin-left: 4px; }
+  .tl-end a:hover { color: var(--vio); }
+
+  /* ── Right rail ──────────────────────────────────────── */
+  .rail { position: sticky; top: 30px; display: flex; flex-direction: column; gap: 16px; }
+  .rail .lbl { font-family: var(--mono); font-size: 9.5px; letter-spacing: .16em; text-transform: uppercase; color: var(--faint); margin-bottom: 10px; }
+
+  .upnext { border: 1px solid var(--line); border-radius: 12px; background: var(--card); box-shadow: var(--shadow); padding: 16px 18px 17px; }
+  .upnext .row1 { display: flex; align-items: center; gap: 8px; }
+  .upnext .cat { font-family: var(--mono); font-size: 9px; letter-spacing: .12em; text-transform: uppercase; color: var(--catc); }
+  .upnext .cat::before { content: ""; display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--catc); margin-right: 7px; vertical-align: 1px; }
+  .upnext .soon { margin-left: auto; font-family: var(--mono); font-size: 9px; letter-spacing: .12em; text-transform: uppercase;
+    color: var(--vio); background: var(--vio-bg); border-radius: 4px; padding: 2px 6px; }
+  .upnext h3 { font-family: var(--serif); font-weight: 500; font-size: 19px; line-height: 1.2; color: var(--ink); margin: 11px 0 4px; }
+  .upnext .meta { font-size: 12px; color: var(--muted); }
+  .upnext .desc { font-size: 11.5px; color: var(--faint); margin-top: 8px; padding-top: 10px; border-top: 1px solid var(--line-soft); font-style: italic; font-family: var(--serif); }
+
+  .then-card { border: 1px solid var(--line); border-radius: 12px; background: var(--card); box-shadow: var(--shadow); overflow: hidden; }
+  .then-row { display: flex; align-items: baseline; gap: 11px; padding: 11px 16px; border-bottom: 1px solid var(--line-soft); }
+  .then-row:last-child { border-bottom: none; }
+  .then-row .when { font-family: var(--mono); font-size: 9px; letter-spacing: .08em; text-transform: uppercase; color: var(--faint); width: 50px; flex-shrink: 0; line-height: 1.5; }
+  .then-row .what .t { font-size: 12.5px; font-weight: 550; color: var(--ink); }
+  .then-row .what .s { font-family: var(--mono); font-size: 9px; letter-spacing: .1em; text-transform: uppercase; color: var(--catc); margin-top: 2px; }
+  .then-row .what .s::before { content: ""; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--catc); margin-right: 6px; }
+
+  .legend { border: 1px solid var(--line); border-radius: 12px; background: var(--card); box-shadow: var(--shadow); padding: 14px 18px 15px; }
+  .legend .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 14px; margin-top: 2px; }
+  .legend .li { display: flex; align-items: center; gap: 8px; }
+  .legend .li .d { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .legend .li span { font-size: 11.5px; color: var(--ink-soft); }
+  .legend .li .req-key { font-family: var(--mono); font-size: 7.5px; font-weight: 600; letter-spacing: .12em;
+    color: var(--gold); background: var(--gold-bg); border-radius: 3px; padding: 1px 4px; }
+
+  .jump { display: flex; align-items: center; justify-content: center; gap: 7px; padding: 9px;
+    border: 1px solid var(--line); border-radius: 10px; background: transparent; cursor: pointer;
+    font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+  .jump:hover { color: var(--vio); border-color: var(--vio); }
+
+  footer { margin-top: 34px; padding-top: 16px; border-top: 1px solid var(--line-soft); text-align: center;
+    font-family: var(--mono); font-size: 9.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--faint); }
+</style>
+</head>
+<body>
+<button class="theme-toggle" id="toggle" title="Press T">◐&nbsp; Ivory</button>
+<div class="shell">
+
+  <!-- ── Sidebar ──────────────────────────────────────── -->
+  <aside class="side">
+    <div class="wordmark">
+      <div class="product">ChaptOS</div>
+      <div class="org">Lambda Phi<br>Epsilon</div>
+    </div>
+    <nav class="nav">
+      <a href="#">Dashboard</a>
+      <a class="active" href="#">Timeline</a>
+      <a href="#">Brothers</a>
+      <a href="#">Treasury</a>
+      <a href="#">Events</a>
+      <a href="#">Instagram</a>
+      <a href="#">Chapter</a>
+      <a href="#">Settings</a>
+    </nav>
+    <div class="spacer"></div>
+    <div class="user">
+      <div class="avatar">TT</div>
+      <div class="who">
+        <p>Thalha Thabish</p>
+        <p>Secretary</p>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ── Main ─────────────────────────────────────────── -->
+  <main class="main">
+
+    <div class="briefing">
+      <div>
+        <p class="kicker"><span class="today">Saturday, June 13, 2026</span>&ensp;·&ensp;Week of Jun 8 – 14&ensp;·&ensp;Spring Semester</p>
+        <h1 class="greeting">The weeks <em>ahead</em>.</h1>
+        <div class="digest">
+          <span class="ai-chip">AI</span>
+          <p>Summer Kickoff is tonight at 8. The IFC Chapter Report is due Monday, the Post-Finals Rager closes out the month, and nothing's on the books past June 20.</p>
+        </div>
+      </div>
+      <button class="add-btn">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+        Add event
+      </button>
+    </div>
+
+    <!-- ── Glance strip ───────────────────────────────── -->
+    <section class="glance">
+      <div class="measure">
+        <p class="k">This week</p>
+        <p class="v">4</p>
+        <p class="note">Jun 8 – 14</p>
+      </div>
+      <div class="measure">
+        <p class="k">Required</p>
+        <p class="v">7</p>
+        <p class="note">this month</p>
+      </div>
+      <div class="measure">
+        <p class="k">Deadlines</p>
+        <p class="v">3</p>
+        <p class="note warn">1 due Monday</p>
+      </div>
+      <div class="measure flag">
+        <p class="k">Overdue</p>
+        <p class="v">2</p>
+        <p class="note bad">need follow-up</p>
+      </div>
+    </section>
+
+    <!-- ── Filter toolbar ─────────────────────────────── -->
+    <div class="toolbar">
+      <div class="seg">
+        <button class="on">All <span class="ct">26</span></button>
+        <button>Required <span class="ct">18</span></button>
+        <button>Deadlines <span class="ct">7</span></button>
+        <button>Parties <span class="ct">4</span></button>
+        <button>Service <span class="ct">1</span></button>
+      </div>
+      <span class="scope">Showing June · 11 events</span>
+    </div>
+
+    <!-- ── Layout: spine + rail ───────────────────────── -->
+    <div class="layout">
+
+      <!-- LEFT — the timeline spine -->
+      <div>
+        <div class="past-bar">
+          <span class="pm">May 2026</span>
+          <span class="pc">15 events · all past</span>
+          <span class="show">Show ▾</span>
+        </div>
+
+        <div class="tl-month now">
+          <h2>June<span class="yr">2026</span></h2>
+          <span class="rule"></span>
+          <span class="cnt">11 events · 7 required</span>
+        </div>
+
+        <div class="spine">
+
+          <!-- past June events recede -->
+          <a class="tl-row past" href="#">
+            <div class="tl-date"><div class="dow">Mon</div><div class="dnum">1</div></div>
+            <div class="tl-node"><span class="dot" style="--catc:var(--c-fundy)"><i></i></span></div>
+            <div class="tl-body"><div class="tl-card" style="--catc:var(--c-fundy)">
+              <div class="grow"><div class="t">Alumni Donation Drive</div>
+                <div class="m"><span class="cat">Fundraiser</span><span>All day</span></div></div>
+              <span class="when">12 days ago</span>
+            </div></div>
+          </a>
+
+          <a class="tl-row past" href="#">
+            <div class="tl-date"><div class="dow">Mon</div><div class="dnum">1</div></div>
+            <div class="tl-node"><span class="dot" style="--catc:var(--c-deadline)"><i></i></span></div>
+            <div class="tl-body"><div class="tl-card" style="--catc:var(--c-deadline)">
+              <div class="grow"><div class="t">Nationals Chapter Fee</div>
+                <div class="m"><span class="cat">Deadline</span><span class="req">Required</span></div></div>
+              <span class="when">12 days ago</span>
+            </div></div>
+          </a>
+
+          <a class="tl-row past" href="#">
+            <div class="tl-date"><div class="dow">Tue</div><div class="dnum">2</div></div>
+            <div class="tl-node"><span class="dot" style="--catc:var(--c-chapter)"><i></i></span></div>
+            <div class="tl-body"><div class="tl-card" style="--catc:var(--c-chapter)">
+              <div class="grow"><div class="t">Chapter Meeting</div>
+                <div class="m"><span class="cat">Chapter</span><span>7:00 PM</span><span>Chapter Room</span></div></div>
+              <span class="when">11 days ago</span>
+            </div></div>
+          </a>
+
+          <a class="tl-row past" href="#">
+            <div class="tl-date"><div class="dow">Fri</div><div class="dnum">5</div></div>
+            <div class="tl-node"><span class="dot" style="--catc:var(--c-social)"><i></i></span></div>
+            <div class="tl-body"><div class="tl-card" style="--catc:var(--c-social)">
+              <div class="grow"><div class="t">Brotherhood Dinner</div>
+                <div class="m"><span class="cat">Social</span><span>6:00 PM</span><span>Restaurant TBD</span></div></div>
+              <span class="when">8 days ago</span>
+            </div></div>
+          </a>
+
+          <a class="tl-row past" href="#">
+            <div class="tl-date"><div class="dow">Sun</div><div class="dnum">7</div></div>
+            <div class="tl-node"><span class="dot" style="--catc:var(--c-program)"><i></i></span></div>
+            <div class="tl-body"><div class="tl-card" style="--catc:var(--c-program)">
+              <div class="grow"><div class="t">Leadership Retreat</div>
+                <div class="m"><span class="cat">Program</span><span>9:00 AM</span></div></div>
+              <span class="when">6 days ago</span>
+            </div></div>
+          </a>
+
+          <a class="tl-row past" href="#">
+            <div class="tl-date"><div class="dow">Tue</div><div class="dnum">9</div></div>
+            <div class="tl-node"><span class="dot" style="--catc:var(--c-chapter)"><i></i></span></div>
+            <div class="tl-body"><div class="tl-card" style="--catc:var(--c-chapter)">
+              <div class="grow"><div class="t">Chapter Meeting</div>
+                <div class="m"><span class="cat">Chapter</span><span>7:00 PM</span><span>Chapter Room</span></div></div>
+              <span class="when">4 days ago</span>
+            </div></div>
+          </a>
+
+          <a class="tl-row past" href="#">
+            <div class="tl-date"><div class="dow">Wed</div><div class="dnum">10</div></div>
+            <div class="tl-node"><span class="dot" style="--catc:var(--c-deadline)"><i></i></span></div>
+            <div class="tl-body"><div class="tl-card" style="--catc:var(--c-deadline)">
+              <div class="grow"><div class="t">Brotherhood Event Proposal</div>
+                <div class="m"><span class="cat">Deadline</span><span>Elvin De La Cruz</span></div></div>
+              <span class="when">3 days ago</span>
+            </div></div>
+          </a>
+
+          <a class="tl-row past" href="#">
+            <div class="tl-date"><div class="dow">Fri</div><div class="dnum">12</div></div>
+            <div class="tl-node"><span class="dot" style="--catc:var(--c-service)"><i></i></span></div>
+            <div class="tl-body"><div class="tl-card" style="--catc:var(--c-service)">
+              <div class="grow"><div class="t">IFC Community Service</div>
+                <div class="m"><span class="cat">Service</span><span>10:00 AM</span><span>Community Center</span></div></div>
+              <span class="when">Yesterday</span>
+            </div></div>
+          </a>
+
+          <!-- ── TODAY anchor ── -->
+          <div class="today-marker">
+            <span class="pill">Today · Sat Jun 13</span>
+            <span class="line"></span>
+          </div>
+
+          <a class="tl-row today" href="#">
+            <div class="tl-date"><div class="dow">Sat</div><div class="dnum">13</div></div>
+            <div class="tl-node"><span class="dot" style="--catc:var(--c-party)"><i></i></span></div>
+            <div class="tl-body"><div class="tl-card" style="--catc:var(--c-party)">
+              <div class="grow"><div class="t">Summer Kickoff</div>
+                <div class="m"><span class="cat">Party</span><span>8:00 PM</span><span>First party of summer</span></div></div>
+              <span class="when">Tonight</span>
+              <svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg>
+            </div></div>
+          </a>
+
+          <!-- ── future, crisp ── -->
+          <a class="tl-row future" href="#">
+            <div class="tl-date"><div class="dow">Mon</div><div class="dnum">15</div></div>
+            <div class="tl-node"><span class="dot" style="--catc:var(--c-deadline)"><i></i></span></div>
+            <div class="tl-body"><div class="tl-card" style="--catc:var(--c-deadline)">
+              <div class="grow"><div class="t">IFC Chapter Report</div>
+                <div class="m"><span class="cat">Deadline</span><span class="req">Required</span><span>Bryan Lee</span></div></div>
+              <span class="when">In 2 days</span>
+              <svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg>
+            </div></div>
+          </a>
+
+          <a class="tl-row future" href="#">
+            <div class="tl-date"><div class="dow">Sat</div><div class="dnum">20</div></div>
+            <div class="tl-node"><span class="dot" style="--catc:var(--c-party)"><i></i></span></div>
+            <div class="tl-body"><div class="tl-card" style="--catc:var(--c-party)">
+              <div class="grow"><div class="t">Post-Finals Rager</div>
+                <div class="m"><span class="cat">Party</span><span>9:00 PM</span></div></div>
+              <span class="when">In 7 days</span>
+              <svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg>
+            </div></div>
+          </a>
+
+          <div class="tl-end">
+            <span class="e-dot"></span>
+            <p>Nothing scheduled past June 20.</p>
+            <a href="#">Add event →</a>
+          </div>
+        </div>
+      </div>
+
+      <!-- RIGHT — what's next -->
+      <aside class="rail">
+        <div>
+          <p class="lbl">Up next</p>
+          <div class="upnext" style="--catc:var(--c-party)">
+            <div class="row1">
+              <span class="cat">Party</span>
+              <span class="soon">Tonight</span>
+            </div>
+            <h3>Summer Kickoff</h3>
+            <p class="meta">Sat Jun 13 · 8:00 PM</p>
+            <p class="desc">First party of summer. Not mandatory — open to brothers and rush guests.</p>
+          </div>
+        </div>
+
+        <div>
+          <p class="lbl">Then</p>
+          <div class="then-card">
+            <div class="then-row">
+              <span class="when">Mon<br>Jun 15</span>
+              <div class="what" style="--catc:var(--c-deadline)">
+                <p class="t">IFC Chapter Report</p>
+                <p class="s">Deadline · Required</p>
+              </div>
+            </div>
+            <div class="then-row">
+              <span class="when">Sat<br>Jun 20</span>
+              <div class="what" style="--catc:var(--c-party)">
+                <p class="t">Post-Finals Rager</p>
+                <p class="s">Party · 9:00 PM</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <p class="lbl">Legend</p>
+          <div class="legend">
+            <div class="grid2">
+              <div class="li"><span class="d" style="background:var(--c-chapter)"></span><span>Chapter</span></div>
+              <div class="li"><span class="d" style="background:var(--c-deadline)"></span><span>Deadline</span></div>
+              <div class="li"><span class="d" style="background:var(--c-social)"></span><span>Social</span></div>
+              <div class="li"><span class="d" style="background:var(--c-party)"></span><span>Party</span></div>
+              <div class="li"><span class="d" style="background:var(--c-fundy)"></span><span>Fundraiser</span></div>
+              <div class="li"><span class="d" style="background:var(--c-service)"></span><span>Service</span></div>
+              <div class="li"><span class="d" style="background:var(--c-program)"></span><span>Program</span></div>
+              <div class="li"><span class="req-key">REQ</span><span>Attendance taken</span></div>
+            </div>
+          </div>
+        </div>
+
+        <button class="jump">↑ Jump to today</button>
+      </aside>
+    </div>
+
+    <footer>Lambda Phi Epsilon · ChaptOS — timeline design mock · seeded calendar · Jun 13, 2026</footer>
+  </main>
+</div>
+
+<script>
+  const root = document.documentElement;
+  const btn = document.getElementById("toggle");
+  function setTheme(t) {
+    root.dataset.theme = t;
+    btn.innerHTML = t === "dusk" ? "◐&nbsp; Ivory" : "◑&nbsp; Dusk";
+    try { localStorage.setItem("chaptos-mock-theme", t); } catch {}
+  }
+  btn.addEventListener("click", () => setTheme(root.dataset.theme === "dusk" ? "ivory" : "dusk"));
+  document.addEventListener("keydown", e => {
+    if (e.key.toLowerCase() === "t" && !e.metaKey && !e.ctrlKey) btn.click();
+  });
+  try {
+    const saved = localStorage.getItem("chaptos-mock-theme");
+    if (saved === "ivory") setTheme("ivory");
+  } catch {}
+
+  // segmented filter — visual only in the mock
+  document.querySelectorAll(".seg button").forEach(b => {
+    b.addEventListener("click", () => {
+      document.querySelectorAll(".seg button").forEach(x => x.classList.remove("on"));
+      b.classList.add("on");
+    });
+  });
+</script>
+</body>
+</html>

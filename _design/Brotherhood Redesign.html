@@ -1,0 +1,672 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dusk">
+<!--
+  ChaptOS · Brotherhood Redesign — "Chapter Ledger" applied to the roster page
+  ───────────────────────────────────────────────────────────────────────────
+  ASSUMPTIONS / REASONING
+  · The live Brothers page (app/[slug]/brothers/page.tsx) still uses the OLD cold
+    palette — slate #07090f base, indigo accents, six rainbow KPI cards. The
+    dashboard already migrated to the warm editorial "Chapter Ledger" brand
+    (Fraunces serif, Geist + Geist Mono, paper #0f0d0a, violet/gold/rose/sage).
+    This mock brings the DEDICATED Brothers page fully into that brand.
+  · This is a working tool, not a hero page. Priorities: scannability, calm
+    density, semantic color only where action is needed. UX over decoration.
+  · IA, not a reskin:
+      1. Header is editorial — serif title + one quiet status sentence, not a
+         toolbar of buttons. Primary action (Add) + export live at the right.
+      2. Six rainbow KPI cards  →  one quiet "ledger strip" (mono tabular nums,
+         hairline dividers, semantic note color). Same grammar as the dashboard.
+      3. Status distribution promoted to an interactive segmented bar that FILTERS
+         the table on click — the segment IS the control, no redundant legend row.
+      4. Roster gets the full page width it deserves (dashboard could only give it
+         a narrow rail). Rows are calm; color appears only on outliers.
+      5. The member drawer is the page's reason to exist — it's the centerpiece
+         interaction. Click any row to open it (open by default here to show it).
+  · Data is the real seeded chapter (app/data.ts) with thresholds from
+    DEFAULT_THRESHOLDS: attendance watch 80 / risk 70, gpa watch 3.0 / risk 2.7,
+    service goal 10h. Status via getBrotherStatus. Nothing fabricated.
+  · Two on-brand themes: Dusk (default) + Ivory — toggle top-right, or press T.
+-->
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ChaptOS — Brotherhood Redesign · Chapter Ledger</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..700;1,9..144,300..700&family=Geist:wght@300..700&family=Geist+Mono:wght@300..600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --serif: "Fraunces", Georgia, serif;
+    --sans: "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --mono: "Geist Mono", ui-monospace, Menlo, monospace;
+  }
+  [data-theme="dusk"] {
+    --paper:    #0f0d0a;
+    --paper-2:  #14120e;
+    --card:     #161310;
+    --card-2:   #1b1813;
+    --ink:      #ece7dd;
+    --ink-soft: #c9c2b4;
+    --muted:    #958d7c;
+    --faint:    #6b6354;
+    --line:     rgba(236,231,221,.09);
+    --line-soft:rgba(236,231,221,.05);
+    --vio:      #a78bfa;
+    --vio-deep: #7c3aed;
+    --vio-bg:   rgba(167,139,250,.10);
+    --gold:     #ddb36a;
+    --gold-bg:  rgba(221,179,106,.10);
+    --rose:     #d98ba3;
+    --rose-bg:  rgba(217,139,163,.10);
+    --ok:       #7fb08a;
+    --ok-bg:    rgba(127,176,138,.10);
+    --shadow:   0 1px 0 rgba(0,0,0,.4), 0 16px 40px -24px rgba(0,0,0,.7);
+    --drawer-bg: #1a1611;
+    --drawer-tile: #201b15;
+    --drawer-shadow: -28px 0 80px -30px rgba(0,0,0,.95);
+    --scrim: rgba(6,4,2,.66);
+  }
+  [data-theme="ivory"] {
+    --paper:    #f2ede3;
+    --paper-2:  #ece6d9;
+    --card:     #faf7f0;
+    --card-2:   #f4f0e6;
+    --ink:      #171410;
+    --ink-soft: #3d382f;
+    --muted:    #6f675a;
+    --faint:    #9a917f;
+    --line:     rgba(23,20,16,.13);
+    --line-soft:rgba(23,20,16,.07);
+    --vio:      #6d28d9;
+    --vio-deep: #5b21b6;
+    --vio-bg:   rgba(109,40,217,.08);
+    --gold:     #9a7224;
+    --gold-bg:  rgba(154,114,36,.10);
+    --rose:     #b34f72;
+    --rose-bg:  rgba(179,79,114,.09);
+    --ok:       #3f7a50;
+    --ok-bg:    rgba(63,122,80,.10);
+    --shadow:   0 1px 2px rgba(23,20,16,.05), 0 14px 34px -26px rgba(23,20,16,.35);
+    --drawer-bg: #faf7f0;
+    --drawer-tile: #f1ece1;
+    --drawer-shadow: -28px 0 70px -42px rgba(23,20,16,.4);
+    --scrim: rgba(60,52,40,.32);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { background: var(--paper); color: var(--ink); font-family: var(--sans); }
+  body { font-size: 13.5px; line-height: 1.45; -webkit-font-smoothing: antialiased; }
+  ::selection { background: var(--vio-bg); }
+  .mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+  .rose { color: var(--rose); } .bg-rose { background: var(--rose); }
+  .gold { color: var(--gold); } .bg-gold { background: var(--gold); }
+  .sage { color: var(--ok); }   .bg-sage { background: var(--ok); }
+  .vio  { color: var(--vio); }
+  .muted{ color: var(--faint); }
+
+  .shell { display: grid; grid-template-columns: 228px 1fr; min-height: 100vh; }
+
+  /* ── Sidebar (carried from dashboard mock for context) ─── */
+  .side {
+    border-right: 1px solid var(--line);
+    background: var(--paper-2);
+    padding: 26px 0 20px;
+    display: flex; flex-direction: column; gap: 26px;
+    position: sticky; top: 0; height: 100vh;
+  }
+  .wordmark { padding: 0 24px; }
+  .wordmark .product { font-family: var(--serif); font-style: italic; font-weight: 600; font-size: 19px; letter-spacing: .01em; color: var(--ink); }
+  .wordmark .org { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line-soft); font-family: var(--mono); font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); line-height: 1.7; }
+  .nav { display: flex; flex-direction: column; gap: 1px; padding: 0 12px; }
+  .nav a { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 7px; text-decoration: none; font-family: var(--mono); font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+  .nav a:hover { color: var(--ink-soft); background: var(--line-soft); }
+  .nav a.active { color: var(--ink); background: var(--card-2); }
+  .nav a.active::before { content: ""; width: 3px; height: 14px; border-radius: 2px; background: var(--vio); margin-left: -6px; }
+  .side .spacer { flex: 1; }
+  .user { margin: 0 12px; padding: 12px; border-top: 1px solid var(--line-soft); display: flex; gap: 10px; align-items: center; }
+  .user .avatar { width: 30px; height: 30px; border-radius: 50%; background: var(--vio-bg); color: var(--vio); display: grid; place-items: center; font-family: var(--mono); font-size: 10px; font-weight: 600; }
+  .user .who p:first-child { font-size: 12.5px; font-weight: 600; color: var(--ink); }
+  .user .who p:last-child { font-family: var(--mono); font-size: 9.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--faint); margin-top: 1px; }
+
+  /* ── Main ────────────────────────────────────────────── */
+  .main { padding: 30px 38px 40px; max-width: 1180px; }
+
+  /* Header — editorial, not a toolbar */
+  .pagehead { display: flex; justify-content: space-between; align-items: flex-end; gap: 28px; }
+  .pagehead .kicker { font-family: var(--mono); font-size: 10.5px; letter-spacing: .18em; text-transform: uppercase; color: var(--muted); }
+  .pagehead h1 { font-family: var(--serif); font-weight: 400; font-size: 31px; letter-spacing: -.01em; margin-top: 7px; color: var(--ink); }
+  .pagehead h1 em { font-style: italic; color: var(--vio); }
+  .pagehead .summary { margin-top: 9px; max-width: 540px; font-family: var(--serif); font-weight: 350; font-style: italic; font-size: 13.5px; color: var(--ink-soft); }
+  .pagehead .summary b { font-style: normal; font-weight: 550; color: var(--gold); }
+  .head-actions { display: flex; gap: 8px; flex-shrink: 0; }
+  .btn { display: inline-flex; align-items: center; gap: 7px; font-family: var(--mono); font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; cursor: pointer; border-radius: 8px; padding: 8px 13px; border: 1px solid var(--line); background: transparent; color: var(--muted); transition: color .15s, border-color .15s, background .15s; }
+  .btn:hover { color: var(--ink); border-color: var(--vio); }
+  .btn.primary { background: var(--vio-bg); border-color: transparent; color: var(--vio); }
+  .btn.primary:hover { background: var(--vio); color: var(--paper); }
+  .btn svg { width: 13px; height: 13px; stroke: currentColor; stroke-width: 2; fill: none; }
+
+  .theme-toggle { position: fixed; top: 18px; right: 20px; z-index: 80; font-family: var(--mono); font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); background: var(--card); border: 1px solid var(--line); border-radius: 999px; padding: 6px 14px; cursor: pointer; }
+  .theme-toggle:hover { color: var(--ink); border-color: var(--vio); }
+
+  /* ── Ledger strip ────────────────────────────────────── */
+  .ledger { margin-top: 22px; display: grid; grid-template-columns: repeat(5, 1fr); border: 1px solid var(--line); border-radius: 12px; background: var(--card); box-shadow: var(--shadow); overflow: hidden; }
+  .measure { padding: 15px 18px 13px; border-right: 1px solid var(--line-soft); position: relative; }
+  .measure:last-child { border-right: none; }
+  .measure .k { font-family: var(--mono); font-size: 9px; letter-spacing: .16em; text-transform: uppercase; color: var(--muted); }
+  .measure .v { font-family: var(--mono); font-size: 22px; font-weight: 500; letter-spacing: -.02em; color: var(--ink); margin-top: 7px; font-variant-numeric: tabular-nums; }
+  .measure .v small { font-size: 12.5px; color: var(--muted); font-weight: 400; }
+  .measure .note { font-size: 11px; color: var(--faint); margin-top: 3px; }
+  .measure .note.warn { color: var(--gold); }
+  .measure .note.ok { color: var(--ok); }
+
+  /* ── Status distribution — interactive segmented bar ──── */
+  .dist { margin-top: 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); box-shadow: var(--shadow); padding: 15px 18px 16px; }
+  .dist-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 11px; }
+  .dist-head h2 { font-family: var(--serif); font-weight: 500; font-size: 15px; color: var(--ink); }
+  .dist-head .hint { font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); }
+  .seg { display: flex; gap: 3px; height: 14px; }
+  .seg button { border: none; border-radius: 4px; cursor: pointer; position: relative; transition: opacity .15s, filter .15s; padding: 0; }
+  .seg button:hover { filter: brightness(1.12); }
+  .seg button.dim { opacity: .28; }
+  .seg .s-good  { background: var(--ok); }
+  .seg .s-watch { background: var(--gold); }
+  .seg .s-risk  { background: var(--rose); }
+  .seg-legend { display: flex; gap: 22px; margin-top: 12px; }
+  .seg-legend button { display: flex; align-items: center; gap: 7px; background: none; border: none; cursor: pointer; font-family: var(--sans); }
+  .seg-legend .dot { width: 8px; height: 8px; border-radius: 50%; }
+  .seg-legend .lbl { font-size: 11.5px; color: var(--muted); }
+  .seg-legend .ct { font-family: var(--mono); font-size: 11.5px; font-weight: 600; color: var(--ink-soft); }
+  .seg-legend button.active .lbl, .seg-legend button:hover .lbl { color: var(--ink); }
+
+  /* ── Roster ──────────────────────────────────────────── */
+  .roster { margin-top: 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); box-shadow: var(--shadow); overflow: hidden; }
+  .roster-h { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 14px 18px 13px; border-bottom: 1px solid var(--line-soft); }
+  .roster-h h2 { font-family: var(--serif); font-weight: 500; font-size: 16.5px; color: var(--ink); }
+  .roster-h h2 .ct { font-family: var(--mono); font-size: 11px; color: var(--muted); margin-left: 8px; vertical-align: 2px; }
+  .roster-tools { display: flex; align-items: center; gap: 10px; }
+  .filters { display: flex; gap: 4px; }
+  .filters button { font-family: var(--mono); font-size: 9.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); border: 1px solid transparent; background: transparent; border-radius: 6px; padding: 4px 10px; cursor: pointer; }
+  .filters button.on { color: var(--ink); background: var(--card-2); border-color: var(--line); }
+  .filters button:hover { color: var(--ink-soft); }
+  .search { position: relative; }
+  .search svg { position: absolute; left: 9px; top: 50%; transform: translateY(-50%); width: 13px; height: 13px; stroke: var(--faint); stroke-width: 2; fill: none; }
+  .search input { font-family: var(--sans); font-size: 12px; color: var(--ink); background: var(--paper-2); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px 6px 28px; width: 180px; outline: none; }
+  .search input::placeholder { color: var(--faint); }
+  .search input:focus { border-color: var(--vio); }
+
+  table { width: 100%; border-collapse: collapse; }
+  thead th { font-family: var(--mono); font-size: 8.5px; font-weight: 500; letter-spacing: .16em; text-transform: uppercase; color: var(--faint); text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--line-soft); user-select: none; }
+  thead th:first-child { padding-left: 18px; }
+  thead th.num { text-align: right; }
+  thead th.sortable { cursor: pointer; }
+  thead th.sortable:hover { color: var(--muted); }
+  thead th .arrow { color: var(--vio); }
+  tbody td { padding: 11px 14px; border-bottom: 1px solid var(--line-soft); font-variant-numeric: tabular-nums; }
+  tbody td:first-child { padding-left: 18px; }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr { cursor: pointer; transition: background .12s; }
+  tbody tr:hover { background: var(--card-2); }
+  tbody tr.sel { background: var(--vio-bg); }
+  tbody tr.sel td:first-child { box-shadow: inset 3px 0 0 var(--vio); }
+  .b-name { display: flex; align-items: center; gap: 11px; }
+  .b-name .avatar { width: 30px; height: 30px; border-radius: 50%; background: var(--vio-bg); color: var(--vio); display: grid; place-items: center; font-family: var(--mono); font-size: 10px; font-weight: 600; flex-shrink: 0; }
+  .b-name .nm { font-size: 13px; font-weight: 550; color: var(--ink); white-space: nowrap; }
+  .b-name .rl { font-size: 10.5px; color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 230px; margin-top: 1px; }
+  .attb { display: flex; align-items: center; gap: 10px; min-width: 132px; }
+  .attb .track { flex: 1; height: 4px; border-radius: 2px; background: var(--line); overflow: hidden; }
+  .attb .track i { display: block; height: 100%; border-radius: 2px; }
+  .attb span { font-family: var(--mono); font-size: 11.5px; width: 36px; text-align: right; }
+  td.num { text-align: right; }
+  td .mono { font-family: var(--mono); font-size: 12px; }
+  .pay { font-family: var(--mono); font-size: 9px; letter-spacing: .06em; text-transform: uppercase; color: var(--ok); border: 1px solid var(--ok-bg); background: var(--ok-bg); border-radius: 5px; padding: 2px 7px; margin-left: 8px; cursor: pointer; opacity: 0; transition: opacity .12s; }
+  tr:hover .pay { opacity: 1; }
+  .status-tag { font-family: var(--mono); font-size: 8.5px; font-weight: 600; letter-spacing: .13em; border-radius: 5px; padding: 3px 8px; white-space: nowrap; }
+  .st-good { color: var(--ok); background: var(--ok-bg); }
+  .st-watch { color: var(--gold); background: var(--gold-bg); }
+  .st-risk { color: var(--rose); background: var(--rose-bg); }
+  .table-foot { padding: 11px 18px; border-top: 1px solid var(--line-soft); background: var(--card-2); font-family: var(--mono); font-size: 10px; letter-spacing: .06em; color: var(--faint); }
+
+  /* ── Member drawer ───────────────────────────────────── */
+  .scrim { position: fixed; inset: 0; background: var(--scrim); backdrop-filter: blur(2px); z-index: 90; opacity: 1; transition: opacity .28s; }
+  .scrim.closed { opacity: 0; pointer-events: none; }
+  .drawer { position: fixed; top: 0; right: 0; height: 100vh; width: 408px; background: var(--drawer-bg); border-left: 1px solid var(--line); box-shadow: var(--drawer-shadow); z-index: 91; display: flex; flex-direction: column; transform: translateX(0); transition: transform .3s cubic-bezier(.32,.72,0,1); }
+  .drawer.closed { transform: translateX(100%); }
+
+  .dh { padding: 22px 22px 18px; border-bottom: 1px solid var(--line-soft); display: flex; gap: 14px; align-items: flex-start; }
+  .dh .avatar { width: 52px; height: 52px; border-radius: 50%; background: var(--vio-bg); color: var(--vio); display: grid; place-items: center; font-family: var(--mono); font-size: 16px; font-weight: 600; flex-shrink: 0; position: relative; }
+  .dh .avatar.ring-watch { box-shadow: 0 0 0 2px var(--drawer-bg), 0 0 0 3.5px var(--gold); }
+  .dh .avatar.ring-risk  { box-shadow: 0 0 0 2px var(--drawer-bg), 0 0 0 3.5px var(--rose); }
+  .dh .who { flex: 1; min-width: 0; }
+  .dh .who h2 { font-family: var(--serif); font-weight: 500; font-size: 20px; color: var(--ink); line-height: 1.15; }
+  .dh .who p { font-size: 11.5px; color: var(--faint); margin-top: 3px; }
+  .dh .x { width: 30px; height: 30px; border-radius: 8px; border: 1px solid var(--line); background: transparent; color: var(--muted); cursor: pointer; display: grid; place-items: center; flex-shrink: 0; }
+  .dh .x:hover { color: var(--ink); border-color: var(--vio); }
+  .dh .x svg { width: 15px; height: 15px; stroke: currentColor; stroke-width: 2; fill: none; }
+
+  .dtabs { display: flex; gap: 2px; padding: 0 16px; border-bottom: 1px solid var(--line-soft); }
+  .dtabs button { font-family: var(--mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); background: none; border: none; padding: 12px 12px 11px; cursor: pointer; position: relative; }
+  .dtabs button:hover { color: var(--muted); }
+  .dtabs button.on { color: var(--ink); }
+  .dtabs button.on::after { content: ""; position: absolute; left: 12px; right: 12px; bottom: -1px; height: 2px; border-radius: 2px; background: var(--vio); }
+
+  .dbody { flex: 1; overflow-y: auto; padding: 18px 22px 24px; }
+  .dlabel { font-family: var(--mono); font-size: 8.5px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; color: var(--faint); margin: 0 0 10px; }
+  .dlabel.gap { margin-top: 22px; }
+
+  .tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
+  .tile { border: 1px solid var(--line); border-radius: 10px; background: var(--drawer-tile); padding: 12px 13px; }
+  .tile.warn { border-color: var(--gold-bg); }
+  .tile.risk { border-color: var(--rose-bg); }
+  .tile .l { font-family: var(--mono); font-size: 8.5px; letter-spacing: .13em; text-transform: uppercase; color: var(--muted); }
+  .tile .n { font-family: var(--mono); font-size: 21px; font-weight: 500; color: var(--ink); margin-top: 6px; letter-spacing: -.02em; }
+  .tile .n small { font-size: 11px; color: var(--faint); font-weight: 400; }
+  .tile .n.gold { color: var(--gold); } .tile .n.rose { color: var(--rose); } .tile .n.ok { color: var(--ok); }
+  .tile .tt { height: 3px; border-radius: 2px; background: var(--line); overflow: hidden; margin-top: 9px; }
+  .tile .tt i { display: block; height: 100%; border-radius: 2px; background: var(--vio); }
+  .tile .tt i.gold { background: var(--gold); } .tile .tt i.rose { background: var(--rose); }
+  .tile .act { margin-top: 9px; font-family: var(--mono); font-size: 9px; letter-spacing: .06em; text-transform: uppercase; color: var(--ok); border: 1px solid var(--ok-bg); background: var(--ok-bg); border-radius: 6px; padding: 4px 0; width: 100%; cursor: pointer; }
+  .tile .miniform { margin-top: 9px; display: flex; gap: 5px; }
+  .tile .miniform input { flex: 1; min-width: 0; font-family: var(--mono); font-size: 11px; color: var(--ink); background: var(--drawer-bg); border: 1px solid var(--line); border-radius: 6px; padding: 4px 7px; outline: none; }
+  .tile .miniform button { width: 28px; flex-shrink: 0; font-size: 14px; color: var(--vio); background: var(--vio-bg); border: none; border-radius: 6px; cursor: pointer; }
+
+  .panel { border: 1px solid var(--line); border-radius: 10px; background: var(--drawer-tile); overflow: hidden; }
+  .factor { display: flex; align-items: center; gap: 11px; padding: 11px 14px; border-bottom: 1px solid var(--line-soft); }
+  .factor:last-child { border-bottom: none; }
+  .factor .d { width: 7px; height: 7px; border-radius: 50%; background: var(--ok); flex-shrink: 0; }
+  .factor .d.watch { background: var(--gold); } .factor .d.risk { background: var(--rose); }
+  .factor .k { font-size: 12.5px; color: var(--ink-soft); flex: 1; }
+  .factor .v { font-family: var(--mono); font-size: 12px; color: var(--ink); }
+  .factor .v.watch { color: var(--gold); } .factor .v.risk { color: var(--rose); }
+  .factor .tip { font-family: var(--mono); font-size: 9px; letter-spacing: .04em; color: var(--faint); margin-left: 4px; }
+
+  .att-feed { display: flex; flex-direction: column; }
+  .att { display: flex; align-items: flex-start; gap: 11px; padding: 10px 0; border-bottom: 1px solid var(--line-soft); }
+  .att:last-child { border-bottom: none; }
+  .att .d { width: 7px; height: 7px; border-radius: 50%; margin-top: 5px; flex-shrink: 0; background: var(--ok); }
+  .att .d.gold { background: var(--gold); } .att .d.risk { background: var(--rose); } .att .d.none { background: var(--line); }
+  .att .body { flex: 1; min-width: 0; }
+  .att .t { font-size: 12.5px; font-weight: 500; color: var(--ink); }
+  .att .m { font-family: var(--mono); font-size: 10px; color: var(--faint); margin-top: 2px; }
+  .att .badge { font-family: var(--mono); font-size: 8.5px; letter-spacing: .08em; text-transform: uppercase; padding: 3px 7px; border-radius: 5px; flex-shrink: 0; align-self: center; }
+
+  .dfoot { padding: 14px 22px; border-top: 1px solid var(--line-soft); display: flex; gap: 10px; }
+  .dfoot .save { flex: 1; font-family: var(--mono); font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--vio); background: var(--vio-bg); border: none; border-radius: 8px; padding: 10px; cursor: pointer; }
+  .dfoot .save:hover { background: var(--vio); color: var(--paper); }
+
+  footer { margin-top: 28px; padding-top: 16px; border-top: 1px solid var(--line-soft); text-align: center; font-family: var(--mono); font-size: 9.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--faint); }
+
+  @media (max-width: 560px) { .drawer { width: 100%; } }
+</style>
+</head>
+<body>
+<button class="theme-toggle" id="toggle" title="Press T">◐&nbsp; Ivory</button>
+<div class="shell">
+
+  <!-- ── Sidebar ──────────────────────────────────────── -->
+  <aside class="side">
+    <div class="wordmark">
+      <div class="product">ChaptOS</div>
+      <div class="org">Lambda Phi<br>Epsilon</div>
+    </div>
+    <nav class="nav">
+      <a href="#">Dashboard</a>
+      <a href="#">Timeline</a>
+      <a class="active" href="#">Brothers</a>
+      <a href="#">Treasury</a>
+      <a href="#">Events</a>
+      <a href="#">Instagram</a>
+      <a href="#">Chapter</a>
+      <a href="#">Settings</a>
+    </nav>
+    <div class="spacer"></div>
+    <div class="user">
+      <div class="avatar">TT</div>
+      <div class="who"><p>Thalha Thabish</p><p>Secretary</p></div>
+    </div>
+  </aside>
+
+  <!-- ── Main ─────────────────────────────────────────── -->
+  <main class="main">
+
+    <div class="pagehead">
+      <div>
+        <p class="kicker">Lambda Phi Epsilon &ensp;·&ensp; Spring Semester</p>
+        <h1>The <em>Brotherhood</em></h1>
+        <p class="summary">10 brothers active. <b>2 at risk</b> and <b>3 on watch</b> — three owe $300 in dues and four sit below the 80% attendance line.</p>
+      </div>
+      <div class="head-actions">
+        <button class="btn" title="Export CSV">
+          <svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+          Export
+        </button>
+        <button class="btn primary">
+          <svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 5v14m7-7H5"/></svg>
+          New Brother
+        </button>
+      </div>
+    </div>
+
+    <!-- ── Ledger strip ───────────────────────────────── -->
+    <section class="ledger">
+      <div class="measure">
+        <p class="k">Attendance</p>
+        <p class="v">81.2<small>%</small></p>
+        <p class="note warn">4 below 80%</p>
+      </div>
+      <div class="measure">
+        <p class="k">Chapter GPA</p>
+        <p class="v">3.31</p>
+        <p class="note">2 below 3.0</p>
+      </div>
+      <div class="measure">
+        <p class="k">Dues outstanding</p>
+        <p class="v"><small>$</small>300</p>
+        <p class="note warn">3 brothers owe</p>
+      </div>
+      <div class="measure">
+        <p class="k">Service hours</p>
+        <p class="v">105<small>h</small></p>
+        <p class="note">6 of 10 on track</p>
+      </div>
+      <div class="measure">
+        <p class="k">In good standing</p>
+        <p class="v">5<small> / 10</small></p>
+        <p class="note ok">50% of chapter</p>
+      </div>
+    </section>
+
+    <!-- ── Status distribution (interactive) ──────────── -->
+    <section class="dist">
+      <div class="dist-head">
+        <h2>Standing</h2>
+        <span class="hint">Click a band to filter</span>
+      </div>
+      <div class="seg" id="seg">
+        <button class="s-good"  data-f="Good"   style="flex:5" title="Good · 5"></button>
+        <button class="s-watch" data-f="Watch"  style="flex:3" title="Watch · 3"></button>
+        <button class="s-risk"  data-f="At Risk" style="flex:2" title="At Risk · 2"></button>
+      </div>
+      <div class="seg-legend" id="legend">
+        <button data-f="Good"><span class="dot bg-sage"></span><span class="lbl">Good</span><span class="ct">5</span></button>
+        <button data-f="Watch"><span class="dot bg-gold"></span><span class="lbl">Watch</span><span class="ct">3</span></button>
+        <button data-f="At Risk"><span class="dot bg-rose"></span><span class="lbl">At risk</span><span class="ct">2</span></button>
+      </div>
+    </section>
+
+    <!-- ── Roster ─────────────────────────────────────── -->
+    <section class="roster">
+      <div class="roster-h">
+        <h2>Roster <span class="ct" id="shown">10 shown</span></h2>
+        <div class="roster-tools">
+          <div class="filters" id="filters">
+            <button class="on" data-f="All">All 10</button>
+            <button data-f="Good">Good 5</button>
+            <button data-f="Watch">Watch 3</button>
+            <button data-f="At Risk">At risk 2</button>
+          </div>
+          <div class="search">
+            <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path stroke-linecap="round" d="M21 21l-4.3-4.3"/></svg>
+            <input id="search" placeholder="Search name or role…">
+          </div>
+        </div>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Brother</th>
+            <th class="sortable" data-s="attendance">Attendance</th>
+            <th class="num sortable" data-s="gpa">GPA</th>
+            <th class="num sortable" data-s="serviceHours">Service</th>
+            <th class="num sortable" data-s="duesOwed">Dues</th>
+            <th class="num">Status</th>
+          </tr>
+        </thead>
+        <tbody id="rows"></tbody>
+      </table>
+      <div class="table-foot" id="foot">10 brothers · 5 good · 3 watch · 2 at risk&ensp;—&ensp;click a row for profile, dues &amp; service log</div>
+    </section>
+
+    <footer>Lambda Phi Epsilon · ChaptOS — Brotherhood redesign mock · seeded chapter data · Jun 14, 2026</footer>
+  </main>
+</div>
+
+<!-- ── Drawer ─────────────────────────────────────────── -->
+<div class="scrim closed" id="scrim"></div>
+<aside class="drawer closed" id="drawer">
+  <div class="dh">
+    <div class="avatar" id="dAvatar">NB</div>
+    <div class="who"><h2 id="dName">—</h2><p id="dRole">—</p></div>
+    <button class="x" id="dClose" title="Close (Esc)"><svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg></button>
+  </div>
+  <div class="dtabs" id="dtabs">
+    <button class="on" data-t="profile">Profile</button>
+    <button data-t="attendance">Attendance</button>
+  </div>
+  <div class="dbody" id="dbody"></div>
+  <div class="dfoot"><button class="save">Save Changes</button></div>
+</aside>
+
+<script>
+  /* ── Real seeded chapter data (app/data.ts) ─────────── */
+  const TH = { attWatch: 80, attRisk: 70, gpaWatch: 3.0, gpaRisk: 2.7, svcGoal: 10 };
+  const brothers = [
+    { id: 1,  name: "Arijit Das",        role: "VP External · PD",                     att: 78, dues: 0,   gpa: 3.4, svc: 8  },
+    { id: 2,  name: "Bryan Lee",          role: "President · Rush · Banquet",           att: 95, dues: 0,   gpa: 3.7, svc: 15 },
+    { id: 3,  name: "Issac Chong",        role: "Treasurer · Banquet · Social",         att: 88, dues: 0,   gpa: 3.5, svc: 12 },
+    { id: 4,  name: "Noah Kim",           role: "VP Internal · Social",                 att: 82, dues: 75,  gpa: 3.2, svc: 10 },
+    { id: 5,  name: "Jacob Hwang",        role: "Programming · Alumni",                 att: 68, dues: 0,   gpa: 2.8, svc: 5  },
+    { id: 6,  name: "Nathaniel Baccarey", role: "Stroll · Rush",                        att: 58, dues: 150, gpa: 2.6, svc: 3  },
+    { id: 7,  name: "Dariel Milfort",     role: "PR · Community Service",               att: 92, dues: 0,   gpa: 3.6, svc: 20 },
+    { id: 8,  name: "Rinchen Sherpalama", role: "Academic · Programming · Fundraising", att: 87, dues: 0,   gpa: 3.9, svc: 14 },
+    { id: 9,  name: "Elvin De La Cruz",   role: "Brotherhood · Fundraising",            att: 74, dues: 75,  gpa: 3.1, svc: 7  },
+    { id: 10, name: "Thalha Thabish",     role: "Secretary · Social · PR · Rush",       att: 90, dues: 0,   gpa: 3.3, svc: 11 },
+  ];
+
+  // Mandatory event history (sample — mirrors the drawer's attendance tab shape)
+  const HISTORY = {
+    6: [
+      { t: "Chapter Meeting",        d: "06/09", state: "Absent",   tone: "risk" },
+      { t: "IFC Community Service",  d: "05/30", state: "Excused",  tone: "gold" },
+      { t: "Chapter Meeting",        d: "05/26", state: "Attended", tone: "ok"   },
+      { t: "Spring Formal Setup",    d: "04/26", state: "Absent",   tone: "risk" },
+      { t: "Chapter Meeting",        d: "04/12", state: "Absent",   tone: "risk" },
+    ],
+  };
+
+  const status = b =>
+    (b.att < TH.attRisk || b.gpa < TH.gpaRisk) ? "At Risk" :
+    (b.att < TH.attWatch || b.gpa < TH.gpaWatch || b.dues > 0 || b.svc < TH.svcGoal) ? "Watch" : "Good";
+  const TAG = { "Good": ["st-good","GOOD"], "Watch": ["st-watch","WATCH"], "At Risk": ["st-risk","AT RISK"] };
+  const initials = n => n.split(" ").map(w => w[0]).slice(0,2).join("");
+  const fmt$ = n => "$" + n.toLocaleString();
+
+  /* ── State ──────────────────────────────────────────── */
+  let filter = "All", query = "", sortKey = null, sortDir = "asc", selId = null;
+
+  /* ── Render roster ──────────────────────────────────── */
+  const rowsEl = document.getElementById("rows");
+  function visible() {
+    let list = brothers.filter(b => {
+      const okF = filter === "All" || status(b) === filter;
+      const q = query.toLowerCase();
+      const okQ = !q || b.name.toLowerCase().includes(q) || b.role.toLowerCase().includes(q);
+      return okF && okQ;
+    });
+    if (sortKey) list = [...list].sort((a,b) => (a[sortKey]-b[sortKey]) * (sortDir==="asc"?1:-1));
+    return list;
+  }
+  function render() {
+    const list = visible();
+    rowsEl.innerHTML = list.map(b => {
+      const st = status(b);
+      const [cls,label] = TAG[st];
+      const attCls = b.att >= TH.attWatch ? "sage" : b.att >= TH.attRisk ? "gold" : "rose";
+      const attBar = b.att >= TH.attWatch ? "bg-sage" : b.att >= TH.attRisk ? "bg-gold" : "bg-rose";
+      const gpaCls = b.gpa < TH.gpaRisk ? "rose" : b.gpa < TH.gpaWatch ? "gold" : "";
+      const svcCls = b.svc < TH.svcGoal ? "gold" : "muted";
+      return `<tr data-id="${b.id}" class="${selId===b.id?'sel':''}">
+        <td>
+          <div class="b-name">
+            <span class="avatar">${initials(b.name)}</span>
+            <div><div class="nm">${b.name}</div><div class="rl">${b.role}</div></div>
+          </div>
+        </td>
+        <td><div class="attb"><span class="track"><i class="${attBar}" style="width:${b.att}%"></i></span><span class="${attCls}">${b.att}%</span></div></td>
+        <td class="num"><span class="mono ${gpaCls}">${b.gpa.toFixed(2)}</span></td>
+        <td class="num"><span class="mono ${svcCls}">${b.svc}h</span></td>
+        <td class="num">${ b.dues>0
+            ? `<span class="mono gold">${fmt$(b.dues)}</span><button class="pay" data-pay="${b.id}">Pay</button>`
+            : `<span class="mono muted">—</span>` }</td>
+        <td class="num"><span class="status-tag ${cls}">${label}</span></td>
+      </tr>`;
+    }).join("");
+    document.getElementById("shown").textContent = list.length + " shown";
+    const c = { Good:0, Watch:0, "At Risk":0 };
+    brothers.forEach(b => c[status(b)]++);
+    document.getElementById("foot").innerHTML =
+      `${list.length} of ${brothers.length} brothers · ${c.Good} good · ${c.Watch} watch · ${c["At Risk"]} at risk&ensp;—&ensp;click a row for profile, dues &amp; service log`;
+    // sort arrows
+    document.querySelectorAll("thead th.sortable").forEach(th => {
+      const base = th.dataset.s.replace("serviceHours","Service").replace("duesOwed","Dues").replace("attendance","Attendance").replace("gpa","GPA");
+      th.innerHTML = th.dataset.s===sortKey ? `${base} <span class="arrow">${sortDir==="asc"?"↑":"↓"}</span>` : base;
+    });
+  }
+
+  /* ── Interactions ───────────────────────────────────── */
+  function setFilter(f) {
+    filter = f;
+    document.querySelectorAll("#filters button").forEach(b => b.classList.toggle("on", b.dataset.f===f));
+    document.querySelectorAll("#seg button").forEach(b => b.classList.toggle("dim", f!=="All" && b.dataset.f!==f));
+    document.querySelectorAll("#legend button").forEach(b => b.classList.toggle("active", b.dataset.f===f));
+    render();
+  }
+  document.querySelectorAll("#filters button").forEach(b => b.onclick = () => setFilter(b.dataset.f));
+  document.querySelectorAll("#seg button, #legend button").forEach(b =>
+    b.onclick = () => setFilter(filter===b.dataset.f ? "All" : b.dataset.f));
+  document.getElementById("search").oninput = e => { query = e.target.value; render(); };
+  document.querySelectorAll("thead th.sortable").forEach(th => th.onclick = () => {
+    if (sortKey===th.dataset.s) sortDir = sortDir==="asc"?"desc":"asc";
+    else { sortKey = th.dataset.s; sortDir = "asc"; }
+    render();
+  });
+  rowsEl.onclick = e => {
+    const pay = e.target.closest("[data-pay]");
+    if (pay) { e.stopPropagation(); const b = brothers.find(x=>x.id==pay.dataset.pay); b.dues = 0; render(); openDrawer(b.id); return; }
+    const tr = e.target.closest("tr"); if (!tr) return;
+    openDrawer(+tr.dataset.id);
+  };
+
+  /* ── Drawer ─────────────────────────────────────────── */
+  const scrim = document.getElementById("scrim"), drawer = document.getElementById("drawer");
+  let dTab = "profile";
+  function openDrawer(id) { selId = id; renderDrawer(); scrim.classList.remove("closed"); drawer.classList.remove("closed"); render(); }
+  function closeDrawer() { selId = null; scrim.classList.add("closed"); drawer.classList.add("closed"); render(); }
+  document.getElementById("dClose").onclick = closeDrawer;
+  scrim.onclick = closeDrawer;
+  document.addEventListener("keydown", e => { if (e.key==="Escape") closeDrawer(); });
+  document.querySelectorAll("#dtabs button").forEach(b => b.onclick = () => {
+    dTab = b.dataset.t;
+    document.querySelectorAll("#dtabs button").forEach(x => x.classList.toggle("on", x.dataset.t===dTab));
+    renderDrawerBody();
+  });
+
+  function renderDrawer() {
+    const b = brothers.find(x => x.id===selId); if (!b) return;
+    const st = status(b);
+    document.getElementById("dName").textContent = b.name;
+    document.getElementById("dRole").textContent = b.role;
+    const av = document.getElementById("dAvatar");
+    av.textContent = initials(b.name);
+    av.className = "avatar" + (st==="At Risk" ? " ring-risk" : st==="Watch" ? " ring-watch" : "");
+    dTab = "profile";
+    document.querySelectorAll("#dtabs button").forEach(x => x.classList.toggle("on", x.dataset.t==="profile"));
+    renderDrawerBody();
+  }
+  function renderDrawerBody() {
+    const b = brothers.find(x => x.id===selId); if (!b) return;
+    const body = document.getElementById("dbody");
+    if (dTab === "profile") {
+      const attTone = b.att < TH.attRisk ? "rose" : b.att < TH.attWatch ? "gold" : "";
+      const gpaTone = b.gpa < TH.gpaRisk ? "rose" : b.gpa < TH.gpaWatch ? "gold" : "";
+      const gpaW = Math.min(100, Math.max(5, ((b.gpa-2.0)/2.0)*100));
+      const factors = [
+        ["Attendance", b.att+"%",  b.att>=TH.attWatch, b.att>=TH.attRisk && b.att<TH.attWatch, "Goal ≥ 80%"],
+        ["GPA",        b.gpa.toFixed(2), b.gpa>=TH.gpaWatch, b.gpa>=TH.gpaRisk && b.gpa<TH.gpaWatch, "Goal ≥ 3.0"],
+        ["Dues",       b.dues===0?"Paid":fmt$(b.dues), b.dues===0, false, "Must be $0"],
+        ["Service",    b.svc+"h",  b.svc>=TH.svcGoal, false, "Goal 10h"],
+      ];
+      body.innerHTML = `
+        <div class="tiles">
+          <div class="tile ${attTone==='rose'?'risk':attTone==='gold'?'warn':''}">
+            <p class="l">Attendance</p><p class="n ${attTone}">${b.att}%</p>
+            <div class="tt"><i class="${attTone}" style="width:${b.att}%"></i></div>
+          </div>
+          <div class="tile ${gpaTone==='rose'?'risk':gpaTone==='gold'?'warn':''}">
+            <p class="l">GPA</p><p class="n ${gpaTone}">${b.gpa.toFixed(2)}</p>
+            <div class="tt"><i class="${gpaTone}" style="width:${gpaW}%"></i></div>
+          </div>
+          <div class="tile ${b.dues>0?'warn':''}">
+            <p class="l">Dues Owed</p><p class="n ${b.dues>0?'gold':'ok'}">${b.dues>0?fmt$(b.dues):'Clear'}</p>
+            ${b.dues>0?`<button class="act" data-paytile="${b.id}">Mark Paid</button>`:''}
+          </div>
+          <div class="tile ${b.svc<TH.svcGoal?'warn':''}">
+            <p class="l">Service Hours</p><p class="n ${b.svc<TH.svcGoal?'gold':'ok'}">${b.svc}<small> / 10h</small></p>
+            <div class="miniform"><input placeholder="hrs" inputmode="decimal"><button>+</button></div>
+          </div>
+        </div>
+        <p class="dlabel gap">Status Factors</p>
+        <div class="panel">
+          ${factors.map(([k,v,ok,warn,tip]) => {
+            const tone = ok ? "" : warn ? "watch" : "risk";
+            return `<div class="factor">
+              <span class="d ${tone}"></span>
+              <span class="k">${k}</span>
+              <span class="v ${tone}">${v}</span>
+              ${ok?"":`<span class="tip">${tip}</span>`}
+            </div>`;
+          }).join("")}
+        </div>`;
+      const pt = body.querySelector("[data-paytile]");
+      if (pt) pt.onclick = () => { b.dues = 0; renderDrawerBody(); render(); };
+    } else {
+      const hist = HISTORY[b.id] || [
+        { t:"Chapter Meeting", d:"06/09", state:"Attended", tone:"ok" },
+        { t:"IFC Community Service", d:"05/30", state:"Attended", tone:"ok" },
+        { t:"Chapter Meeting", d:"05/26", state:"Attended", tone:"ok" },
+      ];
+      const badgeStyle = t => t==="risk" ? "color:var(--rose);background:var(--rose-bg)"
+        : t==="gold" ? "color:var(--gold);background:var(--gold-bg)" : "color:var(--ok);background:var(--ok-bg)";
+      body.innerHTML = `
+        <p class="dlabel">Mandatory Event History — Spring</p>
+        <div class="att-feed">
+          ${hist.map(h => `<div class="att">
+            <span class="d ${h.tone}"></span>
+            <div class="body"><p class="t">${h.t}</p><p class="m">${h.d}</p></div>
+            <span class="badge" style="${badgeStyle(h.tone)}">${h.state}</span>
+          </div>`).join("")}
+        </div>`;
+    }
+  }
+
+  render();
+  // URL params let static screenshot tools capture specific states:
+  //   ?open=<id>  open a member's drawer   ·   ?open=none  leave it closed
+  // Default (no param): open the at-risk member so the drawer reads as the centerpiece.
+  const params = new URLSearchParams(location.search);
+  const openParam = params.get("open");
+  if (openParam === "none") { /* leave closed */ }
+  else openDrawer(openParam ? +openParam : 6);
+
+  /* ── Theme toggle ───────────────────────────────────── */
+  const root = document.documentElement, btn = document.getElementById("toggle");
+  function setTheme(t) {
+    root.dataset.theme = t;
+    btn.innerHTML = t === "dusk" ? "◐&nbsp; Ivory" : "◑&nbsp; Dusk";
+    try { localStorage.setItem("chaptos-mock-theme", t); } catch {}
+  }
+  btn.onclick = () => setTheme(root.dataset.theme === "dusk" ? "ivory" : "dusk");
+  document.addEventListener("keydown", e => { if (e.key.toLowerCase()==="t" && !e.metaKey && !e.ctrlKey) btn.click(); });
+  if (params.get("theme") === "ivory") setTheme("ivory");
+  else { try { if (localStorage.getItem("chaptos-mock-theme")==="ivory") setTheme("ivory"); } catch {} }
+</script>
+</body>
+</html>

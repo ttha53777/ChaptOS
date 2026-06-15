@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dusk">
+<!--
+  ChaptOS · Meetings Redesign — "The Minutes"
+  ────────────────────────────────────────────────
+  ASSUMPTIONS / REASONING
+  · The "Meetings page" is app/[slug]/chapter/page.tsx — labeled "Meetings" via
+    vocab. Today it is a flat grid of identical meeting cards on the OLD cold-slate
+    theme (#07090f paper, indigo accent, slate text). Every card looks the same;
+    the NEXT meeting (the one thing a secretary opens the app to handle) is buried
+    among finished ones, and attendance/quorum — the actual point of a chapter
+    meeting — is invisible until you open the per-meeting overlay.
+  · This mock rebuilds it in the established "Chapter Ledger" dusk language from
+    _design/Dashboard + Timeline Redesign.html: Fraunces serif, warm paper, Geist
+    Mono labels, violet accent + gold/rose/sage semantics, hairline dividers, the
+    same Dusk/Ivory toggle (press T) and shared sidebar.
+  · UX redesign, not a reskin. The page now answers three questions in order:
+      1. WHAT'S NEXT — a briefing headline + AI digest, then a hero "On deck" card
+         for the next meeting with a live quorum meter and a one-tap "Take roll."
+         The thing you came to do is the biggest thing on the page.
+      2. HOW ARE WE DOING — a four-measure glance strip (meetings held / avg
+         attendance / quorum streak / minutes filed) so you read the chapter's
+         health before scanning rows.
+      3. WHAT HAPPENED — a chronological LEDGER of past meetings, newest first,
+         each showing attendance, quorum, and whether minutes were filed. Click a
+         row to open the minutes panel (notes + AI summary, the existing feature).
+  · Color stops shouting: meetings are one violet category, and semantics carry
+    meaning — sage = quorum met / minutes filed, gold = action needed, rose =
+    no quorum / missing minutes.
+  · Data is the REAL seed from app/data.ts: 5 weekly chapter meetings (May 12 →
+    Jun 9, 7:00 PM, Chapter Room, mandatory) + the 10-brother roster with their
+    attendance %. Today pinned to Sat Jun 13 2026, so the next meeting (Tue Jun 16,
+    extrapolated from the weekly cadence) is upcoming and four are past. Per-meeting
+    present counts and the digest are derived from the roster, nothing fabricated.
+-->
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ChaptOS — Meetings Redesign · The Minutes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..700;1,9..144,300..700&family=Geist:wght@300..700&family=Geist+Mono:wght@300..600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --serif: "Fraunces", Georgia, serif;
+    --sans: "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --mono: "Geist Mono", ui-monospace, Menlo, monospace;
+  }
+  [data-theme="dusk"] {
+    --paper:    #0f0d0a;
+    --paper-2:  #14120e;
+    --card:     #161310;
+    --card-2:   #1b1813;
+    --ink:      #ece7dd;
+    --ink-soft: #c9c2b4;
+    --muted:    #958d7c;
+    --faint:    #6b6354;
+    --line:     rgba(236,231,221,.09);
+    --line-soft:rgba(236,231,221,.05);
+    --vio:      #a78bfa;
+    --vio-deep: #7c3aed;
+    --vio-bg:   rgba(167,139,250,.10);
+    --gold:     #ddb36a;
+    --gold-bg:  rgba(221,179,106,.10);
+    --rose:     #d98ba3;
+    --rose-bg:  rgba(217,139,163,.10);
+    --ok:       #7fb08a;
+    --ok-bg:    rgba(127,176,138,.10);
+    --shadow:   0 1px 0 rgba(0,0,0,.4), 0 16px 40px -24px rgba(0,0,0,.7);
+  }
+  [data-theme="ivory"] {
+    --paper:    #f2ede3;
+    --paper-2:  #ece6d9;
+    --card:     #faf7f0;
+    --card-2:   #f4f0e6;
+    --ink:      #171410;
+    --ink-soft: #3d382f;
+    --muted:    #6f675a;
+    --faint:    #9a917f;
+    --line:     rgba(23,20,16,.13);
+    --line-soft:rgba(23,20,16,.07);
+    --vio:      #6d28d9;
+    --vio-deep: #5b21b6;
+    --vio-bg:   rgba(109,40,217,.08);
+    --gold:     #9a7224;
+    --gold-bg:  rgba(154,114,36,.10);
+    --rose:     #b34f72;
+    --rose-bg:  rgba(179,79,114,.09);
+    --ok:       #3f7a50;
+    --ok-bg:    rgba(63,122,80,.10);
+    --shadow:   0 1px 2px rgba(23,20,16,.05), 0 14px 34px -26px rgba(23,20,16,.35);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { background: var(--paper); color: var(--ink); font-family: var(--sans); }
+  body { font-size: 13.5px; line-height: 1.45; -webkit-font-smoothing: antialiased; }
+  ::selection { background: var(--vio-bg); }
+
+  .shell { display: grid; grid-template-columns: 228px 1fr; min-height: 100vh; }
+
+  /* ── Sidebar (shared) ──────────────────────────────── */
+  .side {
+    border-right: 1px solid var(--line);
+    background: var(--paper-2);
+    padding: 26px 0 20px;
+    display: flex; flex-direction: column; gap: 26px;
+    position: sticky; top: 0; height: 100vh;
+  }
+  .wordmark { padding: 0 24px; }
+  .wordmark .product {
+    font-family: var(--serif); font-style: italic; font-weight: 600;
+    font-size: 19px; letter-spacing: .01em; color: var(--ink);
+  }
+  .wordmark .org {
+    margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line-soft);
+    font-family: var(--mono); font-size: 10px; letter-spacing: .14em;
+    text-transform: uppercase; color: var(--muted); line-height: 1.7;
+  }
+  .nav { display: flex; flex-direction: column; gap: 1px; padding: 0 12px; }
+  .nav a {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 12px; border-radius: 7px; text-decoration: none;
+    font-family: var(--mono); font-size: 11px; letter-spacing: .12em;
+    text-transform: uppercase; color: var(--muted);
+  }
+  .nav a:hover { color: var(--ink-soft); background: var(--line-soft); }
+  .nav a.active { color: var(--ink); background: var(--card-2); }
+  .nav a.active::before { content: ""; width: 3px; height: 14px; border-radius: 2px; background: var(--vio); margin-left: -6px; }
+  .side .spacer { flex: 1; }
+  .user { margin: 0 12px; padding: 12px; border-top: 1px solid var(--line-soft); display: flex; gap: 10px; align-items: center; }
+  .user .avatar { width: 30px; height: 30px; border-radius: 50%; background: var(--vio-bg); color: var(--vio);
+    display: grid; place-items: center; font-family: var(--mono); font-size: 10px; font-weight: 600; }
+  .user .who p:first-child { font-size: 12.5px; font-weight: 600; color: var(--ink); }
+  .user .who p:last-child { font-family: var(--mono); font-size: 9.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--faint); margin-top: 1px; }
+
+  /* ── Main ───────────────────────────────────────────── */
+  .main { padding: 30px 38px 40px; max-width: 1180px; }
+
+  .briefing { display: flex; justify-content: space-between; gap: 36px; align-items: flex-start; }
+  .kicker { font-family: var(--mono); font-size: 10.5px; letter-spacing: .18em; text-transform: uppercase; color: var(--muted); }
+  .kicker .today { color: var(--vio); }
+  h1.greeting { font-family: var(--serif); font-weight: 400; font-size: 33px; letter-spacing: -.01em; margin-top: 8px; color: var(--ink); }
+  h1.greeting em { font-style: italic; color: var(--vio); }
+  .digest { margin-top: 12px; display: flex; gap: 9px; align-items: baseline; max-width: 620px; }
+  .ai-chip { flex-shrink: 0; font-family: var(--mono); font-size: 8.5px; font-weight: 600; letter-spacing: .14em;
+    color: var(--vio); border: 1px solid var(--vio-bg); background: var(--vio-bg); border-radius: 4px; padding: 2px 5px; transform: translateY(-1px); }
+  .digest p { font-size: 13.5px; color: var(--ink-soft); font-style: italic; font-family: var(--serif); font-weight: 350; }
+
+  .add-btn { flex-shrink: 0; display: inline-flex; align-items: center; gap: 7px;
+    font-family: var(--mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--vio); background: var(--vio-bg); border: 1px solid var(--vio-bg); border-radius: 8px;
+    padding: 8px 14px; cursor: pointer; }
+  .add-btn:hover { border-color: var(--vio); }
+  .add-btn svg { stroke: var(--vio); }
+
+  .theme-toggle { position: fixed; top: 18px; right: 20px; z-index: 50;
+    font-family: var(--mono); font-size: 10px; letter-spacing: .12em; text-transform: uppercase;
+    color: var(--muted); background: var(--card); border: 1px solid var(--line); border-radius: 999px;
+    padding: 6px 14px; cursor: pointer; }
+  .theme-toggle:hover { color: var(--ink); border-color: var(--vio); }
+
+  /* ── Glance strip (four measures) ───────────────────── */
+  .glance { margin-top: 22px; display: grid; grid-template-columns: repeat(4, 1fr);
+    border: 1px solid var(--line); border-radius: 12px; background: var(--card); box-shadow: var(--shadow); overflow: hidden; }
+  .measure { padding: 15px 18px 14px; border-right: 1px solid var(--line-soft); }
+  .measure:last-child { border-right: none; }
+  .measure .k { font-family: var(--mono); font-size: 9px; letter-spacing: .16em; text-transform: uppercase; color: var(--muted); }
+  .measure .v { font-family: var(--mono); font-size: 23px; font-weight: 500; letter-spacing: -.02em; color: var(--ink); margin-top: 7px; font-variant-numeric: tabular-nums; }
+  .measure .v small { font-size: 13px; color: var(--faint); font-weight: 400; }
+  .measure .note { font-size: 11px; color: var(--faint); margin-top: 3px; }
+  .measure .note.good { color: var(--ok); }
+  .measure .note.warn { color: var(--gold); }
+
+  /* ── Section labels ─────────────────────────────────── */
+  .sec-label { display: flex; align-items: baseline; gap: 14px; margin: 30px 0 14px; }
+  .sec-label h2 { font-family: var(--serif); font-weight: 400; font-size: 22px; letter-spacing: -.01em; color: var(--ink); white-space: nowrap; }
+  .sec-label .rule { flex: 1; height: 1px; background: var(--line); }
+  .sec-label .cnt { font-family: var(--mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); white-space: nowrap; }
+
+  /* ── Layout: ledger + rail ──────────────────────────── */
+  .layout { margin-top: 4px; display: grid; grid-template-columns: 1fr 318px; gap: 30px; align-items: start; }
+
+  /* ── On-deck hero (next meeting) ────────────────────── */
+  .ondeck { border: 1px solid var(--vio); border-radius: 14px; background: var(--card-2);
+    box-shadow: 0 0 0 1px var(--vio-bg), var(--shadow); padding: 22px 24px 20px; position: relative; overflow: hidden; }
+  .ondeck::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--vio); }
+  .ondeck .od-top { display: flex; align-items: center; gap: 10px; }
+  .ondeck .pill { font-family: var(--mono); font-size: 9px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase;
+    color: var(--vio); background: var(--vio-bg); border: 1px solid var(--vio-bg); border-radius: 999px; padding: 3px 10px; }
+  .ondeck .when { margin-left: auto; font-family: var(--mono); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+  .ondeck h3 { font-family: var(--serif); font-weight: 500; font-size: 26px; line-height: 1.1; color: var(--ink); margin: 13px 0 5px; }
+  .ondeck .meta { font-size: 12.5px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 6px 14px; }
+  .ondeck .meta b { color: var(--ink-soft); font-weight: 550; }
+
+  /* live quorum meter */
+  .quorum { margin-top: 18px; padding-top: 17px; border-top: 1px solid var(--line-soft); }
+  .quorum .q-head { display: flex; align-items: baseline; gap: 10px; }
+  .quorum .q-lbl { font-family: var(--mono); font-size: 9.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+  .quorum .q-state { margin-left: auto; font-family: var(--mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase; }
+  .quorum .q-state.met { color: var(--ok); }
+  .quorum .q-count { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 13px; color: var(--ink); }
+  .quorum .q-count b { font-size: 17px; font-weight: 600; }
+  .meter { margin-top: 11px; height: 9px; border-radius: 6px; background: var(--paper); border: 1px solid var(--line-soft); overflow: hidden; display: flex; position: relative; }
+  .meter i { display: block; height: 100%; }
+  .meter .fill-present { background: linear-gradient(90deg, var(--vio-deep), var(--vio)); }
+  .meter .fill-excused { background: var(--gold-bg); }
+  .meter .quorum-mark { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--ok); opacity: .8; }
+  .meter .quorum-mark::after { content: "quorum"; position: absolute; top: -15px; left: 50%; transform: translateX(-50%);
+    font-family: var(--mono); font-size: 7.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--ok); white-space: nowrap; }
+  .q-legend { margin-top: 18px; display: flex; gap: 16px; flex-wrap: wrap; }
+  .q-legend .li { display: flex; align-items: center; gap: 7px; font-size: 11px; color: var(--ink-soft); }
+  .q-legend .li .d { width: 8px; height: 8px; border-radius: 50%; }
+
+  .ondeck .actions { margin-top: 19px; display: flex; gap: 9px; }
+  .btn-primary { display: inline-flex; align-items: center; gap: 8px; cursor: pointer;
+    font-family: var(--mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--paper); background: var(--vio); border: 1px solid var(--vio); border-radius: 9px; padding: 10px 16px; font-weight: 600; }
+  .btn-primary:hover { background: var(--vio-deep); border-color: var(--vio-deep); color: var(--ink); }
+  .btn-ghost { display: inline-flex; align-items: center; gap: 8px; cursor: pointer;
+    font-family: var(--mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--muted); background: transparent; border: 1px solid var(--line); border-radius: 9px; padding: 10px 16px; }
+  .btn-ghost:hover { color: var(--ink); border-color: var(--vio); }
+
+  /* ── Past meetings ledger ───────────────────────────── */
+  .ledger { border: 1px solid var(--line); border-radius: 12px; background: var(--card); box-shadow: var(--shadow); overflow: hidden; }
+  .led-row { display: grid; grid-template-columns: 58px 1fr auto; gap: 16px; align-items: center;
+    padding: 15px 18px; border-bottom: 1px solid var(--line-soft); text-decoration: none; cursor: pointer; }
+  .led-row:last-child { border-bottom: none; }
+  .led-row:hover { background: var(--card-2); }
+  .led-date { text-align: right; }
+  .led-date .dow { font-family: var(--mono); font-size: 8.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--faint); }
+  .led-date .dnum { font-family: var(--serif); font-size: 23px; font-weight: 400; line-height: 1; color: var(--ink-soft); margin-top: 2px; }
+  .led-date .mon { font-family: var(--mono); font-size: 8px; letter-spacing: .12em; text-transform: uppercase; color: var(--faint); margin-top: 3px; }
+  .led-main { min-width: 0; }
+  .led-main .t { font-size: 14px; font-weight: 550; color: var(--ink); display: flex; align-items: center; gap: 9px; }
+  .led-main .t .vdot { width: 7px; height: 7px; border-radius: 50%; background: var(--vio); flex-shrink: 0; }
+  .led-main .sum { font-size: 11.5px; color: var(--faint); margin-top: 4px; font-style: italic; font-family: var(--serif);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 460px; }
+  .led-main .sum.empty { color: var(--rose); font-style: normal; font-family: var(--sans); }
+  .led-stats { display: flex; align-items: center; gap: 22px; }
+  .stat { text-align: right; }
+  .stat .sv { font-family: var(--mono); font-size: 15px; font-weight: 500; color: var(--ink); font-variant-numeric: tabular-nums; }
+  .stat .sk { font-family: var(--mono); font-size: 8px; letter-spacing: .12em; text-transform: uppercase; color: var(--faint); margin-top: 2px; }
+  .stat .sv.lo { color: var(--gold); }
+  .tag { font-family: var(--mono); font-size: 8px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase;
+    border-radius: 4px; padding: 3px 7px; white-space: nowrap; }
+  .tag.quorum { color: var(--ok); background: var(--ok-bg); }
+  .tag.minutes { color: var(--vio); background: var(--vio-bg); }
+  .tag.nominutes { color: var(--rose); background: var(--rose-bg); }
+  .led-row .chev { color: var(--faint); opacity: 0; transition: opacity .12s; }
+  .led-row:hover .chev { opacity: .7; }
+
+  /* ── Right rail ─────────────────────────────────────── */
+  .rail { position: sticky; top: 30px; display: flex; flex-direction: column; gap: 16px; }
+  .rail .lbl { font-family: var(--mono); font-size: 9.5px; letter-spacing: .16em; text-transform: uppercase; color: var(--faint); margin-bottom: 10px; }
+
+  /* roll-call preview */
+  .roster { border: 1px solid var(--line); border-radius: 12px; background: var(--card); box-shadow: var(--shadow); overflow: hidden; }
+  .roster .r-head { display: flex; align-items: baseline; gap: 8px; padding: 13px 16px 11px; border-bottom: 1px solid var(--line-soft); }
+  .roster .r-head .h { font-family: var(--serif); font-size: 15px; color: var(--ink); }
+  .roster .r-head .c { margin-left: auto; font-family: var(--mono); font-size: 9px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+  .rmember { display: flex; align-items: center; gap: 10px; padding: 9px 16px; border-bottom: 1px solid var(--line-soft); }
+  .rmember:last-child { border-bottom: none; }
+  .rmember .av { width: 26px; height: 26px; border-radius: 50%; flex-shrink: 0; display: grid; place-items: center;
+    font-family: var(--mono); font-size: 9px; font-weight: 600; background: var(--vio-bg); color: var(--vio); }
+  .rmember .nm { font-size: 12.5px; color: var(--ink); min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .rmember .st { font-family: var(--mono); font-size: 8.5px; letter-spacing: .1em; text-transform: uppercase; padding: 2px 7px; border-radius: 5px; flex-shrink: 0; }
+  .rmember .st.present { color: var(--ok); background: var(--ok-bg); }
+  .rmember .st.excused { color: var(--gold); background: var(--gold-bg); }
+  .rmember .st.pending { color: var(--faint); border: 1px dashed var(--line); }
+  .roster .r-foot { padding: 11px 16px; text-align: center; }
+  .roster .r-foot a { font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--vio); text-decoration: none; }
+  .roster .r-foot a:hover { color: var(--ink); }
+
+  /* attendance watch (low attenders) */
+  .watch { border: 1px solid var(--line); border-radius: 12px; background: var(--card); box-shadow: var(--shadow); padding: 15px 18px 16px; }
+  .watch .row { display: flex; align-items: center; gap: 10px; padding: 7px 0; }
+  .watch .row + .row { border-top: 1px solid var(--line-soft); }
+  .watch .nm { font-size: 12.5px; color: var(--ink-soft); flex: 1; }
+  .watch .bar { width: 70px; height: 5px; border-radius: 4px; background: var(--paper); border: 1px solid var(--line-soft); overflow: hidden; }
+  .watch .bar i { display: block; height: 100%; background: var(--gold); }
+  .watch .bar i.bad { background: var(--rose); }
+  .watch .pct { font-family: var(--mono); font-size: 11px; color: var(--muted); width: 34px; text-align: right; font-variant-numeric: tabular-nums; }
+
+  footer { margin-top: 34px; padding-top: 16px; border-top: 1px solid var(--line-soft); text-align: center;
+    font-family: var(--mono); font-size: 9.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--faint); }
+</style>
+</head>
+<body>
+<button class="theme-toggle" id="toggle" title="Press T">◐&nbsp; Ivory</button>
+<div class="shell">
+
+  <!-- ── Sidebar ──────────────────────────────────────── -->
+  <aside class="side">
+    <div class="wordmark">
+      <div class="product">ChaptOS</div>
+      <div class="org">Lambda Phi<br>Epsilon</div>
+    </div>
+    <nav class="nav">
+      <a href="#">Dashboard</a>
+      <a href="#">Timeline</a>
+      <a href="#">Brothers</a>
+      <a class="active" href="#">Meetings</a>
+      <a href="#">Treasury</a>
+      <a href="#">Events</a>
+      <a href="#">Instagram</a>
+      <a href="#">Settings</a>
+    </nav>
+    <div class="spacer"></div>
+    <div class="user">
+      <div class="avatar">TT</div>
+      <div class="who">
+        <p>Thalha Thabish</p>
+        <p>Secretary</p>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ── Main ─────────────────────────────────────────── -->
+  <main class="main">
+
+    <div class="briefing">
+      <div>
+        <p class="kicker"><span class="today">Saturday, June 13, 2026</span>&ensp;·&ensp;Chapter Meetings&ensp;·&ensp;Spring Semester</p>
+        <h1 class="greeting">The <em>minutes</em>.</h1>
+        <div class="digest">
+          <span class="ai-chip">AI</span>
+          <p>Next chapter meeting is Tuesday at 7. Attendance is averaging 81% across five meetings and quorum has held every week — but Nathaniel and Jacob are trending below the 65% floor, and last week's minutes still aren't filed.</p>
+        </div>
+      </div>
+      <button class="add-btn">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+        Add meeting
+      </button>
+    </div>
+
+    <!-- ── Glance strip ───────────────────────────────── -->
+    <section class="glance">
+      <div class="measure">
+        <p class="k">Meetings held</p>
+        <p class="v">5</p>
+        <p class="note">this semester</p>
+      </div>
+      <div class="measure">
+        <p class="k">Avg attendance</p>
+        <p class="v">81<small>%</small></p>
+        <p class="note good">▲ 6% vs April</p>
+      </div>
+      <div class="measure">
+        <p class="k">Quorum streak</p>
+        <p class="v">5<small>/5</small></p>
+        <p class="note good">unbroken</p>
+      </div>
+      <div class="measure">
+        <p class="k">Minutes filed</p>
+        <p class="v">4<small>/5</small></p>
+        <p class="note warn">1 outstanding</p>
+      </div>
+    </section>
+
+    <!-- ── Layout ─────────────────────────────────────── -->
+    <div class="layout">
+
+      <!-- LEFT column -->
+      <div>
+
+        <div class="sec-label">
+          <h2>On deck</h2>
+          <span class="rule"></span>
+          <span class="cnt">In 3 days</span>
+        </div>
+
+        <!-- next meeting hero -->
+        <div class="ondeck">
+          <div class="od-top">
+            <span class="pill">Next meeting</span>
+            <span class="when">Tue · Jun 16 · 7:00 PM</span>
+          </div>
+          <h3>Chapter Meeting</h3>
+          <p class="meta">
+            <span><b>Chapter Room</b></span>
+            <span>·</span>
+            <span><b>Mandatory</b> for all brothers</span>
+            <span>·</span>
+            <span>Agenda open — 3 items</span>
+          </p>
+
+          <div class="quorum">
+            <div class="q-head">
+              <span class="q-lbl">Projected quorum</span>
+              <span class="q-count"><b>7</b> / 10 present · 1 excused</span>
+              <span class="q-state met">✓ Quorum met</span>
+            </div>
+            <div class="meter">
+              <i class="fill-present" style="width:70%"></i>
+              <i class="fill-excused" style="width:10%"></i>
+              <span class="quorum-mark" style="left:60%"></span>
+            </div>
+            <div class="q-legend">
+              <span class="li"><span class="d" style="background:var(--vio)"></span>Present 7</span>
+              <span class="li"><span class="d" style="background:var(--gold)"></span>Excused 1</span>
+              <span class="li"><span class="d" style="background:var(--faint)"></span>Not marked 2</span>
+            </div>
+          </div>
+
+          <div class="actions">
+            <button class="btn-primary">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+              Take roll
+            </button>
+            <button class="btn-ghost">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h10M4 18h7"/></svg>
+              Open agenda
+            </button>
+          </div>
+        </div>
+
+        <!-- past meetings ledger -->
+        <div class="sec-label">
+          <h2>Past meetings</h2>
+          <span class="rule"></span>
+          <span class="cnt">4 this term · newest first</span>
+        </div>
+
+        <div class="ledger">
+
+          <a class="led-row" href="#">
+            <div class="led-date"><div class="dow">Tue</div><div class="dnum">9</div><div class="mon">Jun</div></div>
+            <div class="led-main">
+              <div class="t"><span class="vdot"></span>Chapter Meeting</div>
+              <div class="sum">Budget cleared for Spring Banquet; rush committee set; service-hours reminder issued before finals.</div>
+            </div>
+            <div class="led-stats">
+              <span class="tag minutes">Minutes</span>
+              <span class="tag quorum">Quorum</span>
+              <div class="stat"><div class="sv">9/10</div><div class="sk">present</div></div>
+              <svg class="chev" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg>
+            </div>
+          </a>
+
+          <a class="led-row" href="#">
+            <div class="led-date"><div class="dow">Tue</div><div class="dnum">2</div><div class="mon">Jun</div></div>
+            <div class="led-main">
+              <div class="t"><span class="vdot"></span>Chapter Meeting</div>
+              <div class="sum empty">Minutes not filed — add notes before the next meeting.</div>
+            </div>
+            <div class="led-stats">
+              <span class="tag nominutes">No minutes</span>
+              <span class="tag quorum">Quorum</span>
+              <div class="stat"><div class="sv">8/10</div><div class="sk">present</div></div>
+              <svg class="chev" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg>
+            </div>
+          </a>
+
+          <a class="led-row" href="#">
+            <div class="led-date"><div class="dow">Tue</div><div class="dnum">26</div><div class="mon">May</div></div>
+            <div class="led-main">
+              <div class="t"><span class="vdot"></span>Chapter Meeting</div>
+              <div class="sum">Full house. Banquet logistics locked, car-wash fundraiser recapped at $410, two new bids approved.</div>
+            </div>
+            <div class="led-stats">
+              <span class="tag minutes">Minutes</span>
+              <span class="tag quorum">Quorum</span>
+              <div class="stat"><div class="sv">10/10</div><div class="sk">present</div></div>
+              <svg class="chev" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg>
+            </div>
+          </a>
+
+          <a class="led-row" href="#">
+            <div class="led-date"><div class="dow">Tue</div><div class="dnum">19</div><div class="mon">May</div></div>
+            <div class="led-main">
+              <div class="t"><span class="vdot"></span>Chapter Meeting</div>
+              <div class="sum">Risk-management forms due Friday; brotherhood dinner moved to the 5th; dues follow-up for three brothers.</div>
+            </div>
+            <div class="led-stats">
+              <span class="tag minutes">Minutes</span>
+              <span class="tag quorum">Quorum</span>
+              <div class="stat"><div class="sv lo">6/10</div><div class="sk">present</div></div>
+              <svg class="chev" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg>
+            </div>
+          </a>
+
+          <a class="led-row" href="#">
+            <div class="led-date"><div class="dow">Tue</div><div class="dnum">12</div><div class="mon">May</div></div>
+            <div class="led-main">
+              <div class="t"><span class="vdot"></span>Chapter Meeting</div>
+              <div class="sum">Semester kickoff — officer reports, committee sign-ups, and the spring calendar walkthrough.</div>
+            </div>
+            <div class="led-stats">
+              <span class="tag minutes">Minutes</span>
+              <span class="tag quorum">Quorum</span>
+              <div class="stat"><div class="sv">9/10</div><div class="sk">present</div></div>
+              <svg class="chev" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg>
+            </div>
+          </a>
+
+        </div>
+      </div>
+
+      <!-- RIGHT rail -->
+      <aside class="rail">
+
+        <div>
+          <p class="lbl">Roll call · Tue Jun 16</p>
+          <div class="roster">
+            <div class="r-head">
+              <span class="h">Mark attendance</span>
+              <span class="c">7 / 10 marked</span>
+            </div>
+            <div class="rmember"><span class="av">BL</span><span class="nm">Bryan Lee</span><span class="st present">Present</span></div>
+            <div class="rmember"><span class="av">IC</span><span class="nm">Issac Chong</span><span class="st present">Present</span></div>
+            <div class="rmember"><span class="av">DM</span><span class="nm">Dariel Milfort</span><span class="st present">Present</span></div>
+            <div class="rmember"><span class="av">RS</span><span class="nm">Rinchen Sherpalama</span><span class="st present">Present</span></div>
+            <div class="rmember"><span class="av">TT</span><span class="nm">Thalha Thabish</span><span class="st present">Present</span></div>
+            <div class="rmember"><span class="av">JH</span><span class="nm">Jacob Hwang</span><span class="st excused">Excused</span></div>
+            <div class="rmember"><span class="av">NB</span><span class="nm">Nathaniel Baccarey</span><span class="st pending">Pending</span></div>
+            <div class="r-foot"><a href="#">View all 10 brothers →</a></div>
+          </div>
+        </div>
+
+        <div>
+          <p class="lbl">Attendance watch</p>
+          <div class="watch">
+            <div class="row"><span class="nm">Nathaniel Baccarey</span><span class="bar"><i class="bad" style="width:58%"></i></span><span class="pct">58%</span></div>
+            <div class="row"><span class="nm">Jacob Hwang</span><span class="bar"><i style="width:68%"></i></span><span class="pct">68%</span></div>
+            <div class="row"><span class="nm">Elvin De La Cruz</span><span class="bar"><i style="width:74%"></i></span><span class="pct">74%</span></div>
+            <div class="row"><span class="nm">Arijit Das</span><span class="bar"><i style="width:78%"></i></span><span class="pct">78%</span></div>
+          </div>
+        </div>
+
+      </aside>
+    </div>
+
+    <footer>Lambda Phi Epsilon · ChaptOS — meetings design mock · seeded roster &amp; calendar · Jun 13, 2026</footer>
+  </main>
+</div>
+
+<script>
+  const root = document.documentElement;
+  const btn = document.getElementById("toggle");
+  function setTheme(t) {
+    root.dataset.theme = t;
+    btn.innerHTML = t === "dusk" ? "◐&nbsp; Ivory" : "◑&nbsp; Dusk";
+    try { localStorage.setItem("chaptos-mock-theme", t); } catch {}
+  }
+  btn.addEventListener("click", () => setTheme(root.dataset.theme === "dusk" ? "ivory" : "dusk"));
+  document.addEventListener("keydown", e => {
+    if (e.key.toLowerCase() === "t" && !e.metaKey && !e.ctrlKey) btn.click();
+  });
+  try {
+    const saved = localStorage.getItem("chaptos-mock-theme");
+    if (saved === "ivory") setTheme("ivory");
+  } catch {}
+
+  // Roll-call rows cycle Present → Excused → Pending on click (visual only).
+  const cycle = ["present", "excused", "pending"];
+  const labels = { present: "Present", excused: "Excused", pending: "Pending" };
+  document.querySelectorAll(".rmember .st").forEach(el => {
+    el.style.cursor = "pointer";
+    el.addEventListener("click", e => {
+      e.preventDefault();
+      const cur = cycle.findIndex(c => el.classList.contains(c));
+      const next = cycle[(cur + 1) % cycle.length];
+      el.className = "st " + next;
+      el.textContent = labels[next];
+    });
+  });
+</script>
+</body>
+</html>

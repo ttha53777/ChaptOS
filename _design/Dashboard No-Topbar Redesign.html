@@ -1,0 +1,797 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dusk">
+<!--
+  ChaptOS · Dashboard Redesign — "No Topbar" variant
+  ────────────────────────────────────────────────
+  WHAT THIS IS
+  · A copy of _design/Dashboard Redesign.html ("Chapter Ledger") with the toolbar
+    (the 56px frosted top header from app/[slug]/page.tsx lines 1641–1697) REMOVED.
+  · Everything else is identical. The three things that lived in the toolbar and
+    still need a home are folded into the page itself:
+        – My Standing  → an action chip in a new briefing action-bar, right under
+          the greeting (opens the viewer's own Brother drawer).
+        – Quick Actions → the same chip+menu, now in that briefing action-bar.
+        – Log Attendance → a primary (violet) action chip in the same bar.
+      Search and Export — also toolbar residents — move there too so nothing is lost.
+  · Why the briefing: with no topbar, the serif greeting is now the topmost thing
+    on the page, so it becomes the natural command center. The action bar sits on
+    the greeting's baseline (left of the health dial) so "who you are + what's
+    happening + what you can do" all read as one masthead block. On the live page
+    these map to: setSelectedBrotherId(selfId), <QuickActionsMenu/>, and
+    openAttendanceLog() — same handlers, relocated out of <header>.
+  · Data is the real seeded chapter data from app/data.ts (10-brother roster, the
+    derived health/KPI values, the sample announcement line) — unchanged from the
+    sibling mock so the two can be compared side by side.
+  · Two on-brand variants: Dusk (default) and Ivory — toggle top right, or press T.
+-->
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ChaptOS — Dashboard Redesign · No Topbar</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..700;1,9..144,300..700&family=Geist:wght@300..700&family=Geist+Mono:wght@300..600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --serif: "Fraunces", Georgia, serif;
+    --sans: "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --mono: "Geist Mono", ui-monospace, Menlo, monospace;
+  }
+  [data-theme="dusk"] {
+    --paper:    #0f0d0a;
+    --paper-2:  #14120e;
+    --card:     #161310;
+    --card-2:   #1b1813;
+    --ink:      #ece7dd;
+    --ink-soft: #c9c2b4;
+    --muted:    #958d7c;
+    --faint:    #6b6354;
+    --line:     rgba(236,231,221,.09);
+    --line-soft:rgba(236,231,221,.05);
+    --vio:      #a78bfa;
+    --vio-deep: #7c3aed;
+    --vio-bg:   rgba(167,139,250,.10);
+    --gold:     #ddb36a;
+    --gold-bg:  rgba(221,179,106,.10);
+    --rose:     #d98ba3;
+    --rose-bg:  rgba(217,139,163,.10);
+    --ok:       #7fb08a;
+    --ok-bg:    rgba(127,176,138,.10);
+    --shadow:   0 1px 0 rgba(0,0,0,.4), 0 16px 40px -24px rgba(0,0,0,.7);
+  }
+  [data-theme="ivory"] {
+    --paper:    #f2ede3;
+    --paper-2:  #ece6d9;
+    --card:     #faf7f0;
+    --card-2:   #f4f0e6;
+    --ink:      #171410;
+    --ink-soft: #3d382f;
+    --muted:    #6f675a;
+    --faint:    #9a917f;
+    --line:     rgba(23,20,16,.13);
+    --line-soft:rgba(23,20,16,.07);
+    --vio:      #6d28d9;
+    --vio-deep: #5b21b6;
+    --vio-bg:   rgba(109,40,217,.08);
+    --gold:     #9a7224;
+    --gold-bg:  rgba(154,114,36,.10);
+    --rose:     #b34f72;
+    --rose-bg:  rgba(179,79,114,.09);
+    --ok:       #3f7a50;
+    --ok-bg:    rgba(63,122,80,.10);
+    --shadow:   0 1px 2px rgba(23,20,16,.05), 0 14px 34px -26px rgba(23,20,16,.35);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { background: var(--paper); color: var(--ink); font-family: var(--sans); }
+  body { font-size: 13.5px; line-height: 1.45; -webkit-font-smoothing: antialiased; }
+  ::selection { background: var(--vio-bg); }
+
+  .shell { display: grid; grid-template-columns: 228px 1fr; min-height: 100vh; }
+
+  /* ── Sidebar ─────────────────────────────────────────── */
+  .side {
+    border-right: 1px solid var(--line);
+    background: var(--paper-2);
+    padding: 26px 0 20px;
+    display: flex; flex-direction: column; gap: 26px;
+    position: sticky; top: 0; height: 100vh;
+  }
+  .wordmark { padding: 0 24px; }
+  .wordmark .product {
+    font-family: var(--serif); font-style: italic; font-weight: 600;
+    font-size: 19px; letter-spacing: .01em; color: var(--ink);
+  }
+  .wordmark .org {
+    margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line-soft);
+    font-family: var(--mono); font-size: 10px; letter-spacing: .14em;
+    text-transform: uppercase; color: var(--muted); line-height: 1.7;
+  }
+  .nav { display: flex; flex-direction: column; gap: 1px; padding: 0 12px; }
+  .nav a {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 12px; border-radius: 7px; text-decoration: none;
+    font-family: var(--mono); font-size: 11px; letter-spacing: .12em;
+    text-transform: uppercase; color: var(--muted);
+  }
+  .nav a:hover { color: var(--ink-soft); background: var(--line-soft); }
+  .nav a.active { color: var(--ink); background: var(--card-2); }
+  .nav a.active::before { content: ""; width: 3px; height: 14px; border-radius: 2px; background: var(--vio); margin-left: -6px; }
+  .side .spacer { flex: 1; }
+  .user { margin: 0 12px; padding: 12px; border-top: 1px solid var(--line-soft); display: flex; gap: 10px; align-items: center; }
+  .user .avatar { width: 30px; height: 30px; border-radius: 50%; background: var(--vio-bg); color: var(--vio);
+    display: grid; place-items: center; font-family: var(--mono); font-size: 10px; font-weight: 600; }
+  .user .who p:first-child { font-size: 12.5px; font-weight: 600; color: var(--ink); }
+  .user .who p:last-child { font-family: var(--mono); font-size: 9.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--faint); margin-top: 1px; }
+
+  /* ── Main ────────────────────────────────────────────── */
+  /* No toolbar above this anymore — the main pane starts at the very top of the
+     content column, so we keep the same generous top padding the toolbar used to
+     visually provide. */
+  .main { padding: 30px 38px 40px; max-width: 1230px; }
+
+  .briefing { display: flex; justify-content: space-between; gap: 36px; align-items: flex-start; }
+  .kicker { font-family: var(--mono); font-size: 10.5px; letter-spacing: .18em; text-transform: uppercase; color: var(--muted); }
+  .kicker .today { color: var(--vio); }
+  h1.greeting { font-family: var(--serif); font-weight: 400; font-size: 33px; letter-spacing: -.01em; margin-top: 8px; color: var(--ink); }
+  h1.greeting em { font-style: italic; color: var(--vio); }
+  .digest { margin-top: 12px; display: flex; gap: 9px; align-items: baseline; max-width: 560px; }
+  .ai-chip { flex-shrink: 0; font-family: var(--mono); font-size: 8.5px; font-weight: 600; letter-spacing: .14em;
+    color: var(--vio); border: 1px solid var(--vio-bg); background: var(--vio-bg); border-radius: 4px; padding: 2px 5px; transform: translateY(-1px); }
+  .digest p { font-size: 13.5px; color: var(--ink-soft); font-style: italic; font-family: var(--serif); font-weight: 350; }
+
+  /* ── Briefing action bar (replaces the removed toolbar) ──────────────────── */
+  /* The toolbar's residents now live here on the greeting's baseline: My Standing,
+     Quick Actions (with menu), Log Attendance (primary), Search, Export. */
+  .actionbar { margin-top: 16px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .act-chip {
+    display: inline-flex; align-items: center; gap: 7px;
+    font-family: var(--mono); font-size: 10.5px; letter-spacing: .07em; text-transform: uppercase;
+    color: var(--ink-soft); background: var(--card); border: 1px solid var(--line); border-radius: 8px;
+    padding: 7px 12px; cursor: pointer; transition: border-color .14s, color .14s, background .14s;
+  }
+  .act-chip svg { width: 13px; height: 13px; flex-shrink: 0; }
+  .act-chip:hover { color: var(--ink); border-color: var(--vio); background: var(--card-2); }
+  .act-chip.primary { color: var(--vio); border-color: var(--vio-bg); background: var(--vio-bg); }
+  .act-chip.primary:hover { color: #fff; background: var(--vio-deep); border-color: var(--vio-deep); }
+  [data-theme="ivory"] .act-chip.primary:hover { color: #fff; }
+  .act-chip .caret { width: 10px; height: 10px; opacity: .7; }
+  .actionbar .sep { width: 1px; align-self: stretch; background: var(--line); margin: 2px 4px; }
+
+  /* Quick Actions popover */
+  .qa-wrap { position: relative; }
+  .qa-menu {
+    position: absolute; top: calc(100% + 6px); left: 0; z-index: 40; width: 212px;
+    background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+    box-shadow: var(--shadow); padding: 5px; display: none;
+  }
+  .qa-wrap.open .qa-menu { display: block; }
+  .qa-wrap.open .act-chip .caret { transform: rotate(180deg); }
+  .qa-item {
+    display: flex; align-items: center; gap: 10px; width: 100%;
+    padding: 8px 9px; border-radius: 7px; background: transparent; border: none; cursor: pointer;
+    text-align: left; color: var(--ink-soft); font-family: var(--sans); font-size: 12.5px; font-weight: 500;
+  }
+  .qa-item svg { width: 14px; height: 14px; color: var(--muted); flex-shrink: 0; }
+  .qa-item:hover { background: var(--vio-bg); color: var(--ink); }
+  .qa-item:hover svg { color: var(--vio); }
+  .qa-item .badge { margin-left: auto; font-family: var(--mono); font-size: 8px; font-weight: 600;
+    letter-spacing: .12em; text-transform: uppercase; color: var(--faint); }
+  .qa-divider { height: 1px; background: var(--line-soft); margin: 4px 6px; }
+
+  /* Inline search field in the action bar */
+  .act-search { position: relative; }
+  .act-search svg { position: absolute; left: 9px; top: 50%; transform: translateY(-50%); width: 13px; height: 13px; color: var(--faint); pointer-events: none; }
+  .act-search input {
+    font-family: var(--mono); font-size: 11px; letter-spacing: .03em; color: var(--ink);
+    background: var(--card); border: 1px solid var(--line); border-radius: 8px;
+    padding: 7px 12px 7px 28px; width: 158px; outline: none; transition: border-color .14s, width .14s;
+  }
+  .act-search input::placeholder { color: var(--faint); text-transform: none; letter-spacing: .04em; }
+  .act-search input:focus { border-color: var(--vio); width: 188px; }
+
+  .health { display: flex; gap: 18px; align-items: center; flex-shrink: 0; }
+  .dial { position: relative; width: 92px; height: 92px; }
+  .dial svg { transform: rotate(-90deg); }
+  .dial .num { position: absolute; inset: 0; display: grid; place-items: center; }
+  .dial .num span { font-family: var(--serif); font-size: 27px; font-weight: 500; color: var(--ink); }
+  .health .meta .label { font-family: var(--mono); font-size: 9.5px; letter-spacing: .16em; text-transform: uppercase; color: var(--muted); }
+  .health .meta .state { font-family: var(--serif); font-style: italic; font-size: 15px; color: var(--gold); margin: 2px 0 8px; }
+  .bk { display: grid; grid-template-columns: 30px 50px 22px; gap: 3px 8px; align-items: center; }
+  .bk .k { font-family: var(--mono); font-size: 8.5px; letter-spacing: .1em; color: var(--faint); }
+  .bk .bar { height: 3px; border-radius: 2px; background: var(--line); overflow: hidden; }
+  .bk .bar i { display: block; height: 100%; border-radius: 2px; background: var(--vio); opacity: .85; }
+  .bk .v { font-family: var(--mono); font-size: 9px; color: var(--muted); text-align: right; }
+
+  .theme-toggle { position: fixed; top: 18px; right: 20px; z-index: 50;
+    font-family: var(--mono); font-size: 10px; letter-spacing: .12em; text-transform: uppercase;
+    color: var(--muted); background: var(--card); border: 1px solid var(--line); border-radius: 999px;
+    padding: 6px 14px; cursor: pointer; }
+  .theme-toggle:hover { color: var(--ink); border-color: var(--vio); }
+
+  /* ── Announcement ────────────────────────────────────── */
+  .pinned { margin-top: 24px; display: flex; align-items: baseline; gap: 12px;
+    border: 1px solid var(--line); border-radius: 10px; background: var(--card); box-shadow: var(--shadow);
+    padding: 11px 16px; }
+  .pin-tag { font-family: var(--mono); font-size: 9px; font-weight: 600; letter-spacing: .16em; color: var(--gold); }
+  .pinned p { font-size: 13px; color: var(--ink-soft); flex: 1; }
+  .pinned a { font-family: var(--mono); font-size: 10px; letter-spacing: .1em; color: var(--faint); text-decoration: none; text-transform: uppercase; }
+  .pinned a:hover { color: var(--vio); }
+
+  /* ── Ledger strip ────────────────────────────────────── */
+  .ledger { margin-top: 14px; display: grid; grid-template-columns: repeat(5, 1fr);
+    border: 1px solid var(--line); border-radius: 12px; background: var(--card); box-shadow: var(--shadow); overflow: hidden; }
+  .measure { padding: 16px 18px 14px; border-right: 1px solid var(--line-soft); position: relative; cursor: pointer; }
+  .measure:last-child { border-right: none; }
+  .measure:hover { background: var(--card-2); }
+  .measure .k { font-family: var(--mono); font-size: 9px; letter-spacing: .16em; text-transform: uppercase; color: var(--muted); }
+  .measure .v { font-family: var(--mono); font-size: 23px; font-weight: 500; letter-spacing: -.02em; color: var(--ink); margin-top: 7px; font-variant-numeric: tabular-nums; }
+  .measure .v small { font-size: 13px; color: var(--muted); font-weight: 400; }
+  .measure .note { font-size: 11px; color: var(--faint); margin-top: 3px; }
+  .measure .note.warn { color: var(--gold); }
+  .measure svg { position: absolute; right: 14px; bottom: 14px; opacity: .8; }
+  .measure svg polyline { fill: none; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+
+  /* ── Grid ────────────────────────────────────────────── */
+  .grid { margin-top: 14px; display: grid; grid-template-columns: 1fr 338px; gap: 14px; align-items: start; }
+  .col { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+
+  .card { border: 1px solid var(--line); border-radius: 12px; background: var(--card); box-shadow: var(--shadow); overflow: hidden; }
+  .card-h { display: flex; align-items: baseline; justify-content: space-between; padding: 15px 18px 12px; border-bottom: 1px solid var(--line-soft); }
+  .card-h h2 { font-family: var(--serif); font-weight: 500; font-size: 16.5px; letter-spacing: 0; color: var(--ink); }
+  .card-h .sub { font-family: var(--mono); font-size: 9.5px; letter-spacing: .13em; text-transform: uppercase; color: var(--faint); }
+  .count-chip { font-family: var(--mono); font-size: 10px; color: var(--rose); background: var(--rose-bg); border-radius: 999px; padding: 2px 8px; margin-left: 8px; vertical-align: 2px; }
+
+  /* attention queue */
+  .att-row { display: flex; align-items: center; gap: 13px; padding: 12px 18px; border-bottom: 1px solid var(--line-soft); }
+  .att-row:last-child { border-bottom: none; }
+  .att-row .dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+  .att-row .tag { font-family: var(--mono); font-size: 8.5px; font-weight: 600; letter-spacing: .15em; width: 64px; flex-shrink: 0; }
+  .att-row .body { flex: 1; min-width: 0; }
+  .att-row .body .t { font-size: 13px; font-weight: 550; color: var(--ink); }
+  .att-row .body .m { font-size: 11.5px; color: var(--faint); margin-top: 1px; font-variant-numeric: tabular-nums; }
+  .att-row .act { flex-shrink: 0; font-family: var(--mono); font-size: 10px; letter-spacing: .08em; text-transform: uppercase;
+    color: var(--muted); border: 1px solid var(--line); background: transparent; border-radius: 7px; padding: 5px 11px; cursor: pointer; }
+  .att-row .act:hover { color: var(--vio); border-color: var(--vio); }
+  .rose { color: var(--rose); } .bg-rose { background: var(--rose); }
+  .gold { color: var(--gold); } .bg-gold { background: var(--gold); }
+  .sage { color: var(--ok); }   .bg-sage { background: var(--ok); }
+
+  /* roster table */
+  .filters { display: flex; gap: 5px; }
+  .filters button { font-family: var(--mono); font-size: 9.5px; letter-spacing: .08em; text-transform: uppercase;
+    color: var(--muted); border: 1px solid transparent; background: transparent; border-radius: 6px; padding: 3px 9px; cursor: pointer; }
+  .filters button.on { color: var(--ink); background: var(--card-2); border-color: var(--line); }
+  .filters button:hover { color: var(--ink-soft); }
+  table { width: 100%; border-collapse: collapse; }
+  thead th { font-family: var(--mono); font-size: 8.5px; font-weight: 500; letter-spacing: .16em; text-transform: uppercase;
+    color: var(--faint); text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line-soft); }
+  thead th:first-child { padding-left: 18px; }
+  thead th.num, td.num { text-align: right; }
+  tbody td { padding: 10px 12px; border-bottom: 1px solid var(--line-soft); font-variant-numeric: tabular-nums; }
+  tbody td:first-child { padding-left: 18px; }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr { cursor: pointer; }
+  tbody tr:hover { background: var(--card-2); }
+  .b-name { display: flex; align-items: center; gap: 10px; }
+  .b-name .avatar { width: 26px; height: 26px; border-radius: 50%; background: var(--vio-bg); color: var(--vio);
+    display: grid; place-items: center; font-family: var(--mono); font-size: 9px; font-weight: 600; flex-shrink: 0; }
+  .b-name p { font-size: 13px; font-weight: 550; color: var(--ink); white-space: nowrap; }
+  .b-name .me-pill { font-family: var(--mono); font-size: 7.5px; font-weight: 600; letter-spacing: .14em; color: var(--vio);
+    background: var(--vio-bg); border-radius: 4px; padding: 2px 5px; }
+  td.role { font-size: 11.5px; color: var(--faint); max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .attb { display: flex; align-items: center; gap: 9px; min-width: 120px; }
+  .attb .track { flex: 1; height: 3px; border-radius: 2px; background: var(--line); overflow: hidden; }
+  .attb .track i { display: block; height: 100%; border-radius: 2px; }
+  .attb span { font-family: var(--mono); font-size: 11.5px; width: 34px; text-align: right; }
+  td .mono { font-family: var(--mono); font-size: 12px; }
+  .muted { color: var(--faint); }
+  .status-tag { font-family: var(--mono); font-size: 8.5px; font-weight: 600; letter-spacing: .13em; border-radius: 5px; padding: 3px 7px; white-space: nowrap; }
+  .st-good { color: var(--ok); background: var(--ok-bg); }
+  .st-watch { color: var(--gold); background: var(--gold-bg); }
+  .st-risk { color: var(--rose); background: var(--rose-bg); }
+  .table-foot { padding: 10px 18px; border-top: 1px solid var(--line-soft); background: var(--card-2);
+    font-family: var(--mono); font-size: 10px; letter-spacing: .06em; color: var(--faint); }
+
+  /* rail cards */
+  .week-item { display: flex; gap: 13px; padding: 10px 18px; border-bottom: 1px solid var(--line-soft); align-items: baseline; }
+  .week-item:last-child { border-bottom: none; }
+  .day { font-family: var(--mono); font-size: 9px; letter-spacing: .1em; color: var(--faint); width: 44px; flex-shrink: 0; line-height: 1.3; }
+  .day b { display: block; font-size: 15px; font-weight: 500; color: var(--ink-soft); }
+  .week-item.today .day b, .week-item.today .day { color: var(--vio); }
+  .week-item .what .t { font-size: 12.5px; font-weight: 550; color: var(--ink); }
+  .week-item .what .m { font-size: 11px; color: var(--faint); margin-top: 1px; }
+  .today-pill { font-family: var(--mono); font-size: 8px; font-weight: 600; letter-spacing: .14em; color: var(--vio);
+    background: var(--vio-bg); border-radius: 4px; padding: 2px 5px; margin-left: 6px; vertical-align: 1px; }
+  .ddl-pill { font-family: var(--mono); font-size: 8px; font-weight: 600; letter-spacing: .14em; color: var(--gold);
+    background: var(--gold-bg); border-radius: 4px; padding: 2px 5px; margin-left: 6px; vertical-align: 1px; }
+
+  .treasury-body { padding: 14px 18px 16px; }
+  .treasury-num { display: flex; align-items: baseline; gap: 10px; }
+  .treasury-num .big { font-family: var(--mono); font-size: 26px; font-weight: 500; letter-spacing: -.02em; }
+  .treasury-num .delta { font-family: var(--mono); font-size: 11px; color: var(--ok); }
+  .treasury-note { font-size: 11.5px; color: var(--faint); margin-top: 2px; }
+  .tchart { margin-top: 12px; }
+  .tchart .months { display: flex; justify-content: space-between; margin-top: 4px;
+    font-family: var(--mono); font-size: 8.5px; letter-spacing: .1em; color: var(--faint); }
+
+  .rev-row { display: flex; align-items: center; gap: 11px; padding: 7px 18px; }
+  .rev-row .n { width: 104px; flex-shrink: 0; font-size: 12px; color: var(--ink-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .rev-row.top .n { color: var(--vio); font-weight: 550; }
+  .rev-row .track { flex: 1; height: 4px; border-radius: 2px; background: var(--line); overflow: hidden; }
+  .rev-row .track i { display: block; height: 100%; border-radius: 2px; background: var(--line); }
+  .rev-row.top .track i { background: var(--vio); }
+  .rev-row:not(.top) .track i { background: var(--muted); opacity: .45; }
+  .rev-row .v { font-family: var(--mono); font-size: 11.5px; width: 42px; text-align: right; flex-shrink: 0; }
+  .rev-up { padding: 10px 18px 13px; border-top: 1px solid var(--line-soft); font-size: 11.5px; color: var(--faint); }
+  .rev-up b { color: var(--ink-soft); font-weight: 550; }
+
+  .ig-row { display: flex; align-items: baseline; gap: 10px; padding: 9px 18px; border-bottom: 1px solid var(--line-soft); }
+  .ig-row:last-child { border-bottom: none; }
+  .ig-type { font-family: var(--mono); font-size: 8.5px; letter-spacing: .1em; color: var(--faint); width: 78px; flex-shrink: 0; text-transform: uppercase; }
+  .ig-row .t { flex: 1; font-size: 12.5px; font-weight: 500; color: var(--ink); }
+  .ig-row .d { font-family: var(--mono); font-size: 10px; }
+
+  .act-row { display: flex; gap: 10px; padding: 8px 18px; align-items: baseline; border-bottom: 1px solid var(--line-soft); }
+  .act-row:last-child { border-bottom: none; }
+  .act-row .dot { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; transform: translateY(-1px); }
+  .act-row p { flex: 1; font-size: 12px; color: var(--ink-soft); }
+  .act-row time { font-family: var(--mono); font-size: 9.5px; color: var(--faint); flex-shrink: 0; }
+
+  footer { margin-top: 28px; padding-top: 16px; border-top: 1px solid var(--line-soft); text-align: center;
+    font-family: var(--mono); font-size: 9.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--faint); }
+</style>
+</head>
+<body>
+<button class="theme-toggle" id="toggle" title="Press T">◐&nbsp; Ivory</button>
+<div class="shell">
+
+  <!-- ── Sidebar (unchanged) ───────────────────────────── -->
+  <aside class="side">
+    <div class="wordmark">
+      <div class="product">ChaptOS</div>
+      <div class="org">Lambda Phi<br>Epsilon</div>
+    </div>
+    <nav class="nav">
+      <a class="active" href="#">Dashboard</a>
+      <a href="#">Timeline</a>
+      <a href="#">Brothers</a>
+      <a href="#">Treasury</a>
+      <a href="#">Events</a>
+      <a href="#">Instagram</a>
+      <a href="#">Chapter</a>
+      <a href="#">Settings</a>
+    </nav>
+    <div class="spacer"></div>
+    <div class="user">
+      <div class="avatar">TT</div>
+      <div class="who">
+        <p>Thalha Thabish</p>
+        <p>Secretary</p>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ── Main — NO TOOLBAR. Content starts at the greeting. ─────────────────── -->
+  <main class="main">
+
+    <div class="briefing">
+      <div>
+        <p class="kicker"><span class="today">Friday, June 12, 2026</span>&ensp;·&ensp;Week of Jun 8 – 14&ensp;·&ensp;Spring Semester</p>
+        <h1 class="greeting">Good evening, <em>Thalha</em>.</h1>
+        <div class="digest">
+          <span class="ai-chip">AI</span>
+          <p>Two deadlines are overdue, three brothers still owe $300 in dues, and Summer Kickoff is tomorrow night.</p>
+        </div>
+
+        <!-- ── Action bar: the relocated toolbar contents ──────────────────── -->
+        <div class="actionbar">
+          <!-- My Standing → opens the viewer's own Brother drawer -->
+          <button class="act-chip" id="myStanding">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+            My Standing
+          </button>
+
+          <!-- Log Attendance → primary action (violet) -->
+          <button class="act-chip primary" id="logAtt">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+            Log Attendance
+          </button>
+
+          <!-- Quick Actions → chip + popover menu (same 6 items as QuickActionsMenu) -->
+          <div class="qa-wrap" id="qaWrap">
+            <button class="act-chip" id="qaBtn" aria-haspopup="menu" aria-expanded="false">
+              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M13 2L4.5 13.5h6L11 22l8.5-11.5h-6L13 2z"/></svg>
+              Quick Actions
+              <svg class="caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+            </button>
+            <div class="qa-menu" role="menu">
+              <button class="qa-item" role="menuitem">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2"/><path d="M12 6v12"/><circle cx="12" cy="12" r="10"/></svg>
+                Log Expense <span class="badge">Admin</span>
+              </button>
+              <button class="qa-item" role="menuitem">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l6-6 4 4 8-8"/><path d="M14 7h7v7"/></svg>
+                Log Revenue <span class="badge">Admin</span>
+              </button>
+              <div class="qa-divider"></div>
+              <button class="qa-item" role="menuitem">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 14l2 2 4-4"/></svg>
+                Log Excuse
+              </button>
+              <button class="qa-item" role="menuitem">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+                Add Deadline
+              </button>
+              <button class="qa-item" role="menuitem">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+                New Event
+              </button>
+              <button class="qa-item" role="menuitem">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor"/></svg>
+                Add IG Task
+              </button>
+            </div>
+          </div>
+
+          <span class="sep"></span>
+
+          <!-- Search (relocated from toolbar) -->
+          <div class="act-search">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z"/></svg>
+            <input type="text" placeholder="Search brothers…">
+          </div>
+
+          <!-- Export (relocated from toolbar) -->
+          <button class="act-chip" id="exportBtn">
+            <svg viewBox="0 0 16 16" fill="currentColor"><path fill-rule="evenodd" d="M11.5 4.5a3.5 3.5 0 1 1-7 0 3.5 3.5 0 0 1 7 0ZM4.25 8.5a3.25 3.25 0 0 0-3.25 3.25v.5A1.75 1.75 0 0 0 2.75 14h10.5A1.75 1.75 0 0 0 15 12.25v-.5A3.25 3.25 0 0 0 11.75 8.5h-7.5Z" clip-rule="evenodd"/></svg>
+            Export
+          </button>
+        </div>
+      </div>
+
+      <div class="health">
+        <div class="meta">
+          <p class="label">Chapter health</p>
+          <p class="state">Needs attention</p>
+          <div class="bk">
+            <span class="k">ATT</span><span class="bar"><i style="width:81%"></i></span><span class="v">81</span>
+            <span class="k">GPA</span><span class="bar"><i style="width:66%"></i></span><span class="v">66</span>
+            <span class="k">DUES</span><span class="bar"><i style="width:70%"></i></span><span class="v">70</span>
+            <span class="k">SVC</span><span class="bar"><i style="width:60%"></i></span><span class="v">60</span>
+            <span class="k">DDL</span><span class="bar"><i style="width:70%"></i></span><span class="v">70</span>
+          </div>
+        </div>
+        <div class="dial">
+          <svg width="92" height="92" viewBox="0 0 92 92">
+            <circle cx="46" cy="46" r="40" fill="none" stroke="var(--line)" stroke-width="5"/>
+            <circle cx="46" cy="46" r="40" fill="none" stroke="var(--gold)" stroke-width="5"
+                    stroke-linecap="round" stroke-dasharray="178.4 251.3"/>
+          </svg>
+          <div class="num"><span>71</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="pinned">
+      <span class="pin-tag">PINNED</span>
+      <p>Spring Banquet reimbursements close this Friday — get receipts to Issac before chapter meeting.</p>
+      <a href="#">Edit</a>
+    </div>
+
+    <!-- ── Ledger strip ───────────────────────────────── -->
+    <section class="ledger">
+      <div class="measure">
+        <p class="k">Attendance</p>
+        <p class="v">81.2<small>%</small></p>
+        <p class="note warn">4 below 80%</p>
+        <svg width="88" height="24" viewBox="0 0 88 24"><polyline points="0,9 18,7 35,12 53,14 70,19 88,17" stroke="var(--gold)"/></svg>
+      </div>
+      <div class="measure">
+        <p class="k">Dues outstanding</p>
+        <p class="v"><small>$</small>300</p>
+        <p class="note warn">3 brothers owe</p>
+        <svg width="88" height="24" viewBox="0 0 88 24"><polyline points="0,4 18,8 35,12 53,16 70,18 88,20" stroke="var(--ok)"/></svg>
+      </div>
+      <div class="measure">
+        <p class="k">Chapter GPA</p>
+        <p class="v">3.31</p>
+        <p class="note">2 below 3.0</p>
+        <svg width="88" height="24" viewBox="0 0 88 24"><polyline points="0,18 18,16 35,17 53,12 70,8 88,6" stroke="var(--vio)"/></svg>
+      </div>
+      <div class="measure">
+        <p class="k">Service</p>
+        <p class="v">105<small>h</small></p>
+        <p class="note">6 of 10 on track</p>
+        <svg width="88" height="24" viewBox="0 0 88 24"><polyline points="0,20 18,16 35,13 53,9 70,6 88,3" stroke="var(--vio)"/></svg>
+      </div>
+      <div class="measure">
+        <p class="k">Treasury</p>
+        <p class="v"><small>$</small>4,250</p>
+        <p class="note">proj. $5,500</p>
+        <svg width="88" height="24" viewBox="0 0 88 24"><polyline points="0,20 22,14 44,9 66,6 88,4" stroke="var(--ok)"/></svg>
+      </div>
+    </section>
+
+    <div class="grid">
+      <!-- ── Left column ──────────────────────────────── -->
+      <div class="col">
+
+        <section class="card">
+          <div class="card-h">
+            <h2>Needs attention<span class="count-chip">4</span></h2>
+            <span class="sub">Resolved items drop off</span>
+          </div>
+          <div class="att-row">
+            <span class="dot bg-rose"></span><span class="tag rose">OVERDUE</span>
+            <div class="body">
+              <p class="t">Academic Standing Report</p>
+              <p class="m">Due May 13 · Rinchen Sherpalama · 30 days late</p>
+            </div>
+            <button class="act">Mark done</button>
+          </div>
+          <div class="att-row">
+            <span class="dot bg-rose"></span><span class="tag rose">OVERDUE</span>
+            <div class="body">
+              <p class="t">Banquet Planning Final Submission</p>
+              <p class="m">Due May 14 · Issac Chong · 29 days late</p>
+            </div>
+            <button class="act">Mark done</button>
+          </div>
+          <div class="att-row">
+            <span class="dot bg-gold"></span><span class="tag gold">DUES</span>
+            <div class="body">
+              <p class="t">$300 outstanding across 3 brothers</p>
+              <p class="m">Nathaniel $150 · Noah $75 · Elvin $75</p>
+            </div>
+            <button class="act">Send reminder</button>
+          </div>
+          <div class="att-row">
+            <span class="dot bg-rose"></span><span class="tag rose">MEMBER</span>
+            <div class="body">
+              <p class="t">Nathaniel Baccarey flagged at risk</p>
+              <p class="m">58% attendance · 2.6 GPA · 3 service hours</p>
+            </div>
+            <button class="act">Open profile</button>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="card-h">
+            <h2>Roster</h2>
+            <div class="filters">
+              <button class="on">All 10</button>
+              <button>Good 5</button>
+              <button>Watch 4</button>
+              <button>At risk 1</button>
+            </div>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Brother</th><th>Role</th><th>Attendance</th>
+                <th class="num">Dues</th><th class="num">GPA</th><th class="num">Svc</th><th></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><div class="b-name"><span class="avatar">BL</span><p>Bryan Lee</p></div></td>
+                <td class="role">President · Rush · Banquet</td>
+                <td><div class="attb"><span class="track"><i class="bg-sage" style="width:95%"></i></span><span class="sage">95%</span></div></td>
+                <td class="num mono muted">—</td><td class="num mono">3.7</td><td class="num mono">15h</td>
+                <td class="num"><span class="status-tag st-good">GOOD</span></td>
+              </tr>
+              <tr>
+                <td><div class="b-name"><span class="avatar">DM</span><p>Dariel Milfort</p></div></td>
+                <td class="role">PR · Community Service</td>
+                <td><div class="attb"><span class="track"><i class="bg-sage" style="width:92%"></i></span><span class="sage">92%</span></div></td>
+                <td class="num mono muted">—</td><td class="num mono">3.6</td><td class="num mono">20h</td>
+                <td class="num"><span class="status-tag st-good">GOOD</span></td>
+              </tr>
+              <tr>
+                <td><div class="b-name"><span class="avatar">TT</span><p>Thalha Thabish</p><span class="me-pill">YOU</span></div></td>
+                <td class="role">Secretary · Social · PR · Rush</td>
+                <td><div class="attb"><span class="track"><i class="bg-sage" style="width:90%"></i></span><span class="sage">90%</span></div></td>
+                <td class="num mono muted">—</td><td class="num mono">3.3</td><td class="num mono">11h</td>
+                <td class="num"><span class="status-tag st-good">GOOD</span></td>
+              </tr>
+              <tr>
+                <td><div class="b-name"><span class="avatar">IC</span><p>Issac Chong</p></div></td>
+                <td class="role">Treasurer · Banquet · Social</td>
+                <td><div class="attb"><span class="track"><i class="bg-sage" style="width:88%"></i></span><span class="sage">88%</span></div></td>
+                <td class="num mono muted">—</td><td class="num mono">3.5</td><td class="num mono">12h</td>
+                <td class="num"><span class="status-tag st-good">GOOD</span></td>
+              </tr>
+              <tr>
+                <td><div class="b-name"><span class="avatar">RS</span><p>Rinchen Sherpalama</p></div></td>
+                <td class="role">Academic · Programming · Fundraising</td>
+                <td><div class="attb"><span class="track"><i class="bg-sage" style="width:87%"></i></span><span class="sage">87%</span></div></td>
+                <td class="num mono muted">—</td><td class="num mono">3.9</td><td class="num mono">14h</td>
+                <td class="num"><span class="status-tag st-good">GOOD</span></td>
+              </tr>
+              <tr>
+                <td><div class="b-name"><span class="avatar">NK</span><p>Noah Kim</p></div></td>
+                <td class="role">VP Internal · Social</td>
+                <td><div class="attb"><span class="track"><i class="bg-sage" style="width:82%"></i></span><span>82%</span></div></td>
+                <td class="num mono gold">$75</td><td class="num mono">3.2</td><td class="num mono">10h</td>
+                <td class="num"><span class="status-tag st-watch">WATCH</span></td>
+              </tr>
+              <tr>
+                <td><div class="b-name"><span class="avatar">AD</span><p>Arijit Das</p></div></td>
+                <td class="role">VP External · PD</td>
+                <td><div class="attb"><span class="track"><i class="bg-gold" style="width:78%"></i></span><span class="gold">78%</span></div></td>
+                <td class="num mono muted">—</td><td class="num mono">3.4</td><td class="num mono muted">8h</td>
+                <td class="num"><span class="status-tag st-watch">WATCH</span></td>
+              </tr>
+              <tr>
+                <td><div class="b-name"><span class="avatar">ED</span><p>Elvin De La Cruz</p></div></td>
+                <td class="role">Brotherhood · Fundraising</td>
+                <td><div class="attb"><span class="track"><i class="bg-gold" style="width:74%"></i></span><span class="gold">74%</span></div></td>
+                <td class="num mono gold">$75</td><td class="num mono">3.1</td><td class="num mono muted">7h</td>
+                <td class="num"><span class="status-tag st-watch">WATCH</span></td>
+              </tr>
+              <tr>
+                <td><div class="b-name"><span class="avatar">JH</span><p>Jacob Hwang</p></div></td>
+                <td class="role">Programming · Alumni</td>
+                <td><div class="attb"><span class="track"><i class="bg-gold" style="width:68%"></i></span><span class="gold">68%</span></div></td>
+                <td class="num mono muted">—</td><td class="num mono gold">2.8</td><td class="num mono muted">5h</td>
+                <td class="num"><span class="status-tag st-watch">WATCH</span></td>
+              </tr>
+              <tr>
+                <td><div class="b-name"><span class="avatar">NB</span><p>Nathaniel Baccarey</p></div></td>
+                <td class="role">Stroll · Rush</td>
+                <td><div class="attb"><span class="track"><i class="bg-rose" style="width:58%"></i></span><span class="rose">58%</span></div></td>
+                <td class="num mono gold">$150</td><td class="num mono rose">2.6</td><td class="num mono muted">3h</td>
+                <td class="num"><span class="status-tag st-risk">AT RISK</span></td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="table-foot">10 brothers · 5 good · 4 watch · 1 at risk &ensp;—&ensp; click a row for profile, dues &amp; service log</div>
+        </section>
+
+      </div>
+
+      <!-- ── Right rail ───────────────────────────────── -->
+      <div class="col">
+
+        <section class="card">
+          <div class="card-h"><h2>This week</h2><span class="sub">Jun 8 – 14</span></div>
+          <div class="week-item">
+            <div class="day">TUE<b>9</b></div>
+            <div class="what"><p class="t">Chapter Meeting</p><p class="m">7:00 PM · Chapter Room · mandatory</p></div>
+          </div>
+          <div class="week-item">
+            <div class="day">WED<b>10</b></div>
+            <div class="what"><p class="t">Brotherhood Event Proposal<span class="ddl-pill">DEADLINE</span></p><p class="m">Elvin De La Cruz</p></div>
+          </div>
+          <div class="week-item today">
+            <div class="day">FRI<b>12</b></div>
+            <div class="what"><p class="t">IFC Community Service<span class="today-pill">TODAY</span></p><p class="m">10:00 AM · Community Center · mandatory</p></div>
+          </div>
+          <div class="week-item">
+            <div class="day">SAT<b>13</b></div>
+            <div class="what"><p class="t">Summer Kickoff</p><p class="m">8:00 PM · first party of summer</p></div>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="card-h"><h2>Treasury</h2><span class="sub">Spring</span></div>
+          <div class="treasury-body">
+            <div class="treasury-num">
+              <span class="big">$4,250</span>
+              <span class="delta">▲ $2,250</span>
+            </div>
+            <p class="treasury-note">Projected $5,500 by end of semester</p>
+            <div class="tchart">
+              <svg width="100%" height="84" viewBox="0 0 300 84" preserveAspectRatio="none">
+                <defs>
+                  <linearGradient id="tfill" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="var(--vio)" stop-opacity=".22"/>
+                    <stop offset="100%" stop-color="var(--vio)" stop-opacity="0"/>
+                  </linearGradient>
+                </defs>
+                <path d="M0,66.5 L60,52.8 L120,40.9 L180,32.3 L240,28 L240,80 L0,80 Z" fill="url(#tfill)"/>
+                <path d="M0,66.5 L60,52.8 L120,40.9 L180,32.3 L240,28" fill="none" stroke="var(--vio)" stroke-width="1.8" stroke-linecap="round"/>
+                <path d="M240,28 L300,6.7" fill="none" stroke="var(--vio)" stroke-width="1.4" stroke-dasharray="3 4" opacity=".7"/>
+                <circle cx="240" cy="28" r="3" fill="var(--vio)"/>
+              </svg>
+              <div class="months"><span>JAN</span><span>FEB</span><span>MAR</span><span>APR</span><span>MAY</span><span style="color:var(--vio)">PROJ</span></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="card-h"><h2>Socials</h2><span class="sub">$2,960 at the door</span></div>
+          <div style="padding: 8px 0 6px;">
+            <div class="rev-row top">
+              <span class="n">Formal Pre-Party</span><span class="track"><i style="width:100%"></i></span><span class="v">$890</span>
+            </div>
+            <div class="rev-row">
+              <span class="n">LPE × KDF Collab</span><span class="track"><i style="width:84%"></i></span><span class="v">$750</span>
+            </div>
+            <div class="rev-row">
+              <span class="n">Spring Rush Social</span><span class="track"><i style="width:65%"></i></span><span class="v">$580</span>
+            </div>
+            <div class="rev-row">
+              <span class="n">Kickback Night</span><span class="track"><i style="width:47%"></i></span><span class="v">$420</span>
+            </div>
+            <div class="rev-row">
+              <span class="n">Brotherhood Mixer</span><span class="track"><i style="width:36%"></i></span><span class="v">$320</span>
+            </div>
+          </div>
+          <div class="rev-up">Next up — <b>Summer Collab Night</b> with DSP · Jun 21</div>
+        </section>
+
+        <section class="card">
+          <div class="card-h"><h2>Instagram</h2><span class="sub">3 of 6 overdue</span></div>
+          <div class="ig-row">
+            <span class="ig-type">Feed post</span>
+            <p class="t">Rush Interest Post</p>
+            <span class="d rose">May 13</span>
+          </div>
+          <div class="ig-row">
+            <span class="ig-type">Story + Feed</span>
+            <p class="t">Spring Formal Flyer Drop</p>
+            <span class="d rose">May 14</span>
+          </div>
+          <div class="ig-row">
+            <span class="ig-type">Reel</span>
+            <p class="t">Meet the Bros Reel</p>
+            <span class="d gold">May 18</span>
+          </div>
+          <div class="ig-row">
+            <span class="ig-type">Carousel</span>
+            <p class="t">Community Service Recap</p>
+            <span class="d muted">May 22</span>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="card-h"><h2>Activity</h2><span class="sub">Recent</span></div>
+          <div class="act-row"><span class="dot bg-gold"></span><p>Nathaniel Baccarey flagged At Risk automatically</p><time>3h</time></div>
+          <div class="act-row"><span class="dot bg-sage"></span><p>Treasury updated after Spring Formal Pre-Party</p><time>2d</time></div>
+          <div class="act-row"><span class="dot" style="background:var(--vio)"></span><p>Spring Formal Flyer Drop added to Instagram queue</p><time>3d</time></div>
+          <div class="act-row"><span class="dot bg-gold"></span><p>Academic Standing Report marked Urgent</p><time>4d</time></div>
+          <div class="act-row"><span class="dot" style="background:var(--vio)"></span><p>Noah Kim owes $75 — dues reminder sent</p><time>5d</time></div>
+        </section>
+
+      </div>
+    </div>
+
+    <footer>Lambda Phi Epsilon · ChaptOS — design mock (no topbar) · seeded chapter data · Jun 12, 2026</footer>
+  </main>
+</div>
+
+<script>
+  const root = document.documentElement;
+  const btn = document.getElementById("toggle");
+  function setTheme(t) {
+    root.dataset.theme = t;
+    btn.innerHTML = t === "dusk" ? "◐&nbsp; Ivory" : "◑&nbsp; Dusk";
+    try { localStorage.setItem("chaptos-mock-theme", t); } catch {}
+  }
+  btn.addEventListener("click", () => setTheme(root.dataset.theme === "dusk" ? "ivory" : "dusk"));
+  document.addEventListener("keydown", e => {
+    if (e.key.toLowerCase() === "t" && !e.metaKey && !e.ctrlKey && document.activeElement.tagName !== "INPUT") btn.click();
+  });
+  try {
+    const saved = localStorage.getItem("chaptos-mock-theme");
+    if (saved === "ivory") setTheme("ivory");
+  } catch {}
+
+  // Quick Actions popover open/close (mirrors QuickActionsMenu behaviour).
+  const qaWrap = document.getElementById("qaWrap");
+  const qaBtn = document.getElementById("qaBtn");
+  qaBtn.addEventListener("click", e => {
+    e.stopPropagation();
+    const open = qaWrap.classList.toggle("open");
+    qaBtn.setAttribute("aria-expanded", open ? "true" : "false");
+  });
+  document.addEventListener("click", e => {
+    if (!qaWrap.contains(e.target)) { qaWrap.classList.remove("open"); qaBtn.setAttribute("aria-expanded", "false"); }
+  });
+  document.addEventListener("keydown", e => {
+    if (e.key === "Escape") { qaWrap.classList.remove("open"); qaBtn.setAttribute("aria-expanded", "false"); }
+  });
+</script>
+</body>
+</html>
