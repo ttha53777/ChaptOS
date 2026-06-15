@@ -41,3 +41,5 @@
 {"id":"event-by-name","question":"When is the Boba Fundraiser?","category":"name-lookup","expectedTools":["list_calendar_events","list_programming_events","get_event_attendance"],"toolMatch":"any","mustInclude":["14"],"expectAnswerType":"data"}
 {"id":"dues-total-aggregate","question":"How much in dues is still owed in total?","category":"aggregate","expectedTools":["list_brothers"],"mustInclude":["210"],"expectAnswerType":"data"}
 {"id":"service-miscategorized-bare-date","question":"tell me abt the comm service we got on the 12th","category":"topic-not-table","expectedTools":["list_calendar_events","list_programming_events"],"toolMatch":"any","mustInclude":["IFC"],"expectAnswerType":"data"}
+{"id":"name-ambiguous-clarify","question":"how's Da doing?","category":"name-lookup","expectedTools":["get_brother"],"expectedToolArgs":{"get_brother":{"name":"Da"}},"expectAnswerType":"clarify","mustInclude":["Das","Dariel"]}
+{"id":"brothers-empty-status-broaden","question":"who are our Suspended brothers?","category":"empty-broaden","expectedTools":["list_brothers"],"expectAnswerType":"data","mustNotInclude":["error"]}

@@ -5,7 +5,8 @@ import { checkMutationRate } from "@/lib/rate-limit";
 import { aiEnabled, getOpenAI, CHAT_MODEL, MAX_COMPLETION_TOKENS, CHAT_REASONING_EFFORT } from "@/lib/ai";
 import { TOOLS, runTool, isReadTool, runProposal, isProposalTool } from "@/lib/ai-tools";
 import { buildSystemPrompt } from "@/lib/ai-prompt";
-import { logError } from "@/lib/observability";
+import { tryFastPath } from "@/lib/ai-fastpath";
+import { logError, logTiming } from "@/lib/observability";
 
 // Force the Node runtime — Edge would buffer SSE differently and we want full
 // control over the stream lifecycle. (NOT setting runtime = "edge".)
@@ -67,7 +68,40 @@ export async function POST(req: NextRequest) {
     async start(controller) {
       const send = (event: string, data: unknown) => controller.enqueue(encoder.encode(sseEvent(event, data)));
 
+      // ── Latency telemetry ──────────────────────────────────────────────
+      // The dominant cost here is the LLM round-trips (one call per loop
+      // iteration), not the DB tools. Capture per-iteration LLM ms, a TTFT
+      // proxy (first streamed delta of the WHOLE request), and per-tool ms so
+      // we can find the real p50/p95 hotspots and measure changes objectively.
+      const reqStart = performance.now();
+      const perIterMs: number[] = [];
+      const toolMs: Record<string, number> = {};
+      let ttftMs: number | null = null; // first visible token/tool-call across the request
+      let totalIters = 0;
+      let fastPathPattern: string | null = null;
+
       try {
+        // Flush a tiny event before awaiting the system prompt. buildSystemPrompt
+        // can cost a DB round trip on cache miss; sending "open" first lets the
+        // client paint its "thinking" state immediately instead of waiting on it.
+        send("open", {});
+
+        // ── Deterministic fast-path ─────────────────────────────────────────
+        // A large fraction of questions map to exactly one DB query with no
+        // params to infer ("who hasn't paid dues?", "treasury balance?"). For
+        // those, skip BOTH model round-trips: answer straight from the DB. Any
+        // non-match / error returns null and we fall through to the LLM loop
+        // unchanged, so the worst case is "no faster than before," never wrong.
+        const latest = history.at(-1);
+        const fast = latest ? await tryFastPath(latest.content, user.orgId) : null;
+        if (fast) {
+          fastPathPattern = fast.pattern;
+          ttftMs = performance.now() - reqStart;
+          send("text", { delta: fast.text });
+          send("done", {});
+          return; // finally{} still runs: emits the timing line + closes the stream
+        }
+
         const systemPrompt = await systemPromptPromise;
         const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
           { role: "system", content: systemPrompt },
@@ -75,6 +109,8 @@ export async function POST(req: NextRequest) {
         ];
 
         for (let iter = 0; iter < MAX_ITERS; iter++) {
+          totalIters = iter + 1;
+          const iterStart = performance.now();
           // Accumulate one assistant turn from the streamed deltas
           const assistantContent: string[] = [];
           // OpenAI tool_calls stream as separate deltas keyed by index → assemble them.
@@ -116,10 +152,12 @@ export async function POST(req: NextRequest) {
             const delta = choice.delta;
 
             if (typeof delta.content === "string" && delta.content.length > 0) {
+              if (ttftMs === null) ttftMs = performance.now() - reqStart;
               assistantContent.push(delta.content);
               send("text", { delta: delta.content });
             }
             if (delta.tool_calls) {
+              if (ttftMs === null) ttftMs = performance.now() - reqStart;
               for (const tc of delta.tool_calls) {
                 const idx = tc.index;
                 let slot = toolCallsByIndex.get(idx);
@@ -134,6 +172,8 @@ export async function POST(req: NextRequest) {
             }
             if (choice.finish_reason) finishReason = choice.finish_reason;
           }
+
+          perIterMs.push(Math.round(performance.now() - iterStart));
 
           const fullText = assistantContent.join("");
           const toolCalls = Array.from(toolCallsByIndex.entries())
@@ -170,6 +210,7 @@ export async function POST(req: NextRequest) {
           });
 
           const results = await Promise.all(prepared.map(async ({ tc, argsObj }) => {
+            const toolStart = performance.now();
             let resultPayload: unknown;
             let proposalEvent: { send: true; proposal: Awaited<ReturnType<typeof runProposal>> } | null = null;
             if (isReadTool(tc.name)) {
@@ -189,6 +230,8 @@ export async function POST(req: NextRequest) {
             } else {
               resultPayload = { error: `Unknown tool: ${tc.name}` };
             }
+            // Sum by tool name — the same tool can be called twice in one batch.
+            toolMs[tc.name] = (toolMs[tc.name] ?? 0) + Math.round(performance.now() - toolStart);
             return { tc, resultPayload, proposalEvent };
           }));
 
@@ -213,6 +256,25 @@ export async function POST(req: NextRequest) {
         send("text", { delta: "\n\n_(Sorry — I hit an error. Try again in a moment.)_" });
         send("done", {});
       } finally {
+        // One structured timing line per request. iters/perIterMs expose the
+        // LLM round-trip cost (the dominant latency); toolMs the DB cost.
+        logTiming({
+          route: "/api/ai/chat",
+          method: "POST",
+          userId: user.id,
+          message: "chat-timing",
+          extra: {
+            orgId: user.orgId,
+            // On a fast-path hit there are no LLM iterations; the pattern name
+            // tells us which deterministic answer served it.
+            fastPath: fastPathPattern,
+            iters: totalIters,
+            perIterMs,
+            toolMs,
+            ttftMs: ttftMs === null ? null : Math.round(ttftMs),
+            totalMs: Math.round(performance.now() - reqStart),
+          },
+        });
         controller.close();
       }
     },

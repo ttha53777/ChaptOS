@@ -43,6 +43,58 @@ async function getLastMeetingLine(orgId: number, todayIso: string): Promise<stri
   return line;
 }
 
+// Chapter snapshot: a tiny block of pre-computed aggregates inlined into the
+// system prompt so common "how are we doing on dues / attendance?" questions can
+// be answered in a SINGLE model turn (zero tool calls) instead of two. Same
+// 5-min per-org cache as the lines above.
+//
+// Cache discipline (the system prompt is the OpenAI prompt-cache prefix): the
+// figures are QUANTIZED — dollars to the nearest $10, attendance/GPA to coarse
+// steps — so the line only changes when numbers move materially, not on every
+// refresh. The block is appended LAST so the stable instruction prefix stays
+// byte-identical. It's labelled an approximation so the model still calls tools
+// for exact/current numbers and for any list of names.
+const snapshotCache = new Map<number, { line: string; expires: number }>();
+
+function roundTo(n: number, step: number): number {
+  return Math.round(n / step) * step;
+}
+
+async function getSnapshotLine(orgId: number): Promise<string> {
+  const now = Date.now();
+  const cached = snapshotCache.get(orgId);
+  if (cached && cached.expires > now) return cached.line;
+  let line = "";
+  try {
+    const [agg, owing, doorAgg, txByType] = await Promise.all([
+      prisma.brother.aggregate({
+        where: { isGhost: false, organizationId: orgId },
+        _count: { _all: true },
+        _sum: { duesOwed: true },
+        _avg: { attendance: true, gpa: true },
+      }),
+      prisma.brother.count({ where: { isGhost: false, organizationId: orgId, duesOwed: { gt: 0 } } }),
+      prisma.partyEvent.aggregate({ where: { organizationId: orgId }, _sum: { doorRevenue: true } }),
+      prisma.transaction.groupBy({ by: ["type"], where: { organizationId: orgId, deletedAt: null }, _sum: { amount: true } }),
+    ]);
+    const count = agg._count._all;
+    if (count > 0) {
+      const totalDues = roundTo(agg._sum.duesOwed ?? 0, 10);
+      const avgAtt = Math.round(agg._avg.attendance ?? 0);
+      const avgGpa = roundTo(agg._avg.gpa ?? 0, 0.05).toFixed(2);
+      const income = txByType.find(g => g.type === "income")?._sum.amount ?? 0;
+      const expense = txByType.find(g => g.type === "expense")?._sum.amount ?? 0;
+      const balance = roundTo((doorAgg._sum.doorRevenue ?? 0) + income - expense, 10);
+      line =
+        `Chapter snapshot (cached ≤5 min, approximate — call tools for exact/current figures or any list of names): ` +
+        `${count} active brothers; ${owing} owe dues (~$${totalDues.toLocaleString("en-US")} total); ` +
+        `avg attendance ~${avgAtt}%; avg GPA ~${avgGpa}; treasury ~$${balance.toLocaleString("en-US")}.`;
+    }
+  } catch { /* DB blip — the model still works without the snapshot */ }
+  snapshotCache.set(orgId, { line, expires: now + 5 * 60 * 1000 });
+  return line;
+}
+
 function nextWeekBounds(today: Date): { start: string; end: string } {
   const nextMon = new Date(today);
   nextMon.setDate(today.getDate() + 7);
@@ -56,9 +108,10 @@ export async function buildSystemPrompt(orgId: number, now: Date = new Date()): 
   const weekday = WEEKDAYS[now.getDay()];
   const week = isoWeekBounds(now);
   const next = nextWeekBounds(now);
-  const [semesterLine, lastMeetingLine] = await Promise.all([
+  const [semesterLine, lastMeetingLine, snapshotLine] = await Promise.all([
     getSemesterLine(orgId),
     getLastMeetingLine(orgId, today),
+    getSnapshotLine(orgId),
   ]);
 
   // Date anchors are kept on their own line so the model doesn't have to do
@@ -74,6 +127,7 @@ export async function buildSystemPrompt(orgId: number, now: Date = new Date()): 
 
   return [
     "You are the assistant for ChaptOS, a fraternity chapter ops dashboard. Answer questions about brothers, attendance, deadlines, Instagram, parties, treasury, budget, and programming events by calling the provided tools — never make up numbers or names.",
+    "ONE BATCH: when a question needs several INDEPENDENT lookups (e.g. 'how are dues and attendance?', or checking the calendar AND programming board for one topic), emit all of them as parallel tool calls in a SINGLE turn instead of one at a time — it's faster. This is about independent reads only; still take a follow-up turn when a result genuinely requires it (broaden an empty filter, disambiguate a name, chain on a value you just learned).",
     "SUPERLATIVES (worst/best/biggest/most/top/next): use order_by + order + small limit on the relevant list tool, NOT a status filter.",
     "NEXT/UPCOMING means from today forward: set start=<today> so overdue items don't crowd out the answer. Lead with the next future item; mention overdue ones separately if they exist. This applies ONLY to next/upcoming phrasing — status questions ('any urgent deadlines?') must NOT filter by date; overdue urgent items are the most urgent of all.",
     "EMPTY FILTERED RESULT: broaden — drop the filter or switch to a sort — before saying 'none'. Identify the user's underlying intent, not the literal phrasing.",
@@ -86,5 +140,6 @@ export async function buildSystemPrompt(orgId: number, now: Date = new Date()): 
     "OUT OF SCOPE: for anything outside chapter ops (weather, news, general knowledge, coding), decline in ONE sentence and stop. Don't suggest workarounds, name external tools/apps, or volunteer adjacent info — a clean 'I can only help with chapter data' is the whole reply.",
     "Be terse. Numbers and names over prose. Skip preamble.",
     dateLine,
-  ].join(" ");
+    snapshotLine,
+  ].filter(Boolean).join(" ");
 }

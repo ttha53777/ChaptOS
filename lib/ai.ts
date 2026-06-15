@@ -45,8 +45,18 @@ export const MAX_COMPLETION_TOKENS = 2000;
  * — the hard part is picking the right tool + args, which "low" handles as well
  * as the default while spending far fewer reasoning tokens. Cuts time-to-first-
  * token substantially. Bump if eval tool-selection scores regress.
+ *
+ * gpt-5.2's effort ladder is none < low < medium < high < xhigh ("minimal" is
+ * gpt-5.0-only, invalid on 5.2). "none" is the lowest-latency rung. It once
+ * 400'd on the live route alongside the route-only params `prompt_cache_key` +
+ * `stream:true`, so we sat on "low" — but that combo was re-probed live
+ * (2026-06-14) against the real API and now succeeds, emitting the right
+ * first-turn tool call. Switched to "none" for the fastest time-to-first-token
+ * on tool-selection turns; fall back to "low" if eval tool-selection regresses.
+ * NOTE: setting any reasoning_effort makes gpt-5.2 reject a non-default
+ * temperature, so there's no temperature here — terseness comes from the prompt.
  */
-export const CHAT_REASONING_EFFORT: OpenAI.ReasoningEffort = "low";
+export const CHAT_REASONING_EFFORT: OpenAI.ReasoningEffort = "none";
 
 /**
  * Generate a short natural-language narration from a system prompt + user content.

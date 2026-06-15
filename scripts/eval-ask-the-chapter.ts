@@ -439,6 +439,26 @@ async function main() {
   console.log(`Score: ${passed}/${total}  (${pct}%)`);
   console.log("──────────────────────────────────");
 
+  // Latency + iteration aggregates. The dominant cost is the LLM round-trips
+  // (one per iter), so p50/p95 ms and the iter histogram are the before/after
+  // oracle for any speed change — keep these ≥ baseline isn't the goal here
+  // (lower is better); pass rate is the guardrail, these are the win metric.
+  const timed = results.filter(r => r.ms > 0).map(r => r.ms).sort((a, b) => a - b);
+  if (timed.length > 0) {
+    const pctl = (p: number) => timed[Math.min(timed.length - 1, Math.floor((p / 100) * timed.length))];
+    const meanIters = results.reduce((s, r) => s + r.iters, 0) / results.length;
+    console.log(`Latency: p50 ${pctl(50)}ms · p95 ${pctl(95)}ms · max ${timed[timed.length - 1]}ms`);
+    const histo = new Map<number, number>();
+    for (const r of results) {
+      const bucket = r.iters >= 3 ? 3 : r.iters; // 1, 2, 3+
+      histo.set(bucket, (histo.get(bucket) ?? 0) + 1);
+    }
+    const histoStr = [...histo.entries()].sort((a, b) => a[0] - b[0])
+      .map(([k, n]) => `${k === 3 ? "3+" : k} iter: ${n}`).join(" · ");
+    console.log(`Iterations: mean ${meanIters.toFixed(2)} · ${histoStr}`);
+    console.log("──────────────────────────────────");
+  }
+
   // Group failures by category for at-a-glance pattern spotting
   const failsByCategory = new Map<string, number>();
   for (let i = 0; i < cases.length; i++) {

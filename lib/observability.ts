@@ -71,6 +71,31 @@ async function forwardToSentry(line: LogLine, err: unknown) {
   }
 }
 
+/**
+ * Emit one structured `info` line for latency/timing telemetry. Reuses the same
+ * JSON-per-line format as logError so Vercel's log viewer can filter by route or
+ * userId. The timing payload (iters, per-iteration LLM ms, per-tool ms, TTFT,
+ * total) goes under `ctx.extra`. Best-effort: never throws into the request path.
+ */
+export function logTiming(ctx: LogContext & { message?: string }): string {
+  const requestId = ctx.requestId ?? newRequestId();
+  try {
+    emit({
+      level: "info",
+      ts: new Date().toISOString(),
+      requestId,
+      route: ctx.route,
+      method: ctx.method,
+      userId: ctx.userId,
+      message: ctx.message ?? "timing",
+      extra: ctx.extra,
+    });
+  } catch {
+    // Observability must never break a request.
+  }
+  return requestId;
+}
+
 export function logError(err: unknown, ctx: LogContext): string {
   const requestId = ctx.requestId ?? newRequestId();
   const e = err as { message?: string; name?: string; stack?: string } | undefined;
