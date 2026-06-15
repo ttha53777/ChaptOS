@@ -778,8 +778,9 @@ export default function TimelinePage() {
 
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
 
-        {/* ── Toolbar (warmed at md+ by dash-toolbar) ────────────────────────── */}
-        <header className="toolbar-frosted dash-toolbar relative z-20 flex h-14 shrink-0 items-center gap-2 border-b border-white/[0.05] px-3 sm:gap-3 sm:px-5">
+        {/* ── Toolbar (mobile/tablet only — hidden at lg+ where the sidebar is
+            static and "Add Event" lives in the briefing below). ──────────────── */}
+        <header className="toolbar-frosted dash-toolbar relative z-20 flex h-14 shrink-0 items-center gap-2 border-b border-white/[0.05] px-3 sm:gap-3 sm:px-5 lg:hidden">
           <button onClick={() => setSidebarOpen(true)} className="tb-icon-btn flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-white/[0.07] lg:hidden">
             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
@@ -838,6 +839,11 @@ export default function TimelinePage() {
                   </div>
                 )}
               </div>
+              {/* Desktop add-event action (the topbar that used to carry it is hidden at lg+). */}
+              <button className="tl-add-btn" onClick={() => setActiveModal("create")}>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" strokeWidth={2.4} strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
+                Add Event
+              </button>
             </section>
 
             {/* ── Glance strip ─────────────────────────────────────────────── */}
@@ -1101,12 +1107,12 @@ export default function TimelinePage() {
       </div>
 
       {activeModal === "create" && (
-        <Modal title="Add Calendar Event" onClose={() => setActiveModal(null)}>
+        <Modal title="Add Calendar Event" tone="dusk" onClose={() => setActiveModal(null)}>
           <CalendarEventForm submitLabel="Add Event" onSubmit={handleCreateEvent} />
         </Modal>
       )}
       {activeModal === "edit" && selectedEvent && selectedEventCanEdit && (
-        <Modal title="Edit Calendar Event" onClose={() => setActiveModal(null)}>
+        <Modal title="Edit Calendar Event" tone="dusk" onClose={() => setActiveModal(null)}>
           <CalendarEventForm initialEvent={selectedEvent} submitLabel="Save Event" onSubmit={handleUpdateEvent} />
         </Modal>
       )}

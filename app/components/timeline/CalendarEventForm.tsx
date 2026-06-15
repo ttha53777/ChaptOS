@@ -65,10 +65,11 @@ export function CalendarEventForm({
     });
   }
 
-  // The Modal mounts outside the page's `.dash` wrapper, so we re-establish the
-  // dusk theme here to inherit dashboard-ledger.css's tokens (--ink, --vio, …).
+  // The Modal mounts outside the page's `.dash` wrapper. `.cef-root` carries just
+  // the dusk theme *tokens* (no page-wrapper layout) so the form sits flush in the
+  // Modal body — see calendar-event-form.css.
   return (
-    <div className="dash" data-dashboard-theme="dusk">
+    <div className="cef-root">
       <form onSubmit={handleSubmit} className="cef">
         {/* Title — the one thing every event needs */}
         <div className="cef-field">

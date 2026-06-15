@@ -9,6 +9,15 @@
    `.dash.dash-timeline` so they cannot touch the Operations dashboard.
    ───────────────────────────────────────────────────────────────────────────── */
 
+/* ── Add-event action (top-right of briefing) — mirrors meetings' .mt-add-btn so
+   the relocated toolbar action reads consistently across the dusk pages. ──────── */
+.dash .tl-add-btn { flex-shrink: 0; display: inline-flex; align-items: center; gap: 7px;
+  font-family: var(--mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--vio); background: var(--vio-bg); border: 1px solid var(--vio-bg); border-radius: 8px;
+  padding: 8px 14px; cursor: pointer; }
+.dash .tl-add-btn:hover { border-color: var(--vio); }
+.dash .tl-add-btn svg { stroke: var(--vio); }
+
 /* ── Category palette — muted, editorial; only used as small node dots + legend.
    Keys match CalEventCategory so JSX can set `var(--c-${category})`. ─────────── */
 .dash[data-dashboard-theme="dusk"] {
