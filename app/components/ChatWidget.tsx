@@ -1,14 +1,24 @@
 "use client";
 
-// Floating Ask button + slide-in chat panel. Available app-wide via app/layout.tsx.
-// Stores history per-session in localStorage. Streams answers from /api/ai/chat (SSE).
-// The button hides itself when the server reports no OPENAI_API_KEY.
+// "Ask the Chapter" — floating launcher + slide-in counsel panel. Available
+// app-wide via app/layout.tsx. Stores history per-session in localStorage and
+// streams answers from /api/ai/chat (SSE). The launcher hides itself when the
+// server reports no OPENAI_API_KEY.
+//
+// Visual language: the warm "dusk" theme (chat-ledger.css), matching the
+// Dashboard ("Ledger") and Timeline ("Agenda") redesigns — Fraunces serif for
+// the counsel voice, Geist Mono kickers, paper surfaces, violet accents. The
+// panel emphasizes three things: (1) it answers in a chapter "counsel" voice,
+// (2) it can consult the records (tool-call trail), and (3) it can propose
+// actions you ratify (proposal cards).
 
-import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode } from "react";
 import { orgFetch } from "../lib/api";
 import { iterSSE } from "../lib/sse";
+import "./chat-ledger.css";
 
 const STORAGE_KEY = "chaptos_chat_v1";
+const PULSE_SEEN_KEY = "chaptos_chat_seen_v1";
 const MAX_HISTORY = 50;
 
 interface ProposalCard {
@@ -28,28 +38,74 @@ interface ChatMessage {
   content: string;
   // For assistant messages, an in-progress tool call to show inline status.
   toolStatus?: { name: string; status: "running" | "done" } | null;
+  // Coarse progress phase for the empty-content placeholder: "routing" while the
+  // model is still deciding what to look up (the silent pre-tool gap), "working"
+  // once it has started calling tools / synthesising the answer.
+  phase?: "routing" | "working" | null;
   // Write proposals attached to this assistant turn (rendered as confirm cards).
   proposals?: ProposalCard[];
 }
 
-const STARTER_PROMPTS = [
-  "What's on this week?",
-  "Who's at risk?",
-  "How are we doing on dues?",
-  "What's our treasury balance?",
+// Starters grouped by domain so the empty state doubles as a capability map —
+// the member sees at a glance that the chapter knows people, money, and time.
+const STARTER_GROUPS: { label: string; prompts: string[] }[] = [
+  { label: "People",    prompts: ["Who's at risk?", "Who hasn't paid dues?"] },
+  { label: "Money",     prompts: ["How are we doing on dues?", "What's our treasury balance?"] },
+  { label: "This week", prompts: ["What's on this week?", "Any deadlines coming up?"] },
 ];
 
 function newId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 }
 
+// Tool names stream raw from the model (e.g. "list_brothers", "get_treasury").
+// Surface them in the chapter's counsel voice instead — "consulting the roster"
+// reads as deliberation, not a function call. Unmapped tools fall back to a
+// de-snaked phrase so a new tool never shows an ugly identifier.
+const TOOL_PHRASE: Record<string, string> = {
+  list_brothers:           "reviewing the roster",
+  get_brother:            "pulling a brother's record",
+  list_deadlines:         "checking the deadlines",
+  list_instagram_tasks:   "checking the posting queue",
+  list_calendar_events:   "consulting the calendar",
+  list_parties:           "checking the social calendar",
+  sum_transactions:       "tallying the ledger",
+  get_treasury:           "reading the treasury",
+  get_budget:             "reviewing the budget",
+  recent_activity:        "scanning recent activity",
+  weekly_digest:          "assembling the week",
+  get_event_attendance:   "checking attendance",
+  get_brother_attendance: "checking a brother's attendance",
+  list_roles:             "reviewing the roster's roles",
+  list_service_events:    "checking service hours",
+  list_programming_events: "checking programming",
+  propose_add_deadline:        "drafting a deadline",
+  propose_add_instagram_task:  "drafting a post",
+  propose_add_calendar_event:  "drafting a calendar event",
+  propose_log_transaction:     "drafting a ledger entry",
+  propose_mark_dues_paid:      "drafting a dues update",
+  propose_add_programming_event: "drafting a programming event",
+};
+
+function toolPhrase(name: string): string {
+  return TOOL_PHRASE[name] ?? name.replace(/^(list|get|sum|propose)_/, "").replace(/_/g, " ");
+}
+
+// Pretty-print a proposal payload as ordered key → value rows. Falls back to the
+// raw JSON disclosure for nested/array values that don't read well in a row.
+function proposalRows(payload: Record<string, unknown>): { k: string; v: string }[] {
+  return Object.entries(payload)
+    .filter(([, v]) => v !== null && v !== undefined && typeof v !== "object")
+    .map(([k, v]) => ({ k: k.replace(/([a-z])([A-Z])/g, "$1 $2"), v: String(v) }));
+}
+
 // ────────────────────────────────────────────────────────────────────────────
 // MarkdownLite — renders the small markdown subset the assistant actually emits
 // (headings, bold/italic, inline code, bullet + numbered lists, paragraphs).
 // Deliberately NOT a full markdown engine: the bot's answers are short and
-// structured, so a dependency-free renderer keeps the bundle lean and lets us
-// style every element to match the dark-glass panel. Anything it doesn't
-// recognize falls through as plain text, so raw markdown never looks broken.
+// structured, so a dependency-free renderer keeps the bundle lean. All styling
+// lives in chat-ledger.css (.chat-bubble-bot .voice …) so the markup stays clean.
+// Anything it doesn't recognize falls through as plain text.
 // ────────────────────────────────────────────────────────────────────────────
 
 // Inline pass: split a line into bold / italic / code spans. Runs left-to-right
@@ -64,11 +120,11 @@ function renderInline(text: string, keyPrefix: string): ReactNode[] {
   while ((m = re.exec(text)) !== null) {
     if (m.index > last) nodes.push(text.slice(last, m.index));
     if (m[2] !== undefined) {
-      nodes.push(<strong key={`${keyPrefix}-b${i}`} className="font-semibold text-white">{m[2]}</strong>);
+      nodes.push(<strong key={`${keyPrefix}-b${i}`}>{m[2]}</strong>);
     } else if (m[4] !== undefined) {
-      nodes.push(<em key={`${keyPrefix}-i${i}`} className="italic">{m[4]}</em>);
+      nodes.push(<em key={`${keyPrefix}-i${i}`}>{m[4]}</em>);
     } else if (m[5] !== undefined) {
-      nodes.push(<code key={`${keyPrefix}-c${i}`} className="rounded bg-white/[0.08] px-1 py-0.5 text-[11px] text-indigo-200">{m[5]}</code>);
+      nodes.push(<code key={`${keyPrefix}-c${i}`}>{m[5]}</code>);
     }
     last = re.lastIndex;
     i++;
@@ -89,8 +145,8 @@ function MarkdownLite({ text, trailing }: { text: string; trailing?: ReactNode }
       <li key={`li-${key}-${idx}`}>{renderInline(it, `li-${key}-${idx}`)}</li>
     ));
     blocks.push(list.ordered
-      ? <ol key={`ol-${key}`} className="my-1 ml-4 list-decimal space-y-0.5 marker:text-slate-500">{items}</ol>
-      : <ul key={`ul-${key}`} className="my-1 ml-4 list-disc space-y-0.5 marker:text-slate-500">{items}</ul>);
+      ? <ol key={`ol-${key}`}>{items}</ol>
+      : <ul key={`ul-${key}`}>{items}</ul>);
     key++;
     list = null;
   };
@@ -118,30 +174,43 @@ function MarkdownLite({ text, trailing }: { text: string; trailing?: ReactNode }
 
     if (line === "") continue; // blank line = block separator
     if (heading) {
-      const level = heading[1].length;
-      const cls = level === 1 ? "mt-2 mb-1 text-[14px] font-bold text-white"
-        : level === 2 ? "mt-2 mb-0.5 text-[13px] font-bold text-white"
-        : "mt-1.5 mb-0.5 text-[13px] font-semibold text-slate-100";
-      blocks.push(<p key={`h-${key++}`} className={cls}>{renderInline(heading[2], `h-${key}`)}</p>);
+      const level = Math.min(heading[1].length, 3);
+      const Tag = (`h${level}` as "h1" | "h2" | "h3");
+      blocks.push(<Tag key={`h-${key++}`}>{renderInline(heading[2], `h-${key}`)}</Tag>);
       continue;
     }
-    blocks.push(<p key={`p-${key++}`} className="whitespace-pre-wrap">{renderInline(line, `p-${key}`)}</p>);
+    blocks.push(<p key={`p-${key++}`}>{renderInline(line, `p-${key}`)}</p>);
   }
   flushList();
 
-  // Attach the streaming cursor to the final block so it trails the text.
-  if (trailing) blocks.push(<span key="cursor">{trailing}</span>);
-  return <div className="space-y-1">{blocks}</div>;
+  // Attach the streaming caret to the final block so it trails the text.
+  if (trailing) blocks.push(<span key="caret">{trailing}</span>);
+  return <div className="voice">{blocks}</div>;
 }
 
 // Sparkle icon — outlined, matches the app's heroicons-style SVG language.
-function SparkleIcon({ className = "h-4 w-4" }: { className?: string }) {
+function SparkleIcon({ className = "" }: { className?: string }) {
   return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    <svg className={className} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
       <path d="M12 3l1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6L12 3z" />
       <path d="M19 14l.8 2.2L22 17l-2.2.8L19 20l-.8-2.2L16 17l2.2-.8L19 14z" />
       <path d="M5 15l.6 1.6L7.2 17l-1.6.6L5 19l-.6-1.6L2.8 17l1.6-.4L5 15z" />
     </svg>
+  );
+}
+
+// Animated "the chapter is deliberating" indicator for the gap before the first
+// token. A trio of drifting dots gives the empty bubble a heartbeat instead of a
+// frozen line; the serif label names the current phase. Replaces the old static
+// <p className="thinking"> so the longest wait (model reasoning) reads as alive.
+function ThinkingDots({ label }: { label: string }) {
+  return (
+    <div className="chat-thinking" role="status" aria-live="polite">
+      <span className="dots" aria-hidden>
+        <span className="dot" /><span className="dot" /><span className="dot" />
+      </span>
+      <span className="lbl">{label}</span>
+    </div>
   );
 }
 
@@ -164,14 +233,20 @@ function saveHistory(msgs: ChatMessage[]) {
 export function ChatWidget() {
   const [enabled, setEnabled] = useState<boolean | null>(null); // null = unknown
   const [open, setOpen] = useState(false);
+  const [pulse, setPulse] = useState(false); // first-run nudge on the launcher
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
+  // Mirror of `messages` for synchronous reads in sendMessage — building the
+  // request body inside a setMessages updater isn't reliable under React 18
+  // batching (could read stale/empty state and POST {messages: []} → 400).
+  const messagesRef = useRef<ChatMessage[]>(messages);
+  messagesRef.current = messages;
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const abortRef = useRef<AbortController | null>(null);
 
-  // Probe whether the chat is enabled (key configured). Hide the button if not.
+  // Probe whether the chat is enabled (key configured). Hide the launcher if not.
   useEffect(() => {
     let cancelled = false;
     fetch("/api/ai/chat", { method: "GET" })
@@ -181,8 +256,14 @@ export function ChatWidget() {
     return () => { cancelled = true; };
   }, []);
 
-  // Load persisted history once on mount.
-  useEffect(() => { setMessages(loadHistory()); }, []);
+  // Load persisted history once on mount. Show the first-run pulse only when the
+  // member has never opened the panel before (no seen-flag, no history).
+  useEffect(() => {
+    setMessages(loadHistory());
+    try {
+      if (!localStorage.getItem(PULSE_SEEN_KEY) && !localStorage.getItem(STORAGE_KEY)) setPulse(true);
+    } catch { /* ignore */ }
+  }, []);
 
   // Persist on every change.
   useEffect(() => { saveHistory(messages); }, [messages]);
@@ -190,34 +271,50 @@ export function ChatWidget() {
   // Auto-scroll the message list to the bottom on new content.
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, streaming]);
 
-  // Esc closes the panel; cancel any in-flight stream.
+  // Open/close via Esc and the ⌘K / Ctrl-K shortcut (discoverability). When the
+  // panel closes, also cancel any in-flight stream.
   useEffect(() => {
-    if (!open) return;
-    const onKey = (e: globalThis.KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+    const onKey = (e: globalThis.KeyboardEvent) => {
+      if (e.key === "Escape" && open) { setOpen(false); return; }
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setOpen(o => !o);
+      }
+    };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [open]);
 
-  // Cancel any in-flight stream when the panel closes.
-  useEffect(() => { if (!open && abortRef.current) { abortRef.current.abort(); abortRef.current = null; } }, [open]);
+  // On open: dismiss the pulse for good, cancel nothing; focus the composer.
+  // On close: abort any in-flight stream.
+  useEffect(() => {
+    if (open) {
+      if (pulse) { setPulse(false); try { localStorage.setItem(PULSE_SEEN_KEY, "1"); } catch { /* ignore */ } }
+      // Defer focus until the slide-in transform settles.
+      const t = setTimeout(() => textareaRef.current?.focus(), 320);
+      return () => clearTimeout(t);
+    }
+    if (abortRef.current) { abortRef.current.abort(); abortRef.current = null; }
+  }, [open, pulse]);
 
-  async function sendMessage(text: string) {
+  const sendMessage = useCallback(async (text: string) => {
     const trimmed = text.trim();
     if (!trimmed || streaming) return;
 
     const userMsg: ChatMessage = { id: newId(), role: "user", content: trimmed };
-    const assistantMsg: ChatMessage = { id: newId(), role: "assistant", content: "", toolStatus: null };
-    setMessages(prev => [...prev, userMsg, assistantMsg]);
-    setInput("");
-    setStreaming(true);
-
-    // Send only the last ~12 messages — the server also caps, but trimming on
-    // the client means less request-body upload time. Recent turns matter more
-    // than verbatim history; the assistant can always re-tool if it needs facts.
-    const payload = [...messages, userMsg]
+    const assistantMsg: ChatMessage = { id: newId(), role: "assistant", content: "", toolStatus: null, phase: "routing" };
+    // Build the request body from a ref to the freshest committed history, NOT
+    // from inside the setMessages updater — that updater isn't guaranteed to run
+    // synchronously (React 18 batching), so reading payloadHistory after it could
+    // see an empty array and POST {messages: []} → HTTP 400. The ref is always
+    // current, and we append the new user message explicitly.
+    const payloadHistory = [...messagesRef.current, userMsg]
       .filter(m => m.content.trim().length > 0)
       .slice(-12)
       .map(m => ({ role: m.role, content: m.content }));
+    setMessages(prev => [...prev, userMsg, assistantMsg]);
+    setInput("");
+    setStreaming(true);
 
     const controller = new AbortController();
     abortRef.current = controller;
@@ -226,7 +323,7 @@ export function ChatWidget() {
       const res = await orgFetch("/api/ai/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: payload }),
+        body: JSON.stringify({ messages: payloadHistory }),
         signal: controller.signal,
       });
       if (!res.ok || !res.body) {
@@ -241,11 +338,11 @@ export function ChatWidget() {
         try { parsed = JSON.parse(data); } catch { continue; }
         if (event === "text") {
           const delta = (parsed as { delta?: string }).delta ?? "";
-          setMessages(prev => prev.map(m => m.id === assistantMsg.id ? { ...m, content: m.content + delta, toolStatus: null } : m));
+          setMessages(prev => prev.map(m => m.id === assistantMsg.id ? { ...m, content: m.content + delta, toolStatus: null, phase: "working" } : m));
         } else if (event === "tool_call") {
           const tc = parsed as { name?: string; status?: "running" | "done" };
           if (tc.name && tc.status) {
-            setMessages(prev => prev.map(m => m.id === assistantMsg.id ? { ...m, toolStatus: tc.status === "done" ? null : { name: tc.name!, status: tc.status! } } : m));
+            setMessages(prev => prev.map(m => m.id === assistantMsg.id ? { ...m, toolStatus: tc.status === "done" ? null : { name: tc.name!, status: tc.status! }, phase: "working" } : m));
           }
         } else if (event === "proposal") {
           const p = parsed as { action?: string; endpoint?: string; method?: "POST" | "PATCH"; payload?: Record<string, unknown>; summary?: string };
@@ -267,7 +364,7 @@ export function ChatWidget() {
       setStreaming(false);
       abortRef.current = null;
     }
-  }
+  }, [streaming]);
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -304,7 +401,7 @@ export function ChatWidget() {
         body: JSON.stringify(card.payload),
       });
       if (res.ok) {
-        updateProposal(msgId, card.id, { state: "done", resultMessage: "Done." });
+        updateProposal(msgId, card.id, { state: "done", resultMessage: "Ratified." });
       } else {
         const errBody = await res.json().catch(() => ({})) as { error?: string };
         const msg = res.status === 403
@@ -321,210 +418,188 @@ export function ChatWidget() {
     updateProposal(msgId, card.id, { state: "declined", resultMessage: "Declined." });
   }
 
-  // Hide entirely when AI isn't enabled (no API key configured).
-  if (enabled === false) return null;
-  // While the enabled probe is in flight, render nothing (avoids a flash of the button).
-  if (enabled === null) return null;
+  const isMac = useMemo(() => typeof navigator !== "undefined" && /Mac|iP(hone|ad|od)/.test(navigator.platform), []);
+  const shortcut = isMac ? "⌘K" : "Ctrl K";
+
+  // Hide entirely when AI isn't enabled (no API key configured), and while the
+  // enabled probe is in flight (avoids a flash of the launcher).
+  if (enabled !== true) return null;
 
   return (
-    <>
-      {/* Floating Ask button */}
+    <div className="chat-root">
+      {/* Floating launcher — warm paper pill with a serif invitation */}
       {!open && (
         <button
           onClick={() => setOpen(true)}
-          aria-label="Open chat"
-          className="group fixed z-40 inline-flex items-center gap-2 rounded-full border border-indigo-400/30 bg-indigo-500/15 px-4 py-2.5 text-[13px] font-semibold text-indigo-100 shadow-[0_8px_28px_-10px_rgba(99,102,241,0.55),inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-xl transition-all hover:border-indigo-400/50 hover:bg-indigo-500/25 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:ring-offset-2 focus-visible:ring-offset-[#07090f]"
-          style={{
-            // Sit above the iOS home indicator / safe inset on notched devices.
-            bottom: "max(1.5rem, env(safe-area-inset-bottom))",
-            right:  "max(1.5rem, env(safe-area-inset-right))",
-            backgroundImage: "radial-gradient(ellipse at 30% 20%, rgba(129,140,248,0.18) 0%, transparent 70%)",
-          }}
+          aria-label="Ask the Chapter"
+          className={`chat-launcher${pulse ? " pulse" : ""}`}
         >
-          <SparkleIcon className="h-4 w-4 text-indigo-300 transition-colors group-hover:text-indigo-200" />
-          <span>Ask</span>
+          <SparkleIcon className="spark" />
+          <span>Ask the Chapter</span>
+          <kbd className="hint">{shortcut}</kbd>
         </button>
       )}
 
-      {/* Backdrop — matches existing drawer convention (BrotherDrawer etc.) */}
-      {open && (
-        <div
-          className="fixed inset-0 z-40 bg-black/40 backdrop-blur-[1px] lg:bg-black/20"
-          onClick={() => setOpen(false)}
-          aria-hidden
-        />
-      )}
+      {/* Backdrop */}
+      {open && <div className="chat-backdrop" onClick={() => setOpen(false)} aria-hidden />}
 
-      {/* Panel — translucent frosted indigo glass over the app surface */}
-      <div
-        role="dialog"
-        aria-label="Chapter chat"
-        className={`fixed top-0 right-0 z-50 flex w-full flex-col border-l border-white/[0.07] shadow-2xl transition-transform duration-300 ease-in-out sm:w-[420px] ${open ? "translate-x-0" : "translate-x-full pointer-events-none"}`}
-        style={{
-          // 100dvh = the *dynamic* viewport height: shrinks when the iOS keyboard
-          // opens, so the textarea + send button stay visible instead of getting
-          // pushed behind the keyboard. Modern browsers only (iOS 15.4+, etc).
-          height: "100dvh",
-          // Layered: dark surface at ~80% + soft indigo bloom from top-right, all over a backdrop blur
-          background: "linear-gradient(to bottom, rgba(12,14,20,0.85) 0%, rgba(12,14,20,0.92) 60%, rgba(12,14,20,0.95) 100%), radial-gradient(ellipse 60% 40% at 90% 0%, rgba(99,102,241,0.18) 0%, transparent 70%)",
-          backdropFilter: "saturate(140%) blur(16px)",
-          WebkitBackdropFilter: "saturate(140%) blur(16px)",
-        }}
-      >
-        {/* Header — pt-safe so the close button isn't tucked under the iOS notch */}
-        <header className="flex shrink-0 items-center justify-between border-b border-white/[0.06] px-4 pt-safe pb-2 sm:h-14 sm:pt-0 sm:pb-0">
-          <div className="flex items-center gap-2.5">
-            <span className="flex h-7 w-7 items-center justify-center rounded-lg border border-indigo-400/25 bg-indigo-500/15 text-indigo-300 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
-              <SparkleIcon className="h-3.5 w-3.5" />
-            </span>
+      {/* Counsel panel */}
+      <div role="dialog" aria-label="Ask the Chapter" className={`chat-panel${open ? "" : " closed"}`}>
+        {/* Header */}
+        <header className="chat-head">
+          <div className="id">
+            <span className="crest"><SparkleIcon /></span>
             <div>
-              <p className="text-[14px] font-semibold leading-tight text-white">Ask the Chapter</p>
-              <p className="hidden text-[10px] leading-tight text-slate-500 sm:block">Saved on this device</p>
+              <div className="ttl">Ask the Chapter</div>
+              <div className="sub">Counsel · saved on this device</div>
             </div>
           </div>
-          <div className="flex items-center gap-1">
+          <div className="tools">
             {messages.length > 0 && (
-              <button
-                onClick={handleClear}
-                className="rounded-md px-3 py-2 text-[11px] font-medium text-slate-400 hover:bg-white/[0.06] hover:text-slate-200 sm:px-2 sm:py-1"
-              >
-                Clear
-              </button>
+              <button onClick={handleClear} className="h-btn">Clear</button>
             )}
-            <button
-              onClick={() => setOpen(false)}
-              aria-label="Close"
-              className="flex h-10 w-10 items-center justify-center rounded-md text-slate-400 hover:bg-white/[0.06] hover:text-white sm:h-8 sm:w-8"
-            >
-              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+            <button onClick={() => setOpen(false)} aria-label="Close" className="h-close">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                 <path d="M6 6l12 12M6 18L18 6" />
               </svg>
             </button>
           </div>
         </header>
 
-        {/* Messages */}
-        <div className="flex-1 overflow-y-auto px-4 py-4">
+        {/* Scroll region */}
+        <div className="chat-scroll">
           {messages.length === 0 ? (
-            <div className="flex h-full flex-col items-center justify-center gap-4 px-4 text-center">
-              <div className="rounded-full bg-indigo-500/15 px-3 py-1 text-[11px] font-medium text-indigo-300">Try a starter</div>
-              <p className="text-[13px] leading-relaxed text-slate-400">Ask anything about the chapter — brothers, deadlines, treasury, this week's agenda.</p>
-              <div className="flex w-full flex-col gap-2">
-                {STARTER_PROMPTS.map(p => (
-                  <button
-                    key={p}
-                    onClick={() => void sendMessage(p)}
-                    disabled={streaming}
-                    className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2 text-left text-[12px] text-slate-300 transition-colors hover:border-indigo-500/30 hover:bg-indigo-500/[0.06] hover:text-white disabled:opacity-50"
-                  >
-                    {p}
-                  </button>
+            <div className="chat-empty">
+              <p className="lede">Ask anything about <em>the chapter</em>.</p>
+              <p className="blurb">
+                Brothers, dues, treasury, this week&apos;s agenda — the chapter consults its records and answers.
+                It can also <b>propose actions</b> for you to ratify.
+              </p>
+              <div className="chat-starts">
+                {STARTER_GROUPS.map(group => (
+                  <div key={group.label} className="chat-start-group">
+                    <div className="g-lbl">{group.label}</div>
+                    <div className="chat-start-grid">
+                      {group.prompts.map(p => (
+                        <button key={p} onClick={() => void sendMessage(p)} disabled={streaming} className="chat-start">
+                          {p}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 ))}
               </div>
             </div>
           ) : (
-            <ul className="space-y-3">
+            <div className="chat-stream">
               {messages.map(m => (
-                <li key={m.id} className={m.role === "user" ? "flex justify-end" : "flex justify-start"}>
+                <div key={m.id} className={`chat-turn ${m.role === "user" ? "user" : "bot"}`}>
                   {m.role === "user" ? (
-                    <div className="max-w-[85%] rounded-2xl rounded-br-md border border-indigo-400/30 bg-indigo-500/30 px-3 py-2 text-[13px] leading-relaxed text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-sm">
-                      {m.content}
-                    </div>
+                    <div className="chat-bubble-user">{m.content}</div>
                   ) : (
-                    <div className="max-w-[90%] rounded-2xl rounded-bl-md border border-white/[0.06] bg-white/[0.03] px-3 py-2 text-[13px] leading-relaxed text-slate-200">
+                    <div className="chat-bubble-bot">
                       {m.content
-                        ? <MarkdownLite text={m.content} trailing={streaming && m === messages[messages.length - 1] ? <span className="ml-0.5 inline-block h-3 w-1 animate-pulse bg-indigo-400 align-middle" aria-hidden /> : undefined} />
-                        : (!m.proposals || m.proposals.length === 0) && <p className="text-slate-500 italic">Thinking…</p>}
+                        ? <MarkdownLite text={m.content} trailing={streaming && m === messages[messages.length - 1] ? <span className="chat-caret" aria-hidden /> : undefined} />
+                        : (!m.proposals || m.proposals.length === 0) && !m.toolStatus &&
+                          <ThinkingDots label={m.phase === "routing" ? "Deciding what to check" : "Consulting the records"} />}
                       {m.toolStatus && (
-                        <p className="mt-2 flex items-center gap-1.5 text-[11px] text-slate-500">
-                          <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-indigo-400" aria-hidden />
-                          <span>Looking up <code className="rounded bg-white/[0.05] px-1 text-[10px] text-slate-400">{m.toolStatus.name}</code>…</span>
-                        </p>
-                      )}
-                      {m.proposals?.map(card => (
-                        <div key={card.id} className="mt-3 rounded-lg border border-indigo-500/30 bg-indigo-500/[0.07] p-3">
-                          <div className="flex items-start gap-2">
-                            <span className="mt-0.5 shrink-0 rounded bg-indigo-500/25 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-indigo-200">Proposal</span>
-                            <p className="text-[12px] leading-snug text-slate-200">{card.summary}</p>
-                          </div>
-                          {/* Payload preview */}
-                          <pre className="mt-2 max-h-32 overflow-auto rounded bg-black/30 px-2 py-1.5 text-[10px] leading-snug text-slate-400">{JSON.stringify(card.payload, null, 2)}</pre>
-                          {card.state === "pending" && (
-                            <div className="mt-2 flex gap-2">
-                              <button
-                                onClick={() => void confirmProposal(m.id, card)}
-                                className="flex-1 rounded-md bg-indigo-600 px-2.5 py-2.5 text-[11px] font-semibold text-white transition-colors hover:bg-indigo-500 sm:py-1.5"
-                              >
-                                Confirm
-                              </button>
-                              <button
-                                onClick={() => declineProposal(m.id, card)}
-                                className="flex-1 rounded-md border border-white/[0.1] bg-white/[0.03] px-2.5 py-2.5 text-[11px] font-medium text-slate-300 transition-colors hover:bg-white/[0.06] sm:py-1.5"
-                              >
-                                Decline
-                              </button>
-                            </div>
-                          )}
-                          {card.state === "confirming" && (
-                            <p className="mt-2 text-[11px] italic text-slate-400">Submitting…</p>
-                          )}
-                          {card.state === "done" && (
-                            <p className="mt-2 flex items-center gap-1 text-[11px] font-medium text-emerald-400">
-                              <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M5 13l4 4L19 7" /></svg>
-                              {card.resultMessage}
-                            </p>
-                          )}
-                          {card.state === "declined" && (
-                            <p className="mt-2 text-[11px] text-slate-500">{card.resultMessage}</p>
-                          )}
-                          {card.state === "error" && (
-                            <p className="mt-2 flex items-center gap-1 text-[11px] text-red-400">
-                              <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M12 9v4M12 17h.01M10.3 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" /></svg>
-                              {card.resultMessage}
-                            </p>
-                          )}
+                        <div className="chat-tool">
+                          <span className="orbit" aria-hidden />
+                          <span>Now {toolPhrase(m.toolStatus.name)}…</span>
                         </div>
-                      ))}
+                      )}
+                      {m.proposals?.map(card => {
+                        const rows = proposalRows(card.payload);
+                        const hasComplex = rows.length < Object.keys(card.payload).length;
+                        return (
+                          <div key={card.id} className="chat-proposal">
+                            <div className="chat-prop-head">
+                              <span className="seal">Proposal</span>
+                              <span className="what">{card.summary}</span>
+                            </div>
+                            <div className="chat-prop-body">
+                              {rows.length > 0 && (
+                                <div className="chat-prop-detail">
+                                  {rows.map(r => (
+                                    <div key={r.k} className="chat-prop-row">
+                                      <span className="k">{r.k}</span>
+                                      <span className="val">{r.v}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                              {(hasComplex || rows.length === 0) && (
+                                <details className="chat-prop-raw">
+                                  <summary>Full payload</summary>
+                                  <pre>{JSON.stringify(card.payload, null, 2)}</pre>
+                                </details>
+                              )}
+
+                              {card.state === "pending" && (
+                                <div className="chat-prop-actions">
+                                  <button onClick={() => void confirmProposal(m.id, card)} className="chat-ratify">Ratify</button>
+                                  <button onClick={() => declineProposal(m.id, card)} className="chat-decline">Decline</button>
+                                </div>
+                              )}
+                              {card.state === "confirming" && (
+                                <p className="chat-prop-state busy">
+                                  <span className="chat-spin" aria-hidden />
+                                  Ratifying…
+                                </p>
+                              )}
+                              {card.state === "done" && (
+                                <p className="chat-prop-state done">
+                                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M5 13l4 4L19 7" /></svg>
+                                  {card.resultMessage}
+                                </p>
+                              )}
+                              {card.state === "declined" && (
+                                <p className="chat-prop-state gone">{card.resultMessage}</p>
+                              )}
+                              {card.state === "error" && (
+                                <p className="chat-prop-state fail">
+                                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M12 9v4M12 17h.01M10.3 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" /></svg>
+                                  {card.resultMessage}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
-                </li>
+                </div>
               ))}
               <div ref={messagesEndRef} />
-            </ul>
+            </div>
           )}
         </div>
 
-        {/* Input — pb-safe lifts above the iOS home indicator when the
-            keyboard is closed; when it opens, 100dvh on the panel shrinks
-            the surface so the input stays visible. */}
-        <form onSubmit={handleSubmit} className="shrink-0 border-t border-white/[0.06] bg-black/20 px-3 pt-3 pb-safe">
-          <div className="flex items-end gap-2 rounded-xl border border-white/[0.08] bg-white/[0.03] focus-within:border-indigo-500/40 focus-within:bg-white/[0.05]">
+        {/* Composer */}
+        <form onSubmit={handleSubmit} className="chat-composer">
+          <div className="chat-input-wrap">
             <textarea
               ref={textareaRef}
               value={input}
               onChange={e => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Ask anything about the chapter…"
+              placeholder="Ask the chapter…"
               rows={1}
               disabled={streaming}
-              className="flex-1 resize-none bg-transparent px-3 py-2.5 text-[13px] text-white placeholder:text-slate-500 focus:outline-none disabled:opacity-50"
-              // 44px min-height — Apple HIG tap-target floor. The 4px bump on
-              // desktop is invisible next to the 40px send button.
-              style={{ minHeight: 44, maxHeight: 160 }}
+              className="chat-textarea"
             />
-            <button
-              type="submit"
-              disabled={!input.trim() || streaming}
-              className="m-1.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-indigo-600 text-white transition-colors hover:bg-indigo-500 disabled:cursor-not-allowed disabled:bg-white/[0.06] disabled:text-slate-600 sm:h-8 sm:w-8"
-              aria-label="Send"
-            >
-              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+            <button type="submit" disabled={!input.trim() || streaming} className="chat-send" aria-label="Send">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                 <path d="M5 12h14M12 5l7 7-7 7" />
               </svg>
             </button>
           </div>
+          <div className="foot">
+            <span>Enter to send · Shift+Enter for a line</span>
+            <span>Esc to close</span>
+          </div>
         </form>
       </div>
-    </>
+    </div>
   );
 }
