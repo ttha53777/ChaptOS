@@ -3,7 +3,7 @@
 import React, { useState, useMemo, useCallback } from "react";
 import { Sidebar } from "../../components/Sidebar";
 import { BrotherAvatar } from "../../components/BrotherAvatar";
-import { StatusBadge, Modal, FieldLabel, ConfirmDialog } from "../../components/dashboard/primitives";
+import { Modal, FieldLabel } from "../../components/dashboard/primitives";
 import { inputCls } from "../../components/dashboard/styles";
 import { BrotherDrawer } from "../../components/dashboard/drawers/BrotherDrawer";
 import { useChapter } from "../../context/ChapterContext";
@@ -16,59 +16,54 @@ import {
   avg,
   fmt$,
 } from "../../data";
-import { BROTHER_STYLES } from "../../components/dashboard/styles";
 import { requestJson } from "../../lib/api";
+import "../../components/dashboard/dashboard-ledger.css";
+import "../../components/dashboard/brotherhood-ledger.css";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function pct(n: number) {
-  return `${n.toFixed(0)}%`;
-}
 
 function clamp(n: number, lo: number, hi: number) {
   return Math.min(hi, Math.max(lo, n));
 }
 
-// Mini bar
-function Bar({ value, max = 100, colorClass }: { value: number; max?: number; colorClass: string }) {
-  const w = clamp((value / max) * 100, 0, 100);
+// Warm "Chapter Ledger" KPI cell — non-interactive (no per-KPI drawer on this page).
+// `note` carries the optional gold "needs attention" subline.
+function Measure({ label, prefix, value, unit, note, noteTone }: {
+  label: string; prefix?: string; value: string; unit?: string; note: string; noteTone?: "warn" | "ok";
+}) {
   return (
-    <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/[0.06]">
-      <div className={`h-full rounded-full transition-all duration-500 ${colorClass}`} style={{ width: `${w}%` }} />
+    <div className="measure">
+      <p className="k">{label}</p>
+      <p className="v">{prefix && <small>{prefix}</small>}{value}{unit && <small>{unit}</small>}</p>
+      <p className={`note${noteTone ? ` ${noteTone}` : ""}`}>{note}</p>
     </div>
   );
 }
 
-// KPI card
-function KpiCard({ label, value, sub, accent }: { label: string; value: string; sub: string; accent: string }) {
-  return (
-    <div className="rounded-xl border border-white/[0.06] bg-[#10121a] px-4 py-3.5 flex flex-col gap-1">
-      <p className="text-[11px] font-medium text-slate-500 uppercase tracking-wider">{label}</p>
-      <p className={`text-[24px] font-bold leading-none tabular-nums ${accent}`}>{value}</p>
-      <p className="text-[11px] text-slate-500 leading-tight">{sub}</p>
-    </div>
-  );
-}
+// Status pill in the warm pane — mirrors RosterTable's STATUS_TAG so rows match
+// the `.dash` palette (the cold <StatusBadge> stays in use inside the drawer).
+const STATUS_TAG: Record<BrotherStatus, { cls: string; label: string }> = {
+  "Good":    { cls: "st-good",  label: "GOOD" },
+  "Watch":   { cls: "st-watch", label: "WATCH" },
+  "At Risk": { cls: "st-risk",  label: "AT RISK" },
+};
 
-// Sort button
 type SortKey = "attendance" | "gpa" | "serviceHours" | "duesOwed" | "name";
 
-function SortButton({ label, sortKey, activeKey, dir, onClick }: {
-  label: string; sortKey: SortKey; activeKey: SortKey | null; dir: "asc" | "desc"; onClick: (k: SortKey) => void;
+// Sortable table header cell (mono caps, violet active arrow).
+function SortHead({ label, sortKey, activeKey, dir, onClick, numeric }: {
+  label: string; sortKey: SortKey; activeKey: SortKey | null; dir: "asc" | "desc";
+  onClick: (k: SortKey) => void; numeric?: boolean;
 }) {
-  const isActive = activeKey === sortKey;
+  const active = activeKey === sortKey;
   return (
-    <button
+    <th
+      className={`sortable${numeric ? " num" : ""}`}
       onClick={() => onClick(sortKey)}
-      className={`flex items-center gap-1 text-[11px] font-medium transition-colors ${isActive ? "text-indigo-400" : "text-slate-500 hover:text-slate-300"}`}
+      aria-sort={active ? (dir === "asc" ? "ascending" : "descending") : "none"}
     >
-      {label}
-      {isActive && (
-        <svg className="h-3 w-3" viewBox="0 0 16 16" fill="currentColor">
-          {dir === "asc" ? <path d="M8 3.5L3.5 9h9L8 3.5Z" /> : <path d="M8 12.5L3.5 7h9L8 12.5Z" />}
-        </svg>
-      )}
-    </button>
+      {label}{active && <span className="arrow">{dir === "asc" ? " ↑" : " ↓"}</span>}
+    </th>
   );
 }
 
@@ -137,7 +132,6 @@ export default function BrothersPage() {
     () => (currentUser?.org?.customMemberFields ?? []).filter(f => f.showOnRoster).sort((a, b) => a.rosterOrder - b.rosterOrder),
     [currentUser?.org?.customMemberFields],
   );
-  const gridTemplate = `grid-cols-[1fr_auto_auto_auto_auto_auto${customFieldDefs.map(() => "_auto").join("")}]`;
   const selfId = currentUser?.id ?? null;
 
   const [sidebarOpen,      setSidebarOpen]      = useState(false);
@@ -288,15 +282,23 @@ export default function BrothersPage() {
     URL.revokeObjectURL(url);
   }
 
-  const filterChips: Array<{ label: string; value: BrotherStatus | "All" }> = [
-    { label: "All", value: "All" },
-    { label: "Good", value: "Good" },
-    { label: "Watch", value: "Watch" },
-    { label: "At Risk", value: "At Risk" },
+  // Status filter is driven by BOTH the segmented "Standing" bar and the chips.
+  const statusChips: Array<{ label: string; value: BrotherStatus | "All"; count: number }> = [
+    { label: "All",     value: "All",     count: statusCounts.All },
+    { label: "Good",    value: "Good",    count: statusCounts.Good },
+    { label: "Watch",   value: "Watch",   count: statusCounts.Watch },
+    { label: "At Risk", value: "At Risk", count: statusCounts["At Risk"] },
   ];
+  const segments: Array<{ value: BrotherStatus; cls: string; dotCls: string; label: string; count: number }> = [
+    { value: "Good",    cls: "s-good",  dotCls: "bg-sage", label: "Good",    count: statusCounts.Good },
+    { value: "Watch",   cls: "s-watch", dotCls: "bg-gold", label: "Watch",   count: statusCounts.Watch },
+    { value: "At Risk", cls: "s-risk",  dotCls: "bg-rose", label: "At risk", count: statusCounts["At Risk"] },
+  ];
+  const toggleStatus = (s: BrotherStatus) => setStatusFilter(statusFilter === s ? "All" : s);
 
-  const chipActive = "bg-indigo-500/15 text-indigo-300 ring-1 ring-inset ring-indigo-500/20";
-  const chipIdle   = "text-slate-400 hover:bg-white/[0.05] hover:text-slate-200";
+  // Live "needs attention" sentence for the editorial header.
+  const duesOwingCount = brotherList.filter(b => b.duesOwed > 0).length;
+  const belowAttend    = brotherList.filter(b => b.attendance < THRESHOLDS.attendanceWatch).length;
 
   return (
     <div className="flex h-screen overflow-hidden bg-[#07090f]">
@@ -304,11 +306,12 @@ export default function BrothersPage() {
 
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
 
-        {/* ── Toolbar ── */}
-        <header className="toolbar-frosted relative z-10 flex h-14 shrink-0 items-center gap-3 border-b border-white/[0.05] px-4 sm:px-6">
+        {/* ── Toolbar (mobile/tablet only — hidden at lg+ where the sidebar is
+            static and the Export/New actions live in the editorial header below). ── */}
+        <header className="toolbar-frosted dash-toolbar relative z-10 flex h-14 shrink-0 items-center gap-3 border-b border-white/[0.05] px-4 sm:px-6 lg:hidden">
           <button
             onClick={() => setSidebarOpen(true)}
-            className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-white/[0.07] lg:hidden"
+            className="tb-icon-btn flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-white/[0.07] lg:hidden"
             aria-label="Open menu"
           >
             <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -316,14 +319,15 @@ export default function BrothersPage() {
             </svg>
           </button>
           <div className="min-w-0 flex-1">
-            <p className="text-[14px] font-semibold leading-tight text-white">{v("Member", true)}</p>
-            <p className="hidden text-[11px] leading-tight text-slate-400 sm:block">{currentUser?.org?.name ?? "ChaptOS"} · {v("Member")} Roster</p>
+            <p className="tb-title text-[14px] font-semibold leading-tight text-white">{v("Member", true)}</p>
+            <p className="tb-org hidden text-[11px] leading-tight text-slate-400 sm:block">{currentUser?.org?.name ?? "ChaptOS"} · {v("Member")} Roster</p>
           </div>
-          <div className="flex shrink-0 items-center gap-2">
+          {/* Mobile-only quick actions; the desktop Export/New live in the editorial header below. */}
+          <div className="tb-actions flex shrink-0 items-center gap-2 lg:hidden">
             <button
               onClick={handleExport}
               title="Export CSV"
-              className="flex h-8 w-8 items-center justify-center rounded-full border border-white/[0.08] bg-white/[0.04] text-slate-400 transition-all hover:border-white/[0.16] hover:bg-white/[0.08] hover:text-white"
+              className="tb-icon-btn flex h-8 w-8 items-center justify-center rounded-full border border-white/[0.08] bg-white/[0.04] text-slate-400 transition-all hover:border-white/[0.16] hover:bg-white/[0.08] hover:text-white"
             >
               <svg className="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
@@ -332,230 +336,247 @@ export default function BrothersPage() {
             {canBrothers && (
               <button
                 onClick={() => setShowAddModal(true)}
-                className="flex h-8 items-center gap-1.5 rounded-full border border-indigo-500/20 bg-white/[0.04] px-3.5 text-[12px] font-semibold text-indigo-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] transition-all hover:border-indigo-400/35 hover:bg-indigo-500/[0.08] hover:text-white"
+                className="tb-btn flex h-8 items-center gap-1.5 rounded-full border border-indigo-500/20 bg-white/[0.04] px-3.5 text-[12px] font-semibold text-indigo-200 transition-all hover:border-indigo-400/35 hover:bg-indigo-500/[0.08] hover:text-white"
               >
                 <svg className="h-3.5 w-3.5 text-indigo-300" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
                 </svg>
-                <span className="hidden sm:inline">New Brother</span>
+                <span className="hidden sm:inline">New</span>
               </button>
             )}
           </div>
         </header>
 
         <main className="page-ambient flex-1 overflow-y-auto">
-          <div className="mx-auto max-w-5xl space-y-5 px-4 py-6 sm:px-6">
+          {/* Warm editorial pane, scoped under `.dash` (dashboard-ledger.css +
+              brotherhood-ledger.css). Sidebar, toolbar, drawers and modals are
+              outside this wrapper and keep their own styling. */}
+          <div className="dash" data-dashboard-theme="dusk">
 
-            {/* ── Error toasts ── */}
+            {/* ── Error bands ── */}
             {pageError && (
-              <div className="flex items-center justify-between rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3">
-                <p className="text-[13px] text-red-300">{pageError}</p>
-                <button onClick={() => setPageError(null)} className="ml-4 text-[11px] text-red-400 hover:text-red-200">Dismiss</button>
+              <div className="page-err">
+                <p>{pageError}</p>
+                <button onClick={() => setPageError(null)}>Dismiss</button>
               </div>
             )}
             {deleteError && (
-              <div className="flex items-center justify-between rounded-xl border border-amber-500/20 bg-amber-500/10 px-4 py-3">
-                <p className="text-[13px] text-amber-300">{deleteError}</p>
-                <button onClick={() => setDeleteError(null)} className="ml-4 text-[11px] text-amber-400 hover:text-amber-200">Dismiss</button>
+              <div className="page-err warn">
+                <p>{deleteError}</p>
+                <button onClick={() => setDeleteError(null)}>Dismiss</button>
               </div>
             )}
 
-            {/* ── KPI strip ── */}
-            {isLoading ? (
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                {[...Array(4)].map((_, i) => <div key={i} className="h-20 rounded-xl border border-white/[0.06] bg-[#10121a] animate-pulse" />)}
+            {/* ── Editorial header ── */}
+            <div className="pagehead">
+              <div>
+                <p className="kicker">{currentUser?.org?.name ?? "ChaptOS"} &ensp;·&ensp; {v("Member")} Roster</p>
+                <h1>The <em>{v("Member", true)}</em></h1>
+                {kpis && (
+                  <p className="summary">
+                    {kpis.total} {v("Member", true).toLowerCase()} active.{" "}
+                    <b>{statusCounts["At Risk"]} at risk</b> and <b>{statusCounts.Watch} on watch</b>
+                    {(duesOwingCount > 0 || belowAttend > 0) && <>
+                      {" "}— {duesOwingCount > 0 && <>{duesOwingCount} owe {fmt$(kpis.duesTotal)} in {v("Dues").toLowerCase()}</>}
+                      {duesOwingCount > 0 && belowAttend > 0 && " and "}
+                      {belowAttend > 0 && <>{belowAttend} sit below the {THRESHOLDS.attendanceWatch}% attendance line</>}
+                    </>}.
+                  </p>
+                )}
               </div>
-            ) : kpis && (
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                <KpiCard label="Avg Attendance" value={pct(kpis.avgAtt)} sub={`${kpis.attRisk} at risk · ${kpis.watching} on watch`} accent={kpis.avgAtt < THRESHOLDS.attendanceAtRisk ? "text-red-400" : kpis.avgAtt < THRESHOLDS.attendanceWatch ? "text-amber-400" : "text-emerald-400"} />
-                <KpiCard label="Avg GPA" value={kpis.avgGpa.toFixed(2)} sub="out of 4.0" accent={kpis.avgGpa < THRESHOLDS.gpaAtRisk ? "text-red-400" : kpis.avgGpa < THRESHOLDS.gpaWatch ? "text-amber-400" : "text-indigo-400"} />
-                <KpiCard label="Dues Owed" value={fmt$(kpis.duesTotal)} sub={`${brotherList.filter(b => b.duesOwed > 0).length} brothers outstanding`} accent={kpis.duesTotal === 0 ? "text-emerald-400" : "text-red-400"} />
-                <KpiCard label="Service Goal" value={`${kpis.svcMet} / ${kpis.total}`} sub={`met ${THRESHOLDS.serviceHoursGoal}h goal`} accent="text-white" />
+              <div className="head-actions">
+                <button className="btn" onClick={handleExport} title="Export CSV">
+                  <svg viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                  Export
+                </button>
+                {canBrothers && (
+                  <button className="btn primary" onClick={() => setShowAddModal(true)}>
+                    <svg viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 5v14m7-7H5" /></svg>
+                    New {v("Member")}
+                  </button>
+                )}
               </div>
-            )}
-
-            {/* ── Status distribution bar ── */}
-            {!isLoading && kpis && (
-              <div className="rounded-xl border border-white/[0.06] bg-[#10121a] px-5 py-4">
-                <p className="mb-3 text-[11px] font-semibold uppercase tracking-widest text-slate-600">Status distribution</p>
-                <div className="flex h-2.5 w-full overflow-hidden rounded-full gap-0.5">
-                  {statusCounts.Good > 0 && (
-                    <button
-                      onClick={() => setStatusFilter(statusFilter === "Good" ? "All" : "Good")}
-                      className="bg-emerald-500 rounded-full transition-all duration-500 hover:opacity-80"
-                      style={{ flex: statusCounts.Good }}
-                      title={`Good: ${statusCounts.Good} — click to filter`}
-                    />
-                  )}
-                  {statusCounts.Watch > 0 && (
-                    <button
-                      onClick={() => setStatusFilter(statusFilter === "Watch" ? "All" : "Watch")}
-                      className="bg-amber-500 rounded-full transition-all duration-500 hover:opacity-80"
-                      style={{ flex: statusCounts.Watch }}
-                      title={`Watch: ${statusCounts.Watch} — click to filter`}
-                    />
-                  )}
-                  {statusCounts["At Risk"] > 0 && (
-                    <button
-                      onClick={() => setStatusFilter(statusFilter === "At Risk" ? "All" : "At Risk")}
-                      className="bg-red-500 rounded-full transition-all duration-500 hover:opacity-80"
-                      style={{ flex: statusCounts["At Risk"] }}
-                      title={`At Risk: ${statusCounts["At Risk"]} — click to filter`}
-                    />
-                  )}
-                </div>
-                <div className="mt-2.5 flex items-center gap-5">
-                  {[
-                    { label: "Good",    count: statusCounts.Good,        color: "bg-emerald-500" },
-                    { label: "Watch",   count: statusCounts.Watch,       color: "bg-amber-500"   },
-                    { label: "At Risk", count: statusCounts["At Risk"],  color: "bg-red-500"     },
-                  ].map(({ label, count, color }) => (
-                    <div key={label} className="flex items-center gap-1.5">
-                      <div className={`h-2 w-2 rounded-full ${color}`} />
-                      <span className="text-[11px] text-slate-500">{label} <span className="font-semibold text-slate-300">{count}</span></span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* ── Roster table ── */}
-            <div className="rounded-xl border border-white/[0.06] bg-[#10121a] overflow-x-auto">
-              {/* Controls */}
-              <div className="flex flex-col gap-3 border-b border-white/[0.06] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex flex-wrap gap-1.5">
-                  {filterChips.map(chip => (
-                    <button
-                      key={chip.value}
-                      onClick={() => setStatusFilter(chip.value)}
-                      className={`rounded-lg px-3 py-1.5 text-[12px] font-medium transition-all ${statusFilter === chip.value ? chipActive : chipIdle}`}
-                    >
-                      {chip.label}
-                      <span className="ml-1.5 tabular-nums opacity-60">{statusCounts[chip.value]}</span>
-                    </button>
-                  ))}
-                </div>
-                <div className="relative">
-                  <svg className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                  </svg>
-                  <input
-                    value={search}
-                    onChange={e => setSearch(e.target.value)}
-                    placeholder="Search name or role…"
-                    className="w-full rounded-lg border border-white/[0.08] bg-white/[0.03] py-1.5 pl-8 pr-3 text-[12px] text-slate-300 placeholder:text-slate-600 focus:border-indigo-500/40 focus:outline-none focus:ring-1 focus:ring-indigo-500/20 sm:w-52"
-                  />
-                </div>
-              </div>
-
-              {/* Column headers */}
-              <div className={`grid min-w-[560px] ${gridTemplate} items-center gap-x-4 border-b border-white/[0.04] px-5 py-2`}>
-                <SortButton label="Name"    sortKey="name"         activeKey={sortKey} dir={sortDir} onClick={toggleSort} />
-                <SortButton label="Att."    sortKey="attendance"   activeKey={sortKey} dir={sortDir} onClick={toggleSort} />
-                <SortButton label="GPA"     sortKey="gpa"          activeKey={sortKey} dir={sortDir} onClick={toggleSort} />
-                <SortButton label="Service" sortKey="serviceHours" activeKey={sortKey} dir={sortDir} onClick={toggleSort} />
-                <SortButton label="Dues"    sortKey="duesOwed"     activeKey={sortKey} dir={sortDir} onClick={toggleSort} />
-                <span className="text-[11px] font-medium text-slate-600">Status</span>
-                {customFieldDefs.map(f => (
-                  <span key={f.id} className="text-[11px] font-medium text-slate-600 text-right">{f.label}</span>
-                ))}
-              </div>
-
-              {/* Rows */}
-              {isLoading ? (
-                <div className="space-y-0">
-                  {[...Array(6)].map((_, i) => (
-                    <div key={i} className="h-14 border-b border-white/[0.04] px-5 flex items-center gap-4 animate-pulse">
-                      <div className="h-3 w-36 rounded bg-white/[0.05]" />
-                      <div className="ml-auto h-3 w-24 rounded bg-white/[0.05]" />
-                    </div>
-                  ))}
-                </div>
-              ) : filtered.length === 0 ? (
-                <div className="py-12 text-center text-[12px] text-slate-600">No brothers match your filters.</div>
-              ) : (
-                filtered.map(b => {
-                  const status = getBrotherStatus(b, THRESHOLDS);
-                  const borderColor = BROTHER_STYLES[status].row;
-                  return (
-                    <button
-                      key={b.id}
-                      onClick={() => setSelectedId(selectedId === b.id ? null : b.id)}
-                      className={`grid w-full min-w-[560px] ${gridTemplate} items-center gap-x-4 border-b border-l-2 border-white/[0.03] px-5 py-3.5 text-left transition-colors last:border-b-0 hover:bg-white/[0.03] ${borderColor} ${selectedId === b.id ? "bg-white/[0.03]" : ""}`}
-                    >
-                      <div className="flex min-w-0 items-center gap-2.5">
-                        <BrotherAvatar
-                          brother={b}
-                          selfId={selfId}
-                          selfAvatarUrl={currentUser?.avatarUrl}
-                          avatarRevision={avatarRevision}
-                          size="xs"
-                        />
-                        <div className="min-w-0">
-                          <p className="truncate text-[13px] font-medium text-slate-200">{b.name}</p>
-                          <p className="truncate text-[11px] text-slate-600">{b.role}</p>
-                        </div>
-                      </div>
-                      <div className="flex w-16 flex-col items-end gap-1">
-                        <span className={`text-[12px] font-semibold tabular-nums ${b.attendance < THRESHOLDS.attendanceAtRisk ? "text-red-400" : b.attendance < THRESHOLDS.attendanceWatch ? "text-amber-400" : "text-slate-300"}`}>
-                          {b.attendance}%
-                        </span>
-                        <Bar value={b.attendance} max={100} colorClass={b.attendance < THRESHOLDS.attendanceAtRisk ? "bg-red-500" : b.attendance < THRESHOLDS.attendanceWatch ? "bg-amber-500" : "bg-emerald-500"} />
-                      </div>
-                      <span className={`w-10 text-right text-[12px] tabular-nums ${b.gpa < THRESHOLDS.gpaAtRisk ? "text-red-400" : b.gpa < THRESHOLDS.gpaWatch ? "text-amber-400" : "text-slate-400"}`}>
-                        {b.gpa.toFixed(2)}
-                      </span>
-                      <span className={`w-14 text-right text-[12px] tabular-nums ${b.serviceHours >= THRESHOLDS.serviceHoursGoal ? "text-slate-400" : "text-amber-400"}`}>
-                        {b.serviceHours}h
-                      </span>
-                      <span className={`w-14 text-right text-[12px] tabular-nums ${b.duesOwed > 0 ? "text-red-400" : "text-slate-600"}`}>
-                        {b.duesOwed > 0 ? fmt$(b.duesOwed) : "—"}
-                      </span>
-                      <StatusBadge status={status} />
-                      {customFieldDefs.map(f => (
-                        <span key={f.id} className="w-16 text-right text-[12px] tabular-nums text-slate-400 truncate">
-                          {b.customFields?.[f.id] != null ? String(b.customFields[f.id]) : "—"}
-                        </span>
-                      ))}
-                    </button>
-                  );
-                })
-              )}
-
-              {filtered.length > 0 && (
-                <div className="border-t border-white/[0.04] px-5 py-2.5 text-[11px] text-slate-600">
-                  {filtered.length} of {brotherList.length} brothers
-                </div>
-              )}
             </div>
 
-            {/* ── Attendance leaderboard ── */}
-            {!isLoading && brotherList.length > 0 && (
-              <div className="rounded-xl border border-white/[0.06] bg-[#10121a] px-5 py-4">
-                <p className="mb-4 text-[11px] font-semibold uppercase tracking-widest text-slate-600">Attendance ranking</p>
-                <div className="space-y-2.5">
-                  {[...brotherList].sort((a, b) => b.attendance - a.attendance).map((b, i) => {
-                    const status = getBrotherStatus(b, THRESHOLDS);
-                    const barColor = status === "At Risk" ? "bg-red-500" : status === "Watch" ? "bg-amber-500" : "bg-emerald-500";
-                    return (
-                      <div key={b.id} className="flex items-center gap-3">
-                        <span className="w-5 shrink-0 text-right text-[11px] tabular-nums text-slate-700">{i + 1}</span>
-                        <button
-                          onClick={() => setSelectedId(b.id)}
-                          className="min-w-0 w-28 shrink-0 truncate text-left text-[12px] text-slate-300 hover:text-indigo-300 transition-colors"
-                        >
-                          {b.name.split(" ")[0]}
-                        </button>
-                        <div className="flex-1">
-                          <Bar value={b.attendance} max={100} colorClass={barColor} />
-                        </div>
-                        <span className="w-10 shrink-0 text-right text-[12px] font-semibold tabular-nums text-slate-300">{b.attendance}%</span>
-                      </div>
-                    );
-                  })}
+            {/* ── Ledger strip ── */}
+            {isLoading ? (
+              <div className="ledger-skel" style={{ marginTop: 22 }}>{[...Array(5)].map((_, i) => <i key={i} />)}</div>
+            ) : kpis && (
+              <section className="ledger" style={{ marginTop: 22 }}>
+                <Measure
+                  label="Attendance" value={kpis.avgAtt.toFixed(1)} unit="%"
+                  note={belowAttend > 0 ? `${belowAttend} below ${THRESHOLDS.attendanceWatch}%` : "all on track"}
+                  noteTone={belowAttend > 0 ? "warn" : "ok"}
+                />
+                <Measure
+                  label={`${v("Meetings")} GPA`} value={kpis.avgGpa.toFixed(2)}
+                  note={`${brotherList.filter(b => b.gpa < THRESHOLDS.gpaWatch).length} below ${THRESHOLDS.gpaWatch.toFixed(1)}`}
+                />
+                <Measure
+                  label={`${v("Dues")} outstanding`} prefix="$" value={kpis.duesTotal.toLocaleString()}
+                  note={duesOwingCount > 0 ? `${duesOwingCount} ${v("Member", true).toLowerCase()} owe` : "all paid up"}
+                  noteTone={duesOwingCount > 0 ? "warn" : "ok"}
+                />
+                <Measure
+                  label={`${v("Service")} hours`} value={String(brotherList.reduce((s, b) => s + b.serviceHours, 0))} unit="h"
+                  note={`${kpis.svcMet} of ${kpis.total} on track`}
+                />
+                <Measure
+                  label="In good standing" value={String(statusCounts.Good)} unit={` / ${kpis.total}`}
+                  note={`${Math.round((statusCounts.Good / Math.max(1, kpis.total)) * 100)}% of ${v("Meetings").toLowerCase()}`}
+                  noteTone="ok"
+                />
+              </section>
+            )}
+
+            {/* ── Standing — interactive segmented bar ── */}
+            {!isLoading && kpis && (
+              <section className="dist">
+                <div className="dist-head">
+                  <h2>Standing</h2>
+                  <span className="hint">Click a band to filter</span>
+                </div>
+                <div className="seg">
+                  {segments.filter(s => s.count > 0).map(s => (
+                    <button
+                      key={s.value}
+                      className={`${s.cls}${statusFilter !== "All" && statusFilter !== s.value ? " dim" : ""}`}
+                      style={{ flex: s.count }}
+                      onClick={() => toggleStatus(s.value)}
+                      title={`${s.label} · ${s.count} — click to filter`}
+                      aria-label={`Filter ${s.label}`}
+                    />
+                  ))}
+                </div>
+                <div className="seg-legend">
+                  {segments.map(s => (
+                    <button
+                      key={s.value}
+                      className={statusFilter === s.value ? "active" : undefined}
+                      onClick={() => toggleStatus(s.value)}
+                    >
+                      <span className={`dot ${s.dotCls}`} />
+                      <span className="lbl">{s.label}</span>
+                      <span className="ct">{s.count}</span>
+                    </button>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {/* ── Roster ── */}
+            <section className="card roster" style={{ marginTop: 14 }} aria-label="Roster">
+              <div className="card-h">
+                <h2>Roster <span className="count-chip" style={{ color: "var(--muted)", background: "var(--card-2)" }}>{filtered.length} shown</span></h2>
+                <div className="roster-tools">
+                  <div className="filters">
+                    {statusChips.map(chip => (
+                      <button
+                        key={chip.value}
+                        className={statusFilter === chip.value ? "on" : undefined}
+                        onClick={() => setStatusFilter(chip.value)}
+                      >
+                        {chip.label} {chip.count}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="search">
+                    <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7" /><path strokeLinecap="round" d="M21 21l-4.3-4.3" /></svg>
+                    <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search name or role…" />
+                  </div>
                 </div>
               </div>
-            )}
+
+              <div style={{ overflowX: "auto" }}>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>{v("Member")}</th>
+                      <SortHead label="Attendance" sortKey="attendance"   activeKey={sortKey} dir={sortDir} onClick={toggleSort} />
+                      <SortHead label="GPA"        sortKey="gpa"          activeKey={sortKey} dir={sortDir} onClick={toggleSort} numeric />
+                      <SortHead label={v("Service")} sortKey="serviceHours" activeKey={sortKey} dir={sortDir} onClick={toggleSort} numeric />
+                      <SortHead label={v("Dues")}  sortKey="duesOwed"     activeKey={sortKey} dir={sortDir} onClick={toggleSort} numeric />
+                      <th className="num">Status</th>
+                      {customFieldDefs.map(f => (
+                        <th key={f.id} className="num">{f.label}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {isLoading ? (
+                      [...Array(6)].map((_, i) => (
+                        <tr key={i}><td colSpan={6 + customFieldDefs.length} style={{ padding: 0 }}><div className="row-skel" /></td></tr>
+                      ))
+                    ) : filtered.length === 0 ? (
+                      <tr className="empty-row"><td colSpan={6 + customFieldDefs.length}>No {v("Member", true).toLowerCase()} match your filters.</td></tr>
+                    ) : (
+                      filtered.map(b => {
+                        const status = getBrotherStatus(b, THRESHOLDS);
+                        const tag = STATUS_TAG[status];
+                        const attCls = b.attendance >= THRESHOLDS.attendanceWatch ? "sage" : b.attendance >= THRESHOLDS.attendanceAtRisk ? "gold" : "rose";
+                        const attBar = b.attendance >= THRESHOLDS.attendanceWatch ? "bg-sage" : b.attendance >= THRESHOLDS.attendanceAtRisk ? "bg-gold" : "bg-rose";
+                        const gpaCls = b.gpa < THRESHOLDS.gpaAtRisk ? "rose" : b.gpa < THRESHOLDS.gpaWatch ? "gold" : "";
+                        const svcCls = b.serviceHours < THRESHOLDS.serviceHoursGoal ? "gold" : "muted";
+                        return (
+                          <tr
+                            key={b.id}
+                            className={selectedId === b.id ? "sel" : undefined}
+                            onClick={() => setSelectedId(selectedId === b.id ? null : b.id)}
+                          >
+                            <td>
+                              <div className="b-name">
+                                <BrotherAvatar
+                                  brother={b}
+                                  selfId={selfId}
+                                  selfAvatarUrl={currentUser?.avatarUrl}
+                                  avatarRevision={avatarRevision}
+                                  size="xs"
+                                  ringClassName="bg-[var(--vio-bg)] text-[var(--vio)] text-[10px]"
+                                />
+                                <div style={{ minWidth: 0 }}>
+                                  <div className="nm">{b.name}</div>
+                                  <div className="rl">{b.role}</div>
+                                </div>
+                              </div>
+                            </td>
+                            <td>
+                              <div className="attb">
+                                <span className="track"><i className={attBar} style={{ width: `${clamp(b.attendance, 0, 100)}%` }} /></span>
+                                <span className={attCls}>{b.attendance}%</span>
+                              </div>
+                            </td>
+                            <td className="num"><span className={`mono ${gpaCls}`}>{b.gpa.toFixed(2)}</span></td>
+                            <td className="num"><span className={`mono ${svcCls}`}>{b.serviceHours}h</span></td>
+                            <td className="num">
+                              {b.duesOwed > 0 ? (
+                                <>
+                                  <span className="mono gold">{fmt$(b.duesOwed)}</span>
+                                  {canBrothers && (
+                                    <button type="button" className="row-act pay-act" onClick={e => { e.stopPropagation(); payDues(b); }}>Pay</button>
+                                  )}
+                                </>
+                              ) : (
+                                <span className="mono muted">—</span>
+                              )}
+                            </td>
+                            <td className="num"><span className={`status-tag ${tag.cls}`}>{tag.label}</span></td>
+                            {customFieldDefs.map(f => (
+                              <td key={f.id} className="num"><span className="mono muted">{b.customFields?.[f.id] != null ? String(b.customFields[f.id]) : "—"}</span></td>
+                            ))}
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {!isLoading && filtered.length > 0 && (
+                <div className="table-foot">
+                  {filtered.length} of {brotherList.length} {v("Member", true).toLowerCase()} · {statusCounts.Good} good · {statusCounts.Watch} watch · {statusCounts["At Risk"]} at risk &ensp;—&ensp; click a row for profile, {v("Dues").toLowerCase()} &amp; {v("Service").toLowerCase()} log
+                </div>
+              )}
+            </section>
 
           </div>
         </main>
@@ -563,7 +584,7 @@ export default function BrothersPage() {
 
       {/* ── Add Brother Modal ── */}
       {showAddModal && (
-        <Modal title="New Brother" onClose={() => setShowAddModal(false)}>
+        <Modal title={`New ${v("Member")}`} onClose={() => setShowAddModal(false)}>
           <AddBrotherForm
             onSubmit={handleAddBrother}
             onCancel={() => setShowAddModal(false)}
@@ -571,7 +592,7 @@ export default function BrothersPage() {
         </Modal>
       )}
 
-      {/* ── Brother Drawer ── */}
+      {/* ── Brother Drawer (already Ledger-styled) ── */}
       <BrotherDrawer
         brotherId={selectedId}
         brotherList={brotherList}

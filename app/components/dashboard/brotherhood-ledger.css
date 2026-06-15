@@ -1,0 +1,102 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+   Brotherhood (roster) page — "Chapter Ledger" redesign
+   Companion to dashboard-ledger.css. The dashboard already ships the shared
+   `.dash` vocabulary (tokens, .ledger/.measure/.card/.filters/.b-name/.attb/
+   .status-tag/.row-act/.table-foot) — the Brothers page imports BOTH files and
+   reuses all of those. This file adds ONLY what the roster page needs on top:
+     · editorial page header (.pagehead / .summary)
+     · the interactive status-distribution segmented bar (.seg / .seg-legend)
+     · the inline search field on the warm pane
+     · the role subline nested under the member name (.b-name .rl)
+     · the selected-row highlight that mirrors the open drawer (tbody tr.sel)
+     · Export / New Brother header buttons (.btn)
+
+   ISOLATION RULE: every selector begins with `.dash`. Ported from
+   _design/Brotherhood Redesign.html, whose bare element selectors (h1, table,
+   thead, footer, *) are namespaced here so they never leak into globals —
+   globals.css already owns a bare `table` rule.
+
+   Tokens (--serif/--vio/--gold/--rose/--ok/…) come from `.dash` in
+   dashboard-ledger.css; do not redeclare them. Fonts come from next/font vars on
+   <html>. v1 ships Dusk only (data-dashboard-theme="dusk").
+   ───────────────────────────────────────────────────────────────────────────── */
+
+/* ── Page header — editorial, not a toolbar ──────────────────────────────────── */
+.dash .pagehead { display: flex; justify-content: space-between; align-items: flex-end; gap: 28px; }
+.dash .pagehead .kicker { font-family: var(--mono); font-size: 10.5px; letter-spacing: .18em; text-transform: uppercase; color: var(--muted); }
+.dash .pagehead h1 { font-family: var(--serif); font-weight: 400; font-size: 31px; letter-spacing: -.01em; margin-top: 7px; color: var(--ink); }
+.dash .pagehead h1 em { font-style: italic; color: var(--vio); }
+.dash .pagehead .summary { margin-top: 9px; max-width: 540px; font-family: var(--serif); font-weight: 350; font-style: italic; font-size: 13.5px; color: var(--ink-soft); }
+.dash .pagehead .summary b { font-style: normal; font-weight: 550; color: var(--gold); }
+
+.dash .head-actions { display: flex; gap: 8px; flex-shrink: 0; }
+.dash .btn { display: inline-flex; align-items: center; gap: 7px; font-family: var(--mono); font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; cursor: pointer; border-radius: 8px; padding: 8px 13px; border: 1px solid var(--line); background: transparent; color: var(--muted); transition: color .15s, border-color .15s, background .15s; }
+.dash .btn:hover { color: var(--ink); border-color: var(--vio); }
+.dash .btn.primary { background: var(--vio-bg); border-color: transparent; color: var(--vio); }
+.dash .btn.primary:hover { background: var(--vio); color: var(--paper); }
+.dash .btn svg { width: 13px; height: 13px; stroke: currentColor; stroke-width: 2; fill: none; }
+
+/* ── Status distribution — interactive segmented bar ─────────────────────────── */
+.dash .dist { margin-top: 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); box-shadow: var(--shadow); padding: 15px 18px 16px; }
+.dash .dist-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 11px; }
+.dash .dist-head h2 { font-family: var(--serif); font-weight: 500; font-size: 15px; color: var(--ink); }
+.dash .dist-head .hint { font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); }
+.dash .seg { display: flex; gap: 3px; height: 14px; }
+.dash .seg button { border: none; border-radius: 4px; cursor: pointer; position: relative; transition: opacity .15s, filter .15s; padding: 0; }
+.dash .seg button:hover { filter: brightness(1.12); }
+.dash .seg button.dim { opacity: .28; }
+.dash .seg .s-good  { background: var(--ok); }
+.dash .seg .s-watch { background: var(--gold); }
+.dash .seg .s-risk  { background: var(--rose); }
+.dash .seg-legend { display: flex; gap: 22px; margin-top: 12px; }
+.dash .seg-legend button { display: flex; align-items: center; gap: 7px; background: none; border: none; cursor: pointer; font-family: var(--sans); padding: 0; }
+.dash .seg-legend .dot { width: 8px; height: 8px; border-radius: 50%; }
+.dash .seg-legend .lbl { font-size: 11.5px; color: var(--muted); }
+.dash .seg-legend .ct { font-family: var(--mono); font-size: 11.5px; font-weight: 600; color: var(--ink-soft); }
+.dash .seg-legend button.active .lbl, .dash .seg-legend button:hover .lbl { color: var(--ink); }
+
+/* ── Roster controls — header chips already styled in dashboard-ledger; add the
+      inline search field and a flex wrapper for tools. ───────────────────────── */
+.dash .roster-tools { display: flex; align-items: center; gap: 10px; }
+.dash .search { position: relative; }
+.dash .search svg { position: absolute; left: 9px; top: 50%; transform: translateY(-50%); width: 13px; height: 13px; stroke: var(--faint); stroke-width: 2; fill: none; }
+.dash .search input { font-family: var(--sans); font-size: 12px; color: var(--ink); background: var(--paper-2); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px 6px 28px; width: 180px; outline: none; }
+.dash .search input::placeholder { color: var(--faint); }
+.dash .search input:focus { border-color: var(--vio); }
+
+/* ── Roster table tweaks layered on dashboard-ledger's table rules ───────────── */
+/* role subline nested under the name (dashboard put role in its own column) */
+.dash .b-name .rl { font-size: 10.5px; color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 230px; margin-top: 1px; }
+.dash .b-name .nm { font-size: 13px; font-weight: 550; color: var(--ink); white-space: nowrap; }
+/* slightly larger avatar than the dashboard rail's 26px, for the roomy page */
+.dash .roster .b-name .avatar { width: 30px; height: 30px; font-size: 10px; }
+/* sortable header affordance + active arrow */
+.dash thead th.sortable { cursor: pointer; user-select: none; }
+.dash thead th.sortable:hover { color: var(--muted); }
+.dash thead th .arrow { color: var(--vio); }
+/* selected row — violet left edge mirrors the open drawer */
+.dash tbody tr.sel { background: var(--vio-bg); }
+.dash tbody tr.sel td:first-child { box-shadow: inset 3px 0 0 var(--vio); }
+/* dues "Pay" reveals on row hover (dashboard's .row-act is always visible) */
+.dash .roster .pay-act { opacity: 0; transition: opacity .12s; }
+.dash .roster tbody tr:hover .pay-act { opacity: 1; }
+/* empty-state row */
+.dash .roster .empty-row td { padding: 28px 18px; text-align: center; color: var(--faint); font-style: italic; font-family: var(--serif); }
+
+/* ── Error bands (re-skinned from the cold toasts) ───────────────────────────── */
+.dash .page-err { display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  border: 1px solid var(--rose-bg); border-radius: 10px; background: var(--rose-bg); padding: 11px 14px; margin-bottom: 14px; }
+.dash .page-err.warn { border-color: var(--gold-bg); background: var(--gold-bg); }
+.dash .page-err p { font-size: 12.5px; color: var(--rose); }
+.dash .page-err.warn p { color: var(--gold); }
+.dash .page-err button { font-family: var(--mono); font-size: 9.5px; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--faint); background: none; border: 0; cursor: pointer; flex-shrink: 0; }
+.dash .page-err button:hover { color: var(--ink); }
+
+/* ── KPI / table loading skeletons on the warm pane ──────────────────────────── */
+.dash .ledger-skel { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 1px;
+  border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.dash .ledger-skel i { height: 78px; background: var(--card); animation: dash-pulse 1.4s ease-in-out infinite; }
+.dash .row-skel { height: 48px; border-bottom: 1px solid var(--line-soft); background: var(--card);
+  animation: dash-pulse 1.4s ease-in-out infinite; }
+@keyframes dash-pulse { 0%,100% { opacity: 1; } 50% { opacity: .5; } }
