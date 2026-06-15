@@ -21,6 +21,7 @@ export function BriefingHeader({
   digest,
   digestLoading,
   health,
+  actions,
 }: {
   firstName: string;
   weekStart: string;
@@ -28,6 +29,9 @@ export function BriefingHeader({
   digest: string | null;
   digestLoading: boolean;
   health?: React.ReactNode;
+  /** Action bar (My Standing / Quick Actions / Log Attendance / search / export)
+   *  folded in from the removed top toolbar. Renders below the digest. */
+  actions?: React.ReactNode;
 }) {
   const now = new Date();
   const dateLabel = now.toLocaleDateString("en-US", {
@@ -55,6 +59,7 @@ export function BriefingHeader({
               : <p>{digest}</p>}
           </div>
         )}
+        {actions}
       </div>
       {health}
     </section>

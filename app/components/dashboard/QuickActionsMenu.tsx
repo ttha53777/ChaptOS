@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
 import type { WorkflowId } from "@/lib/org-types";
 
 export type QuickActionKey =
@@ -85,7 +85,10 @@ export function QuickActionsMenu({
 }: {
   isAdmin: boolean;
   onSelect: (key: QuickActionKey) => void;
-  variant?: "desktop" | "mobile";
+  /** "desktop"/"mobile" use the cold-slate toolbar styling; "ledger" renders in
+   *  the warm dusk "Chapter Ledger" idiom (scoped under `.dash`) for the
+   *  topbar-less briefing action bar. */
+  variant?: "desktop" | "mobile" | "ledger";
   /** The org's enabled workflows. Actions tagged with a `workflow` are hidden
    *  when that workflow isn't enabled (e.g. finance actions when Treasury is
    *  off). Undefined (still loading) shows all — same forgiving default the
@@ -123,6 +126,49 @@ export function QuickActionsMenu({
   function handlePick(key: QuickActionKey) {
     setOpen(false);
     onSelect(key);
+  }
+
+  // The "ledger" variant uses warm-theme CSS classes (dashboard-ledger.css,
+  // scoped under `.dash`) instead of the cold-slate Tailwind utilities the
+  // toolbar variants use.
+  if (variant === "ledger") {
+    return (
+      <div ref={wrapRef} className={`ba-qa ${open ? "open" : ""}`}>
+        <button
+          type="button"
+          onClick={() => setOpen(v => !v)}
+          aria-haspopup="menu"
+          aria-expanded={open}
+          className="ba-chip ba-qa-btn"
+        >
+          <svg viewBox="0 0 24 24" fill="currentColor">
+            <path d="M13 2L4.5 13.5h6L11 22l8.5-11.5h-6L13 2z" />
+          </svg>
+          Quick Actions
+          <svg className="ba-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
+            <path d="M6 9l6 6 6-6" />
+          </svg>
+        </button>
+        {open && (
+          <div role="menu" className="ba-qa-menu">
+            {items.map((a, i) => {
+              const prev = items[i - 1];
+              const needsDivider = showDivider && prev && prev.adminOnly && !a.adminOnly;
+              return (
+                <Fragment key={a.key}>
+                  {needsDivider && <div className="ba-qa-divider" />}
+                  <button type="button" role="menuitem" onClick={() => handlePick(a.key)} className="ba-qa-item">
+                    {a.icon}
+                    <span className="ba-qa-label">{a.label}</span>
+                    {a.adminOnly && <span className="ba-qa-badge">Admin</span>}
+                  </button>
+                </Fragment>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
   }
 
   return (

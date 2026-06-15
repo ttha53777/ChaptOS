@@ -34,6 +34,7 @@ import { MobileDashboard } from "../components/dashboard/mobile/MobileDashboard"
 import "../components/dashboard/dashboard-ledger.css";
 import "../components/dashboard/drawer-ledger.css";
 import { BriefingHeader } from "../components/dashboard/ledger/BriefingHeader";
+import { BriefingActions } from "../components/dashboard/ledger/BriefingActions";
 import { HealthDial } from "../components/dashboard/ledger/HealthDial";
 import { PinnedAnnouncement } from "../components/dashboard/ledger/PinnedAnnouncement";
 import { LedgerStrip, Measure } from "../components/dashboard/ledger/LedgerStrip";
@@ -1637,8 +1638,11 @@ export default function Home() {
 
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
 
-        {/* ── Toolbar ─────────────────────────────────────────────────────── */}
-        <header className="toolbar-frosted dash-toolbar relative z-20 flex h-14 shrink-0 items-center gap-2 border-b border-white/[0.05] px-3 sm:gap-3 sm:px-5">
+        {/* ── Toolbar ─────────────────────────────────────────────────────────
+            Mobile only (<md). At md+ the topbar is removed and its controls fold
+            into the briefing action bar (BriefingActions) inside the desktop
+            ledger view below — see BriefingHeader's `actions` slot. */}
+        <header className="toolbar-frosted dash-toolbar relative z-20 flex h-14 shrink-0 items-center gap-2 border-b border-white/[0.05] px-3 sm:gap-3 sm:px-5 md:hidden">
           <button onClick={() => setSidebarOpen(true)} className="tb-icon-btn flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-white/[0.07] lg:hidden">
             <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
@@ -1769,6 +1773,23 @@ export default function Home() {
               weekEnd={weekRange.end}
               digest={digestNarration}
               digestLoading={digestNarrationLoading}
+              actions={
+                <BriefingActions
+                  onMyStanding={
+                    selfId !== null && brotherList.some(b => b.id === selfId)
+                      ? () => setSelectedBrotherId(selfId)
+                      : undefined
+                  }
+                  onLogAttendance={canAttendance ? () => openAttendanceLog() : undefined}
+                  onQuickAction={handleQuickAction}
+                  quickActionsAdmin={isAdmin || canTreasury || canAttendance}
+                  enabledWorkflows={currentUser?.org?.enabledWorkflows}
+                  search={search}
+                  onSearchChange={setSearch}
+                  searchPlaceholder="Search brothers…"
+                  onExport={() => window.print()}
+                />
+              }
               health={feature("operations", "health") ? (
                 <div className="dash-group">
                   <HealthDial
@@ -1969,7 +1990,7 @@ export default function Home() {
         </Modal>
       )}
       {activeModal === "event" && (
-        <Modal title="New Event" onClose={closeModal}>
+        <Modal title="New Event" tone="dusk" onClose={closeModal}>
           <CalendarEventForm submitLabel="Add Event" onSubmit={handleAddCalendarEvent} />
         </Modal>
       )}

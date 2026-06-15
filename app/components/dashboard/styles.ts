@@ -34,6 +34,11 @@ export const SECTION_IDS: Record<string, string> = {
 
 export const inputCls = "w-full rounded-lg border border-white/[0.08] bg-[#0a0d14] px-3 py-2 text-[13px] text-white placeholder:text-slate-500 focus:border-indigo-500/60 focus:outline-none focus:ring-2 focus:ring-indigo-500/15";
 
+/** Dusk-themed sibling of `inputCls` — warm paper, violet focus. For forms that
+ *  live inside the Chapter Ledger redesign (Meetings page, dusk modals) so inputs
+ *  match the surrounding palette instead of the cold-slate operations theme. */
+export const inputDuskCls = "w-full rounded-lg border border-[rgba(236,231,221,0.12)] bg-[#0f0d0a] px-3 py-2 text-[13px] text-[#ece7dd] placeholder:text-[#6b6354] focus:border-[#a78bfa]/60 focus:outline-none focus:ring-2 focus:ring-[#a78bfa]/15";
+
 /** Frosted header CTA — matches Brothers, Instagram, Treasury toolbar buttons */
 export const headerActionBtnCls =
   "flex h-8 items-center gap-1.5 rounded-full border border-indigo-500/20 bg-white/[0.04] px-3.5 text-[12px] font-semibold text-indigo-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] transition-all hover:border-indigo-400/35 hover:bg-indigo-500/[0.08] hover:text-white";
