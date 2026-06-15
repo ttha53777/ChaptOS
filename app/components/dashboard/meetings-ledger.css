@@ -1,0 +1,135 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+   Meetings — "The Minutes" redesign
+   Ported from _design/Meetings Redesign v2.html. Companion to dashboard-ledger.css:
+   every selector is scoped under `.dash` so it INHERITS that file's dusk tokens
+   (--vio, --card, --line, --ink, …) and never leaks to globals. The chapter page
+   imports dashboard-ledger.css first (for .dash tokens + .briefing/.digest) then
+   this file. Reuses .briefing/.kicker/.greeting/.digest/.ai-chip from the base.
+   Lean v2 layout: briefing → on-deck hero → past-meetings ledger, roll-call rail.
+   No glance strip, no attendance-watch, no quorum (dropped — no schema backing).
+   Page-specific classes are prefixed `mt-` to avoid colliding with the timeline
+   redesign's `tl-` rail/ledger classes.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+/* ── Add-meeting action (top-right of briefing) ──────────────────────────────── */
+.dash .mt-add-btn { flex-shrink: 0; display: inline-flex; align-items: center; gap: 7px;
+  font-family: var(--mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--vio); background: var(--vio-bg); border: 1px solid var(--vio-bg); border-radius: 8px;
+  padding: 8px 14px; cursor: pointer; }
+.dash .mt-add-btn:hover { border-color: var(--vio); }
+.dash .mt-add-btn svg { stroke: var(--vio); }
+
+/* ── Section labels ──────────────────────────────────────────────────────────── */
+.dash .sec-label { display: flex; align-items: baseline; gap: 14px; margin: 30px 0 14px; }
+.dash .sec-label h2 { font-family: var(--serif); font-weight: 400; font-size: 22px; letter-spacing: -.01em; color: var(--ink); white-space: nowrap; }
+.dash .sec-label .rule { flex: 1; height: 1px; background: var(--line); }
+.dash .sec-label .cnt { font-family: var(--mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); white-space: nowrap; }
+
+/* ── Layout: ledger + roll-call rail ─────────────────────────────────────────── */
+.dash .mt-layout { margin-top: 4px; display: grid; grid-template-columns: 1fr; gap: 30px; align-items: start; }
+.dash .mt-rail { display: none; }
+@media (min-width: 1024px) {
+  .dash .mt-layout { grid-template-columns: 1fr 318px; }
+  .dash .mt-rail { position: sticky; top: 8px; display: flex; flex-direction: column; gap: 16px; }
+}
+.dash .mt-rail .lbl { font-family: var(--mono); font-size: 9.5px; letter-spacing: .16em; text-transform: uppercase; color: var(--faint); margin-bottom: 10px; }
+
+/* ── On-deck hero (next meeting) ─────────────────────────────────────────────── */
+.dash .ondeck { border: 1px solid var(--vio); border-radius: 14px; background: var(--card-2);
+  box-shadow: 0 0 0 1px var(--vio-bg), var(--shadow); padding: 22px 24px 20px; position: relative; overflow: hidden; }
+.dash .ondeck::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--vio); }
+.dash .ondeck .od-top { display: flex; align-items: center; gap: 10px; }
+.dash .ondeck .pill { font-family: var(--mono); font-size: 9px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase;
+  color: var(--vio); background: var(--vio-bg); border: 1px solid var(--vio-bg); border-radius: 999px; padding: 3px 10px; }
+.dash .ondeck .when { margin-left: auto; font-family: var(--mono); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.dash .ondeck h3 { font-family: var(--serif); font-weight: 500; font-size: 26px; line-height: 1.1; color: var(--ink); margin: 13px 0 5px; }
+.dash .ondeck .od-meta { font-size: 12.5px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 6px 14px; }
+.dash .ondeck .od-meta b { color: var(--ink-soft); font-weight: 550; }
+
+/* roll-call progress summary inside the hero */
+.dash .ondeck .od-progress { margin-top: 18px; padding-top: 17px; border-top: 1px solid var(--line-soft); }
+.dash .ondeck .od-progress .p-head { display: flex; align-items: baseline; gap: 10px; }
+.dash .ondeck .od-progress .p-lbl { font-family: var(--mono); font-size: 9.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+.dash .ondeck .od-progress .p-count { margin-left: auto; font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 13px; color: var(--ink); }
+.dash .ondeck .od-progress .p-count b { font-size: 17px; font-weight: 600; }
+.dash .ondeck .meter { margin-top: 11px; height: 9px; border-radius: 6px; background: var(--paper);
+  border: 1px solid var(--line-soft); overflow: hidden; display: flex; }
+.dash .ondeck .meter i { display: block; height: 100%; }
+.dash .ondeck .meter .fill-present { background: linear-gradient(90deg, var(--vio-deep), var(--vio)); }
+.dash .ondeck .meter .fill-excused { background: var(--gold-bg); }
+.dash .ondeck .p-legend { margin-top: 16px; display: flex; gap: 16px; flex-wrap: wrap; }
+.dash .ondeck .p-legend .li { display: flex; align-items: center; gap: 7px; font-size: 11px; color: var(--ink-soft); }
+.dash .ondeck .p-legend .li .d { width: 8px; height: 8px; border-radius: 50%; }
+
+.dash .ondeck .actions { margin-top: 19px; display: flex; gap: 9px; flex-wrap: wrap; }
+.dash .btn-primary { display: inline-flex; align-items: center; gap: 8px; cursor: pointer;
+  font-family: var(--mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--paper); background: var(--vio); border: 1px solid var(--vio); border-radius: 9px; padding: 10px 16px; font-weight: 600; }
+.dash .btn-primary:hover { background: var(--vio-deep); border-color: var(--vio-deep); color: var(--ink); }
+.dash .btn-ghost { display: inline-flex; align-items: center; gap: 8px; cursor: pointer;
+  font-family: var(--mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--muted); background: transparent; border: 1px solid var(--line); border-radius: 9px; padding: 10px 16px; }
+.dash .btn-ghost:hover { color: var(--ink); border-color: var(--vio); }
+
+/* empty state when there is no upcoming meeting */
+.dash .ondeck.empty { border-color: var(--line); background: var(--card); box-shadow: var(--shadow); }
+.dash .ondeck.empty::before { display: none; }
+.dash .ondeck.empty p { font-family: var(--serif); font-style: italic; color: var(--muted); font-size: 15px; }
+
+/* ── Past-meetings ledger ────────────────────────────────────────────────────── */
+.dash .ledger-list { border: 1px solid var(--line); border-radius: 12px; background: var(--card); box-shadow: var(--shadow); overflow: hidden; }
+.dash .led-row { display: grid; grid-template-columns: 56px 1fr auto; gap: 16px; align-items: center;
+  padding: 15px 18px; border-bottom: 1px solid var(--line-soft); text-align: left;
+  width: 100%; background: transparent; border-left: none; border-right: none; border-top: none; cursor: pointer; }
+.dash .led-row:last-child { border-bottom: none; }
+.dash .led-row:hover { background: var(--card-2); }
+.dash .led-date { text-align: right; }
+.dash .led-date .dow { font-family: var(--mono); font-size: 8.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--faint); }
+.dash .led-date .dnum { font-family: var(--serif); font-size: 23px; font-weight: 400; line-height: 1; color: var(--ink-soft); margin-top: 2px; }
+.dash .led-date .mon { font-family: var(--mono); font-size: 8px; letter-spacing: .12em; text-transform: uppercase; color: var(--faint); margin-top: 3px; }
+.dash .led-main { min-width: 0; }
+.dash .led-main .t { font-size: 14px; font-weight: 550; color: var(--ink); display: flex; align-items: center; gap: 9px; }
+.dash .led-main .t .vdot { width: 7px; height: 7px; border-radius: 50%; background: var(--vio); flex-shrink: 0; }
+.dash .led-main .sum { font-size: 11.5px; color: var(--faint); margin-top: 4px; font-style: italic; font-family: var(--serif);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dash .led-main .sum.empty { color: var(--rose); font-style: normal; font-family: var(--sans); }
+.dash .led-stats { display: flex; align-items: center; gap: 18px; }
+.dash .led-stats .stat { text-align: right; }
+.dash .led-stats .stat .sv { font-family: var(--mono); font-size: 15px; font-weight: 500; color: var(--ink); font-variant-numeric: tabular-nums; }
+.dash .led-stats .stat .sv.lo { color: var(--gold); }
+.dash .led-stats .stat .sv.none { color: var(--faint); }
+.dash .led-stats .stat .sk { font-family: var(--mono); font-size: 8px; letter-spacing: .12em; text-transform: uppercase; color: var(--faint); margin-top: 2px; }
+.dash .tag { font-family: var(--mono); font-size: 8px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase;
+  border-radius: 4px; padding: 3px 7px; white-space: nowrap; }
+.dash .tag.minutes { color: var(--vio); background: var(--vio-bg); }
+.dash .tag.nominutes { color: var(--rose); background: var(--rose-bg); }
+.dash .led-row .chev { color: var(--faint); opacity: 0; transition: opacity .12s; flex-shrink: 0; }
+.dash .led-row:hover .chev { opacity: .7; }
+/* hide secondary stats/tags on narrow viewports so the row never overflows */
+@media (max-width: 560px) {
+  .dash .led-stats .tag { display: none; }
+}
+
+/* ── Roll-call rail panel ────────────────────────────────────────────────────── */
+.dash .roster { border: 1px solid var(--line); border-radius: 12px; background: var(--card); box-shadow: var(--shadow); overflow: hidden; }
+.dash .roster .r-head { display: flex; align-items: baseline; gap: 8px; padding: 13px 16px 11px; border-bottom: 1px solid var(--line-soft); }
+.dash .roster .r-head .h { font-family: var(--serif); font-size: 15px; color: var(--ink); }
+.dash .roster .r-head .c { margin-left: auto; font-family: var(--mono); font-size: 9px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.dash .rmember { display: flex; align-items: center; gap: 10px; padding: 9px 16px; border-bottom: 1px solid var(--line-soft);
+  width: 100%; text-align: left; background: transparent; border-left: none; border-right: none; border-top: none; }
+.dash .rmember:last-of-type { border-bottom: none; }
+.dash .rmember .av { width: 26px; height: 26px; border-radius: 50%; flex-shrink: 0; display: grid; place-items: center;
+  font-family: var(--mono); font-size: 9px; font-weight: 600; background: var(--vio-bg); color: var(--vio); }
+.dash .rmember .nm { font-size: 12.5px; color: var(--ink); min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dash .rmember .st { font-family: var(--mono); font-size: 8.5px; letter-spacing: .1em; text-transform: uppercase; padding: 2px 7px; border-radius: 5px; flex-shrink: 0; }
+.dash .rmember .st.present { color: var(--ok); background: var(--ok-bg); }
+.dash .rmember .st.excused { color: var(--gold); background: var(--gold-bg); }
+.dash .rmember .st.absent  { color: var(--rose); background: var(--rose-bg); }
+.dash .rmember .st.pending { color: var(--faint); border: 1px dashed var(--line); }
+.dash .rmember.clickable { cursor: pointer; }
+.dash .rmember.clickable:hover { background: var(--card-2); }
+.dash .roster .r-foot { padding: 11px 16px; text-align: center; border-top: 1px solid var(--line-soft); }
+.dash .roster .r-foot button { font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--vio); background: transparent; border: none; cursor: pointer; }
+.dash .roster .r-foot button:hover { color: var(--ink); }
+.dash .roster .r-locked { padding: 13px 16px; font-size: 11.5px; color: var(--faint); font-style: italic; font-family: var(--serif); text-align: center; }
