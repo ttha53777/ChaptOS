@@ -32,28 +32,29 @@ model Organization {
   createdByBrotherId Int?
   createdAt          DateTime @default(now())
 
-  memberships        Membership[]
-  brothers           Brother[]
-  roles              Role[]
-  semesters          Semester[]
-  calendarEvents     CalendarEvent[]
-  serviceEvents      ServiceEvent[]
-  partyEvents        PartyEvent[]
-  deadlines          Deadline[]
-  instagramTasks     InstagramTask[]
-  docs               Doc[]
-  programmingEvents  ProgrammingEvent[]
-  programmingEventDocs ProgrammingEventDoc[]
+  memberships               Membership[]
+  brothers                  Brother[]
+  roles                     Role[]
+  semesters                 Semester[]
+  calendarEvents            CalendarEvent[]
+  serviceEvents             ServiceEvent[]
+  serviceParticipations     ServiceParticipation[]
+  partyEvents               PartyEvent[]
+  deadlines                 Deadline[]
+  instagramTasks            InstagramTask[]
+  docs                      Doc[]
+  programmingEvents         ProgrammingEvent[]
+  programmingEventDocs      ProgrammingEventDoc[]
   programmingChecklistItems ProgrammingChecklistItem[]
-  transactions       Transaction[]
-  budgets            Budget[]
-  activityLogs       ActivityLog[]
-  announcements      ChapterAnnouncement[]
-  operationalEvents  OperationalEvent[]
-  brotherRoles       BrotherRole[]
-  config             OrganizationConfig?
-  invites            OrgInvite[]
-  metricDefinitions  OrgMetricDefinition[]
+  transactions              Transaction[]
+  budgets                   Budget[]
+  activityLogs              ActivityLog[]
+  announcements             ChapterAnnouncement[]
+  operationalEvents         OperationalEvent[]
+  brotherRoles              BrotherRole[]
+  config                    OrganizationConfig?
+  invites                   OrgInvite[]
+  metricDefinitions         OrgMetricDefinition[]
 }
 
 // Per-org configuration extracted from Organization to keep the hot row small.
@@ -93,11 +94,11 @@ model OrganizationConfig {
 // Links a Brother (Supabase identity + profile) to an Organization.
 // isOrgAdmin replaces Brother.isAdmin for per-org admin authority.
 model Membership {
-  id             Int          @id @default(autoincrement())
+  id             Int      @id @default(autoincrement())
   brotherId      Int
   organizationId Int
-  isOrgAdmin     Boolean      @default(false)
-  joinedAt       DateTime     @default(now())
+  isOrgAdmin     Boolean  @default(false)
+  joinedAt       DateTime @default(now())
 
   brother      Brother      @relation(fields: [brotherId], references: [id], onDelete: Cascade)
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -115,33 +116,34 @@ model PlatformAdmin {
 }
 
 model Brother {
-  id                Int                @id @default(autoincrement())
-  organizationId    Int
-  name              String
-  role              String
-  attendance        Float
-  duesOwed          Float
-  gpa               Float
-  serviceHours      Float
-  authUserId        String?            @unique @map("auth_user_id")
-  avatarUrl         String?            @map("avatar_url")
-  email             String?
-  isAdmin           Boolean            @default(false)
+  id                    Int                    @id @default(autoincrement())
+  organizationId        Int
+  name                  String
+  role                  String
+  attendance            Float
+  duesOwed              Float
+  gpa                   Float
+  serviceHours          Float
+  authUserId            String?                @unique @map("auth_user_id")
+  avatarUrl             String?                @map("avatar_url")
+  email                 String?
+  isAdmin               Boolean                @default(false)
   // "Ghost" members provisioned via the Atomic Samurai backdoor: full app access
   // but hidden from every brother listing, count, and attendance enrollment.
-  isGhost           Boolean            @default(false)
+  isGhost               Boolean                @default(false)
   // Per-member values for org-defined custom fields. Sparse map { fieldId → value }.
   // Unknown field ids (from deleted definitions) are stripped on read by sanitizeCustomFields().
-  customFields      Json               @default("{}")
-  attendanceRecords AttendanceRecord[]
-  attendanceExcuses AttendanceExcuse[]
-  authoredLogs      ActivityLog[]
-  roles             BrotherRole[]
-  memberships       Membership[]
-  platformAdmin     PlatformAdmin?
-  createdInvites    OrgInvite[]          @relation("InviteCreator")
-  inviteRedemptions InviteRedemption[]
-  metricValues      BrotherMetricValue[]
+  customFields          Json                   @default("{}")
+  attendanceRecords     AttendanceRecord[]
+  attendanceExcuses     AttendanceExcuse[]
+  authoredLogs          ActivityLog[]
+  roles                 BrotherRole[]
+  memberships           Membership[]
+  platformAdmin         PlatformAdmin?
+  createdInvites        OrgInvite[]            @relation("InviteCreator")
+  inviteRedemptions     InviteRedemption[]
+  metricValues          BrotherMetricValue[]
+  serviceParticipations ServiceParticipation[]
 
   organization Organization @relation(fields: [organizationId], references: [id])
 
@@ -164,7 +166,7 @@ model OrgInvite {
   id                 Int       @id @default(autoincrement())
   organizationId     Int
   token              String    @unique
-  mode               String    // InviteMode union in @/lib/state
+  mode               String // InviteMode union in @/lib/state
   expiresAt          DateTime?
   revokedAt          DateTime?
   createdByBrotherId Int
@@ -308,7 +310,6 @@ model InstagramTask {
   organizationId Int
   title          String
   dueDate        String
-  owner          String
   status         String
   type           String
 
@@ -337,8 +338,8 @@ model Doc {
   updatedAt      DateTime @updatedAt
   createdById    Int?
 
-  organization          Organization          @relation(fields: [organizationId], references: [id])
-  programmingLinks      ProgrammingEventDoc[]
+  organization           Organization          @relation(fields: [organizationId], references: [id])
+  programmingLinks       ProgrammingEventDoc[]
   programmingAttachments ProgrammingEvent[]
 
   @@index([organizationId, createdAt])
@@ -358,6 +359,12 @@ model PartyEvent {
   notes          String    @default("")
   completed      Boolean   @default(false)
   completedAt    DateTime?
+
+  // Optional backing calendar event that holds this party's member roll. Created
+  // lazily on wrap-up when attendance is first recorded; attendance flows through
+  // the shared AttendanceRecord system keyed to this event. Null until rolled.
+  attendanceEventId Int?           @unique
+  attendanceEvent   CalendarEvent? @relation("PartyAttendance", fields: [attendanceEventId], references: [id], onDelete: SetNull)
 
   organization Organization @relation(fields: [organizationId], references: [id])
 
@@ -383,6 +390,7 @@ model CalendarEvent {
   attendanceRecords AttendanceRecord[]
   attendanceExcuses AttendanceExcuse[]
   programmingEvent  ProgrammingEvent?
+  partyEvent        PartyEvent?        @relation("PartyAttendance")
 
   organization Organization @relation(fields: [organizationId], references: [id])
 
@@ -407,7 +415,7 @@ model ProgrammingEvent {
   // Prep / ops fields.
   owner           String   @default("")
   collabOrg       String   @default("")
-  itineraryUrl    String?  // deprecated — backfilled into attachmentUrl
+  itineraryUrl    String? // deprecated — backfilled into attachmentUrl
   attachmentUrl   String?
   attachmentDocId Int?
   roomStatus      String   @default("not_submitted")
@@ -419,11 +427,11 @@ model ProgrammingEvent {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  organization    Organization               @relation(fields: [organizationId], references: [id])
-  calendarEvent   CalendarEvent?             @relation(fields: [calendarEventId], references: [id], onDelete: SetNull)
-  attachmentDoc   Doc?                       @relation(fields: [attachmentDocId], references: [id], onDelete: SetNull)
-  docs            ProgrammingEventDoc[]
-  checklist       ProgrammingChecklistItem[]
+  organization  Organization               @relation(fields: [organizationId], references: [id])
+  calendarEvent CalendarEvent?             @relation(fields: [calendarEventId], references: [id], onDelete: SetNull)
+  attachmentDoc Doc?                       @relation(fields: [attachmentDocId], references: [id], onDelete: SetNull)
+  docs          ProgrammingEventDoc[]
+  checklist     ProgrammingChecklistItem[]
 
   @@index([organizationId, calendarEventId])
   @@index([organizationId, stage])
@@ -472,9 +480,33 @@ model ServiceEvent {
   calendarEventId Int?     @unique
   createdAt       DateTime @default(now())
 
-  organization Organization @relation(fields: [organizationId], references: [id])
+  organization   Organization           @relation(fields: [organizationId], references: [id])
+  participations ServiceParticipation[]
 
   @@index([organizationId])
+}
+
+// One row per (member, service event): the hours that member earned at that
+// event. The source of truth for Brother.serviceHours, which is recomputed as
+// SUM(hours) by the recalc-service-hours event handler — mirroring how
+// Brother.attendance is derived from AttendanceRecord rows. Cascade-deletes with
+// either parent so totals never reference an orphaned event/member.
+model ServiceParticipation {
+  id             Int      @id @default(autoincrement())
+  organizationId Int
+  serviceEventId Int
+  brotherId      Int
+  hours          Float    @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  serviceEvent ServiceEvent @relation(fields: [serviceEventId], references: [id], onDelete: Cascade)
+  brother      Brother      @relation(fields: [brotherId], references: [id], onDelete: Cascade)
+
+  @@unique([serviceEventId, brotherId])
+  @@index([organizationId])
+  @@index([brotherId])
 }
 
 model ActivityLog {
@@ -501,8 +533,8 @@ model OperationalEvent {
   organizationId Int
   requestId      String
   actorId        Int?
-  action         String   // verb.subject e.g. "excuse.approved", "transaction.created"
-  subjectType    String   // model name e.g. "AttendanceExcuse", "Transaction"
+  action         String // verb.subject e.g. "excuse.approved", "transaction.created"
+  subjectType    String // model name e.g. "AttendanceExcuse", "Transaction"
   subjectId      Int
   metadata       Json     @default("{}")
   occurredAt     DateTime @default(now())
@@ -579,19 +611,19 @@ model BudgetAllocation {
 model OrgMetricDefinition {
   id             Int       @id @default(autoincrement())
   organizationId Int
-  slug           String    // kebab-case, max 50 chars — immutable after create
-  name           String    // display label, max 40 chars
-  unit           String?   // optional suffix: "hrs", "reps", "%" — null = bare number
-  goal           Float     // per-member target; "on track" means value >= goal
-  atRiskBelow    Float     // value < atRiskBelow → "at_risk"
-  watchBelow     Float?    // optional: atRiskBelow <= value < watchBelow → "watch"
-  aggregation    String    // "avg" | "sum" | "count_on_track"
+  slug           String // kebab-case, max 50 chars — immutable after create
+  name           String // display label, max 40 chars
+  unit           String? // optional suffix: "hrs", "reps", "%" — null = bare number
+  goal           Float // per-member target; "on track" means value >= goal
+  atRiskBelow    Float // value < atRiskBelow → "at_risk"
+  watchBelow     Float? // optional: atRiskBelow <= value < watchBelow → "watch"
+  aggregation    String // "avg" | "sum" | "count_on_track"
   displayOrder   Int       @default(0)
   deletedAt      DateTime?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
-  organization Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organization Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   values       BrotherMetricValue[]
 
   @@unique([organizationId, slug])
@@ -604,7 +636,7 @@ model BrotherMetricValue {
   id                 Int      @id @default(autoincrement())
   brotherId          Int
   metricDefinitionId Int
-  organizationId     Int      // denormalized for tenant scoping
+  organizationId     Int // denormalized for tenant scoping
   value              Float
   updatedAt          DateTime @updatedAt
 

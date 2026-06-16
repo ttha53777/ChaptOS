@@ -15,6 +15,8 @@ export async function createBrother(opts: {
   name?: string;
   isAdmin?: boolean;
   isOrgAdmin?: boolean;
+  serviceHours?: number;
+  isGhost?: boolean;
 }) {
   const brother = await testPrisma.brother.create({
     data: {
@@ -24,8 +26,9 @@ export async function createBrother(opts: {
       attendance:     0,
       duesOwed:       0,
       gpa:            0,
-      serviceHours:   0,
+      serviceHours:   opts.serviceHours ?? 0,
       isAdmin:        opts.isAdmin ?? false,
+      isGhost:        opts.isGhost ?? false,
     },
   });
   await testPrisma.membership.create({
@@ -108,6 +111,22 @@ export async function createServiceEvent(opts: {
   });
 }
 
+export async function createServiceParticipation(opts: {
+  orgId: number;
+  serviceEventId: number;
+  brotherId: number;
+  hours?: number;
+}) {
+  return testPrisma.serviceParticipation.create({
+    data: {
+      organizationId: opts.orgId,
+      serviceEventId: opts.serviceEventId,
+      brotherId:      opts.brotherId,
+      hours:          opts.hours ?? 0,
+    },
+  });
+}
+
 export async function createPartyEvent(opts: {
   orgId: number;
   name?: string;
@@ -146,9 +165,8 @@ export async function createInstagramTask(opts: {
       organizationId: opts.orgId,
       title:          opts.title ?? "Test IG Task",
       dueDate:        "2026-06-01",
-      owner:          "Test Owner",
-      status:         "draft",
-      type:           "post",
+      status:         "Upcoming",
+      type:           "Story",
     },
   });
 }

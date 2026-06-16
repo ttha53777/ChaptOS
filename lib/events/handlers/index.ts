@@ -5,3 +5,4 @@
  * Add new handler files here as they're created.
  */
 import "./recalc-attendance";
+import "./recalc-service-hours";

@@ -14,7 +14,7 @@ declare global {
 }
 
 /** Bump when Prisma schema changes so `next dev` hot reload gets a fresh client. */
-const PRISMA_SCHEMA_REVISION = "programming-event-extension-20260611";
+const PRISMA_SCHEMA_REVISION = "instagram-drop-owner-20260615";
 /** Bump when pool options change so `next dev` hot reload picks up new config. */
 const POOL_REVISION = "pool-prewarm-2-20260612";
 

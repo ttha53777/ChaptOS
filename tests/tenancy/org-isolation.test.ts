@@ -15,7 +15,7 @@ import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { testPrisma, resetDb } from "../setup/prisma";
 import {
   createOrg, createBrother, createSemester, createCalendarEvent, createTransaction,
-  createServiceEvent, createPartyEvent, createDeadline, createInstagramTask,
+  createServiceEvent, createServiceParticipation, createPartyEvent, createDeadline, createInstagramTask,
   createDoc, createBudget, createActivityLog, createAnnouncement,
 } from "../setup/factories";
 import { db } from "@/lib/db";
@@ -203,6 +203,62 @@ describe("tenancy: ServiceEvent", () => {
 });
 
 // ---------------------------------------------------------------------------
+// ServiceParticipation
+// ---------------------------------------------------------------------------
+describe("tenancy: ServiceParticipation", () => {
+  it("findMany only returns the active org's rows", async () => {
+    const orgA = await createOrg("Alpha", "alpha");
+    const orgB = await createOrg("Beta", "beta");
+    const evA = await createServiceEvent({ orgId: orgA.id });
+    const evB = await createServiceEvent({ orgId: orgB.id });
+    const bA = await createBrother({ orgId: orgA.id });
+    const bB = await createBrother({ orgId: orgB.id });
+    await createServiceParticipation({ orgId: orgA.id, serviceEventId: evA.id, brotherId: bA.id, hours: 3 });
+    await createServiceParticipation({ orgId: orgB.id, serviceEventId: evB.id, brotherId: bB.id, hours: 5 });
+
+    const fromA = await db(orgA.id).serviceParticipation.findMany();
+    const fromB = await db(orgB.id).serviceParticipation.findMany();
+    expect(fromA.map(p => p.hours)).toEqual([3]);
+    expect(fromB.map(p => p.hours)).toEqual([5]);
+  });
+
+  it("create injects organizationId", async () => {
+    const org = await createOrg("Alpha", "alpha");
+    const ev = await createServiceEvent({ orgId: org.id });
+    const b = await createBrother({ orgId: org.id });
+    const p = await db(org.id).serviceParticipation.create({
+      data: { serviceEventId: ev.id, brotherId: b.id, hours: 4 },
+    });
+    expect(p.organizationId).toBe(org.id);
+  });
+
+  it("findFirst with a cross-org id returns null", async () => {
+    const orgA = await createOrg("Alpha", "alpha");
+    const orgB = await createOrg("Beta", "beta");
+    const evB = await createServiceEvent({ orgId: orgB.id });
+    const bB = await createBrother({ orgId: orgB.id });
+    const pB = await createServiceParticipation({ orgId: orgB.id, serviceEventId: evB.id, brotherId: bB.id, hours: 5 });
+    const leak = await db(orgA.id).serviceParticipation.findFirst({ where: { id: pB.id } });
+    expect(leak).toBeNull();
+  });
+
+  it("deleteMany only affects the active org", async () => {
+    const orgA = await createOrg("Alpha", "alpha");
+    const orgB = await createOrg("Beta", "beta");
+    const evA = await createServiceEvent({ orgId: orgA.id });
+    const evB = await createServiceEvent({ orgId: orgB.id });
+    const bA = await createBrother({ orgId: orgA.id });
+    const bB = await createBrother({ orgId: orgB.id });
+    await createServiceParticipation({ orgId: orgA.id, serviceEventId: evA.id, brotherId: bA.id, hours: 3 });
+    await createServiceParticipation({ orgId: orgB.id, serviceEventId: evB.id, brotherId: bB.id, hours: 5 });
+
+    await db(orgA.id).serviceParticipation.deleteMany();
+    expect(await db(orgA.id).serviceParticipation.count()).toBe(0);
+    expect(await db(orgB.id).serviceParticipation.count()).toBe(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // PartyEvent
 // ---------------------------------------------------------------------------
 describe("tenancy: PartyEvent", () => {
@@ -262,7 +318,7 @@ describe("tenancy: InstagramTask", () => {
   it("create injects organizationId", async () => {
     const org = await createOrg("Alpha", "alpha");
     const t = await db(org.id).instagramTask.create({
-      data: { title: "Injected IG", dueDate: "2026-06-01", owner: "Test", status: "draft", type: "post" },
+      data: { title: "Injected IG", dueDate: "2026-06-01", status: "Upcoming", type: "Story" },
     });
     expect(t.organizationId).toBe(org.id);
   });

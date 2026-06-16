@@ -201,6 +201,32 @@ function scopedServiceEvent(orgId: number) {
   };
 }
 
+function scopedServiceParticipation(orgId: number) {
+  type W = Prisma.ServiceParticipationWhereInput;
+  const org = (w?: W): W => ({ ...w, organizationId: orgId });
+
+  async function verify(where: Prisma.ServiceParticipationWhereUniqueInput): Promise<number> {
+    const row = await prisma.serviceParticipation.findFirst({ where: org(where as W), select: { id: true } });
+    if (!row) notInOrg();
+    return row.id;
+  }
+
+  return {
+    findMany:   (args?: Prisma.ServiceParticipationFindManyArgs)  => prisma.serviceParticipation.findMany({ ...args, where: org(args?.where) }),
+    findFirst:  (args?: Prisma.ServiceParticipationFindFirstArgs) => prisma.serviceParticipation.findFirst({ ...args, where: org(args?.where) }),
+    findUnique: (args: Prisma.ServiceParticipationFindUniqueArgs) => prisma.serviceParticipation.findFirst({ ...args, where: org(args.where as W) }),
+    create:     (args: Omit<Prisma.ServiceParticipationCreateArgs, "data"> & { data: Omit<Prisma.ServiceParticipationUncheckedCreateInput, "organizationId"> }) =>
+      prisma.serviceParticipation.create({ ...args, data: { ...args.data, organizationId: orgId } }),
+    update:     async (args: Prisma.ServiceParticipationUpdateArgs) =>
+      prisma.serviceParticipation.update({ ...args, where: { id: await verify(args.where) } }),
+    delete:     async (args: Prisma.ServiceParticipationDeleteArgs) =>
+      prisma.serviceParticipation.delete({ where: { id: await verify(args.where) } }),
+    deleteMany: (args?: Omit<Prisma.ServiceParticipationDeleteManyArgs, "where"> & { where?: W }) =>
+      prisma.serviceParticipation.deleteMany({ ...args, where: org(args?.where) }),
+    count:      (args?: Prisma.ServiceParticipationCountArgs)     => prisma.serviceParticipation.count({ ...args, where: org(args?.where) }),
+  };
+}
+
 function scopedPartyEvent(orgId: number) {
   type W = Prisma.PartyEventWhereInput;
   const org = (w?: W): W => ({ ...w, organizationId: orgId });
@@ -706,6 +732,7 @@ export function db(orgId: number) {
     semester:            scopedSemester(orgId),
     calendarEvent:       scopedCalendarEvent(orgId),
     serviceEvent:        scopedServiceEvent(orgId),
+    serviceParticipation: scopedServiceParticipation(orgId),
     partyEvent:          scopedPartyEvent(orgId),
     deadline:            scopedDeadline(orgId),
     instagramTask:       scopedInstagramTask(orgId),
