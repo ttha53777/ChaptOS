@@ -4,6 +4,7 @@ import React, { useMemo, useCallback, useRef, useState } from "react";
 import Link from "next/link";
 import { useChapter } from "../../../context/ChapterContext";
 import { Modal } from "../../../components/dashboard/primitives";
+import { isNavVisible } from "../../../components/Sidebar";
 import { AddDeadlineForm, AddIGTaskForm, AddRevenueForm } from "../../../components/dashboard/forms";
 import { TaskStatus, InstagramType, ActivityEntry, Deadline, InstagramTask, PartyEvent, fmt$ } from "../../../data";
 import { useOrgPath } from "../../../hooks/useOrgPath";
@@ -50,6 +51,9 @@ export function GeneralSection({
   } = useChapter();
 
   const brotherNames = useMemo(() => brotherList.map(b => b.name), [brotherList]);
+  // Matches the dashboard/timeline deadline modal: when the org's Instagram page
+  // is visible, the form offers to log the deadline as an Instagram post instead.
+  const igEnabled = isNavVisible("Instagram", currentUser?.org?.enabledWorkflows ?? []);
 
   // Logo is now persisted on the org (Organization.logoUrl), surfaced via
   // /api/auth/me → ChapterContext. Upload/remove go through /api/orgs/logo and
@@ -135,12 +139,28 @@ export function GeneralSection({
       .catch(err => { console.error(err); onError("Could not refresh data from the database."); });
   }
 
-  function handleAddDeadline(d: { title: string; dueDate: string; owner: string; status: TaskStatus }) {
+  function handleAddDeadline(d: { title: string; dueDate: string; owner: string; status: TaskStatus; isPost: boolean; postType: InstagramType }) {
     const tempId = _nextId++;
-    setDeadlineList(prev => [...prev, { id: tempId, ...d }]);
     setActiveModal(null);
+
+    // When "This is an Instagram post" is checked, it's logged as an Instagram
+    // task instead — same routing as the dashboard/timeline deadline modal.
+    if (d.isPost) {
+      const task = { title: d.title, dueDate: d.dueDate, type: d.postType, status: d.status };
+      setIgTaskList(prev => [...prev, { id: tempId, ...task }]);
+      persist(
+        requestJson<InstagramTask>("/api/instagram", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(task) }),
+        "Instagram post could not be saved. Local changes were reverted.",
+        () => setIgTaskList(prev => prev.filter(x => x.id !== tempId)),
+        saved => setIgTaskList(prev => prev.map(x => x.id === tempId ? saved : x)),
+      );
+      return;
+    }
+
+    const deadline = { title: d.title, dueDate: d.dueDate, owner: d.owner, status: d.status };
+    setDeadlineList(prev => [...prev, { id: tempId, ...deadline }]);
     persist(
-      requestJson<Deadline>("/api/deadlines", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(d) }),
+      requestJson<Deadline>("/api/deadlines", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(deadline) }),
       "Deadline could not be saved. Local changes were reverted.",
       () => setDeadlineList(prev => prev.filter(x => x.id !== tempId)),
       saved => setDeadlineList(prev => prev.map(x => x.id === tempId ? saved : x)),
@@ -288,8 +308,8 @@ export function GeneralSection({
       </div>
 
       {activeModal === "deadline" && (
-        <Modal title="Add Deadline" onClose={() => setActiveModal(null)}>
-          <AddDeadlineForm brotherNames={brotherNames} onSubmit={handleAddDeadline} />
+        <Modal title="Add Deadline" tone="dusk" onClose={() => setActiveModal(null)}>
+          <AddDeadlineForm brotherNames={brotherNames} onSubmit={handleAddDeadline} igEnabled={igEnabled} />
         </Modal>
       )}
       {activeModal === "revenue" && (

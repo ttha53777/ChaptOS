@@ -53,7 +53,7 @@ export function MobileSummary({ announcement, kpis, onEditAnnouncement, onOpenKp
   });
 
   return (
-    <div className="px-3 pt-3 pb-2">
+    <div className="px-4 pb-2">
       {/* Compact pinned announcement */}
       {feature("operations", "announcement") && (
       <button

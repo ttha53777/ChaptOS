@@ -22,6 +22,15 @@
   --serif: var(--font-fraunces), Georgia, serif;
   --sans:  var(--font-geist-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --mono:  var(--font-geist-mono), ui-monospace, Menlo, monospace;
+
+  /* Spatial system — stepped down in the @media blocks at the foot of this file.
+     Kept here (not Tailwind) so the ledger owns its own responsive sizing, mirroring
+     how docs-ledger.css / settings-ledger.css scope their own steps. */
+  --dash-max-width:   1230px;                 /* editorial cap; dropped below 1280 */
+  --dash-gutter:      clamp(18px, 3vw, 38px); /* inline padding, fluid 768→ultrawide */
+  --dash-rail-width:  338px;                  /* right rail; collapses to 1fr below 1280 */
+  --dash-section-gap: 14px;                    /* matches existing grid/col gap */
+  --dash-greeting:    clamp(26px, 4.4vw, 33px);
 }
 
 .dash[data-dashboard-theme="dusk"] {
@@ -80,9 +89,9 @@
   font-variant-numeric: normal;
   font-feature-settings: normal;
   -webkit-font-smoothing: antialiased;
-  max-width: 1230px;
+  max-width: var(--dash-max-width);
   margin: 0 auto;
-  padding: 30px 38px 40px;
+  padding: 30px var(--dash-gutter) 40px;
   min-height: 100%;
 }
 .dash ::selection { background: var(--vio-bg); }
@@ -91,7 +100,7 @@
 .dash .briefing { display: flex; justify-content: space-between; gap: 36px; align-items: flex-start; }
 .dash .kicker { font-family: var(--mono); font-size: 10.5px; letter-spacing: .18em; text-transform: uppercase; color: var(--muted); }
 .dash .kicker .today { color: var(--vio); }
-.dash h1.greeting { font-family: var(--serif); font-weight: 400; font-size: 33px; letter-spacing: -.01em; margin-top: 8px; color: var(--ink); }
+.dash h1.greeting { font-family: var(--serif); font-weight: 400; font-size: var(--dash-greeting); letter-spacing: -.01em; margin-top: 8px; color: var(--ink); }
 .dash h1.greeting em { font-style: italic; color: var(--vio); }
 .dash .digest { margin-top: 12px; display: flex; gap: 9px; align-items: baseline; max-width: 560px; }
 .dash .ai-chip { flex-shrink: 0; font-family: var(--mono); font-size: 8.5px; font-weight: 600; letter-spacing: .14em;
@@ -190,9 +199,34 @@
 .dash .measure svg { position: absolute; right: 14px; bottom: 14px; opacity: .8; }
 .dash .measure svg polyline { fill: none; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
 
-/* ── Grid ────────────────────────────────────────────────── */
-.dash .grid { margin-top: 14px; display: grid; grid-template-columns: 1fr 338px; gap: 14px; align-items: start; }
-.dash .col { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+/* ── Grid ──────────────────────────────────────────────────
+   Four named regions (needs / priority / roster / rail) as direct grid children.
+   DOM order is the tablet order (needs → priority → roster → rail) so focus order
+   matches the single-column tablet layout. grid-template-areas restores the
+   original two-column desktop look: needs + roster down the left, the priority
+   pair (This Week + Treasury) on the right beside needs, then the rest of the
+   rail beside the roster. Row 1 sizes to the taller of needs / priority; with a
+   typical short needs queue the rail joins the priority pair with little to no
+   gap, approximating the old single flex rail. */
+.dash .grid {
+  margin-top: 14px;
+  display: grid;
+  grid-template-columns: 1fr var(--dash-rail-width);
+  grid-template-rows: auto auto;
+  grid-template-areas:
+    "needs   priority"
+    "roster  rail";
+  gap: var(--dash-section-gap);
+  align-items: start;
+}
+.dash .col { display: flex; flex-direction: column; gap: var(--dash-section-gap); min-width: 0; }
+.dash .grid > .area-needs    { grid-area: needs; }
+.dash .grid > .area-priority { grid-area: priority; }
+.dash .grid > .area-roster   { grid-area: roster; }
+.dash .grid > .area-rail     { grid-area: rail; }
+/* Drop empty region wrappers (e.g. needs-attention feature-hidden) so they don't
+   reserve their grid row's gap. */
+.dash .grid > .col:empty { display: none; }
 
 .dash .card { border: 1px solid var(--line); border-radius: 12px; background: var(--card); box-shadow: var(--shadow); overflow: hidden; }
 .dash .card-h { display: flex; align-items: baseline; justify-content: space-between; padding: 15px 18px 12px; border-bottom: 1px solid var(--line-soft); }
@@ -227,6 +261,11 @@
   color: var(--muted); border: 1px solid transparent; background: transparent; border-radius: 6px; padding: 3px 9px; cursor: pointer; }
 .dash .filters button.on { color: var(--ink); background: var(--card-2); border-color: var(--line); }
 .dash .filters button:hover { color: var(--ink-soft); }
+/* Horizontal-scroll guard for the roster: at narrow widths the 7-column table
+   can exceed its card; scroll it inside the card rather than clipping or pushing
+   the page wide. min-width keeps columns from crushing before they scroll. */
+.dash .roster-scroll { overflow-x: auto; }
+.dash .roster-scroll table { min-width: 560px; }
 .dash table { width: 100%; border-collapse: collapse; }
 .dash thead th { font-family: var(--mono); font-size: 8.5px; font-weight: 500; letter-spacing: .16em; text-transform: uppercase;
   color: var(--faint); text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line-soft); }
@@ -325,6 +364,94 @@
 .dash .measure:hover .widget-hide,
 .dash .widget-hide:focus-visible { opacity: 1; }
 .dash .widget-hide:hover { color: var(--rose); border-color: var(--rose); }
+
+/* ── Responsive reflow (Phase 1) ─────────────────────────────────────────────
+   The ledger only renders at md+ (768px) — below that the mobile tabbed tree
+   shows instead. These steps compress the ledger for the 768–1279px band (iPad
+   portrait/landscape, small laptops) so it stays a clean single column instead
+   of squeezing the fixed 1fr/338px grid + column-flow KPI strip into too little
+   room. Mirrors the collapse pattern in docs-ledger.css (1080/680). Restored to
+   the full two-column editorial layout at ≥1280px. */
+
+/* Below desktop: drop the right rail under the main column and let both the KPI
+   strip and the rails wrap instead of holding fixed column counts. */
+@media (max-width: 1279px) {
+  /* Collapse to one column and reorder via single-column areas: the high-signal
+     This Week + Treasury pair (priority) sits above the Roster, with the rest of
+     the rail last — matching the DOM order so focus order stays correct. */
+  .dash .grid {
+    grid-template-columns: 1fr;
+    grid-template-rows: none;   /* reset the desktop "auto 1fr"; each region sizes to content */
+    grid-template-areas:
+      "needs"
+      "priority"
+      "roster"
+      "rail";
+  }
+  /* The priority pair and the remaining rail each become their own wrapping row
+     so cards pair up 2-up rather than forming one tall stack. The 340px floor
+     keeps them at 2 columns across the whole 768–1279 band (a 3rd column needs
+     ~1040px of content width, which this band — minus the pushed sidebar — never
+     reaches), so they read as balanced 2-up rather than a lopsided 3+2. */
+  .dash .grid > .area-priority,
+  .dash .grid > .col.rail {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+    gap: var(--dash-section-gap);
+    align-content: start;
+  }
+  /* KPI ledger strip: column-flow → wrapping grid. Restore inter-row borders
+     since wrapped rows lose the single-row right-border rhythm. */
+  .dash .ledger {
+    grid-auto-flow: row;
+    grid-auto-columns: auto;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  }
+  .dash .measure { border-bottom: 1px solid var(--line-soft); }
+}
+
+/* Tablet & below: go full-bleed (no centered cap) so the compressed ledger fills
+   the available width, stack the briefing/health dial, and step type down so
+   wrapped KPI tiles don't overflow. */
+@media (max-width: 1023px) {
+  .dash { --dash-max-width: none; --dash-greeting: clamp(24px, 5vw, 30px); }
+  .dash .briefing { flex-wrap: wrap; gap: 20px; }
+  .dash .digest { max-width: none; }
+  .dash .measure .v { font-size: 20px; }
+  /* The measure sparkline is absolutely positioned bottom-right; once the strip
+     wraps into a narrow grid it overlaps the value/note text. It's decorative —
+     drop it at tablet widths and let the number stand on its own. */
+  .dash .measure svg { display: none; }
+  /* Drop the lowest-priority roster columns (GPA, Service) so the table reads
+     cleanly on tablet without leaning on the .roster-scroll horizontal scroll.
+     The data stays one tap away in the BrotherDrawer. */
+  .dash .col-secondary { display: none; }
+}
+
+/* Ultrawide: nudge the editorial cap up so the column doesn't look starved, but
+   keep it a centered column (don't go full-bleed — preserves the aesthetic). */
+@media (min-width: 1920px) {
+  .dash { --dash-max-width: 1320px; }
+}
+
+/* ── Touch devices (Phase 2) ─────────────────────────────────────────────────
+   On a coarse pointer (iPad/tablet showing the ledger at 768–1279px) the small
+   chip/action controls are 24–30px tall — fine for a mouse, below the 44px touch
+   target. Bump min-height and center their contents without changing the desktop
+   (fine-pointer) look. Also keep the hover-only "hide widget" affordance visible,
+   since touch has no hover — mirrors docs-ledger.css's .dx-measure-hide rule. */
+@media (pointer: coarse) {
+  .dash .ba-chip,
+  .dash .row-act,
+  .dash .att-row .act,
+  .dash .card-act,
+  .dash .filters button {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+  }
+  .dash .widget-hide { opacity: .55; }
+}
 
 /* ── Warm toolbar (decision 2) ───────────────────────────────────────────────
    The <header> is a sibling of <main>, OUTSIDE `.dash`, so these rules cannot

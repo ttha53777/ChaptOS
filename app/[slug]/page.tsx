@@ -17,7 +17,7 @@ import { useThresholds } from "../hooks/useThresholds";
 import { useVocab } from "../hooks/useVocab";
 import { useFeature } from "../hooks/useFeature";
 import { WORKFLOW_FEATURES, type DisabledFeatures } from "@/lib/workflow-features";
-import { Sidebar, SvgIcon, NAV_ICONS } from "../components/Sidebar";
+import { Sidebar, SvgIcon, NAV_ICONS, isNavVisible } from "../components/Sidebar";
 import { BrotherAvatar } from "../components/BrotherAvatar";
 import { useChapter } from "../context/ChapterContext";
 import { useToast } from "../components/dashboard/Toast";
@@ -1000,6 +1000,9 @@ export default function Home() {
   // /?toast=welcome; once the org name resolves we show a one-time toast and
   // strip the param from the URL (replaceState, no navigation/Suspense needed).
   const orgName = currentUser?.org?.name ?? null;
+  // Matches the timeline/settings deadline modal: when the org's Instagram page
+  // is visible, the form offers to log the deadline as an Instagram post instead.
+  const igEnabled = isNavVisible("Instagram", currentUser?.org?.enabledWorkflows ?? []);
   useEffect(() => {
     if (welcomeToastShownRef.current || !orgName) return;
     const params = new URLSearchParams(window.location.search);
@@ -1371,16 +1374,37 @@ export default function Home() {
     }
   }
 
-  function handleAddDeadline(d: { title: string; dueDate: string; owner: string; status: TaskStatus }) {
+  function handleAddDeadline(d: { title: string; dueDate: string; owner: string; status: TaskStatus; isPost: boolean; postType: InstagramType }) {
     const tempId = _nextId++;
-    setDeadlineList(prev => [...prev, { id: tempId, ...d }]);
-    addActivity(`New deadline added: "${d.title}"`, "info");
     setActiveModal(null);
+
+    // When "This is an Instagram post" is checked, it's logged as an Instagram
+    // task instead — same routing as the timeline/settings deadline modal.
+    if (d.isPost) {
+      const task = { title: d.title, dueDate: d.dueDate, type: d.postType, status: d.status };
+      setIgTaskList(prev => [...prev, { id: tempId, ...task }]);
+      addActivity(`IG task added: "${task.title}"`, "info");
+      persistMutation(
+        requestJson<InstagramTask>("/api/instagram", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(task),
+        }),
+        "Instagram post could not be saved. Local changes were reverted.",
+        () => setIgTaskList(prev => prev.filter(x => x.id !== tempId)),
+        saved => setIgTaskList(prev => prev.map(x => x.id === tempId ? saved : x)),
+      );
+      return;
+    }
+
+    const deadline = { title: d.title, dueDate: d.dueDate, owner: d.owner, status: d.status };
+    setDeadlineList(prev => [...prev, { id: tempId, ...deadline }]);
+    addActivity(`New deadline added: "${deadline.title}"`, "info");
     persistMutation(
       requestJson<Deadline>("/api/deadlines", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(d),
+        body: JSON.stringify(deadline),
       }),
       "Deadline could not be saved. Local changes were reverted.",
       () => setDeadlineList(prev => prev.filter(x => x.id !== tempId)),
@@ -1462,8 +1486,12 @@ export default function Home() {
     setActiveModal("edit-deadline");
   }
 
-  function saveEditDeadline(data: { title: string; dueDate: string; owner: string; status: TaskStatus }) {
+  // The shared deadline form always reports isPost/postType; editing an existing
+  // deadline ignores them (no in-place conversion to an IG post) and patches only
+  // the deadline fields.
+  function saveEditDeadline({ title, dueDate, owner, status }: { title: string; dueDate: string; owner: string; status: TaskStatus; isPost: boolean; postType: InstagramType }) {
     if (!editingDeadlineId) return;
+    const data = { title, dueDate, owner, status };
     const previous = deadlineList.find(x => x.id === editingDeadlineId);
     setDeadlineList(prev => prev.map(x => x.id === editingDeadlineId ? { ...x, ...data } : x));
     addActivity(`Deadline updated: "${data.title}"`, "info");
@@ -1737,20 +1765,6 @@ export default function Home() {
 
           <p className="tb-date hidden text-[11px] text-slate-500 xl:block shrink-0">{new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</p>
 
-          <div className="tb-search-wrap relative hidden sm:block">
-            <svg className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
-            </svg>
-            <input type="text" placeholder="Search brothers…" value={search} onChange={e => setSearch(e.target.value)}
-              className="w-36 rounded-lg border border-white/[0.08] bg-white/[0.03] py-1.5 pl-8 pr-3 text-[13px] text-white placeholder:text-slate-500 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] transition-colors focus:border-indigo-500/60 focus:bg-white/[0.06] focus:outline-none focus:ring-2 focus:ring-indigo-500/15 sm:w-44" />
-          </div>
-
-          <button onClick={() => window.print()} className="tb-btn inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-1.5 text-[12px] font-medium text-slate-300 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition-all duration-150 hover:border-white/[0.16] hover:bg-white/[0.06] focus:outline-none">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3 text-slate-400">
-              <path fillRule="evenodd" d="M11.5 4.5a3.5 3.5 0 1 1-7 0 3.5 3.5 0 0 1 7 0ZM4.25 8.5a3.25 3.25 0 0 0-3.25 3.25v.5A1.75 1.75 0 0 0 2.75 14h10.5A1.75 1.75 0 0 0 15 12.25v-.5A3.25 3.25 0 0 0 11.75 8.5h-7.5Z" clipRule="evenodd" />
-            </svg>
-            <span className="hidden sm:inline">Export</span>
-          </button>
         </header>
 
         {/* ── Scrollable body ──────────────────────────────────────────────── */}
@@ -1837,10 +1851,6 @@ export default function Home() {
                   onQuickAction={handleQuickAction}
                   quickActionsAdmin={isAdmin || canTreasury || canAttendance}
                   enabledWorkflows={currentUser?.org?.enabledWorkflows}
-                  search={search}
-                  onSearchChange={setSearch}
-                  searchPlaceholder="Search brothers…"
-                  onExport={() => window.print()}
                 />
               }
               health={feature("operations", "health") ? (
@@ -1951,10 +1961,16 @@ export default function Home() {
               </LedgerStrip>
             )}
 
-            {/* ── Two-column grid ─────────────────────────────────────────── */}
+            {/* ── Content grid ────────────────────────────────────────────────
+                Four named regions placed via grid-template-areas (see
+                dashboard-ledger.css). Desktop keeps the original two columns —
+                needs+roster on the left, the full rail on the right. On tablet
+                (≤1279, single column) the areas reorder so the high-signal
+                This Week + Treasury pair sits above the Roster, with the
+                remaining rail (Socials/Instagram/Activity) last. */}
             <div className="grid">
-              {/* Left column */}
-              <div className="col">
+              {/* Needs attention */}
+              <div className="col area-needs">
                 {feature("operations", "needs-attention") && (
                   <NeedsAttention
                     items={needsAttention}
@@ -1964,6 +1980,24 @@ export default function Home() {
                     hideButton={isActiveOrgAdmin ? <DashHideButton label="Needs attention" onHide={() => setWidgetHidden("needs-attention", true)} /> : undefined}
                   />
                 )}
+              </div>
+
+              {/* Priority rail — This Week + Treasury (above Roster on tablet) */}
+              <div className="col area-priority">
+                <ThisWeek
+                  events={weeklyDigest.eventsThisWeek}
+                  deadlines={weeklyDigest.deadlinesDue}
+                  weekStart={weekRange.start}
+                  weekEnd={weekRange.end}
+                  today={todayISO}
+                  onAll={() => setWidgetDrawer("deadlines")}
+                  onAddDeadline={() => setActiveModal("deadline")}
+                />
+                <TreasuryRail balance={liveBalance} projected={liveProjected} trend={liveTrend} />
+              </div>
+
+              {/* Roster */}
+              <div className="col area-roster">
                 {feature("operations", "brother-tracking") && (
                   <RosterTable
                     brothers={filteredBrothers}
@@ -1983,18 +2017,8 @@ export default function Home() {
                 )}
               </div>
 
-              {/* Right rail */}
-              <div className="col">
-                <ThisWeek
-                  events={weeklyDigest.eventsThisWeek}
-                  deadlines={weeklyDigest.deadlinesDue}
-                  weekStart={weekRange.start}
-                  weekEnd={weekRange.end}
-                  today={todayISO}
-                  onAll={() => setWidgetDrawer("deadlines")}
-                  onAddDeadline={() => setActiveModal("deadline")}
-                />
-                <TreasuryRail balance={liveBalance} projected={liveProjected} trend={liveTrend} />
+              {/* Remaining rail — Socials / Instagram / Activity */}
+              <div className="col rail area-rail">
                 <SocialsRail
                   parties={partyList}
                   totalDoorRev={totalDoorRev}
@@ -2046,7 +2070,7 @@ export default function Home() {
       )}
       {activeModal === "deadline" && (
         <Modal title="Add Deadline" tone="dusk" onClose={closeModal}>
-          <AddDeadlineForm brotherNames={brotherNames} onSubmit={handleAddDeadline} />
+          <AddDeadlineForm brotherNames={brotherNames} onSubmit={handleAddDeadline} igEnabled={igEnabled} />
         </Modal>
       )}
       {activeModal === "revenue" && (

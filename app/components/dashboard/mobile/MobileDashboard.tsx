@@ -112,8 +112,10 @@ export function MobileDashboard(props: MobileDashboardProps) {
 
   return (
     <div className="flex flex-col">
-      {/* Sticky summary + tab bar stay glanceable while a tab body scrolls */}
-      <div className="page-ambient sticky top-0 z-10 border-b border-white/[0.06]">
+      {/* Sticky summary + tab bar stay glanceable while a tab body scrolls.
+          pt-safe pads past the iOS notch/status bar so the summary isn't clipped
+          when the page scrolls under a translucent system bar. */}
+      <div className="page-ambient sticky top-0 z-10 border-b border-white/[0.06] pt-safe">
         <MobileSummary
           announcement={announcement}
           kpis={kpis}

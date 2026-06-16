@@ -16,14 +16,15 @@ const SORTABLE: [keyof Brother, string][] = [
 ];
 
 function SortHead({
-  label, colKey, active, dir, onSort, numeric,
+  label, colKey, active, dir, onSort, numeric, secondary,
 }: {
   label: string; colKey: keyof Brother; active: boolean; dir: "asc" | "desc";
-  onSort: (k: keyof Brother) => void; numeric?: boolean;
+  onSort: (k: keyof Brother) => void; numeric?: boolean; secondary?: boolean;
 }) {
+  const cls = [numeric ? "num" : "", secondary ? "col-secondary" : ""].filter(Boolean).join(" ");
   return (
     <th
-      className={numeric ? "num" : undefined}
+      className={cls || undefined}
       style={{ cursor: "pointer" }}
       onClick={() => onSort(colKey)}
       aria-sort={active ? (dir === "asc" ? "ascending" : "descending") : "none"}
@@ -90,6 +91,7 @@ export function RosterTable({
         </div>
       </div>
 
+      <div className="roster-scroll">
       <table>
         <thead>
           <tr>
@@ -104,6 +106,9 @@ export function RosterTable({
                 dir={sortDir}
                 onSort={onSort}
                 numeric={k !== "attendance"}
+                /* GPA + Service are the lowest-priority columns — hidden ≤1023 to
+                   keep the roster readable on tablet without horizontal scroll. */
+                secondary={k === "gpa" || k === "serviceHours"}
               />
             ))}
             <th className="num">Status</th>
@@ -149,8 +154,8 @@ export function RosterTable({
                       <span className="mono muted">—</span>
                     )}
                   </td>
-                  <td className="num"><span className={`mono ${gpaCls}`}>{b.gpa.toFixed(1)}</span></td>
-                  <td className="num">
+                  <td className="num col-secondary"><span className={`mono ${gpaCls}`}>{b.gpa.toFixed(1)}</span></td>
+                  <td className="num col-secondary">
                     <span className={`mono ${svcCls}`}>{b.serviceHours}h</span>
                   </td>
                   <td className="num"><span className={`status-tag ${tag.cls}`}>{tag.label}</span></td>
@@ -160,6 +165,7 @@ export function RosterTable({
           )}
         </tbody>
       </table>
+      </div>
 
       <div className="table-foot">
         {total} brothers · {statusCounts.Good} good · {statusCounts.Watch} watch · {statusCounts["At Risk"]} at risk &ensp;—&ensp; click a row for profile, dues &amp; service log
