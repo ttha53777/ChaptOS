@@ -2,6 +2,9 @@
 
 export type BrotherStatus = "Good" | "Watch" | "At Risk";
 export type TaskStatus = "Upcoming" | "Due Soon" | "Urgent" | "Complete";
+// Canonical post types — mirrors INSTAGRAM_TYPES in lib/validation/instagram.ts
+// (kept as a local literal so this mock-data module stays dependency-light).
+export type InstagramType = "Story" | "Reel" | "Carousel";
 export type CalEventCategory = "chapter" | "social" | "fundy" | "program" | "party" | "deadline" | "service";
 export type CalLayer = "all" | "mandatory" | "deadlines" | "parties" | "service";
 
@@ -55,9 +58,8 @@ export interface InstagramTask {
   id: number;
   title: string;
   dueDate: string;
-  owner: string;
   status: TaskStatus;
-  type: string;
+  type: InstagramType;
 }
 
 export interface ProgrammingChecklistItem {
@@ -156,12 +158,14 @@ export const deadlines: Deadline[] = [
 ];
 
 export const instagramTasks: InstagramTask[] = [
-  { id: 1, title: "Rush Interest Post",      dueDate: "2026-05-13", owner: "Dariel Milfort",     status: "Urgent",   type: "Feed Post"   },
-  { id: 2, title: "Meet the Bros Reel",      dueDate: "2026-05-18", owner: "Dariel Milfort",     status: "Due Soon", type: "Reel"        },
-  { id: 3, title: "Spring Formal Flyer Drop",dueDate: "2026-05-14", owner: "Thalha Thabish",     status: "Urgent",   type: "Story + Feed"},
-  { id: 4, title: "Community Service Recap", dueDate: "2026-05-22", owner: "Dariel Milfort",     status: "Upcoming", type: "Carousel"    },
-  { id: 5, title: "Banquet Promo Post",      dueDate: "2026-05-24", owner: "Arijit Das",         status: "Upcoming", type: "Feed Post"   },
-  { id: 6, title: "Stroll Practice Recap",   dueDate: "2026-05-28", owner: "Nathaniel Baccarey", status: "Upcoming", type: "Reel"        },
+  { id: 1, title: "Rush Interest Post",        dueDate: "2026-05-13", status: "Urgent",   type: "Story"    },
+  { id: 2, title: "Spring Formal Flyer Drop",  dueDate: "2026-05-14", status: "Urgent",   type: "Story"    },
+  { id: 3, title: "Meet the Bros Reel",        dueDate: "2026-06-17", status: "Due Soon", type: "Reel"     },
+  { id: 4, title: "Community Service Recap",   dueDate: "2026-06-19", status: "Upcoming", type: "Carousel" },
+  { id: 5, title: "Banquet Promo Post",        dueDate: "2026-06-21", status: "Upcoming", type: "Story"    },
+  { id: 6, title: "Stroll Practice Recap",     dueDate: "2026-06-28", status: "Upcoming", type: "Reel"     },
+  { id: 7, title: "Summer Collab Night Teaser",dueDate: "2026-07-04", status: "Upcoming", type: "Story"    },
+  { id: 8, title: "Brotherhood Mixer Recap",   dueDate: "2026-06-11", status: "Complete", type: "Carousel" },
 ];
 
 export const partyEvents: PartyEvent[] = [

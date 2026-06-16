@@ -15,6 +15,7 @@ import { prisma } from "@/lib/prisma";
 import { isoWeekBounds, DATE_RE } from "@/lib/dates";
 import { getBrotherStatus, round2, type Brother as BrotherType } from "@/app/data";
 import { resolveThresholds, type Thresholds } from "@/lib/thresholds";
+import { INSTAGRAM_TYPES } from "@/lib/validation/instagram";
 
 /**
  * Resolve the org's member-status thresholds so the assistant reports the same
@@ -57,7 +58,7 @@ export interface Proposal {
 }
 
 const TASK_STATUSES = ["Upcoming", "Due Soon", "Urgent", "Complete"] as const;
-const IG_TYPES = ["Feed Post", "Reel", "Story", "Carousel", "Story + Feed"] as const;
+const IG_TYPES = INSTAGRAM_TYPES;
 const CAL_CATEGORIES = ["chapter", "social", "fundy", "program", "party", "deadline", "service"] as const;
 const TX_TYPES = ["income", "expense"] as const;
 const PROGRAMMING_TYPES = ["Program", "Social", "Fundraiser", "Community Service"] as const;
@@ -140,7 +141,7 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
     function: {
       name: "list_instagram_tasks",
       description:
-        "Instagram content tasks (title, dueDate, owner, status, type). " +
+        "Instagram content tasks (title, dueDate, status, type). " +
         "For 'next/soonest' set start=<today> (overdue tasks aren't 'next'), order_by='dueDate', asc, small limit. " +
         "If filtering by status returns empty, broaden — don't say 'no IG tasks' before checking without the filter.",
       parameters: {
@@ -149,9 +150,9 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
           start:  { type: "string", description: "Inclusive YYYY-MM-DD start." },
           end:    { type: "string", description: "Inclusive YYYY-MM-DD end." },
           status: { type: "string", description: '"Urgent", "Due Soon", "Upcoming", "Complete".' },
-          type:   { type: "string", description: "Feed Post | Reel | Story | Carousel | Story + Feed." },
+          type:   { type: "string", description: "Story | Reel | Carousel." },
           open_only: { type: "boolean", description: "Exclude Complete tasks." },
-          order_by:  { type: "string", enum: ["dueDate", "title", "owner"], description: "Sort field (default dueDate)." },
+          order_by:  { type: "string", enum: ["dueDate", "title"], description: "Sort field (default dueDate)." },
           order:     { type: "string", enum: ["asc", "desc"], description: "Default asc." },
           limit:     { type: "integer", minimum: 1, maximum: 100, description: "Default 100." },
         },
@@ -369,18 +370,17 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
     function: {
       name: "propose_add_instagram_task",
       description:
-        "Propose adding an Instagram content task (post, reel, story, etc.). Returns a confirm card; the task is NOT created until confirmed. " +
-        "Only ask the user for the required fields (title, dueDate, owner, type); do NOT ask for status — omit it and it defaults to 'Upcoming'.",
+        "Propose adding an Instagram content task (story, reel, or carousel). Returns a confirm card; the task is NOT created until confirmed. " +
+        "Only ask the user for the required fields (title, dueDate, type); do NOT ask for status — omit it and it defaults to 'Upcoming'.",
       parameters: {
         type: "object",
         properties: {
           title:   { type: "string" },
           dueDate: { type: "string", description: "YYYY-MM-DD." },
-          owner:   { type: "string", description: "Brother name responsible." },
           status:  { type: "string", enum: ["Upcoming", "Due Soon", "Urgent"], description: "Optional. Defaults to 'Upcoming' — only set if the user explicitly mentions urgency." },
           type:    { type: "string", enum: [...IG_TYPES], description: "Content format." },
         },
-        required: ["title", "dueDate", "owner", "type"],
+        required: ["title", "dueDate", "type"],
       },
     },
   },
@@ -769,8 +769,8 @@ async function listInstagram(args: ToolArgs, orgId: number): Promise<ToolResult>
   const status = typeof args.status === "string" ? args.status : undefined;
   const typeFilter = typeof args.type === "string" ? args.type : undefined;
   const openOnly = args.open_only === true;
-  const orderByField = typeof args.order_by === "string" && ["dueDate", "title", "owner"].includes(args.order_by)
-    ? args.order_by as "dueDate" | "title" | "owner" : "dueDate";
+  const orderByField = typeof args.order_by === "string" && ["dueDate", "title"].includes(args.order_by)
+    ? args.order_by as "dueDate" | "title" : "dueDate";
   const orderDir = args.order === "desc" ? "desc" : "asc";
 
   const rows = await prisma.instagramTask.findMany({
@@ -1310,11 +1310,10 @@ function proposeAddDeadline(args: ToolArgs): Proposal | { error: string } {
 function proposeAddInstagram(args: ToolArgs): Proposal | { error: string } {
   const title = String(args.title ?? "").trim();
   const dueDate = String(args.dueDate ?? "").trim();
-  const owner = String(args.owner ?? "").trim();
   const rawStatus = typeof args.status === "string" ? args.status.trim() : "";
   const status = rawStatus || "Upcoming";
   const type = String(args.type ?? "").trim();
-  if (!title || !dueDate || !owner || !type) return badProposal("Missing required fields.");
+  if (!title || !dueDate || !type) return badProposal("Missing required fields.");
   if (!DATE_RE.test(dueDate)) return badProposal("dueDate must be YYYY-MM-DD.");
   if (!(TASK_STATUSES as readonly string[]).includes(status)) return badProposal(`status must be one of ${TASK_STATUSES.join(", ")}.`);
   if (!(IG_TYPES as readonly string[]).includes(type)) return badProposal(`type must be one of ${IG_TYPES.join(", ")}.`);
@@ -1323,8 +1322,8 @@ function proposeAddInstagram(args: ToolArgs): Proposal | { error: string } {
     action: "propose_add_instagram_task",
     endpoint: "/api/instagram",
     method: "POST",
-    payload: { title, dueDate, owner, status, type },
-    summary: `Add IG ${type}: "${title}" — due ${dueDate}, owner ${owner}.`,
+    payload: { title, dueDate, status, type },
+    summary: `Add IG ${type}: "${title}" — due ${dueDate}.`,
   };
 }
 
