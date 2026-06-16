@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextRequest, NextResponse } from "next/server";
+import { DEV_IMPERSONATE_COOKIE, devBypassEnabled, verifyImpersonation } from "@/lib/auth/dev-bypass";
 
 /**
  * Auth proxy. Two jobs, nothing more:
@@ -28,6 +29,15 @@ export async function proxy(request: NextRequest) {
   // onboarding gate would loop-redirect /[slug]/onboarding onto itself.
   request.headers.set("x-pathname", request.nextUrl.pathname);
   let response = NextResponse.next({ request });
+
+  // Dev-only impersonation bypass — see lib/auth/dev-bypass.ts. The proxy runs
+  // before any layout/requireUser and would otherwise bounce the impersonated
+  // request to /login (it only knows Supabase). When a validly-signed dev cookie
+  // is present, let the request straight through; requireUser's matching bypass
+  // resolves the impersonated Brother downstream. Double-gated + inert in prod.
+  if (devBypassEnabled() && verifyImpersonation(request.cookies.get(DEV_IMPERSONATE_COOKIE)?.value) !== null) {
+    return response;
+  }
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,

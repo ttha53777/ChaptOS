@@ -6,6 +6,7 @@ import {
 } from "../data";
 import { AVATAR_CHANGED_EVENT, parseAvatarFromMetadata } from "@/lib/avatar";
 import { createClient } from "@/lib/supabase/client";
+import { hasDevImpersonationCookie } from "@/lib/auth/dev-bypass";
 import { hasPermission, type Permission } from "@/lib/permissions";
 import { DEFAULT_THRESHOLDS, type Thresholds } from "@/lib/thresholds";
 import type { CustomMemberFieldDef } from "@/lib/custom-member-fields";
@@ -345,6 +346,14 @@ export function ChapterProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
+    // Dev-only screenshot bypass: there's no client-side Supabase session, so
+    // getUser() would return null and skip the load. The impersonation cookie
+    // stands in for the session — load directly. (Inert in prod; the cookie is
+    // only ever set by the local screenshot tool. See lib/auth/dev-bypass.ts.)
+    if (hasDevImpersonationCookie()) {
+      refreshChapterData().catch(() => undefined);
+      return;
+    }
     createClient().auth.getUser().then(({ data }) => {
       if (data.user) {
         refreshChapterData().catch(() => undefined);

@@ -16,7 +16,8 @@
     "test:db:down": "docker compose -f docker-compose.test.yml down -v",
     "test": "vitest run",
     "test:watch": "vitest",
-    "eval:chat": "tsx scripts/eval-ask-the-chapter.ts"
+    "eval:chat": "tsx scripts/eval-ask-the-chapter.ts",
+    "screenshot": "tsx scripts/screenshot.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.8.0",
@@ -41,6 +42,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "dotenv": "^17.4.2",
+    "playwright": "^1.61.0",
     "prisma": "^7.8.0",
     "tailwindcss": "^4",
     "tsx": "^4.21.0",

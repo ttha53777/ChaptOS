@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies, headers } from "next/headers";
 import { prisma } from "@/lib/prisma";
+import { DEV_IMPERSONATE_COOKIE, devBypassEnabled, verifyImpersonation } from "@/lib/auth/dev-bypass";
 
 function withTimeout(ms: number): typeof fetch {
   return (input, init) => fetch(input, { ...init, signal: AbortSignal.timeout(ms) });
@@ -84,6 +85,11 @@ export function resolveActiveOrg(args: {
  */
 export async function hasSession(): Promise<boolean> {
   const cookieStore = await cookies();
+  // Dev-only impersonation bypass — see lib/auth/dev-bypass.ts. A valid signed
+  // cookie counts as a session so /[slug]/layout's redirect logic behaves.
+  if (devBypassEnabled() && verifyImpersonation(cookieStore.get(DEV_IMPERSONATE_COOKIE)?.value) !== null) {
+    return true;
+  }
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -98,22 +104,45 @@ export async function hasSession(): Promise<boolean> {
 
 export async function requireUser(opts?: { orgSlug?: string }) {
   const cookieStore = await cookies();
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll: () => cookieStore.getAll(),
-        setAll: () => {},
-      },
-      global: { fetch: withTimeout(5_000) },
-    }
-  );
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return null;
+
+  // Dev-only impersonation bypass — see lib/auth/dev-bypass.ts. When both env
+  // locks are open and a validly-signed cookie names a brotherId, we look the
+  // Brother up by id (skipping Supabase entirely) and synthesize the auth fields
+  // from the row. Everything downstream — membership/org/permission resolution —
+  // runs unchanged. Falls through to the real Supabase path on any miss.
+  const bypassBrotherId = devBypassEnabled()
+    ? verifyImpersonation(cookieStore.get(DEV_IMPERSONATE_COOKIE)?.value)
+    : null;
+
+  let authUserId: string;
+  let email: string | null;
+  let userMetadata: Record<string, unknown> | undefined;
+
+  if (bypassBrotherId === null) {
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll: () => cookieStore.getAll(),
+          setAll: () => {},
+        },
+        global: { fetch: withTimeout(5_000) },
+      }
+    );
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return null;
+    authUserId = user.id;
+    email = user.email ?? null;
+    userMetadata = (user.user_metadata ?? undefined) as Record<string, unknown> | undefined;
+  } else {
+    authUserId = `dev-impersonate-${bypassBrotherId}`;
+    email = null;
+    userMetadata = undefined;
+  }
 
   const brother = await prisma.brother.findUnique({
-    where: { authUserId: user.id },
+    where: bypassBrotherId === null ? { authUserId } : { id: bypassBrotherId },
     select: {
       id: true,
       role: true,
@@ -194,10 +223,10 @@ export async function requireUser(opts?: { orgSlug?: string }) {
     // Loaded in the same query as the Brother row so permission resolution
     // doesn't cost an extra DB round-trip per request.
     roleRows: brother.roles.map(r => r.role),
-    authUserId: user.id,
-    email: user.email ?? null,
+    authUserId,
+    email,
     // The Supabase auth user's metadata, surfaced so callers (e.g. /api/auth/me)
     // don't need a second auth.getUser() network round-trip to read it.
-    userMetadata: (user.user_metadata ?? undefined) as Record<string, unknown> | undefined,
+    userMetadata,
   };
 }

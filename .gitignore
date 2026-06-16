@@ -45,4 +45,7 @@ next-env.d.ts
 # local agent/editor config
 .claude/
 .cursor/
+
+# headless-browser screenshots (scripts/screenshot.ts)
+_screenshots/
 .agents/
