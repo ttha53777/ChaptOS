@@ -1962,16 +1962,20 @@ export default function Home() {
             )}
 
             {/* ── Content grid ────────────────────────────────────────────────
-                Four named regions placed via grid-template-areas (see
-                dashboard-ledger.css). Desktop keeps the original two columns —
-                needs+roster on the left, the full rail on the right. On tablet
-                (≤1279, single column) the areas reorder so the high-signal
-                This Week + Treasury pair sits above the Roster, with the
-                remaining rail (Socials/Instagram/Activity) last. */}
+                Two real columns on desktop: the left column stacks Needs
+                attention → Roster, the right column is the rail (This Week +
+                Treasury, then Socials/Instagram/Activity). Stacking each side in
+                its own flex column keeps them continuous (no cross-column row
+                coupling / gaps). On tablet (≤1279) both columns dissolve via
+                `display: contents` and the regions reflow into one column with
+                the high-signal This Week + Treasury pair lifted above the Roster
+                (see dashboard-ledger.css). DOM order within each column equals
+                the on-screen order at every width, so focus order stays correct. */}
             <div className="grid">
-              {/* Needs attention */}
-              <div className="col area-needs">
+              {/* Left column — Needs attention, then Roster */}
+              <div className="col col-main">
                 {feature("operations", "needs-attention") && (
+                  <div className="area-needs">
                   <NeedsAttention
                     items={needsAttention}
                     onMarkDone={completeDeadline}
@@ -1979,26 +1983,10 @@ export default function Home() {
                     onSendReminder={() => setActiveDrawer("dues")}
                     hideButton={isActiveOrgAdmin ? <DashHideButton label="Needs attention" onHide={() => setWidgetHidden("needs-attention", true)} /> : undefined}
                   />
+                  </div>
                 )}
-              </div>
-
-              {/* Priority rail — This Week + Treasury (above Roster on tablet) */}
-              <div className="col area-priority">
-                <ThisWeek
-                  events={weeklyDigest.eventsThisWeek}
-                  deadlines={weeklyDigest.deadlinesDue}
-                  weekStart={weekRange.start}
-                  weekEnd={weekRange.end}
-                  today={todayISO}
-                  onAll={() => setWidgetDrawer("deadlines")}
-                  onAddDeadline={() => setActiveModal("deadline")}
-                />
-                <TreasuryRail balance={liveBalance} projected={liveProjected} trend={liveTrend} />
-              </div>
-
-              {/* Roster */}
-              <div className="col area-roster">
                 {feature("operations", "brother-tracking") && (
+                  <div className="area-roster">
                   <RosterTable
                     brothers={filteredBrothers}
                     statusCounts={statusCounts}
@@ -2014,11 +2002,28 @@ export default function Home() {
                     avatarRevision={avatarRevision}
                     hideButton={isActiveOrgAdmin ? <DashHideButton label="Member tracking" onHide={() => setWidgetHidden("brother-tracking", true)} /> : undefined}
                   />
+                  </div>
                 )}
               </div>
 
-              {/* Remaining rail — Socials / Instagram / Activity */}
-              <div className="col rail area-rail">
+              {/* Right column — rail: This Week + Treasury (priority), then the rest */}
+              <div className="col rail col-rail">
+                {/* Priority pair — lifts above the Roster on tablet */}
+                <div className="area-priority">
+                  <ThisWeek
+                    events={weeklyDigest.eventsThisWeek}
+                    deadlines={weeklyDigest.deadlinesDue}
+                    weekStart={weekRange.start}
+                    weekEnd={weekRange.end}
+                    today={todayISO}
+                    onAll={() => setWidgetDrawer("deadlines")}
+                    onAddDeadline={() => setActiveModal("deadline")}
+                  />
+                  <TreasuryRail balance={liveBalance} projected={liveProjected} trend={liveTrend} />
+                </div>
+
+                {/* Remaining rail — Socials / Instagram / Activity */}
+                <div className="area-rail">
                 <SocialsRail
                   parties={partyList}
                   totalDoorRev={totalDoorRev}
@@ -2035,6 +2040,7 @@ export default function Home() {
                   onAll={() => setWidgetDrawer("instagram")}
                 />
                 <ActivityRail entries={activityFeed} onAll={() => setWidgetDrawer("activity")} />
+                </div>
               </div>
             </div>
 

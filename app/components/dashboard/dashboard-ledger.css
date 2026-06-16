@@ -200,33 +200,29 @@
 .dash .measure svg polyline { fill: none; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
 
 /* ── Grid ──────────────────────────────────────────────────
-   Four named regions (needs / priority / roster / rail) as direct grid children.
-   DOM order is the tablet order (needs → priority → roster → rail) so focus order
-   matches the single-column tablet layout. grid-template-areas restores the
-   original two-column desktop look: needs + roster down the left, the priority
-   pair (This Week + Treasury) on the right beside needs, then the rest of the
-   rail beside the roster. Row 1 sizes to the taller of needs / priority; with a
-   typical short needs queue the rail joins the priority pair with little to no
-   gap, approximating the old single flex rail. */
+   Desktop: two real flex columns. `.col-main` stacks Needs attention → Roster;
+   `.col-rail` stacks the priority pair (This Week + Treasury) → the rest of the
+   rail (Socials/Instagram/Activity). Each column is its own continuous flex
+   stack, so the left side has no gap between Needs attention and Roster
+   regardless of how tall the right side is. The inner `.area-*` wrappers are
+   themselves flex columns (see below) so multi-card regions keep their rhythm;
+   on tablet they're promoted to direct grid items and reordered. */
 .dash .grid {
   margin-top: 14px;
   display: grid;
   grid-template-columns: 1fr var(--dash-rail-width);
-  grid-template-rows: auto auto;
-  grid-template-areas:
-    "needs   priority"
-    "roster  rail";
   gap: var(--dash-section-gap);
   align-items: start;
 }
 .dash .col { display: flex; flex-direction: column; gap: var(--dash-section-gap); min-width: 0; }
-.dash .grid > .area-needs    { grid-area: needs; }
-.dash .grid > .area-priority { grid-area: priority; }
-.dash .grid > .area-roster   { grid-area: roster; }
-.dash .grid > .area-rail     { grid-area: rail; }
-/* Drop empty region wrappers (e.g. needs-attention feature-hidden) so they don't
-   reserve their grid row's gap. */
-.dash .grid > .col:empty { display: none; }
+/* Region wrappers are flex columns too, so the cards they group (e.g. This Week +
+   Treasury) keep the standard gap between them. Between regions, the column's own
+   gap provides the spacing — net result is a single consistent gap throughout
+   each column, matching the original continuous rail rhythm. */
+.dash .col > .area-needs,
+.dash .col > .area-roster,
+.dash .col > .area-priority,
+.dash .col > .area-rail { display: flex; flex-direction: column; gap: var(--dash-section-gap); min-width: 0; }
 
 .dash .card { border: 1px solid var(--line); border-radius: 12px; background: var(--card); box-shadow: var(--shadow); overflow: hidden; }
 .dash .card-h { display: flex; align-items: baseline; justify-content: space-between; padding: 15px 18px 12px; border-bottom: 1px solid var(--line-soft); }
@@ -376,25 +372,34 @@
 /* Below desktop: drop the right rail under the main column and let both the KPI
    strip and the rails wrap instead of holding fixed column counts. */
 @media (max-width: 1279px) {
-  /* Collapse to one column and reorder via single-column areas: the high-signal
-     This Week + Treasury pair (priority) sits above the Roster, with the rest of
-     the rail last — matching the DOM order so focus order stays correct. */
+  /* Collapse to one column. Dissolve the two desktop columns with
+     `display: contents` so their inner regions (needs / priority / roster / rail)
+     become direct grid children, then place them via single-column areas: the
+     high-signal This Week + Treasury pair (priority) is lifted above the Roster,
+     with the rest of the rail last. `display: contents` reorders nothing on its
+     own — the order comes from the area map — and visual order still matches the
+     reading order of the regions, so focus order stays sensible. */
   .dash .grid {
     grid-template-columns: 1fr;
-    grid-template-rows: none;   /* reset the desktop "auto 1fr"; each region sizes to content */
     grid-template-areas:
       "needs"
       "priority"
       "roster"
       "rail";
   }
+  .dash .grid > .col-main,
+  .dash .grid > .col-rail { display: contents; }
+  .dash .grid > .col-main > .area-needs    { grid-area: needs; }
+  .dash .grid > .col-main > .area-roster   { grid-area: roster; }
+  .dash .grid > .col-rail > .area-priority { grid-area: priority; }
+  .dash .grid > .col-rail > .area-rail     { grid-area: rail; }
   /* The priority pair and the remaining rail each become their own wrapping row
      so cards pair up 2-up rather than forming one tall stack. The 340px floor
      keeps them at 2 columns across the whole 768–1279 band (a 3rd column needs
      ~1040px of content width, which this band — minus the pushed sidebar — never
      reaches), so they read as balanced 2-up rather than a lopsided 3+2. */
-  .dash .grid > .area-priority,
-  .dash .grid > .col.rail {
+  .dash .grid > .col-rail > .area-priority,
+  .dash .grid > .col-rail > .area-rail {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
     gap: var(--dash-section-gap);
