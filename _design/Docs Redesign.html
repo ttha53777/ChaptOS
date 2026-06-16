@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dusk">
+<!--
+  ChaptOS · Docs Redesign — "The Reference Library"
+  ────────────────────────────────────────────────
+  ASSUMPTIONS / REASONING
+  · The current docs page (app/[slug]/docs/page.tsx) is cold slate (#07090f /
+    #10121a), indigo accent, and leans hard on live <iframe> thumbnails — every
+    card renders the real page scaled to 50%. That is heavy (N iframes loading
+    third-party sites), inconsistent (most sites block embedding → "Preview
+    unavailable"), and visually noisy. It fights the warm-paper dusk system the
+    dashboard / timeline / settings now share.
+  · This mock rebuilds it in the "Chapter Ledger" language — Fraunces serif,
+    warm paper, Geist Mono labels, violet accent + gold/rose/sage semantics,
+    hairline dividers. Same Dusk/Ivory toggle (press T).
+  · UX redesign for SIMPLICITY, not a reskin:
+      1. Drop the iframe thumbnails. A reference link doesn't need a live screen
+         grab — it needs a recognizable SOURCE. We lead with the favicon + host,
+         a kind badge (Doc / Sheet / Form / Drive / Link inferred from the URL),
+         and a one-line note. Faster, calmer, never broken.
+      2. Briefing-first, like every other page: serif headline + one digest line +
+         a small glance strip (total / kinds / contributors / newest).
+      3. ONE search field + a kind filter segment. No duplicate KPI clutter.
+      4. A clean card grid with a quiet hover -> "Open" affordance, and the
+         manage menu only for those who can manage. Empty + no-match states are
+         warm and instructive.
+  · Data is illustrative (a believable chapter reference library).
+-->
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ChaptOS — Docs Redesign · The Reference Library</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..700;1,9..144,300..700&family=Geist:wght@300..700&family=Geist+Mono:wght@300..600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --serif: "Fraunces", Georgia, serif;
+    --sans: "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --mono: "Geist Mono", ui-monospace, Menlo, monospace;
+  }
+  [data-theme="dusk"] {
+    --paper:    #0f0d0a;
+    --paper-2:  #14120e;
+    --card:     #161310;
+    --card-2:   #1b1813;
+    --ink:      #ece7dd;
+    --ink-soft: #c9c2b4;
+    --muted:    #958d7c;
+    --faint:    #6b6354;
+    --line:     rgba(236,231,221,.09);
+    --line-soft:rgba(236,231,221,.05);
+    --vio:      #a78bfa;
+    --vio-deep: #7c3aed;
+    --vio-bg:   rgba(167,139,250,.10);
+    --gold:     #ddb36a;
+    --gold-bg:  rgba(221,179,106,.10);
+    --rose:     #d98ba3;
+    --rose-bg:  rgba(217,139,163,.10);
+    --ok:       #7fb08a;
+    --ok-bg:    rgba(127,176,138,.10);
+    --shadow:   0 1px 0 rgba(0,0,0,.4), 0 16px 40px -24px rgba(0,0,0,.7);
+    /* muted source hues — used only as small kind dots / icon tints */
+    --k-doc:    #8fb0d6;
+    --k-sheet:  #86b988;
+    --k-form:   #a78bfa;
+    --k-drive:  #ddb36a;
+    --k-link:   #958d7c;
+  }
+  [data-theme="ivory"] {
+    --paper:    #f2ede3;
+    --paper-2:  #ece6d9;
+    --card:     #faf7f0;
+    --card-2:   #f4f0e6;
+    --ink:      #171410;
+    --ink-soft: #3d382f;
+    --muted:    #6f675a;
+    --faint:    #9a917f;
+    --line:     rgba(23,20,16,.13);
+    --line-soft:rgba(23,20,16,.07);
+    --vio:      #6d28d9;
+    --vio-deep: #5b21b6;
+    --vio-bg:   rgba(109,40,217,.08);
+    --gold:     #9a7224;
+    --gold-bg:  rgba(154,114,36,.10);
+    --rose:     #b34f72;
+    --rose-bg:  rgba(179,79,114,.09);
+    --ok:       #3f7a50;
+    --ok-bg:    rgba(63,122,80,.10);
+    --shadow:   0 1px 2px rgba(23,20,16,.05), 0 14px 34px -26px rgba(23,20,16,.35);
+    --k-doc:    #3f6ea3;
+    --k-sheet:  #4a7d4c;
+    --k-form:   #6d28d9;
+    --k-drive:  #9a7224;
+    --k-link:   #6f675a;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { background: var(--paper); color: var(--ink); font-family: var(--sans); }
+  body { font-size: 13.5px; line-height: 1.45; -webkit-font-smoothing: antialiased; }
+  ::selection { background: var(--vio-bg); }
+
+  .shell { display: grid; grid-template-columns: 228px 1fr; min-height: 100vh; }
+
+  /* ── Sidebar (shared with dashboard/timeline mock) ───── */
+  .side {
+    border-right: 1px solid var(--line);
+    background: var(--paper-2);
+    padding: 26px 0 20px;
+    display: flex; flex-direction: column; gap: 26px;
+    position: sticky; top: 0; height: 100vh;
+  }
+  .wordmark { padding: 0 24px; }
+  .wordmark .product {
+    font-family: var(--serif); font-style: italic; font-weight: 600;
+    font-size: 19px; letter-spacing: .01em; color: var(--ink);
+  }
+  .wordmark .org {
+    margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line-soft);
+    font-family: var(--mono); font-size: 10px; letter-spacing: .14em;
+    text-transform: uppercase; color: var(--muted); line-height: 1.7;
+  }
+  .nav { display: flex; flex-direction: column; gap: 1px; padding: 0 12px; }
+  .nav a {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 12px; border-radius: 7px; text-decoration: none;
+    font-family: var(--mono); font-size: 11px; letter-spacing: .12em;
+    text-transform: uppercase; color: var(--muted);
+  }
+  .nav a:hover { color: var(--ink-soft); background: var(--line-soft); }
+  .nav a.active { color: var(--ink); background: var(--card-2); }
+  .nav a.active::before { content: ""; width: 3px; height: 14px; border-radius: 2px; background: var(--vio); margin-left: -6px; }
+  .side .spacer { flex: 1; }
+  .user { margin: 0 12px; padding: 12px; border-top: 1px solid var(--line-soft); display: flex; gap: 10px; align-items: center; }
+  .user .avatar { width: 30px; height: 30px; border-radius: 50%; background: var(--vio-bg); color: var(--vio);
+    display: grid; place-items: center; font-family: var(--mono); font-size: 10px; font-weight: 600; }
+  .user .who p:first-child { font-size: 12.5px; font-weight: 600; color: var(--ink); }
+  .user .who p:last-child { font-family: var(--mono); font-size: 9.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--faint); margin-top: 1px; }
+
+  /* ── Main ────────────────────────────────────────────── */
+  .main { padding: 30px 38px 40px; max-width: 1180px; }
+
+  .briefing { display: flex; justify-content: space-between; gap: 36px; align-items: flex-start; }
+  .kicker { font-family: var(--mono); font-size: 10.5px; letter-spacing: .18em; text-transform: uppercase; color: var(--muted); }
+  h1.greeting { font-family: var(--serif); font-weight: 400; font-size: 33px; letter-spacing: -.01em; margin-top: 8px; color: var(--ink); }
+  h1.greeting em { font-style: italic; color: var(--vio); }
+  .digest { margin-top: 12px; display: flex; gap: 9px; align-items: baseline; max-width: 600px; }
+  .ai-chip { flex-shrink: 0; font-family: var(--mono); font-size: 8.5px; font-weight: 600; letter-spacing: .14em;
+    color: var(--vio); border: 1px solid var(--vio-bg); background: var(--vio-bg); border-radius: 4px; padding: 2px 5px; transform: translateY(-1px); }
+  .digest p { font-size: 13.5px; color: var(--ink-soft); font-style: italic; font-family: var(--serif); font-weight: 350; }
+
+  .add-btn { flex-shrink: 0; display: inline-flex; align-items: center; gap: 7px;
+    font-family: var(--mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--vio); background: var(--vio-bg); border: 1px solid var(--vio-bg); border-radius: 8px;
+    padding: 8px 14px; cursor: pointer; }
+  .add-btn:hover { border-color: var(--vio); }
+  .add-btn svg { stroke: var(--vio); }
+
+  .theme-toggle { position: fixed; top: 18px; right: 20px; z-index: 50;
+    font-family: var(--mono); font-size: 10px; letter-spacing: .12em; text-transform: uppercase;
+    color: var(--muted); background: var(--card); border: 1px solid var(--line); border-radius: 999px;
+    padding: 6px 14px; cursor: pointer; }
+  .theme-toggle:hover { color: var(--ink); border-color: var(--vio); }
+
+  /* ── Glance strip (per-measure hide) ─────────────────── */
+  .glance { margin-top: 22px; display: grid; grid-auto-flow: column; grid-auto-columns: 1fr;
+    border: 1px solid var(--line); border-radius: 12px; background: var(--card); box-shadow: var(--shadow); overflow: hidden; }
+  .measure { position: relative; padding: 15px 18px 14px; border-right: 1px solid var(--line-soft); }
+  .measure-hide { position: absolute; top: 8px; right: 8px; width: 20px; height: 20px; border-radius: 6px;
+    display: grid; place-items: center; cursor: pointer; color: var(--faint); background: none; border: none; transition: background .12s, color .12s; }
+  .measure-hide:hover { background: var(--rose-bg); color: var(--rose); }
+  .measure-hide svg { width: 12px; height: 12px; }
+  /* hidden-measures tray (mirrors dashboard) */
+  .hidden-tray { border: 1px solid var(--line); border-radius: 12px; background: var(--card-2); padding: 12px 16px; margin-top: 14px; }
+  .hidden-tray .lbl { font-family: var(--mono); font-size: 9.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--faint); margin-bottom: 8px; }
+  .hidden-tray .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .hidden-tray button { font-family: var(--mono); font-size: 10.5px; letter-spacing: .04em; color: var(--ink-soft);
+    border: 1px solid var(--line); background: var(--card); border-radius: 7px; padding: 4px 10px; cursor: pointer; }
+  .hidden-tray button:hover { color: var(--vio); border-color: var(--vio); }
+  .measure:last-child { border-right: none; }
+  .measure .k { font-family: var(--mono); font-size: 9px; letter-spacing: .16em; text-transform: uppercase; color: var(--muted); }
+  .measure .v { font-family: var(--mono); font-size: 23px; font-weight: 500; letter-spacing: -.02em; color: var(--ink); margin-top: 7px; font-variant-numeric: tabular-nums; }
+  .measure .note { font-size: 11px; color: var(--faint); margin-top: 3px; }
+
+  /* ── Toolbar: search + kind filter ───────────────────── */
+  .toolbar { margin-top: 18px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .searchbox { display: inline-flex; align-items: center; gap: 8px; padding: 8px 12px; min-width: 260px;
+    border-radius: 9px; border: 1px solid var(--line); background: var(--card); color: var(--faint);
+    font-family: var(--mono); font-size: 11px; letter-spacing: .03em; }
+  .searchbox svg { width: 14px; height: 14px; flex-shrink: 0; }
+  .searchbox input { flex: 1; min-width: 0; background: none; border: none; outline: none;
+    color: var(--ink); font-family: var(--mono); font-size: 11px; letter-spacing: .03em; }
+  .searchbox input::placeholder { color: var(--faint); }
+  .seg { display: inline-flex; gap: 2px; padding: 3px; border: 1px solid var(--line); border-radius: 9px; background: var(--card); }
+  .seg button { display: inline-flex; align-items: center; gap: 6px;
+    font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--muted); border: none; background: transparent; border-radius: 6px; padding: 6px 11px; cursor: pointer; }
+  .seg button:hover { color: var(--ink-soft); }
+  .seg button.on { color: var(--ink); background: var(--card-2); box-shadow: inset 0 0 0 1px var(--line); }
+  .seg button .ct { font-size: 9px; color: var(--faint); }
+  .seg button.on .ct { color: var(--vio); }
+  .toolbar .scope { margin-left: auto; font-family: var(--mono); font-size: 10px; letter-spacing: .08em; color: var(--faint); }
+
+  /* ── Card grid ───────────────────────────────────────── */
+  .grid { margin-top: 20px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  @media (max-width: 1080px) { .grid { grid-template-columns: repeat(2, 1fr); } }
+
+  .doc {
+    position: relative; display: flex; flex-direction: column; text-decoration: none;
+    border: 1px solid var(--line); border-radius: 12px; background: var(--card);
+    box-shadow: var(--shadow); padding: 16px 17px 15px; transition: background .12s, border-color .12s, transform .12s;
+  }
+  .doc:hover { background: var(--card-2); border-color: rgba(167,139,250,.28); transform: translateY(-1px); }
+
+  .doc .top { display: flex; align-items: center; gap: 11px; }
+  .doc .fav { width: 36px; height: 36px; border-radius: 10px; flex-shrink: 0; display: grid; place-items: center;
+    background: var(--vio-bg); color: var(--kc, var(--vio)); }
+  .doc .fav svg { width: 18px; height: 18px; }
+  .doc.k-doc   .fav { background: rgba(143,176,214,.12); }
+  .doc.k-sheet .fav { background: rgba(134,185,136,.12); }
+  .doc.k-form  .fav { background: var(--vio-bg); }
+  .doc.k-drive .fav { background: var(--gold-bg); }
+  .doc.k-link  .fav { background: var(--card-2); }
+  .doc .meta { min-width: 0; flex: 1; }
+  .doc .meta .t { font-size: 13.5px; font-weight: 600; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .doc .meta .h { font-family: var(--mono); font-size: 9.5px; letter-spacing: .04em; color: var(--faint);
+    margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  .doc .kind { margin-top: 13px; display: inline-flex; align-items: center; gap: 6px; align-self: flex-start;
+    font-family: var(--mono); font-size: 8.5px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase;
+    color: var(--kc, var(--muted)); }
+  .doc .kind::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--kc, var(--muted)); }
+
+  .doc .desc { margin-top: 9px; font-size: 12px; line-height: 1.5; color: var(--ink-soft);
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; min-height: 36px; }
+  .doc .desc.none { color: var(--faint); font-style: italic; font-family: var(--serif); }
+
+  .doc .foot { margin-top: 13px; padding-top: 11px; border-top: 1px solid var(--line-soft);
+    display: flex; align-items: center; justify-content: space-between; }
+  .doc .foot .added { font-family: var(--mono); font-size: 9px; letter-spacing: .06em; color: var(--faint); }
+  .doc .foot .open { display: inline-flex; align-items: center; gap: 5px; opacity: 0; transition: opacity .12s;
+    font-family: var(--mono); font-size: 9px; letter-spacing: .1em; text-transform: uppercase; color: var(--vio); }
+  .doc:hover .foot .open { opacity: 1; }
+  .doc .foot .open svg { width: 12px; height: 12px; }
+
+  /* manage menu trigger */
+  .doc .menu { position: absolute; top: 12px; right: 12px; width: 26px; height: 26px; border-radius: 7px;
+    display: grid; place-items: center; color: var(--faint); background: none; border: none; cursor: pointer;
+    opacity: 0; transition: opacity .12s, background .12s, color .12s; }
+  .doc:hover .menu { opacity: 1; }
+  .doc .menu:hover { background: var(--card-2); color: var(--ink); }
+  .doc .menu svg { width: 16px; height: 16px; }
+
+  /* ── Empty state ─────────────────────────────────────── */
+  .empty { margin-top: 26px; border: 1px dashed var(--line); border-radius: 14px; background: var(--paper-2);
+    padding: 44px 24px; text-align: center; }
+  .empty .ic { width: 52px; height: 52px; border-radius: 14px; margin: 0 auto 14px; display: grid; place-items: center;
+    background: var(--vio-bg); color: var(--vio); }
+  .empty .ic svg { width: 24px; height: 24px; }
+  .empty .t { font-family: var(--serif); font-weight: 500; font-size: 18px; color: var(--ink); }
+  .empty .h { font-size: 12.5px; color: var(--faint); margin-top: 6px; }
+
+  footer { margin-top: 34px; padding-top: 16px; border-top: 1px solid var(--line-soft); text-align: center;
+    font-family: var(--mono); font-size: 9.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--faint); }
+</style>
+</head>
+<body>
+<button class="theme-toggle" id="toggle" title="Press T">◐&nbsp; Ivory</button>
+<div class="shell">
+
+  <!-- ── Sidebar ──────────────────────────────────────── -->
+  <aside class="side">
+    <div class="wordmark">
+      <div class="product">ChaptOS</div>
+      <div class="org">Lambda Phi<br>Epsilon</div>
+    </div>
+    <nav class="nav">
+      <a href="#">Dashboard</a>
+      <a href="#">Timeline</a>
+      <a href="#">Brothers</a>
+      <a href="#">Treasury</a>
+      <a href="#">Events</a>
+      <a class="active" href="#">Docs</a>
+      <a href="#">Chapter</a>
+      <a href="#">Settings</a>
+    </nav>
+    <div class="spacer"></div>
+    <div class="user">
+      <div class="avatar">TT</div>
+      <div class="who">
+        <p>Thalha Thabish</p>
+        <p>Secretary</p>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ── Main ─────────────────────────────────────────── -->
+  <main class="main">
+
+    <div class="briefing">
+      <div>
+        <p class="kicker">Reference Library</p>
+        <h1 class="greeting">Everything <em>on file</em>.</h1>
+        <div class="digest">
+          <span class="ai-chip">AI</span>
+          <p>Nine references pinned — the Constitution, the dues sheet and the rush form see the most traffic. Two were added this week.</p>
+        </div>
+      </div>
+      <button class="add-btn">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+        Add doc
+      </button>
+    </div>
+
+    <!-- ── Glance strip (hide any measure from its ✕) ───── -->
+    <section class="glance">
+      <div class="measure"><button class="measure-hide" title="Hide"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg></button><p class="k">References</p><p class="v">9</p><p class="note">on file</p></div>
+      <div class="measure"><button class="measure-hide" title="Hide"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg></button><p class="k">Sources</p><p class="v">4</p><p class="note">kinds</p></div>
+    </section>
+
+    <!-- ── Toolbar ────────────────────────────────────── -->
+    <div class="toolbar">
+      <label class="searchbox">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M11 19a8 8 0 100-16 8 8 0 000 16z"/></svg>
+        <input type="search" placeholder="Search the library…">
+      </label>
+      <div class="seg">
+        <button class="on">All <span class="ct">9</span></button>
+        <button>Docs <span class="ct">3</span></button>
+        <button>Sheets <span class="ct">2</span></button>
+        <button>Forms <span class="ct">2</span></button>
+        <button>Links <span class="ct">2</span></button>
+      </div>
+      <span class="scope">9 of 9</span>
+    </div>
+
+    <!-- ── Card grid ──────────────────────────────────── -->
+    <div class="grid">
+
+      <a class="doc k-doc" href="#" style="--kc:var(--k-doc)">
+        <button class="menu" aria-label="Doc actions"><svg fill="currentColor" viewBox="0 0 20 20"><path d="M10 6a1.5 1.5 0 110-3 1.5 1.5 0 010 3zm0 5.5a1.5 1.5 0 110-3 1.5 1.5 0 010 3zm0 5.5a1.5 1.5 0 110-3 1.5 1.5 0 010 3z"/></svg></button>
+        <div class="top">
+          <div class="fav"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M14 3v4a1 1 0 001 1h4M5 3h9l5 5v11a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2z"/></svg></div>
+          <div class="meta"><div class="t">Chapter Constitution</div><div class="h">docs.google.com</div></div>
+        </div>
+        <span class="kind">Doc</span>
+        <p class="desc">The governing bylaws — membership, officer duties, amendment process. Source of truth for all chapter operations.</p>
+        <div class="foot"><span class="added">Added Mar 4</span><span class="open">Open <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg></span></div>
+      </a>
+
+      <a class="doc k-sheet" href="#" style="--kc:var(--k-sheet)">
+        <button class="menu" aria-label="Doc actions"><svg fill="currentColor" viewBox="0 0 20 20"><path d="M10 6a1.5 1.5 0 110-3 1.5 1.5 0 010 3zm0 5.5a1.5 1.5 0 110-3 1.5 1.5 0 010 3zm0 5.5a1.5 1.5 0 110-3 1.5 1.5 0 010 3z"/></svg></button>
+        <div class="top">
+          <div class="fav"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M4 5h16v14H4zM4 10h16M4 15h16M10 5v14"/></svg></div>
+          <div class="meta"><div class="t">Dues Tracker — Spring</div><div class="h">docs.google.com</div></div>
+        </div>
+        <span class="kind">Sheet</span>
+        <p class="desc">Live ledger of who&rsquo;s paid, who owes, and payment plans. Treasury updates it weekly.</p>
+        <div class="foot"><span class="added">Added Jun 13</span><span class="open">Open <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg></span></div>
+      </a>
+
+      <a class="doc k-form" href="#" style="--kc:var(--k-form)">
+        <button class="menu" aria-label="Doc actions"><svg fill="currentColor" viewBox="0 0 20 20"><path d="M10 6a1.5 1.5 0 110-3 1.5 1.5 0 010 3zm0 5.5a1.5 1.5 0 110-3 1.5 1.5 0 010 3zm0 5.5a1.5 1.5 0 110-3 1.5 1.5 0 010 3z"/></svg></button>
+        <div class="top">
+          <div class="fav"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg></div>
+          <div class="meta"><div class="t">Rush Interest Form</div><div class="h">forms.gle</div></div>
+        </div>
+        <span class="kind">Form</span>
+        <p class="desc">Intake for prospective members this recruitment cycle. Share the short link at tabling.</p>
+        <div class="foot"><span class="added">Added Jun 11</span><span class="open">Open <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg></span></div>
+      </a>
+
+      <a class="doc k-drive" href="#" style="--kc:var(--k-drive)">
+        <button class="menu" aria-label="Doc actions"><svg fill="currentColor" viewBox="0 0 20 20"><path d="M10 6a1.5 1.5 0 110-3 1.5 1.5 0 010 3zm0 5.5a1.5 1.5 0 110-3 1.5 1.5 0 010 3zm0 5.5a1.5 1.5 0 110-3 1.5 1.5 0 010 3z"/></svg></button>
+        <div class="top">
+          <div class="fav"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg></div>
+          <div class="meta"><div class="t">Brand & Logo Assets</div><div class="h">drive.google.com</div></div>
+        </div>
+        <span class="kind">Drive</span>
+        <p class="desc">Logos, letter marks, and the merch templates for flyers and apparel.</p>
+        <div class="foot"><span class="added">Added Feb 18</span><span class="open">Open <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg></span></div>
+      </a>
+
+      <a class="doc k-doc" href="#" style="--kc:var(--k-doc)">
+        <button class="menu" aria-label="Doc actions"><svg fill="currentColor" viewBox="0 0 20 20"><path d="M10 6a1.5 1.5 0 110-3 1.5 1.5 0 010 3zm0 5.5a1.5 1.5 0 110-3 1.5 1.5 0 010 3zm0 5.5a1.5 1.5 0 110-3 1.5 1.5 0 010 3z"/></svg></button>
+        <div class="top">
+          <div class="fav"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M14 3v4a1 1 0 001 1h4M5 3h9l5 5v11a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2z"/></svg></div>
+          <div class="meta"><div class="t">Risk Management Policy</div><div class="h">docs.google.com</div></div>
+        </div>
+        <span class="kind">Doc</span>
+        <p class="desc">Event safety guidelines and the sober-monitor checklist required before any social.</p>
+        <div class="foot"><span class="added">Added Jan 22</span><span class="open">Open <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg></span></div>
+      </a>
+
+      <a class="doc k-link" href="#" style="--kc:var(--k-link)">
+        <button class="menu" aria-label="Doc actions"><svg fill="currentColor" viewBox="0 0 20 20"><path d="M10 6a1.5 1.5 0 110-3 1.5 1.5 0 010 3zm0 5.5a1.5 1.5 0 110-3 1.5 1.5 0 010 3zm0 5.5a1.5 1.5 0 110-3 1.5 1.5 0 010 3z"/></svg></button>
+        <div class="top">
+          <div class="fav"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M13.83 10.17a4 4 0 00-5.66 0l-4 4a4 4 0 105.66 5.66l1.1-1.1m-.76-4.9a4 4 0 005.66 0l4-4a4 4 0 00-5.66-5.66l-1.1 1.1"/></svg></div>
+          <div class="meta"><div class="t">Nationals Portal</div><div class="h">portal.lphie.org</div></div>
+        </div>
+        <span class="kind">Link</span>
+        <p class="desc">National HQ login — chapter reports, insurance, and standards submissions.</p>
+        <div class="foot"><span class="added">Added Nov 9</span><span class="open">Open <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg></span></div>
+      </a>
+
+    </div>
+
+    <!-- ── Hidden measures tray (restore path, mirrors dashboard) ─────── -->
+    <div class="hidden-tray">
+      <p class="lbl">Hidden measures</p>
+      <div class="chips">
+        <button title="Show Contributors">Contributors</button>
+        <button title="Show Newest">Newest</button>
+      </div>
+    </div>
+
+    <footer>Lambda Phi Epsilon · ChaptOS — docs design mock · Jun 15, 2026</footer>
+  </main>
+</div>
+
+<script>
+  const root = document.documentElement;
+  const btn = document.getElementById("toggle");
+  function setTheme(t) {
+    root.dataset.theme = t;
+    btn.innerHTML = t === "dusk" ? "◐&nbsp; Ivory" : "◑&nbsp; Dusk";
+    try { localStorage.setItem("chaptos-mock-theme", t); } catch {}
+  }
+  btn.addEventListener("click", () => setTheme(root.dataset.theme === "dusk" ? "ivory" : "dusk"));
+  document.addEventListener("keydown", e => {
+    if (e.key.toLowerCase() === "t" && !e.metaKey && !e.ctrlKey) btn.click();
+  });
+  try { const saved = localStorage.getItem("chaptos-mock-theme"); if (saved === "ivory") setTheme("ivory"); } catch {}
+
+  document.querySelectorAll(".seg button").forEach(b => {
+    b.addEventListener("click", () => {
+      document.querySelectorAll(".seg button").forEach(x => x.classList.remove("on"));
+      b.classList.add("on");
+    });
+  });
+  // keep menu / open affordance from navigating in the mock
+  document.querySelectorAll(".doc").forEach(d => d.addEventListener("click", e => e.preventDefault()));
+</script>
+</body>
+</html>

@@ -18,6 +18,14 @@
 .dash .tl-add-btn:hover { border-color: var(--vio); }
 .dash .tl-add-btn svg { stroke: var(--vio); }
 
+/* Briefing carries two actions now — keep them on one row, deadline first. */
+.dash .tl-add-actions { flex-shrink: 0; display: inline-flex; align-items: center; gap: 8px; }
+
+/* Ghost variant — secondary "Add Deadline" reads quieter than the filled "Add Event". */
+.dash .tl-add-btn.ghost { color: var(--muted); background: transparent; border-color: var(--line); }
+.dash .tl-add-btn.ghost:hover { color: var(--ink); border-color: var(--ink); }
+.dash .tl-add-btn.ghost svg { stroke: currentColor; }
+
 /* ── Category palette — muted, editorial; only used as small node dots + legend.
    Keys match CalEventCategory so JSX can set `var(--c-${category})`. ─────────── */
 .dash[data-dashboard-theme="dusk"] {
@@ -42,6 +50,34 @@
 /* ── Glance strip — reuses .ledger/.measure; add a rose "flag" variant ───────── */
 .dash .measure .note.bad { color: var(--rose); }
 .dash .measure.flag .v   { color: var(--rose); }
+
+/* Each measure is a button on the timeline (opens its breakdown in the rail).
+   Reset the native button chrome so it matches the .measure cell from the base
+   ledger, and add a focused/selected accent. */
+.dash .dash-timeline .measure,
+.dash.dash-timeline .measure { width: 100%; font: inherit; color: inherit;
+  text-align: left; background: none; border: 0; border-right: 1px solid var(--line-soft); }
+.dash .dash-timeline .measure:last-child,
+.dash.dash-timeline .measure:last-child { border-right: 0; }
+.dash .measure:focus-visible { outline: none; box-shadow: inset 0 0 0 1.5px var(--vio); }
+.dash .measure.on { background: var(--card-2); }
+.dash .measure.on::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: var(--vio); }
+.dash .measure.flag.on::after { background: var(--rose); }
+
+/* ── Glance breakdown (rail, when a measure is clicked) ──────────────────────── */
+.dash .gd { display: flex; flex-direction: column; gap: 12px; }
+.dash .gd-hero { border: 1px solid var(--line); border-radius: 12px; background: var(--card); box-shadow: var(--shadow);
+  padding: 14px 16px; position: relative; overflow: hidden; }
+.dash .gd-hero::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--vio); }
+.dash .gd-hero.gd-overdue::before { background: var(--rose); }
+.dash .gd-hero.gd-required::before { background: var(--gold); }
+.dash .gd-hero .k { font-family: var(--mono); font-size: 9px; letter-spacing: .16em; text-transform: uppercase; color: var(--muted); }
+.dash .gd-hero .v { font-family: var(--mono); font-size: 26px; font-weight: 500; letter-spacing: -.02em; color: var(--ink);
+  margin-top: 6px; font-variant-numeric: tabular-nums; }
+.dash .gd-hero.gd-overdue .v { color: var(--rose); }
+.dash .gd-hero .blurb { font-size: 11.5px; color: var(--faint); margin-top: 8px; font-style: italic; font-family: var(--serif); }
+.dash .gd-empty { padding: 14px; font-size: 11.5px; color: var(--faint);
+  border: 1px solid var(--line-soft); border-radius: 12px; background: var(--card); }
 
 /* ── Filter segmented control ────────────────────────────────────────────────── */
 .dash .tl-toolbar { margin-top: 18px; display: flex; align-items: center; gap: 12px; }
@@ -255,6 +291,24 @@
 .dash .ev-btn-ghost:hover { color: var(--ink); }
 .dash .ev-err { font-size: 11px; color: var(--rose); }
 .dash .ev-managed { font-size: 10.5px; color: var(--faint); line-height: 1.5; }
+
+/* "Done" chip in the hero tags (completed deadline) */
+.dash .ev-hero .done { font-family: var(--mono); font-size: 8px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase;
+  color: var(--ok); background: var(--ok-bg); border-radius: 4px; padding: 2px 5px; }
+/* overdue variant of the deadline meta row */
+.dash .ev-meta-row.ddl.over { border-color: var(--rose); }
+
+/* Deadline submission card — mark complete / reopen from the rail */
+.dash .ev-deadline { border: 1px solid var(--line); border-radius: 12px; background: var(--card); box-shadow: var(--shadow); padding: 12px 14px; }
+.dash .ev-deadline.done { border-color: var(--ok-bg); }
+.dash .ev-deadline .row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.dash .ev-deadline .state { display: inline-flex; align-items: center; gap: 8px; min-width: 0;
+  font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.dash .ev-deadline .state .d { width: 7px; height: 7px; border-radius: 50%; background: var(--gold); flex-shrink: 0; }
+.dash .ev-deadline.done .state { color: var(--ok); }
+.dash .ev-deadline.done .state .d { background: var(--ok); }
+.dash .ev-deadline .ev-btn-primary,
+.dash .ev-deadline .ev-btn-ghost { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px; }
 
 /* ── Small-screen tuning (single-column spine) ───────────────────────────────── */
 @media (max-width: 640px) {

@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dusk">
+<!--
+  ChaptOS · Instagram Redesign — "The Content Calendar"
+  ─────────────────────────────────────────────────────
+  ASSUMPTIONS / REASONING
+  · The current page (app/[slug]/instagram/page.tsx) is the last screen still on
+    the OLD system: cold slate (#07090f / #10121a), indigo accent, a 56px topbar
+    with a list/calendar view toggle, and status-bucketed cards. Every sibling
+    page (dashboard / timeline / meetings / docs) has moved to the warm "Chapter
+    Ledger" dusk system and DROPPED the desktop topbar. Instagram is the odd one
+    out. This mock brings it home.
+  · UX redesign, not a reskin — the real questions a socials chair asks:
+      1. "What's late / going out this week?"  → urgency LANES, not status buckets.
+         Overdue · This week · Upcoming · Posted. Each row is rich: a type chip in
+         its own hue, the owner as a real avatar, a days-until pill, and one-tap
+         "Mark posted" + edit on hover. The list told you *what* was late; the
+         lanes tell you *how late* and *who owns it* at a glance.
+      2. "Are we posting consistently?" — the question the old page couldn't answer.
+         The MONTH view is reframed as the actual cadence canvas: a dot per post
+         colored by TYPE, so the posting rhythm (and the gaps) is literally visible.
+      3. Type is promoted to a first-class color system (Feed / Reel / Story+Feed /
+         Carousel / Story) because for a content team "what kind of post" is a
+         primary triage axis, not a tiny grey tag.
+  · The view toggle moves OUT of a topbar and INTO the toolbar (a seg, like Docs),
+    next to a search field. No topbar on desktop — consistent with the siblings.
+  · Glance strip adds CADENCE (days since last post) — the rhythm signal that was
+    invisible before. Each measure is hide-able (✕), mirroring dashboard.
+  · Data mirrors app/data.ts instagramTasks (illustrative, extended for density).
+    "Today" pinned to Jun 15, 2026 to match the app's currentDate.
+  · Dusk/Ivory toggle (press T). Tokens copied verbatim from Docs Redesign.
+-->
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ChaptOS — Instagram Redesign · The Content Calendar</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..700;1,9..144,300..700&family=Geist:wght@300..700&family=Geist+Mono:wght@300..600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --serif: "Fraunces", Georgia, serif;
+    --sans: "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --mono: "Geist Mono", ui-monospace, Menlo, monospace;
+  }
+  [data-theme="dusk"] {
+    --paper:    #0f0d0a;
+    --paper-2:  #14120e;
+    --card:     #161310;
+    --card-2:   #1b1813;
+    --ink:      #ece7dd;
+    --ink-soft: #c9c2b4;
+    --muted:    #958d7c;
+    --faint:    #6b6354;
+    --line:     rgba(236,231,221,.09);
+    --line-soft:rgba(236,231,221,.05);
+    --vio:      #a78bfa;
+    --vio-deep: #7c3aed;
+    --vio-bg:   rgba(167,139,250,.10);
+    --gold:     #ddb36a;
+    --gold-bg:  rgba(221,179,106,.10);
+    --rose:     #d98ba3;
+    --rose-bg:  rgba(217,139,163,.10);
+    --ok:       #7fb08a;
+    --ok-bg:    rgba(127,176,138,.10);
+    --shadow:   0 1px 0 rgba(0,0,0,.4), 0 16px 40px -24px rgba(0,0,0,.7);
+    /* post-type hues — muted, used as dots + chip tints + calendar marks */
+    --t-feed:     #d98ba3;  /* rose   */
+    --t-reel:     #a78bfa;  /* violet */
+    --t-storyfeed:#8fb0d6;  /* steel  */
+    --t-carousel: #ddb36a;  /* gold   */
+    --t-story:    #7fb08a;  /* sage   */
+  }
+  [data-theme="ivory"] {
+    --paper:    #f2ede3;
+    --paper-2:  #ece6d9;
+    --card:     #faf7f0;
+    --card-2:   #f4f0e6;
+    --ink:      #171410;
+    --ink-soft: #3d382f;
+    --muted:    #6f675a;
+    --faint:    #9a917f;
+    --line:     rgba(23,20,16,.13);
+    --line-soft:rgba(23,20,16,.07);
+    --vio:      #6d28d9;
+    --vio-deep: #5b21b6;
+    --vio-bg:   rgba(109,40,217,.08);
+    --gold:     #9a7224;
+    --gold-bg:  rgba(154,114,36,.10);
+    --rose:     #b34f72;
+    --rose-bg:  rgba(179,79,114,.09);
+    --ok:       #3f7a50;
+    --ok-bg:    rgba(63,122,80,.10);
+    --shadow:   0 1px 2px rgba(23,20,16,.05), 0 14px 34px -26px rgba(23,20,16,.35);
+    --t-feed:     #b34f72;
+    --t-reel:     #6d28d9;
+    --t-storyfeed:#3f6ea3;
+    --t-carousel: #9a7224;
+    --t-story:    #3f7a50;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { background: var(--paper); color: var(--ink); font-family: var(--sans); }
+  body { font-size: 13.5px; line-height: 1.45; -webkit-font-smoothing: antialiased; }
+  ::selection { background: var(--vio-bg); }
+
+  .shell { display: grid; grid-template-columns: 228px 1fr; min-height: 100vh; }
+
+  /* ── Sidebar (shared) ─────────────────────────────────── */
+  .side {
+    border-right: 1px solid var(--line);
+    background: var(--paper-2);
+    padding: 26px 0 20px;
+    display: flex; flex-direction: column; gap: 26px;
+    position: sticky; top: 0; height: 100vh;
+  }
+  .wordmark { padding: 0 24px; }
+  .wordmark .product {
+    font-family: var(--serif); font-style: italic; font-weight: 600;
+    font-size: 19px; letter-spacing: .01em; color: var(--ink);
+  }
+  .wordmark .org {
+    margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line-soft);
+    font-family: var(--mono); font-size: 10px; letter-spacing: .14em;
+    text-transform: uppercase; color: var(--muted); line-height: 1.7;
+  }
+  .nav { display: flex; flex-direction: column; gap: 1px; padding: 0 12px; }
+  .nav a {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 12px; border-radius: 7px; text-decoration: none;
+    font-family: var(--mono); font-size: 11px; letter-spacing: .12em;
+    text-transform: uppercase; color: var(--muted);
+  }
+  .nav a:hover { color: var(--ink-soft); background: var(--line-soft); }
+  .nav a.active { color: var(--ink); background: var(--card-2); }
+  .nav a.active::before { content: ""; width: 3px; height: 14px; border-radius: 2px; background: var(--vio); margin-left: -6px; }
+  .side .spacer { flex: 1; }
+  .user { margin: 0 12px; padding: 12px; border-top: 1px solid var(--line-soft); display: flex; gap: 10px; align-items: center; }
+  .user .avatar { width: 30px; height: 30px; border-radius: 50%; background: var(--vio-bg); color: var(--vio);
+    display: grid; place-items: center; font-family: var(--mono); font-size: 10px; font-weight: 600; }
+  .user .who p:first-child { font-size: 12.5px; font-weight: 600; color: var(--ink); }
+  .user .who p:last-child { font-family: var(--mono); font-size: 9.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--faint); margin-top: 1px; }
+
+  /* ── Main ─────────────────────────────────────────────── */
+  .main { padding: 30px 38px 40px; max-width: 1180px; }
+
+  /* right padding so the Add button clears the fixed (mock-only) theme toggle */
+  .briefing { display: flex; justify-content: space-between; gap: 36px; align-items: flex-start; padding-right: 96px; }
+  .kicker { font-family: var(--mono); font-size: 10.5px; letter-spacing: .18em; text-transform: uppercase; color: var(--muted); }
+  h1.greeting { font-family: var(--serif); font-weight: 400; font-size: 33px; letter-spacing: -.01em; margin-top: 8px; color: var(--ink); }
+  h1.greeting em { font-style: italic; color: var(--vio); }
+  .digest { margin-top: 12px; display: flex; gap: 9px; align-items: baseline; max-width: 600px; }
+  .ai-chip { flex-shrink: 0; font-family: var(--mono); font-size: 8.5px; font-weight: 600; letter-spacing: .14em;
+    color: var(--vio); border: 1px solid var(--vio-bg); background: var(--vio-bg); border-radius: 4px; padding: 2px 5px; transform: translateY(-1px); }
+  .digest p { font-size: 13.5px; color: var(--ink-soft); font-style: italic; font-family: var(--serif); font-weight: 350; }
+  .digest p b { font-style: normal; font-weight: 600; color: var(--ink); font-family: var(--sans); font-size: 12.5px; }
+
+  .add-btn { flex-shrink: 0; display: inline-flex; align-items: center; gap: 7px;
+    font-family: var(--mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--vio); background: var(--vio-bg); border: 1px solid var(--vio-bg); border-radius: 8px;
+    padding: 8px 14px; cursor: pointer; }
+  .add-btn:hover { border-color: var(--vio); }
+  .add-btn svg { stroke: var(--vio); }
+
+  .theme-toggle { position: fixed; top: 18px; right: 20px; z-index: 50;
+    font-family: var(--mono); font-size: 10px; letter-spacing: .12em; text-transform: uppercase;
+    color: var(--muted); background: var(--card); border: 1px solid var(--line); border-radius: 999px;
+    padding: 6px 14px; cursor: pointer; }
+  .theme-toggle:hover { color: var(--ink); border-color: var(--vio); }
+
+  /* ── Glance strip ─────────────────────────────────────── */
+  .glance { margin-top: 22px; display: grid; grid-auto-flow: column; grid-auto-columns: 1fr;
+    border: 1px solid var(--line); border-radius: 12px; background: var(--card); box-shadow: var(--shadow); overflow: hidden; }
+  .measure { position: relative; padding: 15px 18px 14px; border-right: 1px solid var(--line-soft); }
+  .measure:last-child { border-right: none; }
+  .measure-hide { position: absolute; top: 8px; right: 8px; width: 20px; height: 20px; border-radius: 6px;
+    display: grid; place-items: center; cursor: pointer; color: var(--faint); background: none; border: none; transition: background .12s, color .12s; }
+  .measure-hide:hover { background: var(--rose-bg); color: var(--rose); }
+  .measure-hide svg { width: 12px; height: 12px; }
+  .measure .k { font-family: var(--mono); font-size: 9px; letter-spacing: .16em; text-transform: uppercase; color: var(--muted); }
+  .measure .v { font-family: var(--mono); font-size: 23px; font-weight: 500; letter-spacing: -.02em; color: var(--ink); margin-top: 7px; font-variant-numeric: tabular-nums; }
+  .measure .v.warn { color: var(--rose); }
+  .measure .note { font-size: 11px; color: var(--faint); margin-top: 3px; }
+
+  /* ── Toolbar: search + view seg + type legend ─────────── */
+  .toolbar { margin-top: 18px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .searchbox { display: inline-flex; align-items: center; gap: 8px; padding: 8px 12px; min-width: 230px;
+    border-radius: 9px; border: 1px solid var(--line); background: var(--card); color: var(--faint);
+    font-family: var(--mono); font-size: 11px; letter-spacing: .03em; }
+  .searchbox svg { width: 14px; height: 14px; flex-shrink: 0; }
+  .searchbox input { flex: 1; min-width: 0; background: none; border: none; outline: none;
+    color: var(--ink); font-family: var(--mono); font-size: 11px; letter-spacing: .03em; }
+  .searchbox input::placeholder { color: var(--faint); }
+  .seg { display: inline-flex; gap: 2px; padding: 3px; border: 1px solid var(--line); border-radius: 9px; background: var(--card); }
+  .seg button { display: inline-flex; align-items: center; gap: 6px;
+    font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--muted); border: none; background: transparent; border-radius: 6px; padding: 6px 11px; cursor: pointer; }
+  .seg button:hover { color: var(--ink-soft); }
+  .seg button.on { color: var(--ink); background: var(--card-2); box-shadow: inset 0 0 0 1px var(--line); }
+  .seg button svg { width: 13px; height: 13px; }
+  .toolbar .scope { margin-left: auto; display: flex; align-items: center; gap: 14px;
+    font-family: var(--mono); font-size: 10px; letter-spacing: .08em; color: var(--faint); }
+
+  /* type legend (doubles as filter affordance) */
+  .legend { display: flex; align-items: center; gap: 13px; }
+  .legend .li { display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
+    font-family: var(--mono); font-size: 9px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+  .legend .li:hover { color: var(--ink-soft); }
+  .legend .li .dot { width: 7px; height: 7px; border-radius: 2px; }
+
+  /* ── Lane view ────────────────────────────────────────── */
+  .lanes { margin-top: 20px; display: flex; flex-direction: column; gap: 22px; }
+  .lane-h { display: flex; align-items: center; gap: 11px; margin-bottom: 11px; }
+  .lane-h .pip { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+  .lane-h .lbl { font-family: var(--serif); font-size: 16px; font-weight: 500; color: var(--ink); }
+  .lane-h .ct { font-family: var(--mono); font-size: 10px; color: var(--faint); letter-spacing: .04em; }
+  .lane-h .rule { flex: 1; border-top: 1px solid var(--line-soft); }
+  .lane.overdue .pip { background: var(--rose); }
+  .lane.week    .pip { background: var(--gold); }
+  .lane.upcoming .pip { background: var(--muted); }
+  .lane.posted  .pip { background: var(--ok); }
+
+  .rows { display: flex; flex-direction: column; gap: 7px; }
+  .post {
+    position: relative; display: grid; align-items: center;
+    grid-template-columns: 4px 120px 1fr auto auto; gap: 14px;
+    border: 1px solid var(--line); border-radius: 11px; background: var(--card);
+    box-shadow: var(--shadow); padding: 12px 16px 12px 0; transition: background .12s, border-color .12s, transform .12s;
+  }
+  .post:hover { background: var(--card-2); border-color: rgba(167,139,250,.22); transform: translateY(-1px); }
+  .post .accent { width: 4px; height: 100%; align-self: stretch; border-radius: 11px 0 0 11px; }
+
+  /* type chip */
+  .chip { display: inline-flex; align-items: center; gap: 7px; justify-self: start;
+    font-family: var(--mono); font-size: 9px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase;
+    color: var(--tc); }
+  .chip .dot { width: 7px; height: 7px; border-radius: 2px; background: var(--tc); flex-shrink: 0; }
+
+  .post .body { min-width: 0; }
+  .post .t { font-size: 14px; font-weight: 600; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .post.done .t { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--line); }
+  .post .sub { font-family: var(--mono); font-size: 9.5px; letter-spacing: .04em; color: var(--faint); margin-top: 3px; }
+
+  /* owner avatar */
+  .owner { display: inline-flex; align-items: center; gap: 8px; justify-self: end; }
+  .owner .av { width: 26px; height: 26px; border-radius: 50%; flex-shrink: 0; display: grid; place-items: center;
+    font-family: var(--mono); font-size: 9px; font-weight: 600; color: var(--ink-soft);
+    background: var(--card-2); box-shadow: inset 0 0 0 1px var(--line); }
+  .owner .nm { font-family: var(--mono); font-size: 10px; letter-spacing: .03em; color: var(--muted); }
+
+  /* due pill + hover actions share the right cell */
+  .right-cell { display: inline-flex; align-items: center; gap: 8px; justify-self: end; min-width: 132px; justify-content: flex-end; }
+  .due { font-family: var(--mono); font-size: 9.5px; font-weight: 600; letter-spacing: .04em;
+    border-radius: 999px; padding: 4px 10px; white-space: nowrap; }
+  .due.late { color: var(--rose); background: var(--rose-bg); }
+  .due.soon { color: var(--gold); background: var(--gold-bg); }
+  .due.cool { color: var(--muted); background: var(--line-soft); }
+  .due.ok   { color: var(--ok); background: var(--ok-bg); }
+
+  .acts { display: inline-flex; align-items: center; gap: 2px; opacity: 0; transition: opacity .12s; }
+  .post:hover .acts { opacity: 1; }
+  .acts button { width: 28px; height: 28px; border-radius: 8px; display: grid; place-items: center;
+    color: var(--faint); background: none; border: none; cursor: pointer; transition: background .12s, color .12s; }
+  .acts button svg { width: 15px; height: 15px; }
+  .acts .ok:hover   { background: var(--ok-bg); color: var(--ok); }
+  .acts .edit:hover { background: var(--card); color: var(--ink); box-shadow: inset 0 0 0 1px var(--line); }
+  .acts .del:hover  { background: var(--rose-bg); color: var(--rose); }
+
+  /* ── Month / cadence view ─────────────────────────────── */
+  .monthwrap { margin-top: 20px; display: none; }
+  .month-h { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+  .month-h .nav-btns { display: inline-flex; align-items: center; gap: 8px; }
+  .month-h .mtitle { font-family: var(--serif); font-size: 20px; font-weight: 500; color: var(--ink); }
+  .month-h .mtitle em { font-style: italic; color: var(--vio); }
+  .month-h button.arrow { width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center;
+    color: var(--muted); background: var(--card); border: 1px solid var(--line); cursor: pointer; }
+  .month-h button.arrow:hover { color: var(--ink); border-color: var(--vio); }
+  .month-h button.arrow svg { width: 15px; height: 15px; }
+  .month-h .cadence-note { font-family: var(--mono); font-size: 10px; letter-spacing: .04em; color: var(--faint); }
+  .month-h .cadence-note b { color: var(--gold); font-weight: 600; }
+
+  .dow { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; margin-bottom: 6px; }
+  .dow span { text-align: center; font-family: var(--mono); font-size: 9px; letter-spacing: .14em; text-transform: uppercase; color: var(--faint); padding: 2px 0; }
+  .cal { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+  .cell { min-height: 92px; border: 1px solid var(--line-soft); border-radius: 10px; background: var(--card);
+    padding: 8px 9px; display: flex; flex-direction: column; gap: 6px; transition: border-color .12s; }
+  .cell:hover { border-color: var(--line); }
+  .cell.blank { background: transparent; border: none; }
+  .cell.today { border-color: var(--vio); box-shadow: inset 0 0 0 1px var(--vio-bg); }
+  .cell .dnum { font-family: var(--mono); font-size: 10px; color: var(--faint); font-variant-numeric: tabular-nums; }
+  .cell.today .dnum { color: var(--vio); font-weight: 600; }
+  .cell .marks { display: flex; flex-direction: column; gap: 4px; }
+  .cmark { display: flex; align-items: center; gap: 6px; cursor: pointer; border-radius: 5px; padding: 2px 3px; transition: background .12s; }
+  .cmark:hover { background: var(--card-2); }
+  .cmark .d { width: 6px; height: 6px; border-radius: 2px; flex-shrink: 0; background: var(--cmc); }
+  .cmark .ct { font-size: 10px; color: var(--ink-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .cmark.done .ct { color: var(--faint); text-decoration: line-through; text-decoration-color: var(--line); }
+  /* a faint gap-warning tint on empty stretches between scheduled posts */
+  .cell.gap { background: repeating-linear-gradient(135deg, transparent, transparent 7px, var(--line-soft) 7px, var(--line-soft) 8px); }
+
+  footer { margin-top: 34px; padding-top: 16px; border-top: 1px solid var(--line-soft); text-align: center;
+    font-family: var(--mono); font-size: 9.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--faint); }
+</style>
+</head>
+<body>
+<button class="theme-toggle" id="toggle" title="Press T">◐&nbsp; Ivory</button>
+<div class="shell">
+
+  <!-- ── Sidebar ──────────────────────────────────────── -->
+  <aside class="side">
+    <div class="wordmark">
+      <div class="product">ChaptOS</div>
+      <div class="org">Lambda Phi<br>Epsilon</div>
+    </div>
+    <nav class="nav">
+      <a href="#">Dashboard</a>
+      <a href="#">Timeline</a>
+      <a href="#">Brothers</a>
+      <a href="#">Treasury</a>
+      <a href="#">Events</a>
+      <a class="active" href="#">Instagram</a>
+      <a href="#">Docs</a>
+      <a href="#">Settings</a>
+    </nav>
+    <div class="spacer"></div>
+    <div class="user">
+      <div class="avatar">TT</div>
+      <div class="who">
+        <p>Thalha Thabish</p>
+        <p>Secretary · PR</p>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ── Main ─────────────────────────────────────────── -->
+  <main class="main">
+
+    <div class="briefing">
+      <div>
+        <p class="kicker">Content Calendar</p>
+        <h1 class="greeting">What&rsquo;s <em>going out</em>.</h1>
+        <div class="digest">
+          <span class="ai-chip">AI</span>
+          <p>Two posts are <b>overdue</b> — the Rush flyer and the formal drop, both Dariel&rsquo;s. Three more land this week. Last post went up <b>4 days ago</b>; the feed&rsquo;s been quiet.</p>
+        </div>
+      </div>
+      <button class="add-btn">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+        Add post
+      </button>
+    </div>
+
+    <!-- ── Glance strip ─────────────────────────────────── -->
+    <section class="glance">
+      <div class="measure"><button class="measure-hide" title="Hide"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg></button><p class="k">Queued</p><p class="v">7</p><p class="note">posts planned</p></div>
+      <div class="measure"><button class="measure-hide" title="Hide"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg></button><p class="k">Overdue</p><p class="v warn">2</p><p class="note">past due date</p></div>
+      <div class="measure"><button class="measure-hide" title="Hide"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg></button><p class="k">This week</p><p class="v">3</p><p class="note">due by Sun</p></div>
+      <div class="measure"><button class="measure-hide" title="Hide"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg></button><p class="k">Cadence</p><p class="v">4d</p><p class="note">since last post</p></div>
+    </section>
+
+    <!-- ── Toolbar ──────────────────────────────────────── -->
+    <div class="toolbar">
+      <label class="searchbox">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M11 19a8 8 0 100-16 8 8 0 000 16z"/></svg>
+        <input type="search" placeholder="Search posts…">
+      </label>
+      <div class="seg" id="viewseg">
+        <button class="on" data-view="lanes">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/></svg>
+          Lanes
+        </button>
+        <button data-view="month">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 2v3M16 2v3M3 9h18M5 4h14a2 2 0 012 2v13a2 2 0 01-2 2H5a2 2 0 01-2-2V6a2 2 0 012-2z"/></svg>
+          Month
+        </button>
+      </div>
+      <div class="scope">
+        <div class="legend">
+          <span class="li"><span class="dot" style="background:var(--t-feed)"></span>Feed</span>
+          <span class="li"><span class="dot" style="background:var(--t-reel)"></span>Reel</span>
+          <span class="li"><span class="dot" style="background:var(--t-storyfeed)"></span>Story+Feed</span>
+          <span class="li"><span class="dot" style="background:var(--t-carousel)"></span>Carousel</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ════════════ LANE VIEW (default) ════════════════ -->
+    <div class="lanes" id="laneview">
+
+      <!-- Overdue -->
+      <section class="lane overdue">
+        <div class="lane-h"><span class="pip"></span><span class="lbl">Overdue</span><span class="ct">2 posts</span><span class="rule"></span></div>
+        <div class="rows">
+
+          <article class="post" style="--tc:var(--t-storyfeed)">
+            <span class="accent" style="background:var(--rose)"></span>
+            <span class="chip"><span class="dot"></span>Story+Feed</span>
+            <div class="body"><p class="t">Spring Formal Flyer Drop</p><p class="sub">DUE MAY 14 · FOR THE FORMAL ANNOUNCE</p></div>
+            <div class="owner"><span class="av">DM</span><span class="nm">Dariel</span></div>
+            <div class="right-cell">
+              <span class="due late">32d late</span>
+              <div class="acts">
+                <button class="ok" title="Mark posted"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg></button>
+                <button class="edit" title="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.4-9.4a2 2 0 112.8 2.8L11.8 15H9v-2.8l8.6-8.6z"/></svg></button>
+                <button class="del" title="Delete"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.9 12.1A2 2 0 0116.1 21H7.9a2 2 0 01-2-1.9L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg></button>
+              </div>
+            </div>
+          </article>
+
+          <article class="post" style="--tc:var(--t-feed)">
+            <span class="accent" style="background:var(--rose)"></span>
+            <span class="chip"><span class="dot"></span>Feed Post</span>
+            <div class="body"><p class="t">Rush Interest Post</p><p class="sub">DUE MAY 13 · TABLING CTA + LINK IN BIO</p></div>
+            <div class="owner"><span class="av">DM</span><span class="nm">Dariel</span></div>
+            <div class="right-cell">
+              <span class="due late">33d late</span>
+              <div class="acts">
+                <button class="ok" title="Mark posted"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg></button>
+                <button class="edit" title="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.4-9.4a2 2 0 112.8 2.8L11.8 15H9v-2.8l8.6-8.6z"/></svg></button>
+                <button class="del" title="Delete"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.9 12.1A2 2 0 0116.1 21H7.9a2 2 0 01-2-1.9L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg></button>
+              </div>
+            </div>
+          </article>
+
+        </div>
+      </section>
+
+      <!-- This week -->
+      <section class="lane week">
+        <div class="lane-h"><span class="pip"></span><span class="lbl">This week</span><span class="ct">3 posts · by Sun Jun 21</span><span class="rule"></span></div>
+        <div class="rows">
+
+          <article class="post" style="--tc:var(--t-reel)">
+            <span class="accent" style="background:var(--gold)"></span>
+            <span class="chip"><span class="dot"></span>Reel</span>
+            <div class="body"><p class="t">Meet the Bros Reel</p><p class="sub">DUE JUN 17 · 30S CUT, MUSIC PICKED</p></div>
+            <div class="owner"><span class="av">DM</span><span class="nm">Dariel</span></div>
+            <div class="right-cell">
+              <span class="due soon">in 2d</span>
+              <div class="acts">
+                <button class="ok" title="Mark posted"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg></button>
+                <button class="edit" title="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.4-9.4a2 2 0 112.8 2.8L11.8 15H9v-2.8l8.6-8.6z"/></svg></button>
+                <button class="del" title="Delete"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.9 12.1A2 2 0 0116.1 21H7.9a2 2 0 01-2-1.9L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg></button>
+              </div>
+            </div>
+          </article>
+
+          <article class="post" style="--tc:var(--t-carousel)">
+            <span class="accent" style="background:var(--gold)"></span>
+            <span class="chip"><span class="dot"></span>Carousel</span>
+            <div class="body"><p class="t">Community Service Recap</p><p class="sub">DUE JUN 19 · 6 SLIDES, PHOTOS IN DRIVE</p></div>
+            <div class="owner"><span class="av">DM</span><span class="nm">Dariel</span></div>
+            <div class="right-cell">
+              <span class="due soon">in 4d</span>
+              <div class="acts">
+                <button class="ok" title="Mark posted"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg></button>
+                <button class="edit" title="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.4-9.4a2 2 0 112.8 2.8L11.8 15H9v-2.8l8.6-8.6z"/></svg></button>
+                <button class="del" title="Delete"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.9 12.1A2 2 0 0116.1 21H7.9a2 2 0 01-2-1.9L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg></button>
+              </div>
+            </div>
+          </article>
+
+          <article class="post" style="--tc:var(--t-feed)">
+            <span class="accent" style="background:var(--gold)"></span>
+            <span class="chip"><span class="dot"></span>Feed Post</span>
+            <div class="body"><p class="t">Banquet Promo Post</p><p class="sub">DUE JUN 21 · WAITING ON FINAL GRAPHIC</p></div>
+            <div class="owner"><span class="av">AD</span><span class="nm">Arijit</span></div>
+            <div class="right-cell">
+              <span class="due soon">in 6d</span>
+              <div class="acts">
+                <button class="ok" title="Mark posted"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg></button>
+                <button class="edit" title="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.4-9.4a2 2 0 112.8 2.8L11.8 15H9v-2.8l8.6-8.6z"/></svg></button>
+                <button class="del" title="Delete"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.9 12.1A2 2 0 0116.1 21H7.9a2 2 0 01-2-1.9L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg></button>
+              </div>
+            </div>
+          </article>
+
+        </div>
+      </section>
+
+      <!-- Upcoming -->
+      <section class="lane upcoming">
+        <div class="lane-h"><span class="pip"></span><span class="lbl">Upcoming</span><span class="ct">2 posts</span><span class="rule"></span></div>
+        <div class="rows">
+
+          <article class="post" style="--tc:var(--t-reel)">
+            <span class="accent" style="background:var(--muted)"></span>
+            <span class="chip"><span class="dot"></span>Reel</span>
+            <div class="body"><p class="t">Stroll Practice Recap</p><p class="sub">DUE JUN 28 · FOOTAGE NOT SHOT YET</p></div>
+            <div class="owner"><span class="av">NB</span><span class="nm">Nathaniel</span></div>
+            <div class="right-cell">
+              <span class="due cool">in 13d</span>
+              <div class="acts">
+                <button class="ok" title="Mark posted"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg></button>
+                <button class="edit" title="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.4-9.4a2 2 0 112.8 2.8L11.8 15H9v-2.8l8.6-8.6z"/></svg></button>
+                <button class="del" title="Delete"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.9 12.1A2 2 0 0116.1 21H7.9a2 2 0 01-2-1.9L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg></button>
+              </div>
+            </div>
+          </article>
+
+          <article class="post" style="--tc:var(--t-story)">
+            <span class="accent" style="background:var(--muted)"></span>
+            <span class="chip"><span class="dot"></span>Story</span>
+            <div class="body"><p class="t">Summer Collab Night Teaser</p><p class="sub">DUE JUL 4 · COUNTDOWN STICKER SET</p></div>
+            <div class="owner"><span class="av">TT</span><span class="nm">Thalha</span></div>
+            <div class="right-cell">
+              <span class="due cool">in 19d</span>
+              <div class="acts">
+                <button class="ok" title="Mark posted"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg></button>
+                <button class="edit" title="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.4-9.4a2 2 0 112.8 2.8L11.8 15H9v-2.8l8.6-8.6z"/></svg></button>
+                <button class="del" title="Delete"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.9 12.1A2 2 0 0116.1 21H7.9a2 2 0 01-2-1.9L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg></button>
+              </div>
+            </div>
+          </article>
+
+        </div>
+      </section>
+
+      <!-- Posted (collapsed-feel: dimmer, no actions clutter) -->
+      <section class="lane posted">
+        <div class="lane-h"><span class="pip"></span><span class="lbl">Posted</span><span class="ct">recently</span><span class="rule"></span></div>
+        <div class="rows">
+
+          <article class="post done" style="--tc:var(--t-carousel)">
+            <span class="accent" style="background:var(--ok)"></span>
+            <span class="chip"><span class="dot"></span>Carousel</span>
+            <div class="body"><p class="t">Brotherhood Mixer Recap</p><p class="sub">POSTED JUN 11 · 142 LIKES · 9 SAVES</p></div>
+            <div class="owner"><span class="av">DM</span><span class="nm">Dariel</span></div>
+            <div class="right-cell">
+              <span class="due ok">posted</span>
+              <div class="acts">
+                <button class="edit" title="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.4-9.4a2 2 0 112.8 2.8L11.8 15H9v-2.8l8.6-8.6z"/></svg></button>
+                <button class="del" title="Delete"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.9 12.1A2 2 0 0116.1 21H7.9a2 2 0 01-2-1.9L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg></button>
+              </div>
+            </div>
+          </article>
+
+        </div>
+      </section>
+
+    </div>
+
+    <!-- ════════════ MONTH / CADENCE VIEW ═══════════════ -->
+    <div class="monthwrap" id="monthview">
+      <div class="month-h">
+        <div class="nav-btns">
+          <button class="arrow" title="Previous"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg></button>
+          <span class="mtitle">June <em>2026</em></span>
+          <button class="arrow" title="Next"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg></button>
+        </div>
+        <span class="cadence-note">Longest quiet stretch this month: <b>4 days</b></span>
+      </div>
+
+      <div class="dow"><span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span></div>
+      <div class="cal" id="calgrid"><!-- built by script --></div>
+    </div>
+
+    <footer>Lambda Phi Epsilon · ChaptOS — instagram design mock · Jun 15, 2026</footer>
+  </main>
+</div>
+
+<script>
+  /* ── Theme toggle ─────────────────────────────────────── */
+  const root = document.documentElement;
+  const btn = document.getElementById("toggle");
+  function setTheme(t) {
+    root.dataset.theme = t;
+    btn.innerHTML = t === "dusk" ? "◐&nbsp; Ivory" : "◑&nbsp; Dusk";
+    try { localStorage.setItem("chaptos-mock-theme", t); } catch {}
+  }
+  btn.addEventListener("click", () => setTheme(root.dataset.theme === "dusk" ? "ivory" : "dusk"));
+  document.addEventListener("keydown", e => {
+    if (e.key.toLowerCase() === "t" && !e.metaKey && !e.ctrlKey && e.target.tagName !== "INPUT") btn.click();
+  });
+  try { const saved = localStorage.getItem("chaptos-mock-theme"); if (saved === "ivory") setTheme("ivory"); } catch {}
+
+  /* ── View toggle (Lanes / Month) ──────────────────────── */
+  const laneview = document.getElementById("laneview");
+  const monthview = document.getElementById("monthview");
+  document.querySelectorAll("#viewseg button").forEach(b => {
+    b.addEventListener("click", () => {
+      document.querySelectorAll("#viewseg button").forEach(x => x.classList.remove("on"));
+      b.classList.add("on");
+      const month = b.dataset.view === "month";
+      laneview.style.display = month ? "none" : "flex";
+      monthview.style.display = month ? "block" : "none";
+    });
+  });
+
+  /* ── Build the June cadence calendar ──────────────────── */
+  // type → css var for the dot color
+  const TC = { feed:"var(--t-feed)", reel:"var(--t-reel)", storyfeed:"var(--t-storyfeed)", carousel:"var(--t-carousel)", story:"var(--t-story)" };
+  // posts keyed by day-of-month (June 2026). done = already posted.
+  const POSTS = {
+    11: [{ t:"Brotherhood Mixer Recap", c:"carousel", done:true }],
+    17: [{ t:"Meet the Bros Reel", c:"reel" }],
+    19: [{ t:"Community Service", c:"carousel" }],
+    21: [{ t:"Banquet Promo", c:"feed" }],
+    28: [{ t:"Stroll Practice Recap", c:"reel" }],
+  };
+  const TODAY = 15;
+  // June 1 2026 is a Monday → firstDow = 1 ; 30 days
+  const firstDow = 1, daysInMonth = 30;
+  const grid = document.getElementById("calgrid");
+  for (let i = 0; i < firstDow; i++) {
+    const blank = document.createElement("div"); blank.className = "cell blank"; grid.appendChild(blank);
+  }
+  for (let d = 1; d <= daysInMonth; d++) {
+    const cell = document.createElement("div");
+    cell.className = "cell" + (d === TODAY ? " today" : "");
+    // mark the quiet stretch (12–16, between Jun 11 post and Jun 17 post) as a gap
+    if (d > 11 && d < 17) cell.classList.add("gap");
+    const dnum = document.createElement("div"); dnum.className = "dnum"; dnum.textContent = d;
+    cell.appendChild(dnum);
+    const marks = document.createElement("div"); marks.className = "marks";
+    (POSTS[d] || []).forEach(p => {
+      const m = document.createElement("div");
+      m.className = "cmark" + (p.done ? " done" : "");
+      m.style.setProperty("--cmc", TC[p.c]);
+      m.innerHTML = `<span class="d"></span><span class="ct">${p.t}</span>`;
+      marks.appendChild(m);
+    });
+    cell.appendChild(marks);
+    grid.appendChild(cell);
+  }
+
+  /* keep mock interactive elements from doing anything jarring */
+  document.querySelectorAll(".post .acts button, .add-btn, .cmark, .legend .li").forEach(el =>
+    el.addEventListener("click", e => e.preventDefault()));
+</script>
+</body>
+</html>

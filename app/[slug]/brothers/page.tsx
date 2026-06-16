@@ -4,8 +4,9 @@ import React, { useState, useMemo, useCallback } from "react";
 import { Sidebar } from "../../components/Sidebar";
 import { BrotherAvatar } from "../../components/BrotherAvatar";
 import { Modal, FieldLabel } from "../../components/dashboard/primitives";
-import { inputCls } from "../../components/dashboard/styles";
+import { inputCls, inputDuskCls } from "../../components/dashboard/styles";
 import { BrotherDrawer } from "../../components/dashboard/drawers/BrotherDrawer";
+import { useToast } from "../../components/dashboard/Toast";
 import { useChapter } from "../../context/ChapterContext";
 import { useVocab } from "../../hooks/useVocab";
 import { useThresholds } from "../../hooks/useThresholds";
@@ -15,6 +16,7 @@ import {
   getBrotherStatus,
   avg,
   fmt$,
+  fmtDate,
 } from "../../data";
 import { requestJson } from "../../lib/api";
 import "../../components/dashboard/dashboard-ledger.css";
@@ -25,6 +27,9 @@ import "../../components/dashboard/brotherhood-ledger.css";
 function clamp(n: number, lo: number, hi: number) {
   return Math.min(hi, Math.max(lo, n));
 }
+
+// Minimal service-event shape for the Brother-drawer "Log service hours" picker.
+type ServiceEventOption = { id: number; title: string; date: string };
 
 // Warm "Chapter Ledger" KPI cell — non-interactive (no per-KPI drawer on this page).
 // `note` carries the optional gold "needs attention" subline.
@@ -92,30 +97,30 @@ function AddBrotherForm({ onSubmit, onCancel }: {
   return (
     <form onSubmit={handleSubmit} className="space-y-3">
       <div>
-        <FieldLabel>Name</FieldLabel>
-        <input required className={inputCls} value={name} onChange={e => setName(e.target.value)} placeholder="Full name" />
+        <FieldLabel tone="dusk">Name</FieldLabel>
+        <input required className={inputDuskCls} value={name} onChange={e => setName(e.target.value)} placeholder="Full name" />
       </div>
       <div>
-        <FieldLabel>Role / Committees</FieldLabel>
-        <input required className={inputCls} value={role} onChange={e => setRole(e.target.value)} placeholder="e.g. President · Rush" />
+        <FieldLabel tone="dusk">Role / Committees</FieldLabel>
+        <input required className={inputDuskCls} value={role} onChange={e => setRole(e.target.value)} placeholder="e.g. President · Rush" />
       </div>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <div>
-          <FieldLabel>GPA</FieldLabel>
-          <input type="number" min="0" max="4" step="0.01" className={inputCls} value={gpa} onChange={e => setGpa(e.target.value)} />
+          <FieldLabel tone="dusk">GPA</FieldLabel>
+          <input type="number" min="0" max="4" step="0.01" className={inputDuskCls} value={gpa} onChange={e => setGpa(e.target.value)} />
         </div>
         <div>
-          <FieldLabel>Dues ($)</FieldLabel>
-          <input type="number" min="0" className={inputCls} value={duesOwed} onChange={e => setDuesOwed(e.target.value)} />
+          <FieldLabel tone="dusk">Dues ($)</FieldLabel>
+          <input type="number" min="0" className={inputDuskCls} value={duesOwed} onChange={e => setDuesOwed(e.target.value)} />
         </div>
         <div>
-          <FieldLabel>Service (h)</FieldLabel>
-          <input type="number" min="0" className={inputCls} value={serviceHours} onChange={e => setServiceHours(e.target.value)} />
+          <FieldLabel tone="dusk">Service (h)</FieldLabel>
+          <input type="number" min="0" className={inputDuskCls} value={serviceHours} onChange={e => setServiceHours(e.target.value)} />
         </div>
       </div>
       <div className="flex justify-end gap-2 pt-1">
-        <button type="button" onClick={onCancel} className="rounded-lg border border-white/[0.08] px-4 py-1.5 text-[13px] text-slate-400 hover:border-white/[0.16] hover:text-white transition-colors">Cancel</button>
-        <button type="submit" className="rounded-lg bg-indigo-600 px-4 py-1.5 text-[13px] font-semibold text-white hover:bg-indigo-500 transition-colors">Add Brother</button>
+        <button type="button" onClick={onCancel} className="rounded-lg border border-[rgba(236,231,221,0.12)] bg-[#161310] px-4 py-1.5 text-[13px] text-[#c9c2b4] transition-colors hover:border-[rgba(236,231,221,0.22)] hover:text-[#ece7dd]">Cancel</button>
+        <button type="submit" className="rounded-lg bg-[#a78bfa] px-4 py-1.5 text-[13px] font-semibold text-[#1a1206] transition-colors hover:bg-[#b9a0fb]">Add Brother</button>
       </div>
     </form>
   );
@@ -126,6 +131,7 @@ function AddBrotherForm({ onSubmit, onCancel }: {
 export default function BrothersPage() {
   const { currentUser, brotherList, setBrotherList, isLoading, avatarRevision, can } = useChapter();
   const v = useVocab();
+  const toast = useToast();
   const THRESHOLDS = useThresholds();
   const canBrothers = can("MANAGE_BROTHERS");
   const customFieldDefs = useMemo(
@@ -143,6 +149,48 @@ export default function BrothersPage() {
   const [showAddModal,     setShowAddModal]     = useState(false);
   const [pageError,        setPageError]        = useState<string | null>(null);
   const [deleteError,      setDeleteError]      = useState<string | null>(null);
+  // "Log service hours" modal (opened from the Brother drawer's + control).
+  const [logHoursFor,     setLogHoursFor]     = useState<Brother | null>(null);
+  const [logHoursEvents,  setLogHoursEvents]  = useState<ServiceEventOption[]>([]);
+  const [logHoursEventId, setLogHoursEventId] = useState<number | null>(null);
+  const [logHoursStr,     setLogHoursStr]     = useState("");
+  const [logHoursBusy,    setLogHoursBusy]    = useState(false);
+
+  function openLogServiceHours(b: Brother) {
+    setLogHoursFor(b);
+    setLogHoursStr("");
+    setLogHoursEventId(null);
+    requestJson<ServiceEventOption[]>("/api/service-events")
+      .then(events => {
+        const sorted = [...events].sort((a, z) => z.date.localeCompare(a.date));
+        setLogHoursEvents(sorted);
+        setLogHoursEventId(sorted[0]?.id ?? null);
+      })
+      .catch(() => toast.error("Could not load service events."));
+  }
+
+  async function submitLogServiceHours() {
+    if (!logHoursFor || logHoursEventId == null) return;
+    const hours = Math.max(0, parseFloat(logHoursStr) || 0);
+    const b = logHoursFor;
+    setLogHoursBusy(true);
+    try {
+      await requestJson(`/api/service-events/${logHoursEventId}/participation`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ entries: [{ brotherId: b.id, hours }] }),
+      });
+      // serviceHours is recomputed server-side from participations; pull fresh totals.
+      const fresh = await requestJson<Brother[]>("/api/brothers");
+      setBrotherList(fresh);
+      toast.success("Service hours logged.");
+      setLogHoursFor(null);
+    } catch {
+      toast.error("Could not log service hours.");
+    } finally {
+      setLogHoursBusy(false);
+    }
+  }
 
   function toggleSort(key: SortKey) {
     if (sortKey === key) setSortDir(d => d === "asc" ? "desc" : "asc");
@@ -227,19 +275,6 @@ export default function BrothersPage() {
     }).catch(() => {
       setBrotherList(prev => prev.map(x => x.id === b.id ? b : x));
       setPageError("Dues update failed. Changes were reverted.");
-    });
-  }, [setBrotherList]);
-
-  const addServiceHours = useCallback((b: Brother, hours: number) => {
-    const newHrs = b.serviceHours + hours;
-    setBrotherList(prev => prev.map(x => x.id === b.id ? { ...x, serviceHours: newHrs } : x));
-    requestJson<Brother>(`/api/brothers/${b.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ serviceHours: newHrs }),
-    }).catch(() => {
-      setBrotherList(prev => prev.map(x => x.id === b.id ? b : x));
-      setPageError("Service hours update failed. Changes were reverted.");
     });
   }, [setBrotherList]);
 
@@ -584,7 +619,7 @@ export default function BrothersPage() {
 
       {/* ── Add Brother Modal ── */}
       {showAddModal && (
-        <Modal title={`New ${v("Member")}`} onClose={() => setShowAddModal(false)}>
+        <Modal title={`New ${v("Member")}`} tone="dusk" onClose={() => setShowAddModal(false)}>
           <AddBrotherForm
             onSubmit={handleAddBrother}
             onCancel={() => setShowAddModal(false)}
@@ -599,11 +634,72 @@ export default function BrothersPage() {
         onClose={() => setSelectedId(null)}
         onSave={updateBrother}
         onPayDues={payDues}
-        onAddServiceHours={addServiceHours}
+        onLogServiceHours={openLogServiceHours}
         onDelete={deleteBrother}
         isAdmin={canBrothers}
         selfId={selfId}
       />
+
+      {/* ── Log Service Hours Modal ── */}
+      {logHoursFor && (
+        <Modal title="Log Service Hours" onClose={() => !logHoursBusy && setLogHoursFor(null)}>
+          <div className="space-y-4">
+            <p className="text-[12px] text-slate-400">
+              Logging hours for <span className="font-semibold text-white">{logHoursFor.name}</span> against a service event.
+            </p>
+            <div>
+              <FieldLabel>Service Event</FieldLabel>
+              {logHoursEvents.length === 0 ? (
+                <p className="mt-1 text-[12px] text-slate-500">No service events yet. Create one on the Service page first.</p>
+              ) : (
+                <select
+                  className={inputCls}
+                  value={logHoursEventId ?? ""}
+                  onChange={e => setLogHoursEventId(e.target.value ? Number(e.target.value) : null)}
+                >
+                  {logHoursEvents.map(ev => (
+                    <option key={ev.id} value={ev.id}>{ev.title} · {fmtDate(ev.date)}</option>
+                  ))}
+                </select>
+              )}
+            </div>
+            <div>
+              <FieldLabel>Hours</FieldLabel>
+              <input
+                type="number"
+                min="0"
+                step="0.5"
+                inputMode="decimal"
+                className={inputCls}
+                value={logHoursStr}
+                placeholder="0"
+                autoFocus
+                onChange={e => setLogHoursStr(e.target.value)}
+                onKeyDown={e => { if (e.key === "Enter" && logHoursEventId != null && logHoursStr !== "") submitLogServiceHours(); }}
+              />
+              <p className="mt-1.5 text-[11px] text-slate-500">
+                Sets {logHoursFor.name.split(" ")[0]}&apos;s hours for this event. Their total recomputes from all logged events.
+              </p>
+            </div>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setLogHoursFor(null)}
+                disabled={logHoursBusy}
+                className="rounded-lg border border-white/[0.08] px-4 py-1.5 text-[13px] text-slate-400 hover:border-white/[0.16] hover:text-white transition-colors disabled:opacity-40"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={submitLogServiceHours}
+                disabled={logHoursBusy || logHoursEventId == null || logHoursStr === ""}
+                className="rounded-lg bg-indigo-600 px-4 py-1.5 text-[13px] font-semibold text-white hover:bg-indigo-500 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {logHoursBusy ? "Saving…" : "Log Hours"}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }

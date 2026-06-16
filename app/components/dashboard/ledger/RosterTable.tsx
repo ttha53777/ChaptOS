@@ -35,8 +35,9 @@ function SortHead({
 
 /**
  * Editorial roster, restyle of the Brother Tracking table. Reuses the page's
- * filtered+sorted `brothers`, the filter/sort callbacks, getBrotherStatus, and
- * the Pay/+1h handlers. Carries `id="sec-brothers"` for the sidebar anchor.
+ * filtered+sorted `brothers`, the filter/sort callbacks, and getBrotherStatus.
+ * Carries `id="sec-brothers"` for the sidebar anchor. Dues/service-hour edits
+ * happen in the BrotherDrawer (open a row); this table is read-only.
  */
 export function RosterTable({
   brothers,
@@ -51,9 +52,6 @@ export function RosterTable({
   selfId,
   selfAvatarUrl,
   avatarRevision,
-  canBrothers,
-  onPayDues,
-  onAddServiceHour,
   hideButton,
 }: {
   brothers: Brother[];
@@ -68,9 +66,6 @@ export function RosterTable({
   selfId: number | null;
   selfAvatarUrl?: string | null;
   avatarRevision: number;
-  canBrothers: boolean;
-  onPayDues: (b: Brother) => void;
-  onAddServiceHour: (b: Brother) => void;
   hideButton?: React.ReactNode;
 }) {
   const total = statusCounts.Good + statusCounts.Watch + statusCounts["At Risk"];
@@ -149,12 +144,7 @@ export function RosterTable({
                   </td>
                   <td className="num">
                     {b.duesOwed > 0 ? (
-                      <>
-                        <span className="mono gold">{fmt$(b.duesOwed)}</span>
-                        {canBrothers && (
-                          <button type="button" className="row-act" onClick={(e) => { e.stopPropagation(); onPayDues(b); }}>Pay</button>
-                        )}
-                      </>
+                      <span className="mono gold">{fmt$(b.duesOwed)}</span>
                     ) : (
                       <span className="mono muted">—</span>
                     )}
@@ -162,9 +152,6 @@ export function RosterTable({
                   <td className="num"><span className={`mono ${gpaCls}`}>{b.gpa.toFixed(1)}</span></td>
                   <td className="num">
                     <span className={`mono ${svcCls}`}>{b.serviceHours}h</span>
-                    {canBrothers && (
-                      <button type="button" className="row-act" onClick={(e) => { e.stopPropagation(); onAddServiceHour(b); }}>+1h</button>
-                    )}
                   </td>
                   <td className="num"><span className={`status-tag ${tag.cls}`}>{tag.label}</span></td>
                 </tr>

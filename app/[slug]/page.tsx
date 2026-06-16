@@ -8,7 +8,7 @@ const DrawerTrendChart = dynamic(() => import("../components/dashboard/DrawerTre
   loading: () => <div className="h-[110px] w-full rounded-lg bg-white/[0.04] animate-pulse" />,
 });
 import {
-  Brother, CalendarEvent, TaskStatus, ActivityEntry, PartyEvent, Deadline, InstagramTask, Transaction,
+  Brother, CalendarEvent, TaskStatus, InstagramType, ActivityEntry, PartyEvent, Deadline, InstagramTask, Transaction,
   treasuryTrend, TREASURY_BALANCE, TREASURY_PROJECTED,
   KPI_SPARKLINES,
   getBrotherStatus, calcHealthScore, deriveNeedsAttention, avg, fmt$, fmtDate, fmtRange, isoWeekBounds,
@@ -53,6 +53,10 @@ import type { MetricSnapshot } from "@/lib/metrics";
 // ─── Activity ID counter (module-level, reset-safe) ───────────────────────────
 
 let _nextId = Date.now();
+
+// Minimal service-event shape for the Brother-drawer "Log service hours" picker.
+// Mirrors the fields the service page selects from /api/service-events.
+type DashServiceEvent = { id: number; title: string; date: string };
 
 // ─── KPI Drawer ───────────────────────────────────────────────────────────────
 
@@ -439,7 +443,7 @@ function WidgetDetailDrawer({
   weekRange: { start: string; end: string };
   digestNarration: string | null;
   deadlineList: { id: number; title: string; dueDate: string; owner: string; status: TaskStatus }[];
-  igTaskList: { id: number; title: string; dueDate: string; owner: string; status: TaskStatus; type: string }[];
+  igTaskList: { id: number; title: string; dueDate: string; status: TaskStatus; type: InstagramType }[];
   activityFeed: ActivityEntry[];
   partyList: PartyEvent[];
   health: { score: number; label: "Healthy" | "Needs Attention" | "Critical"; breakdown: Record<string, number> };
@@ -696,7 +700,6 @@ function WidgetDetailDrawer({
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="dd-chip">{t.type}</span>
                       <span className="dd-meta" style={{ fontSize: 10 }}>{fmtDate(t.dueDate)}</span>
-                      <span className="dd-meta" style={{ fontSize: 10 }}>{t.owner.split(" ")[0]}</span>
                     </div>
                   </div>
                 ))}
@@ -922,6 +925,14 @@ export default function Home() {
   const [confirmDelete, setConfirmDelete] = useState<{ kind: "deadline" | "ig"; id: number; label: string } | null>(null);
   const [payTarget,    setPayTarget]    = useState<Brother | null>(null);
   const [payAmountStr, setPayAmountStr] = useState("");
+  // "Log service hours" modal (opened from the Brother drawer's + control).
+  // Logs hours for the drawer's member against a chosen service event, mirroring
+  // the service page's self-service flow but on the member's behalf.
+  const [logHoursFor,    setLogHoursFor]    = useState<Brother | null>(null);
+  const [logHoursEvents, setLogHoursEvents] = useState<DashServiceEvent[]>([]);
+  const [logHoursEventId, setLogHoursEventId] = useState<number | null>(null);
+  const [logHoursStr,    setLogHoursStr]    = useState("");
+  const [logHoursBusy,   setLogHoursBusy]   = useState(false);
   const mainRef = useRef<HTMLElement>(null);
   const attendanceReqRef = useRef<AbortController | null>(null);
   const welcomeToastShownRef = useRef(false);
@@ -1394,7 +1405,7 @@ export default function Home() {
     );
   }
 
-  function handleAddIGTask(t: { title: string; dueDate: string; owner: string; type: string; status: TaskStatus }) {
+  function handleAddIGTask(t: { title: string; dueDate: string; type: InstagramType; status: TaskStatus }) {
     const tempId = _nextId++;
     setIgTaskList(prev => [...prev, { id: tempId, ...t }]);
     addActivity(`IG task added: "${t.title}"`, "info");
@@ -1509,7 +1520,7 @@ export default function Home() {
     setActiveModal("edit-ig");
   }
 
-  function saveEditIG(data: { title: string; dueDate: string; owner: string; type: string; status: TaskStatus }) {
+  function saveEditIG(data: { title: string; dueDate: string; type: InstagramType; status: TaskStatus }) {
     if (!editingIgId) return;
     const previous = igTaskList.find(x => x.id === editingIgId);
     setIgTaskList(prev => prev.map(x => x.id === editingIgId ? { ...x, ...data } : x));
@@ -1626,9 +1637,51 @@ export default function Home() {
     );
   }
 
+  // ── Log service hours (Brother drawer +) ────────────────────────────────────
+  // Opens a modal to log hours for `b` against a service event. Unlike the old
+  // blind +1h PATCH, this writes a ServiceParticipation row so the total is
+  // event-attributed and recomputed server-side (see recalc-service-hours).
+  function openLogServiceHours(b: Brother) {
+    setLogHoursFor(b);
+    setLogHoursStr("");
+    setLogHoursEventId(null);
+    requestJson<DashServiceEvent[]>("/api/service-events")
+      .then(events => {
+        const sorted = [...events].sort((a, z) => z.date.localeCompare(a.date));
+        setLogHoursEvents(sorted);
+        setLogHoursEventId(sorted[0]?.id ?? null);
+      })
+      .catch(() => toast.error("Could not load service events."));
+  }
+
+  async function submitLogServiceHours() {
+    if (!logHoursFor || logHoursEventId == null) return;
+    const hours = Math.max(0, parseFloat(logHoursStr) || 0);
+    const b = logHoursFor;
+    setLogHoursBusy(true);
+    try {
+      await requestJson(`/api/service-events/${logHoursEventId}/participation`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ entries: [{ brotherId: b.id, hours }] }),
+      });
+      // serviceHours is recomputed server-side from participations; pull fresh totals.
+      const fresh = await requestJson<Brother[]>("/api/brothers");
+      setBrotherList(fresh);
+      const updated = fresh.find(x => x.id === b.id);
+      addActivity(`${b.name} — logged ${hours}h service${updated ? ` (${updated.serviceHours}h total)` : ""}`, "info");
+      toast.success("Service hours logged.");
+      setLogHoursFor(null);
+    } catch {
+      toast.error("Could not log service hours.");
+    } finally {
+      setLogHoursBusy(false);
+    }
+  }
+
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
-    <div className="flex h-screen overflow-hidden bg-[#07090f]">
+    <div className="main-route-transition flex h-screen overflow-hidden bg-[#07090f]">
       <Sidebar
         open={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
@@ -1925,9 +1978,6 @@ export default function Home() {
                     selfId={selfId}
                     selfAvatarUrl={currentUser?.avatarUrl}
                     avatarRevision={avatarRevision}
-                    canBrothers={canBrothers}
-                    onPayDues={openPayDues}
-                    onAddServiceHour={addServiceHour}
                     hideButton={isActiveOrgAdmin ? <DashHideButton label="Member tracking" onHide={() => setWidgetHidden("brother-tracking", true)} /> : undefined}
                   />
                 )}
@@ -1995,7 +2045,7 @@ export default function Home() {
         </Modal>
       )}
       {activeModal === "deadline" && (
-        <Modal title="Add Deadline" onClose={closeModal}>
+        <Modal title="Add Deadline" tone="dusk" onClose={closeModal}>
           <AddDeadlineForm brotherNames={brotherNames} onSubmit={handleAddDeadline} />
         </Modal>
       )}
@@ -2006,7 +2056,7 @@ export default function Home() {
       )}
       {activeModal === "ig" && (
         <Modal title="Add Instagram Task" onClose={closeModal}>
-          <AddIGTaskForm brotherNames={brotherNames} onSubmit={handleAddIGTask} />
+          <AddIGTaskForm onSubmit={handleAddIGTask} />
         </Modal>
       )}
       {activeModal === "attendance" && selectedEventForAttendance && (
@@ -2074,7 +2124,7 @@ export default function Home() {
         const d = deadlineList.find(x => x.id === editingDeadlineId);
         if (!d) return null;
         return (
-          <Modal title="Edit Deadline" onClose={closeModal}>
+          <Modal title="Edit Deadline" tone="dusk" onClose={closeModal}>
             <AddDeadlineForm brotherNames={brotherNames} initial={d} onSubmit={saveEditDeadline} />
           </Modal>
         );
@@ -2084,7 +2134,7 @@ export default function Home() {
         if (!t) return null;
         return (
           <Modal title="Edit Instagram Task" onClose={closeModal}>
-            <AddIGTaskForm brotherNames={brotherNames} initial={t} onSubmit={saveEditIG} />
+            <AddIGTaskForm initial={t} onSubmit={saveEditIG} />
           </Modal>
         );
       })()}
@@ -2138,6 +2188,67 @@ export default function Home() {
         </Modal>
       )}
 
+      {/* ── Log Service Hours Modal ─────────────────────────────────────────── */}
+      {logHoursFor && (
+        <Modal title="Log Service Hours" onClose={() => !logHoursBusy && setLogHoursFor(null)}>
+          <div className="space-y-4">
+            <p className="text-[12px] text-slate-400">
+              Logging hours for <span className="font-semibold text-white">{logHoursFor.name}</span> against a service event.
+            </p>
+            <div>
+              <FieldLabel>Service Event</FieldLabel>
+              {logHoursEvents.length === 0 ? (
+                <p className="mt-1 text-[12px] text-slate-500">No service events yet. Create one on the Service page first.</p>
+              ) : (
+                <select
+                  className={inputCls}
+                  value={logHoursEventId ?? ""}
+                  onChange={e => setLogHoursEventId(e.target.value ? Number(e.target.value) : null)}
+                >
+                  {logHoursEvents.map(ev => (
+                    <option key={ev.id} value={ev.id}>{ev.title} · {fmtDate(ev.date)}</option>
+                  ))}
+                </select>
+              )}
+            </div>
+            <div>
+              <FieldLabel>Hours</FieldLabel>
+              <input
+                type="number"
+                min="0"
+                step="0.5"
+                inputMode="decimal"
+                className={inputCls}
+                value={logHoursStr}
+                placeholder="0"
+                autoFocus
+                onChange={e => setLogHoursStr(e.target.value)}
+                onKeyDown={e => { if (e.key === "Enter" && logHoursEventId != null && logHoursStr !== "") submitLogServiceHours(); }}
+              />
+              <p className="mt-1.5 text-[11px] text-slate-500">
+                Sets {logHoursFor.name.split(" ")[0]}&apos;s hours for this event. Their total recomputes from all logged events.
+              </p>
+            </div>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setLogHoursFor(null)}
+                disabled={logHoursBusy}
+                className="rounded-lg border border-white/[0.08] px-4 py-1.5 text-[13px] text-slate-400 hover:border-white/[0.16] hover:text-white transition-colors disabled:opacity-40"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={submitLogServiceHours}
+                disabled={logHoursBusy || logHoursEventId == null || logHoursStr === ""}
+                className="rounded-lg bg-indigo-600 px-4 py-1.5 text-[13px] font-semibold text-white hover:bg-indigo-500 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {logHoursBusy ? "Saving…" : "Log Hours"}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
       {/* ── Announcement Editor ─────────────────────────────────────────────── */}
       {announcementEditorOpen && (
         <AnnouncementEditor
@@ -2181,7 +2292,7 @@ export default function Home() {
         onClose={() => setSelectedBrotherId(null)}
         onSave={updateBrother}
         onPayDues={openPayDues}
-        onAddServiceHours={addServiceHour}
+        onLogServiceHours={openLogServiceHours}
         isAdmin={isAdmin}
         selfId={selfId}
       />

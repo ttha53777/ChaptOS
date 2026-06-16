@@ -1,0 +1,727 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dusk">
+<!--
+  ChaptOS · Events Redesign — "The Programme"
+  ────────────────────────────────────────────────
+  ASSUMPTIONS / REASONING
+  · The "Events page" is app/[slug]/events/page.tsx (component ProgrammingPage).
+    Today it is a 4-column Kanban board on the OLD cold-slate theme (#07090f paper,
+    indigo accent): Idea → Planning → Confirmed → Done, with Board / Calendar / Table
+    view toggles, a type filter (Program / Social / Fundraiser / Community Service),
+    a search box, and a right-hand inspector drawer per card. Each card tracks a prep
+    checklist, room booking, flyer, spend and (when done) a success rating.
+  · PROBLEM with today's board: it is a tool, not a briefing. Every column looks the
+    same weight, so the ONE thing an event chair opens the app to handle — the next
+    event and what's still unbooked for it — is buried among ideas and finished events.
+    Prep state (room not booked, flyer not posted, checklist 2/6) is hidden one click
+    deep inside the inspector. You cannot tell at a glance whether next weekend is
+    handled.
+  · This mock rebuilds it in the established "Chapter Ledger" dusk language shared by
+    _design/Dashboard + Timeline + Meetings Redesign v2: Fraunces serif, warm paper,
+    Geist Mono labels, violet accent + gold/rose/sage semantics, hairline dividers,
+    the shared sidebar and the Dusk/Ivory toggle (press T).
+  · UX redesign, not a reskin. The page answers three questions in order:
+      1. WHAT'S NEXT — briefing headline + AI digest, then a hero "On deck" card for
+         the next confirmed event with its live PREP METER (room / flyer / budget /
+         checklist) and the one blocker called out by name. The thing you came to
+         handle is the biggest thing on the page.
+      2. HOW ARE WE DOING — a four-measure glance strip (events this term / on the
+         calendar / avg success / total spend) so you read the slate's health first.
+      3. WHAT'S IN THE PIPELINE — the Kanban is KEPT (it is the actual workflow) but
+         demoted below the fold and lightened: a compact 4-lane pipeline where each
+         card shows a prep ring, not a wall of identical tiles. Drag still moves
+         stages; the inspector still opens on click.
+  · The right rail surfaces what was buried: a "Needs attention" list (events with an
+    unmet prep item before their date) and a recently-wrapped recap with success stars.
+  · Color stops shouting: events are one violet category; type is a small lettered
+    glyph, not a loud chip; semantics carry meaning — sage = booked / done / on track,
+    gold = action needed soon, rose = blocking / overdue.
+  · Data is drawn from the app's real type set (Program / Social / Fundraiser /
+    Community Service) and the test/seed vocabulary (Speaker Series, Brotherhood
+    Social w/ KDF, Spring Banquet, Park Cleanup, Boba Fundraiser, Mixer). Today pinned
+    to Sat Jun 13 2026 to match the Meetings mock, so the next event (Beach Day, Jun
+    18) is upcoming, the slate has 4 confirmed + 3 planning + 2 ideas, and 3 are done.
+-->
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ChaptOS — Events Redesign · The Programme</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..700;1,9..144,300..700&family=Geist:wght@300..700&family=Geist+Mono:wght@300..600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --serif: "Fraunces", Georgia, serif;
+    --sans: "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --mono: "Geist Mono", ui-monospace, Menlo, monospace;
+  }
+  [data-theme="dusk"] {
+    --paper:    #0f0d0a;
+    --paper-2:  #14120e;
+    --card:     #161310;
+    --card-2:   #1b1813;
+    --ink:      #ece7dd;
+    --ink-soft: #c9c2b4;
+    --muted:    #958d7c;
+    --faint:    #6b6354;
+    --line:     rgba(236,231,221,.09);
+    --line-soft:rgba(236,231,221,.05);
+    --vio:      #a78bfa;
+    --vio-deep: #7c3aed;
+    --vio-bg:   rgba(167,139,250,.10);
+    --gold:     #ddb36a;
+    --gold-bg:  rgba(221,179,106,.10);
+    --rose:     #d98ba3;
+    --rose-bg:  rgba(217,139,163,.10);
+    --ok:       #7fb08a;
+    --ok-bg:    rgba(127,176,138,.10);
+    --shadow:   0 1px 0 rgba(0,0,0,.4), 0 16px 40px -24px rgba(0,0,0,.7);
+  }
+  [data-theme="ivory"] {
+    --paper:    #f2ede3;
+    --paper-2:  #ece6d9;
+    --card:     #faf7f0;
+    --card-2:   #f4f0e6;
+    --ink:      #171410;
+    --ink-soft: #3d382f;
+    --muted:    #6f675a;
+    --faint:    #9a917f;
+    --line:     rgba(23,20,16,.13);
+    --line-soft:rgba(23,20,16,.07);
+    --vio:      #6d28d9;
+    --vio-deep: #5b21b6;
+    --vio-bg:   rgba(109,40,217,.08);
+    --gold:     #9a7224;
+    --gold-bg:  rgba(154,114,36,.10);
+    --rose:     #b34f72;
+    --rose-bg:  rgba(179,79,114,.09);
+    --ok:       #3f7a50;
+    --ok-bg:    rgba(63,122,80,.10);
+    --shadow:   0 1px 2px rgba(23,20,16,.05), 0 14px 34px -26px rgba(23,20,16,.35);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { background: var(--paper); color: var(--ink); font-family: var(--sans); }
+  body { font-size: 13.5px; line-height: 1.45; -webkit-font-smoothing: antialiased; }
+  ::selection { background: var(--vio-bg); }
+
+  .shell { display: grid; grid-template-columns: 228px 1fr; min-height: 100vh; }
+
+  /* ── Sidebar (shared) ──────────────────────────────── */
+  .side {
+    border-right: 1px solid var(--line);
+    background: var(--paper-2);
+    padding: 26px 0 20px;
+    display: flex; flex-direction: column; gap: 26px;
+    position: sticky; top: 0; height: 100vh;
+  }
+  .wordmark { padding: 0 24px; }
+  .wordmark .product {
+    font-family: var(--serif); font-style: italic; font-weight: 600;
+    font-size: 19px; letter-spacing: .01em; color: var(--ink);
+  }
+  .wordmark .org {
+    margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line-soft);
+    font-family: var(--mono); font-size: 10px; letter-spacing: .14em;
+    text-transform: uppercase; color: var(--muted); line-height: 1.7;
+  }
+  .nav { display: flex; flex-direction: column; gap: 1px; padding: 0 12px; }
+  .nav a {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 12px; border-radius: 7px; text-decoration: none;
+    font-family: var(--mono); font-size: 11px; letter-spacing: .12em;
+    text-transform: uppercase; color: var(--muted);
+  }
+  .nav a:hover { color: var(--ink-soft); background: var(--line-soft); }
+  .nav a.active { color: var(--ink); background: var(--card-2); }
+  .nav a.active::before { content: ""; width: 3px; height: 14px; border-radius: 2px; background: var(--vio); margin-left: -6px; }
+  .side .spacer { flex: 1; }
+  .user { margin: 0 12px; padding: 12px; border-top: 1px solid var(--line-soft); display: flex; gap: 10px; align-items: center; }
+  .user .avatar { width: 30px; height: 30px; border-radius: 50%; background: var(--vio-bg); color: var(--vio);
+    display: grid; place-items: center; font-family: var(--mono); font-size: 10px; font-weight: 600; }
+  .user .who p:first-child { font-size: 12.5px; font-weight: 600; color: var(--ink); }
+  .user .who p:last-child { font-family: var(--mono); font-size: 9.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--faint); margin-top: 1px; }
+
+  /* ── Main ───────────────────────────────────────────── */
+  .main { padding: 30px 38px 40px; max-width: 1200px; }
+
+  .briefing { display: flex; justify-content: space-between; gap: 36px; align-items: flex-start; }
+  .kicker { font-family: var(--mono); font-size: 10.5px; letter-spacing: .18em; text-transform: uppercase; color: var(--muted); }
+  .kicker .today { color: var(--vio); }
+  h1.greeting { font-family: var(--serif); font-weight: 400; font-size: 33px; letter-spacing: -.01em; margin-top: 8px; color: var(--ink); }
+  h1.greeting em { font-style: italic; color: var(--vio); }
+  .digest { margin-top: 12px; display: flex; gap: 9px; align-items: baseline; max-width: 640px; }
+  .ai-chip { flex-shrink: 0; font-family: var(--mono); font-size: 8.5px; font-weight: 600; letter-spacing: .14em;
+    color: var(--vio); border: 1px solid var(--vio-bg); background: var(--vio-bg); border-radius: 4px; padding: 2px 5px; transform: translateY(-1px); }
+  .digest p { font-size: 13.5px; color: var(--ink-soft); font-style: italic; font-family: var(--serif); font-weight: 350; }
+
+  .add-btn { flex-shrink: 0; display: inline-flex; align-items: center; gap: 7px;
+    font-family: var(--mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--vio); background: var(--vio-bg); border: 1px solid var(--vio-bg); border-radius: 8px;
+    padding: 8px 14px; cursor: pointer; }
+  .add-btn:hover { border-color: var(--vio); }
+  .add-btn svg { stroke: var(--vio); }
+
+  .theme-toggle { position: fixed; top: 18px; right: 20px; z-index: 50;
+    font-family: var(--mono); font-size: 10px; letter-spacing: .12em; text-transform: uppercase;
+    color: var(--muted); background: var(--card); border: 1px solid var(--line); border-radius: 999px;
+    padding: 6px 14px; cursor: pointer; }
+  .theme-toggle:hover { color: var(--ink); border-color: var(--vio); }
+
+  /* ── Glance strip (four measures) ───────────────────── */
+  .glance { margin-top: 22px; display: grid; grid-template-columns: repeat(4, 1fr);
+    border: 1px solid var(--line); border-radius: 12px; background: var(--card); box-shadow: var(--shadow); overflow: hidden; }
+  .measure { padding: 15px 18px 14px; border-right: 1px solid var(--line-soft); }
+  .measure:last-child { border-right: none; }
+  .measure .k { font-family: var(--mono); font-size: 9px; letter-spacing: .16em; text-transform: uppercase; color: var(--muted); }
+  .measure .v { font-family: var(--mono); font-size: 23px; font-weight: 500; letter-spacing: -.02em; color: var(--ink); margin-top: 7px; font-variant-numeric: tabular-nums; }
+  .measure .v small { font-size: 13px; color: var(--faint); font-weight: 400; }
+  .measure .note { font-size: 11px; color: var(--faint); margin-top: 3px; }
+  .measure .note.good { color: var(--ok); }
+  .measure .note.warn { color: var(--gold); }
+
+  /* ── Section labels ─────────────────────────────────── */
+  .sec-label { display: flex; align-items: baseline; gap: 14px; margin: 30px 0 14px; }
+  .sec-label h2 { font-family: var(--serif); font-weight: 400; font-size: 22px; letter-spacing: -.01em; color: var(--ink); white-space: nowrap; }
+  .sec-label .rule { flex: 1; height: 1px; background: var(--line); }
+  .sec-label .cnt { font-family: var(--mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); white-space: nowrap; }
+
+  /* ── Layout: feature + rail ─────────────────────────── */
+  .layout { margin-top: 4px; display: grid; grid-template-columns: 1fr 322px; gap: 30px; align-items: start; }
+
+  /* ── On-deck hero (next event) ──────────────────────── */
+  .ondeck { border: 1px solid var(--vio); border-radius: 14px; background: var(--card-2);
+    box-shadow: 0 0 0 1px var(--vio-bg), var(--shadow); padding: 22px 24px 20px; position: relative; overflow: hidden; }
+  .ondeck::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--vio); }
+  .ondeck .od-top { display: flex; align-items: center; gap: 10px; }
+  .ondeck .pill { font-family: var(--mono); font-size: 9px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase;
+    color: var(--vio); background: var(--vio-bg); border: 1px solid var(--vio-bg); border-radius: 999px; padding: 3px 10px; }
+  .ondeck .typ { font-family: var(--mono); font-size: 9px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase;
+    color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 3px 10px; }
+  .ondeck .when { margin-left: auto; font-family: var(--mono); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+  .ondeck h3 { font-family: var(--serif); font-weight: 500; font-size: 26px; line-height: 1.1; color: var(--ink); margin: 13px 0 5px; }
+  .ondeck .meta { font-size: 12.5px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 6px 14px; }
+  .ondeck .meta b { color: var(--ink-soft); font-weight: 550; }
+
+  /* prep meter — the buried-state, surfaced */
+  .prep { margin-top: 18px; padding-top: 17px; border-top: 1px solid var(--line-soft); }
+  .prep .p-head { display: flex; align-items: baseline; gap: 10px; }
+  .prep .p-lbl { font-family: var(--mono); font-size: 9.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+  .prep .p-count { margin-left: auto; font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 13px; color: var(--ink); }
+  .prep .p-count b { font-size: 17px; font-weight: 600; }
+  .prep .p-state { font-family: var(--mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase; }
+  .prep .p-state.warn { color: var(--gold); }
+  /* segmented prep checklist */
+  .pchecks { margin-top: 13px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .pcheck { border: 1px solid var(--line-soft); border-radius: 9px; padding: 10px 11px; background: var(--paper); }
+  .pcheck.done { border-color: var(--ok-bg); background: var(--ok-bg); }
+  .pcheck.block { border-color: var(--rose-bg); background: var(--rose-bg); }
+  .pcheck .pc-ico { display: flex; align-items: center; gap: 6px; }
+  .pcheck .pc-ico svg { width: 13px; height: 13px; }
+  .pcheck.done .pc-ico { color: var(--ok); }
+  .pcheck.block .pc-ico { color: var(--rose); }
+  .pcheck:not(.done):not(.block) .pc-ico { color: var(--faint); }
+  .pcheck .pc-k { font-family: var(--mono); font-size: 9px; letter-spacing: .1em; text-transform: uppercase; }
+  .pcheck .pc-v { font-size: 11.5px; color: var(--ink-soft); margin-top: 6px; }
+  .pcheck.done .pc-v { color: var(--ink); }
+  .pcheck.block .pc-v { color: var(--rose); font-weight: 500; }
+
+  .blocker { margin-top: 15px; display: flex; align-items: center; gap: 10px;
+    border: 1px solid var(--rose-bg); background: var(--rose-bg); border-radius: 9px; padding: 10px 13px; }
+  .blocker svg { width: 15px; height: 15px; color: var(--rose); flex-shrink: 0; }
+  .blocker p { font-size: 12px; color: var(--ink-soft); }
+  .blocker p b { color: var(--rose); }
+
+  .ondeck .actions { margin-top: 18px; display: flex; gap: 9px; }
+  .btn-primary { display: inline-flex; align-items: center; gap: 8px; cursor: pointer;
+    font-family: var(--mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--paper); background: var(--vio); border: 1px solid var(--vio); border-radius: 9px; padding: 10px 16px; font-weight: 600; }
+  .btn-primary:hover { background: var(--vio-deep); border-color: var(--vio-deep); color: var(--ink); }
+  .btn-ghost { display: inline-flex; align-items: center; gap: 8px; cursor: pointer;
+    font-family: var(--mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--muted); background: transparent; border: 1px solid var(--line); border-radius: 9px; padding: 10px 16px; }
+  .btn-ghost:hover { color: var(--ink); border-color: var(--vio); }
+
+  /* ── Pipeline (the kept Kanban, demoted + lightened) ── */
+  .views { display: inline-flex; gap: 2px; padding: 2px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); }
+  .views button { font-family: var(--mono); font-size: 9.5px; letter-spacing: .08em; text-transform: uppercase;
+    color: var(--muted); background: transparent; border: none; border-radius: 6px; padding: 5px 11px; cursor: pointer; }
+  .views button.on { color: var(--ink); background: var(--card-2); }
+  .views button:hover:not(.on) { color: var(--ink-soft); }
+
+  .filters { display: flex; gap: 7px; align-items: center; margin: 0 0 14px; flex-wrap: wrap; }
+  .filters .chip { font-family: var(--mono); font-size: 9.5px; letter-spacing: .08em; text-transform: uppercase;
+    color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 5px 12px; cursor: pointer; background: transparent; }
+  .filters .chip.on { color: var(--ink); background: var(--card-2); border-color: var(--line); }
+  .filters .chip:hover:not(.on) { color: var(--ink-soft); border-color: var(--vio); }
+  .filters .grow { flex: 1; }
+  .filters .search { display: flex; align-items: center; gap: 7px; border: 1px solid var(--line); border-radius: 8px;
+    padding: 6px 11px; background: var(--card); color: var(--faint); font-family: var(--mono); font-size: 10px; letter-spacing: .05em; }
+  .filters .search svg { width: 13px; height: 13px; }
+
+  .pipeline { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; align-items: start; }
+  .lane { border: 1px solid var(--line); border-radius: 12px; background: var(--card); box-shadow: var(--shadow); overflow: hidden; }
+  .lane-head { display: flex; align-items: center; gap: 8px; padding: 12px 14px; border-bottom: 1px solid var(--line-soft); }
+  .lane-head .dot { width: 7px; height: 7px; border-radius: 50%; }
+  .lane-head .lh { font-family: var(--mono); font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-soft); }
+  .lane-head .lc { margin-left: auto; font-family: var(--mono); font-size: 10px; font-variant-numeric: tabular-nums; color: var(--faint);
+    background: var(--paper); border: 1px solid var(--line-soft); border-radius: 999px; padding: 1px 8px; }
+  .dot.idea { background: var(--faint); }
+  .dot.planning { background: var(--gold); }
+  .dot.confirmed { background: var(--vio); }
+  .dot.done { background: var(--ok); }
+  .lane-body { padding: 10px; display: flex; flex-direction: column; gap: 9px; min-height: 80px; }
+  .lane-body .empty { font-family: var(--mono); font-size: 9.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--faint);
+    text-align: center; padding: 16px 6px; }
+
+  /* event card — prep ring instead of a wall of identical tiles */
+  .ecard { border: 1px solid var(--line-soft); border-radius: 10px; background: var(--card-2); padding: 11px 12px; cursor: pointer;
+    transition: border-color .12s, transform .12s; }
+  .ecard:hover { border-color: var(--vio); transform: translateY(-1px); }
+  .ecard .ec-top { display: flex; align-items: center; gap: 8px; }
+  .ec-glyph { width: 19px; height: 19px; border-radius: 6px; display: grid; place-items: center; flex-shrink: 0;
+    font-family: var(--mono); font-size: 9px; font-weight: 600; color: var(--vio); background: var(--vio-bg); }
+  .ec-glyph.social  { color: var(--gold); background: var(--gold-bg); }
+  .ec-glyph.fundy   { color: var(--ok);   background: var(--ok-bg); }
+  .ec-glyph.service { color: var(--rose); background: var(--rose-bg); }
+  .ecard .ec-when { margin-left: auto; font-family: var(--mono); font-size: 9px; letter-spacing: .06em; text-transform: uppercase; color: var(--faint); }
+  .ecard .ec-when.soon { color: var(--gold); }
+  .ecard .ec-when.today { color: var(--rose); }
+  .ecard .ec-t { font-size: 13px; font-weight: 550; color: var(--ink); margin-top: 9px; line-height: 1.25; }
+  .ecard .ec-sub { font-size: 11px; color: var(--faint); margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* prep ring */
+  .ecard .ec-foot { margin-top: 11px; display: flex; align-items: center; gap: 9px; }
+  .ring { width: 26px; height: 26px; flex-shrink: 0; }
+  .ring circle { fill: none; stroke-width: 3; }
+  .ring .track { stroke: var(--line); }
+  .ring .val { stroke: var(--vio); stroke-linecap: round; transform: rotate(-90deg); transform-origin: 50% 50%; }
+  .ring .val.full { stroke: var(--ok); }
+  .ecard .ec-prep { font-family: var(--mono); font-size: 9.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+  .ecard .ec-prep b { color: var(--ink-soft); }
+  .ecard .stars { margin-left: auto; color: var(--gold); font-size: 11px; letter-spacing: 1px; }
+  .ecard.ghost { opacity: .62; }
+  .ecard.ghost:hover { opacity: 1; }
+
+  /* ── Right rail ─────────────────────────────────────── */
+  .rail { position: sticky; top: 30px; display: flex; flex-direction: column; gap: 22px; }
+  .rail .lbl { font-family: var(--mono); font-size: 9.5px; letter-spacing: .16em; text-transform: uppercase; color: var(--faint); margin-bottom: 10px; }
+
+  /* needs attention */
+  .attn { border: 1px solid var(--line); border-radius: 12px; background: var(--card); box-shadow: var(--shadow); overflow: hidden; }
+  .attn .a-row { display: flex; align-items: center; gap: 11px; padding: 12px 15px; border-bottom: 1px solid var(--line-soft); cursor: pointer; }
+  .attn .a-row:last-child { border-bottom: none; }
+  .attn .a-row:hover { background: var(--card-2); }
+  .attn .a-flag { width: 6px; height: 34px; border-radius: 3px; flex-shrink: 0; }
+  .attn .a-flag.rose { background: var(--rose); }
+  .attn .a-flag.gold { background: var(--gold); }
+  .attn .a-main { min-width: 0; flex: 1; }
+  .attn .a-t { font-size: 12.5px; font-weight: 550; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .attn .a-need { font-size: 11px; margin-top: 2px; }
+  .attn .a-need.rose { color: var(--rose); }
+  .attn .a-need.gold { color: var(--gold); }
+  .attn .a-when { font-family: var(--mono); font-size: 9px; letter-spacing: .08em; text-transform: uppercase; color: var(--faint); white-space: nowrap; }
+
+  /* recently wrapped */
+  .recap { border: 1px solid var(--line); border-radius: 12px; background: var(--card); box-shadow: var(--shadow); overflow: hidden; }
+  .recap .r-row { display: flex; align-items: center; gap: 11px; padding: 11px 15px; border-bottom: 1px solid var(--line-soft); }
+  .recap .r-row:last-child { border-bottom: none; }
+  .recap .r-main { min-width: 0; flex: 1; }
+  .recap .r-t { font-size: 12.5px; color: var(--ink-soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .recap .r-meta { font-family: var(--mono); font-size: 9px; letter-spacing: .06em; text-transform: uppercase; color: var(--faint); margin-top: 2px; }
+  .recap .r-stars { color: var(--gold); font-size: 11px; letter-spacing: 1px; flex-shrink: 0; }
+  .recap .r-stars .off { color: var(--line); }
+
+  footer { margin-top: 34px; padding-top: 16px; border-top: 1px solid var(--line-soft); text-align: center;
+    font-family: var(--mono); font-size: 9.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--faint); }
+</style>
+</head>
+<body>
+<button class="theme-toggle" id="toggle" title="Press T">◐&nbsp; Ivory</button>
+<div class="shell">
+
+  <!-- ── Sidebar ──────────────────────────────────────── -->
+  <aside class="side">
+    <div class="wordmark">
+      <div class="product">ChaptOS</div>
+      <div class="org">Lambda Phi<br>Epsilon</div>
+    </div>
+    <nav class="nav">
+      <a href="#">Dashboard</a>
+      <a href="#">Timeline</a>
+      <a href="#">Brothers</a>
+      <a href="#">Meetings</a>
+      <a href="#">Treasury</a>
+      <a class="active" href="#">Events</a>
+      <a href="#">Instagram</a>
+      <a href="#">Settings</a>
+    </nav>
+    <div class="spacer"></div>
+    <div class="user">
+      <div class="avatar">TT</div>
+      <div class="who">
+        <p>Thalha Thabish</p>
+        <p>Social Chair</p>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ── Main ─────────────────────────────────────────── -->
+  <main class="main">
+
+    <div class="briefing">
+      <div>
+        <p class="kicker"><span class="today">Saturday, June 13, 2026</span>&ensp;·&ensp;Chapter Events&ensp;·&ensp;Spring Semester</p>
+        <h1 class="greeting">The <em>programme</em>.</h1>
+        <div class="digest">
+          <span class="ai-chip">AI</span>
+          <p>Beach Day is up first — Thursday at noon. Everything's set except the room: Marine Park still isn't booked, and that's the one thing standing between you and a green slate. Spring Banquet behind it is fully prepped.</p>
+        </div>
+      </div>
+      <button class="add-btn">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+        New event
+      </button>
+    </div>
+
+    <!-- ── Glance strip ───────────────────────────────── -->
+    <div class="glance">
+      <div class="measure">
+        <div class="k">On the slate</div>
+        <div class="v">9</div>
+        <div class="note">2 ideas · 3 planning · 4 confirmed</div>
+      </div>
+      <div class="measure">
+        <div class="k">Next 14 days</div>
+        <div class="v">3 <small>events</small></div>
+        <div class="note warn">1 needs a room booked</div>
+      </div>
+      <div class="measure">
+        <div class="k">Avg success</div>
+        <div class="v">4.3<small>/5</small></div>
+        <div class="note good">across 3 wrapped this term</div>
+      </div>
+      <div class="measure">
+        <div class="k">Spent this term</div>
+        <div class="v">$1,240</div>
+        <div class="note">$310 committed, unspent</div>
+      </div>
+    </div>
+
+    <!-- ── Layout ─────────────────────────────────────── -->
+    <div class="layout">
+
+      <!-- LEFT column -->
+      <div>
+
+        <div class="sec-label">
+          <h2>On deck</h2>
+          <span class="rule"></span>
+          <span class="cnt">In 5 days</span>
+        </div>
+
+        <!-- next event hero -->
+        <div class="ondeck">
+          <div class="od-top">
+            <span class="pill">Next event</span>
+            <span class="typ">Social</span>
+            <span class="when">Thu · Jun 18 · 12:00 PM</span>
+          </div>
+          <h3>Beach Day</h3>
+          <p class="meta">
+            <span><b>Marine Park</b></span>
+            <span>·</span>
+            <span>w/ <b>KDPhi</b></span>
+            <span>·</span>
+            <span>Owner <b>Thalha T.</b></span>
+            <span>·</span>
+            <span>Budget <b>$220</b></span>
+          </p>
+
+          <div class="prep">
+            <div class="p-head">
+              <span class="p-lbl">Prep checklist</span>
+              <span class="p-count"><b>4</b> / 6 ready</span>
+              <span class="p-state warn">2 to go</span>
+            </div>
+            <div class="pchecks">
+              <div class="pcheck block">
+                <div class="pc-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg><span class="pc-k">Room</span></div>
+                <div class="pc-v">Not booked</div>
+              </div>
+              <div class="pcheck block">
+                <div class="pc-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg><span class="pc-k">Flyer</span></div>
+                <div class="pc-v">Not posted</div>
+              </div>
+              <div class="pcheck done">
+                <div class="pc-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg><span class="pc-k">Budget</span></div>
+                <div class="pc-v">Approved</div>
+              </div>
+              <div class="pcheck done">
+                <div class="pc-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg><span class="pc-k">Socials mtg</span></div>
+                <div class="pc-v">Done</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="blocker">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01"/></svg>
+            <p><b>Room not booked.</b> Beach Day is in 5 days — reserve Marine Park to clear the slate.</p>
+          </div>
+
+          <div class="actions">
+            <button class="btn-primary">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9h18M8 3v4M16 3v4"/><rect x="3" y="5" width="18" height="16" rx="2"/></svg>
+              Book the room
+            </button>
+            <button class="btn-ghost">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+              Open checklist
+            </button>
+          </div>
+        </div>
+
+        <!-- pipeline (kept Kanban) -->
+        <div class="sec-label">
+          <h2>Pipeline</h2>
+          <span class="rule"></span>
+          <div class="views">
+            <button class="on">Board</button>
+            <button>Calendar</button>
+            <button>Table</button>
+          </div>
+        </div>
+
+        <div class="filters">
+          <button class="chip on">All</button>
+          <button class="chip">Program</button>
+          <button class="chip">Social</button>
+          <button class="chip">Fundraiser</button>
+          <button class="chip">Service</button>
+          <span class="grow"></span>
+          <span class="search">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+            Search events…
+          </span>
+        </div>
+
+        <div class="pipeline">
+
+          <!-- IDEA -->
+          <div class="lane">
+            <div class="lane-head"><span class="dot idea"></span><span class="lh">Idea</span><span class="lc">2</span></div>
+            <div class="lane-body">
+              <div class="ecard ghost">
+                <div class="ec-top"><span class="ec-glyph">PR</span><span class="ec-when">No date</span></div>
+                <div class="ec-t">Speaker Series</div>
+                <div class="ec-sub">Program · no venue yet</div>
+                <div class="ec-foot">
+                  <span class="ec-prep">Backlog</span>
+                </div>
+              </div>
+              <div class="ecard ghost">
+                <div class="ec-top"><span class="ec-glyph service">CS</span><span class="ec-when">No date</span></div>
+                <div class="ec-t">Beach Cleanup</div>
+                <div class="ec-sub">Service · pitched by Issac</div>
+                <div class="ec-foot">
+                  <span class="ec-prep">Backlog</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- PLANNING -->
+          <div class="lane">
+            <div class="lane-head"><span class="dot planning"></span><span class="lh">Planning</span><span class="lc">3</span></div>
+            <div class="lane-body">
+              <div class="ecard">
+                <div class="ec-top"><span class="ec-glyph social">SO</span><span class="ec-when">Jun 27</span></div>
+                <div class="ec-t">Brotherhood Social</div>
+                <div class="ec-sub">Social · w/ KDF</div>
+                <div class="ec-foot">
+                  <svg class="ring" viewBox="0 0 36 36"><circle class="track" cx="18" cy="18" r="15"/><circle class="val" cx="18" cy="18" r="15" stroke-dasharray="94.2" stroke-dashoffset="62"/></svg>
+                  <span class="ec-prep"><b>2</b>/6 prep</span>
+                </div>
+              </div>
+              <div class="ecard">
+                <div class="ec-top"><span class="ec-glyph fundy">FU</span><span class="ec-when">Jul 02</span></div>
+                <div class="ec-t">Boba Fundraiser</div>
+                <div class="ec-sub">Fundraiser · Student Union</div>
+                <div class="ec-foot">
+                  <svg class="ring" viewBox="0 0 36 36"><circle class="track" cx="18" cy="18" r="15"/><circle class="val" cx="18" cy="18" r="15" stroke-dasharray="94.2" stroke-dashoffset="47"/></svg>
+                  <span class="ec-prep"><b>3</b>/6 prep</span>
+                </div>
+              </div>
+              <div class="ecard">
+                <div class="ec-top"><span class="ec-glyph">PR</span><span class="ec-when">Jul 09</span></div>
+                <div class="ec-t">Alumni Mixer</div>
+                <div class="ec-sub">Program · Chapter House</div>
+                <div class="ec-foot">
+                  <svg class="ring" viewBox="0 0 36 36"><circle class="track" cx="18" cy="18" r="15"/><circle class="val" cx="18" cy="18" r="15" stroke-dasharray="94.2" stroke-dashoffset="78"/></svg>
+                  <span class="ec-prep"><b>1</b>/6 prep</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- CONFIRMED -->
+          <div class="lane">
+            <div class="lane-head"><span class="dot confirmed"></span><span class="lh">Confirmed</span><span class="lc">2</span></div>
+            <div class="lane-body">
+              <div class="ecard" style="border-color:var(--vio)">
+                <div class="ec-top"><span class="ec-glyph social">SO</span><span class="ec-when today">Thu · 5d</span></div>
+                <div class="ec-t">Beach Day</div>
+                <div class="ec-sub">Social · Marine Park · w/ KDPhi</div>
+                <div class="ec-foot">
+                  <svg class="ring" viewBox="0 0 36 36"><circle class="track" cx="18" cy="18" r="15"/><circle class="val" cx="18" cy="18" r="15" stroke-dasharray="94.2" stroke-dashoffset="31"/></svg>
+                  <span class="ec-prep"><b>4</b>/6 prep</span>
+                </div>
+              </div>
+              <div class="ecard">
+                <div class="ec-top"><span class="ec-glyph">PR</span><span class="ec-when soon">Jun 21</span></div>
+                <div class="ec-t">Spring Banquet</div>
+                <div class="ec-sub">Program · Grand Ballroom</div>
+                <div class="ec-foot">
+                  <svg class="ring" viewBox="0 0 36 36"><circle class="track" cx="18" cy="18" r="15"/><circle class="val full" cx="18" cy="18" r="15" stroke-dasharray="94.2" stroke-dashoffset="0"/></svg>
+                  <span class="ec-prep"><b>6</b>/6 ready</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- DONE -->
+          <div class="lane">
+            <div class="lane-head"><span class="dot done"></span><span class="lh">Done</span><span class="lc">3</span></div>
+            <div class="lane-body">
+              <div class="ecard ghost">
+                <div class="ec-top"><span class="ec-glyph fundy">FU</span><span class="ec-when">May 14</span></div>
+                <div class="ec-t">Boba Fundraiser</div>
+                <div class="ec-sub">Fundraiser · raised $410</div>
+                <div class="ec-foot">
+                  <span class="ec-prep">Wrapped</span>
+                  <span class="stars">★★★★★</span>
+                </div>
+              </div>
+              <div class="ecard ghost">
+                <div class="ec-top"><span class="ec-glyph service">CS</span><span class="ec-when">May 24</span></div>
+                <div class="ec-t">Park Cleanup</div>
+                <div class="ec-sub">Service · 8 brothers · 24 hrs</div>
+                <div class="ec-foot">
+                  <span class="ec-prep">Wrapped</span>
+                  <span class="stars">★★★★☆</span>
+                </div>
+              </div>
+              <div class="ecard ghost">
+                <div class="ec-top"><span class="ec-glyph social">SO</span><span class="ec-when">May 30</span></div>
+                <div class="ec-t">Spring Mixer</div>
+                <div class="ec-sub">Social · w/ DSP · 60 RSVPs</div>
+                <div class="ec-foot">
+                  <span class="ec-prep">Wrapped</span>
+                  <span class="stars">★★★★☆</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- RIGHT rail -->
+      <aside class="rail">
+
+        <div>
+          <p class="lbl">Needs attention · before its date</p>
+          <div class="attn">
+            <div class="a-row">
+              <span class="a-flag rose"></span>
+              <div class="a-main">
+                <div class="a-t">Beach Day</div>
+                <div class="a-need rose">Room not booked</div>
+              </div>
+              <span class="a-when">In 5d</span>
+            </div>
+            <div class="a-row">
+              <span class="a-flag gold"></span>
+              <div class="a-main">
+                <div class="a-t">Alumni Mixer</div>
+                <div class="a-need gold">1/6 prep · still planning</div>
+              </div>
+              <span class="a-when">In 26d</span>
+            </div>
+            <div class="a-row">
+              <span class="a-flag gold"></span>
+              <div class="a-main">
+                <div class="a-t">Brotherhood Social</div>
+                <div class="a-need gold">Flyer not posted</div>
+              </div>
+              <span class="a-when">In 14d</span>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <p class="lbl">Recently wrapped</p>
+          <div class="recap">
+            <div class="r-row">
+              <div class="r-main">
+                <div class="r-t">Spring Mixer</div>
+                <div class="r-meta">May 30 · 60 RSVPs · $180 spent</div>
+              </div>
+              <span class="r-stars">★★★★<span class="off">★</span></span>
+            </div>
+            <div class="r-row">
+              <div class="r-main">
+                <div class="r-t">Park Cleanup</div>
+                <div class="r-meta">May 24 · 8 brothers · 24 svc hrs</div>
+              </div>
+              <span class="r-stars">★★★★<span class="off">★</span></span>
+            </div>
+            <div class="r-row">
+              <div class="r-main">
+                <div class="r-t">Boba Fundraiser</div>
+                <div class="r-meta">May 14 · +$410 raised</div>
+              </div>
+              <span class="r-stars">★★★★★</span>
+            </div>
+          </div>
+        </div>
+
+      </aside>
+    </div>
+
+    <footer>Lambda Phi Epsilon · ChaptOS — events design mock · seeded slate &amp; type set · Jun 13, 2026</footer>
+  </main>
+</div>
+
+<script>
+  const root = document.documentElement;
+  const btn = document.getElementById("toggle");
+  function setTheme(t) {
+    root.dataset.theme = t;
+    btn.innerHTML = t === "dusk" ? "◐&nbsp; Ivory" : "◑&nbsp; Dusk";
+    try { localStorage.setItem("chaptos-mock-theme", t); } catch {}
+  }
+  btn.addEventListener("click", () => setTheme(root.dataset.theme === "dusk" ? "ivory" : "dusk"));
+  document.addEventListener("keydown", e => {
+    if (e.key.toLowerCase() === "t" && !e.metaKey && !e.ctrlKey) btn.click();
+  });
+  try {
+    const saved = localStorage.getItem("chaptos-mock-theme");
+    if (saved === "ivory") setTheme("ivory");
+  } catch {}
+
+  // View toggle (visual only).
+  document.querySelectorAll(".views button").forEach(b => {
+    b.addEventListener("click", () => {
+      document.querySelectorAll(".views button").forEach(x => x.classList.remove("on"));
+      b.classList.add("on");
+    });
+  });
+  // Type filter chips (visual only).
+  document.querySelectorAll(".filters .chip").forEach(c => {
+    c.addEventListener("click", () => {
+      document.querySelectorAll(".filters .chip").forEach(x => x.classList.remove("on"));
+      c.classList.add("on");
+    });
+  });
+</script>
+</body>
+</html>

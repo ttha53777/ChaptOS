@@ -3,13 +3,15 @@
 import React, { useState, useMemo, useEffect, useLayoutEffect, useRef } from "react";
 import { Sidebar } from "../../components/Sidebar";
 import { BrotherAvatar } from "../../components/BrotherAvatar";
-import { CalendarEvent, CalEventCategory, CalLayer, fmtDate, fmtRange, isoWeekBounds } from "../../data";
+import { CalendarEvent, CalEventCategory, CalLayer, TaskStatus, Deadline, InstagramTask, InstagramType, fmtDate, fmtRange, isoWeekBounds } from "../../data";
 import { useChapter } from "../../context/ChapterContext";
 import { Modal, ConfirmDialog } from "../../components/dashboard/primitives";
 import { inputCls } from "../../components/dashboard/styles";
 import { requestJson } from "../../lib/api";
 import { pad, toDateStr, daysFromToday } from "../../lib/dates";
 import { CalendarEventForm, type CalendarDraft } from "../../components/timeline/CalendarEventForm";
+import { AddDeadlineForm } from "../../components/dashboard/forms";
+import { isNavVisible } from "../../components/Sidebar";
 import "../../components/dashboard/dashboard-ledger.css";
 import "../../components/dashboard/timeline-ledger.css";
 
@@ -22,6 +24,19 @@ const MONTH_NAMES = [
 const DAY_NAMES = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 const _now = new Date();
 const TODAY = { year: _now.getFullYear(), month: _now.getMonth(), day: _now.getDate() };
+
+// Live deadlines/parties/IG posts are folded into the calendar timeline with
+// offset ids so they don't collide with real CalendarEvent ids. Subtract the base
+// to get back to the source Deadline.id (used to mark a deadline complete from the
+// rail). Parties use 20000; Instagram posts use 30000 and render as deadline rows.
+const DEADLINE_ID_BASE = 10000;
+const IG_ID_BASE = 30000;
+/** The source Deadline.id behind a timeline event, or null if it isn't a live deadline row. */
+function deadlineIdOf(event: CalendarEvent): number | null {
+  if (event.category !== "deadline") return null;
+  const id = event.id - DEADLINE_ID_BASE;
+  return id > 0 && id < DEADLINE_ID_BASE ? id : null;
+}
 
 interface PendingExcuse {
   id:              number;
@@ -36,6 +51,15 @@ interface PendingExcuse {
   isRetroactive:   boolean;
   rejectionNote:   string | null;
 }
+
+// Glance-strip measures — clicking one opens its breakdown in the rail.
+type GlanceMetric = "week" | "required" | "deadlines" | "overdue";
+const GLANCE_TITLE: Record<GlanceMetric, string> = {
+  week:      "This week",
+  required:  "Required this month",
+  deadlines: "Upcoming deadlines",
+  overdue:   "Overdue",
+};
 
 // Filter layers — mono segmented control. `mandatory` reads as "Required".
 const LAYERS: { id: CalLayer; label: string }[] = [
@@ -206,6 +230,9 @@ function EventDetail({
   onDelete,
   brotherList,
   selfBrotherId,
+  deadlineStatus,
+  canCompleteDeadline,
+  onToggleDeadline,
 }: {
   event: CalendarEvent;
   onClose: () => void;
@@ -216,8 +243,13 @@ function EventDetail({
   onDelete: () => void;
   brotherList: { id: number; name: string }[];
   selfBrotherId: number | null;
+  /** Status of the source Deadline, when this row is a live deadline; null otherwise. */
+  deadlineStatus: TaskStatus | null;
+  canCompleteDeadline: boolean;
+  onToggleDeadline: (complete: boolean) => void;
 }) {
   const isDeadline = event.category === "deadline";
+  const isComplete = deadlineStatus === "Complete";
   const todayStr   = toDateStr(TODAY.year, TODAY.month, TODAY.day);
   const isPast     = event.date < todayStr;
   const [, mo, d]  = event.date.split("-").map(Number);
@@ -355,6 +387,7 @@ function EventDetail({
         <div className="tags">
           <span className="cat">{CATEGORY_LABEL[event.category]}</span>
           {event.mandatory && <span className="req">Required</span>}
+          {isComplete && <span className="done">Done</span>}
         </div>
         <h3>{event.title}</h3>
         <div className="date">
@@ -369,7 +402,35 @@ function EventDetail({
           {event.time && <div className="ev-meta-row"><span className="lab">Time</span>{event.time}</div>}
           {event.location && <div className="ev-meta-row"><span className="lab">Where</span>{event.location}</div>}
           {event.description && <div className="ev-meta-row">{event.description}</div>}
-          {isDeadline && <div className="ev-meta-row ddl">Submit by this date</div>}
+          {isDeadline && !isComplete && (
+            <div className={`ev-meta-row ddl${isPast ? " over" : ""}`}>
+              {isPast ? "Overdue — was due this date" : "Submit by this date"}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Deadline submission — mark a live deadline complete (or reopen it). */}
+      {deadlineStatus !== null && (
+        <div className={`ev-deadline${isComplete ? " done" : ""}`}>
+          <div className="row">
+            <span className="state">
+              <span className="d" />
+              {isComplete ? "Submitted · complete" : "Not yet submitted"}
+            </span>
+            {canCompleteDeadline && (
+              isComplete ? (
+                <button className="ev-btn-ghost" onClick={() => onToggleDeadline(false)}>Reopen</button>
+              ) : (
+                <button className="ev-btn-primary" onClick={() => onToggleDeadline(true)}>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                  </svg>
+                  Mark complete
+                </button>
+              )
+            )}
+          </div>
         </div>
       )}
 
@@ -508,19 +569,82 @@ function EventDetail({
   );
 }
 
+// ─── GlanceDetail (rail, when a glance measure is clicked) ───────────────────
+
+function GlanceDetail({
+  metric, events, weekStart, weekEnd, onClose, onSelectEvent,
+}: {
+  metric: GlanceMetric;
+  events: CalendarEvent[];
+  weekStart: string;
+  weekEnd: string;
+  onClose: () => void;
+  onSelectEvent: (e: CalendarEvent) => void;
+}) {
+  const blurb: Record<GlanceMetric, string> = {
+    week:      `Events scheduled for ${fmtRange(weekStart, weekEnd)}.`,
+    required:  "Mandatory events this month — attendance is taken.",
+    deadlines: "Deadlines still ahead, soonest first.",
+    overdue:   "Incomplete deadlines past their due date.",
+  };
+  // Namespaced tone class — a bare "overdue" would collide with the global
+  // .overdue badge pill rule and tint the whole hero rose.
+  const tone = metric === "overdue" ? "gd-overdue" : metric === "required" ? "gd-required" : "";
+
+  return (
+    <div className="gd">
+      <div className="ev-top">
+        <button className="ev-back" onClick={onClose}>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+          </svg>
+          Back
+        </button>
+      </div>
+
+      <div className={`gd-hero ${tone}`}>
+        <p className="k">{GLANCE_TITLE[metric]}</p>
+        <p className="v">{events.length}</p>
+        <p className="blurb">{blurb[metric]}</p>
+      </div>
+
+      {events.length === 0 ? (
+        <p className="gd-empty">{metric === "overdue" ? "Nothing overdue — all clear." : "Nothing in this window."}</p>
+      ) : (
+        <div className="then-card">
+          {events.map(ev => (
+            <button key={ev.id} className="then-row" style={catStyle(ev.category)} onClick={() => onSelectEvent(ev)}>
+              <span className="when">{fmtDow(ev.date)}<br />{fmtDate(ev.date)}</span>
+              <div className="what">
+                <p className="t">{ev.title}</p>
+                <p className="s">{CATEGORY_LABEL[ev.category]}{ev.mandatory ? " · Required" : ev.time ? ` · ${ev.time}` : ""}</p>
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function TimelinePage() {
-  const { currentUser, deadlineList, partyList, brotherList, setBrotherList, avatarRevision } = useChapter();
+  const { currentUser, deadlineList, setDeadlineList, igTaskList, setIgTaskList, partyList, brotherList, setBrotherList, avatarRevision, can } = useChapter();
   const selfId = currentUser?.id ?? null;
   const isAdmin = currentUser?.isAdmin ?? false;
+  const canManageEvents = can("MANAGE_EVENTS");
+  // The Instagram page is visible only when the org has the communications
+  // workflow enabled — that gates the "log as post" option in Add Deadline.
+  const igEnabled = isNavVisible("Instagram", currentUser?.org?.enabledWorkflows ?? []);
 
   const [sidebarOpen,     setSidebarOpen]     = useState(false);
   const [activeLayer,     setActiveLayer]     = useState<CalLayer>("all");
   const [selectedEvent,   setSelectedEvent]   = useState<CalendarEvent | null>(null);
+  const [glanceFocus,     setGlanceFocus]     = useState<GlanceMetric | null>(null);
   const [apiEvents,       setApiEvents]       = useState<CalendarEvent[]>([]);
   const [collapsedMonths, setCollapsedMonths] = useState<Set<string>>(new Set());
-  const [activeModal,     setActiveModal]     = useState<"create" | "edit" | null>(null);
+  const [activeModal,     setActiveModal]     = useState<"create" | "edit" | "deadline" | null>(null);
   const [calendarLoading,      setCalendarLoading]      = useState(true);
   const [calendarError,        setCalendarError]        = useState<string | null>(null);
   const [confirmDeleteEvent,   setConfirmDeleteEvent]   = useState<CalendarEvent | null>(null);
@@ -580,12 +704,15 @@ export default function TimelinePage() {
 
   const allEvents = useMemo<CalendarEvent[]>(() => {
     const live: CalendarEvent[] = [
+      // Deadlines are never `mandatory`: a due date isn't an event you take
+      // attendance for. Completion is tracked via the deadline's own status,
+      // surfaced (and editable) in the rail.
       ...deadlineList.map(d => ({
-        id:          10000 + d.id,
+        id:          DEADLINE_ID_BASE + d.id,
         title:       d.title,
         date:        d.dueDate,
         category:    "deadline" as CalEventCategory,
-        mandatory:   d.status === "Urgent" || d.status === "Due Soon",
+        mandatory:   false,
         description: `Owner: ${d.owner} · Status: ${d.status}`,
       })),
       ...partyList.map(p => ({
@@ -596,9 +723,19 @@ export default function TimelinePage() {
         mandatory:   false,
         description: p.notes,
       })),
+      // Instagram posts are dated tasks tracked on the Instagram page; fold them
+      // into the timeline as deadline rows so they read as a due-by item here too.
+      ...igTaskList.map(t => ({
+        id:          IG_ID_BASE + t.id,
+        title:       t.title,
+        date:        t.dueDate,
+        category:    "deadline" as CalEventCategory,
+        mandatory:   false,
+        description: `Instagram ${t.type} · Status: ${t.status}`,
+      })),
     ];
 
-    const liveDeadlineTitles = new Set(deadlineList.map(d => d.title));
+    const liveDeadlineTitles = new Set([...deadlineList.map(d => d.title), ...igTaskList.map(t => t.title)]);
     const livePartyTitles    = new Set(partyList.map(p => p.name));
 
     const deduped = apiEvents.filter(e => {
@@ -608,7 +745,7 @@ export default function TimelinePage() {
     });
 
     return [...deduped, ...live];
-  }, [apiEvents, deadlineList, partyList]);
+  }, [apiEvents, deadlineList, partyList, igTaskList]);
 
   const filtered    = useMemo(() => filterByLayer(allEvents, activeLayer), [allEvents, activeLayer]);
   const monthGroups = useMemo(() => buildMonthGroups(filtered), [filtered]);
@@ -617,6 +754,32 @@ export default function TimelinePage() {
     [allEvents],
   );
   const selectedEventCanEdit = selectedEvent ? apiEventIds.has(selectedEvent.id) : false;
+
+  // The source Deadline behind the selected row, if it's a live deadline.
+  const selectedDeadline = useMemo(() => {
+    if (!selectedEvent) return null;
+    const id = deadlineIdOf(selectedEvent);
+    return id != null ? deadlineList.find(d => d.id === id) ?? null : null;
+  }, [selectedEvent, deadlineList]);
+
+  // Mark a deadline complete (or reopen it) from the rail. Optimistic, with the
+  // same PATCH + revert pattern the dashboard uses.
+  function setDeadlineComplete(deadlineId: number, complete: boolean) {
+    const previous = deadlineList.find(d => d.id === deadlineId);
+    if (!previous) return;
+    const nextStatus: TaskStatus = complete ? "Complete" : "Upcoming";
+    if (previous.status === nextStatus) return;
+    setDeadlineList(prev => prev.map(d => d.id === deadlineId ? { ...d, status: nextStatus } : d));
+    requestJson<unknown>(`/api/deadlines/${deadlineId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: nextStatus }),
+    }).catch(error => {
+      console.error(error);
+      setDeadlineList(prev => prev.map(d => d.id === deadlineId ? previous : d));
+      setCalendarError("Deadline update failed. Local changes were reverted.");
+    });
+  }
 
   const todayStr = toDateStr(TODAY.year, TODAY.month, TODAY.day);
   const monthPrefix = todayStr.slice(0, 7);
@@ -641,12 +804,54 @@ export default function TimelinePage() {
     [allEvents],
   );
 
-  const thisWeekCount = allEvents.filter(e => e.date >= weekStart && e.date <= weekEnd).length;
-  const requiredThisMonth = allEvents.filter(e => e.mandatory && e.date.startsWith(monthPrefix)).length;
-  const upcomingDeadlines = allEvents.filter(e => e.category === "deadline" && e.date >= todayStr).length;
-  const deadlinesThisWeek = allEvents.filter(e => e.category === "deadline" && e.date >= todayStr && e.date <= weekEnd).length;
-  // Overdue: incomplete, strictly past-due deadlines (the deriveNeedsAttention rule).
-  const overdueCount = deadlineList.filter(d => d.status !== "Complete" && d.dueDate < todayStr).length;
+  // Per-metric event lists — counts are derived from .length so the glance
+  // numbers and the rail breakdowns can never drift apart.
+  const weekEvents = useMemo(
+    () => allEvents.filter(e => e.date >= weekStart && e.date <= weekEnd).sort((a, b) => a.date.localeCompare(b.date)),
+    [allEvents, weekStart, weekEnd],
+  );
+  const requiredEvents = useMemo(
+    () => allEvents.filter(e => e.mandatory && e.date.startsWith(monthPrefix)).sort((a, b) => a.date.localeCompare(b.date)),
+    [allEvents, monthPrefix],
+  );
+  const deadlineEvents = useMemo(
+    () => allEvents.filter(e => e.category === "deadline" && e.date >= todayStr).sort((a, b) => a.date.localeCompare(b.date)),
+    [allEvents, todayStr],
+  );
+  // Overdue: incomplete, strictly past-due deadlines (the deriveNeedsAttention
+  // rule). Mapped to CalendarEvents the same way allEvents does so the rail can
+  // open the same detail view as any other row.
+  const overdueEvents = useMemo<CalendarEvent[]>(
+    () => deadlineList
+      .filter(d => d.status !== "Complete" && d.dueDate < todayStr)
+      .sort((a, b) => a.dueDate.localeCompare(b.dueDate))
+      .map(d => ({
+        id:          DEADLINE_ID_BASE + d.id,
+        title:       d.title,
+        date:        d.dueDate,
+        category:    "deadline" as CalEventCategory,
+        mandatory:   false,
+        description: `Owner: ${d.owner} · Status: ${d.status}`,
+      })),
+    [deadlineList, todayStr],
+  );
+
+  const thisWeekCount     = weekEvents.length;
+  const requiredThisMonth = requiredEvents.length;
+  const upcomingDeadlines = deadlineEvents.length;
+  const deadlinesThisWeek = deadlineEvents.filter(e => e.date <= weekEnd).length;
+  const overdueCount      = overdueEvents.length;
+
+  // The events behind whichever glance measure is focused.
+  const glanceEvents = useMemo<CalendarEvent[]>(() => {
+    switch (glanceFocus) {
+      case "week":      return weekEvents;
+      case "required":  return requiredEvents;
+      case "deadlines": return deadlineEvents;
+      case "overdue":   return overdueEvents;
+      default:          return [];
+    }
+  }, [glanceFocus, weekEvents, requiredEvents, deadlineEvents, overdueEvents]);
 
   const digest = useMemo(() => {
     if (allEvents.length === 0) return "No events scheduled yet.";
@@ -693,6 +898,48 @@ export default function TimelinePage() {
       else next.add(id);
       return next;
     });
+  }
+
+  // Add a deadline straight from the timeline. Optimistic insert with the same
+  // temp-id + revert pattern the dashboard uses; deadlines fold into the spine
+  // via allEvents, so a new one appears immediately. When "This is an Instagram
+  // post" is checked, it's logged as an Instagram task instead — landing on the
+  // Instagram page and (via allEvents) the timeline as a deadline-style row.
+  function handleAddDeadline(d: { title: string; dueDate: string; owner: string; status: TaskStatus; isPost: boolean; postType: InstagramType }) {
+    const tempId = -Date.now();
+    setActiveModal(null);
+    setCalendarError(null);
+
+    if (d.isPost) {
+      const task = { title: d.title, dueDate: d.dueDate, type: d.postType, status: d.status };
+      setIgTaskList(prev => [...prev, { id: tempId, ...task }]);
+      requestJson<InstagramTask>("/api/instagram", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(task),
+      })
+        .then(saved => setIgTaskList(prev => prev.map(x => x.id === tempId ? saved : x)))
+        .catch(error => {
+          console.error(error);
+          setIgTaskList(prev => prev.filter(x => x.id !== tempId));
+          setCalendarError("Instagram post could not be saved. Local changes were reverted.");
+        });
+      return;
+    }
+
+    const deadline = { title: d.title, dueDate: d.dueDate, owner: d.owner, status: d.status };
+    setDeadlineList(prev => [...prev, { id: tempId, ...deadline }]);
+    requestJson<Deadline>("/api/deadlines", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(deadline),
+    })
+      .then(saved => setDeadlineList(prev => prev.map(x => x.id === tempId ? saved : x)))
+      .catch(error => {
+        console.error(error);
+        setDeadlineList(prev => prev.filter(x => x.id !== tempId));
+        setCalendarError("Deadline could not be saved. Local changes were reverted.");
+      });
   }
 
   function handleCreateEvent(draft: CalendarDraft) {
@@ -769,6 +1016,8 @@ export default function TimelinePage() {
       });
   }
 
+  const brotherNames = useMemo(() => brotherList.map(b => b.name), [brotherList]);
+
   const dateLabel = _now.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
   const dateShort = _now.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 
@@ -793,6 +1042,16 @@ export default function TimelinePage() {
           </div>
 
           <p className="tb-date hidden text-[11px] text-slate-500 xl:block shrink-0">{dateShort}</p>
+
+          <button
+            onClick={() => setActiveModal("deadline")}
+            className="tb-btn inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-1.5 text-[12px] font-medium text-slate-300 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition-all duration-150 hover:border-indigo-500/40 hover:bg-indigo-500/10 hover:text-indigo-200 focus:outline-none"
+          >
+            <svg className="h-3.5 w-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.4}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 5v14M5 12h14" />
+            </svg>
+            <span className="hidden sm:inline">Add Deadline</span>
+          </button>
 
           <button
             onClick={() => setActiveModal("create")}
@@ -839,39 +1098,65 @@ export default function TimelinePage() {
                   </div>
                 )}
               </div>
-              {/* Desktop add-event action (the topbar that used to carry it is hidden at lg+). */}
-              <button className="tl-add-btn" onClick={() => setActiveModal("create")}>
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" strokeWidth={2.4} strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
-                Add Event
-              </button>
+              {/* Desktop add actions (the topbar that used to carry them is hidden at lg+). */}
+              <div className="tl-add-actions">
+                <button className="tl-add-btn ghost" onClick={() => setActiveModal("deadline")}>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" strokeWidth={2.4} strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
+                  Add Deadline
+                </button>
+                <button className="tl-add-btn" onClick={() => setActiveModal("create")}>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" strokeWidth={2.4} strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
+                  Add Event
+                </button>
+              </div>
             </section>
 
-            {/* ── Glance strip ─────────────────────────────────────────────── */}
+            {/* ── Glance strip — each measure opens its breakdown in the rail ── */}
             <section className="ledger" aria-label="Timeline measures">
-              <div className="measure">
+              <button
+                type="button"
+                className={`measure${glanceFocus === "week" ? " on" : ""}`}
+                aria-pressed={glanceFocus === "week"}
+                onClick={() => { setSelectedEvent(null); setGlanceFocus(f => f === "week" ? null : "week"); }}
+              >
                 <p className="k">This week</p>
                 <p className="v">{thisWeekCount}</p>
                 <p className="note">{fmtRange(weekStart, weekEnd)}</p>
-              </div>
-              <div className="measure">
+              </button>
+              <button
+                type="button"
+                className={`measure${glanceFocus === "required" ? " on" : ""}`}
+                aria-pressed={glanceFocus === "required"}
+                onClick={() => { setSelectedEvent(null); setGlanceFocus(f => f === "required" ? null : "required"); }}
+              >
                 <p className="k">Required</p>
                 <p className="v">{requiredThisMonth}</p>
                 <p className="note">this month</p>
-              </div>
-              <div className="measure">
+              </button>
+              <button
+                type="button"
+                className={`measure${glanceFocus === "deadlines" ? " on" : ""}`}
+                aria-pressed={glanceFocus === "deadlines"}
+                onClick={() => { setSelectedEvent(null); setGlanceFocus(f => f === "deadlines" ? null : "deadlines"); }}
+              >
                 <p className="k">Deadlines</p>
                 <p className="v">{upcomingDeadlines}</p>
                 <p className={deadlinesThisWeek > 0 ? "note warn" : "note"}>
                   {deadlinesThisWeek > 0 ? `${deadlinesThisWeek} due this week` : "upcoming"}
                 </p>
-              </div>
-              <div className={overdueCount > 0 ? "measure flag" : "measure"}>
+              </button>
+              <button
+                type="button"
+                className={`measure${overdueCount > 0 ? " flag" : ""}${glanceFocus === "overdue" ? " on" : ""}`}
+                aria-pressed={glanceFocus === "overdue"}
+                onClick={() => { setSelectedEvent(null); setGlanceFocus(f => f === "overdue" ? null : "overdue"); }}
+              >
                 <p className="k">Overdue</p>
                 <p className="v">{overdueCount}</p>
                 <p className={overdueCount > 0 ? "note bad" : "note"}>
                   {overdueCount > 0 ? "need follow-up" : "all clear"}
                 </p>
-              </div>
+              </button>
             </section>
 
             {/* ── Filter ───────────────────────────────────────────────────── */}
@@ -1044,6 +1329,18 @@ export default function TimelinePage() {
                     onDelete={handleDeleteEvent}
                     brotherList={brotherList}
                     selfBrotherId={selfId}
+                    deadlineStatus={selectedDeadline?.status ?? null}
+                    canCompleteDeadline={canManageEvents && selectedDeadline != null}
+                    onToggleDeadline={(complete) => { if (selectedDeadline) setDeadlineComplete(selectedDeadline.id, complete); }}
+                  />
+                ) : glanceFocus ? (
+                  <GlanceDetail
+                    metric={glanceFocus}
+                    events={glanceEvents}
+                    weekStart={weekStart}
+                    weekEnd={weekEnd}
+                    onClose={() => setGlanceFocus(null)}
+                    onSelectEvent={setSelectedEvent}
                   />
                 ) : (
                   <>
@@ -1109,6 +1406,11 @@ export default function TimelinePage() {
       {activeModal === "create" && (
         <Modal title="Add Calendar Event" tone="dusk" onClose={() => setActiveModal(null)}>
           <CalendarEventForm submitLabel="Add Event" onSubmit={handleCreateEvent} />
+        </Modal>
+      )}
+      {activeModal === "deadline" && (
+        <Modal title="Add Deadline" tone="dusk" onClose={() => setActiveModal(null)}>
+          <AddDeadlineForm brotherNames={brotherNames} onSubmit={handleAddDeadline} igEnabled={igEnabled} />
         </Modal>
       )}
       {activeModal === "edit" && selectedEvent && selectedEventCanEdit && (

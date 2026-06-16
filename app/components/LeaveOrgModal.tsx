@@ -68,16 +68,16 @@ export function LeaveOrgModal({
   }
 
   return (
-    <Modal title="Leave organization" onClose={leaving ? () => {} : onClose}>
+    <Modal title="Leave organization" onClose={leaving ? () => {} : onClose} tone="dusk">
       <div className="space-y-4">
-        <p className="text-[13px] leading-relaxed text-slate-300">
-          You&apos;ll be removed from <span className="font-semibold text-white">{orgName}</span> and
+        <p className="text-[13px] leading-relaxed" style={{ color: "var(--ink-soft)" }}>
+          You&apos;ll be removed from <span className="font-semibold" style={{ color: "var(--ink)" }}>{orgName}</span> and
           lose access to it. Your roster entry and history stay with the org; an admin can re-invite you later.
         </p>
 
         <div>
-          <label htmlFor="confirm-leave-org-name" className="mb-1 block text-[11px] font-medium text-slate-300">
-            Type <span className="font-semibold text-white">{orgName}</span> to confirm
+          <label htmlFor="confirm-leave-org-name" className="mb-1 block text-[11px] font-medium" style={{ color: "var(--ink-soft)" }}>
+            Type <span className="font-semibold" style={{ color: "var(--ink)" }}>{orgName}</span> to confirm
           </label>
           <input
             id="confirm-leave-org-name"
@@ -87,7 +87,8 @@ export function LeaveOrgModal({
             autoComplete="off"
             spellCheck={false}
             placeholder={orgName}
-            className="w-full rounded-lg border border-white/[0.1] bg-white/[0.04] px-3 py-2 text-[13px] text-white placeholder:text-slate-600 focus:border-amber-500/50 focus:outline-none"
+            className="w-full rounded-lg px-3 py-2 text-[13px] focus:outline-none"
+            style={{ border: "1px solid var(--line)", background: "var(--paper-2)", color: "var(--ink)" }}
           />
         </div>
 
@@ -95,14 +96,16 @@ export function LeaveOrgModal({
           <button
             onClick={onClose}
             disabled={leaving}
-            className="rounded-lg border border-white/[0.1] bg-white/[0.04] px-3 py-2 text-[12px] font-medium text-slate-300 transition-colors hover:bg-white/[0.08] disabled:opacity-50"
+            className="rounded-lg px-3 py-2 text-[12px] font-medium transition-colors disabled:opacity-50"
+            style={{ border: "1px solid var(--line)", background: "var(--card)", color: "var(--ink-soft)" }}
           >
             Cancel
           </button>
           <button
             onClick={handleLeave}
             disabled={!armed}
-            className="rounded-lg border border-amber-500/40 bg-amber-500/15 px-3 py-2 text-[12px] font-semibold text-amber-300 transition-colors hover:bg-amber-500/25 disabled:cursor-not-allowed disabled:opacity-40"
+            className="rounded-lg px-3 py-2 text-[12px] font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-40"
+            style={{ border: "1px solid rgba(221,179,106,.4)", background: "var(--gold-bg)", color: "var(--gold)" }}
           >
             {leaving ? "Leaving…" : "Leave organization"}
           </button>

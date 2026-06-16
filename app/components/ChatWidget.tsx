@@ -431,11 +431,11 @@ export function ChatWidget() {
       {!open && (
         <button
           onClick={() => setOpen(true)}
-          aria-label="Ask the Chapter"
+          aria-label="Ask Chapt"
           className={`chat-launcher${pulse ? " pulse" : ""}`}
         >
           <SparkleIcon className="spark" />
-          <span>Ask the Chapter</span>
+          <span>Ask Chapt</span>
           <kbd className="hint">{shortcut}</kbd>
         </button>
       )}
@@ -444,13 +444,13 @@ export function ChatWidget() {
       {open && <div className="chat-backdrop" onClick={() => setOpen(false)} aria-hidden />}
 
       {/* Counsel panel */}
-      <div role="dialog" aria-label="Ask the Chapter" className={`chat-panel${open ? "" : " closed"}`}>
+      <div role="dialog" aria-label="Ask Chapt" className={`chat-panel${open ? "" : " closed"}`}>
         {/* Header */}
         <header className="chat-head">
           <div className="id">
             <span className="crest"><SparkleIcon /></span>
             <div>
-              <div className="ttl">Ask the Chapter</div>
+              <div className="ttl">Ask Chapt</div>
               <div className="sub">Counsel · saved on this device</div>
             </div>
           </div>

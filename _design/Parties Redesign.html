@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dusk">
+<!--
+  ChaptOS · Parties Redesign — "The House Ledger" (simplified)
+  ───────────────────────────────────────────────────────────
+  REASONING — second pass, stripped for simplicity.
+  The first pass was too convoluted: 3 lanes, a 4-up glance strip, an AI
+  digest, hover actions, expandable drawers, margin meters, multiple chip
+  systems. Too much furniture for what is really a short list of parties.
+
+  This pass keeps only what answers the two questions that matter:
+    1. "Did we net money?"  → one headline number, nothing else competing.
+    2. "What still needs closing / is coming up?" → ONE list, in date order,
+       newest first. State is shown by a single quiet label per row
+       (Wrap up / Upcoming / a net figure). No lanes, no tabs, no filters.
+
+  Each row is one line: name · date on the left, the money on the right.
+  Completed → the net (green/rose). Past-but-open → an amber "Wrap up".
+  Future → a faint "Upcoming". That's the whole vocabulary.
+
+  Dropped entirely: glance strip, AI digest, search, type filter, legend,
+  side panel, expandable drawers, margin meters, hover action buttons,
+  Open/Closed chips. Add + the per-row edit live in a quiet hover menu.
+
+  Figures verified against app/data.ts partyEvents. Today = Jun 15 2026.
+  Dusk/Ivory toggle (press T). Tokens from the sibling mocks.
+-->
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ChaptOS — Parties</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..700;1,9..144,300..700&family=Geist:wght@300..700&family=Geist+Mono:wght@300..600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --serif: "Fraunces", Georgia, serif;
+    --sans: "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --mono: "Geist Mono", ui-monospace, Menlo, monospace;
+  }
+  [data-theme="dusk"] {
+    --paper:    #0f0d0a;
+    --paper-2:  #14120e;
+    --card:     #161310;
+    --card-2:   #1b1813;
+    --ink:      #ece7dd;
+    --ink-soft: #c9c2b4;
+    --muted:    #958d7c;
+    --faint:    #6b6354;
+    --line:     rgba(236,231,221,.09);
+    --line-soft:rgba(236,231,221,.05);
+    --vio:      #a78bfa;
+    --vio-bg:   rgba(167,139,250,.10);
+    --gold:     #ddb36a;
+    --gold-bg:  rgba(221,179,106,.10);
+    --rose:     #d98ba3;
+    --rose-bg:  rgba(217,139,163,.10);
+    --ok:       #7fb08a;
+    --ok-bg:    rgba(127,176,138,.10);
+    --shadow:   0 1px 0 rgba(0,0,0,.4), 0 16px 40px -24px rgba(0,0,0,.7);
+  }
+  [data-theme="ivory"] {
+    --paper:    #f2ede3;
+    --paper-2:  #ece6d9;
+    --card:     #faf7f0;
+    --card-2:   #f4f0e6;
+    --ink:      #171410;
+    --ink-soft: #3d382f;
+    --muted:    #6f675a;
+    --faint:    #9a917f;
+    --line:     rgba(23,20,16,.13);
+    --line-soft:rgba(23,20,16,.07);
+    --vio:      #6d28d9;
+    --vio-bg:   rgba(109,40,217,.08);
+    --gold:     #9a7224;
+    --gold-bg:  rgba(154,114,36,.10);
+    --rose:     #b34f72;
+    --rose-bg:  rgba(179,79,114,.09);
+    --ok:       #3f7a50;
+    --ok-bg:    rgba(63,122,80,.10);
+    --shadow:   0 1px 2px rgba(23,20,16,.05), 0 14px 34px -26px rgba(23,20,16,.35);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { background: var(--paper); color: var(--ink); font-family: var(--sans); }
+  body { font-size: 13.5px; line-height: 1.45; -webkit-font-smoothing: antialiased; }
+  ::selection { background: var(--vio-bg); }
+
+  .shell { display: grid; grid-template-columns: 228px 1fr; min-height: 100vh; }
+
+  /* ── Sidebar (shared) ─────────────────────────────────── */
+  .side {
+    border-right: 1px solid var(--line);
+    background: var(--paper-2);
+    padding: 26px 0 20px;
+    display: flex; flex-direction: column; gap: 26px;
+    position: sticky; top: 0; height: 100vh;
+  }
+  .wordmark { padding: 0 24px; }
+  .wordmark .product { font-family: var(--serif); font-style: italic; font-weight: 600; font-size: 19px; letter-spacing: .01em; color: var(--ink); }
+  .wordmark .org { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line-soft);
+    font-family: var(--mono); font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); line-height: 1.7; }
+  .nav { display: flex; flex-direction: column; gap: 1px; padding: 0 12px; }
+  .nav a { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 7px; text-decoration: none;
+    font-family: var(--mono); font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+  .nav a:hover { color: var(--ink-soft); background: var(--line-soft); }
+  .nav a.active { color: var(--ink); background: var(--card-2); }
+  .nav a.active::before { content: ""; width: 3px; height: 14px; border-radius: 2px; background: var(--vio); margin-left: -6px; }
+  .side .spacer { flex: 1; }
+  .user { margin: 0 12px; padding: 12px; border-top: 1px solid var(--line-soft); display: flex; gap: 10px; align-items: center; }
+  .user .avatar { width: 30px; height: 30px; border-radius: 50%; background: var(--vio-bg); color: var(--vio);
+    display: grid; place-items: center; font-family: var(--mono); font-size: 10px; font-weight: 600; }
+  .user .who p:first-child { font-size: 12.5px; font-weight: 600; color: var(--ink); }
+  .user .who p:last-child { font-family: var(--mono); font-size: 9.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--faint); margin-top: 1px; }
+
+  /* ── Main — narrow, centered, calm ────────────────────── */
+  .main { padding: 64px 38px 60px; max-width: 720px; margin: 0 auto; }
+
+  /* ── Headline ─────────────────────────────────────────── */
+  .head { display: flex; justify-content: space-between; align-items: flex-start; gap: 24px; }
+  .kicker { font-family: var(--mono); font-size: 10.5px; letter-spacing: .18em; text-transform: uppercase; color: var(--muted); }
+  .net { font-family: var(--serif); font-weight: 400; font-size: 40px; letter-spacing: -.01em; margin-top: 8px; color: var(--ink); }
+  .subline { margin-top: 10px; font-size: 13px; color: var(--muted); }
+  .subline b { color: var(--ink-soft); font-weight: 600; }
+
+  .add-btn { flex-shrink: 0; display: inline-flex; align-items: center; gap: 7px;
+    font-family: var(--mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--vio); background: var(--vio-bg); border: 1px solid var(--vio-bg); border-radius: 8px; padding: 9px 15px; cursor: pointer; }
+  .add-btn:hover { border-color: var(--vio); }
+  .add-btn svg { stroke: var(--vio); }
+
+  .theme-toggle { position: fixed; top: 18px; right: 20px; z-index: 50;
+    font-family: var(--mono); font-size: 10px; letter-spacing: .12em; text-transform: uppercase;
+    color: var(--muted); background: var(--card); border: 1px solid var(--line); border-radius: 999px; padding: 6px 14px; cursor: pointer; }
+  .theme-toggle:hover { color: var(--ink); border-color: var(--vio); }
+
+  /* ── The list ─────────────────────────────────────────── */
+  .list { margin-top: 40px; border-top: 1px solid var(--line-soft); }
+  .row { position: relative; display: flex; align-items: baseline; gap: 16px;
+    padding: 17px 4px 16px; border-bottom: 1px solid var(--line-soft); }
+  .row:hover { background: var(--card); }
+
+  .row .body { flex: 1; min-width: 0; }
+  .row .name { font-size: 15px; font-weight: 600; color: var(--ink); }
+  .row.done .name { font-weight: 500; }
+  .row .meta { font-family: var(--mono); font-size: 10px; letter-spacing: .03em; color: var(--faint); margin-top: 4px; }
+
+  /* the single state signal on the right */
+  .row .val { font-family: var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap; text-align: right; }
+  .row .val .amount { font-size: 12.5px; font-weight: 500; color: var(--muted); }
+  .row .val .amount b { color: var(--ink-soft); font-weight: 600; }
+  .row .val .amount.loss b { color: var(--rose); }
+  .row .val .breakdown { font-size: 9.5px; color: var(--faint); margin-top: 4px; letter-spacing: .02em; }
+
+  .tag { font-family: var(--mono); font-size: 9px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase;
+    border-radius: 999px; padding: 5px 11px; }
+  .tag.wrap { color: var(--gold); background: var(--gold-bg); cursor: pointer; }
+  .tag.wrap:hover { box-shadow: inset 0 0 0 1px var(--gold); }
+  .tag.soon { color: var(--muted); background: var(--line-soft); }
+
+  /* quiet hover edit (one dot menu, no button cluster) */
+  .edit { position: absolute; top: 50%; right: -30px; transform: translateY(-50%);
+    width: 24px; height: 24px; border-radius: 7px; display: grid; place-items: center;
+    color: var(--faint); background: none; border: none; cursor: pointer; opacity: 0; transition: opacity .12s, color .12s; }
+  .row:hover .edit { opacity: 1; }
+  .edit:hover { color: var(--ink); }
+  .edit svg { width: 16px; height: 16px; }
+
+  /* a soft divider label between upcoming and the closed history */
+  .section { font-family: var(--mono); font-size: 9px; letter-spacing: .16em; text-transform: uppercase;
+    color: var(--faint); padding: 22px 4px 8px; }
+
+  footer { margin-top: 44px; text-align: center;
+    font-family: var(--mono); font-size: 9.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--faint); }
+</style>
+</head>
+<body>
+<button class="theme-toggle" id="toggle" title="Press T">◐&nbsp; Ivory</button>
+<div class="shell">
+
+  <!-- ── Sidebar ──────────────────────────────────────── -->
+  <aside class="side">
+    <div class="wordmark">
+      <div class="product">ChaptOS</div>
+      <div class="org">Lambda Phi<br>Epsilon</div>
+    </div>
+    <nav class="nav">
+      <a href="#">Dashboard</a>
+      <a href="#">Timeline</a>
+      <a href="#">Brothers</a>
+      <a href="#">Treasury</a>
+      <a href="#">Events</a>
+      <a href="#">Instagram</a>
+      <a class="active" href="#">Parties</a>
+      <a href="#">Docs</a>
+      <a href="#">Settings</a>
+    </nav>
+    <div class="spacer"></div>
+    <div class="user">
+      <div class="avatar">TT</div>
+      <div class="who">
+        <p>Thalha Thabish</p>
+        <p>Secretary · Social</p>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ── Main ─────────────────────────────────────────── -->
+  <main class="main">
+
+    <div class="head">
+      <div>
+        <p class="kicker">Social · This semester</p>
+        <div class="net">Parties</div>
+        <p class="subline"><b>1</b> coming up · <b>1</b> to wrap up · <b>5</b> in the books</p>
+      </div>
+      <button class="add-btn">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+        Add
+      </button>
+    </div>
+
+    <!-- ── One list, newest first ───────────────────────── -->
+    <div class="list">
+
+      <!-- Upcoming / open -->
+      <div class="row">
+        <div class="body">
+          <div class="name">Summer Collab Night</div>
+          <div class="meta">Jun 21 · Open · w/ DSP</div>
+        </div>
+        <div class="val"><span class="tag soon">Upcoming</span></div>
+        <button class="edit" title="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.4-9.4a2 2 0 112.8 2.8L11.8 15H9v-2.8l8.6-8.6z"/></svg></button>
+      </div>
+
+      <!-- Past but not closed — the one thing to act on -->
+      <div class="row">
+        <div class="body">
+          <div class="name">End of Year Kickback</div>
+          <div class="meta">Jun 7 · Closed party · 8 days ago</div>
+        </div>
+        <div class="val"><span class="tag wrap">Wrap up →</span></div>
+        <button class="edit" title="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.4-9.4a2 2 0 112.8 2.8L11.8 15H9v-2.8l8.6-8.6z"/></svg></button>
+      </div>
+
+      <div class="section">Closed</div>
+
+      <!-- Completed — net on the right, in→out beneath it -->
+      <div class="row done">
+        <div class="body">
+          <div class="name">Spring Formal Pre-Party</div>
+          <div class="meta">Apr 26 · All White · 178 guests</div>
+        </div>
+        <div class="val"><div class="amount">netted <b>$580</b></div><div class="breakdown">$890 in · $310 out</div></div>
+        <button class="edit" title="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.4-9.4a2 2 0 112.8 2.8L11.8 15H9v-2.8l8.6-8.6z"/></svg></button>
+      </div>
+
+      <div class="row done">
+        <div class="body">
+          <div class="name">LPE × KDF Collab</div>
+          <div class="meta">Mar 15 · Black &amp; Gold · 142 guests · w/ KDF</div>
+        </div>
+        <div class="val"><div class="amount">netted <b>$550</b></div><div class="breakdown">$750 in · $200 out</div></div>
+        <button class="edit" title="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.4-9.4a2 2 0 112.8 2.8L11.8 15H9v-2.8l8.6-8.6z"/></svg></button>
+      </div>
+
+      <div class="row done">
+        <div class="body">
+          <div class="name">Spring Rush Social</div>
+          <div class="meta">Feb 14 · Casual · 94 guests</div>
+        </div>
+        <div class="val"><div class="amount">netted <b>$460</b></div><div class="breakdown">$580 in · $120 out</div></div>
+        <button class="edit" title="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.4-9.4a2 2 0 112.8 2.8L11.8 15H9v-2.8l8.6-8.6z"/></svg></button>
+      </div>
+
+      <div class="row done">
+        <div class="body">
+          <div class="name">Kickback Night</div>
+          <div class="meta">Feb 28 · Chill Vibes · 67 guests</div>
+        </div>
+        <div class="val"><div class="amount">netted <b>$340</b></div><div class="breakdown">$420 in · $80 out</div></div>
+        <button class="edit" title="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.4-9.4a2 2 0 112.8 2.8L11.8 15H9v-2.8l8.6-8.6z"/></svg></button>
+      </div>
+
+      <div class="row done">
+        <div class="body">
+          <div class="name">Brotherhood Mixer</div>
+          <div class="meta">Apr 5 · Fundraiser · 52 guests</div>
+        </div>
+        <div class="val"><div class="amount">netted <b>$225</b></div><div class="breakdown">$320 in · $95 out</div></div>
+        <button class="edit" title="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.4-9.4a2 2 0 112.8 2.8L11.8 15H9v-2.8l8.6-8.6z"/></svg></button>
+      </div>
+
+    </div>
+
+    <footer>Lambda Phi Epsilon · ChaptOS — parties mock · Jun 15, 2026</footer>
+  </main>
+</div>
+
+<script>
+  const root = document.documentElement;
+  const btn = document.getElementById("toggle");
+  function setTheme(t) {
+    root.dataset.theme = t;
+    btn.innerHTML = t === "dusk" ? "◐&nbsp; Ivory" : "◑&nbsp; Dusk";
+    try { localStorage.setItem("chaptos-mock-theme", t); } catch {}
+  }
+  btn.addEventListener("click", () => setTheme(root.dataset.theme === "dusk" ? "ivory" : "dusk"));
+  document.addEventListener("keydown", e => {
+    if (e.key.toLowerCase() === "t" && !e.metaKey && !e.ctrlKey && e.target.tagName !== "INPUT") btn.click();
+  });
+  try { const saved = localStorage.getItem("chaptos-mock-theme"); if (saved === "ivory") setTheme("ivory"); } catch {}
+  document.querySelectorAll(".add-btn, .edit, .tag.wrap").forEach(el => el.addEventListener("click", e => e.preventDefault()));
+</script>
+</body>
+</html>

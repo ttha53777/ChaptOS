@@ -33,7 +33,7 @@ export function BrotherDrawer({
   onClose,
   onSave,
   onPayDues,
-  onAddServiceHours,
+  onLogServiceHours,
   onDelete,
   isAdmin = true,
   selfId = null,
@@ -43,7 +43,8 @@ export function BrotherDrawer({
   onClose: () => void;
   onSave: (id: number, updates: Omit<Brother, "id">) => void;
   onPayDues: (b: Brother) => void;
-  onAddServiceHours: (b: Brother, hours: number) => void;
+  /** Opens the "Log service hours" modal for this member (event + hours form). */
+  onLogServiceHours: (b: Brother) => void;
   onDelete?: (b: Brother) => void;
   /** When false, restrict to "view + self-edit" mode. Defaults true for back-compat. */
   isAdmin?: boolean;
@@ -55,6 +56,7 @@ export function BrotherDrawer({
   const THRESHOLDS = useThresholds();
   const v = useVocab();
   const canManageRoles = can("MANAGE_ROLES");
+  const canManageService = can("MANAGE_SERVICE"); // "Log hours" opens the participation modal
   const isSelf = brotherId !== null && selfId === brotherId;
   const canEditProfile = isAdmin || isSelf;        // name, role, gpa, serviceHours
   const canManageDues  = isAdmin;                  // duesOwed field + "Mark Paid"
@@ -68,7 +70,6 @@ export function BrotherDrawer({
   const [gpa,          setGpa]          = useState("");
   const [duesOwed,     setDuesOwed]     = useState("");
   const [serviceHours, setServiceHours] = useState("");
-  const [addHours,     setAddHours]     = useState("");
   const [customFields, setCustomFields] = useState<CustomFieldValues>({});
   const [dirty,        setDirty]        = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -103,7 +104,6 @@ export function BrotherDrawer({
     setDuesOwed(String(brother.duesOwed));
     setServiceHours(String(brother.serviceHours));
     setCustomFields({ ...(brother.customFields ?? {}) });
-    setAddHours("");
     setDirty(false);
     setTab("profile");
     setHistory([]);
@@ -245,14 +245,9 @@ export function BrotherDrawer({
     onPayDues(brother);
   }
 
-  function handleAddHoursSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  function handleLogHours() {
     if (!brother) return;
-    const hrs = parseFloat(addHours);
-    if (!hrs || hrs <= 0) return;
-    onAddServiceHours(brother, hrs);
-    setServiceHours(String(Math.max(0, parseFloat(serviceHours) || 0) + hrs));
-    setAddHours("");
+    onLogServiceHours(brother);
   }
 
   async function handleExcuseSubmit(e: React.FormEvent) {
@@ -443,17 +438,11 @@ export function BrotherDrawer({
                       <p className={`n ${brother.serviceHours < THRESHOLDS.serviceHoursGoal ? "gold" : "ok"}`}>
                         {brother.serviceHours}<small> / {THRESHOLDS.serviceHoursGoal}h</small>
                       </p>
-                      <form onSubmit={handleAddHoursSubmit} className="dd-tile-form">
-                        <input
-                          type="number"
-                          min="0.5"
-                          step="0.5"
-                          value={addHours}
-                          onChange={e => setAddHours(e.target.value)}
-                          placeholder="hrs"
-                        />
-                        <button type="submit">+</button>
-                      </form>
+                      {canManageService && (
+                        <button type="button" onClick={handleLogHours} className="dd-tile-act">
+                          + Log hours
+                        </button>
+                      )}
                     </div>
                   </div>
 
