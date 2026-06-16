@@ -1,0 +1,322 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+   Events — "The Programme" dusk redesign
+   Same warm-paper editorial system as dashboard-ledger.css / parties-ledger.css /
+   timeline-ledger.css. Mock: _design/Events Redesign.html.
+
+   The old events page was a flat 4-column Kanban on cold slate (#07090f / indigo)
+   where every column carried equal weight, so the one thing an event chair opens
+   the app for — the NEXT event and what's still unbooked for it — was buried among
+   ideas and finished events, and prep state was hidden one click deep in the
+   inspector.
+
+   This rebuilds the page to answer three questions, top to bottom:
+     1. What's next?       → one on-deck hero for the next dated event with a live
+                             4-tile prep meter and the one blocker named.
+     2. How are we doing?  → one glance strip (slate / next-14 / avg success / spend).
+     3. What's in flight?  → the Kanban kept but demoted and lightened to prep-ring
+                             cards; Board / Calendar / Table toggle preserved.
+
+   ISOLATION: every rule is scoped under `.dash` (set on the content wrapper, the
+   same convention dashboard-ledger.css uses) and all class names are net-new
+   `.ev-*` so nothing leaks into pages that share `.dash`.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+/* ── Dusk tokens for the events pane (mirrors parties-ledger.css) ────────────── */
+.dash.dash-events {
+  --serif: var(--font-fraunces), Georgia, serif;
+  --sans:  var(--font-geist-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --mono:  var(--font-geist-mono), ui-monospace, Menlo, monospace;
+
+  --paper:    #0f0d0a;
+  --paper-2:  #14120e;
+  --card:     #161310;
+  --card-2:   #1b1813;
+  --ink:      #ece7dd;
+  --ink-soft: #c9c2b4;
+  --muted:    #958d7c;
+  --faint:    #6b6354;
+  --line:     rgba(236,231,221,.09);
+  --line-soft:rgba(236,231,221,.05);
+  --vio:      #a78bfa;
+  --vio-deep: #7c3aed;
+  --vio-bg:   rgba(167,139,250,.10);
+  --gold:     #ddb36a;
+  --gold-bg:  rgba(221,179,106,.10);
+  --rose:     #d98ba3;
+  --rose-bg:  rgba(217,139,163,.10);
+  --ok:       #7fb08a;
+  --ok-bg:    rgba(127,176,138,.10);
+  --shadow:   0 1px 0 rgba(0,0,0,.4), 0 16px 40px -24px rgba(0,0,0,.7);
+
+  width: 100%;
+  max-width: 1280px;
+  margin: 0;
+  padding: 30px clamp(18px, 4vw, 48px) 64px;
+}
+
+/* ── Toolbar bar (breadcrumb label) ──────────────────────────────────────────── */
+header.dash-toolbar.ev-toolbar-bar {
+  background: rgba(15, 13, 10, 0.85);
+  border-bottom-color: rgba(236, 231, 221, 0.09);
+}
+header.dash-toolbar.ev-toolbar-bar .tb-icon-btn { color: #958d7c; }
+header.dash-toolbar.ev-toolbar-bar .tb-icon-btn:hover { color: #ece7dd; background: rgba(236, 231, 221, 0.035); }
+header.dash-toolbar .ev-crumb {
+  font-family: var(--font-fraunces), Georgia, serif; font-weight: 500;
+  font-size: 15px; letter-spacing: -.01em; color: #ece7dd;
+}
+
+/* ── Toast (page error) ──────────────────────────────────────────────────────── */
+.dash .ev-toast {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  margin-bottom: 18px; padding: 10px 14px; border-radius: 10px;
+  border: 1px solid var(--gold-bg); background: var(--gold-bg);
+  font-size: 12.5px; color: var(--gold);
+}
+.dash .ev-toast button { color: var(--gold); background: none; border: none; cursor: pointer; display: inline-flex; }
+.dash .ev-toast svg { width: 15px; height: 15px; }
+
+/* ── Briefing add button (reuses base .briefing/.kicker/.greeting/.digest) ───── */
+.dash .ev-add {
+  flex-shrink: 0; display: inline-flex; align-items: center; gap: 7px;
+  font-family: var(--mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--vio); background: var(--vio-bg); border: 1px solid var(--vio-bg); border-radius: 8px;
+  padding: 8px 14px; cursor: pointer;
+}
+.dash .ev-add:hover { border-color: var(--vio); }
+.dash .ev-add svg { width: 13px; height: 13px; stroke: var(--vio); }
+
+/* ── Section labels ──────────────────────────────────────────────────────────── */
+.dash .ev-sec { display: flex; align-items: center; gap: 14px; margin: 30px 0 14px; }
+.dash .ev-sec h2 { font-family: var(--serif); font-weight: 400; font-size: 22px; letter-spacing: -.01em; color: var(--ink); white-space: nowrap; }
+.dash .ev-sec .rule { flex: 1; height: 1px; background: var(--line); }
+.dash .ev-sec .cnt { font-family: var(--mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); white-space: nowrap; }
+
+/* ── Layout: feature column + rail ───────────────────────────────────────────── */
+.dash .ev-layout { margin-top: 4px; display: grid; grid-template-columns: 1fr 322px; gap: 30px; align-items: start; }
+@media (max-width: 1100px) { .dash .ev-layout { grid-template-columns: 1fr; } .dash .ev-rail { display: none; } }
+
+/* ── On-deck hero (next event) ───────────────────────────────────────────────── */
+.dash .ev-hero {
+  border: 1px solid var(--vio); border-radius: 14px; background: var(--card-2);
+  box-shadow: 0 0 0 1px var(--vio-bg), var(--shadow); padding: 22px 24px 20px; position: relative; overflow: hidden;
+}
+.dash .ev-hero::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--vio); }
+.dash .ev-hero .od-top { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.dash .ev-hero .pill {
+  font-family: var(--mono); font-size: 9px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase;
+  color: var(--vio); background: var(--vio-bg); border: 1px solid var(--vio-bg); border-radius: 999px; padding: 3px 10px;
+}
+.dash .ev-hero .typ {
+  font-family: var(--mono); font-size: 9px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase;
+  color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 3px 10px;
+}
+.dash .ev-hero .when { margin-left: auto; font-family: var(--mono); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.dash .ev-hero h3 { font-family: var(--serif); font-weight: 500; font-size: 26px; line-height: 1.1; color: var(--ink); margin: 13px 0 5px; }
+.dash .ev-hero .meta { font-size: 12.5px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 6px 14px; }
+.dash .ev-hero .meta b { color: var(--ink-soft); font-weight: 550; }
+
+/* prep meter — the buried state, surfaced */
+.dash .ev-prep { margin-top: 18px; padding-top: 17px; border-top: 1px solid var(--line-soft); }
+.dash .ev-prep .p-head { display: flex; align-items: baseline; gap: 10px; }
+.dash .ev-prep .p-lbl { font-family: var(--mono); font-size: 9.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+.dash .ev-prep .p-count { margin-left: auto; font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 13px; color: var(--ink); }
+.dash .ev-prep .p-count b { font-size: 17px; font-weight: 600; }
+.dash .ev-prep .p-state { font-family: var(--mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase; }
+.dash .ev-prep .p-state.warn { color: var(--gold); }
+.dash .ev-prep .p-state.ok { color: var(--ok); }
+
+.dash .ev-pchecks { margin-top: 13px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+@media (max-width: 560px) { .dash .ev-pchecks { grid-template-columns: repeat(2, 1fr); } }
+.dash .ev-pcheck { border: 1px solid var(--line-soft); border-radius: 9px; padding: 10px 11px; background: var(--paper); }
+.dash .ev-pcheck.done { border-color: var(--ok-bg); background: var(--ok-bg); }
+.dash .ev-pcheck.block { border-color: var(--rose-bg); background: var(--rose-bg); }
+.dash .ev-pcheck .pc-ico { display: flex; align-items: center; gap: 6px; }
+.dash .ev-pcheck .pc-ico svg { width: 13px; height: 13px; }
+.dash .ev-pcheck.done .pc-ico { color: var(--ok); }
+.dash .ev-pcheck.block .pc-ico { color: var(--rose); }
+.dash .ev-pcheck:not(.done):not(.block) .pc-ico { color: var(--faint); }
+.dash .ev-pcheck .pc-k { font-family: var(--mono); font-size: 9px; letter-spacing: .1em; text-transform: uppercase; }
+.dash .ev-pcheck .pc-v { font-size: 11.5px; color: var(--ink-soft); margin-top: 6px; }
+.dash .ev-pcheck.done .pc-v { color: var(--ink); }
+.dash .ev-pcheck.block .pc-v { color: var(--rose); font-weight: 500; }
+
+.dash .ev-blocker {
+  margin-top: 15px; display: flex; align-items: center; gap: 10px;
+  border: 1px solid var(--rose-bg); background: var(--rose-bg); border-radius: 9px; padding: 10px 13px;
+}
+.dash .ev-blocker svg { width: 15px; height: 15px; color: var(--rose); flex-shrink: 0; }
+.dash .ev-blocker p { font-size: 12px; color: var(--ink-soft); }
+.dash .ev-blocker p b { color: var(--rose); }
+
+.dash .ev-hero .actions { margin-top: 18px; display: flex; gap: 9px; flex-wrap: wrap; }
+.dash .ev-btn-primary {
+  display: inline-flex; align-items: center; gap: 8px; cursor: pointer;
+  font-family: var(--mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--paper); background: var(--vio); border: 1px solid var(--vio); border-radius: 9px; padding: 10px 16px; font-weight: 600;
+}
+.dash .ev-btn-primary:hover { background: var(--vio-deep); border-color: var(--vio-deep); color: var(--ink); }
+.dash .ev-btn-primary svg { width: 13px; height: 13px; }
+.dash .ev-btn-ghost {
+  display: inline-flex; align-items: center; gap: 8px; cursor: pointer;
+  font-family: var(--mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--muted); background: transparent; border: 1px solid var(--line); border-radius: 9px; padding: 10px 16px;
+}
+.dash .ev-btn-ghost:hover { color: var(--ink); border-color: var(--vio); }
+.dash .ev-btn-ghost svg { width: 13px; height: 13px; }
+
+/* ── Pipeline controls (view toggle + filters) ───────────────────────────────── */
+.dash .ev-views { display: inline-flex; gap: 2px; padding: 2px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); }
+.dash .ev-views button {
+  font-family: var(--mono); font-size: 9.5px; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--muted); background: transparent; border: none; border-radius: 6px; padding: 5px 11px; cursor: pointer;
+}
+.dash .ev-views button.on { color: var(--ink); background: var(--card-2); }
+.dash .ev-views button:hover:not(.on) { color: var(--ink-soft); }
+
+.dash .ev-filters { display: flex; gap: 7px; align-items: center; margin: 0 0 14px; flex-wrap: wrap; }
+.dash .ev-filters .chip {
+  font-family: var(--mono); font-size: 9.5px; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 5px 12px; cursor: pointer; background: transparent;
+}
+.dash .ev-filters .chip.on { color: var(--ink); background: var(--card-2); }
+.dash .ev-filters .chip:hover:not(.on) { color: var(--ink-soft); border-color: var(--vio); }
+.dash .ev-filters .grow { flex: 1; }
+.dash .ev-search { position: relative; min-width: 180px; }
+.dash .ev-search svg { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); width: 13px; height: 13px; color: var(--faint); pointer-events: none; }
+.dash .ev-search input {
+  width: 100%; border: 1px solid var(--line); border-radius: 8px; background: var(--card);
+  padding: 6px 11px 6px 30px; color: var(--ink); font-family: var(--mono); font-size: 10.5px; letter-spacing: .03em;
+}
+.dash .ev-search input::placeholder { color: var(--faint); text-transform: uppercase; letter-spacing: .06em; }
+.dash .ev-search input:focus { outline: none; border-color: var(--vio); }
+
+/* ── Board / pipeline lanes ──────────────────────────────────────────────────── */
+.dash .ev-pipeline { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; align-items: start; }
+@media (max-width: 900px) { .dash .ev-pipeline { grid-template-columns: 1fr; } }
+.dash .ev-lane { border: 1px solid var(--line); border-radius: 12px; background: var(--card); box-shadow: var(--shadow); overflow: hidden; transition: border-color .15s, background .15s; }
+.dash .ev-lane.drop { border-color: var(--vio); background: var(--vio-bg); }
+.dash .ev-lane-head { display: flex; align-items: center; gap: 8px; padding: 12px 14px; border-bottom: 1px solid var(--line-soft); }
+.dash .ev-lane-head .dot { width: 7px; height: 7px; border-radius: 50%; }
+.dash .ev-lane-head .lh { font-family: var(--mono); font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-soft); }
+.dash .ev-lane-head .lc {
+  margin-left: auto; font-family: var(--mono); font-size: 10px; font-variant-numeric: tabular-nums; color: var(--faint);
+  background: var(--paper); border: 1px solid var(--line-soft); border-radius: 999px; padding: 1px 8px;
+}
+.dash .ev-lane-head .dot.idea { background: var(--faint); }
+.dash .ev-lane-head .dot.planning { background: var(--gold); }
+.dash .ev-lane-head .dot.confirmed { background: var(--vio); }
+.dash .ev-lane-head .dot.done { background: var(--ok); }
+.dash .ev-lane-body { padding: 10px; display: flex; flex-direction: column; gap: 9px; min-height: 80px; }
+.dash .ev-lane-body .empty {
+  font-family: var(--mono); font-size: 9.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--faint);
+  text-align: center; padding: 16px 6px;
+}
+
+/* event card — prep ring instead of a wall of identical tiles */
+.dash .ev-card { border: 1px solid var(--line-soft); border-radius: 10px; background: var(--card-2); padding: 11px 12px; cursor: pointer; transition: border-color .12s, transform .12s, opacity .12s; }
+.dash .ev-card:hover { border-color: var(--vio); transform: translateY(-1px); }
+.dash .ev-card.sel { border-color: var(--vio); box-shadow: 0 0 0 1px var(--vio-bg); }
+.dash .ev-card.dragging { opacity: .4; transform: scale(.97); }
+.dash .ev-card .ec-top { display: flex; align-items: center; gap: 8px; }
+.dash .ev-glyph { width: 19px; height: 19px; border-radius: 6px; display: grid; place-items: center; flex-shrink: 0; font-family: var(--mono); font-size: 9px; font-weight: 600; color: var(--vio); background: var(--vio-bg); }
+.dash .ev-glyph.social  { color: var(--gold); background: var(--gold-bg); }
+.dash .ev-glyph.fundy   { color: var(--ok);   background: var(--ok-bg); }
+.dash .ev-glyph.service { color: var(--rose); background: var(--rose-bg); }
+.dash .ev-card .ec-when { margin-left: auto; font-family: var(--mono); font-size: 9px; letter-spacing: .06em; text-transform: uppercase; color: var(--faint); }
+.dash .ev-card .ec-when.soon { color: var(--gold); }
+.dash .ev-card .ec-when.today { color: var(--rose); }
+.dash .ev-card .ec-t { font-size: 13px; font-weight: 550; color: var(--ink); margin-top: 9px; line-height: 1.25; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.dash .ev-card .ec-sub { font-size: 11px; color: var(--faint); margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dash .ev-card .ec-foot { margin-top: 11px; display: flex; align-items: center; gap: 9px; }
+.dash .ev-ring { width: 26px; height: 26px; flex-shrink: 0; }
+.dash .ev-ring circle { fill: none; stroke-width: 3; }
+.dash .ev-ring .track { stroke: var(--line); }
+.dash .ev-ring .val { stroke: var(--vio); stroke-linecap: round; transform: rotate(-90deg); transform-origin: 50% 50%; }
+.dash .ev-ring .val.full { stroke: var(--ok); }
+.dash .ev-card .ec-prep { font-family: var(--mono); font-size: 9.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.dash .ev-card .ec-prep b { color: var(--ink-soft); }
+.dash .ev-card .stars { margin-left: auto; color: var(--gold); font-size: 11px; letter-spacing: 1px; }
+.dash .ev-card.ghost { opacity: .62; }
+.dash .ev-card.ghost:hover { opacity: 1; }
+
+/* ── Right rail ──────────────────────────────────────────────────────────────── */
+.dash .ev-rail { position: sticky; top: 30px; display: flex; flex-direction: column; gap: 22px; }
+.dash .ev-rail .lbl { font-family: var(--mono); font-size: 9.5px; letter-spacing: .16em; text-transform: uppercase; color: var(--faint); margin-bottom: 10px; }
+
+.dash .ev-attn { border: 1px solid var(--line); border-radius: 12px; background: var(--card); box-shadow: var(--shadow); overflow: hidden; }
+.dash .ev-attn .a-row { display: flex; align-items: center; gap: 11px; padding: 12px 15px; border-bottom: 1px solid var(--line-soft); cursor: pointer; width: 100%; text-align: left; background: none; border-left: none; border-right: none; border-top: none; }
+.dash .ev-attn .a-row:last-child { border-bottom: none; }
+.dash .ev-attn .a-row:hover { background: var(--card-2); }
+.dash .ev-attn .a-flag { width: 6px; height: 34px; border-radius: 3px; flex-shrink: 0; }
+.dash .ev-attn .a-flag.rose { background: var(--rose); }
+.dash .ev-attn .a-flag.gold { background: var(--gold); }
+.dash .ev-attn .a-main { min-width: 0; flex: 1; }
+.dash .ev-attn .a-t { font-size: 12.5px; font-weight: 550; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dash .ev-attn .a-need { font-size: 11px; margin-top: 2px; }
+.dash .ev-attn .a-need.rose { color: var(--rose); }
+.dash .ev-attn .a-need.gold { color: var(--gold); }
+.dash .ev-attn .a-when { font-family: var(--mono); font-size: 9px; letter-spacing: .08em; text-transform: uppercase; color: var(--faint); white-space: nowrap; }
+.dash .ev-attn .a-empty { padding: 16px 15px; font-size: 12px; color: var(--faint); font-style: italic; font-family: var(--serif); }
+
+.dash .ev-recap { border: 1px solid var(--line); border-radius: 12px; background: var(--card); box-shadow: var(--shadow); overflow: hidden; }
+.dash .ev-recap .r-row { display: flex; align-items: center; gap: 11px; padding: 11px 15px; border-bottom: 1px solid var(--line-soft); cursor: pointer; width: 100%; text-align: left; background: none; border-left: none; border-right: none; border-top: none; }
+.dash .ev-recap .r-row:last-child { border-bottom: none; }
+.dash .ev-recap .r-row:hover { background: var(--card-2); }
+.dash .ev-recap .r-main { min-width: 0; flex: 1; }
+.dash .ev-recap .r-t { font-size: 12.5px; color: var(--ink-soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dash .ev-recap .r-meta { font-family: var(--mono); font-size: 9px; letter-spacing: .06em; text-transform: uppercase; color: var(--faint); margin-top: 2px; }
+.dash .ev-recap .r-stars { color: var(--gold); font-size: 11px; letter-spacing: 1px; flex-shrink: 0; }
+.dash .ev-recap .r-stars .off { color: var(--line); }
+
+/* ── Calendar view (dusk) ────────────────────────────────────────────────────── */
+.dash .ev-cal { border: 1px solid var(--line); border-radius: 12px; background: var(--card); box-shadow: var(--shadow); overflow: hidden; }
+.dash .ev-cal-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid var(--line-soft); }
+.dash .ev-cal-head .mo { font-family: var(--serif); font-size: 16px; color: var(--ink); }
+.dash .ev-cal-nav { display: flex; gap: 5px; }
+.dash .ev-cal-nav button {
+  font-family: var(--mono); font-size: 11px; letter-spacing: .04em; color: var(--muted);
+  border: 1px solid var(--line); border-radius: 7px; background: transparent; padding: 4px 9px; cursor: pointer;
+}
+.dash .ev-cal-nav button:hover { color: var(--ink); border-color: var(--vio); }
+.dash .ev-cal-dow { display: grid; grid-template-columns: repeat(7, 1fr); border-bottom: 1px solid var(--line-soft); }
+.dash .ev-cal-dow span { padding: 7px 4px; text-align: center; font-family: var(--mono); font-size: 9px; letter-spacing: .12em; text-transform: uppercase; color: var(--faint); }
+.dash .ev-cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); }
+.dash .ev-cal-cell { min-height: 64px; border-bottom: 1px solid var(--line-soft); border-right: 1px solid var(--line-soft); padding: 5px; }
+@media (min-width: 640px) { .dash .ev-cal-cell { min-height: 96px; padding: 7px; } }
+.dash .ev-cal-cell:nth-child(7n + 1) { border-left: 1px solid var(--line-soft); }
+.dash .ev-cal-dnum { font-family: var(--mono); font-size: 10px; font-variant-numeric: tabular-nums; color: var(--faint); margin-bottom: 5px; }
+.dash .ev-cal-dnum.today { color: var(--vio); font-weight: 600; }
+.dash .ev-cal-dots { display: flex; flex-wrap: wrap; gap: 3px; }
+@media (min-width: 640px) { .dash .ev-cal-dots { display: none; } }
+.dash .ev-cal-dot { width: 7px; height: 7px; border-radius: 50%; border: none; cursor: pointer; padding: 0; }
+.dash .ev-cal-dot.sel { outline: 2px solid var(--ink); outline-offset: 1px; }
+.dash .ev-cal-chips { display: none; }
+@media (min-width: 640px) { .dash .ev-cal-chips { display: flex; flex-direction: column; gap: 4px; } }
+.dash .ev-cal-chip {
+  display: flex; align-items: center; gap: 5px; width: 100%; text-align: left; cursor: pointer;
+  border: none; border-radius: 5px; background: var(--paper); color: var(--ink-soft);
+  padding: 3px 6px; font-size: 10px; font-family: var(--sans);
+}
+.dash .ev-cal-chip:hover { background: var(--card-2); }
+.dash .ev-cal-chip.sel { background: var(--vio-bg); color: var(--ink); }
+.dash .ev-cal-chip .cdot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+.dash .ev-cal-chip .ct { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* type → dusk dot color, used by calendar dots/chips */
+.dash .ev-tdot-program { background: var(--vio); }
+.dash .ev-tdot-social { background: var(--gold); }
+.dash .ev-tdot-fundy { background: var(--ok); }
+.dash .ev-tdot-service { background: var(--rose); }
+.dash .ev-tdot-other { background: var(--faint); }
+
+/* ── Skeleton ────────────────────────────────────────────────────────────────── */
+.dash .ev-skel { border: 1px solid var(--line); border-radius: 12px; background: var(--card); height: 320px; animation: ev-pulse 1.4s ease-in-out infinite; }
+.dash .ev-skel.glance { height: 78px; margin-top: 22px; }
+@keyframes ev-pulse { 0%,100% { opacity: .5; } 50% { opacity: .8; } }
+
+/* ── Empty state ─────────────────────────────────────────────────────────────── */
+.dash .ev-empty { border: 1px dashed var(--line); border-radius: 12px; padding: 44px 20px; text-align: center; }
+.dash .ev-empty .ic { color: var(--faint); display: inline-flex; }
+.dash .ev-empty .ic svg { width: 26px; height: 26px; }
+.dash .ev-empty .t { font-family: var(--serif); font-size: 16px; color: var(--ink); margin-top: 10px; }
+.dash .ev-empty .h { font-size: 12.5px; color: var(--faint); margin-top: 4px; }

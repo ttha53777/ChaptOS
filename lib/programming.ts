@@ -215,19 +215,37 @@ export function toCalendarFields(row: {
   };
 }
 
-/** Prep checklist progress for mobile progress bar. */
+/**
+ * Prep readiness for an event, as a four-part checklist:
+ * room confirmed · flyer/attachment present · flyer posted · socials meeting held.
+ * Drives the inspector prep bar, the board card prep rings, and the on-deck hero meter.
+ */
+export interface PrepCheck { key: "room" | "attachment" | "flyer" | "socials"; label: string; done: boolean; }
+
+export function programmingPrepChecks(event: {
+  roomStatus: RoomStatus;
+  attachmentUrl: string | null;
+  attachmentDocId: number | null;
+  flyerPosted: boolean;
+  socialsMeeting: boolean;
+}): PrepCheck[] {
+  return [
+    { key: "room",       label: "Room",        done: event.roomStatus === "confirmed" || event.roomStatus === "na" },
+    { key: "attachment", label: "Itinerary",   done: Boolean(event.attachmentUrl?.trim() || event.attachmentDocId) },
+    { key: "flyer",      label: "Flyer",       done: event.flyerPosted },
+    { key: "socials",    label: "Socials mtg", done: event.socialsMeeting },
+  ];
+}
+
 export function programmingPrepScore(event: {
   roomStatus: RoomStatus;
   attachmentUrl: string | null;
   attachmentDocId: number | null;
   flyerPosted: boolean;
+  socialsMeeting: boolean;
 }): { done: number; total: number } {
-  const checks = [
-    event.roomStatus === "confirmed" || event.roomStatus === "na",
-    Boolean(event.attachmentUrl?.trim() || event.attachmentDocId),
-    event.flyerPosted,
-  ];
-  return { done: checks.filter(Boolean).length, total: checks.length };
+  const checks = programmingPrepChecks(event);
+  return { done: checks.filter(c => c.done).length, total: checks.length };
 }
 
 /** Whether an upcoming event needs officer attention. */
@@ -242,4 +260,99 @@ export function programmingNeedsAttention(event: {
     event.roomStatus === "not_submitted" ||
     !Boolean(event.attachmentUrl?.trim() || event.attachmentDocId)
   );
+}
+
+// ─── Page derivations (on-deck hero, attention rail, glance strip) ───────────
+// Pure helpers over the task list the events page already holds. The page passes
+// `today` (todayStr()) so these stay deterministic and unit-testable.
+
+/**
+ * Structural subset these helpers actually read — satisfied by both ProgrammingTaskDto
+ * and the page's ProgrammingTask (whose `time` is `string | null | undefined`, so we
+ * deliberately don't depend on it here).
+ */
+export interface ProgrammingTaskLike {
+  id: number;
+  dueDate: string | null;
+  stage: ProgrammingStage;
+  roomStatus: RoomStatus;
+  attachmentUrl: string | null;
+  attachmentDocId: number | null;
+  flyerPosted: boolean;
+  socialsMeeting: boolean;
+  successRating: number | null;
+  spendingCents: number;
+}
+
+/** Soonest dated, not-done event on or after `today`. Null if none (hero hides). */
+export function nextOnDeckEvent<T extends ProgrammingTaskLike>(tasks: T[], today: string): T | null {
+  const upcoming = tasks
+    .filter(t => t.stage !== "done" && t.dueDate != null && t.dueDate >= today)
+    .sort((a, b) => (a.dueDate as string).localeCompare(b.dueDate as string));
+  return upcoming[0] ?? null;
+}
+
+export interface AttentionEntry<T> { task: T; reason: "room" | "flyer" | "prep"; tone: "rose" | "gold"; }
+
+/**
+ * Upcoming, not-done events that still need work before their date, soonest first.
+ * Room-not-booked is the hard blocker (rose); a missing flyer or incomplete prep is
+ * a softer nudge (gold). Mirrors programmingNeedsAttention but annotated for the rail.
+ */
+export function eventsNeedingAttention<T extends ProgrammingTaskLike>(tasks: T[], today: string): AttentionEntry<T>[] {
+  return tasks
+    .filter(t => t.stage !== "done" && t.dueDate != null && t.dueDate >= today)
+    .map((task): AttentionEntry<T> | null => {
+      if (task.roomStatus === "not_submitted") return { task, reason: "room", tone: "rose" };
+      if (!task.flyerPosted) return { task, reason: "flyer", tone: "gold" };
+      const { done, total } = programmingPrepScore(task);
+      if (done < total) return { task, reason: "prep", tone: "gold" };
+      return null;
+    })
+    .filter((e): e is AttentionEntry<T> => e !== null)
+    .sort((a, b) => (a.task.dueDate as string).localeCompare(b.task.dueDate as string));
+}
+
+export interface EventsTermStats {
+  total: number;
+  byStage: Record<ProgrammingStage, number>;
+  next14: number;
+  next14NeedRoom: number;
+  avgSuccess: number | null;
+  doneCount: number;
+  spendCents: number;
+}
+
+/** Glance-strip measures over the whole slate. */
+export function eventsTermStats(tasks: ProgrammingTaskLike[], today: string): EventsTermStats {
+  const byStage: Record<ProgrammingStage, number> = { idea: 0, planning: 0, confirmed: 0, done: 0 };
+  for (const t of tasks) byStage[t.stage] = (byStage[t.stage] ?? 0) + 1;
+
+  const horizon = addDays(today, 14);
+  const inWindow = tasks.filter(
+    t => t.stage !== "done" && t.dueDate != null && t.dueDate >= today && t.dueDate <= horizon,
+  );
+  const next14NeedRoom = inWindow.filter(t => t.roomStatus === "not_submitted").length;
+
+  const rated = tasks.filter(t => t.stage === "done" && t.successRating != null);
+  const avgSuccess = rated.length
+    ? rated.reduce((sum, t) => sum + (t.successRating as number), 0) / rated.length
+    : null;
+
+  return {
+    total: tasks.length,
+    byStage,
+    next14: inWindow.length,
+    next14NeedRoom,
+    avgSuccess,
+    doneCount: byStage.done,
+    spendCents: tasks.reduce((sum, t) => sum + (t.spendingCents ?? 0), 0),
+  };
+}
+
+/** Add `n` days to a YYYY-MM-DD string, returning YYYY-MM-DD (UTC-safe). */
+function addDays(dateStr: string, n: number): string {
+  const d = new Date(dateStr + "T00:00:00Z");
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
 }

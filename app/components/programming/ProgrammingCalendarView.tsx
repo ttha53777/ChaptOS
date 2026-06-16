@@ -12,13 +12,25 @@ const MONTH_NAMES = [
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const TODAY = todayStr();
 
+// Dusk dot colour class per type (resolves to dusk tokens in events-ledger.css).
+const DUSK_TDOT: Record<string, string> = {
+  Program:             "ev-tdot-program",
+  Social:              "ev-tdot-social",
+  Fundraiser:          "ev-tdot-fundy",
+  "Community Service": "ev-tdot-service",
+};
+const duskDot = (type: string) => DUSK_TDOT[type] ?? "ev-tdot-other";
+
 export function ProgrammingCalendarView({
   tasks,
   selectedId,
+  variant = "default",
   onSelect,
 }: {
   tasks: ProgrammingTask[];
   selectedId: number | null;
+  /** "dusk" renders the warm-paper calendar for the redesigned events page. */
+  variant?: "default" | "dusk";
   onSelect: (id: number) => void;
 }) {
   // Default to the month of the soonest dated task, else current month.
@@ -48,6 +60,60 @@ export function ProgrammingCalendarView({
   function shift(delta: number) {
     const next = new Date(year, month - 1 + delta, 1);
     setYm(`${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, "0")}`);
+  }
+
+  if (variant === "dusk") {
+    return (
+      <div className="ev-cal">
+        <div className="ev-cal-head">
+          <p className="mo">{MONTH_NAMES[month - 1]} {year}</p>
+          <div className="ev-cal-nav">
+            <button onClick={() => shift(-1)} aria-label="Previous month">‹</button>
+            <button onClick={() => setYm(TODAY.slice(0, 7))}>Today</button>
+            <button onClick={() => shift(1)} aria-label="Next month">›</button>
+          </div>
+        </div>
+        <div className="ev-cal-dow">
+          {WEEKDAYS.map(d => <span key={d}>{d}</span>)}
+        </div>
+        <div className="ev-cal-grid">
+          {cells.map((day, i) => {
+            const dayTasks = day ? byDay.get(day) ?? [] : [];
+            return (
+              <div key={i} className="ev-cal-cell">
+                {day && (
+                  <>
+                    <div className={`ev-cal-dnum${day === TODAY ? " today" : ""}`}>{Number(day.slice(-2))}</div>
+                    <div className="ev-cal-dots">
+                      {dayTasks.map(t => (
+                        <button
+                          key={t.id}
+                          onClick={() => onSelect(t.id)}
+                          aria-label={t.title}
+                          className={`ev-cal-dot ${duskDot(t.type)}${selectedId === t.id ? " sel" : ""}`}
+                        />
+                      ))}
+                    </div>
+                    <div className="ev-cal-chips">
+                      {dayTasks.map(t => (
+                        <button
+                          key={t.id}
+                          onClick={() => onSelect(t.id)}
+                          className={`ev-cal-chip${selectedId === t.id ? " sel" : ""}`}
+                        >
+                          <span className={`cdot ${duskDot(t.type)}`} />
+                          <span className="ct">{t.title}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
   }
 
   return (

@@ -336,10 +336,10 @@ describe("attachment", () => {
   });
 
   it("prep score treats has-attachment as complete", () => {
-    const base = { roomStatus: "not_submitted" as const, flyerPosted: false };
+    const base = { roomStatus: "not_submitted" as const, flyerPosted: false, socialsMeeting: false };
     const none = programmingPrepScore({ ...base, attachmentUrl: null, attachmentDocId: null });
     expect(none.done).toBe(0);
-    expect(none.total).toBe(3);
+    expect(none.total).toBe(4);
 
     const withUrl = programmingPrepScore({ ...base, attachmentUrl: "https://example.com", attachmentDocId: null });
     expect(withUrl.done).toBe(1);

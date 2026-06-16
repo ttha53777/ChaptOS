@@ -9,12 +9,15 @@ export function ProgrammingBoard({
   tasks,
   selectedId,
   canManage,
+  variant = "default",
   onSelect,
   onMoveStage,
 }: {
   tasks: ProgrammingTask[];
   selectedId: number | null;
   canManage: boolean;
+  /** "dusk" renders dusk lanes + prep-ring cards for the redesigned events page. */
+  variant?: "default" | "dusk";
   onSelect: (id: number) => void;
   /** Returns false if the move was rejected (e.g. promote without a date). */
   onMoveStage: (id: number, stage: ProgrammingStage) => Promise<boolean>;
@@ -43,6 +46,51 @@ export function ProgrammingBoard({
     const task = tasks.find(t => t.id === id);
     if (!task || task.stage === stage) return;
     await onMoveStage(id, stage);
+  }
+
+  if (variant === "dusk") {
+    return (
+      <div className="ev-pipeline">
+        {STAGES.map(stage => {
+          const items = byStage[stage];
+          const isOver = overStage === stage && canManage;
+          return (
+            <div
+              key={stage}
+              onDragOver={dndEnabled ? e => { e.preventDefault(); setOverStage(stage); } : undefined}
+              onDragLeave={() => setOverStage(s => (s === stage ? null : s))}
+              onDrop={dndEnabled ? () => handleDrop(stage) : undefined}
+              className={`ev-lane${isOver ? " drop" : ""}`}
+            >
+              <div className="ev-lane-head">
+                <span className={`dot ${stage}`} />
+                <span className="lh">{STAGE_LABELS[stage]}</span>
+                <span className="lc">{items.length}</span>
+              </div>
+              <div className="ev-lane-body">
+                {items.length === 0 ? (
+                  <p className="empty">{dndEnabled ? "Drop here" : "Nothing here"}</p>
+                ) : (
+                  items.map((task, i) => (
+                    <ProgrammingCard
+                      key={task.id}
+                      task={task}
+                      variant="dusk"
+                      selected={selectedId === task.id}
+                      draggable={dndEnabled}
+                      isDragging={dragId === task.id}
+                      animIndex={i}
+                      onClick={() => onSelect(task.id)}
+                      onDragStart={() => setDragId(task.id)}
+                    />
+                  ))
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
   }
 
   return (
