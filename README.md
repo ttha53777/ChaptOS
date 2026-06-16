@@ -1,6 +1,6 @@
 # ChaptOS
 
-Chapter operations platform — a single place to run any chapter-based organization. Tracks members, attendance, dues, GPA, service hours, deadlines, treasury and budget, party events, Instagram content, community-service hours, meeting notes, and a pinned chapter docs library, with a live activity log, a pinned announcement, and a weekly digest of what's on deck.
+Chapter operations platform — a single place to run any chapter-based organization. Tracks members, attendance, dues, GPA, service hours, deadlines, treasury and budget, party events, programming/events with prep checklists, Instagram content, community-service hours and participation, meeting notes, and a pinned chapter docs library, with a live activity log, a pinned announcement, and a weekly digest of what's on deck. Members join either by claiming a pre-seeded roster row or through an org invite link.
 
 Each org self-configures to its own shape: an AI onboarding interview tailors the enabled pages, vocabulary, status thresholds, officer roles, **custom per-member fields**, and **custom org-defined metrics** to the kind of organization being set up — a sports team, a marching band, a volunteer group, or a fraternity all get a fitting starting setup rather than a chapter-only one.
 
@@ -34,13 +34,14 @@ A few things worth showing off:
 - **Org-scoped DB wrapper with automatic tenancy injection.** `lib/db/tenant.ts` wraps every Prisma operation to inject `organizationId` automatically — services call `ctx.db.transaction.create(...)` and can't accidentally touch another org's data. `findUnique` is replaced by `findFirst + org filter`; updates and deletes run a verify-then-mutate pattern to preserve exact return types without needing composite unique constraints everywhere.
 - **Three-tier auth: PlatformAdmin → OrgAdmin → Member.** `buildContext()` in `lib/context` resolves all three tiers per request, emits a typed `RequestContext`, and optionally gates on a specific permission or rate-limits the caller. Route handlers open with `buildContext()`, parse with Zod, call a service, and map errors with `toResponse()` — no `prisma.*` calls in `app/api/**`.
 - **Side effects through events, never service-to-service calls.** Services call `emit(ctx, action, subject, metadata)` from `lib/events`. Reactions (recalcs, notifications, projections) live as `on(action, handler)` registrations in `lib/events/handlers/`. The event writer also dual-writes an `ActivityLog` row so the existing feed keeps working.
-- **Tool-calling AI assistant with self-correcting validation.** Sixteen read tools + five write-proposal tools in one file ([lib/ai-tools.ts](lib/ai-tools.ts)) so schema and dispatcher can't drift. `validateArgs` walks the schema before dispatch — a wrong enum returns a structured error the model self-corrects on the next iteration.
+- **Tool-calling AI assistant with self-correcting validation.** Sixteen read tools + six write-proposal tools in one file ([lib/ai-tools.ts](lib/ai-tools.ts)) so schema and dispatcher can't drift. `validateArgs` walks the schema before dispatch — a wrong enum returns a structured error the model self-corrects on the next iteration.
 - **AI onboarding interview that configures the org safely.** A founder describes their organization in plain language; a conversational agent ([app/api/ai/setup-chat/route.ts](app/api/ai/setup-chat/route.ts)) runs an adaptive interview and *proposes* a starting setup — enabled workflows, vocabulary overrides, status thresholds, officer roles, and custom member fields. Every id/key the model returns is intersected with the real registries in [validateRecommendation()](app/api/ai/recommend-setup/route.ts) before it can reach the client or be persisted, so a hallucinated workflow or permission can never leak through.
 - **Org-defined custom fields and metrics.** Admins can add per-member fields (stored sparsely on `Brother.customFields`) and define their own KPIs (`OrgMetricDefinition` + `BrotherMetricValue`) with goal / watch / at-risk bands and an aggregation (`avg` / `sum` / `count_on_track`) — so a team can track "Jersey #" and a band can track "Section" without schema changes. Pure status/headline math lives in [lib/metrics.ts](lib/metrics.ts) and [lib/custom-member-fields.ts](lib/custom-member-fields.ts), importable from both server and client.
 - **Offline eval harness.** Hand-written cases at [evals/ask-the-chapter/cases.jsonl](evals/ask-the-chapter/cases.jsonl) drive the same loop as the production route in-process, graded on tool selection, args, and final-answer substrings. Lets prompt and model changes be measured instead of vibes-checked.
 - **Discord-style role system with permission bitfields.** Twelve named permissions ([lib/permissions.ts](lib/permissions.ts)) packed into a 32-bit int on each `Role`. A member's effective bits are the bitwise OR of every role they hold. Role hierarchy ranks prevent privilege escalation — a caller can only grant/edit roles strictly below their own highest rank.
 - **Write proposals, never silent writes.** The AI's `propose_*` tools validate inputs server-side but never touch the database. The client renders a confirm card; only on user confirmation does it POST to the real `/api/*` route where `buildContext()` guards decide whether the write actually happens.
 - **Structured server-side observability.** One JSON-per-line error log ([lib/observability.ts](lib/observability.ts)) with request IDs, route tags, and optional Sentry forwarding via a lazy dynamic import — no dependency cost until enabled.
+- **Two ways into an org.** Admins can pre-seed roster rows that members claim by name, or share an `OrgInvite` link ([app/join/[token]/](app/join/%5Btoken%5D/)). Invites come in two modes: `open` mints a fresh `Brother` + `Membership` on redemption, `claim` routes the user into the existing name-match claim flow. Every redemption is recorded in `InviteRedemption`.
 - **Soft deletes on financial data.** `Transaction` rows are never hard-deleted; `deletedAt` preserves history for audit and undo.
 - **CSS-only responsiveness.** Desktop and mobile dashboards are sibling trees toggled with Tailwind breakpoints — no JS viewport detection, no layout flash on hydration.
 
@@ -73,7 +74,7 @@ Browser
   ├── Next.js App Router (app/)
   │     ├── proxy.ts (middleware) — auth gate on every request
   │     ├── app/layout.tsx — ChapterProvider wraps the whole app
-  │     ├── app/page.tsx — the Operations Dashboard (desktop + mobile)
+  │     ├── app/[slug]/page.tsx — the Operations Dashboard (desktop + mobile)
   │     └── app/api/** — JSON API routes (thin controllers)
   │            ├── api/ai/chat        — streaming tool-calling assistant
   │            ├── api/ai/setup-chat  — streaming onboarding interview (proposes org config)
@@ -126,7 +127,7 @@ Four AI surfaces, all server-side behind auth, all dormant when `OPENAI_API_KEY`
 A floating chat widget that answers ad-hoc questions about chapter state — *"who has the worst attendance?"*, *"how much have we spent on Party Supplies?"*, *"add a deadline for next Friday"* — by calling tools instead of inventing answers.
 
 **How it's built:**
-- **Twenty-one tools** declared in [lib/ai-tools.ts](lib/ai-tools.ts): 16 read tools and 5 write-proposal tools. The schemas the model sees and the dispatcher that runs the tools live in the same file so they can't drift.
+- **Twenty-two tools** declared in [lib/ai-tools.ts](lib/ai-tools.ts): 16 read tools and 6 write-proposal tools. The schemas the model sees and the dispatcher that runs the tools live in the same file so they can't drift.
 - **Scoped to the authenticated org.** The system prompt and all tool data are bounded to `ctx.orgId`. The assistant can't read or propose writes against another org's data.
 - **Server-Sent Events streaming** with a Node-runtime endpoint, custom SSE framing, and a 10-iteration tool-call loop that lets the model chain queries.
 - **Parallel tool calls.** When the model emits multiple calls in one turn, the server runs them concurrently via `Promise.all`.
@@ -219,28 +220,42 @@ Each role bundles a name, optional color chip, a permission bitfield, and a hier
 ```
 figurints/
 ├── app/
+│   ├── [slug]/                   # per-org routes (org resolved from the slug segment)
+│   │   ├── layout.tsx            # gates link/membership status, syncs active org
+│   │   ├── page.tsx              # the Operations Dashboard (desktop + mobile)
+│   │   ├── onboarding/           # AI setup interview (post org-creation)
+│   │   ├── brothers/  chapter/  docs/  events/  instagram/
+│   │   ├── parties/  service/  settings/  timeline/  treasury/
+│   │   └── AccessDenied.tsx · ActiveOrgSync.tsx
 │   ├── api/                      # JSON API routes (thin controllers)
 │   │   ├── ai/                   # chat (SSE), setup-chat (SSE), recommend-setup, digest, summarize-meeting
 │   │   ├── metrics/              # custom metric definitions + dashboard snapshot
 │   │   │                         #   (per-member values live under brothers/[id]/metrics)
 │   │   ├── activity/             # activity log (+ /full)
+│   │   ├── admin/orgs/           # platform-admin cross-org management
 │   │   ├── announcement/         # single pinned chapter announcement
 │   │   ├── attendance/           # record attendance per event
 │   │   ├── auth/                 # claim, me, signout, avatar, accounts, unlink-self
-│   │   ├── brothers/             # roster CRUD (+ /[id]/attendance, /[id]/roles)
+│   │   ├── brothers/             # roster CRUD (+ /[id]/attendance, /[id]/roles, /[id]/metrics)
 │   │   ├── budget/               # semester budget + allocations
 │   │   ├── calendar/             # chapter events
 │   │   ├── deadlines/
 │   │   ├── docs/                 # pinned chapter links + /refresh-metadata
 │   │   ├── excuses/              # attendance excuses
 │   │   ├── instagram/            # content calendar
+│   │   ├── invites/              # org invite links (open / claim modes)
+│   │   ├── orgs/                 # config, logo, manage, leave, setup-apply, slug-check
 │   │   ├── parties/              # party events + revenue
+│   │   ├── programming/          # programming events + prep checklist + docs
 │   │   ├── roles/                # role CRUD + permission bitfield editor
 │   │   ├── semesters/
 │   │   ├── service-events/       # community service log
+│   │   ├── service-participation/ # per-member service-event attendance
 │   │   ├── transactions/         # treasury entries (+ /export CSV)
 │   │   └── treasury/             # balance/trend rollup
 │   ├── auth/callback/            # OAuth redirect handler
+│   ├── join/[token]/             # invite-link redemption
+│   ├── welcome/                  # zero-membership landing
 │   ├── components/
 │   │   ├── ChatWidget.tsx        # floating "Ask the Chapter" assistant
 │   │   ├── ChatWidgetGate.tsx
@@ -255,16 +270,18 @@ figurints/
 │   │   │   ├── drawers/          # BrotherDrawer, etc.
 │   │   │   ├── primitives.tsx    # Card, Modal, StatusBadge, ConfirmDialog
 │   │   │   └── mobile/           # MobileDashboard + Overview/Tasks/Money/Logs/Brothers tabs
+│   │   ├── programming/          # programming-event planner + prep checklist UI
 │   │   ├── timeline/             # CalendarEventForm
-│   │   └── treasury/             # BudgetView, TreasuryCharts, TxForm
+│   │   ├── treasury/             # BudgetView, TreasuryCharts, TxForm
+│   │   ├── grid/                 # shared grid/table primitives
+│   │   └── landing/              # marketing/landing surfaces
 │   ├── context/ChapterContext.tsx
 │   ├── hooks/                    # useCurrentUser, useOrgLogo, useOrgPath
 │   ├── generated/prisma/         # generated client (gitignored)
-│   ├── docs/  service/  brothers/  chapter/  instagram/
-│   ├── login/  pending-access/   # auth entry points
-│   ├── settings/  timeline/  treasury/
+│   ├── login/  pending-access/  welcome/  join/   # auth + onboarding entry points
 │   ├── data.ts                   # shared types, thresholds, formatters
-│   └── layout.tsx
+│   ├── page.tsx                  # root redirect to the active org's /[slug]
+│   └── layout.tsx                # ChapterProvider wraps the whole app
 ├── lib/
 │   ├── context/                  # buildContext() — per-request auth + tenancy
 │   │   └── request-context.ts
@@ -348,7 +365,7 @@ figurints/
 
 > **Note:** Link status is the DB's truth, resolved by `requireUser()` in the pages/layouts that need it — there is no `brother_linked` cookie. (A legacy `brother_linked` cookie was removed; signout/unlink only *expire* it to clean up sessions carried across that deploy.) The `[slug]` layout gates an authenticated-but-unlinked user into the claim flow.
 
-**Admin workflow:** add a `Brother` row from the Brothers page **before** the person signs in. They claim it themselves on first login by entering their name exactly.
+**Admin workflow:** add a `Brother` row from the Brothers page **before** the person signs in. They claim it themselves on first login by entering their name exactly. Alternatively, share an invite link (**Settings → Invites**) — an `open`-mode link creates a member on redemption, a `claim`-mode link drops the user into the name-match claim flow above.
 
 ---
 
@@ -397,6 +414,15 @@ Structured audit log. Every meaningful state change emitted by a service lands h
 
 ### CalendarEvent
 Chapter events: `title`, `date`, optional `time`, `category`, `mandatory`, `description` (doubles as meeting notes), `location`, plus `notesSummary` + `notesSummaryAt` for AI-generated summaries.
+
+### ProgrammingEvent / ProgrammingChecklistItem / ProgrammingEventDoc
+The events/programming planner. A `ProgrammingEvent` starts life as an idea (`stage = "idea"`) holding its own planning fields, and is linked one-to-one to a `CalendarEvent` (`calendarEventId`) only once it leaves the idea stage. Carries prep/ops fields — `owner`, `collabOrg`, `roomStatus`, `flyerPosted`, `socialsMeeting`, `spendingCents` — plus post-event `successRating` and `wrapUpNotes`. `ProgrammingChecklistItem` rows are the ordered prep checklist; `ProgrammingEventDoc` links attached docs.
+
+### ServiceParticipation
+Per-member attendance for a `ServiceEvent` — who actually showed up, used to credit service hours.
+
+### OrgInvite / InviteRedemption
+Org invite links. `OrgInvite` carries a unique `token`, a `mode` (`open` mints a new member on redemption, `claim` routes into the name-match claim flow), and optional `expiresAt` / `revokedAt`. `InviteRedemption` records each use.
 
 ### AttendanceRecord / AttendanceExcuse
 `AttendanceRecord` links a `Brother` to a `CalendarEvent` in a `Semester` with an `attended` flag. `AttendanceExcuse` records an approved/pending excuse; approved excuses don't count against attendance.
