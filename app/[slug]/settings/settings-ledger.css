@@ -1,0 +1,442 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+   Settings — "Chapter Ledger" dusk redesign
+   Same warm-paper editorial system as dashboard-ledger.css / timeline-ledger.css.
+
+   The dashboard scopes its dusk tokens to `.dash[data-dashboard-theme="dusk"]`,
+   but the Settings layout has its OWN nav column that lives OUTSIDE the `.dash`
+   content wrapper — so it can't inherit those tokens. We therefore declare the
+   full dusk palette + font aliases on `.set-page` (the page root), so both the
+   nav column and the `.dash` content area inherit one consistent token set.
+
+   ISOLATION: `.set-*` classes are net-new, unique names; `.dash`-prefixed rules
+   match how dashboard-ledger.css scopes. No bare element selectors.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+/* ── Page root: declare dusk tokens here so the nav column inherits them too ──── */
+.set-page {
+  --serif: var(--font-fraunces), Georgia, serif;
+  --sans:  var(--font-geist-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --mono:  var(--font-geist-mono), ui-monospace, Menlo, monospace;
+
+  --paper:    #0f0d0a;
+  --paper-2:  #14120e;
+  --card:     #161310;
+  --card-2:   #1b1813;
+  --ink:      #ece7dd;
+  --ink-soft: #c9c2b4;
+  --muted:    #958d7c;
+  --faint:    #6b6354;
+  --line:     rgba(236,231,221,.09);
+  --line-soft:rgba(236,231,221,.05);
+  --vio:      #a78bfa;
+  --vio-deep: #7c3aed;
+  --vio-bg:   rgba(167,139,250,.10);
+  --gold:     #ddb36a;
+  --gold-bg:  rgba(221,179,106,.10);
+  --rose:     #d98ba3;
+  --rose-bg:  rgba(217,139,163,.10);
+  --ok:       #7fb08a;
+  --ok-bg:    rgba(127,176,138,.10);
+  --shadow:   0 1px 0 rgba(0,0,0,.4), 0 16px 40px -24px rgba(0,0,0,.7);
+}
+
+/* ── Content wrapper — fills the pane (sidebar already eats the left margin) ──── */
+.dash.dash-settings {
+  max-width: 1080px;
+  margin: 0;
+  padding: 34px 44px 80px;
+}
+@media (min-width: 1500px) {
+  /* On very wide screens, keep a comfortable measure but stay left-biased. */
+  .dash.dash-settings { max-width: 1180px; }
+}
+@media (max-width: 640px) {
+  .dash.dash-settings { padding: 22px 18px 64px; }
+}
+
+/* ── Settings nav column (desktop) ───────────────────────────────────────────── */
+.set-nav {
+  width: 250px; flex-shrink: 0; border-right: 1px solid var(--line);
+  background: var(--paper-2); display: flex; flex-direction: column;
+}
+.set-nav .set-nav-head { padding: 18px 20px 14px; }
+.set-nav .set-back-app {
+  display: inline-flex; align-items: center; gap: 6px; margin-bottom: 14px;
+  font-family: var(--mono); font-size: 9.5px; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--faint); text-decoration: none; transition: color .12s;
+}
+.set-nav .set-back-app svg { width: 12px; height: 12px; }
+.set-nav .set-back-app:hover { color: var(--vio); }
+.set-nav .set-nav-head .kicker {
+  font-family: var(--mono); font-size: 9.5px; letter-spacing: .18em;
+  text-transform: uppercase; color: var(--muted);
+}
+.set-nav .set-nav-head h1 {
+  font-family: var(--serif); font-weight: 400; font-size: 25px;
+  letter-spacing: -.01em; margin-top: 5px; color: var(--ink);
+}
+.set-navfilter {
+  margin: 0 14px 10px; display: flex; align-items: center; gap: 8px; padding: 8px 11px;
+  border-radius: 8px; border: 1px solid var(--line); background: var(--card);
+  color: var(--faint); font-family: var(--mono); font-size: 10.5px; letter-spacing: .04em;
+}
+.set-navfilter svg { width: 13px; height: 13px; flex-shrink: 0; }
+.set-navfilter input {
+  flex: 1; min-width: 0; background: none; border: none; outline: none;
+  color: var(--ink); font-family: var(--mono); font-size: 10.5px; letter-spacing: .04em;
+}
+.set-navfilter input::placeholder { color: var(--faint); }
+.set-navscroll { flex: 1; overflow-y: auto; padding: 4px 12px 18px; }
+.set-nav-label {
+  font-family: var(--mono); font-size: 8.5px; font-weight: 500; letter-spacing: .16em;
+  text-transform: uppercase; color: var(--faint); padding: 15px 10px 6px;
+}
+.set-nav-item {
+  display: flex; align-items: center; gap: 11px; padding: 8px 10px; border-radius: 8px;
+  color: var(--ink-soft); font-family: var(--sans); font-size: 12.5px; font-weight: 500;
+  cursor: pointer; transition: background .12s, color .12s; width: 100%; text-align: left;
+  border: none; background: none;
+}
+.set-nav-item svg { width: 15px; height: 15px; color: var(--muted); flex-shrink: 0; transition: color .12s; }
+.set-nav-item:hover { background: var(--card); color: var(--ink); }
+.set-nav-item:hover svg { color: var(--ink-soft); }
+.set-nav-item.active { background: var(--vio-bg); color: var(--ink); }
+.set-nav-item.active svg { color: var(--vio); }
+.set-nav-item .dot { display: none; }
+.set-nav-item.active .dot { display: block; margin-left: auto; width: 5px; height: 5px; border-radius: 99px; background: var(--vio); }
+.set-nav-empty { padding: 6px 10px; font-size: 11.5px; line-height: 1.45; color: var(--faint); }
+
+/* ── Index landing ───────────────────────────────────────────────────────────── */
+.dash .set-briefing { display: flex; align-items: flex-start; gap: 28px; justify-content: space-between; }
+.dash .set-briefing .kicker { font-family: var(--mono); font-size: 10.5px; letter-spacing: .18em; text-transform: uppercase; color: var(--muted); }
+.dash .set-briefing h1 { font-family: var(--serif); font-weight: 400; font-size: 33px; letter-spacing: -.01em; margin-top: 8px; color: var(--ink); }
+.dash .set-briefing h1 em { font-style: italic; color: var(--vio); }
+.dash .set-briefing .sub { margin-top: 11px; font-family: var(--serif); font-weight: 350; font-style: italic; font-size: 14px; color: var(--ink-soft); max-width: 52ch; }
+
+.dash .org-strip {
+  display: flex; align-items: center; gap: 14px; flex-shrink: 0;
+  border: 1px solid var(--line); border-radius: 12px; background: var(--card);
+  box-shadow: var(--shadow); padding: 13px 16px;
+}
+.dash .org-strip .org-mark {
+  width: 44px; height: 44px; border-radius: 11px; flex-shrink: 0; object-fit: cover;
+  background: var(--vio-bg); color: var(--vio); display: grid; place-items: center;
+  font-family: var(--serif); font-weight: 500; font-size: 19px;
+}
+.dash .org-strip .nm { font-family: var(--serif); font-weight: 500; font-size: 15px; color: var(--ink); }
+.dash .org-strip .mt { font-family: var(--mono); font-size: 9px; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); margin-top: 4px; }
+
+.dash .grp-label {
+  font-family: var(--mono); font-size: 9px; letter-spacing: .16em; text-transform: uppercase;
+  color: var(--muted); margin: 30px 2px 11px; display: flex; align-items: center; gap: 10px;
+}
+.dash .grp-label::after { content: ""; flex: 1; height: 1px; background: var(--line-soft); }
+/* Clickable group label on the index — opens that group's page at the top. */
+.dash button.grp-label-btn {
+  width: 100%; background: none; border: 0; cursor: pointer; text-align: left;
+  font-family: inherit; transition: color .12s;
+}
+.dash button.grp-label-btn:hover { color: var(--vio); }
+.dash button.grp-label-btn:hover::after { background: var(--vio-bg); }
+
+.dash .ix-ledger { border: 1px solid var(--line); border-radius: 12px; background: var(--card); box-shadow: var(--shadow); overflow: hidden; }
+/* Single vertical spine at every width — one row per line, divided top to bottom. */
+.dash .ix-row {
+  display: flex; align-items: center; gap: 14px; width: 100%; padding: 15px 18px;
+  border-bottom: 1px solid var(--line-soft); background: none; border-left: 0; border-top: 0;
+  border-right: 0; cursor: pointer; text-align: left; font: inherit; color: inherit; transition: background .12s;
+}
+.dash .ix-ledger .ix-row:last-child { border-bottom: none; }
+.dash .ix-row:hover { background: var(--card-2); }
+.dash .ix-row:focus-visible { outline: none; box-shadow: inset 0 0 0 1.5px var(--vio); }
+.dash .ix-row .ic { width: 34px; height: 34px; border-radius: 9px; flex-shrink: 0; display: grid; place-items: center; background: var(--vio-bg); color: var(--vio); }
+.dash .ix-row .ic svg { width: 17px; height: 17px; }
+.dash .ix-row.t-gold .ic { background: var(--gold-bg); color: var(--gold); }
+.dash .ix-row.t-rose .ic { background: var(--rose-bg); color: var(--rose); }
+.dash .ix-row.t-sage .ic { background: var(--ok-bg); color: var(--ok); }
+.dash .ix-row .ic-txt { flex: 1; min-width: 0; }
+.dash .ix-row .ic-txt .t { display: block; font-size: 13.5px; font-weight: 600; color: var(--ink); }
+.dash .ix-row .ic-txt .h { display: block; font-size: 12px; color: var(--faint); margin-top: 3px; }
+.dash .ix-row .go { color: var(--faint); flex-shrink: 0; transition: color .12s, transform .12s; }
+.dash .ix-row .go svg { width: 15px; height: 15px; }
+.dash .ix-row:hover .go { color: var(--vio); transform: translateX(2px); }
+
+/* ── Detail view ─────────────────────────────────────────────────────────────── */
+.dash .set-back {
+  display: inline-flex; align-items: center; gap: 7px; margin-bottom: 18px;
+  font-family: var(--mono); font-size: 10px; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--faint); cursor: pointer; background: none; border: none; padding: 0;
+}
+.dash .set-back svg { width: 12px; height: 12px; }
+.dash .set-back:hover { color: var(--vio); }
+.dash .set-detail-head .kicker { font-family: var(--mono); font-size: 10px; letter-spacing: .18em; text-transform: uppercase; color: var(--muted); }
+.dash .set-detail-head h2 { font-family: var(--serif); font-weight: 400; font-size: 30px; letter-spacing: -.01em; margin-top: 6px; color: var(--ink); }
+.dash .set-detail-head .lede { margin-top: 9px; font-family: var(--serif); font-weight: 350; font-style: italic; font-size: 13.5px; color: var(--ink-soft); max-width: 58ch; }
+
+.dash .set-section { margin-top: 22px; }
+
+/* ── Group page — every section in an intent, stacked on one scroll ──────────────
+   The group header spans the pane; each .set-block below caps its own measure so
+   forms read at a comfortable width while the page itself scrolls full-height. */
+.dash .set-group-page .set-detail-head { max-width: 720px; }
+.dash .set-block {
+  max-width: 720px;
+  margin-top: 38px;
+  padding-top: 30px;
+  border-top: 1px solid var(--line-soft);
+  scroll-margin-top: 18px;
+}
+/* First block sits right under the page header — no top divider. */
+.dash .set-group-page > .set-block:first-of-type {
+  margin-top: 30px; padding-top: 0; border-top: none;
+}
+.dash .set-block-head { display: flex; align-items: flex-start; gap: 13px; margin-bottom: 4px; }
+.dash .set-block-ic {
+  width: 34px; height: 34px; border-radius: 9px; flex-shrink: 0; display: grid; place-items: center;
+  background: var(--vio-bg); color: var(--vio);
+}
+.dash .set-block-ic svg { width: 17px; height: 17px; }
+.dash .set-block-ic.t-gold { background: var(--gold-bg); color: var(--gold); }
+.dash .set-block-ic.t-rose { background: var(--rose-bg); color: var(--rose); }
+.dash .set-block-ic.t-sage { background: var(--ok-bg); color: var(--ok); }
+.dash .set-block-copy { flex: 1; min-width: 0; padding-top: 1px; }
+.dash .set-block-title {
+  font-family: var(--serif); font-weight: 500; font-size: 19px;
+  letter-spacing: -.01em; color: var(--ink);
+}
+.dash .set-block-lede {
+  margin-top: 4px; font-family: var(--serif); font-weight: 350; font-style: italic;
+  font-size: 12.5px; line-height: 1.5; color: var(--ink-soft); max-width: 58ch;
+}
+
+/* Optional ledger group wrapper (available to section components that adopt it). */
+.dash .set-group { margin-top: 22px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); box-shadow: var(--shadow); overflow: hidden; }
+.dash .set-group-h { padding: 14px 18px 11px; border-bottom: 1px solid var(--line-soft); }
+.dash .set-group-h h3 { font-family: var(--serif); font-weight: 500; font-size: 15.5px; color: var(--ink); }
+.dash .set-group-h .sub { font-family: var(--mono); font-size: 9px; letter-spacing: .13em; text-transform: uppercase; color: var(--faint); margin-top: 3px; }
+.dash .set-row { display: flex; align-items: center; gap: 22px; padding: 15px 18px; border-bottom: 1px solid var(--line-soft); }
+.dash .set-group .set-row:last-child { border-bottom: none; }
+.dash .set-row .lab { flex: 1; min-width: 0; }
+.dash .set-row .lab .t { font-size: 13px; font-weight: 600; color: var(--ink); }
+.dash .set-row .lab .h { font-size: 11.5px; color: var(--faint); margin-top: 2px; line-height: 1.4; }
+.dash .set-row .ctl { flex-shrink: 0; }
+
+/* ── Breadcrumb (in the warm toolbar) ────────────────────────────────────────── */
+/* dashboard-ledger.css only warms header.dash-toolbar at md+. Settings shows this
+   toolbar at every width, so warm its base here too (mobile included). */
+header.dash-toolbar.set-toolbar {
+  background: rgba(15, 13, 10, 0.85);
+  border-bottom-color: rgba(236, 231, 221, 0.09);
+}
+header.dash-toolbar.set-toolbar .tb-icon-btn { color: #958d7c; }
+header.dash-toolbar.set-toolbar .tb-icon-btn:hover { color: #ece7dd; background: rgba(236, 231, 221, 0.035); }
+
+header.dash-toolbar .set-crumb-link {
+  font-family: var(--font-geist-mono), ui-monospace, Menlo, monospace;
+  color: var(--tb-faint, #6b6354); background: none; border: none; cursor: pointer; padding: 0;
+}
+header.dash-toolbar .set-crumb-link:hover { color: var(--tb-vio, #a78bfa); }
+header.dash-toolbar .set-crumb-cur {
+  font-family: var(--font-fraunces), Georgia, serif; font-weight: 500;
+  letter-spacing: -.01em; color: var(--tb-ink, #ece7dd);
+}
+header.dash-toolbar .set-crumb svg { color: var(--tb-faint, #6b6354); }
+
+/* ── Toast (status / error) ──────────────────────────────────────────────────── */
+.dash .set-toast {
+  margin-bottom: 18px; border-radius: 10px; padding: 11px 15px; font-size: 12.5px;
+  border: 1px solid var(--line); background: var(--card);
+}
+.dash .set-toast.ok { color: var(--ok); border-color: var(--ok-bg); background: var(--ok-bg); }
+.dash .set-toast.err { color: var(--rose); border-color: var(--rose-bg); background: var(--rose-bg); }
+
+/* ── Empty / permission states ───────────────────────────────────────────────── */
+.dash .set-empty {
+  border: 1px solid var(--line); border-radius: 12px; background: var(--card); box-shadow: var(--shadow);
+  padding: 28px 22px; text-align: center;
+}
+.dash .set-empty .t { font-family: var(--serif); font-weight: 500; font-size: 16px; color: var(--ink); }
+.dash .set-empty .h { font-size: 12.5px; color: var(--faint); margin-top: 6px; }
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+   SHARED DUSK CONTROL LAYER
+   The page shell above was redesigned to the warm dusk system, but the section
+   components rendered inside `.set-section` still carried the old cold slate/
+   indigo Tailwind palette. Rather than scatter bespoke colors across 13 files,
+   the sections now use these shared `.sc-*` ("settings control") classes so every
+   form, button, input and list reads from the same dusk tokens.
+
+   All rules are scoped under `.dash .set-section` so they only touch settings
+   content and never leak into the dashboard/timeline that share `.dash`.
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
+/* ── Section rhythm & copy ───────────────────────────────────────────────────── */
+.dash .set-section .sc-stack { display: flex; flex-direction: column; gap: 26px; }
+.dash .set-section .sc-stack-tight { display: flex; flex-direction: column; gap: 18px; }
+/* Intro / helper prose at the top of a section or under a group label. */
+.dash .set-section .sc-lede {
+  font-family: var(--serif); font-weight: 350; font-style: italic;
+  font-size: 13px; line-height: 1.55; color: var(--ink-soft); max-width: 60ch;
+}
+.dash .set-section .sc-note { font-size: 11.5px; line-height: 1.5; color: var(--faint); }
+.dash .set-section .sc-err { font-size: 11.5px; color: var(--rose); }
+
+/* A small uppercase group label (replaces the old slate-600 caps labels). */
+.dash .set-section .sc-grp-label {
+  font-family: var(--mono); font-size: 9px; font-weight: 500; letter-spacing: .16em;
+  text-transform: uppercase; color: var(--muted); margin: 0 0 9px 2px;
+  display: flex; align-items: center; gap: 6px;
+}
+
+/* A subhead inside a section (replaces slate-300 h3s). */
+.dash .set-section .sc-h {
+  font-family: var(--serif); font-weight: 500; font-size: 15px; color: var(--ink); margin: 0;
+}
+.dash .set-section .sc-h + .sc-note { margin-top: 3px; }
+
+/* ── Group card — the canonical bordered container for rows/inputs ───────────── */
+.dash .set-section .sc-card {
+  border: 1px solid var(--line); border-radius: 12px;
+  background: var(--card); box-shadow: var(--shadow); overflow: hidden;
+}
+.dash .set-section .sc-card-pad { padding: 4px 16px; }
+/* A divided list of rows inside a card. */
+.dash .set-section .sc-row {
+  display: flex; align-items: center; gap: 16px;
+  padding: 13px 16px; border-bottom: 1px solid var(--line-soft);
+}
+.dash .set-section .sc-card > .sc-row:last-child,
+.dash .set-section .sc-rows > .sc-row:last-child { border-bottom: none; }
+.dash .set-section .sc-row-between { justify-content: space-between; }
+.dash .set-section .sc-row .sc-row-key { font-size: 12.5px; font-weight: 600; color: var(--ink); }
+.dash .set-section .sc-row .sc-row-sub { font-size: 11.5px; color: var(--faint); margin-top: 2px; line-height: 1.4; }
+.dash .set-section .sc-row .sc-row-lead { flex: 1; min-width: 0; }
+
+/* A subtle horizontal divider between section blocks. */
+.dash .set-section .sc-divider { height: 1px; background: var(--line-soft); border: 0; margin: 0; }
+
+/* ── Inputs ──────────────────────────────────────────────────────────────────── */
+.dash .set-section .sc-input,
+.dash .set-section .sc-select,
+.dash .set-section .sc-textarea {
+  width: 100%; min-width: 0; border-radius: 9px;
+  border: 1px solid var(--line); background: var(--paper-2);
+  color: var(--ink); font-family: var(--sans); font-size: 12.5px;
+  padding: 8px 11px; transition: border-color .12s, box-shadow .12s;
+}
+.dash .set-section .sc-input::placeholder,
+.dash .set-section .sc-textarea::placeholder { color: var(--faint); }
+.dash .set-section .sc-input:focus,
+.dash .set-section .sc-select:focus,
+.dash .set-section .sc-textarea:focus {
+  outline: none; border-color: rgba(167,139,250,.5);
+  box-shadow: 0 0 0 3px var(--vio-bg);
+}
+.dash .set-section .sc-input-num { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+.dash .set-section .sc-input-sm { padding: 6px 9px; font-size: 12px; }
+/* Small form field label (inline edit forms). */
+.dash .set-section .sc-mlabel { font-size: 11px; color: var(--muted); }
+
+/* Inline value pill that becomes editable on click (Thresholds pattern). */
+.dash .set-section .sc-edit-btn {
+  display: inline-flex; align-items: center; gap: 7px; border-radius: 8px;
+  padding: 5px 9px; background: none; border: none; cursor: pointer; transition: background .12s;
+}
+.dash .set-section .sc-edit-btn:hover { background: var(--card-2); }
+.dash .set-section .sc-edit-btn .v { font-size: 12.5px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--ink); }
+.dash .set-section .sc-edit-btn .pen { width: 12px; height: 12px; color: var(--faint); transition: color .12s; }
+.dash .set-section .sc-edit-btn:hover .pen { color: var(--vio); }
+.dash .set-section .sc-unit { font-size: 11px; color: var(--muted); }
+
+/* ── Buttons ─────────────────────────────────────────────────────────────────── */
+.dash .set-section .sc-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  border-radius: 9px; padding: 8px 14px; font-family: var(--sans);
+  font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap;
+  border: 1px solid transparent; transition: background .12s, border-color .12s, color .12s, opacity .12s;
+}
+.dash .set-section .sc-btn svg { width: 13px; height: 13px; }
+/* Primary — solid violet accent. */
+.dash .set-section .sc-btn-primary { background: var(--vio); color: #1a1206; border-color: var(--vio); }
+.dash .set-section .sc-btn-primary:hover:not(:disabled) { background: #b9a0fb; border-color: #b9a0fb; }
+/* Secondary — quiet outline on paper. */
+.dash .set-section .sc-btn-ghost { background: var(--card); color: var(--ink-soft); border-color: var(--line); }
+.dash .set-section .sc-btn-ghost:hover:not(:disabled) { background: var(--card-2); color: var(--ink); border-color: var(--line); }
+/* Accent ghost — outline that warms to violet on hover (chip actions). */
+.dash .set-section .sc-btn-accent { background: var(--vio-bg); color: var(--vio); border-color: rgba(167,139,250,.25); }
+.dash .set-section .sc-btn-accent:hover:not(:disabled) { background: rgba(167,139,250,.18); }
+/* Destructive. */
+.dash .set-section .sc-btn-danger { background: var(--rose-bg); color: var(--rose); border-color: rgba(217,139,163,.25); }
+.dash .set-section .sc-btn-danger:hover:not(:disabled) { background: rgba(217,139,163,.18); }
+.dash .set-section .sc-btn:disabled { opacity: .35; cursor: default; }
+.dash .set-section .sc-btn-sm { padding: 5px 10px; font-size: 11px; }
+/* A wrap-friendly row of buttons. */
+.dash .set-section .sc-btn-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+
+/* ── Action bar (save / reset / unsaved) — one consistent footer everywhere ──── */
+.dash .set-section .sc-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 9px; }
+.dash .set-section .sc-dirty {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-family: var(--mono); font-size: 9px; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--gold);
+}
+.dash .set-section .sc-dirty::before { content: ""; width: 5px; height: 5px; border-radius: 99px; background: var(--gold); }
+
+/* ── Toggle / checkbox (visibility pickers) ──────────────────────────────────── */
+.dash .set-section .sc-check {
+  display: flex; align-items: flex-start; gap: 11px; cursor: pointer;
+  border-radius: 10px; padding: 4px 6px; transition: background .12s; margin: 0;
+}
+.dash .set-section .sc-check:hover { background: var(--card-2); }
+.dash .set-section .sc-check input { position: absolute; opacity: 0; width: 0; height: 0; }
+.dash .set-section .sc-box {
+  margin-top: 1px; flex-shrink: 0; width: 17px; height: 17px; border-radius: 6px;
+  border: 1.5px solid var(--line); background: var(--paper-2);
+  display: grid; place-items: center; color: transparent; transition: background .12s, border-color .12s, color .12s;
+}
+.dash .set-section .sc-box svg { width: 11px; height: 11px; }
+.dash .set-section .sc-check input:checked + .sc-box { background: var(--vio); border-color: var(--vio); color: #1a1206; }
+.dash .set-section .sc-check input:focus-visible + .sc-box { box-shadow: 0 0 0 3px var(--vio-bg); }
+.dash .set-section .sc-check .sc-check-key { font-size: 12.5px; font-weight: 600; color: var(--ink); }
+.dash .set-section .sc-check .sc-check-sub { font-size: 11.5px; color: var(--faint); margin-top: 2px; line-height: 1.4; }
+
+/* A selectable card wrapping a checkbox (Workflows optional-pages). */
+.dash .set-section .sc-pick {
+  border: 1px solid var(--line); border-radius: 12px; background: var(--card);
+  padding: 13px 15px; transition: background .12s, border-color .12s;
+}
+.dash .set-section .sc-pick:hover { background: var(--card-2); }
+.dash .set-section .sc-pick.on { border-color: rgba(167,139,250,.35); background: var(--vio-bg); }
+.dash .set-section .sc-pick-features { margin-top: 10px; padding-left: 14px; border-left: 1px solid var(--line); }
+
+/* ── Status pills / chips ────────────────────────────────────────────────────── */
+.dash .set-section .sc-pill {
+  display: inline-flex; align-items: center; gap: 5px; border-radius: 999px;
+  padding: 3px 9px; font-family: var(--mono); font-size: 9px; letter-spacing: .1em;
+  text-transform: uppercase; font-weight: 600;
+}
+.dash .set-section .sc-pill-muted { background: var(--card-2); color: var(--muted); }
+.dash .set-section .sc-pill-vio { background: var(--vio-bg); color: var(--vio); }
+.dash .set-section .sc-pill-gold { background: var(--gold-bg); color: var(--gold); }
+.dash .set-section .sc-pill-rose { background: var(--rose-bg); color: var(--rose); }
+.dash .set-section .sc-pill-ok { background: var(--ok-bg); color: var(--ok); }
+.dash .set-section .sc-locked { font-family: var(--mono); font-size: 8.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--faint); }
+
+/* Avatar / mono initials badge (Accounts, General logo fallback). */
+.dash .set-section .sc-avatar {
+  width: 40px; height: 40px; border-radius: 10px; flex-shrink: 0; object-fit: cover;
+  background: var(--vio-bg); color: var(--vio); display: grid; place-items: center;
+  font-family: var(--serif); font-weight: 600; font-size: 15px;
+}
+
+/* Empty state inside a section. */
+.dash .set-section .sc-empty {
+  border: 1px dashed var(--line); border-radius: 12px; background: var(--paper-2);
+  padding: 26px 20px; text-align: center;
+}
+.dash .set-section .sc-empty .t { font-family: var(--serif); font-weight: 500; font-size: 15px; color: var(--ink); }
+.dash .set-section .sc-empty .h { font-size: 12px; color: var(--faint); margin-top: 5px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .dash.dash-settings * { transition: none !important; animation: none !important; }
+}

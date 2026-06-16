@@ -233,35 +233,24 @@ export function WorkflowsSection({
     const features = WORKFLOW_FEATURES[workflow];
     if (!features.length) return null;
     return (
-      <div className="mt-2 space-y-1.5 border-l border-white/[0.08] pl-4">
+      <div className="sc-pick-features space-y-1">
         {features.map((f) => {
           const on = featureOn(workflow, f.id);
           return (
-            <label
-              key={f.id}
-              className="flex cursor-pointer items-start gap-2.5 rounded-lg px-2 py-1.5 transition-colors hover:bg-white/[0.03]"
-            >
+            <label key={f.id} className="sc-check">
               <input
                 type="checkbox"
                 checked={on}
                 onChange={() => toggleFeature(workflow, f.id)}
-                className="sr-only"
               />
-              <span
-                aria-hidden
-                className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-[5px] border transition-colors ${
-                  on ? "border-indigo-400 bg-indigo-500 text-white" : "border-white/20 bg-transparent"
-                }`}
-              >
-                {on && (
-                  <svg className="h-3 w-3" viewBox="0 0 16 16" fill="currentColor">
-                    <path d="M13.78 4.22a.75.75 0 0 1 0 1.06l-6.5 6.5a.75.75 0 0 1-1.06 0l-3-3a.75.75 0 1 1 1.06-1.06L6.75 10.19l5.97-5.97a.75.75 0 0 1 1.06 0Z" />
-                  </svg>
-                )}
+              <span aria-hidden className="sc-box">
+                <svg viewBox="0 0 16 16" fill="currentColor">
+                  <path d="M13.78 4.22a.75.75 0 0 1 0 1.06l-6.5 6.5a.75.75 0 0 1-1.06 0l-3-3a.75.75 0 1 1 1.06-1.06L6.75 10.19l5.97-5.97a.75.75 0 0 1 1.06 0Z" />
+                </svg>
               </span>
               <div className="min-w-0">
-                <div className="text-[12px] font-medium text-slate-300">{f.label}</div>
-                <div className="text-[11px] text-slate-500">{f.description}</div>
+                <div className="sc-check-key">{f.label}</div>
+                <div className="sc-check-sub">{f.description}</div>
               </div>
             </label>
           );
@@ -271,8 +260,8 @@ export function WorkflowsSection({
   }
 
   return (
-    <div className="space-y-6">
-      <p className="text-[12px] text-slate-500">
+    <div className="sc-stack-tight">
+      <p className="sc-lede">
         Choose which pages this organization shows in the sidebar, and which
         sections appear within a page. Turning a page or section off just hides
         it — your data is kept and comes back exactly as it was when you turn it
@@ -281,16 +270,13 @@ export function WorkflowsSection({
 
       {/* Always-on surfaces — locked */}
       <div>
-        <p className="mb-1 text-[11px] font-semibold uppercase tracking-widest text-slate-600">Always included</p>
-        <p className="mb-2 text-[11px] text-slate-500">Every organization gets these.</p>
-        <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-4">
+        <p className="sc-grp-label">Always included</p>
+        <p className="sc-note" style={{ margin: "-4px 0 9px 2px" }}>Every organization gets these.</p>
+        <div className="sc-card sc-card-pad">
           {ALWAYS_ON_LABELS.map((label) => (
-            <div
-              key={label}
-              className="flex items-center justify-between gap-4 border-b border-white/[0.04] py-3 last:border-0"
-            >
-              <span className="text-[12px] font-medium text-slate-300">{label}</span>
-              <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-600">Locked</span>
+            <div key={label} className="sc-row sc-row-between">
+              <span className="sc-row-key">{label}</span>
+              <span className="sc-locked">Locked</span>
             </div>
           ))}
         </div>
@@ -300,9 +286,9 @@ export function WorkflowsSection({
           The Dashboard can't be turned off, but its sections can. */}
       {DASHBOARD_FEATURES.length > 0 && (
         <div>
-          <p className="mb-1 text-[11px] font-semibold uppercase tracking-widest text-slate-600">Dashboard widgets</p>
-          <p className="mb-2 text-[11px] text-slate-500">Unselected widgets are hidden from the dashboard.</p>
-          <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-2 py-2">
+          <p className="sc-grp-label">Dashboard widgets</p>
+          <p className="sc-note" style={{ margin: "-4px 0 9px 2px" }}>Unselected widgets are hidden from the dashboard.</p>
+          <div className="sc-card" style={{ padding: "8px 8px" }}>
             {renderFeatureGroup("operations")}
           </div>
         </div>
@@ -310,43 +296,28 @@ export function WorkflowsSection({
 
       {/* Toggleable pages */}
       <fieldset className="m-0 border-0 p-0">
-        <legend className="mb-1 p-0 text-[11px] font-semibold uppercase tracking-widest text-slate-600">Optional pages</legend>
-        <p className="mb-2 text-[11px] text-slate-500">Unselected pages are hidden from the sidebar.</p>
+        <legend className="sc-grp-label p-0">Optional pages</legend>
+        <p className="sc-note" style={{ margin: "-4px 0 9px 2px" }}>Unselected pages are hidden from the sidebar.</p>
         <div className="space-y-2">
           {PICKER_ITEMS.map((item) => {
             const on = selected.has(item.workflow);
             const hasFeatures = WORKFLOW_FEATURES[item.workflow].length > 0;
             return (
-              <div
-                key={item.workflow}
-                className={`rounded-xl border px-4 py-3 transition-colors ${
-                  on
-                    ? "border-indigo-500/30 bg-indigo-500/[0.08]"
-                    : "border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.04]"
-                }`}
-              >
-                <label className="flex cursor-pointer items-start gap-3">
+              <div key={item.workflow} className={`sc-pick${on ? " on" : ""}`}>
+                <label className="sc-check">
                   <input
                     type="checkbox"
                     checked={on}
                     onChange={() => toggle(item.workflow)}
-                    className="sr-only"
                   />
-                  <span
-                    aria-hidden
-                    className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-[5px] border transition-colors ${
-                      on ? "border-indigo-400 bg-indigo-500 text-white" : "border-white/20 bg-transparent"
-                    }`}
-                  >
-                    {on && (
-                      <svg className="h-3 w-3" viewBox="0 0 16 16" fill="currentColor">
-                        <path d="M13.78 4.22a.75.75 0 0 1 0 1.06l-6.5 6.5a.75.75 0 0 1-1.06 0l-3-3a.75.75 0 1 1 1.06-1.06L6.75 10.19l5.97-5.97a.75.75 0 0 1 1.06 0Z" />
-                      </svg>
-                    )}
+                  <span aria-hidden className="sc-box">
+                    <svg viewBox="0 0 16 16" fill="currentColor">
+                      <path d="M13.78 4.22a.75.75 0 0 1 0 1.06l-6.5 6.5a.75.75 0 0 1-1.06 0l-3-3a.75.75 0 1 1 1.06-1.06L6.75 10.19l5.97-5.97a.75.75 0 0 1 1.06 0Z" />
+                    </svg>
                   </span>
                   <div className="min-w-0">
-                    <div className="text-[12px] font-medium text-slate-200">{item.label}</div>
-                    <div className="text-[11px] text-slate-500">{item.description}</div>
+                    <div className="sc-check-key">{item.label}</div>
+                    <div className="sc-check-sub">{item.description}</div>
                   </div>
                 </label>
                 {/* Section toggles for this page — only while the page is enabled. */}
@@ -357,26 +328,14 @@ export function WorkflowsSection({
         </div>
       </fieldset>
 
-      <div className="flex items-center gap-2">
-        <button
-          onClick={save}
-          disabled={!dirty || saving}
-          className="rounded-lg bg-indigo-600 px-4 py-2 text-[12px] font-semibold text-white transition-all hover:bg-indigo-500 disabled:cursor-default disabled:opacity-30"
-        >
+      <div className="sc-actions">
+        <button onClick={save} disabled={!dirty || saving} className="sc-btn sc-btn-primary">
           {saving ? "Saving…" : "Save changes"}
         </button>
-        <button
-          onClick={reset}
-          disabled={!dirty || saving}
-          className="rounded-lg border border-white/[0.1] bg-white/[0.04] px-4 py-2 text-[12px] font-medium text-slate-400 transition-colors hover:bg-white/[0.08] disabled:cursor-default disabled:opacity-30"
-        >
+        <button onClick={reset} disabled={!dirty || saving} className="sc-btn sc-btn-ghost">
           Reset
         </button>
-        {dirty && (
-          <span className="ml-1 rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold text-amber-400">
-            Unsaved
-          </span>
-        )}
+        {dirty && <span className="sc-dirty">Unsaved</span>}
       </div>
     </div>
   );

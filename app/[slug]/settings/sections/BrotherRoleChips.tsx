@@ -146,17 +146,16 @@ export function BrotherRoleChips({
             key={r.id}
             className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ring-1 ring-inset"
             style={{
-              background: r.color ? `${r.color}1a` : "rgba(255,255,255,0.04)",
-              color: r.color ?? "rgba(255,255,255,0.7)",
-              // Stronger ring alpha (0x66 vs 0x40) so chips are visibly bounded
-              // on dark backgrounds. Null-color chips fall back to a neutral
-              // light gray that doesn't disappear.
-              borderColor: r.color ? `${r.color}66` : "rgba(255,255,255,0.18)",
+              background: r.color ? `${r.color}1a` : "var(--card-2)",
+              color: r.color ?? "var(--ink-soft)",
+              // Stronger ring alpha (0x66) so colored chips are visibly bounded.
+              // Null-color chips fall back to the dusk line color.
+              borderColor: r.color ? `${r.color}66` : "var(--line)",
             }}
           >
             <span
               className="h-1.5 w-1.5 rounded-full"
-              style={{ background: r.color ?? "rgba(255,255,255,0.3)" }}
+              style={{ background: r.color ?? "var(--muted)" }}
               aria-hidden="true"
             />
             {r.name}
@@ -187,7 +186,8 @@ export function BrotherRoleChips({
             aria-label="Grant role"
             aria-haspopup="menu"
             aria-expanded={picking}
-            className="inline-flex items-center gap-0.5 rounded-full bg-white/[0.04] px-2 py-0.5 text-[10px] font-medium text-white/55 ring-1 ring-inset ring-white/10 hover:bg-white/[0.08] hover:text-white/80 disabled:opacity-50 disabled:cursor-wait"
+            className="inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-[10px] font-medium ring-1 ring-inset disabled:opacity-50 disabled:cursor-wait"
+            style={{ background: "var(--card-2)", color: "var(--muted)", borderColor: "var(--line)" }}
           >
             + role
           </button>
@@ -198,18 +198,19 @@ export function BrotherRoleChips({
               role="menu"
               aria-label="Grant role"
               aria-orientation="vertical"
-              className="absolute left-0 top-full z-30 mt-1 w-52 rounded-lg border border-white/[0.1] bg-[#0e1018] p-1.5 shadow-lg shadow-black/40"
+              className="absolute left-0 top-full z-30 mt-1 w-52 rounded-lg p-1.5"
+              style={{ border: "1px solid var(--line)", background: "var(--card)", boxShadow: "var(--shadow)" }}
             >
               {!available ? (
                 // Skeleton rows give a clear "still fetching" feel that
                 // visually differs from the "no roles to grant" empty state.
                 <div className="space-y-1 px-2 py-1.5" aria-hidden="true">
-                  <div className="h-3 w-3/4 rounded bg-white/[0.05]" />
-                  <div className="h-3 w-1/2 rounded bg-white/[0.05]" />
-                  <div className="h-3 w-2/3 rounded bg-white/[0.05]" />
+                  <div className="h-3 w-3/4 rounded" style={{ background: "var(--card-2)" }} />
+                  <div className="h-3 w-1/2 rounded" style={{ background: "var(--card-2)" }} />
+                  <div className="h-3 w-2/3 rounded" style={{ background: "var(--card-2)" }} />
                 </div>
               ) : grantable.length === 0 ? (
-                <p className="px-2 py-1.5 text-[11px] text-white/40">No roles you can grant.</p>
+                <p className="px-2 py-1.5 text-[11px]" style={{ color: "var(--faint)" }}>No roles you can grant.</p>
               ) : (
                 <ul className="space-y-0.5">
                   {grantable.map(r => (
@@ -218,15 +219,16 @@ export function BrotherRoleChips({
                         role="menuitem"
                         onClick={() => grant(r)}
                         disabled={busyRoleId === r.id}
-                        className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-[12px] text-white/85 hover:bg-white/[0.06] disabled:opacity-50"
+                        className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-[12px] hover:bg-[var(--card-2)] disabled:opacity-50"
+                        style={{ color: "var(--ink-soft)" }}
                       >
                         <span
                           className="h-2 w-2 shrink-0 rounded-full"
-                          style={{ background: r.color ?? "rgba(255,255,255,0.3)" }}
+                          style={{ background: r.color ?? "var(--muted)" }}
                           aria-hidden="true"
                         />
                         <span className="truncate">{r.name}</span>
-                        <span className="ml-auto text-[10px] text-white/35">r{r.rank}</span>
+                        <span className="ml-auto text-[10px]" style={{ color: "var(--faint)" }}>r{r.rank}</span>
                       </button>
                     </li>
                   ))}

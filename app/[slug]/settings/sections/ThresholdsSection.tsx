@@ -48,8 +48,8 @@ function ThresholdRow({
   }
 
   return (
-    <div className="flex items-center justify-between gap-4 border-b border-white/[0.04] py-3 last:border-0">
-      <span className="text-[12px] text-slate-400">{label}</span>
+    <div className="sc-row sc-row-between">
+      <span className="sc-row-key">{label}</span>
       {editing ? (
         <div className="flex items-center gap-1.5">
           <input
@@ -62,17 +62,14 @@ function ThresholdRow({
             onChange={e => setDraft(e.target.value)}
             onBlur={commit}
             onKeyDown={onKey}
-            className="w-20 rounded-md border border-indigo-500/50 bg-indigo-500/10 px-2 py-1 text-right text-[12px] font-semibold tabular-nums text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+            className="sc-input sc-input-num sc-input-sm w-20"
           />
-          {unit && <span className="text-[11px] text-slate-500">{unit}</span>}
+          {unit && <span className="sc-unit">{unit}</span>}
         </div>
       ) : (
-        <button
-          onClick={startEdit}
-          className="group flex items-center gap-1.5 rounded-md px-2 py-1 transition-colors hover:bg-white/[0.05]"
-        >
-          <span className="text-[12px] font-semibold tabular-nums text-slate-200">{value}{unit}</span>
-          <svg className="h-3 w-3 text-slate-600 transition-colors group-hover:text-slate-400" viewBox="0 0 16 16" fill="currentColor">
+        <button onClick={startEdit} className="sc-edit-btn">
+          <span className="v">{value}{unit}</span>
+          <svg className="pen" viewBox="0 0 16 16" fill="currentColor">
             <path d="M11.013 1.427a1.75 1.75 0 0 1 2.474 0l1.086 1.086a1.75 1.75 0 0 1 0 2.474l-8.61 8.61c-.21.21-.47.364-.756.445l-3.251.93a.75.75 0 0 1-.927-.928l.929-3.25c.081-.286.235-.547.445-.758l8.61-8.61Z" />
           </svg>
         </button>
@@ -146,47 +143,44 @@ export function ThresholdsSection({
   }, [saving, draft, refreshChapterData, onStatus, onError]);
 
   return (
-    <div className="space-y-6">
-      <p className="text-[12px] text-slate-500">
+    <div className="sc-stack-tight">
+      <p className="sc-lede">
         Click any value to edit it inline. These cutoffs apply to everyone in your
         org and drive the At-Risk / Watch badges and the health score. Saving
         updates the dashboard for all members.
       </p>
 
-      <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-4">
-        <p className="pt-4 pb-1 text-[11px] font-semibold uppercase tracking-widest text-slate-600">Attendance</p>
-        <ThresholdRow label="At risk below" field="attendanceAtRisk" value={draft.attendanceAtRisk} unit="%" step={1} min={0} max={100} onChange={update} />
-        <ThresholdRow label="Watch below"   field="attendanceWatch"  value={draft.attendanceWatch}  unit="%" step={1} min={0} max={100} onChange={update} />
-
-        <p className="pt-5 pb-1 text-[11px] font-semibold uppercase tracking-widest text-slate-600">GPA</p>
-        <ThresholdRow label="At risk below" field="gpaAtRisk" value={draft.gpaAtRisk} unit="" step={0.1} min={0} max={4} onChange={update} />
-        <ThresholdRow label="Watch below"   field="gpaWatch"   value={draft.gpaWatch}   unit="" step={0.1} min={0} max={4} onChange={update} />
-
-        <p className="pt-5 pb-1 text-[11px] font-semibold uppercase tracking-widest text-slate-600">Service</p>
-        <ThresholdRow label="Hours goal" field="serviceHoursGoal" value={draft.serviceHoursGoal} unit="h" step={1} min={0} max={1000} onChange={update} />
-        <div className="pb-1" />
+      <div>
+        <p className="sc-grp-label">Attendance</p>
+        <div className="sc-card sc-card-pad">
+          <ThresholdRow label="At risk below" field="attendanceAtRisk" value={draft.attendanceAtRisk} unit="%" step={1} min={0} max={100} onChange={update} />
+          <ThresholdRow label="Watch below"   field="attendanceWatch"  value={draft.attendanceWatch}  unit="%" step={1} min={0} max={100} onChange={update} />
+        </div>
       </div>
 
-      <div className="flex items-center gap-2">
-        <button
-          onClick={save}
-          disabled={!dirty || saving}
-          className="rounded-lg bg-indigo-600 px-4 py-2 text-[12px] font-semibold text-white transition-all hover:bg-indigo-500 disabled:cursor-default disabled:opacity-30"
-        >
+      <div>
+        <p className="sc-grp-label">GPA</p>
+        <div className="sc-card sc-card-pad">
+          <ThresholdRow label="At risk below" field="gpaAtRisk" value={draft.gpaAtRisk} unit="" step={0.1} min={0} max={4} onChange={update} />
+          <ThresholdRow label="Watch below"   field="gpaWatch"   value={draft.gpaWatch}   unit="" step={0.1} min={0} max={4} onChange={update} />
+        </div>
+      </div>
+
+      <div>
+        <p className="sc-grp-label">Service</p>
+        <div className="sc-card sc-card-pad">
+          <ThresholdRow label="Hours goal" field="serviceHoursGoal" value={draft.serviceHoursGoal} unit="h" step={1} min={0} max={1000} onChange={update} />
+        </div>
+      </div>
+
+      <div className="sc-actions">
+        <button onClick={save} disabled={!dirty || saving} className="sc-btn sc-btn-primary">
           {saving ? "Saving…" : "Save thresholds"}
         </button>
-        <button
-          onClick={reset}
-          disabled={saving}
-          className="rounded-lg border border-white/[0.1] bg-white/[0.04] px-4 py-2 text-[12px] font-medium text-slate-400 transition-colors hover:bg-white/[0.08] disabled:cursor-default disabled:opacity-30"
-        >
+        <button onClick={reset} disabled={saving} className="sc-btn sc-btn-ghost">
           Reset to defaults
         </button>
-        {dirty && (
-          <span className="ml-1 rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold text-amber-400">
-            Unsaved
-          </span>
-        )}
+        {dirty && <span className="sc-dirty">Unsaved</span>}
       </div>
     </div>
   );

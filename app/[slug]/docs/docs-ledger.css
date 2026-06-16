@@ -1,0 +1,223 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+   Docs — "The Reference Library" dusk redesign
+   Same warm-paper editorial system as dashboard-ledger.css / timeline-ledger.css
+   / settings-ledger.css. Mock: _design/Docs Redesign.html.
+
+   The old docs page was cold slate (#07090f / #10121a) with indigo accents and
+   per-card live <iframe> thumbnails — heavy, frequently broken, and visually
+   noisy. This rebuilds it on the shared dusk tokens: lead with the source
+   (favicon + host + inferred kind) instead of a screenshot.
+
+   ISOLATION: every rule is scoped under `.dash` (set on the content wrapper, the
+   same convention dashboard-ledger.css uses) and all class names are net-new
+   `.dx-*` ("docs") so nothing leaks into pages that share `.dash`.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+/* ── Dusk tokens for the docs pane (mirrors settings-ledger.css) ─────────────── */
+.dash.dash-docs {
+  --serif: var(--font-fraunces), Georgia, serif;
+  --sans:  var(--font-geist-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --mono:  var(--font-geist-mono), ui-monospace, Menlo, monospace;
+
+  --paper:    #0f0d0a;
+  --paper-2:  #14120e;
+  --card:     #161310;
+  --card-2:   #1b1813;
+  --ink:      #ece7dd;
+  --ink-soft: #c9c2b4;
+  --muted:    #958d7c;
+  --faint:    #6b6354;
+  --line:     rgba(236,231,221,.09);
+  --line-soft:rgba(236,231,221,.05);
+  --vio:      #a78bfa;
+  --vio-deep: #7c3aed;
+  --vio-bg:   rgba(167,139,250,.10);
+  --gold:     #ddb36a;
+  --gold-bg:  rgba(221,179,106,.10);
+  --rose:     #d98ba3;
+  --rose-bg:  rgba(217,139,163,.10);
+  --ok:       #7fb08a;
+  --ok-bg:    rgba(127,176,138,.10);
+  --shadow:   0 1px 0 rgba(0,0,0,.4), 0 16px 40px -24px rgba(0,0,0,.7);
+
+  /* muted source hues — small kind dots / icon tints only */
+  --k-doc:    #8fb0d6;
+  --k-sheet:  #86b988;
+  --k-form:   #a78bfa;
+  --k-drive:  #ddb36a;
+  --k-link:   #958d7c;
+
+  max-width: 1180px;
+  margin: 0;
+  padding: 30px 40px 64px;
+}
+@media (max-width: 640px) {
+  .dash.dash-docs { padding: 22px 18px 56px; }
+}
+
+/* ── Toolbar bar (breadcrumb label) ──────────────────────────────────────────── */
+/* dashboard-ledger.css warms header.dash-toolbar at md+ only; the docs toolbar is
+   visible at every width, so warm its base here too (mobile included). */
+header.dash-toolbar.dx-toolbar-bar {
+  background: rgba(15, 13, 10, 0.85);
+  border-bottom-color: rgba(236, 231, 221, 0.09);
+}
+header.dash-toolbar.dx-toolbar-bar .tb-icon-btn { color: #958d7c; }
+header.dash-toolbar.dx-toolbar-bar .tb-icon-btn:hover { color: #ece7dd; background: rgba(236, 231, 221, 0.035); }
+header.dash-toolbar .dx-crumb {
+  font-family: var(--font-fraunces), Georgia, serif; font-weight: 500;
+  font-size: 15px; letter-spacing: -.01em; color: #ece7dd;
+}
+
+/* ── Briefing ────────────────────────────────────────────────────────────────── */
+.dash .dx-briefing { display: flex; align-items: flex-start; justify-content: space-between; gap: 32px; }
+.dash .dx-briefing .kicker { font-family: var(--mono); font-size: 10.5px; letter-spacing: .18em; text-transform: uppercase; color: var(--muted); }
+.dash .dx-briefing h1 { font-family: var(--serif); font-weight: 400; font-size: 33px; letter-spacing: -.01em; margin-top: 8px; color: var(--ink); }
+.dash .dx-briefing h1 em { font-style: italic; color: var(--vio); }
+.dash .dx-digest { margin-top: 12px; display: flex; gap: 9px; align-items: baseline; max-width: 60ch; }
+.dash .dx-digest .ai { flex-shrink: 0; font-family: var(--mono); font-size: 8.5px; font-weight: 600; letter-spacing: .14em;
+  color: var(--vio); border: 1px solid var(--vio-bg); background: var(--vio-bg); border-radius: 4px; padding: 2px 5px; transform: translateY(-1px); }
+.dash .dx-digest p { font-size: 13.5px; color: var(--ink-soft); font-style: italic; font-family: var(--serif); font-weight: 350; }
+
+.dash .dx-add { flex-shrink: 0; display: inline-flex; align-items: center; gap: 7px; cursor: pointer;
+  font-family: var(--mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--vio); background: var(--vio-bg); border: 1px solid var(--vio-bg); border-radius: 8px; padding: 8px 14px;
+  transition: border-color .12s; }
+.dash .dx-add:hover { border-color: var(--vio); }
+.dash .dx-add svg { width: 13px; height: 13px; stroke: var(--vio); }
+
+/* ── Glance strip ────────────────────────────────────────────────────────────── */
+/* auto-flow column so 1–4 visible measures always divide the row evenly — no
+   empty cells when a measure is hidden from its own ✕. */
+.dash .dx-glance { margin-top: 22px; display: grid; grid-auto-flow: column; grid-auto-columns: 1fr;
+  border: 1px solid var(--line); border-radius: 12px; background: var(--card); box-shadow: var(--shadow); overflow: hidden; }
+.dash .dx-measure { position: relative; padding: 15px 18px 14px; border-right: 1px solid var(--line-soft); }
+.dash .dx-measure:last-child { border-right: none; }
+.dash .dx-measure .k { font-family: var(--mono); font-size: 9px; letter-spacing: .16em; text-transform: uppercase; color: var(--muted); }
+.dash .dx-measure .v { font-family: var(--mono); font-size: 23px; font-weight: 500; letter-spacing: -.02em; color: var(--ink); margin-top: 7px; font-variant-numeric: tabular-nums; }
+.dash .dx-measure .note { font-size: 11px; color: var(--faint); margin-top: 3px; }
+
+/* Per-measure hide control — top-right of each measure, revealed on hover. */
+.dash .dx-measure-hide { position: absolute; top: 8px; right: 8px; width: 20px; height: 20px; border-radius: 6px;
+  display: grid; place-items: center; cursor: pointer; color: var(--faint); background: none; border: none;
+  opacity: 0; transition: opacity .12s, background .12s, color .12s; }
+.dash .dx-measure:hover .dx-measure-hide, .dash .dx-measure-hide:focus-visible { opacity: 1; }
+.dash .dx-measure-hide:hover { background: var(--rose-bg); color: var(--rose); }
+.dash .dx-measure-hide:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--vio-bg); }
+.dash .dx-measure-hide svg { width: 12px; height: 12px; }
+
+@media (max-width: 640px) {
+  .dash .dx-glance { grid-auto-flow: row; grid-template-columns: repeat(2, 1fr); grid-auto-columns: auto; }
+  .dash .dx-measure { border-bottom: 1px solid var(--line-soft); }
+  /* touch devices have no hover — keep the ✕ visible at smaller widths */
+  .dash .dx-measure-hide { opacity: .55; }
+}
+
+/* ── Toolbar: search + kind filter ───────────────────────────────────────────── */
+.dash .dx-toolbar { margin-top: 18px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.dash .dx-search { display: inline-flex; align-items: center; gap: 8px; padding: 8px 12px; min-width: 240px; flex: 1 1 240px; max-width: 340px;
+  border-radius: 9px; border: 1px solid var(--line); background: var(--card); color: var(--faint);
+  transition: border-color .12s, box-shadow .12s; }
+.dash .dx-search:focus-within { border-color: rgba(167,139,250,.5); box-shadow: 0 0 0 3px var(--vio-bg); }
+.dash .dx-search svg { width: 14px; height: 14px; flex-shrink: 0; }
+.dash .dx-search input { flex: 1; min-width: 0; background: none; border: none; outline: none;
+  color: var(--ink); font-family: var(--mono); font-size: 11px; letter-spacing: .03em; }
+.dash .dx-search input::placeholder { color: var(--faint); }
+.dash .dx-search .clr { display: grid; place-items: center; width: 18px; height: 18px; border-radius: 5px;
+  background: none; border: none; cursor: pointer; color: var(--faint); flex-shrink: 0; }
+.dash .dx-search .clr:hover { background: var(--card-2); color: var(--ink); }
+.dash .dx-search .clr svg { width: 11px; height: 11px; }
+
+.dash .dx-seg { display: inline-flex; gap: 2px; padding: 3px; border: 1px solid var(--line); border-radius: 9px; background: var(--card); flex-wrap: wrap; }
+.dash .dx-seg button { display: inline-flex; align-items: center; gap: 6px;
+  font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--muted); border: none; background: transparent; border-radius: 6px; padding: 6px 11px; cursor: pointer; transition: color .12s, background .12s; }
+.dash .dx-seg button:hover { color: var(--ink-soft); }
+.dash .dx-seg button.on { color: var(--ink); background: var(--card-2); box-shadow: inset 0 0 0 1px var(--line); }
+.dash .dx-seg button .ct { font-size: 9px; color: var(--faint); }
+.dash .dx-seg button.on .ct { color: var(--vio); }
+.dash .dx-toolbar .dx-scope { margin-left: auto; font-family: var(--mono); font-size: 10px; letter-spacing: .08em; color: var(--faint); white-space: nowrap; }
+
+/* ── Card grid ───────────────────────────────────────────────────────────────── */
+.dash .dx-grid { margin-top: 20px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+@media (max-width: 1080px) { .dash .dx-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 680px)  { .dash .dx-grid { grid-template-columns: 1fr; } }
+
+.dash .dx-card { position: relative; display: flex; flex-direction: column; text-decoration: none;
+  border: 1px solid var(--line); border-radius: 12px; background: var(--card); box-shadow: var(--shadow);
+  padding: 16px 17px 15px; transition: background .12s, border-color .12s, transform .12s; }
+.dash .dx-card:hover { background: var(--card-2); border-color: rgba(167,139,250,.28); transform: translateY(-1px); }
+.dash .dx-card:focus-visible { outline: none; border-color: var(--vio); box-shadow: 0 0 0 3px var(--vio-bg); }
+
+.dash .dx-card .top { display: flex; align-items: center; gap: 11px; }
+.dash .dx-card .fav { width: 36px; height: 36px; border-radius: 10px; flex-shrink: 0; display: grid; place-items: center;
+  overflow: hidden; background: var(--vio-bg); color: var(--kc, var(--vio)); }
+.dash .dx-card .fav svg { width: 18px; height: 18px; }
+.dash .dx-card .fav img { width: 20px; height: 20px; object-fit: contain; }
+.dash .dx-card.k-doc   .fav { background: rgba(143,176,214,.12); }
+.dash .dx-card.k-sheet .fav { background: rgba(134,185,136,.12); }
+.dash .dx-card.k-form  .fav { background: var(--vio-bg); }
+.dash .dx-card.k-drive .fav { background: var(--gold-bg); }
+.dash .dx-card.k-link  .fav { background: var(--card-2); }
+.dash .dx-card .meta { min-width: 0; flex: 1; }
+.dash .dx-card .meta .t { font-size: 13.5px; font-weight: 600; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dash .dx-card .meta .h { font-family: var(--mono); font-size: 9.5px; letter-spacing: .04em; color: var(--faint);
+  margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.dash .dx-card .kind { margin-top: 13px; display: inline-flex; align-items: center; gap: 6px; align-self: flex-start;
+  font-family: var(--mono); font-size: 8.5px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--kc, var(--muted)); }
+.dash .dx-card .kind::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--kc, var(--muted)); }
+
+.dash .dx-card .desc { margin-top: 9px; font-size: 12px; line-height: 1.5; color: var(--ink-soft);
+  display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; min-height: 36px; }
+.dash .dx-card .desc.none { color: var(--faint); font-style: italic; font-family: var(--serif); }
+
+.dash .dx-card .foot { margin-top: 13px; padding-top: 11px; border-top: 1px solid var(--line-soft);
+  display: flex; align-items: center; justify-content: space-between; }
+.dash .dx-card .foot .added { font-family: var(--mono); font-size: 9px; letter-spacing: .06em; color: var(--faint); }
+.dash .dx-card .foot .open { display: inline-flex; align-items: center; gap: 5px; opacity: 0; transition: opacity .12s;
+  font-family: var(--mono); font-size: 9px; letter-spacing: .1em; text-transform: uppercase; color: var(--vio); }
+.dash .dx-card:hover .foot .open, .dash .dx-card:focus-within .foot .open { opacity: 1; }
+.dash .dx-card .foot .open svg { width: 12px; height: 12px; }
+
+/* manage menu */
+.dash .dx-card .dx-menu-btn { position: absolute; top: 12px; right: 12px; width: 26px; height: 26px; border-radius: 7px;
+  display: grid; place-items: center; color: var(--faint); background: none; border: none; cursor: pointer;
+  opacity: 0; transition: opacity .12s, background .12s, color .12s; }
+.dash .dx-card:hover .dx-menu-btn, .dash .dx-card .dx-menu-btn[aria-expanded="true"] { opacity: 1; }
+.dash .dx-card .dx-menu-btn:hover { background: var(--card-2); color: var(--ink); }
+.dash .dx-card .dx-menu-btn svg { width: 16px; height: 16px; }
+.dash .dx-menu { position: absolute; top: 40px; right: 12px; z-index: 20; min-width: 130px; overflow: hidden;
+  border: 1px solid var(--line); border-radius: 9px; background: var(--paper-2);
+  box-shadow: 0 16px 40px -16px rgba(0,0,0,.8); }
+.dash .dx-menu button { display: block; width: 100%; text-align: left; padding: 8px 12px;
+  font-family: var(--sans); font-size: 12px; color: var(--ink-soft); background: none; border: none; cursor: pointer; transition: background .12s, color .12s; }
+.dash .dx-menu button:hover { background: var(--card-2); color: var(--ink); }
+.dash .dx-menu button.del { color: var(--rose); }
+.dash .dx-menu button.del:hover { background: var(--rose-bg); }
+
+/* ── States ──────────────────────────────────────────────────────────────────── */
+.dash .dx-loading { display: flex; align-items: center; justify-content: center; padding: 80px 0; }
+
+.dash .dx-empty { margin-top: 26px; border: 1px dashed var(--line); border-radius: 14px; background: var(--paper-2);
+  padding: 48px 24px; text-align: center; }
+.dash .dx-empty .ic { width: 52px; height: 52px; border-radius: 14px; margin: 0 auto 14px; display: grid; place-items: center;
+  background: var(--vio-bg); color: var(--vio); }
+.dash .dx-empty .ic svg { width: 24px; height: 24px; }
+.dash .dx-empty .t { font-family: var(--serif); font-weight: 500; font-size: 18px; color: var(--ink); }
+.dash .dx-empty .h { font-size: 12.5px; color: var(--faint); margin-top: 6px; }
+.dash .dx-empty .clear { margin-top: 12px; font-family: var(--mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--vio); background: none; border: none; cursor: pointer; }
+.dash .dx-empty .clear:hover { text-decoration: underline; }
+.dash .dx-empty.err .ic { background: var(--rose-bg); color: var(--rose); }
+
+/* ── Toast / page error banner ───────────────────────────────────────────────── */
+.dash .dx-toast { margin-bottom: 18px; display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  border-radius: 10px; padding: 11px 15px; font-size: 12.5px; border: 1px solid var(--rose-bg); background: var(--rose-bg); color: var(--rose); }
+.dash .dx-toast button { display: grid; place-items: center; background: none; border: none; cursor: pointer; color: var(--rose); }
+.dash .dx-toast button svg { width: 15px; height: 15px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .dash.dash-docs * { transition: none !important; animation: none !important; }
+}

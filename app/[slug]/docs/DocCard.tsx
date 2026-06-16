@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactElement } from "react";
 
 export interface Doc {
   id: number;
@@ -16,6 +16,37 @@ export interface Doc {
   createdById: number | null;
 }
 
+/** A small, recognizable "source" type inferred from the URL. We lead with this
+ *  instead of a live iframe thumbnail — faster, calmer, and never broken. */
+type Kind = "doc" | "sheet" | "form" | "drive" | "link";
+
+export function kindOf(url: string): Kind {
+  let host = "";
+  let path = "";
+  try {
+    const u = new URL(url);
+    host = u.hostname.replace(/^www\./, "");
+    path = u.pathname;
+  } catch {
+    return "link";
+  }
+  if (host === "forms.gle" || /\/forms\//.test(path) || /forms\.google/.test(host)) return "form";
+  if (/\/spreadsheets\//.test(path) || host.includes("sheets.google")) return "sheet";
+  if (host.includes("drive.google")) return "drive";
+  if (/\/document\//.test(path) || host.includes("docs.google")) return "doc";
+  return "link";
+}
+
+const KIND_LABEL: Record<Kind, string> = { doc: "Doc", sheet: "Sheet", form: "Form", drive: "Drive", link: "Link" };
+
+const KIND_ICON: Record<Kind, ReactElement> = {
+  doc: <path strokeLinecap="round" strokeLinejoin="round" d="M14 3v4a1 1 0 001 1h4M5 3h9l5 5v11a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2z" />,
+  sheet: <path strokeLinecap="round" strokeLinejoin="round" d="M4 5h16v14H4zM4 10h16M4 15h16M10 5v14" />,
+  form: <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />,
+  drive: <path strokeLinecap="round" strokeLinejoin="round" d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z" />,
+  link: <path strokeLinecap="round" strokeLinejoin="round" d="M13.83 10.17a4 4 0 00-5.66 0l-4 4a4 4 0 105.66 5.66l1.1-1.1m-.76-4.9a4 4 0 005.66 0l4-4a4 4 0 00-5.66-5.66l-1.1 1.1" />,
+};
+
 export function DocCard({
   doc,
   canManage,
@@ -28,16 +59,15 @@ export function DocCard({
   onDelete: () => void;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
-  // The embedOk verdict comes from the server probe; fall back to true so we
-  // at least *try* to iframe URLs we haven't probed yet. If the iframe stays
-  // blank past load, the client-side onError flag flips us to the fallback.
-  const [iframeFailed, setIframeFailed] = useState(false);
-  const showIframe = doc.embedOk !== false && !iframeFailed;
+  const [favFailed, setFavFailed] = useState(false);
 
+  const kind = useMemo(() => kindOf(doc.url), [doc.url]);
   const hostname = useMemo(() => {
     try { return new URL(doc.url).hostname.replace(/^www\./, ""); }
     catch { return doc.url; }
   }, [doc.url]);
+
+  const showFavicon = doc.faviconUrl && !favFailed;
 
   function stop(e: React.MouseEvent) {
     e.stopPropagation();
@@ -45,139 +75,77 @@ export function DocCard({
   }
 
   return (
-    <div className="card-premium group relative flex flex-col overflow-hidden rounded-xl border border-white/[0.06] bg-[#10121a] transition-all duration-200 hover:border-white/[0.12]">
-      {/* The card itself is the link. Wrapping <a> covers the whole card and
-          opens the URL in a new tab — the iframe pointer-events shim below
-          guarantees clicks land here, not on the embedded page. */}
-      <a
-        href={doc.url}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="flex flex-1 flex-col"
-      >
-        {/* ── Header: favicon + title + hostname ────────────────────────── */}
-        <div className="flex items-start gap-3 p-5 pb-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-indigo-500/10">
-            {doc.faviconUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={doc.faviconUrl}
-                alt=""
-                className="h-5 w-5 object-contain"
-                onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
-              />
-            ) : (
-              <svg className="h-4 w-4 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-              </svg>
-            )}
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-[14px] font-semibold leading-tight text-white">{doc.title}</p>
-            <p className="mt-0.5 truncate text-[11px] leading-snug text-slate-500">{hostname}</p>
-          </div>
-        </div>
-
-        {/* ── Preview area (16:9) ───────────────────────────────────────── */}
-        <div className="relative mx-5 aspect-video overflow-hidden rounded-lg border border-white/[0.04] bg-[#0a0d14]">
-          {showIframe ? (
-            <>
-              <iframe
-                src={doc.url}
-                title={doc.title}
-                loading="lazy"
-                referrerPolicy="no-referrer"
-                sandbox="allow-scripts allow-same-origin allow-popups"
-                className="absolute left-0 top-0 origin-top-left"
-                // Render the page at 2× the card and scale down 50% — gives a
-                // "thumbnail" feel and lets more of the real layout fit.
-                style={{ width: "200%", height: "200%", transform: "scale(0.5)" }}
-                onError={() => setIframeFailed(true)}
-              />
-              {/* Pointer shim: covers the iframe so the parent <a> always wins
-                  the click. Without this, clicks would hit the embedded page
-                  and either navigate inside the iframe or do nothing. */}
-              <div className="absolute inset-0" aria-hidden="true" />
-            </>
-          ) : doc.ogImage ? (
+    <a
+      href={doc.url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={`dx-card k-${kind}`}
+      style={{ ["--kc" as string]: `var(--k-${kind})` }}
+    >
+      {/* ── Source: favicon (or kind glyph) + title + host ── */}
+      <div className="top">
+        <div className="fav">
+          {showFavicon ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={doc.ogImage}
-              alt=""
-              className="absolute inset-0 h-full w-full object-cover"
-              onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
-            />
+            <img src={doc.faviconUrl!} alt="" onError={() => setFavFailed(true)} />
           ) : (
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 p-4 text-center">
-              <svg className="h-6 w-6 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-              </svg>
-              <p className="text-[11px] text-slate-500">Preview unavailable</p>
-            </div>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>{KIND_ICON[kind]}</svg>
           )}
         </div>
-
-        {/* ── Description + open hint ───────────────────────────────────── */}
-        <div className="flex flex-1 flex-col p-5 pt-3">
-          <p className="line-clamp-2 min-h-[32px] flex-1 text-[12px] leading-snug text-slate-400">
-            {doc.description || <span className="italic text-slate-600">No description</span>}
-          </p>
-          <div className="mt-3 flex items-center justify-between">
-            <span className="text-[10px] text-slate-600">{fmtDate(doc.createdAt)}</span>
-            <div className="flex items-center gap-1 opacity-0 transition-opacity duration-150 group-hover:opacity-100">
-              <span className="text-[10px] text-slate-500">Open</span>
-              <svg className="h-3 w-3 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3" />
-              </svg>
-            </div>
-          </div>
+        <div className="meta">
+          <div className="t">{doc.title}</div>
+          <div className="h">{hostname}</div>
         </div>
-      </a>
+      </div>
 
-      {/* ── Edit/delete menu — sits above the <a> via z-index ─────────── */}
+      <span className="kind">{KIND_LABEL[kind]}</span>
+
+      <p className={`desc${doc.description ? "" : " none"}`}>
+        {doc.description || "No description"}
+      </p>
+
+      <div className="foot">
+        <span className="added">Added {fmtDate(doc.createdAt)}</span>
+        <span className="open">
+          Open
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+          </svg>
+        </span>
+      </div>
+
+      {/* ── Manage menu ── */}
       {canManage && (
-        <div className="absolute right-3 top-3 z-10">
+        <>
           <button
             type="button"
-            onClick={(e) => { stop(e); setMenuOpen(v => !v); }}
+            className="dx-menu-btn"
             aria-label="Doc actions"
-            className="flex h-7 w-7 items-center justify-center rounded-md text-slate-500 hover:bg-white/[0.06] hover:text-white"
+            aria-expanded={menuOpen}
+            onClick={(e) => { stop(e); setMenuOpen(v => !v); }}
           >
-            <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+            <svg fill="currentColor" viewBox="0 0 20 20">
               <path d="M10 6a1.5 1.5 0 110-3 1.5 1.5 0 010 3zm0 5.5a1.5 1.5 0 110-3 1.5 1.5 0 010 3zm0 5.5a1.5 1.5 0 110-3 1.5 1.5 0 010 3z" />
             </svg>
           </button>
           {menuOpen && (
             <>
-              {/* Backdrop to dismiss; click-through is fine since menu is above. */}
-              <div className="fixed inset-0 z-0" onClick={(e) => { stop(e); setMenuOpen(false); }} />
-              <div className="absolute right-0 top-8 z-20 min-w-[120px] overflow-hidden rounded-lg border border-white/[0.08] bg-[#10121a] shadow-xl">
-                <button
-                  type="button"
-                  onClick={(e) => { stop(e); setMenuOpen(false); onEdit(); }}
-                  className="block w-full px-3 py-1.5 text-left text-[12px] text-slate-300 hover:bg-white/[0.06]"
-                >
-                  Edit
-                </button>
-                <button
-                  type="button"
-                  onClick={(e) => { stop(e); setMenuOpen(false); onDelete(); }}
-                  className="block w-full px-3 py-1.5 text-left text-[12px] text-red-400 hover:bg-red-500/10"
-                >
-                  Delete
-                </button>
+              <div className="fixed inset-0 z-10" onClick={(e) => { stop(e); setMenuOpen(false); }} />
+              <div className="dx-menu">
+                <button type="button" onClick={(e) => { stop(e); setMenuOpen(false); onEdit(); }}>Edit</button>
+                <button type="button" className="del" onClick={(e) => { stop(e); setMenuOpen(false); onDelete(); }}>Delete</button>
               </div>
             </>
           )}
-        </div>
+        </>
       )}
-    </div>
+    </a>
   );
 }
 
 function fmtDate(iso: string): string {
   try {
-    return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+    return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" });
   } catch {
     return "";
   }

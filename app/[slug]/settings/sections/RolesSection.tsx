@@ -279,69 +279,52 @@ export function RolesSection({
   if (!canManageRoles) return null;
 
   return (
-    <div className="space-y-6">
-      <header className="flex items-start justify-between gap-4">
-        <div>
-          <h2 className="text-[16px] font-semibold text-white">Roles</h2>
-          <p className="mt-1 text-[12px] text-white/55">
-            Roles bundle permissions. A brother can hold any number — their effective access is the union.
-            Super-admins (the {`isAdmin`} bit on Brother) bypass all checks regardless of roles.
-          </p>
-        </div>
+    <div className="sc-stack-tight">
+      <div className="flex items-start justify-between gap-4">
+        <p className="sc-lede" style={{ margin: 0 }}>
+          Roles bundle permissions. A brother can hold any number — their effective access is the union.
+          Super-admins bypass all checks regardless of roles.
+        </p>
         <button
           onClick={() => { setCreating(true); setSelectedId(null); }}
-          className="shrink-0 rounded-lg bg-indigo-500/90 px-3 py-1.5 text-[12px] font-medium text-white hover:bg-indigo-500"
+          className="sc-btn sc-btn-primary sc-btn-sm shrink-0"
         >
           + New role
         </button>
-      </header>
+      </div>
 
       {loading ? (
-        <p className="text-[12px] text-white/40">Loading roles…</p>
+        <p className="sc-note">Loading roles…</p>
       ) : (
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
+        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
           {/* ── Role list ──
-              Container + row-divider styling mirrors AccountsSection so the
-              two settings sections look like siblings. Selected row gets a
-              2px left accent in the role's color so selection is signaled by
-              hue, not opacity (opacity is reserved for "you can't edit this"). */}
-          <ul className="rounded-xl border border-white/[0.06] overflow-hidden">
-            {roles.map((r, i) => {
+              Selected row gets a 2px left accent in the role's color so
+              selection is signaled by hue, not opacity (opacity is reserved
+              for "you can't edit this"). */}
+          <ul className="sc-card">
+            {roles.map((r) => {
               const editable = isEditableRow(r);
               const active = !creating && selectedId === r.id;
-              const accent = active ? (r.color ?? "rgba(255,255,255,0.4)") : "transparent";
+              const accent = active ? (r.color ?? "var(--vio)") : "transparent";
               return (
-                <li key={r.id} className={i < roles.length - 1 ? "border-b border-white/[0.04]" : ""}>
+                <li key={r.id} className="sc-row" style={{ padding: 0 }}>
                   <button
                     onClick={() => { setCreating(false); setSelectedId(r.id); }}
                     aria-pressed={active}
-                    className={`relative flex w-full items-center gap-3 px-4 py-3 text-left transition ${
-                      active ? "bg-white/[0.05]" : "hover:bg-white/[0.03]"
-                    } ${editable ? "" : "opacity-60"}`}
+                    className="relative flex w-full items-center gap-3 px-4 py-3 text-left transition"
+                    style={{
+                      background: active ? "var(--card-2)" : "transparent",
+                      opacity: editable ? 1 : 0.6,
+                    }}
                   >
-                    <span
-                      className="absolute inset-y-0 left-0 w-[2px]"
-                      style={{ background: accent }}
-                      aria-hidden="true"
-                    />
-                    <span
-                      className="h-3 w-3 shrink-0 rounded-full"
-                      style={{ background: r.color ?? "rgba(255,255,255,0.2)" }}
-                      aria-hidden="true"
-                    />
+                    <span className="absolute inset-y-0 left-0 w-[2px]" style={{ background: accent }} aria-hidden="true" />
+                    <span className="h-3 w-3 shrink-0 rounded-full" style={{ background: r.color ?? "var(--muted)" }} aria-hidden="true" />
                     <span className="min-w-0 flex-1">
                       <span className="flex items-center gap-2">
-                        <span className="truncate text-[13px] font-medium text-white">{r.name}</span>
-                        {r.isSystem && (
-                          <span className="rounded bg-white/[0.06] px-1.5 py-[1px] text-[9px] font-medium uppercase tracking-wider text-white/40">
-                            System
-                          </span>
-                        )}
+                        <span className="sc-row-key truncate">{r.name}</span>
+                        {r.isSystem && <span className="sc-pill sc-pill-muted">System</span>}
                       </span>
-                      <span
-                        className="block truncate text-[11px] text-white/40"
-                        title={permissionTooltip(r.permissions)}
-                      >
+                      <span className="block truncate sc-row-sub" title={permissionTooltip(r.permissions)}>
                         rank {r.rank} · {r.memberCount} member{r.memberCount === 1 ? "" : "s"} · {permissionSummary(r.permissions)}
                       </span>
                     </span>
@@ -352,18 +335,15 @@ export function RolesSection({
           </ul>
 
           {/* ── Edit panel ── */}
-          <div className="rounded-xl border border-white/[0.05] bg-white/[0.02] p-5">
+          <div className="sc-card" style={{ padding: 18 }}>
             {creating || selected ? (
               <>
                 <div className="mb-4 flex items-center justify-between gap-3">
-                  <h3 className="text-[14px] font-semibold text-white">
+                  <h3 className="sc-h">
                     {creating ? "New role" : `Edit "${selected!.name}"`}
                   </h3>
                   {!creating && selected && !selected.isSystem && isEditableRow(selected) && (
-                    <button
-                      onClick={() => setDeleteTarget(selected)}
-                      className="rounded-lg px-2 py-1 text-[12px] text-red-300 hover:bg-red-500/10"
-                    >
+                    <button onClick={() => setDeleteTarget(selected)} className="sc-btn sc-btn-danger sc-btn-sm">
                       Delete
                     </button>
                   )}
@@ -377,10 +357,10 @@ export function RolesSection({
                       onChange={e => setDraft(d => ({ ...d, name: e.target.value }))}
                       disabled={!creating && (selected?.isSystem ?? false)}
                       maxLength={60}
-                      className="w-full rounded-lg border border-white/[0.07] bg-white/[0.03] px-3 py-1.5 text-[13px] text-white outline-none focus:border-indigo-500/40 disabled:opacity-50"
+                      className="sc-input sc-input-sm disabled:opacity-50"
                     />
                     {!creating && selected?.isSystem && (
-                      <p className="mt-1 text-[10px] text-white/35">System roles can't be renamed.</p>
+                      <p className="mt-1 text-[10px]" style={{ color: "var(--faint)" }}>System roles can't be renamed.</p>
                     )}
                   </Field>
 
@@ -396,7 +376,8 @@ export function RolesSection({
                       type="color"
                       value={draft.color}
                       onChange={e => setDraft(d => ({ ...d, color: e.target.value, colorTouched: true }))}
-                      className="h-8 w-14 cursor-pointer rounded border border-white/[0.07] bg-transparent"
+                      className="h-8 w-14 cursor-pointer rounded bg-transparent"
+                      style={{ border: "1px solid var(--line)" }}
                     />
                   </Field>
 
@@ -418,14 +399,11 @@ export function RolesSection({
                           value={draft.rank}
                           onChange={e => setDraft(d => ({ ...d, rank: Number(e.target.value) }))}
                           aria-invalid={rankInvalid}
-                          className={`w-28 rounded-lg border bg-white/[0.03] px-3 py-1.5 text-[13px] text-white outline-none ${
-                            rankInvalid
-                              ? "border-red-500/60 focus:border-red-500/80"
-                              : "border-white/[0.07] focus:border-indigo-500/40"
-                          }`}
+                          className="sc-input sc-input-sm w-28"
+                          style={rankInvalid ? { borderColor: "rgba(217,139,163,.6)" } : undefined}
                         />
                         {rankInvalid && (
-                          <p className="mt-1 text-[10.5px] text-red-300">
+                          <p className="mt-1 text-[10.5px]" style={{ color: "var(--rose)" }}>
                             Rank must be below your own (max {myMaxRank - 1}).
                           </p>
                         )}
@@ -436,16 +414,21 @@ export function RolesSection({
                   <Field label="Permissions">
                     <div className="grid gap-2 sm:grid-cols-2">
                       {PERMISSION_LIST.map(p => (
-                        <label key={p.name} className="flex items-start gap-2 rounded-lg border border-white/[0.05] bg-white/[0.02] p-2 text-[12px] text-white/75 hover:bg-white/[0.04]">
+                        <label
+                          key={p.name}
+                          className="flex items-start gap-2 rounded-lg p-2 text-[12px]"
+                          style={{ border: "1px solid var(--line-soft)", background: "var(--paper-2)", color: "var(--ink-soft)" }}
+                        >
                           <input
                             type="checkbox"
                             checked={hasPermission(draft.permissions, p.name)}
                             onChange={() => togglePermission(p.bit)}
-                            className="mt-0.5 accent-indigo-500"
+                            className="mt-0.5"
+                            style={{ accentColor: "var(--vio)" }}
                           />
                           <span>
-                            <span className="block font-medium text-white/90">{p.name.replace(/^MANAGE_/, "").toLowerCase()}</span>
-                            <span className="block text-[10.5px] text-white/45">{PERMISSION_LABELS[p.name]}</span>
+                            <span className="block font-medium" style={{ color: "var(--ink)" }}>{p.name.replace(/^MANAGE_/, "").toLowerCase()}</span>
+                            <span className="block text-[10.5px]" style={{ color: "var(--faint)" }}>{PERMISSION_LABELS[p.name]}</span>
                           </span>
                         </label>
                       ))}
@@ -463,25 +446,18 @@ export function RolesSection({
 
                   <div className="flex justify-end gap-2 pt-2">
                     {creating && (
-                      <button
-                        onClick={() => setCreating(false)}
-                        className="rounded-lg px-3 py-1.5 text-[12px] text-white/60 hover:bg-white/[0.04]"
-                      >
+                      <button onClick={() => setCreating(false)} className="sc-btn sc-btn-ghost sc-btn-sm">
                         Cancel
                       </button>
                     )}
-                    <button
-                      onClick={save}
-                      disabled={savingId !== null}
-                      className="rounded-lg bg-indigo-500/90 px-4 py-1.5 text-[12px] font-medium text-white hover:bg-indigo-500 disabled:opacity-60"
-                    >
+                    <button onClick={save} disabled={savingId !== null} className="sc-btn sc-btn-primary sc-btn-sm">
                       {savingId !== null ? "Saving…" : creating ? "Create role" : "Save changes"}
                     </button>
                   </div>
                 </div>
               </>
             ) : (
-              <p className="text-[12px] text-white/40">Select a role to edit, or create a new one.</p>
+              <p className="sc-note">Select a role to edit, or create a new one.</p>
             )}
           </div>
         </div>
@@ -496,6 +472,7 @@ export function RolesSection({
               : "This cannot be undone."
           }
           confirmLabel="Delete"
+          tone="dusk"
           onConfirm={() => doDelete(deleteTarget)}
           onCancel={() => setDeleteTarget(null)}
         />
@@ -507,9 +484,9 @@ export function RolesSection({
 function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
   return (
     <div>
-      <label className="mb-1.5 block text-[11px] font-medium uppercase tracking-wider text-white/45">{label}</label>
+      <label className="mb-1.5 block text-[11px] font-medium uppercase tracking-wider" style={{ color: "var(--muted)", fontFamily: "var(--mono)", letterSpacing: ".1em" }}>{label}</label>
       {children}
-      {hint && <p className="mt-1 text-[10.5px] text-white/35">{hint}</p>}
+      {hint && <p className="mt-1 text-[10.5px]" style={{ color: "var(--faint)" }}>{hint}</p>}
     </div>
   );
 }
@@ -521,7 +498,7 @@ function MembersList({ members, color }: { members: { id: number; name: string }
   return (
     <Field label={`Members (${members.length})`}>
       {members.length === 0 ? (
-        <p className="text-[11px] text-white/35">No one holds this role yet.</p>
+        <p className="text-[11px]" style={{ color: "var(--faint)" }}>No one holds this role yet.</p>
       ) : (
         <div className="flex max-h-48 flex-wrap gap-1.5 overflow-y-auto pr-1">
           {members.map(m => (

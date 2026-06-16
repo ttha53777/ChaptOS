@@ -95,14 +95,25 @@ export function AccountsSection({
   const linked = accounts.filter(a => a.linked);
   const unlinked = accounts.filter(a => !a.linked);
 
-  if (loading) return <div className="py-8 text-center text-[11px] text-slate-600">Loading…</div>;
+  if (loading) return <div className="py-8 text-center sc-note">Loading…</div>;
+
+  const adminBtn = (a: AccountRow) => (
+    <button
+      onClick={() => setAdminTarget({ id: a.id, name: a.name, nextIsAdmin: !a.isAdmin })}
+      disabled={togglingAdmin === a.id}
+      className={`sc-btn sc-btn-sm shrink-0 ${a.isAdmin ? "sc-btn-ghost" : "sc-btn-accent"}`}
+    >
+      {togglingAdmin === a.id ? "Saving…" : a.isAdmin ? "Remove admin" : "Make admin"}
+    </button>
+  );
 
   return (
-    <div className="space-y-6">
+    <div className="sc-stack-tight">
       {confirmSelfUnlink && (
         <ConfirmDialog
           title="Unlink your account"
           confirmLabel="Unlink & sign out"
+          tone="dusk"
           message={
             <>
               This will remove your Google account from your brother profile and sign you out.
@@ -117,15 +128,16 @@ export function AccountsSection({
         <ConfirmDialog
           title={adminTarget.nextIsAdmin ? "Promote to admin" : "Remove admin"}
           confirmLabel={adminTarget.nextIsAdmin ? "Promote" : "Remove admin"}
+          tone="dusk"
           message={
             adminTarget.nextIsAdmin ? (
               <>
-                Grant <span className="font-semibold text-white">{adminTarget.name}</span> admin permissions?
+                Grant <span className="font-semibold" style={{ color: "var(--ink)" }}>{adminTarget.name}</span> admin permissions?
                 They will be able to manage finances, semesters, roster, and attendance.
               </>
             ) : (
               <>
-                Remove admin permissions from <span className="font-semibold text-white">{adminTarget.name}</span>?
+                Remove admin permissions from <span className="font-semibold" style={{ color: "var(--ink)" }}>{adminTarget.name}</span>?
                 They will lose access to financial and destructive actions.
               </>
             )
@@ -138,67 +150,41 @@ export function AccountsSection({
           }}
         />
       )}
-      <p className="text-[12px] text-slate-500">
+      <p className="sc-lede" style={{ margin: 0 }}>
         Manage which brothers have linked their Google account. Unlink removes their access until they claim again.
       </p>
 
       {accounts.length === 0 ? (
-        <div className="rounded-xl border border-white/[0.06] py-8 text-center text-[11px] text-slate-600">No brothers found.</div>
+        <div className="sc-empty"><div className="t">No brothers found</div></div>
       ) : (
-        <div className="space-y-3">
+        <div className="sc-stack-tight">
           {linked.length > 0 && (
             <div>
-              <p className="mb-2 text-[11px] font-semibold uppercase tracking-widest text-slate-600">Linked — {linked.length}</p>
-              <div className="rounded-xl border border-white/[0.06] overflow-hidden">
-                {linked.map((a, i) => (
-                  <div
-                    key={a.id}
-                    className={`flex items-center justify-between gap-3 px-4 py-3 ${i < linked.length - 1 ? "border-b border-white/[0.04]" : ""}`}
-                  >
-                    <div className="flex min-w-0 items-center gap-2.5">
-                      <div className="h-2 w-2 shrink-0 rounded-full bg-emerald-500" />
+              <p className="sc-grp-label">Linked — {linked.length}</p>
+              <div className="sc-card">
+                {linked.map((a) => (
+                  <div key={a.id} className="sc-row sc-row-between">
+                    <div className="flex min-w-0 items-start gap-2.5">
+                      <div className="mt-1.5 h-2 w-2 shrink-0 rounded-full" style={{ background: "var(--ok)" }} />
                       <div className="min-w-0">
                         <div className="flex items-center gap-2">
-                          <span className="truncate text-[13px] font-medium text-slate-200">{a.name}</span>
-                          {a.isSelf && (
-                            <span className="rounded-full bg-white/[0.06] px-1.5 py-0.5 text-[10px] text-slate-500">you</span>
-                          )}
-                          {a.isAdmin && (
-                            <span className="rounded-full bg-indigo-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-300 ring-1 ring-inset ring-indigo-500/30">
-                              Admin
-                            </span>
-                          )}
+                          <span className="sc-row-key truncate">{a.name}</span>
+                          {a.isSelf && <span className="sc-pill sc-pill-muted">You</span>}
+                          {a.isAdmin && <span className="sc-pill sc-pill-vio">Admin</span>}
                         </div>
-                        <p className="text-[11px] text-slate-600">{a.role || "Member"}</p>
-                        {a.email && (
-                          <p className="truncate text-[11px] text-slate-500" title={a.email}>{a.email}</p>
-                        )}
-                        <BrotherRoleChips
-                          brotherId={a.id}
-                          initialRoles={a.roles}
-                          onError={onError}
-                        />
+                        <p className="sc-row-sub">{a.role || "Member"}</p>
+                        {a.email && <p className="sc-row-sub truncate" title={a.email}>{a.email}</p>}
+                        <BrotherRoleChips brotherId={a.id} initialRoles={a.roles} onError={onError} />
                       </div>
                     </div>
                     <div className="flex shrink-0 items-center gap-1.5">
-                      {isAdmin && !a.isSelf && (
-                        <button
-                          onClick={() => setAdminTarget({ id: a.id, name: a.name, nextIsAdmin: !a.isAdmin })}
-                          disabled={togglingAdmin === a.id}
-                          className={`rounded-lg border px-3 py-1.5 text-[11px] font-medium transition-all disabled:opacity-40 ${
-                            a.isAdmin
-                              ? "border-white/[0.1] bg-white/[0.04] text-slate-400 hover:border-white/[0.16] hover:text-slate-200"
-                              : "border-indigo-500/25 bg-indigo-500/[0.08] text-indigo-300 hover:bg-indigo-500/15"
-                          }`}
-                        >
-                          {togglingAdmin === a.id ? "Saving…" : a.isAdmin ? "Remove admin" : "Make admin"}
-                        </button>
-                      )}
+                      {isAdmin && !a.isSelf && adminBtn(a)}
                       {a.isSelf ? (
                         <button
                           onClick={() => setConfirmSelfUnlink(true)}
                           disabled={unlinkingSelf}
-                          className="rounded-lg border border-amber-500/25 bg-amber-500/[0.07] px-3 py-1.5 text-[11px] font-medium text-amber-400 transition-all hover:bg-amber-500/15 disabled:opacity-40"
+                          className="sc-btn sc-btn-sm shrink-0"
+                          style={{ background: "var(--gold-bg)", color: "var(--gold)", borderColor: "rgba(221,179,106,.25)" }}
                         >
                           {unlinkingSelf ? "Unlinking…" : "Unlink my account"}
                         </button>
@@ -206,7 +192,7 @@ export function AccountsSection({
                         <button
                           onClick={() => unlink(a.id, a.name)}
                           disabled={unlinking === a.id}
-                          className="rounded-lg border border-red-500/20 bg-red-500/[0.08] px-3 py-1.5 text-[11px] font-medium text-red-400 transition-all hover:bg-red-500/15 disabled:opacity-40"
+                          className="sc-btn sc-btn-danger sc-btn-sm shrink-0"
                         >
                           {unlinking === a.id ? "Unlinking…" : "Unlink"}
                         </button>
@@ -220,45 +206,22 @@ export function AccountsSection({
 
           {unlinked.length > 0 && (
             <div>
-              <p className="mb-2 text-[11px] font-semibold uppercase tracking-widest text-slate-600">Not linked — {unlinked.length}</p>
-              <div className="rounded-xl border border-white/[0.06] overflow-hidden">
-                {unlinked.map((a, i) => (
-                  <div
-                    key={a.id}
-                    className={`flex items-center justify-between gap-3 px-4 py-3 ${i < unlinked.length - 1 ? "border-b border-white/[0.04]" : ""}`}
-                  >
-                    <div className="flex min-w-0 items-center gap-2.5">
-                      <div className="h-2 w-2 shrink-0 rounded-full bg-slate-700" />
+              <p className="sc-grp-label">Not linked — {unlinked.length}</p>
+              <div className="sc-card">
+                {unlinked.map((a) => (
+                  <div key={a.id} className="sc-row sc-row-between">
+                    <div className="flex min-w-0 items-start gap-2.5">
+                      <div className="mt-1.5 h-2 w-2 shrink-0 rounded-full" style={{ background: "var(--faint)" }} />
                       <div className="min-w-0">
                         <div className="flex items-center gap-2">
-                          <span className="truncate text-[13px] text-slate-500">{a.name}</span>
-                          {a.isAdmin && (
-                            <span className="rounded-full bg-indigo-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-300 ring-1 ring-inset ring-indigo-500/30">
-                              Admin
-                            </span>
-                          )}
+                          <span className="truncate text-[13px]" style={{ color: "var(--muted)" }}>{a.name}</span>
+                          {a.isAdmin && <span className="sc-pill sc-pill-vio">Admin</span>}
                         </div>
-                        <p className="text-[11px] text-slate-700">{a.role || "Member"}</p>
-                        <BrotherRoleChips
-                          brotherId={a.id}
-                          initialRoles={a.roles}
-                          onError={onError}
-                        />
+                        <p className="sc-row-sub">{a.role || "Member"}</p>
+                        <BrotherRoleChips brotherId={a.id} initialRoles={a.roles} onError={onError} />
                       </div>
                     </div>
-                    {isAdmin && (
-                      <button
-                        onClick={() => setAdminTarget({ id: a.id, name: a.name, nextIsAdmin: !a.isAdmin })}
-                        disabled={togglingAdmin === a.id}
-                        className={`shrink-0 rounded-lg border px-3 py-1.5 text-[11px] font-medium transition-all disabled:opacity-40 ${
-                          a.isAdmin
-                            ? "border-white/[0.1] bg-white/[0.04] text-slate-400 hover:border-white/[0.16] hover:text-slate-200"
-                            : "border-indigo-500/25 bg-indigo-500/[0.08] text-indigo-300 hover:bg-indigo-500/15"
-                        }`}
-                      >
-                        {togglingAdmin === a.id ? "Saving…" : a.isAdmin ? "Remove admin" : "Make admin"}
-                      </button>
-                    )}
+                    {isAdmin && adminBtn(a)}
                   </div>
                 ))}
               </div>
@@ -286,17 +249,18 @@ function LeaveOrgZone({ onError }: { onError: (msg: string) => void }) {
 
   return (
     <>
-      <div className="rounded-xl border border-amber-500/20 bg-amber-500/[0.03] p-4">
-        <h3 className="mb-1 text-[12px] font-semibold text-amber-300">Leave organization</h3>
-        <p className="mb-3 text-[11px] text-slate-400">
-          Disconnect yourself from <span className="font-medium text-slate-300">{currentUser.org.name}</span>.
+      <div className="rounded-xl p-4" style={{ border: "1px solid var(--gold-bg)", background: "var(--gold-bg)" }}>
+        <h3 className="sc-h" style={{ color: "var(--gold)" }}>Leave organization</h3>
+        <p className="sc-note mt-1 mb-3">
+          Disconnect yourself from <span style={{ color: "var(--ink-soft)" }}>{currentUser.org.name}</span>.
           You&apos;ll lose access immediately. Your data stays with the org and you can be re-invited later.
         </p>
         <button
           onClick={() => setOpen(true)}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[12px] font-semibold text-amber-300 transition-colors hover:bg-amber-500/20"
+          className="sc-btn sc-btn-sm"
+          style={{ background: "var(--gold-bg)", color: "var(--gold)", borderColor: "rgba(221,179,106,.3)" }}
         >
-          <svg className="h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
           </svg>
           Leave this organization

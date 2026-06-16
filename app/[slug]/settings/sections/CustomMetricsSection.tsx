@@ -108,27 +108,23 @@ function MetricRow({
 
   if (!editing) {
     return (
-      <div className="flex items-center gap-3 rounded-lg border border-white/[0.06] bg-white/[0.02] px-4 py-3">
+      <div className="sc-row" style={{ borderBottom: "none" }}>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <span className="text-[13px] font-medium text-white">{def.name}</span>
-            {def.unit && <span className="text-[11px] text-slate-500">({def.unit})</span>}
+            <span className="sc-row-key">{def.name}</span>
+            {def.unit && <span className="text-[11px]" style={{ color: "var(--faint)" }}>({def.unit})</span>}
           </div>
-          <div className="mt-0.5 text-[11px] text-slate-500">
+          <div className="sc-row-sub">
             Goal: {def.goal}{def.unit ? ` ${def.unit}` : ""} · At risk below: {def.atRiskBelow} · {AGGREGATION_LABELS[def.aggregation]}
           </div>
         </div>
         <button
           onClick={() => { setForm(toEditState(def)); setEditing(true); }}
-          className="shrink-0 rounded-md px-2.5 py-1 text-[11px] text-slate-400 hover:bg-white/[0.06] hover:text-white transition-colors"
+          className="sc-btn sc-btn-ghost sc-btn-sm shrink-0"
         >
           Edit
         </button>
-        <button
-          onClick={handleDelete}
-          disabled={deleting}
-          className="shrink-0 rounded-md px-2.5 py-1 text-[11px] text-red-400 hover:bg-red-500/10 hover:text-red-300 transition-colors disabled:opacity-40"
-        >
+        <button onClick={handleDelete} disabled={deleting} className="sc-btn sc-btn-danger sc-btn-sm shrink-0">
           {deleting ? "Removing…" : "Remove"}
         </button>
       </div>
@@ -136,83 +132,44 @@ function MetricRow({
   }
 
   return (
-    <div className="rounded-lg border border-indigo-500/30 bg-white/[0.03] px-4 py-3 space-y-3">
+    <div className="rounded-xl px-4 py-3 space-y-3" style={{ border: "1px solid rgba(167,139,250,.35)", background: "var(--card)" }}>
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="text-[11px] text-slate-400">Name</label>
-          <input
-            className="mt-1 w-full rounded-md border border-white/[0.08] bg-[#0a0d14] px-2.5 py-1.5 text-[13px] text-white focus:border-indigo-500/60 focus:outline-none"
-            value={form.name}
-            onChange={e => field("name", e.target.value)}
-            maxLength={40}
-          />
+          <label className="sc-mlabel">Name</label>
+          <input className="sc-input sc-input-sm mt-1" value={form.name} onChange={e => field("name", e.target.value)} maxLength={40} />
         </div>
         <div>
-          <label className="text-[11px] text-slate-400">Unit (optional)</label>
-          <input
-            className="mt-1 w-full rounded-md border border-white/[0.08] bg-[#0a0d14] px-2.5 py-1.5 text-[13px] text-white focus:border-indigo-500/60 focus:outline-none"
-            value={form.unit}
-            onChange={e => field("unit", e.target.value)}
-            placeholder="hrs, reps, %…"
-            maxLength={10}
-          />
+          <label className="sc-mlabel">Unit (optional)</label>
+          <input className="sc-input sc-input-sm mt-1" value={form.unit} onChange={e => field("unit", e.target.value)} placeholder="hrs, reps, %…" maxLength={10} />
         </div>
       </div>
       <div className="grid grid-cols-3 gap-3">
         <div>
-          <label className="text-[11px] text-slate-400">Goal (per member)</label>
-          <input
-            type="number" min={0} step="any"
-            className="mt-1 w-full rounded-md border border-white/[0.08] bg-[#0a0d14] px-2.5 py-1.5 text-[13px] text-white focus:border-indigo-500/60 focus:outline-none"
-            value={form.goal}
-            onChange={e => field("goal", e.target.value)}
-          />
+          <label className="sc-mlabel">Goal (per member)</label>
+          <input type="number" min={0} step="any" className="sc-input sc-input-sm mt-1" value={form.goal} onChange={e => field("goal", e.target.value)} />
         </div>
         <div>
-          <label className="text-[11px] text-slate-400">At Risk below</label>
-          <input
-            type="number" min={0} step="any"
-            className="mt-1 w-full rounded-md border border-white/[0.08] bg-[#0a0d14] px-2.5 py-1.5 text-[13px] text-white focus:border-indigo-500/60 focus:outline-none"
-            value={form.atRiskBelow}
-            onChange={e => field("atRiskBelow", e.target.value)}
-          />
+          <label className="sc-mlabel">At Risk below</label>
+          <input type="number" min={0} step="any" className="sc-input sc-input-sm mt-1" value={form.atRiskBelow} onChange={e => field("atRiskBelow", e.target.value)} />
         </div>
         <div>
-          <label className="text-[11px] text-slate-400">Watch below (optional)</label>
-          <input
-            type="number" min={0} step="any"
-            className="mt-1 w-full rounded-md border border-white/[0.08] bg-[#0a0d14] px-2.5 py-1.5 text-[13px] text-white focus:border-indigo-500/60 focus:outline-none"
-            value={form.watchBelow}
-            onChange={e => field("watchBelow", e.target.value)}
-            placeholder="optional"
-          />
+          <label className="sc-mlabel">Watch below (optional)</label>
+          <input type="number" min={0} step="any" className="sc-input sc-input-sm mt-1" value={form.watchBelow} onChange={e => field("watchBelow", e.target.value)} placeholder="optional" />
         </div>
       </div>
       <div>
-        <label className="text-[11px] text-slate-400">KPI card headline</label>
-        <select
-          className="mt-1 w-full rounded-md border border-white/[0.08] bg-[#0a0d14] px-2.5 py-1.5 text-[13px] text-white focus:border-indigo-500/60 focus:outline-none"
-          value={form.aggregation}
-          onChange={e => field("aggregation", e.target.value as EditState["aggregation"])}
-        >
+        <label className="sc-mlabel">KPI card headline</label>
+        <select className="sc-select sc-input-sm mt-1" value={form.aggregation} onChange={e => field("aggregation", e.target.value as EditState["aggregation"])}>
           {Object.entries(AGGREGATION_LABELS).map(([v, label]) => (
             <option key={v} value={v}>{label}</option>
           ))}
         </select>
       </div>
       <div className="flex gap-2 pt-1">
-        <button
-          onClick={handleSave}
-          disabled={saving || !form.name.trim()}
-          className="rounded-md bg-indigo-600 px-3 py-1.5 text-[12px] font-medium text-white hover:bg-indigo-500 disabled:opacity-40 transition-colors"
-        >
+        <button onClick={handleSave} disabled={saving || !form.name.trim()} className="sc-btn sc-btn-primary sc-btn-sm">
           {saving ? "Saving…" : "Save"}
         </button>
-        <button
-          onClick={() => setEditing(false)}
-          disabled={saving}
-          className="rounded-md px-3 py-1.5 text-[12px] text-slate-400 hover:bg-white/[0.06] hover:text-white transition-colors"
-        >
+        <button onClick={() => setEditing(false)} disabled={saving} className="sc-btn sc-btn-ghost sc-btn-sm">
           Cancel
         </button>
       </div>
@@ -323,58 +280,54 @@ export function CustomMetricsSection({
   }
 
   if (loading) {
-    return <div className="py-8 text-center text-[13px] text-slate-500">Loading…</div>;
+    return <div className="py-8 text-center sc-note">Loading…</div>;
   }
 
   return (
-    <div className="space-y-4">
-      <div>
-        <h2 className="text-[15px] font-semibold text-white">Custom Metrics</h2>
-        <p className="mt-1 text-[13px] text-slate-400">
-          Define org-specific tracked metrics beyond the built-ins. Values are entered per member in the member drawer.
-        </p>
-      </div>
+    <div className="sc-stack-tight">
+      <p className="sc-lede" style={{ margin: 0 }}>
+        Define org-specific tracked metrics beyond the built-ins. Values are entered per member in the member drawer.
+      </p>
 
       {defs.length === 0 && !showNew && (
-        <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-4 py-6 text-center text-[13px] text-slate-500">
-          No custom metrics yet. Add one to start tracking additional data.
+        <div className="sc-empty">
+          <div className="t">No custom metrics yet</div>
+          <div className="h">Add one to start tracking additional data.</div>
         </div>
       )}
 
-      <div className="space-y-2">
-        {defs.map(def => (
-          <MetricRow
-            key={def.id}
-            def={def}
-            onUpdated={updated => setDefs(prev => prev.map(d => d.id === updated.id ? updated : d))}
-            onDeleted={id => { setDefs(prev => prev.filter(d => d.id !== id)); onStatus("Metric removed"); }}
-            onError={onError}
-          />
-        ))}
-      </div>
+      {defs.length > 0 && (
+        <div className="sc-card" style={{ display: "flex", flexDirection: "column" }}>
+          {defs.map((def, i) => (
+            <div key={def.id} style={i < defs.length - 1 ? { borderBottom: "1px solid var(--line-soft)" } : undefined}>
+              <MetricRow
+                def={def}
+                onUpdated={updated => setDefs(prev => prev.map(d => d.id === updated.id ? updated : d))}
+                onDeleted={id => { setDefs(prev => prev.filter(d => d.id !== id)); onStatus("Metric removed"); }}
+                onError={onError}
+              />
+            </div>
+          ))}
+        </div>
+      )}
 
       {defs.length >= 20 && (
-        <p className="text-[12px] text-slate-500">Maximum of 20 custom metrics reached.</p>
+        <p className="sc-note">Maximum of 20 custom metrics reached.</p>
       )}
 
       {showNew && (
-        <div className="rounded-lg border border-indigo-500/30 bg-white/[0.03] px-4 py-4 space-y-3">
-          <h3 className="text-[13px] font-medium text-white">New metric</h3>
+        <div className="rounded-xl px-4 py-4 space-y-3" style={{ border: "1px solid rgba(167,139,250,.35)", background: "var(--card)" }}>
+          <h3 className="sc-h" style={{ fontSize: 14 }}>New metric</h3>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-[11px] text-slate-400">Name *</label>
-              <input
-                className="mt-1 w-full rounded-md border border-white/[0.08] bg-[#0a0d14] px-2.5 py-1.5 text-[13px] text-white focus:border-indigo-500/60 focus:outline-none"
-                value={form.name}
-                onChange={e => field("name", e.target.value)}
-                placeholder="Practice Reps"
-                maxLength={40}
-              />
+              <label className="sc-mlabel">Name *</label>
+              <input className="sc-input sc-input-sm mt-1" value={form.name} onChange={e => field("name", e.target.value)} placeholder="Practice Reps" maxLength={40} />
             </div>
             <div>
-              <label className="text-[11px] text-slate-400">Slug *</label>
+              <label className="sc-mlabel">Slug *</label>
               <input
-                className="mt-1 w-full rounded-md border border-white/[0.08] bg-[#0a0d14] px-2.5 py-1.5 text-[13px] text-white font-mono focus:border-indigo-500/60 focus:outline-none"
+                className="sc-input sc-input-sm mt-1"
+                style={{ fontFamily: "var(--mono)" }}
                 value={form.slug}
                 onChange={e => { setForm(p => ({ ...p, slug: e.target.value, slugTouched: true })); }}
                 placeholder="practice-reps"
@@ -383,72 +336,36 @@ export function CustomMetricsSection({
             </div>
           </div>
           <div>
-            <label className="text-[11px] text-slate-400">Unit (optional)</label>
-            <input
-              className="mt-1 w-full rounded-md border border-white/[0.08] bg-[#0a0d14] px-2.5 py-1.5 text-[13px] text-white focus:border-indigo-500/60 focus:outline-none"
-              value={form.unit}
-              onChange={e => field("unit", e.target.value)}
-              placeholder="hrs, reps, %…"
-              maxLength={10}
-            />
+            <label className="sc-mlabel">Unit (optional)</label>
+            <input className="sc-input sc-input-sm mt-1" value={form.unit} onChange={e => field("unit", e.target.value)} placeholder="hrs, reps, %…" maxLength={10} />
           </div>
           <div className="grid grid-cols-3 gap-3">
             <div>
-              <label className="text-[11px] text-slate-400">Goal (per member) *</label>
-              <input
-                type="number" min={0} step="any"
-                className="mt-1 w-full rounded-md border border-white/[0.08] bg-[#0a0d14] px-2.5 py-1.5 text-[13px] text-white focus:border-indigo-500/60 focus:outline-none"
-                value={form.goal}
-                onChange={e => field("goal", e.target.value)}
-                placeholder="10"
-              />
+              <label className="sc-mlabel">Goal (per member) *</label>
+              <input type="number" min={0} step="any" className="sc-input sc-input-sm mt-1" value={form.goal} onChange={e => field("goal", e.target.value)} placeholder="10" />
             </div>
             <div>
-              <label className="text-[11px] text-slate-400">At Risk below *</label>
-              <input
-                type="number" min={0} step="any"
-                className="mt-1 w-full rounded-md border border-white/[0.08] bg-[#0a0d14] px-2.5 py-1.5 text-[13px] text-white focus:border-indigo-500/60 focus:outline-none"
-                value={form.atRiskBelow}
-                onChange={e => field("atRiskBelow", e.target.value)}
-                placeholder="5"
-              />
+              <label className="sc-mlabel">At Risk below *</label>
+              <input type="number" min={0} step="any" className="sc-input sc-input-sm mt-1" value={form.atRiskBelow} onChange={e => field("atRiskBelow", e.target.value)} placeholder="5" />
             </div>
             <div>
-              <label className="text-[11px] text-slate-400">Watch below (optional)</label>
-              <input
-                type="number" min={0} step="any"
-                className="mt-1 w-full rounded-md border border-white/[0.08] bg-[#0a0d14] px-2.5 py-1.5 text-[13px] text-white focus:border-indigo-500/60 focus:outline-none"
-                value={form.watchBelow}
-                onChange={e => field("watchBelow", e.target.value)}
-                placeholder="optional"
-              />
+              <label className="sc-mlabel">Watch below (optional)</label>
+              <input type="number" min={0} step="any" className="sc-input sc-input-sm mt-1" value={form.watchBelow} onChange={e => field("watchBelow", e.target.value)} placeholder="optional" />
             </div>
           </div>
           <div>
-            <label className="text-[11px] text-slate-400">KPI card headline</label>
-            <select
-              className="mt-1 w-full rounded-md border border-white/[0.08] bg-[#0a0d14] px-2.5 py-1.5 text-[13px] text-white focus:border-indigo-500/60 focus:outline-none"
-              value={form.aggregation}
-              onChange={e => field("aggregation", e.target.value as EditState["aggregation"])}
-            >
+            <label className="sc-mlabel">KPI card headline</label>
+            <select className="sc-select sc-input-sm mt-1" value={form.aggregation} onChange={e => field("aggregation", e.target.value as EditState["aggregation"])}>
               {Object.entries(AGGREGATION_LABELS).map(([v, label]) => (
                 <option key={v} value={v}>{label}</option>
               ))}
             </select>
           </div>
           <div className="flex gap-2 pt-1">
-            <button
-              onClick={handleCreate}
-              disabled={creating || !form.name.trim() || !form.slug.trim()}
-              className="rounded-md bg-indigo-600 px-3 py-1.5 text-[12px] font-medium text-white hover:bg-indigo-500 disabled:opacity-40 transition-colors"
-            >
+            <button onClick={handleCreate} disabled={creating || !form.name.trim() || !form.slug.trim()} className="sc-btn sc-btn-primary sc-btn-sm">
               {creating ? "Creating…" : "Create metric"}
             </button>
-            <button
-              onClick={() => { setShowNew(false); setForm(EMPTY_FORM); }}
-              disabled={creating}
-              className="rounded-md px-3 py-1.5 text-[12px] text-slate-400 hover:bg-white/[0.06] hover:text-white transition-colors"
-            >
+            <button onClick={() => { setShowNew(false); setForm(EMPTY_FORM); }} disabled={creating} className="sc-btn sc-btn-ghost sc-btn-sm">
               Cancel
             </button>
           </div>
@@ -458,7 +375,8 @@ export function CustomMetricsSection({
       {!showNew && defs.length < 20 && (
         <button
           onClick={() => setShowNew(true)}
-          className="flex items-center gap-1.5 rounded-md border border-white/[0.08] px-3 py-2 text-[13px] text-slate-400 hover:border-indigo-500/40 hover:bg-white/[0.04] hover:text-white transition-colors"
+          className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-[13px] transition-colors"
+          style={{ border: "1px dashed var(--line)", color: "var(--muted)" }}
         >
           <span className="text-base leading-none">+</span> Add metric
         </button>

@@ -101,29 +101,29 @@ export function VocabSection({
   }, [saving, draft, refreshChapterData, onStatus, onError]);
 
   return (
-    <div className="space-y-6">
-      <p className="text-[12px] text-slate-500">
+    <div className="sc-stack-tight">
+      <p className="sc-lede">
         Rename canonical terms to match your organization&apos;s language. Leave a field blank to use the default.
         Changes appear in sidebar labels and page headings immediately after saving.
       </p>
 
       {VOCAB_GROUPS.map(group => (
         <div key={group.label}>
-          <p className="mb-2 text-[11px] font-semibold uppercase tracking-widest text-slate-600">{group.label}</p>
-          <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] divide-y divide-white/[0.04]">
+          <p className="sc-grp-label">{group.label}</p>
+          <div className="sc-card">
             {group.keys.map(key => {
               const value = draft[key] ?? "";
               const placeholder = DEFAULT_LABELS[key];
               return (
-                <div key={key} className="flex items-center gap-4 px-4 py-3">
-                  <span className="w-28 shrink-0 text-[12px] font-medium text-slate-400">{key}</span>
+                <div key={key} className="sc-row">
+                  <span className="w-28 shrink-0 text-[12px] font-medium" style={{ color: "var(--muted)" }}>{key}</span>
                   <input
                     type="text"
                     value={value}
                     onChange={e => setField(key, e.target.value)}
                     placeholder={placeholder}
                     maxLength={40}
-                    className="min-w-0 flex-1 rounded-lg border border-white/[0.08] bg-white/[0.04] px-3 py-1.5 text-[12px] text-slate-200 placeholder:text-slate-600 focus:border-indigo-500/50 focus:outline-none focus:ring-1 focus:ring-indigo-500/30"
+                    className="sc-input sc-input-sm flex-1"
                   />
                 </div>
               );
@@ -132,26 +132,14 @@ export function VocabSection({
         </div>
       ))}
 
-      <div className="flex items-center gap-2">
-        <button
-          onClick={save}
-          disabled={!dirty || saving}
-          className="rounded-lg bg-indigo-600 px-4 py-2 text-[12px] font-semibold text-white transition-all hover:bg-indigo-500 disabled:cursor-default disabled:opacity-30"
-        >
+      <div className="sc-actions">
+        <button onClick={save} disabled={!dirty || saving} className="sc-btn sc-btn-primary">
           {saving ? "Saving…" : "Save changes"}
         </button>
-        <button
-          onClick={reset}
-          disabled={!dirty || saving}
-          className="rounded-lg border border-white/[0.1] bg-white/[0.04] px-4 py-2 text-[12px] font-medium text-slate-400 transition-colors hover:bg-white/[0.08] disabled:cursor-default disabled:opacity-30"
-        >
+        <button onClick={reset} disabled={!dirty || saving} className="sc-btn sc-btn-ghost">
           Reset
         </button>
-        {dirty && (
-          <span className="ml-1 rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold text-amber-400">
-            Unsaved
-          </span>
-        )}
+        {dirty && <span className="sc-dirty">Unsaved</span>}
       </div>
     </div>
   );

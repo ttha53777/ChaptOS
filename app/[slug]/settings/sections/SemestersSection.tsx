@@ -46,43 +46,47 @@ function NewSemesterModal({
     }
   }
 
+  const inputStyle = { border: "1px solid var(--line)", background: "var(--paper-2)", color: "var(--ink)" };
   return (
-    <Modal title="New Semester" onClose={onClose}>
+    <Modal title="New semester" onClose={onClose} tone="dusk">
       <form onSubmit={submit} className="space-y-4">
         {formError && (
-          <div className="rounded-lg border border-red-500/20 bg-red-500/[0.08] px-3 py-2 text-[12px] text-red-400">{formError}</div>
+          <div className="rounded-lg px-3 py-2 text-[12px]" style={{ border: "1px solid rgba(217,139,163,.25)", background: "var(--rose-bg)", color: "var(--rose)" }}>{formError}</div>
         )}
         <div className="space-y-3">
           <div>
-            <label className="mb-1.5 block text-[11px] font-medium text-slate-400">Label</label>
+            <label className="mb-1.5 block text-[11px] font-medium" style={{ color: "var(--muted)" }}>Label</label>
             <input
               value={label}
               onChange={e => setLabel(e.target.value)}
               placeholder="e.g. Fall 2026"
-              className="w-full rounded-lg border border-white/[0.1] bg-white/[0.04] px-3 py-2 text-[13px] text-white placeholder:text-slate-600 focus:border-indigo-500/50 focus:outline-none focus:ring-1 focus:ring-indigo-500/30"
+              className="w-full rounded-lg px-3 py-2 text-[13px] focus:outline-none"
+              style={inputStyle}
             />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="mb-1.5 block text-[11px] font-medium text-slate-400">Start Date</label>
+              <label className="mb-1.5 block text-[11px] font-medium" style={{ color: "var(--muted)" }}>Start date</label>
               <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)}
-                className="w-full rounded-lg border border-white/[0.1] bg-white/[0.04] px-3 py-2 text-[13px] text-white focus:border-indigo-500/50 focus:outline-none focus:ring-1 focus:ring-indigo-500/30" />
+                className="w-full rounded-lg px-3 py-2 text-[13px] focus:outline-none" style={inputStyle} />
             </div>
             <div>
-              <label className="mb-1.5 block text-[11px] font-medium text-slate-400">End Date</label>
+              <label className="mb-1.5 block text-[11px] font-medium" style={{ color: "var(--muted)" }}>End date</label>
               <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)}
-                className="w-full rounded-lg border border-white/[0.1] bg-white/[0.04] px-3 py-2 text-[13px] text-white focus:border-indigo-500/50 focus:outline-none focus:ring-1 focus:ring-indigo-500/30" />
+                className="w-full rounded-lg px-3 py-2 text-[13px] focus:outline-none" style={inputStyle} />
             </div>
           </div>
         </div>
         <div className="flex justify-end gap-2 pt-1">
           <button type="button" onClick={onClose}
-            className="rounded-lg border border-white/[0.1] bg-white/[0.04] px-4 py-2 text-[12px] font-medium text-slate-400 transition-colors hover:bg-white/[0.08]">
+            className="rounded-lg px-4 py-2 text-[12px] font-medium transition-colors"
+            style={{ border: "1px solid var(--line)", background: "var(--card)", color: "var(--ink-soft)" }}>
             Cancel
           </button>
           <button type="submit" disabled={saving}
-            className="rounded-lg bg-indigo-600 px-4 py-2 text-[12px] font-semibold text-white transition-colors hover:bg-indigo-500 disabled:opacity-50">
-            {saving ? "Creating…" : "Create & Activate"}
+            className="rounded-lg px-4 py-2 text-[12px] font-semibold transition-colors disabled:opacity-50"
+            style={{ background: "var(--vio)", color: "#1a1206" }}>
+            {saving ? "Creating…" : "Create & activate"}
           </button>
         </div>
       </form>
@@ -130,51 +134,48 @@ export function SemestersSection({
 
   return (
     <>
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <p className="text-[12px] text-slate-500">Switch the active semester or create a new one.</p>
+      <div className="sc-stack-tight">
+        <div className="flex items-center justify-between gap-3">
+          <p className="sc-lede" style={{ margin: 0 }}>Switch the active semester or create a new one.</p>
           {canManage && (
-            <button
-              onClick={() => setNewOpen(true)}
-              className="flex items-center gap-1.5 rounded-lg border border-indigo-500/30 bg-indigo-500/10 px-3 py-1.5 text-[11px] font-medium text-indigo-400 transition-colors hover:bg-indigo-500/20"
-            >
-              <svg className="h-3.5 w-3.5" viewBox="0 0 16 16" fill="currentColor">
+            <button onClick={() => setNewOpen(true)} className="sc-btn sc-btn-accent sc-btn-sm">
+              <svg viewBox="0 0 16 16" fill="currentColor">
                 <path d="M8.75 3.75a.75.75 0 0 0-1.5 0v3.5h-3.5a.75.75 0 0 0 0 1.5h3.5v3.5a.75.75 0 0 0 1.5 0v-3.5h3.5a.75.75 0 0 0 0-1.5h-3.5v-3.5Z" />
               </svg>
-              New Semester
+              New semester
             </button>
           )}
         </div>
 
         {loading ? (
-          <div className="py-8 text-center text-[11px] text-slate-600">Loading…</div>
+          <div className="py-8 text-center sc-note">Loading…</div>
         ) : semesters.length === 0 ? (
-          <div className="rounded-xl border border-white/[0.06] py-8 text-center text-[11px] text-slate-600">
-            No semesters yet. Create one to get started.
+          <div className="sc-empty">
+            <div className="t">No semesters yet</div>
+            <div className="h">Create one to start scoping your reporting periods.</div>
           </div>
         ) : (
-          <div className="rounded-xl border border-white/[0.06] overflow-hidden">
-            {semesters.map((s, i) => (
+          <div className="sc-card">
+            {semesters.map((s) => (
               <div
                 key={s.id}
-                className={`flex items-center justify-between gap-3 px-4 py-3.5 ${i < semesters.length - 1 ? "border-b border-white/[0.04]" : ""} ${s.isActive ? "bg-indigo-500/[0.06]" : ""}`}
+                className="sc-row sc-row-between"
+                style={s.isActive ? { background: "var(--vio-bg)" } : undefined}
               >
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
-                    <span className="text-[13px] font-medium text-slate-200 truncate">{s.label}</span>
-                    {s.isActive && (
-                      <span className="shrink-0 rounded-full bg-indigo-500/20 px-2 py-0.5 text-[10px] font-semibold text-indigo-400">Active</span>
-                    )}
+                    <span className="sc-row-key truncate">{s.label}</span>
+                    {s.isActive && <span className="sc-pill sc-pill-vio shrink-0">Active</span>}
                   </div>
-                  <p className="mt-0.5 text-[11px] text-slate-600">{s.startDate} – {s.endDate}</p>
+                  <p className="sc-row-sub">{s.startDate} – {s.endDate}</p>
                 </div>
                 {!s.isActive && canManage && (
                   <button
                     onClick={() => setActive(s.id)}
                     disabled={activating === s.id}
-                    className="shrink-0 rounded-lg border border-white/[0.1] bg-white/[0.04] px-3 py-1.5 text-[11px] font-medium text-slate-400 transition-all hover:border-indigo-500/40 hover:bg-indigo-500/10 hover:text-indigo-400 disabled:opacity-40"
+                    className="sc-btn sc-btn-ghost sc-btn-sm shrink-0"
                   >
-                    {activating === s.id ? "Setting…" : "Set Active"}
+                    {activating === s.id ? "Setting…" : "Set active"}
                   </button>
                 )}
               </div>

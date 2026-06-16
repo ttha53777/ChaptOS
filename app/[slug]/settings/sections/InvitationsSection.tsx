@@ -120,35 +120,32 @@ export function InvitationsSection({
   }
 
   return (
-    <div className="flex flex-col gap-8">
-      <header className="flex flex-col gap-1">
-        <h2 className="text-[16px] font-semibold text-white">Invite links</h2>
-        <p className="text-[12px] text-white/45">
-          Generate a link to invite people to your organization. Links stay active
-          until they expire or you revoke them.
-        </p>
-      </header>
+    <div className="sc-stack">
+      <p className="sc-lede" style={{ margin: 0 }}>
+        Generate a link to invite people to your organization. Links stay active
+        until they expire or you revoke them.
+      </p>
 
       {/* Generate form */}
-      <div className="flex flex-col gap-4 rounded-xl border border-white/[0.08] bg-white/[0.02] p-4">
+      <div className="sc-card" style={{ padding: 16, display: "flex", flexDirection: "column", gap: 14 }}>
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="flex flex-col gap-1.5">
-            <span className="text-[12px] font-medium text-white/70">Link type</span>
+            <span className="text-[12px] font-medium" style={{ color: "var(--ink-soft)" }}>Link type</span>
             <select
               value={mode}
               onChange={(e) => setMode(e.target.value as InviteMode)}
-              className="rounded-lg border border-white/[0.08] bg-zinc-900/80 px-3 py-2 text-[13px] text-white focus:border-indigo-500 focus:outline-none"
+              className="sc-select"
             >
               <option value="open">Open join (new member)</option>
               <option value="claim">Claim roster name</option>
             </select>
           </label>
           <label className="flex flex-col gap-1.5">
-            <span className="text-[12px] font-medium text-white/70">Expires after</span>
+            <span className="text-[12px] font-medium" style={{ color: "var(--ink-soft)" }}>Expires after</span>
             <select
               value={expiry}
               onChange={(e) => setExpiry(e.target.value as InviteExpiry)}
-              className="rounded-lg border border-white/[0.08] bg-zinc-900/80 px-3 py-2 text-[13px] text-white focus:border-indigo-500 focus:outline-none"
+              className="sc-select"
             >
               {INVITE_EXPIRY_PRESETS.map(p => (
                 <option key={p} value={p}>{EXPIRY_LABELS[p]}</option>
@@ -156,63 +153,52 @@ export function InvitationsSection({
             </select>
           </label>
         </div>
-        <p className="text-[11px] text-white/40">{MODE_HELP[mode]}</p>
-        <button
-          onClick={handleCreate}
-          disabled={creating}
-          className="self-start rounded-lg bg-indigo-600 px-4 py-2 text-[13px] font-medium text-white transition-colors hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-50"
-        >
+        <p className="sc-note">{MODE_HELP[mode]}</p>
+        <button onClick={handleCreate} disabled={creating} className="sc-btn sc-btn-primary self-start">
           {creating ? "Generating…" : "Generate link"}
         </button>
       </div>
 
       {/* Active links */}
       <div className="flex flex-col gap-2">
-        <h3 className="text-[12px] font-semibold uppercase tracking-widest text-white/30">Active links</h3>
+        <h3 className="sc-grp-label">Active links</h3>
         {loading ? (
-          <p className="text-[12px] text-white/40">Loading…</p>
+          <p className="sc-note">Loading…</p>
         ) : invites.length === 0 ? (
-          <p className="text-[12px] text-white/40">No active invite links. Generate one above.</p>
+          <div className="sc-empty">
+            <div className="t">No active invite links</div>
+            <div className="h">Generate one above to start inviting members.</div>
+          </div>
         ) : (
           <ul className="flex flex-col gap-2">
             {invites.map(row => (
-              <li
-                key={row.id}
-                className="flex flex-col gap-2 rounded-xl border border-white/[0.08] bg-white/[0.02] p-3.5"
-              >
+              <li key={row.id} className="sc-card" style={{ padding: 14, display: "flex", flexDirection: "column", gap: 8 }}>
                 <div className="flex items-center gap-2">
-                  <span className={`rounded-md px-2 py-0.5 text-[10.5px] font-semibold uppercase tracking-wide ${
-                    row.mode === "open"
-                      ? "bg-indigo-500/15 text-indigo-200"
-                      : "bg-amber-500/15 text-amber-200"
-                  }`}>
+                  <span className={`sc-pill ${row.mode === "open" ? "sc-pill-vio" : "sc-pill-gold"}`}>
                     {row.mode === "open" ? "Open join" : "Claim"}
                   </span>
-                  <span className="text-[11px] text-white/40">{formatExpiry(row.expiresAt)}</span>
-                  <span className="ml-auto text-[11px] text-white/40">
+                  <span className="sc-note">{formatExpiry(row.expiresAt)}</span>
+                  <span className="ml-auto sc-note">
                     {row.redemptionCount} {row.redemptionCount === 1 ? "join" : "joins"}
                   </span>
                 </div>
-                <div className="flex items-center gap-1 text-[11px] text-white/30">
+                <div className="flex items-center gap-1 sc-note">
                   <span>Created {formatDate(row.createdAt)}</span>
                   {row.createdByName && (
                     <><span>·</span><span>{row.createdByName}</span></>
                   )}
                 </div>
                 <div className="flex items-stretch gap-2">
-                  <code className="min-w-0 flex-1 truncate rounded-lg border border-white/[0.06] bg-zinc-900/80 px-3 py-2 text-[12px] text-white/70">
+                  <code
+                    className="min-w-0 flex-1 truncate rounded-lg px-3 py-2 text-[12px]"
+                    style={{ border: "1px solid var(--line)", background: "var(--paper-2)", color: "var(--ink-soft)", fontFamily: "var(--mono)" }}
+                  >
                     {joinUrl(row.token)}
                   </code>
-                  <button
-                    onClick={() => copyLink(row)}
-                    className="shrink-0 rounded-lg border border-white/[0.1] bg-white/[0.04] px-3 text-[12px] font-medium text-white/70 transition-colors hover:bg-white/[0.08]"
-                  >
+                  <button onClick={() => copyLink(row)} className="sc-btn sc-btn-ghost shrink-0">
                     {copiedId === row.id ? "Copied" : "Copy"}
                   </button>
-                  <button
-                    onClick={() => setRevokeTarget(row)}
-                    className="shrink-0 rounded-lg border border-red-500/20 bg-red-500/[0.06] px-3 text-[12px] font-medium text-red-300 transition-colors hover:bg-red-500/[0.12]"
-                  >
+                  <button onClick={() => setRevokeTarget(row)} className="sc-btn sc-btn-danger shrink-0">
                     Revoke
                   </button>
                 </div>
@@ -231,6 +217,7 @@ export function InvitationsSection({
               : "The link will stop working immediately. This cannot be undone."
           }
           confirmLabel="Revoke"
+          tone="dusk"
           onConfirm={() => doRevoke(revokeTarget)}
           onCancel={() => setRevokeTarget(null)}
         />
