@@ -1,25 +1,29 @@
 "use client";
 
-import React, { useState, useMemo, useCallback } from "react";
+import React, { useState, useMemo, useCallback, useEffect } from "react";
 import { Sidebar } from "../../components/Sidebar";
-import { Card, Modal, FieldLabel, ConfirmDialog } from "../../components/dashboard/primitives";
-import { inputCls } from "../../components/dashboard/styles";
+import { Modal, FieldLabel, ConfirmDialog } from "../../components/dashboard/primitives";
+import { inputDuskCls } from "../../components/dashboard/styles";
 import { useChapter } from "../../context/ChapterContext";
-import { PartyEvent, fmt$, fmtDate } from "../../data";
+import { PartyEvent, Brother, fmt$, fmtDate } from "../../data";
 import { requestJson } from "../../lib/api";
-import { todayStr } from "../../lib/dates";
+import { todayStr, daysFromToday } from "../../lib/dates";
+import "../../components/dashboard/dashboard-ledger.css";
+import "./parties-ledger.css";
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
 function profit(p: PartyEvent) { return p.doorRevenue - p.expenses; }
 function needsWrapUp(p: PartyEvent) { return !p.completed && p.date < todayStr(); }
+function isUpcoming(p: PartyEvent) { return !p.completed && p.date >= todayStr(); }
+
+// "Open · All White · with KDF" — only the parts that exist.
+function subLine(p: PartyEvent) {
+  return [p.partyType, p.theme, p.collabOrg ? `with ${p.collabOrg}` : ""].filter(Boolean).join(" · ");
+}
 
 // ─── types ────────────────────────────────────────────────────────────────────
 
-type TimeTab   = "All" | "Upcoming" | "Past";
-type TypeFilter = "All" | "Open" | "Closed";
-type SortKey   = "date" | "doorRevenue" | "expenses" | "profit" | "attendance";
-type SortDir   = "asc" | "desc";
 type ModalKind = "add" | "edit" | "wrap-up";
 
 const ADD_FORM_EMPTY = {
@@ -27,41 +31,21 @@ const ADD_FORM_EMPTY = {
   theme: "", collabOrg: "",
 };
 
+// Door revenue + expenses + notes only — outside guest count is no longer tracked.
 const WRAP_FORM_EMPTY = {
-  doorRevenue: "", expenses: "", attendance: "", notes: "",
+  doorRevenue: "", expenses: "", notes: "",
 };
 
-// ─── sub-components ───────────────────────────────────────────────────────────
+// What the wrap-up submit hands back: money fields plus (optionally) member roll.
+type WrapUpSubmit = {
+  doorRevenue: string;
+  expenses: string;
+  notes: string;
+  attendedIds?: number[];
+  mandatory?: boolean;
+};
 
-function SummaryCard({ label, value, sub, accent }: { label: string; value: string; sub?: string; accent: string }) {
-  return (
-    <div className="card-premium rounded-xl border border-white/[0.06] bg-[#10121a] px-4 py-3.5 flex flex-col gap-0.5">
-      <p className="text-[10px] font-semibold uppercase tracking-[0.07em] text-slate-500">{label}</p>
-      <p className={`text-[22px] font-bold leading-none tracking-tight tabular-nums ${accent}`}>{value}</p>
-      {sub && <p className="text-[11px] text-slate-500 mt-0.5">{sub}</p>}
-    </div>
-  );
-}
-
-function PartyTypeBadge({ type }: { type: "Open" | "Closed" }) {
-  return (
-    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium tracking-wide ${
-      type === "Open"
-        ? "bg-indigo-500/15 text-indigo-400 ring-1 ring-inset ring-indigo-500/25"
-        : "bg-slate-500/15 text-slate-400 ring-1 ring-inset ring-slate-500/20"
-    }`}>{type}</span>
-  );
-}
-
-function WrapUpBadge() {
-  return (
-    <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium bg-amber-500/15 text-amber-400 ring-1 ring-inset ring-amber-500/25">
-      Needs wrap-up
-    </span>
-  );
-}
-
-// ─── Add party form (minimal) ─────────────────────────────────────────────────
+// ─── Add party form ───────────────────────────────────────────────────────────
 
 function AddPartyForm({ onSubmit, onClose }: {
   onSubmit: (data: typeof ADD_FORM_EMPTY) => void;
@@ -75,37 +59,37 @@ function AddPartyForm({ onSubmit, onClose }: {
   return (
     <form onSubmit={e => { e.preventDefault(); onSubmit(form); }} className="space-y-3">
       <div>
-        <FieldLabel>Party name *</FieldLabel>
-        <input className={inputCls} required value={form.name} onChange={set("name")} placeholder="Spring Rush Social" />
+        <FieldLabel tone="dusk">Party name *</FieldLabel>
+        <input className={inputDuskCls} required value={form.name} onChange={set("name")} placeholder="Spring Rush Social" />
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <FieldLabel>Date *</FieldLabel>
-          <input type="date" className={inputCls} required value={form.date} onChange={set("date")} />
+          <FieldLabel tone="dusk">Date *</FieldLabel>
+          <input type="date" className={inputDuskCls} required value={form.date} onChange={set("date")} />
         </div>
         <div>
-          <FieldLabel>Party type</FieldLabel>
-          <select className={inputCls} value={form.partyType} onChange={e => setForm(f => ({ ...f, partyType: e.target.value as "Open" | "Closed" }))}>
+          <FieldLabel tone="dusk">Party type</FieldLabel>
+          <select className={inputDuskCls} value={form.partyType} onChange={e => setForm(f => ({ ...f, partyType: e.target.value as "Open" | "Closed" }))}>
             <option value="Open">Open</option>
             <option value="Closed">Closed</option>
           </select>
         </div>
         <div>
-          <FieldLabel>Theme</FieldLabel>
-          <input className={inputCls} value={form.theme} onChange={set("theme")} placeholder="All White, Black & Gold…" />
+          <FieldLabel tone="dusk">Theme</FieldLabel>
+          <input className={inputDuskCls} value={form.theme} onChange={set("theme")} placeholder="All White, Black & Gold…" />
         </div>
         <div>
-          <FieldLabel>Collab org</FieldLabel>
-          <input className={inputCls} value={form.collabOrg} onChange={set("collabOrg")} placeholder="KDF, DSP…" />
+          <FieldLabel tone="dusk">Collab org</FieldLabel>
+          <input className={inputDuskCls} value={form.collabOrg} onChange={set("collabOrg")} placeholder="KDF, DSP…" />
         </div>
       </div>
       <div className="flex gap-2 justify-end pt-1">
         <button type="button" onClick={onClose}
-          className="rounded-lg border border-white/[0.08] bg-white/[0.03] px-4 py-2 text-[13px] font-medium text-slate-300 hover:bg-white/[0.07] transition-colors">
+          className="rounded-lg border border-[rgba(236,231,221,0.12)] bg-transparent px-4 py-2 text-[13px] font-medium text-[#c9c2b4] hover:bg-white/[0.04] transition-colors">
           Cancel
         </button>
         <button type="submit"
-          className="rounded-lg bg-indigo-600 px-4 py-2 text-[13px] font-semibold text-white hover:bg-indigo-500 transition-colors">
+          className="rounded-lg bg-[#7c3aed] px-4 py-2 text-[13px] font-semibold text-white hover:bg-[#6d28d9] transition-colors">
           Add Party
         </button>
       </div>
@@ -129,37 +113,37 @@ function EditPartyForm({ party, onSubmit, onClose }: {
   return (
     <form onSubmit={e => { e.preventDefault(); onSubmit({ name, date, partyType, theme, collabOrg }); }} className="space-y-3">
       <div>
-        <FieldLabel>Party name *</FieldLabel>
-        <input className={inputCls} required value={name} onChange={e => setName(e.target.value)} />
+        <FieldLabel tone="dusk">Party name *</FieldLabel>
+        <input className={inputDuskCls} required value={name} onChange={e => setName(e.target.value)} />
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <FieldLabel>Date *</FieldLabel>
-          <input type="date" className={inputCls} required value={date} onChange={e => setDate(e.target.value)} />
+          <FieldLabel tone="dusk">Date *</FieldLabel>
+          <input type="date" className={inputDuskCls} required value={date} onChange={e => setDate(e.target.value)} />
         </div>
         <div>
-          <FieldLabel>Party type</FieldLabel>
-          <select className={inputCls} value={partyType} onChange={e => setPartyType(e.target.value as "Open" | "Closed")}>
+          <FieldLabel tone="dusk">Party type</FieldLabel>
+          <select className={inputDuskCls} value={partyType} onChange={e => setPartyType(e.target.value as "Open" | "Closed")}>
             <option value="Open">Open</option>
             <option value="Closed">Closed</option>
           </select>
         </div>
         <div>
-          <FieldLabel>Theme</FieldLabel>
-          <input className={inputCls} value={theme} onChange={e => setTheme(e.target.value)} placeholder="All White…" />
+          <FieldLabel tone="dusk">Theme</FieldLabel>
+          <input className={inputDuskCls} value={theme} onChange={e => setTheme(e.target.value)} placeholder="All White…" />
         </div>
         <div>
-          <FieldLabel>Collab org</FieldLabel>
-          <input className={inputCls} value={collabOrg} onChange={e => setCollabOrg(e.target.value)} placeholder="KDF, DSP…" />
+          <FieldLabel tone="dusk">Collab org</FieldLabel>
+          <input className={inputDuskCls} value={collabOrg} onChange={e => setCollabOrg(e.target.value)} placeholder="KDF, DSP…" />
         </div>
       </div>
       <div className="flex gap-2 justify-end pt-1">
         <button type="button" onClick={onClose}
-          className="rounded-lg border border-white/[0.08] bg-white/[0.03] px-4 py-2 text-[13px] font-medium text-slate-300 hover:bg-white/[0.07] transition-colors">
+          className="rounded-lg border border-[rgba(236,231,221,0.12)] bg-transparent px-4 py-2 text-[13px] font-medium text-[#c9c2b4] hover:bg-white/[0.04] transition-colors">
           Cancel
         </button>
         <button type="submit"
-          className="rounded-lg bg-indigo-600 px-4 py-2 text-[13px] font-semibold text-white hover:bg-indigo-500 transition-colors">
+          className="rounded-lg bg-[#7c3aed] px-4 py-2 text-[13px] font-semibold text-white hover:bg-[#6d28d9] transition-colors">
           Save Changes
         </button>
       </div>
@@ -167,224 +151,232 @@ function EditPartyForm({ party, onSubmit, onClose }: {
   );
 }
 
-// ─── Wrap-up form ─────────────────────────────────────────────────────────────
+// ─── Wrap-up form (two steps: money → roll) ───────────────────────────────────
+// Step 2 (roster + mandatory toggle) is skipped entirely when the party already
+// has attendance logged — then submitting step 1 just saves the money.
 
-function WrapUpForm({ party, onSubmit, onClose }: {
+function WrapUpForm({ party, brothers, alreadyRolled, onSubmit, onClose }: {
   party: PartyEvent;
-  onSubmit: (data: typeof WRAP_FORM_EMPTY) => void;
+  brothers: Brother[];
+  alreadyRolled: boolean;
+  onSubmit: (data: WrapUpSubmit) => void;
   onClose: () => void;
 }) {
+  const [step, setStep] = useState<1 | 2>(1);
   const [form, setForm] = useState(WRAP_FORM_EMPTY);
+  // Roster defaults to ALL PRESENT — tap to un-check no-shows.
+  const [present, setPresent] = useState<Set<number>>(() => new Set(brothers.map(b => b.id)));
+  const [mandatory, setMandatory] = useState(false);
+
   const set = (k: keyof typeof WRAP_FORM_EMPTY) =>
     (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
       setForm(f => ({ ...f, [k]: e.target.value }));
+  const togglePresent = (id: number) =>
+    setPresent(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
 
   const profitPreview = (Number(form.doorRevenue) || 0) - (Number(form.expenses) || 0);
+  const canTakeRoll = brothers.length > 0 && !alreadyRolled;
+
+  function submitMoneyOnly() { onSubmit(form); }
+  function submitWithRoll()  { onSubmit({ ...form, attendedIds: [...present], mandatory }); }
 
   return (
-    <form onSubmit={e => { e.preventDefault(); onSubmit(form); }} className="space-y-3">
-      <div className="rounded-lg bg-white/[0.04] px-4 py-3 mb-1">
-        <p className="text-[13px] font-semibold text-white">{party.name}</p>
-        <p className="text-[11px] text-slate-400 mt-0.5">{fmtDate(party.date)} · {party.partyType}{party.theme ? ` · ${party.theme}` : ""}</p>
-      </div>
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <FieldLabel>Door Revenue ($) *</FieldLabel>
-          <input type="number" min="0" step="0.01" className={inputCls} required value={form.doorRevenue} onChange={set("doorRevenue")} placeholder="0.00" />
+    <div className="space-y-3">
+      <div className="rounded-lg bg-white/[0.04] px-4 py-3 mb-1 flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-[13px] font-semibold text-[#ece7dd]">{party.name}</p>
+          <p className="text-[11px] text-[#958d7c] mt-0.5">{fmtDate(party.date)} · {subLine(party)}</p>
         </div>
-        <div>
-          <FieldLabel>Expenses ($) *</FieldLabel>
-          <input type="number" min="0" step="0.01" className={inputCls} required value={form.expenses} onChange={set("expenses")} placeholder="0.00" />
-        </div>
-        <div>
-          <FieldLabel>Attendance *</FieldLabel>
-          <input type="number" min="0" className={inputCls} required value={form.attendance} onChange={set("attendance")} placeholder="0" />
-        </div>
-        <div className="flex items-end">
-          <div className="rounded-lg bg-white/[0.04] px-3 py-2 w-full text-center">
-            <p className="text-[10px] text-slate-500 mb-0.5">Profit preview</p>
-            <p className={`text-[16px] font-bold tabular-nums ${profitPreview >= 0 ? "text-indigo-300" : "text-amber-300"}`}>
-              {fmt$(profitPreview)}
-            </p>
+        {canTakeRoll && (
+          <div className="flex gap-1.5 shrink-0">
+            <span className={`h-1.5 w-1.5 rounded-full ${step === 1 ? "bg-[#a78bfa]" : "bg-[#6b6354]"}`} />
+            <span className={`h-1.5 w-1.5 rounded-full ${step === 2 ? "bg-[#a78bfa]" : "bg-[#6b6354]"}`} />
           </div>
-        </div>
+        )}
       </div>
-      <div>
-        <FieldLabel>Post-event notes</FieldLabel>
-        <textarea className={`${inputCls} resize-none`} rows={2} value={form.notes} onChange={set("notes")} placeholder="How did it go?" />
-      </div>
-      <div className="flex gap-2 justify-end pt-1">
-        <button type="button" onClick={onClose}
-          className="rounded-lg border border-white/[0.08] bg-white/[0.03] px-4 py-2 text-[13px] font-medium text-slate-300 hover:bg-white/[0.07] transition-colors">
-          Cancel
-        </button>
-        <button type="submit"
-          className="rounded-lg bg-emerald-600 px-4 py-2 text-[13px] font-semibold text-white hover:bg-emerald-500 transition-colors">
-          Mark Completed
-        </button>
-      </div>
-    </form>
+
+      {step === 1 && (
+        <form onSubmit={e => { e.preventDefault(); canTakeRoll ? setStep(2) : submitMoneyOnly(); }} className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <FieldLabel tone="dusk">Door Revenue ($) *</FieldLabel>
+              <input type="number" min="0" step="0.01" className={inputDuskCls} required value={form.doorRevenue} onChange={set("doorRevenue")} placeholder="0.00" />
+            </div>
+            <div>
+              <FieldLabel tone="dusk">Expenses ($) *</FieldLabel>
+              <input type="number" min="0" step="0.01" className={inputDuskCls} required value={form.expenses} onChange={set("expenses")} placeholder="0.00" />
+            </div>
+          </div>
+          <div className="rounded-lg bg-white/[0.04] px-3 py-2.5 text-center">
+            <p className="text-[10px] text-[#6b6354] mb-0.5">Net preview</p>
+            <p className={`text-[18px] font-bold tabular-nums ${profitPreview >= 0 ? "text-[#7fb08a]" : "text-[#d98ba3]"}`}>{fmt$(profitPreview)}</p>
+          </div>
+          <div>
+            <FieldLabel tone="dusk">Post-event notes</FieldLabel>
+            <textarea className={`${inputDuskCls} resize-none`} rows={2} value={form.notes} onChange={set("notes")} placeholder="How did it go?" />
+          </div>
+          <div className="flex gap-2 justify-end pt-1">
+            <button type="button" onClick={onClose}
+              className="rounded-lg border border-[rgba(236,231,221,0.12)] bg-transparent px-4 py-2 text-[13px] font-medium text-[#c9c2b4] hover:bg-white/[0.04] transition-colors">Cancel</button>
+            <button type="submit"
+              className="rounded-lg bg-[#7c3aed] px-4 py-2 text-[13px] font-semibold text-white hover:bg-[#6d28d9] transition-colors">
+              {canTakeRoll ? "Next: Who came? →" : "Mark Completed"}
+            </button>
+          </div>
+        </form>
+      )}
+
+      {step === 2 && (
+        <form onSubmit={e => { e.preventDefault(); submitWithRoll(); }} className="space-y-3">
+          <div className="flex items-center justify-between">
+            <FieldLabel tone="dusk">Who came? ({present.size}/{brothers.length})</FieldLabel>
+            <div className="flex gap-2">
+              <button type="button" onClick={() => setPresent(new Set(brothers.map(b => b.id)))}
+                className="text-[10px] uppercase tracking-wider text-[#958d7c] hover:text-[#ece7dd]">All</button>
+              <button type="button" onClick={() => setPresent(new Set())}
+                className="text-[10px] uppercase tracking-wider text-[#958d7c] hover:text-[#ece7dd]">None</button>
+            </div>
+          </div>
+          <div className="max-h-[220px] overflow-y-auto rounded-lg border border-[rgba(236,231,221,0.08)] divide-y divide-[rgba(236,231,221,0.05)]">
+            {brothers.map(b => {
+              const on = present.has(b.id);
+              return (
+                <button type="button" key={b.id} onClick={() => togglePresent(b.id)}
+                  className="flex w-full items-center gap-3 px-3 py-2 text-left hover:bg-white/[0.03] transition-colors">
+                  <span className={`flex h-4 w-4 items-center justify-center rounded border ${on ? "border-[#7fb08a] bg-[#7fb08a]/20" : "border-[rgba(236,231,221,0.18)]"}`}>
+                    {on && <svg className="h-3 w-3 text-[#7fb08a]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3}><path d="M20 6L9 17l-5-5" /></svg>}
+                  </span>
+                  <span className={`text-[13px] ${on ? "text-[#ece7dd]" : "text-[#958d7c]"}`}>{b.name}</span>
+                </button>
+              );
+            })}
+          </div>
+          <label className="flex items-center gap-2.5 rounded-lg bg-white/[0.03] px-3 py-2.5 cursor-pointer">
+            <input type="checkbox" checked={mandatory} onChange={e => setMandatory(e.target.checked)}
+              className="h-4 w-4 accent-[#a78bfa]" />
+            <span className="text-[12px] text-[#c9c2b4]">Mandatory — count this toward each brother&rsquo;s attendance %</span>
+          </label>
+          <div className="flex gap-2 justify-end pt-1">
+            <button type="button" onClick={() => setStep(1)}
+              className="rounded-lg border border-[rgba(236,231,221,0.12)] bg-transparent px-4 py-2 text-[13px] font-medium text-[#c9c2b4] hover:bg-white/[0.04] transition-colors">← Back</button>
+            <button type="submit"
+              className="rounded-lg bg-[#7c3aed] px-4 py-2 text-[13px] font-semibold text-white hover:bg-[#6d28d9] transition-colors">Mark Completed</button>
+          </div>
+        </form>
+      )}
+    </div>
   );
 }
 
-// ─── Detail panel ─────────────────────────────────────────────────────────────
+// ─── Ledger row ───────────────────────────────────────────────────────────────
 
-function DetailPanel({ party, onEdit, onWrapUp, onDelete, canDelete }: {
+function LedgerRow({ party, attendance, expanded, onToggle, onWrapUp, onEdit, onDelete, canParties }: {
   party: PartyEvent;
-  onEdit:   () => void;
+  attendance?: { present: number; eligible: number };
+  expanded: boolean;
+  onToggle: () => void;
   onWrapUp: () => void;
+  onEdit: () => void;
   onDelete: () => void;
-  canDelete: boolean;
+  canParties: boolean;
 }) {
   const p = profit(party);
-  const margin = party.doorRevenue > 0 ? Math.round((p / party.doorRevenue) * 100) : 0;
+  const due = needsWrapUp(party);
+  const upcoming = isUpcoming(party);
+  const day = Number(party.date.split("-")[2]);
+  const attPct = attendance && attendance.eligible > 0
+    ? Math.round((attendance.present / attendance.eligible) * 100)
+    : null;
 
   return (
-    <Card className="overflow-hidden">
-      <div className="h-[2px]" style={{
-        background: party.completed
-          ? (p >= 0
-            ? "linear-gradient(90deg,transparent,rgba(99,102,241,0.9) 30%,rgba(129,140,248,0.95) 70%,transparent)"
-            : "linear-gradient(90deg,transparent,rgba(251,191,36,0.75) 30%,rgba(252,211,77,0.9) 70%,transparent)")
-          : "linear-gradient(90deg,transparent,rgba(99,102,241,0.55) 30%,rgba(129,140,248,0.65) 70%,transparent)",
-      }} />
-
-      <div className="px-5 py-4 border-b border-white/[0.07] flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h3 className="text-[15px] font-bold text-white leading-snug">{party.name}</h3>
-          <p className="text-[11px] text-slate-400 mt-0.5">{fmtDate(party.date)}</p>
+    <div className={`pty-row${expanded ? " open" : ""}${upcoming ? " future" : ""}`} data-id={party.id}>
+      <button type="button" className="lead" onClick={onToggle} aria-expanded={expanded}>
+        <div className="led-date">
+          <div className="dnum">{day}</div>
+          <div className="mon">{new Date(party.date + "T12:00:00").toLocaleString("en-US", { month: "short" })}</div>
         </div>
-        <div className="flex flex-col items-end gap-1.5 shrink-0">
-          <PartyTypeBadge type={party.partyType} />
-          {needsWrapUp(party) && <WrapUpBadge />}
+        <div className="led-main">
+          <div className="t">
+            <span className={`vdot${due ? " due" : upcoming ? " open" : ""}`} />
+            {party.name}
+          </div>
+          <div className="sub">{subLine(party)}</div>
         </div>
-      </div>
+      </button>
 
-      <div className="px-5 py-4 space-y-4">
-        {/* financials — only if completed */}
+      <div className="led-state">
         {party.completed ? (
-          <>
-            <div className="grid grid-cols-3 gap-2">
-              {[
-                { label: "Revenue",  value: fmt$(party.doorRevenue), color: "#818cf8" },
-                { label: "Expenses", value: fmt$(party.expenses),    color: "#fbbf24" },
-                { label: "Profit",   value: fmt$(p),                 color: p >= 0 ? "#c7d2fe" : "#fcd34d" },
-              ].map(({ label, value, color }) => (
-                <div key={label} className="rounded-lg bg-white/[0.04] px-3 py-2.5 text-center">
-                  <p className="text-[14px] font-bold tabular-nums" style={{ color }}>{value}</p>
-                  <p className="text-[10px] text-slate-500 mt-0.5">{label}</p>
-                </div>
-              ))}
-            </div>
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-[10px] text-slate-500">Profit margin</span>
-                <span className={`text-[10px] tabular-nums ${p >= 0 ? "text-indigo-300" : "text-amber-300"}`}>{margin}%</span>
-              </div>
-              <div className="h-1.5 overflow-hidden rounded-full bg-white/[0.07]">
-                <div className="h-full rounded-full transition-all duration-500"
-                     style={{
-                       width: `${Math.min(100, Math.max(0, margin))}%`,
-                       background: p >= 0
-                         ? "linear-gradient(90deg,#4f46e5,#818cf8)"
-                         : "linear-gradient(90deg,#b45309,#fbbf24)",
-                     }} />
-              </div>
-            </div>
-          </>
+          <div className="net">
+            <div className={`nv ${p >= 0 ? "pos" : "neg"}`}>{p >= 0 ? "+" : ""}{fmt$(p)}</div>
+            <div className="nk">net</div>
+          </div>
+        ) : due && canParties ? (
+          <button type="button" className="pty-badge wrap" onClick={onWrapUp}>Wrap up →</button>
+        ) : due ? (
+          <span className="pty-badge wrap" style={{ cursor: "default" }}>Needs wrap-up</span>
         ) : (
-          <div className="rounded-lg bg-indigo-500/[0.07] border border-indigo-500/20 px-4 py-3 text-center">
-            <p className="text-[12px] text-indigo-300">Financial data will appear after wrap-up</p>
-          </div>
+          <span className="pty-badge up">Upcoming</span>
         )}
+        <span className="chev" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M9 6l6 6-6 6" /></svg>
+        </span>
+      </div>
 
-        {/* meta */}
-        <div className="space-y-2">
-          {party.completed && party.attendance > 0 && (
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] text-slate-500">Attendance</span>
-              <span className="text-[12px] font-medium text-white tabular-nums">{party.attendance}</span>
-            </div>
+      <div className="drawer">
+        <div className="drawer-inner">
+          {party.completed && <>
+            <div className="dstat"><div className="dk">Door</div><div className="dv">{fmt$(party.doorRevenue)}</div></div>
+            <div className="dstat"><div className="dk">Spent</div><div className="dv">{fmt$(party.expenses)}</div></div>
+            <div className="dstat"><div className="dk">Net</div><div className="dv">{p >= 0 ? "+" : ""}{fmt$(p)}</div></div>
+          </>}
+          {attendance && attendance.eligible > 0 && (
+            <div className="dstat"><div className="dk">Attendance</div><div className="dv">{attendance.present}/{attendance.eligible} · {attPct}%</div></div>
           )}
-          {party.completed && party.attendance > 0 && party.doorRevenue > 0 && (
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] text-slate-500">Revenue / head</span>
-              <span className="text-[12px] font-medium text-slate-300 tabular-nums">{fmt$(Math.round(party.doorRevenue / party.attendance))}</span>
-            </div>
-          )}
-          {party.completed && party.attendance > 0 && (
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] text-slate-500">Profit / head</span>
-              <span className={`text-[12px] font-medium tabular-nums ${p >= 0 ? "text-indigo-300" : "text-amber-300"}`}>{fmt$(Math.round(p / party.attendance))}</span>
-            </div>
-          )}
-          {party.theme && (
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] text-slate-500">Theme</span>
-              <span className="text-[12px] text-slate-300">{party.theme}</span>
-            </div>
-          )}
-          {party.collabOrg && (
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] text-slate-500">Collab</span>
-              <span className="text-[12px] font-medium text-indigo-400">{party.collabOrg}</span>
-            </div>
-          )}
-          {party.completedAt && (
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] text-slate-500">Completed</span>
-              <span className="text-[11px] text-slate-400">{fmtDate(party.completedAt.slice(0, 10))}</span>
-            </div>
-          )}
-        </div>
-
-        {party.notes && (
-          <div className="rounded-lg bg-white/[0.03] border border-white/[0.06] px-3 py-2.5">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-600 mb-1">Notes</p>
-            <p className="text-[12px] leading-relaxed text-slate-300">{party.notes}</p>
+          {party.theme &&     <div className="dstat"><div className="dk">Theme</div><div className="dv">{party.theme}</div></div>}
+          {party.collabOrg && <div className="dstat"><div className="dk">Collab</div><div className="dv">{party.collabOrg}</div></div>}
+          <div className="dnote">
+            {party.notes
+              ? `“${party.notes}”`
+              : upcoming ? "Numbers open until it's wrapped up."
+              : due ? "Happened already — no figures recorded yet."
+              : "No notes."}
           </div>
-        )}
-
-        {/* actions */}
-        <div className="flex gap-2 pt-1">
-          {!party.completed && (
-            <button onClick={onWrapUp}
-              className="flex-1 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-[12px] font-semibold text-emerald-300 hover:bg-emerald-500/20 transition-colors">
-              Mark completed
-            </button>
-          )}
-          <button onClick={onEdit}
-            className="flex-1 rounded-lg border border-indigo-500/30 bg-indigo-500/10 px-3 py-2 text-[12px] font-semibold text-indigo-300 hover:bg-indigo-500/20 transition-colors">
-            Edit
-          </button>
-          {canDelete && (
-            <button onClick={onDelete}
-              className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[12px] font-semibold text-red-400 hover:bg-red-500/20 transition-colors">
-              Delete
-            </button>
+          {canParties && (
+            <div className="dactions">
+              {due && <button type="button" className="mini" onClick={onWrapUp}>Wrap up</button>}
+              <button type="button" className="mini" onClick={onEdit}>Edit</button>
+              <button type="button" className="mini danger" onClick={onDelete}>Delete</button>
+            </div>
           )}
         </div>
       </div>
-    </Card>
+    </div>
   );
 }
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
+type AttendanceRow = { partyId: number; present: number; eligible: number };
+
 export default function PartiesPage() {
-  const { currentUser, partyList, setPartyList, isLoading, can } = useChapter();
+  const { currentUser, partyList, setPartyList, brotherList, isLoading, can } = useChapter();
   const canParties = can("MANAGE_PARTIES");
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [selectedId,  setSelectedId]  = useState<number | null>(null);
+  const [expandedId,  setExpandedId]  = useState<number | null>(null);
   const [modal,       setModal]       = useState<ModalKind | null>(null);
   const [editingId,   setEditingId]   = useState<number | null>(null);
   const [wrapUpId,    setWrapUpId]    = useState<number | null>(null);
-  const [timeTab,        setTimeTab]        = useState<TimeTab>("All");
-  const [typeFilter,     setTypeFilter]     = useState<TypeFilter>("All");
-  const [sortKey,        setSortKey]        = useState<SortKey>("date");
-  const [sortDir,        setSortDir]        = useState<SortDir>("desc");
   const [pageError,      setPageError]      = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
+
+  // Per-party member roll, fetched separately so the parties list shape stays put.
+  const [attendanceRows, setAttendanceRows] = useState<AttendanceRow[]>([]);
+  const loadAttendance = useCallback(() => {
+    requestJson<AttendanceRow[]>("/api/parties/attendance-summary")
+      .then(setAttendanceRows)
+      .catch(() => { /* summary is best-effort; metric falls back to "—" */ });
+  }, []);
+  useEffect(() => { loadAttendance(); }, [loadAttendance]);
 
   // ── persistence helper ────────────────────────────────────────────────────────
   const persist = useCallback((
@@ -398,64 +390,49 @@ export default function PartiesPage() {
       .catch(() => { setPageError(errMsg); rollback(); });
   }, []);
 
-  // ── derived lists ─────────────────────────────────────────────────────────────
-  const tabFiltered = useMemo(() => {
-    let list = partyList;
-    if (timeTab === "Upcoming") list = list.filter(p => !p.completed);
-    if (timeTab === "Past")     list = list.filter(p =>  p.completed);
-    if (typeFilter !== "All")   list = list.filter(p => p.partyType === typeFilter);
-    return list;
-  }, [partyList, timeTab, typeFilter]);
+  // ── derived lists (all from partyList, newest first) ───────────────────────────
+  const sorted = useMemo(
+    () => [...partyList].sort((a, b) => b.date.localeCompare(a.date) || b.id - a.id),
+    [partyList],
+  );
 
-  const sorted = useMemo(() => {
-    const list = [...tabFiltered];
-    list.sort((a, b) => {
-      if (sortKey === "date") {
-        return sortDir === "asc" ? a.date.localeCompare(b.date) : b.date.localeCompare(a.date);
-      }
-      const av = sortKey === "profit" ? profit(a) : (a[sortKey] as number);
-      const bv = sortKey === "profit" ? profit(b) : (b[sortKey] as number);
-      return sortDir === "asc" ? av - bv : bv - av;
-    });
-    return list;
-  }, [tabFiltered, sortKey, sortDir]);
+  const wrapUpParty = useMemo(() => partyList.find(p => p.id === wrapUpId)  ?? null, [partyList, wrapUpId]);
+  const editParty   = useMemo(() => partyList.find(p => p.id === editingId) ?? null, [partyList, editingId]);
 
-  const selected    = useMemo(() => partyList.find(p => p.id === selectedId) ?? null, [partyList, selectedId]);
-  const wrapUpParty = useMemo(() => partyList.find(p => p.id === wrapUpId)   ?? null, [partyList, wrapUpId]);
-  const editParty   = useMemo(() => partyList.find(p => p.id === editingId)  ?? null, [partyList, editingId]);
-
-  // ── summary stats (based on tab-filtered list) ────────────────────────────────
-  const completedFiltered = useMemo(() => tabFiltered.filter(p => p.completed), [tabFiltered]);
-  const totalRevenue  = useMemo(() => completedFiltered.reduce((s, p) => s + p.doorRevenue, 0), [completedFiltered]);
-  const totalExpenses = useMemo(() => completedFiltered.reduce((s, p) => s + p.expenses,    0), [completedFiltered]);
-  const totalProfit   = totalRevenue - totalExpenses;
-  const avgProfit     = completedFiltered.length > 0 ? totalProfit / completedFiltered.length : 0;
+  // ── takings summary (completed parties only) ───────────────────────────────────
+  const completed   = useMemo(() => partyList.filter(p => p.completed), [partyList]);
+  const totalRevenue  = useMemo(() => completed.reduce((s, p) => s + p.doorRevenue, 0), [completed]);
+  const totalExpenses = useMemo(() => completed.reduce((s, p) => s + p.expenses,    0), [completed]);
+  const totalNet      = totalRevenue - totalExpenses;
+  const keptPct       = totalRevenue > 0 ? Math.round((totalNet / totalRevenue) * 100) : 0;
   const bestParty     = useMemo(() => {
-    if (!completedFiltered.length) return null;
-    return completedFiltered.reduce((a, b) => profit(b) > profit(a) ? b : a);
-  }, [completedFiltered]);
+    if (!completed.length) return null;
+    return completed.reduce((a, b) => profit(b) > profit(a) ? b : a);
+  }, [completed]);
 
-  const counts = useMemo(() => ({
-    all:      partyList.length,
-    upcoming: partyList.filter(p => !p.completed).length,
-    past:     partyList.filter(p =>  p.completed).length,
-  }), [partyList]);
+  // ── avg member attendance across parties that have roll logged ─────────────────
+  // partyAttendance maps partyId → { present, eligible } from the summary endpoint.
+  // Empty until a party is rolled → avgAttendance is null and the metric renders "—".
+  const partyAttendance = useMemo<Record<number, { present: number; eligible: number }>>(() => {
+    const m: Record<number, { present: number; eligible: number }> = {};
+    for (const r of attendanceRows) m[r.partyId] = { present: r.present, eligible: r.eligible };
+    return m;
+  }, [attendanceRows]);
+  const avgAttendance = useMemo(() => {
+    const rolled = Object.values(partyAttendance).filter(a => a.eligible > 0);
+    if (rolled.length === 0) return null;
+    const sum = rolled.reduce((s, a) => s + a.present / a.eligible, 0);
+    return Math.round((sum / rolled.length) * 100);
+  }, [partyAttendance]);
 
-  // ── sort helper ───────────────────────────────────────────────────────────────
-  function toggleSort(k: SortKey) {
-    if (sortKey === k) setSortDir(d => d === "asc" ? "desc" : "asc");
-    else { setSortKey(k); setSortDir("desc"); }
-  }
+  // ── needs-wrap-up (past, not completed) — the one task ─────────────────────────
+  const needWrap = useMemo(
+    () => partyList.filter(needsWrapUp).sort((a, b) => a.date.localeCompare(b.date)), // most overdue first
+    [partyList],
+  );
+  const heroParty = needWrap[0] ?? null;
 
-  function SortTh({ label, col }: { label: string; col: SortKey }) {
-    const active = sortKey === col;
-    return (
-      <th onClick={() => toggleSort(col)}
-          className="cursor-pointer select-none px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-[0.07em] text-slate-500 hover:text-slate-300 transition-colors">
-        {label}{active ? (sortDir === "asc" ? " ↑" : " ↓") : ""}
-      </th>
-    );
-  }
+  const orgName = currentUser?.org?.name ?? "ChaptOS";
 
   // ── mutations ─────────────────────────────────────────────────────────────────
 
@@ -469,7 +446,7 @@ export default function PartiesPage() {
     };
     setPartyList(prev => [...prev, entry]);
     setModal(null);
-    setSelectedId(tempId);
+    setExpandedId(tempId);
     persist(
       requestJson<PartyEvent>("/api/parties", {
         method: "POST",
@@ -477,11 +454,11 @@ export default function PartiesPage() {
         body: JSON.stringify({ name: form.name, date: form.date, partyType: form.partyType, theme: form.theme, collabOrg: form.collabOrg }),
       }),
       "Could not save party. Changes reverted.",
-      () => { setPartyList(prev => prev.filter(p => p.id !== tempId)); setSelectedId(null); },
+      () => { setPartyList(prev => prev.filter(p => p.id !== tempId)); setExpandedId(null); },
       saved => {
         const s = saved as PartyEvent;
         setPartyList(prev => prev.map(p => p.id === tempId ? s : p));
-        setSelectedId(s.id);
+        setExpandedId(s.id);
       },
     );
   }
@@ -503,42 +480,49 @@ export default function PartiesPage() {
     );
   }
 
-  function handleWrapUp(form: typeof WRAP_FORM_EMPTY) {
+  function handleWrapUp(form: WrapUpSubmit) {
     if (!wrapUpId) return;
-    if (wrapUpId > 1_000_000_000) {
+    const id = wrapUpId;
+    if (id > 1_000_000_000) {
       setPageError("Party is still saving. Wait a moment, then try again.");
       return;
     }
-    const prev = partyList.find(p => p.id === wrapUpId);
-    const updates = {
+    const prev = partyList.find(p => p.id === id);
+    // Optimistic money/completed; roll persists server-side and is reflected after refetch.
+    const optimistic = {
       doorRevenue: Number(form.doorRevenue) || 0,
       expenses:    Number(form.expenses)    || 0,
-      attendance:  Number(form.attendance)  || 0,
       notes:       form.notes,
       completed:   true,
     };
-    setPartyList(list => list.map(p => p.id === wrapUpId
-      ? { ...p, ...updates, completedAt: new Date().toISOString() }
+    setPartyList(list => list.map(p => p.id === id
+      ? { ...p, ...optimistic, completedAt: new Date().toISOString() }
       : p
     ));
     setModal(null);
     setWrapUpId(null);
     persist(
-      requestJson<PartyEvent>(`/api/parties/${wrapUpId}`, {
+      requestJson<PartyEvent>(`/api/parties/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(updates),
+        body: JSON.stringify({
+          wrapUp:      true,
+          doorRevenue: Number(form.doorRevenue) || 0,
+          expenses:    Number(form.expenses)    || 0,
+          notes:       form.notes,
+          ...(form.attendedIds !== undefined ? { attendedIds: form.attendedIds, mandatory: !!form.mandatory } : {}),
+        }),
       }),
       "Could not mark party completed. Changes reverted.",
-      () => { if (prev) setPartyList(list => list.map(p => p.id === wrapUpId ? prev : p)); },
-      saved => setPartyList(list => list.map(p => p.id === wrapUpId ? saved as PartyEvent : p)),
+      () => { if (prev) setPartyList(list => list.map(p => p.id === id ? prev : p)); },
+      saved => { setPartyList(list => list.map(p => p.id === id ? saved as PartyEvent : p)); loadAttendance(); },
     );
   }
 
   function handleDelete(id: number) {
     const prev = partyList.find(p => p.id === id);
     setPartyList(list => list.filter(p => p.id !== id));
-    if (selectedId === id) setSelectedId(null);
+    if (expandedId === id) setExpandedId(null);
     persist(
       requestJson<void>(`/api/parties/${id}`, { method: "DELETE" }),
       "Could not delete party. Changes reverted.",
@@ -546,224 +530,152 @@ export default function PartiesPage() {
     );
   }
 
-  function openWrapUp(p: PartyEvent) { setWrapUpId(p.id); setModal("wrap-up"); }
-  function openEdit(p: PartyEvent)   { setEditingId(p.id); setModal("edit"); }
+  function openWrapUp(id: number) { setWrapUpId(id); setModal("wrap-up"); }
+  function openEdit(id: number)   { setEditingId(id); setModal("edit"); }
   function closeModal() { setModal(null); setEditingId(null); setWrapUpId(null); }
-
-  const showFinancials = timeTab !== "Upcoming";
 
   // ── render ────────────────────────────────────────────────────────────────────
   return (
-    <div className="flex h-screen overflow-hidden bg-[#07090f]">
+    <div className="flex h-screen overflow-hidden bg-[#0f0d0a]">
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} activeSection="Parties" onNavClick={() => {}} />
 
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
 
-        {/* toolbar */}
-        <header className="toolbar-frosted relative z-10 flex h-14 shrink-0 items-center gap-3 border-b border-white/[0.05] px-4 sm:px-6">
-          <button onClick={() => setSidebarOpen(true)} className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-white/[0.07] lg:hidden">
-            <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        {/* ── Toolbar (mobile hamburger + breadcrumb) ── */}
+        <header className="toolbar-frosted dash-toolbar pty-toolbar-bar relative z-20 flex h-14 shrink-0 items-center gap-3 border-b border-white/[0.05] px-4 sm:px-6">
+          <button onClick={() => setSidebarOpen(true)}
+            className="tb-icon-btn flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-white/[0.07] lg:hidden"
+            aria-label="Open menu">
+            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
             </svg>
           </button>
-          <div className="min-w-0 flex-1">
-            <p className="text-[14px] font-semibold leading-tight text-white">Party Dashboard</p>
-            <p className="hidden text-[11px] leading-tight text-slate-400 sm:block">{currentUser?.org?.name ?? "ChaptOS"} · Revenue &amp; Profit Tracker</p>
-          </div>
-          <div className="absolute bottom-0 left-0 right-0 h-px"
-               style={{ background: "linear-gradient(90deg,transparent,rgba(99,102,241,0.4) 30%,rgba(99,102,241,0.4) 70%,transparent)" }} />
-          <button onClick={() => setModal("add")}
-            className="rounded-lg border border-indigo-500/40 bg-indigo-500/10 px-3 py-1.5 text-[12px] font-semibold text-indigo-300 hover:bg-indigo-500/20 transition-colors">
-            + Add Party
-          </button>
+          <span className="pty-crumb truncate">Parties</span>
         </header>
 
-        {/* body */}
+        {/* ── Scrollable dusk ledger pane ── */}
         <main className="page-ambient flex-1 overflow-y-auto">
-          <div className="mx-auto max-w-[1400px] space-y-5 px-4 py-6 sm:px-6">
+          <div className="dash dash-parties" data-dashboard-theme="dusk">
 
             {pageError && (
-              <div className="flex items-center justify-between gap-3 rounded-xl border border-red-500/25 bg-red-500/10 px-4 py-3 text-[12px] text-red-200">
+              <div className="pty-toast" role="status">
                 <span>{pageError}</span>
-                <button onClick={() => setPageError(null)} className="rounded-lg border border-red-300/20 px-2.5 py-1 font-semibold text-red-100 hover:bg-red-500/15">Dismiss</button>
+                <button onClick={() => setPageError(null)} aria-label="Dismiss">
+                  <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
               </div>
             )}
 
-            {isLoading && (
+            {/* ── Briefing ── */}
+            <section className="pty-briefing" aria-label="Parties">
+              <div>
+                <p className="kicker">
+                  <span className="today">{new Date(todayStr() + "T12:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })}</span>
+                  &ensp;·&ensp;Parties&ensp;·&ensp;{orgName}
+                </p>
+                <h1>The <em>house</em> ledger.</h1>
+                <p className="sub">
+                  {completed.length > 0
+                    ? `${completed.length} ${completed.length === 1 ? "party" : "parties"} closed out and the books are ${totalNet >= 0 ? "net positive" : "in the red"}.`
+                    : "No parties closed out yet."}
+                  {needWrap.length > 0
+                    ? ` ${needWrap.length} ${needWrap.length === 1 ? "party is" : "parties are"} still waiting on numbers — close ${needWrap.length === 1 ? "it" : "them"} out and you're square.`
+                    : " Everything's accounted for."}
+                </p>
+              </div>
+              {canParties && (
+                <button className="pty-add" onClick={() => setModal("add")}>
+                  <svg viewBox="0 0 24 24" fill="none" strokeWidth={2.4} strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
+                  Add party
+                </button>
+              )}
+            </section>
+
+            {isLoading ? (
               <>
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 xl:grid-cols-5">
-                  {[...Array(5)].map((_, i) => <div key={i} className="h-20 animate-pulse rounded-xl border border-white/[0.06] bg-[#10121a]" />)}
-                </div>
-                <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-                  <div className="space-y-0 overflow-hidden rounded-xl border border-white/[0.06] bg-[#10121a] xl:col-span-2">
-                    {[...Array(6)].map((_, i) => (
-                      <div key={i} className="h-14 border-b border-white/[0.04] px-5 flex items-center gap-4 animate-pulse last:border-b-0">
-                        <div className="h-3 w-36 rounded bg-white/[0.05]" />
-                        <div className="ml-auto h-3 w-24 rounded bg-white/[0.05]" />
-                      </div>
-                    ))}
-                  </div>
-                  <div className="h-[420px] animate-pulse rounded-xl border border-white/[0.06] bg-[#10121a]" />
+                <div className="pty-skel glance" />
+                <div className="pty-sec" style={{ marginTop: 32 }}><h2>Every party</h2><span className="rule" /></div>
+                <div className="pty-skel">
+                  {[...Array(5)].map((_, i) => (
+                    <div className="ln" key={i}><span className="bar w1" /><span className="bar w2" /></div>
+                  ))}
                 </div>
               </>
-            )}
-
-            {!isLoading && <>
-
-            {/* ── time tabs + type filter ────────────────────────────────── */}
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="flex gap-1">
-                {(["All", "Upcoming", "Past"] as TimeTab[]).map(tab => (
-                  <button key={tab} onClick={() => setTimeTab(tab)}
-                    className={`rounded-lg px-3 py-1.5 text-[12px] font-medium transition-all duration-150 ${
-                      timeTab === tab
-                        ? "bg-white/[0.10] text-white"
-                        : "border border-white/[0.08] text-slate-400 hover:border-white/[0.16] hover:text-slate-200"
-                    }`}>
-                    {tab}
-                    <span className={`ml-1.5 text-[10px] tabular-nums ${timeTab === tab ? "text-slate-300" : "text-slate-600"}`}>
-                      {tab === "All" ? counts.all : tab === "Upcoming" ? counts.upcoming : counts.past}
-                    </span>
-                  </button>
-                ))}
-              </div>
-              <div className="flex gap-1">
-                {(["All", "Open", "Closed"] as TypeFilter[]).map(f => (
-                  <button key={f} onClick={() => setTypeFilter(f)}
-                    className={`rounded-md px-2.5 py-1 text-[11px] font-medium transition-all duration-150 ${
-                      typeFilter === f
-                        ? "bg-white/[0.10] text-white"
-                        : "border border-white/[0.08] text-slate-400 hover:border-white/[0.16] hover:text-slate-200"
-                    }`}>
-                    {f}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* ── summary cards ─────────────────────────────────────────── */}
-            {showFinancials && (
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 xl:grid-cols-5">
-                <SummaryCard label="Total Revenue"  value={fmt$(totalRevenue)}  accent="text-indigo-400"
-                  sub={`${completedFiltered.length} completed`} />
-                <SummaryCard label="Total Expenses" value={fmt$(totalExpenses)} accent="text-red-400" />
-                <SummaryCard label="Total Profit"   value={fmt$(totalProfit)}
-                  accent={totalProfit >= 0 ? "text-emerald-400" : "text-red-400"}
-                  sub={totalProfit >= 0 ? "net positive" : "net loss"} />
-                <SummaryCard label="Avg Profit"     value={fmt$(Math.round(avgProfit))}
-                  accent={avgProfit >= 0 ? "text-white" : "text-amber-400"} />
-                <SummaryCard label="Best Party"     value={bestParty ? fmt$(profit(bestParty)) : "—"}
-                  accent="text-pink-400" sub={bestParty?.name ?? "none yet"} />
-              </div>
-            )}
-
-            {/* ── main grid: table + detail ──────────────────────────────── */}
-            <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-
-              {/* table */}
-              <Card className="overflow-hidden xl:col-span-2" style={{ background: "linear-gradient(to bottom,#ffffff08 0%,#10121a 45%)" }}>
-                <div className="border-b border-white/[0.07] px-5 py-3.5">
-                  <h2 className="text-[14px] font-semibold text-white">
-                    {timeTab === "Upcoming" ? "Upcoming Parties" : timeTab === "Past" ? "Past Parties" : "All Parties"}
-                  </h2>
-                  <p className="text-[11px] text-slate-500 mt-0.5">Click a row to view details</p>
-                </div>
-
-                <div className="overflow-x-auto">
-                  <table className="w-full min-w-[640px]">
-                    <thead>
-                      <tr className="border-b border-white/[0.06] bg-white/[0.03]">
-                        <th className="py-2.5 pl-5 pr-3 text-left text-[10px] font-semibold uppercase tracking-[0.07em] text-slate-500">Party</th>
-                        <SortTh label="Date" col="date" />
-                        <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-[0.07em] text-slate-500">Type</th>
-                        {showFinancials && <>
-                          <SortTh label="Revenue"  col="doorRevenue" />
-                          <SortTh label="Expenses" col="expenses" />
-                          <SortTh label="Profit"   col="profit" />
-                          <SortTh label="Att."     col="attendance" />
-                        </>}
-                        <th className="px-3 py-2.5" />
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-white/[0.04]">
-                      {sorted.length === 0 ? (
-                        <tr><td colSpan={showFinancials ? 8 : 4} className="py-12 text-center text-[13px] text-slate-500">No parties here yet.</td></tr>
-                      ) : sorted.map(p => {
-                        const pr = profit(p);
-                        const isSelected = selectedId === p.id;
-                        return (
-                          <tr key={p.id}
-                              onClick={() => setSelectedId(p.id === selectedId ? null : p.id)}
-                              className={`cursor-pointer transition-colors ${isSelected ? "bg-indigo-500/[0.07]" : "hover:bg-white/[0.03]"}`}>
-                            <td className="border-l-2 border-l-indigo-500/40 py-3 pl-4 pr-3">
-                              <p className="text-[13px] font-semibold text-white">{p.name}</p>
-                              {(p.theme || p.collabOrg) && (
-                                <p className="text-[10px] text-slate-500 mt-0.5">
-                                  {[p.theme, p.collabOrg ? `w/ ${p.collabOrg}` : ""].filter(Boolean).join(" · ")}
-                                </p>
-                              )}
-                            </td>
-                            <td className="px-3 py-3 text-[12px] text-slate-400 whitespace-nowrap">{fmtDate(p.date)}</td>
-                            <td className="px-3 py-3"><PartyTypeBadge type={p.partyType} /></td>
-                            {showFinancials && <>
-                              <td className="px-3 py-3 tabular-nums text-[13px] font-medium text-indigo-300">{p.completed ? fmt$(p.doorRevenue) : "—"}</td>
-                              <td className="px-3 py-3 tabular-nums text-[13px] font-medium text-red-400">{p.completed ? fmt$(p.expenses) : "—"}</td>
-                              <td className="px-3 py-3 tabular-nums text-[13px] font-bold" style={{ color: p.completed ? (pr >= 0 ? "#34d399" : "#f87171") : "#475569" }}>
-                                {p.completed ? fmt$(pr) : "—"}
-                              </td>
-                              <td className="px-3 py-3 tabular-nums text-[12px] text-slate-400">{p.completed ? p.attendance : "—"}</td>
-                            </>}
-                            <td className="px-3 py-3">
-                              <div className="flex gap-1.5" onClick={e => e.stopPropagation()}>
-                                {!p.completed && (
-                                  <button onClick={() => openWrapUp(p)}
-                                    className="rounded-md bg-emerald-500/10 px-2 py-1 text-[10px] font-medium text-emerald-400 ring-1 ring-inset ring-emerald-500/20 hover:bg-emerald-500/20 transition-colors whitespace-nowrap">
-                                    Wrap up
-                                  </button>
-                                )}
-                                <button onClick={() => openEdit(p)}
-                                  className="rounded-md bg-white/[0.05] px-2 py-1 text-[10px] font-medium text-slate-400 ring-1 ring-inset ring-white/[0.1] hover:bg-indigo-500/15 hover:text-indigo-400 hover:ring-indigo-500/25 transition-colors">
-                                  Edit
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-
-                <div className="border-t border-white/[0.06] bg-white/[0.02] px-5 py-2.5">
-                  <p className="text-[11px] text-slate-500">
-                    {sorted.length} shown ·{" "}
-                    <span className="font-medium text-amber-400">{sorted.filter(needsWrapUp).length} need wrap-up</span>
-                  </p>
-                </div>
-              </Card>
-
-              {/* detail panel */}
-              <div>
-                {selected ? (
-                  <DetailPanel
-                    party={selected}
-                    onEdit={() => openEdit(selected)}
-                    onWrapUp={() => openWrapUp(selected)}
-                    onDelete={() => setConfirmDeleteId(selected.id)}
-                    canDelete={canParties}
-                  />
-                ) : (
-                  <Card className="flex flex-col items-center justify-center gap-2 py-16 text-center">
-                    <svg className="h-8 w-8 text-slate-700" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
-                    </svg>
-                    <p className="text-[13px] text-slate-500">Select a party to view details</p>
-                  </Card>
+            ) : (
+              <>
+                {/* ── 1 · The one task ── */}
+                {heroParty && canParties && (
+                  <div className="pty-needs">
+                    <div className="nd-icon">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M12 8v4l3 2" /><circle cx="12" cy="12" r="9" /></svg>
+                    </div>
+                    <div className="nd-body">
+                      <div className="nd-tag">Needs wrap-up · {Math.max(0, -daysFromToday(heroParty.date))} days ago</div>
+                      <div className="nd-title">{heroParty.name}</div>
+                      <div className="nd-meta">{subLine(heroParty)} · <b>{fmtDate(heroParty.date)}</b> — add the door &amp; expenses so the semester totals are right.</div>
+                      {needWrap.length > 1 && <div className="nd-more">+{needWrap.length - 1} more waiting below</div>}
+                    </div>
+                    <button className="pty-do" onClick={() => openWrapUp(heroParty.id)}>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg>
+                      Close it out
+                    </button>
+                  </div>
                 )}
-              </div>
-            </div>
 
-            </>}
+                {/* ── 2 · Did we net money ── */}
+                {completed.length > 0 && (
+                  <div className="pty-takings">
+                    <div className="head-num">
+                      <div className="k">Net this semester</div>
+                      <div className={`v${totalNet >= 0 ? "" : " neg"}`}>{totalNet >= 0 ? "+" : ""}{fmt$(totalNet)}</div>
+                      <div className="note">across {completed.length} closed {completed.length === 1 ? "party" : "parties"}</div>
+                    </div>
+                    <div className="vrule" />
+                    <div className="breakdown">
+                      <div className="bd"><div className="k">Door taken</div><div className="v">{fmt$(totalRevenue)}</div><div className="sub">gross revenue</div></div>
+                      <div className="bd"><div className="k">Spent</div><div className="v">{fmt$(totalExpenses)}</div><div className="sub">kept {keptPct}%</div></div>
+                      <div className="bd"><div className="k">Avg attendance</div><div className="v">{avgAttendance !== null ? `${avgAttendance}%` : "—"}</div><div className="sub">{avgAttendance !== null ? "of chapter" : "no roll yet"}</div></div>
+                      <div className="bd"><div className="k">Best night</div><div className="v">{bestParty ? `+${fmt$(profit(bestParty))}` : "—"}</div><div className="sub">{bestParty?.name ?? "none yet"}</div></div>
+                    </div>
+                  </div>
+                )}
+
+                {/* ── 3 · The ledger ── */}
+                <div className="pty-sec">
+                  <h2>Every party</h2>
+                  <span className="rule" />
+                  <span className="cnt">{sorted.length} total · newest first</span>
+                </div>
+
+                {sorted.length === 0 ? (
+                  <div className="pty-empty">
+                    <div className="ic">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" /></svg>
+                    </div>
+                    <div className="t">No parties yet</div>
+                    <div className="h">{canParties ? "Add your first party to start tracking the books." : "Nothing here yet."}</div>
+                  </div>
+                ) : (
+                  <div className="pty-ledger">
+                    {sorted.map(p => (
+                      <LedgerRow
+                        key={p.id}
+                        party={p}
+                        attendance={partyAttendance[p.id]}
+                        expanded={expandedId === p.id}
+                        onToggle={() => setExpandedId(id => id === p.id ? null : p.id)}
+                        onWrapUp={() => openWrapUp(p.id)}
+                        onEdit={() => openEdit(p.id)}
+                        onDelete={() => setConfirmDeleteId(p.id)}
+                        canParties={canParties}
+                      />
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
 
           </div>
         </main>
@@ -771,18 +683,24 @@ export default function PartiesPage() {
 
       {/* modals */}
       {modal === "add" && (
-        <Modal title="Add Party" onClose={closeModal}>
+        <Modal title="Add Party" onClose={closeModal} tone="dusk">
           <AddPartyForm onSubmit={handleAdd} onClose={closeModal} />
         </Modal>
       )}
       {modal === "edit" && editParty && (
-        <Modal title="Edit Party" onClose={closeModal}>
+        <Modal title="Edit Party" onClose={closeModal} tone="dusk">
           <EditPartyForm party={editParty} onSubmit={handleEdit} onClose={closeModal} />
         </Modal>
       )}
       {modal === "wrap-up" && wrapUpParty && (
-        <Modal title="Mark Completed" onClose={closeModal}>
-          <WrapUpForm party={wrapUpParty} onSubmit={handleWrapUp} onClose={closeModal} />
+        <Modal title="Mark Completed" onClose={closeModal} tone="dusk">
+          <WrapUpForm
+            party={wrapUpParty}
+            brothers={brotherList}
+            alreadyRolled={partyAttendance[wrapUpParty.id] !== undefined}
+            onSubmit={handleWrapUp}
+            onClose={closeModal}
+          />
         </Modal>
       )}
       {confirmDeleteId !== null && (() => {
@@ -790,9 +708,10 @@ export default function PartiesPage() {
         return party ? (
           <ConfirmDialog
             title="Delete Party"
-            message={<>Delete <span className="font-semibold text-white">{party.name}</span>? This cannot be undone.</>}
+            message={<>Delete <span className="font-semibold text-[#ece7dd]">{party.name}</span>? This cannot be undone.</>}
             onCancel={() => setConfirmDeleteId(null)}
             onConfirm={() => { handleDelete(confirmDeleteId); setConfirmDeleteId(null); }}
+            tone="dusk"
           />
         ) : null;
       })()}

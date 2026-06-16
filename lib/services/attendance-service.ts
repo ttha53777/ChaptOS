@@ -102,9 +102,11 @@ export async function recordAttendance(ctx: RequestContext, input: RecordAttenda
   const excusedBrotherIds = new Set(excuses.map(e => e.brotherId));
   const eligible = brothers.filter(b => !excusedBrotherIds.has(b.id));
 
-  await ctx.db.$transaction(
-    eligible.map(b =>
-      ctx.db.attendanceRecord.upsert({
+  // The tenant $transaction wrapper takes a callback (it SET LOCALs the org id),
+  // so run the upserts inside it rather than passing an operation array.
+  await ctx.db.$transaction(async tx => {
+    for (const b of eligible) {
+      await tx.attendanceRecord.upsert({
         where:  { calendarEventId_brotherId: { calendarEventId: input.calendarEventId, brotherId: b.id } },
         update: { attended: input.attendedIds.includes(b.id) },
         create: {
@@ -113,9 +115,9 @@ export async function recordAttendance(ctx: RequestContext, input: RecordAttenda
           semesterId:      semester.id,
           attended:        input.attendedIds.includes(b.id),
         },
-      }),
-    ),
-  );
+      });
+    }
+  });
 
   await emit(ctx, "attendance.recorded", { type: "CalendarEvent", id: event.id }, {
     calendarEventId: event.id,

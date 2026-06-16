@@ -26,8 +26,21 @@ export const updatePartyInput = z.object({
   expenses:    z.coerce.number().nonnegative().optional(),
   notes:       z.string().optional(),
   completed:   z.boolean().optional(),
-}).refine(d => !d.completed || (d.doorRevenue !== undefined && d.attendance !== undefined && d.expenses !== undefined), {
-  message: "Revenue, expenses, and attendance are required to complete a party",
+}).refine(d => !d.completed || (d.doorRevenue !== undefined && d.expenses !== undefined), {
+  message: "Revenue and expenses are required to complete a party",
   path: ["completed"],
 });
 export type UpdatePartyInput = z.infer<typeof updatePartyInput>;
+
+// Wrap-up = mark a party completed AND (optionally) record member roll in one call.
+// `attendedIds` present → take roll on a backing calendar event. `mandatory` decides
+// whether that roll counts toward the chapter-wide attendance %. Omitting attendedIds
+// wraps up money-only (no roll).
+export const wrapUpPartyInput = z.object({
+  doorRevenue: z.coerce.number().nonnegative(),
+  expenses:    z.coerce.number().nonnegative(),
+  notes:       z.string().optional(),
+  attendedIds: z.array(z.number().int().positive()).optional(),
+  mandatory:   z.boolean().optional().default(false),
+});
+export type WrapUpPartyInput = z.infer<typeof wrapUpPartyInput>;

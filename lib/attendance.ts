@@ -5,22 +5,37 @@ export async function getActiveSemester(orgId: number) {
 }
 
 /**
+ * The set of calendar-event ids (for one org) whose attendance counts toward the
+ * chapter-wide ratio: mandatory events only. Optional events — including
+ * non-mandatory party roll — are tracked but excluded from a brother's %.
+ */
+async function mandatoryEventIds(orgId: number): Promise<Set<number>> {
+  const events = await prisma.calendarEvent.findMany({
+    where: { organizationId: orgId, mandatory: true },
+    select: { id: true },
+  });
+  return new Set(events.map(e => e.id));
+}
+
+/**
  * Recompute one brother's attendance ratio for the semester.
  * Reads only records/excuses belonging to that brother; writes only that
- * brother's row and scopes the update to the owning org.
+ * brother's row and scopes the update to the owning org. Only mandatory events
+ * count toward the ratio (optional events / optional party roll are excluded).
  */
 export async function recalcBrotherAttendance(
   brotherId: number,
   semesterId: number,
   orgId: number,
 ): Promise<number> {
-  const [records, excuses] = await Promise.all([
+  const [records, excuses, mandatory] = await Promise.all([
     prisma.attendanceRecord.findMany({ where: { brotherId, semesterId } }),
     prisma.attendanceExcuse.findMany({ where: { brotherId, semesterId, status: "approved" } }),
+    mandatoryEventIds(orgId),
   ]);
 
   const excusedEventIds = new Set(excuses.map(e => e.calendarEventId));
-  const eligible = records.filter(r => !excusedEventIds.has(r.calendarEventId));
+  const eligible = records.filter(r => mandatory.has(r.calendarEventId) && !excusedEventIds.has(r.calendarEventId));
 
   const numerator   = eligible.filter(r => r.attended).length;
   const denominator = eligible.length;
@@ -51,13 +66,14 @@ export async function recalcAllBrothersInSemester(
   semesterId: number,
   orgId: number,
 ): Promise<void> {
-  const [brothers, allRecords, allExcuses] = await Promise.all([
+  const [brothers, allRecords, allExcuses, mandatory] = await Promise.all([
     prisma.brother.findMany({
       where: { organizationId: orgId, isGhost: false },
       select: { id: true },
     }),
     prisma.attendanceRecord.findMany({ where: { semesterId } }),
     prisma.attendanceExcuse.findMany({ where: { semesterId, status: "approved" } }),
+    mandatoryEventIds(orgId),
   ]);
 
   const recordsByBrother  = new Map<number, typeof allRecords>();
@@ -79,7 +95,7 @@ export async function recalcAllBrothersInSemester(
   for (const b of brothers) {
     const records  = recordsByBrother.get(b.id) ?? [];
     const excused  = excusedByBrother.get(b.id) ?? new Set<number>();
-    const eligible = records.filter(r => !excused.has(r.calendarEventId));
+    const eligible = records.filter(r => mandatory.has(r.calendarEventId) && !excused.has(r.calendarEventId));
     const num      = eligible.filter(r => r.attended).length;
     const den      = eligible.length;
     const ratio    = den === 0 ? 0 : Math.round((num / den) * 100);

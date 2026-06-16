@@ -1,0 +1,215 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+   Parties — "The House Ledger" dusk redesign
+   Same warm-paper editorial system as dashboard-ledger.css / docs-ledger.css /
+   timeline-ledger.css. Mock: _design/Parties Redesign v2.html.
+
+   The old parties page was cold slate (#07090f / #10121a) with an indigo accent
+   and four competing surfaces at once — a 5-up summary strip, time tabs + an
+   Open/Closed filter, a 7-column sortable table, AND a sticky detail panel. The
+   one real task (closing out a party that already happened so the books are
+   right) was a faded "Wrap up" pill in a table cell with no urgency.
+
+   This rebuilds the page to answer three questions, top to bottom:
+     1. What needs me?   → one gold hero card for the party awaiting wrap-up.
+     2. Did we net money? → one headline net figure + quiet door/spent/best.
+     3. What happened?    → one ledger, newest first, one row per party; click
+                            a row to expand its breakdown inline.
+
+   ISOLATION: every rule is scoped under `.dash` (set on the content wrapper,
+   the same convention dashboard-ledger.css uses) and all class names are net-new
+   `.pty-*` so nothing leaks into pages that share `.dash`.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+/* ── Dusk tokens for the parties pane (mirrors docs-ledger.css) ──────────────── */
+.dash.dash-parties {
+  --serif: var(--font-fraunces), Georgia, serif;
+  --sans:  var(--font-geist-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --mono:  var(--font-geist-mono), ui-monospace, Menlo, monospace;
+
+  --paper:    #0f0d0a;
+  --paper-2:  #14120e;
+  --card:     #161310;
+  --card-2:   #1b1813;
+  --ink:      #ece7dd;
+  --ink-soft: #c9c2b4;
+  --muted:    #958d7c;
+  --faint:    #6b6354;
+  --line:     rgba(236,231,221,.09);
+  --line-soft:rgba(236,231,221,.05);
+  --vio:      #a78bfa;
+  --vio-deep: #7c3aed;
+  --vio-bg:   rgba(167,139,250,.10);
+  --gold:     #ddb36a;
+  --gold-bg:  rgba(221,179,106,.10);
+  --rose:     #d98ba3;
+  --rose-bg:  rgba(217,139,163,.10);
+  --ok:       #7fb08a;
+  --ok-bg:    rgba(127,176,138,.10);
+  --shadow:   0 1px 0 rgba(0,0,0,.4), 0 16px 40px -24px rgba(0,0,0,.7);
+
+  /* Fluid up to a comfortable reading ceiling: the pane fills the available
+     width (minus side gutters) and only stops growing past 1180px so lines
+     and the takings columns never spread too far on large monitors. Side
+     padding scales with the viewport instead of snapping at one breakpoint. */
+  width: 100%;
+  max-width: 1180px;
+  margin: 0;
+  padding: 30px clamp(18px, 4vw, 48px) 64px;
+}
+
+/* ── Toolbar bar (breadcrumb label) ──────────────────────────────────────────── */
+header.dash-toolbar.pty-toolbar-bar {
+  background: rgba(15, 13, 10, 0.85);
+  border-bottom-color: rgba(236, 231, 221, 0.09);
+}
+header.dash-toolbar.pty-toolbar-bar .tb-icon-btn { color: #958d7c; }
+header.dash-toolbar.pty-toolbar-bar .tb-icon-btn:hover { color: #ece7dd; background: rgba(236, 231, 221, 0.035); }
+header.dash-toolbar .pty-crumb {
+  font-family: var(--font-fraunces), Georgia, serif; font-weight: 500;
+  font-size: 15px; letter-spacing: -.01em; color: #ece7dd;
+}
+
+/* ── Briefing ────────────────────────────────────────────────────────────────── */
+.dash .pty-briefing { display: flex; align-items: flex-start; justify-content: space-between; gap: 32px; }
+.dash .pty-briefing .kicker { font-family: var(--mono); font-size: 10.5px; letter-spacing: .18em; text-transform: uppercase; color: var(--muted); }
+.dash .pty-briefing .kicker .today { color: var(--vio); }
+.dash .pty-briefing h1 { font-family: var(--serif); font-weight: 400; font-size: 33px; letter-spacing: -.01em; margin-top: 8px; color: var(--ink); }
+.dash .pty-briefing h1 em { font-style: italic; color: var(--vio); }
+.dash .pty-briefing .sub { margin-top: 10px; font-size: 13.5px; color: var(--ink-soft);
+  font-style: italic; font-family: var(--serif); font-weight: 350; max-width: 56ch; }
+
+.dash .pty-add { flex-shrink: 0; display: inline-flex; align-items: center; gap: 7px; cursor: pointer;
+  font-family: var(--mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--vio); background: var(--vio-bg); border: 1px solid var(--vio-bg); border-radius: 8px; padding: 8px 14px;
+  transition: border-color .12s; }
+.dash .pty-add:hover { border-color: var(--vio); }
+.dash .pty-add svg { width: 13px; height: 13px; stroke: var(--vio); }
+
+/* ── 1 · Needs me — the one task on the page ─────────────────────────────────── */
+.dash .pty-needs { margin-top: 26px; border: 1px solid var(--gold); border-radius: 14px; background: var(--card-2);
+  box-shadow: 0 0 0 1px var(--gold-bg), var(--shadow); padding: 20px 22px; position: relative; overflow: hidden;
+  display: flex; align-items: center; gap: 22px; }
+.dash .pty-needs::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--gold); }
+.dash .pty-needs .nd-icon { flex-shrink: 0; width: 42px; height: 42px; border-radius: 11px; background: var(--gold-bg);
+  display: grid; place-items: center; color: var(--gold); }
+.dash .pty-needs .nd-icon svg { width: 20px; height: 20px; }
+.dash .pty-needs .nd-body { min-width: 0; flex: 1; }
+.dash .pty-needs .nd-tag { font-family: var(--mono); font-size: 9px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; color: var(--gold); }
+.dash .pty-needs .nd-title { font-family: var(--serif); font-weight: 500; font-size: 19px; color: var(--ink); margin-top: 4px; line-height: 1.2; }
+.dash .pty-needs .nd-meta { font-size: 12px; color: var(--muted); margin-top: 4px; }
+.dash .pty-needs .nd-meta b { color: var(--ink-soft); font-weight: 550; }
+.dash .pty-needs .nd-more { font-family: var(--mono); font-size: 9.5px; letter-spacing: .08em; color: var(--gold); margin-top: 6px; }
+.dash .pty-do { flex-shrink: 0; display: inline-flex; align-items: center; gap: 8px; cursor: pointer;
+  font-family: var(--mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--paper); background: var(--gold); border: 1px solid var(--gold); border-radius: 9px; padding: 11px 18px; font-weight: 600;
+  transition: filter .12s; }
+.dash .pty-do:hover { filter: brightness(1.08); }
+.dash .pty-do svg { width: 13px; height: 13px; }
+
+/* ── 2 · Did we net money — one headline figure ──────────────────────────────── */
+.dash .pty-takings { margin-top: 18px; border: 1px solid var(--line); border-radius: 14px; background: var(--card);
+  box-shadow: var(--shadow); padding: 22px 24px; display: grid; grid-template-columns: auto 1px 1fr; gap: 26px; align-items: center; }
+.dash .pty-takings .head-num .k { font-family: var(--mono); font-size: 9.5px; letter-spacing: .16em; text-transform: uppercase; color: var(--muted); }
+.dash .pty-takings .head-num .v { font-family: var(--serif); font-weight: 400; font-size: 46px; line-height: 1; letter-spacing: -.02em;
+  margin-top: 8px; font-variant-numeric: tabular-nums; color: var(--ok); }
+.dash .pty-takings .head-num .v.neg { color: var(--rose); }
+.dash .pty-takings .head-num .note { font-size: 11.5px; color: var(--faint); margin-top: 8px; }
+.dash .pty-takings .vrule { width: 1px; background: var(--line); align-self: stretch; }
+.dash .pty-takings .breakdown { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; }
+.dash .pty-takings .bd .k { font-family: var(--mono); font-size: 9px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+.dash .pty-takings .bd .v { font-family: var(--mono); font-size: 20px; font-weight: 500; letter-spacing: -.02em; color: var(--ink-soft); margin-top: 6px; font-variant-numeric: tabular-nums; }
+.dash .pty-takings .bd .sub { font-size: 10.5px; color: var(--faint); margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+@media (max-width: 720px) {
+  .dash .pty-takings { grid-template-columns: 1fr; gap: 18px; }
+  .dash .pty-takings .vrule { display: none; }
+  .dash .pty-takings .breakdown { grid-template-columns: repeat(2, 1fr); }
+}
+
+/* ── Section label ───────────────────────────────────────────────────────────── */
+.dash .pty-sec { display: flex; align-items: baseline; gap: 14px; margin: 32px 0 12px; }
+.dash .pty-sec h2 { font-family: var(--serif); font-weight: 400; font-size: 22px; letter-spacing: -.01em; color: var(--ink); white-space: nowrap; }
+.dash .pty-sec .rule { flex: 1; height: 1px; background: var(--line); }
+.dash .pty-sec .cnt { font-family: var(--mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); white-space: nowrap; }
+
+/* ── 3 · The ledger — one row per party ──────────────────────────────────────── */
+.dash .pty-ledger { border: 1px solid var(--line); border-radius: 12px; background: var(--card); box-shadow: var(--shadow); overflow: hidden; }
+.dash .pty-row { display: grid; grid-template-columns: 1fr auto; column-gap: 16px; align-items: center;
+  padding: 0 18px; border-bottom: 1px solid var(--line-soft); }
+.dash .pty-row:last-child { border-bottom: none; }
+.dash .pty-row.future { background: linear-gradient(90deg, var(--vio-bg), transparent 40%); }
+
+.dash .pty-row .lead { display: grid; grid-template-columns: 36px 1fr; gap: 16px; align-items: center;
+  padding: 15px 0; cursor: pointer; min-width: 0; background: none; border: none; text-align: left; width: 100%; }
+.dash .pty-row .led-date { text-align: right; }
+.dash .pty-row .led-date .dnum { font-family: var(--serif); font-size: 22px; font-weight: 400; line-height: 1; color: var(--ink-soft); }
+.dash .pty-row .led-date .mon { font-family: var(--mono); font-size: 8px; letter-spacing: .12em; text-transform: uppercase; color: var(--faint); margin-top: 4px; }
+.dash .pty-row .led-main { min-width: 0; }
+.dash .pty-row .led-main .t { font-size: 14.5px; font-weight: 550; color: var(--ink); display: flex; align-items: center; gap: 9px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dash .pty-row .led-main .t .vdot { width: 7px; height: 7px; border-radius: 50%; background: var(--vio); flex-shrink: 0; }
+.dash .pty-row .led-main .t .vdot.open { background: var(--faint); }
+.dash .pty-row .led-main .t .vdot.due { background: var(--gold); }
+.dash .pty-row .led-main .sub { font-size: 11.5px; color: var(--faint); margin-top: 4px; font-style: italic; font-family: var(--serif);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* right cell: state */
+.dash .pty-row .led-state { display: flex; align-items: center; gap: 16px; padding: 15px 0; }
+.dash .pty-row .net { text-align: right; }
+.dash .pty-row .net .nv { font-family: var(--mono); font-size: 16px; font-weight: 550; font-variant-numeric: tabular-nums; }
+.dash .pty-row .net .nv.pos { color: var(--ok); }
+.dash .pty-row .net .nv.neg { color: var(--rose); }
+.dash .pty-row .net .nk { font-family: var(--mono); font-size: 8px; letter-spacing: .12em; text-transform: uppercase; color: var(--faint); margin-top: 3px; }
+.dash .pty-badge { font-family: var(--mono); font-size: 9px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase;
+  border-radius: 6px; padding: 5px 10px; white-space: nowrap; cursor: pointer; border: 1px solid transparent; background: none; }
+.dash .pty-badge.wrap { color: var(--gold); background: var(--gold-bg); }
+.dash .pty-badge.wrap:hover { border-color: var(--gold); }
+.dash .pty-badge.up { color: var(--vio); background: var(--vio-bg); cursor: default; }
+.dash .pty-row .chev { color: var(--faint); opacity: 0; transition: opacity .12s, transform .18s; flex-shrink: 0; }
+.dash .pty-row .chev svg { width: 15px; height: 15px; display: block; }
+.dash .pty-row:hover .chev { opacity: .6; }
+
+/* expand drawer */
+.dash .pty-row .drawer { grid-column: 1 / -1; max-height: 0; overflow: hidden; transition: max-height .25s ease; }
+.dash .pty-row.open .drawer { max-height: 220px; }
+.dash .pty-row.open .chev { transform: rotate(90deg); opacity: .8; }
+.dash .pty-row .drawer-inner { padding: 2px 0 18px 52px; display: flex; gap: 30px; flex-wrap: wrap; align-items: flex-end; }
+.dash .pty-row .dstat .dk { font-family: var(--mono); font-size: 8.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--faint); }
+.dash .pty-row .dstat .dv { font-family: var(--mono); font-size: 14px; color: var(--ink-soft); margin-top: 4px; font-variant-numeric: tabular-nums; }
+.dash .pty-row .dnote { flex: 1; min-width: 200px; font-style: italic; font-family: var(--serif); font-size: 12.5px; color: var(--muted); align-self: center; }
+.dash .pty-row .dactions { display: flex; gap: 8px; }
+.dash .pty-row .mini { font-family: var(--mono); font-size: 9px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted);
+  background: transparent; border: 1px solid var(--line); border-radius: 7px; padding: 7px 12px; cursor: pointer; transition: color .12s, border-color .12s; }
+.dash .pty-row .mini:hover { color: var(--ink); border-color: var(--vio); }
+.dash .pty-row .mini.danger:hover { color: var(--rose); border-color: var(--rose); }
+
+@media (max-width: 640px) {
+  .dash .pty-row .drawer-inner { padding-left: 0; gap: 18px; }
+}
+
+/* ── Empty state ─────────────────────────────────────────────────────────────── */
+.dash .pty-empty { border: 1px solid var(--line); border-radius: 12px; background: var(--card); box-shadow: var(--shadow);
+  padding: 48px 24px; text-align: center; }
+.dash .pty-empty .ic { width: 52px; height: 52px; border-radius: 14px; margin: 0 auto 14px; display: grid; place-items: center;
+  background: var(--vio-bg); color: var(--vio); }
+.dash .pty-empty .ic svg { width: 24px; height: 24px; }
+.dash .pty-empty .t { font-family: var(--serif); font-weight: 500; font-size: 18px; color: var(--ink); }
+.dash .pty-empty .h { font-size: 12.5px; color: var(--faint); margin-top: 6px; }
+
+/* ── Page error banner ───────────────────────────────────────────────────────── */
+.dash .pty-toast { margin-bottom: 18px; display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  border-radius: 10px; padding: 11px 15px; font-size: 12.5px; border: 1px solid var(--rose-bg); background: var(--rose-bg); color: var(--rose); }
+.dash .pty-toast button { display: grid; place-items: center; background: none; border: none; cursor: pointer; color: var(--rose); }
+.dash .pty-toast button svg { width: 15px; height: 15px; }
+
+/* ── Loading skeleton ────────────────────────────────────────────────────────── */
+.dash .pty-skel { border: 1px solid var(--line); border-radius: 12px; background: var(--card); overflow: hidden; }
+.dash .pty-skel .ln { height: 56px; border-bottom: 1px solid var(--line-soft); display: flex; align-items: center; gap: 16px; padding: 0 18px; }
+.dash .pty-skel .ln:last-child { border-bottom: none; }
+.dash .pty-skel .bar { height: 12px; border-radius: 6px; background: var(--card-2); animation: pty-pulse 1.4s ease-in-out infinite; }
+.dash .pty-skel .bar.w1 { width: 40%; } .dash .pty-skel .bar.w2 { width: 18%; margin-left: auto; }
+.dash .pty-skel.glance { height: 120px; margin-top: 18px; display: block; }
+@keyframes pty-pulse { 0%, 100% { opacity: .5; } 50% { opacity: .9; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .dash.dash-parties * { transition: none !important; animation: none !important; }
+}

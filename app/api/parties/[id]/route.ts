@@ -1,8 +1,8 @@
 import { NextRequest } from "next/server";
 import { buildContext } from "@/lib/context";
 import { toResponse, ValidationError } from "@/lib/errors";
-import { updatePartyInput } from "@/lib/validation/party";
-import { deleteParty, updateParty } from "@/lib/services/party-service";
+import { updatePartyInput, wrapUpPartyInput } from "@/lib/validation/party";
+import { deleteParty, updateParty, wrapUpParty } from "@/lib/services/party-service";
 import { logError } from "@/lib/observability";
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -13,6 +13,12 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const numId = Number(id);
     if (!Number.isInteger(numId) || numId <= 0) throw new ValidationError("Invalid ID");
     const body = await req.json().catch(() => ({}));
+    // Wrap-up = complete + optional roll, sent with `wrapUp: true`. Everything else
+    // is a plain edit.
+    if (body && (body as { wrapUp?: unknown }).wrapUp === true) {
+      const input = wrapUpPartyInput.parse(body);
+      return Response.json(await wrapUpParty(ctx, numId, input));
+    }
     const input = updatePartyInput.parse(body);
     return Response.json(await updateParty(ctx, numId, input));
   } catch (e) {
