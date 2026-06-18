@@ -10,7 +10,7 @@ import { hasDevImpersonationCookie } from "@/lib/auth/dev-bypass";
 import { hasPermission, type Permission } from "@/lib/permissions";
 import { DEFAULT_THRESHOLDS, type Thresholds } from "@/lib/thresholds";
 import type { CustomMemberFieldDef } from "@/lib/custom-member-fields";
-import { currentOrgSlug, ORG_SLUG_HEADER } from "../lib/api";
+import { orgFetch } from "../lib/api";
 import { isDashboardRoute } from "../lib/routes";
 
 function normalizeCurrentUser(me: CurrentUser): CurrentUser {
@@ -145,10 +145,17 @@ const ChapterContext = createContext<ChapterContextValue | null>(null);
 
 
 async function fetchJson<T>(url: string): Promise<T | null> {
-  // Tag every read with the org slug from the URL so the API follows the org the
-  // user is viewing, not a lagging active_org cookie (see require-user.ts).
-  const slug = currentOrgSlug();
-  const response = await fetch(url, slug ? { headers: { [ORG_SLUG_HEADER]: slug } } : undefined);
+  // Bootstrap fan-out can run while Turbopack is compiling — allow a generous
+  // timeout so a slow first compile doesn't abort with a raw fetch TypeError.
+  let response: Response;
+  try {
+    response = await orgFetch(url, { signal: AbortSignal.timeout(30_000) });
+  } catch (error) {
+    // Network drop / timeout / dev HMR — surface as a normal Error so callers'
+    // catch + allSettled paths handle it without an uncaught TypeError from fetch().
+    const reason = error instanceof Error ? error.message : String(error);
+    throw new Error(`${url} unreachable: ${reason}`);
+  }
   // 401 is the normal "no session" path — return null so callers can handle it
   // without throwing (avoids spurious console errors in browser devtools).
   if (response.status === 401) return null;
@@ -302,20 +309,20 @@ export function ChapterProvider({ children }: { children: React.ReactNode }) {
       }
     };
 
-    if (brothers.status === "fulfilled")     setBrotherList(brothers.value);
+    if (brothers.status === "fulfilled")     setBrotherList(brothers.value ?? []);
     else                                     trackFailure("brothers", brothers);
 
-    if (deadlines.status === "fulfilled")    setDeadlineList(deadlines.value);
+    if (deadlines.status === "fulfilled")    setDeadlineList(deadlines.value ?? []);
     else                                     trackFailure("deadlines", deadlines);
 
-    if (instagram.status === "fulfilled")    setIgTaskList(instagram.value);
+    if (instagram.status === "fulfilled")    setIgTaskList(instagram.value ?? []);
     else                                     trackFailure("instagram", instagram);
 
-    if (programming.status === "fulfilled")  setProgrammingTaskList(programming.value);
+    if (programming.status === "fulfilled")  setProgrammingTaskList(programming.value ?? []);
     else                                     trackFailure("programming", programming);
 
     if (parties.status === "fulfilled") {
-      setPartyList(parties.value.map(p => ({
+      setPartyList((parties.value ?? []).map(p => ({
         ...p,
         partyType:   (p.partyType   ?? "Open") as "Open" | "Closed",
         theme:       p.theme        ?? "",
@@ -331,13 +338,13 @@ export function ChapterProvider({ children }: { children: React.ReactNode }) {
       trackFailure("parties", parties);
     }
 
-    if (activity.status === "fulfilled")     setActivityFeed(activity.value);
+    if (activity.status === "fulfilled")     setActivityFeed(activity.value ?? []);
     else                                     trackFailure("activity", activity);
 
     if (treasury.status === "fulfilled")     setTreasuryData(treasury.value);
     else                                     trackFailure("treasury", treasury);
 
-    if (transactions.status === "fulfilled") setTransactionList(transactions.value);
+    if (transactions.status === "fulfilled") setTransactionList(transactions.value ?? []);
     else                                     trackFailure("transactions", transactions);
 
     setSectionErrors(failed);
