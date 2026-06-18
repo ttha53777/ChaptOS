@@ -161,10 +161,10 @@ export function ChartWidget({ title, stat, caption, accentColor, children }: {
     <Card style={gradientStyle} className="overflow-hidden">
       <div className="flex items-start justify-between px-4 pt-4 pb-1">
         <div>
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">{title}</p>
-          <p className="mt-0.5 text-[17px] font-bold tracking-tight text-white">{stat}</p>
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-[#958d7c]">{title}</p>
+          <p className="mt-0.5 text-[17px] font-bold tracking-tight text-[#ece7dd]">{stat}</p>
         </div>
-        <p className="mt-1 text-[10px] text-slate-500">{caption}</p>
+        <p className="mt-1 text-[10px] text-[#958d7c]">{caption}</p>
       </div>
       <div className="h-[96px] px-1 pb-3">{children}</div>
     </Card>
@@ -183,14 +183,14 @@ export function ActivityFeed({ entries, onExpand }: { entries: ActivityEntry[]; 
       <div className="h-[3px] bg-emerald-500/50" />
       <div className="border-b border-white/[0.07] px-5 py-3.5">
         <div className="flex items-center justify-between">
-          <h2 className="text-[13px] font-semibold text-white">Activity Feed</h2>
+          <h2 className="text-[13px] font-semibold text-[#ece7dd]">Activity Feed</h2>
           <div className="flex items-center gap-2">
             <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold text-emerald-400">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
               Live
             </span>
             {onExpand && (
-              <button onClick={(e) => { e.stopPropagation(); onExpand(); }} className="flex items-center gap-1 rounded-md bg-white/[0.05] px-2 py-0.5 text-[10px] font-medium text-slate-400 hover:bg-indigo-500/15 hover:text-indigo-300 transition-colors">
+              <button onClick={(e) => { e.stopPropagation(); onExpand(); }} className="flex items-center gap-1 rounded-md bg-white/[0.05] px-2 py-0.5 text-[10px] font-medium text-[#958d7c] hover:bg-[#a78bfa]/15 hover:text-[#a78bfa] transition-colors">
                 All
                 <svg className="h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
@@ -202,15 +202,15 @@ export function ActivityFeed({ entries, onExpand }: { entries: ActivityEntry[]; 
       </div>
       {entries.length === 0 ? (
         <div className="px-5 py-8 text-center">
-          <p className="text-[12px] text-slate-500">No recent activity</p>
+          <p className="text-[12px] text-[#958d7c]">No recent activity</p>
         </div>
       ) : (
         <div className="max-h-[220px] overflow-y-auto divide-y divide-white/[0.04]">
           {entries.map(e => (
             <div key={e.id} className="flex items-start gap-3 px-5 py-2.5 transition-colors hover:bg-white/[0.03]">
               <span className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${dot[e.type]}`} />
-              <p className="flex-1 text-[12px] leading-snug text-slate-300">{e.message}</p>
-              <span className="shrink-0 text-[10px] text-slate-500">{e.timestamp}</span>
+              <p className="flex-1 text-[12px] leading-snug text-[#c9c2b4]">{e.message}</p>
+              <span className="shrink-0 text-[10px] text-[#958d7c]">{e.timestamp}</span>
             </div>
           ))}
         </div>
@@ -222,7 +222,7 @@ export function ActivityFeed({ entries, onExpand }: { entries: ActivityEntry[]; 
 export function AttBar({ pct }: { pct: number }) {
   const THRESHOLDS = useThresholds();
   const bar  = pct >= THRESHOLDS.attendanceWatch ? "bg-emerald-400" : pct >= THRESHOLDS.attendanceAtRisk ? "bg-amber-400" : "bg-red-400";
-  const text = pct >= THRESHOLDS.attendanceWatch ? "text-white" : pct >= THRESHOLDS.attendanceAtRisk ? "text-amber-400" : "text-red-400";
+  const text = pct >= THRESHOLDS.attendanceWatch ? "text-[#ece7dd]" : pct >= THRESHOLDS.attendanceAtRisk ? "text-amber-400" : "text-red-400";
   return (
     <div className="flex items-center gap-2">
       <div className="h-1.5 w-14 overflow-hidden rounded-full bg-white/[0.08]">

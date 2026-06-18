@@ -31,6 +31,8 @@ export function CalendarEventForm({
   onSubmit,
   allowedCategories,
   defaultCategory = "chapter",
+  minDate,
+  maxDate,
 }: {
   initialEvent?: CalendarEvent;
   submitLabel: string;
@@ -38,9 +40,16 @@ export function CalendarEventForm({
   /** When set, only these categories appear in the dropdown (e.g. programming page). */
   allowedCategories?: CalEventCategory[];
   defaultCategory?: CalEventCategory;
+  /** Active-semester bounds (YYYY-MM-DD) that constrain the date picker. */
+  minDate?: string;
+  maxDate?: string;
 }) {
+  // Default a new event to today, but clamp into the semester so the prefilled
+  // date isn't already out of range (string dates compare lexicographically).
+  const today = toDateStr(TODAY.year, TODAY.month, TODAY.day);
+  const defaultDate = minDate && today < minDate ? minDate : maxDate && today > maxDate ? maxDate : today;
   const [title, setTitle] = useState(initialEvent?.title ?? "");
-  const [date, setDate] = useState(initialEvent?.date ?? toDateStr(TODAY.year, TODAY.month, TODAY.day));
+  const [date, setDate] = useState(initialEvent?.date ?? defaultDate);
   const [time, setTime] = useState(initialEvent?.time ?? "");
   const [category, setCategory] = useState<CalEventCategory>(initialEvent?.category ?? defaultCategory);
   const [mandatory, setMandatory] = useState(initialEvent?.mandatory ?? false);
@@ -89,7 +98,7 @@ export function CalendarEventForm({
         <div className="cef-when">
           <div className="cef-field">
             <label className="cef-label" htmlFor="event-date">Date</label>
-            <input id="event-date" type="date" className="cef-input" value={date} onChange={e => setDate(e.target.value)} required />
+            <input id="event-date" type="date" className="cef-input" value={date} onChange={e => setDate(e.target.value)} min={minDate} max={maxDate} required />
           </div>
           <div className="cef-field">
             <label className="cef-label" htmlFor="event-time">Time<span className="opt">opt</span></label>

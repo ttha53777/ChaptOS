@@ -15,12 +15,15 @@ const DEADLINE_STATUSES: { id: TaskStatus; cvar: string }[] = [
   { id: "Complete", cvar: "var(--s-complete)" },
 ];
 
-export function AddDeadlineForm({ brotherNames, onSubmit, initial, igEnabled = false }: {
+export function AddDeadlineForm({ brotherNames, onSubmit, initial, igEnabled = false, minDate, maxDate }: {
   brotherNames: string[];
   onSubmit: (d: { title: string; dueDate: string; owner: string; status: TaskStatus; isPost: boolean; postType: InstagramType }) => void;
   initial?: { title: string; dueDate: string; owner: string; status: TaskStatus };
   /** When the org's Instagram page is visible, offer to log this deadline as a post instead. */
   igEnabled?: boolean;
+  /** Active-semester bounds (YYYY-MM-DD) that constrain the date picker. */
+  minDate?: string;
+  maxDate?: string;
 }) {
   const [title,   setTitle]   = useState(initial?.title   ?? "");
   const [dueDate, setDueDate] = useState(initial?.dueDate ?? "");
@@ -58,7 +61,7 @@ export function AddDeadlineForm({ brotherNames, onSubmit, initial, igEnabled = f
         <div className="adf-when">
           <div className="adf-field">
             <label className="adf-label" htmlFor="deadline-due">Due Date</label>
-            <input id="deadline-due" type="date" className="adf-input" value={dueDate} onChange={e => setDueDate(e.target.value)} required />
+            <input id="deadline-due" type="date" className="adf-input" value={dueDate} onChange={e => setDueDate(e.target.value)} min={minDate} max={maxDate} required />
           </div>
           <div className="adf-field">
             <label className="adf-label" htmlFor="deadline-owner">Owner</label>
@@ -188,9 +191,12 @@ export function AddIGTaskForm({ onSubmit, initial }: {
   );
 }
 
-export function AddProgrammingTaskForm({ onSubmit, initial }: {
+export function AddProgrammingTaskForm({ onSubmit, initial, minDate, maxDate }: {
   onSubmit: (t: { title: string; dueDate: string | null; location: string | null; time?: string | null; collab?: string | null; type: string; status: TaskStatus }) => void;
   initial?: { title: string; dueDate: string | null; location: string; time?: string | null; collab?: string | null; type: string; status: TaskStatus };
+  /** Active-semester bounds (YYYY-MM-DD) that constrain the date picker. */
+  minDate?: string;
+  maxDate?: string;
 }) {
   const parsedInitial = initial ? parseProgrammingTitle(initial.title) : null;
   const [title,    setTitle]    = useState(parsedInitial?.title ?? initial?.title ?? "");
@@ -220,7 +226,7 @@ export function AddProgrammingTaskForm({ onSubmit, initial }: {
       <div><FieldLabel tone="dusk">Event Title</FieldLabel><input className={inputDuskCls} value={title} onChange={e => setTitle(e.target.value)} placeholder="Event name…" required /></div>
       <div><FieldLabel tone="dusk">Collab <span className="font-normal text-[#6b6354]">(optional)</span></FieldLabel><input className={inputDuskCls} value={collab} onChange={e => setCollab(e.target.value)} placeholder="KDF, DSP…" /></div>
       <div className="grid grid-cols-2 gap-3">
-        <div><FieldLabel tone="dusk">Event Date <span className="font-normal text-[#6b6354]">(optional)</span></FieldLabel><input type="date" className={inputDuskCls} value={dueDate} onChange={e => setDueDate(e.target.value)} /></div>
+        <div><FieldLabel tone="dusk">Event Date <span className="font-normal text-[#6b6354]">(optional)</span></FieldLabel><input type="date" className={inputDuskCls} value={dueDate} onChange={e => setDueDate(e.target.value)} min={minDate} max={maxDate} /></div>
         <div><FieldLabel tone="dusk">Time <span className="font-normal text-[#6b6354]">(optional)</span></FieldLabel><input className={inputDuskCls} value={time} onChange={e => setTime(e.target.value)} placeholder="7:00 PM" /></div>
       </div>
       <div><FieldLabel tone="dusk">Where <span className="font-normal text-[#6b6354]">(optional)</span></FieldLabel><input className={inputDuskCls} value={location} onChange={e => setLocation(e.target.value)} placeholder="Student Union, Room 204…" /></div>

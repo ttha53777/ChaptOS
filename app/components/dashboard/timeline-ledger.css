@@ -201,6 +201,13 @@
   background: none; border: 0; cursor: pointer; margin-left: 4px; }
 .dash .tl-end button:hover { color: var(--vio); }
 
+/* Top variant — when months are newest-first, this note heads the spine rather
+   than closing it. Self-contained banner, no dangling spine dot. */
+.dash .tl-end--top { padding: 10px 14px; margin-bottom: 16px; border: 1px solid var(--line-soft);
+  border-radius: 10px; background: var(--card); }
+.dash .tl-end--top .e-dot { margin-left: 0; }
+.dash .tl-end--top button { margin-left: auto; }
+
 /* ── Rail: Up next / Then / Legend / Jump ────────────────────────────────────── */
 .dash .upnext { border: 1px solid var(--line); border-radius: 12px; background: var(--card); box-shadow: var(--shadow); padding: 16px 18px 17px; cursor: pointer; }
 .dash .upnext:hover { background: var(--card-2); }

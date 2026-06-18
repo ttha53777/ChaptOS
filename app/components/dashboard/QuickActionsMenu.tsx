@@ -195,7 +195,7 @@ export function QuickActionsMenu({
           onClick={() => setOpen(v => !v)}
           aria-haspopup="menu"
           aria-expanded={open}
-          className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-600 text-white hover:bg-indigo-500"
+          className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#a78bfa] text-[#0f0d0a] hover:bg-[#bda6fc]"
         >
           <svg className="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
@@ -206,24 +206,24 @@ export function QuickActionsMenu({
       {open && (
         <div
           role="menu"
-          className="absolute right-0 top-full z-50 mt-1.5 w-56 max-w-[calc(100vw-1.5rem)] overflow-hidden rounded-xl border border-white/[0.08] bg-[#0f1219]/95 py-1.5 shadow-[0_12px_28px_-8px_rgba(0,0,0,0.8)] backdrop-blur-xl"
+          className="absolute right-0 top-full z-50 mt-1.5 w-56 max-w-[calc(100vw-1.5rem)] overflow-hidden rounded-xl border border-[rgba(236,231,221,0.12)] bg-[#141118]/95 py-1.5 shadow-[0_12px_28px_-8px_rgba(0,0,0,0.8)] backdrop-blur-xl"
         >
           {items.map((a, i) => {
             const prev = items[i - 1];
             const needsDivider = showDivider && prev && prev.adminOnly && !a.adminOnly;
             return (
               <div key={a.key}>
-                {needsDivider && <div className="my-1 border-t border-white/[0.05]" />}
+                {needsDivider && <div className="my-1 border-t border-[rgba(236,231,221,0.08)]" />}
                 <button
                   type="button"
                   role="menuitem"
                   onClick={() => handlePick(a.key)}
-                  className="group flex w-full items-center gap-2.5 px-3 py-2 text-left text-[12px] font-medium text-slate-300 transition-colors hover:bg-indigo-500/10 hover:text-white"
+                  className="group flex w-full items-center gap-2.5 px-3 py-2 text-left text-[12px] font-medium text-[#c9c2b4] transition-colors hover:bg-[#a78bfa]/10 hover:text-[#ece7dd]"
                 >
-                  <span className="text-slate-500 group-hover:text-indigo-300">{a.icon}</span>
+                  <span className="text-[#958d7c] group-hover:text-[#a78bfa]">{a.icon}</span>
                   <span className="flex-1">{a.label}</span>
                   {a.adminOnly && (
-                    <span className="text-[9px] font-semibold uppercase tracking-[0.12em] text-slate-600">Admin</span>
+                    <span className="text-[9px] font-semibold uppercase tracking-[0.12em] text-[#6b6354]">Admin</span>
                   )}
                 </button>
               </div>

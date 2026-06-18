@@ -37,8 +37,8 @@ export function MobileBrothersTab({ brothersData, actions }: {
             onClick={() => actions.setStatusFilter(f)}
             className={`rounded-md px-2.5 py-1 text-[12px] font-medium transition-colors ${
               statusFilter === f
-                ? "bg-white/[0.12] text-white"
-                : "border border-white/[0.1] text-slate-400 active:border-white/[0.2]"
+                ? "bg-white/[0.12] text-[#ece7dd]"
+                : "border border-white/[0.1] text-[#958d7c] active:border-white/[0.2]"
             }`}
           >
             {f}
@@ -49,7 +49,7 @@ export function MobileBrothersTab({ brothersData, actions }: {
       {/* Brother card list — tap a row to open the BrotherDrawer */}
       <ul className="overflow-hidden rounded-xl card-premium divide-y divide-white/[0.04]">
         {filteredBrothers.length === 0 ? (
-          <li className="py-10 text-center text-sm text-slate-500">No {v("Member", true).toLowerCase()} match your filters.</li>
+          <li className="py-10 text-center text-sm text-[#958d7c]">No {v("Member", true).toLowerCase()} match your filters.</li>
         ) : filteredBrothers.map(b => {
           const status = getBrotherStatus(b, THRESHOLDS);
           return (
@@ -65,9 +65,9 @@ export function MobileBrothersTab({ brothersData, actions }: {
                 avatarRevision={avatarRevision}
                 size="sm"
               />
-              <p className="min-w-0 flex-1 truncate text-[13px] font-semibold text-white">{b.name}</p>
+              <p className="min-w-0 flex-1 truncate text-[13px] font-semibold text-[#ece7dd]">{b.name}</p>
               <AttBar pct={b.attendance} />
-              <svg className="h-4 w-4 shrink-0 text-slate-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">
+              <svg className="h-4 w-4 shrink-0 text-[#6b6354]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
               </svg>
             </li>
@@ -76,7 +76,7 @@ export function MobileBrothersTab({ brothersData, actions }: {
       </ul>
 
       {/* Counts footer */}
-      <p className="px-1 text-[11px] text-slate-500">
+      <p className="px-1 text-[11px] text-[#958d7c]">
         {filteredBrothers.length} / {brotherList.length} brothers ·{" "}
         <span className="font-medium text-emerald-400">{statusCounts.Good} good</span> ·{" "}
         <span className="font-medium text-amber-400">{statusCounts.Watch} watch</span> ·{" "}

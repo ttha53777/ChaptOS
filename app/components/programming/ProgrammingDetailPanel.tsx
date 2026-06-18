@@ -76,7 +76,7 @@ export function ProgrammingDetailPanel({
         ? () => onPatch(event.id, { itineraryNotNeeded: !event.itineraryNotNeeded })
         : undefined,
       control: isDone ? (
-        <span className={`rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ring-1 ring-inset ${prepDone.attachment ? "bg-emerald-500/20 text-emerald-300 ring-emerald-500/35" : "bg-slate-500/15 text-slate-400 ring-slate-400/25"}`}>
+        <span className={`rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ring-1 ring-inset ${prepDone.attachment ? "bg-emerald-500/20 text-emerald-300 ring-emerald-500/35" : "bg-white/[0.06] text-[#958d7c] ring-white/[0.1]"}`}>
           {prepDone.attachment ? "Attached" : "None"}
         </span>
       ) : (
@@ -564,7 +564,7 @@ function StarRatingLarge({
 function PrepToggle({ on, disabled, onToggle }: { on: boolean; disabled?: boolean; onToggle: () => void }) {
   if (disabled) {
     return (
-      <span className={`rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ring-1 ring-inset ${on ? "bg-emerald-500/20 text-emerald-300 ring-emerald-500/35" : "bg-slate-500/15 text-slate-400 ring-slate-400/25"}`}>
+      <span className={`rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ring-1 ring-inset ${on ? "bg-emerald-500/20 text-emerald-300 ring-emerald-500/35" : "bg-white/[0.06] text-[#958d7c] ring-white/[0.1]"}`}>
         {on ? "Done" : "To do"}
       </span>
     );

@@ -64,7 +64,7 @@ export function AnnouncementCard({
         <button
           onClick={onEdit}
           aria-label="Edit announcement"
-          className="absolute right-4 top-4 flex h-8 w-8 items-center justify-center rounded-lg border border-white/[0.08] bg-white/[0.04] text-slate-400 hover:border-red-500/40 hover:bg-red-500/10 hover:text-red-300 transition-colors"
+          className="absolute right-4 top-4 flex h-8 w-8 items-center justify-center rounded-lg border border-[rgba(236,231,221,0.12)] bg-white/[0.04] text-[#958d7c] hover:border-red-500/40 hover:bg-red-500/10 hover:text-red-300 transition-colors"
         >
           <svg className="h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden>
             <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536M9 11l6.586-6.586a2 2 0 112.828 2.828L11.828 13.828 9 14l.172-2.828z" />
@@ -80,19 +80,19 @@ export function AnnouncementCard({
             >
               <SvgIcon d={PIN_PATH} className="h-5 w-5" />
             </span>
-            <h2 className="text-[32px] font-bold leading-tight tracking-tight text-white sm:text-[36px]">
+            <h2 className="text-[32px] font-bold leading-tight tracking-tight text-[#ece7dd] sm:text-[36px]">
               {a.title}
             </h2>
           </div>
 
           {hasBody && (
-            <p className="max-w-2xl text-[14px] leading-relaxed text-slate-300">
+            <p className="max-w-2xl text-[14px] leading-relaxed text-[#c9c2b4]">
               {a.body}
             </p>
           )}
 
           {hasFooter && (
-            <div className="mt-1 flex flex-wrap items-center justify-center gap-x-3 gap-y-1.5 text-[11px] text-slate-500">
+            <div className="mt-1 flex flex-wrap items-center justify-center gap-x-3 gap-y-1.5 text-[11px] text-[#958d7c]">
               {a.authorName && <span>Posted by {a.authorName}</span>}
               {a.authorName && stamp && <span aria-hidden>·</span>}
               {stamp && <span>{stamp}</span>}

@@ -36,7 +36,9 @@ const CURRENT_SEMESTER = "SPR26";
 
 type NavTab = "Overview" | "Budget" | "Transactions" | "Reports" | "Reimbursements";
 
-const NAV_TABS: NavTab[] = ["Overview", "Budget", "Transactions", "Reports", "Reimbursements"];
+// "Budget" is intentionally omitted from the nav for now — the tab is hidden but
+// the type/render path below are kept so it can be re-enabled by re-adding it here.
+const NAV_TABS: NavTab[] = ["Overview", "Transactions", "Reports", "Reimbursements"];
 
 type TxModal =
   | { kind: "addTx" }
