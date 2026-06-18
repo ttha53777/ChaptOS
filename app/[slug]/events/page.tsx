@@ -484,7 +484,7 @@ export default function ProgrammingPage() {
                       <div className={`fixed inset-0 z-40 bg-black/60 backdrop-blur-sm transition-opacity duration-[280ms] xl:hidden ${isClosingDrawer ? "opacity-0" : "opacity-100"}`} />
                       <div
                         ref={panelRef}
-                        className={`fixed inset-x-0 bottom-0 top-14 z-50 overflow-hidden rounded-t-2xl border-t border-white/[0.1] transition-[transform,opacity] duration-[280ms] ease-in-out xl:static xl:inset-auto xl:top-auto xl:z-auto xl:rounded-none xl:border-0 xl:opacity-100 xl:translate-y-0 ${isClosingDrawer ? "translate-y-full opacity-0" : "translate-y-0 opacity-100"}`}
+                        className={`fixed inset-x-0 bottom-0 top-14 z-50 overflow-hidden rounded-t-2xl border-t border-white/[0.1] transition-[transform,opacity] duration-[280ms] ease-in-out xl:sticky xl:inset-auto xl:bottom-auto xl:top-[37px] xl:mt-[37px] xl:z-auto xl:max-h-[calc(100vh-74px)] xl:overflow-y-auto xl:rounded-none xl:border-0 xl:opacity-100 xl:translate-y-0 ${isClosingDrawer ? "translate-y-full opacity-0" : "translate-y-0 opacity-100"}`}
                       >
                         {selected && (
                           <ProgrammingInspector

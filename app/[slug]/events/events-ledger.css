@@ -217,6 +217,14 @@ header.dash-toolbar .ev-crumb {
   text-align: center; padding: 16px 6px;
 }
 
+.dash .ev-done-more {
+  width: 100%; padding: 7px 0; border-radius: 8px;
+  border: 1px solid var(--line-soft); background: transparent;
+  font-family: var(--mono); font-size: 10px; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--faint); cursor: pointer; transition: border-color .12s, color .12s;
+}
+.dash .ev-done-more:hover { border-color: var(--vio); color: var(--ink-soft); }
+
 /* event card — prep ring instead of a wall of identical tiles */
 .dash .ev-card { border: 1px solid var(--line-soft); border-radius: 10px; background: var(--card-2); padding: 11px 12px; cursor: pointer; transition: border-color .12s, transform .12s, opacity .12s; }
 .dash .ev-card:hover { border-color: var(--vio); transform: translateY(-1px); }
@@ -245,7 +253,7 @@ header.dash-toolbar .ev-crumb {
 .dash .ev-card.ghost:hover { opacity: 1; }
 
 /* ── Right rail ──────────────────────────────────────────────────────────────── */
-.dash .ev-rail { position: sticky; top: 30px; display: flex; flex-direction: column; gap: 22px; }
+.dash .ev-rail { position: sticky; top: 30px; margin-top: 37px; display: flex; flex-direction: column; gap: 22px; }
 .dash .ev-rail .lbl { font-family: var(--mono); font-size: 9.5px; letter-spacing: .16em; text-transform: uppercase; color: var(--faint); margin-bottom: 10px; }
 
 .dash .ev-attn { border: 1px solid var(--line); border-radius: 12px; background: var(--card); box-shadow: var(--shadow); overflow: hidden; }
