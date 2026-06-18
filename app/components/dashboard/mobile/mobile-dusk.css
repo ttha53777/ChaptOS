@@ -1,0 +1,131 @@
+/* ──────────────────────────────────────────────────────────────────────────
+   Dusk skin for the mobile dashboard.
+
+   The desktop dashboard is the warm "dusk ledger" (paper/ink/violet-gold-rose,
+   Fraunces serif), scoped under `.dash[data-dashboard-theme="dusk"]`. The mobile
+   tree lives outside `.dash`, so it can't borrow those vars. This file re-declares
+   the same dusk tokens under a `.dash-mobile` scope and adds a handful of helper
+   classes the mobile components use, so the phone view matches the approved mock
+   instead of the old cold-slate skin.
+
+   Tokens mirror dashboard-ledger.css's dusk block 1:1 — keep them in sync.
+   ────────────────────────────────────────────────────────────────────────── */
+
+.dash-mobile {
+  --paper:    #0f0d0a;
+  --paper-2:  #14120e;
+  --card:     #161310;
+  --card-2:   #1b1813;
+  --ink:      #ece7dd;
+  --ink-soft: #c9c2b4;
+  --muted:    #958d7c;
+  --faint:    #6b6354;
+  --line:     rgba(236, 231, 221, 0.09);
+  --line-soft:rgba(236, 231, 221, 0.05);
+  --vio:      #a78bfa;
+  --vio-deep: #7c3aed;
+  --vio-bg:   rgba(167, 139, 250, 0.10);
+  --gold:     #ddb36a;
+  --gold-bg:  rgba(221, 179, 106, 0.10);
+  --rose:     #d98ba3;
+  --rose-bg:  rgba(217, 139, 163, 0.10);
+  --ok:       #7fb08a;
+  --ok-bg:    rgba(127, 176, 138, 0.10);
+  --serif:    var(--font-fraunces), Georgia, serif;
+
+  background: var(--paper);
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Warm ambient wash behind the sticky header / tab surfaces. */
+.dash-mobile .dm-ambient {
+  background:
+    radial-gradient(120% 80% at 80% -10%, rgba(167, 139, 250, 0.10), transparent 60%),
+    radial-gradient(90% 70% at 0% 0%, rgba(221, 179, 106, 0.06), transparent 55%),
+    var(--paper);
+}
+
+/* Card surface — warm paper with a hairline and soft shadow. */
+.dash-mobile .dm-card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.4), 0 16px 40px -24px rgba(0, 0, 0, 0.7);
+}
+.dash-mobile .dm-card:active {
+  border-color: rgba(236, 231, 221, 0.18);
+  background: var(--card-2);
+}
+
+/* Serif display type — chapter name, greeting, big numbers, section titles. */
+.dash-mobile .dm-serif {
+  font-family: var(--serif);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+
+/* Frosted bottom bar / sticky header backdrop. */
+.dash-mobile .dm-frost {
+  background: rgba(20, 18, 14, 0.82);
+  backdrop-filter: saturate(140%) blur(12px);
+  -webkit-backdrop-filter: saturate(140%) blur(12px);
+}
+
+/* ── Retint shared cold-slate widgets, scoped to the mobile tree only ────────
+   The Activity drill-in views reuse desktop components (Card, TaskBadge,
+   ActivityFeed, the brothers list) that are authored in the cold-slate
+   operations palette. Rather than fork them, we re-tint their utility classes
+   *inside* `.dash-mobile` so they read as dusk. Desktop usages are untouched.
+   These intentionally lean on attribute/utility selectors that the shared
+   markup already emits. */
+
+/* Card primitive: cold `bg-[#10121a]` + white hairline → warm paper. */
+.dash-mobile [class*="bg-[#10121a]"] {
+  background-color: var(--card) !important;
+}
+.dash-mobile [class*="bg-[#0f1219]"],
+.dash-mobile [class*="bg-[#0a0d14]"] {
+  background-color: var(--card-2) !important;
+}
+
+/* Slate text ramp → dusk ink ramp. */
+.dash-mobile .text-white      { color: var(--ink) !important; }
+.dash-mobile .text-slate-300,
+.dash-mobile .text-slate-400  { color: var(--ink-soft) !important; }
+.dash-mobile .text-slate-500,
+.dash-mobile .text-slate-600,
+.dash-mobile .text-slate-700  { color: var(--muted) !important; }
+
+/* Indigo accent (links, +Add chips, edit hover) → violet. */
+.dash-mobile .text-indigo-300,
+.dash-mobile .text-indigo-400 { color: var(--vio) !important; }
+.dash-mobile .bg-indigo-500\/15,
+.dash-mobile .bg-indigo-500\/10 { background-color: var(--vio-bg) !important; }
+
+/* Status accents → dusk equivalents. */
+.dash-mobile .text-emerald-400 { color: var(--ok) !important; }
+.dash-mobile .text-amber-400   { color: var(--gold) !important; }
+.dash-mobile .text-red-400,
+.dash-mobile .text-pink-300,
+.dash-mobile .text-pink-400    { color: var(--rose) !important; }
+
+/* Hairlines / dividers authored as white-alpha → warm line. */
+.dash-mobile [class*="border-white/[0.0"],
+.dash-mobile [class*="divide-white/[0.0"] > * + * {
+  border-color: var(--line) !important;
+}
+
+/* Status badge / chip fills (ring + bg variants from styles.ts). */
+.dash-mobile .bg-emerald-500\/15 { background-color: var(--ok-bg) !important; }
+.dash-mobile .bg-amber-500\/15,
+.dash-mobile .bg-amber-500\/20   { background-color: var(--gold-bg) !important; }
+.dash-mobile .bg-red-500\/15     { background-color: var(--rose-bg) !important; }
+.dash-mobile .bg-slate-500\/15   { background-color: rgba(236, 231, 221, 0.06) !important; }
+.dash-mobile .text-slate-400.ring-1 { color: var(--muted) !important; }
+
+/* Cold input (search box) → warm paper field. */
+.dash-mobile [class*="bg-[#0a0d14]"] {
+  background-color: var(--card-2) !important;
+  border-color: var(--line) !important;
+  color: var(--ink) !important;
+}

@@ -1,15 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import type { Brother, PartyEvent, Deadline, InstagramTask, ActivityEntry, CalendarEvent } from "../../../data";
+import type { Brother, PartyEvent, Deadline, InstagramTask, ActivityEntry, CalendarEvent, AttentionItem } from "../../../data";
 import type { CurrentUser } from "../../../context/ChapterContext";
 import type { Announcement } from "../AnnouncementCard";
+import type { QuickActionKey } from "../QuickActionsMenu";
 import { MobileSummary } from "./MobileSummary";
 import { MobileTabBar, type MobileTab } from "./MobileTabBar";
-import { MobileOverviewTab } from "./MobileOverviewTab";
-import { MobileTasksTab } from "./MobileTasksTab";
-import { MobileMoneyTab } from "./MobileMoneyTab";
-import { MobileLogsTab } from "./MobileLogsTab";
+import { MobileHomeTab } from "./MobileHomeTab";
+import { MobileActivityHub, type ActivityGroup } from "./MobileActivityHub";
+import "./mobile-dusk.css";
 
 // String-literal unions kept structurally identical to the (non-exported) types
 // in app/page.tsx — TypeScript matches them by shape, so the mobile tree stays
@@ -97,6 +97,10 @@ export interface MobileActions {
 }
 
 export interface MobileDashboardProps {
+  firstName: string;
+  orgName: string | null;
+  health: MobileHealth;
+  needsAttention: AttentionItem[];
   kpis: MobileKpis;
   announcement: Announcement | null;
   onEditAnnouncement: () => void;
@@ -104,41 +108,77 @@ export interface MobileDashboardProps {
   tasksData: MobileTasksData;
   moneyData: MobileMoneyData;
   actions: MobileActions;
+  /** Opens the app sidebar drawer (the bottom bar's "More" entry). */
+  onOpenSidebar: () => void;
+  /** Quick-actions wiring for the header "+" (reuses the existing menu). */
+  onQuickAction: (k: QuickActionKey) => void;
+  quickActionsAdmin: boolean;
+  enabledWorkflows?: readonly string[];
+  /** Opens the signed-in member's own record; absent when they have no roster row. */
+  onOpenStanding?: () => void;
 }
 
 export function MobileDashboard(props: MobileDashboardProps) {
-  const { kpis, announcement, onEditAnnouncement, brothersData, tasksData, moneyData, actions } = props;
-  const [activeTab, setActiveTab] = useState<MobileTab>("Overview");
+  const {
+    firstName, orgName, health, needsAttention, kpis, announcement, onEditAnnouncement,
+    brothersData, tasksData, moneyData, actions,
+    onOpenSidebar, onQuickAction, quickActionsAdmin, enabledWorkflows, onOpenStanding,
+  } = props;
+
+  const [activeTab, setActiveTab] = useState<MobileTab>("Home");
+  // Inner drill state for the Activity hub: null = the card menu, else the
+  // chosen group's full view. Reset whenever you leave/re-enter the tab.
+  const [activeGroup, setActiveGroup] = useState<ActivityGroup | null>(null);
+
+  function handleTabChange(t: MobileTab) {
+    // Re-tapping Activity while inside a group returns to the hub menu.
+    if (t === "Activity" && activeTab === "Activity") setActiveGroup(null);
+    setActiveTab(t);
+  }
 
   return (
-    <div className="flex flex-col">
-      {/* Sticky summary + tab bar stay glanceable while a tab body scrolls.
-          pt-safe pads past the iOS notch/status bar so the summary isn't clipped
-          when the page scrolls under a translucent system bar. */}
-      <div className="page-ambient sticky top-0 z-10 border-b border-white/[0.06] pt-safe">
-        <MobileSummary
-          announcement={announcement}
-          kpis={kpis}
-          onEditAnnouncement={onEditAnnouncement}
-          onOpenKpi={actions.setActiveDrawer}
-        />
-        <MobileTabBar activeTab={activeTab} onChange={setActiveTab} />
+    <div className="dash-mobile flex min-h-screen flex-col">
+      {/* Sticky summary stays glanceable while the tab body scrolls. pt-safe pads
+          past the iOS notch so the greeting isn't clipped under the system bar.
+          Only the Home tab carries the rich header; the Activity hub owns its
+          own simple title/back affordance. */}
+      {activeTab === "Home" && (
+        <div className="dm-ambient sticky top-0 z-10 border-b border-[var(--line-soft)] pt-safe">
+          <MobileSummary
+            firstName={firstName}
+            orgName={orgName}
+            announcement={announcement}
+            kpis={kpis}
+            onEditAnnouncement={onEditAnnouncement}
+            onOpenKpi={actions.setActiveDrawer}
+            isAdmin={quickActionsAdmin}
+            onQuickAction={onQuickAction}
+            enabledWorkflows={enabledWorkflows}
+            onOpenStanding={onOpenStanding}
+          />
+        </div>
+      )}
+
+      {/* pb-28 keeps the last row clear of the fixed bottom tab bar. On the
+          Activity tab there's no sticky header, so pad past the notch here. */}
+      <div className={`px-4 py-4 pb-28 ${activeTab === "Home" ? "" : "pt-safe"}`}>
+        {activeTab === "Home" && (
+          <MobileHomeTab health={health} needsAttention={needsAttention} tasksData={tasksData} actions={actions} />
+        )}
+        {activeTab === "Activity" && (
+          <MobileActivityHub
+            activeGroup={activeGroup}
+            onSelectGroup={setActiveGroup}
+            onBack={() => setActiveGroup(null)}
+            tasksData={tasksData}
+            moneyData={moneyData}
+            brothersData={brothersData}
+            actions={actions}
+          />
+        )}
       </div>
 
-      <div className="px-4 py-4">
-        {activeTab === "Overview" && (
-          <MobileOverviewTab tasksData={tasksData} brothersData={brothersData} actions={actions} />
-        )}
-        {activeTab === "Tasks" && (
-          <MobileTasksTab tasksData={tasksData} actions={actions} />
-        )}
-        {activeTab === "Money" && (
-          <MobileMoneyTab moneyData={moneyData} actions={actions} />
-        )}
-        {activeTab === "Logs" && (
-          <MobileLogsTab tasksData={tasksData} actions={actions} />
-        )}
-      </div>
+      <MobileTabBar activeTab={activeTab} onChange={handleTabChange} onMore={onOpenSidebar} />
     </div>
   );
 }

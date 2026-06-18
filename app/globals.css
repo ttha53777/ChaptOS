@@ -149,6 +149,19 @@ table {
   }
 }
 
+/* Mobile dashboard has a fixed bottom tab bar (MobileTabBar, z-30). Lift the
+   "Ask the Chapter" launcher (chat-launcher, z-40) above it so it floats over
+   the bar instead of overlapping a tab's tap target. Additive and scoped to
+   <768px — the desktop launcher position (in chat-ledger.css) is untouched. */
+@media (max-width: 767px) {
+  /* Doubled class keeps specificity above chat-ledger.css's plain .chat-launcher
+     rule regardless of stylesheet load order (component CSS can load after this
+     global). */
+  .chat-launcher.chat-launcher {
+    bottom: calc(env(safe-area-inset-bottom) + 5.5rem);
+  }
+}
+
 /* Safe-area utilities. Use max() so non-notched devices keep the visual
    baseline padding — these only ever *add* to the inset. Apply to fixed
    surfaces (drawers, sticky bars) that touch screen edges. */
