@@ -124,6 +124,7 @@ export interface ProgrammingTaskDto {
   successRating: number | null;
   wrapUpNotes: string | null;
   checklist: ProgrammingChecklistItem[];
+  calendarEventId?: number | null;
 }
 
 /** Map a ProgrammingEvent row to the task shape the Programming page expects. */
@@ -155,6 +156,7 @@ export function toProgrammingTask(row: ProgrammingTaskRow): ProgrammingTaskDto {
     checklist:       (row.checklist ?? []).map(c => ({
       id: c.id, label: c.label, done: c.done, sortOrder: c.sortOrder,
     })),
+    calendarEventId: row.calendarEventId ?? null,
   };
 }
 

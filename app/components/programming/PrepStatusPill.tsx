@@ -28,10 +28,10 @@ export function PrepStatusPill({
         value={value}
         onChange={e => onChange(e.target.value as RoomConfirmedStatus)}
         onClick={e => e.stopPropagation()}
-        className={`${PILL_BASE} max-w-[130px] cursor-pointer appearance-none border-0 pr-5 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 ${pill.text} ${pill.bg} ${pill.ring}`}
+        className={`${PILL_BASE} max-w-[130px] cursor-pointer appearance-none border-0 pr-5 focus:outline-none focus:ring-2 focus:ring-[#a78bfa]/50 ${pill.text} ${pill.bg} ${pill.ring}`}
       >
         {ROOM_CONFIRMED_STATUSES.map(s => (
-          <option key={s} value={s} className="bg-[#10131c] text-slate-200">{ROOM_CONFIRMED_LABELS[s]}</option>
+          <option key={s} value={s} className="bg-[#0f0d0a] text-[#c9c2b4]">{ROOM_CONFIRMED_LABELS[s]}</option>
         ))}
       </select>
       <svg className={`pointer-events-none absolute right-1.5 top-1/2 h-2.5 w-2.5 -translate-y-1/2 ${pill.text}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3}>
@@ -82,7 +82,7 @@ export function StarRating({
           type="button"
           disabled={disabled}
           onClick={() => onChange?.(value === n ? null : n)}
-          className={`text-[14px] leading-none transition-colors ${disabled ? "cursor-default" : "cursor-pointer hover:scale-110"} ${value != null && n <= value ? "text-amber-400" : "text-slate-600"}`}
+          className={`text-[14px] leading-none transition-colors ${disabled ? "cursor-default" : "cursor-pointer hover:scale-110"} ${value != null && n <= value ? "text-[#d9b08b]" : "text-[#4a4439]"}`}
           aria-label={`${n} star${n > 1 ? "s" : ""}`}
         >
           ★

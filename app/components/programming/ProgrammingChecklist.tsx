@@ -63,13 +63,13 @@ export function ProgrammingChecklist({
   return (
     <section className="space-y-2">
       <div className="flex items-center justify-between">
-        <h3 className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Checklist</h3>
+        <h3 className="text-[11px] font-semibold uppercase tracking-wider text-[#6b6354]">Checklist</h3>
         {items.length > 0 && (
-          <span className="text-[10px] tabular-nums text-slate-500">{done}/{items.length}</span>
+          <span className="text-[10px] tabular-nums text-[#6b6354]">{done}/{items.length}</span>
         )}
       </div>
       {items.length === 0 && !canManage && (
-        <p className="text-[12px] text-slate-600">No tasks yet.</p>
+        <p className="text-[12px] text-[#6b6354]">No tasks yet.</p>
       )}
       <ul className="space-y-1.5">
         {items.map(item => (
@@ -79,15 +79,15 @@ export function ProgrammingChecklist({
               checked={item.done}
               disabled={!canManage}
               onChange={() => toggle(item)}
-              className="h-4 w-4 rounded accent-indigo-500"
+              className="h-4 w-4 rounded accent-[#a78bfa]"
             />
-            <span className={`flex-1 text-[12px] ${item.done ? "text-slate-500 line-through" : "text-slate-200"}`}>
+            <span className={`flex-1 text-[12px] ${item.done ? "text-[#6b6354] line-through" : "text-[#c9c2b4]"}`}>
               {item.label}
             </span>
             {canManage && (
               <button
                 onClick={() => remove(item)}
-                className="text-[11px] text-slate-600 opacity-0 transition-opacity hover:text-red-400 group-hover:opacity-100"
+                className="text-[11px] text-[#6b6354] opacity-0 transition-opacity hover:text-[#d98ba3] group-hover:opacity-100"
                 aria-label="Remove task"
               >
                 ✕
@@ -103,12 +103,12 @@ export function ProgrammingChecklist({
             onChange={e => setAdding(e.target.value)}
             onKeyDown={e => { if (e.key === "Enter") add(); }}
             placeholder="Add a task…"
-            className="h-7 flex-1 rounded-md border border-white/[0.07] bg-white/[0.02] px-2 text-[12px] text-slate-200 placeholder:text-slate-600 focus:border-indigo-500/40 focus:outline-none"
+            className="h-7 flex-1 rounded-md border border-[rgba(236,231,221,0.08)] bg-[rgba(236,231,221,0.02)] px-2 text-[12px] text-[#c9c2b4] placeholder:text-[#6b6354] focus:border-[#a78bfa]/40 focus:outline-none"
           />
           <button
             onClick={add}
             disabled={!adding.trim() || busy}
-            className="rounded-md bg-indigo-500/15 px-2.5 py-1 text-[11px] font-semibold text-indigo-300 disabled:opacity-40"
+            className="rounded-md bg-[#a78bfa]/15 px-2.5 py-1 text-[11px] font-semibold text-[#c4b5fd] disabled:opacity-40"
           >
             Add
           </button>
