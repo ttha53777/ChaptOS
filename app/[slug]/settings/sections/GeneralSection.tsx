@@ -313,12 +313,12 @@ export function GeneralSection({
         </Modal>
       )}
       {activeModal === "revenue" && (
-        <Modal title="Log Revenue" onClose={() => setActiveModal(null)}>
+        <Modal title="Log Revenue" tone="dusk" onClose={() => setActiveModal(null)}>
           <AddRevenueForm onSubmit={handleAddRevenue} />
         </Modal>
       )}
       {activeModal === "ig" && (
-        <Modal title="Add Instagram Task" onClose={() => setActiveModal(null)}>
+        <Modal title="Add Instagram Task" tone="dusk" onClose={() => setActiveModal(null)}>
           <AddIGTaskForm onSubmit={handleAddIGTask} />
         </Modal>
       )}

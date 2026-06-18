@@ -217,20 +217,6 @@ export default function DocsPage() {
       />
 
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-        {/* ── Toolbar (mobile hamburger + label). dash-toolbar warms it at md+. ── */}
-        <header className="toolbar-frosted dash-toolbar dx-toolbar-bar relative z-20 flex h-14 shrink-0 items-center gap-3 border-b border-white/[0.05] px-4 sm:px-6">
-          <button
-            onClick={() => setSidebarOpen(true)}
-            className="tb-icon-btn flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-white/[0.07] lg:hidden"
-            aria-label="Open menu"
-          >
-            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
-            </svg>
-          </button>
-          <span className="dx-crumb truncate">Docs</span>
-        </header>
-
         {/* ── Scrollable dusk ledger pane ── */}
         <main className="page-ambient flex-1 overflow-y-auto">
           <div className="dash dash-docs" data-dashboard-theme="dusk">
@@ -248,6 +234,16 @@ export default function DocsPage() {
 
             {/* ── Briefing ── */}
             <section className="dx-briefing" aria-label="Reference library">
+              <button
+                type="button"
+                onClick={() => setSidebarOpen(true)}
+                className="dx-menu-mob"
+                aria-label="Open menu"
+              >
+                <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+              </button>
               <div>
                 <p className="kicker">Reference Library</p>
                 <h1>Everything <em>on file</em>.</h1>

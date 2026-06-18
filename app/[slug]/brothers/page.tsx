@@ -4,7 +4,7 @@ import React, { useState, useMemo, useCallback } from "react";
 import { Sidebar } from "../../components/Sidebar";
 import { BrotherAvatar } from "../../components/BrotherAvatar";
 import { Modal, FieldLabel } from "../../components/dashboard/primitives";
-import { inputCls, inputDuskCls } from "../../components/dashboard/styles";
+import { inputDuskCls, btnDuskGhostCls, btnDuskActionCls } from "../../components/dashboard/styles";
 import { BrotherDrawer } from "../../components/dashboard/drawers/BrotherDrawer";
 import { useToast } from "../../components/dashboard/Toast";
 import { useChapter } from "../../context/ChapterContext";
@@ -642,18 +642,18 @@ export default function BrothersPage() {
 
       {/* ── Log Service Hours Modal ── */}
       {logHoursFor && (
-        <Modal title="Log Service Hours" onClose={() => !logHoursBusy && setLogHoursFor(null)}>
+        <Modal title="Log Service Hours" tone="dusk" onClose={() => !logHoursBusy && setLogHoursFor(null)}>
           <div className="space-y-4">
-            <p className="text-[12px] text-slate-400">
-              Logging hours for <span className="font-semibold text-white">{logHoursFor.name}</span> against a service event.
+            <p className="text-[12px] text-[#958d7c]">
+              Logging hours for <span className="font-semibold text-[#ece7dd]">{logHoursFor.name}</span> against a service event.
             </p>
             <div>
-              <FieldLabel>Service Event</FieldLabel>
+              <FieldLabel tone="dusk">Service Event</FieldLabel>
               {logHoursEvents.length === 0 ? (
-                <p className="mt-1 text-[12px] text-slate-500">No service events yet. Create one on the Service page first.</p>
+                <p className="mt-1 text-[12px] text-[#6b6354]">No service events yet. Create one on the Service page first.</p>
               ) : (
                 <select
-                  className={inputCls}
+                  className={inputDuskCls}
                   value={logHoursEventId ?? ""}
                   onChange={e => setLogHoursEventId(e.target.value ? Number(e.target.value) : null)}
                 >
@@ -664,20 +664,20 @@ export default function BrothersPage() {
               )}
             </div>
             <div>
-              <FieldLabel>Hours</FieldLabel>
+              <FieldLabel tone="dusk">Hours</FieldLabel>
               <input
                 type="number"
                 min="0"
                 step="0.5"
                 inputMode="decimal"
-                className={inputCls}
+                className={inputDuskCls}
                 value={logHoursStr}
                 placeholder="0"
                 autoFocus
                 onChange={e => setLogHoursStr(e.target.value)}
                 onKeyDown={e => { if (e.key === "Enter" && logHoursEventId != null && logHoursStr !== "") submitLogServiceHours(); }}
               />
-              <p className="mt-1.5 text-[11px] text-slate-500">
+              <p className="mt-1.5 text-[11px] text-[#6b6354]">
                 Sets {logHoursFor.name.split(" ")[0]}&apos;s hours for this event. Their total recomputes from all logged events.
               </p>
             </div>
@@ -685,14 +685,14 @@ export default function BrothersPage() {
               <button
                 onClick={() => setLogHoursFor(null)}
                 disabled={logHoursBusy}
-                className="rounded-lg border border-white/[0.08] px-4 py-1.5 text-[13px] text-slate-400 hover:border-white/[0.16] hover:text-white transition-colors disabled:opacity-40"
+                className={btnDuskGhostCls}
               >
                 Cancel
               </button>
               <button
                 onClick={submitLogServiceHours}
                 disabled={logHoursBusy || logHoursEventId == null || logHoursStr === ""}
-                className="rounded-lg bg-indigo-600 px-4 py-1.5 text-[13px] font-semibold text-white hover:bg-indigo-500 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                className={btnDuskActionCls}
               >
                 {logHoursBusy ? "Saving…" : "Log Hours"}
               </button>

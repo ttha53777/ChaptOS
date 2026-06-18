@@ -55,22 +55,18 @@
   .dash.dash-docs { padding: 22px 18px 56px; }
 }
 
-/* ── Toolbar bar (breadcrumb label) ──────────────────────────────────────────── */
-/* dashboard-ledger.css warms header.dash-toolbar at md+ only; the docs toolbar is
-   visible at every width, so warm its base here too (mobile included). */
-header.dash-toolbar.dx-toolbar-bar {
-  background: rgba(15, 13, 10, 0.85);
-  border-bottom-color: rgba(236, 231, 221, 0.09);
-}
-header.dash-toolbar.dx-toolbar-bar .tb-icon-btn { color: #958d7c; }
-header.dash-toolbar.dx-toolbar-bar .tb-icon-btn:hover { color: #ece7dd; background: rgba(236, 231, 221, 0.035); }
-header.dash-toolbar .dx-crumb {
-  font-family: var(--font-fraunces), Georgia, serif; font-weight: 500;
-  font-size: 15px; letter-spacing: -.01em; color: #ece7dd;
-}
-
 /* ── Briefing ────────────────────────────────────────────────────────────────── */
-.dash .dx-briefing { display: flex; align-items: flex-start; justify-content: space-between; gap: 32px; }
+.dash .dx-briefing { position: relative; display: flex; align-items: flex-start; justify-content: space-between; gap: 32px; }
+/* Mobile-only menu — keep display in CSS (not Tailwind) so it can't lose to .dx-menu-mob { display: grid }. */
+.dash .dx-menu-mob { display: none; }
+@media (max-width: 1023px) {
+  .dash .dx-menu-mob { position: absolute; top: 0; left: 0; display: grid; place-items: center; width: 32px; height: 32px;
+    border-radius: 8px; border: none; background: none; color: var(--muted); cursor: pointer;
+    transition: color .12s, background .12s; }
+  .dash .dx-menu-mob:hover { color: var(--ink); background: rgba(236,231,221,.035); }
+  .dash .dx-menu-mob svg { width: 20px; height: 20px; }
+  .dash .dx-briefing > div:first-of-type { padding-left: 40px; }
+}
 .dash .dx-briefing .kicker { font-family: var(--mono); font-size: 10.5px; letter-spacing: .18em; text-transform: uppercase; color: var(--muted); }
 .dash .dx-briefing h1 { font-family: var(--serif); font-weight: 400; font-size: 33px; letter-spacing: -.01em; margin-top: 8px; color: var(--ink); }
 .dash .dx-briefing h1 em { font-style: italic; color: var(--vio); }

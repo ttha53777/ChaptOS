@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Sidebar } from "../../components/Sidebar";
 import { Modal, ConfirmDialog } from "../../components/dashboard/primitives";
+import { inputDuskCls, btnDuskPrimaryCls } from "../../components/dashboard/styles";
 import { AddProgrammingTaskForm } from "../../components/dashboard/forms";
 import { ProgrammingBoard } from "../../components/programming/ProgrammingBoard";
 import { ProgrammingCalendarView } from "../../components/programming/ProgrammingCalendarView";
@@ -506,13 +507,13 @@ export default function ProgrammingPage() {
       </div>
 
       {modal === "add" && (
-        <Modal title="New Event" onClose={() => setModal(null)}>
+        <Modal title="New Event" tone="dusk" onClose={() => setModal(null)}>
           <AddProgrammingTaskForm onSubmit={handleAdd} />
         </Modal>
       )}
 
       {modal === "edit" && editTarget && (
-        <Modal title="Edit Event" onClose={() => { setModal(null); setEditTarget(null); }}>
+        <Modal title="Edit Event" tone="dusk" onClose={() => { setModal(null); setEditTarget(null); }}>
           <AddProgrammingTaskForm
             initial={{
               title: editTarget.title,
@@ -530,6 +531,7 @@ export default function ProgrammingPage() {
 
       {deleteTarget && (
         <ConfirmDialog
+          tone="dusk"
           title="Delete this event?"
           message={`"${deleteTarget.title}" will be removed from programming${deleteTarget.dueDate ? " and the timeline" : ""}.`}
           confirmLabel="Delete"
@@ -559,20 +561,20 @@ function PromoteDateModal({ onConfirm, onCancel }: {
 }) {
   const [date, setDate] = useState("");
   return (
-    <Modal title="Set a date" onClose={onCancel}>
+    <Modal title="Set a date" tone="dusk" onClose={onCancel}>
       <form
         onSubmit={e => { e.preventDefault(); if (date) onConfirm(date); }}
         className="space-y-4"
       >
-        <p className="text-[12px] text-slate-400">Events need a date once they leave the Idea stage — they&apos;ll show on the timeline.</p>
+        <p className="text-[12px] text-[#958d7c]">Events need a date once they leave the Idea stage — they&apos;ll show on the timeline.</p>
         <input
           type="date"
           value={date}
           onChange={e => setDate(e.target.value)}
           required
-          className="h-9 w-full rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 text-[13px] text-white focus:border-indigo-500/40 focus:outline-none"
+          className={inputDuskCls}
         />
-        <button type="submit" disabled={!date} className="w-full rounded-lg bg-indigo-600 px-4 py-2.5 text-[13px] font-semibold text-white hover:bg-indigo-500 disabled:opacity-40">
+        <button type="submit" disabled={!date} className={btnDuskPrimaryCls}>
           Move event
         </button>
       </form>

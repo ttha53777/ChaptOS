@@ -22,12 +22,12 @@ import { BrotherAvatar } from "../components/BrotherAvatar";
 import { useChapter } from "../context/ChapterContext";
 import { useToast } from "../components/dashboard/Toast";
 import { AddDeadlineForm, AddIGTaskForm, AddRevenueForm, LogAttendanceForm, ExcuseForm } from "../components/dashboard/forms";
-import { QuickActionsMenu, type QuickActionKey } from "../components/dashboard/QuickActionsMenu";
+import type { QuickActionKey } from "../components/dashboard/QuickActionsMenu";
 import { TxForm } from "../components/treasury/TxForm";
 import { CalendarEventForm, type CalendarDraft } from "../components/timeline/CalendarEventForm";
 import { BrotherDrawer } from "../components/dashboard/drawers/BrotherDrawer";
 import { Card, Modal, ConfirmDialog, FieldLabel } from "../components/dashboard/primitives";
-import { KPI_ICONS, SECTION_IDS, inputCls } from "../components/dashboard/styles";
+import { KPI_ICONS, SECTION_IDS, inputDuskCls, btnDuskGhostCls, btnDuskActionCls } from "../components/dashboard/styles";
 import { type Announcement } from "../components/dashboard/AnnouncementCard";
 import { AnnouncementEditor } from "../components/dashboard/AnnouncementEditor";
 import { MobileDashboard } from "../components/dashboard/mobile/MobileDashboard";
@@ -1719,53 +1719,10 @@ export default function Home() {
 
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
 
-        {/* ── Toolbar ─────────────────────────────────────────────────────────
-            Mobile only (<md). At md+ the topbar is removed and its controls fold
-            into the briefing action bar (BriefingActions) inside the desktop
-            ledger view below — see BriefingHeader's `actions` slot. */}
-        <header className="toolbar-frosted dash-toolbar relative z-20 flex h-14 shrink-0 items-center gap-2 border-b border-white/[0.05] px-3 sm:gap-3 sm:px-5 md:hidden">
-          <button onClick={() => setSidebarOpen(true)} className="tb-icon-btn flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-white/[0.07] lg:hidden">
-            <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
-            </svg>
-          </button>
-
-          <div className="min-w-0 flex-1">
-            <p className="tb-title text-[14px] font-semibold leading-tight text-white">Operations Dashboard</p>
-            <p className="tb-org hidden text-[11px] leading-tight text-slate-400 sm:block">{currentUser?.org?.name ?? "ChaptOS"}</p>
-          </div>
-
-          {/* My Standing — opens the member's own record in the existing Brother
-              drawer (dues / attendance / service / excuse history). Only shown when
-              the signed-in user has a roster record to open. */}
-          {selfId !== null && brotherList.some(b => b.id === selfId) && (
-            <button onClick={() => setSelectedBrotherId(selfId)} className="tb-btn inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-1.5 text-[12px] font-medium text-slate-300 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition-all duration-150 hover:border-indigo-500/40 hover:bg-indigo-500/10 hover:text-indigo-200 focus:outline-none">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="h-3.5 w-3.5 text-slate-400">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-              </svg>
-              <span className="hidden sm:inline">My Standing</span>
-            </button>
-          )}
-
-          {/* Quick Actions */}
-          <div className="tb-actions hidden items-center gap-1.5 lg:flex">
-            <QuickActionsMenu isAdmin={isAdmin || canTreasury || canAttendance} onSelect={handleQuickAction} enabledWorkflows={currentUser?.org?.enabledWorkflows} />
-            {canAttendance && (
-              <button onClick={() => openAttendanceLog()}
-                className="tb-btn rounded-lg border border-white/[0.08] bg-white/[0.03] px-2.5 py-1.5 text-[11px] font-medium text-slate-300 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition-all duration-150 hover:border-indigo-500/40 hover:bg-indigo-500/10 hover:text-indigo-200">
-                Log Att.
-              </button>
-            )}
-          </div>
-
-          {/* Mobile: quick actions menu */}
-          <div className="lg:hidden">
-            <QuickActionsMenu isAdmin={isAdmin || canTreasury || canAttendance} onSelect={handleQuickAction} variant="mobile" enabledWorkflows={currentUser?.org?.enabledWorkflows} />
-          </div>
-
-          <p className="tb-date hidden text-[11px] text-slate-500 xl:block shrink-0">{new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</p>
-
-        </header>
+        {/* No mobile toolbar on the dashboard: the greeting header inside
+            MobileDashboard now carries the org label, quick-actions ("+"),
+            "My Standing", and the bottom bar's "More" opens the sidebar. The
+            desktop ledger (md+) folds these into BriefingActions as before. */}
 
         {/* ── Scrollable body ──────────────────────────────────────────────── */}
         <main ref={mainRef} className="page-ambient flex-1 overflow-y-auto">
@@ -1796,8 +1753,21 @@ export default function Home() {
           {/* ── Mobile view (below md) — Summary + tabs ─────────────────────── */}
           <div className="md:hidden">
             <MobileDashboard
+              firstName={currentUser?.name?.split(" ")[0] ?? "there"}
+              orgName={currentUser?.org?.name ?? null}
+              health={health}
+              needsAttention={needsAttention}
               announcement={announcement}
               onEditAnnouncement={() => setAnnouncementEditorOpen(true)}
+              onOpenSidebar={() => setSidebarOpen(true)}
+              onQuickAction={handleQuickAction}
+              quickActionsAdmin={isAdmin || canTreasury || canAttendance}
+              enabledWorkflows={currentUser?.org?.enabledWorkflows}
+              onOpenStanding={
+                selfId !== null && brotherList.some(b => b.id === selfId)
+                  ? () => setSelectedBrotherId(selfId)
+                  : undefined
+              }
               kpis={{
                 avgAttendance, belowAttCount,
                 outstandingDues, owingCount,
@@ -2065,8 +2035,8 @@ export default function Home() {
 
       {/* ── Modals ──────────────────────────────────────────────────────────── */}
       {activeModal === "expense" && isAdmin && (
-        <Modal title="Log Expense" onClose={closeModal}>
-          <TxForm lockType="expense" onSubmit={handleAddTransaction} onCancel={closeModal} />
+        <Modal title="Log Expense" tone="dusk" onClose={closeModal}>
+          <TxForm lockType="expense" tone="dusk" onSubmit={handleAddTransaction} onCancel={closeModal} />
         </Modal>
       )}
       {activeModal === "event" && (
@@ -2080,39 +2050,39 @@ export default function Home() {
         </Modal>
       )}
       {activeModal === "revenue" && (
-        <Modal title="Log Revenue" onClose={closeModal}>
+        <Modal title="Log Revenue" tone="dusk" onClose={closeModal}>
           <AddRevenueForm onSubmit={handleAddRevenue} />
         </Modal>
       )}
       {activeModal === "ig" && (
-        <Modal title="Add Instagram Task" onClose={closeModal}>
+        <Modal title="Add Instagram Task" tone="dusk" onClose={closeModal}>
           <AddIGTaskForm onSubmit={handleAddIGTask} />
         </Modal>
       )}
       {activeModal === "attendance" && selectedEventForAttendance && (
-        <Modal title="Log Attendance" onClose={closeModal}>
+        <Modal title="Log Attendance" tone="dusk" onClose={closeModal}>
           <LogAttendanceForm event={selectedEventForAttendance} bList={brotherList} onSubmit={handleLogAttendance} />
         </Modal>
       )}
       {activeModal === "pick-event-for-excuse" && (
-        <Modal title="Select Event to Excuse" onClose={closeModal}>
-          <p className="mb-3 text-[12px] text-slate-400">Pick a required event you (or, if you&rsquo;re an admin, another brother) need an excuse for.</p>
+        <Modal title="Select Event to Excuse" tone="dusk" onClose={closeModal}>
+          <p className="mb-3 text-[12px] text-[#958d7c]">Pick a required event you (or, if you&rsquo;re an admin, another brother) need an excuse for.</p>
           <div className="max-h-72 space-y-1 overflow-y-auto">
             {calendarList.filter(e => e.mandatory).length === 0 && (
-              <p className="text-[12px] text-slate-500">No required events found.</p>
+              <p className="text-[12px] text-[#6b6354]">No required events found.</p>
             )}
             {calendarList.filter(e => e.mandatory).sort((a, b) => a.date.localeCompare(b.date)).map(e => (
               <button key={e.id} onClick={() => { setSelectedEventForAttendance(e); setActiveModal("excuse"); }}
-                className="w-full rounded-lg border border-white/[0.07] bg-white/[0.03] px-3 py-2.5 text-left transition-colors hover:border-indigo-500/30 hover:bg-indigo-500/10">
-                <p className="text-[13px] font-medium text-white">{e.title}</p>
-                <p className="text-[11px] text-slate-500">{e.date}{e.location ? ` · ${e.location}` : ""}</p>
+                className="w-full rounded-lg border border-[rgba(236,231,221,0.08)] bg-[rgba(236,231,221,0.03)] px-3 py-2.5 text-left transition-colors hover:border-[#a78bfa]/30 hover:bg-[#a78bfa]/10">
+                <p className="text-[13px] font-medium text-[#ece7dd]">{e.title}</p>
+                <p className="text-[11px] text-[#6b6354]">{e.date}{e.location ? ` · ${e.location}` : ""}</p>
               </button>
             ))}
           </div>
         </Modal>
       )}
       {activeModal === "excuse" && selectedEventForAttendance && (
-        <Modal title={isAdmin ? "Approve Excuse" : "Submit Excuse"} onClose={closeModal}>
+        <Modal title={isAdmin ? "Approve Excuse" : "Submit Excuse"} tone="dusk" onClose={closeModal}>
           <ExcuseForm
             event={selectedEventForAttendance}
             bList={brotherList}
@@ -2134,17 +2104,17 @@ export default function Home() {
         </Modal>
       )}
       {activeModal === "pick-event" && (
-        <Modal title="Select Event to Log" onClose={closeModal}>
-          <p className="mb-3 text-[12px] text-slate-400">Pick a required event to log attendance for.</p>
+        <Modal title="Select Event to Log" tone="dusk" onClose={closeModal}>
+          <p className="mb-3 text-[12px] text-[#958d7c]">Pick a required event to log attendance for.</p>
           <div className="max-h-72 space-y-1 overflow-y-auto">
             {calendarList.filter(e => e.mandatory).length === 0 && (
-              <p className="text-[12px] text-slate-500">No required events found.</p>
+              <p className="text-[12px] text-[#6b6354]">No required events found.</p>
             )}
             {calendarList.filter(e => e.mandatory).sort((a, b) => a.date.localeCompare(b.date)).map(e => (
               <button key={e.id} onClick={() => { setSelectedEventForAttendance(e); setActiveModal("attendance"); }}
-                className="w-full rounded-lg border border-white/[0.07] bg-white/[0.03] px-3 py-2.5 text-left transition-colors hover:border-indigo-500/30 hover:bg-indigo-500/10">
-                <p className="text-[13px] font-medium text-white">{e.title}</p>
-                <p className="text-[11px] text-slate-500">{e.date}{e.location ? ` · ${e.location}` : ""}</p>
+                className="w-full rounded-lg border border-[rgba(236,231,221,0.08)] bg-[rgba(236,231,221,0.03)] px-3 py-2.5 text-left transition-colors hover:border-[#a78bfa]/30 hover:bg-[#a78bfa]/10">
+                <p className="text-[13px] font-medium text-[#ece7dd]">{e.title}</p>
+                <p className="text-[11px] text-[#6b6354]">{e.date}{e.location ? ` · ${e.location}` : ""}</p>
               </button>
             ))}
           </div>
@@ -2163,7 +2133,7 @@ export default function Home() {
         const t = igTaskList.find(x => x.id === editingIgId);
         if (!t) return null;
         return (
-          <Modal title="Edit Instagram Task" onClose={closeModal}>
+          <Modal title="Edit Instagram Task" tone="dusk" onClose={closeModal}>
             <AddIGTaskForm initial={t} onSubmit={saveEditIG} />
           </Modal>
         );
@@ -2171,19 +2141,19 @@ export default function Home() {
 
       {/* ── Pay Dues Modal ──────────────────────────────────────────────────── */}
       {payTarget && (
-        <Modal title="Record Payment" onClose={() => setPayTarget(null)}>
+        <Modal title="Record Payment" tone="dusk" onClose={() => setPayTarget(null)}>
           <div className="space-y-4">
             <div>
-              <p className="text-[12px] text-slate-400 mb-3">
-                {payTarget.name} owes <span className="font-semibold text-amber-400">{fmt$(payTarget.duesOwed)}</span>
+              <p className="text-[12px] text-[#958d7c] mb-3">
+                {payTarget.name} owes <span className="font-semibold text-[#d9b08b]">{fmt$(payTarget.duesOwed)}</span>
               </p>
-              <FieldLabel>Amount Paid ($)</FieldLabel>
+              <FieldLabel tone="dusk">Amount Paid ($)</FieldLabel>
               <input
                 type="number"
                 min="0"
                 max={payTarget.duesOwed}
                 step="0.01"
-                className={inputCls}
+                className={inputDuskCls}
                 value={payAmountStr}
                 onChange={e => setPayAmountStr(e.target.value)}
                 autoFocus
@@ -2193,8 +2163,8 @@ export default function Home() {
                 const amt = parseFloat(payAmountStr) || 0;
                 const remaining = Math.max(0, payTarget.duesOwed - amt);
                 return amt > 0 ? (
-                  <p className="mt-1.5 text-[11px] text-slate-500">
-                    Remaining after payment: <span className={remaining === 0 ? "text-emerald-400 font-semibold" : "text-slate-300"}>{fmt$(remaining)}</span>
+                  <p className="mt-1.5 text-[11px] text-[#6b6354]">
+                    Remaining after payment: <span className={remaining === 0 ? "text-[#7fb08a] font-semibold" : "text-[#c9c2b4]"}>{fmt$(remaining)}</span>
                   </p>
                 ) : null;
               })()}
@@ -2202,14 +2172,14 @@ export default function Home() {
             <div className="flex justify-end gap-2">
               <button
                 onClick={() => setPayTarget(null)}
-                className="rounded-lg border border-white/[0.08] px-4 py-1.5 text-[13px] text-slate-400 hover:border-white/[0.16] hover:text-white transition-colors"
+                className={btnDuskGhostCls}
               >
                 Cancel
               </button>
               <button
                 onClick={submitPayDues}
                 disabled={!(parseFloat(payAmountStr) > 0)}
-                className="rounded-lg bg-indigo-600 px-4 py-1.5 text-[13px] font-semibold text-white hover:bg-indigo-500 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                className={btnDuskActionCls}
               >
                 Record Payment
               </button>
@@ -2220,18 +2190,18 @@ export default function Home() {
 
       {/* ── Log Service Hours Modal ─────────────────────────────────────────── */}
       {logHoursFor && (
-        <Modal title="Log Service Hours" onClose={() => !logHoursBusy && setLogHoursFor(null)}>
+        <Modal title="Log Service Hours" tone="dusk" onClose={() => !logHoursBusy && setLogHoursFor(null)}>
           <div className="space-y-4">
-            <p className="text-[12px] text-slate-400">
-              Logging hours for <span className="font-semibold text-white">{logHoursFor.name}</span> against a service event.
+            <p className="text-[12px] text-[#958d7c]">
+              Logging hours for <span className="font-semibold text-[#ece7dd]">{logHoursFor.name}</span> against a service event.
             </p>
             <div>
-              <FieldLabel>Service Event</FieldLabel>
+              <FieldLabel tone="dusk">Service Event</FieldLabel>
               {logHoursEvents.length === 0 ? (
-                <p className="mt-1 text-[12px] text-slate-500">No service events yet. Create one on the Service page first.</p>
+                <p className="mt-1 text-[12px] text-[#6b6354]">No service events yet. Create one on the Service page first.</p>
               ) : (
                 <select
-                  className={inputCls}
+                  className={inputDuskCls}
                   value={logHoursEventId ?? ""}
                   onChange={e => setLogHoursEventId(e.target.value ? Number(e.target.value) : null)}
                 >
@@ -2242,20 +2212,20 @@ export default function Home() {
               )}
             </div>
             <div>
-              <FieldLabel>Hours</FieldLabel>
+              <FieldLabel tone="dusk">Hours</FieldLabel>
               <input
                 type="number"
                 min="0"
                 step="0.5"
                 inputMode="decimal"
-                className={inputCls}
+                className={inputDuskCls}
                 value={logHoursStr}
                 placeholder="0"
                 autoFocus
                 onChange={e => setLogHoursStr(e.target.value)}
                 onKeyDown={e => { if (e.key === "Enter" && logHoursEventId != null && logHoursStr !== "") submitLogServiceHours(); }}
               />
-              <p className="mt-1.5 text-[11px] text-slate-500">
+              <p className="mt-1.5 text-[11px] text-[#6b6354]">
                 Sets {logHoursFor.name.split(" ")[0]}&apos;s hours for this event. Their total recomputes from all logged events.
               </p>
             </div>
@@ -2263,14 +2233,14 @@ export default function Home() {
               <button
                 onClick={() => setLogHoursFor(null)}
                 disabled={logHoursBusy}
-                className="rounded-lg border border-white/[0.08] px-4 py-1.5 text-[13px] text-slate-400 hover:border-white/[0.16] hover:text-white transition-colors disabled:opacity-40"
+                className={btnDuskGhostCls}
               >
                 Cancel
               </button>
               <button
                 onClick={submitLogServiceHours}
                 disabled={logHoursBusy || logHoursEventId == null || logHoursStr === ""}
-                className="rounded-lg bg-indigo-600 px-4 py-1.5 text-[13px] font-semibold text-white hover:bg-indigo-500 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                className={btnDuskActionCls}
               >
                 {logHoursBusy ? "Saving…" : "Log Hours"}
               </button>
@@ -2330,8 +2300,9 @@ export default function Home() {
       {/* ── Confirm Delete Dialog ───────────────────────────────────────────── */}
       {confirmDelete && (
         <ConfirmDialog
+          tone="dusk"
           title={confirmDelete.kind === "deadline" ? "Delete Deadline" : "Delete IG Task"}
-          message={<>Delete <span className="font-semibold text-white">{confirmDelete.label}</span>? This cannot be undone.</>}
+          message={<>Delete <span className="font-semibold text-[#ece7dd]">{confirmDelete.label}</span>? This cannot be undone.</>}
           onCancel={() => setConfirmDelete(null)}
           onConfirm={() => {
             if (confirmDelete.kind === "deadline") confirmDeleteDeadline(confirmDelete.id);

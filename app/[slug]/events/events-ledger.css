@@ -129,8 +129,12 @@ header.dash-toolbar .ev-crumb {
 .dash .ev-pchecks { margin-top: 13px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
 @media (max-width: 560px) { .dash .ev-pchecks { grid-template-columns: repeat(2, 1fr); } }
 .dash .ev-pcheck { border: 1px solid var(--line-soft); border-radius: 9px; padding: 10px 11px; background: var(--paper); }
-.dash .ev-pcheck.done { border-color: var(--ok-bg); background: var(--ok-bg); }
-.dash .ev-pcheck.block { border-color: var(--rose-bg); background: var(--rose-bg); }
+/* Border uses a higher-alpha accent than the fill so the box edge is equally
+   visible in both states — at the fill's own .10 alpha the green border washed
+   out against the dark paper while the rose one didn't, making done boxes look
+   borderless next to missing ones. */
+.dash .ev-pcheck.done { border-color: rgba(127,176,138,.30); background: var(--ok-bg); }
+.dash .ev-pcheck.block { border-color: rgba(217,139,163,.30); background: var(--rose-bg); }
 .dash .ev-pcheck .pc-ico { display: flex; align-items: center; gap: 6px; }
 .dash .ev-pcheck .pc-ico svg { width: 13px; height: 13px; }
 .dash .ev-pcheck.done .pc-ico { color: var(--ok); }
