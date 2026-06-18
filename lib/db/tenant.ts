@@ -712,6 +712,30 @@ function scopedOrganizationConfig(orgId: number) {
   };
 }
 
+function scopedReimbursement(orgId: number) {
+  type W = Prisma.ReimbursementWhereInput;
+  const org = (w?: W): W => ({ ...w, organizationId: orgId });
+
+  async function verify(where: Prisma.ReimbursementWhereUniqueInput): Promise<number> {
+    const row = await prisma.reimbursement.findFirst({ where: org(where as W), select: { id: true } });
+    if (!row) notInOrg();
+    return row.id;
+  }
+
+  return {
+    findMany:   (args?: Prisma.ReimbursementFindManyArgs)  => prisma.reimbursement.findMany({ ...args, where: org(args?.where) }),
+    findFirst:  (args?: Prisma.ReimbursementFindFirstArgs) => prisma.reimbursement.findFirst({ ...args, where: org(args?.where) }),
+    findUnique: (args: Prisma.ReimbursementFindUniqueArgs) => prisma.reimbursement.findFirst({ ...args, where: org(args.where as W) }),
+    create:     (args: Omit<Prisma.ReimbursementCreateArgs, "data"> & { data: Omit<Prisma.ReimbursementUncheckedCreateInput, "organizationId"> }) =>
+      prisma.reimbursement.create({ ...args, data: { ...args.data, organizationId: orgId } }),
+    update:     async (args: Prisma.ReimbursementUpdateArgs) =>
+      prisma.reimbursement.update({ ...args, where: { id: await verify(args.where) } }),
+    delete:     async (args: Prisma.ReimbursementDeleteArgs) =>
+      prisma.reimbursement.delete({ where: { id: await verify(args.where) } }),
+    count:      (args?: Prisma.ReimbursementCountArgs)     => prisma.reimbursement.count({ ...args, where: org(args?.where) }),
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Main export
 // ---------------------------------------------------------------------------
@@ -741,6 +765,7 @@ export function db(orgId: number) {
     programmingEventDoc: scopedProgrammingEventDoc(orgId),
     programmingChecklistItem: scopedProgrammingChecklistItem(orgId),
     transaction:         scopedTransaction(orgId),
+    reimbursement:       scopedReimbursement(orgId),
     budget:              scopedBudget(orgId),
     activityLog:         scopedActivityLog(orgId),
     chapterAnnouncement: scopedChapterAnnouncement(orgId),

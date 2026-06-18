@@ -47,6 +47,7 @@ model Organization {
   programmingEventDocs      ProgrammingEventDoc[]
   programmingChecklistItems ProgrammingChecklistItem[]
   transactions              Transaction[]
+  reimbursements            Reimbursement[]
   budgets                   Budget[]
   activityLogs              ActivityLog[]
   announcements             ChapterAnnouncement[]
@@ -144,6 +145,7 @@ model Brother {
   inviteRedemptions     InviteRedemption[]
   metricValues          BrotherMetricValue[]
   serviceParticipations ServiceParticipation[]
+  reimbursements        Reimbursement[]
 
   organization Organization @relation(fields: [organizationId], references: [id])
 
@@ -583,6 +585,27 @@ model TransactionCalendarEvent {
 
   @@id([transactionId, calendarEventId])
   @@index([calendarEventId])
+}
+
+model Reimbursement {
+  id             Int      @id @default(autoincrement())
+  organizationId Int
+  brotherId      Int
+  amount         Float
+  amountCents    BigInt?
+  date           String
+  description    String
+  status         String   @default("pending")
+  rejectionNote  String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  brother      Brother      @relation(fields: [brotherId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([brotherId])
+  @@index([organizationId, status])
 }
 
 model Budget {

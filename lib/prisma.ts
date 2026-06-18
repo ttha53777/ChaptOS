@@ -14,7 +14,7 @@ declare global {
 }
 
 /** Bump when Prisma schema changes so `next dev` hot reload gets a fresh client. */
-const PRISMA_SCHEMA_REVISION = "tx-calendar-event-link-20260617";
+const PRISMA_SCHEMA_REVISION = "reimbursement-20260618";
 /** Bump when pool options change so `next dev` hot reload picks up new config. */
 const POOL_REVISION = "pool-prewarm-2-20260612";
 
@@ -41,7 +41,9 @@ function clientSupportsCurrentSchema(client: PrismaClient | undefined): boolean 
     && "id" in Prisma.ProgrammingEventScalarFieldEnum
     && "id" in Prisma.ProgrammingEventDocScalarFieldEnum
     // tx ↔ event many-to-many join
-    && "transactionId" in Prisma.TransactionCalendarEventScalarFieldEnum;
+    && "transactionId" in Prisma.TransactionCalendarEventScalarFieldEnum
+    // reimbursement ticket workflow
+    && "status" in Prisma.ReimbursementScalarFieldEnum;
 }
 
 // Reuse pool and client across hot-reloads in dev; create once in prod.

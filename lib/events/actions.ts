@@ -31,7 +31,8 @@ export type SubjectType =
   | "Organization"
   | "OrgInvite"
   | "OrgMetricDefinition"
-  | "BrotherMetricValue";
+  | "BrotherMetricValue"
+  | "Reimbursement";
 
 // Metadata schemas per action. Each key is an Action; each value is the shape
 // passed to emit() and received by handlers. Keep payloads small and stable —
@@ -112,6 +113,10 @@ export interface EventMetadata {
   "metric_definition.updated": { slug: string; name: string; changedFields: string[] };
   "metric_definition.deleted": { slug: string; name: string };
   "metric_value.updated":      { brotherId: number; brotherName: string; updatedSlugs: string[] };
+
+  // Reimbursements
+  "reimbursement.created": { brotherId: number; amount: number; description: string };
+  "reimbursement.updated": { status: string; brotherId: number };
 }
 
 export type Action = keyof EventMetadata;
@@ -135,6 +140,7 @@ const KNOWN_ACTIONS = new Set<Action>([
   "invite.created", "invite.revoked", "invite.redeemed",
   "metric_definition.created", "metric_definition.updated", "metric_definition.deleted",
   "metric_value.updated",
+  "reimbursement.created", "reimbursement.updated",
 ]);
 
 export function isKnownAction(action: string): action is Action {
