@@ -6,7 +6,7 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { randomUUID } from "node:crypto";
 import { testPrisma, resetDb } from "../setup/prisma";
-import { createOrg, createBrother, createCalendarEvent } from "../setup/factories";
+import { createOrg, createBrother, createCalendarEvent, createSemester } from "../setup/factories";
 import { db } from "@/lib/db";
 import {
   addChecklistItem,
@@ -51,6 +51,9 @@ function ctxFor(orgId: number, actorId: number): RequestContext {
 async function seedOrg() {
   const org = await createOrg("Prog Org", "prog-org");
   const admin = await createBrother({ orgId: org.id, isOrgAdmin: true });
+  // Dated items now require an active semester that contains their date; these
+  // tests use dates across all of 2026, so seed a year-wide active semester.
+  await createSemester({ orgId: org.id, startDate: "2026-01-01", endDate: "2026-12-31" });
   return { org, admin };
 }
 

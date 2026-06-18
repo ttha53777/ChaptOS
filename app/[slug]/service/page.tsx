@@ -8,6 +8,8 @@ import { useToast } from "../../components/dashboard/Toast";
 import { useChapter } from "../../context/ChapterContext";
 import { useVocab } from "../../hooks/useVocab";
 import { useThresholds } from "../../hooks/useThresholds";
+import { useActiveSemester } from "../../hooks/useActiveSemester";
+import { useSemesterErrorHandler } from "../../hooks/useSemesterErrorHandler";
 import { Brother, fmtDate } from "../../data";
 import { requestJson } from "../../lib/api";
 import "../../components/dashboard/dashboard-ledger.css";
@@ -41,6 +43,8 @@ export default function ServicePage() {
   const v = useVocab();
   const THRESHOLDS = useThresholds();
   const canService = can("MANAGE_SERVICE");
+  const activeSemester = useActiveSemester();
+  const handleSemesterError = useSemesterErrorHandler();
   const selfId     = currentUser?.id ?? null;
   const goal       = THRESHOLDS.serviceHoursGoal;
 
@@ -142,8 +146,8 @@ export default function ServicePage() {
         });
         setServiceEvents(prev => [...prev, saved].sort((a, b) => b.date.localeCompare(a.date)));
         toast.success(`Added "${saved.title}".`);
-      } catch {
-        toast.error("Could not add the service event.");
+      } catch (err) {
+        handleSemesterError(err, msg => toast.error(msg), "Could not add the service event.");
       }
     } else if (eventModal === "edit" && editingEvent) {
       const snapshot = editingEvent;
@@ -158,9 +162,9 @@ export default function ServicePage() {
           body: JSON.stringify(eventForm),
         });
         toast.success("Service event updated.");
-      } catch {
+      } catch (err) {
         setServiceEvents(list => list.map(e => e.id === snapshot.id ? snapshot : e).sort((a, b) => b.date.localeCompare(a.date)));
-        toast.error("Could not save changes.");
+        handleSemesterError(err, msg => toast.error(msg), "Could not save changes.");
       }
     }
   }
@@ -316,7 +320,7 @@ export default function ServicePage() {
         <header className="toolbar-frosted dash-toolbar svc-toolbar-bar relative z-20 flex h-14 shrink-0 items-center gap-3 border-b border-white/[0.05] px-4 sm:px-6 lg:hidden">
           <button
             onClick={() => setSidebarOpen(true)}
-            className="tb-icon-btn flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-white/[0.07]"
+            className="tb-icon-btn flex h-8 w-8 items-center justify-center rounded-lg text-[#958d7c] hover:bg-white/[0.07]"
             aria-label="Open menu"
           >
             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -522,6 +526,7 @@ export default function ServicePage() {
             <div>
               <FieldLabel tone="dusk">Date</FieldLabel>
               <input type="date" className="svc-input" value={eventForm.date}
+                min={activeSemester?.startDate} max={activeSemester?.endDate}
                 onChange={e => setEventForm(f => ({ ...f, date: e.target.value }))} />
             </div>
             <div>

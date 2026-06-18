@@ -2,6 +2,7 @@ import type { Prisma } from "@/app/generated/prisma/client";
 import type { RequestContext } from "@/lib/context";
 import { emit } from "@/lib/events";
 import { NotFoundError } from "@/lib/errors";
+import { assertWithinActiveSemester } from "./semester-bounds";
 import type { CreateDeadlineInput, UpdateDeadlineInput } from "@/lib/validation/deadline";
 
 export async function listDeadlines(ctx: RequestContext) {
@@ -9,12 +10,17 @@ export async function listDeadlines(ctx: RequestContext) {
 }
 
 export async function createDeadline(ctx: RequestContext, input: CreateDeadlineInput) {
+  await assertWithinActiveSemester(ctx, input.dueDate);
   const d = await ctx.db.deadline.create({ data: input });
   await emit(ctx, "deadline.created", { type: "Deadline", id: d.id }, { title: d.title, dueDate: d.dueDate });
   return d;
 }
 
 export async function updateDeadline(ctx: RequestContext, id: number, input: UpdateDeadlineInput) {
+  // Only re-validate when the due date is actually changing, so other-field
+  // edits on a legacy out-of-range deadline aren't blocked.
+  if (input.dueDate !== undefined) await assertWithinActiveSemester(ctx, input.dueDate);
+
   const data: Prisma.DeadlineUpdateInput = {};
   const changedFields: string[] = [];
   for (const k of Object.keys(input) as (keyof UpdateDeadlineInput)[]) {

@@ -15,6 +15,8 @@ import {
 } from "../data";
 import { useRouter } from "next/navigation";
 import { useOrgPath } from "../hooks/useOrgPath";
+import { useActiveSemester } from "../hooks/useActiveSemester";
+import { useSemesterErrorHandler } from "../hooks/useSemesterErrorHandler";
 import { useThresholds } from "../hooks/useThresholds";
 import { useVocab } from "../hooks/useVocab";
 import { useFeature } from "../hooks/useFeature";
@@ -955,6 +957,8 @@ export default function Home() {
 
   const router  = useRouter();
   const orgPath = useOrgPath();
+  const activeSemester = useActiveSemester();
+  const handleSemesterError = useSemesterErrorHandler();
 
   // Whether the viewer is an admin of the *active* org. This — not a permission
   // bit — is what gates the inline "hide widget" affordance, because the server
@@ -1049,6 +1053,7 @@ export default function Home() {
     errorMessage: string,
     rollback?: () => void,
     onSuccess?: (value: T) => void,
+    onError?: (error: unknown) => void,
   ) {
     operation
       .then(value => {
@@ -1058,7 +1063,10 @@ export default function Home() {
       .catch(error => {
         console.error(error);
         rollback?.();
-        setMutationError(errorMessage);
+        // Semester-aware callers pass onError to route or show a specific
+        // message; otherwise fall back to the generic mutation banner.
+        if (onError) onError(error);
+        else setMutationError(errorMessage);
       });
   }
 
@@ -1353,7 +1361,7 @@ export default function Home() {
       .catch(error => {
         console.error(error);
         setCalendarList(prev => prev.filter(e => e.id !== tempId));
-        setMutationError("Calendar event could not be saved. Local changes were reverted.");
+        handleSemesterError(error, setMutationError, "Calendar event could not be saved. Local changes were reverted.");
       });
   }
 
@@ -1414,6 +1422,7 @@ export default function Home() {
       "Deadline could not be saved. Local changes were reverted.",
       () => setDeadlineList(prev => prev.filter(x => x.id !== tempId)),
       saved => setDeadlineList(prev => prev.map(x => x.id === tempId ? saved : x)),
+      error => handleSemesterError(error, setMutationError, "Deadline could not be saved. Local changes were reverted."),
     );
   }
 
@@ -1508,6 +1517,8 @@ export default function Home() {
       }),
       "Deadline update failed. Local changes were reverted.",
       previous ? () => setDeadlineList(prev => prev.map(x => x.id === previous.id ? previous : x)) : undefined,
+      undefined,
+      error => handleSemesterError(error, setMutationError, "Deadline update failed. Local changes were reverted."),
     );
     setEditingDeadlineId(null);
     setActiveModal(null);
@@ -2048,12 +2059,12 @@ export default function Home() {
       )}
       {activeModal === "event" && (
         <Modal title="New Event" tone="dusk" onClose={closeModal}>
-          <CalendarEventForm submitLabel="Add Event" onSubmit={handleAddCalendarEvent} />
+          <CalendarEventForm submitLabel="Add Event" onSubmit={handleAddCalendarEvent} minDate={activeSemester?.startDate} maxDate={activeSemester?.endDate} />
         </Modal>
       )}
       {activeModal === "deadline" && (
         <Modal title="Add Deadline" tone="dusk" onClose={closeModal}>
-          <AddDeadlineForm brotherNames={brotherNames} onSubmit={handleAddDeadline} igEnabled={igEnabled} />
+          <AddDeadlineForm brotherNames={brotherNames} onSubmit={handleAddDeadline} igEnabled={igEnabled} minDate={activeSemester?.startDate} maxDate={activeSemester?.endDate} />
         </Modal>
       )}
       {activeModal === "revenue" && (
@@ -2132,7 +2143,7 @@ export default function Home() {
         if (!d) return null;
         return (
           <Modal title="Edit Deadline" tone="dusk" onClose={closeModal}>
-            <AddDeadlineForm brotherNames={brotherNames} initial={d} onSubmit={saveEditDeadline} />
+            <AddDeadlineForm brotherNames={brotherNames} initial={d} onSubmit={saveEditDeadline} minDate={activeSemester?.startDate} maxDate={activeSemester?.endDate} />
           </Modal>
         );
       })()}

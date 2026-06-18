@@ -15,6 +15,7 @@ import {
 import { isProgrammingStage, stageRequiresCalendar } from "@/lib/state/programming-stage";
 import { programmingPrepScore } from "@/lib/programming";
 import { isRoomStatus } from "@/lib/state/programming-prep";
+import { assertWithinActiveSemester } from "./semester-bounds";
 import type {
   AttachProgrammingDocInput,
   CreateChecklistItemInput,
@@ -116,6 +117,9 @@ export async function listProgrammingTasks(ctx: RequestContext) {
 }
 
 export async function createProgrammingTask(ctx: RequestContext, input: CreateProgrammingTaskInput) {
+  // Requires an active semester even for a dateless Idea; when a dueDate is set
+  // it must fall within the semester (it lands on the calendar on promotion).
+  await assertWithinActiveSemester(ctx, input.dueDate);
   // Always starts in Idea: a ProgrammingEvent with no CalendarEvent.
   const data = fromProgrammingInput(input);
   const created = await ctx.db.programmingEvent.create({
@@ -141,6 +145,9 @@ export async function updateProgrammingTask(ctx: RequestContext, id: number, inp
     if (input.dueDate == null && existing.stage !== "idea") {
       throw new ValidationError("A scheduled event must keep its date. Move it back to Idea first to clear the date.");
     }
+    // Setting a concrete date must stay within the active semester; clearing it
+    // to null (Idea only, handled above) is exempt.
+    if (input.dueDate != null) await assertWithinActiveSemester(ctx, input.dueDate);
     data.date = input.dueDate;
     changedFields.push("date");
   }
@@ -213,6 +220,9 @@ export async function setStage(ctx: RequestContext, id: number, input: SetStageI
   if (promoting && !pe.date) {
     throw new ValidationError("A date is required to move an event out of Idea.");
   }
+  // Promotion puts the event on the calendar — its date (set while in Idea, where
+  // the bound isn't enforced) must fall within the active semester.
+  if (promoting) await assertWithinActiveSemester(ctx, pe.date);
 
   if (next === "confirmed" && pe.stage === "planning") {
     const roomStatus = isRoomStatus(pe.roomStatus) ? pe.roomStatus : "not_submitted";

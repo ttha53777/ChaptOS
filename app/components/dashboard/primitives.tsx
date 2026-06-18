@@ -35,7 +35,7 @@ export function Card({ children, className = "", id, onClick, style }: {
 /** Selector matching every focusable element inside the modal. */
 const FOCUSABLE = 'a[href], area[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), iframe, [tabindex]:not([tabindex="-1"])';
 
-export function Modal({ title, onClose, children, tone = "slate" }: {
+export function Modal({ title, onClose, children, tone = "slate", dismissable = true }: {
   title: string;
   onClose: () => void;
   children: React.ReactNode;
@@ -43,6 +43,10 @@ export function Modal({ title, onClose, children, tone = "slate" }: {
    *  warm dashboard/timeline surface (dashboard-ledger.css) — use it for modals
    *  whose body is themed dusk so the panel and header don't read as old colors. */
   tone?: "slate" | "dusk";
+  /** When false, the modal is a hard block: no ✕ button, backdrop clicks are
+   *  inert, and Escape is ignored. The only way out is whatever action the body
+   *  provides. Used by the no-active-semester gate. Default true (normal modal). */
+  dismissable?: boolean;
 }) {
   const panelRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
@@ -53,7 +57,7 @@ export function Modal({ title, onClose, children, tone = "slate" }: {
     const previouslyFocused = document.activeElement as HTMLElement | null;
 
     const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
+      if (e.key === "Escape" && dismissable) {
         e.stopPropagation();
         onClose();
         return;
@@ -95,11 +99,11 @@ export function Modal({ title, onClose, children, tone = "slate" }: {
       // Restore focus to the trigger so keyboard users land where they were.
       previouslyFocused?.focus?.();
     };
-  }, [onClose]);
+  }, [onClose, dismissable]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/70 backdrop-blur-md" onClick={onClose} />
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-md" onClick={dismissable ? onClose : undefined} />
       <div
         ref={panelRef}
         role="dialog"
@@ -112,11 +116,13 @@ export function Modal({ title, onClose, children, tone = "slate" }: {
       >
         <div className={`flex items-center justify-between border-b px-6 py-4 ${dusk ? "border-[rgba(236,231,221,0.07)]" : "border-white/[0.07]"}`}>
           <h3 id={titleId} className={`text-[15px] font-semibold ${dusk ? "text-[#ece7dd]" : "text-white"}`}>{title}</h3>
-          <button onClick={onClose} aria-label="Close dialog" className={`flex h-10 w-10 items-center justify-center rounded-lg transition-colors sm:h-7 sm:w-7 ${dusk ? "text-[#958d7c] hover:bg-[rgba(236,231,221,0.08)] hover:text-[#ece7dd]" : "text-slate-500 hover:bg-white/[0.08] hover:text-white"}`}>
-            <svg className="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
+          {dismissable && (
+            <button onClick={onClose} aria-label="Close dialog" className={`flex h-10 w-10 items-center justify-center rounded-lg transition-colors sm:h-7 sm:w-7 ${dusk ? "text-[#958d7c] hover:bg-[rgba(236,231,221,0.08)] hover:text-[#ece7dd]" : "text-slate-500 hover:bg-white/[0.08] hover:text-white"}`}>
+              <svg className="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          )}
         </div>
         <div className="p-6">{children}</div>
       </div>

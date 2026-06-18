@@ -45,13 +45,15 @@ export async function createSemester(opts: {
   orgId: number;
   label?: string;
   isActive?: boolean;
+  startDate?: string;
+  endDate?: string;
 }) {
   return testPrisma.semester.create({
     data: {
       organizationId: opts.orgId,
       label:          opts.label ?? "TEST26",
-      startDate:      "2026-01-01",
-      endDate:        "2026-06-30",
+      startDate:      opts.startDate ?? "2026-01-01",
+      endDate:        opts.endDate ?? "2026-06-30",
       isActive:       opts.isActive ?? true,
     },
   });

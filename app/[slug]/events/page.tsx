@@ -15,6 +15,8 @@ import { fmt$, fmtDate } from "../../data";
 import type { Doc } from "../docs/DocCard";
 import { useChapter } from "../../context/ChapterContext";
 import { requestJson } from "../../lib/api";
+import { useActiveSemester } from "../../hooks/useActiveSemester";
+import { useSemesterErrorHandler } from "../../hooks/useSemesterErrorHandler";
 import { todayStr } from "../../lib/dates";
 import {
   eventsNeedingAttention,
@@ -44,6 +46,8 @@ type FormInput = {
 export default function ProgrammingPage() {
   const { currentUser, can, setProgrammingTaskList } = useChapter();
   const canManage = can("MANAGE_EVENTS");
+  const activeSemester = useActiveSemester();
+  const handleSemesterError = useSemesterErrorHandler();
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [events, setEvents] = useState<ProgrammingTask[]>([]);
@@ -146,11 +150,11 @@ export default function ProgrammingPage() {
         body: JSON.stringify(rest),
       });
       syncEvents(prev => prev.map(e => e.id === id ? saved : e));
-    } catch {
-      showError("Could not save changes.");
+    } catch (err) {
+      handleSemesterError(err, showError, "Could not save changes.");
       reload();
     }
-  }, [syncEvents, reload]);
+  }, [syncEvents, reload, handleSemesterError, showError]);
 
   /** Move an event to a new stage. Returns false if rejected (e.g. promote without date). */
   const moveStage = useCallback(async (id: number, stage: ProgrammingStage): Promise<boolean> => {
@@ -173,12 +177,12 @@ export default function ProgrammingPage() {
       return true;
     } catch (err) {
       syncEvents(prev => prev.map(e => e.id === id ? { ...e, stage: prevStage } : e));
-      const raw = err instanceof Error ? err.message : "";
-      const match = raw.match(/\d+: (.+)$/);
-      showError(match ? match[1] : "Could not move event.");
+      // Promotion runs the semester guard server-side: route to setup when no
+      // semester is active, surface the out-of-range message otherwise.
+      handleSemesterError(err, showError, "Could not move event.");
       return false;
     }
-  }, [events, syncEvents]);
+  }, [events, syncEvents, handleSemesterError, showError]);
 
   const filtered = useMemo(() => {
     let list = [...events];
@@ -225,8 +229,8 @@ export default function ProgrammingPage() {
       syncEvents(prev => [...prev, created]);
       setSelectedId(created.id);
       setModal(null);
-    } catch {
-      showError("Could not create event.");
+    } catch (err) {
+      handleSemesterError(err, showError, "Could not create event.");
     }
   }
 
@@ -521,7 +525,7 @@ export default function ProgrammingPage() {
 
       {modal === "add" && (
         <Modal title="New Event" tone="dusk" onClose={() => setModal(null)}>
-          <AddProgrammingTaskForm onSubmit={handleAdd} />
+          <AddProgrammingTaskForm onSubmit={handleAdd} minDate={activeSemester?.startDate} maxDate={activeSemester?.endDate} />
         </Modal>
       )}
 
@@ -538,6 +542,8 @@ export default function ProgrammingPage() {
               status: editTarget.status,
             }}
             onSubmit={handleEdit}
+            minDate={activeSemester?.startDate}
+            maxDate={activeSemester?.endDate}
           />
         </Modal>
       )}
@@ -555,6 +561,8 @@ export default function ProgrammingPage() {
 
       {promotePrompt && (
         <PromoteDateModal
+          minDate={activeSemester?.startDate}
+          maxDate={activeSemester?.endDate}
           onCancel={() => setPromotePrompt(null)}
           onConfirm={async (date) => {
             const { id, stage } = promotePrompt;
@@ -568,9 +576,11 @@ export default function ProgrammingPage() {
   );
 }
 
-function PromoteDateModal({ onConfirm, onCancel }: {
+function PromoteDateModal({ onConfirm, onCancel, minDate, maxDate }: {
   onConfirm: (date: string) => void;
   onCancel: () => void;
+  minDate?: string;
+  maxDate?: string;
 }) {
   const [date, setDate] = useState("");
   return (
@@ -584,6 +594,8 @@ function PromoteDateModal({ onConfirm, onCancel }: {
           type="date"
           value={date}
           onChange={e => setDate(e.target.value)}
+          min={minDate}
+          max={maxDate}
           required
           className={inputDuskCls}
         />

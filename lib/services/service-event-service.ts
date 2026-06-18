@@ -2,6 +2,7 @@ import type { Prisma } from "@/app/generated/prisma/client";
 import type { RequestContext } from "@/lib/context";
 import { emit } from "@/lib/events";
 import { NotFoundError } from "@/lib/errors";
+import { assertWithinActiveSemester } from "./semester-bounds";
 import type { CreateServiceEventInput, UpdateServiceEventInput } from "@/lib/validation/service-event";
 
 export async function listServiceEvents(ctx: RequestContext) {
@@ -9,6 +10,10 @@ export async function listServiceEvents(ctx: RequestContext) {
 }
 
 export async function createServiceEvent(ctx: RequestContext, input: CreateServiceEventInput) {
+  // Guard before the transaction so neither the CalendarEvent nor the
+  // ServiceEvent row is written when the date is out of the active semester.
+  await assertWithinActiveSemester(ctx, input.date);
+
   const titleStr    = input.title;
   const locationStr = input.location ?? "";
   const notesStr    = input.notes ?? input.description ?? "";
@@ -50,6 +55,10 @@ export async function createServiceEvent(ctx: RequestContext, input: CreateServi
 }
 
 export async function updateServiceEvent(ctx: RequestContext, id: number, input: UpdateServiceEventInput) {
+  // Only re-validate when the date is actually changing; this update also mirrors
+  // the date onto the linked CalendarEvent, so the same bound applies there.
+  if (input.date !== undefined) await assertWithinActiveSemester(ctx, input.date);
+
   const data: Prisma.ServiceEventUpdateInput = {};
   const changedFields: string[] = [];
   for (const k of Object.keys(input) as (keyof UpdateServiceEventInput)[]) {

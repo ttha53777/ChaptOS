@@ -3,6 +3,7 @@ import type { RequestContext } from "@/lib/context";
 import { emit } from "@/lib/events";
 import { NotFoundError } from "@/lib/errors";
 import { CALENDAR_CATEGORIES } from "@/lib/state";
+import { assertWithinActiveSemester } from "./semester-bounds";
 import type { CreateCalendarInput, UpdateCalendarInput } from "@/lib/validation/calendar";
 
 export async function listCalendar(ctx: RequestContext, opts: { category?: string | null } = {}) {
@@ -17,6 +18,7 @@ export async function listCalendar(ctx: RequestContext, opts: { category?: strin
 }
 
 export async function createCalendar(ctx: RequestContext, input: CreateCalendarInput) {
+  await assertWithinActiveSemester(ctx, input.date);
   const event = await ctx.db.calendarEvent.create({
     data: {
       title:       input.title,
@@ -35,6 +37,11 @@ export async function createCalendar(ctx: RequestContext, input: CreateCalendarI
 }
 
 export async function updateCalendar(ctx: RequestContext, id: number, input: UpdateCalendarInput) {
+  // Only re-validate when the date is actually being moved to a concrete value;
+  // clearing it (null) or leaving it untouched (undefined) skips the bound check
+  // so harmless edits to legacy out-of-range events aren't blocked.
+  if (input.date != null) await assertWithinActiveSemester(ctx, input.date);
+
   const data: Prisma.CalendarEventUpdateInput = {};
   const changedFields: string[] = [];
   for (const k of Object.keys(input) as (keyof UpdateCalendarInput)[]) {

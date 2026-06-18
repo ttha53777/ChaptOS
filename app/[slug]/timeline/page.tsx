@@ -7,10 +7,12 @@ import { CalendarEvent, CalEventCategory, CalLayer, TaskStatus, Deadline, Instag
 import { useChapter } from "../../context/ChapterContext";
 import { Modal, ConfirmDialog } from "../../components/dashboard/primitives";
 import { inputCls } from "../../components/dashboard/styles";
-import { requestJson } from "../../lib/api";
+import { requestJson, orgFetch } from "../../lib/api";
 import { pad, toDateStr, daysFromToday } from "../../lib/dates";
 import { CalendarEventForm, type CalendarDraft } from "../../components/timeline/CalendarEventForm";
 import { AddDeadlineForm } from "../../components/dashboard/forms";
+import { useActiveSemester } from "../../hooks/useActiveSemester";
+import { useSemesterErrorHandler } from "../../hooks/useSemesterErrorHandler";
 import { isNavVisible } from "../../components/Sidebar";
 import "../../components/dashboard/dashboard-ledger.css";
 import "../../components/dashboard/timeline-ledger.css";
@@ -146,7 +148,14 @@ function buildMonthGroups(events: CalendarEvent[]): MonthGroup[] {
     map[key].events.push(e);
   }
 
-  return Object.values(map).sort((a, b) => a.id.localeCompare(b.id));
+  // Current month pinned to the top; every other month stacked most-recent
+  // first below it (e.g. a Jan–May term, viewed in March, reads March, then
+  // May → April, then Feb → Jan). Events inside each month stay chronological
+  // so the today marker and first-future-row logic still line up.
+  return Object.values(map).sort((a, b) => {
+    if (a.isCurrentMonth !== b.isCurrentMonth) return a.isCurrentMonth ? -1 : 1;
+    return b.id.localeCompare(a.id);
+  });
 }
 
 // ─── TodayMarker ──────────────────────────────────────────────────────────────
@@ -270,7 +279,7 @@ function EventDetail({
     const controller = new AbortController();
     setAttDetail(null);
     setAttLoading(true);
-    fetch(`/api/attendance/${event.id}`, { signal: controller.signal })
+    orgFetch(`/api/attendance/${event.id}`, { signal: controller.signal })
       .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
       .then((data: AttendanceDetail) => setAttDetail(data))
       .catch(err => { if (err.name !== "AbortError") console.error("Failed to load attendance", err); })
@@ -631,6 +640,8 @@ function GlanceDetail({
 
 export default function TimelinePage() {
   const { currentUser, deadlineList, setDeadlineList, igTaskList, setIgTaskList, partyList, brotherList, setBrotherList, avatarRevision, can } = useChapter();
+  const activeSemester = useActiveSemester();
+  const handleSemesterError = useSemesterErrorHandler();
   const selfId = currentUser?.id ?? null;
   const isAdmin = currentUser?.isAdmin ?? false;
   const canManageEvents = can("MANAGE_EVENTS");
@@ -938,7 +949,7 @@ export default function TimelinePage() {
       .catch(error => {
         console.error(error);
         setDeadlineList(prev => prev.filter(x => x.id !== tempId));
-        setCalendarError("Deadline could not be saved. Local changes were reverted.");
+        handleSemesterError(error, setCalendarError, "Deadline could not be saved. Local changes were reverted.");
       });
   }
 
@@ -969,7 +980,7 @@ export default function TimelinePage() {
         console.error(error);
         setApiEvents(prev => prev.filter(e => e.id !== tempId));
         setSelectedEvent(null);
-        setCalendarError("Calendar event could not be saved. Local changes were reverted.");
+        handleSemesterError(error, setCalendarError, "Calendar event could not be saved. Local changes were reverted.");
       });
   }
 
@@ -992,7 +1003,7 @@ export default function TimelinePage() {
         console.error(error);
         setApiEvents(prev => prev.map(e => e.id === previous.id ? previous : e));
         setSelectedEvent(previous);
-        setCalendarError("Calendar event update failed. Local changes were reverted.");
+        handleSemesterError(error, setCalendarError, "Calendar event update failed. Local changes were reverted.");
       });
   }
 
@@ -1030,24 +1041,24 @@ export default function TimelinePage() {
         {/* ── Toolbar (mobile/tablet only — hidden at lg+ where the sidebar is
             static and "Add Event" lives in the briefing below). ──────────────── */}
         <header className="toolbar-frosted dash-toolbar relative z-20 flex h-14 shrink-0 items-center gap-2 border-b border-white/[0.05] px-3 sm:gap-3 sm:px-5 lg:hidden">
-          <button onClick={() => setSidebarOpen(true)} className="tb-icon-btn flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-white/[0.07] lg:hidden">
+          <button onClick={() => setSidebarOpen(true)} className="tb-icon-btn flex h-8 w-8 items-center justify-center rounded-lg text-[#958d7c] hover:bg-white/[0.07] lg:hidden">
             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
             </svg>
           </button>
 
           <div className="min-w-0 flex-1">
-            <p className="tb-title text-[14px] font-semibold leading-tight text-white">Timeline</p>
-            <p className="tb-org hidden text-[11px] leading-tight text-slate-400 sm:block">{currentUser?.org?.name ?? "ChaptOS"}</p>
+            <p className="tb-title text-[14px] font-semibold leading-tight text-[#ece7dd]">Timeline</p>
+            <p className="tb-org hidden text-[11px] leading-tight text-[#958d7c] sm:block">{currentUser?.org?.name ?? "ChaptOS"}</p>
           </div>
 
-          <p className="tb-date hidden text-[11px] text-slate-500 xl:block shrink-0">{dateShort}</p>
+          <p className="tb-date hidden text-[11px] text-[#958d7c] xl:block shrink-0">{dateShort}</p>
 
           <button
             onClick={() => setActiveModal("deadline")}
-            className="tb-btn inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-1.5 text-[12px] font-medium text-slate-300 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition-all duration-150 hover:border-indigo-500/40 hover:bg-indigo-500/10 hover:text-indigo-200 focus:outline-none"
+            className="tb-btn inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-[rgba(236,231,221,0.12)] bg-white/[0.03] px-3 py-1.5 text-[12px] font-medium text-[#c9c2b4] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition-all duration-150 hover:border-[#a78bfa]/40 hover:bg-[#a78bfa]/10 hover:text-[#ece7dd] focus:outline-none"
           >
-            <svg className="h-3.5 w-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.4}>
+            <svg className="h-3.5 w-3.5 text-[#958d7c]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.4}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 5v14M5 12h14" />
             </svg>
             <span className="hidden sm:inline">Add Deadline</span>
@@ -1055,9 +1066,9 @@ export default function TimelinePage() {
 
           <button
             onClick={() => setActiveModal("create")}
-            className="tb-btn inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-1.5 text-[12px] font-medium text-slate-300 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition-all duration-150 hover:border-indigo-500/40 hover:bg-indigo-500/10 hover:text-indigo-200 focus:outline-none"
+            className="tb-btn inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-[rgba(236,231,221,0.12)] bg-white/[0.03] px-3 py-1.5 text-[12px] font-medium text-[#c9c2b4] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition-all duration-150 hover:border-[#a78bfa]/40 hover:bg-[#a78bfa]/10 hover:text-[#ece7dd] focus:outline-none"
           >
-            <svg className="h-3.5 w-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.4}>
+            <svg className="h-3.5 w-3.5 text-[#958d7c]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.4}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 5v14M5 12h14" />
             </svg>
             <span className="hidden sm:inline">Add Event</span>
@@ -1249,7 +1260,17 @@ export default function TimelinePage() {
                     )}
                   </div>
                 ) : (
-                  monthGroups.map(group => {
+                  <>
+                  {/* Future tail — months are newest-first, so the "nothing past X"
+                      note sits at the top, with the most-recent events. */}
+                  {lastEvent && (
+                    <div className="tl-end tl-end--top">
+                      <span className="e-dot" />
+                      <p>Nothing scheduled past {fmtDate(lastEvent.date)}.</p>
+                      <button onClick={() => setActiveModal("create")}>Add event →</button>
+                    </div>
+                  )}
+                  {monthGroups.map(group => {
                     const isCollapsed = collapsedMonths.has(group.id);
 
                     if (isCollapsed) {
@@ -1304,15 +1325,8 @@ export default function TimelinePage() {
                         </div>
                       </div>
                     );
-                  })
-                )}
-
-                {!calendarLoading && monthGroups.length > 0 && lastEvent && (
-                  <div className="tl-end">
-                    <span className="e-dot" />
-                    <p>Nothing scheduled past {fmtDate(lastEvent.date)}.</p>
-                    <button onClick={() => setActiveModal("create")}>Add event →</button>
-                  </div>
+                  })}
+                  </>
                 )}
               </div>
 
@@ -1405,17 +1419,17 @@ export default function TimelinePage() {
 
       {activeModal === "create" && (
         <Modal title="Add Calendar Event" tone="dusk" onClose={() => setActiveModal(null)}>
-          <CalendarEventForm submitLabel="Add Event" onSubmit={handleCreateEvent} />
+          <CalendarEventForm submitLabel="Add Event" onSubmit={handleCreateEvent} minDate={activeSemester?.startDate} maxDate={activeSemester?.endDate} />
         </Modal>
       )}
       {activeModal === "deadline" && (
         <Modal title="Add Deadline" tone="dusk" onClose={() => setActiveModal(null)}>
-          <AddDeadlineForm brotherNames={brotherNames} onSubmit={handleAddDeadline} igEnabled={igEnabled} />
+          <AddDeadlineForm brotherNames={brotherNames} onSubmit={handleAddDeadline} igEnabled={igEnabled} minDate={activeSemester?.startDate} maxDate={activeSemester?.endDate} />
         </Modal>
       )}
       {activeModal === "edit" && selectedEvent && selectedEventCanEdit && (
         <Modal title="Edit Calendar Event" tone="dusk" onClose={() => setActiveModal(null)}>
-          <CalendarEventForm initialEvent={selectedEvent} submitLabel="Save Event" onSubmit={handleUpdateEvent} />
+          <CalendarEventForm initialEvent={selectedEvent} submitLabel="Save Event" onSubmit={handleUpdateEvent} minDate={activeSemester?.startDate} maxDate={activeSemester?.endDate} />
         </Modal>
       )}
       {confirmDeleteEvent && (

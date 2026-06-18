@@ -36,19 +36,46 @@ export function orgFetch(url: string, init?: RequestInit): Promise<Response> {
   return fetch(url, withOrgSlug(init));
 }
 
+/**
+ * Error thrown by requestJson for non-2xx responses. Keeps the same message
+ * shape as before (so existing `console.error`/generic-message callers are
+ * unaffected) but also exposes the HTTP status and parsed JSON body, letting
+ * callers branch on structured details like `body.details.code`.
+ */
+export class ApiError extends Error {
+  readonly status: number;
+  readonly body: unknown;
+  constructor(message: string, status: number, body: unknown) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+    this.body = body;
+  }
+}
+
+/** Pull `details.code` out of an ApiError body, if present. */
+export function apiErrorCode(err: unknown): string | null {
+  if (!(err instanceof ApiError)) return null;
+  const details = (err.body as { details?: unknown } | null)?.details;
+  const code = (details as { code?: unknown } | null)?.code;
+  return typeof code === "string" ? code : null;
+}
+
 export async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
   const merged = withOrgSlug(init);
   const signal = merged.signal ?? AbortSignal.timeout(15_000);
   const response = await fetch(url, { ...merged, signal });
   if (!response.ok) {
     let detail = "";
+    let body: unknown = null;
     try {
-      const body = await response.json();
-      detail = typeof body?.error === "string" ? `: ${body.error}` : "";
+      body = await response.json();
+      const errMsg = (body as { error?: unknown } | null)?.error;
+      detail = typeof errMsg === "string" ? `: ${errMsg}` : "";
     } catch {
       // Fall back to status code when the API does not return JSON.
     }
-    throw new Error(`${url} returned ${response.status}${detail}`);
+    throw new ApiError(`${url} returned ${response.status}${detail}`, response.status, body);
   }
   if (response.status === 204) return undefined as T;
   try {

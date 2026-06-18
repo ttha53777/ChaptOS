@@ -8,6 +8,8 @@ import { isNavVisible } from "../../../components/Sidebar";
 import { AddDeadlineForm, AddIGTaskForm, AddRevenueForm } from "../../../components/dashboard/forms";
 import { TaskStatus, InstagramType, ActivityEntry, Deadline, InstagramTask, PartyEvent, fmt$ } from "../../../data";
 import { useOrgPath } from "../../../hooks/useOrgPath";
+import { useActiveSemester } from "../../../hooks/useActiveSemester";
+import { useSemesterErrorHandler } from "../../../hooks/useSemesterErrorHandler";
 import { orgFetch, requestJson } from "../../../lib/api";
 import { DangerZone } from "./DangerZone";
 
@@ -50,6 +52,8 @@ export function GeneralSection({
     refreshChapterData,
   } = useChapter();
 
+  const activeSemester = useActiveSemester();
+  const handleSemesterError = useSemesterErrorHandler();
   const brotherNames = useMemo(() => brotherList.map(b => b.name), [brotherList]);
   // Matches the dashboard/timeline deadline modal: when the org's Instagram page
   // is visible, the form offers to log the deadline as an Instagram post instead.
@@ -128,9 +132,9 @@ export function GeneralSection({
       });
   }, [setActivityFeed, setMutationError]);
 
-  function persist<T>(op: Promise<T>, errMsg: string, rollback?: () => void, onSuccess?: (v: T) => void) {
+  function persist<T>(op: Promise<T>, errMsg: string, rollback?: () => void, onSuccess?: (v: T) => void, onError?: (err: unknown) => void) {
     op.then(v => { setMutationError(null); onSuccess?.(v); })
-      .catch(err => { console.error(err); rollback?.(); setMutationError(errMsg); });
+      .catch(err => { console.error(err); rollback?.(); if (onError) onError(err); else setMutationError(errMsg); });
   }
 
   function handleRefresh() {
@@ -164,6 +168,7 @@ export function GeneralSection({
       "Deadline could not be saved. Local changes were reverted.",
       () => setDeadlineList(prev => prev.filter(x => x.id !== tempId)),
       saved => setDeadlineList(prev => prev.map(x => x.id === tempId ? saved : x)),
+      err => handleSemesterError(err, setMutationError, "Deadline could not be saved. Local changes were reverted."),
     );
   }
 
@@ -309,7 +314,7 @@ export function GeneralSection({
 
       {activeModal === "deadline" && (
         <Modal title="Add Deadline" tone="dusk" onClose={() => setActiveModal(null)}>
-          <AddDeadlineForm brotherNames={brotherNames} onSubmit={handleAddDeadline} igEnabled={igEnabled} />
+          <AddDeadlineForm brotherNames={brotherNames} onSubmit={handleAddDeadline} igEnabled={igEnabled} minDate={activeSemester?.startDate} maxDate={activeSemester?.endDate} />
         </Modal>
       )}
       {activeModal === "revenue" && (
