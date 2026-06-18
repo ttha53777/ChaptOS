@@ -413,7 +413,7 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
       name: "propose_log_transaction",
       description:
         "Propose logging a treasury transaction (income or expense). Returns a confirm card; the transaction is NOT recorded until confirmed. Only admins can successfully confirm. " +
-        "Only ask the user for the required fields (type, category, amount, date, description). Do NOT ask for paymentMethod or paidTo — those are optional.",
+        "Only ask the user for the required fields (type, category, amount, date, description). Do NOT ask for paymentMethod — that is optional.",
       parameters: {
         type: "object",
         properties: {
@@ -423,7 +423,6 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
           date:        { type: "string", description: "YYYY-MM-DD." },
           description: { type: "string" },
           paymentMethod: { type: "string", enum: ["venmo", "cash", "check", "invoice"], description: "Optional. Only include if the user mentions how it was paid." },
-          paidTo:      { type: "string", description: "Optional. Only include if the user names a payee." },
         },
         required: ["type", "category", "amount", "date", "description"],
       },
@@ -1362,7 +1361,6 @@ function proposeLogTransaction(args: ToolArgs): Proposal | { error: string } {
   if (!DATE_RE.test(date)) return badProposal("date must be YYYY-MM-DD.");
   const payload: Record<string, unknown> = { type, category, amount: r2(amount), date, description };
   if (typeof args.paymentMethod === "string" && args.paymentMethod.trim()) payload.paymentMethod = String(args.paymentMethod).trim();
-  if (typeof args.paidTo === "string" && args.paidTo.trim()) payload.paidTo = String(args.paidTo).trim();
   return {
     kind: "proposal",
     action: "propose_log_transaction",

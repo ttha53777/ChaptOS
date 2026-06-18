@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
       orderBy: { date: "asc" },
     });
 
-    const header = ["Date", "Type", "Category", "Description", "Amount", "Payment Method", "Paid To", "Semester"];
+    const header = ["Date", "Type", "Category", "Description", "Amount", "Payment Method", "Semester"];
     const rows = transactions.map(tx => [
       quote(tx.date),
       quote(tx.type),
@@ -32,7 +32,6 @@ export async function GET(req: NextRequest) {
       quote(tx.description),
       tx.amount.toFixed(2),
       quote(tx.paymentMethod),
-      quote(tx.paidTo),
       quote(tx.semester),
     ]);
 

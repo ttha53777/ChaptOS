@@ -1,4 +1,3 @@
-import type { Prisma } from "@/app/generated/prisma/client";
 import type { RequestContext } from "@/lib/context";
 import { emit } from "@/lib/events";
 import { NotFoundError } from "@/lib/errors";
@@ -8,29 +7,62 @@ export interface TxFilter {
   type?: string;
   semester?: string;
   category?: string;
+  calendarEventId?: number;
 }
 
-// amountCents is a BigInt mirror of `amount`, kept for exact-integer math on
-// the write side. It must be omitted from anything that gets JSON-serialized
-// (Response.json → JSON.stringify can't serialize BigInt) and the client never
-// reads it — the Transaction type in app/data.ts only has `amount: number`.
-const OMIT_BIGINT = { amountCents: true } as const;
+type LinkedEvent = { id: number; title: string; date: string; category: string };
+
+const EVENT_INCLUDE = {
+  calendarEvents: {
+    include: {
+      calendarEvent: { select: { id: true, title: true, date: true, category: true } },
+    },
+  },
+} as const;
+
+type RawWithEvents = {
+  amountCents: bigint | null;
+  calendarEvents: { calendarEvent: LinkedEvent }[];
+  [key: string]: unknown;
+};
+
+function mapTx(raw: RawWithEvents) {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { amountCents, calendarEvents, ...rest } = raw;
+  return { ...rest, calendarEvents: calendarEvents.map(l => l.calendarEvent) };
+}
+
+async function validateEventIds(ctx: RequestContext, ids: number[]): Promise<void> {
+  if (ids.length === 0) return;
+  const found = await ctx.db.calendarEvent.findMany({
+    where: { id: { in: ids }, organizationId: ctx.orgId },
+    select: { id: true },
+  });
+  if (found.length !== ids.length) throw new NotFoundError("CalendarEvent");
+}
 
 export async function listTransactions(ctx: RequestContext, filter: TxFilter = {}) {
-  return ctx.db.transaction.findMany({
+  const rows = await ctx.db.transaction.findMany({
     where: {
       deletedAt: null,
       ...(filter.type     ? { type: filter.type }         : {}),
       ...(filter.semester ? { semester: filter.semester } : {}),
       ...(filter.category ? { category: filter.category } : {}),
+      ...(filter.calendarEventId
+        ? { calendarEvents: { some: { calendarEventId: filter.calendarEventId } } }
+        : {}),
     },
-    omit: OMIT_BIGINT,
+    include: EVENT_INCLUDE,
     orderBy: { date: "desc" },
   });
+  return rows.map(r => mapTx(r as unknown as RawWithEvents));
 }
 
 export async function createTransaction(ctx: RequestContext, input: CreateTransactionInput) {
-  const tx = await ctx.db.transaction.create({
+  const ids = input.calendarEventIds ?? [];
+  await validateEventIds(ctx, ids);
+
+  const raw = await ctx.db.transaction.create({
     data: {
       type:          input.type,
       category:      input.category,
@@ -39,39 +71,64 @@ export async function createTransaction(ctx: RequestContext, input: CreateTransa
       date:          input.date,
       description:   input.description,
       paymentMethod: input.paymentMethod ?? null,
-      paidTo:        input.paidTo        ?? null,
       semester:      input.semester      ?? null,
       status:        input.status        ?? "posted",
+      calendarEvents: ids.length > 0
+        ? { create: ids.map(id => ({ calendarEventId: id })) }
+        : undefined,
     },
-    omit: OMIT_BIGINT,
+    include: EVENT_INCLUDE,
   });
-  await emit(ctx, "transaction.created", { type: "Transaction", id: tx.id }, {
-    type:        tx.type as "income" | "expense",
-    category:    tx.category,
-    amount:      tx.amount,
-    description: tx.description,
+
+  const tx = mapTx(raw as unknown as RawWithEvents);
+  await emit(ctx, "transaction.created", { type: "Transaction", id: raw.id }, {
+    type:        raw.type as "income" | "expense",
+    category:    raw.category,
+    amount:      raw.amount,
+    description: raw.description,
   });
   return tx;
 }
 
 export async function updateTransaction(ctx: RequestContext, id: number, input: UpdateTransactionInput) {
-  const data: Prisma.TransactionUpdateInput = {};
+  const { calendarEventIds, ...scalarInput } = input;
+
+  if (calendarEventIds !== undefined) {
+    await validateEventIds(ctx, calendarEventIds);
+  }
+
+  const scalarData: Record<string, unknown> = {};
   const changedFields: string[] = [];
-  for (const k of Object.keys(input) as (keyof UpdateTransactionInput)[]) {
-    const v = input[k];
+  for (const k of Object.keys(scalarInput) as (keyof typeof scalarInput)[]) {
+    const v = scalarInput[k];
     if (v === undefined) continue;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (data as any)[k] = v;
+    scalarData[k] = v;
     changedFields.push(k);
     if (k === "amount" && typeof v === "number") {
-      data.amountCents = BigInt(Math.round(v * 100));
+      scalarData.amountCents = BigInt(Math.round(v * 100));
       changedFields.push("amountCents");
     }
   }
 
-  const tx = await ctx.db.transaction.update({ where: { id }, data, omit: OMIT_BIGINT });
-  await emit(ctx, "transaction.updated", { type: "Transaction", id: tx.id }, {
-    description:   tx.description,
+  if (calendarEventIds !== undefined) changedFields.push("calendarEventIds");
+
+  const raw = await ctx.db.transaction.update({
+    where: { id },
+    data: {
+      ...scalarData,
+      ...(calendarEventIds !== undefined ? {
+        calendarEvents: {
+          deleteMany: {},
+          create: calendarEventIds.map(eid => ({ calendarEventId: eid })),
+        },
+      } : {}),
+    },
+    include: EVENT_INCLUDE,
+  });
+
+  const tx = mapTx(raw as unknown as RawWithEvents);
+  await emit(ctx, "transaction.updated", { type: "Transaction", id: raw.id }, {
+    description:   raw.description,
     changedFields,
   });
   return tx;

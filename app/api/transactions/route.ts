@@ -10,14 +10,20 @@ export async function GET(req: NextRequest) {
   if (error) return error;
   try {
     const { searchParams } = new URL(req.url);
+    const rawEventId = searchParams.get("calendarEventId");
     const transactions = await listTransactions(ctx, {
-      type:     searchParams.get("type")     ?? undefined,
-      semester: searchParams.get("semester") ?? undefined,
-      category: searchParams.get("category") ?? undefined,
+      type:            searchParams.get("type")     ?? undefined,
+      semester:        searchParams.get("semester") ?? undefined,
+      category:        searchParams.get("category") ?? undefined,
+      calendarEventId: rawEventId ? Number(rawEventId) : undefined,
     });
     return Response.json(transactions);
   } catch (e) {
     logError(e, { route: "/api/transactions", method: "GET", userId: ctx.actorId, extra: { requestId: ctx.requestId } });
+    if (process.env.NODE_ENV !== "production") {
+      const msg = e instanceof Error ? `${e.name}: ${e.message}\n${e.stack ?? ""}` : String(e);
+      return Response.json({ error: "Internal server error", _dev: msg }, { status: 500 });
+    }
     return toResponse(e);
   }
 }
