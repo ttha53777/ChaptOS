@@ -84,6 +84,7 @@ export interface ProgrammingTask {
   attachmentUrl: string | null;
   attachmentDocId: number | null;
   roomStatus: "na" | "not_submitted" | "submitted" | "confirmed";
+  itineraryNotNeeded: boolean;
   flyerPosted: boolean;
   socialsMeeting: boolean;
   spendingCents: number;

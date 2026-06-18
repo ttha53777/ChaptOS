@@ -420,6 +420,7 @@ model ProgrammingEvent {
   attachmentUrl   String?
   attachmentDocId Int?
   roomStatus      String   @default("not_submitted")
+  itineraryNotNeeded Boolean @default(false) // marks the itinerary prep item done without a file
   flyerPosted     Boolean  @default(false)
   socialsMeeting  Boolean  @default(false)
   spendingCents   Int      @default(0)

@@ -93,6 +93,7 @@ export interface ProgrammingTaskRow {
   attachmentUrl: string | null;
   attachmentDocId: number | null;
   roomStatus: string;
+  itineraryNotNeeded?: boolean;
   flyerPosted: boolean;
   socialsMeeting: boolean;
   spendingCents: number;
@@ -118,6 +119,7 @@ export interface ProgrammingTaskDto {
   attachmentUrl: string | null;
   attachmentDocId: number | null;
   roomStatus: RoomStatus;
+  itineraryNotNeeded: boolean;
   flyerPosted: boolean;
   socialsMeeting: boolean;
   spendingCents: number;
@@ -148,6 +150,7 @@ export function toProgrammingTask(row: ProgrammingTaskRow): ProgrammingTaskDto {
     attachmentUrl:   row.attachmentUrl ?? null,
     attachmentDocId: row.attachmentDocId ?? null,
     roomStatus:      (row.roomStatus ?? "not_submitted") as RoomStatus,
+    itineraryNotNeeded: row.itineraryNotNeeded ?? false,
     flyerPosted:     row.flyerPosted ?? false,
     socialsMeeting:  row.socialsMeeting ?? false,
     spendingCents:   row.spendingCents ?? 0,
@@ -228,12 +231,13 @@ export function programmingPrepChecks(event: {
   roomStatus: RoomStatus;
   attachmentUrl: string | null;
   attachmentDocId: number | null;
+  itineraryNotNeeded?: boolean;
   flyerPosted: boolean;
   socialsMeeting: boolean;
 }): PrepCheck[] {
   return [
     { key: "room",       label: "Room",        done: event.roomStatus === "confirmed" || event.roomStatus === "na" },
-    { key: "attachment", label: "Itinerary",   done: Boolean(event.attachmentUrl?.trim() || event.attachmentDocId) },
+    { key: "attachment", label: "Itinerary",   done: Boolean(event.attachmentUrl?.trim() || event.attachmentDocId) || Boolean(event.itineraryNotNeeded) },
     { key: "flyer",      label: "Flyer",       done: event.flyerPosted },
     { key: "socials",    label: "Socials mtg", done: event.socialsMeeting },
   ];
@@ -243,6 +247,7 @@ export function programmingPrepScore(event: {
   roomStatus: RoomStatus;
   attachmentUrl: string | null;
   attachmentDocId: number | null;
+  itineraryNotNeeded?: boolean;
   flyerPosted: boolean;
   socialsMeeting: boolean;
 }): { done: number; total: number } {

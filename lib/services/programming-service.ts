@@ -13,6 +13,8 @@ import {
   typeLabelToCategory,
 } from "@/lib/programming";
 import { isProgrammingStage, stageRequiresCalendar } from "@/lib/state/programming-stage";
+import { programmingPrepScore } from "@/lib/programming";
+import { isRoomStatus } from "@/lib/state/programming-prep";
 import type {
   AttachProgrammingDocInput,
   CreateChecklistItemInput,
@@ -41,6 +43,7 @@ const ROW_SELECT = {
   attachmentUrl:   true,
   attachmentDocId: true,
   roomStatus:      true,
+  itineraryNotNeeded: true,
   flyerPosted:     true,
   socialsMeeting:  true,
   spendingCents:   true,
@@ -150,6 +153,7 @@ export async function updateProgrammingTask(ctx: RequestContext, id: number, inp
   if (input.attachmentUrl !== undefined) { data.attachmentUrl = input.attachmentUrl; changedFields.push("attachmentUrl"); }
   if (input.attachmentDocId !== undefined) { data.attachmentDocId = input.attachmentDocId; changedFields.push("attachmentDocId"); }
   if (input.roomStatus !== undefined)   { data.roomStatus = input.roomStatus; changedFields.push("roomStatus"); }
+  if (input.itineraryNotNeeded !== undefined) { data.itineraryNotNeeded = input.itineraryNotNeeded; changedFields.push("itineraryNotNeeded"); }
   if (input.flyerPosted !== undefined)  { data.flyerPosted = input.flyerPosted; changedFields.push("flyerPosted"); }
   if (input.socialsMeeting !== undefined) { data.socialsMeeting = input.socialsMeeting; changedFields.push("socialsMeeting"); }
   if (input.spendingCents !== undefined) { data.spendingCents = input.spendingCents; changedFields.push("spendingCents"); }
@@ -208,6 +212,16 @@ export async function setStage(ctx: RequestContext, id: number, input: SetStageI
 
   if (promoting && !pe.date) {
     throw new ValidationError("A date is required to move an event out of Idea.");
+  }
+
+  if (next === "confirmed" && pe.stage === "planning") {
+    const roomStatus = isRoomStatus(pe.roomStatus) ? pe.roomStatus : "not_submitted";
+    const { done, total } = programmingPrepScore({ ...pe, roomStatus });
+    if (done < total) {
+      throw new ValidationError(
+        `All prep items must be completed before confirming an event (${done}/${total} done).`,
+      );
+    }
   }
 
   let createdCalendarId: number | null = null;

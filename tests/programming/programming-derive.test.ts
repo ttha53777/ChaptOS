@@ -33,6 +33,7 @@ function task(over: Partial<ProgrammingTaskDto> = {}): ProgrammingTaskDto {
     attachmentUrl: null,
     attachmentDocId: null,
     roomStatus: "not_submitted",
+    itineraryNotNeeded: false,
     flyerPosted: false,
     socialsMeeting: false,
     spendingCents: 0,
@@ -66,6 +67,12 @@ describe("programmingPrepScore / programmingPrepChecks", () => {
     const partial = task({ roomStatus: "na", attachmentDocId: 7 });
     const score = programmingPrepScore(partial);
     expect(score.done).toBe(2); // room + attachment, no flyer/socials
+  });
+
+  it("treats itinerary as done when marked not-needed, even without a file", () => {
+    const check = programmingPrepChecks(task({ itineraryNotNeeded: true }))[1];
+    expect(check.key).toBe("attachment");
+    expect(check.done).toBe(true);
   });
 
   it("treats submitted/not_submitted room as not done", () => {

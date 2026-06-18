@@ -34,6 +34,7 @@ export const updateProgrammingTaskInput = z.object({
   attachmentUrl:   optionalHttpsUrl,
   attachmentDocId: z.number().int().positive().nullable().optional(),
   roomStatus:      z.enum(ROOM_STATUSES).optional(),
+  itineraryNotNeeded: z.boolean().optional(),
   flyerPosted:     z.boolean().optional(),
   socialsMeeting:  z.boolean().optional(),
   spendingCents:   z.number().int().min(0).max(999_999_999).optional(),
