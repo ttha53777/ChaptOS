@@ -107,6 +107,20 @@ function ActiveBar() {
   return <span aria-hidden="true" className="absolute left-0 top-1/2 h-3.5 w-[3px] -translate-y-1/2 rounded-r-full bg-[#a78bfa]" />;
 }
 
+// Small rose notification pill shown next to a nav item that has items needing
+// attention (e.g. pending reimbursement tickets on Treasury). Counts over 9
+// collapse to "9+" so the pill never widens the row.
+function NavCountBadge({ count, label }: { count: number; label: string }) {
+  return (
+    <span
+      className="ml-auto inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-[#f43f5e] px-1.5 text-[10px] font-bold leading-none text-white shadow-[0_1px_4px_rgba(244,63,94,0.45)]"
+      aria-label={`${count} ${label}`}
+    >
+      {count > 9 ? "9+" : count}
+    </span>
+  );
+}
+
 // ─── Sidebar ──────────────────────────────────────────────────────────────────
 
 export function Sidebar({ open, onClose, activeSection, onNavClick }: {
@@ -118,8 +132,11 @@ export function Sidebar({ open, onClose, activeSection, onNavClick }: {
   const pathname = usePathname();
   const router   = useRouter();
   const orgPath  = useOrgPath();
-  const { currentUser } = useChapter();
+  const { currentUser, reimbursementList } = useChapter();
   const v = useVocab();
+
+  // Pending reimbursement tickets drive the red count badge next to Treasury.
+  const pendingReimbursements = reimbursementList.filter(r => r.status === "pending").length;
   const orgName = currentUser?.org?.name ?? "Operations";
   const logoUrl = currentUser?.org?.logoUrl ?? null;
 
@@ -220,6 +237,9 @@ export function Sidebar({ open, onClose, activeSection, onNavClick }: {
           {isActive && <ActiveBar />}
           <SvgIcon d={NAV_ICONS[label] ?? ""} className="h-4 w-4 shrink-0 opacity-75" />
           {displayLabel}
+          {isTreasury && pendingReimbursements > 0 && (
+            <NavCountBadge count={pendingReimbursements} label="reimbursement requests awaiting review" />
+          )}
         </Link>
       );
     }

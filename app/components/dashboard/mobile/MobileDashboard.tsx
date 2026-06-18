@@ -94,6 +94,7 @@ export interface MobileActions {
   completeIG: (id: number) => void;
   openEditIG: (id: number) => void;
   deleteIG: (id: number) => void;
+  openReimbursements: () => void;
 }
 
 export interface MobileDashboardProps {

@@ -2,7 +2,7 @@
 
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import {
-  Brother, Deadline, InstagramTask, ProgrammingTask, PartyEvent, ActivityEntry, Transaction,
+  Brother, Deadline, InstagramTask, ProgrammingTask, PartyEvent, ActivityEntry, Transaction, Reimbursement,
 } from "../data";
 import { AVATAR_CHANGED_EVENT, parseAvatarFromMetadata } from "@/lib/avatar";
 import { createClient } from "@/lib/supabase/client";
@@ -109,6 +109,8 @@ interface ChapterContextValue {
   setTreasuryData: React.Dispatch<React.SetStateAction<TreasuryData | null>>;
   transactionList: Transaction[];
   setTransactionList: React.Dispatch<React.SetStateAction<Transaction[]>>;
+  reimbursementList: Reimbursement[];
+  setReimbursementList: React.Dispatch<React.SetStateAction<Reimbursement[]>>;
   isLoading: boolean;
   loadError: string | null;
   /**
@@ -139,7 +141,8 @@ type ChapterSection =
   | "parties"
   | "activity"
   | "treasury"
-  | "transactions";
+  | "transactions"
+  | "reimbursements";
 
 const ChapterContext = createContext<ChapterContextValue | null>(null);
 
@@ -178,6 +181,7 @@ export function ChapterProvider({ children }: { children: React.ReactNode }) {
   const [activityFeed,     setActivityFeed]     = useState<ActivityEntry[]>([]);
   const [treasuryData,     setTreasuryData]     = useState<TreasuryData | null>(null);
   const [transactionList,  setTransactionList]  = useState<Transaction[]>([]);
+  const [reimbursementList, setReimbursementList] = useState<Reimbursement[]>([]);
   const [currentUser,      setCurrentUser]      = useState<CurrentUser | null>(null);
   const [avatarRevision,   setAvatarRevision]   = useState(0);
   const [isLoading, setIsLoading] = useState(true);
@@ -265,6 +269,7 @@ export function ChapterProvider({ children }: { children: React.ReactNode }) {
           fetchJson<ActivityEntry[]>("/api/activity"),
           fetchJson<TreasuryData>("/api/treasury"),
           fetchJson<Transaction[]>("/api/transactions"),
+          fetchJson<Reimbursement[]>("/api/reimbursements"),
         ])
       : null;
 
@@ -297,7 +302,7 @@ export function ChapterProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    const [brothers, deadlines, instagram, programming, parties, activity, treasury, transactions] = await sectionsPromise;
+    const [brothers, deadlines, instagram, programming, parties, activity, treasury, transactions, reimbursements] = await sectionsPromise;
 
     if (!isLatest()) return;
 
@@ -346,6 +351,9 @@ export function ChapterProvider({ children }: { children: React.ReactNode }) {
 
     if (transactions.status === "fulfilled") setTransactionList(transactions.value ?? []);
     else                                     trackFailure("transactions", transactions);
+
+    if (reimbursements.status === "fulfilled") setReimbursementList(reimbursements.value ?? []);
+    else                                       trackFailure("reimbursements", reimbursements);
 
     setSectionErrors(failed);
     setIsLoading(false);
@@ -423,6 +431,7 @@ export function ChapterProvider({ children }: { children: React.ReactNode }) {
     activityFeed, setActivityFeed,
     treasuryData, setTreasuryData,
     transactionList, setTransactionList,
+    reimbursementList, setReimbursementList,
     isLoading, loadError, sectionErrors,
     mutationError, setMutationError,
     refreshChapterData, hasLoaded,
@@ -433,7 +442,7 @@ export function ChapterProvider({ children }: { children: React.ReactNode }) {
     setAvatarUrl,
     can,
     brotherList, deadlineList, igTaskList, programmingTaskList, partyList,
-    activityFeed, treasuryData, transactionList,
+    activityFeed, treasuryData, transactionList, reimbursementList,
     isLoading, loadError, sectionErrors, mutationError, hasLoaded,
     refreshChapterData,
     setDisabledFeaturesLocal,

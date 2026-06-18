@@ -16,6 +16,19 @@ export const INCOME_CATEGORIES: IncomeCategory[] = ["Door", "Dues", "Fines", "Fu
 export const EXPENSE_CATEGORIES: ExpenseCategory[] = ["Party Supplies", "Operations", "Brotherhood", "Events", "House", "Travel", "Misc"];
 export const PAYMENT_METHODS: PaymentMethod[] = ["venmo", "cash", "check", "invoice"];
 
+export interface Reimbursement {
+  id: number;
+  brotherId: number;
+  brother: { id: number; name: string; avatarUrl: string | null };
+  amount: number;
+  date: string;
+  description: string;
+  status: "pending" | "approved" | "rejected";
+  rejectionNote?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface Transaction {
   id: number;
   type: "income" | "expense";
@@ -378,6 +391,7 @@ export function getBrotherStatus(b: Brother, thresholds: Thresholds = THRESHOLDS
 
 export type AttentionItem =
   | { kind: "deadline-overdue"; id: number; title: string; owner: string; dueDate: string; daysLate: number }
+  | { kind: "reimbursement"; count: number; total: number; requests: { id: number; name: string; amount: number }[] }
   | { kind: "dues"; total: number; brothers: { id: number; name: string; amount: number }[] }
   | { kind: "member-risk"; brotherId: number; name: string; attendance: number; gpa: number; serviceHours: number };
 
@@ -393,6 +407,7 @@ export function deriveNeedsAttention(
   deadlines: Deadline[],
   thresholds: Thresholds = THRESHOLDS,
   today: string = new Date().toISOString().slice(0, 10),
+  pendingReimbursements: Reimbursement[] = [],
 ): AttentionItem[] {
   const items: AttentionItem[] = [];
 
@@ -405,6 +420,20 @@ export function deriveNeedsAttention(
       kind: "deadline-overdue",
       id: d.id, title: d.title, owner: d.owner, dueDate: d.dueDate,
       daysLate: isoDaysBetween(d.dueDate, today),
+    });
+  }
+
+  // Pending reimbursements (rose): aggregated into one row, newest filed first.
+  // Only "pending" tickets surface here — approved/rejected have been addressed.
+  const pending = pendingReimbursements
+    .filter(r => r.status === "pending")
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  if (pending.length > 0) {
+    items.push({
+      kind: "reimbursement",
+      count: pending.length,
+      total: pending.reduce((s, r) => s + r.amount, 0),
+      requests: pending.map(r => ({ id: r.id, name: r.brother.name, amount: r.amount })),
     });
   }
 

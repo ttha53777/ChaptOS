@@ -130,6 +130,7 @@ export function MobileHomeTab({ health, needsAttention, tasksData, actions }: {
 function rowKey(item: AttentionItem, i: number): string {
   if (item.kind === "deadline-overdue") return `dl-${item.id}`;
   if (item.kind === "member-risk") return `mr-${item.brotherId}`;
+  if (item.kind === "reimbursement") return "reimbursement";
   return `dues-${i}`;
 }
 
@@ -149,6 +150,19 @@ function NeedsYouRow({ item, actions, v }: {
         pill={late}
         pillCls="bg-[var(--rose-bg)] text-[var(--rose)]"
         onClick={() => actions.openEditDeadline(item.id)}
+      />
+    );
+  }
+  if (item.kind === "reimbursement") {
+    return (
+      <Row
+        iconBg="bg-[var(--rose-bg)] text-[var(--rose)]"
+        icon="M9 14l6-6M9.5 8.5h.01M14.5 13.5h.01M5 3h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2z"
+        title={`${item.count} reimbursement ${item.count === 1 ? "request" : "requests"}`}
+        desc={`Awaiting review · ${fmt$(item.total)} total`}
+        pill="Review"
+        pillCls="bg-[var(--rose-bg)] text-[var(--rose)]"
+        onClick={() => actions.openReimbursements()}
       />
     );
   }

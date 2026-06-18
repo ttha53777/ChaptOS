@@ -12,12 +12,14 @@ export function NeedsAttention({
   onMarkDone,
   onOpenProfile,
   onSendReminder,
+  onOpenReimbursements,
   hideButton,
 }: {
   items: AttentionItem[];
   onMarkDone: (deadlineId: number) => void;
   onOpenProfile: (brotherId: number) => void;
   onSendReminder: () => void;
+  onOpenReimbursements: () => void;
   hideButton?: React.ReactNode;
 }) {
   return (
@@ -47,6 +49,22 @@ export function NeedsAttention({
                   </p>
                 </div>
                 <button type="button" className="act" onClick={() => onMarkDone(it.id)}>Mark done</button>
+              </div>
+            );
+          }
+          if (it.kind === "reimbursement") {
+            return (
+              <div className="att-row" key="reimbursement">
+                <span className="dot bg-rose" />
+                <span className="tag rose">REIMBURSE</span>
+                <div className="body">
+                  <p className="t">{it.count} reimbursement {it.count === 1 ? "request" : "requests"} awaiting review · {fmt$(it.total)}</p>
+                  <p className="m">
+                    {it.requests.slice(0, 3).map((r) => `${r.name.split(" ")[0]} ${fmt$(r.amount)}`).join(" · ")}
+                    {it.requests.length > 3 ? " · …" : ""}
+                  </p>
+                </div>
+                <button type="button" className="act" onClick={onOpenReimbursements}>Review</button>
               </div>
             );
           }
