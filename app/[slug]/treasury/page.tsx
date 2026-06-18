@@ -8,15 +8,18 @@ import { BrotherAvatar } from "../../components/BrotherAvatar";
 
 const TreasuryAreaChart = dynamic(
   () => import("../../components/treasury/TreasuryCharts").then(m => m.TreasuryAreaChart),
-  { ssr: false, loading: () => <div className="h-[232px] animate-pulse rounded-lg bg-white/[0.03]" /> }
+  { ssr: false, loading: () => <div className="tr-skel h-[232px] rounded-lg" /> }
 );
 const TreasuryDonutChart = dynamic(
   () => import("../../components/treasury/TreasuryCharts").then(m => m.TreasuryDonutChart),
-  { ssr: false, loading: () => <div className="h-[220px] animate-pulse rounded-full bg-white/[0.03] mx-auto max-w-[260px]" /> }
+  { ssr: false, loading: () => <div className="tr-skel h-[220px] rounded-full mx-auto max-w-[220px]" /> }
 );
 import { Modal, FieldLabel } from "../../components/dashboard/primitives";
-import { inputCls } from "../../components/dashboard/styles";
+import { inputDuskCls, btnDuskGhostCls, btnDuskActionCls } from "../../components/dashboard/styles";
+import { LedgerStrip, Measure } from "../../components/dashboard/ledger/LedgerStrip";
 import { BudgetView } from "../../components/treasury/BudgetView";
+import "../../components/dashboard/dashboard-ledger.css";
+import "./treasury-ledger.css";
 import { useChapter } from "../../context/ChapterContext";
 import { useVocab } from "../../hooks/useVocab";
 import {
@@ -24,7 +27,7 @@ import {
   INCOME_CATEGORIES, EXPENSE_CATEGORIES,
   fmt$, fmtDate, round2,
 } from "../../data";
-import { TxForm } from "../../components/treasury/TxForm";
+import { TxForm, type TxFormEvent } from "../../components/treasury/TxForm";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -168,32 +171,32 @@ function PartyForm({
   return (
     <form onSubmit={handleSubmit} className="space-y-3">
       <div>
-        <FieldLabel>Event Name</FieldLabel>
-        <input type="text" value={name} onChange={e => setName(e.target.value)} required placeholder="Spring Rush Social" className={inputCls} />
+        <FieldLabel tone="dusk">Event Name</FieldLabel>
+        <input type="text" value={name} onChange={e => setName(e.target.value)} required placeholder="Spring Rush Social" className={inputDuskCls} />
       </div>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div>
-          <FieldLabel>Date</FieldLabel>
-          <input type="date" value={date} onChange={e => setDate(e.target.value)} required className={inputCls} />
+          <FieldLabel tone="dusk">Date</FieldLabel>
+          <input type="date" value={date} onChange={e => setDate(e.target.value)} required className={inputDuskCls} />
         </div>
         <div>
-          <FieldLabel>Door Revenue ($)</FieldLabel>
-          <input type="number" min="0" step="0.01" value={doorRevenue} onChange={e => setDoorRevenue(e.target.value)} required placeholder="0" className={inputCls} />
+          <FieldLabel tone="dusk">Door Revenue ($)</FieldLabel>
+          <input type="number" min="0" step="0.01" value={doorRevenue} onChange={e => setDoorRevenue(e.target.value)} required placeholder="0" className={inputDuskCls} />
         </div>
       </div>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div>
-          <FieldLabel>Attendance</FieldLabel>
-          <input type="number" min="0" value={attendance} onChange={e => setAttendance(e.target.value)} required placeholder="0" className={inputCls} />
+          <FieldLabel tone="dusk">Attendance</FieldLabel>
+          <input type="number" min="0" value={attendance} onChange={e => setAttendance(e.target.value)} required placeholder="0" className={inputDuskCls} />
         </div>
         <div>
-          <FieldLabel>Notes</FieldLabel>
-          <input type="text" value={notes} onChange={e => setNotes(e.target.value)} placeholder="Optional notes" className={inputCls} />
+          <FieldLabel tone="dusk">Notes</FieldLabel>
+          <input type="text" value={notes} onChange={e => setNotes(e.target.value)} placeholder="Optional notes" className={inputDuskCls} />
         </div>
       </div>
       <div className="flex justify-end gap-2 pt-1">
-        <button type="button" onClick={onCancel} className="rounded-lg border border-white/[0.08] px-4 py-1.5 text-[13px] text-slate-400 hover:border-white/[0.16] hover:text-white transition-colors">Cancel</button>
-        <button type="submit" className="rounded-lg bg-indigo-600 px-4 py-1.5 text-[13px] font-semibold text-white hover:bg-indigo-500 transition-colors">
+        <button type="button" onClick={onCancel} className={btnDuskGhostCls}>Cancel</button>
+        <button type="submit" className={btnDuskActionCls}>
           {initial?.id ? "Save Changes" : "Add Event"}
         </button>
       </div>
@@ -206,10 +209,10 @@ function PartyForm({
 function DeleteConfirm({ label, onConfirm, onCancel }: { label: string; onConfirm: () => void; onCancel: () => void }) {
   return (
     <div className="space-y-4">
-      <p className="text-[13px] text-slate-300">Are you sure you want to delete <span className="font-semibold text-white">{label}</span>? This action cannot be undone.</p>
+      <p className="text-[13px] text-[#c9c2b4]">Are you sure you want to delete <span className="font-semibold text-[#ece7dd]">{label}</span>? This action cannot be undone.</p>
       <div className="flex justify-end gap-2">
-        <button onClick={onCancel} className="rounded-lg border border-white/[0.08] px-4 py-1.5 text-[13px] text-slate-400 hover:border-white/[0.16] hover:text-white transition-colors">Cancel</button>
-        <button onClick={onConfirm} className="rounded-lg bg-red-600 px-4 py-1.5 text-[13px] font-semibold text-white hover:bg-red-500 transition-colors">Delete</button>
+        <button onClick={onCancel} className={btnDuskGhostCls}>Cancel</button>
+        <button onClick={onConfirm} className="rounded-lg bg-[#d98ba3] px-4 py-1.5 text-[13px] font-semibold text-[#0f0d0a] hover:bg-[#e6a0b5] transition-colors">Delete</button>
       </div>
     </div>
   );
@@ -217,48 +220,33 @@ function DeleteConfirm({ label, onConfirm, onCancel }: { label: string; onConfir
 
 // ─── Small primitives ─────────────────────────────────────────────────────────
 
-function IconBtn({ path, label, className, onClick }: { path: string; label: string; className?: string; onClick: () => void }) {
+// Row action icon button (edit / delete) on the dusk tables. `tone` picks the hover accent.
+function IconBtn({ path, label, tone, onClick }: { path: string; label: string; tone: "edit" | "del"; onClick: () => void }) {
   return (
-    <button onClick={onClick} title={label} className={`flex h-7 w-7 items-center justify-center rounded-lg transition-colors ${className ?? ""}`}>
-      <svg className="h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <button onClick={onClick} title={label} className={`tr-iconbtn ${tone}`}>
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
         <path strokeLinecap="round" strokeLinejoin="round" d={path} />
       </svg>
     </button>
   );
 }
 
-// Round pill icon button used in the header
+// Round pill icon button used in the briefing head actions.
 function TreasuryIconButton({ onClick, title, children }: { onClick: () => void; title: string; children: React.ReactNode }) {
   return (
-    <button
-      onClick={onClick}
-      title={title}
-      className="flex h-9 w-9 items-center justify-center rounded-full border border-white/[0.08] bg-white/[0.04] text-slate-400 transition-all hover:border-white/[0.16] hover:bg-white/[0.08] hover:text-white"
-    >
+    <button onClick={onClick} title={title} className="tr-icon-btn">
       {children}
     </button>
   );
 }
 
-// Finance card — dark rounded card with very subtle top gradient
+// Dusk card surface (replaces the old FinanceCard gradient panel).
 function FinanceCard({ children, className, style }: { children: React.ReactNode; className?: string; style?: React.CSSProperties }) {
   return (
-    <div
-      className={`rounded-[20px] border border-white/[0.07] ${className ?? ""}`}
-      style={{
-        background: "linear-gradient(to bottom, rgba(255,255,255,0.025) 0%, #10121a 50%)",
-        boxShadow: "0 1px 1px rgba(0,0,0,0.5), 0 8px 20px -10px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.04)",
-        ...style,
-      }}
-    >
+    <div className={`card ${className ?? ""}`} style={style}>
       {children}
     </div>
   );
-}
-
-// Compact label
-function CardLabel({ children }: { children: React.ReactNode }) {
-  return <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">{children}</p>;
 }
 
 // ─── SVG icons ────────────────────────────────────────────────────────────────
@@ -266,7 +254,6 @@ function CardLabel({ children }: { children: React.ReactNode }) {
 const ICON_EDIT   = "M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z";
 const ICON_TRASH  = "M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16";
 const ICON_EXPORT = "M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4";
-const ICON_PLUS   = "M12 4v16m8-8H4";
 const ICON_MENU   = "M4 6h16M4 12h16M4 18h16";
 const ICON_PARTY  = "M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2z";
 
@@ -278,7 +265,8 @@ export default function TreasuryPage() {
   const selfId = currentUser?.id ?? null;
   const canTreasury = can("MANAGE_TREASURY");
 
-  const [sidebarOpen,   setSidebarOpen]   = useState(false);
+  const [calendarEvents, setCalendarEvents] = useState<TxFormEvent[]>([]);
+  const [sidebarOpen,    setSidebarOpen]    = useState(false);
   const [semester,      setSemester]      = useState(CURRENT_SEMESTER);
   const [navTab,        setNavTab]        = useState<NavTab>("Overview");
   const [chartRange,    setChartRange]    = useState<"2W"|"1M"|"3M"|"YTD"|"ALL">("ALL");
@@ -330,8 +318,7 @@ export default function TreasuryPage() {
     const filtered = needle
       ? visibleTxns.filter(t =>
           t.description?.toLowerCase().includes(needle) ||
-          t.category.toLowerCase().includes(needle) ||
-          t.paidTo?.toLowerCase().includes(needle)
+          t.category.toLowerCase().includes(needle)
         )
       : visibleTxns;
     return filtered
@@ -404,6 +391,14 @@ export default function TreasuryPage() {
     [brotherList]
   );
 
+  // Editorial kicker date (e.g. "Sat · Jun 13") — matches sibling ledger pages.
+  const dateLabel = useMemo(() => {
+    const d = new Date();
+    const wk = d.toLocaleDateString("en-US", { weekday: "short" });
+    const md = d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+    return `${wk} · ${md}`;
+  }, []);
+
   // Upcoming: future-dated transactions + upcoming party events
   const today = todayStr();
   const upcomingParties = [...partyList]
@@ -421,11 +416,22 @@ export default function TreasuryPage() {
     expense: totalExpenses,
   };
 
+  // Fetch calendar events once for the TxForm event picker.
+  React.useEffect(() => {
+    requestJson<TxFormEvent[]>("/api/calendar")
+      .then(evs => setCalendarEvents(evs.map(e => ({ id: e.id, title: e.title, date: e.date, category: e.category }))))
+      .catch(() => {});
+  }, []);
+
   // ── Mutations: Transactions ───────────────────────────────────────────────
 
-  const handleAddTx = useCallback(async (data: Omit<Transaction, "id" | "createdAt" | "updatedAt" | "deletedAt">) => {
+  const handleAddTx = useCallback(async (data: Omit<Transaction, "id" | "createdAt" | "updatedAt" | "deletedAt" | "calendarEvents"> & { calendarEventIds: number[] }) => {
+    const { calendarEventIds, ...rest } = data;
+    const optimisticCalEvents = calendarEventIds
+      .map(id => calendarEvents.find(e => e.id === id))
+      .filter(Boolean) as TxFormEvent[];
     const optimisticId = -Date.now();
-    const optimistic: Transaction = { ...data, id: optimisticId, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+    const optimistic: Transaction = { ...rest, calendarEvents: optimisticCalEvents, id: optimisticId, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
     setTransactionList(prev => [optimistic, ...prev]);
     setTxModal(null);
     setMutErr(null);
@@ -440,9 +446,13 @@ export default function TreasuryPage() {
     }
   }, [setTransactionList]);
 
-  const handleEditTx = useCallback(async (tx: Transaction, data: Omit<Transaction, "id" | "createdAt" | "updatedAt" | "deletedAt">) => {
+  const handleEditTx = useCallback(async (tx: Transaction, data: Omit<Transaction, "id" | "createdAt" | "updatedAt" | "deletedAt" | "calendarEvents"> & { calendarEventIds: number[] }) => {
+    const { calendarEventIds, ...rest } = data;
+    const optimisticCalEvents = calendarEventIds
+      .map(id => calendarEvents.find(e => e.id === id))
+      .filter(Boolean) as TxFormEvent[];
     const previous = tx;
-    const updated: Transaction = { ...tx, ...data, updatedAt: new Date().toISOString() };
+    const updated: Transaction = { ...tx, ...rest, calendarEvents: optimisticCalEvents, updatedAt: new Date().toISOString() };
     setTransactionList(prev => prev.map(t => t.id === tx.id ? updated : t));
     setTxModal(null);
     setMutErr(null);
@@ -564,203 +574,196 @@ export default function TreasuryPage() {
   const balance   = totalIncome - postedExpenses + totalDoorRev;
   const projected = Math.round((balance - scheduledDrain) * 1.3);
 
+  // Dues outstanding — surfaced in the glance strip and the AI digest.
+  const duesTotal   = useMemo(() => brotherList.reduce((s, b) => s + b.duesOwed, 0), [brotherList]);
+  const owingCount  = useMemo(() => brotherList.filter(b => b.duesOwed > 0).length, [brotherList]);
+
+  // One-line editorial digest built from live figures (mirrors sibling pages' AI line).
+  const digest = `${fmt$(Math.round(balance))} in the books${bwDelta != null ? (bwDelta >= 0 ? " and trending up" : " and trending down") : ""}` +
+    (scheduledDrain > 0 ? `, with ${fmt$(Math.round(scheduledDrain))} still scheduled` : "") +
+    (owingCount > 0 ? ` — ${owingCount} ${owingCount === 1 ? "brother owes" : "brothers owe"} ${fmt$(Math.round(duesTotal))} in dues.` : ".");
+
   const NAV_TABS: NavTab[] = ["Overview", "Budget", "Transactions", "Reports"];
 
   return (
-    <div className="flex h-screen overflow-hidden" style={{ background: "#07090f" }}>
+    <div className="flex h-screen overflow-hidden bg-[#0f0d0a]">
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} activeSection="Treasury" onNavClick={() => {}} />
 
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
 
-        {/* ── Header ──────────────────────────────────────────────────────── */}
-        <header className="relative z-10 flex h-14 shrink-0 items-center gap-4 border-b border-white/[0.05] px-5 sm:px-7"
-          style={{ background: "rgba(7,9,15,0.85)", backdropFilter: "saturate(140%) blur(12px)", WebkitBackdropFilter: "saturate(140%) blur(12px)" }}>
-          <button onClick={() => setSidebarOpen(true)} className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-white/[0.06] lg:hidden">
-            <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        {/* ── Slim toolbar (mobile hamburger + breadcrumb) ── */}
+        <header className="toolbar-frosted dash-toolbar tr-toolbar-bar relative z-20 flex h-14 shrink-0 items-center gap-3 border-b px-4 sm:px-6">
+          <button onClick={() => setSidebarOpen(true)}
+            className="tb-icon-btn flex h-8 w-8 items-center justify-center rounded-lg lg:hidden" aria-label="Open menu">
+            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d={ICON_MENU} />
             </svg>
           </button>
-
-          {/* Title */}
-          <div className="min-w-0 flex-1">
-            <h1 className="text-[16px] font-semibold leading-tight text-white">{v("Treasury")}</h1>
-            <p className="text-[11px] leading-tight text-slate-500">{currentUser?.org?.name ?? "ChaptOS"} · Financial Overview</p>
-          </div>
-
-          {/* Semester pill */}
-          <div className="hidden items-center gap-1.5 sm:flex">
-            {semesters.map(s => (
-              <button
-                key={s}
-                onClick={() => setSemester(s)}
-                className={`rounded-full px-3 py-1 text-[11px] font-medium transition-all ${
-                  semester === s
-                    ? "bg-indigo-500/15 text-indigo-300 ring-1 ring-indigo-500/30"
-                    : "border border-white/[0.07] text-slate-500 hover:border-white/[0.14] hover:text-slate-300"
-                }`}
-              >
-                {s}
-              </button>
-            ))}
-          </div>
-
-          {/* Action buttons */}
-          <div className="flex items-center gap-2">
-            {canTreasury && (
-              <TreasuryIconButton onClick={handleExport} title="Export CSV">
-                <svg className="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d={ICON_EXPORT} />
-                </svg>
-              </TreasuryIconButton>
-            )}
-            <TreasuryIconButton onClick={() => setPartyModal({ kind: "addParty" })} title="Add Party Event">
-              <svg className="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d={ICON_PARTY} />
-              </svg>
-            </TreasuryIconButton>
-            {canTreasury && (
-              <button
-                onClick={() => setTxModal({ kind: "addTx" })}
-                className="flex h-8 items-center gap-1.5 rounded-full border border-indigo-500/20 bg-white/[0.04] px-3.5 text-[12px] font-semibold text-indigo-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_8px_24px_-18px_rgba(99,102,241,0.45)] transition-all hover:border-indigo-400/35 hover:bg-indigo-500/[0.08] hover:text-white"
-              >
-                <svg className="h-3.5 w-3.5 text-indigo-300" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d={ICON_PLUS} />
-                </svg>
-                <span className="hidden sm:inline">Add Transaction</span>
-              </button>
-            )}
-          </div>
+          <span className="tr-crumb truncate">{v("Treasury")}</span>
         </header>
 
-        {/* ── Nav tabs ─────────────────────────────────────────────────────── */}
-        <div className="flex shrink-0 items-center gap-1 border-b border-white/[0.05] px-5 sm:px-7"
-          style={{ background: "rgba(7,9,15,0.6)" }}>
-          {NAV_TABS.map(tab => (
-            <button
-              key={tab}
-              onClick={() => setNavTab(tab)}
-              className={`relative py-3.5 px-3 text-[12px] font-medium transition-colors ${
-                navTab === tab ? "text-white" : "text-slate-500 hover:text-slate-300"
-              }`}
-            >
-              {tab}
-              {navTab === tab && (
-                <span className="absolute bottom-0 left-0 right-0 h-[2px] rounded-full bg-indigo-400" />
-              )}
-            </button>
-          ))}
-        </div>
-
         {/* ── Main content ─────────────────────────────────────────────────── */}
-        <main className="flex-1 overflow-y-auto" style={{ background: "#07090f" }}>
-          <div className="mx-auto max-w-[1440px] px-5 py-6 sm:px-7">
+        <main className="page-ambient flex-1 overflow-y-auto">
+          <div className="dash dash-treasury" data-dashboard-theme="dusk">
 
             {/* Error toast */}
             {mutErr && (
-              <div className="mb-4 flex items-center justify-between rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3">
-                <p className="text-[13px] text-red-300">{mutErr}</p>
-                <button onClick={() => setMutErr(null)} className="ml-4 text-[11px] text-red-400 hover:text-red-200">Dismiss</button>
+              <div className="tr-toast" role="status">
+                <span>{mutErr}</span>
+                <button onClick={() => setMutErr(null)} aria-label="Dismiss">
+                  <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
               </div>
             )}
 
-            {isLoading && (
-              <div className="space-y-4">
-                <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
-                  <div className="h-[340px] animate-pulse rounded-xl border border-white/[0.06] bg-[#10121a] lg:col-span-8" />
-                  <div className="h-[340px] animate-pulse rounded-xl border border-white/[0.06] bg-[#10121a] lg:col-span-4" />
+            {/* ── Briefing ── */}
+            <section className="briefing" aria-label="Treasury">
+              <div>
+                <p className="kicker">
+                  <span className="today">{dateLabel}</span>
+                  &ensp;·&ensp;{v("Treasury")}&ensp;·&ensp;{semester}
+                </p>
+                <h1 className="greeting">The <em>ledger</em>.</h1>
+                <div className="digest">
+                  <span className="ai-chip">AI</span>
+                  <p>{digest}</p>
                 </div>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                  {[...Array(4)].map((_, i) => <div key={i} className="h-20 animate-pulse rounded-xl border border-white/[0.06] bg-[#10121a]" />)}
-                </div>
-                <div className="h-[420px] animate-pulse rounded-xl border border-white/[0.06] bg-[#10121a]" />
               </div>
-            )}
+              <div className="tr-head-actions">
+                {semesters.map(s => (
+                  <button key={s} onClick={() => setSemester(s)} className={`tr-sem-pill${semester === s ? " on" : ""}`}>
+                    {s}
+                  </button>
+                ))}
+                {canTreasury && (
+                  <TreasuryIconButton onClick={handleExport} title="Export CSV">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d={ICON_EXPORT} /></svg>
+                  </TreasuryIconButton>
+                )}
+                <TreasuryIconButton onClick={() => setPartyModal({ kind: "addParty" })} title="Add Party Event">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d={ICON_PARTY} /></svg>
+                </TreasuryIconButton>
+                {canTreasury && (
+                  <button className="tr-add" onClick={() => setTxModal({ kind: "addTx" })}>
+                    <svg viewBox="0 0 24 24" fill="none" strokeWidth={2.4} strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
+                    New txn
+                  </button>
+                )}
+              </div>
+            </section>
 
-            {!isLoading && <>
+            {/* ── Tab nav (kept) ── */}
+            <nav className="tr-tabs">
+              {NAV_TABS.map(tab => (
+                <button key={tab} className={navTab === tab ? "on" : ""} onClick={() => setNavTab(tab)}>{tab}</button>
+              ))}
+            </nav>
 
-            {/* ── Hero row: Balance chart (8) + Donut (4) ─── Overview only ── */}
-            {navTab === "Overview" && <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
+            {isLoading ? (
+              <>
+                <div className="tr-skel tr-glance" style={{ height: 86, marginTop: 22 }} />
+                <div className="tr-hero">
+                  <div className="tr-skel" style={{ height: 360 }} />
+                  <div className="tr-skel" style={{ height: 360 }} />
+                </div>
+                <div className="tr-skel" style={{ height: 420, marginTop: 18 }} />
+              </>
+            ) : (<>
+
+            {/* ── At-a-glance strip (the addition) ── */}
+            <div className="tr-glance">
+              <LedgerStrip>
+                <Measure
+                  label="Balance"
+                  value={fmt$(Math.round(balance))}
+                  note={`projected ${fmt$(Math.round(projected))} · ${semester}`}
+                  spark={<svg className="spark" width="48" height="20" viewBox="0 0 48 20"><polyline points="0,16 8,15 16,12 24,13 32,8 40,6 48,3" /></svg>}
+                />
+                <Measure
+                  label="Income"
+                  value={fmt$(Math.round(totalIncome))}
+                  note={`${incomeTxns.length} ${incomeTxns.length === 1 ? "transaction" : "transactions"}`}
+                />
+                <Measure
+                  label="Expenses"
+                  value={fmt$(Math.round(totalExpenses))}
+                  note={scheduledDrain > 0 ? `${fmt$(Math.round(scheduledDrain))} scheduled` : `${expenseTxns.length} ${expenseTxns.length === 1 ? "transaction" : "transactions"}`}
+                  noteWarn={scheduledDrain > 0}
+                />
+                <Measure
+                  label="Dues outstanding"
+                  value={fmt$(Math.round(duesTotal))}
+                  note={owingCount > 0 ? `${owingCount} ${owingCount === 1 ? "brother" : "brothers"} owing` : "all settled"}
+                  noteWarn={owingCount > 0}
+                />
+              </LedgerStrip>
+            </div>
+
+            {/* ── Hero row: Balance chart + Donut ─── Overview only ── */}
+            {navTab === "Overview" && <div className="tr-hero">
 
               {/* ── Hero Balance Card ──────────────────────────────────────── */}
-              <FinanceCard className="flex flex-col overflow-hidden lg:col-span-8">
+              <FinanceCard className="flex flex-col overflow-hidden">
                 {/* Card header */}
-                <div className="flex items-start justify-between px-6 pt-5 pb-1">
+                <div className="tr-bal-top">
                   <div>
-                    <CardLabel>Treasury Balance</CardLabel>
-                    <div className="mt-2 flex items-end gap-3">
-                      <p className={`text-[44px] font-light leading-none tracking-tight tabular-nums ${balance >= 0 ? "text-white" : "text-red-400"}`}>
-                        {fmt$(Math.round(balance))}
-                      </p>
+                    <p className="tr-bal-label">{v("Treasury")} Balance</p>
+                    <div className="tr-bal-row">
+                      <span className={`tr-bal-num${balance < 0 ? " neg" : ""}`}>{fmt$(Math.round(balance))}</span>
                       {bwDelta !== null && (
-                        <span className={`mb-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${bwDelta >= 0 ? "bg-emerald-500/15 text-emerald-400" : "bg-red-500/15 text-red-400"}`}>
+                        <span className={`tr-bal-chip ${bwDelta >= 0 ? "up" : "down"}`}>
                           {bwDelta >= 0 ? "+" : ""}{fmt$(Math.round(bwDelta))} biweekly
                         </span>
                       )}
                     </div>
                     {scheduledDrain > 0 && (
-                      <span className="mt-1.5 inline-flex items-center rounded-full bg-amber-500/10 px-2.5 py-0.5 text-[11px] font-semibold text-amber-400 ring-1 ring-inset ring-amber-500/20">
+                      <span className="tr-bal-sched">
                         −{fmt$(Math.round(scheduledDrain))} scheduled → {fmt$(Math.round(balance - scheduledDrain))} projected
                       </span>
                     )}
-                    <p className="mt-1 text-[12px] text-slate-500">
-                      {semester} · Projected <span className="text-slate-400">{fmt$(Math.round(projected))}</span>
-                    </p>
+                    <p className="tr-bal-meta">{semester} · Projected <b>{fmt$(Math.round(projected))}</b></p>
                   </div>
                   {/* Range selector */}
-                  <div className="hidden items-center gap-0.5 sm:flex">
+                  <div className="tr-ranges">
                     {(["2W","1M","3M","YTD","ALL"] as const).map(r => (
-                      <button
-                        key={r}
-                        onClick={() => setChartRange(r)}
-                        className={`rounded-lg px-2.5 py-1 text-[11px] font-medium transition-colors ${
-                          chartRange === r
-                            ? "bg-indigo-500/15 text-indigo-300"
-                            : "text-slate-500 hover:bg-white/[0.05] hover:text-slate-300"
-                        }`}
-                      >
-                        {r}
-                      </button>
+                      <button key={r} onClick={() => setChartRange(r)} className={chartRange === r ? "on" : ""}>{r}</button>
                     ))}
                   </div>
                 </div>
 
                 {/* KPI mini-row */}
-                <div className="mx-6 mt-4 mb-2 grid grid-cols-2 divide-x divide-white/[0.06] rounded-xl border border-white/[0.06] bg-white/[0.02]">
-                  <div className="px-4 py-3">
-                    <p className="text-[9px] font-semibold uppercase tracking-[0.16em] text-slate-500">Income</p>
-                    <p className="mt-1 text-[18px] font-semibold tabular-nums text-emerald-400">{fmt$(Math.round(totalIncome))}</p>
-                    <p className="text-[10px] text-slate-600">{incomeTxns.length} txns</p>
+                <div className="tr-kpi">
+                  <div>
+                    <p className="k">Income</p>
+                    <p className="v sage">{fmt$(Math.round(totalIncome))}</p>
+                    <p className="m">{incomeTxns.length} txns</p>
                   </div>
-                  <div className="px-4 py-3">
-                    <p className="text-[9px] font-semibold uppercase tracking-[0.16em] text-slate-500">Expenses</p>
-                    <p className="mt-1 text-[18px] font-semibold tabular-nums text-red-400">{fmt$(Math.round(totalExpenses))}</p>
-                    <p className="text-[10px] text-slate-600">{expenseTxns.length} txns</p>
+                  <div>
+                    <p className="k">Expenses</p>
+                    <p className="v rose">{fmt$(Math.round(totalExpenses))}</p>
+                    <p className="m">{expenseTxns.length} txns</p>
                   </div>
                 </div>
 
                 {/* Area + Biweekly charts */}
-                <TreasuryAreaChart
-                  data={filteredRunningData}
-                  biweeklyData={biweeklyData}
-                  semester={semester}
-                />
+                <div className="tr-chart">
+                  <TreasuryAreaChart
+                    data={filteredRunningData}
+                    biweeklyData={biweeklyData}
+                    semester={semester}
+                  />
+                </div>
               </FinanceCard>
 
               {/* ── Category Donut Card ────────────────────────────────────── */}
-              {navTab === "Overview" && <FinanceCard className="flex flex-col overflow-hidden lg:col-span-4">
-                <div className="flex items-center justify-between px-5 pt-5 pb-3">
-                  <CardLabel>Category Breakdown</CardLabel>
-                  <div className="flex rounded-lg border border-white/[0.07] bg-white/[0.03] p-0.5">
+              <FinanceCard className="flex flex-col overflow-hidden">
+                <div className="card-h">
+                  <h2>Breakdown</h2>
+                  <div className="tr-donut-toggle">
                     {(["expense", "income"] as const).map(m => (
-                      <button
-                        key={m}
-                        onClick={() => setDonutMode(m)}
-                        className={`rounded-md px-2.5 py-1 text-[10px] font-semibold transition-all ${
-                          donutMode === m
-                            ? "bg-white/[0.10] text-white"
-                            : "text-slate-500 hover:text-slate-300"
-                        }`}
-                      >
+                      <button key={m} onClick={() => setDonutMode(m)} className={donutMode === m ? "on" : ""}>
                         {m.charAt(0).toUpperCase() + m.slice(1)}s
                       </button>
                     ))}
@@ -769,74 +772,46 @@ export default function TreasuryPage() {
 
                 {/* Donut chart */}
                 {donutData.length === 0 ? (
-                  <div className="flex flex-1 items-center justify-center py-10">
-                    <p className="text-[12px] text-slate-600">No {donutMode} data</p>
-                  </div>
+                  <div className="tr-empty">No {donutMode} data</div>
                 ) : (
                   <>
                     {/* Chart area */}
-                    <div className="relative mx-auto w-full max-w-[260px]">
+                    <div className="tr-donut-wrap">
                       <TreasuryDonutChart data={donutData} />
 
                       {/* Center label — sits inside the hole */}
-                      <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-0.5">
-                        <p className="text-[9px] font-semibold uppercase tracking-[0.2em] text-slate-600">
-                          {donutMode === "expense" ? "Expenses" : "Income"}
-                        </p>
-                        <p className="text-[24px] font-semibold tabular-nums leading-none text-white">
-                          {fmt$(Math.round(donutTotal))}
-                        </p>
-                        <p className="text-[10px] text-slate-600">
-                          {donutData.length} {donutData.length === 1 ? "category" : "categories"}
-                        </p>
+                      <div className="tr-donut-center">
+                        <div>
+                          <p className="lbl">{donutMode === "expense" ? "Expenses" : "Income"}</p>
+                          <p className="amt">{fmt$(Math.round(donutTotal))}</p>
+                          <p className="cnt">{donutData.length} {donutData.length === 1 ? "category" : "categories"}</p>
+                        </div>
                       </div>
                     </div>
 
                     {/* Category list */}
-                    <div className="flex-1 overflow-y-auto px-5 pb-5">
-                      <div className="space-y-3">
-                        {donutData.map((entry, index) => {
-                          const pct = donutTotal > 0 ? (entry.value / donutTotal) * 100 : 0;
-                          const color = catColor(entry.name, index);
-                          return (
-                            <div key={entry.name} className="flex items-center gap-3">
-                              {/* Rank */}
-                              <span className="w-4 shrink-0 text-right text-[10px] font-semibold tabular-nums text-slate-600">
-                                {index + 1}
-                              </span>
-                              {/* Color swatch */}
-                              <div
-                                className="h-[28px] w-[4px] shrink-0 rounded-full"
-                                style={{ background: color }}
-                              />
-                              {/* Name + bar + amount */}
-                              <div className="min-w-0 flex-1">
-                                <div className="flex items-baseline justify-between mb-1">
-                                  <p className="truncate text-[12px] font-medium text-slate-300 leading-none">{entry.name}</p>
-                                  <div className="ml-2 flex shrink-0 items-baseline gap-1.5">
-                                    <span className="text-[10px] text-slate-600 tabular-nums">{pct.toFixed(1)}%</span>
-                                    <span className="text-[13px] font-semibold tabular-nums text-white">{fmt$(Math.round(entry.value))}</span>
-                                  </div>
-                                </div>
-                                {/* Progress track */}
-                                <div className="h-[4px] w-full overflow-hidden rounded-full bg-white/[0.06]">
-                                  <div
-                                    className="h-full rounded-full"
-                                    style={{
-                                      width: `${pct}%`,
-                                      background: color,
-                                    }}
-                                  />
-                                </div>
+                    <div className="tr-cat-list">
+                      {donutData.map((entry, index) => {
+                        const pct = donutTotal > 0 ? (entry.value / donutTotal) * 100 : 0;
+                        const color = catColor(entry.name, index);
+                        return (
+                          <div key={entry.name} className="tr-cat">
+                            <span className="rank">{index + 1}</span>
+                            <span className="swatch" style={{ background: color }} />
+                            <div className="body">
+                              <div className="top">
+                                <span className="nm">{entry.name}</span>
+                                <span><span className="pct">{pct.toFixed(1)}%</span><span className="amt">{fmt$(Math.round(entry.value))}</span></span>
                               </div>
+                              <div className="bar"><i style={{ width: `${pct}%`, background: color }} /></div>
                             </div>
-                          );
-                        })}
-                      </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   </>
                 )}
-              </FinanceCard>}
+              </FinanceCard>
 
             </div>}{/* end hero grid */}
 
@@ -853,27 +828,21 @@ export default function TreasuryPage() {
               </div>
             )}
 
-            {/* ── Bottom row: Latest, Upcoming, Reports ── Overview only ────── */}
-            {navTab === "Overview" && <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-12">
+            {/* ── Bottom row: Dues, Upcoming, Reports ── Overview only ──────── */}
+            {navTab === "Overview" && <div className="tr-lower">
 
               {/* ── Brothers with Dues ───────────────────────────────────── */}
-              <FinanceCard className="lg:col-span-5">
-                <div className="flex items-center justify-between border-b border-white/[0.05] px-5 py-4">
-                  <div>
-                    <h2 className="text-[14px] font-semibold text-white">Brothers with Dues</h2>
-                    <p className="mt-0.5 text-[11px] text-slate-500">
-                      {brotherList.filter(b => b.duesOwed > 0).length} owing · {fmt$(brotherList.reduce((s, b) => s + b.duesOwed, 0))} total
-                    </p>
-                  </div>
+              <FinanceCard>
+                <div className="card-h">
+                  <h2>Brothers with Dues</h2>
+                  <span className="sub">{owingCount} owing · {fmt$(duesTotal)}</span>
                 </div>
                 {brothersOwing.length === 0 ? (
-                  <div className="px-5 py-8 text-center">
-                    <p className="text-[12px] text-slate-600">No brothers yet</p>
-                  </div>
+                  <div className="tr-empty-stack"><p>No brothers yet</p></div>
                 ) : (
-                  <div className="max-h-[280px] overflow-y-auto divide-y divide-white/[0.04]">
+                  <div className="max-h-[280px] overflow-y-auto">
                     {brothersOwing.map(b => (
-                      <div key={b.id} className="flex items-center gap-3 px-5 py-3 transition-colors hover:bg-white/[0.02]">
+                      <div key={b.id} className="tr-row">
                         <BrotherAvatar
                           brother={b}
                           selfId={selfId}
@@ -881,30 +850,20 @@ export default function TreasuryPage() {
                           avatarRevision={avatarRevision}
                           size="sm"
                         />
-                        <div className="min-w-0 flex-1">
-                          <p className="text-[13px] font-medium text-slate-200">{b.name}</p>
-                          <p className="text-[10px] text-slate-500">{b.role}</p>
+                        <div className="who">
+                          <p className="nm">{b.name}</p>
+                          <p className="rl">{b.role}</p>
                         </div>
                         {b.duesOwed > 0
-                          ? <span className="shrink-0 tabular-nums text-[14px] font-semibold text-amber-400">{fmt$(b.duesOwed)}</span>
-                          : <span className="shrink-0 tabular-nums text-[13px] text-slate-600">—</span>
+                          ? <span className="owe">{fmt$(b.duesOwed)}</span>
+                          : <span className="owe zero">—</span>
                         }
                         {canTreasury && (
-                          <div className="flex items-center gap-1">
+                          <div className="acts">
                             {b.duesOwed > 0 && (
-                              <button
-                                onClick={() => { setDuesTarget(b); setDuesAction("deduct"); setDuesAmountStr(String(b.duesOwed)); }}
-                                className="rounded-md bg-indigo-500/15 px-2 py-1 text-[11px] font-semibold text-indigo-400 ring-1 ring-inset ring-indigo-500/25 hover:bg-indigo-500/25 transition-colors"
-                              >
-                                Pay
-                              </button>
+                              <button className="tr-mini-btn" onClick={() => { setDuesTarget(b); setDuesAction("deduct"); setDuesAmountStr(String(b.duesOwed)); }}>Pay</button>
                             )}
-                            <button
-                              onClick={() => { setDuesTarget(b); setDuesAction("assign"); setDuesAmountStr(""); }}
-                              className="rounded-md bg-white/[0.05] px-2 py-1 text-[11px] font-semibold text-slate-400 ring-1 ring-inset ring-white/[0.08] hover:bg-white/[0.10] transition-colors"
-                            >
-                              + Add
-                            </button>
+                            <button className="tr-mini-btn ghost" onClick={() => { setDuesTarget(b); setDuesAction("assign"); setDuesAmountStr(""); }}>+ Add</button>
                           </div>
                         )}
                       </div>
@@ -914,59 +873,43 @@ export default function TreasuryPage() {
               </FinanceCard>
 
               {/* ── Upcoming ──────────────────────────────────────────────── */}
-              <FinanceCard className="lg:col-span-4">
-                <div className="border-b border-white/[0.05] px-5 py-4">
-                  <h2 className="text-[14px] font-semibold text-white">Upcoming</h2>
-                  <p className="text-[11px] text-slate-500">Future events & transactions</p>
+              <FinanceCard>
+                <div className="card-h">
+                  <h2>Upcoming</h2>
+                  <span className="sub">Events & txns</span>
                 </div>
                 {upcomingParties.length === 0 && upcomingTxns.length === 0 ? (
-                  <div className="px-5 py-8 text-center">
-                    <p className="text-[12px] text-slate-600">No upcoming treasury items</p>
-                    <button onClick={() => setPartyModal({ kind: "addParty" })} className="mt-3 text-[11px] text-indigo-400 hover:text-indigo-300">
-                      + Schedule an event
-                    </button>
+                  <div className="tr-empty-stack">
+                    <p>No upcoming treasury items</p>
+                    <button onClick={() => setPartyModal({ kind: "addParty" })}>+ Schedule an event</button>
                   </div>
                 ) : (
-                  <div className="divide-y divide-white/[0.04]">
+                  <div>
                     {upcomingParties.map(p => (
-                      <div key={`party-${p.id}`} className="group flex items-center gap-3 px-5 py-3 hover:bg-white/[0.02]">
-                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-pink-500/15">
-                          <svg className="h-4 w-4 text-pink-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d={ICON_PARTY} />
-                          </svg>
+                      <div key={`party-${p.id}`} className="tr-ev-row">
+                        <div className="glyph party">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round"><path d={ICON_PARTY} /></svg>
                         </div>
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-[13px] font-medium text-slate-200">{p.name}</p>
-                          <p className="text-[10px] text-slate-500">{fmtDate(p.date)} · Party event</p>
+                        <div className="body">
+                          <p className="t">{p.name}</p>
+                          <p className="m">{fmtDate(p.date)} · Party event</p>
                         </div>
-                        <p className="shrink-0 text-[13px] font-semibold tabular-nums text-pink-400">
-                          {fmt$(p.doorRevenue)}
-                        </p>
+                        <span className="amt party">{fmt$(p.doorRevenue)}</span>
                       </div>
                     ))}
                     {upcomingTxns.map(t => (
-                      <div key={`tx-${t.id}`} className="flex items-center gap-3 px-5 py-3 hover:bg-white/[0.02]">
-                        <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${
-                          t.type === "income" ? "bg-emerald-500/15" : "bg-red-500/15"
-                        }`}>
-                          <span className={`text-[11px] font-bold ${t.type === "income" ? "text-emerald-400" : "text-red-400"}`}>
-                            {t.category.slice(0, 2).toUpperCase()}
-                          </span>
+                      <div key={`tx-${t.id}`} className="tr-ev-row">
+                        <div className={`glyph ${t.type === "income" ? "inc" : "exp"}`}>
+                          {t.category.slice(0, 2).toUpperCase()}
                         </div>
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-[13px] font-medium text-slate-200">{t.description || t.category}</p>
-                          <p className="text-[10px] text-slate-500">{fmtDate(t.date)}</p>
+                        <div className="body">
+                          <p className="t">{t.description || t.category}</p>
+                          <p className="m">{fmtDate(t.date)}</p>
                         </div>
-                        <div className="flex shrink-0 items-center gap-2">
-                          {t.status === "scheduled" && (
-                            <span className="rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-400 ring-1 ring-inset ring-amber-500/20">
-                              Scheduled
-                            </span>
-                          )}
-                          <p className={`text-[13px] font-semibold tabular-nums ${t.type === "income" ? "text-emerald-400" : "text-red-400"}`}>
-                            {t.type === "income" ? "+" : "-"}{fmt$(t.amount)}
-                          </p>
-                        </div>
+                        {t.status === "scheduled" && <span className="tag">Scheduled</span>}
+                        <span className={`amt ${t.type === "income" ? "inc" : "exp"}`}>
+                          {t.type === "income" ? "+" : "−"}{fmt$(t.amount)}
+                        </span>
                       </div>
                     ))}
                   </div>
@@ -974,51 +917,24 @@ export default function TreasuryPage() {
               </FinanceCard>
 
               {/* ── Reports ───────────────────────────────────────────────── */}
-              <FinanceCard className="flex flex-col lg:col-span-3">
-                <div className="border-b border-white/[0.05] px-5 py-4">
-                  <h2 className="text-[14px] font-semibold text-white">Reports</h2>
-                  <p className="text-[11px] text-slate-500">{semester} summary</p>
+              <FinanceCard className="flex flex-col">
+                <div className="card-h">
+                  <h2>Reports</h2>
+                  <span className="sub">{semester}</span>
                 </div>
-                <div className="flex flex-1 flex-col gap-3 px-5 py-4">
-                  <div className="space-y-2.5">
-                    <div className="flex items-center justify-between">
-                      <p className="text-[11px] text-slate-500">Total Income</p>
-                      <p className="text-[13px] font-semibold tabular-nums text-emerald-400">{fmt$(Math.round(totalIncome))}</p>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <p className="text-[11px] text-slate-500">Total Expenses</p>
-                      <p className="text-[13px] font-semibold tabular-nums text-red-400">{fmt$(Math.round(totalExpenses))}</p>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <p className="text-[11px] text-slate-500">Door Revenue</p>
-                      <p className="text-[13px] font-semibold tabular-nums text-pink-400">{fmt$(Math.round(totalDoorRev))}</p>
-                    </div>
-                    <div className="my-1 border-t border-white/[0.06]" />
-                    <div className="flex items-center justify-between">
-                      <p className="text-[11px] font-semibold text-slate-400">Net Balance</p>
-                      <p className={`text-[14px] font-bold tabular-nums ${balance >= 0 ? "text-indigo-400" : "text-red-400"}`}>{fmt$(Math.round(balance))}</p>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <p className="text-[11px] text-slate-500">Projected</p>
-                      <p className="text-[13px] tabular-nums text-slate-400">{fmt$(Math.round(projected))}</p>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <p className="text-[11px] text-slate-500">Party Events</p>
-                      <p className="text-[13px] tabular-nums text-slate-400">{partyList.length}</p>
-                    </div>
-                  </div>
+                <div className="tr-rep">
+                  <div className="line"><span className="k">Total Income</span><span className="v sage">{fmt$(Math.round(totalIncome))}</span></div>
+                  <div className="line"><span className="k">Total Expenses</span><span className="v rose">{fmt$(Math.round(totalExpenses))}</span></div>
+                  <div className="line"><span className="k">Door Revenue</span><span className="v party">{fmt$(Math.round(totalDoorRev))}</span></div>
+                  <hr />
+                  <div className="line total"><span className="k">Net Balance</span><span className={`v${balance < 0 ? " rose" : ""}`}>{fmt$(Math.round(balance))}</span></div>
+                  <div className="line"><span className="k">Projected</span><span className="v">{fmt$(Math.round(projected))}</span></div>
+                  <div className="line"><span className="k">Party Events</span><span className="v">{partyList.length}</span></div>
                   {canTreasury && (
-                    <div className="mt-auto pt-2">
-                      <button
-                        onClick={handleExport}
-                        className="flex w-full items-center justify-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.03] py-2.5 text-[12px] font-medium text-slate-400 transition-all hover:border-white/[0.16] hover:bg-white/[0.06] hover:text-white"
-                      >
-                        <svg className="h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d={ICON_EXPORT} />
-                        </svg>
-                        Export CSV
-                      </button>
-                    </div>
+                    <button className="tr-exp-btn" onClick={handleExport}>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d={ICON_EXPORT} /></svg>
+                      Export CSV
+                    </button>
                   )}
                 </div>
               </FinanceCard>
@@ -1027,159 +943,86 @@ export default function TreasuryPage() {
             {/* ── Full Transaction Log ── Overview + Transactions tabs ────── */}
             {(navTab === "Overview" || navTab === "Transactions") && <>
 
-            {/* Search bar — shown above the card on Transactions tab only */}
-            {navTab === "Transactions" && (
-              <div className="relative mt-4 flex items-center">
-                <svg className="pointer-events-none absolute left-3.5 h-4 w-4 text-slate-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
-                </svg>
-                <input
-                  type="text"
-                  value={txSearch}
-                  onChange={e => setTxSearch(e.target.value)}
-                  placeholder="Search transactions by description, category, or payee…"
-                  className="w-full rounded-xl border border-white/[0.08] bg-white/[0.03] py-2.5 pl-10 pr-9 text-[13px] text-slate-300 placeholder-slate-600 transition-colors hover:border-white/[0.14] focus:border-indigo-500/50 focus:outline-none"
-                />
-                {txSearch && (
-                  <button
-                    onClick={() => setTxSearch("")}
-                    className="absolute right-3 flex h-5 w-5 items-center justify-center rounded text-slate-500 hover:text-slate-200"
-                  >
-                    <svg className="h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                )}
-              </div>
-            )}
+            <div className="tr-secnote">— The record —</div>
 
-            <FinanceCard className="mt-4 overflow-hidden">
-              <div className="flex flex-col gap-2 border-b border-white/[0.05] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex items-center gap-3 flex-wrap">
-                  <h2 className="text-[14px] font-semibold text-white">Transaction Log</h2>
-                  <div className="flex gap-1">
-                    {(["all", "income", "expense"] as TxTab[]).map(tab => (
-                      <button
-                        key={tab}
-                        onClick={() => { setTxTab(tab); setTxCategory("all"); setTxSearch(""); }}
-                        className={`rounded-lg px-2.5 py-1 text-[11px] font-medium transition-all ${
-                          txTab === tab
-                            ? "bg-white/[0.10] text-white"
-                            : "border border-white/[0.07] text-slate-500 hover:border-white/[0.14] hover:text-slate-200"
-                        }`}
-                      >
-                        {tab.charAt(0).toUpperCase() + tab.slice(1)}
-                      </button>
-                    ))}
-                  </div>
-                  <select
-                    value={txCategory}
-                    onChange={e => setTxCategory(e.target.value)}
-                    className="rounded-lg border border-white/[0.07] bg-white/[0.03] px-2 py-1 text-[11px] font-medium text-slate-300 transition-colors hover:border-white/[0.14] focus:border-indigo-500/60 focus:outline-none"
-                  >
-                    <option value="all">All categories</option>
-                    {categoryOptions.map(c => (
-                      <option key={c} value={c}>{c}</option>
-                    ))}
-                  </select>
-                  {/* Search input — shown inline on Overview tab */}
-                  {navTab === "Overview" && (
-                  <div className="relative flex items-center">
-                    <svg className="pointer-events-none absolute left-2 h-3 w-3 text-slate-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
-                    </svg>
-                    <input
-                      type="text"
-                      value={txSearch}
-                      onChange={e => setTxSearch(e.target.value)}
-                      placeholder="Search…"
-                      className="w-32 rounded-lg border border-white/[0.07] bg-white/[0.03] py-1 pl-6 pr-6 text-[11px] text-slate-300 placeholder-slate-600 transition-colors hover:border-white/[0.14] focus:border-indigo-500/60 focus:outline-none"
-                    />
-                    {txSearch && (
-                      <button
-                        onClick={() => setTxSearch("")}
-                        className="absolute right-1.5 flex h-4 w-4 items-center justify-center rounded text-slate-600 hover:text-slate-300"
-                      >
-                        <svg className="h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                      </button>
-                    )}
-                  </div>
-                  )}
-                  <span className={`text-[12px] font-semibold tabular-nums ${txTab === "expense" ? "text-red-400" : txTab === "income" ? "text-emerald-400" : tabTotals.all >= 0 ? "text-emerald-400" : "text-red-400"}`}>
-                    {txTab === "all" && tabTotals.all >= 0 && "+"}{fmt$(Math.round(tabTotals[txTab]))}
-                  </span>
-                </div>
-                {canTreasury && (
-                  <div className="flex items-center gap-2">
-                    <button onClick={handleExport} className="flex items-center gap-1.5 rounded-lg border border-white/[0.07] bg-white/[0.03] px-2.5 py-1.5 text-[11px] font-medium text-slate-500 transition-all hover:border-white/[0.14] hover:text-slate-200">
-                      <svg className="h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d={ICON_EXPORT} /></svg>
-                      CSV
+            <FinanceCard className="overflow-hidden">
+              <div className="tr-log-h">
+                <h2>Transaction Log</h2>
+                <div className="tr-txtabs">
+                  {(["all", "income", "expense"] as TxTab[]).map(tab => (
+                    <button
+                      key={tab}
+                      className={txTab === tab ? "on" : ""}
+                      onClick={() => { setTxTab(tab); setTxCategory("all"); setTxSearch(""); }}
+                    >
+                      {tab.charAt(0).toUpperCase() + tab.slice(1)}
                     </button>
-                    <button onClick={() => setTxModal({ kind: "addTx" })} className="rounded-lg bg-indigo-500/15 px-2.5 py-1.5 text-[11px] font-semibold text-indigo-400 hover:bg-indigo-500/25 transition-colors">+ Add</button>
-                  </div>
-                )}
+                  ))}
+                </div>
+                <select className="tr-select" value={txCategory} onChange={e => setTxCategory(e.target.value)}>
+                  <option value="all">All categories</option>
+                  {categoryOptions.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+                <span className="tr-grow" />
+                <span className="tr-log-search">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round"><circle cx="11" cy="11" r="7" /><path d="M21 21l-4.3-4.3" /></svg>
+                  <input
+                    type="search"
+                    value={txSearch}
+                    onChange={e => setTxSearch(e.target.value)}
+                    placeholder="Search description, category…"
+                  />
+                  {txSearch && (
+                    <button className="clear" onClick={() => setTxSearch("")} aria-label="Clear search">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round"><path d="M6 18L18 6M6 6l12 12" /></svg>
+                    </button>
+                  )}
+                </span>
+                <span className={`tr-log-total ${txTab === "expense" ? "rose" : txTab === "income" ? "sage" : tabTotals.all >= 0 ? "sage" : "rose"}`}>
+                  {txTab === "all" && tabTotals.all >= 0 && "+"}{fmt$(Math.round(tabTotals[txTab]))}
+                </span>
               </div>
 
               {txnsWithRunning.length === 0 ? (
-                <div className="px-5 py-10 text-center">
-                  <p className="text-[12px] text-slate-600">No transactions for this semester · click + Add to log one</p>
-                </div>
+                <div className="tr-table-empty">No transactions for this semester · click New txn to log one</div>
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full min-w-[640px]">
+                <div className="tr-table-wrap">
+                  <table className="tr-table">
                     <thead>
-                      <tr className="border-b border-white/[0.05] bg-white/[0.015]">
-                        {["Date", "Category", "Description", "Method", "Amount", "Running Balance", ""].map(h => (
-                          <th key={h} className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-600">{h}</th>
+                      <tr>
+                        {["Date", "Category", "Description", "Method", "Amount", "Balance", ""].map((h, i) => (
+                          <th key={h || `act-${i}`} className={h === "Amount" || h === "Balance" ? "r" : undefined}>{h}</th>
                         ))}
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-white/[0.04]">
+                    <tbody>
                       {txnsWithRunning.map(t => (
-                        <tr key={t.id} className="group transition-colors hover:bg-white/[0.02]">
-                          <td className="whitespace-nowrap px-4 py-3 text-[12px] text-slate-500">{fmtDate(t.date)}</td>
-                          <td className="px-4 py-3">
-                            <div className="flex flex-wrap items-center gap-1">
-                              <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium ${
-                                t.type === "income"
-                                  ? "bg-emerald-500/10 text-emerald-400 ring-1 ring-inset ring-emerald-500/20"
-                                  : "bg-red-500/10 text-red-400 ring-1 ring-inset ring-red-500/20"
-                              }`}>
-                                {t.category}
-                              </span>
-                              {t.status === "scheduled" && (
-                                <span className="inline-flex items-center rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-400 ring-1 ring-inset ring-amber-500/20">
-                                  Scheduled
-                                </span>
-                              )}
-                            </div>
+                        <tr key={t.id}>
+                          <td className="date">{fmtDate(t.date)}</td>
+                          <td>
+                            <span className="tr-pill"><span className={`pdot ${t.type === "income" ? "inc" : "exp"}`} />{t.category}</span>
+                            {t.status === "scheduled" && <span className="tr-sched-tag">Sched</span>}
                           </td>
-                          <td className="max-w-[200px] px-4 py-3">
-                            <p className="truncate text-[12px] text-slate-300">{t.description || "—"}</p>
-                            {t.paidTo && <p className="text-[10px] text-slate-600">→ {t.paidTo}</p>}
+                          <td>
+                            <div className="desc">{t.description || "—"}</div>
+                            {t.calendarEvents?.map(ev => (
+                              <div key={ev.id} className="tr-ev-link">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                                {ev.title}
+                              </div>
+                            ))}
                           </td>
-                          <td className="px-4 py-3 text-[12px] capitalize text-slate-600">{t.paymentMethod ?? "—"}</td>
-                          <td className={`whitespace-nowrap px-4 py-3 text-[13px] font-semibold tabular-nums ${t.type === "income" ? "text-emerald-400" : "text-red-400"}`}>
-                            {t.type === "income" ? "+" : "-"}{fmt$(t.amount)}
-                          </td>
-                          <td className={`whitespace-nowrap px-4 py-3 text-[12px] font-medium tabular-nums ${t.running >= 0 ? "text-slate-400" : "text-red-400"}`}>
-                            {fmt$(Math.round(t.running))}
-                          </td>
-                          <td className="px-4 py-3">
+                          <td><span className="method">{t.paymentMethod ?? "—"}</span></td>
+                          <td className="r"><span className={`amt ${t.type === "income" ? "inc" : "exp"}`}>{t.type === "income" ? "+" : "−"}{fmt$(t.amount)}</span></td>
+                          <td className="r"><span className={`run${t.running < 0 ? " neg" : ""}`}>{fmt$(Math.round(t.running))}</span></td>
+                          <td className="r">
                             {canTreasury && (
-                              <div className="flex items-center gap-1 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100">
+                              <div className="tr-row-acts">
                                 {t.status === "scheduled" && (
-                                  <button
-                                    onClick={() => handleMarkPaid(t)}
-                                    className="rounded-md bg-emerald-500/15 px-2 py-1 text-[11px] font-semibold text-emerald-400 ring-1 ring-inset ring-emerald-500/25 hover:bg-emerald-500/25 transition-colors"
-                                  >
-                                    Mark Paid
-                                  </button>
+                                  <button className="tr-markpaid" onClick={() => handleMarkPaid(t)}>Mark Paid</button>
                                 )}
-                                <IconBtn path={ICON_EDIT}  label="Edit"   onClick={() => setTxModal({ kind: "editTx", tx: t })}      className="text-slate-600 hover:bg-indigo-500/20 hover:text-indigo-400" />
-                                <IconBtn path={ICON_TRASH} label="Delete" onClick={() => setDeleteModal({ kind: "tx", tx: t })}      className="text-slate-600 hover:bg-red-500/20 hover:text-red-400" />
+                                <IconBtn path={ICON_EDIT}  label="Edit"   tone="edit" onClick={() => setTxModal({ kind: "editTx", tx: t })} />
+                                <IconBtn path={ICON_TRASH} label="Delete" tone="del"  onClick={() => setDeleteModal({ kind: "tx", tx: t })} />
                               </div>
                             )}
                           </td>
@@ -1197,43 +1040,38 @@ export default function TreasuryPage() {
               const sortedParties = [...partyList].sort((a, b) => b.date.localeCompare(a.date));
               const totalDoorRev  = partyList.reduce((s, p) => s + p.doorRevenue, 0);
               return (
-                <FinanceCard className="mt-4 overflow-hidden">
-                  <div className="flex items-center justify-between border-b border-white/[0.05] px-5 py-4">
-                    <div>
-                      <h2 className="text-[14px] font-semibold text-white">Party Events</h2>
-                      <p className="text-[11px] text-slate-500">Door revenue · {sortedParties.length} events · {fmt$(Math.round(totalDoorRev))} total</p>
-                    </div>
-                    <button onClick={() => setPartyModal({ kind: "addParty" })} className="rounded-lg bg-indigo-500/15 px-2.5 py-1.5 text-[11px] font-semibold text-indigo-400 hover:bg-indigo-500/25 transition-colors">+ Add Event</button>
+                <FinanceCard className="overflow-hidden" style={{ marginTop: 18 }}>
+                  <div className="tr-log-h">
+                    <h2>Party Events</h2>
+                    <span className="sub">Door revenue · {sortedParties.length} events · {fmt$(Math.round(totalDoorRev))} total</span>
+                    <span className="tr-grow" />
+                    {canTreasury && <button className="tr-card-act" onClick={() => setPartyModal({ kind: "addParty" })}>+ Add Event</button>}
                   </div>
                   {sortedParties.length === 0 ? (
-                    <div className="px-5 py-10 text-center">
-                      <p className="text-[12px] text-slate-600">No events logged · click + Add Event to create one</p>
-                    </div>
+                    <div className="tr-table-empty">No events logged · click + Add Event to create one</div>
                   ) : (
-                    <div className="overflow-x-auto">
-                      <table className="w-full min-w-[640px]">
+                    <div className="tr-table-wrap">
+                      <table className="tr-table">
                         <thead>
-                          <tr className="border-b border-white/[0.05] bg-white/[0.015]">
-                            {["Name", "Date", "Door Revenue", "Attendance", "Notes", ""].map(h => (
-                              <th key={h} className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-600">{h}</th>
+                          <tr>
+                            {["Name", "Date", "Door Revenue", "Attendance", "Notes", ""].map((h, i) => (
+                              <th key={h || `act-${i}`} className={h === "Door Revenue" ? "r" : undefined}>{h}</th>
                             ))}
                           </tr>
                         </thead>
-                        <tbody className="divide-y divide-white/[0.04]">
+                        <tbody>
                           {sortedParties.map(p => (
-                            <tr key={p.id} className="group transition-colors hover:bg-white/[0.02]">
-                              <td className="px-4 py-3 text-[13px] font-semibold text-white">{p.name}</td>
-                              <td className="whitespace-nowrap px-4 py-3 text-[12px] text-slate-500">{fmtDate(p.date)}</td>
-                              <td className="px-4 py-3 text-[13px] font-semibold tabular-nums text-pink-400">{fmt$(p.doorRevenue)}</td>
-                              <td className="px-4 py-3 text-[12px] tabular-nums text-slate-500">{p.attendance}</td>
-                              <td className="max-w-[240px] px-4 py-3">
-                                <p className="truncate text-[12px] text-slate-600">{p.notes || "—"}</p>
-                              </td>
-                              <td className="px-4 py-3">
-                                <div className="flex items-center gap-0.5 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100">
-                                  <IconBtn path={ICON_EDIT}  label="Edit"   onClick={() => setPartyModal({ kind: "editParty", event: p })} className="text-slate-600 hover:bg-indigo-500/20 hover:text-indigo-400" />
+                            <tr key={p.id}>
+                              <td><span className="desc" style={{ fontWeight: 600 }}>{p.name}</span></td>
+                              <td className="date">{fmtDate(p.date)}</td>
+                              <td className="r"><span className="party-rev">{fmt$(p.doorRevenue)}</span></td>
+                              <td><span className="method" style={{ textTransform: "none" }}>{p.attendance}</span></td>
+                              <td><span className="desc">{p.notes || "—"}</span></td>
+                              <td className="r">
+                                <div className="tr-row-acts">
+                                  <IconBtn path={ICON_EDIT}  label="Edit"   tone="edit" onClick={() => setPartyModal({ kind: "editParty", event: p })} />
                                   {canTreasury && (
-                                    <IconBtn path={ICON_TRASH} label="Delete" onClick={() => setDeleteModal({ kind: "party", event: p })}   className="text-slate-600 hover:bg-red-500/20 hover:text-red-400" />
+                                    <IconBtn path={ICON_TRASH} label="Delete" tone="del" onClick={() => setDeleteModal({ kind: "party", event: p })} />
                                   )}
                                 </div>
                               </td>
@@ -1249,34 +1087,31 @@ export default function TreasuryPage() {
 
             {/* ── Reports tab: full-width summary ──────────────────────────── */}
             {navTab === "Reports" && (
-              <FinanceCard className="mt-4 flex flex-col gap-3 p-6">
-                <h2 className="text-[14px] font-semibold text-white">Semester Report — {semester}</h2>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <FinanceCard className="flex flex-col gap-4 p-6" style={{ marginTop: 18 }}>
+                <div className="card-h" style={{ padding: 0, border: 0 }}>
+                  <h2>Semester Report — {semester}</h2>
+                </div>
+                <div className="tr-report-grid">
                   {[
-                    { label: "Total Income",   value: fmt$(Math.round(totalIncome)),   color: "text-emerald-400" },
-                    { label: "Total Expenses", value: fmt$(Math.round(totalExpenses)), color: "text-red-400" },
-                    { label: "Door Revenue",   value: fmt$(Math.round(totalDoorRev)),  color: "text-pink-400" },
-                    { label: "Net Balance",    value: fmt$(Math.round(balance)),       color: balance >= 0 ? "text-indigo-400" : "text-red-400" },
-                  ].map(({ label, value, color }) => (
-                    <div key={label} className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-3">
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</p>
-                      <p className={`mt-1 text-[22px] font-semibold tabular-nums ${color}`}>{value}</p>
+                    { label: "Total Income",   value: fmt$(Math.round(totalIncome)),   tone: "sage" },
+                    { label: "Total Expenses", value: fmt$(Math.round(totalExpenses)), tone: "rose" },
+                    { label: "Door Revenue",   value: fmt$(Math.round(totalDoorRev)),  tone: "party" },
+                    { label: "Net Balance",    value: fmt$(Math.round(balance)),       tone: balance >= 0 ? "vio" : "rose" },
+                  ].map(({ label, value, tone }) => (
+                    <div key={label} className="tr-report-cell">
+                      <p className="k">{label}</p>
+                      <p className={`v ${tone}`}>{value}</p>
                     </div>
                   ))}
                 </div>
-                <div className="mt-2 flex items-center justify-between rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-3">
+                <div className="tr-report-cell" style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                   <div>
-                    <p className="text-[11px] text-slate-500">Projected end-of-semester</p>
-                    <p className="text-[20px] font-semibold tabular-nums text-slate-300">{fmt$(Math.round(projected))}</p>
+                    <p className="k">Projected end-of-semester</p>
+                    <p className="v">{fmt$(Math.round(projected))}</p>
                   </div>
                   {canTreasury && (
-                    <button
-                      onClick={handleExport}
-                      className="flex items-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.03] px-4 py-2.5 text-[12px] font-medium text-slate-400 transition-all hover:border-white/[0.16] hover:bg-white/[0.06] hover:text-white"
-                    >
-                      <svg className="h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d={ICON_EXPORT} />
-                      </svg>
+                    <button className="tr-exp-btn" onClick={handleExport}>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d={ICON_EXPORT} /></svg>
                       Export CSV
                     </button>
                   )}
@@ -1284,7 +1119,7 @@ export default function TreasuryPage() {
               </FinanceCard>
             )}
 
-            </>}
+            </>)}
 
           </div>
         </main>
@@ -1294,19 +1129,23 @@ export default function TreasuryPage() {
 
       {txModal && (
         <Modal
+          tone="dusk"
           title={txModal.kind === "addTx" ? "Add Transaction" : "Edit Transaction"}
           onClose={() => setTxModal(null)}
         >
           <TxForm
+            tone="dusk"
             initial={txModal.kind === "editTx" ? txModal.tx : undefined}
             onSubmit={data => txModal.kind === "addTx" ? handleAddTx(data) : handleEditTx(txModal.tx, data)}
             onCancel={() => setTxModal(null)}
+            events={calendarEvents}
           />
         </Modal>
       )}
 
       {partyModal && (
         <Modal
+          tone="dusk"
           title={partyModal.kind === "addParty" ? "Add Party Event" : "Edit Party Event"}
           onClose={() => setPartyModal(null)}
         >
@@ -1320,6 +1159,7 @@ export default function TreasuryPage() {
 
       {deleteModal && (
         <Modal
+          tone="dusk"
           title={deleteModal.kind === "tx" ? "Delete Transaction" : "Delete Party Event"}
           onClose={() => setDeleteModal(null)}
         >
@@ -1333,21 +1173,22 @@ export default function TreasuryPage() {
 
       {duesTarget && (
         <Modal
+          tone="dusk"
           title={duesAction === "deduct" ? "Record Payment" : "Assign Dues"}
           onClose={() => setDuesTarget(null)}
         >
           <div className="space-y-4">
             <div>
-              <p className="text-[12px] text-slate-400 mb-3">
+              <p className="text-[12px] text-[#958d7c] mb-3">
                 {duesTarget.name} currently owes{" "}
-                <span className="font-semibold text-amber-400">{fmt$(duesTarget.duesOwed)}</span>
+                <span className="font-semibold text-[#ddb36a]">{fmt$(duesTarget.duesOwed)}</span>
               </p>
-              <FieldLabel>{duesAction === "deduct" ? "Amount Paid ($)" : "Amount to Assign ($)"}</FieldLabel>
+              <FieldLabel tone="dusk">{duesAction === "deduct" ? "Amount Paid ($)" : "Amount to Assign ($)"}</FieldLabel>
               <input
                 type="number"
                 min="0"
                 step="0.01"
-                className={inputCls}
+                className={inputDuskCls}
                 value={duesAmountStr}
                 onChange={e => setDuesAmountStr(e.target.value)}
                 autoFocus
@@ -1360,9 +1201,9 @@ export default function TreasuryPage() {
                   ? duesTarget.duesOwed + amt
                   : Math.max(0, duesTarget.duesOwed - amt);
                 return (
-                  <p className="mt-1.5 text-[11px] text-slate-500">
+                  <p className="mt-1.5 text-[11px] text-[#958d7c]">
                     New balance:{" "}
-                    <span className={newOwed === 0 ? "text-indigo-400 font-semibold" : "text-slate-300"}>
+                    <span className={newOwed === 0 ? "text-[#a78bfa] font-semibold" : "text-[#c9c2b4]"}>
                       {fmt$(newOwed)}
                     </span>
                   </p>
@@ -1370,16 +1211,13 @@ export default function TreasuryPage() {
               })()}
             </div>
             <div className="flex justify-end gap-2">
-              <button
-                onClick={() => setDuesTarget(null)}
-                className="rounded-lg border border-white/[0.08] px-4 py-1.5 text-[13px] text-slate-400 hover:border-white/[0.16] hover:text-white transition-colors"
-              >
+              <button onClick={() => setDuesTarget(null)} className={btnDuskGhostCls}>
                 Cancel
               </button>
               <button
                 onClick={submitDuesAction}
                 disabled={!(parseFloat(duesAmountStr) > 0)}
-                className="rounded-lg bg-indigo-600 px-4 py-1.5 text-[13px] font-semibold text-white hover:bg-indigo-500 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                className={btnDuskActionCls}
               >
                 {duesAction === "deduct" ? "Record Payment" : "Assign Dues"}
               </button>
