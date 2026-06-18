@@ -24,6 +24,8 @@ export function ProgrammingBoard({
 }) {
   const [dragId, setDragId] = useState<number | null>(null);
   const [overStage, setOverStage] = useState<ProgrammingStage | null>(null);
+  const [showAllDone, setShowAllDone] = useState(false);
+  const DONE_LIMIT = 6;
   // Native HTML5 drag-and-drop doesn't work on touch; on those devices we tell
   // users to open the card and change its stage from the detail panel instead.
   const [touch, setTouch] = useState(false);
@@ -35,6 +37,7 @@ export function ProgrammingBoard({
   const byStage = useMemo(() => {
     const map: Record<ProgrammingStage, ProgrammingTask[]> = { idea: [], planning: [], confirmed: [], done: [] };
     for (const t of tasks) (map[t.stage] ?? map.idea).push(t);
+    map.done.sort((a, b) => (b.dueDate ?? "").localeCompare(a.dueDate ?? ""));
     return map;
   }, [tasks]);
 
@@ -70,21 +73,37 @@ export function ProgrammingBoard({
               <div className="ev-lane-body">
                 {items.length === 0 ? (
                   <p className="empty">{dndEnabled ? "Drop here" : "Nothing here"}</p>
-                ) : (
-                  items.map((task, i) => (
-                    <ProgrammingCard
-                      key={task.id}
-                      task={task}
-                      variant="dusk"
-                      selected={selectedId === task.id}
-                      draggable={dndEnabled}
-                      isDragging={dragId === task.id}
-                      animIndex={i}
-                      onClick={() => onSelect(task.id)}
-                      onDragStart={() => setDragId(task.id)}
-                    />
-                  ))
-                )}
+                ) : (() => {
+                  const visible = stage === "done" && !showAllDone ? items.slice(0, DONE_LIMIT) : items;
+                  const hidden = stage === "done" ? items.length - visible.length : 0;
+                  return (
+                    <>
+                      {visible.map((task, i) => (
+                        <ProgrammingCard
+                          key={task.id}
+                          task={task}
+                          variant="dusk"
+                          selected={selectedId === task.id}
+                          draggable={dndEnabled}
+                          isDragging={dragId === task.id}
+                          animIndex={i}
+                          onClick={() => onSelect(task.id)}
+                          onDragStart={() => setDragId(task.id)}
+                        />
+                      ))}
+                      {hidden > 0 && (
+                        <button className="ev-done-more" onClick={() => setShowAllDone(true)}>
+                          +{hidden} more
+                        </button>
+                      )}
+                      {stage === "done" && showAllDone && items.length > DONE_LIMIT && (
+                        <button className="ev-done-more" onClick={() => setShowAllDone(false)}>
+                          Show less
+                        </button>
+                      )}
+                    </>
+                  );
+                })()}
               </div>
             </div>
           );
@@ -121,20 +140,42 @@ export function ProgrammingBoard({
                 <p className="px-1 py-4 text-center text-[11px] text-slate-600 sm:py-6">
                   {dndEnabled ? "Drop events here" : "Nothing here"}
                 </p>
-              ) : (
-                items.map((task, i) => (
-                  <ProgrammingCard
-                    key={task.id}
-                    task={task}
-                    selected={selectedId === task.id}
-                    draggable={dndEnabled}
-                    isDragging={dragId === task.id}
-                    animIndex={i}
-                    onClick={() => onSelect(task.id)}
-                    onDragStart={() => setDragId(task.id)}
-                  />
-                ))
-              )}
+              ) : (() => {
+                const visible = stage === "done" && !showAllDone ? items.slice(0, DONE_LIMIT) : items;
+                const hidden = stage === "done" ? items.length - visible.length : 0;
+                return (
+                  <>
+                    {visible.map((task, i) => (
+                      <ProgrammingCard
+                        key={task.id}
+                        task={task}
+                        selected={selectedId === task.id}
+                        draggable={dndEnabled}
+                        isDragging={dragId === task.id}
+                        animIndex={i}
+                        onClick={() => onSelect(task.id)}
+                        onDragStart={() => setDragId(task.id)}
+                      />
+                    ))}
+                    {hidden > 0 && (
+                      <button
+                        onClick={() => setShowAllDone(true)}
+                        className="mt-1 w-full rounded-lg border border-white/[0.06] py-2 text-[11px] text-slate-500 transition-colors hover:border-white/10 hover:text-slate-400"
+                      >
+                        +{hidden} more
+                      </button>
+                    )}
+                    {stage === "done" && showAllDone && items.length > DONE_LIMIT && (
+                      <button
+                        onClick={() => setShowAllDone(false)}
+                        className="mt-1 w-full rounded-lg border border-white/[0.06] py-2 text-[11px] text-slate-500 transition-colors hover:border-white/10 hover:text-slate-400"
+                      >
+                        Show less
+                      </button>
+                    )}
+                  </>
+                );
+              })()}
             </div>
           </div>
         );
