@@ -11,6 +11,7 @@
  */
 
 export * from "./excuse-status";
+export * from "./reimbursement-status";
 export * from "./transaction-type";
 export * from "./party-type";
 export * from "./activity-type";
