@@ -592,7 +592,7 @@ export default function TreasuryPage() {
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
 
         {/* ── Slim toolbar (mobile hamburger + breadcrumb) ── */}
-        <header className="toolbar-frosted dash-toolbar tr-toolbar-bar relative z-20 flex h-14 shrink-0 items-center gap-3 border-b px-4 sm:px-6">
+        <header className="toolbar-frosted dash-toolbar tr-toolbar-bar relative z-20 flex h-14 shrink-0 items-center gap-3 border-b px-4 sm:px-6 lg:hidden">
           <button onClick={() => setSidebarOpen(true)}
             className="tb-icon-btn flex h-8 w-8 items-center justify-center rounded-lg lg:hidden" aria-label="Open menu">
             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
