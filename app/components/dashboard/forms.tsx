@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import type { Brother, CalendarEvent, InstagramType, TaskStatus } from "../../data";
 import { FieldLabel } from "./primitives";
-import { inputCls } from "./styles";
+import { inputDuskCls, btnDuskPrimaryCls } from "./styles";
 import { orgFetch } from "../../lib/api";
 import { parseProgrammingTitle } from "@/lib/programming";
 import { INSTAGRAM_TYPES } from "@/lib/validation/instagram";
@@ -136,14 +136,14 @@ export function AddRevenueForm({ onSubmit }: {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <div><FieldLabel>Event Name</FieldLabel><input className={inputCls} value={name} onChange={e => setName(e.target.value)} placeholder="Spring Kickback…" required /></div>
-      <div><FieldLabel>Date</FieldLabel><input type="date" className={inputCls} value={date} onChange={e => setDate(e.target.value)} required /></div>
+      <div><FieldLabel tone="dusk">Event Name</FieldLabel><input className={inputDuskCls} value={name} onChange={e => setName(e.target.value)} placeholder="Spring Kickback…" required /></div>
+      <div><FieldLabel tone="dusk">Date</FieldLabel><input type="date" className={inputDuskCls} value={date} onChange={e => setDate(e.target.value)} required /></div>
       <div className="grid grid-cols-2 gap-3">
-        <div><FieldLabel>Door Revenue ($)</FieldLabel><input type="number" min="0" className={inputCls} value={doorRevenue} onChange={e => setDoorRevenue(e.target.value)} placeholder="0" required /></div>
-        <div><FieldLabel>Attendance</FieldLabel><input type="number" min="0" className={inputCls} value={attendance} onChange={e => setAttendance(e.target.value)} placeholder="0" /></div>
+        <div><FieldLabel tone="dusk">Door Revenue ($)</FieldLabel><input type="number" min="0" className={inputDuskCls} value={doorRevenue} onChange={e => setDoorRevenue(e.target.value)} placeholder="0" required /></div>
+        <div><FieldLabel tone="dusk">Attendance</FieldLabel><input type="number" min="0" className={inputDuskCls} value={attendance} onChange={e => setAttendance(e.target.value)} placeholder="0" /></div>
       </div>
-      <div><FieldLabel>Notes</FieldLabel><input className={inputCls} value={notes} onChange={e => setNotes(e.target.value)} placeholder="Optional notes…" /></div>
-      <button type="submit" className="w-full rounded-lg bg-indigo-600 px-4 py-2.5 text-[13px] font-semibold text-white hover:bg-indigo-500 transition-colors">Log Revenue</button>
+      <div><FieldLabel tone="dusk">Notes</FieldLabel><input className={inputDuskCls} value={notes} onChange={e => setNotes(e.target.value)} placeholder="Optional notes…" /></div>
+      <button type="submit" className={btnDuskPrimaryCls}>Log Revenue</button>
     </form>
   );
 }
@@ -165,23 +165,23 @@ export function AddIGTaskForm({ onSubmit, initial }: {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <div><FieldLabel>Post Title</FieldLabel><input className={inputCls} value={title} onChange={e => setTitle(e.target.value)} placeholder="Post name…" required /></div>
-      <div><FieldLabel>Due Date</FieldLabel><input type="date" className={inputCls} value={dueDate} onChange={e => setDueDate(e.target.value)} required /></div>
+      <div><FieldLabel tone="dusk">Post Title</FieldLabel><input className={inputDuskCls} value={title} onChange={e => setTitle(e.target.value)} placeholder="Post name…" required /></div>
+      <div><FieldLabel tone="dusk">Due Date</FieldLabel><input type="date" className={inputDuskCls} value={dueDate} onChange={e => setDueDate(e.target.value)} required /></div>
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <FieldLabel>Type</FieldLabel>
-          <select className={inputCls} value={type} onChange={e => setType(e.target.value as InstagramType)}>
+          <FieldLabel tone="dusk">Type</FieldLabel>
+          <select className={inputDuskCls} value={type} onChange={e => setType(e.target.value as InstagramType)}>
             {INSTAGRAM_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
           </select>
         </div>
         <div>
-          <FieldLabel>Status</FieldLabel>
-          <select className={inputCls} value={status} onChange={e => setStatus(e.target.value as TaskStatus)}>
+          <FieldLabel tone="dusk">Status</FieldLabel>
+          <select className={inputDuskCls} value={status} onChange={e => setStatus(e.target.value as TaskStatus)}>
             {(["Upcoming", "Due Soon", "Urgent"] as TaskStatus[]).map(s => <option key={s}>{s}</option>)}
           </select>
         </div>
       </div>
-      <button type="submit" className="w-full rounded-lg bg-indigo-600 px-4 py-2.5 text-[13px] font-semibold text-white hover:bg-indigo-500 transition-colors">
+      <button type="submit" className={btnDuskPrimaryCls}>
         {initial ? "Save Changes" : "Add IG Task"}
       </button>
     </form>
@@ -217,28 +217,28 @@ export function AddProgrammingTaskForm({ onSubmit, initial }: {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <div><FieldLabel>Event Title</FieldLabel><input className={inputCls} value={title} onChange={e => setTitle(e.target.value)} placeholder="Event name…" required /></div>
-      <div><FieldLabel>Collab <span className="font-normal text-slate-500">(optional)</span></FieldLabel><input className={inputCls} value={collab} onChange={e => setCollab(e.target.value)} placeholder="KDF, DSP…" /></div>
+      <div><FieldLabel tone="dusk">Event Title</FieldLabel><input className={inputDuskCls} value={title} onChange={e => setTitle(e.target.value)} placeholder="Event name…" required /></div>
+      <div><FieldLabel tone="dusk">Collab <span className="font-normal text-[#6b6354]">(optional)</span></FieldLabel><input className={inputDuskCls} value={collab} onChange={e => setCollab(e.target.value)} placeholder="KDF, DSP…" /></div>
       <div className="grid grid-cols-2 gap-3">
-        <div><FieldLabel>Event Date <span className="font-normal text-slate-500">(optional)</span></FieldLabel><input type="date" className={inputCls} value={dueDate} onChange={e => setDueDate(e.target.value)} /></div>
-        <div><FieldLabel>Time <span className="font-normal text-slate-500">(optional)</span></FieldLabel><input className={inputCls} value={time} onChange={e => setTime(e.target.value)} placeholder="7:00 PM" /></div>
+        <div><FieldLabel tone="dusk">Event Date <span className="font-normal text-[#6b6354]">(optional)</span></FieldLabel><input type="date" className={inputDuskCls} value={dueDate} onChange={e => setDueDate(e.target.value)} /></div>
+        <div><FieldLabel tone="dusk">Time <span className="font-normal text-[#6b6354]">(optional)</span></FieldLabel><input className={inputDuskCls} value={time} onChange={e => setTime(e.target.value)} placeholder="7:00 PM" /></div>
       </div>
-      <div><FieldLabel>Where <span className="font-normal text-slate-500">(optional)</span></FieldLabel><input className={inputCls} value={location} onChange={e => setLocation(e.target.value)} placeholder="Student Union, Room 204…" /></div>
+      <div><FieldLabel tone="dusk">Where <span className="font-normal text-[#6b6354]">(optional)</span></FieldLabel><input className={inputDuskCls} value={location} onChange={e => setLocation(e.target.value)} placeholder="Student Union, Room 204…" /></div>
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <FieldLabel>Type</FieldLabel>
-          <select className={inputCls} value={type} onChange={e => setType(e.target.value)}>
+          <FieldLabel tone="dusk">Type</FieldLabel>
+          <select className={inputDuskCls} value={type} onChange={e => setType(e.target.value)}>
             {["Program", "Social", "Fundraiser", "Community Service"].map(t => <option key={t}>{t}</option>)}
           </select>
         </div>
         <div>
-          <FieldLabel>Status</FieldLabel>
-          <select className={inputCls} value={status} onChange={e => setStatus(e.target.value as TaskStatus)}>
+          <FieldLabel tone="dusk">Status</FieldLabel>
+          <select className={inputDuskCls} value={status} onChange={e => setStatus(e.target.value as TaskStatus)}>
             {(["Upcoming", "Due Soon", "Urgent"] as TaskStatus[]).map(s => <option key={s}>{s}</option>)}
           </select>
         </div>
       </div>
-      <button type="submit" className="w-full rounded-lg bg-indigo-600 px-4 py-2.5 text-[13px] font-semibold text-white hover:bg-indigo-500 transition-colors">
+      <button type="submit" className={btnDuskPrimaryCls}>
         {initial ? "Save Changes" : "Add Event"}
       </button>
     </form>
@@ -303,34 +303,34 @@ export function LogAttendanceForm({ event, bList, onSubmit }: {
 
   return (
     <form onSubmit={handleSubmit}>
-      <p className="mb-1 text-[13px] font-semibold text-white">{event.title}</p>
-      <p className="mb-4 text-[12px] text-slate-400">{event.date}{event.location ? ` · ${event.location}` : ""}</p>
+      <p className="mb-1 text-[13px] font-semibold text-[#ece7dd]">{event.title}</p>
+      <p className="mb-4 text-[12px] text-[#958d7c]">{event.date}{event.location ? ` · ${event.location}` : ""}</p>
       {loading ? (
-        <p className="mb-4 text-[12px] text-slate-500">Loading excuses…</p>
+        <p className="mb-4 text-[12px] text-[#6b6354]">Loading excuses…</p>
       ) : (
-        <div className="mb-4 max-h-64 space-y-0.5 overflow-y-auto rounded-lg border border-white/[0.07] bg-[#0a0d14] p-2">
+        <div className="mb-4 max-h-64 space-y-0.5 overflow-y-auto rounded-lg border border-[rgba(236,231,221,0.08)] bg-[#0f0d0a] p-2">
           {eligible.map(b => (
-            <label key={b.id} className="flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2 hover:bg-white/[0.05] transition-colors">
-              <input type="checkbox" checked={attended.has(b.id)} onChange={() => toggle(b.id)} className="h-4 w-4 rounded border-white/20 bg-transparent text-indigo-500 focus:ring-indigo-500/30" />
-              <span className="flex-1 text-[13px] font-medium text-white">{b.name}</span>
-              <span className="text-[11px] tabular-nums text-slate-500">{b.attendance}%</span>
+            <label key={b.id} className="flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2 hover:bg-[rgba(236,231,221,0.05)] transition-colors">
+              <input type="checkbox" checked={attended.has(b.id)} onChange={() => toggle(b.id)} className="h-4 w-4 rounded border-[rgba(236,231,221,0.2)] bg-transparent text-[#a78bfa] focus:ring-[#a78bfa]/30" />
+              <span className="flex-1 text-[13px] font-medium text-[#ece7dd]">{b.name}</span>
+              <span className="text-[11px] tabular-nums text-[#6b6354]">{b.attendance}%</span>
             </label>
           ))}
           {excused.map(b => (
             <div key={b.id} className="flex items-center gap-3 rounded-lg px-2 py-2 opacity-50">
-              <input type="checkbox" disabled className="h-4 w-4 rounded border-white/20 bg-transparent" />
-              <span className="flex-1 text-[13px] font-medium text-slate-400">{b.name}</span>
-              <span className="text-[10px] font-semibold text-amber-400">Excused</span>
+              <input type="checkbox" disabled className="h-4 w-4 rounded border-[rgba(236,231,221,0.2)] bg-transparent" />
+              <span className="flex-1 text-[13px] font-medium text-[#958d7c]">{b.name}</span>
+              <span className="text-[10px] font-semibold text-[#d9b08b]">Excused</span>
             </div>
           ))}
         </div>
       )}
-      <div className="mb-4 flex gap-2 text-[11px] text-slate-500">
-        <span className="font-medium text-white">{attended.size}</span> attending ·
-        <span className="font-medium text-white">{eligible.length - attended.size}</span> absent ·
-        <span className="font-medium text-amber-400">{excused.length}</span> excused
+      <div className="mb-4 flex gap-2 text-[11px] text-[#6b6354]">
+        <span className="font-medium text-[#ece7dd]">{attended.size}</span> attending ·
+        <span className="font-medium text-[#ece7dd]">{eligible.length - attended.size}</span> absent ·
+        <span className="font-medium text-[#d9b08b]">{excused.length}</span> excused
       </div>
-      <button type="submit" disabled={busy} className="w-full rounded-lg bg-indigo-600 px-4 py-2.5 text-[13px] font-semibold text-white hover:bg-indigo-500 transition-colors disabled:opacity-50">
+      <button type="submit" disabled={busy} className={btnDuskPrimaryCls}>
         {submitting ? "Saving…" : "Log Attendance"}
       </button>
     </form>
@@ -386,28 +386,28 @@ export function ExcuseForm({ event, bList, isAdmin, selfBrotherId, onDone }: {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <div className="rounded-lg border border-white/[0.07] bg-white/[0.02] px-3 py-2">
-        <p className="text-[13px] font-semibold text-white">{event.title}</p>
-        <p className="text-[11px] text-slate-500">{event.date}{event.location ? ` · ${event.location}` : ""}</p>
+      <div className="rounded-lg border border-[rgba(236,231,221,0.08)] bg-[rgba(236,231,221,0.02)] px-3 py-2">
+        <p className="text-[13px] font-semibold text-[#ece7dd]">{event.title}</p>
+        <p className="text-[11px] text-[#6b6354]">{event.date}{event.location ? ` · ${event.location}` : ""}</p>
       </div>
       {isAdmin && (
         <div>
-          <FieldLabel>Brother</FieldLabel>
-          <select value={brotherId} onChange={e => setBrotherId(e.target.value)} className={inputCls} required>
+          <FieldLabel tone="dusk">Brother</FieldLabel>
+          <select value={brotherId} onChange={e => setBrotherId(e.target.value)} className={inputDuskCls} required>
             <option value="">Select…</option>
             {bList.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
           </select>
         </div>
       )}
       <div>
-        <FieldLabel>Reason</FieldLabel>
-        <textarea value={reason} onChange={e => setReason(e.target.value)} required rows={3} placeholder="Why are you (or this brother) missing this event?" className={inputCls} maxLength={1000} />
+        <FieldLabel tone="dusk">Reason</FieldLabel>
+        <textarea value={reason} onChange={e => setReason(e.target.value)} required rows={3} placeholder="Why are you (or this brother) missing this event?" className={inputDuskCls} maxLength={1000} />
       </div>
       {!isAdmin && (
-        <p className="text-[11px] text-slate-500">Submissions are reviewed by chapter admins.</p>
+        <p className="text-[11px] text-[#6b6354]">Submissions are reviewed by chapter admins.</p>
       )}
-      {error && <p className="text-[12px] text-red-400">{error}</p>}
-      <button type="submit" disabled={submitting} className="w-full rounded-lg bg-indigo-600 px-4 py-2.5 text-[13px] font-semibold text-white hover:bg-indigo-500 transition-colors disabled:opacity-50">
+      {error && <p className="text-[12px] text-[#d98ba3]">{error}</p>}
+      <button type="submit" disabled={submitting} className={btnDuskPrimaryCls}>
         {submitting ? "Submitting…" : isAdmin ? "Approve Excuse" : "Submit for Review"}
       </button>
     </form>

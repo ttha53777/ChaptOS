@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import { Modal, FieldLabel } from "./primitives";
+import { inputDuskCls, btnDuskGhostCls, btnDuskActionCls } from "./styles";
 import type { Announcement } from "./AnnouncementCard";
 import { orgFetch } from "../../lib/api";
 
@@ -58,10 +59,10 @@ export function AnnouncementEditor({
   }
 
   return (
-    <Modal title="Edit announcement" onClose={onClose}>
+    <Modal title="Edit announcement" tone="dusk" onClose={onClose}>
       <div className="space-y-4">
         <div>
-          <FieldLabel htmlFor="ann-title">Title</FieldLabel>
+          <FieldLabel htmlFor="ann-title" tone="dusk">Title</FieldLabel>
           <input
             id="ann-title"
             type="text"
@@ -69,11 +70,11 @@ export function AnnouncementEditor({
             onChange={e => setTitle(e.target.value)}
             maxLength={120}
             placeholder="Rush kickoff Saturday"
-            className="w-full rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-[13px] text-white placeholder:text-slate-600 focus:border-red-500/40 focus:outline-none"
+            className={inputDuskCls}
           />
         </div>
         <div>
-          <FieldLabel htmlFor="ann-body">Body <span className="text-slate-600">(optional)</span></FieldLabel>
+          <FieldLabel htmlFor="ann-body" tone="dusk">Body <span className="text-[#6b6354]">(optional)</span></FieldLabel>
           <textarea
             id="ann-body"
             value={body}
@@ -81,12 +82,12 @@ export function AnnouncementEditor({
             maxLength={2000}
             rows={3}
             placeholder="Doors open at 8pm. Wear letters."
-            className="w-full resize-y rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-[13px] text-white placeholder:text-slate-600 focus:border-red-500/40 focus:outline-none"
+            className={`${inputDuskCls} resize-y`}
           />
         </div>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div>
-            <FieldLabel htmlFor="ann-cta-label">CTA label <span className="text-slate-600">(optional)</span></FieldLabel>
+            <FieldLabel htmlFor="ann-cta-label" tone="dusk">CTA label <span className="text-[#6b6354]">(optional)</span></FieldLabel>
             <input
               id="ann-cta-label"
               type="text"
@@ -94,11 +95,11 @@ export function AnnouncementEditor({
               onChange={e => setCtaLabel(e.target.value)}
               maxLength={40}
               placeholder="RSVP"
-              className="w-full rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-[13px] text-white placeholder:text-slate-600 focus:border-red-500/40 focus:outline-none"
+              className={inputDuskCls}
             />
           </div>
           <div>
-            <FieldLabel htmlFor="ann-cta-url">CTA URL <span className="text-slate-600">(optional)</span></FieldLabel>
+            <FieldLabel htmlFor="ann-cta-url" tone="dusk">CTA URL <span className="text-[#6b6354]">(optional)</span></FieldLabel>
             <input
               id="ann-cta-url"
               type="url"
@@ -106,12 +107,12 @@ export function AnnouncementEditor({
               onChange={e => setCtaUrl(e.target.value)}
               maxLength={500}
               placeholder="https://"
-              className="w-full rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-[13px] text-white placeholder:text-slate-600 focus:border-red-500/40 focus:outline-none"
+              className={inputDuskCls}
             />
           </div>
         </div>
         {err && (
-          <p className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-[12px] text-red-300">
+          <p className="rounded-lg border border-[#d98ba3]/20 bg-[#d98ba3]/10 px-3 py-2 text-[12px] text-[#d98ba3]">
             {err}
           </p>
         )}
@@ -119,14 +120,14 @@ export function AnnouncementEditor({
           <button
             onClick={onClose}
             disabled={saving}
-            className="rounded-lg border border-white/[0.08] px-4 py-1.5 text-[13px] text-slate-400 hover:border-white/[0.16] hover:text-white transition-colors disabled:opacity-50"
+            className={btnDuskGhostCls}
           >
             Cancel
           </button>
           <button
             onClick={handleSave}
             disabled={saving}
-            className="rounded-lg bg-red-600 px-4 py-1.5 text-[13px] font-semibold text-white hover:bg-red-500 transition-colors disabled:opacity-50"
+            className={btnDuskActionCls}
           >
             {saving ? "Saving…" : "Save"}
           </button>

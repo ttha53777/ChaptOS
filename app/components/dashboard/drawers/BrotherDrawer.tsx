@@ -347,10 +347,11 @@ export function BrotherDrawer({
     <>
       {confirmDelete && brother && (
         <ConfirmDialog
+          tone="dusk"
           title={`Remove ${v("Member")}`}
           confirmLabel="Remove"
           message={
-            <>Remove <span className="font-semibold text-white">{brother.name}</span> from the roster? This cannot be undone.</>
+            <>Remove <span className="font-semibold text-[#ece7dd]">{brother.name}</span> from the roster? This cannot be undone.</>
           }
           onCancel={() => setConfirmDelete(false)}
           onConfirm={() => { setConfirmDelete(false); onDelete?.(brother); }}

@@ -39,6 +39,13 @@ export const inputCls = "w-full rounded-lg border border-white/[0.08] bg-[#0a0d1
  *  match the surrounding palette instead of the cold-slate operations theme. */
 export const inputDuskCls = "w-full rounded-lg border border-[rgba(236,231,221,0.12)] bg-[#0f0d0a] px-3 py-2 text-[13px] text-[#ece7dd] placeholder:text-[#6b6354] focus:border-[#a78bfa]/60 focus:outline-none focus:ring-2 focus:ring-[#a78bfa]/15";
 
+/** Dusk-themed buttons for forms/modals in the Chapter Ledger redesign. The
+ *  full-width primary mirrors `.adf-submit`; the ghost/primary pair mirrors the
+ *  ConfirmDialog footer so shared forms read as dusk wherever they're mounted. */
+export const btnDuskPrimaryCls = "w-full rounded-lg bg-[#a78bfa] px-4 py-2.5 text-[13px] font-semibold text-[#0f0d0a] hover:bg-[#bda6fc] transition-colors disabled:opacity-50 disabled:cursor-not-allowed";
+export const btnDuskGhostCls = "rounded-lg border border-[rgba(236,231,221,0.12)] px-4 py-1.5 text-[13px] text-[#958d7c] hover:border-[rgba(236,231,221,0.24)] hover:text-[#ece7dd] transition-colors disabled:opacity-50";
+export const btnDuskActionCls = "rounded-lg bg-[#a78bfa] px-4 py-1.5 text-[13px] font-semibold text-[#0f0d0a] hover:bg-[#bda6fc] transition-colors disabled:opacity-40 disabled:cursor-not-allowed";
+
 /** Frosted header CTA — matches Brothers, Instagram, Treasury toolbar buttons */
 export const headerActionBtnCls =
   "flex h-8 items-center gap-1.5 rounded-full border border-indigo-500/20 bg-white/[0.04] px-3.5 text-[12px] font-semibold text-indigo-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] transition-all hover:border-indigo-400/35 hover:bg-indigo-500/[0.08] hover:text-white";
