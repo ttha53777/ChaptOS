@@ -88,6 +88,9 @@ header.dash-toolbar .tr-crumb {
   padding: 8px 14px; cursor: pointer; transition: border-color .14s; }
 .dash .tr-add:hover { border-color: var(--vio); }
 .dash .tr-add svg { stroke: var(--vio); width: 13px; height: 13px; }
+.dash .tr-add.tr-add-reimb { color: var(--gold); background: var(--gold-bg); border-color: var(--gold-bg); }
+.dash .tr-add.tr-add-reimb:hover { border-color: var(--gold); }
+.dash .tr-add.tr-add-reimb svg { stroke: var(--gold); }
 
 /* ── Tab nav ─────────────────────────────────────────────────────────────────── */
 .dash .tr-tabs { margin-top: 22px; display: flex; gap: 4px; border-bottom: 1px solid var(--line); }
@@ -96,6 +99,10 @@ header.dash-toolbar .tr-crumb {
 .dash .tr-tabs button:hover { color: var(--ink-soft); }
 .dash .tr-tabs button.on { color: var(--ink); }
 .dash .tr-tabs button.on::after { content: ""; position: absolute; left: 12px; right: 12px; bottom: -1px; height: 2px; border-radius: 2px; background: var(--vio); }
+.dash .tr-tabs button .tr-tab-badge { display: inline-flex; align-items: center; justify-content: center;
+  min-width: 16px; height: 16px; margin-left: 6px; padding: 0 5px; border-radius: 999px;
+  background: #f43f5e; color: #fff; font-family: var(--mono); font-size: 9px; font-weight: 700; line-height: 1;
+  letter-spacing: 0; vertical-align: middle; box-shadow: 0 1px 4px rgba(244,63,94,.45); }
 
 /* ── Glance strip — reuses base .ledger/.measure; add sage/rose value tints ──── */
 .dash .tr-glance { margin-top: 22px; }
@@ -306,6 +313,108 @@ header.dash-toolbar .tr-crumb {
 .dash .tr-report-cell .v.rose { color: var(--rose); }
 .dash .tr-report-cell .v.party { color: var(--rose); }
 .dash .tr-report-cell .v.vio { color: var(--vio); }
+
+/* ── Reimbursements tab ──────────────────────────────────────────────────────── */
+.dash .tr-reimb-section { display: flex; flex-direction: column; gap: 16px; }
+.dash .tr-reimb-header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 0 2px; }
+.dash .tr-reimb-title { font-family: var(--serif); font-size: 18px; font-weight: 500; color: var(--ink); }
+.dash .tr-reimb-summary { display: flex; align-items: baseline; gap: 7px; font-size: 12px; }
+.dash .tr-reimb-summary-count { color: var(--ink-soft); font-weight: 500; }
+.dash .tr-reimb-summary-total { font-family: var(--mono); color: var(--gold); font-variant-numeric: tabular-nums; }
+.dash .tr-reimb-dot { color: var(--faint); }
+
+/* Stub cards laid out in a responsive grid — each request is a torn receipt. */
+.dash .tr-reimb-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(312px, 1fr)); gap: 18px; }
+
+/* Card: a receipt stub — body, perforated tear, then a status-dependent foot. */
+.dash .tr-reimb-card { position: relative; overflow: hidden; border: 1px solid var(--line);
+  border-radius: 14px; background: var(--card); box-shadow: var(--shadow);
+  transition: border-color .14s, transform .14s; }
+.dash .tr-reimb-card:hover { transform: translateY(-1px); }
+.dash .tr-reimb-card.tr-reimb-archived { opacity: .66; }
+.dash .tr-reimb-card.tr-reimb-archived:hover { transform: none; }
+
+.dash .tr-reimb-body { padding: 16px 18px 14px; display: flex; flex-direction: column; gap: 4px; }
+
+/* Stub header: avatar + who/when on the left, status pill on the right. */
+.dash .tr-reimb-top { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.dash .tr-reimb-avatar { width: 32px; height: 32px; border-radius: 50%; overflow: hidden; flex-shrink: 0;
+  background: var(--vio-bg); display: grid; place-items: center; }
+.dash .tr-reimb-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.dash .tr-reimb-avatar span { font-size: 12px; font-weight: 600; color: var(--vio); }
+.dash .tr-reimb-who { display: flex; flex-direction: column; gap: 2px; min-width: 0; margin-right: auto; }
+.dash .tr-reimb-name { display: inline-flex; align-items: center; gap: 6px; font-size: 13.5px; font-weight: 500;
+  color: var(--ink); line-height: 1.2; }
+.dash .tr-reimb-you { font-family: var(--mono); font-size: 8.5px; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--vio); background: var(--vio-bg); border-radius: 4px; padding: 1px 5px; font-weight: 600; }
+.dash .tr-reimb-date { font-family: var(--mono); font-size: 10.5px; letter-spacing: .04em; color: var(--faint);
+  text-transform: uppercase; }
+
+/* Status pill. */
+.dash .tr-reimb-pill { display: inline-flex; align-items: center; gap: 5px; flex-shrink: 0;
+  font-family: var(--mono); font-size: 9.5px; letter-spacing: .13em; text-transform: uppercase;
+  padding: 4px 8px; border-radius: 999px; }
+.dash .tr-reimb-pill-dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+.dash .tr-reimb-pill-pending  { color: var(--gold); background: var(--gold-bg); }
+.dash .tr-reimb-pill-approved { color: var(--ok);   background: var(--ok-bg); }
+.dash .tr-reimb-pill-rejected { color: var(--rose); background: var(--rose-bg); }
+
+/* Amount is the hero — large serif, the thing you scan. */
+.dash .tr-reimb-amount { font-family: var(--serif); font-weight: 500; font-size: 34px; line-height: 1;
+  letter-spacing: -.01em; color: var(--ink); font-variant-numeric: tabular-nums; }
+.dash .tr-reimb-cur { font-size: 18px; color: var(--muted); vertical-align: .28em; margin-right: 1px; }
+.dash .tr-reimb-desc { font-size: 13px; color: var(--ink-soft); line-height: 1.5; margin-top: 10px; }
+.dash .tr-reimb-age { font-family: var(--mono); font-size: 10px; color: var(--faint); margin-top: 6px; }
+
+/* Perforated tear: a dashed line with two notches punched out at the edges. */
+.dash .tr-reimb-tearwrap { position: relative; height: 18px; }
+.dash .tr-reimb-tear { position: absolute; left: 0; right: 0; top: 50%; transform: translateY(-50%);
+  border-top: 1px dashed rgba(236, 231, 221, .16); }
+.dash .tr-reimb-tear::before, .dash .tr-reimb-tear::after { content: ""; position: absolute; top: 50%;
+  transform: translateY(-50%); width: 16px; height: 16px; border-radius: 50%; background: var(--paper); }
+.dash .tr-reimb-tear::before { left: -8px; }
+.dash .tr-reimb-tear::after  { right: -8px; }
+
+/* Foot: holds the decision (pending) or the outcome (resolved). */
+.dash .tr-reimb-foot { display: flex; gap: 8px; padding: 13px 18px 16px; background: var(--card-2); }
+.dash .tr-reimb-rejected .tr-reimb-foot { background: var(--rose-bg); }
+.dash .tr-reimb-approved .tr-reimb-foot { background: var(--ok-bg); }
+
+/* Decision buttons — approve leads, decline is the quieter sibling. */
+.dash .tr-reimb-act { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  height: 34px; padding: 0 14px; border-radius: 8px; border: 1px solid transparent; background: none;
+  cursor: pointer; font-size: 12.5px; font-weight: 500; transition: background .14s, border-color .14s, color .14s; }
+.dash .tr-reimb-act svg { width: 14px; height: 14px; }
+.dash .tr-reimb-act-approve { color: var(--ok); border-color: var(--ok-bg); background: var(--ok-bg); }
+.dash .tr-reimb-act-approve:hover { background: var(--ok); border-color: var(--ok); color: var(--paper); }
+.dash .tr-reimb-act-reject { color: var(--rose); }
+.dash .tr-reimb-act-reject:hover { background: var(--rose-bg); }
+
+/* Resolved outcomes. */
+.dash .tr-reimb-outcome { display: inline-flex; align-items: center; gap: 7px; font-family: var(--mono);
+  font-size: 11.5px; letter-spacing: .06em; color: var(--ok); }
+.dash .tr-reimb-outcome svg { width: 14px; height: 14px; }
+.dash .tr-reimb-rejnote { display: flex; gap: 9px; align-items: flex-start; }
+.dash .tr-reimb-rejnote-k { font-family: var(--mono); font-size: 9.5px; letter-spacing: .13em; text-transform: uppercase;
+  color: var(--rose); flex-shrink: 0; padding-top: 2px; }
+.dash .tr-reimb-rejnote p { font-size: 12.5px; color: var(--ink-soft); line-height: 1.45; }
+
+/* Decline-note input takes over the foot while declining. */
+.dash .tr-reimb-reject-row { flex: 1; display: flex; flex-direction: column; gap: 8px; }
+.dash .tr-reimb-reject-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.dash .tr-reimb-btn-confirm-reject { border-radius: 8px; background: var(--rose-bg); border: 1px solid var(--rose);
+  color: var(--rose); font-size: 12px; font-weight: 600; padding: 6px 14px; cursor: pointer; transition: background .14s, color .14s; }
+.dash .tr-reimb-btn-confirm-reject:hover { background: var(--rose); color: var(--paper); }
+
+.dash .tr-reimb-empty { display: flex; flex-direction: column; align-items: center; gap: 12px;
+  padding: 48px 18px; text-align: center; font-size: 12.5px; color: var(--faint);
+  border: 1px dashed var(--line-soft); border-radius: 12px; }
+.dash .tr-reimb-empty svg { width: 28px; height: 28px; color: var(--ok); opacity: .55; }
+
+.dash .tr-reimb-archive-section { display: flex; flex-direction: column; gap: 10px; }
+.dash .tr-reimb-archive-toggle { align-self: flex-start; font-size: 12px; color: var(--muted); background: none; border: 0;
+  cursor: pointer; text-decoration: underline; text-underline-offset: 3px; transition: color .14s; padding: 0; }
+.dash .tr-reimb-archive-toggle:hover { color: var(--ink); }
 
 /* ── Responsive ──────────────────────────────────────────────────────────────── */
 @media (max-width: 980px) {

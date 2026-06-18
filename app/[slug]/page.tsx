@@ -13,6 +13,8 @@ import {
   KPI_SPARKLINES,
   getBrotherStatus, calcHealthScore, deriveNeedsAttention, avg, fmt$, fmtDate, fmtRange, isoWeekBounds,
 } from "../data";
+import { useRouter } from "next/navigation";
+import { useOrgPath } from "../hooks/useOrgPath";
 import { useThresholds } from "../hooks/useThresholds";
 import { useVocab } from "../hooks/useVocab";
 import { useFeature } from "../hooks/useFeature";
@@ -939,7 +941,7 @@ export default function Home() {
   const toast = useToast();
 
   // ── Data state ─────────────────────────────────────────────────────────────
-  const { currentUser, brotherList, setBrotherList, deadlineList, setDeadlineList, igTaskList, setIgTaskList, partyList, setPartyList, activityFeed, setActivityFeed, treasuryData, setTransactionList, isLoading, loadError, mutationError, setMutationError, refreshChapterData, setDisabledFeaturesLocal, avatarRevision, can } = useChapter();
+  const { currentUser, brotherList, setBrotherList, deadlineList, setDeadlineList, igTaskList, setIgTaskList, partyList, setPartyList, activityFeed, setActivityFeed, treasuryData, setTransactionList, reimbursementList, isLoading, loadError, mutationError, setMutationError, refreshChapterData, setDisabledFeaturesLocal, avatarRevision, can } = useChapter();
   const isAdmin = currentUser?.isAdmin ?? false;
   // Granular permission gates for new UI checks. Existing `isAdmin` is kept
   // unchanged for prop-chains into QuickActionsMenu / KPIDrawer / Modal title
@@ -950,6 +952,9 @@ export default function Home() {
   const canBrothers    = can("MANAGE_BROTHERS");
   const canAttendance  = can("MANAGE_ATTENDANCE");
   const selfId  = currentUser?.id ?? null;
+
+  const router  = useRouter();
+  const orgPath = useOrgPath();
 
   // Whether the viewer is an admin of the *active* org. This — not a permission
   // bit — is what gates the inline "hide widget" affordance, because the server
@@ -1184,8 +1189,8 @@ export default function Home() {
   // Overdue deadlines, outstanding dues (aggregated), and at-risk members.
   const todayISO = useMemo(() => new Date().toISOString().slice(0, 10), []);
   const needsAttention = useMemo(
-    () => deriveNeedsAttention(brotherList, deadlineList, THRESHOLDS, todayISO),
-    [brotherList, deadlineList, THRESHOLDS, todayISO],
+    () => deriveNeedsAttention(brotherList, deadlineList, THRESHOLDS, todayISO, reimbursementList),
+    [brotherList, deadlineList, THRESHOLDS, todayISO, reimbursementList],
   );
 
   // ── Weekly Digest ──────────────────────────────────────────────────────────
@@ -1793,6 +1798,7 @@ export default function Home() {
                 openPayDues, addServiceHour,
                 completeDeadline, openEditDeadline, deleteDeadline,
                 completeIG, openEditIG, deleteIG,
+                openReimbursements: () => router.push(orgPath("/treasury?tab=Reimbursements")),
               }}
             />
           </div>
@@ -1951,6 +1957,7 @@ export default function Home() {
                     onMarkDone={completeDeadline}
                     onOpenProfile={(id) => setSelectedBrotherId(id)}
                     onSendReminder={() => setActiveDrawer("dues")}
+                    onOpenReimbursements={() => router.push(orgPath("/treasury?tab=Reimbursements"))}
                     hideButton={isActiveOrgAdmin ? <DashHideButton label="Needs attention" onHide={() => setWidgetHidden("needs-attention", true)} /> : undefined}
                   />
                   </div>

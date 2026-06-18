@@ -50,6 +50,12 @@ export default function ProgrammingPage() {
   const [docs, setDocs] = useState<Doc[]>([]);
   const [loading, setLoading] = useState(true);
   const [pageError, setPageError] = useState<string | null>(null);
+  const errorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const showError = useCallback((msg: string) => {
+    if (errorTimerRef.current) clearTimeout(errorTimerRef.current);
+    setPageError(msg);
+    errorTimerRef.current = setTimeout(() => setPageError(null), 5000);
+  }, []);
   const [view, setView] = useState<View>("board");
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("All");
@@ -96,7 +102,7 @@ export default function ProgrammingPage() {
         setEvents(data);
         setProgrammingTaskList(data);
       })
-      .catch(() => setPageError("Could not load programming events."))
+      .catch(() => showError("Could not load programming events."))
       .finally(() => setLoading(false));
   }, [setProgrammingTaskList]);
 
@@ -141,7 +147,7 @@ export default function ProgrammingPage() {
       });
       syncEvents(prev => prev.map(e => e.id === id ? saved : e));
     } catch {
-      setPageError("Could not save changes.");
+      showError("Could not save changes.");
       reload();
     }
   }, [syncEvents, reload]);
@@ -165,9 +171,11 @@ export default function ProgrammingPage() {
       });
       syncEvents(prev => prev.map(e => e.id === id ? saved : e));
       return true;
-    } catch {
+    } catch (err) {
       syncEvents(prev => prev.map(e => e.id === id ? { ...e, stage: prevStage } : e));
-      setPageError("Could not move event.");
+      const raw = err instanceof Error ? err.message : "";
+      const match = raw.match(/\d+: (.+)$/);
+      showError(match ? match[1] : "Could not move event.");
       return false;
     }
   }, [events, syncEvents]);
@@ -218,7 +226,7 @@ export default function ProgrammingPage() {
       setSelectedId(created.id);
       setModal(null);
     } catch {
-      setPageError("Could not create event.");
+      showError("Could not create event.");
     }
   }
 
@@ -246,7 +254,7 @@ export default function ProgrammingPage() {
     try {
       await requestJson<void>(`/api/programming/${id}`, { method: "DELETE" });
     } catch {
-      setPageError("Could not delete event.");
+      showError("Could not delete event.");
       reload();
     }
   }
@@ -287,11 +295,16 @@ export default function ProgrammingPage() {
           <div className="dash dash-events" data-dashboard-theme="dusk">
 
             {pageError && (
-              <div className="ev-toast" role="status">
+              <div className="ev-toast" role="alert">
+                <span className="ev-toast-icon">
+                  <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
+                  </svg>
+                </span>
                 <span>{pageError}</span>
                 <button onClick={() => setPageError(null)} aria-label="Dismiss">
-                  <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M18 6L6 18M6 6l12 12" />
                   </svg>
                 </button>
               </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo, useCallback } from "react";
+import React, { useState, useMemo, useCallback, useEffect } from "react";
 import dynamic from "next/dynamic";
 import { catColor } from "../../components/treasury/TreasuryCharts";
 import { Sidebar } from "../../components/Sidebar";
@@ -23,7 +23,7 @@ import "./treasury-ledger.css";
 import { useChapter } from "../../context/ChapterContext";
 import { useVocab } from "../../hooks/useVocab";
 import {
-  Transaction, PartyEvent, Brother,
+  Transaction, PartyEvent, Brother, Reimbursement,
   INCOME_CATEGORIES, EXPENSE_CATEGORIES,
   fmt$, fmtDate, round2,
 } from "../../data";
@@ -34,7 +34,9 @@ import { TxForm, type TxFormEvent } from "../../components/treasury/TxForm";
 const CURRENT_SEMESTER = "SPR26";
 
 
-type NavTab = "Overview" | "Budget" | "Transactions" | "Reports";
+type NavTab = "Overview" | "Budget" | "Transactions" | "Reports" | "Reimbursements";
+
+const NAV_TABS: NavTab[] = ["Overview", "Budget", "Transactions", "Reports", "Reimbursements"];
 
 type TxModal =
   | { kind: "addTx" }
@@ -144,6 +146,277 @@ function topCategoriesWithOther(
     ...top.map(([name, value]) => ({ name, value: round2(value) })),
     { name: "Other", value: round2(otherVal) },
   ];
+}
+
+// ─── Reimbursements View ──────────────────────────────────────────────────────
+
+const ICON_CHECK = "M5 13l4 4L19 7";
+const ICON_X_SM  = "M6 18L18 6M6 6l12 12";
+
+// Reimbursements always read as money — cents are filled in even when the request
+// was a round number ($210 → $210.00). Unlike the rounded whole-dollar figures in
+// the overview, a reimbursement is an exact amount someone is owed.
+function fmtReimb(n: number): string {
+  return `$${(n ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+// "submitted 3 days ago" cue — gives the treasurer a sense of how stale a request is.
+function relativeAge(iso: string): string {
+  const then = new Date(iso).getTime();
+  if (Number.isNaN(then)) return "";
+  const days = Math.floor((Date.now() - then) / 86_400_000);
+  if (days <= 0) return "today";
+  if (days === 1) return "yesterday";
+  if (days < 7)   return `${days} days ago`;
+  if (days < 14)  return "last week";
+  if (days < 30)  return `${Math.floor(days / 7)} weeks ago`;
+  return `${Math.floor(days / 30)}mo ago`;
+}
+
+function ReimbursementsView({
+  reimbursements,
+  canTreasury,
+  selfId,
+  showArchived,
+  onToggleArchived,
+  onAction,
+}: {
+  reimbursements: Reimbursement[];
+  canTreasury: boolean;
+  selfId: number | null;
+  showArchived: boolean;
+  onToggleArchived: () => void;
+  onAction: (id: number, status: "approved" | "rejected", note?: string) => void;
+}) {
+  const [rejectingId,   setRejectingId]   = useState<number | null>(null);
+  const [rejectNote,    setRejectNote]    = useState("");
+
+  const pending  = reimbursements.filter(r => r.status === "pending");
+  const archived = reimbursements.filter(r => r.status !== "pending");
+  const pendingTotal = pending.reduce((sum, r) => sum + r.amount, 0);
+
+  function confirmReject(id: number) {
+    onAction(id, "rejected", rejectNote.trim() || undefined);
+    setRejectingId(null);
+    setRejectNote("");
+  }
+
+  function renderCard(r: Reimbursement, isArchived = false) {
+    const isRejecting = rejectingId === r.id;
+    const isMine = selfId != null && r.brotherId === selfId;
+    // A reimbursement reads like a receipt stub: the request + amount up top, a torn
+    // perforated edge, then a foot that changes with status — pending shows the
+    // approve/decline decision, resolved tickets show the outcome.
+    const showActions = !isArchived && canTreasury && !isRejecting;
+    return (
+      <div key={r.id} className={`tr-reimb-card tr-reimb-${r.status}${isArchived ? " tr-reimb-archived" : ""}`}>
+        <div className="tr-reimb-body">
+          {/* Stub header: who + when on the left, status pill on the right. */}
+          <div className="tr-reimb-top">
+            <div className="tr-reimb-avatar">
+              {r.brother.avatarUrl
+                ? <img src={r.brother.avatarUrl} alt={r.brother.name} />
+                : <span>{r.brother.name.charAt(0).toUpperCase()}</span>}
+            </div>
+            <div className="tr-reimb-who">
+              <span className="tr-reimb-name">
+                {r.brother.name}
+                {isMine && <span className="tr-reimb-you">you</span>}
+              </span>
+              <span className="tr-reimb-date">{fmtDate(r.date)}</span>
+            </div>
+            <span className={`tr-reimb-pill tr-reimb-pill-${r.status}`}>
+              <span className="tr-reimb-pill-dot" aria-hidden />
+              {r.status === "pending" ? "Pending" : r.status === "approved" ? "Approved" : "Declined"}
+            </span>
+          </div>
+
+          {/* The amount is the hero — large serif, the thing you scan. The $ is its
+              own styled span, so render just the number (always 2-decimal). */}
+          <div className="tr-reimb-amount"><span className="tr-reimb-cur">$</span>{fmtReimb(r.amount).slice(1)}</div>
+          <p className="tr-reimb-desc">{r.description}</p>
+          <span className="tr-reimb-age">submitted {relativeAge(r.createdAt)}</span>
+        </div>
+
+        {/* Perforated tear between the request and the decision. */}
+        <div className="tr-reimb-tearwrap"><span className="tr-reimb-tear" aria-hidden /></div>
+
+        <div className="tr-reimb-foot">
+          {showActions && (
+            <>
+              <button
+                className="tr-reimb-act tr-reimb-act-approve"
+                onClick={() => onAction(r.id, "approved")}
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><path d={ICON_CHECK} /></svg>
+                Approve
+              </button>
+              <button
+                className="tr-reimb-act tr-reimb-act-reject"
+                onClick={() => { setRejectingId(r.id); setRejectNote(""); }}
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><path d={ICON_X_SM} /></svg>
+                Decline
+              </button>
+            </>
+          )}
+
+          {isRejecting && (
+            <div className="tr-reimb-reject-row">
+              <input
+                type="text"
+                value={rejectNote}
+                onChange={e => setRejectNote(e.target.value)}
+                placeholder="Reason for declining (optional — shown to submitter)"
+                className={inputDuskCls}
+                autoFocus
+              />
+              <div className="tr-reimb-reject-actions">
+                <button className={btnDuskGhostCls} onClick={() => setRejectingId(null)}>Cancel</button>
+                <button className="tr-reimb-btn-confirm-reject" onClick={() => confirmReject(r.id)}>Confirm decline</button>
+              </div>
+            </div>
+          )}
+
+          {!showActions && !isRejecting && r.status === "approved" && (
+            <span className="tr-reimb-outcome">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><path d={ICON_CHECK} /></svg>
+              Reimbursed
+            </span>
+          )}
+
+          {!showActions && !isRejecting && r.status === "rejected" && (
+            <div className="tr-reimb-rejnote">
+              <span className="tr-reimb-rejnote-k">Note</span>
+              <p>{r.rejectionNote || "Declined."}</p>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="tr-reimb-section" style={{ marginTop: 18 }}>
+      <div className="tr-reimb-header">
+        <h2 className="tr-reimb-title">Reimbursement Requests</h2>
+        {pending.length > 0 && (
+          <div className="tr-reimb-summary">
+            <span className="tr-reimb-summary-count">{pending.length} pending</span>
+            <span className="tr-reimb-dot">·</span>
+            <span className="tr-reimb-summary-total">{fmtReimb(pendingTotal)} to review</span>
+          </div>
+        )}
+      </div>
+
+      {pending.length === 0 ? (
+        <div className="tr-reimb-empty">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round"><path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" /></svg>
+          <span>You&rsquo;re all caught up — no pending requests.</span>
+        </div>
+      ) : (
+        <div className="tr-reimb-list">
+          {pending.map(r => renderCard(r, false))}
+        </div>
+      )}
+
+      {archived.length > 0 && (
+        <div className="tr-reimb-archive-section">
+          <button className="tr-reimb-archive-toggle" onClick={onToggleArchived}>
+            {showArchived ? "Hide" : "Show"} resolved ({archived.length})
+          </button>
+          {showArchived && (
+            <div className="tr-reimb-list tr-reimb-list-archived">
+              {archived.map(r => renderCard(r, true))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Reimbursement Form ───────────────────────────────────────────────────────
+
+function ReimbursementForm({
+  onSubmit,
+  onCancel,
+}: {
+  onSubmit: (data: { date: string; amount: number; description: string; file: File | null }) => void;
+  onCancel: () => void;
+}) {
+  const [date,        setDate]        = useState(todayStr());
+  const [amount,      setAmount]      = useState("");
+  const [description, setDescription] = useState("");
+  const [file,        setFile]        = useState<File | null>(null);
+  const fileRef = React.useRef<HTMLInputElement>(null);
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    onSubmit({ date, amount: Number(amount), description, file });
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div>
+          <FieldLabel tone="dusk">Date</FieldLabel>
+          <input type="date" value={date} onChange={e => setDate(e.target.value)} required className={inputDuskCls} />
+        </div>
+        <div>
+          <FieldLabel tone="dusk">Amount ($)</FieldLabel>
+          <input type="number" min="0.01" step="0.01" value={amount} onChange={e => setAmount(e.target.value)} required placeholder="0.00" className={inputDuskCls} />
+        </div>
+      </div>
+      <div>
+        <FieldLabel tone="dusk">What for</FieldLabel>
+        <input type="text" value={description} onChange={e => setDescription(e.target.value)} required placeholder="e.g. Decorations for spring formal" className={inputDuskCls} />
+      </div>
+      <div>
+        <FieldLabel tone="dusk">Attach Receipt <span style={{ color: "#6b6354", fontWeight: 400 }}>(optional)</span></FieldLabel>
+        <button
+          type="button"
+          onClick={() => fileRef.current?.click()}
+          className="w-full rounded-lg border border-dashed border-[rgba(236,231,221,0.18)] bg-[rgba(167,139,250,0.04)] px-3 py-3 text-left text-[12px] text-[#6b6354] hover:border-[#a78bfa]/50 hover:text-[#a78bfa] transition-colors"
+        >
+          {file ? (
+            <span className="flex items-center gap-2 text-[#c4b5fd]">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/>
+              </svg>
+              {file.name}
+              <button
+                type="button"
+                onClick={ev => { ev.stopPropagation(); setFile(null); if (fileRef.current) fileRef.current.value = ""; }}
+                className="ml-auto text-[#6b6354] hover:text-[#d98ba3] transition-colors"
+                aria-label="Remove file"
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round"><path d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </span>
+          ) : (
+            <span className="flex items-center gap-2">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/>
+              </svg>
+              Click to attach a file…
+            </span>
+          )}
+        </button>
+        <input
+          ref={fileRef}
+          type="file"
+          accept="image/*,.pdf,.doc,.docx"
+          className="hidden"
+          onChange={e => setFile(e.target.files?.[0] ?? null)}
+        />
+      </div>
+      <div className="flex justify-end gap-2 pt-1">
+        <button type="button" onClick={onCancel} className={btnDuskGhostCls}>Cancel</button>
+        <button type="submit" className={btnDuskActionCls}>Submit Reimbursement</button>
+      </div>
+    </form>
+  );
 }
 
 // ─── Party Event Form ─────────────────────────────────────────────────────────
@@ -260,7 +533,7 @@ const ICON_PARTY  = "M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function TreasuryPage() {
-  const { currentUser, treasuryData, transactionList, setTransactionList, partyList, setPartyList, brotherList, setBrotherList, isLoading, avatarRevision, can } = useChapter();
+  const { currentUser, treasuryData, transactionList, setTransactionList, partyList, setPartyList, brotherList, setBrotherList, reimbursementList: reimbursements, setReimbursementList: setReimbursements, isLoading, avatarRevision, can } = useChapter();
   const v = useVocab();
   const selfId = currentUser?.id ?? null;
   const canTreasury = can("MANAGE_TREASURY");
@@ -281,8 +554,24 @@ export default function TreasuryPage() {
   const [duesTarget,    setDuesTarget]    = useState<Brother | null>(null);
   const [duesAction,    setDuesAction]    = useState<"assign" | "deduct">("deduct");
   const [duesAmountStr, setDuesAmountStr] = useState("");
+  const [reimbModal,       setReimbModal]       = useState(false);
+  const [reimbArchived,    setReimbArchived]    = useState(false);
+  // Reimbursements come from ChapterContext so the dashboard "needs attention"
+  // queue and the sidebar count badge stay in lockstep with approve/reject here.
+
+  // Deep-link: the dashboard "needs attention" Review button lands here with
+  // ?tab=Reimbursements to drop the viewer straight on the reimbursement queue.
+  useEffect(() => {
+    const target = new URLSearchParams(window.location.search).get("tab");
+    if (target && (NAV_TABS as string[]).includes(target)) setNavTab(target as NavTab);
+  }, []);
 
   // ── Derived data ─────────────────────────────────────────────────────────────
+
+  const pendingReimbCount = useMemo(
+    () => reimbursements.filter(r => r.status === "pending").length,
+    [reimbursements],
+  );
 
   const activeTxns = useMemo(() =>
     transactionList.filter(t => !t.deletedAt && (!semester || t.semester === semester))
@@ -566,6 +855,35 @@ export default function TreasuryPage() {
     });
   }
 
+
+  const handleSubmitReimbursement = useCallback(async (data: { date: string; amount: number; description: string; file: File | null }) => {
+    if (!selfId) return;
+    setReimbModal(false);
+    const res = await fetch("/api/reimbursements", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ brotherId: selfId, amount: data.amount, date: data.date, description: data.description }),
+    });
+    if (res.ok) {
+      const created: Reimbursement = await res.json();
+      setReimbursements(prev => [created, ...prev]);
+    }
+  }, [selfId]);
+
+  const handleReimbursementAction = useCallback(async (id: number, status: "approved" | "rejected", rejectionNote?: string) => {
+    const prev = reimbursements.find(r => r.id === id);
+    setReimbursements(list => list.map(r => r.id === id ? { ...r, status, rejectionNote: rejectionNote ?? null } : r));
+    const res = await fetch(`/api/reimbursements/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status, rejectionNote: rejectionNote ?? null }),
+    });
+    if (!res.ok && prev) {
+      setReimbursements(list => list.map(r => r.id === id ? prev : r));
+      setMutErr("Failed to update reimbursement");
+    }
+  }, [reimbursements]);
+
   // ─── Render ───────────────────────────────────────────────────────────────
 
   // Compute balance live from local state so it updates immediately after add/edit/delete
@@ -582,8 +900,6 @@ export default function TreasuryPage() {
   const digest = `${fmt$(Math.round(balance))} in the books${bwDelta != null ? (bwDelta >= 0 ? " and trending up" : " and trending down") : ""}` +
     (scheduledDrain > 0 ? `, with ${fmt$(Math.round(scheduledDrain))} still scheduled` : "") +
     (owingCount > 0 ? ` — ${owingCount} ${owingCount === 1 ? "brother owes" : "brothers owe"} ${fmt$(Math.round(duesTotal))} in dues.` : ".");
-
-  const NAV_TABS: NavTab[] = ["Overview", "Budget", "Transactions", "Reports"];
 
   return (
     <div className="flex h-screen overflow-hidden bg-[#0f0d0a]">
@@ -645,6 +961,10 @@ export default function TreasuryPage() {
                 <TreasuryIconButton onClick={() => setPartyModal({ kind: "addParty" })} title="Add Party Event">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d={ICON_PARTY} /></svg>
                 </TreasuryIconButton>
+                <button className="tr-add tr-add-reimb" onClick={() => setReimbModal(true)}>
+                  <svg viewBox="0 0 24 24" fill="none" strokeWidth={2.4} strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
+                  Add Reimbursement
+                </button>
                 {canTreasury && (
                   <button className="tr-add" onClick={() => setTxModal({ kind: "addTx" })}>
                     <svg viewBox="0 0 24 24" fill="none" strokeWidth={2.4} strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
@@ -657,7 +977,12 @@ export default function TreasuryPage() {
             {/* ── Tab nav (kept) ── */}
             <nav className="tr-tabs">
               {NAV_TABS.map(tab => (
-                <button key={tab} className={navTab === tab ? "on" : ""} onClick={() => setNavTab(tab)}>{tab}</button>
+                <button key={tab} className={navTab === tab ? "on" : ""} onClick={() => setNavTab(tab)}>
+                  {tab}
+                  {tab === "Reimbursements" && pendingReimbCount > 0 && (
+                    <span className="tr-tab-badge" aria-label={`${pendingReimbCount} requests awaiting review`}>{pendingReimbCount > 9 ? "9+" : pendingReimbCount}</span>
+                  )}
+                </button>
               ))}
             </nav>
 
@@ -1119,6 +1444,17 @@ export default function TreasuryPage() {
               </FinanceCard>
             )}
 
+            {navTab === "Reimbursements" && (
+              <ReimbursementsView
+                reimbursements={reimbursements}
+                canTreasury={canTreasury}
+                selfId={selfId}
+                showArchived={reimbArchived}
+                onToggleArchived={() => setReimbArchived(v => !v)}
+                onAction={handleReimbursementAction}
+              />
+            )}
+
             </>)}
 
           </div>
@@ -1126,6 +1462,19 @@ export default function TreasuryPage() {
       </div>
 
       {/* ── Modals ──────────────────────────────────────────────────────────── */}
+
+      {reimbModal && (
+        <Modal
+          tone="dusk"
+          title="Add Reimbursement"
+          onClose={() => setReimbModal(false)}
+        >
+          <ReimbursementForm
+            onSubmit={handleSubmitReimbursement}
+            onCancel={() => setReimbModal(false)}
+          />
+        </Modal>
+      )}
 
       {txModal && (
         <Modal

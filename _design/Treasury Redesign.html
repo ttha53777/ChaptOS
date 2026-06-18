@@ -1,0 +1,750 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dusk">
+<!--
+  ChaptOS · Treasury Redesign — "The Ledger"
+  ────────────────────────────────────────────────
+  ASSUMPTIONS / REASONING
+  · The "Treasury page" is app/[slug]/treasury/page.tsx (component TreasuryPage).
+    Today it is on the OLD cold-slate theme (#07090f paper, indigo accent): a top
+    toolbar with semester pills + export + add, a four-tab nav (Overview / Budget /
+    Transactions / Reports), an 8/4 hero (big balance + biweekly area chart and a
+    category donut), then Brothers-with-Dues / Upcoming / Reports cards, a full
+    Transaction Log table (all / income / expense), and a Party Events door-revenue
+    list. Real data set: Transaction (income/expense, category, status posted|
+    scheduled, paidTo, paymentMethod, semester), PartyEvent (doorRevenue, attendance),
+    Brother.duesOwed.
+  · This mock reskins the ENTIRE page in the established "Chapter Ledger" dusk
+    language shared by _design/Dashboard + Events + Timeline + Meetings Redesign:
+    Fraunces serif, warm paper, Geist Mono labels, a single violet accent with
+    gold / rose / sage semantics, hairline dividers, the shared sidebar and the
+    Dusk / Ivory toggle (press T).
+  · Per the request this is a RESKIN — the same information architecture and the same
+    four tabs are kept — PLUS the addition the brief calls out: an "at a glance" bar.
+    The original page had no glance strip (the balance KPIs were buried inside the
+    hero card); every other ledger page leads with one, so Treasury now does too:
+    a four-measure strip (balance / income / expenses / dues outstanding) sitting
+    directly under the briefing, above the hero, so the books' health reads first.
+  · Color stops shouting: income & positive net = sage, expenses & overdue dues =
+    rose, scheduled / action-soon = gold, the treasury itself = one violet category.
+  · Data is illustrative, drawn from the seed vocabulary (Spring '26 / SPR26): door
+    revenue from Spring Mixer & Boba Fundraiser, dues income, chapter expenses
+    (venue, catering, merch, philanthropy). Today pinned to Sat Jun 13 2026 to match
+    the sibling mocks.
+-->
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ChaptOS — Treasury Redesign · The Ledger</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..700;1,9..144,300..700&family=Geist:wght@300..700&family=Geist+Mono:wght@300..600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --serif: "Fraunces", Georgia, serif;
+    --sans: "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --mono: "Geist Mono", ui-monospace, Menlo, monospace;
+  }
+  [data-theme="dusk"] {
+    --paper:    #0f0d0a;
+    --paper-2:  #14120e;
+    --card:     #161310;
+    --card-2:   #1b1813;
+    --ink:      #ece7dd;
+    --ink-soft: #c9c2b4;
+    --muted:    #958d7c;
+    --faint:    #6b6354;
+    --line:     rgba(236,231,221,.09);
+    --line-soft:rgba(236,231,221,.05);
+    --vio:      #a78bfa;
+    --vio-deep: #7c3aed;
+    --vio-bg:   rgba(167,139,250,.10);
+    --gold:     #ddb36a;
+    --gold-bg:  rgba(221,179,106,.10);
+    --rose:     #d98ba3;
+    --rose-bg:  rgba(217,139,163,.10);
+    --ok:       #7fb08a;
+    --ok-bg:    rgba(127,176,138,.10);
+    --shadow:   0 1px 0 rgba(0,0,0,.4), 0 16px 40px -24px rgba(0,0,0,.7);
+  }
+  [data-theme="ivory"] {
+    --paper:    #f2ede3;
+    --paper-2:  #ece6d9;
+    --card:     #faf7f0;
+    --card-2:   #f4f0e6;
+    --ink:      #171410;
+    --ink-soft: #3d382f;
+    --muted:    #6f675a;
+    --faint:    #9a917f;
+    --line:     rgba(23,20,16,.13);
+    --line-soft:rgba(23,20,16,.07);
+    --vio:      #6d28d9;
+    --vio-deep: #5b21b6;
+    --vio-bg:   rgba(109,40,217,.08);
+    --gold:     #9a7224;
+    --gold-bg:  rgba(154,114,36,.10);
+    --rose:     #b34f72;
+    --rose-bg:  rgba(179,79,114,.09);
+    --ok:       #3f7a50;
+    --ok-bg:    rgba(63,122,80,.10);
+    --shadow:   0 1px 2px rgba(23,20,16,.05), 0 14px 34px -26px rgba(23,20,16,.35);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { background: var(--paper); color: var(--ink); font-family: var(--sans); }
+  body { font-size: 13.5px; line-height: 1.45; -webkit-font-smoothing: antialiased; }
+  ::selection { background: var(--vio-bg); }
+
+  .shell { display: grid; grid-template-columns: 228px 1fr; min-height: 100vh; }
+
+  /* ── Sidebar (shared) ──────────────────────────────── */
+  .side {
+    border-right: 1px solid var(--line);
+    background: var(--paper-2);
+    padding: 26px 0 20px;
+    display: flex; flex-direction: column; gap: 26px;
+    position: sticky; top: 0; height: 100vh;
+  }
+  .wordmark { padding: 0 24px; }
+  .wordmark .product {
+    font-family: var(--serif); font-style: italic; font-weight: 600;
+    font-size: 19px; letter-spacing: .01em; color: var(--ink);
+  }
+  .wordmark .org {
+    margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line-soft);
+    font-family: var(--mono); font-size: 10px; letter-spacing: .14em;
+    text-transform: uppercase; color: var(--muted); line-height: 1.7;
+  }
+  .nav { display: flex; flex-direction: column; gap: 1px; padding: 0 12px; }
+  .nav a {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 12px; border-radius: 7px; text-decoration: none;
+    font-family: var(--mono); font-size: 11px; letter-spacing: .12em;
+    text-transform: uppercase; color: var(--muted);
+  }
+  .nav a:hover { color: var(--ink-soft); background: var(--line-soft); }
+  .nav a.active { color: var(--ink); background: var(--card-2); }
+  .nav a.active::before { content: ""; width: 3px; height: 14px; border-radius: 2px; background: var(--vio); margin-left: -6px; }
+  .side .spacer { flex: 1; }
+  .user { margin: 0 12px; padding: 12px; border-top: 1px solid var(--line-soft); display: flex; gap: 10px; align-items: center; }
+  .user .avatar { width: 30px; height: 30px; border-radius: 50%; background: var(--vio-bg); color: var(--vio);
+    display: grid; place-items: center; font-family: var(--mono); font-size: 10px; font-weight: 600; }
+  .user .who p:first-child { font-size: 12.5px; font-weight: 600; color: var(--ink); }
+  .user .who p:last-child { font-family: var(--mono); font-size: 9.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--faint); margin-top: 1px; }
+
+  /* ── Main ───────────────────────────────────────────── */
+  .main { padding: 30px 38px 56px; max-width: 1200px; }
+
+  .briefing { display: flex; justify-content: space-between; gap: 36px; align-items: flex-start; }
+  .kicker { font-family: var(--mono); font-size: 10.5px; letter-spacing: .18em; text-transform: uppercase; color: var(--muted); }
+  .kicker .today { color: var(--vio); }
+  h1.greeting { font-family: var(--serif); font-weight: 400; font-size: 33px; letter-spacing: -.01em; margin-top: 8px; color: var(--ink); }
+  h1.greeting em { font-style: italic; color: var(--vio); }
+  .digest { margin-top: 12px; display: flex; gap: 9px; align-items: baseline; max-width: 640px; }
+  .ai-chip { flex-shrink: 0; font-family: var(--mono); font-size: 8.5px; font-weight: 600; letter-spacing: .14em;
+    color: var(--vio); border: 1px solid var(--vio-bg); background: var(--vio-bg); border-radius: 4px; padding: 2px 5px; transform: translateY(-1px); }
+  .digest p { font-size: 13.5px; color: var(--ink-soft); font-style: italic; font-family: var(--serif); font-weight: 350; }
+
+  .head-actions { flex-shrink: 0; display: flex; align-items: center; gap: 8px; }
+  .sem-pill { font-family: var(--mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--muted); background: transparent; border: 1px solid var(--line); border-radius: 999px; padding: 7px 12px; cursor: pointer; }
+  .sem-pill:hover { color: var(--ink-soft); border-color: var(--vio); }
+  .sem-pill.on { color: var(--vio); background: var(--vio-bg); border-color: var(--vio-bg); }
+  .icon-btn { display: inline-grid; place-items: center; width: 32px; height: 32px;
+    color: var(--muted); background: transparent; border: 1px solid var(--line); border-radius: 999px; cursor: pointer; }
+  .icon-btn:hover { color: var(--ink); border-color: var(--vio); }
+  .icon-btn svg { width: 15px; height: 15px; }
+  .add-btn { flex-shrink: 0; display: inline-flex; align-items: center; gap: 7px;
+    font-family: var(--mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--vio); background: var(--vio-bg); border: 1px solid var(--vio-bg); border-radius: 8px;
+    padding: 8px 14px; cursor: pointer; }
+  .add-btn:hover { border-color: var(--vio); }
+  .add-btn svg { stroke: var(--vio); width: 13px; height: 13px; }
+
+  .theme-toggle { position: fixed; top: 18px; right: 20px; z-index: 50;
+    font-family: var(--mono); font-size: 10px; letter-spacing: .12em; text-transform: uppercase;
+    color: var(--muted); background: var(--card); border: 1px solid var(--line); border-radius: 999px;
+    padding: 6px 14px; cursor: pointer; }
+  .theme-toggle:hover { color: var(--ink); border-color: var(--vio); }
+
+  /* ── Tab nav ─────────────────────────────────────────── */
+  .tabs { margin-top: 22px; display: flex; gap: 4px; border-bottom: 1px solid var(--line); }
+  .tabs button { position: relative; font-family: var(--mono); font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--muted); background: none; border: 0; padding: 11px 12px; cursor: pointer; }
+  .tabs button:hover { color: var(--ink-soft); }
+  .tabs button.on { color: var(--ink); }
+  .tabs button.on::after { content: ""; position: absolute; left: 12px; right: 12px; bottom: -1px; height: 2px; border-radius: 2px; background: var(--vio); }
+
+  /* ── Glance strip (the addition) ─────────────────────── */
+  .glance { margin-top: 22px; display: grid; grid-template-columns: repeat(4, 1fr);
+    border: 1px solid var(--line); border-radius: 12px; background: var(--card); box-shadow: var(--shadow); overflow: hidden; }
+  .measure { padding: 15px 18px 14px; border-right: 1px solid var(--line-soft); position: relative; }
+  .measure:last-child { border-right: none; }
+  .measure .k { font-family: var(--mono); font-size: 9px; letter-spacing: .16em; text-transform: uppercase; color: var(--muted); }
+  .measure .v { font-family: var(--mono); font-size: 23px; font-weight: 500; letter-spacing: -.02em; color: var(--ink); margin-top: 7px; font-variant-numeric: tabular-nums; }
+  .measure .v small { font-size: 13px; color: var(--muted); font-weight: 400; }
+  .measure .v.sage { color: var(--ok); }
+  .measure .v.rose { color: var(--rose); }
+  .measure .note { font-size: 11px; color: var(--faint); margin-top: 3px; }
+  .measure .note.warn { color: var(--gold); }
+  .measure .note.bad { color: var(--rose); }
+  .measure .spark { position: absolute; right: 14px; top: 16px; opacity: .8; }
+  .measure .spark polyline { fill: none; stroke: var(--vio); stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+
+  /* ── Hero grid ───────────────────────────────────────── */
+  .hero { margin-top: 18px; display: grid; grid-template-columns: 1.9fr 1fr; gap: 18px; align-items: start; }
+  .card { border: 1px solid var(--line); border-radius: 12px; background: var(--card); box-shadow: var(--shadow); overflow: hidden; }
+  .card-h { display: flex; align-items: baseline; justify-content: space-between; padding: 15px 18px 12px; border-bottom: 1px solid var(--line-soft); }
+  .card-h h2 { font-family: var(--serif); font-weight: 500; font-size: 16.5px; color: var(--ink); }
+  .card-h .sub { font-family: var(--mono); font-size: 9.5px; letter-spacing: .13em; text-transform: uppercase; color: var(--faint); }
+
+  /* Balance card */
+  .bal-top { padding: 20px 22px 6px; }
+  .bal-label { font-family: var(--mono); font-size: 9.5px; letter-spacing: .16em; text-transform: uppercase; color: var(--muted); }
+  .bal-row { margin-top: 8px; display: flex; align-items: flex-end; gap: 12px; }
+  .bal-num { font-family: var(--serif); font-weight: 400; font-size: 46px; line-height: 1; letter-spacing: -.02em; color: var(--ink); font-variant-numeric: tabular-nums; }
+  .bal-chip { margin-bottom: 6px; font-family: var(--mono); font-size: 10px; letter-spacing: .04em; padding: 3px 9px; border-radius: 999px; }
+  .bal-chip.up { color: var(--ok); background: var(--ok-bg); }
+  .bal-chip.down { color: var(--rose); background: var(--rose-bg); }
+  .bal-sched { margin-top: 9px; display: inline-flex; font-family: var(--mono); font-size: 10.5px; letter-spacing: .03em;
+    color: var(--gold); background: var(--gold-bg); border: 1px solid var(--gold-bg); border-radius: 999px; padding: 3px 10px; }
+  .bal-meta { margin-top: 9px; font-size: 12px; color: var(--faint); }
+  .bal-meta b { color: var(--ink-soft); font-weight: 500; }
+  .ranges { display: flex; gap: 2px; }
+  .ranges button { font-family: var(--mono); font-size: 9.5px; letter-spacing: .08em; color: var(--muted);
+    background: none; border: 0; border-radius: 6px; padding: 4px 8px; cursor: pointer; }
+  .ranges button:hover { color: var(--ink-soft); }
+  .ranges button.on { color: var(--vio); background: var(--vio-bg); }
+
+  /* mini KPI inside balance card */
+  .bal-kpi { margin: 14px 22px 4px; display: grid; grid-template-columns: 1fr 1fr; gap: 0;
+    border: 1px solid var(--line-soft); border-radius: 10px; background: var(--paper-2); overflow: hidden; }
+  .bal-kpi > div { padding: 11px 16px; }
+  .bal-kpi > div + div { border-left: 1px solid var(--line-soft); }
+  .bal-kpi .k { font-family: var(--mono); font-size: 8.5px; letter-spacing: .15em; text-transform: uppercase; color: var(--muted); }
+  .bal-kpi .v { font-family: var(--mono); font-size: 17px; font-weight: 500; margin-top: 4px; font-variant-numeric: tabular-nums; }
+  .bal-kpi .v.sage { color: var(--ok); }
+  .bal-kpi .v.rose { color: var(--rose); }
+  .bal-kpi .m { font-size: 10px; color: var(--faint); margin-top: 1px; }
+
+  /* area chart (faux) */
+  .chart { padding: 6px 14px 16px; }
+  .chart svg { width: 100%; height: 168px; display: block; }
+  .chart .gridline { stroke: var(--line-soft); stroke-width: 1; }
+  .chart .axis { font-family: var(--mono); font-size: 8.5px; fill: var(--faint); letter-spacing: .06em; }
+
+  /* Donut card */
+  .donut-toggle { display: inline-flex; gap: 2px; border: 1px solid var(--line); border-radius: 7px; padding: 2px; }
+  .donut-toggle button { font-family: var(--mono); font-size: 9px; letter-spacing: .06em; text-transform: uppercase;
+    color: var(--muted); background: none; border: 0; border-radius: 5px; padding: 3px 8px; cursor: pointer; }
+  .donut-toggle button.on { color: var(--ink); background: var(--card-2); }
+  .donut-wrap { position: relative; width: 188px; height: 188px; margin: 16px auto 4px; }
+  .donut-center { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; }
+  .donut-center .lbl { font-family: var(--mono); font-size: 8px; letter-spacing: .2em; text-transform: uppercase; color: var(--faint); }
+  .donut-center .amt { font-family: var(--serif); font-size: 26px; font-weight: 500; color: var(--ink); margin-top: 2px; font-variant-numeric: tabular-nums; }
+  .donut-center .cnt { font-size: 10px; color: var(--faint); margin-top: 2px; }
+  .cat-list { padding: 6px 18px 18px; display: flex; flex-direction: column; gap: 11px; }
+  .cat { display: flex; align-items: center; gap: 11px; }
+  .cat .rank { width: 14px; font-family: var(--mono); font-size: 10px; color: var(--faint); text-align: right; }
+  .cat .swatch { width: 4px; height: 26px; border-radius: 2px; flex-shrink: 0; }
+  .cat .body { flex: 1; min-width: 0; }
+  .cat .body .top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+  .cat .body .nm { font-size: 12px; color: var(--ink-soft); font-weight: 500; }
+  .cat .body .amt { font-family: var(--mono); font-size: 12px; color: var(--ink); font-variant-numeric: tabular-nums; }
+  .cat .body .pct { font-family: var(--mono); font-size: 9.5px; color: var(--faint); margin-right: 6px; }
+  .cat .bar { height: 4px; border-radius: 2px; background: var(--line); margin-top: 5px; overflow: hidden; }
+  .cat .bar i { display: block; height: 100%; border-radius: 2px; }
+
+  /* ── Lower grid (dues / upcoming / reports) ──────────── */
+  .lower { margin-top: 18px; display: grid; grid-template-columns: 1.25fr 1fr .8fr; gap: 18px; align-items: start; }
+
+  .row { display: flex; align-items: center; gap: 12px; padding: 11px 18px; border-bottom: 1px solid var(--line-soft); }
+  .row:last-child { border-bottom: 0; }
+  .row:hover { background: var(--card-2); }
+  .row .av { width: 30px; height: 30px; border-radius: 50%; flex-shrink: 0; display: grid; place-items: center;
+    font-family: var(--mono); font-size: 10px; font-weight: 600; background: var(--vio-bg); color: var(--vio); }
+  .row .who { flex: 1; min-width: 0; }
+  .row .who .nm { font-size: 13px; font-weight: 550; color: var(--ink); }
+  .row .who .rl { font-family: var(--mono); font-size: 9px; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); margin-top: 1px; }
+  .row .owe { font-family: var(--mono); font-size: 13.5px; font-weight: 500; color: var(--gold); font-variant-numeric: tabular-nums; }
+  .row .acts { display: flex; gap: 5px; flex-shrink: 0; }
+  .mini-btn { font-family: var(--mono); font-size: 9px; letter-spacing: .08em; text-transform: uppercase;
+    color: var(--vio); background: var(--vio-bg); border: 1px solid var(--vio-bg); border-radius: 6px; padding: 4px 8px; cursor: pointer; }
+  .mini-btn.ghost { color: var(--muted); background: transparent; border-color: var(--line); }
+  .mini-btn.ghost:hover { color: var(--ink); border-color: var(--vio); }
+
+  .ev-row { display: flex; align-items: center; gap: 12px; padding: 11px 18px; border-bottom: 1px solid var(--line-soft); }
+  .ev-row:last-child { border-bottom: 0; }
+  .ev-row .glyph { width: 32px; height: 32px; border-radius: 8px; flex-shrink: 0; display: grid; place-items: center; }
+  .ev-row .glyph.party { background: var(--rose-bg); color: var(--rose); }
+  .ev-row .glyph.inc { background: var(--ok-bg); color: var(--ok); font-family: var(--mono); font-size: 11px; font-weight: 600; }
+  .ev-row .glyph.exp { background: var(--rose-bg); color: var(--rose); font-family: var(--mono); font-size: 11px; font-weight: 600; }
+  .ev-row .body { flex: 1; min-width: 0; }
+  .ev-row .body .t { font-size: 13px; font-weight: 550; color: var(--ink); }
+  .ev-row .body .m { font-family: var(--mono); font-size: 10px; letter-spacing: .04em; color: var(--faint); margin-top: 1px; }
+  .ev-row .amt { font-family: var(--mono); font-size: 13px; font-weight: 500; font-variant-numeric: tabular-nums; flex-shrink: 0; }
+  .ev-row .amt.party { color: var(--rose); }
+  .ev-row .amt.inc { color: var(--ok); }
+  .ev-row .amt.exp { color: var(--rose); }
+  .ev-row .tag { font-family: var(--mono); font-size: 8.5px; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--gold); background: var(--gold-bg); border-radius: 999px; padding: 2px 7px; }
+
+  .rep { padding: 16px 18px; display: flex; flex-direction: column; gap: 10px; }
+  .rep .line { display: flex; justify-content: space-between; align-items: baseline; }
+  .rep .line .k { font-size: 11.5px; color: var(--muted); }
+  .rep .line .v { font-family: var(--mono); font-size: 13px; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+  .rep .line .v.sage { color: var(--ok); }
+  .rep .line .v.rose { color: var(--rose); }
+  .rep .line .v.party { color: var(--rose); }
+  .rep hr { border: 0; border-top: 1px solid var(--line-soft); margin: 2px 0; }
+  .rep .line.total .k { color: var(--ink); font-weight: 600; }
+  .rep .line.total .v { font-family: var(--serif); font-size: 17px; font-weight: 500; color: var(--vio); }
+  .rep .exp-btn { margin-top: 4px; display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+    font-family: var(--mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--muted); background: transparent; border: 1px solid var(--line); border-radius: 8px; padding: 9px; cursor: pointer; }
+  .rep .exp-btn:hover { color: var(--ink); border-color: var(--vio); }
+  .rep .exp-btn svg { width: 13px; height: 13px; }
+
+  /* ── Transaction log ─────────────────────────────────── */
+  .log { margin-top: 18px; }
+  .log-h { display: flex; align-items: center; gap: 14px; padding: 15px 18px 12px; border-bottom: 1px solid var(--line-soft); flex-wrap: wrap; }
+  .log-h h2 { font-family: var(--serif); font-weight: 500; font-size: 16.5px; color: var(--ink); }
+  .txtabs { display: flex; gap: 4px; }
+  .txtabs button { font-family: var(--mono); font-size: 9.5px; letter-spacing: .08em; text-transform: uppercase;
+    color: var(--muted); background: transparent; border: 1px solid transparent; border-radius: 6px; padding: 4px 9px; cursor: pointer; }
+  .txtabs button.on { color: var(--ink); background: var(--card-2); border-color: var(--line); }
+  .grow { flex: 1; }
+  .log-search { position: relative; }
+  .log-search svg { position: absolute; left: 9px; top: 50%; transform: translateY(-50%); width: 13px; height: 13px; color: var(--faint); }
+  .log-search input { font-family: var(--mono); font-size: 11px; color: var(--ink); background: var(--card);
+    border: 1px solid var(--line); border-radius: 8px; padding: 7px 12px 7px 28px; width: 200px; outline: none; }
+  .log-search input::placeholder { color: var(--faint); }
+  .log-search input:focus { border-color: var(--vio); }
+  .log-total { font-family: var(--mono); font-size: 13px; font-weight: 500; font-variant-numeric: tabular-nums; }
+  .log-total.sage { color: var(--ok); }
+  .log-total.rose { color: var(--rose); }
+
+  table { width: 100%; border-collapse: collapse; }
+  thead th { font-family: var(--mono); font-size: 8.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--faint);
+    text-align: left; padding: 10px 18px; border-bottom: 1px solid var(--line-soft); font-weight: 500; }
+  thead th.r, tbody td.r { text-align: right; }
+  tbody td { padding: 12px 18px; border-bottom: 1px solid var(--line-soft); vertical-align: middle; }
+  tbody tr:last-child td { border-bottom: 0; }
+  tbody tr:hover { background: var(--card-2); }
+  td.date { font-family: var(--mono); font-size: 11px; color: var(--muted); white-space: nowrap; }
+  .pill { display: inline-flex; align-items: center; gap: 6px; font-family: var(--mono); font-size: 9.5px; letter-spacing: .06em;
+    text-transform: uppercase; color: var(--ink-soft); border: 1px solid var(--line); border-radius: 999px; padding: 3px 9px; }
+  .pill .pdot { width: 6px; height: 6px; border-radius: 50%; }
+  .pill .pdot.inc { background: var(--ok); } .pill .pdot.exp { background: var(--rose); }
+  .sched-tag { margin-left: 7px; font-family: var(--mono); font-size: 8px; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--gold); background: var(--gold-bg); border-radius: 999px; padding: 2px 7px; }
+  td .desc { font-size: 12.5px; color: var(--ink-soft); }
+  td .payee { font-family: var(--mono); font-size: 10px; color: var(--faint); margin-top: 1px; }
+  td .method { font-family: var(--mono); font-size: 10.5px; color: var(--muted); text-transform: capitalize; }
+  td .amt { font-family: var(--mono); font-size: 13px; font-weight: 500; font-variant-numeric: tabular-nums; }
+  td .amt.inc { color: var(--ok); } td .amt.exp { color: var(--rose); }
+  td .run { font-family: var(--mono); font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .secnote { font-family: var(--mono); font-size: 9px; letter-spacing: .12em; text-transform: uppercase; color: var(--faint); margin: 30px 0 12px; }
+
+  @media (max-width: 980px) {
+    .shell { grid-template-columns: 1fr; }
+    .side { display: none; }
+    .hero, .lower { grid-template-columns: 1fr; }
+    .glance { grid-template-columns: 1fr 1fr; }
+    .measure:nth-child(2) { border-right: 0; }
+  }
+</style>
+</head>
+<body>
+<button class="theme-toggle" onclick="document.documentElement.dataset.theme = document.documentElement.dataset.theme==='dusk'?'ivory':'dusk'">Dusk / Ivory · T</button>
+<div class="shell">
+
+  <!-- ── Sidebar ──────────────────────────────────────── -->
+  <aside class="side">
+    <div class="wordmark">
+      <div class="product">ChaptOS</div>
+      <div class="org">Lambda Phi Epsilon<br>Beta Chapter</div>
+    </div>
+    <nav class="nav">
+      <a href="#">Dashboard</a>
+      <a href="#">Brothers</a>
+      <a href="#">Events</a>
+      <a href="#">Timeline</a>
+      <a href="#" class="active">Treasury</a>
+      <a href="#">Documents</a>
+      <a href="#">Instagram</a>
+      <a href="#">Settings</a>
+    </nav>
+    <div class="spacer"></div>
+    <div class="user">
+      <div class="avatar">TT</div>
+      <div class="who">
+        <p>Thalha Thabish</p>
+        <p>Treasurer</p>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ── Main ─────────────────────────────────────────── -->
+  <main class="main">
+
+    <!-- Briefing -->
+    <section class="briefing">
+      <div>
+        <p class="kicker"><span class="today">Sat · Jun 13</span> &ensp;·&ensp; Treasury &ensp;·&ensp; Spring 2026</p>
+        <h1 class="greeting">The <em>ledger</em>.</h1>
+        <div class="digest">
+          <span class="ai-chip">AI</span>
+          <p>$8,420 in the books and trending up — door revenue carried the term, but $640 in catering is still scheduled and nine brothers owe $1,150 in back dues.</p>
+        </div>
+      </div>
+      <div class="head-actions">
+        <button class="sem-pill">FA25</button>
+        <button class="sem-pill on">SPR26</button>
+        <button class="icon-btn" title="Export CSV">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+        </button>
+        <button class="add-btn">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+          New txn
+        </button>
+      </div>
+    </section>
+
+    <!-- Tab nav (kept) -->
+    <nav class="tabs">
+      <button class="on">Overview</button>
+      <button>Budget</button>
+      <button>Transactions</button>
+      <button>Reports</button>
+    </nav>
+
+    <!-- ── At-a-glance strip (the addition) ─────────────── -->
+    <section class="glance" aria-label="Treasury at a glance">
+      <div class="measure">
+        <p class="k">Balance</p>
+        <p class="v sage">$8,420</p>
+        <p class="note">projected $10,946 · SPR26</p>
+        <svg class="spark" width="48" height="20" viewBox="0 0 48 20"><polyline points="0,16 8,15 16,12 24,13 32,8 40,6 48,3"/></svg>
+      </div>
+      <div class="measure">
+        <p class="k">Income</p>
+        <p class="v sage">$12,180</p>
+        <p class="note">24 transactions</p>
+      </div>
+      <div class="measure">
+        <p class="k">Expenses</p>
+        <p class="v rose">$3,760</p>
+        <p class="note warn">$640 scheduled</p>
+      </div>
+      <div class="measure">
+        <p class="k">Dues outstanding</p>
+        <p class="v">$1,150</p>
+        <p class="note bad">9 brothers owing</p>
+      </div>
+    </section>
+
+    <!-- ── Hero: balance + donut ────────────────────────── -->
+    <section class="hero">
+
+      <!-- Balance + chart -->
+      <div class="card">
+        <div class="bal-top">
+          <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+            <div>
+              <p class="bal-label">Treasury Balance</p>
+              <div class="bal-row">
+                <span class="bal-num">$8,420</span>
+                <span class="bal-chip up">+$520 biweekly</span>
+              </div>
+              <span class="bal-sched">−$640 scheduled → $7,780 projected</span>
+              <p class="bal-meta">SPR26 · Projected <b>$10,946</b></p>
+            </div>
+            <div class="ranges">
+              <button>2W</button><button>1M</button><button>3M</button><button>YTD</button><button class="on">ALL</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="bal-kpi">
+          <div>
+            <p class="k">Income</p>
+            <p class="v sage">$12,180</p>
+            <p class="m">24 txns</p>
+          </div>
+          <div>
+            <p class="k">Expenses</p>
+            <p class="v rose">$3,760</p>
+            <p class="m">18 txns</p>
+          </div>
+        </div>
+
+        <!-- faux running-balance area chart -->
+        <div class="chart">
+          <svg viewBox="0 0 520 180" preserveAspectRatio="none">
+            <defs>
+              <linearGradient id="fill" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#a78bfa" stop-opacity="0.28"/>
+                <stop offset="100%" stop-color="#a78bfa" stop-opacity="0"/>
+              </linearGradient>
+            </defs>
+            <line class="gridline" x1="0" y1="40" x2="520" y2="40"/>
+            <line class="gridline" x1="0" y1="80" x2="520" y2="80"/>
+            <line class="gridline" x1="0" y1="120" x2="520" y2="120"/>
+            <path d="M0,150 L60,142 L120,150 L180,118 L240,124 L300,92 L360,70 L420,74 L480,46 L520,38 L520,180 L0,180 Z" fill="url(#fill)"/>
+            <polyline points="0,150 60,142 120,150 180,118 240,124 300,92 360,70 420,74 480,46 520,38"
+              fill="none" stroke="#a78bfa" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <text class="axis" x="2" y="174">Feb</text>
+            <text class="axis" x="180" y="174">Mar</text>
+            <text class="axis" x="340" y="174">Apr</text>
+            <text class="axis" x="480" y="174">Jun</text>
+          </svg>
+        </div>
+      </div>
+
+      <!-- Category donut -->
+      <div class="card">
+        <div class="card-h">
+          <h2>Breakdown</h2>
+          <div class="donut-toggle">
+            <button class="on">Expenses</button>
+            <button>Income</button>
+          </div>
+        </div>
+        <div class="donut-wrap">
+          <svg width="188" height="188" viewBox="0 0 42 42">
+            <circle cx="21" cy="21" r="15.9" fill="none" stroke="var(--line)" stroke-width="5"/>
+            <!-- four arcs, dasharray = pct of 100 circumference -->
+            <circle cx="21" cy="21" r="15.9" fill="none" stroke="#a78bfa" stroke-width="5" stroke-dasharray="38 62" stroke-dashoffset="25"/>
+            <circle cx="21" cy="21" r="15.9" fill="none" stroke="#ddb36a" stroke-width="5" stroke-dasharray="26 74" stroke-dashoffset="-13"/>
+            <circle cx="21" cy="21" r="15.9" fill="none" stroke="#d98ba3" stroke-width="5" stroke-dasharray="20 80" stroke-dashoffset="-39"/>
+            <circle cx="21" cy="21" r="15.9" fill="none" stroke="#7fb08a" stroke-width="5" stroke-dasharray="16 84" stroke-dashoffset="-59"/>
+          </svg>
+          <div class="donut-center">
+            <div>
+              <p class="lbl">Expenses</p>
+              <p class="amt">$3,760</p>
+              <p class="cnt">4 categories</p>
+            </div>
+          </div>
+        </div>
+        <div class="cat-list">
+          <div class="cat">
+            <span class="rank">1</span><span class="swatch" style="background:#a78bfa"></span>
+            <div class="body">
+              <div class="top"><span class="nm">Venue & Space</span><span><span class="pct">38.0%</span><span class="amt">$1,430</span></span></div>
+              <div class="bar"><i style="width:38%;background:#a78bfa"></i></div>
+            </div>
+          </div>
+          <div class="cat">
+            <span class="rank">2</span><span class="swatch" style="background:#ddb36a"></span>
+            <div class="body">
+              <div class="top"><span class="nm">Catering</span><span><span class="pct">26.0%</span><span class="amt">$978</span></span></div>
+              <div class="bar"><i style="width:26%;background:#ddb36a"></i></div>
+            </div>
+          </div>
+          <div class="cat">
+            <span class="rank">3</span><span class="swatch" style="background:#d98ba3"></span>
+            <div class="body">
+              <div class="top"><span class="nm">Merchandise</span><span><span class="pct">20.0%</span><span class="amt">$752</span></span></div>
+              <div class="bar"><i style="width:20%;background:#d98ba3"></i></div>
+            </div>
+          </div>
+          <div class="cat">
+            <span class="rank">4</span><span class="swatch" style="background:#7fb08a"></span>
+            <div class="body">
+              <div class="top"><span class="nm">Philanthropy</span><span><span class="pct">16.0%</span><span class="amt">$600</span></span></div>
+              <div class="bar"><i style="width:16%;background:#7fb08a"></i></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Lower: dues / upcoming / reports ─────────────── -->
+    <section class="lower">
+
+      <!-- Brothers with dues -->
+      <div class="card">
+        <div class="card-h">
+          <h2>Brothers with Dues</h2>
+          <span class="sub">9 owing · $1,150</span>
+        </div>
+        <div class="row">
+          <div class="av">DK</div>
+          <div class="who"><p class="nm">Daniel Kim</p><p class="rl">Pledge</p></div>
+          <span class="owe">$250</span>
+          <div class="acts"><button class="mini-btn">Pay</button><button class="mini-btn ghost">+ Add</button></div>
+        </div>
+        <div class="row">
+          <div class="av">JN</div>
+          <div class="who"><p class="nm">Justin Nguyen</p><p class="rl">Member</p></div>
+          <span class="owe">$200</span>
+          <div class="acts"><button class="mini-btn">Pay</button><button class="mini-btn ghost">+ Add</button></div>
+        </div>
+        <div class="row">
+          <div class="av">RW</div>
+          <div class="who"><p class="nm">Ray Wong</p><p class="rl">Member</p></div>
+          <span class="owe">$150</span>
+          <div class="acts"><button class="mini-btn">Pay</button><button class="mini-btn ghost">+ Add</button></div>
+        </div>
+        <div class="row">
+          <div class="av">AP</div>
+          <div class="who"><p class="nm">Aaron Park</p><p class="rl">Pledge</p></div>
+          <span class="owe">$150</span>
+          <div class="acts"><button class="mini-btn">Pay</button><button class="mini-btn ghost">+ Add</button></div>
+        </div>
+      </div>
+
+      <!-- Upcoming -->
+      <div class="card">
+        <div class="card-h">
+          <h2>Upcoming</h2>
+          <span class="sub">Events & txns</span>
+        </div>
+        <div class="ev-row">
+          <div class="glyph party">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 19V6l12-3v13M9 19c0 1.1-1.3 2-3 2s-3-.9-3-2 1.3-2 3-2 3 .9 3 2zm12-3c0 1.1-1.3 2-3 2s-3-.9-3-2 1.3-2 3-2 3 .9 3 2z"/></svg>
+          </div>
+          <div class="body"><p class="t">Summer Send-Off Mixer</p><p class="m">Jun 18 · Party event</p></div>
+          <span class="amt party">$840</span>
+        </div>
+        <div class="ev-row">
+          <div class="glyph exp">CA</div>
+          <div class="body"><p class="t">Banquet catering deposit</p><p class="m">Jun 20</p></div>
+          <span class="tag">Scheduled</span>
+          <span class="amt exp">−$640</span>
+        </div>
+        <div class="ev-row">
+          <div class="glyph inc">DU</div>
+          <div class="body"><p class="t">Late dues batch</p><p class="m">Jun 22</p></div>
+          <span class="amt inc">+$450</span>
+        </div>
+        <div class="ev-row">
+          <div class="glyph party">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 19V6l12-3v13M9 19c0 1.1-1.3 2-3 2s-3-.9-3-2 1.3-2 3-2 3 .9 3 2zm12-3c0 1.1-1.3 2-3 2s-3-.9-3-2 1.3-2 3-2 3 .9 3 2z"/></svg>
+          </div>
+          <div class="body"><p class="t">Alumni Reunion Social</p><p class="m">Jun 28 · Party event</p></div>
+          <span class="amt party">$1,200</span>
+        </div>
+      </div>
+
+      <!-- Reports -->
+      <div class="card">
+        <div class="card-h">
+          <h2>Reports</h2>
+          <span class="sub">SPR26</span>
+        </div>
+        <div class="rep">
+          <div class="line"><span class="k">Total Income</span><span class="v sage">$12,180</span></div>
+          <div class="line"><span class="k">Total Expenses</span><span class="v rose">$3,760</span></div>
+          <div class="line"><span class="k">Door Revenue</span><span class="v party">$2,560</span></div>
+          <hr>
+          <div class="line total"><span class="k">Net Balance</span><span class="v">$8,420</span></div>
+          <div class="line"><span class="k">Projected</span><span class="v">$10,946</span></div>
+          <div class="line"><span class="k">Party Events</span><span class="v">6</span></div>
+          <button class="exp-btn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+            Export CSV
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Transaction log ──────────────────────────────── -->
+    <p class="secnote">— The record —</p>
+    <div class="card log">
+      <div class="log-h">
+        <h2>Transaction Log</h2>
+        <div class="txtabs">
+          <button class="on">All</button>
+          <button>Income</button>
+          <button>Expense</button>
+        </div>
+        <span class="grow"></span>
+        <span class="log-search">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+          <input type="search" placeholder="Search description, category, payee…">
+        </span>
+        <span class="log-total sage">+$8,420</span>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Date</th><th>Category</th><th>Description</th><th>Method</th>
+            <th class="r">Amount</th><th class="r">Balance</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="date">Jun 11</td>
+            <td><span class="pill"><span class="pdot inc"></span>Door Revenue</span></td>
+            <td><div class="desc">Spring Mixer door</div><div class="payee">→ chapter</div></td>
+            <td><span class="method">cash</span></td>
+            <td class="r"><span class="amt inc">+$840</span></td>
+            <td class="r"><span class="run">$8,420</span></td>
+          </tr>
+          <tr>
+            <td class="date">Jun 09</td>
+            <td><span class="pill"><span class="pdot exp"></span>Catering</span><span class="sched-tag">Sched</span></td>
+            <td><div class="desc">Banquet deposit</div><div class="payee">→ Golden Bowl Catering</div></td>
+            <td><span class="method">card</span></td>
+            <td class="r"><span class="amt exp">−$640</span></td>
+            <td class="r"><span class="run">$7,580</span></td>
+          </tr>
+          <tr>
+            <td class="date">Jun 06</td>
+            <td><span class="pill"><span class="pdot inc"></span>Dues</span></td>
+            <td><div class="desc">Spring dues — batch 3</div><div class="payee">→ chapter</div></td>
+            <td><span class="method">venmo</span></td>
+            <td class="r"><span class="amt inc">+$1,350</span></td>
+            <td class="r"><span class="run">$8,220</span></td>
+          </tr>
+          <tr>
+            <td class="date">Jun 02</td>
+            <td><span class="pill"><span class="pdot exp"></span>Merchandise</span></td>
+            <td><div class="desc">Spring crewnecks (40)</div><div class="payee">→ Custom Ink</div></td>
+            <td><span class="method">card</span></td>
+            <td class="r"><span class="amt exp">−$752</span></td>
+            <td class="r"><span class="run">$6,870</span></td>
+          </tr>
+          <tr>
+            <td class="date">May 28</td>
+            <td><span class="pill"><span class="pdot inc"></span>Door Revenue</span></td>
+            <td><div class="desc">Boba Fundraiser</div><div class="payee">→ chapter</div></td>
+            <td><span class="method">cash</span></td>
+            <td class="r"><span class="amt inc">+$1,720</span></td>
+            <td class="r"><span class="run">$7,622</span></td>
+          </tr>
+          <tr>
+            <td class="date">May 24</td>
+            <td><span class="pill"><span class="pdot exp"></span>Venue & Space</span></td>
+            <td><div class="desc">Reunion hall rental</div><div class="payee">→ Westin Ballroom</div></td>
+            <td><span class="method">check</span></td>
+            <td class="r"><span class="amt exp">−$1,430</span></td>
+            <td class="r"><span class="run">$5,902</span></td>
+          </tr>
+          <tr>
+            <td class="date">May 19</td>
+            <td><span class="pill"><span class="pdot exp"></span>Philanthropy</span></td>
+            <td><div class="desc">Cancer walk donation</div><div class="payee">→ Relay for Life</div></td>
+            <td><span class="method">card</span></td>
+            <td class="r"><span class="amt exp">−$600</span></td>
+            <td class="r"><span class="run">$7,332</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+  </main>
+</div>
+
+<script>
+  // Theme toggle on "T", matching the sibling mocks.
+  addEventListener("keydown", e => {
+    if (e.key.toLowerCase() === "t" && !/input|textarea|select/i.test(e.target.tagName)) {
+      const r = document.documentElement;
+      r.dataset.theme = r.dataset.theme === "dusk" ? "ivory" : "dusk";
+    }
+  });
+</script>
+</body>
+</html>

@@ -219,7 +219,7 @@ export async function setStage(ctx: RequestContext, id: number, input: SetStageI
     const { done, total } = programmingPrepScore({ ...pe, roomStatus });
     if (done < total) {
       throw new ValidationError(
-        `All prep items must be completed before confirming an event (${done}/${total} done).`,
+        `Finish the prep checklist before confirming — ${total - done} item${total - done === 1 ? "" : "s"} still need${total - done === 1 ? "s" : ""} to be checked off.`,
       );
     }
   }
