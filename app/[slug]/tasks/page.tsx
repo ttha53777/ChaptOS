@@ -3,17 +3,15 @@
 import React, { useState, useMemo, useEffect, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import { Sidebar } from "../../components/Sidebar";
-import { Modal, FieldLabel, ConfirmDialog } from "../../components/dashboard/primitives";
-import { inputDuskCls, btnDuskPrimaryCls } from "../../components/dashboard/styles";
+import { Modal, ConfirmDialog } from "../../components/dashboard/primitives";
+import { TaskForm, type RoleOption, type TaskFormValue } from "../../components/dashboard/TaskForm";
 import { useChapter } from "../../context/ChapterContext";
+import { useActiveSemester } from "../../hooks/useActiveSemester";
 import { Task, fmtDate } from "../../data";
 import { requestJson } from "../../lib/api";
 import { taskUrgency, type TaskUrgency, URGENCY_ORDER } from "@/lib/tasks/urgency";
 import "../../components/dashboard/dashboard-ledger.css";
 import "./tasks-ledger.css";
-
-// A role summary for the assignee picker, from /api/roles (listRoles).
-type RoleOption = { id: number; name: string; color: string | null };
 
 type AssigneeFilter = "all" | "mine";
 
@@ -24,9 +22,6 @@ const URGENCY_LABEL: Record<TaskUrgency, string> = {
 const URGENCY_TONE: Record<TaskUrgency, string> = {
   overdue: "rose", urgent: "rose", "due-soon": "gold", upcoming: "", none: "",
 };
-
-const FORM_EMPTY = { title: "", dueDate: "", notes: "", brotherIds: [] as number[], roleIds: [] as number[] };
-type FormState = typeof FORM_EMPTY;
 
 // ── Date helpers ──────────────────────────────────────────────────────────────
 function startOfToday(): Date {
@@ -76,13 +71,16 @@ export default function TasksPage() {
     [today],
   );
 
+  const activeSemester = useActiveSemester();
   const [roles, setRoles] = useState<RoleOption[]>([]);
   const [assigneeFilter, setAssigneeFilter] = useState<AssigneeFilter>("all");
   const [showDone, setShowDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const [modal, setModal] = useState<{ kind: "add" } | { kind: "edit"; id: number } | null>(null);
-  const [form, setForm] = useState<FormState>(FORM_EMPTY);
+  // The modal carries the task being edited (for the form's initial values), or
+  // { kind: "add" } for a fresh create.
+  const [modal, setModal] = useState<{ kind: "add" } | { kind: "edit"; task: Task } | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<{ id: number; title: string } | null>(null);
 
   // Load the org's roles for the assignee picker.
@@ -94,17 +92,8 @@ export default function TasksPage() {
     (a.brotherId != null && a.brotherId === selfId) || (a.roleId != null && myRoleIds.has(a.roleId)),
   ), [selfId, myRoleIds]);
 
-  const openAdd = useCallback(() => { setForm(FORM_EMPTY); setModal({ kind: "add" }); }, []);
-  const openEdit = useCallback((t: Task) => {
-    setForm({
-      title: t.title,
-      dueDate: t.dueDate ?? "",
-      notes: t.notes ?? "",
-      brotherIds: t.assignments.filter(a => a.brotherId != null).map(a => a.brotherId!),
-      roleIds: t.assignments.filter(a => a.roleId != null).map(a => a.roleId!),
-    });
-    setModal({ kind: "edit", id: t.id });
-  }, []);
+  const openAdd = useCallback(() => { setFormError(null); setModal({ kind: "add" }); }, []);
+  const openEdit = useCallback((t: Task) => { setFormError(null); setModal({ kind: "edit", task: t }); }, []);
 
   // Honor ?new=1 (open the create modal) and ?task=<id> (open edit) from links on
   // the dashboard / timeline.
@@ -167,37 +156,35 @@ export default function TasksPage() {
   }, [counts]);
 
   // ── Mutations (optimistic, mirroring the parties/dashboard pattern) ─────────
-  async function submitForm() {
-    if (!form.title.trim()) { setError("A task needs a title."); return; }
-    if (form.brotherIds.length + form.roleIds.length === 0) { setError("Assign at least one member or role."); return; }
-    setError(null);
-    const payload = {
-      title: form.title.trim(),
-      dueDate: form.dueDate || undefined,
-      notes: form.notes.trim() || undefined,
-      assigneeBrotherIds: form.brotherIds,
-      assigneeRoleIds: form.roleIds,
+  // TaskForm validates title + at least-one-assignee; here we just persist.
+  async function submitForm(value: TaskFormValue) {
+    setFormError(null);
+    const base = {
+      title: value.title,
+      assigneeBrotherIds: value.assigneeBrotherIds,
+      assigneeRoleIds: value.assigneeRoleIds,
     };
 
     try {
       if (modal?.kind === "edit") {
-        const saved = await requestJson<Task>(`/api/tasks/${modal.id}`, {
+        // On edit, empties clear the field (null), not "leave unchanged" (undefined).
+        const saved = await requestJson<Task>(`/api/tasks/${modal.task.id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ...payload, dueDate: form.dueDate || null, notes: form.notes.trim() || null }),
+          body: JSON.stringify({ ...base, dueDate: value.dueDate || null, notes: value.notes || null }),
         });
         setTaskList(prev => prev.map(x => x.id === saved.id ? saved : x));
       } else {
         const saved = await requestJson<Task>("/api/tasks", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
+          body: JSON.stringify({ ...base, dueDate: value.dueDate || undefined, notes: value.notes || undefined }),
         });
         setTaskList(prev => [...prev, saved]);
       }
       setModal(null);
     } catch {
-      setError("Could not save the task. Please try again.");
+      setFormError("Could not save the task. Please try again.");
     }
   }
 
@@ -229,9 +216,6 @@ export default function TasksPage() {
     }
   }
 
-  function toggleId(list: number[], id: number): number[] {
-    return list.includes(id) ? list.filter(x => x !== id) : [...list, id];
-  }
 
   // An assignee can flip status even without MANAGE_TASKS.
   const canCompleteTask = (t: Task) => canManage || isMine(t);
@@ -379,54 +363,22 @@ export default function TasksPage() {
 
       {modal && (
         <Modal title={modal.kind === "edit" ? "Edit task" : "New task"} tone="dusk" onClose={() => setModal(null)}>
-          <div className="tk-form">
-            <div>
-              <FieldLabel htmlFor="tk-title" tone="dusk">Title</FieldLabel>
-              <input id="tk-title" className={inputDuskCls} value={form.title} autoFocus
-                onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="What needs doing…" />
-            </div>
-            <div>
-              <FieldLabel htmlFor="tk-due" tone="dusk">Due date <span className="tk-opt">(optional — a dated task shows on the timeline)</span></FieldLabel>
-              <input id="tk-due" type="date" className={inputDuskCls} value={form.dueDate}
-                onChange={e => setForm(f => ({ ...f, dueDate: e.target.value }))} />
-            </div>
-            <div>
-              <FieldLabel tone="dusk">Assign to members</FieldLabel>
-              <div className="tk-picker">
-                {brotherList.length === 0 && <span className="tk-opt">No members yet.</span>}
-                {brotherList.map(b => (
-                  <button key={b.id} type="button"
-                    className={`tk-pick-chip${form.brotherIds.includes(b.id) ? " on" : ""}`}
-                    onClick={() => setForm(f => ({ ...f, brotherIds: toggleId(f.brotherIds, b.id) }))}>
-                    {b.name}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div>
-              <FieldLabel tone="dusk">Assign to roles <span className="tk-opt">(expands to current holders)</span></FieldLabel>
-              <div className="tk-picker">
-                {roles.length === 0 && <span className="tk-opt">No roles defined.</span>}
-                {roles.map(r => (
-                  <button key={r.id} type="button"
-                    className={`tk-pick-chip role${form.roleIds.includes(r.id) ? " on" : ""}`}
-                    style={r.color ? { ["--chip" as string]: r.color } : undefined}
-                    onClick={() => setForm(f => ({ ...f, roleIds: toggleId(f.roleIds, r.id) }))}>
-                    {r.name}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div>
-              <FieldLabel htmlFor="tk-notes" tone="dusk">Notes <span className="tk-opt">(optional)</span></FieldLabel>
-              <textarea id="tk-notes" className={inputDuskCls} rows={2} value={form.notes}
-                onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} />
-            </div>
-            {error && <p className="tk-form-error">{error}</p>}
-            <button className={btnDuskPrimaryCls} onClick={submitForm}>
-              {modal.kind === "edit" ? "Save changes" : "Create task"}
-            </button>
-          </div>
+          <TaskForm
+            brothers={brotherList}
+            roles={roles}
+            minDate={activeSemester?.startDate}
+            maxDate={activeSemester?.endDate}
+            submitLabel={modal.kind === "edit" ? "Save changes" : "Create task"}
+            error={formError}
+            initial={modal.kind === "edit" ? {
+              title: modal.task.title,
+              dueDate: modal.task.dueDate ?? "",
+              notes: modal.task.notes ?? "",
+              brotherIds: modal.task.assignments.filter(a => a.brotherId != null).map(a => a.brotherId!),
+              roleIds: modal.task.assignments.filter(a => a.roleId != null).map(a => a.roleId!),
+            } : undefined}
+            onSubmit={submitForm}
+          />
         </Modal>
       )}
 
