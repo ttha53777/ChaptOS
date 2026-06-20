@@ -40,7 +40,8 @@ model Organization {
   serviceEvents             ServiceEvent[]
   serviceParticipations     ServiceParticipation[]
   partyEvents               PartyEvent[]
-  deadlines                 Deadline[]
+  tasks                     Task[]
+  taskAssignments           TaskAssignment[]
   instagramTasks            InstagramTask[]
   docs                      Doc[]
   programmingEvents         ProgrammingEvent[]
@@ -146,6 +147,7 @@ model Brother {
   metricValues          BrotherMetricValue[]
   serviceParticipations ServiceParticipation[]
   reimbursements        Reimbursement[]
+  taskAssignments       TaskAssignment[]
 
   organization Organization @relation(fields: [organizationId], references: [id])
 
@@ -213,6 +215,7 @@ model Role {
   isSystem       Boolean       @default(false)
   createdAt      DateTime      @default(now())
   brothers       BrotherRole[]
+  taskAssignments TaskAssignment[]
 
   organization Organization @relation(fields: [organizationId], references: [id])
 
@@ -294,17 +297,50 @@ model AttendanceExcuse {
   @@index([status])
 }
 
-model Deadline {
-  id             Int    @id @default(autoincrement())
+// A task is a unit of work handed out to members and/or roles. A task WITH a
+// dueDate is what the UI calls a "deadline" (it folds into the timeline); a task
+// without one is a loose to-do. Status is just open/done — urgency (urgent/due
+// soon/upcoming) is COMPUTED from dueDate at render time, never stored. Anyone
+// assigned can mark the shared status done; only MANAGE_TASKS can edit/reassign.
+model Task {
+  id             Int       @id @default(autoincrement())
   organizationId Int
   title          String
-  dueDate        String
-  owner          String
-  status         String
+  dueDate        String? // ISO YYYY-MM-DD; null = undated to-do
+  status         String    @default("open") // TaskStatus union in @/lib/state: "open" | "done"
+  notes          String?
+  createdById    Int? // Brother who created it; null for rows migrated from legacy Deadlines
+  completedById  Int?
+  completedAt    DateTime?
+  createdAt      DateTime  @default(now())
 
-  organization Organization @relation(fields: [organizationId], references: [id])
+  organization Organization     @relation(fields: [organizationId], references: [id])
+  assignments  TaskAssignment[]
 
   @@index([organizationId])
+  @@index([organizationId, status])
+}
+
+// Join: a task targets one-or-more brothers AND/OR one-or-more roles. Role
+// targets resolve to current holders at READ time (not snapshotted), so adding
+// someone to a role auto-assigns them the role's open tasks. organizationId is
+// denormalized for self-contained org isolation (mirrors BrotherRole). Exactly
+// one of brotherId/roleId is set (CHECK constraint in the migration).
+model TaskAssignment {
+  id             Int @id @default(autoincrement())
+  taskId         Int
+  organizationId Int
+  brotherId      Int?
+  roleId         Int?
+
+  task         Task         @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  brother      Brother?     @relation(fields: [brotherId], references: [id], onDelete: Cascade)
+  role         Role?        @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([taskId])
+  @@index([organizationId, brotherId])
+  @@index([organizationId, roleId])
 }
 
 model InstagramTask {
