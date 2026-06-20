@@ -136,3 +136,13 @@ CREATE POLICY allow_all ON "Task" USING (true) WITH CHECK (true);
 ALTER TABLE "TaskAssignment" ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS allow_all ON "TaskAssignment";
 CREATE POLICY allow_all ON "TaskAssignment" USING (true) WITH CHECK (true);
+
+-- ── Backfill: enable the Tasks workflow for existing orgs ──────────────────────
+-- Tasks is a brand-new workflow. Every org provisioned before this migration has
+-- a config row whose enabledWorkflows predates "tasks", so the sidebar filter
+-- (isNavVisible) hides the Tasks page for them. The org-type templates already
+-- ship "tasks", so new orgs get it — this only catches up the existing rows.
+-- Idempotent: only appends where the key is missing.
+UPDATE "OrganizationConfig"
+SET "enabledWorkflows" = array_append("enabledWorkflows", 'tasks')
+WHERE NOT ('tasks' = ANY("enabledWorkflows"));
