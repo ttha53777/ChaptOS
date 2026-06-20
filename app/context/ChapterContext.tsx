@@ -2,7 +2,7 @@
 
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import {
-  Brother, Deadline, InstagramTask, ProgrammingTask, PartyEvent, ActivityEntry, Transaction, Reimbursement,
+  Brother, Task, InstagramTask, ProgrammingTask, PartyEvent, ActivityEntry, Transaction, Reimbursement,
 } from "../data";
 import { AVATAR_CHANGED_EVENT, parseAvatarFromMetadata } from "@/lib/avatar";
 import { createClient } from "@/lib/supabase/client";
@@ -95,8 +95,8 @@ interface ChapterContextValue {
   can: (perm: Permission) => boolean;
   brotherList: Brother[];
   setBrotherList: React.Dispatch<React.SetStateAction<Brother[]>>;
-  deadlineList: Deadline[];
-  setDeadlineList: React.Dispatch<React.SetStateAction<Deadline[]>>;
+  taskList: Task[];
+  setTaskList: React.Dispatch<React.SetStateAction<Task[]>>;
   igTaskList: InstagramTask[];
   setIgTaskList: React.Dispatch<React.SetStateAction<InstagramTask[]>>;
   programmingTaskList: ProgrammingTask[];
@@ -174,7 +174,7 @@ async function fetchJson<T>(url: string): Promise<T | null> {
 
 export function ChapterProvider({ children }: { children: React.ReactNode }) {
   const [brotherList,      setBrotherList]      = useState<Brother[]>([]);
-  const [deadlineList,     setDeadlineList]     = useState<Deadline[]>([]);
+  const [taskList,         setTaskList]         = useState<Task[]>([]);
   const [igTaskList,       setIgTaskList]       = useState<InstagramTask[]>([]);
   const [programmingTaskList, setProgrammingTaskList] = useState<ProgrammingTask[]>([]);
   const [partyList,        setPartyList]        = useState<PartyEvent[]>([]);
@@ -262,7 +262,7 @@ export function ChapterProvider({ children }: { children: React.ReactNode }) {
     const sectionsPromise = onDashboard
       ? Promise.allSettled([
           fetchJson<Brother[]>("/api/brothers"),
-          fetchJson<Deadline[]>("/api/deadlines"),
+          fetchJson<Task[]>("/api/tasks"),
           fetchJson<InstagramTask[]>("/api/instagram"),
           fetchJson<ProgrammingTask[]>("/api/programming"),
           fetchJson<PartyEvent[]>("/api/parties"),
@@ -317,7 +317,7 @@ export function ChapterProvider({ children }: { children: React.ReactNode }) {
     if (brothers.status === "fulfilled")     setBrotherList(brothers.value ?? []);
     else                                     trackFailure("brothers", brothers);
 
-    if (deadlines.status === "fulfilled")    setDeadlineList(deadlines.value ?? []);
+    if (deadlines.status === "fulfilled")    setTaskList(deadlines.value ?? []);
     else                                     trackFailure("deadlines", deadlines);
 
     if (instagram.status === "fulfilled")    setIgTaskList(instagram.value ?? []);
@@ -424,7 +424,7 @@ export function ChapterProvider({ children }: { children: React.ReactNode }) {
     setAvatarUrl,
     can,
     brotherList, setBrotherList,
-    deadlineList, setDeadlineList,
+    taskList, setTaskList,
     igTaskList, setIgTaskList,
     programmingTaskList, setProgrammingTaskList,
     partyList, setPartyList,
@@ -441,7 +441,7 @@ export function ChapterProvider({ children }: { children: React.ReactNode }) {
     avatarRevision,
     setAvatarUrl,
     can,
-    brotherList, deadlineList, igTaskList, programmingTaskList, partyList,
+    brotherList, taskList, igTaskList, programmingTaskList, partyList,
     activityFeed, treasuryData, transactionList, reimbursementList,
     isLoading, loadError, sectionErrors, mutationError, hasLoaded,
     refreshChapterData,

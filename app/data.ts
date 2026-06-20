@@ -59,12 +59,32 @@ export interface Brother {
   customFields?: Record<string, string | number | null>;
 }
 
-export interface Deadline {
+// A task assignee chip: either a member or a role. Mirrors the assignment join
+// rows resolved server-side in task-service (loadTasks include).
+export interface TaskAssigneeBrother { id: number; name: string; avatarUrl: string | null }
+export interface TaskAssigneeRole    { id: number; name: string; color: string | null }
+export interface TaskAssignment {
+  id: number;
+  brotherId: number | null;
+  roleId: number | null;
+  brother: TaskAssigneeBrother | null;
+  role: TaskAssigneeRole | null;
+}
+
+// The unified task. A task WITH a dueDate is what the UI calls a "deadline" (it
+// folds into the timeline). Status is just open/done — urgency is computed from
+// dueDate (see lib/tasks/urgency), never stored.
+export interface Task {
   id: number;
   title: string;
-  dueDate: string;
-  owner: string;
-  status: TaskStatus;
+  dueDate: string | null;
+  status: "open" | "done";
+  notes: string | null;
+  createdById: number | null;
+  completedById: number | null;
+  completedAt: string | null;
+  createdAt: string;
+  assignments: TaskAssignment[];
 }
 
 export interface InstagramTask {
@@ -162,14 +182,16 @@ export const brothers: Brother[] = [
   { id: 10, name: "Thalha Thabish",      role: "Secretary · Social · PR · Rush",           attendance: 90, duesOwed: 0,   gpa: 3.3, serviceHours: 11 },
 ];
 
-export const deadlines: Deadline[] = [
-  { id: 1, title: "Nationals Chapter Fee Deadline",  dueDate: "2026-06-01", owner: "Bryan Lee",          status: "Upcoming"  },
-  { id: 2, title: "Risk Management Form Submission", dueDate: "2026-05-16", owner: "Noah Kim",           status: "Due Soon"  },
-  { id: 3, title: "Spring Roster Update",            dueDate: "2026-05-25", owner: "Thalha Thabish",     status: "Upcoming"  },
-  { id: 4, title: "Banquet Planning Final Submission",dueDate: "2026-05-14", owner: "Issac Chong",       status: "Urgent"    },
-  { id: 5, title: "Brotherhood Event Proposal",      dueDate: "2026-06-10", owner: "Elvin De La Cruz",   status: "Upcoming"  },
-  { id: 6, title: "Academic Standing Report",        dueDate: "2026-05-13", owner: "Rinchen Sherpalama", status: "Urgent"    },
-  { id: 7, title: "IFC Chapter Report",              dueDate: "2026-06-15", owner: "Bryan Lee",          status: "Upcoming"  },
+// Mock seed tasks (all dated → all "deadlines"). Assignments are empty in the
+// mock layer; the live app resolves real member/role assignees server-side.
+export const tasks: Task[] = [
+  { id: 1, title: "Nationals Chapter Fee Deadline",   dueDate: "2026-06-01", status: "open", notes: null, createdById: null, completedById: null, completedAt: null, createdAt: "2026-05-01", assignments: [] },
+  { id: 2, title: "Risk Management Form Submission",  dueDate: "2026-05-16", status: "open", notes: null, createdById: null, completedById: null, completedAt: null, createdAt: "2026-05-01", assignments: [] },
+  { id: 3, title: "Spring Roster Update",             dueDate: "2026-05-25", status: "open", notes: null, createdById: null, completedById: null, completedAt: null, createdAt: "2026-05-01", assignments: [] },
+  { id: 4, title: "Banquet Planning Final Submission",dueDate: "2026-05-14", status: "open", notes: null, createdById: null, completedById: null, completedAt: null, createdAt: "2026-05-01", assignments: [] },
+  { id: 5, title: "Brotherhood Event Proposal",       dueDate: "2026-06-10", status: "open", notes: null, createdById: null, completedById: null, completedAt: null, createdAt: "2026-05-01", assignments: [] },
+  { id: 6, title: "Academic Standing Report",         dueDate: "2026-05-13", status: "open", notes: null, createdById: null, completedById: null, completedAt: null, createdAt: "2026-05-01", assignments: [] },
+  { id: 7, title: "IFC Chapter Report",               dueDate: "2026-06-15", status: "open", notes: null, createdById: null, completedById: null, completedAt: null, createdAt: "2026-05-01", assignments: [] },
 ];
 
 export const instagramTasks: InstagramTask[] = [
@@ -345,14 +367,17 @@ export const KPI_SPARKLINES = {
 
 export function calcHealthScore(
   bList: Brother[],
-  dList: Deadline[],
+  dList: Task[],
   thresholds: Thresholds = THRESHOLDS,
+  today: string = new Date().toISOString().slice(0, 10),
 ): { score: number; label: "Healthy" | "Needs Attention" | "Critical"; breakdown: Record<string, number> } {
   const attScore  = Math.min(100, avg(bList.map(b => b.attendance)));
   const gpaScore  = Math.min(100, Math.max(0, ((avg(bList.map(b => b.gpa)) - 2.0) / 2.0) * 100));
   const duesScore = bList.length ? (bList.filter(b => b.duesOwed === 0).length / bList.length) * 100 : 0;
   const svcScore  = bList.length ? (bList.filter(b => b.serviceHours >= thresholds.serviceHoursGoal).length / bList.length) * 100 : 0;
-  const urgentPenalty = dList.filter(d => d.status === "Urgent").length * 15;
+  // Penalize open, dated tasks that are overdue — the computed equivalent of the
+  // old stored "Urgent" status.
+  const urgentPenalty = dList.filter(d => d.status !== "done" && d.dueDate != null && d.dueDate < today).length * 15;
   const dlScore   = Math.max(0, 100 - urgentPenalty);
   const score = Math.min(100, Math.max(0, Math.round(attScore * 0.30 + gpaScore * 0.25 + duesScore * 0.20 + svcScore * 0.15 + dlScore * 0.10)));
   const label = score >= 80 ? "Healthy" : score >= 60 ? "Needs Attention" : "Critical";
@@ -390,7 +415,7 @@ export function getBrotherStatus(b: Brother, thresholds: Thresholds = THRESHOLDS
 // deterministic.
 
 export type AttentionItem =
-  | { kind: "deadline-overdue"; id: number; title: string; owner: string; dueDate: string; daysLate: number }
+  | { kind: "deadline-overdue"; id: number; title: string; assignees: string; dueDate: string; daysLate: number }
   | { kind: "reimbursement"; count: number; total: number; requests: { id: number; name: string; amount: number }[] }
   | { kind: "dues"; total: number; brothers: { id: number; name: string; amount: number }[] }
   | { kind: "member-risk"; brotherId: number; name: string; attendance: number; gpa: number; serviceHours: number };
@@ -402,24 +427,35 @@ function isoDaysBetween(from: string, to: string): number {
   return Math.round((Date.UTC(ty, tm - 1, td) - Date.UTC(fy, fm - 1, fd)) / 86_400_000);
 }
 
+/** Short, comma-joined assignee labels for a task ("Alex, Recruitment, +2"). */
+export function taskAssigneeLabel(task: Task, max = 2): string {
+  const names = task.assignments.map(a =>
+    a.brother ? a.brother.name.split(" ")[0] : a.role ? a.role.name : "?",
+  );
+  if (names.length === 0) return "Unassigned";
+  if (names.length <= max) return names.join(", ");
+  return `${names.slice(0, max).join(", ")}, +${names.length - max}`;
+}
+
 export function deriveNeedsAttention(
   brothers: Brother[],
-  deadlines: Deadline[],
+  tasks: Task[],
   thresholds: Thresholds = THRESHOLDS,
   today: string = new Date().toISOString().slice(0, 10),
   pendingReimbursements: Reimbursement[] = [],
 ): AttentionItem[] {
   const items: AttentionItem[] = [];
 
-  // Overdue deadlines (rose): incomplete and strictly past due, oldest first.
-  const overdue = deadlines
-    .filter(d => d.status !== "Complete" && d.dueDate < today)
-    .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
-  for (const d of overdue) {
+  // Overdue tasks (rose): dated, still open, strictly past due, oldest first.
+  // Undated to-dos never surface here — only deadlines (dated tasks) can be late.
+  const overdue = tasks
+    .filter(t => t.status !== "done" && t.dueDate != null && t.dueDate < today)
+    .sort((a, b) => (a.dueDate as string).localeCompare(b.dueDate as string));
+  for (const t of overdue) {
     items.push({
       kind: "deadline-overdue",
-      id: d.id, title: d.title, owner: d.owner, dueDate: d.dueDate,
-      daysLate: isoDaysBetween(d.dueDate, today),
+      id: t.id, title: t.title, assignees: taskAssigneeLabel(t), dueDate: t.dueDate as string,
+      daysLate: isoDaysBetween(t.dueDate as string, today),
     });
   }
 

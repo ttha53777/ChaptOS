@@ -117,19 +117,19 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
     function: {
       name: "list_deadlines",
       description:
-        "Chapter deadlines (title, dueDate, owner, status). " +
+        "Chapter deadlines: dated tasks (title, dueDate, status, assignees). Status is open or done. " +
+        "Urgency ('urgent', 'due soon') is NOT a stored status — it's how close dueDate is, so ask for it with a date window, not a status filter. " +
         "For 'soonest/next/closest' set start=<today> (overdue isn't 'next'), order_by='dueDate', order='asc', small limit. " +
         "For 'most overdue' filter to past dates and sort asc. " +
-        "Use status filter ONLY when the user explicitly asks about that bucket. " +
-        "If a filtered query returns empty (e.g. no Urgent), broaden — drop the filter or check the next-tightest status.",
+        "For 'what's left/outstanding' set open_only=true.",
       parameters: {
         type: "object",
         properties: {
           start:  { type: "string", description: "Inclusive YYYY-MM-DD start." },
           end:    { type: "string", description: "Inclusive YYYY-MM-DD end." },
-          status: { type: "string", description: 'e.g. "Urgent", "Due Soon", "Upcoming", "Complete".' },
-          open_only: { type: "boolean", description: "Exclude Complete deadlines (default false)." },
-          order_by:  { type: "string", enum: ["dueDate", "title", "owner"], description: "Sort field (default dueDate)." },
+          status: { type: "string", description: '"open" or "done".' },
+          open_only: { type: "boolean", description: "Only incomplete (open) tasks (default false)." },
+          order_by:  { type: "string", enum: ["dueDate", "title"], description: "Sort field (default dueDate)." },
           order:     { type: "string", enum: ["asc", "desc"], description: "Default asc." },
           limit:     { type: "integer", minimum: 1, maximum: 100, description: "Default 100; use ~5 for 'next/soonest'." },
         },
@@ -350,18 +350,18 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
     function: {
       name: "propose_add_deadline",
       description:
-        "Propose adding a chapter deadline. Returns a confirm card — the deadline is NOT created until the user clicks Confirm. " +
-        "Use when the user asks to add or schedule a deadline. Only ask the user for the required fields (title, dueDate, owner); " +
-        "do NOT ask for status — omit it and it defaults to 'Upcoming'.",
+        "Propose adding a chapter deadline (a dated task). Returns a confirm card — it is NOT created until the user clicks Confirm. " +
+        "Use when the user asks to add or schedule a deadline. A task MUST be assigned to at least one member or role: resolve the owner's name to an id first with list_brothers (member) or list_roles (role), then pass assigneeBrotherId or assigneeRoleId. " +
+        "dueDate is required here (a deadline is a dated task).",
       parameters: {
         type: "object",
         properties: {
-          title:   { type: "string", description: "Short descriptive title." },
-          dueDate: { type: "string", description: "YYYY-MM-DD." },
-          owner:   { type: "string", description: "Brother name responsible." },
-          status:  { type: "string", enum: ["Upcoming", "Due Soon", "Urgent"], description: "Optional. Defaults to 'Upcoming' — only set if the user explicitly mentions urgency." },
+          title:            { type: "string", description: "Short descriptive title." },
+          dueDate:          { type: "string", description: "YYYY-MM-DD." },
+          assigneeBrotherId:{ type: "integer", description: "Member id responsible (from list_brothers). Provide this OR assigneeRoleId." },
+          assigneeRoleId:   { type: "integer", description: "Role id responsible (from list_roles). Provide this OR assigneeBrotherId." },
         },
-        required: ["title", "dueDate", "owner"],
+        required: ["title", "dueDate"],
       },
     },
   },
@@ -742,24 +742,45 @@ async function formatBrotherDetail(
 async function listDeadlines(args: ToolArgs, orgId: number): Promise<ToolResult> {
   const start = typeof args.start === "string" && DATE_RE.test(args.start) ? args.start : undefined;
   const end   = typeof args.end   === "string" && DATE_RE.test(args.end)   ? args.end   : undefined;
+  // Status is now binary open/done; an "open_only" flag (or any non-done status)
+  // narrows to incomplete tasks. Urgency (urgent/due-soon) is computed from the
+  // due date, not a stored status, so a date window is the way to ask for it.
   const status = typeof args.status === "string" ? args.status : undefined;
   const openOnly = args.open_only === true;
-  const orderByField = typeof args.order_by === "string" && ["dueDate", "title", "owner"].includes(args.order_by)
-    ? args.order_by as "dueDate" | "title" | "owner" : "dueDate";
+  const orderByField = typeof args.order_by === "string" && ["dueDate", "title"].includes(args.order_by)
+    ? args.order_by as "dueDate" | "title" : "dueDate";
   const orderDir = args.order === "desc" ? "desc" : "asc";
 
   // Filters + limit run in the DB — fetching the whole table to filter in JS
-  // pays a transfer cost on every chat turn that grows with org history.
-  const rows = await prisma.deadline.findMany({
+  // pays a transfer cost on every chat turn that grows with org history. "Deadlines"
+  // are tasks that HAVE a due date, so scope to dated tasks here.
+  const rows = await prisma.task.findMany({
     where: {
       organizationId: orgId,
-      ...(start || end ? { dueDate: { ...(start ? { gte: start } : {}), ...(end ? { lte: end } : {}) } } : {}),
-      ...(status ? { status } : openOnly ? { status: { not: "Complete" } } : {}),
+      dueDate: start || end ? { ...(start ? { gte: start } : {}), ...(end ? { lte: end } : {}) } : { not: null },
+      ...(status === "done" ? { status: "done" } : status === "open" || openOnly ? { status: "open" } : {}),
     },
     orderBy: { [orderByField]: orderDir },
     take: clampLimit(args.limit),
+    include: {
+      assignments: {
+        include: {
+          brother: { select: { name: true } },
+          role:    { select: { name: true } },
+        },
+      },
+    },
   });
-  return listResult(rows, !!(start || end || status || openOnly));
+  // Flatten assignees into a label so the model sees who owns each task (replaces
+  // the old free-text `owner` column).
+  const shaped = rows.map(r => ({
+    id: r.id,
+    title: r.title,
+    dueDate: r.dueDate,
+    status: r.status,
+    assignees: r.assignments.map(a => a.brother?.name ?? a.role?.name).filter(Boolean).join(", ") || "Unassigned",
+  }));
+  return listResult(shaped, !!(start || end || status || openOnly));
 }
 
 async function listInstagram(args: ToolArgs, orgId: number): Promise<ToolResult> {
@@ -1015,7 +1036,7 @@ async function weeklyDigest(orgId: number, now: Date = new Date()): Promise<Tool
   const { start, end } = isoWeekBounds(now);
   const week = { gte: start, lte: end };
   const [deadlines, ig, events, parties, brothers, thresholds] = await Promise.all([
-    prisma.deadline.findMany({ where: { organizationId: orgId, dueDate: week } }),
+    prisma.task.findMany({ where: { organizationId: orgId, dueDate: week } }),
     prisma.instagramTask.findMany({ where: { organizationId: orgId, dueDate: week } }),
     prisma.calendarEvent.findMany({ where: { organizationId: orgId, mandatory: true, date: week } }),
     prisma.partyEvent.findMany({ where: { organizationId: orgId, date: week } }),
@@ -1025,7 +1046,7 @@ async function weeklyDigest(orgId: number, now: Date = new Date()): Promise<Tool
   const atRiskCount = brothers.filter(b => getBrotherStatus(b as BrotherType, thresholds) === "At Risk").length;
   return {
     weekRange: { start, end },
-    deadlinesDue: deadlines.map(d => ({ id: d.id, title: d.title, dueDate: d.dueDate, owner: d.owner, status: d.status })),
+    deadlinesDue: deadlines.map(d => ({ id: d.id, title: d.title, dueDate: d.dueDate, status: d.status })),
     igDue:        ig.map(t => ({ id: t.id, title: t.title, dueDate: t.dueDate, type: t.type })),
     events:       events.map(e => ({ id: e.id, title: e.title, date: e.date, time: e.time })),
     parties:      parties.map(p => ({ id: p.id, name: p.name, date: p.date })),
@@ -1289,20 +1310,26 @@ function badProposal(reason: string): { error: string } { return { error: reason
 function proposeAddDeadline(args: ToolArgs): Proposal | { error: string } {
   const title = String(args.title ?? "").trim();
   const dueDate = String(args.dueDate ?? "").trim();
-  const owner = String(args.owner ?? "").trim();
-  const rawStatus = typeof args.status === "string" ? args.status.trim() : "";
-  const status = rawStatus || "Upcoming";
-  if (!title || !dueDate || !owner) return badProposal("Missing required fields.");
+  const assigneeBrotherId = typeof args.assigneeBrotherId === "number" ? args.assigneeBrotherId : undefined;
+  const assigneeRoleId    = typeof args.assigneeRoleId === "number" ? args.assigneeRoleId : undefined;
+  if (!title || !dueDate) return badProposal("Missing required fields.");
   if (!DATE_RE.test(dueDate)) return badProposal("dueDate must be YYYY-MM-DD.");
-  if (!(TASK_STATUSES as readonly string[]).includes(status)) return badProposal(`status must be one of ${TASK_STATUSES.join(", ")}.`);
-  if (title.length > 200 || owner.length > 200) return badProposal("Field too long.");
+  if (title.length > 200) return badProposal("Field too long.");
+  if (!assigneeBrotherId && !assigneeRoleId) {
+    return badProposal("A deadline needs an assignee. Resolve the owner with list_brothers or list_roles, then pass assigneeBrotherId or assigneeRoleId.");
+  }
   return {
     kind: "proposal",
     action: "propose_add_deadline",
-    endpoint: "/api/deadlines",
+    endpoint: "/api/tasks",
     method: "POST",
-    payload: { title, dueDate, owner, status },
-    summary: `Add deadline "${title}" — due ${dueDate}, owner ${owner}.`,
+    payload: {
+      title,
+      dueDate,
+      assigneeBrotherIds: assigneeBrotherId ? [assigneeBrotherId] : [],
+      assigneeRoleIds:    assigneeRoleId ? [assigneeRoleId] : [],
+    },
+    summary: `Add deadline "${title}" — due ${dueDate}.`,
   };
 }
 
