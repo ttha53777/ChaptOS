@@ -46,8 +46,62 @@ const inputStyle: React.CSSProperties = {
 
 const labelStyle: React.CSSProperties = { color: "var(--muted)" };
 
+// Two-up date row. Inline (not Tailwind `grid grid-cols-2`) to dodge the `.dash .grid`
+// rule in dashboard-ledger.css — see the date-row comment in CreateForm.
+const dateGridStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "1fr 1fr",
+  gap: "0.75rem",
+};
+
 function todayISO(): string {
   return new Date().toISOString().slice(0, 10);
+}
+
+// Inclusive day span between two YYYY-MM-DD strings (parsed as UTC to dodge DST).
+function dayCount(startDate: string, endDate: string): number {
+  const a = Date.parse(`${startDate}T00:00:00Z`);
+  const b = Date.parse(`${endDate}T00:00:00Z`);
+  return Math.round((b - a) / 86_400_000) + 1;
+}
+
+// "Aug 25" style short label from a YYYY-MM-DD string (no year — the bar's two ends
+// share one).
+function shortDate(iso: string): string {
+  const d = new Date(`${iso}T00:00:00Z`);
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+}
+
+/**
+ * SemesterTimeline — the native span preview, built from the dashboard's own .bk bar
+ * primitive (a 3px violet track). Renders nothing until both dates are valid and the
+ * range is non-negative, so it stays quiet while the admin is mid-entry.
+ */
+function SemesterTimeline({ startDate, endDate }: { startDate: string; endDate: string }) {
+  if (!startDate || !endDate || endDate < startDate) return null;
+  const days = dayCount(startDate, endDate);
+  return (
+    <div className="mt-1 px-0.5">
+      <div className="relative h-[3px] rounded-sm" style={{ background: "var(--line)" }}>
+        <div className="h-full rounded-sm" style={{ background: "var(--vio)", opacity: 0.85 }} />
+        <span
+          className="absolute top-1/2 h-[7px] w-[7px] -translate-x-1/2 -translate-y-1/2 rounded-full"
+          style={{ left: "0%", background: "var(--paper)", border: "1.5px solid var(--vio)" }}
+        />
+        <span
+          className="absolute top-1/2 h-[7px] w-[7px] -translate-x-1/2 -translate-y-1/2 rounded-full"
+          style={{ left: "100%", background: "var(--vio)", border: "1.5px solid var(--vio)" }}
+        />
+      </div>
+      <div className="mt-2.5 flex items-baseline justify-between text-[10px]" style={{ fontFamily: "var(--mono)", color: "var(--muted)" }}>
+        <span>{shortDate(startDate)}</span>
+        <span style={{ fontFamily: "var(--serif)", fontStyle: "italic", fontSize: "13px", color: "var(--gold)" }}>
+          <b style={{ fontStyle: "normal", fontWeight: 500 }}>{days}</b> {days === 1 ? "day" : "days"}
+        </span>
+        <span>{shortDate(endDate)}</span>
+      </div>
+    </div>
+  );
 }
 
 export function SemesterGate() {
@@ -70,8 +124,17 @@ export function SemesterGate() {
 
   const canManage = can("MANAGE_SEMESTERS");
 
+  // A brand-new org has no semesters at all — frame it as first-time setup rather
+  // than the "your active semester lapsed" recovery case.
+  const isFirstSemester = mostRecent === null;
+
   return (
-    <Modal title="No active semester" tone="dusk" dismissable={false} onClose={() => {}}>
+    <Modal
+      title={isFirstSemester ? "Create your first semester" : "No active semester"}
+      tone="dusk"
+      dismissable={false}
+      onClose={() => {}}
+    >
       {/* .dash[data-dashboard-theme="dusk"] scopes the form's CSS vars (see import). */}
       <div className="dash" data-dashboard-theme="dusk">
         {canManage ? (
@@ -101,10 +164,17 @@ function SemesterGateForm({
 
   return (
     <div className="space-y-4">
-      <p className="text-[13px]" style={{ color: "var(--ink-soft)" }}>
-        Your chapter has no active semester. Extend the current one or create a new period to
-        unlock the app.
-      </p>
+      {canExtend ? (
+        <p className="text-[13px]" style={{ color: "var(--ink-soft)" }}>
+          Your chapter has no active semester. Extend the current one or create a new period to
+          unlock the app.
+        </p>
+      ) : (
+        // New org: one quiet serif line with italic-violet emphasis (mirrors h1.greeting em).
+        <p className="text-[16px] leading-snug" style={{ fontFamily: "var(--serif)", color: "var(--ink)" }}>
+          Set your <em style={{ fontStyle: "italic", color: "var(--vio)" }}>first semester</em> to unlock the app.
+        </p>
+      )}
 
       {canExtend && (
         <div className="flex gap-2">
@@ -184,6 +254,7 @@ function ExtendForm({ semester, onResolved }: { semester: SemesterRow; onResolve
           style={inputStyle}
         />
       </div>
+      <SemesterTimeline startDate={semester.startDate} endDate={endDate} />
       <SubmitButton saving={saving} idle="Extend & reactivate" busy="Extending…" />
     </form>
   );
@@ -228,18 +299,24 @@ function CreateForm({ onResolved }: { onResolved: () => void }) {
           style={inputStyle}
         />
       </div>
-      <div className="grid grid-cols-2 gap-3">
-        <div>
+      {/* Inline-style grid, NOT the `grid grid-cols-2` Tailwind classes: the modal body
+          is wrapped in .dash, and dashboard-ledger.css has a `.dash .grid` rule (the
+          dashboard layout grid) that overrides Tailwind's .grid with a 1fr/rail-width
+          template — collapsing both date cells into one column. Inline styles win on
+          specificity. minWidth:0 still lets the native date widgets shrink to track. */}
+      <div style={dateGridStyle}>
+        <div style={{ minWidth: 0 }}>
           <label className="mb-1.5 block text-[11px] font-medium" style={labelStyle}>Start date</label>
           <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)}
-            className="w-full rounded-lg px-3 py-2 text-[13px] focus:outline-none" style={inputStyle} />
+            className="w-full rounded-lg px-3 py-2 text-[13px] focus:outline-none" style={{ ...inputStyle, minWidth: 0 }} />
         </div>
-        <div>
+        <div style={{ minWidth: 0 }}>
           <label className="mb-1.5 block text-[11px] font-medium" style={labelStyle}>End date</label>
           <input type="date" value={endDate} min={startDate || undefined} onChange={e => setEndDate(e.target.value)}
-            className="w-full rounded-lg px-3 py-2 text-[13px] focus:outline-none" style={inputStyle} />
+            className="w-full rounded-lg px-3 py-2 text-[13px] focus:outline-none" style={{ ...inputStyle, minWidth: 0 }} />
         </div>
       </div>
+      <SemesterTimeline startDate={startDate} endDate={endDate} />
       <SubmitButton saving={saving} idle="Create & activate" busy="Creating…" />
     </form>
   );
@@ -256,15 +333,31 @@ function FormError({ message }: { message: string }) {
   );
 }
 
+// Mirrors the dashboard's .ba-chip.primary: violet-bg tint at rest, solid --vio-deep
+// on hover. Hover is JS-driven since these are inline styles (the dusk vars resolve via
+// the .dash wrapper, not a class the button could carry a :hover rule on).
 function SubmitButton({ saving, idle, busy }: { saving: boolean; idle: string; busy: string }) {
+  const [hover, setHover] = useState(false);
+  const hot = hover && !saving;
   return (
     <button
       type="submit"
       disabled={saving}
-      className="w-full rounded-lg px-4 py-2 text-[12px] font-semibold transition-colors disabled:opacity-50"
-      style={{ background: "var(--vio)", color: "#1a1206" }}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      className="flex w-full items-center justify-center gap-2 rounded-lg px-4 py-3 text-[12px] font-semibold transition-colors disabled:opacity-50"
+      style={{
+        background: hot ? "var(--vio-deep)" : "var(--vio-bg)",
+        color: hot ? "#fff" : "var(--vio)",
+        border: `1px solid ${hot ? "var(--vio-deep)" : "var(--vio-bg)"}`,
+      }}
     >
       {saving ? busy : idle}
+      {!saving && (
+        <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14M13 6l6 6-6 6" />
+        </svg>
+      )}
     </button>
   );
 }
