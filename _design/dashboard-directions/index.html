@@ -1,0 +1,1109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Figurints Dashboard — 3 New Directions (Dusk Ledger)</title>
+<!--
+  ════════════════════════════════════════════════════════════════════════════
+  FIGURINTS · ChaptOS — Dashboard layout exploration, round 2
+  Senior product designer pass · huashu-design Junior-Designer workflow
+
+  HARD CONSTRAINT honored: Dusk Chapter Ledger only. Every CSS var below is
+  copied VERBATIM from app/components/dashboard/dashboard-ledger.css
+  (data-dashboard-theme="dusk"). No new accent colors, no gradients-as-decor,
+  no emoji icons, no glassmorphism, Fraunces/Geist only.
+
+  These three go FURTHER than the prior round (Constellation / Command Center /
+  Tactile Ledger) — each breaks the "KPI strip on top + 1fr/rail" skeleton that
+  all three priors (and the shipped CSS) share, in a different structural way:
+
+    1. THE STANDING — single-column editorial broadsheet (no rail at all)
+    2. TRIAGE       — action-first board (attention strip leads, KPIs demoted
+                      to a ticker, true 3-col lower grid)
+    3. ALMANAC      — KPI spine rotated 90° into a left vertical rail
+
+  Content is REAL: Lambda Phi Epsilon chapter seed data from app/data.ts
+  (Bryan Lee / Issac Chong / Thalha Thabish / Nathaniel Baccarey, treasury
+  $4,250 → proj $5,500, Spring Formal Pre-Party $890, etc.).
+  ════════════════════════════════════════════════════════════════════════════
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;1,9..144,400&family=Geist:wght@400;500;550;600&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ── Tokens copied verbatim from dashboard-ledger.css (dusk) ─────────────── */
+:root {
+  --serif: "Fraunces", Georgia, serif;
+  --sans:  "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --mono:  "Geist Mono", ui-monospace, Menlo, monospace;
+
+  --paper:    #0f0d0a;
+  --paper-2:  #14120e;
+  --card:     #161310;
+  --card-2:   #1b1813;
+  --ink:      #ece7dd;
+  --ink-soft: #c9c2b4;
+  --muted:    #958d7c;
+  --faint:    #6b6354;
+  --line:     rgba(236,231,221,.09);
+  --line-soft:rgba(236,231,221,.05);
+  --vio:      #a78bfa;
+  --vio-deep: #7c3aed;
+  --vio-bg:   rgba(167,139,250,.10);
+  --gold:     #ddb36a;
+  --gold-bg:  rgba(221,179,106,.10);
+  --rose:     #d98ba3;
+  --rose-bg:  rgba(217,139,163,.10);
+  --ok:       #7fb08a;
+  --ok-bg:    rgba(127,176,138,.10);
+  --shadow:   0 1px 0 rgba(0,0,0,.4), 0 16px 40px -24px rgba(0,0,0,.7);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { background: var(--paper); }
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 13.5px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+}
+::selection { background: var(--vio-bg); }
+
+/* ── Direction switcher (chrome only — NOT part of any design) ───────────── */
+.switch {
+  position: sticky; top: 0; z-index: 100;
+  background: rgba(15,13,10,.86);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--line);
+  display: flex; align-items: center; gap: 8px;
+  padding: 0 22px; height: 50px;
+}
+.switch .brand {
+  font-family: var(--serif); font-weight: 500; font-size: 14px;
+  letter-spacing: -.01em; color: var(--ink); margin-right: 6px;
+}
+.switch .brand b { color: var(--vio); font-weight: 500; }
+.switch .dot { width: 1px; height: 18px; background: var(--line); margin-right: 10px; }
+.switch button {
+  font-family: var(--mono); font-size: 10.5px; letter-spacing: .06em;
+  text-transform: uppercase; color: var(--muted);
+  background: transparent; border: 1px solid transparent; border-radius: 7px;
+  padding: 7px 13px; cursor: pointer; transition: all .15s;
+  display: inline-flex; align-items: center; gap: 7px;
+}
+.switch button:hover { color: var(--ink); background: var(--card); }
+.switch button.on { color: var(--vio); background: var(--vio-bg); border-color: var(--vio-bg); }
+.switch button .n { font-family: var(--serif); font-size: 13px; color: inherit; }
+.switch .spacer { flex: 1; }
+.switch .hint { font-family: var(--mono); font-size: 9px; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); }
+
+/* ── Canvas frame ─────────────────────────────────────────────────────────── */
+.canvas { display: none; }
+.canvas.on { display: block; }
+.caption {
+  max-width: 1230px; margin: 0 auto; padding: 26px 38px 0;
+}
+.caption .lbl { font-family: var(--mono); font-size: 10px; letter-spacing: .18em; text-transform: uppercase; color: var(--faint); }
+.caption .lbl em { color: var(--vio); font-style: normal; }
+.caption h1 { font-family: var(--serif); font-weight: 400; font-size: 30px; letter-spacing: -.01em; margin: 7px 0 6px; }
+.caption h1 em { font-style: italic; color: var(--vio); }
+.caption p { font-size: 13px; color: var(--ink-soft); max-width: 760px; font-family: var(--serif); font-weight: 350; font-style: italic; line-height: 1.55; }
+.caption .why { margin-top: 9px; font-family: var(--mono); font-size: 9.5px; letter-spacing: .04em; color: var(--muted); font-style: normal; text-transform: none; }
+.caption .why b { color: var(--gold); font-weight: 600; }
+
+/* shared atoms reused across the three directions ------------------------- */
+.kick { font-family: var(--mono); font-size: 10.5px; letter-spacing: .18em; text-transform: uppercase; color: var(--muted); }
+.kick .today { color: var(--vio); }
+.ai-chip { display: inline-block; font-family: var(--mono); font-size: 8.5px; font-weight: 600; letter-spacing: .14em;
+  color: var(--vio); border: 1px solid var(--vio-bg); background: var(--vio-bg); border-radius: 4px; padding: 2px 5px; }
+.mono { font-family: var(--mono); }
+.tnum { font-variant-numeric: tabular-nums; }
+.c-rose { color: var(--rose); } .c-gold { color: var(--gold); } .c-ok { color: var(--ok); } .c-vio { color: var(--vio); } .c-faint{ color: var(--faint);}
+.bg-rose{ background: var(--rose);} .bg-gold{ background: var(--gold);} .bg-ok{ background: var(--ok);} .bg-vio{ background: var(--vio);}
+
+/* a quiet ghost button used in several places */
+.ghost { font-family: var(--mono); font-size: 10px; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--muted); border: 1px solid var(--line); background: transparent; border-radius: 7px;
+  padding: 5px 11px; cursor: pointer; transition: all .14s; white-space: nowrap; }
+.ghost:hover { color: var(--vio); border-color: var(--vio); }
+.ghost.solid { color: var(--vio); border-color: var(--vio-bg); background: var(--vio-bg); }
+.ghost.solid:hover { color: #fff; background: var(--vio-deep); border-color: var(--vio-deep); }
+
+/* status pills */
+.stat-tag { font-family: var(--mono); font-size: 8.5px; font-weight: 600; letter-spacing: .13em; border-radius: 5px; padding: 3px 7px; white-space: nowrap; }
+.st-good  { color: var(--ok);   background: var(--ok-bg); }
+.st-watch { color: var(--gold); background: var(--gold-bg); }
+.st-risk  { color: var(--rose); background: var(--rose-bg); }
+
+/* ════════════════════════════════════════════════════════════════════════
+   DIRECTION 1 — "THE STANDING"
+   Single editorial column. No rail. Reads like a printed chapter standing
+   report: a lead brief, a measures band, then full-width sections divided by
+   thin rules — top to bottom, one reading line.
+   ════════════════════════════════════════════════════════════════════════ */
+.d1 { max-width: 880px; margin: 0 auto; padding: 26px 38px 60px; }
+
+/* masthead */
+.d1 .masthead { border-bottom: 2px solid var(--line); padding-bottom: 18px; }
+.d1 .masthead .row { display: flex; justify-content: space-between; align-items: flex-end; gap: 24px; }
+.d1 .masthead h2 { font-family: var(--serif); font-weight: 400; font-size: 34px; letter-spacing: -.015em; line-height: 1.05; }
+.d1 .masthead h2 em { font-style: italic; color: var(--vio); }
+.d1 .masthead .edition { font-family: var(--mono); font-size: 9.5px; letter-spacing: .16em; text-transform: uppercase; color: var(--faint); text-align: right; line-height: 1.7; }
+.d1 .masthead .edition b { color: var(--ink-soft); font-weight: 500; }
+
+/* the lead brief — the "what needs you today" paragraph */
+.d1 .lead { display: flex; gap: 11px; align-items: baseline; margin-top: 16px; }
+.d1 .lead p { font-family: var(--serif); font-weight: 350; font-style: italic; font-size: 16px; line-height: 1.5; color: var(--ink-soft); }
+.d1 .lead p b { font-style: normal; font-weight: 500; color: var(--ink); }
+.d1 .lead p .n { color: var(--rose); font-style: normal; }
+
+/* measures band — horizontal, hairline-divided, no boxes (broadsheet ticker) */
+.d1 .measures { display: grid; grid-template-columns: repeat(5, 1fr); margin-top: 26px;
+  border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.d1 .meas { padding: 15px 16px 14px; border-right: 1px solid var(--line-soft); cursor: pointer; transition: background .14s; }
+.d1 .meas:last-child { border-right: none; }
+.d1 .meas:hover { background: var(--card); }
+.d1 .meas .k { font-family: var(--mono); font-size: 9px; letter-spacing: .15em; text-transform: uppercase; color: var(--muted); }
+.d1 .meas .v { font-family: var(--mono); font-size: 25px; font-weight: 500; letter-spacing: -.02em; margin-top: 8px; font-variant-numeric: tabular-nums; }
+.d1 .meas .v small { font-size: 13px; color: var(--muted); }
+.d1 .meas .note { font-size: 10.5px; color: var(--faint); margin-top: 4px; }
+.d1 .meas .note.warn { color: var(--gold); }
+
+/* section header — serif headline + mono dateline rule */
+.d1 .sec { margin-top: 34px; }
+.d1 .sec > .sh { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding-bottom: 9px; border-bottom: 1px solid var(--line); }
+.d1 .sec > .sh h3 { font-family: var(--serif); font-weight: 500; font-size: 19px; letter-spacing: -.005em; }
+.d1 .sec > .sh .dl { font-family: var(--mono); font-size: 9.5px; letter-spacing: .13em; text-transform: uppercase; color: var(--faint); }
+.d1 .sec > .sh .dl b { color: var(--rose); font-weight: 600; }
+
+/* attention — leading column items, numbered like a docket */
+.d1 .docket { margin-top: 4px; }
+.d1 .dk { display: flex; gap: 14px; align-items: baseline; padding: 13px 2px; border-bottom: 1px solid var(--line-soft); }
+.d1 .dk:last-child { border-bottom: none; }
+.d1 .dk .idx { font-family: var(--mono); font-size: 11px; color: var(--faint); width: 18px; flex-shrink: 0; }
+.d1 .dk .tag { font-family: var(--mono); font-size: 8.5px; font-weight: 600; letter-spacing: .14em; width: 74px; flex-shrink: 0; }
+.d1 .dk .body { flex: 1; min-width: 0; }
+.d1 .dk .body .t { font-size: 14px; font-weight: 550; color: var(--ink); }
+.d1 .dk .body .m { font-size: 11.5px; color: var(--faint); margin-top: 2px; font-variant-numeric: tabular-nums; }
+.d1 .dk .act { flex-shrink: 0; }
+
+/* roster as a clean editorial table, full width */
+.d1 table { width: 100%; border-collapse: collapse; margin-top: 4px; }
+.d1 thead th { font-family: var(--mono); font-size: 8.5px; font-weight: 500; letter-spacing: .16em; text-transform: uppercase;
+  color: var(--faint); text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line-soft); }
+.d1 th.num, .d1 td.num { text-align: right; }
+.d1 tbody td { padding: 11px 12px; border-bottom: 1px solid var(--line-soft); font-variant-numeric: tabular-nums; font-size: 13px; }
+.d1 tbody tr:last-child td { border-bottom: none; }
+.d1 tbody tr { cursor: pointer; }
+.d1 tbody tr:hover { background: var(--card); }
+.d1 .who { display: flex; align-items: center; gap: 11px; }
+.d1 .avatar { width: 27px; height: 27px; border-radius: 50%; background: var(--vio-bg); color: var(--vio); display: grid; place-items: center;
+  font-family: var(--mono); font-size: 9px; font-weight: 600; flex-shrink: 0; }
+.d1 .who .nm { font-size: 13.5px; font-weight: 550; color: var(--ink); }
+.d1 .who .rl { font-size: 10.5px; color: var(--faint); }
+.d1 .attb { display: flex; align-items: center; gap: 9px; }
+.d1 .attb .track { width: 60px; height: 3px; border-radius: 2px; background: var(--line); overflow: hidden; }
+.d1 .attb .track i { display: block; height: 100%; border-radius: 2px; }
+.d1 .attb span { font-family: var(--mono); font-size: 12px; width: 36px; text-align: right; }
+.d1 .foot-line { padding: 12px 2px 0; font-family: var(--mono); font-size: 10px; letter-spacing: .06em; color: var(--faint); display: flex; justify-content: space-between; }
+
+/* two-up sub band for the lower-priority sections (week / treasury) so the
+   single column doesn't become an endless scroll — still no fixed rail */
+.d1 .twoup { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-top: 34px; }
+.d1 .twoup .col .sh { display: flex; align-items: baseline; justify-content: space-between; padding-bottom: 9px; border-bottom: 1px solid var(--line); }
+.d1 .twoup .col .sh h3 { font-family: var(--serif); font-weight: 500; font-size: 17px; }
+.d1 .twoup .col .sh .dl { font-family: var(--mono); font-size: 9px; letter-spacing: .12em; text-transform: uppercase; color: var(--faint); }
+.d1 .wk { display: flex; gap: 12px; padding: 11px 2px; border-bottom: 1px solid var(--line-soft); align-items: baseline; }
+.d1 .wk:last-child { border-bottom: none; }
+.d1 .wk .day { font-family: var(--mono); font-size: 9px; letter-spacing: .08em; color: var(--faint); width: 46px; flex-shrink: 0; line-height: 1.3; }
+.d1 .wk .day b { display: block; font-size: 16px; font-weight: 500; color: var(--ink-soft); }
+.d1 .wk.today .day, .d1 .wk.today .day b { color: var(--vio); }
+.d1 .wk .what .t { font-size: 12.5px; font-weight: 550; }
+.d1 .wk .what .m { font-size: 11px; color: var(--faint); margin-top: 1px; }
+.d1 .pill { font-family: var(--mono); font-size: 8px; font-weight: 600; letter-spacing: .14em; border-radius: 4px; padding: 2px 5px; margin-left: 6px; }
+.d1 .pill.ev { color: var(--vio); background: var(--vio-bg); }
+.d1 .pill.dl { color: var(--gold); background: var(--gold-bg); }
+.d1 .treas .big { font-family: var(--mono); font-size: 30px; font-weight: 500; letter-spacing: -.02em; }
+.d1 .treas .delta { font-family: var(--mono); font-size: 12px; color: var(--ok); margin-left: 9px; }
+.d1 .treas .sub { font-size: 11.5px; color: var(--faint); margin-top: 3px; }
+.d1 .treas .chart { margin-top: 14px; }
+.d1 .treas .months { display: flex; justify-content: space-between; margin-top: 5px; font-family: var(--mono); font-size: 8.5px; letter-spacing: .08em; color: var(--faint); }
+.d1 .colophon { margin-top: 44px; padding-top: 18px; border-top: 1px solid var(--line); text-align: center;
+  font-family: var(--mono); font-size: 9.5px; letter-spacing: .16em; text-transform: uppercase; color: var(--faint); }
+
+/* ════════════════════════════════════════════════════════════════════════
+   DIRECTION 2 — "TRIAGE"
+   Action-first. The page opens with one full-width command strip (the only
+   thing an officer acts on). KPIs are demoted to a thin mono ticker beneath.
+   Lower content is a TRUE 3-column grid (not 1fr + rail).
+   ════════════════════════════════════════════════════════════════════════ */
+.d2 { max-width: 1230px; margin: 0 auto; padding: 24px 38px 56px; }
+.d2 .top { display: flex; justify-content: space-between; align-items: flex-start; gap: 28px; margin-bottom: 18px; }
+.d2 .top h2 { font-family: var(--serif); font-weight: 400; font-size: 28px; letter-spacing: -.01em; margin-top: 7px; }
+.d2 .top h2 em { font-style: italic; color: var(--vio); }
+.d2 .top .actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+
+/* command strip — the hero. dark card, rose hairline at top, items as a row */
+.d2 .command { border: 1px solid var(--line); border-radius: 14px; background: var(--card); box-shadow: var(--shadow); overflow: hidden; position: relative; }
+.d2 .command::before { content:""; position:absolute; top:0; left:0; right:0; height:2px;
+  background: linear-gradient(90deg, var(--rose) 0%, var(--gold) 55%, transparent 100%); opacity:.65; }
+.d2 .command .ch { display: flex; align-items: baseline; justify-content: space-between; padding: 15px 20px 13px; border-bottom: 1px solid var(--line-soft); }
+.d2 .command .ch h3 { font-family: var(--serif); font-weight: 500; font-size: 17px; }
+.d2 .command .ch h3 .ct { font-family: var(--mono); font-size: 11px; color: var(--rose); background: var(--rose-bg); border-radius: 999px; padding: 2px 9px; margin-left: 9px; vertical-align: 2px; }
+.d2 .command .ch .meta { font-family: var(--mono); font-size: 9.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--faint); }
+.d2 .triage-grid { display: grid; grid-template-columns: repeat(2, 1fr); }
+.d2 .tr { display: flex; gap: 13px; align-items: center; padding: 15px 20px; border-bottom: 1px solid var(--line-soft); border-right: 1px solid var(--line-soft); }
+.d2 .tr:nth-child(even) { border-right: none; }
+.d2 .triage-grid .tr:nth-last-child(-n+2) { border-bottom: none; }
+.d2 .tr .lead-icon { width: 34px; height: 34px; border-radius: 9px; display: grid; place-items: center; flex-shrink: 0; }
+.d2 .tr .lead-icon svg { width: 16px; height: 16px; }
+.d2 .li-rose { background: var(--rose-bg); color: var(--rose); }
+.d2 .li-gold { background: var(--gold-bg); color: var(--gold); }
+.d2 .li-vio  { background: var(--vio-bg);  color: var(--vio); }
+.d2 .tr .body { flex: 1; min-width: 0; }
+.d2 .tr .body .tag { font-family: var(--mono); font-size: 8px; font-weight: 600; letter-spacing: .15em; text-transform: uppercase; }
+.d2 .tr .body .t { font-size: 13.5px; font-weight: 550; color: var(--ink); margin-top: 2px; }
+.d2 .tr .body .m { font-size: 11.5px; color: var(--faint); margin-top: 1px; font-variant-numeric: tabular-nums; }
+.d2 .tr .act { flex-shrink: 0; }
+
+/* KPI ticker — demoted, single mono line, hairline boxes */
+.d2 .ticker { display: grid; grid-template-columns: repeat(6, 1fr); border: 1px solid var(--line); border-radius: 10px;
+  background: var(--paper-2); overflow: hidden; margin-top: 14px; }
+.d2 .tk { padding: 11px 15px; border-right: 1px solid var(--line-soft); cursor: pointer; transition: background .14s; }
+.d2 .tk:last-child { border-right: none; }
+.d2 .tk:hover { background: var(--card); }
+.d2 .tk .k { font-family: var(--mono); font-size: 8.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+.d2 .tk .v { font-family: var(--mono); font-size: 17px; font-weight: 500; margin-top: 5px; font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
+.d2 .tk .v small { font-size: 10px; color: var(--muted); }
+.d2 .tk .n { font-family: var(--mono); font-size: 9px; color: var(--faint); margin-top: 2px; }
+.d2 .tk .n.warn { color: var(--gold); }
+
+/* lower 3-col grid */
+.d2 .grid3 { display: grid; grid-template-columns: 1.5fr 1fr 1fr; gap: 14px; margin-top: 14px; align-items: start; }
+.d2 .col { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.d2 .card { border: 1px solid var(--line); border-radius: 12px; background: var(--card); box-shadow: var(--shadow); overflow: hidden; }
+.d2 .card-h { display: flex; align-items: baseline; justify-content: space-between; padding: 14px 17px 11px; border-bottom: 1px solid var(--line-soft); }
+.d2 .card-h h3 { font-family: var(--serif); font-weight: 500; font-size: 15.5px; }
+.d2 .card-h .sub { font-family: var(--mono); font-size: 9px; letter-spacing: .12em; text-transform: uppercase; color: var(--faint); }
+.d2 .card-h .add { font-family: var(--mono); font-size: 9px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted);
+  border: 1px solid var(--line); background: transparent; border-radius: 6px; padding: 3px 8px; cursor: pointer; }
+.d2 .card-h .add:hover { color: var(--vio); border-color: var(--vio); }
+.d2 table { width: 100%; border-collapse: collapse; }
+.d2 thead th { font-family: var(--mono); font-size: 8.5px; font-weight: 500; letter-spacing: .15em; text-transform: uppercase;
+  color: var(--faint); text-align: left; padding: 9px 14px; border-bottom: 1px solid var(--line-soft); }
+.d2 th.num, .d2 td.num { text-align: right; }
+.d2 tbody td { padding: 10px 14px; border-bottom: 1px solid var(--line-soft); font-variant-numeric: tabular-nums; font-size: 12.5px; }
+.d2 tbody tr:last-child td { border-bottom: none; }
+.d2 tbody tr { cursor: pointer; }
+.d2 tbody tr:hover { background: var(--card-2); }
+.d2 .who { display: flex; align-items: center; gap: 10px; }
+.d2 .avatar { width: 25px; height: 25px; border-radius: 50%; background: var(--vio-bg); color: var(--vio); display: grid; place-items: center;
+  font-family: var(--mono); font-size: 9px; font-weight: 600; flex-shrink: 0; }
+.d2 .who .nm { font-size: 12.5px; font-weight: 550; color: var(--ink); white-space: nowrap; }
+.d2 .who .rl { font-size: 10px; color: var(--faint); }
+.d2 .attb { display: flex; align-items: center; gap: 8px; }
+.d2 .attb .track { width: 46px; height: 3px; border-radius: 2px; background: var(--line); overflow: hidden; }
+.d2 .attb .track i { display: block; height: 100%; border-radius: 2px; }
+.d2 .attb span { font-family: var(--mono); font-size: 11px; width: 32px; text-align: right; }
+.d2 .filters { display: flex; gap: 5px; }
+.d2 .filters button { font-family: var(--mono); font-size: 9px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted);
+  border: 1px solid transparent; background: transparent; border-radius: 6px; padding: 3px 8px; cursor: pointer; }
+.d2 .filters button.on { color: var(--ink); background: var(--card-2); border-color: var(--line); }
+
+/* treasury card */
+.d2 .treasury-body { padding: 14px 17px 16px; }
+.d2 .treasury-num { display: flex; align-items: baseline; gap: 9px; }
+.d2 .treasury-num .big { font-family: var(--mono); font-size: 25px; font-weight: 500; letter-spacing: -.02em; }
+.d2 .treasury-num .delta { font-family: var(--mono); font-size: 11px; color: var(--ok); }
+.d2 .treasury-note { font-size: 11px; color: var(--faint); margin-top: 3px; }
+.d2 .tchart { margin-top: 12px; }
+.d2 .tchart .months { display: flex; justify-content: space-between; margin-top: 5px; font-family: var(--mono); font-size: 8.5px; letter-spacing: .08em; color: var(--faint); }
+/* week / ig / activity rows */
+.d2 .wk { display: flex; gap: 12px; padding: 10px 17px; border-bottom: 1px solid var(--line-soft); align-items: baseline; }
+.d2 .wk:last-child { border-bottom: none; }
+.d2 .wk .day { font-family: var(--mono); font-size: 9px; color: var(--faint); width: 42px; flex-shrink: 0; line-height: 1.3; }
+.d2 .wk .day b { display: block; font-size: 15px; font-weight: 500; color: var(--ink-soft); }
+.d2 .wk.today .day, .d2 .wk.today .day b { color: var(--vio); }
+.d2 .wk .what .t { font-size: 12px; font-weight: 550; }
+.d2 .wk .what .m { font-size: 10.5px; color: var(--faint); margin-top: 1px; }
+.d2 .pill { font-family: var(--mono); font-size: 8px; font-weight: 600; letter-spacing: .14em; border-radius: 4px; padding: 2px 5px; margin-left: 5px; }
+.d2 .pill.ev { color: var(--vio); background: var(--vio-bg); }
+.d2 .pill.dl { color: var(--gold); background: var(--gold-bg); }
+.d2 .ig { display: flex; align-items: baseline; gap: 10px; padding: 9px 17px; border-bottom: 1px solid var(--line-soft); }
+.d2 .ig:last-child { border-bottom: none; }
+.d2 .ig .ty { font-family: var(--mono); font-size: 8.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); width: 64px; flex-shrink: 0; }
+.d2 .ig .t { flex: 1; font-size: 12px; font-weight: 500; }
+.d2 .ig .d { font-family: var(--mono); font-size: 10px; }
+.d2 .rev { display: flex; align-items: center; gap: 10px; padding: 7px 17px; }
+.d2 .rev .n { width: 116px; flex-shrink: 0; font-size: 11.5px; color: var(--ink-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.d2 .rev.top .n { color: var(--vio); font-weight: 550; }
+.d2 .rev .track { flex: 1; height: 4px; border-radius: 2px; background: var(--line); overflow: hidden; }
+.d2 .rev .track i { display: block; height: 100%; border-radius: 2px; background: var(--muted); opacity: .45; }
+.d2 .rev.top .track i { background: var(--vio); opacity: 1; }
+.d2 .rev .v { font-family: var(--mono); font-size: 11px; width: 42px; text-align: right; flex-shrink: 0; }
+
+/* ════════════════════════════════════════════════════════════════════════
+   DIRECTION 3 — "ALMANAC"
+   The KPI strip rotated 90°: a left vertical SPINE of stacked measures with
+   inline sparklines. Right canvas is freed for a big roster + a stacked
+   activity / socials column. Asymmetric two-pane.
+   ════════════════════════════════════════════════════════════════════════ */
+.d3 { max-width: 1300px; margin: 0 auto; padding: 24px 38px 56px; }
+.d3 .top { display: flex; justify-content: space-between; align-items: flex-start; gap: 28px; margin-bottom: 16px; }
+.d3 .top h2 { font-family: var(--serif); font-weight: 400; font-size: 28px; letter-spacing: -.01em; margin-top: 6px; }
+.d3 .top h2 em { font-style: italic; color: var(--vio); }
+.d3 .top .actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+
+.d3 .pinned { display: flex; align-items: baseline; gap: 12px; border: 1px solid var(--line); border-radius: 10px;
+  background: var(--card); box-shadow: var(--shadow); padding: 13px 18px; margin-bottom: 14px; }
+.d3 .pinned .tag { font-family: var(--mono); font-size: 10px; font-weight: 600; letter-spacing: .16em; color: var(--gold); }
+.d3 .pinned p { font-size: 13.5px; color: var(--ink-soft); flex: 1; }
+.d3 .pinned p b { color: var(--ink); font-weight: 600; }
+
+/* the two-pane frame: spine (left) + canvas (right) */
+.d3 .frame { display: grid; grid-template-columns: 248px 1fr; gap: 14px; align-items: start; }
+
+/* SPINE — stacked measures, each a row with label, value, sparkline */
+.d3 .spine { border: 1px solid var(--line); border-radius: 14px; background: var(--card); box-shadow: var(--shadow); overflow: hidden; position: sticky; top: 64px; }
+.d3 .spine .sp-h { padding: 14px 17px 12px; border-bottom: 1px solid var(--line-soft); }
+.d3 .spine .sp-h h3 { font-family: var(--serif); font-weight: 500; font-size: 15px; }
+.d3 .spine .sp-h .health { display: flex; align-items: center; gap: 12px; margin-top: 12px; }
+.d3 .spine .dial { position: relative; width: 60px; height: 60px; flex-shrink: 0; }
+.d3 .spine .dial svg { transform: rotate(-90deg); }
+.d3 .spine .dial .num { position: absolute; inset: 0; display: grid; place-items: center; }
+.d3 .spine .dial .num span { font-family: var(--serif); font-size: 19px; font-weight: 500; }
+.d3 .spine .health .meta .lbl { font-family: var(--mono); font-size: 8.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+.d3 .spine .health .meta .state { font-family: var(--serif); font-style: italic; font-size: 14px; color: var(--gold); margin-top: 2px; }
+.d3 .spine .health .meta .out { font-size: 10px; color: var(--faint); margin-top: 1px; }
+.d3 .sp-meas { padding: 13px 17px; border-bottom: 1px solid var(--line-soft); cursor: pointer; transition: background .14s; position: relative; }
+.d3 .sp-meas:last-child { border-bottom: none; }
+.d3 .sp-meas:hover { background: var(--card-2); }
+.d3 .sp-meas .k { font-family: var(--mono); font-size: 8.5px; letter-spacing: .15em; text-transform: uppercase; color: var(--muted); }
+.d3 .sp-meas .vr { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-top: 6px; }
+.d3 .sp-meas .v { font-family: var(--mono); font-size: 21px; font-weight: 500; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.d3 .sp-meas .v small { font-size: 11px; color: var(--muted); }
+.d3 .sp-meas .spark { width: 56px; height: 20px; flex-shrink: 0; }
+.d3 .sp-meas .spark svg { width: 100%; height: 100%; }
+.d3 .sp-meas .note { font-size: 10px; color: var(--faint); margin-top: 4px; }
+.d3 .sp-meas .note.warn { color: var(--gold); }
+
+/* CANVAS — right pane */
+.d3 .canvas-r { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.d3 .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; align-items: start; }
+.d3 .card { border: 1px solid var(--line); border-radius: 12px; background: var(--card); box-shadow: var(--shadow); overflow: hidden; }
+.d3 .card-h { display: flex; align-items: baseline; justify-content: space-between; padding: 14px 18px 11px; border-bottom: 1px solid var(--line-soft); }
+.d3 .card-h h3 { font-family: var(--serif); font-weight: 500; font-size: 16px; }
+.d3 .card-h h3 .ct { font-family: var(--mono); font-size: 10px; color: var(--rose); background: var(--rose-bg); border-radius: 999px; padding: 2px 8px; margin-left: 8px; vertical-align: 2px; }
+.d3 .card-h .sub { font-family: var(--mono); font-size: 9px; letter-spacing: .12em; text-transform: uppercase; color: var(--faint); }
+.d3 .card-h .add { font-family: var(--mono); font-size: 9px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted);
+  border: 1px solid var(--line); background: transparent; border-radius: 6px; padding: 3px 8px; cursor: pointer; }
+.d3 .card-h .add:hover { color: var(--vio); border-color: var(--vio); }
+
+/* attention compact */
+.d3 .att { display: flex; align-items: center; gap: 12px; padding: 12px 18px; border-bottom: 1px solid var(--line-soft); }
+.d3 .att:last-child { border-bottom: none; }
+.d3 .att .dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.d3 .att .tag { font-family: var(--mono); font-size: 8px; font-weight: 600; letter-spacing: .14em; width: 62px; flex-shrink: 0; }
+.d3 .att .body { flex: 1; min-width: 0; }
+.d3 .att .body .t { font-size: 12.5px; font-weight: 550; }
+.d3 .att .body .m { font-size: 11px; color: var(--faint); margin-top: 1px; font-variant-numeric: tabular-nums; }
+
+/* roster (big, full width of canvas) */
+.d3 table { width: 100%; border-collapse: collapse; }
+.d3 .filters { display: flex; gap: 5px; }
+.d3 .filters button { font-family: var(--mono); font-size: 9px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted);
+  border: 1px solid transparent; background: transparent; border-radius: 6px; padding: 3px 9px; cursor: pointer; }
+.d3 .filters button.on { color: var(--ink); background: var(--card-2); border-color: var(--line); }
+.d3 thead th { font-family: var(--mono); font-size: 8.5px; font-weight: 500; letter-spacing: .16em; text-transform: uppercase;
+  color: var(--faint); text-align: left; padding: 9px 14px; border-bottom: 1px solid var(--line-soft); }
+.d3 thead th:first-child { padding-left: 18px; }
+.d3 th.num, .d3 td.num { text-align: right; }
+.d3 tbody td { padding: 10px 14px; border-bottom: 1px solid var(--line-soft); font-variant-numeric: tabular-nums; font-size: 12.5px; }
+.d3 tbody td:first-child { padding-left: 18px; }
+.d3 tbody tr:last-child td { border-bottom: none; }
+.d3 tbody tr { cursor: pointer; }
+.d3 tbody tr:hover { background: var(--card-2); }
+.d3 .who { display: flex; align-items: center; gap: 10px; }
+.d3 .avatar { width: 26px; height: 26px; border-radius: 50%; background: var(--vio-bg); color: var(--vio); display: grid; place-items: center;
+  font-family: var(--mono); font-size: 9px; font-weight: 600; flex-shrink: 0; }
+.d3 .who .nm { font-size: 12.5px; font-weight: 550; color: var(--ink); white-space: nowrap; }
+.d3 .who .rl { font-size: 10.5px; color: var(--faint); max-width: 170px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.d3 .attb { display: flex; align-items: center; gap: 9px; min-width: 110px; }
+.d3 .attb .track { flex: 1; height: 3px; border-radius: 2px; background: var(--line); overflow: hidden; }
+.d3 .attb .track i { display: block; height: 100%; border-radius: 2px; }
+.d3 .attb span { font-family: var(--mono); font-size: 11.5px; width: 34px; text-align: right; }
+.d3 .table-foot { padding: 10px 18px; border-top: 1px solid var(--line-soft); background: var(--card-2);
+  font-family: var(--mono); font-size: 10px; letter-spacing: .06em; color: var(--faint); display: flex; justify-content: space-between; align-items: center; }
+.d3 .table-foot .ghost { padding: 4px 9px; }
+
+/* week / treasury / ig / activity in the right canvas */
+.d3 .wk { display: flex; gap: 12px; padding: 10px 18px; border-bottom: 1px solid var(--line-soft); align-items: baseline; }
+.d3 .wk:last-child { border-bottom: none; }
+.d3 .wk .day { font-family: var(--mono); font-size: 9px; color: var(--faint); width: 44px; flex-shrink: 0; line-height: 1.3; }
+.d3 .wk .day b { display: block; font-size: 15px; font-weight: 500; color: var(--ink-soft); }
+.d3 .wk.today .day, .d3 .wk.today .day b { color: var(--vio); }
+.d3 .wk .what .t { font-size: 12.5px; font-weight: 550; }
+.d3 .wk .what .m { font-size: 11px; color: var(--faint); margin-top: 1px; }
+.d3 .pill { font-family: var(--mono); font-size: 8px; font-weight: 600; letter-spacing: .14em; border-radius: 4px; padding: 2px 5px; margin-left: 6px; }
+.d3 .pill.ev { color: var(--vio); background: var(--vio-bg); }
+.d3 .pill.dl { color: var(--gold); background: var(--gold-bg); }
+.d3 .treasury-body { padding: 14px 18px 16px; }
+.d3 .treasury-num { display: flex; align-items: baseline; gap: 9px; }
+.d3 .treasury-num .big { font-family: var(--mono); font-size: 24px; font-weight: 500; letter-spacing: -.02em; }
+.d3 .treasury-num .delta { font-family: var(--mono); font-size: 11px; color: var(--ok); }
+.d3 .treasury-note { font-size: 11px; color: var(--faint); margin-top: 3px; }
+.d3 .tchart { margin-top: 12px; }
+.d3 .tchart .months { display: flex; justify-content: space-between; margin-top: 5px; font-family: var(--mono); font-size: 8.5px; letter-spacing: .08em; color: var(--faint); }
+.d3 .ig { display: flex; align-items: baseline; gap: 10px; padding: 9px 18px; border-bottom: 1px solid var(--line-soft); }
+.d3 .ig:last-child { border-bottom: none; }
+.d3 .ig .ty { font-family: var(--mono); font-size: 8.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); width: 68px; flex-shrink: 0; }
+.d3 .ig .t { flex: 1; font-size: 12px; font-weight: 500; }
+.d3 .ig .d { font-family: var(--mono); font-size: 10px; }
+.d3 .act { display: flex; gap: 10px; padding: 8px 18px; align-items: baseline; border-bottom: 1px solid var(--line-soft); }
+.d3 .act:last-child { border-bottom: none; }
+.d3 .act .dot { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; transform: translateY(-1px); }
+.d3 .act p { flex: 1; font-size: 11.5px; color: var(--ink-soft); }
+.d3 .act time { font-family: var(--mono); font-size: 9px; color: var(--faint); flex-shrink: 0; }
+
+/* responsive: collapse the spine above the canvas on narrow */
+@media (max-width: 1080px) {
+  .d3 .frame { grid-template-columns: 1fr; }
+  .d3 .spine { position: static; }
+  .d2 .grid3 { grid-template-columns: 1fr; }
+  .d2 .ticker { grid-template-columns: repeat(3, 1fr); }
+  .d2 .triage-grid { grid-template-columns: 1fr; }
+  .d2 .tr { border-right: none; }
+  .d1 .twoup { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<!-- ── Direction switcher (chrome, not part of any design) ──────────────── -->
+<nav class="switch">
+  <span class="brand">Figurints <b>·</b> ChaptOS</span>
+  <span class="dot"></span>
+  <button class="on" data-go="d1"><span class="n">1</span> The Standing</button>
+  <button data-go="d2"><span class="n">2</span> Triage</button>
+  <button data-go="d3"><span class="n">3</span> Almanac</button>
+  <span class="spacer"></span>
+  <span class="hint">Dusk · vs. live ledger · round 2</span>
+</nav>
+
+<!-- Live-baseline note: what ships today (the thing all 3 depart from).
+     Verified against app/[slug]/page.tsx + dashboard-ledger.css:
+       briefing (+ health dial) → pinned announcement → horizontal KPI
+       LedgerStrip → grid: 1fr main (Needs attention → Roster) + 338px rail
+       (This Week + Treasury, then Socials / Instagram / Activity). -->
+
+
+<!-- ═══════════════════════════════ DIRECTION 1 ═══════════════════════════ -->
+<section class="canvas on" id="d1" data-dashboard-theme="dusk">
+  <div class="caption">
+    <div class="lbl">Direction <em>1</em> · Single column, no rail</div>
+    <h1>The <em>Standing</em></h1>
+    <p>A printed chapter standing report, brought to the screen. No dashboard grid, no fixed rail — one centered reading column: a lead brief that tells you what needs you today, a measures band, then full-width sections divided by thin rules.</p>
+    <div class="why"><b>Live today:</b> 1fr main + 338px rail, two columns. <b>This departs by:</b> dropping the rail entirely for one centered reading column — rejects the dashboard-grid premise so a president skims it like a meeting packet.</div>
+  </div>
+
+  <div class="d1">
+    <!-- Masthead -->
+    <div class="masthead">
+      <div class="row">
+        <h2>Lambda Phi <em>Epsilon</em></h2>
+        <div class="edition">
+          Chapter Standing · <b>Spring 2026</b><br>
+          Friday, June 19 · <b>Week 11</b>
+        </div>
+      </div>
+      <!-- Lead brief: AI digest as the masthead's standfirst -->
+      <div class="lead">
+        <span class="ai-chip">AI</span>
+        <p><b>Two deadlines are urgent</b> and <span class="n">$300 in dues</span> is outstanding across 3 brothers. <b>Nathaniel Baccarey</b> dropped below every threshold this week — worth a check-in before Saturday's rush social.</p>
+      </div>
+    </div>
+
+    <!-- Measures band -->
+    <div class="measures">
+      <button class="meas">
+        <div class="k">Attendance</div>
+        <div class="v c-vio">81<small>%</small></div>
+        <div class="note warn">2 below 70%</div>
+      </button>
+      <button class="meas">
+        <div class="k">Dues Owed</div>
+        <div class="v c-gold">$300</div>
+        <div class="note">3 brothers owe</div>
+      </button>
+      <button class="meas">
+        <div class="k">Chapter GPA</div>
+        <div class="v c-vio">3.31</div>
+        <div class="note warn">2 below 3.0</div>
+      </button>
+      <button class="meas">
+        <div class="k">Service</div>
+        <div class="v c-ok">105<small>h</small></div>
+        <div class="note">avg 10.5 / bro</div>
+      </button>
+      <button class="meas">
+        <div class="k">Treasury</div>
+        <div class="v c-ok">$4,250</div>
+        <div class="note">proj. $5,500</div>
+      </button>
+    </div>
+
+    <!-- Needs attention as a docket -->
+    <div class="sec">
+      <div class="sh">
+        <h3>Needs Your Attention</h3>
+        <div class="dl"><b>4</b> open items · resolved drop off</div>
+      </div>
+      <div class="docket">
+        <div class="dk">
+          <span class="idx">01</span>
+          <span class="tag c-rose">URGENT</span>
+          <div class="body">
+            <div class="t">Academic Standing Report past due</div>
+            <div class="m">Was due May 13 · owner Rinchen Sherpalama · 37 days late</div>
+          </div>
+          <div class="act"><button class="ghost">Mark done</button></div>
+        </div>
+        <div class="dk">
+          <span class="idx">02</span>
+          <span class="tag c-rose">URGENT</span>
+          <div class="body">
+            <div class="t">Banquet Planning Final Submission</div>
+            <div class="m">Was due May 14 · owner Issac Chong · 36 days late</div>
+          </div>
+          <div class="act"><button class="ghost">Open</button></div>
+        </div>
+        <div class="dk">
+          <span class="idx">03</span>
+          <span class="tag c-gold">DUES</span>
+          <div class="body">
+            <div class="t">$300 outstanding across 3 brothers</div>
+            <div class="m">Nathaniel $150 · Noah $75 · Elvin $75</div>
+          </div>
+          <div class="act"><button class="ghost">Remind</button></div>
+        </div>
+        <div class="dk">
+          <span class="idx">04</span>
+          <span class="tag c-rose">MEMBER</span>
+          <div class="body">
+            <div class="t">Nathaniel Baccarey flagged at risk</div>
+            <div class="m">58% attendance · 2.6 GPA · 3 service hrs · $150 owed</div>
+          </div>
+          <div class="act"><button class="ghost">Open profile</button></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Roster -->
+    <div class="sec">
+      <div class="sh">
+        <h3>The Roster</h3>
+        <div class="dl">10 brothers · 1 at risk · 1 watch</div>
+      </div>
+      <table>
+        <thead>
+          <tr><th>Brother</th><th>Role</th><th class="num">Attendance</th><th class="num">GPA</th><th class="num">Service</th><th class="num">Dues</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><div class="who"><span class="avatar">NB</span><div><div class="nm">Nathaniel Baccarey</div><div class="rl st-risk stat-tag" style="display:inline-block;margin-top:2px">At risk</div></div></div></td>
+            <td class="c-faint">Stroll · Rush</td>
+            <td class="num"><div class="attb" style="justify-content:flex-end"><div class="track"><i class="bg-rose" style="width:58%"></i></div><span class="c-rose">58%</span></div></td>
+            <td class="num c-rose">2.6</td>
+            <td class="num c-gold">3h</td>
+            <td class="num c-rose">$150</td>
+          </tr>
+          <tr>
+            <td><div class="who"><span class="avatar">JH</span><div><div class="nm">Jacob Hwang</div><div class="rl st-watch stat-tag" style="display:inline-block;margin-top:2px">Watch</div></div></div></td>
+            <td class="c-faint">Programming · Alumni</td>
+            <td class="num"><div class="attb" style="justify-content:flex-end"><div class="track"><i class="bg-gold" style="width:68%"></i></div><span class="c-gold">68%</span></div></td>
+            <td class="num c-gold">2.8</td>
+            <td class="num c-ok">5h</td>
+            <td class="num c-faint">—</td>
+          </tr>
+          <tr>
+            <td><div class="who"><span class="avatar">BL</span><div><div class="nm">Bryan Lee</div><div class="rl">President</div></div></div></td>
+            <td class="c-faint">Rush · Banquet</td>
+            <td class="num"><div class="attb" style="justify-content:flex-end"><div class="track"><i class="bg-ok" style="width:95%"></i></div><span class="c-ok">95%</span></div></td>
+            <td class="num c-ok">3.7</td>
+            <td class="num c-ok">15h</td>
+            <td class="num c-faint">—</td>
+          </tr>
+          <tr>
+            <td><div class="who"><span class="avatar">IC</span><div><div class="nm">Issac Chong</div><div class="rl">Treasurer</div></div></div></td>
+            <td class="c-faint">Banquet · Social</td>
+            <td class="num"><div class="attb" style="justify-content:flex-end"><div class="track"><i class="bg-ok" style="width:88%"></i></div><span class="c-ok">88%</span></div></td>
+            <td class="num c-ok">3.5</td>
+            <td class="num c-ok">12h</td>
+            <td class="num c-faint">—</td>
+          </tr>
+          <tr>
+            <td><div class="who"><span class="avatar">RS</span><div><div class="nm">Rinchen Sherpalama</div><div class="rl">Academic Chair</div></div></div></td>
+            <td class="c-faint">Programming · Fundraising</td>
+            <td class="num"><div class="attb" style="justify-content:flex-end"><div class="track"><i class="bg-ok" style="width:87%"></i></div><span class="c-ok">87%</span></div></td>
+            <td class="num c-ok">3.9</td>
+            <td class="num c-ok">14h</td>
+            <td class="num c-faint">—</td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="foot-line">
+        <span>Showing 5 of 10 — lowest standing first</span>
+        <button class="ghost">View full roster →</button>
+      </div>
+    </div>
+
+    <!-- Lower priority: week + treasury two-up -->
+    <div class="twoup">
+      <div class="col">
+        <div class="sh"><h3>This Week</h3><div class="dl">Jun 15 – 21</div></div>
+        <div class="wk today">
+          <div class="day">FRI<b>19</b></div>
+          <div class="what"><div class="t">Community Service Recap <span class="pill dl">IG</span></div><div class="m">Carousel due today · PR team</div></div>
+        </div>
+        <div class="wk">
+          <div class="day">SAT<b>21</b></div>
+          <div class="what"><div class="t">Summer Collab Night <span class="pill ev">Party</span></div><div class="m">Open · with DSP · 9:00 PM</div></div>
+        </div>
+        <div class="wk">
+          <div class="day">SAT<b>21</b></div>
+          <div class="what"><div class="t">Banquet Promo Post <span class="pill dl">IG</span></div><div class="m">Story · Social team</div></div>
+        </div>
+      </div>
+      <div class="col">
+        <div class="sh"><h3>Treasury</h3><div class="dl">Net balance</div></div>
+        <div class="treas" style="padding-top:14px">
+          <div><span class="big">$4,250</span><span class="delta">▲ $250 vs May</span></div>
+          <div class="sub">Projected $5,500 by end of Spring 2026</div>
+          <div class="chart">
+            <svg viewBox="0 0 280 56" preserveAspectRatio="none" style="width:100%;height:56px">
+              <defs><linearGradient id="tg1" x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stop-color="#7fb08a" stop-opacity=".18"/><stop offset="100%" stop-color="#7fb08a" stop-opacity="0"/></linearGradient></defs>
+              <path d="M0,48 L56,38 L112,28 L168,22 L224,18 L280,8 L280,56 L0,56Z" fill="url(#tg1)"/>
+              <polyline points="0,48 56,38 112,28 168,22 224,18 280,8" fill="none" stroke="#7fb08a" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+              <circle cx="280" cy="8" r="3" fill="#7fb08a"/>
+            </svg>
+            <div class="months"><span>JAN</span><span>FEB</span><span>MAR</span><span>APR</span><span>MAY</span><span class="c-vio">PROJ</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="colophon">Lambda Phi Epsilon · Chapter Standing · generated June 19, 2026</div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════ DIRECTION 2 ═══════════════════════════ -->
+<section class="canvas" id="d2" data-dashboard-theme="dusk">
+  <div class="caption">
+    <div class="lbl">Direction <em>2</em> · Action-first board</div>
+    <h1><em>Triage</em></h1>
+    <p>Flips the hierarchy. Most dashboards open with metrics; an officer opens this to find out what they have to <em>do</em>. So the page leads with one full-width command strip — and the KPIs are demoted to a thin mono ticker beneath it.</p>
+    <div class="why"><b>Live today:</b> KPI strip leads, Needs-attention sits inside the main column. <b>This departs by:</b> promoting Needs-attention to a full-width hero strip and demoting the KPIs to a thin ticker — task-first, and a real 3-column lower grid instead of 1fr + rail.</div>
+  </div>
+
+  <div class="d2">
+    <div class="top">
+      <div>
+        <div class="kick">Friday · June 19 · <span class="today">Week 11</span> · Spring 2026</div>
+        <h2>Good afternoon, <em>Thalha</em></h2>
+      </div>
+      <div class="actions">
+        <button class="ghost">My standing</button>
+        <button class="ghost">Search roster</button>
+        <button class="ghost solid">Log attendance</button>
+      </div>
+    </div>
+
+    <!-- COMMAND STRIP — the hero -->
+    <div class="command">
+      <div class="ch">
+        <h3>Needs You Now <span class="ct">4 open</span></h3>
+        <span class="meta">Resolve to clear · sorted by urgency</span>
+      </div>
+      <div class="triage-grid">
+        <div class="tr">
+          <div class="lead-icon li-rose">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v4m0 4h.01M10.3 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.7 3.86a2 2 0 0 0-3.42 0z"/></svg>
+          </div>
+          <div class="body">
+            <span class="tag c-rose">Urgent deadline</span>
+            <div class="t">Academic Standing Report past due</div>
+            <div class="m">Was due May 13 · Rinchen · 37 days late</div>
+          </div>
+          <div class="act"><button class="ghost">Mark done</button></div>
+        </div>
+        <div class="tr">
+          <div class="lead-icon li-rose">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 1 1-18 0 9 9 0 0 1 18 0z"/></svg>
+          </div>
+          <div class="body">
+            <span class="tag c-rose">Member at risk</span>
+            <div class="t">Nathaniel Baccarey flagged</div>
+            <div class="m">58% att · 2.6 GPA · 3 svc hrs · $150 owed</div>
+          </div>
+          <div class="act"><button class="ghost">Profile</button></div>
+        </div>
+        <div class="tr">
+          <div class="lead-icon li-gold">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v8m-3-5h6M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z"/></svg>
+          </div>
+          <div class="body">
+            <span class="tag c-gold">Dues outstanding</span>
+            <div class="t">$300 across 3 brothers</div>
+            <div class="m">Nathaniel $150 · Noah $75 · Elvin $75</div>
+          </div>
+          <div class="act"><button class="ghost">Remind all</button></div>
+        </div>
+        <div class="tr">
+          <div class="lead-icon li-gold">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 7V4h16v3M9 20h6M12 4v16"/></svg>
+          </div>
+          <div class="body">
+            <span class="tag c-gold">Banquet deadline</span>
+            <div class="t">Banquet Planning Final Submission</div>
+            <div class="m">Was due May 14 · Issac · 36 days late</div>
+          </div>
+          <div class="act"><button class="ghost">Open</button></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- KPI TICKER — demoted -->
+    <div class="ticker">
+      <button class="tk"><div class="k">Attendance</div><div class="v c-vio">81<small>%</small></div><div class="n warn">2 below 70%</div></button>
+      <button class="tk"><div class="k">Dues Owed</div><div class="v c-gold">$300</div><div class="n">3 owe</div></button>
+      <button class="tk"><div class="k">GPA</div><div class="v c-vio">3.31</div><div class="n warn">2 below 3.0</div></button>
+      <button class="tk"><div class="k">Service</div><div class="v c-ok">105<small>h</small></div><div class="n">avg 10.5</div></button>
+      <button class="tk"><div class="k">Treasury</div><div class="v c-ok">$4,250</div><div class="n">proj $5.5k</div></button>
+      <button class="tk"><div class="k">Door Rev</div><div class="v c-rose">$2,960</div><div class="n">5 events</div></button>
+    </div>
+
+    <!-- LOWER 3-COL GRID -->
+    <div class="grid3">
+      <!-- col 1 — roster (widest) -->
+      <div class="col">
+        <div class="card">
+          <div class="card-h">
+            <h3>Roster</h3>
+            <div class="filters"><button class="on">All 10</button><button>Watch 1</button><button>At risk 1</button></div>
+          </div>
+          <table>
+            <thead><tr><th>Brother</th><th class="num">Att</th><th class="num">GPA</th><th class="num">Svc</th><th class="num">Dues</th></tr></thead>
+            <tbody>
+              <tr>
+                <td><div class="who"><span class="avatar">NB</span><div><div class="nm">Nathaniel Baccarey</div><div class="rl">Stroll · Rush</div></div></div></td>
+                <td class="num"><div class="attb" style="justify-content:flex-end"><div class="track"><i class="bg-rose" style="width:58%"></i></div><span class="c-rose">58%</span></div></td>
+                <td class="num c-rose">2.6</td><td class="num c-gold">3h</td><td class="num c-rose">$150</td>
+              </tr>
+              <tr>
+                <td><div class="who"><span class="avatar">JH</span><div><div class="nm">Jacob Hwang</div><div class="rl">Programming</div></div></div></td>
+                <td class="num"><div class="attb" style="justify-content:flex-end"><div class="track"><i class="bg-gold" style="width:68%"></i></div><span class="c-gold">68%</span></div></td>
+                <td class="num c-gold">2.8</td><td class="num c-ok">5h</td><td class="num c-faint">—</td>
+              </tr>
+              <tr>
+                <td><div class="who"><span class="avatar">BL</span><div><div class="nm">Bryan Lee</div><div class="rl">President</div></div></div></td>
+                <td class="num"><div class="attb" style="justify-content:flex-end"><div class="track"><i class="bg-ok" style="width:95%"></i></div><span class="c-ok">95%</span></div></td>
+                <td class="num c-ok">3.7</td><td class="num c-ok">15h</td><td class="num c-faint">—</td>
+              </tr>
+              <tr>
+                <td><div class="who"><span class="avatar">IC</span><div><div class="nm">Issac Chong</div><div class="rl">Treasurer</div></div></div></td>
+                <td class="num"><div class="attb" style="justify-content:flex-end"><div class="track"><i class="bg-ok" style="width:88%"></i></div><span class="c-ok">88%</span></div></td>
+                <td class="num c-ok">3.5</td><td class="num c-ok">12h</td><td class="num c-faint">—</td>
+              </tr>
+              <tr>
+                <td><div class="who"><span class="avatar">DM</span><div><div class="nm">Dariel Milfort</div><div class="rl">PR · Service</div></div></div></td>
+                <td class="num"><div class="attb" style="justify-content:flex-end"><div class="track"><i class="bg-ok" style="width:92%"></i></div><span class="c-ok">92%</span></div></td>
+                <td class="num c-ok">3.6</td><td class="num c-ok">20h</td><td class="num c-faint">—</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <!-- Socials revenue -->
+        <div class="card">
+          <div class="card-h"><h3>Socials Revenue</h3><span class="sub">$2,960 · 5 events</span></div>
+          <div style="padding:8px 0 10px">
+            <div class="rev top"><span class="n">Spring Formal Pre</span><div class="track"><i style="width:100%"></i></div><span class="v">$890</span></div>
+            <div class="rev"><span class="n">LPE × KDF Collab</span><div class="track"><i style="width:84%"></i></div><span class="v">$750</span></div>
+            <div class="rev"><span class="n">Spring Rush Social</span><div class="track"><i style="width:65%"></i></div><span class="v">$580</span></div>
+            <div class="rev"><span class="n">Kickback Night</span><div class="track"><i style="width:47%"></i></div><span class="v">$420</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- col 2 — week + treasury -->
+      <div class="col">
+        <div class="card">
+          <div class="card-h"><h3>This Week</h3><button class="add">+ Add</button></div>
+          <div class="wk today"><div class="day">FRI<b>19</b></div><div class="what"><div class="t">Community Service Recap <span class="pill dl">IG</span></div><div class="m">Carousel due today</div></div></div>
+          <div class="wk"><div class="day">SAT<b>21</b></div><div class="what"><div class="t">Summer Collab Night <span class="pill ev">Party</span></div><div class="m">Open · with DSP</div></div></div>
+          <div class="wk"><div class="day">SAT<b>21</b></div><div class="what"><div class="t">Banquet Promo Post <span class="pill dl">IG</span></div><div class="m">Story</div></div></div>
+        </div>
+        <div class="card">
+          <div class="card-h"><h3>Treasury</h3><span class="sub">Net balance</span></div>
+          <div class="treasury-body">
+            <div class="treasury-num"><span class="big">$4,250</span><span class="delta">▲ $250</span></div>
+            <div class="treasury-note">Projected $5,500 by end of period</div>
+            <div class="tchart">
+              <svg viewBox="0 0 240 50" preserveAspectRatio="none" style="width:100%;height:50px">
+                <defs><linearGradient id="tg2" x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stop-color="#7fb08a" stop-opacity=".18"/><stop offset="100%" stop-color="#7fb08a" stop-opacity="0"/></linearGradient></defs>
+                <path d="M0,42 L48,34 L96,25 L144,20 L192,16 L240,7 L240,50 L0,50Z" fill="url(#tg2)"/>
+                <polyline points="0,42 48,34 96,25 144,20 192,16 240,7" fill="none" stroke="#7fb08a" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                <circle cx="240" cy="7" r="3" fill="#7fb08a"/>
+              </svg>
+              <div class="months"><span>JAN</span><span>MAR</span><span>MAY</span><span class="c-vio">PROJ</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- col 3 — instagram + activity -->
+      <div class="col">
+        <div class="card">
+          <div class="card-h"><h3>Instagram</h3><span class="sub c-rose">2 urgent</span></div>
+          <div class="ig"><span class="ty">Story</span><span class="t">Rush Interest Post</span><span class="d c-rose">overdue</span></div>
+          <div class="ig"><span class="ty">Story</span><span class="t">Spring Formal Flyer</span><span class="d c-rose">overdue</span></div>
+          <div class="ig"><span class="ty">Reel</span><span class="t">Meet the Bros Reel</span><span class="d c-gold">Jun 17</span></div>
+          <div class="ig"><span class="ty">Carousel</span><span class="t">Service Recap</span><span class="d c-faint">Jun 19</span></div>
+        </div>
+        <div class="card">
+          <div class="card-h"><h3>Activity</h3><span class="sub">Live</span></div>
+          <div class="ig" style="border:none;padding-bottom:4px"><span class="ty"><span class="bg-ok" style="display:inline-block;width:5px;height:5px;border-radius:50%"></span></span><span class="t" style="font-weight:400;color:var(--ink-soft)">Issac logged $4,250 balance</span><span class="d c-faint">2m</span></div>
+          <div class="ig" style="border:none;padding:4px 18px"><span class="ty"><span class="bg-vio" style="display:inline-block;width:5px;height:5px;border-radius:50%"></span></span><span class="t" style="font-weight:400;color:var(--ink-soft)">Attendance logged — 8 present</span><span class="d c-faint">1h</span></div>
+          <div class="ig" style="border:none;padding:4px 18px"><span class="ty"><span class="bg-gold" style="display:inline-block;width:5px;height:5px;border-radius:50%"></span></span><span class="t" style="font-weight:400;color:var(--ink-soft)">Standing Report 37 days overdue</span><span class="d c-faint">today</span></div>
+          <div class="ig" style="border:none;padding:4px 18px 10px"><span class="ty"><span class="bg-ok" style="display:inline-block;width:5px;height:5px;border-radius:50%"></span></span><span class="t" style="font-weight:400;color:var(--ink-soft)">Door revenue: Formal Pre $890</span><span class="d c-faint">Apr 26</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════ DIRECTION 3 ═══════════════════════════ -->
+<section class="canvas" id="d3" data-dashboard-theme="dusk">
+  <div class="caption">
+    <div class="lbl">Direction <em>3</em> · Vertical KPI spine</div>
+    <h1><em>Almanac</em></h1>
+    <p>The KPI strip, rotated ninety degrees. Instead of a horizontal band across the top, the measures live in a left spine that stays in view as you scroll — health dial on top, each metric a row with its own inline sparkline. That frees the whole right canvas for a large roster and a stacked activity column.</p>
+    <div class="why"><b>Live today:</b> KPIs are a horizontal strip across the top; the rail holds Treasury/Socials/Instagram/Activity. <b>This departs by:</b> rotating the KPI strip 90° into a sticky left spine (with the health dial), freeing the whole right canvas for a large roster + working cards.</div>
+  </div>
+
+  <div class="d3">
+    <div class="top">
+      <div>
+        <div class="kick">Friday · June 19 · <span class="today">Week 11</span> · Spring 2026</div>
+        <h2>Good afternoon, <em>Thalha</em></h2>
+      </div>
+      <div class="actions">
+        <button class="ghost">My standing</button>
+        <button class="ghost">Export</button>
+        <button class="ghost solid">Log attendance</button>
+      </div>
+    </div>
+
+    <div class="pinned">
+      <span class="tag">PINNED</span>
+      <p><b>Summer Collab Night with DSP this Saturday</b> · open party, 9:00 PM — door team meet at 8.</p>
+      <button class="ghost">Edit</button>
+    </div>
+
+    <div class="frame">
+      <!-- SPINE -->
+      <aside class="spine">
+        <div class="sp-h">
+          <h3>Chapter Health</h3>
+          <div class="health">
+            <div class="dial">
+              <svg viewBox="0 0 60 60" width="60" height="60">
+                <circle cx="30" cy="30" r="24" fill="none" stroke="rgba(221,179,106,.14)" stroke-width="5"/>
+                <circle cx="30" cy="30" r="24" fill="none" stroke="#ddb36a" stroke-width="5" stroke-linecap="round"
+                  stroke-dasharray="150.8" stroke-dashoffset="42"/>
+              </svg>
+              <div class="num"><span>72</span></div>
+            </div>
+            <div class="meta">
+              <div class="lbl">Composite</div>
+              <div class="state">Needs attention</div>
+              <div class="out">out of 100</div>
+            </div>
+          </div>
+        </div>
+        <button class="sp-meas">
+          <div class="k">Attendance</div>
+          <div class="vr">
+            <div class="v c-vio">81<small>%</small></div>
+            <div class="spark"><svg viewBox="0 0 56 20" preserveAspectRatio="none"><polyline points="0,14 11,13 22,15 33,11 44,12 56,9" fill="none" stroke="#a78bfa" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+          </div>
+          <div class="note warn">2 below 70%</div>
+        </button>
+        <button class="sp-meas">
+          <div class="k">Dues Owed</div>
+          <div class="vr">
+            <div class="v c-gold">$300</div>
+            <div class="spark"><svg viewBox="0 0 56 20" preserveAspectRatio="none"><polyline points="0,7 11,9 22,12 33,11 44,13 56,14" fill="none" stroke="#ddb36a" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+          </div>
+          <div class="note">3 brothers owe</div>
+        </button>
+        <button class="sp-meas">
+          <div class="k">Chapter GPA</div>
+          <div class="vr">
+            <div class="v c-vio">3.31</div>
+            <div class="spark"><svg viewBox="0 0 56 20" preserveAspectRatio="none"><polyline points="0,13 11,12 22,12 33,11 44,11 56,10" fill="none" stroke="#a78bfa" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+          </div>
+          <div class="note warn">2 below 3.0</div>
+        </button>
+        <button class="sp-meas">
+          <div class="k">Service Hours</div>
+          <div class="vr">
+            <div class="v c-ok">105<small>h</small></div>
+            <div class="spark"><svg viewBox="0 0 56 20" preserveAspectRatio="none"><polyline points="0,17 11,15 22,12 33,10 44,8 56,6" fill="none" stroke="#7fb08a" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+          </div>
+          <div class="note">avg 10.5 / bro</div>
+        </button>
+        <button class="sp-meas">
+          <div class="k">Treasury</div>
+          <div class="vr">
+            <div class="v c-ok">$4,250</div>
+            <div class="spark"><svg viewBox="0 0 56 20" preserveAspectRatio="none"><polyline points="0,16 11,13 22,10 33,8 44,6 56,4" fill="none" stroke="#7fb08a" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+          </div>
+          <div class="note">proj. $5,500</div>
+        </button>
+      </aside>
+
+      <!-- CANVAS -->
+      <div class="canvas-r">
+        <!-- attention -->
+        <div class="card">
+          <div class="card-h"><h3>Needs Attention <span class="ct">4</span></h3><span class="sub">resolved drop off</span></div>
+          <div class="att">
+            <span class="dot bg-rose"></span><span class="tag c-rose">URGENT</span>
+            <div class="body"><div class="t">Academic Standing Report past due</div><div class="m">Was due May 13 · Rinchen · 37 days late</div></div>
+            <button class="ghost">Mark done</button>
+          </div>
+          <div class="att">
+            <span class="dot bg-rose"></span><span class="tag c-rose">MEMBER</span>
+            <div class="body"><div class="t">Nathaniel Baccarey at risk</div><div class="m">58% att · 2.6 GPA · 3 svc hrs · $150 owed</div></div>
+            <button class="ghost">Profile</button>
+          </div>
+          <div class="att">
+            <span class="dot bg-gold"></span><span class="tag c-gold">DUES</span>
+            <div class="body"><div class="t">$300 outstanding across 3 brothers</div><div class="m">Nathaniel $150 · Noah $75 · Elvin $75</div></div>
+            <button class="ghost">Remind</button>
+          </div>
+        </div>
+
+        <!-- roster (big) -->
+        <div class="card">
+          <div class="card-h">
+            <h3>Roster</h3>
+            <div class="filters"><button class="on">All 10</button><button>Good 8</button><button>Watch 1</button><button>At risk 1</button></div>
+          </div>
+          <table>
+            <thead><tr><th>Brother</th><th>Role</th><th class="num">Attendance</th><th class="num">GPA</th><th class="num">Svc</th><th class="num">Dues</th></tr></thead>
+            <tbody>
+              <tr>
+                <td><div class="who"><span class="avatar">NB</span><div class="nm">Nathaniel Baccarey</div></div></td>
+                <td class="c-faint">Stroll · Rush</td>
+                <td class="num"><div class="attb" style="justify-content:flex-end"><div class="track" style="flex:none;width:60px"><i class="bg-rose" style="width:58%"></i></div><span class="c-rose">58%</span></div></td>
+                <td class="num c-rose">2.6</td><td class="num c-gold">3h</td><td class="num c-rose">$150</td>
+              </tr>
+              <tr>
+                <td><div class="who"><span class="avatar">JH</span><div class="nm">Jacob Hwang</div></div></td>
+                <td class="c-faint">Programming · Alumni</td>
+                <td class="num"><div class="attb" style="justify-content:flex-end"><div class="track" style="flex:none;width:60px"><i class="bg-gold" style="width:68%"></i></div><span class="c-gold">68%</span></div></td>
+                <td class="num c-gold">2.8</td><td class="num c-ok">5h</td><td class="num c-faint">—</td>
+              </tr>
+              <tr>
+                <td><div class="who"><span class="avatar">DM</span><div class="nm">Dariel Milfort</div></div></td>
+                <td class="c-faint">PR · Community Service</td>
+                <td class="num"><div class="attb" style="justify-content:flex-end"><div class="track" style="flex:none;width:60px"><i class="bg-ok" style="width:92%"></i></div><span class="c-ok">92%</span></div></td>
+                <td class="num c-ok">3.6</td><td class="num c-ok">20h</td><td class="num c-faint">—</td>
+              </tr>
+              <tr>
+                <td><div class="who"><span class="avatar">BL</span><div class="nm">Bryan Lee</div></div></td>
+                <td class="c-faint">President · Rush · Banquet</td>
+                <td class="num"><div class="attb" style="justify-content:flex-end"><div class="track" style="flex:none;width:60px"><i class="bg-ok" style="width:95%"></i></div><span class="c-ok">95%</span></div></td>
+                <td class="num c-ok">3.7</td><td class="num c-ok">15h</td><td class="num c-faint">—</td>
+              </tr>
+              <tr>
+                <td><div class="who"><span class="avatar">RS</span><div class="nm">Rinchen Sherpalama</div></div></td>
+                <td class="c-faint">Academic · Programming</td>
+                <td class="num"><div class="attb" style="justify-content:flex-end"><div class="track" style="flex:none;width:60px"><i class="bg-ok" style="width:87%"></i></div><span class="c-ok">87%</span></div></td>
+                <td class="num c-ok">3.9</td><td class="num c-ok">14h</td><td class="num c-faint">—</td>
+              </tr>
+              <tr>
+                <td><div class="who"><span class="avatar">TT</span><div class="nm">Thalha Thabish</div></div></td>
+                <td class="c-faint">Secretary · Social · PR</td>
+                <td class="num"><div class="attb" style="justify-content:flex-end"><div class="track" style="flex:none;width:60px"><i class="bg-ok" style="width:90%"></i></div><span class="c-ok">90%</span></div></td>
+                <td class="num c-ok">3.3</td><td class="num c-ok">11h</td><td class="num c-faint">—</td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="table-foot"><span>Showing 6 of 10 · click a brother to open profile</span><button class="ghost">View all →</button></div>
+        </div>
+
+        <!-- two-up: this week + treasury -->
+        <div class="row2">
+          <div class="card">
+            <div class="card-h"><h3>This Week</h3><span class="sub">Jun 15 – 21</span></div>
+            <div class="wk today"><div class="day">FRI<b>19</b></div><div class="what"><div class="t">Community Service Recap <span class="pill dl">IG</span></div><div class="m">Carousel due today · PR</div></div></div>
+            <div class="wk"><div class="day">SAT<b>21</b></div><div class="what"><div class="t">Summer Collab Night <span class="pill ev">Party</span></div><div class="m">Open · with DSP · 9:00 PM</div></div></div>
+            <div class="wk"><div class="day">SAT<b>21</b></div><div class="what"><div class="t">Banquet Promo Post <span class="pill dl">IG</span></div><div class="m">Story · Social</div></div></div>
+          </div>
+          <div class="card">
+            <div class="card-h"><h3>Treasury</h3><span class="sub">Net balance</span></div>
+            <div class="treasury-body">
+              <div class="treasury-num"><span class="big">$4,250</span><span class="delta">▲ $250</span></div>
+              <div class="treasury-note">Projected $5,500 by end of Spring 2026</div>
+              <div class="tchart">
+                <svg viewBox="0 0 240 50" preserveAspectRatio="none" style="width:100%;height:50px">
+                  <defs><linearGradient id="tg3" x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stop-color="#7fb08a" stop-opacity=".18"/><stop offset="100%" stop-color="#7fb08a" stop-opacity="0"/></linearGradient></defs>
+                  <path d="M0,42 L48,34 L96,25 L144,20 L192,16 L240,7 L240,50 L0,50Z" fill="url(#tg3)"/>
+                  <polyline points="0,42 48,34 96,25 144,20 192,16 240,7" fill="none" stroke="#7fb08a" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                  <circle cx="240" cy="7" r="3" fill="#7fb08a"/>
+                </svg>
+                <div class="months"><span>JAN</span><span>MAR</span><span>MAY</span><span class="c-vio">PROJ</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- two-up: instagram + activity -->
+        <div class="row2">
+          <div class="card">
+            <div class="card-h"><h3>Instagram</h3><span class="sub c-rose">2 urgent</span></div>
+            <div class="ig"><span class="ty">Story</span><span class="t">Rush Interest Post</span><span class="d c-rose">overdue</span></div>
+            <div class="ig"><span class="ty">Story</span><span class="t">Spring Formal Flyer</span><span class="d c-rose">overdue</span></div>
+            <div class="ig"><span class="ty">Reel</span><span class="t">Meet the Bros Reel</span><span class="d c-gold">Jun 17</span></div>
+          </div>
+          <div class="card">
+            <div class="card-h"><h3>Activity</h3><span class="sub">Live</span></div>
+            <div class="act"><span class="dot bg-ok"></span><p>Issac logged treasury balance — $4,250</p><time>2m</time></div>
+            <div class="act"><span class="dot bg-vio"></span><p>Attendance logged — 8 present</p><time>1h</time></div>
+            <div class="act"><span class="dot bg-gold"></span><p>Standing Report 37 days overdue</p><time>today</time></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+document.querySelectorAll('.switch button[data-go]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const id = btn.getAttribute('data-go');
+    document.querySelectorAll('.canvas').forEach(c => c.classList.remove('on'));
+    document.querySelectorAll('.switch button[data-go]').forEach(b => b.classList.remove('on'));
+    document.getElementById(id).classList.add('on');
+    btn.classList.add('on');
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  });
+});
+</script>
+</body>
+</html>

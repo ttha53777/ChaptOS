@@ -49,3 +49,10 @@ next-env.d.ts
 # headless-browser screenshots (scripts/screenshot.ts)
 _screenshots/
 .agents/
+
+# design scratch / throwaway mocks (canonical mocks live in tracked _design/)
+/_temp/
+/Parties Redesign v2/
+# generated screenshots + one-off capture scripts under design dirs
+_design/**/*.png
+_design/**/shot.*
