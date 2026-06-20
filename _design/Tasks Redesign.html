@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dusk">
+<!--
+  ChaptOS · Tasks Redesign — "The Worklist"
+  ────────────────────────────────────────────────
+  ASSUMPTIONS / REASONING
+  · The "Tasks page" is app/[slug]/tasks/page.tsx (TasksPage). Today it's a thin
+    page: 4 stat tiles (Overdue / Due soon / Open / Done), an All|Mine segment +
+    "Show done" checkbox, and tasks grouped by computed urgency into flat rows.
+    Real model: a Task has a title, optional dueDate (dated = a "deadline", also
+    shows on the timeline), notes, status (open|done), and assignments to either
+    members OR roles (a role expands to its current holders). Urgency is derived
+    from dueDate: overdue / urgent / due-soon / upcoming / none.
+  · This is a FULL SIBLING REDESIGN, not just a reskin — it adopts the shared
+    "Chapter Ledger" dusk language used by _design/Dashboard + Treasury + Events +
+    Timeline: Fraunces serif, warm paper, Geist Mono labels, one violet accent
+    with gold / rose / sage semantics, hairline dividers, shared sidebar, and the
+    Dusk / Ivory toggle (press T). It ADDS what every other ledger page leads with
+    and Tasks lacks: a briefing header (kicker → serif line → italic AI digest)
+    and a four-measure glance strip, so "what's on fire" reads first.
+  · UX north star: a chapter officer should answer three questions in one glance —
+    what's overdue, who owns it, is it done — then act without a dialog. So:
+      - urgency is shown with a left status spine + relative time ("2d late"),
+        not just color, and never with an icon-per-row (anti data-slop).
+      - the row IS the affordance: a real check circle on the left completes in
+        place; assignee chips carry the role color; everything else is hover-only.
+      - two layouts on the same data: LIST (urgency-grouped, the default/scannable)
+        and BOARD (urgency columns, for triage). Toggle in the header.
+      - EMPTY and POPULATED states both shown (press E) so density is honest.
+  · Data is illustrative but drawn from the real seed: org "Lambda Phi Epsilon"
+    (SPR26), roles President / Treasurer / Social / PR with their seed colors,
+    members Arijit Das, Bryan Lee, Noah Kim, Jacob Hwang, Dariel Milfort, etc.
+    Today is pinned to Fri Jun 19 2026 to match the sibling mocks.
+  · Anti-slop: no per-row icons, no gradients (one flat paper), no emoji, real
+    relative-time copy, a single accent. Color only earns its place on status.
+
+  TWEAKS  ·  T = Dusk / Ivory   ·   L = List / Board   ·   E = Empty / Populated
+-->
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ChaptOS — Tasks Redesign · The Worklist</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..700;1,9..144,300..700&family=Geist:wght@300..700&family=Geist+Mono:wght@300..600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --serif: "Fraunces", Georgia, serif;
+    --sans: "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --mono: "Geist Mono", ui-monospace, Menlo, monospace;
+  }
+  [data-theme="dusk"] {
+    --paper:    #0f0d0a;
+    --paper-2:  #14120e;
+    --card:     #161310;
+    --card-2:   #1b1813;
+    --ink:      #ece7dd;
+    --ink-soft: #c9c2b4;
+    --muted:    #958d7c;
+    --faint:    #6b6354;
+    --line:     rgba(236,231,221,.09);
+    --line-soft:rgba(236,231,221,.05);
+    --vio:      #a78bfa;
+    --vio-deep: #7c3aed;
+    --vio-bg:   rgba(167,139,250,.10);
+    --gold:     #ddb36a;
+    --gold-bg:  rgba(221,179,106,.10);
+    --rose:     #d98ba3;
+    --rose-bg:  rgba(217,139,163,.10);
+    --rose-line:rgba(217,139,163,.4);
+    --ok:       #7fb08a;
+    --ok-bg:    rgba(127,176,138,.10);
+    --shadow:   0 1px 0 rgba(0,0,0,.4), 0 16px 40px -24px rgba(0,0,0,.7);
+    /* role colors, softened to sit on warm paper */
+    --r-pres:   #e3a94e;
+    --r-treas:  #5fb87a;
+    --r-social: #e07ba8;
+    --r-pr:     #6f9fe0;
+  }
+  [data-theme="ivory"] {
+    --paper:    #f2ede3;
+    --paper-2:  #ece6d9;
+    --card:     #faf7f0;
+    --card-2:   #f4f0e6;
+    --ink:      #171410;
+    --ink-soft: #3d382f;
+    --muted:    #6f675a;
+    --faint:    #9a917f;
+    --line:     rgba(23,20,16,.13);
+    --line-soft:rgba(23,20,16,.07);
+    --vio:      #6d28d9;
+    --vio-deep: #5b21b6;
+    --vio-bg:   rgba(109,40,217,.08);
+    --gold:     #9a7224;
+    --gold-bg:  rgba(154,114,36,.10);
+    --rose:     #b34f72;
+    --rose-bg:  rgba(179,79,114,.09);
+    --rose-line:rgba(179,79,114,.34);
+    --ok:       #3f7a50;
+    --ok-bg:    rgba(63,122,80,.10);
+    --shadow:   0 1px 2px rgba(23,20,16,.05), 0 14px 34px -26px rgba(23,20,16,.35);
+    --r-pres:   #b07a14;
+    --r-treas:  #2f7a4a;
+    --r-social: #b14f86;
+    --r-pr:     #2f5fa8;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { background: var(--paper); color: var(--ink); font-family: var(--sans); }
+  body { font-size: 13.5px; line-height: 1.45; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; font-variant-numeric: tabular-nums; }
+  button { font-family: inherit; }
+  ::selection { background: var(--vio-bg); }
+
+  .shell { display: grid; grid-template-columns: 228px 1fr; min-height: 100vh; }
+
+  /* ── Sidebar (shared) ──────────────────────────────── */
+  .side {
+    border-right: 1px solid var(--line);
+    background: var(--paper-2);
+    padding: 26px 0 20px;
+    display: flex; flex-direction: column; gap: 26px;
+    position: sticky; top: 0; height: 100vh;
+  }
+  .wordmark { padding: 0 24px; }
+  .wordmark .product { font-family: var(--serif); font-style: italic; font-weight: 600; font-size: 19px; letter-spacing: .01em; color: var(--ink); }
+  .wordmark .org { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line-soft); font-family: var(--mono); font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); line-height: 1.7; }
+  .nav { display: flex; flex-direction: column; gap: 1px; padding: 0 12px; }
+  .nav .grp { font-family: var(--mono); font-size: 9px; letter-spacing: .18em; text-transform: uppercase; color: var(--faint); padding: 14px 12px 6px; }
+  .nav a { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 7px; text-decoration: none; font-family: var(--mono); font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); position: relative; }
+  .nav a svg { width: 15px; height: 15px; flex-shrink: 0; opacity: .8; }
+  .nav a:hover { color: var(--ink-soft); background: var(--line-soft); }
+  .nav a.active { color: var(--ink); background: var(--card-2); }
+  .nav a.active::before { content: ""; position: absolute; left: -6px; width: 3px; height: 14px; border-radius: 2px; background: var(--vio); }
+  .side .spacer { flex: 1; }
+  .user { margin: 0 12px; padding: 12px; border-top: 1px solid var(--line-soft); display: flex; gap: 10px; align-items: center; }
+  .user .avatar { width: 30px; height: 30px; border-radius: 50%; background: var(--vio-bg); color: var(--vio); display: grid; place-items: center; font-family: var(--mono); font-size: 10px; font-weight: 600; }
+  .user .who p:first-child { font-size: 12.5px; font-weight: 600; color: var(--ink); }
+  .user .who p:last-child { font-family: var(--mono); font-size: 9.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--faint); margin-top: 1px; }
+
+  /* ── Main ───────────────────────────────────────────── */
+  .main { padding: 30px 38px 80px; max-width: 1040px; }
+
+  .briefing { display: flex; justify-content: space-between; gap: 36px; align-items: flex-start; }
+  .kicker { font-family: var(--mono); font-size: 10.5px; letter-spacing: .18em; text-transform: uppercase; color: var(--muted); }
+  .kicker .today { color: var(--vio); }
+  h1.greeting { font-family: var(--serif); font-weight: 400; font-size: 33px; letter-spacing: -.01em; margin-top: 8px; color: var(--ink); }
+  h1.greeting em { font-style: italic; color: var(--vio); }
+  .digest { margin-top: 12px; display: flex; gap: 9px; align-items: baseline; max-width: 560px; }
+  .ai-chip { flex-shrink: 0; font-family: var(--mono); font-size: 8.5px; font-weight: 600; letter-spacing: .14em; color: var(--vio); border: 1px solid var(--vio-bg); background: var(--vio-bg); border-radius: 4px; padding: 2px 5px; transform: translateY(-1px); }
+  .digest p { font-size: 13.5px; color: var(--ink-soft); font-style: italic; font-family: var(--serif); font-weight: 350; line-height: 1.5; }
+  .digest p b { font-weight: 500; font-style: normal; color: var(--ink); }
+
+  .head-actions { flex-shrink: 0; display: flex; align-items: center; gap: 8px; }
+  .add-btn { flex-shrink: 0; display: inline-flex; align-items: center; gap: 7px; font-family: var(--mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--vio); background: var(--vio-bg); border: 1px solid var(--vio-bg); border-radius: 8px; padding: 9px 15px; cursor: pointer; }
+  .add-btn:hover { border-color: var(--vio); }
+  .add-btn svg { stroke: var(--vio); width: 13px; height: 13px; }
+
+  .theme-toggle { position: fixed; top: 18px; right: 20px; z-index: 50; font-family: var(--mono); font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); background: var(--card); border: 1px solid var(--line); border-radius: 999px; padding: 6px 14px; cursor: pointer; }
+  .theme-toggle:hover { color: var(--ink); border-color: var(--vio); }
+
+  /* ── Glance strip (the addition) ─────────────────────── */
+  .glance { margin-top: 22px; display: grid; grid-template-columns: repeat(4, 1fr); border: 1px solid var(--line); border-radius: 12px; background: var(--card); box-shadow: var(--shadow); overflow: hidden; }
+  .measure { padding: 15px 18px 14px; border-right: 1px solid var(--line-soft); position: relative; }
+  .measure:last-child { border-right: none; }
+  .measure .k { font-family: var(--mono); font-size: 9px; letter-spacing: .16em; text-transform: uppercase; color: var(--muted); }
+  .measure .v { font-family: var(--serif); font-size: 30px; font-weight: 400; letter-spacing: -.02em; color: var(--ink); margin-top: 6px; line-height: 1; }
+  .measure .v.rose { color: var(--rose); }
+  .measure .v.gold { color: var(--gold); }
+  .measure .v.sage { color: var(--ok); }
+  .measure .note { font-size: 11px; color: var(--faint); margin-top: 6px; }
+  .measure .note.bad { color: var(--rose); }
+  .measure .note.warn { color: var(--gold); }
+
+  /* ── Control bar ─────────────────────────────────────── */
+  .controls { margin-top: 22px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 9px; overflow: hidden; }
+  .seg button { font-family: var(--mono); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; padding: 8px 14px; color: var(--muted); background: none; border: 0; cursor: pointer; transition: color .12s, background .12s; }
+  .seg button.on { color: var(--ink); background: var(--card-2); }
+  .seg button:hover:not(.on) { color: var(--ink-soft); }
+  .controls-right { display: flex; align-items: center; gap: 14px; }
+  .layout-seg { display: inline-flex; border: 1px solid var(--line); border-radius: 9px; padding: 2px; gap: 2px; }
+  .layout-seg button { display: inline-grid; place-items: center; width: 30px; height: 26px; border-radius: 6px; color: var(--muted); background: none; border: 0; cursor: pointer; }
+  .layout-seg button svg { width: 15px; height: 15px; }
+  .layout-seg button.on { color: var(--ink); background: var(--card-2); }
+  .layout-seg button:hover:not(.on) { color: var(--ink-soft); }
+  .check { display: inline-flex; align-items: center; gap: 7px; font-family: var(--mono); font-size: 10px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); cursor: pointer; user-select: none; }
+  .check .box { width: 15px; height: 15px; border: 1px solid var(--line); border-radius: 5px; display: grid; place-items: center; }
+  .check.on .box { background: var(--vio-bg); border-color: var(--vio); }
+  .check.on .box svg { stroke: var(--vio); }
+  .check .box svg { width: 11px; height: 11px; stroke: transparent; }
+  .check.on { color: var(--ink-soft); }
+
+  /* ── LIST view ───────────────────────────────────────── */
+  .groups { margin-top: 20px; display: flex; flex-direction: column; gap: 26px; }
+  .group-label { display: flex; align-items: center; gap: 8px; font-family: var(--mono); font-size: 10px; font-weight: 500; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); margin-bottom: 10px; }
+  .group-label .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--muted); }
+  .group-label.rose { color: var(--rose); } .group-label.rose .dot { background: var(--rose); }
+  .group-label.gold { color: var(--gold); } .group-label.gold .dot { background: var(--gold); }
+  .group-label.sage { color: var(--ok); }   .group-label.sage .dot { background: var(--ok); }
+  .group-label .ct { color: var(--faint); letter-spacing: .08em; }
+
+  .list { display: flex; flex-direction: column; gap: 7px; }
+  .task { display: flex; align-items: flex-start; gap: 13px; background: var(--card); border: 1px solid var(--line); border-radius: 11px; padding: 13px 15px 13px 0; position: relative; overflow: hidden; transition: border-color .14s, transform .14s; cursor: default; }
+  .task::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: transparent; }
+  .task.s-overdue::before { background: var(--rose); }
+  .task.s-urgent::before  { background: var(--rose); opacity: .7; }
+  .task.s-soon::before    { background: var(--gold); }
+  .task:hover { border-color: rgba(236,231,221,.2); transform: translateX(1px); }
+  .task .check-circle { margin-left: 15px; margin-top: 1px; flex-shrink: 0; width: 19px; height: 19px; border-radius: 50%; border: 1.6px solid var(--faint); background: none; cursor: pointer; display: grid; place-items: center; transition: border-color .14s, background .14s; }
+  .task .check-circle svg { width: 11px; height: 11px; stroke: transparent; stroke-width: 3; }
+  .task .check-circle:hover { border-color: var(--ok); background: var(--ok-bg); }
+  .task .check-circle:hover svg { stroke: var(--ok); }
+  .task-body { flex: 1; min-width: 0; }
+  .task-title { font-size: 14px; font-weight: 500; color: var(--ink); letter-spacing: -.005em; }
+  .task-meta { margin-top: 6px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .when { font-family: var(--mono); font-size: 10.5px; letter-spacing: .03em; color: var(--muted); display: inline-flex; align-items: center; gap: 5px; }
+  .when.late { color: var(--rose); }
+  .when.soon { color: var(--gold); }
+  .when svg { width: 12px; height: 12px; }
+  .dotsep { color: var(--faint); }
+  .note-snip { font-size: 11.5px; color: var(--faint); font-style: italic; font-family: var(--serif); }
+
+  .chips { display: inline-flex; align-items: center; gap: 5px; flex-wrap: wrap; }
+  .chip { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 500; color: var(--ink-soft); background: var(--card-2); border: 1px solid var(--line); border-radius: 999px; padding: 3px 9px 3px 7px; line-height: 1; }
+  .chip .av { width: 15px; height: 15px; border-radius: 50%; background: var(--vio-bg); color: var(--vio); display: grid; place-items: center; font-family: var(--mono); font-size: 7.5px; font-weight: 600; flex-shrink: 0; }
+  .chip.role { border-color: color-mix(in srgb, var(--rc) 38%, transparent); background: color-mix(in srgb, var(--rc) 12%, transparent); color: var(--ink); }
+  .chip.role .pip { width: 7px; height: 7px; border-radius: 2px; background: var(--rc); flex-shrink: 0; }
+
+  .task-acts { display: flex; gap: 3px; flex-shrink: 0; align-self: center; opacity: 0; transition: opacity .14s; }
+  .task:hover .task-acts { opacity: 1; }
+  .act { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 7px; color: var(--muted); background: none; border: 0; cursor: pointer; transition: background .12s, color .12s; }
+  .act svg { width: 15px; height: 15px; }
+  .act:hover { background: var(--line-soft); color: var(--ink); }
+  .act.danger:hover { color: var(--rose); }
+
+  /* done rows */
+  .task.done { background: var(--paper-2); }
+  .task.done::before { background: var(--ok); opacity: .5; }
+  .task.done .task-title { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--faint); }
+  .task.done .check-circle { border-color: var(--ok); background: var(--ok-bg); }
+  .task.done .check-circle svg { stroke: var(--ok); }
+
+  /* ── BOARD view ──────────────────────────────────────── */
+  .board { margin-top: 20px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; align-items: start; }
+  .col-h { display: flex; align-items: center; justify-content: space-between; padding: 0 4px 11px; margin-bottom: 2px; border-bottom: 1px solid var(--line); }
+  .col-h .lbl { display: flex; align-items: center; gap: 7px; font-family: var(--mono); font-size: 10px; font-weight: 500; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+  .col-h .lbl .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--muted); }
+  .col-h.rose .lbl { color: var(--rose); } .col-h.rose .lbl .dot { background: var(--rose); }
+  .col-h.gold .lbl { color: var(--gold); } .col-h.gold .lbl .dot { background: var(--gold); }
+  .col-h.sage .lbl { color: var(--ok); }   .col-h.sage .lbl .dot { background: var(--ok); }
+  .col-h .ct { font-family: var(--mono); font-size: 11px; color: var(--faint); }
+  .col-body { display: flex; flex-direction: column; gap: 9px; margin-top: 13px; }
+  .bcard { background: var(--card); border: 1px solid var(--line); border-radius: 11px; padding: 12px 13px; position: relative; overflow: hidden; transition: border-color .14s, transform .14s; }
+  .bcard::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: transparent; }
+  .bcard.s-overdue::before { background: var(--rose); }
+  .bcard.s-urgent::before  { background: var(--rose); opacity: .7; }
+  .bcard.s-soon::before    { background: var(--gold); }
+  .bcard.s-up::before      { background: var(--line); }
+  .bcard:hover { border-color: rgba(236,231,221,.2); transform: translateY(-1px); }
+  .bcard .bt { font-size: 13px; font-weight: 500; color: var(--ink); line-height: 1.35; margin-left: 6px; }
+  .bcard .bw { margin: 9px 0 9px 6px; font-family: var(--mono); font-size: 10px; letter-spacing: .03em; color: var(--muted); display: inline-flex; align-items: center; gap: 5px; }
+  .bcard .bw.late { color: var(--rose); } .bcard .bw.soon { color: var(--gold); }
+  .bcard .bw svg { width: 12px; height: 12px; }
+  .bcard .bchips { margin-left: 6px; display: flex; flex-wrap: wrap; gap: 5px; }
+  .col-empty { font-family: var(--mono); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--faint); text-align: center; padding: 22px 8px; border: 1px dashed var(--line); border-radius: 10px; }
+
+  .done-strip { margin-top: 26px; }
+
+  /* ── Empty state ─────────────────────────────────────── */
+  .empty { margin-top: 28px; border: 1px dashed var(--line); border-radius: 14px; padding: 64px 24px; text-align: center; background: var(--card); }
+  .empty .glyph { width: 46px; height: 46px; margin: 0 auto 18px; border-radius: 12px; background: var(--vio-bg); color: var(--vio); display: grid; place-items: center; }
+  .empty .glyph svg { width: 22px; height: 22px; }
+  .empty h3 { font-family: var(--serif); font-weight: 500; font-size: 19px; color: var(--ink); }
+  .empty p { font-size: 13px; color: var(--muted); margin-top: 7px; max-width: 38ch; margin-left: auto; margin-right: auto; line-height: 1.55; }
+  .empty .add-btn { margin: 20px auto 0; }
+
+  .hint { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); background: var(--card); border: 1px solid var(--line); border-radius: 999px; padding: 6px 16px; z-index: 50; }
+  .hint b { color: var(--vio); }
+
+  @media (max-width: 980px) {
+    .shell { grid-template-columns: 1fr; }
+    .side { display: none; }
+    .board { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (max-width: 600px) {
+    .glance { grid-template-columns: repeat(2, 1fr); }
+    .measure:nth-child(2) { border-right: none; }
+    .measure:nth-child(-n+2) { border-bottom: 1px solid var(--line-soft); }
+    .board { grid-template-columns: 1fr; }
+    .briefing { flex-direction: column; }
+  }
+</style>
+</head>
+<body>
+  <button class="theme-toggle" id="themeBtn">◑ Dusk</button>
+
+  <div class="shell">
+    <!-- ── Shared sidebar ── -->
+    <aside class="side">
+      <div class="wordmark">
+        <div class="product">ChaptOS</div>
+        <div class="org">Lambda Phi Epsilon<br>Spring 2026</div>
+      </div>
+      <nav class="nav">
+        <div class="grp">Overview</div>
+        <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path stroke-linecap="round" stroke-linejoin="round" d="M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1H4a1 1 0 01-1-1V9.5z"/></svg>Dashboard</a>
+        <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path stroke-linecap="round" stroke-linejoin="round" d="M4 7h16M4 12h16M4 17h10"/></svg>Timeline</a>
+        <a href="#" class="active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>Tasks</a>
+        <div class="grp">Members</div>
+        <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87m6-3.13a4 4 0 10-4-4 4 4 0 004 4z"/></svg>Members</a>
+        <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2"/></svg>Meetings</a>
+        <div class="grp">Operations</div>
+        <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path stroke-linecap="round" stroke-linejoin="round" d="M13.8 10.2a4 4 0 00-5.6 0l-3 3a4 4 0 005.6 5.6l1-1m-1.6-7.6a4 4 0 015.6 0l3-3a4 4 0 00-5.6-5.6l-1 1"/></svg>Docs</a>
+        <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="4" y="4" width="16" height="16" rx="4"/><circle cx="12" cy="12" r="3.2"/><circle cx="17" cy="7" r="1"/></svg>Instagram</a>
+        <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><path stroke-linecap="round" stroke-linejoin="round" d="M9 9h6M9 13h6M9 17h4"/></svg>Programming</a>
+        <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path stroke-linecap="round" stroke-linejoin="round" d="M20.8 11.1A8.4 8.4 0 1112.9 3.2 6.3 6.3 0 0020.8 11z"/></svg>Service</a>
+        <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path stroke-linecap="round" stroke-linejoin="round" d="M9 18V5l12-2v13M9 13l12-2"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>Parties</a>
+        <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="9"/><path stroke-linecap="round" stroke-linejoin="round" d="M12 7v10M9.5 9.2a2.5 2.5 0 012.5-1.7c1.4 0 2.5.9 2.5 2s-1.1 2-2.5 2-2.5.9-2.5 2 1.1 2 2.5 2a2.5 2.5 0 002.5-1.7"/></svg>Treasury</a>
+      </nav>
+      <div class="spacer"></div>
+      <div class="user">
+        <div class="avatar">TT</div>
+        <div class="who">
+          <p>Thalha Thabish</p>
+          <p>President</p>
+        </div>
+      </div>
+    </aside>
+
+    <!-- ── Main ── -->
+    <main class="main">
+      <header class="briefing">
+        <div>
+          <div class="kicker">Tasks · <span class="today">Today Fri Jun 19</span></div>
+          <h1 class="greeting">Things to get <em>done</em>.</h1>
+          <div class="digest">
+            <span class="ai-chip">AI</span>
+            <p id="digest"><b>3 tasks are overdue</b> and 2 more are due this week — most of it sits with PR and the Treasurer. The IFC report is the one to clear first.</p>
+          </div>
+        </div>
+        <div class="head-actions">
+          <button class="add-btn"><svg viewBox="0 0 24 24" fill="none" stroke-width="2.4"><path stroke-linecap="round" stroke-linejoin="round" d="M12 5v14M5 12h14"/></svg>New task</button>
+        </div>
+      </header>
+
+      <!-- glance strip -->
+      <div class="glance" id="glance">
+        <div class="measure"><div class="k">Overdue</div><div class="v rose">3</div><div class="note bad">oldest is 5 days late</div></div>
+        <div class="measure"><div class="k">Due soon</div><div class="v gold">2</div><div class="note warn">within 7 days</div></div>
+        <div class="measure"><div class="k">Open</div><div class="v">9</div><div class="note">across 4 owners</div></div>
+        <div class="measure"><div class="k">Done</div><div class="v sage">14</div><div class="note">this semester</div></div>
+      </div>
+
+      <!-- control bar -->
+      <div class="controls">
+        <div class="seg" id="scopeSeg">
+          <button class="on" data-scope="all">All tasks</button>
+          <button data-scope="mine">Assigned to me</button>
+        </div>
+        <div class="controls-right">
+          <label class="check on" id="showDone">
+            <span class="box"><svg viewBox="0 0 24 24" fill="none" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg></span>
+            Show done
+          </label>
+          <div class="layout-seg" id="layoutSeg">
+            <button class="on" data-layout="list" title="List view"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" d="M4 6h16M4 12h16M4 18h16"/></svg></button>
+            <button data-layout="board" title="Board view"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="4" width="6.5" height="16" rx="1.5"/><rect x="13.5" y="4" width="6.5" height="10" rx="1.5"/></svg></button>
+          </div>
+        </div>
+      </div>
+
+      <!-- content host -->
+      <div id="content"></div>
+    </main>
+  </div>
+
+  <div class="hint">Press <b>T</b> theme · <b>L</b> layout · <b>E</b> empty/full</div>
+
+<script>
+  // ── Today is pinned to Fri Jun 19 2026 to match sibling mocks ──────────────
+  const TODAY = new Date(2026, 5, 19);
+
+  // Role palette mirrors lib/seed-roles.ts (softened to CSS vars on warm paper).
+  const ROLE = {
+    President: 'var(--r-pres)',
+    Treasurer: 'var(--r-treas)',
+    Social:    'var(--r-social)',
+    PR:        'var(--r-pr)',
+  };
+
+  // Illustrative tasks drawn from the real seed vocabulary. dueDate is a
+  // [y,m,d] tuple (m is 0-based) or null for an undated to-do.
+  const TASKS = [
+    { id: 1, title: 'Submit IFC chapter report',        due: [2026,5,14], status:'open', assign:[{role:'PR'}],          notes:'Quarterly standing — due to the IFC office.' },
+    { id: 2, title: 'Pay the spring formal venue deposit', due:[2026,5,16], status:'open', assign:[{role:'Treasurer'}],   notes:'Hold expires if not wired this week.' },
+    { id: 3, title: 'Collect outstanding dues (4 brothers)', due:[2026,5,17], status:'open', assign:[{role:'Treasurer'}], notes:'' },
+    { id: 4, title: 'Confirm philanthropy 5K headcount', due:[2026,5,20], status:'open', assign:[{member:'Dariel Milfort',init:'DM'}], notes:'Registration closes Saturday.' },
+    { id: 5, title: 'Finalize mixer guest list with the sorority', due:[2026,5,24], status:'open', assign:[{role:'Social'}], notes:'' },
+    { id: 6, title: 'Order new merch for bid day',        due:[2026,6,3],  status:'open', assign:[{member:'Bryan Lee',init:'BL'},{member:'Noah Kim',init:'NK'}], notes:'Get sizing from the pledge class first.' },
+    { id: 7, title: 'Draft recap caption for the boba fundraiser', due:[2026,6,8], status:'open', assign:[{role:'PR'}], notes:'' },
+    { id: 8, title: 'Book the chapter room for finals study hours', due:[2026,6,12], status:'open', assign:[{member:'Jacob Hwang',init:'JH'}], notes:'' },
+    { id: 9, title: 'Refresh the bylaws shared doc',      due:null,        status:'open', assign:[{member:'Arijit Das',init:'AD'}], notes:'No hard deadline — before the next exec turnover.' },
+    { id:10, title: 'Reconcile Spring Mixer door revenue', due:[2026,5,9], status:'done', assign:[{role:'Treasurer'}], notes:'' },
+    { id:11, title: 'Post recruitment interest form',      due:[2026,5,2], status:'done', assign:[{role:'PR'}], notes:'' },
+    { id:12, title: 'Reserve buses for the away philanthropy event', due:[2026,5,11], status:'done', assign:[{member:'Issac Chong',init:'IC'}], notes:'' },
+  ];
+
+  // ── Urgency model mirrors lib/tasks/urgency.ts ────────────────────────────
+  const DAY = 86400000;
+  function dueDate(t){ return t.due ? new Date(t.due[0], t.due[1], t.due[2]) : null; }
+  function daysOut(t){ const d = dueDate(t); return d ? Math.round((d - TODAY) / DAY) : null; }
+  function urgency(t){
+    const n = daysOut(t);
+    if (n === null) return 'none';
+    if (n < 0)  return 'overdue';
+    if (n <= 2) return 'urgent';
+    if (n <= 7) return 'soon';
+    return 'upcoming';
+  }
+  // class suffix used on the status spine
+  const SPINE = { overdue:'s-overdue', urgent:'s-urgent', soon:'s-soon', upcoming:'s-up', none:'s-up' };
+
+  function relWhen(t){
+    const n = daysOut(t);
+    if (n === null) return { txt:'No date', cls:'' };
+    if (n < 0)  return { txt:`${Math.abs(n)}d late`, cls:'late' };
+    if (n === 0) return { txt:'Due today', cls:'late' };
+    if (n === 1) return { txt:'Due tomorrow', cls:'soon' };
+    if (n <= 7) return { txt:`Due in ${n}d`, cls:'soon' };
+    const d = dueDate(t);
+    return { txt:'Due ' + d.toLocaleDateString('en-US',{month:'short',day:'numeric'}), cls:'' };
+  }
+
+  const clockSVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path stroke-linecap="round" stroke-linejoin="round" d="M12 7.5V12l3 2"/></svg>';
+
+  function chipHTML(a){
+    if (a.role) return `<span class="chip role" style="--rc:${ROLE[a.role]}"><span class="pip"></span>${a.role}</span>`;
+    return `<span class="chip"><span class="av">${a.init}</span>${a.member}</span>`;
+  }
+
+  // ── State ─────────────────────────────────────────────────────────────────
+  let scope = 'all';      // all | mine
+  let showDone = true;
+  let layout = 'list';    // list | board
+  let empty = false;      // populated | empty
+
+  // "Mine" = current user (President: Thalha) — direct or via held President role.
+  function isMine(t){ return t.assign.some(a => a.role === 'President' || a.member === 'Thalha Thabish'); }
+
+  function visible(){
+    let rows = TASKS.slice();
+    if (scope === 'mine') rows = rows.filter(isMine);
+    return rows;
+  }
+
+  // group order for the list, most pressing first
+  const GROUP_ORDER = [
+    { u:'overdue', label:'Overdue',  tone:'rose' },
+    { u:'urgent',  label:'Urgent',   tone:'rose' },
+    { u:'soon',    label:'Due soon', tone:'gold' },
+    { u:'upcoming',label:'Upcoming', tone:'' },
+    { u:'none',    label:'No date',  tone:'' },
+  ];
+  const BOARD_COLS = [
+    { u:'overdue', label:'Overdue',  tone:'rose', cls:'s-overdue' },
+    { u:'soon',    label:'Due soon', tone:'gold', cls:'s-soon', extra:['urgent'] },
+    { u:'upcoming',label:'Upcoming', tone:'',     cls:'s-up' },
+    { u:'none',    label:'No date',  tone:'',     cls:'s-up' },
+  ];
+
+  // A done task is no longer "late" — show a neutral completed label instead of urgency.
+  function whenFor(t){
+    if (t.status === 'done'){
+      const d = dueDate(t);
+      return { txt: d ? 'Done · was due ' + d.toLocaleDateString('en-US',{month:'short',day:'numeric'}) : 'Done', cls:'' };
+    }
+    return relWhen(t);
+  }
+
+  function metaRow(t){
+    const w = whenFor(t);
+    return `<div class="task-meta">
+      <span class="when ${w.cls}">${clockSVG}${w.txt}</span>
+      <span class="dotsep">·</span>
+      <span class="chips">${t.assign.map(chipHTML).join('')}</span>
+      ${t.notes ? `<span class="dotsep">·</span><span class="note-snip">${t.notes}</span>` : ''}
+    </div>`;
+  }
+
+  function taskHTML(t){
+    const done = t.status === 'done';
+    return `<div class="task ${done?'done':SPINE[urgency(t)]}">
+      <button class="check-circle" title="${done?'Reopen':'Mark done'}"><svg viewBox="0 0 24 24" fill="none"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg></button>
+      <div class="task-body">
+        <div class="task-title">${t.title}</div>
+        ${metaRow(t)}
+      </div>
+      <div class="task-acts">
+        <button class="act" title="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M15.2 5.2l3.6 3.6M16.7 3.7a2.5 2.5 0 113.6 3.6L7 20.5l-4 1 1-4z"/></svg></button>
+        <button class="act danger" title="Delete"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M5 7h14M9 7V5a1 1 0 011-1h4a1 1 0 011 1v2m1 0l-.7 12.1A2 2 0 0114.4 21H9.6a2 2 0 01-2-1.9L7 7"/></svg></button>
+      </div>
+    </div>`;
+  }
+
+  function renderList(rows){
+    const open = rows.filter(t => t.status !== 'done');
+    const done = rows.filter(t => t.status === 'done');
+    let html = '<div class="groups">';
+    let any = false;
+    for (const g of GROUP_ORDER){
+      const items = open.filter(t => urgency(t) === g.u);
+      if (!items.length) continue;
+      any = true;
+      html += `<section><div class="group-label ${g.tone}"><span class="dot"></span>${g.label} <span class="ct">(${items.length})</span></div><div class="list">${items.map(taskHTML).join('')}</div></section>`;
+    }
+    if (showDone && done.length){
+      html += `<section class="done-strip"><div class="group-label sage"><span class="dot"></span>Done <span class="ct">(${done.length})</span></div><div class="list">${done.map(taskHTML).join('')}</div></section>`;
+    }
+    html += '</div>';
+    if (!any && !(showDone && done.length)) return scopeEmpty();
+    return html;
+  }
+
+  function bcardHTML(t){
+    const w = relWhen(t);
+    return `<div class="bcard ${SPINE[urgency(t)]}">
+      <div class="bt">${t.title}</div>
+      <div class="bw ${w.cls}">${clockSVG}${w.txt}</div>
+      <div class="bchips">${t.assign.map(chipHTML).join('')}</div>
+    </div>`;
+  }
+
+  function renderBoard(rows){
+    const open = rows.filter(t => t.status !== 'done');
+    let html = '<div class="board">';
+    for (const c of BOARD_COLS){
+      const us = [c.u, ...(c.extra||[])];
+      const items = open.filter(t => us.includes(urgency(t)));
+      html += `<div class="col"><div class="col-h ${c.tone}"><span class="lbl"><span class="dot"></span>${c.label}</span><span class="ct">${items.length}</span></div>`;
+      html += `<div class="col-body">${items.length ? items.map(bcardHTML).join('') : '<div class="col-empty">Clear</div>'}</div></div>`;
+    }
+    html += '</div>';
+    // Done shown as a list strip beneath the board so the columns stay about "what's left".
+    if (showDone){
+      const done = rows.filter(t => t.status === 'done');
+      if (done.length) html += `<div class="done-strip"><div class="group-label sage"><span class="dot"></span>Done <span class="ct">(${done.length})</span></div><div class="list">${done.map(taskHTML).join('')}</div></div>`;
+    }
+    if (!open.length && !(showDone && rows.some(t=>t.status==='done'))) return scopeEmpty();
+    return html;
+  }
+
+  function scopeEmpty(){
+    return `<div class="empty">
+      <div class="glyph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="9"/></svg></div>
+      <h3>${scope === 'mine' ? "You're all caught up." : 'Nothing assigned to you.'}</h3>
+      <p>${scope === 'mine' ? 'No open tasks are assigned to you or your roles right now.' : 'Switch back to all tasks to see the chapter worklist.'}</p>
+    </div>`;
+  }
+
+  function trueEmpty(){
+    return `<div class="empty">
+      <div class="glyph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg></div>
+      <h3>No tasks yet.</h3>
+      <p>Hand out tasks and deadlines to members or roles, and track what gets done. Dated tasks also show up on the chapter timeline.</p>
+      <button class="add-btn"><svg viewBox="0 0 24 24" fill="none" stroke-width="2.4"><path stroke-linecap="round" stroke-linejoin="round" d="M12 5v14M5 12h14"/></svg>Create the first task</button>
+    </div>`;
+  }
+
+  function render(){
+    const host = document.getElementById('content');
+    if (empty){ host.innerHTML = trueEmpty(); return; }
+    const rows = visible();
+    host.innerHTML = layout === 'list' ? renderList(rows) : renderBoard(rows);
+  }
+
+  // ── Controls ──────────────────────────────────────────────────────────────
+  document.getElementById('scopeSeg').addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    scope = b.dataset.scope;
+    [...e.currentTarget.children].forEach(c => c.classList.toggle('on', c === b));
+    render();
+  });
+  document.getElementById('layoutSeg').addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    setLayout(b.dataset.layout);
+  });
+  document.getElementById('showDone').addEventListener('click', () => {
+    showDone = !showDone;
+    document.getElementById('showDone').classList.toggle('on', showDone);
+    render();
+  });
+
+  function setLayout(l){
+    layout = l;
+    [...document.getElementById('layoutSeg').children].forEach(c => c.classList.toggle('on', c.dataset.layout === l));
+    render();
+  }
+
+  // ── Theme toggle (press T) ──────────────────────────────────────────────
+  const themeBtn = document.getElementById('themeBtn');
+  function setTheme(t){
+    document.documentElement.setAttribute('data-theme', t);
+    themeBtn.textContent = (t === 'dusk' ? '◑ Dusk' : '◐ Ivory');
+    localStorage.setItem('tk_theme', t);
+  }
+  themeBtn.addEventListener('click', () => setTheme(document.documentElement.getAttribute('data-theme') === 'dusk' ? 'ivory' : 'dusk'));
+  setTheme(localStorage.getItem('tk_theme') || 'dusk');
+
+  document.addEventListener('keydown', e => {
+    if (e.target.matches('input,textarea')) return;
+    const k = e.key.toLowerCase();
+    if (k === 't') setTheme(document.documentElement.getAttribute('data-theme') === 'dusk' ? 'ivory' : 'dusk');
+    if (k === 'l') setLayout(layout === 'list' ? 'board' : 'list');
+    if (k === 'e') { empty = !empty; render(); }
+  });
+
+  render();
+</script>
+</body>
+</html>
