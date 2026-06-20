@@ -170,7 +170,7 @@ function orgInitials(name: string | undefined | null): string {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function SettingsPage() {
-  const { can, currentUser, brotherList, deadlineList, partyList } = useChapter();
+  const { can, currentUser, brotherList, taskList, partyList } = useChapter();
   const orgPath = useOrgPath();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [dest, setDest] = useState<Destination>("index");
@@ -433,7 +433,7 @@ export default function SettingsPage() {
                       )}
                       <div>
                         <div className="nm">{orgName}</div>
-                        <div className="mt">{brotherList.length} Brothers · {deadlineList.length} Deadlines · {partyList.length} Parties</div>
+                        <div className="mt">{brotherList.length} Brothers · {taskList.length} Tasks · {partyList.length} Parties</div>
                       </div>
                     </div>
                   </section>

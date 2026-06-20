@@ -3,14 +3,15 @@
 import React, { useState, useMemo, useEffect, useLayoutEffect, useRef } from "react";
 import { Sidebar } from "../../components/Sidebar";
 import { BrotherAvatar } from "../../components/BrotherAvatar";
-import { CalendarEvent, CalEventCategory, CalLayer, TaskStatus, Deadline, InstagramTask, InstagramType, fmtDate, fmtRange, isoWeekBounds } from "../../data";
+import { CalendarEvent, CalEventCategory, CalLayer, Task, InstagramTask, fmtDate, fmtRange, isoWeekBounds, taskAssigneeLabel } from "../../data";
 import { useChapter } from "../../context/ChapterContext";
 import { Modal, ConfirmDialog } from "../../components/dashboard/primitives";
 import { inputCls } from "../../components/dashboard/styles";
 import { requestJson, orgFetch } from "../../lib/api";
 import { pad, toDateStr, daysFromToday } from "../../lib/dates";
+import { useRouter } from "next/navigation";
+import { useOrgPath } from "../../hooks/useOrgPath";
 import { CalendarEventForm, type CalendarDraft } from "../../components/timeline/CalendarEventForm";
-import { AddDeadlineForm } from "../../components/dashboard/forms";
 import { useActiveSemester } from "../../hooks/useActiveSemester";
 import { useSemesterErrorHandler } from "../../hooks/useSemesterErrorHandler";
 import { isNavVisible } from "../../components/Sidebar";
@@ -252,13 +253,13 @@ function EventDetail({
   onDelete: () => void;
   brotherList: { id: number; name: string }[];
   selfBrotherId: number | null;
-  /** Status of the source Deadline, when this row is a live deadline; null otherwise. */
-  deadlineStatus: TaskStatus | null;
+  /** Status of the source Task, when this row is a live dated task; null otherwise. */
+  deadlineStatus: "open" | "done" | null;
   canCompleteDeadline: boolean;
   onToggleDeadline: (complete: boolean) => void;
 }) {
   const isDeadline = event.category === "deadline";
-  const isComplete = deadlineStatus === "Complete";
+  const isComplete = deadlineStatus === "done";
   const todayStr   = toDateStr(TODAY.year, TODAY.month, TODAY.day);
   const isPast     = event.date < todayStr;
   const [, mo, d]  = event.date.split("-").map(Number);
@@ -639,7 +640,9 @@ function GlanceDetail({
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function TimelinePage() {
-  const { currentUser, deadlineList, setDeadlineList, igTaskList, setIgTaskList, partyList, brotherList, setBrotherList, avatarRevision, can } = useChapter();
+  const { currentUser, taskList, setTaskList, igTaskList, setIgTaskList, partyList, brotherList, setBrotherList, avatarRevision, can } = useChapter();
+  const router  = useRouter();
+  const orgPath = useOrgPath();
   const activeSemester = useActiveSemester();
   const handleSemesterError = useSemesterErrorHandler();
   const selfId = currentUser?.id ?? null;
@@ -655,7 +658,7 @@ export default function TimelinePage() {
   const [glanceFocus,     setGlanceFocus]     = useState<GlanceMetric | null>(null);
   const [apiEvents,       setApiEvents]       = useState<CalendarEvent[]>([]);
   const [collapsedMonths, setCollapsedMonths] = useState<Set<string>>(new Set());
-  const [activeModal,     setActiveModal]     = useState<"create" | "edit" | "deadline" | null>(null);
+  const [activeModal,     setActiveModal]     = useState<"create" | "edit" | null>(null);
   const [calendarLoading,      setCalendarLoading]      = useState(true);
   const [calendarError,        setCalendarError]        = useState<string | null>(null);
   const [confirmDeleteEvent,   setConfirmDeleteEvent]   = useState<CalendarEvent | null>(null);
@@ -715,17 +718,20 @@ export default function TimelinePage() {
 
   const allEvents = useMemo<CalendarEvent[]>(() => {
     const live: CalendarEvent[] = [
-      // Deadlines are never `mandatory`: a due date isn't an event you take
-      // attendance for. Completion is tracked via the deadline's own status,
-      // surfaced (and editable) in the rail.
-      ...deadlineList.map(d => ({
-        id:          DEADLINE_ID_BASE + d.id,
-        title:       d.title,
-        date:        d.dueDate,
-        category:    "deadline" as CalEventCategory,
-        mandatory:   false,
-        description: `Owner: ${d.owner} · Status: ${d.status}`,
-      })),
+      // Only DATED tasks fold into the timeline — a dated task IS a deadline.
+      // Undated to-dos live on the Tasks page. Tasks are never `mandatory`: a due
+      // date isn't an event you take attendance for. Completion is tracked via the
+      // task's own status, surfaced (and editable) in the rail.
+      ...taskList
+        .filter(d => d.dueDate != null)
+        .map(d => ({
+          id:          DEADLINE_ID_BASE + d.id,
+          title:       d.title,
+          date:        d.dueDate as string,
+          category:    "deadline" as CalEventCategory,
+          mandatory:   false,
+          description: `${taskAssigneeLabel(d)} · ${d.status === "done" ? "Done" : "Open"}`,
+        })),
       ...partyList.map(p => ({
         id:          20000 + p.id,
         title:       p.name,
@@ -746,7 +752,7 @@ export default function TimelinePage() {
       })),
     ];
 
-    const liveDeadlineTitles = new Set([...deadlineList.map(d => d.title), ...igTaskList.map(t => t.title)]);
+    const liveDeadlineTitles = new Set([...taskList.map(d => d.title), ...igTaskList.map(t => t.title)]);
     const livePartyTitles    = new Set(partyList.map(p => p.name));
 
     const deduped = apiEvents.filter(e => {
@@ -756,7 +762,7 @@ export default function TimelinePage() {
     });
 
     return [...deduped, ...live];
-  }, [apiEvents, deadlineList, partyList, igTaskList]);
+  }, [apiEvents, taskList, partyList, igTaskList]);
 
   const filtered    = useMemo(() => filterByLayer(allEvents, activeLayer), [allEvents, activeLayer]);
   const monthGroups = useMemo(() => buildMonthGroups(filtered), [filtered]);
@@ -766,29 +772,29 @@ export default function TimelinePage() {
   );
   const selectedEventCanEdit = selectedEvent ? apiEventIds.has(selectedEvent.id) : false;
 
-  // The source Deadline behind the selected row, if it's a live deadline.
+  // The source Task behind the selected row, if it's a live dated task.
   const selectedDeadline = useMemo(() => {
     if (!selectedEvent) return null;
     const id = deadlineIdOf(selectedEvent);
-    return id != null ? deadlineList.find(d => d.id === id) ?? null : null;
-  }, [selectedEvent, deadlineList]);
+    return id != null ? taskList.find(d => d.id === id) ?? null : null;
+  }, [selectedEvent, taskList]);
 
-  // Mark a deadline complete (or reopen it) from the rail. Optimistic, with the
-  // same PATCH + revert pattern the dashboard uses.
+  // Mark a task complete (or reopen it) from the rail. Optimistic, with the same
+  // PATCH + revert pattern the dashboard uses.
   function setDeadlineComplete(deadlineId: number, complete: boolean) {
-    const previous = deadlineList.find(d => d.id === deadlineId);
+    const previous = taskList.find(d => d.id === deadlineId);
     if (!previous) return;
-    const nextStatus: TaskStatus = complete ? "Complete" : "Upcoming";
+    const nextStatus: "open" | "done" = complete ? "done" : "open";
     if (previous.status === nextStatus) return;
-    setDeadlineList(prev => prev.map(d => d.id === deadlineId ? { ...d, status: nextStatus } : d));
-    requestJson<unknown>(`/api/deadlines/${deadlineId}`, {
+    setTaskList(prev => prev.map(d => d.id === deadlineId ? { ...d, status: nextStatus } : d));
+    requestJson<unknown>(`/api/tasks/${deadlineId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status: nextStatus }),
     }).catch(error => {
       console.error(error);
-      setDeadlineList(prev => prev.map(d => d.id === deadlineId ? previous : d));
-      setCalendarError("Deadline update failed. Local changes were reverted.");
+      setTaskList(prev => prev.map(d => d.id === deadlineId ? previous : d));
+      setCalendarError("Task update failed. Local changes were reverted.");
     });
   }
 
@@ -833,18 +839,18 @@ export default function TimelinePage() {
   // rule). Mapped to CalendarEvents the same way allEvents does so the rail can
   // open the same detail view as any other row.
   const overdueEvents = useMemo<CalendarEvent[]>(
-    () => deadlineList
-      .filter(d => d.status !== "Complete" && d.dueDate < todayStr)
-      .sort((a, b) => a.dueDate.localeCompare(b.dueDate))
+    () => taskList
+      .filter(d => d.status !== "done" && d.dueDate != null && d.dueDate < todayStr)
+      .sort((a, b) => (a.dueDate as string).localeCompare(b.dueDate as string))
       .map(d => ({
         id:          DEADLINE_ID_BASE + d.id,
         title:       d.title,
-        date:        d.dueDate,
+        date:        d.dueDate as string,
         category:    "deadline" as CalEventCategory,
         mandatory:   false,
-        description: `Owner: ${d.owner} · Status: ${d.status}`,
+        description: `${taskAssigneeLabel(d)} · Open`,
       })),
-    [deadlineList, todayStr],
+    [taskList, todayStr],
   );
 
   const thisWeekCount     = weekEvents.length;
@@ -909,48 +915,6 @@ export default function TimelinePage() {
       else next.add(id);
       return next;
     });
-  }
-
-  // Add a deadline straight from the timeline. Optimistic insert with the same
-  // temp-id + revert pattern the dashboard uses; deadlines fold into the spine
-  // via allEvents, so a new one appears immediately. When "This is an Instagram
-  // post" is checked, it's logged as an Instagram task instead — landing on the
-  // Instagram page and (via allEvents) the timeline as a deadline-style row.
-  function handleAddDeadline(d: { title: string; dueDate: string; owner: string; status: TaskStatus; isPost: boolean; postType: InstagramType }) {
-    const tempId = -Date.now();
-    setActiveModal(null);
-    setCalendarError(null);
-
-    if (d.isPost) {
-      const task = { title: d.title, dueDate: d.dueDate, type: d.postType, status: d.status };
-      setIgTaskList(prev => [...prev, { id: tempId, ...task }]);
-      requestJson<InstagramTask>("/api/instagram", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(task),
-      })
-        .then(saved => setIgTaskList(prev => prev.map(x => x.id === tempId ? saved : x)))
-        .catch(error => {
-          console.error(error);
-          setIgTaskList(prev => prev.filter(x => x.id !== tempId));
-          setCalendarError("Instagram post could not be saved. Local changes were reverted.");
-        });
-      return;
-    }
-
-    const deadline = { title: d.title, dueDate: d.dueDate, owner: d.owner, status: d.status };
-    setDeadlineList(prev => [...prev, { id: tempId, ...deadline }]);
-    requestJson<Deadline>("/api/deadlines", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(deadline),
-    })
-      .then(saved => setDeadlineList(prev => prev.map(x => x.id === tempId ? saved : x)))
-      .catch(error => {
-        console.error(error);
-        setDeadlineList(prev => prev.filter(x => x.id !== tempId));
-        handleSemesterError(error, setCalendarError, "Deadline could not be saved. Local changes were reverted.");
-      });
   }
 
   function handleCreateEvent(draft: CalendarDraft) {
@@ -1055,7 +1019,7 @@ export default function TimelinePage() {
           <p className="tb-date hidden text-[11px] text-[#958d7c] xl:block shrink-0">{dateShort}</p>
 
           <button
-            onClick={() => setActiveModal("deadline")}
+            onClick={() => router.push(orgPath("/tasks?new=1"))}
             className="tb-btn inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-[rgba(236,231,221,0.12)] bg-white/[0.03] px-3 py-1.5 text-[12px] font-medium text-[#c9c2b4] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition-all duration-150 hover:border-[#a78bfa]/40 hover:bg-[#a78bfa]/10 hover:text-[#ece7dd] focus:outline-none"
           >
             <svg className="h-3.5 w-3.5 text-[#958d7c]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.4}>
@@ -1111,7 +1075,7 @@ export default function TimelinePage() {
               </div>
               {/* Desktop add actions (the topbar that used to carry them is hidden at lg+). */}
               <div className="tl-add-actions">
-                <button className="tl-add-btn ghost" onClick={() => setActiveModal("deadline")}>
+                <button className="tl-add-btn ghost" onClick={() => router.push(orgPath("/tasks?new=1"))}>
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" strokeWidth={2.4} strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
                   Add Deadline
                 </button>
@@ -1420,11 +1384,6 @@ export default function TimelinePage() {
       {activeModal === "create" && (
         <Modal title="Add Calendar Event" tone="dusk" onClose={() => setActiveModal(null)}>
           <CalendarEventForm submitLabel="Add Event" onSubmit={handleCreateEvent} minDate={activeSemester?.startDate} maxDate={activeSemester?.endDate} />
-        </Modal>
-      )}
-      {activeModal === "deadline" && (
-        <Modal title="Add Deadline" tone="dusk" onClose={() => setActiveModal(null)}>
-          <AddDeadlineForm brotherNames={brotherNames} onSubmit={handleAddDeadline} igEnabled={igEnabled} minDate={activeSemester?.startDate} maxDate={activeSemester?.endDate} />
         </Modal>
       )}
       {activeModal === "edit" && selectedEvent && selectedEventCanEdit && (

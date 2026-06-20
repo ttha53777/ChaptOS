@@ -5,8 +5,8 @@ import Link from "next/link";
 import { useChapter } from "../../../context/ChapterContext";
 import { Modal } from "../../../components/dashboard/primitives";
 import { isNavVisible } from "../../../components/Sidebar";
-import { AddDeadlineForm, AddIGTaskForm, AddRevenueForm } from "../../../components/dashboard/forms";
-import { TaskStatus, InstagramType, ActivityEntry, Deadline, InstagramTask, PartyEvent, fmt$ } from "../../../data";
+import { AddIGTaskForm, AddRevenueForm } from "../../../components/dashboard/forms";
+import { TaskStatus, InstagramType, ActivityEntry, InstagramTask, PartyEvent, fmt$ } from "../../../data";
 import { useOrgPath } from "../../../hooks/useOrgPath";
 import { useActiveSemester } from "../../../hooks/useActiveSemester";
 import { useSemesterErrorHandler } from "../../../hooks/useSemesterErrorHandler";
@@ -15,7 +15,7 @@ import { DangerZone } from "./DangerZone";
 
 let _nextId = Date.now();
 
-type ModalKey = "deadline" | "revenue" | "ig" | null;
+type ModalKey = "revenue" | "ig" | null;
 
 // Initials for the no-logo gradient fallback badge. Up to two words; falls back
 // to "Org" so the badge is never empty before /api/auth/me resolves.
@@ -41,8 +41,7 @@ export function GeneralSection({
   const {
     currentUser,
     brotherList,
-    deadlineList,
-    setDeadlineList,
+    taskList,
     igTaskList,
     setIgTaskList,
     partyList,
@@ -143,34 +142,6 @@ export function GeneralSection({
       .catch(err => { console.error(err); onError("Could not refresh data from the database."); });
   }
 
-  function handleAddDeadline(d: { title: string; dueDate: string; owner: string; status: TaskStatus; isPost: boolean; postType: InstagramType }) {
-    const tempId = _nextId++;
-    setActiveModal(null);
-
-    // When "This is an Instagram post" is checked, it's logged as an Instagram
-    // task instead — same routing as the dashboard/timeline deadline modal.
-    if (d.isPost) {
-      const task = { title: d.title, dueDate: d.dueDate, type: d.postType, status: d.status };
-      setIgTaskList(prev => [...prev, { id: tempId, ...task }]);
-      persist(
-        requestJson<InstagramTask>("/api/instagram", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(task) }),
-        "Instagram post could not be saved. Local changes were reverted.",
-        () => setIgTaskList(prev => prev.filter(x => x.id !== tempId)),
-        saved => setIgTaskList(prev => prev.map(x => x.id === tempId ? saved : x)),
-      );
-      return;
-    }
-
-    const deadline = { title: d.title, dueDate: d.dueDate, owner: d.owner, status: d.status };
-    setDeadlineList(prev => [...prev, { id: tempId, ...deadline }]);
-    persist(
-      requestJson<Deadline>("/api/deadlines", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(deadline) }),
-      "Deadline could not be saved. Local changes were reverted.",
-      () => setDeadlineList(prev => prev.filter(x => x.id !== tempId)),
-      saved => setDeadlineList(prev => prev.map(x => x.id === tempId ? saved : x)),
-      err => handleSemesterError(err, setMutationError, "Deadline could not be saved. Local changes were reverted."),
-    );
-  }
 
   function handleAddRevenue(e: { name: string; date: string; doorRevenue: number; attendance: number; notes: string }) {
     const tempId = _nextId++;
@@ -262,11 +233,14 @@ export function GeneralSection({
           <h3 className="sc-h">Quick actions</h3>
           <p className="sc-note">Jump straight to a common entry without leaving Settings.</p>
           <div className="sc-btn-row mt-3">
-            {([["deadline", "Add deadline"], ["revenue", "Log revenue"], ["ig", "Add IG task"]] as const).map(([key, label]) => (
+            {([["revenue", "Log revenue"], ["ig", "Add IG task"]] as const).map(([key, label]) => (
               <button key={key} onClick={() => setActiveModal(key)} className="sc-btn sc-btn-ghost">
                 {label}
               </button>
             ))}
+            <Link href={orgPath("/tasks?new=1")} className="sc-btn sc-btn-ghost">
+              Add task
+            </Link>
             <Link href={orgPath("/timeline")} className="sc-btn sc-btn-ghost">
               Log attendance
             </Link>
@@ -304,7 +278,7 @@ export function GeneralSection({
           <h3 className="sc-h">Chapter</h3>
           <div className="mt-2 space-y-1">
             <p className="sc-note" style={{ color: "var(--ink-soft)" }}>{currentUser?.org?.name ?? "ChaptOS"}</p>
-            <p className="sc-note">{brotherList.length} brothers · {deadlineList.length} deadlines · {partyList.length} parties</p>
+            <p className="sc-note">{brotherList.length} brothers · {taskList.length} tasks · {partyList.length} parties</p>
           </div>
         </div>
 
@@ -312,11 +286,6 @@ export function GeneralSection({
         <DangerZone onError={onError} />
       </div>
 
-      {activeModal === "deadline" && (
-        <Modal title="Add Deadline" tone="dusk" onClose={() => setActiveModal(null)}>
-          <AddDeadlineForm brotherNames={brotherNames} onSubmit={handleAddDeadline} igEnabled={igEnabled} minDate={activeSemester?.startDate} maxDate={activeSemester?.endDate} />
-        </Modal>
-      )}
       {activeModal === "revenue" && (
         <Modal title="Log Revenue" tone="dusk" onClose={() => setActiveModal(null)}>
           <AddRevenueForm onSubmit={handleAddRevenue} />

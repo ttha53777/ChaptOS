@@ -1,5 +1,5 @@
 import React from "react";
-import { fmtRange, type CalendarEvent, type Deadline } from "../../../data";
+import { fmtRange, taskAssigneeLabel, type CalendarEvent, type Task } from "../../../data";
 
 const WD = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
 function weekday(iso: string): string {
@@ -34,7 +34,7 @@ export function ThisWeek({
   onAddDeadline,
 }: {
   events: CalendarEvent[];
-  deadlines: Deadline[];
+  deadlines: Task[];
   weekStart: string;
   weekEnd: string;
   today: string;
@@ -49,13 +49,15 @@ export function ThisWeek({
       kind: "event",
       today: e.date === today,
     })),
-    ...deadlines.map((d): WeekItem => ({
-      date: d.dueDate,
-      title: d.title,
-      meta: d.owner,
-      kind: "deadline",
-      today: d.dueDate === today,
-    })),
+    ...deadlines
+      .filter(d => d.dueDate != null)
+      .map((d): WeekItem => ({
+        date: d.dueDate as string,
+        title: d.title,
+        meta: taskAssigneeLabel(d),
+        kind: "deadline",
+        today: d.dueDate === today,
+      })),
   ].sort((a, b) => a.date.localeCompare(b.date));
 
   return (

@@ -146,7 +146,7 @@ function NeedsYouRow({ item, actions, v }: {
         iconBg="bg-[var(--rose-bg)] text-[var(--rose)]"
         icon="M12 9v4M12 17h.01M10.3 3.9L1.8 18a2 2 0 001.7 3h17a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z"
         title={item.title}
-        desc={item.owner ? `Owner: ${item.owner}` : "Deadline overdue"}
+        desc={item.assignees && item.assignees !== "Unassigned" ? item.assignees : "Deadline overdue"}
         pill={late}
         pillCls="bg-[var(--rose-bg)] text-[var(--rose)]"
         onClick={() => actions.openEditDeadline(item.id)}

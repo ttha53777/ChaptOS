@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { Brother, PartyEvent, Deadline, InstagramTask, ActivityEntry, CalendarEvent, AttentionItem } from "../../../data";
+import type { Brother, PartyEvent, Task, InstagramTask, ActivityEntry, CalendarEvent, AttentionItem } from "../../../data";
 import type { CurrentUser } from "../../../context/ChapterContext";
 import type { Announcement } from "../AnnouncementCard";
 import type { QuickActionKey } from "../QuickActionsMenu";
@@ -46,7 +46,7 @@ export interface MobileBrothersData {
 }
 
 export interface WeeklyDigest {
-  deadlinesDue: Deadline[];
+  deadlinesDue: Task[];
   igDue: InstagramTask[];
   eventsThisWeek: CalendarEvent[];
   partiesThisWeek: PartyEvent[];
@@ -57,7 +57,7 @@ export interface MobileTasksData {
   weeklyDigest: WeeklyDigest;
   weekRange: { start: string; end: string };
   digestNarration: string | null;
-  deadlineList: Deadline[];
+  deadlineList: Task[];
   igTaskList: InstagramTask[];
   activityFeed: ActivityEntry[];
 }

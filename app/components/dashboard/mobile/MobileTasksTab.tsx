@@ -1,7 +1,7 @@
 "use client";
 
-import { fmtDate } from "../../../data";
-import { Card, TaskBadge } from "../primitives";
+import { fmtDate, taskAssigneeLabel } from "../../../data";
+import { Card, TaskBadge, TaskUrgencyBadge } from "../primitives";
 import type { MobileActions, MobileTasksData } from "./MobileDashboard";
 
 const CAP = 4;
@@ -34,11 +34,11 @@ export function MobileTasksTab({ tasksData, actions }: {
           ) : deadlineList.slice(0, CAP).map(d => (
             <div key={d.id} onClick={e => e.stopPropagation()} className="flex items-center gap-2 px-4 py-2.5">
               <div className="min-w-0 flex-1">
-                <p className={`truncate text-[12px] font-medium ${d.status === "Complete" ? "line-through text-[#958d7c]" : "text-[#ece7dd]"}`}>{d.title}</p>
-                <p className="text-[11px] text-[#958d7c]">{fmtDate(d.dueDate)} · {d.owner.split(" ")[0]}</p>
+                <p className={`truncate text-[12px] font-medium ${d.status === "done" ? "line-through text-[#958d7c]" : "text-[#ece7dd]"}`}>{d.title}</p>
+                <p className="text-[11px] text-[#958d7c]">{d.dueDate ? fmtDate(d.dueDate) : "No date"} · {taskAssigneeLabel(d, 1)}</p>
               </div>
               <div className="flex shrink-0 items-center gap-0.5">
-                {d.status !== "Complete" && (
+                {d.status !== "done" && (
                   <button onClick={() => actions.completeDeadline(d.id)} title="Mark complete" className="flex h-7 w-7 items-center justify-center rounded active:bg-emerald-500/20 text-[#958d7c] active:text-emerald-400 transition-colors">
                     <svg className="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
                   </button>
@@ -50,7 +50,7 @@ export function MobileTasksTab({ tasksData, actions }: {
                   <svg className="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                 </button>
               </div>
-              <TaskBadge status={d.status} />
+              <TaskUrgencyBadge task={d} />
             </div>
           ))}
           {deadlineList.length > CAP && (

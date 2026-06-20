@@ -8,7 +8,8 @@ const DrawerTrendChart = dynamic(() => import("../components/dashboard/DrawerTre
   loading: () => <div className="h-[110px] w-full rounded-lg bg-white/[0.04] animate-pulse" />,
 });
 import {
-  Brother, CalendarEvent, TaskStatus, InstagramType, ActivityEntry, PartyEvent, Deadline, InstagramTask, Transaction,
+  Brother, CalendarEvent, TaskStatus, InstagramType, ActivityEntry, PartyEvent, Task, InstagramTask, Transaction,
+  taskAssigneeLabel,
   treasuryTrend, TREASURY_BALANCE, TREASURY_PROJECTED,
   KPI_SPARKLINES,
   getBrotherStatus, calcHealthScore, deriveNeedsAttention, avg, fmt$, fmtDate, fmtRange, isoWeekBounds,
@@ -21,11 +22,12 @@ import { useThresholds } from "../hooks/useThresholds";
 import { useVocab } from "../hooks/useVocab";
 import { useFeature } from "../hooks/useFeature";
 import { WORKFLOW_FEATURES, type DisabledFeatures } from "@/lib/workflow-features";
+import { taskUrgency, type TaskUrgency } from "@/lib/tasks/urgency";
 import { Sidebar, SvgIcon, NAV_ICONS, isNavVisible } from "../components/Sidebar";
 import { BrotherAvatar } from "../components/BrotherAvatar";
 import { useChapter } from "../context/ChapterContext";
 import { useToast } from "../components/dashboard/Toast";
-import { AddDeadlineForm, AddIGTaskForm, AddRevenueForm, LogAttendanceForm, ExcuseForm } from "../components/dashboard/forms";
+import { AddIGTaskForm, AddRevenueForm, LogAttendanceForm, ExcuseForm } from "../components/dashboard/forms";
 import type { QuickActionKey } from "../components/dashboard/QuickActionsMenu";
 import { TxForm } from "../components/treasury/TxForm";
 import { CalendarEventForm, type CalendarDraft } from "../components/timeline/CalendarEventForm";
@@ -431,14 +433,14 @@ function WidgetDetailDrawer({
   deadlineList, igTaskList, activityFeed, partyList,
   health,
   maxRevenue, bestEvent, totalDoorRev,
-  onOpenModal,
+  onOpenModal, onAddTask,
   onCompleteDeadline, onDeleteDeadline, onEditDeadline,
   onCompleteIG, onDeleteIG, onEditIG,
 }: {
   activeKey: WidgetDrawerKey | null;
   onClose: () => void;
   weeklyDigest: {
-    deadlinesDue: Deadline[];
+    deadlinesDue: Task[];
     igDue: InstagramTask[];
     eventsThisWeek: CalendarEvent[];
     partiesThisWeek: PartyEvent[];
@@ -446,7 +448,7 @@ function WidgetDetailDrawer({
   };
   weekRange: { start: string; end: string };
   digestNarration: string | null;
-  deadlineList: { id: number; title: string; dueDate: string; owner: string; status: TaskStatus }[];
+  deadlineList: Task[];
   igTaskList: { id: number; title: string; dueDate: string; status: TaskStatus; type: InstagramType }[];
   activityFeed: ActivityEntry[];
   partyList: PartyEvent[];
@@ -455,6 +457,7 @@ function WidgetDetailDrawer({
   bestEvent: PartyEvent | null;
   totalDoorRev: number;
   onOpenModal: (key: "deadline" | "revenue" | "ig" | "attendance") => void;
+  onAddTask:          () => void;
   onCompleteDeadline: (id: number) => void;
   onDeleteDeadline:   (id: number) => void;
   onEditDeadline:     (id: number) => void;
@@ -546,7 +549,7 @@ function WidgetDetailDrawer({
         const total = deadlinesDue.length + igDue.length + eventsThisWeek.length + partiesThisWeek.length;
         const sections: { label: string; tone: string; count: number; rows: { key: string; title: string; meta: string }[] }[] = [
           { label: "Deadlines", tone: "vio", count: deadlinesDue.length,
-            rows: deadlinesDue.map(d => ({ key: `d${d.id}`, title: d.title, meta: `${fmtDate(d.dueDate)} · ${d.owner.split(" ")[0]}` })) },
+            rows: deadlinesDue.map(d => ({ key: `d${d.id}`, title: d.title, meta: `${d.dueDate ? fmtDate(d.dueDate) : "No date"} · ${taskAssigneeLabel(d, 1)}` })) },
           { label: "Instagram", tone: "rose", count: igDue.length,
             rows: igDue.map(t => ({ key: `i${t.id}`, title: t.title, meta: `${fmtDate(t.dueDate)} · ${t.type}` })) },
           { label: "Events", tone: "info", count: eventsThisWeek.length,
@@ -595,44 +598,45 @@ function WidgetDetailDrawer({
       }
 
       case "deadlines": {
-        const byStatus = {
-          Urgent:   deadlineList.filter(d => d.status === "Urgent"),
-          "Due Soon": deadlineList.filter(d => d.status === "Due Soon"),
-          Upcoming: deadlineList.filter(d => d.status === "Upcoming"),
-          Complete: deadlineList.filter(d => d.status === "Complete"),
-        };
-        const statusTone: Record<TaskStatus, string> = {
-          "Urgent":   "rose",
-          "Due Soon": "gold",
-          "Upcoming": "",
-          "Complete": "ok",
-        };
+        // Open tasks bucket by COMPUTED urgency (lib/tasks/urgency); done tasks
+        // sit in their own bucket. Urgency replaces the old stored 4-status.
+        const open = deadlineList.filter(d => d.status !== "done");
+        const done = deadlineList.filter(d => d.status === "done");
+        const urgencyOf = (d: Task): TaskUrgency => taskUrgency(d.dueDate);
+        const buckets: { key: string; label: string; tone: string; items: Task[] }[] = [
+          { key: "overdue",  label: "Overdue",  tone: "rose", items: open.filter(d => urgencyOf(d) === "overdue") },
+          { key: "urgent",   label: "Urgent",   tone: "rose", items: open.filter(d => urgencyOf(d) === "urgent") },
+          { key: "due-soon", label: "Due soon", tone: "gold", items: open.filter(d => urgencyOf(d) === "due-soon") },
+          { key: "upcoming", label: "Upcoming", tone: "",     items: open.filter(d => urgencyOf(d) === "upcoming") },
+          { key: "none",     label: "No date",  tone: "",     items: open.filter(d => urgencyOf(d) === "none") },
+          { key: "done",     label: "Done",     tone: "ok",   items: done },
+        ];
+        const overdueCt = buckets[0].items.length;
+        const dueSoonCt = buckets[1].items.length + buckets[2].items.length;
         return (
           <>
             <div className="dd-stats c4">
-              {([["Urgent", byStatus.Urgent.length, "rose"], ["Due Soon", byStatus["Due Soon"].length, "gold"], ["Upcoming", byStatus.Upcoming.length, ""], ["Complete", byStatus.Complete.length, "ok"]] as const).map(([label, count, tone]) => (
+              {([["Overdue", overdueCt, "rose"], ["Due soon", dueSoonCt, "gold"], ["Open", open.length, ""], ["Done", done.length, "ok"]] as const).map(([label, count, tone]) => (
                 <div key={label} className="dd-stat"><p className={`n ${tone}`}>{count}</p><p className="l">{label}</p></div>
               ))}
             </div>
             {deadlineList.length === 0 ? (
-              <p className="dd-empty">No deadlines — click + Add to create one</p>
+              <p className="dd-empty">No tasks yet — open the Tasks page to create one</p>
             ) : (
-              (["Urgent", "Due Soon", "Upcoming", "Complete"] as TaskStatus[]).map(status => {
-                const items = byStatus[status as keyof typeof byStatus];
-                if (!items || items.length === 0) return null;
-                const tone = statusTone[status];
+              buckets.map(bucket => {
+                if (bucket.items.length === 0) return null;
                 return (
-                  <div key={status}>
-                    <p className="dd-label">{status} <span className="ct">({items.length})</span></p>
+                  <div key={bucket.key}>
+                    <p className="dd-label">{bucket.label} <span className="ct">({bucket.items.length})</span></p>
                     <div className="dd-feed">
-                      {items.map(d => (
-                        <div key={d.id} className={`dd-feed-row stacked ${tone}`}>
+                      {bucket.items.map(d => (
+                        <div key={d.id} className={`dd-feed-row stacked ${bucket.tone}`}>
                           <div className="min-w-0 flex-1">
-                            <p className={`t ${d.status === "Complete" ? "done" : ""}`} style={{ fontWeight: 500 }}>{d.title}</p>
-                            <p className="m">{fmtDate(d.dueDate)} · {d.owner.split(" ")[0]}</p>
+                            <p className={`t ${d.status === "done" ? "done" : ""}`} style={{ fontWeight: 500 }}>{d.title}</p>
+                            <p className="m">{d.dueDate ? fmtDate(d.dueDate) : "No date"} · {taskAssigneeLabel(d, 1)}</p>
                           </div>
                           <div className="dd-acts hover-reveal">
-                            {d.status !== "Complete" && (
+                            {d.status !== "done" && (
                               <button onClick={() => onCompleteDeadline(d.id)} title="Mark complete" className="dd-act ok">
                                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
                               </button>
@@ -651,8 +655,8 @@ function WidgetDetailDrawer({
                 );
               })
             )}
-            <button onClick={() => { onOpenModal("deadline"); onClose(); }} className="dd-btn-ghost">
-              + Add Deadline
+            <button onClick={() => { onAddTask(); onClose(); }} className="dd-btn-ghost">
+              + Add Task
             </button>
           </>
         );
@@ -914,7 +918,6 @@ export default function Home() {
   const [activeModal,    setActiveModal]    = useState<"deadline" | "revenue" | "ig" | "attendance" | "pick-event" | "edit-deadline" | "edit-ig" | "expense" | "excuse" | "event" | "pick-event-for-excuse" | null>(null);
   const [selectedEventForAttendance, setSelectedEventForAttendance] = useState<CalendarEvent | null>(null);
   const [calendarList,   setCalendarList]   = useState<CalendarEvent[]>([]);
-  const [editingDeadlineId, setEditingDeadlineId] = useState<number | null>(null);
   const [editingIgId,       setEditingIgId]       = useState<number | null>(null);
   const [activeDrawer,   setActiveDrawer]   = useState<KPIDrawerKey | null>(null);
   const [widgetDrawer,   setWidgetDrawer]   = useState<WidgetDrawerKey | null>(null);
@@ -943,7 +946,7 @@ export default function Home() {
   const toast = useToast();
 
   // ── Data state ─────────────────────────────────────────────────────────────
-  const { currentUser, brotherList, setBrotherList, deadlineList, setDeadlineList, igTaskList, setIgTaskList, partyList, setPartyList, activityFeed, setActivityFeed, treasuryData, setTransactionList, reimbursementList, isLoading, loadError, mutationError, setMutationError, refreshChapterData, setDisabledFeaturesLocal, avatarRevision, can } = useChapter();
+  const { currentUser, brotherList, setBrotherList, taskList, setTaskList, igTaskList, setIgTaskList, partyList, setPartyList, activityFeed, setActivityFeed, treasuryData, setTransactionList, reimbursementList, isLoading, loadError, mutationError, setMutationError, refreshChapterData, setDisabledFeaturesLocal, avatarRevision, can } = useChapter();
   const isAdmin = currentUser?.isAdmin ?? false;
   // Granular permission gates for new UI checks. Existing `isAdmin` is kept
   // unchanged for prop-chains into QuickActionsMenu / KPIDrawer / Modal title
@@ -1073,7 +1076,7 @@ export default function Home() {
   // ── Health score ───────────────────────────────────────────────────────────
   // Drives the briefing HealthDial (score + ATT/GPA/DUES/SVC/DDL breakdown) and
   // the health detail drawer.
-  const health = useMemo(() => calcHealthScore(brotherList, deadlineList, THRESHOLDS), [brotherList, deadlineList, THRESHOLDS]);
+  const health = useMemo(() => calcHealthScore(brotherList, taskList, THRESHOLDS), [brotherList, taskList, THRESHOLDS]);
 
   // ── Announcement (pinned single record) ───────────────────────────────────
   useEffect(() => {
@@ -1197,8 +1200,8 @@ export default function Home() {
   // Overdue deadlines, outstanding dues (aggregated), and at-risk members.
   const todayISO = useMemo(() => new Date().toISOString().slice(0, 10), []);
   const needsAttention = useMemo(
-    () => deriveNeedsAttention(brotherList, deadlineList, THRESHOLDS, todayISO, reimbursementList),
-    [brotherList, deadlineList, THRESHOLDS, todayISO, reimbursementList],
+    () => deriveNeedsAttention(brotherList, taskList, THRESHOLDS, todayISO, reimbursementList),
+    [brotherList, taskList, THRESHOLDS, todayISO, reimbursementList],
   );
 
   // ── Weekly Digest ──────────────────────────────────────────────────────────
@@ -1208,13 +1211,13 @@ export default function Home() {
     const { start, end } = weekRange;
     const inWeek = (iso: string) => iso >= start && iso <= end; // zero-padded ISO compares chronologically
     return {
-      deadlinesDue:    deadlineList.filter(d => inWeek(d.dueDate)),
+      deadlinesDue:    taskList.filter(d => d.dueDate != null && inWeek(d.dueDate)),
       igDue:           igTaskList.filter(t => inWeek(t.dueDate)),
       eventsThisWeek:  calendarList.filter(e => e.mandatory && inWeek(e.date)),
       partiesThisWeek: partyList.filter(p => inWeek(p.date)),
       atRiskCount:     statusCounts["At Risk"],
     };
-  }, [weekRange, deadlineList, igTaskList, calendarList, partyList, statusCounts]);
+  }, [weekRange, taskList, igTaskList, calendarList, partyList, statusCounts]);
   const digestTotal =
     weeklyDigest.deadlinesDue.length + weeklyDigest.igDue.length +
     weeklyDigest.eventsThisWeek.length + weeklyDigest.partiesThisWeek.length;
@@ -1387,45 +1390,6 @@ export default function Home() {
     }
   }
 
-  function handleAddDeadline(d: { title: string; dueDate: string; owner: string; status: TaskStatus; isPost: boolean; postType: InstagramType }) {
-    const tempId = _nextId++;
-    setActiveModal(null);
-
-    // When "This is an Instagram post" is checked, it's logged as an Instagram
-    // task instead — same routing as the timeline/settings deadline modal.
-    if (d.isPost) {
-      const task = { title: d.title, dueDate: d.dueDate, type: d.postType, status: d.status };
-      setIgTaskList(prev => [...prev, { id: tempId, ...task }]);
-      addActivity(`IG task added: "${task.title}"`, "info");
-      persistMutation(
-        requestJson<InstagramTask>("/api/instagram", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(task),
-        }),
-        "Instagram post could not be saved. Local changes were reverted.",
-        () => setIgTaskList(prev => prev.filter(x => x.id !== tempId)),
-        saved => setIgTaskList(prev => prev.map(x => x.id === tempId ? saved : x)),
-      );
-      return;
-    }
-
-    const deadline = { title: d.title, dueDate: d.dueDate, owner: d.owner, status: d.status };
-    setDeadlineList(prev => [...prev, { id: tempId, ...deadline }]);
-    addActivity(`New deadline added: "${deadline.title}"`, "info");
-    persistMutation(
-      requestJson<Deadline>("/api/deadlines", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(deadline),
-      }),
-      "Deadline could not be saved. Local changes were reverted.",
-      () => setDeadlineList(prev => prev.filter(x => x.id !== tempId)),
-      saved => setDeadlineList(prev => prev.map(x => x.id === tempId ? saved : x)),
-      error => handleSemesterError(error, setMutationError, "Deadline could not be saved. Local changes were reverted."),
-    );
-  }
-
   function handleAddRevenue(e: { name: string; date: string; doorRevenue: number; attendance: number; notes: string }) {
     const tempId = _nextId++;
     setPartyList(prev => [...prev, { id: tempId, theme: "", collabOrg: "", expenses: 0, partyType: "Open", completed: false, completedAt: null, ...e }]);
@@ -1460,68 +1424,48 @@ export default function Home() {
     );
   }
 
-  // ── Deadline CRUD ─────────────────────────────────────────────────────────
+  // ── Task quick actions ────────────────────────────────────────────────────
+  // The dashboard surfaces tasks (dated = deadlines) read-mostly: complete and
+  // delete act inline; creating/editing (which needs the assignee picker) lives
+  // on the dedicated /tasks page, so "Add" / "Edit" route there.
   function completeDeadline(id: number) {
-    const d = deadlineList.find(x => x.id === id);
-    if (!d || d.status === "Complete") return;
-    setDeadlineList(prev => prev.map(x => x.id === id ? { ...x, status: "Complete" } : x));
+    const d = taskList.find(x => x.id === id);
+    if (!d || d.status === "done") return;
+    setTaskList(prev => prev.map(x => x.id === id ? { ...x, status: "done" } : x));
     addActivity(`"${d.title}" marked complete`, "success");
     persistMutation(
-      requestJson<Deadline>(`/api/deadlines/${id}`, {
+      requestJson<Task>(`/api/tasks/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: "Complete" }),
+        body: JSON.stringify({ status: "done" }),
       }),
-      "Deadline update failed. Local changes were reverted.",
-      () => setDeadlineList(prev => prev.map(x => x.id === id ? d : x)),
+      "Task update failed. Local changes were reverted.",
+      () => setTaskList(prev => prev.map(x => x.id === id ? d : x)),
+      saved => setTaskList(prev => prev.map(x => x.id === id ? saved : x)),
     );
   }
 
   function deleteDeadline(id: number) {
-    const d = deadlineList.find(x => x.id === id);
+    const d = taskList.find(x => x.id === id);
     if (!d) return;
     setConfirmDelete({ kind: "deadline", id, label: d.title });
   }
 
   function confirmDeleteDeadline(id: number) {
-    const d = deadlineList.find(x => x.id === id);
+    const d = taskList.find(x => x.id === id);
     if (!d) return;
-    setDeadlineList(prev => prev.filter(x => x.id !== id));
-    addActivity(`Deadline removed: "${d.title}"`, "info");
+    setTaskList(prev => prev.filter(x => x.id !== id));
+    addActivity(`Task removed: "${d.title}"`, "info");
     persistMutation(
-      requestJson<void>(`/api/deadlines/${id}`, { method: "DELETE" }),
-      "Deadline delete failed. Local changes were reverted.",
-      () => setDeadlineList(prev => [...prev, d].sort((a, b) => a.id - b.id)),
+      requestJson<void>(`/api/tasks/${id}`, { method: "DELETE" }),
+      "Task delete failed. Local changes were reverted.",
+      () => setTaskList(prev => [...prev, d].sort((a, b) => a.id - b.id)),
     );
   }
 
   function openEditDeadline(id: number) {
-    setEditingDeadlineId(id);
-    setActiveModal("edit-deadline");
-  }
-
-  // The shared deadline form always reports isPost/postType; editing an existing
-  // deadline ignores them (no in-place conversion to an IG post) and patches only
-  // the deadline fields.
-  function saveEditDeadline({ title, dueDate, owner, status }: { title: string; dueDate: string; owner: string; status: TaskStatus; isPost: boolean; postType: InstagramType }) {
-    if (!editingDeadlineId) return;
-    const data = { title, dueDate, owner, status };
-    const previous = deadlineList.find(x => x.id === editingDeadlineId);
-    setDeadlineList(prev => prev.map(x => x.id === editingDeadlineId ? { ...x, ...data } : x));
-    addActivity(`Deadline updated: "${data.title}"`, "info");
-    persistMutation(
-      requestJson<Deadline>(`/api/deadlines/${editingDeadlineId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-      }),
-      "Deadline update failed. Local changes were reverted.",
-      previous ? () => setDeadlineList(prev => prev.map(x => x.id === previous.id ? previous : x)) : undefined,
-      undefined,
-      error => handleSemesterError(error, setMutationError, "Deadline update failed. Local changes were reverted."),
-    );
-    setEditingDeadlineId(null);
-    setActiveModal(null);
+    // Editing a task (title/date/assignees) happens on the Tasks page.
+    router.push(orgPath(`/tasks?task=${id}`));
   }
 
   // ── IG Task CRUD ──────────────────────────────────────────────────────────
@@ -1796,7 +1740,7 @@ export default function Home() {
                 filteredBrothers, brotherList, statusCounts,
                 search, statusFilter, selfId, currentUser, avatarRevision, isAdmin,
               }}
-              tasksData={{ weeklyDigest, weekRange, digestNarration, deadlineList, igTaskList, activityFeed }}
+              tasksData={{ weeklyDigest, weekRange, digestNarration, deadlineList: taskList, igTaskList, activityFeed }}
               moneyData={{
                 liveBalance, liveProjected, liveTrend, totalDoorRev, partyList,
                 partyChartData, statusChartData, svcChartData,
@@ -2005,7 +1949,7 @@ export default function Home() {
                     weekEnd={weekRange.end}
                     today={todayISO}
                     onAll={() => setWidgetDrawer("deadlines")}
-                    onAddDeadline={() => setActiveModal("deadline")}
+                    onAddDeadline={() => router.push(orgPath("/tasks?new=1"))}
                   />
                   <TreasuryRail balance={liveBalance} projected={liveProjected} trend={liveTrend} />
                 </div>
@@ -2060,11 +2004,6 @@ export default function Home() {
       {activeModal === "event" && (
         <Modal title="New Event" tone="dusk" onClose={closeModal}>
           <CalendarEventForm submitLabel="Add Event" onSubmit={handleAddCalendarEvent} minDate={activeSemester?.startDate} maxDate={activeSemester?.endDate} />
-        </Modal>
-      )}
-      {activeModal === "deadline" && (
-        <Modal title="Add Deadline" tone="dusk" onClose={closeModal}>
-          <AddDeadlineForm brotherNames={brotherNames} onSubmit={handleAddDeadline} igEnabled={igEnabled} minDate={activeSemester?.startDate} maxDate={activeSemester?.endDate} />
         </Modal>
       )}
       {activeModal === "revenue" && (
@@ -2138,15 +2077,6 @@ export default function Home() {
           </div>
         </Modal>
       )}
-      {activeModal === "edit-deadline" && editingDeadlineId !== null && (() => {
-        const d = deadlineList.find(x => x.id === editingDeadlineId);
-        if (!d) return null;
-        return (
-          <Modal title="Edit Deadline" tone="dusk" onClose={closeModal}>
-            <AddDeadlineForm brotherNames={brotherNames} initial={d} onSubmit={saveEditDeadline} minDate={activeSemester?.startDate} maxDate={activeSemester?.endDate} />
-          </Modal>
-        );
-      })()}
       {activeModal === "edit-ig" && editingIgId !== null && (() => {
         const t = igTaskList.find(x => x.id === editingIgId);
         if (!t) return null;
@@ -2286,7 +2216,7 @@ export default function Home() {
         weeklyDigest={weeklyDigest}
         weekRange={weekRange}
         digestNarration={digestNarration}
-        deadlineList={deadlineList}
+        deadlineList={taskList}
         igTaskList={igTaskList}
         activityFeed={activityFeed}
         partyList={partyList}
@@ -2295,6 +2225,7 @@ export default function Home() {
         bestEvent={bestEvent}
         totalDoorRev={totalDoorRev}
         onOpenModal={setActiveModal}
+        onAddTask={() => router.push(orgPath("/tasks?new=1"))}
         onCompleteDeadline={completeDeadline}
         onDeleteDeadline={deleteDeadline}
         onEditDeadline={openEditDeadline}

@@ -45,7 +45,7 @@ export function NeedsAttention({
                 <div className="body">
                   <p className="t">{it.title}</p>
                   <p className="m">
-                    Due {fmtDate(it.dueDate)} · {it.owner.split(" ")[0]} · {it.daysLate} day{it.daysLate === 1 ? "" : "s"} late
+                    Due {fmtDate(it.dueDate)} · {it.assignees} · {it.daysLate} day{it.daysLate === 1 ? "" : "s"} late
                   </p>
                 </div>
                 <button type="button" className="act" onClick={() => onMarkDone(it.id)}>Mark done</button>

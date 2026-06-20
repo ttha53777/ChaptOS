@@ -46,7 +46,7 @@ export function MobileActivityHub({
 
   // Hub menu: glanceable summary cards that drill into each group.
   const dueCount =
-    tasksData.deadlineList.filter(d => d.status !== "Complete").length +
+    tasksData.deadlineList.filter(d => d.status !== "done").length +
     tasksData.igTaskList.filter(t => t.status !== "Complete").length;
   const atRisk = brothersData.statusCounts["At Risk"];
 

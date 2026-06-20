@@ -22,7 +22,7 @@ const DEFAULT_COLOR = "#5865F2";
 const PERMISSION_LABELS: Record<Permission, string> = {
   MANAGE_BROTHERS:   "Manage brothers (create, edit, dues, delete)",
   MANAGE_TREASURY:   "Manage treasury (transactions, budget, export)",
-  MANAGE_EVENTS:     "Manage events (calendar, deadlines)",
+  MANAGE_EVENTS:     "Manage events (calendar)",
   MANAGE_PARTIES:    "Manage parties",
   MANAGE_INSTAGRAM:  "Manage Instagram content",
   MANAGE_SERVICE:    "Manage service events",
@@ -32,6 +32,7 @@ const PERMISSION_LABELS: Record<Permission, string> = {
   MANAGE_DOCS:          "Manage docs (pin/edit/delete links)",
   MANAGE_ANNOUNCEMENTS: "Manage chapter announcement",
   MANAGE_SETTINGS:      "Manage org settings & invite links",
+  MANAGE_TASKS:         "Manage tasks & deadlines (create, assign, delete)",
 };
 
 function permissionSummary(bits: number): string {

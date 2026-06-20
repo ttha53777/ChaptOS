@@ -8,6 +8,7 @@ import { useChapter } from "../context/ChapterContext";
 import { useVocab } from "../hooks/useVocab";
 import { OrgSwitcher } from "./OrgSwitcher";
 import { SidebarProfile } from "./SidebarProfile";
+import { useSemesters } from "../hooks/useActiveSemester";
 
 // ─── Icon paths ───────────────────────────────────────────────────────────────
 
@@ -16,6 +17,7 @@ export const NAV_ICONS: Record<string, string> = {
   Brotherhood: "M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z",
   Brothers:    "M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z",
   Deadlines: "M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z",
+  Tasks:     "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7l2 2 4-4",
   Instagram: "M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z",
   Treasury:  "M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z",
   Service:   "M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z",
@@ -28,12 +30,12 @@ export const NAV_ICONS: Record<string, string> = {
 };
 
 // Main nav — Settings is pinned at the bottom of the sidebar
-export const NAV = ["Dashboard", "Timeline", "Brotherhood", "Chapter", "Docs", "Instagram", "Programming", "Treasury", "Service", "Parties"];
+export const NAV = ["Dashboard", "Timeline", "Tasks", "Brotherhood", "Chapter", "Docs", "Instagram", "Programming", "Treasury", "Service", "Parties"];
 export const SETTINGS_NAV = "Settings";
 
 const NAV_GROUPS: Array<{ label: string; items: string[] }> = [
   { label: "Overview", items: ["Dashboard", "Timeline"] },
-  { label: "Members", items: ["Brotherhood", "Chapter"] },
+  { label: "Members", items: ["Brotherhood", "Chapter", "Tasks"] },
   { label: "Operations", items: ["Docs", "Instagram", "Programming", "Service", "Parties", "Treasury"] },
 ];
 
@@ -48,6 +50,7 @@ export const NAV_WORKFLOW_MAP: Record<string, WorkflowId | null> = {
   Dashboard:   null,
   Timeline:    null,
   Chapter:     null, // "operations" — always on
+  Tasks:       "tasks",
   Brotherhood: "members",
   Docs:        "docs",
   Instagram:   "communications",
@@ -63,6 +66,7 @@ export const NAV_WORKFLOW_MAP: Record<string, WorkflowId | null> = {
 // way. Only labels whose workflow is non-null in NAV_WORKFLOW_MAP need an entry;
 // the always-on surfaces (Dashboard/Timeline/Chapter) are never toggled.
 export const NAV_DESCRIPTIONS: Record<string, string> = {
+  Tasks:       "Hand out tasks and deadlines to members or roles, and track what's done.",
   Brotherhood: "Member roster, profiles, attendance, and dues.",
   Treasury:    "Budget, transactions, and the running balance.",
   Parties:     "Social events with door revenue and wrap-up tracking.",
@@ -139,6 +143,7 @@ export function Sidebar({ open, onClose, activeSection, onNavClick }: {
   const pendingReimbursements = reimbursementList.filter(r => r.status === "pending").length;
   const orgName = currentUser?.org?.name ?? "Operations";
   const logoUrl = currentUser?.org?.logoUrl ?? null;
+  const { active: activeSemester } = useSemesters(!!currentUser?.org?.slug);
 
   // Display labels for vocab-driven nav items. Routing keys (NAV_WORKFLOW_MAP,
   // NAV_ICONS, isStandalone checks) remain the original string — only the
@@ -164,8 +169,8 @@ export function Sidebar({ open, onClose, activeSection, onNavClick }: {
     return rest === "" ? "/" : rest;
   })();
 
-  const semesterLabel = (() => {
-    const m = new Date().getMonth(); // 0-based
+  const semesterLabel = activeSemester?.label ?? (() => {
+    const m = new Date().getMonth();
     const y = new Date().getFullYear();
     return `${m >= 7 ? "Fall" : "Spring"} ${y}`;
   })();
@@ -193,6 +198,7 @@ export function Sidebar({ open, onClose, activeSection, onNavClick }: {
 
   function renderNavItem(label: string) {
     const isTimeline    = label === "Timeline";
+    const isTasks       = label === "Tasks";
     const isTreasury    = label === "Treasury";
     const isParties     = label === "Parties";
     const isProgramming = label === "Programming";
@@ -201,10 +207,12 @@ export function Sidebar({ open, onClose, activeSection, onNavClick }: {
     const isDocs        = label === "Docs";
     const isInstagram   = label === "Instagram";
     const isService     = label === "Service";
-    const isStandalone  = isTimeline || isTreasury || isParties || isProgramming || isBrotherhood || isChapter || isDocs || isInstagram || isService;
-    const standaloneSub = isTimeline ? "/timeline" : isTreasury ? "/treasury" : isParties ? "/parties" : isProgramming ? "/events" : isChapter ? "/chapter" : isDocs ? "/docs" : isInstagram ? "/instagram" : isService ? "/service" : "/brothers";
+    const isStandalone  = isTimeline || isTasks || isTreasury || isParties || isProgramming || isBrotherhood || isChapter || isDocs || isInstagram || isService;
+    const standaloneSub = isTimeline ? "/timeline" : isTasks ? "/tasks" : isTreasury ? "/treasury" : isParties ? "/parties" : isProgramming ? "/events" : isChapter ? "/chapter" : isDocs ? "/docs" : isInstagram ? "/instagram" : isService ? "/service" : "/brothers";
     const isActive = isTimeline
       ? subPath === "/timeline"
+      : isTasks
+        ? subPath.startsWith("/tasks")
       : isTreasury
         ? subPath.startsWith("/treasury")
         : isParties

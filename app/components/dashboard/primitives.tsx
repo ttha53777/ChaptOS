@@ -1,6 +1,7 @@
 import React, { useEffect, useId, useRef } from "react";
-import type { BrotherStatus, TaskStatus } from "../../data";
-import { BROTHER_STYLES, TASK_STYLES } from "./styles";
+import type { BrotherStatus, TaskStatus, Task } from "../../data";
+import { BROTHER_STYLES, TASK_STYLES, TASK_URGENCY_STYLES } from "./styles";
+import { taskUrgency } from "@/lib/tasks/urgency";
 
 export function StatusBadge({ status }: { status: BrotherStatus }) {
   return (
@@ -14,6 +15,18 @@ export function TaskBadge({ status }: { status: TaskStatus }) {
   return (
     <span className={`inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[11px] font-medium tracking-wide ${TASK_STYLES[status]}`}>
       {status}
+    </span>
+  );
+}
+
+// Badge for the unified Task model: "done" tasks read Done; open tasks read their
+// computed urgency (overdue/urgent/due soon/upcoming/open).
+export function TaskUrgencyBadge({ task }: { task: Pick<Task, "status" | "dueDate"> }) {
+  const key = task.status === "done" ? "done" : taskUrgency(task.dueDate);
+  const { label, cls } = TASK_URGENCY_STYLES[key];
+  return (
+    <span className={`inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[11px] font-medium tracking-wide ${cls}`}>
+      {label}
     </span>
   );
 }

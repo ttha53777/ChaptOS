@@ -1,0 +1,218 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+   Tasks — dusk ledger, same warm-paper system as parties-ledger.css /
+   docs-ledger.css. The page answers: what's overdue / due soon, who owns it,
+   and is it done. Tasks WITH a due date are "deadlines" (they also show on the
+   timeline); undated tasks are loose to-dos that live only here.
+
+   ISOLATION: every rule is scoped under `.dash.dash-tasks`; all classes are
+   net-new `.tk-*` so nothing leaks into pages that share `.dash`.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+.dash.dash-tasks {
+  --paper:    #0f0d0a;
+  --card:     #161310;
+  --card-2:   #1b1813;
+  --ink:      #ece7dd;
+  --ink-soft: #c9c2b4;
+  --muted:    #958d7c;
+  --faint:    #6b6354;
+  --line:     rgba(236,231,221,.09);
+  --vio:      #a78bfa;
+  --rose:     #f43f5e;
+  --gold:     #d6a84a;
+  --ok:       #5fb87a;
+
+  max-width: 920px;
+  margin: 0 auto;
+  padding: 28px 24px 80px;
+  color: var(--ink);
+}
+
+/* ── Header ──────────────────────────────────────────────────────────────────── */
+.dash.dash-tasks .tk-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+.dash.dash-tasks .tk-title {
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.dash.dash-tasks .tk-sub {
+  margin-top: 4px;
+  font-size: 13px;
+  color: var(--muted);
+  max-width: 52ch;
+}
+.dash.dash-tasks .tk-add {
+  flex-shrink: 0;
+  border-radius: 10px;
+  background: var(--vio);
+  color: #0f0d0a;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 9px 16px;
+  transition: background .15s;
+}
+.dash.dash-tasks .tk-add:hover { background: #bda6fc; }
+
+/* ── Stat strip ──────────────────────────────────────────────────────────────── */
+.dash.dash-tasks .tk-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin-bottom: 18px;
+}
+.dash.dash-tasks .tk-stat {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+.dash.dash-tasks .tk-stat .n { font-size: 22px; font-weight: 600; }
+.dash.dash-tasks .tk-stat .n.rose { color: var(--rose); }
+.dash.dash-tasks .tk-stat .n.gold { color: var(--gold); }
+.dash.dash-tasks .tk-stat .n.ok   { color: var(--ok); }
+.dash.dash-tasks .tk-stat .l { margin-top: 2px; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+
+/* ── Filters ─────────────────────────────────────────────────────────────────── */
+.dash.dash-tasks .tk-filters {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.dash.dash-tasks .tk-seg {
+  display: inline-flex;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.dash.dash-tasks .tk-seg button {
+  font-size: 12.5px;
+  padding: 7px 14px;
+  color: var(--muted);
+  transition: background .12s, color .12s;
+}
+.dash.dash-tasks .tk-seg button.on { background: var(--card-2); color: var(--ink); }
+.dash.dash-tasks .tk-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+/* ── Groups + rows ───────────────────────────────────────────────────────────── */
+.dash.dash-tasks .tk-groups { display: flex; flex-direction: column; gap: 22px; }
+.dash.dash-tasks .tk-group-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+.dash.dash-tasks .tk-group-label.rose { color: var(--rose); }
+.dash.dash-tasks .tk-group-label.gold { color: var(--gold); }
+.dash.dash-tasks .tk-group-label.ok   { color: var(--ok); }
+.dash.dash-tasks .tk-group-label .ct { color: var(--faint); font-weight: 500; }
+
+.dash.dash-tasks .tk-list { display: flex; flex-direction: column; gap: 8px; }
+.dash.dash-tasks .tk-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px 14px;
+  transition: border-color .12s;
+}
+.dash.dash-tasks .tk-row:hover { border-color: rgba(236,231,221,.18); }
+.dash.dash-tasks .tk-row.done .tk-row-title { text-decoration: line-through; color: var(--muted); }
+.dash.dash-tasks .tk-row-main { min-width: 0; flex: 1; }
+.dash.dash-tasks .tk-row-title { font-size: 14px; font-weight: 500; }
+.dash.dash-tasks .tk-row-meta { margin-top: 2px; font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.dash.dash-tasks .tk-row-acts { display: flex; gap: 4px; flex-shrink: 0; }
+.dash.dash-tasks .tk-act {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  color: var(--muted);
+  transition: background .12s, color .12s;
+}
+.dash.dash-tasks .tk-act svg { width: 16px; height: 16px; }
+.dash.dash-tasks .tk-act:hover { background: rgba(236,231,221,.06); color: var(--ink); }
+.dash.dash-tasks .tk-act.ok:hover { color: var(--ok); }
+.dash.dash-tasks .tk-act.danger:hover { color: var(--rose); }
+
+/* ── Empty + error ───────────────────────────────────────────────────────────── */
+.dash.dash-tasks .tk-empty {
+  text-align: center;
+  color: var(--muted);
+  font-size: 13.5px;
+  padding: 48px 16px;
+  border: 1px dashed var(--line);
+  border-radius: 12px;
+}
+.dash.dash-tasks .tk-link {
+  color: var(--vio);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.dash.dash-tasks .tk-error {
+  background: rgba(244,63,94,.1);
+  border: 1px solid rgba(244,63,94,.3);
+  color: #fda4af;
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 13px;
+  margin-bottom: 14px;
+}
+
+/* ── Modal form ──────────────────────────────────────────────────────────────── */
+.dash.dash-tasks .tk-form,
+.tk-form { display: flex; flex-direction: column; gap: 14px; }
+.tk-form .tk-opt { font-weight: 400; color: var(--faint, #6b6354); font-size: 11.5px; }
+.tk-form .tk-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+}
+.tk-form .tk-chip {
+  border: 1px solid rgba(236,231,221,.14);
+  border-radius: 999px;
+  padding: 5px 11px;
+  font-size: 12px;
+  color: #c9c2b4;
+  transition: background .12s, border-color .12s, color .12s;
+}
+.tk-form .tk-chip:hover { border-color: rgba(236,231,221,.28); }
+.tk-form .tk-chip.on {
+  background: rgba(167,139,250,.16);
+  border-color: rgba(167,139,250,.5);
+  color: #ece7dd;
+}
+.tk-form .tk-chip.role.on {
+  background: color-mix(in srgb, var(--chip, #a78bfa) 18%, transparent);
+  border-color: color-mix(in srgb, var(--chip, #a78bfa) 55%, transparent);
+}
+.tk-form .tk-form-error { color: #fda4af; font-size: 12.5px; }
+
+/* ── Responsive ──────────────────────────────────────────────────────────────── */
+@media (max-width: 640px) {
+  .dash.dash-tasks { padding: 18px 14px 64px; }
+  .dash.dash-tasks .tk-stats { grid-template-columns: repeat(2, 1fr); }
+  .dash.dash-tasks .tk-head { flex-direction: column; }
+}

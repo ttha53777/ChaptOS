@@ -10,13 +10,17 @@
 // currentUser.org populated from /api/auth/me — so gating on org alone would
 // leak the widget onto auth screens.
 //
-// So we gate on TWO things: the user is resolved into an org AND we're actually
-// inside the org dashboard (a /[slug]/… route). The dashboard is the only place
-// whose first path segment is a real org slug; every platform route is a known
+// So we gate on THREE things: the user is resolved into an org, we're actually
+// inside the org dashboard (a /[slug]/… route), AND we're not still on the
+// /[slug]/onboarding finish-setup screen. The dashboard is the only place whose
+// first path segment is a real org slug; every platform route is a known
 // reserved segment, so excluding those keeps this from drifting as routes are
-// added.
+// added. Onboarding is itself a /[slug]/… route, so it passes isDashboardRoute —
+// hence the explicit isOnboardingRoute exclusion: Ask Chapt should only appear
+// once the founder finishes setup and lands in the real dashboard.
 import { usePathname } from "next/navigation";
 import { useChapter } from "../context/ChapterContext";
+import { isOnboardingRoute } from "../lib/onboarding";
 import { isDashboardRoute } from "../lib/routes";
 import { ChatWidget } from "./ChatWidget";
 
@@ -25,5 +29,6 @@ export function ChatWidgetGate() {
   const { currentUser } = useChapter();
   if (!currentUser?.org) return null;
   if (!isDashboardRoute(pathname)) return null;
+  if (isOnboardingRoute(pathname)) return null;
   return <ChatWidget />;
 }
