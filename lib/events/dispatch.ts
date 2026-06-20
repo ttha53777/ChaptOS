@@ -154,12 +154,16 @@ export function formatActivityMessage(ctx: RequestContext, action: Action, m: an
       return `${who} marked ${m.name} complete`;
     case "party.deleted":
       return `${who} deleted party ${m.name}`;
-    case "deadline.created":
-      return `${who} added deadline ${m.title} (due ${m.dueDate})`;
-    case "deadline.updated":
-      return `${who} updated deadline ${m.title}`;
-    case "deadline.deleted":
-      return `${who} deleted deadline ${m.title}`;
+    case "task.created":
+      return m.dueDate ? `${who} added task ${m.title} (due ${m.dueDate})` : `${who} added task ${m.title}`;
+    case "task.updated":
+      return `${who} updated task ${m.title}`;
+    case "task.completed":
+      return `${who} completed task ${m.title}`;
+    case "task.reopened":
+      return `${who} reopened task ${m.title}`;
+    case "task.deleted":
+      return `${who} deleted task ${m.title}`;
     case "instagram_task.created":
       return `${who} added IG task ${m.title}`;
     case "instagram_task.updated":

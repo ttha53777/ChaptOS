@@ -253,27 +253,40 @@ function scopedPartyEvent(orgId: number) {
   };
 }
 
-function scopedDeadline(orgId: number) {
-  type W = Prisma.DeadlineWhereInput;
+function scopedTask(orgId: number) {
+  type W = Prisma.TaskWhereInput;
   const org = (w?: W): W => ({ ...w, organizationId: orgId });
 
-  async function verify(where: Prisma.DeadlineWhereUniqueInput): Promise<number> {
-    const row = await prisma.deadline.findFirst({ where: org(where as W), select: { id: true } });
+  async function verify(where: Prisma.TaskWhereUniqueInput): Promise<number> {
+    const row = await prisma.task.findFirst({ where: org(where as W), select: { id: true } });
     if (!row) notInOrg();
     return row.id;
   }
 
   return {
-    findMany:   (args?: Prisma.DeadlineFindManyArgs)  => prisma.deadline.findMany({ ...args, where: org(args?.where) }),
-    findFirst:  (args?: Prisma.DeadlineFindFirstArgs) => prisma.deadline.findFirst({ ...args, where: org(args?.where) }),
-    findUnique: (args: Prisma.DeadlineFindUniqueArgs) => prisma.deadline.findFirst({ ...args, where: org(args.where as W) }),
-    create:     (args: Omit<Prisma.DeadlineCreateArgs, "data"> & { data: Omit<Prisma.DeadlineUncheckedCreateInput, "organizationId"> }) =>
-      prisma.deadline.create({ ...args, data: { ...args.data, organizationId: orgId } }),
-    update:     async (args: Prisma.DeadlineUpdateArgs) =>
-      prisma.deadline.update({ ...args, where: { id: await verify(args.where) } }),
-    delete:     async (args: Prisma.DeadlineDeleteArgs) =>
-      prisma.deadline.delete({ where: { id: await verify(args.where) } }),
-    count:      (args?: Prisma.DeadlineCountArgs)     => prisma.deadline.count({ ...args, where: org(args?.where) }),
+    findMany:   (args?: Prisma.TaskFindManyArgs)  => prisma.task.findMany({ ...args, where: org(args?.where) }),
+    findFirst:  (args?: Prisma.TaskFindFirstArgs) => prisma.task.findFirst({ ...args, where: org(args?.where) }),
+    findUnique: (args: Prisma.TaskFindUniqueArgs) => prisma.task.findFirst({ ...args, where: org(args.where as W) }),
+    create:     (args: Omit<Prisma.TaskCreateArgs, "data"> & { data: Omit<Prisma.TaskUncheckedCreateInput, "organizationId"> }) =>
+      prisma.task.create({ ...args, data: { ...args.data, organizationId: orgId } }),
+    update:     async (args: Prisma.TaskUpdateArgs) =>
+      prisma.task.update({ ...args, where: { id: await verify(args.where) } }),
+    delete:     async (args: Prisma.TaskDeleteArgs) =>
+      prisma.task.delete({ where: { id: await verify(args.where) } }),
+    count:      (args?: Prisma.TaskCountArgs)     => prisma.task.count({ ...args, where: org(args?.where) }),
+  };
+}
+
+function scopedTaskAssignment(orgId: number) {
+  type W = Prisma.TaskAssignmentWhereInput;
+  const org = (w?: W): W => ({ ...w, organizationId: orgId });
+
+  return {
+    findMany:   (args?: Prisma.TaskAssignmentFindManyArgs) => prisma.taskAssignment.findMany({ ...args, where: org(args?.where) }),
+    createMany: (args: { data: Omit<Prisma.TaskAssignmentUncheckedCreateInput, "organizationId">[] }) =>
+      prisma.taskAssignment.createMany({ data: args.data.map(d => ({ ...d, organizationId: orgId })) }),
+    deleteMany: (args?: Prisma.TaskAssignmentDeleteManyArgs) => prisma.taskAssignment.deleteMany({ ...args, where: org(args?.where) }),
+    count:      (args?: Prisma.TaskAssignmentCountArgs)     => prisma.taskAssignment.count({ ...args, where: org(args?.where) }),
   };
 }
 
@@ -758,7 +771,8 @@ export function db(orgId: number) {
     serviceEvent:        scopedServiceEvent(orgId),
     serviceParticipation: scopedServiceParticipation(orgId),
     partyEvent:          scopedPartyEvent(orgId),
-    deadline:            scopedDeadline(orgId),
+    task:                scopedTask(orgId),
+    taskAssignment:      scopedTaskAssignment(orgId),
     instagramTask:       scopedInstagramTask(orgId),
     doc:                 scopedDoc(orgId),
     programmingEvent:    scopedProgrammingEvent(orgId),

@@ -25,6 +25,10 @@ export const PERMISSIONS = {
   // Org settings: general config + invite links. Distinct from MANAGE_BROTHERS
   // (roster CRUD) so settings authority isn't bundled with roster editing.
   MANAGE_SETTINGS:      1 << 11,
+  // Tasks & deadlines: create, assign (to members/roles), edit, and delete.
+  // Assignees without this bit can still mark their own assigned tasks done
+  // (enforced in task-service, not at the route guard).
+  MANAGE_TASKS:         1 << 12,
 } as const;
 
 export type Permission = keyof typeof PERMISSIONS;

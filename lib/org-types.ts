@@ -29,6 +29,7 @@ export type WorkflowId =
   | "service"
   | "communications"
   | "docs"
+  | "tasks"
   | "operations";
 
 export const ALL_WORKFLOWS: readonly WorkflowId[] = [
@@ -40,6 +41,7 @@ export const ALL_WORKFLOWS: readonly WorkflowId[] = [
   "service",
   "communications",
   "docs",
+  "tasks",
   "operations",
 ] as const;
 
@@ -99,7 +101,7 @@ const FRATERNITY: OrgTypeTemplate = {
   roleSeeds: [
     { name: "President", color: "#F59E0B", rank: 100, permissions: [], all: true },
     { name: "Treasurer", color: "#10B981", rank: 50, permissions: ["MANAGE_TREASURY"] },
-    { name: "Social",    color: "#EC4899", rank: 50, permissions: ["MANAGE_EVENTS", "MANAGE_PARTIES"] },
+    { name: "Social",    color: "#EC4899", rank: 50, permissions: ["MANAGE_EVENTS", "MANAGE_PARTIES", "MANAGE_TASKS"] },
     { name: "PR",        color: "#3B82F6", rank: 50, permissions: ["MANAGE_INSTAGRAM"] },
   ],
   vocabularyOverrides: {
@@ -121,12 +123,13 @@ const GENERIC_CLUB: OrgTypeTemplate = {
     "finance",
     "communications",
     "docs",
+    "tasks",
     "operations",
   ],
   roleSeeds: [
     { name: "President", color: "#F59E0B", rank: 100, permissions: [], all: true },
     { name: "Treasurer", color: "#10B981", rank: 50, permissions: ["MANAGE_TREASURY"] },
-    { name: "Secretary", color: "#3B82F6", rank: 50, permissions: ["MANAGE_EVENTS", "MANAGE_ANNOUNCEMENTS"] },
+    { name: "Secretary", color: "#3B82F6", rank: 50, permissions: ["MANAGE_EVENTS", "MANAGE_ANNOUNCEMENTS", "MANAGE_TASKS"] },
   ],
   vocabularyOverrides: {
     // Canonical defaults already match a generic club; nothing to override.
@@ -139,7 +142,7 @@ const GENERIC_ORG: OrgTypeTemplate = {
   description:
     "Minimal setup: members, events, announcements, and shared docs. Add " +
     "more workflows from Settings later.",
-  enabledWorkflows: ["members", "events", "communications", "docs", "operations"],
+  enabledWorkflows: ["members", "events", "communications", "docs", "tasks", "operations"],
   roleSeeds: [
     { name: "Admin", color: "#F59E0B", rank: 100, permissions: [], all: true },
   ],

@@ -66,6 +66,7 @@ export const WORKFLOW_FEATURES: Record<WorkflowId, readonly WorkflowFeature[]> =
   service: [],
   communications: [],
   docs: [],
+  tasks: [],
 };
 
 /**

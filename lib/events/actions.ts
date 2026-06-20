@@ -23,7 +23,7 @@ export type SubjectType =
   | "ServiceEvent"
   | "ServiceParticipation"
   | "PartyEvent"
-  | "Deadline"
+  | "Task"
   | "InstagramTask"
   | "Doc"
   | "ChapterAnnouncement"
@@ -80,9 +80,11 @@ export interface EventMetadata {
   "party.deleted":     { name: string };
 
   // Items
-  "deadline.created":      { title: string; dueDate: string };
-  "deadline.updated":      { title: string; changedFields: string[] };
-  "deadline.deleted":      { title: string };
+  "task.created":   { title: string; dueDate: string | null; assigneeCount: number };
+  "task.updated":   { title: string; changedFields: string[] };
+  "task.completed": { title: string };
+  "task.reopened":  { title: string };
+  "task.deleted":   { title: string };
   "instagram_task.created": { title: string; dueDate: string };
   "instagram_task.updated": { title: string; changedFields: string[] };
   "instagram_task.deleted": { title: string };
@@ -131,7 +133,7 @@ const KNOWN_ACTIONS = new Set<Action>([
   "service_event.created", "service_event.updated", "service_event.deleted",
   "service_participation.logged", "service_participation.removed",
   "party.created", "party.updated", "party.completed", "party.deleted",
-  "deadline.created", "deadline.updated", "deadline.deleted",
+  "task.created", "task.updated", "task.completed", "task.reopened", "task.deleted",
   "instagram_task.created", "instagram_task.updated", "instagram_task.deleted",
   "doc.created", "doc.updated", "doc.deleted",
   "announcement.updated", "semester.created", "semester.activated",
