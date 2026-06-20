@@ -22,7 +22,7 @@ const CHIP_FEATURE: Partial<Record<KPIDrawerKey, string>> = {
 export function MobileSummary({
   firstName, orgName, announcement, kpis,
   onEditAnnouncement, onOpenKpi,
-  isAdmin, onQuickAction, enabledWorkflows, onOpenStanding,
+  isAdmin, canManageTasks, onQuickAction, enabledWorkflows, onOpenStanding,
 }: {
   firstName: string;
   orgName: string | null;
@@ -31,6 +31,8 @@ export function MobileSummary({
   onEditAnnouncement: () => void;
   onOpenKpi: (k: KPIDrawerKey) => void;
   isAdmin: boolean;
+  /** Gates the "Add Deadline" quick action (MANAGE_TASKS). */
+  canManageTasks?: boolean;
   onQuickAction: (k: QuickActionKey) => void;
   enabledWorkflows?: readonly string[];
   /** Opens the signed-in member's own record; absent when they have no roster row. */
@@ -64,6 +66,7 @@ export function MobileSummary({
         <div className="flex shrink-0 items-center gap-2">
           <QuickActionsMenu
             isAdmin={isAdmin}
+            canManageTasks={!!canManageTasks}
             onSelect={onQuickAction}
             variant="mobile"
             enabledWorkflows={enabledWorkflows}

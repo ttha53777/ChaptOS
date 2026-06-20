@@ -16,6 +16,10 @@ interface QuickAction {
   label: string;
   icon: ReactNode;
   adminOnly: boolean;
+  /** When set, the action is hidden unless the viewer can manage tasks
+   *  (MANAGE_TASKS). Creating a task is a manager-only action, so non-managers
+   *  shouldn't see "Add Deadline" (the API would 403 on submit). */
+  requiresManageTasks?: boolean;
   /** When set, the action is hidden unless the org has this workflow enabled.
    *  e.g. "Log Expense"/"Log Revenue" disappear when the Treasury page is off. */
   workflow?: WorkflowId;
@@ -72,18 +76,21 @@ const QUICK_ACTIONS: QuickAction[] = [
   { key: "expense",  label: "Log Expense",  icon: ExpenseIcon,  adminOnly: true,  workflow: "finance" },
   { key: "revenue",  label: "Log Revenue",  icon: RevenueIcon,  adminOnly: true,  workflow: "finance" },
   { key: "excuse",   label: "Log Excuse",   icon: ExcuseIcon,   adminOnly: false },
-  { key: "deadline", label: "Add Deadline", icon: DeadlineIcon, adminOnly: false },
+  { key: "deadline", label: "Add Deadline", icon: DeadlineIcon, adminOnly: false, requiresManageTasks: true },
   { key: "event",    label: "New Event",    icon: EventIcon,    adminOnly: false, workflow: "events" },
   { key: "ig",       label: "Add IG Task",  icon: IgIcon,       adminOnly: false },
 ];
 
 export function QuickActionsMenu({
   isAdmin,
+  canManageTasks = false,
   onSelect,
   variant = "desktop",
   enabledWorkflows,
 }: {
   isAdmin: boolean;
+  /** Whether the viewer holds MANAGE_TASKS — gates the "Add Deadline" action. */
+  canManageTasks?: boolean;
   onSelect: (key: QuickActionKey) => void;
   /** "desktop"/"mobile" use the cold-slate toolbar styling; "ledger" renders in
    *  the warm dusk "Chapter Ledger" idiom (scoped under `.dash`) for the
@@ -116,6 +123,7 @@ export function QuickActionsMenu({
 
   const items = QUICK_ACTIONS.filter(a => {
     if (a.adminOnly && !isAdmin) return false;
+    if (a.requiresManageTasks && !canManageTasks) return false;
     // Hide a workflow-gated action when the org has that workflow disabled.
     // When enabledWorkflows is undefined (still loading) keep the action.
     if (a.workflow && enabledWorkflows && !enabledWorkflows.includes(a.workflow)) return false;

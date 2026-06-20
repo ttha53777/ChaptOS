@@ -114,6 +114,8 @@ export interface MobileDashboardProps {
   /** Quick-actions wiring for the header "+" (reuses the existing menu). */
   onQuickAction: (k: QuickActionKey) => void;
   quickActionsAdmin: boolean;
+  /** Gates the "Add Deadline" quick action (MANAGE_TASKS). */
+  quickActionsCanManageTasks?: boolean;
   enabledWorkflows?: readonly string[];
   /** Opens the signed-in member's own record; absent when they have no roster row. */
   onOpenStanding?: () => void;
@@ -123,7 +125,7 @@ export function MobileDashboard(props: MobileDashboardProps) {
   const {
     firstName, orgName, health, needsAttention, kpis, announcement, onEditAnnouncement,
     brothersData, tasksData, moneyData, actions,
-    onOpenSidebar, onQuickAction, quickActionsAdmin, enabledWorkflows, onOpenStanding,
+    onOpenSidebar, onQuickAction, quickActionsAdmin, quickActionsCanManageTasks, enabledWorkflows, onOpenStanding,
   } = props;
 
   const [activeTab, setActiveTab] = useState<MobileTab>("Home");
@@ -153,6 +155,7 @@ export function MobileDashboard(props: MobileDashboardProps) {
             onEditAnnouncement={onEditAnnouncement}
             onOpenKpi={actions.setActiveDrawer}
             isAdmin={quickActionsAdmin}
+            canManageTasks={quickActionsCanManageTasks}
             onQuickAction={onQuickAction}
             enabledWorkflows={enabledWorkflows}
             onOpenStanding={onOpenStanding}

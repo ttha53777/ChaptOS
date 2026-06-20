@@ -28,6 +28,7 @@ import { BrotherAvatar } from "../components/BrotherAvatar";
 import { useChapter } from "../context/ChapterContext";
 import { useToast } from "../components/dashboard/Toast";
 import { AddIGTaskForm, AddRevenueForm, LogAttendanceForm, ExcuseForm } from "../components/dashboard/forms";
+import { TaskForm, type RoleOption, type TaskFormValue } from "../components/dashboard/TaskForm";
 import type { QuickActionKey } from "../components/dashboard/QuickActionsMenu";
 import { TxForm } from "../components/treasury/TxForm";
 import { CalendarEventForm, type CalendarDraft } from "../components/timeline/CalendarEventForm";
@@ -918,6 +919,8 @@ export default function Home() {
   const [activeModal,    setActiveModal]    = useState<"deadline" | "revenue" | "ig" | "attendance" | "pick-event" | "edit-deadline" | "edit-ig" | "expense" | "excuse" | "event" | "pick-event-for-excuse" | null>(null);
   const [selectedEventForAttendance, setSelectedEventForAttendance] = useState<CalendarEvent | null>(null);
   const [calendarList,   setCalendarList]   = useState<CalendarEvent[]>([]);
+  // Org roles for the "New task" modal's assignee picker (mirrors the tasks page).
+  const [roles,          setRoles]          = useState<RoleOption[]>([]);
   const [editingIgId,       setEditingIgId]       = useState<number | null>(null);
   const [activeDrawer,   setActiveDrawer]   = useState<KPIDrawerKey | null>(null);
   const [widgetDrawer,   setWidgetDrawer]   = useState<WidgetDrawerKey | null>(null);
@@ -956,6 +959,7 @@ export default function Home() {
   const canTreasury    = can("MANAGE_TREASURY");
   const canBrothers    = can("MANAGE_BROTHERS");
   const canAttendance  = can("MANAGE_ATTENDANCE");
+  const canTasks       = can("MANAGE_TASKS");
   const selfId  = currentUser?.id ?? null;
 
   const router  = useRouter();
@@ -1176,6 +1180,13 @@ export default function Home() {
       .catch(err => { if (err.name !== "AbortError") console.error("Failed to load calendar", err); });
     return () => controller.abort();
   }, []);
+
+  // Roles power the "New task" modal's assignee picker. Only managers can open
+  // that modal, so only fetch for them.
+  useEffect(() => {
+    if (!canTasks) return;
+    requestJson<RoleOption[]>("/api/roles").then(setRoles).catch(() => setRoles([]));
+  }, [canTasks]);
 
   // ── KPIs ──────────────────────────────────────────────────────────────────
   const avgAttendance   = useMemo(() => avg(brotherList.map(b => b.attendance)), [brotherList]);
@@ -1426,8 +1437,33 @@ export default function Home() {
 
   // ── Task quick actions ────────────────────────────────────────────────────
   // The dashboard surfaces tasks (dated = deadlines) read-mostly: complete and
-  // delete act inline; creating/editing (which needs the assignee picker) lives
-  // on the dedicated /tasks page, so "Add" / "Edit" route there.
+  // delete act inline. Creating a task happens in-place via the shared TaskForm
+  // modal (below); editing still routes to the dedicated /tasks page.
+  // Create a task from the dashboard's "New task" modal. Mirrors the tasks page
+  // submit: POST, then append the saved row to the shared taskList.
+  function handleAddDeadline(value: TaskFormValue) {
+    setActiveModal(null);
+    persistMutation(
+      requestJson<Task>("/api/tasks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: value.title,
+          dueDate: value.dueDate || undefined,
+          notes: value.notes || undefined,
+          assigneeBrotherIds: value.assigneeBrotherIds,
+          assigneeRoleIds: value.assigneeRoleIds,
+        }),
+      }),
+      "Task could not be saved. Please try again.",
+      undefined,
+      saved => {
+        setTaskList(prev => [...prev, saved]);
+        addActivity(`Task added: "${saved.title}"`, "info");
+      },
+    );
+  }
+
   function completeDeadline(id: number) {
     const d = taskList.find(x => x.id === id);
     if (!d || d.status === "done") return;
@@ -1722,6 +1758,7 @@ export default function Home() {
               onOpenSidebar={() => setSidebarOpen(true)}
               onQuickAction={handleQuickAction}
               quickActionsAdmin={isAdmin || canTreasury || canAttendance}
+              quickActionsCanManageTasks={canTasks}
               enabledWorkflows={currentUser?.org?.enabledWorkflows}
               onOpenStanding={
                 selfId !== null && brotherList.some(b => b.id === selfId)
@@ -1781,6 +1818,7 @@ export default function Home() {
                   onLogAttendance={canAttendance ? () => openAttendanceLog() : undefined}
                   onQuickAction={handleQuickAction}
                   quickActionsAdmin={isAdmin || canTreasury || canAttendance}
+                  quickActionsCanManageTasks={canTasks}
                   enabledWorkflows={currentUser?.org?.enabledWorkflows}
                 />
               }
@@ -1949,7 +1987,7 @@ export default function Home() {
                     weekEnd={weekRange.end}
                     today={todayISO}
                     onAll={() => setWidgetDrawer("deadlines")}
-                    onAddDeadline={() => router.push(orgPath("/tasks?new=1"))}
+                    onAddDeadline={canTasks ? () => setActiveModal("deadline") : () => router.push(orgPath("/tasks?new=1"))}
                   />
                   <TreasuryRail balance={liveBalance} projected={liveProjected} trend={liveTrend} />
                 </div>
@@ -2004,6 +2042,18 @@ export default function Home() {
       {activeModal === "event" && (
         <Modal title="New Event" tone="dusk" onClose={closeModal}>
           <CalendarEventForm submitLabel="Add Event" onSubmit={handleAddCalendarEvent} minDate={activeSemester?.startDate} maxDate={activeSemester?.endDate} />
+        </Modal>
+      )}
+      {activeModal === "deadline" && canTasks && (
+        <Modal title="New task" tone="dusk" onClose={closeModal}>
+          <TaskForm
+            brothers={brotherList}
+            roles={roles}
+            minDate={activeSemester?.startDate}
+            maxDate={activeSemester?.endDate}
+            submitLabel="Create task"
+            onSubmit={handleAddDeadline}
+          />
         </Modal>
       )}
       {activeModal === "revenue" && (
@@ -2225,7 +2275,7 @@ export default function Home() {
         bestEvent={bestEvent}
         totalDoorRev={totalDoorRev}
         onOpenModal={setActiveModal}
-        onAddTask={() => router.push(orgPath("/tasks?new=1"))}
+        onAddTask={canTasks ? () => setActiveModal("deadline") : () => router.push(orgPath("/tasks?new=1"))}
         onCompleteDeadline={completeDeadline}
         onDeleteDeadline={deleteDeadline}
         onEditDeadline={openEditDeadline}

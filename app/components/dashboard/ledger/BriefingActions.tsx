@@ -19,6 +19,7 @@ export function BriefingActions({
   onLogAttendance,
   onQuickAction,
   quickActionsAdmin,
+  quickActionsCanManageTasks,
   enabledWorkflows,
   search,
   onSearchChange,
@@ -33,6 +34,8 @@ export function BriefingActions({
   onQuickAction?: (key: QuickActionKey) => void;
   /** Passed to QuickActionsMenu's `isAdmin` to gate admin-only entries. */
   quickActionsAdmin?: boolean;
+  /** Passed to QuickActionsMenu's `canManageTasks` to gate "Add Deadline". */
+  quickActionsCanManageTasks?: boolean;
   /** Org workflows — hides workflow-gated quick actions (e.g. finance). */
   enabledWorkflows?: readonly string[];
   /** Controlled search value. Omit (with onSearchChange) to hide the field. */
@@ -68,6 +71,7 @@ export function BriefingActions({
       {onQuickAction && (
         <QuickActionsMenu
           isAdmin={!!quickActionsAdmin}
+          canManageTasks={!!quickActionsCanManageTasks}
           onSelect={onQuickAction}
           variant="ledger"
           enabledWorkflows={enabledWorkflows}
