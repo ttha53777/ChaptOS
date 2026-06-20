@@ -13,7 +13,7 @@ import { testPrisma, resetDb } from "../setup/prisma";
 import { createOrg, createBrother, createSemester } from "../setup/factories";
 import { db } from "@/lib/db";
 import { createCalendar, updateCalendar } from "@/lib/services/calendar-service";
-import { createDeadline, updateDeadline } from "@/lib/services/deadline-service";
+import { createTask, updateTask } from "@/lib/services/task-service";
 import { createServiceEvent } from "@/lib/services/service-event-service";
 import { createProgrammingTask, updateProgrammingTask, setStage } from "@/lib/services/programming-service";
 import { ValidationError } from "@/lib/errors";
@@ -111,28 +111,34 @@ describe("calendar events", () => {
   });
 });
 
-describe("deadlines", () => {
+describe("tasks (deadlines)", () => {
   it("allows in-range and rejects out-of-range creation", async () => {
-    const { ctx } = await seedWithSemester();
-    await expect(createDeadline(ctx, { title: "ok", dueDate: "2026-02-01", owner: "A", status: "Upcoming" })).resolves.toBeTruthy();
-    await expect(createDeadline(ctx, { title: "bad", dueDate: "2026-12-01", owner: "A", status: "Upcoming" })).rejects.toThrow(ValidationError);
+    const { ctx, admin } = await seedWithSemester();
+    await expect(createTask(ctx, { title: "ok", dueDate: "2026-02-01", assigneeBrotherIds: [admin.id], assigneeRoleIds: [] })).resolves.toBeTruthy();
+    await expect(createTask(ctx, { title: "bad", dueDate: "2026-12-01", assigneeBrotherIds: [admin.id], assigneeRoleIds: [] })).rejects.toThrow(ValidationError);
   });
 
-  it("blocks creation when no semester is active", async () => {
-    const { ctx } = await seedWithoutSemester();
-    const p = createDeadline(ctx, { title: "x", dueDate: "2026-02-01", owner: "A", status: "Upcoming" });
+  it("does not bound an undated task", async () => {
+    const { ctx, admin } = await seedWithoutSemester();
+    // No dueDate → semester bounds don't apply, so this succeeds even with no active semester.
+    await expect(createTask(ctx, { title: "loose todo", assigneeBrotherIds: [admin.id], assigneeRoleIds: [] })).resolves.toBeTruthy();
+  });
+
+  it("blocks dated creation when no semester is active", async () => {
+    const { ctx, admin } = await seedWithoutSemester();
+    const p = createTask(ctx, { title: "x", dueDate: "2026-02-01", assigneeBrotherIds: [admin.id], assigneeRoleIds: [] });
     await expect(p.catch(e => codeOf(e))).resolves.toBe("NO_ACTIVE_SEMESTER");
   });
 
   it("only re-checks the date when it changes on update", async () => {
-    const { ctx, org } = await seedWithSemester();
-    const legacy = await testPrisma.deadline.create({
-      data: { organizationId: org.id, title: "Old", dueDate: "2025-09-01", owner: "A", status: "Upcoming" },
+    const { ctx, org, admin } = await seedWithSemester();
+    const legacy = await testPrisma.task.create({
+      data: { organizationId: org.id, title: "Old", dueDate: "2025-09-01", status: "open" },
     });
-    // Editing owner (no dueDate in payload) must succeed despite out-of-range date.
-    await expect(updateDeadline(ctx, legacy.id, { owner: "B" })).resolves.toBeTruthy();
+    // Editing the title (no dueDate in payload) must succeed despite out-of-range date.
+    await expect(updateTask(ctx, legacy.id, { title: "New", assigneeBrotherIds: [admin.id] })).resolves.toBeTruthy();
     // Moving the date out of range must fail.
-    await expect(updateDeadline(ctx, legacy.id, { dueDate: "2026-12-01" })).rejects.toThrow(ValidationError);
+    await expect(updateTask(ctx, legacy.id, { dueDate: "2026-12-01" })).rejects.toThrow(ValidationError);
   });
 });
 

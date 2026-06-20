@@ -6,7 +6,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { deriveNeedsAttention, type Brother, type Deadline } from "@/app/data";
+import { deriveNeedsAttention, type Brother, type Task, type TaskAssignment } from "@/app/data";
 import { DEFAULT_THRESHOLDS } from "@/lib/thresholds";
 
 const TODAY = "2026-06-13";
@@ -14,20 +14,29 @@ const TODAY = "2026-06-13";
 function brother(over: Partial<Brother> & { id: number; name: string }): Brother {
   return { role: "", attendance: 95, gpa: 3.7, duesOwed: 0, serviceHours: 15, ...over };
 }
-function deadline(over: Partial<Deadline> & { id: number }): Deadline {
-  return { title: "Task", dueDate: "2026-05-14", owner: "Someone Else", status: "Upcoming", ...over };
+// Assign to a single member, so taskAssigneeLabel renders their first name.
+function memberAssignment(name: string): TaskAssignment {
+  return { id: 1, brotherId: 1, roleId: null, brother: { id: 1, name, avatarUrl: null }, role: null };
+}
+function task(over: Partial<Task> & { id: number }): Task {
+  return {
+    title: "Task", dueDate: "2026-05-14", status: "open", notes: null,
+    createdById: null, completedById: null, completedAt: null, createdAt: "2026-05-01",
+    assignments: [], ...over,
+  };
 }
 
 describe("deriveNeedsAttention", () => {
-  it("flags incomplete, past-due deadlines with correct days-late and skips complete/future", () => {
-    const deadlines = [
-      deadline({ id: 1, title: "Academic Report", dueDate: "2026-05-14", owner: "Rinchen Sherpalama", status: "Urgent" }),
-      deadline({ id: 2, title: "Future Task", dueDate: "2026-06-20", status: "Upcoming" }),     // future → skip
-      deadline({ id: 3, title: "Done Task", dueDate: "2026-05-01", status: "Complete" }),        // complete → skip
+  it("flags incomplete, past-due tasks with correct days-late and skips done/future/undated", () => {
+    const tasks = [
+      task({ id: 1, title: "Academic Report", dueDate: "2026-05-14", status: "open", assignments: [memberAssignment("Rinchen Sherpalama")] }),
+      task({ id: 2, title: "Future Task", dueDate: "2026-06-20", status: "open" }),  // future → skip
+      task({ id: 3, title: "Done Task", dueDate: "2026-05-01", status: "done" }),    // done → skip
+      task({ id: 4, title: "Undated", dueDate: null, status: "open" }),              // no date → skip
     ];
-    const items = deriveNeedsAttention([], deadlines, DEFAULT_THRESHOLDS, TODAY);
+    const items = deriveNeedsAttention([], tasks, DEFAULT_THRESHOLDS, TODAY);
     expect(items).toHaveLength(1);
-    expect(items[0]).toMatchObject({ kind: "deadline-overdue", id: 1, daysLate: 30, owner: "Rinchen Sherpalama" });
+    expect(items[0]).toMatchObject({ kind: "deadline-overdue", id: 1, daysLate: 30, assignees: "Rinchen" });
   });
 
   it("aggregates outstanding dues into one row, largest balance first", () => {
@@ -54,16 +63,16 @@ describe("deriveNeedsAttention", () => {
     expect(risks.map((r) => (r.kind === "member-risk" ? r.name : ""))).toEqual(["At Risk Att", "At Risk Gpa"]);
   });
 
-  it("orders rows: overdue deadlines, then dues, then at-risk members", () => {
+  it("orders rows: overdue tasks, then dues, then at-risk members", () => {
     const brothers = [brother({ id: 1, name: "Risky", attendance: 50, gpa: 2.0, duesOwed: 100 })];
-    const deadlines = [deadline({ id: 9, dueDate: "2026-06-01", status: "Urgent" })];
-    const kinds = deriveNeedsAttention(brothers, deadlines, DEFAULT_THRESHOLDS, TODAY).map((i) => i.kind);
+    const tasks = [task({ id: 9, dueDate: "2026-06-01", status: "open" })];
+    const kinds = deriveNeedsAttention(brothers, tasks, DEFAULT_THRESHOLDS, TODAY).map((i) => i.kind);
     expect(kinds).toEqual(["deadline-overdue", "dues", "member-risk"]);
   });
 
   it("returns an empty queue when nothing needs attention", () => {
     const brothers = [brother({ id: 1, name: "All Good" })];
-    const deadlines = [deadline({ id: 1, dueDate: "2026-07-01", status: "Upcoming" })];
-    expect(deriveNeedsAttention(brothers, deadlines, DEFAULT_THRESHOLDS, TODAY)).toEqual([]);
+    const tasks = [task({ id: 1, dueDate: "2026-07-01", status: "open" })];
+    expect(deriveNeedsAttention(brothers, tasks, DEFAULT_THRESHOLDS, TODAY)).toEqual([]);
   });
 });

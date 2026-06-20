@@ -143,19 +143,33 @@ export async function createPartyEvent(opts: {
   });
 }
 
-export async function createDeadline(opts: {
+export async function createTask(opts: {
   orgId: number;
   title?: string;
+  dueDate?: string | null;
+  status?: "open" | "done";
+  assigneeBrotherId?: number;
+  assigneeRoleId?: number;
 }) {
-  return testPrisma.deadline.create({
+  const task = await testPrisma.task.create({
     data: {
       organizationId: opts.orgId,
-      title:          opts.title ?? "Test Deadline",
-      dueDate:        "2026-06-01",
-      owner:          "Test Owner",
-      status:         "pending",
+      title:          opts.title ?? "Test Task",
+      dueDate:        opts.dueDate === undefined ? "2026-06-01" : opts.dueDate,
+      status:         opts.status ?? "open",
     },
   });
+  if (opts.assigneeBrotherId || opts.assigneeRoleId) {
+    await testPrisma.taskAssignment.create({
+      data: {
+        taskId:         task.id,
+        organizationId: opts.orgId,
+        brotherId:      opts.assigneeBrotherId ?? null,
+        roleId:         opts.assigneeRoleId ?? null,
+      },
+    });
+  }
+  return task;
 }
 
 export async function createInstagramTask(opts: {

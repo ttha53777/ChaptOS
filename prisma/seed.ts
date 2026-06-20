@@ -5,7 +5,7 @@ config({ path: ".env.local" });
 
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../app/generated/prisma/client";
-import { brothers, deadlines, instagramTasks, partyEvents, calendarEvents, seedActivity, seedTransactions } from "../app/data";
+import { brothers, tasks, instagramTasks, partyEvents, calendarEvents, seedActivity, seedTransactions } from "../app/data";
 import { recalcBrotherAttendance } from "../lib/attendance";
 import { seedSystemRoles, assignSystemRolesByTitle } from "../lib/seed-roles";
 
@@ -61,9 +61,26 @@ async function main() {
     data: createdBrothers.map(b => ({ brotherId: b.id, organizationId: ORG_ID, isOrgAdmin: b.isAdmin })),
   });
 
-  const deadlineData = deadlines.map(({ id: _id, ...rest }) => ({ ...rest, organizationId: ORG_ID }));
-  await prisma.deadline.createMany({ data: deadlineData });
-  console.log(`Seeded ${deadlineData.length} deadlines.`);
+  // Seed tasks (all dated = deadlines), each assigned to a rotating brother so
+  // the roster has a visible owner. Strip the client-only fields (assignments,
+  // createdAt string) from the mock shape before the DB create.
+  for (let i = 0; i < tasks.length; i++) {
+    const t = tasks[i];
+    const owner = createdBrothers[i % createdBrothers.length];
+    const created = await prisma.task.create({
+      data: {
+        organizationId: ORG_ID,
+        title:   t.title,
+        dueDate: t.dueDate,
+        status:  t.status,
+        notes:   t.notes,
+      },
+    });
+    await prisma.taskAssignment.create({
+      data: { taskId: created.id, organizationId: ORG_ID, brotherId: owner.id },
+    });
+  }
+  console.log(`Seeded ${tasks.length} tasks.`);
 
   const igData = instagramTasks.map(({ id: _id, ...rest }) => ({ ...rest, organizationId: ORG_ID }));
   await prisma.instagramTask.createMany({ data: igData });

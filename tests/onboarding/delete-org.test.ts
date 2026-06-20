@@ -12,7 +12,7 @@ import { randomUUID } from "node:crypto";
 import { testPrisma, resetDb } from "../setup/prisma";
 import {
   createBrother, createSemester, createCalendarEvent, createTransaction,
-  createServiceEvent, createPartyEvent, createDeadline, createInstagramTask,
+  createServiceEvent, createPartyEvent, createTask, createInstagramTask,
   createDoc, createBudget, createActivityLog, createAnnouncement,
 } from "../setup/factories";
 import { provisionOrg, deleteOrg, summarizeOrgForDeletion } from "@/lib/services/org-service";
@@ -63,7 +63,7 @@ async function seedFullOrg(slug: string) {
   });
   await createServiceEvent({ orgId: organizationId });
   await createPartyEvent({ orgId: organizationId });
-  await createDeadline({ orgId: organizationId });
+  await createTask({ orgId: organizationId, assigneeBrotherId: brotherId });
   await createInstagramTask({ orgId: organizationId });
   await createDoc({ orgId: organizationId });
   await createTransaction({ orgId: organizationId });
@@ -80,7 +80,7 @@ async function seedFullOrg(slug: string) {
 async function childCounts(orgId: number) {
   const [
     config, memberships, roles, brotherRoles, semesters, calendarEvents, serviceEvents,
-    parties, deadlines, igTasks, docs, transactions, budgets, activityLogs, announcements,
+    parties, tasks, taskAssignments, igTasks, docs, transactions, budgets, activityLogs, announcements,
     operationalEvents,
   ] = await Promise.all([
     testPrisma.organizationConfig.count({ where: { organizationId: orgId } }),
@@ -91,7 +91,8 @@ async function childCounts(orgId: number) {
     testPrisma.calendarEvent.count({ where: { organizationId: orgId } }),
     testPrisma.serviceEvent.count({ where: { organizationId: orgId } }),
     testPrisma.partyEvent.count({ where: { organizationId: orgId } }),
-    testPrisma.deadline.count({ where: { organizationId: orgId } }),
+    testPrisma.task.count({ where: { organizationId: orgId } }),
+    testPrisma.taskAssignment.count({ where: { organizationId: orgId } }),
     testPrisma.instagramTask.count({ where: { organizationId: orgId } }),
     testPrisma.doc.count({ where: { organizationId: orgId } }),
     testPrisma.transaction.count({ where: { organizationId: orgId } }),
@@ -102,7 +103,7 @@ async function childCounts(orgId: number) {
   ]);
   return {
     config, memberships, roles, brotherRoles, semesters, calendarEvents, serviceEvents,
-    parties, deadlines, igTasks, docs, transactions, budgets, activityLogs, announcements,
+    parties, tasks, taskAssignments, igTasks, docs, transactions, budgets, activityLogs, announcements,
     operationalEvents,
   };
 }

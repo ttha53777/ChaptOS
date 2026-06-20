@@ -15,7 +15,7 @@ import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { testPrisma, resetDb } from "../setup/prisma";
 import {
   createOrg, createBrother, createSemester, createCalendarEvent, createTransaction,
-  createServiceEvent, createServiceParticipation, createPartyEvent, createDeadline, createInstagramTask,
+  createServiceEvent, createServiceParticipation, createPartyEvent, createTask, createInstagramTask,
   createDoc, createBudget, createActivityLog, createAnnouncement,
 } from "../setup/factories";
 import { db } from "@/lib/db";
@@ -283,22 +283,31 @@ describe("tenancy: PartyEvent", () => {
 // ---------------------------------------------------------------------------
 // Deadline
 // ---------------------------------------------------------------------------
-describe("tenancy: Deadline", () => {
+describe("tenancy: Task", () => {
   it("findMany is org-scoped", async () => {
     const orgA = await createOrg("Alpha", "alpha");
     const orgB = await createOrg("Beta", "beta");
-    await createDeadline({ orgId: orgA.id, title: "A deadline" });
-    await createDeadline({ orgId: orgB.id, title: "B deadline" });
-    const fromA = await db(orgA.id).deadline.findMany();
-    expect(fromA.map(d => d.title)).toEqual(["A deadline"]);
+    await createTask({ orgId: orgA.id, title: "A task" });
+    await createTask({ orgId: orgB.id, title: "B task" });
+    const fromA = await db(orgA.id).task.findMany();
+    expect(fromA.map(d => d.title)).toEqual(["A task"]);
   });
 
   it("create injects organizationId", async () => {
     const org = await createOrg("Alpha", "alpha");
-    const d = await db(org.id).deadline.create({
-      data: { title: "Injected", dueDate: "2026-07-01", owner: "Test", status: "pending" },
+    const d = await db(org.id).task.create({
+      data: { title: "Injected", dueDate: "2026-07-01", status: "open" },
     });
     expect(d.organizationId).toBe(org.id);
+  });
+
+  it("taskAssignment findMany is org-scoped", async () => {
+    const orgA = await createOrg("Alpha", "alpha");
+    const orgB = await createOrg("Beta", "beta");
+    const brotherA = await createBrother({ orgId: orgA.id, name: "A1" });
+    await createTask({ orgId: orgA.id, title: "A task", assigneeBrotherId: brotherA.id });
+    expect(await db(orgA.id).taskAssignment.findMany()).toHaveLength(1);
+    expect(await db(orgB.id).taskAssignment.findMany()).toHaveLength(0);
   });
 });
 
