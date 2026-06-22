@@ -429,3 +429,8 @@
   .dash.dash-tasks .tk-title { font-size: 27px; }
   .dash.dash-tasks .tk-note-snip { display: none; }
 }
+
+/* Fluid ultrawide */
+@media (min-width: 1280px) {
+  .dash.dash-tasks { max-width: min(calc(1230px + 22vw), 1800px); }
+}

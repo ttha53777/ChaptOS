@@ -227,3 +227,8 @@ header.dash-toolbar .svc-crumb {
 @media (prefers-reduced-motion: reduce) {
   .dash.dash-service * { transition: none !important; animation: none !important; }
 }
+
+/* Fluid ultrawide */
+@media (min-width: 1280px) {
+  .dash.dash-service { max-width: min(calc(1180px + 22vw), 1760px); }
+}

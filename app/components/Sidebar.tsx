@@ -269,7 +269,7 @@ export function Sidebar({ open, onClose, activeSection, onNavClick }: {
   return (
     <>
       {open && <div className="fixed inset-0 z-40 bg-black/60 lg:hidden" onClick={onClose} />}
-      <aside className={`fixed inset-y-0 left-0 z-50 flex w-56 flex-col border-r border-[rgba(236,231,221,0.09)] bg-[#14120e] transition-transform duration-200 ease-in-out lg:static lg:z-auto lg:translate-x-0 ${open ? "translate-x-0" : "-translate-x-full"}`}>
+      <aside className={`fixed inset-y-0 left-0 z-50 flex w-56 flex-col border-r border-[rgba(236,231,221,0.09)] bg-[#14120e] transition-transform duration-200 ease-in-out lg:static lg:z-auto lg:translate-x-0 xl:w-60 2xl:w-64 ${open ? "translate-x-0" : "-translate-x-full"}`}>
         <Link
           href={orgPath("/")}
           onClick={onClose}

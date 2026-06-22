@@ -421,3 +421,8 @@ header.dash-toolbar .tr-crumb {
   .dash .tr-hero, .dash .tr-lower { grid-template-columns: 1fr; }
   .dash .tr-report-grid { grid-template-columns: 1fr 1fr; }
 }
+
+/* Fluid ultrawide */
+@media (min-width: 1280px) {
+  .dash.dash-treasury { max-width: min(calc(1280px + 22vw), 1800px); }
+}

@@ -433,10 +433,13 @@
   .dash .col-secondary { display: none; }
 }
 
-/* Ultrawide: nudge the editorial cap up so the column doesn't look starved, but
-   keep it a centered column (don't go full-bleed — preserves the aesthetic). */
-@media (min-width: 1920px) {
-  .dash { --dash-max-width: 1320px; }
+/* Fluid ultrawide: column grows with the viewport above 1280px, capped at
+   1800px so it never goes full-bleed. Rail scales proportionally. */
+@media (min-width: 1280px) {
+  .dash {
+    --dash-max-width: min(calc(1230px + 22vw), 1800px);
+    --dash-rail-width: min(calc(338px + 4vw), 420px);
+  }
 }
 
 /* ── Touch devices (Phase 2) ─────────────────────────────────────────────────

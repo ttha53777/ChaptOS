@@ -213,3 +213,8 @@ header.dash-toolbar .pty-crumb {
 @media (prefers-reduced-motion: reduce) {
   .dash.dash-parties * { transition: none !important; animation: none !important; }
 }
+
+/* Fluid ultrawide */
+@media (min-width: 1280px) {
+  .dash.dash-parties { max-width: min(calc(1180px + 22vw), 1760px); }
+}

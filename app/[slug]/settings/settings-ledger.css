@@ -46,9 +46,9 @@
   margin: 0;
   padding: 34px 44px 80px;
 }
-@media (min-width: 1500px) {
-  /* On very wide screens, keep a comfortable measure but stay left-biased. */
-  .dash.dash-settings { max-width: 1180px; }
+/* Fluid ultrawide */
+@media (min-width: 1280px) {
+  .dash.dash-settings { max-width: min(calc(1080px + 22vw), 1680px); }
 }
 @media (max-width: 640px) {
   .dash.dash-settings { padding: 22px 18px 64px; }

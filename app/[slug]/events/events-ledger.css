@@ -346,3 +346,8 @@ header.dash-toolbar .ev-crumb {
 .dash .ev-empty .ic svg { width: 26px; height: 26px; }
 .dash .ev-empty .t { font-family: var(--serif); font-size: 16px; color: var(--ink); margin-top: 10px; }
 .dash .ev-empty .h { font-size: 12.5px; color: var(--faint); margin-top: 4px; }
+
+/* Fluid ultrawide */
+@media (min-width: 1280px) {
+  .dash.dash-events { max-width: min(calc(1280px + 22vw), 1800px); }
+}
