@@ -53,6 +53,9 @@
 }
 @media (max-width: 640px) {
   .dash.dash-instagram { padding: 22px 18px 56px; }
+  .dash .ig-briefing { flex-direction: column; gap: 16px; }
+  .dash .ig-briefing h1 { font-size: 27px; }
+  .dash .ig-add { align-self: flex-start; }
 }
 
 /* ── Toolbar bar (mobile breadcrumb label) ───────────────────────────────────── */
@@ -97,6 +100,10 @@ header.dash-toolbar .ig-crumb {
 @media (max-width: 640px) {
   .dash .ig-glance { grid-auto-flow: row; grid-template-columns: repeat(2, 1fr); grid-auto-columns: auto; }
   .dash .ig-measure { border-bottom: 1px solid var(--line-soft); }
+  .dash .ig-measure:nth-child(2n) { border-right: none; }
+  .dash .ig-measure:nth-last-child(-n+2) { border-bottom: none; }
+  .dash .ig-toolbar .ig-legend { order: 3; margin-left: 0; flex-basis: 100%; }
+  .dash .ig-toolbar .ig-seg { flex-shrink: 0; }
 }
 
 /* ── Toolbar: search + view seg + type legend ────────────────────────────────── */
@@ -184,8 +191,12 @@ header.dash-toolbar .ig-crumb {
 /* touch / no-hover: keep actions reachable */
 @media (hover: none) { .dash .ig-acts { opacity: .8; } }
 @media (max-width: 560px) {
-  .dash .ig-post { grid-template-columns: 4px 1fr auto; }
-  .dash .ig-chip { grid-column: 2 / 4; }
+  .dash .ig-post { grid-template-columns: 4px 1fr auto; gap: 10px; align-items: start; }
+  .dash .ig-post .body { grid-column: 2; grid-row: 1; }
+  .dash .ig-chip { grid-column: 2; grid-row: 2; }
+  .dash .ig-right { grid-column: 3; grid-row: 1 / 3; align-self: center; min-width: 0; gap: 6px; }
+  .dash .ig-acts button { width: 24px; height: 24px; border-radius: 6px; }
+  .dash .ig-acts button svg { width: 13px; height: 13px; }
 }
 
 /* ── Month / cadence view ────────────────────────────────────────────────────── */
@@ -223,8 +234,12 @@ header.dash-toolbar .ig-crumb {
 /* faint hatch over quiet stretches between scheduled posts */
 .dash .ig-cell.gap { background: repeating-linear-gradient(135deg, transparent, transparent 7px, var(--line-soft) 7px, var(--line-soft) 8px); }
 @media (max-width: 560px) {
-  .dash .ig-cell { min-height: 70px; }
+  .dash .ig-cell { min-height: 70px; padding: 6px 5px; gap: 4px; }
+  .dash .ig-cell .dnum { font-size: 11px; }
   .dash .ig-cmark .ct { display: none; }
+  .dash .ig-dow { gap: 3px; }
+  .dash .ig-dow span { font-size: 8px; letter-spacing: .06em; }
+  .dash .ig-cal { gap: 3px; }
 }
 
 /* ── States ──────────────────────────────────────────────────────────────────── */
@@ -315,6 +330,35 @@ header.dash-toolbar .ig-crumb {
 .ig-rail .ig-rail-acts .danger { color: var(--rose); background: none; border-color: var(--rose-bg); }
 .ig-rail .ig-rail-acts .danger:hover { border-color: var(--rose); }
 
+@keyframes ig-rail-up {
+  from { transform: translateY(24px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+
 @media (max-width: 480px) {
-  .ig-rail { width: 100%; max-width: 100vw; }
+  .ig-rail {
+    width: 100%; max-width: 100vw;
+    top: auto;
+    height: auto; max-height: 90vh;
+    border-left: none;
+    border-top: 1px solid var(--line);
+    border-radius: 16px 16px 0 0;
+    box-shadow: 0 -8px 40px -8px rgba(0,0,0,.7);
+    overflow-y: auto;
+    animation: ig-rail-up .22s cubic-bezier(.32,.72,0,1);
+  }
+  .ig-rail .ig-rail-body { overflow-y: visible; flex: none; }
+  .dash .ig-right { flex-direction: column; align-items: flex-end; gap: 4px; }
+  .dash .ig-acts  { gap: 1px; }
+  .dash .ig-acts button { width: 22px; height: 22px; border-radius: 5px; }
+  .dash .ig-month-h .cadence-note { display: none; }
+}
+
+@media (max-width: 380px) {
+  .dash .ig-toolbar .ig-legend { display: none; }
+}
+
+/* Fluid ultrawide */
+@media (min-width: 1280px) {
+  .dash.dash-instagram { max-width: min(calc(1180px + 22vw), 1760px); }
 }
