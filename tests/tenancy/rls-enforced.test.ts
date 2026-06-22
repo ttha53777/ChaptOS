@@ -20,6 +20,8 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { testPrisma, resetDb } from "../setup/prisma";
 import { appPrisma, asOrg, applyEnforcingRls, dropEnforcingRls } from "../setup/rls";
 import { createOrg, createBrother, createCalendarEvent, createTransaction, createSemester } from "../setup/factories";
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+import { _dbWithClient } from "../../lib/db/tenant";
 
 beforeAll(async () => {
   await applyEnforcingRls();
@@ -160,5 +162,64 @@ describe("RLS: backstop is independent of the app-layer filter", () => {
 
     const fromA = await asOrg(a.id, tx => tx.transaction.findMany()); // no where clause at all
     expect(fromA.map(r => r.description)).toEqual(["A tx"]);
+  });
+});
+
+describe("Phase 2: db() wrapper with SET LOCAL (RLS_SET_ORG_ID=1 path)", () => {
+  // These tests use _dbWithClient to bind the scoped delegates to appPrisma
+  // (NOBYPASSRLS), proving that the Phase 2 makeRun() mechanism sets
+  // app.org_id correctly so enforcing RLS policies filter results.
+
+  it("db() scoped read returns only that org's rows under enforcing RLS", async () => {
+    const a = await createOrg("Alpha", "alpha");
+    const b = await createOrg("Beta", "beta");
+    await createBrother({ orgId: a.id, name: "A1" });
+    await createBrother({ orgId: a.id, name: "A2" });
+    await createBrother({ orgId: b.id, name: "B1" });
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const dbA = _dbWithClient(a.id, appPrisma as any);
+    const fromA = await dbA.brother.findMany();
+    expect(fromA.map((r: { name: string }) => r.name).sort()).toEqual(["A1", "A2"]);
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const dbB = _dbWithClient(b.id, appPrisma as any);
+    const fromB = await dbB.brother.findMany();
+    expect(fromB.map((r: { name: string }) => r.name)).toEqual(["B1"]);
+  });
+
+  it("db() count is org-scoped under enforcing RLS", async () => {
+    const a = await createOrg("Alpha", "alpha");
+    const b = await createOrg("Beta", "beta");
+    await createBrother({ orgId: a.id });
+    await createBrother({ orgId: a.id });
+    await createBrother({ orgId: b.id });
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    expect(await _dbWithClient(a.id, appPrisma as any).brother.count()).toBe(2);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    expect(await _dbWithClient(b.id, appPrisma as any).brother.count()).toBe(1);
+  });
+
+  it("db() cross-org read returns zero rows when app.org_id is not set", async () => {
+    // Sanity: without SET LOCAL, appPrisma reads nothing under enforcing RLS
+    // (the baseline failure mode that Phase 2 fixes).
+    const a = await createOrg("Alpha", "alpha");
+    await createBrother({ orgId: a.id, name: "A1" });
+
+    // Reading via appPrisma without any SET LOCAL — app.org_id stays '' → zero rows.
+    const rows = await appPrisma.brother.findMany();
+    expect(rows).toEqual([]);
+  });
+
+  it("db() transaction wrapper sets app.org_id for relation-scoped tables", async () => {
+    const a = await createOrg("Alpha", "alpha");
+    const b = await createOrg("Beta", "beta");
+    await createTransaction({ orgId: a.id, description: "A tx" });
+    await createTransaction({ orgId: b.id, description: "B tx" });
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const fromA = await _dbWithClient(a.id, appPrisma as any).transaction.findMany();
+    expect(fromA.map((r: { description: string }) => r.description)).toEqual(["A tx"]);
   });
 });
