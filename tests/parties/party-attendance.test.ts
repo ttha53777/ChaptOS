@@ -119,14 +119,14 @@ describe("chapter attendance % counts mandatory party roll only", () => {
     // Mandatory party: admin present.
     const mand = await createPartyEvent({ orgId: org.id, name: "Mandatory Party" });
     await wrapUpParty(ctx, mand.id, { doorRevenue: 0, expenses: 0, mandatory: true, attendedIds: [admin.id] });
-    await recalcAllBrothersInSemester(sem.id, org.id);
+    await recalcAllBrothersInSemester(db(org.id), sem.id);
     let fresh = await testPrisma.brother.findUnique({ where: { id: admin.id }, select: { attendance: true } });
     expect(fresh?.attendance).toBe(100); // 1/1 mandatory present
 
     // Non-mandatory party: admin ABSENT. Should NOT drag the % down.
     const opt = await createPartyEvent({ orgId: org.id, name: "Optional Party" });
     await wrapUpParty(ctx, opt.id, { doorRevenue: 0, expenses: 0, mandatory: false, attendedIds: [] });
-    await recalcAllBrothersInSemester(sem.id, org.id);
+    await recalcAllBrothersInSemester(db(org.id), sem.id);
     fresh = await testPrisma.brother.findUnique({ where: { id: admin.id }, select: { attendance: true } });
     expect(fresh?.attendance).toBe(100); // optional roll excluded → still 100
   });

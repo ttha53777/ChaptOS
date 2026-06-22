@@ -30,8 +30,8 @@ describe("getActiveSemester: org-scoped", () => {
     await createSemester({ orgId: orgA.id, label: "SPR26-A", isActive: true });
     await createSemester({ orgId: orgB.id, label: "SPR26-B", isActive: true });
 
-    const semA = await getActiveSemester(orgA.id);
-    const semB = await getActiveSemester(orgB.id);
+    const semA = await getActiveSemester(db(orgA.id));
+    const semB = await getActiveSemester(db(orgB.id));
 
     expect(semA?.label).toBe("SPR26-A");
     expect(semA?.organizationId).toBe(orgA.id);
@@ -45,7 +45,7 @@ describe("getActiveSemester: org-scoped", () => {
     await createSemester({ orgId: orgB.id, label: "SPR26", isActive: true });
 
     // orgA has no semester at all
-    const result = await getActiveSemester(orgA.id);
+    const result = await getActiveSemester(db(orgA.id));
     expect(result).toBeNull();
   });
 
@@ -53,7 +53,7 @@ describe("getActiveSemester: org-scoped", () => {
     const org = await createOrg("Alpha", "alpha");
     await createSemester({ orgId: org.id, label: "FA25", isActive: false });
 
-    const result = await getActiveSemester(org.id);
+    const result = await getActiveSemester(db(org.id));
     expect(result).toBeNull();
   });
 });
@@ -70,7 +70,7 @@ describe("recalcAllBrothersInSemester: org-scoped", () => {
     // should leave it completely unchanged.
     await testPrisma.brother.update({ where: { id: bB.id }, data: { attendance: 42 } });
 
-    await recalcAllBrothersInSemester(semA.id, orgA.id);
+    await recalcAllBrothersInSemester(db(orgA.id), semA.id);
 
     const refreshedB = await testPrisma.brother.findUnique({
       where: { id: bB.id },
@@ -104,7 +104,7 @@ describe("recalcAllBrothersInSemester: org-scoped", () => {
       },
     });
 
-    await recalcAllBrothersInSemester(sem.id, org.id);
+    await recalcAllBrothersInSemester(db(org.id), sem.id);
 
     // Ghost attendance must not be touched by recalc
     const refreshed = await testPrisma.brother.findUnique({
@@ -130,8 +130,8 @@ describe("org switching: Membership-based active org resolution", () => {
     await createSemester({ orgId: orgA.id, label: "SPR26" });
     await createSemester({ orgId: orgB.id, label: "FA26" });
 
-    const semA = await getActiveSemester(orgA.id);
-    const semB = await getActiveSemester(orgB.id);
+    const semA = await getActiveSemester(db(orgA.id));
+    const semB = await getActiveSemester(db(orgB.id));
 
     expect(semA?.label).toBe("SPR26");
     expect(semB?.label).toBe("FA26");

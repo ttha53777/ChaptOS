@@ -39,7 +39,7 @@ export async function summarizeAttendance(
       where: category ? { category } : {},
       select: { id: true },
     }),
-    getActiveSemester(ctx.orgId),
+    getActiveSemester(ctx.db),
   ]);
 
   const eventIds = events.map(e => e.id);
@@ -87,7 +87,7 @@ export async function summarizeAttendance(
 export async function recordAttendance(ctx: RequestContext, input: RecordAttendanceInput) {
   const [event, semester] = await Promise.all([
     ctx.db.calendarEvent.findUnique({ where: { id: input.calendarEventId } }),
-    getActiveSemester(ctx.orgId),
+    getActiveSemester(ctx.db),
   ]);
   if (!event)            throw new NotFoundError("Event");
   if (!event.mandatory)  throw new ValidationError("Only mandatory events track attendance");

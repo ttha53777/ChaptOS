@@ -12,7 +12,10 @@
  * Float on Brother and the goal is "per semester" only by convention. Keep it
  * that way to match the dashboard math and the existing column.
  */
-import { prisma } from "./prisma";
+import { db } from "@/lib/db";
+
+/** Org-scoped data accessor (same shape as ctx.db). */
+type Scoped = ReturnType<typeof db>;
 
 /**
  * Recompute one member's serviceHours from their participation rows.
@@ -20,17 +23,17 @@ import { prisma } from "./prisma";
  * owning org so a caller bug cannot touch another org's member.
  */
 export async function recalcBrotherServiceHours(
+  scoped: Scoped,
   brotherId: number,
-  orgId: number,
 ): Promise<number> {
-  const rows = await prisma.serviceParticipation.findMany({
-    where: { brotherId, organizationId: orgId },
+  const rows = await scoped.serviceParticipation.findMany({
+    where: { brotherId },
     select: { hours: true },
   });
   const total = rows.reduce((sum, r) => sum + r.hours, 0);
 
-  await prisma.brother.updateMany({
-    where: { id: brotherId, organizationId: orgId },
+  await scoped.brother.updateMany({
+    where: { id: brotherId },
     data: { serviceHours: total },
   });
 
@@ -44,13 +47,13 @@ export async function recalcBrotherServiceHours(
  * in a transaction so the batch commits atomically.
  */
 export async function recalcBrothersServiceHours(
+  scoped: Scoped,
   brotherIds: number[],
-  orgId: number,
 ): Promise<void> {
   if (brotherIds.length === 0) return;
 
-  const rows = await prisma.serviceParticipation.findMany({
-    where: { brotherId: { in: brotherIds }, organizationId: orgId },
+  const rows = await scoped.serviceParticipation.findMany({
+    where: { brotherId: { in: brotherIds } },
     select: { brotherId: true, hours: true },
   });
 
@@ -68,14 +71,7 @@ export async function recalcBrothersServiceHours(
     byTotal.set(total, ids);
   }
 
-  const writes = Array.from(byTotal.entries()).map(([total, ids]) =>
-    prisma.brother.updateMany({
-      where: { id: { in: ids }, organizationId: orgId },
-      data: { serviceHours: total },
-    }),
-  );
-
-  if (writes.length > 0) await prisma.$transaction(writes);
+  await writeTotals(scoped, byTotal);
 }
 
 /**
@@ -83,10 +79,10 @@ export async function recalcBrothersServiceHours(
  * service event is deleted (its participations cascade away and any number of
  * members' totals may drop). Same batch-by-total strategy as above.
  */
-export async function recalcAllBrothersServiceHours(orgId: number): Promise<void> {
+export async function recalcAllBrothersServiceHours(scoped: Scoped): Promise<void> {
   const [brothers, allRows] = await Promise.all([
-    prisma.brother.findMany({ where: { organizationId: orgId, isGhost: false }, select: { id: true } }),
-    prisma.serviceParticipation.findMany({ where: { organizationId: orgId }, select: { brotherId: true, hours: true } }),
+    scoped.brother.findMany({ where: { isGhost: false }, select: { id: true } }),
+    scoped.serviceParticipation.findMany({ select: { brotherId: true, hours: true } }),
   ]);
 
   const totalByBrother = new Map<number, number>();
@@ -103,12 +99,23 @@ export async function recalcAllBrothersServiceHours(orgId: number): Promise<void
     byTotal.set(total, ids);
   }
 
-  const writes = Array.from(byTotal.entries()).map(([total, ids]) =>
-    prisma.brother.updateMany({
-      where: { id: { in: ids }, organizationId: orgId },
-      data: { serviceHours: total },
-    }),
-  );
+  await writeTotals(scoped, byTotal);
+}
 
-  if (writes.length > 0) await prisma.$transaction(writes);
+/**
+ * One updateMany per distinct total, inside scoped.$transaction so the batch is
+ * atomic AND app.org_id is set for the writes. The tx client is raw, so the
+ * organizationId guard stays explicit.
+ */
+async function writeTotals(scoped: Scoped, byTotal: Map<number, number[]>): Promise<void> {
+  const entries = Array.from(byTotal.entries());
+  if (entries.length === 0) return;
+  await scoped.$transaction(async tx => {
+    for (const [total, ids] of entries) {
+      await tx.brother.updateMany({
+        where: { id: { in: ids }, organizationId: scoped.orgId },
+        data: { serviceHours: total },
+      });
+    }
+  });
 }

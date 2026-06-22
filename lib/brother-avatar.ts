@@ -11,10 +11,10 @@ type BrotherRow = {
 /** Persist avatar URL on the linked brother row (best-effort). */
 export async function syncBrotherAvatar(authUserId: string, avatarUrl: string | null) {
   try {
-    await prisma.brother.updateMany({
-      where: { authUserId },
-      data: { avatarUrl },
-    });
+    // Account-level identity keyed by authUserId (one avatar per Google account,
+    // cross-org by design), not org-scoped domain data. No org context here, only
+    // authUserId, so ctx.db doesn't apply — same rationale as the auth bootstrap.
+    await prisma.brother.updateMany({ where: { authUserId }, data: { avatarUrl } }); // lint-direct-prisma:ignore
   } catch (e) {
     console.error("syncBrotherAvatar failed:", e);
   }
@@ -39,7 +39,10 @@ export async function hydrateBrotherAvatars<T extends BrotherRow>(brothers: T[])
         const { avatarUrl } = parseAvatarFromMetadata(data.user.user_metadata);
         urlByAuthId.set(authUserId, avatarUrl);
         if (avatarUrl) {
-          await prisma.brother.update({ where: { id: b.id }, data: { avatarUrl } }).catch(() => undefined);
+          // Best-effort avatar cache write by id; the row was already fetched
+          // org-scoped by the caller (app/api/brothers uses ctx.db), and avatar is
+          // account-level identity, not tenant data.
+          await prisma.brother.update({ where: { id: b.id }, data: { avatarUrl } }).catch(() => undefined); // lint-direct-prisma:ignore
         }
       } catch {
         urlByAuthId.set(authUserId, null);

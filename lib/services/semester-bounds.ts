@@ -15,7 +15,7 @@ import { ValidationError } from "@/lib/errors";
 
 /** Throw if the org has no active semester. Returns the active semester otherwise. */
 export async function requireActiveSemester(ctx: RequestContext) {
-  const semester = await getActiveSemester(ctx.orgId);
+  const semester = await getActiveSemester(ctx.db);
   if (!semester) {
     throw new ValidationError(
       "No active semester. Set up a semester before creating dated items.",

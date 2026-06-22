@@ -7,6 +7,7 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../app/generated/prisma/client";
 import { brothers, tasks, instagramTasks, partyEvents, calendarEvents, seedActivity, seedTransactions } from "../app/data";
 import { recalcBrotherAttendance } from "../lib/attendance";
+import { db } from "../lib/db";
 import { seedSystemRoles, assignSystemRolesByTitle } from "../lib/seed-roles";
 
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! });
@@ -178,7 +179,7 @@ async function main() {
 
   // Recalculate and write ratios back to Brother.attendance
   for (const brother of createdBrothers) {
-    const ratio = await recalcBrotherAttendance(brother.id, semester.id, ORG_ID);
+    const ratio = await recalcBrotherAttendance(db(ORG_ID), brother.id, semester.id);
     console.log(`  ${brother.name}: ${ratio}%`);
   }
   console.log("Attendance ratios written back to brothers.");

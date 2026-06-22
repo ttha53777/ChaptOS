@@ -26,7 +26,7 @@ export async function summarizePartyAttendance(ctx: RequestContext): Promise<Par
       where: { attendanceEventId: { not: null } },
       select: { id: true, attendanceEventId: true },
     }),
-    getActiveSemester(ctx.orgId),
+    getActiveSemester(ctx.db),
   ]);
   const linked = parties.flatMap(p => p.attendanceEventId != null ? [{ id: p.id, eventId: p.attendanceEventId }] : []);
   if (linked.length === 0 || !semester) return [];
@@ -142,7 +142,7 @@ export async function wrapUpParty(ctx: RequestContext, id: number, input: WrapUp
   if (!party) throw new NotFoundError("Party event");
 
   const takingRoll = input.attendedIds !== undefined;
-  const semester = takingRoll ? await getActiveSemester(ctx.orgId) : null;
+  const semester = takingRoll ? await getActiveSemester(ctx.db) : null;
   if (takingRoll && !semester) {
     throw new ValidationError("Set an active semester before recording party attendance");
   }

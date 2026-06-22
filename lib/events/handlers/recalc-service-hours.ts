@@ -15,15 +15,15 @@ import {
 } from "@/lib/service-hours";
 
 on("service_participation.logged", async (ctx, { metadata }) => {
-  await recalcBrothersServiceHours(metadata.brotherIds, ctx.orgId);
+  await recalcBrothersServiceHours(ctx.db, metadata.brotherIds);
 });
 
 on("service_participation.removed", async (ctx, { metadata }) => {
-  await recalcBrotherServiceHours(metadata.brotherId, ctx.orgId);
+  await recalcBrotherServiceHours(ctx.db, metadata.brotherId);
 });
 
 // Deleting a service event cascade-removes its participation rows, which can
 // drop any number of members' totals — recompute the whole org.
 on("service_event.deleted", async (ctx) => {
-  await recalcAllBrothersServiceHours(ctx.orgId);
+  await recalcAllBrothersServiceHours(ctx.db);
 });

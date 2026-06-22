@@ -80,7 +80,7 @@ export async function submitExcuse(
   const autoApproved = canManage;
 
   const [semester, brother, calendarEvent, existingRecord] = await Promise.all([
-    getActiveSemester(ctx.orgId),
+    getActiveSemester(ctx.db),
     ctx.db.brother.findUnique({ where: { id: brotherId }, select: { id: true, name: true } }),
     ctx.db.calendarEvent.findUnique({ where: { id: input.calendarEventId }, select: { id: true, title: true } }),
     ctx.db.attendanceRecord.findUnique({

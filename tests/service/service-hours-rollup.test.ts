@@ -13,6 +13,7 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { testPrisma, resetDb } from "../setup/prisma";
 import { createOrg, createBrother, createServiceEvent, createServiceParticipation } from "../setup/factories";
+import { db } from "@/lib/db";
 import {
   recalcBrotherServiceHours,
   recalcBrothersServiceHours,
@@ -41,7 +42,7 @@ describe("service-hours rollup", () => {
     await createServiceParticipation({ orgId: org.id, serviceEventId: ev1.id, brotherId: member.id, hours: 3 });
     await createServiceParticipation({ orgId: org.id, serviceEventId: ev2.id, brotherId: member.id, hours: 2.5 });
 
-    const total = await recalcBrotherServiceHours(member.id, org.id);
+    const total = await recalcBrotherServiceHours(db(org.id), member.id);
     expect(total).toBe(5.5);
     expect(await hoursOf(member.id)).toBe(5.5);
   });
@@ -54,11 +55,11 @@ describe("service-hours rollup", () => {
     const p1 = await createServiceParticipation({ orgId: org.id, serviceEventId: ev1.id, brotherId: member.id, hours: 3 });
     await createServiceParticipation({ orgId: org.id, serviceEventId: ev2.id, brotherId: member.id, hours: 4 });
 
-    await recalcBrotherServiceHours(member.id, org.id);
+    await recalcBrotherServiceHours(db(org.id), member.id);
     expect(await hoursOf(member.id)).toBe(7);
 
     await testPrisma.serviceParticipation.delete({ where: { id: p1.id } });
-    await recalcBrotherServiceHours(member.id, org.id);
+    await recalcBrotherServiceHours(db(org.id), member.id);
     expect(await hoursOf(member.id)).toBe(4);
   });
 
@@ -66,7 +67,7 @@ describe("service-hours rollup", () => {
     const org = await createOrg("Alpha", "alpha");
     const member = await createBrother({ orgId: org.id, serviceHours: 9 });
     // No participation rows exist → recalc must reset the stale manual value to 0.
-    await recalcBrotherServiceHours(member.id, org.id);
+    await recalcBrotherServiceHours(db(org.id), member.id);
     expect(await hoursOf(member.id)).toBe(0);
   });
 
@@ -78,7 +79,7 @@ describe("service-hours rollup", () => {
     await createServiceParticipation({ orgId: org.id, serviceEventId: ev.id, brotherId: a.id, hours: 6 });
     // b has no rows.
 
-    await recalcBrothersServiceHours([a.id, b.id], org.id);
+    await recalcBrothersServiceHours(db(org.id), [a.id, b.id]);
     expect(await hoursOf(a.id)).toBe(6);
     expect(await hoursOf(b.id)).toBe(0);
   });
@@ -93,13 +94,13 @@ describe("service-hours rollup", () => {
     await createServiceParticipation({ orgId: org.id, serviceEventId: ev2.id, brotherId: a.id, hours: 2 });
     await createServiceParticipation({ orgId: org.id, serviceEventId: ev1.id, brotherId: b.id, hours: 4 });
 
-    await recalcAllBrothersServiceHours(org.id);
+    await recalcAllBrothersServiceHours(db(org.id));
     expect(await hoursOf(a.id)).toBe(5);
     expect(await hoursOf(b.id)).toBe(4);
 
     // Delete ev1 → cascade removes a's 3h row and b's 4h row.
     await testPrisma.serviceEvent.delete({ where: { id: ev1.id } });
-    await recalcAllBrothersServiceHours(org.id);
+    await recalcAllBrothersServiceHours(db(org.id));
     expect(await hoursOf(a.id)).toBe(2); // only ev2's 2h remains
     expect(await hoursOf(b.id)).toBe(0);
   });
@@ -112,7 +113,7 @@ describe("service-hours rollup", () => {
 
     // recalcAll only iterates non-ghost members, so the ghost's row is not summed
     // into anyone and its own serviceHours is left untouched (stays 0).
-    await recalcAllBrothersServiceHours(org.id);
+    await recalcAllBrothersServiceHours(db(org.id));
     expect(await hoursOf(ghost.id)).toBe(0);
   });
 
@@ -126,7 +127,7 @@ describe("service-hours rollup", () => {
     await createServiceParticipation({ orgId: orgA.id, serviceEventId: evA.id, brotherId: a.id, hours: 3 });
     await createServiceParticipation({ orgId: orgB.id, serviceEventId: evB.id, brotherId: b.id, hours: 8 });
 
-    await recalcAllBrothersServiceHours(orgA.id);
+    await recalcAllBrothersServiceHours(db(orgA.id));
     expect(await hoursOf(a.id)).toBe(3);
     expect(await hoursOf(b.id)).toBe(0); // org B untouched by org A's recompute
   });
