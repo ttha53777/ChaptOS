@@ -77,7 +77,9 @@ async function resolveAssignees(ctx: RequestContext, brotherIds: number[], roleI
   const uniqRoles    = [...new Set(roleIds)];
 
   if (uniqBrothers.length) {
-    const found = await ctx.db.brother.findMany({ where: { id: { in: uniqBrothers } }, select: { id: true } });
+    // isGhost: false excludes placeholder/merged members — a ghost id then fails
+    // this count check and is rejected like any non-member id.
+    const found = await ctx.db.brother.findMany({ where: { id: { in: uniqBrothers }, isGhost: false }, select: { id: true } });
     if (found.length !== uniqBrothers.length) throw new ValidationError("One or more assigned members are not in this organization");
   }
   if (uniqRoles.length) {
@@ -95,9 +97,14 @@ export async function createTask(ctx: RequestContext, input: CreateTaskInput) {
 
   const { brotherIds, roleIds } = await resolveAssignees(ctx, input.assigneeBrotherIds, input.assigneeRoleIds);
 
-  const created = await ctx.db.$transaction(async () => {
-    const task = await ctx.db.task.create({
+  // Use the raw `tx` client so the task row and its assignments commit
+  // atomically. The tx client is NOT org-scoped (see lib/db/tenant.ts), so every
+  // write inside must carry organizationId: orgId explicitly.
+  const orgId = ctx.orgId;
+  const created = await ctx.db.$transaction(async (tx) => {
+    const task = await tx.task.create({
       data: {
+        organizationId: orgId,
         title:       input.title,
         dueDate:     input.dueDate ?? null,
         notes:       input.notes ?? null,
@@ -105,10 +112,10 @@ export async function createTask(ctx: RequestContext, input: CreateTaskInput) {
         createdById: ctx.actorId,
       },
     });
-    await ctx.db.taskAssignment.createMany({
+    await tx.taskAssignment.createMany({
       data: [
-        ...brotherIds.map(brotherId => ({ taskId: task.id, brotherId, roleId: null })),
-        ...roleIds.map(roleId => ({ taskId: task.id, brotherId: null, roleId })),
+        ...brotherIds.map(brotherId => ({ organizationId: orgId, taskId: task.id, brotherId, roleId: null })),
+        ...roleIds.map(roleId => ({ organizationId: orgId, taskId: task.id, brotherId: null, roleId })),
       ],
     });
     return task;
@@ -168,24 +175,38 @@ export async function updateTask(ctx: RequestContext, id: number, input: UpdateT
     else                                  { data.completedById = null; data.completedAt = null; }
   }
 
-  await ctx.db.$transaction(async () => {
-    if (Object.keys(data).length) await ctx.db.task.update({ where: { id }, data });
+  // Resolve the new assignee set (when either array is present) and assert the
+  // ≥1-assignee invariant BEFORE any write, so a wipe can't be the first thing
+  // the transaction does. Assignee arrays, when present, REPLACE that side of
+  // the set; an absent array keeps the existing rows for that side.
+  const reassigning = input.assigneeBrotherIds !== undefined || input.assigneeRoleIds !== undefined;
+  let nextAssignees: { brotherIds: number[]; roleIds: number[] } | null = null;
+  if (reassigning) {
+    nextAssignees = await resolveAssignees(
+      ctx,
+      input.assigneeBrotherIds ?? existing.assignments.filter(a => a.brotherId != null).map(a => a.brotherId!),
+      input.assigneeRoleIds ?? existing.assignments.filter(a => a.roleId != null).map(a => a.roleId!),
+    );
+    if (nextAssignees.brotherIds.length + nextAssignees.roleIds.length === 0) {
+      throw new ValidationError("A task needs at least one assignee");
+    }
+  }
 
-    // Assignee arrays, when present, REPLACE that side of the set.
-    if (input.assigneeBrotherIds !== undefined || input.assigneeRoleIds !== undefined) {
-      const { brotherIds, roleIds } = await resolveAssignees(
-        ctx,
-        input.assigneeBrotherIds ?? existing.assignments.filter(a => a.brotherId != null).map(a => a.brotherId!),
-        input.assigneeRoleIds ?? existing.assignments.filter(a => a.roleId != null).map(a => a.roleId!),
-      );
-      if (brotherIds.length + roleIds.length === 0) {
-        throw new ValidationError("A task needs at least one assignee");
-      }
-      await ctx.db.taskAssignment.deleteMany({ where: { taskId: id } });
-      await ctx.db.taskAssignment.createMany({
+  // Real transaction on the raw `tx` client so the field update and the
+  // delete-then-recreate assignee swap commit atomically — a failure mid-swap
+  // can no longer leave a task with its assignments deleted and not replaced.
+  // The tx client is NOT org-scoped, so every write carries organizationId.
+  const orgId = ctx.orgId;
+  await ctx.db.$transaction(async (tx) => {
+    if (Object.keys(data).length) await tx.task.update({ where: { id }, data });
+
+    if (nextAssignees) {
+      const { brotherIds, roleIds } = nextAssignees;
+      await tx.taskAssignment.deleteMany({ where: { taskId: id, organizationId: orgId } });
+      await tx.taskAssignment.createMany({
         data: [
-          ...brotherIds.map(brotherId => ({ taskId: id, brotherId, roleId: null })),
-          ...roleIds.map(roleId => ({ taskId: id, brotherId: null, roleId })),
+          ...brotherIds.map(brotherId => ({ organizationId: orgId, taskId: id, brotherId, roleId: null })),
+          ...roleIds.map(roleId => ({ organizationId: orgId, taskId: id, brotherId: null, roleId })),
         ],
       });
       changedFields.push("assignees");
