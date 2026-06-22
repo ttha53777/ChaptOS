@@ -66,7 +66,7 @@ export function ThisWeek({
         <h2>This week</h2>
         <div className="right">
           <span className="sub">{fmtRange(weekStart, weekEnd)}</span>
-          {onAddDeadline && <button type="button" className="card-act" onClick={(e) => { e.stopPropagation(); onAddDeadline(); }}>+ Add</button>}
+          {onAddDeadline && <button type="button" className="card-act" title="Add Deadline" aria-label="Add Deadline" onClick={(e) => { e.stopPropagation(); onAddDeadline(); }}>+ Add</button>}
         </div>
       </div>
       {items.length === 0 ? (

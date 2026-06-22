@@ -657,7 +657,7 @@ function WidgetDetailDrawer({
               })
             )}
             <button onClick={() => { onAddTask(); onClose(); }} className="dd-btn-ghost">
-              + Add Task
+              + Add Deadline
             </button>
           </>
         );
@@ -2045,13 +2045,13 @@ export default function Home() {
         </Modal>
       )}
       {activeModal === "deadline" && canTasks && (
-        <Modal title="New task" tone="dusk" onClose={closeModal}>
+        <Modal title="New deadline" tone="dusk" onClose={closeModal}>
           <TaskForm
             brothers={brotherList}
             roles={roles}
             minDate={activeSemester?.startDate}
             maxDate={activeSemester?.endDate}
-            submitLabel="Create task"
+            submitLabel="Create deadline"
             onSubmit={handleAddDeadline}
           />
         </Modal>

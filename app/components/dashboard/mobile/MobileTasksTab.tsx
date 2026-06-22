@@ -22,7 +22,7 @@ export function MobileTasksTab({ tasksData, actions }: {
         onClick={() => actions.setWidgetDrawer("deadlines")}
       >
         <div className="flex items-center justify-between border-b border-white/[0.07] px-4 py-3">
-          <h2 className="text-[13px] font-semibold text-[#ece7dd]">Deadlines</h2>
+          <h2 className="text-[13px] font-semibold text-[#ece7dd]">Tasks</h2>
           <div className="flex items-center gap-2">
             <span className="text-[10px] text-[#958d7c]">{deadlineList.length} tasks</span>
             <button onClick={(e) => { e.stopPropagation(); actions.setActiveModal("deadline"); }} className="rounded-md bg-[#a78bfa]/15 px-2 py-0.5 text-[10px] font-semibold text-[#a78bfa] active:bg-[#a78bfa]/25 transition-colors">+ Add</button>
@@ -30,7 +30,7 @@ export function MobileTasksTab({ tasksData, actions }: {
         </div>
         <div className="divide-y divide-white/[0.05]">
           {deadlineList.length === 0 ? (
-            <p className="px-4 py-6 text-center text-[12px] text-[#958d7c]">No deadlines — tap + Add to create one</p>
+            <p className="px-4 py-6 text-center text-[12px] text-[#958d7c]">No tasks yet — tap + Add to create one</p>
           ) : deadlineList.slice(0, CAP).map(d => (
             <div key={d.id} onClick={e => e.stopPropagation()} className="flex items-center gap-2 px-4 py-2.5">
               <div className="min-w-0 flex-1">
