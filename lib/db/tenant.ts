@@ -98,6 +98,8 @@ function scopedBrother(orgId: number) {
     delete:     async (args: Prisma.BrotherDeleteArgs) =>
       prisma.brother.delete({ where: { id: await verify(args.where) } }),
     count:      (args?: Prisma.BrotherCountArgs)     => prisma.brother.count({ ...args, where: org(args?.where) }),
+    aggregate:  (args: Omit<Prisma.BrotherAggregateArgs, "where"> & { where?: W }) =>
+      prisma.brother.aggregate({ ...args, where: org(args?.where) }),
   };
 }
 
@@ -112,7 +114,9 @@ function scopedRole(orgId: number) {
   }
 
   return {
-    findMany:   (args?: Prisma.RoleFindManyArgs)  => prisma.role.findMany({ ...args, where: org(args?.where) }),
+    // Generic so an include (e.g. brothers → BrotherRole join) flows through.
+    findMany:   <T extends Prisma.RoleFindManyArgs>(args?: Prisma.SelectSubset<T, Prisma.RoleFindManyArgs>) =>
+      prisma.role.findMany<T>({ ...(args as object), where: org((args as T | undefined)?.where) } as Prisma.SelectSubset<T, Prisma.RoleFindManyArgs>),
     findFirst:  (args?: Prisma.RoleFindFirstArgs) => prisma.role.findFirst({ ...args, where: org(args?.where) }),
     findUnique: (args: Prisma.RoleFindUniqueArgs) => prisma.role.findFirst({ ...args, where: org(args.where as W) }),
     create:     (args: Omit<Prisma.RoleCreateArgs, "data"> & { data: Omit<Prisma.RoleUncheckedCreateInput, "organizationId"> }) =>
@@ -250,6 +254,8 @@ function scopedPartyEvent(orgId: number) {
     delete:     async (args: Prisma.PartyEventDeleteArgs) =>
       prisma.partyEvent.delete({ where: { id: await verify(args.where) } }),
     count:      (args?: Prisma.PartyEventCountArgs)     => prisma.partyEvent.count({ ...args, where: org(args?.where) }),
+    aggregate:  (args: Omit<Prisma.PartyEventAggregateArgs, "where"> & { where?: W }) =>
+      prisma.partyEvent.aggregate({ ...args, where: org(args?.where) }),
   };
 }
 
@@ -264,7 +270,10 @@ function scopedTask(orgId: number) {
   }
 
   return {
-    findMany:   (args?: Prisma.TaskFindManyArgs)  => prisma.task.findMany({ ...args, where: org(args?.where) }),
+    // Generic over the caller's args so include/select payload types survive the
+    // wrapper (the non-generic Prisma.TaskFindManyArgs form erased them to base Task).
+    findMany:   <T extends Prisma.TaskFindManyArgs>(args?: Prisma.SelectSubset<T, Prisma.TaskFindManyArgs>) =>
+      prisma.task.findMany<T>({ ...(args as object), where: org((args as T | undefined)?.where) } as Prisma.SelectSubset<T, Prisma.TaskFindManyArgs>),
     findFirst:  (args?: Prisma.TaskFindFirstArgs) => prisma.task.findFirst({ ...args, where: org(args?.where) }),
     findUnique: (args: Prisma.TaskFindUniqueArgs) => prisma.task.findFirst({ ...args, where: org(args.where as W) }),
     create:     (args: Omit<Prisma.TaskCreateArgs, "data"> & { data: Omit<Prisma.TaskUncheckedCreateInput, "organizationId"> }) =>
@@ -439,6 +448,14 @@ function scopedTransaction(orgId: number) {
     count:      (args?: Prisma.TransactionCountArgs)     => prisma.transaction.count({ ...args, where: org(args?.where) }),
     aggregate:  (args: Omit<Prisma.TransactionAggregateArgs, "where"> & { where?: W }) =>
       prisma.transaction.aggregate({ ...args, where: org(args?.where) }),
+    // groupBy: org filter injected into where so a cross-org row can't contribute
+    // to any group. Prisma's groupBy generic is too elaborate to thread the org
+    // injection through without fighting the conditional types, so we re-inject
+    // `where` then cast back to the delegate's own signature — the runtime shape
+    // is identical and the caller's args/return types are preserved via the cast.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    groupBy:    ((args: any) =>
+      prisma.transaction.groupBy({ ...args, where: org(args?.where) })) as typeof prisma.transaction.groupBy,
   };
 }
 
@@ -454,7 +471,9 @@ function scopedBudget(orgId: number) {
 
   return {
     findMany:   (args?: Prisma.BudgetFindManyArgs)  => prisma.budget.findMany({ ...args, where: org(args?.where) }),
-    findFirst:  (args?: Prisma.BudgetFindFirstArgs) => prisma.budget.findFirst({ ...args, where: org(args?.where) }),
+    // Generic so an include (e.g. allocations) flows through to the result type.
+    findFirst:  <T extends Prisma.BudgetFindFirstArgs>(args?: Prisma.SelectSubset<T, Prisma.BudgetFindFirstArgs>) =>
+      prisma.budget.findFirst<T>({ ...(args as object), where: org((args as T | undefined)?.where) } as Prisma.SelectSubset<T, Prisma.BudgetFindFirstArgs>),
     findUnique: (args: Prisma.BudgetFindUniqueArgs) => prisma.budget.findFirst({ ...args, where: org(args.where as W) }),
     /**
      * Org-safe findUnique with allocations. The @@unique([organizationId, semester])
@@ -485,7 +504,9 @@ function scopedActivityLog(orgId: number) {
   type W = Prisma.ActivityLogWhereInput;
   const org = (w?: W): W => ({ ...w, organizationId: orgId });
   return {
-    findMany:   (args?: Prisma.ActivityLogFindManyArgs)  => prisma.activityLog.findMany({ ...args, where: org(args?.where) }),
+    // Generic so an include (e.g. actor) flows through to the result type.
+    findMany:   <T extends Prisma.ActivityLogFindManyArgs>(args?: Prisma.SelectSubset<T, Prisma.ActivityLogFindManyArgs>) =>
+      prisma.activityLog.findMany<T>({ ...(args as object), where: org((args as T | undefined)?.where) } as Prisma.SelectSubset<T, Prisma.ActivityLogFindManyArgs>),
     findFirst:  (args?: Prisma.ActivityLogFindFirstArgs) => prisma.activityLog.findFirst({ ...args, where: org(args?.where) }),
     create:     (args: Omit<Prisma.ActivityLogCreateArgs, "data"> & { data: Omit<Prisma.ActivityLogUncheckedCreateInput, "organizationId"> }) =>
       prisma.activityLog.create({ ...args, data: { ...args.data, organizationId: orgId } }),
@@ -910,6 +931,11 @@ export function db(orgId: number) {
     throw new Error(`db(): orgId must be a positive integer, got ${JSON.stringify(orgId)}`);
   }
   return {
+    // The resolved tenant id. Exposed so callers that drop into the raw `tx`
+    // client inside $transaction (where org injection is manual) can reference it
+    // without threading a separate orgId param alongside the scoped accessor.
+    orgId,
+
     brother:             scopedBrother(orgId),
     role:                scopedRole(orgId),
     semester:            scopedSemester(orgId),
