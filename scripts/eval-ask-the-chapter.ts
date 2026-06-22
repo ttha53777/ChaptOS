@@ -30,6 +30,7 @@ import {
   type Proposal,
 } from "../lib/ai-tools";
 import { buildSystemPrompt } from "../lib/ai-prompt";
+import { db } from "../lib/db";
 
 // ────────────────────────────────────────────────────────────────────────────
 // Types
@@ -131,6 +132,8 @@ async function createWithRetry(
 }
 
 async function runCase(c: EvalCase, openai: OpenAI, systemPrompt: string, orgId: number, now: Date): Promise<TurnResult> {
+  // Same org-scoped accessor the chat route threads into the tools.
+  const scoped = db(orgId);
   const t0 = Date.now();
   const toolCalls: ToolCallRecord[] = [];
   const proposals: Proposal[] = [];
@@ -198,9 +201,9 @@ async function runCase(c: EvalCase, openai: OpenAI, systemPrompt: string, orgId:
       if (isReadTool(tc.function.name)) {
         // Pass the pinned date so date-relative tools (weekly_digest) agree
         // with the pinned system prompt instead of using the real today.
-        payload = await runTool(tc.function.name, args, orgId, now);
+        payload = await runTool(tc.function.name, args, scoped, orgId, now);
       } else if (isProposalTool(tc.function.name)) {
-        const p = await runProposal(tc.function.name, args, orgId);
+        const p = await runProposal(tc.function.name, args, scoped);
         if ("error" in p) {
           payload = p;
         } else {
@@ -381,7 +384,7 @@ async function main() {
   // EVAL_ORG_ID defaults to 1 (the seed org in dev); override via env var if needed.
   const EVAL_ORG_ID = Number(process.env.EVAL_ORG_ID ?? 1);
   const PINNED_DATE = new Date("2026-05-23T12:00:00Z");
-  const systemPrompt = await buildSystemPrompt(EVAL_ORG_ID, PINNED_DATE);
+  const systemPrompt = await buildSystemPrompt(db(EVAL_ORG_ID), EVAL_ORG_ID, PINNED_DATE);
 
   console.log(`Model: ${CHAT_MODEL}`);
   console.log(`Cases: ${cases.length}`);

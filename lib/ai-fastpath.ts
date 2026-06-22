@@ -18,6 +18,7 @@
 // ────────────────────────────────────────────────────────────────────────────
 
 import { runTool } from "@/lib/ai-tools";
+import type { db } from "@/lib/db";
 import { isoWeekBounds } from "@/lib/dates";
 
 export interface FastPathResult {
@@ -235,7 +236,7 @@ export function matchIntent(question: string): { pattern: string; tool: string; 
  * FastPathResult on a confident match, or null to fall through to the normal
  * tool-calling loop. Never throws — any failure is treated as a miss.
  */
-export async function tryFastPath(question: string, orgId: number): Promise<FastPathResult | null> {
+export async function tryFastPath(question: string, scoped: ReturnType<typeof db>, orgId: number): Promise<FastPathResult | null> {
   const matched = matchIntent(question);
   if (!matched) return null;
 
@@ -243,7 +244,7 @@ export async function tryFastPath(question: string, orgId: number): Promise<Fast
   if (!intent) return null; // unreachable, but keeps us fail-open
 
   try {
-    const result = await runTool(matched.tool, matched.args, orgId);
+    const result = await runTool(matched.tool, matched.args, scoped, orgId);
     if (isErrorResult(result)) return null; // tool failed → let the model retry
     const text = intent.format(result);
     if (text == null || text.trim() === "") return null; // formatter abstained

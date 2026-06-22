@@ -11,11 +11,21 @@
  * dispatcher live in this file so they can't drift.
  */
 import type OpenAI from "openai";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
 import { isoWeekBounds, DATE_RE } from "@/lib/dates";
 import { getBrotherStatus, round2, type Brother as BrotherType } from "@/app/data";
 import { resolveThresholds, type Thresholds } from "@/lib/thresholds";
 import { INSTAGRAM_TYPES } from "@/lib/validation/instagram";
+
+/**
+ * Org-scoped data accessor (the same shape as ctx.db). Every tool handler reads
+ * through this instead of the raw prisma client so tenant scoping is structural,
+ * not per-query discipline — and so reads set app.org_id once RLS enforcement
+ * (Phase 2) lands. The route builds it once from the request context and threads
+ * it through runTool/runProposal. `orgId` is still passed alongside for cache
+ * keys (orgThresholds) where the numeric id, not the client, is the key.
+ */
+type Scoped = ReturnType<typeof db>;
 
 /**
  * Resolve the org's member-status thresholds so the assistant reports the same
@@ -30,14 +40,11 @@ import { INSTAGRAM_TYPES } from "@/lib/validation/instagram";
  */
 const thresholdsCache = new Map<number, { value: Thresholds; expires: number }>();
 
-async function orgThresholds(orgId: number): Promise<Thresholds> {
+async function orgThresholds(scoped: Scoped, orgId: number): Promise<Thresholds> {
   const now = Date.now();
   const cached = thresholdsCache.get(orgId);
   if (cached && cached.expires > now) return cached.value;
-  const config = await prisma.organizationConfig.findUnique({
-    where: { organizationId: orgId },
-    select: { thresholds: true },
-  });
+  const config = await scoped.organizationConfig.find();
   const value = resolveThresholds(config?.thresholds);
   thresholdsCache.set(orgId, { value, expires: now + 5 * 60 * 1000 });
   return value;
@@ -618,7 +625,7 @@ export function validateArgs(toolName: string, args: ToolArgs): { ok: true } | {
 type ToolArgs = Record<string, unknown>;
 type ToolResult = unknown;
 
-async function listBrothers(args: ToolArgs, orgId: number): Promise<ToolResult> {
+async function listBrothers(args: ToolArgs, scoped: Scoped, orgId: number): Promise<ToolResult> {
   // Sort at the DB layer for the ranking case; status filter is post-computed so
   // we always fetch the full set first, then trim.
   const orderByField = typeof args.order_by === "string"
@@ -629,11 +636,11 @@ async function listBrothers(args: ToolArgs, orgId: number): Promise<ToolResult> 
 
   // Rows + thresholds are independent — fetch together instead of serially.
   const [rows, thresholds] = await Promise.all([
-    prisma.brother.findMany({
-      where: { isGhost: false, organizationId: orgId },
+    scoped.brother.findMany({
+      where: { isGhost: false },
       orderBy: { [orderByField]: orderDir },
     }),
-    orgThresholds(orgId),
+    orgThresholds(scoped, orgId),
   ]);
   const owesOnly = args.owes_dues_only === true;
   const statusFilter = typeof args.status === "string" ? args.status : "Any";
@@ -676,7 +683,7 @@ async function listBrothers(args: ToolArgs, orgId: number): Promise<ToolResult> 
   };
 }
 
-async function getBrother(args: ToolArgs, orgId: number): Promise<ToolResult> {
+async function getBrother(args: ToolArgs, scoped: Scoped, orgId: number): Promise<ToolResult> {
   const id = typeof args.id === "number" ? args.id : undefined;
   const name = typeof args.name === "string" ? args.name.trim() : undefined;
   if (id == null && !name) return { error: "Provide id or name." };
@@ -684,11 +691,11 @@ async function getBrother(args: ToolArgs, orgId: number): Promise<ToolResult> {
   // ID path → single record (thresholds fetched alongside, not before).
   if (id != null) {
     const [thresholds, b] = await Promise.all([
-      orgThresholds(orgId),
-      prisma.brother.findFirst({ where: { id, organizationId: orgId } }),
+      orgThresholds(scoped, orgId),
+      scoped.brother.findFirst({ where: { id } }),
     ]);
     if (!b || b.isGhost) return { error: "Brother not found." };
-    return formatBrotherDetail(b, thresholds);
+    return formatBrotherDetail(b, thresholds, scoped);
   }
 
   // Name path → fuzzy. Exact (case-insensitive) wins; otherwise fall back to
@@ -697,12 +704,12 @@ async function getBrother(args: ToolArgs, orgId: number): Promise<ToolResult> {
   // cheaper than a second serial round trip when it doesn't. Return multiple
   // matches if found so the model can disambiguate.
   const [thresholds, exact, fuzzy] = await Promise.all([
-    orgThresholds(orgId),
-    prisma.brother.findMany({
-      where: { name: { equals: name!, mode: "insensitive" }, isGhost: false, organizationId: orgId },
+    orgThresholds(scoped, orgId),
+    scoped.brother.findMany({
+      where: { name: { equals: name!, mode: "insensitive" }, isGhost: false },
     }),
-    prisma.brother.findMany({
-      where: { name: { contains: name!, mode: "insensitive" }, isGhost: false, organizationId: orgId },
+    scoped.brother.findMany({
+      where: { name: { contains: name!, mode: "insensitive" }, isGhost: false },
       orderBy: { name: "asc" },
       take: 10,
     }),
@@ -717,14 +724,18 @@ async function getBrother(args: ToolArgs, orgId: number): Promise<ToolResult> {
       candidates: matches.map(b => ({ id: b.id, name: b.name, role: b.role })),
     };
   }
-  return formatBrotherDetail(matches[0], thresholds);
+  return formatBrotherDetail(matches[0], thresholds, scoped);
 }
 
 async function formatBrotherDetail(
   b: { id: number; name: string; role: string; attendance: number; gpa: number; duesOwed: number; serviceHours: number; isAdmin: boolean; email: string | null; isGhost: boolean },
   thresholds: Thresholds,
+  scoped: Scoped,
 ) {
-  const attendanceCount = await prisma.attendanceRecord.count({ where: { brotherId: b.id, attended: true } });
+  // Relation-scoped: the wrapper ANDs calendarEvent.organizationId, so this bare
+  // brotherId count is now org-safe structurally (was previously safe only
+  // because the caller pre-scoped the brother).
+  const attendanceCount = await scoped.attendanceRecord.count({ where: { brotherId: b.id, attended: true } });
   return {
     id: b.id,
     name: b.name,
@@ -740,7 +751,7 @@ async function formatBrotherDetail(
   };
 }
 
-async function listDeadlines(args: ToolArgs, orgId: number): Promise<ToolResult> {
+async function listDeadlines(args: ToolArgs, scoped: Scoped): Promise<ToolResult> {
   const start = typeof args.start === "string" && DATE_RE.test(args.start) ? args.start : undefined;
   const end   = typeof args.end   === "string" && DATE_RE.test(args.end)   ? args.end   : undefined;
   // Status is now binary open/done; an "open_only" flag (or any non-done status)
@@ -755,9 +766,8 @@ async function listDeadlines(args: ToolArgs, orgId: number): Promise<ToolResult>
   // Filters + limit run in the DB — fetching the whole table to filter in JS
   // pays a transfer cost on every chat turn that grows with org history. "Deadlines"
   // are tasks that HAVE a due date, so scope to dated tasks here.
-  const rows = await prisma.task.findMany({
+  const rows = await scoped.task.findMany({
     where: {
-      organizationId: orgId,
       dueDate: start || end ? { ...(start ? { gte: start } : {}), ...(end ? { lte: end } : {}) } : { not: null },
       ...(status === "done" ? { status: "done" } : status === "open" || openOnly ? { status: "open" } : {}),
     },
@@ -784,7 +794,7 @@ async function listDeadlines(args: ToolArgs, orgId: number): Promise<ToolResult>
   return listResult(shaped, !!(start || end || status || openOnly));
 }
 
-async function listInstagram(args: ToolArgs, orgId: number): Promise<ToolResult> {
+async function listInstagram(args: ToolArgs, scoped: Scoped): Promise<ToolResult> {
   const start = typeof args.start === "string" && DATE_RE.test(args.start) ? args.start : undefined;
   const end   = typeof args.end   === "string" && DATE_RE.test(args.end)   ? args.end   : undefined;
   const status = typeof args.status === "string" ? args.status : undefined;
@@ -794,9 +804,8 @@ async function listInstagram(args: ToolArgs, orgId: number): Promise<ToolResult>
     ? args.order_by as "dueDate" | "title" : "dueDate";
   const orderDir = args.order === "desc" ? "desc" : "asc";
 
-  const rows = await prisma.instagramTask.findMany({
+  const rows = await scoped.instagramTask.findMany({
     where: {
-      organizationId: orgId,
       ...(start || end ? { dueDate: { ...(start ? { gte: start } : {}), ...(end ? { lte: end } : {}) } } : {}),
       ...(status ? { status } : openOnly ? { status: { not: "Complete" } } : {}),
       ...(typeFilter ? { type: typeFilter } : {}),
@@ -815,7 +824,7 @@ function dayOfMonthSuffix(v: unknown): string | undefined {
     : undefined;
 }
 
-async function listCalendar(args: ToolArgs, orgId: number): Promise<ToolResult> {
+async function listCalendar(args: ToolArgs, scoped: Scoped): Promise<ToolResult> {
   const title = typeof args.title === "string" && args.title.trim() ? args.title.trim() : undefined;
   const start = typeof args.start === "string" && DATE_RE.test(args.start) ? args.start : undefined;
   const end   = typeof args.end   === "string" && DATE_RE.test(args.end)   ? args.end   : undefined;
@@ -826,9 +835,8 @@ async function listCalendar(args: ToolArgs, orgId: number): Promise<ToolResult> 
     ? args.order_by as "date" | "title" : "date";
   const orderDir = args.order === "desc" ? "desc" : "asc";
 
-  const rows = await prisma.calendarEvent.findMany({
+  const rows = await scoped.calendarEvent.findMany({
     where: {
-      organizationId: orgId,
       ...(title ? { title: { contains: title, mode: "insensitive" } } : {}),
       ...(start || end || daySuffix
         ? { date: { ...(start ? { gte: start } : {}), ...(end ? { lte: end } : {}), ...(daySuffix ? { endsWith: daySuffix } : {}) } }
@@ -842,7 +850,7 @@ async function listCalendar(args: ToolArgs, orgId: number): Promise<ToolResult> 
   return listResult(rows, !!(title || start || end || daySuffix || category || mandatoryOnly));
 }
 
-async function listParties(args: ToolArgs, orgId: number): Promise<ToolResult> {
+async function listParties(args: ToolArgs, scoped: Scoped): Promise<ToolResult> {
   const start = typeof args.start === "string" && DATE_RE.test(args.start) ? args.start : undefined;
   const end   = typeof args.end   === "string" && DATE_RE.test(args.end)   ? args.end   : undefined;
   const completedOnly = args.completed_only === true;
@@ -850,9 +858,8 @@ async function listParties(args: ToolArgs, orgId: number): Promise<ToolResult> {
     ? args.order_by as "date" | "doorRevenue" | "attendance" | "expenses" | "name" : "date";
   const orderDir = args.order === "desc" ? "desc" : "asc";
 
-  const rows = await prisma.partyEvent.findMany({
+  const rows = await scoped.partyEvent.findMany({
     where: {
-      organizationId: orgId,
       ...(start || end ? { date: { ...(start ? { gte: start } : {}), ...(end ? { lte: end } : {}) } } : {}),
       ...(completedOnly ? { completed: true } : {}),
     },
@@ -867,7 +874,7 @@ async function listParties(args: ToolArgs, orgId: number): Promise<ToolResult> {
   return listResult(mapped, !!(start || end || completedOnly));
 }
 
-async function sumTransactions(args: ToolArgs, orgId: number): Promise<ToolResult> {
+async function sumTransactions(args: ToolArgs, scoped: Scoped): Promise<ToolResult> {
   const start = typeof args.start === "string" && DATE_RE.test(args.start) ? args.start : undefined;
   const end   = typeof args.end   === "string" && DATE_RE.test(args.end)   ? args.end   : undefined;
   const semester = typeof args.semester === "string" ? args.semester : undefined;
@@ -876,10 +883,9 @@ async function sumTransactions(args: ToolArgs, orgId: number): Promise<ToolResul
 
   // Aggregate in the DB — one grouped query replaces shipping every matching
   // row over the wire just to sum it here.
-  const grouped_rows = await prisma.transaction.groupBy({
+  const grouped_rows = await scoped.transaction.groupBy({
     by: ["type", "category"],
     where: {
-      organizationId: orgId,
       deletedAt: null,
       ...(start || end ? { date: { ...(start ? { gte: start } : {}), ...(end ? { lte: end } : {}) } } : {}),
       ...(semester ? { semester } : {}),
@@ -927,22 +933,22 @@ async function sumTransactions(args: ToolArgs, orgId: number): Promise<ToolResul
   };
 }
 
-async function getTreasury(orgId: number): Promise<ToolResult> {
+async function getTreasury(scoped: Scoped): Promise<ToolResult> {
   // All three queries are independent — run them together, and sum in the DB
   // instead of fetching every party/transaction row to add up here.
   const [doorAgg, txByType, transactions] = await Promise.all([
-    prisma.partyEvent.aggregate({ where: { organizationId: orgId }, _sum: { doorRevenue: true } }),
-    prisma.transaction.groupBy({
+    scoped.partyEvent.aggregate({ _sum: { doorRevenue: true } }),
+    scoped.transaction.groupBy({
       by: ["type"],
-      where: { organizationId: orgId, deletedAt: null },
+      where: { deletedAt: null },
       _sum: { amount: true },
     }),
-    prisma.transaction.findMany({
-      where: { organizationId: orgId, deletedAt: null }, orderBy: { date: "desc" }, take: 10,
+    scoped.transaction.findMany({
+      where: { deletedAt: null }, orderBy: { date: "desc" }, take: 10,
       select: { date: true, type: true, amount: true, category: true, description: true },
     }),
   ]);
-  const doorRevenue = doorAgg._sum.doorRevenue ?? 0;
+  const doorRevenue = doorAgg._sum?.doorRevenue ?? 0;
   const income  = txByType.find(g => g.type === "income")?._sum.amount ?? 0;
   const expense = txByType.find(g => g.type === "expense")?._sum.amount ?? 0;
   const balance = doorRevenue + income - expense;
@@ -954,13 +960,13 @@ async function getTreasury(orgId: number): Promise<ToolResult> {
   };
 }
 
-async function getBudget(orgId: number): Promise<ToolResult> {
+async function getBudget(scoped: Scoped): Promise<ToolResult> {
   // Active semester is the one flagged isActive (matches the rest of the app).
   // Fall back to the most recent semester so the model still has a useful answer.
-  let semester = await prisma.semester.findFirst({ where: { isActive: true, organizationId: orgId } });
+  let semester = await scoped.semester.findFirst({ where: { isActive: true } });
   let usedFallback = false;
   if (!semester) {
-    semester = await prisma.semester.findFirst({ where: { organizationId: orgId }, orderBy: { startDate: "desc" } });
+    semester = await scoped.semester.findFirst({ orderBy: { startDate: "desc" } });
     if (!semester) return { error: "No semesters defined yet." };
     usedFallback = true;
   }
@@ -968,13 +974,13 @@ async function getBudget(orgId: number): Promise<ToolResult> {
   // run them together, and sum expenses in the DB instead of shipping every
   // transaction row over the wire to add up here.
   const [budget, expenseGroups] = await Promise.all([
-    prisma.budget.findFirst({
-      where: { organizationId: orgId, semester: semester.label },
+    scoped.budget.findFirst({
+      where: { semester: semester.label },
       include: { allocations: true },
     }),
-    prisma.transaction.groupBy({
+    scoped.transaction.groupBy({
       by: ["category"],
-      where: { organizationId: orgId, deletedAt: null, semester: semester.label, type: "expense" },
+      where: { deletedAt: null, semester: semester.label, type: "expense" },
       _sum: { amount: true },
     }),
   ]);
@@ -1013,11 +1019,11 @@ async function getBudget(orgId: number): Promise<ToolResult> {
   };
 }
 
-async function recentActivity(args: ToolArgs, orgId: number): Promise<ToolResult> {
+async function recentActivity(args: ToolArgs, scoped: Scoped): Promise<ToolResult> {
   const take = clampLimit(args.limit, 20, 100);
   const typeFilter = args.type === "success" || args.type === "warning" || args.type === "info" ? args.type : undefined;
-  const rows = await prisma.activityLog.findMany({
-    where: { organizationId: orgId, ...(typeFilter ? { type: typeFilter } : {}) },
+  const rows = await scoped.activityLog.findMany({
+    where: { ...(typeFilter ? { type: typeFilter } : {}) },
     orderBy: { timestamp: "desc" },
     take,
     include: { actor: { select: { name: true } } },
@@ -1033,16 +1039,16 @@ async function recentActivity(args: ToolArgs, orgId: number): Promise<ToolResult
 
 // `now` is injectable so the eval can pin "this week" to the same date the
 // pinned system prompt advertises; prod callers omit it and get the real today.
-async function weeklyDigest(orgId: number, now: Date = new Date()): Promise<ToolResult> {
+async function weeklyDigest(scoped: Scoped, orgId: number, now: Date = new Date()): Promise<ToolResult> {
   const { start, end } = isoWeekBounds(now);
   const week = { gte: start, lte: end };
   const [deadlines, ig, events, parties, brothers, thresholds] = await Promise.all([
-    prisma.task.findMany({ where: { organizationId: orgId, dueDate: week } }),
-    prisma.instagramTask.findMany({ where: { organizationId: orgId, dueDate: week } }),
-    prisma.calendarEvent.findMany({ where: { organizationId: orgId, mandatory: true, date: week } }),
-    prisma.partyEvent.findMany({ where: { organizationId: orgId, date: week } }),
-    prisma.brother.findMany({ where: { organizationId: orgId, isGhost: false } }),
-    orgThresholds(orgId),
+    scoped.task.findMany({ where: { dueDate: week } }),
+    scoped.instagramTask.findMany({ where: { dueDate: week } }),
+    scoped.calendarEvent.findMany({ where: { mandatory: true, date: week } }),
+    scoped.partyEvent.findMany({ where: { date: week } }),
+    scoped.brother.findMany({ where: { isGhost: false } }),
+    orgThresholds(scoped, orgId),
   ]);
   const atRiskCount = brothers.filter(b => getBrotherStatus(b as BrotherType, thresholds) === "At Risk").length;
   return {
@@ -1056,7 +1062,7 @@ async function weeklyDigest(orgId: number, now: Date = new Date()): Promise<Tool
   };
 }
 
-async function getEventAttendance(args: ToolArgs, orgId: number): Promise<ToolResult> {
+async function getEventAttendance(args: ToolArgs, scoped: Scoped): Promise<ToolResult> {
   const id = typeof args.id === "number" ? args.id : undefined;
   const name = typeof args.event_name === "string" ? args.event_name.trim() : undefined;
   const date = typeof args.date === "string" && DATE_RE.test(args.date) ? args.date : undefined;
@@ -1066,14 +1072,13 @@ async function getEventAttendance(args: ToolArgs, orgId: number): Promise<ToolRe
   // need the date to disambiguate duplicate-titled events (e.g. recurring meetings).
   let event: { id: number; title: string; date: string } | null = null;
   if (id != null) {
-    event = await prisma.calendarEvent.findFirst({
-      where: { id, organizationId: orgId },
+    event = await scoped.calendarEvent.findFirst({
+      where: { id },
       select: { id: true, title: true, date: true },
     });
   } else {
-    const matches = await prisma.calendarEvent.findMany({
+    const matches = await scoped.calendarEvent.findMany({
       where: {
-        organizationId: orgId,
         title: { contains: name!, mode: "insensitive" },
         ...(date ? { date } : {}),
       },
@@ -1093,12 +1098,15 @@ async function getEventAttendance(args: ToolArgs, orgId: number): Promise<ToolRe
   }
   if (!event) return { error: "Event not found." };
 
+  // Relation-scoped wrappers AND the org via the CalendarEvent/Brother parent, so
+  // these bare-FK reads can no longer return another org's rows even though the
+  // WHERE only names calendarEventId.
   const [records, excuses] = await Promise.all([
-    prisma.attendanceRecord.findMany({
+    scoped.attendanceRecord.findMany({
       where: { calendarEventId: event.id },
       include: { brother: { select: { name: true, isGhost: true } } },
     }),
-    prisma.attendanceExcuse.findMany({
+    scoped.attendanceExcuse.findMany({
       where: { calendarEventId: event.id },
       include: { brother: { select: { name: true } } },
     }),
@@ -1120,7 +1128,7 @@ async function getEventAttendance(args: ToolArgs, orgId: number): Promise<ToolRe
   };
 }
 
-async function getBrotherAttendance(args: ToolArgs, orgId: number): Promise<ToolResult> {
+async function getBrotherAttendance(args: ToolArgs, scoped: Scoped): Promise<ToolResult> {
   const id = typeof args.id === "number" ? args.id : undefined;
   const name = typeof args.name === "string" ? args.name.trim() : undefined;
   if (id == null && !name) return { error: "Provide id or name." };
@@ -1128,17 +1136,17 @@ async function getBrotherAttendance(args: ToolArgs, orgId: number): Promise<Tool
   // Reuse the same fuzzy resolution as get_brother so name handling can't drift.
   let brother: { id: number; name: string } | null = null;
   if (id != null) {
-    const b = await prisma.brother.findFirst({ where: { id, organizationId: orgId, isGhost: false }, select: { id: true, name: true } });
+    const b = await scoped.brother.findFirst({ where: { id, isGhost: false }, select: { id: true, name: true } });
     brother = b ?? null;
   } else {
     // Same parallel exact+contains as get_brother — one round trip, not two.
     const [exact, fuzzy] = await Promise.all([
-      prisma.brother.findMany({
-        where: { name: { equals: name!, mode: "insensitive" }, isGhost: false, organizationId: orgId },
+      scoped.brother.findMany({
+        where: { name: { equals: name!, mode: "insensitive" }, isGhost: false },
         select: { id: true, name: true },
       }),
-      prisma.brother.findMany({
-        where: { name: { contains: name!, mode: "insensitive" }, isGhost: false, organizationId: orgId },
+      scoped.brother.findMany({
+        where: { name: { contains: name!, mode: "insensitive" }, isGhost: false },
         orderBy: { name: "asc" }, take: 10, select: { id: true, name: true },
       }),
     ]);
@@ -1155,12 +1163,14 @@ async function getBrotherAttendance(args: ToolArgs, orgId: number): Promise<Tool
   }
   if (!brother) return { error: "Brother not found." };
 
+  // Relation-scoped wrappers keep these bare-FK reads org-safe (attendanceRecord
+  // via CalendarEvent, attendanceExcuse via Brother).
   const [records, excuses] = await Promise.all([
-    prisma.attendanceRecord.findMany({
+    scoped.attendanceRecord.findMany({
       where: { brotherId: brother.id },
       include: { calendarEvent: { select: { title: true, date: true } } },
     }),
-    prisma.attendanceExcuse.findMany({
+    scoped.attendanceExcuse.findMany({
       where: { brotherId: brother.id },
       include: { calendarEvent: { select: { title: true, date: true } } },
     }),
@@ -1184,13 +1194,12 @@ async function getBrotherAttendance(args: ToolArgs, orgId: number): Promise<Tool
   };
 }
 
-async function listRoles(args: ToolArgs, orgId: number): Promise<ToolResult> {
+async function listRoles(args: ToolArgs, scoped: Scoped): Promise<ToolResult> {
   const roleName = typeof args.role_name === "string" ? args.role_name.trim() : undefined;
   const brotherName = typeof args.brother_name === "string" ? args.brother_name.trim() : undefined;
 
-  const roles = await prisma.role.findMany({
+  const roles = await scoped.role.findMany({
     where: {
-      organizationId: orgId,
       ...(roleName ? { name: { contains: roleName, mode: "insensitive" } } : {}),
     },
     orderBy: { rank: "desc" },
@@ -1217,14 +1226,13 @@ async function listRoles(args: ToolArgs, orgId: number): Promise<ToolResult> {
   return mapped;
 }
 
-async function listServiceEvents(args: ToolArgs, orgId: number): Promise<ToolResult> {
+async function listServiceEvents(args: ToolArgs, scoped: Scoped): Promise<ToolResult> {
   const start = typeof args.start === "string" && DATE_RE.test(args.start) ? args.start : undefined;
   const end   = typeof args.end   === "string" && DATE_RE.test(args.end)   ? args.end   : undefined;
   const orderDir = args.order === "desc" ? "desc" : "asc";
 
-  const rows = await prisma.serviceEvent.findMany({
+  const rows = await scoped.serviceEvent.findMany({
     where: {
-      organizationId: orgId,
       ...(start || end ? { date: { ...(start ? { gte: start } : {}), ...(end ? { lte: end } : {}) } } : {}),
     },
     orderBy: { date: orderDir },
@@ -1234,7 +1242,7 @@ async function listServiceEvents(args: ToolArgs, orgId: number): Promise<ToolRes
   return listResult(rows, !!(start || end));
 }
 
-async function listProgrammingEvents(args: ToolArgs, orgId: number): Promise<ToolResult> {
+async function listProgrammingEvents(args: ToolArgs, scoped: Scoped): Promise<ToolResult> {
   const title = typeof args.title === "string" && args.title.trim() ? args.title.trim() : undefined;
   const start = typeof args.start === "string" && DATE_RE.test(args.start) ? args.start : undefined;
   const end   = typeof args.end   === "string" && DATE_RE.test(args.end)   ? args.end   : undefined;
@@ -1266,9 +1274,8 @@ async function listProgrammingEvents(args: ToolArgs, orgId: number): Promise<Too
         ? { date: { endsWith: daySuffix } }
         : {};
 
-  const rows = await prisma.programmingEvent.findMany({
+  const rows = await scoped.programmingEvent.findMany({
     where: {
-      organizationId: orgId,
       category: { in: ["program", "social", "fundy", "service"] },
       ...(categoryFilter ? { category: categoryFilter } : {}),
       ...(stageFilter    ? { stage: stageFilter }        : {}),
@@ -1408,7 +1415,7 @@ function proposeLogTransaction(args: ToolArgs): Proposal | { error: string } {
 // they can sanity-check the change before clicking. Still VALIDATE-ONLY: it never
 // writes; the read is purely to enrich the card. A read failure degrades to the
 // plain summary rather than blocking the proposal.
-async function proposeMarkDuesPaid(args: ToolArgs, orgId: number): Promise<Proposal | { error: string }> {
+async function proposeMarkDuesPaid(args: ToolArgs, scoped: Scoped): Promise<Proposal | { error: string }> {
   const id = typeof args.brother_id === "number" ? args.brother_id : Number(args.brother_id);
   const name = typeof args.brother_name === "string" ? args.brother_name.trim() : "";
   if (!Number.isFinite(id) || id <= 0) return badProposal("brother_id required.");
@@ -1416,8 +1423,8 @@ async function proposeMarkDuesPaid(args: ToolArgs, orgId: number): Promise<Propo
 
   let currentOwed: number | null = null;
   try {
-    const b = await prisma.brother.findFirst({
-      where: { id, organizationId: orgId, isGhost: false },
+    const b = await scoped.brother.findFirst({
+      where: { id, isGhost: false },
       select: { duesOwed: true },
     });
     if (b) currentOwed = r2(b.duesOwed);
@@ -1462,9 +1469,10 @@ function proposeAddProgrammingEvent(args: ToolArgs): Proposal | { error: string 
   };
 }
 
-// Handlers may be sync or async; runProposal awaits either. orgId lets a handler
-// read current state to enrich the card (validate-only — never a write).
-type ProposalHandler = (args: ToolArgs, orgId: number) =>
+// Handlers may be sync or async; runProposal awaits either. The scoped client
+// lets a handler read current state to enrich the card (validate-only — never a
+// write). Sync handlers simply ignore the second arg.
+type ProposalHandler = (args: ToolArgs, scoped: Scoped) =>
   | (Proposal | { error: string })
   | Promise<Proposal | { error: string }>;
 
@@ -1483,12 +1491,12 @@ export function isProposalTool(name: string): boolean {
 }
 
 /** Run a proposal tool. Validate-only — never writes. Never throws. */
-export async function runProposal(name: string, args: ToolArgs, orgId: number): Promise<Proposal | { error: string }> {
+export async function runProposal(name: string, args: ToolArgs, scoped: Scoped): Promise<Proposal | { error: string }> {
   const handler = PROPOSAL_HANDLERS[name];
   if (!handler) return { error: `Unknown proposal: ${name}` };
   const v = validateArgs(name, args);
   if (!v.ok) return { error: v.error };
-  try { return await handler(args, orgId); }
+  try { return await handler(args, scoped); }
   catch (e) { return { error: e instanceof Error ? e.message : "Proposal failed" }; }
 }
 
@@ -1496,23 +1504,23 @@ export async function runProposal(name: string, args: ToolArgs, orgId: number): 
 // Dispatcher
 // ────────────────────────────────────────────────────────────────────────────
 
-const READ_HANDLERS: Record<string, (args: ToolArgs, orgId: number, now?: Date) => Promise<ToolResult>> = {
-  list_brothers:           listBrothers,
-  get_brother:             getBrother,
-  list_deadlines:          listDeadlines,
-  list_instagram_tasks:    listInstagram,
-  list_calendar_events:    listCalendar,
-  list_parties:            listParties,
-  sum_transactions:        sumTransactions,
-  get_treasury:            (_args, orgId) => getTreasury(orgId),
-  get_budget:              (_args, orgId) => getBudget(orgId),
-  recent_activity:         recentActivity,
-  weekly_digest:           (_args, orgId, now) => weeklyDigest(orgId, now),
-  get_event_attendance:    getEventAttendance,
-  get_brother_attendance:  getBrotherAttendance,
-  list_roles:              listRoles,
-  list_service_events:     listServiceEvents,
-  list_programming_events: listProgrammingEvents,
+const READ_HANDLERS: Record<string, (args: ToolArgs, scoped: Scoped, orgId: number, now?: Date) => Promise<ToolResult>> = {
+  list_brothers:           (args, scoped, orgId) => listBrothers(args, scoped, orgId),
+  get_brother:             (args, scoped, orgId) => getBrother(args, scoped, orgId),
+  list_deadlines:          (args, scoped) => listDeadlines(args, scoped),
+  list_instagram_tasks:    (args, scoped) => listInstagram(args, scoped),
+  list_calendar_events:    (args, scoped) => listCalendar(args, scoped),
+  list_parties:            (args, scoped) => listParties(args, scoped),
+  sum_transactions:        (args, scoped) => sumTransactions(args, scoped),
+  get_treasury:            (_args, scoped) => getTreasury(scoped),
+  get_budget:              (_args, scoped) => getBudget(scoped),
+  recent_activity:         (args, scoped) => recentActivity(args, scoped),
+  weekly_digest:           (_args, scoped, orgId, now) => weeklyDigest(scoped, orgId, now),
+  get_event_attendance:    (args, scoped) => getEventAttendance(args, scoped),
+  get_brother_attendance:  (args, scoped) => getBrotherAttendance(args, scoped),
+  list_roles:              (args, scoped) => listRoles(args, scoped),
+  list_service_events:     (args, scoped) => listServiceEvents(args, scoped),
+  list_programming_events: (args, scoped) => listProgrammingEvents(args, scoped),
 };
 
 /**
@@ -1523,13 +1531,13 @@ const READ_HANDLERS: Record<string, (args: ToolArgs, orgId: number, now?: Date) 
  * `now` pins date-relative tools (weekly_digest) for the eval harness; omit it
  * in prod so tools see the same real today as the system prompt.
  */
-export async function runTool(name: string, args: ToolArgs, orgId: number, now?: Date): Promise<ToolResult> {
+export async function runTool(name: string, args: ToolArgs, scoped: Scoped, orgId: number, now?: Date): Promise<ToolResult> {
   const handler = READ_HANDLERS[name];
   if (!handler) return { error: `Unknown tool: ${name}` };
   const v = validateArgs(name, args);
   if (!v.ok) return { error: v.error };
   try {
-    return await handler(args, orgId, now);
+    return await handler(args, scoped, orgId, now);
   } catch (e) {
     console.error(`runTool(${name}) failed:`, e);
     return { error: e instanceof Error ? e.message : "Tool failed" };

@@ -1,7 +1,10 @@
-import { prisma } from "./prisma";
+import { db } from "@/lib/db";
 
-export async function getActiveSemester(orgId: number) {
-  return prisma.semester.findFirst({ where: { organizationId: orgId, isActive: true } });
+/** Org-scoped data accessor (same shape as ctx.db). */
+type Scoped = ReturnType<typeof db>;
+
+export async function getActiveSemester(scoped: Scoped) {
+  return scoped.semester.findFirst({ where: { isActive: true } });
 }
 
 /**
@@ -9,9 +12,9 @@ export async function getActiveSemester(orgId: number) {
  * chapter-wide ratio: mandatory events only. Optional events — including
  * non-mandatory party roll — are tracked but excluded from a brother's %.
  */
-async function mandatoryEventIds(orgId: number): Promise<Set<number>> {
-  const events = await prisma.calendarEvent.findMany({
-    where: { organizationId: orgId, mandatory: true },
+async function mandatoryEventIds(scoped: Scoped): Promise<Set<number>> {
+  const events = await scoped.calendarEvent.findMany({
+    where: { mandatory: true },
     select: { id: true },
   });
   return new Set(events.map(e => e.id));
@@ -24,14 +27,16 @@ async function mandatoryEventIds(orgId: number): Promise<Set<number>> {
  * count toward the ratio (optional events / optional party roll are excluded).
  */
 export async function recalcBrotherAttendance(
+  scoped: Scoped,
   brotherId: number,
   semesterId: number,
-  orgId: number,
 ): Promise<number> {
   const [records, excuses, mandatory] = await Promise.all([
-    prisma.attendanceRecord.findMany({ where: { brotherId, semesterId } }),
-    prisma.attendanceExcuse.findMany({ where: { brotherId, semesterId, status: "approved" } }),
-    mandatoryEventIds(orgId),
+    // Relation-scoped wrappers AND the org via the record's/excuse's parent, so
+    // these bare brotherId/semesterId reads stay org-safe.
+    scoped.attendanceRecord.findMany({ where: { brotherId, semesterId } }),
+    scoped.attendanceExcuse.findMany({ where: { brotherId, semesterId, status: "approved" } }),
+    mandatoryEventIds(scoped),
   ]);
 
   const excusedEventIds = new Set(excuses.map(e => e.calendarEventId));
@@ -41,10 +46,10 @@ export async function recalcBrotherAttendance(
   const denominator = eligible.length;
   const ratio       = denominator === 0 ? 0 : Math.round((numerator / denominator) * 100);
 
-  // Scope the write to orgId so a bug in the caller cannot update a brother
-  // from a different org.
-  await prisma.brother.updateMany({
-    where: { id: brotherId, organizationId: orgId },
+  // The scoped wrapper injects organizationId, so a brother from another org
+  // matches zero rows rather than being updated.
+  await scoped.brother.updateMany({
+    where: { id: brotherId },
     data: { attendance: ratio },
   });
 
@@ -63,17 +68,17 @@ export async function recalcBrotherAttendance(
  * updates or none do.
  */
 export async function recalcAllBrothersInSemester(
+  scoped: Scoped,
   semesterId: number,
-  orgId: number,
 ): Promise<void> {
   const [brothers, allRecords, allExcuses, mandatory] = await Promise.all([
-    prisma.brother.findMany({
-      where: { organizationId: orgId, isGhost: false },
+    scoped.brother.findMany({
+      where: { isGhost: false },
       select: { id: true },
     }),
-    prisma.attendanceRecord.findMany({ where: { semesterId } }),
-    prisma.attendanceExcuse.findMany({ where: { semesterId, status: "approved" } }),
-    mandatoryEventIds(orgId),
+    scoped.attendanceRecord.findMany({ where: { semesterId } }),
+    scoped.attendanceExcuse.findMany({ where: { semesterId, status: "approved" } }),
+    mandatoryEventIds(scoped),
   ]);
 
   const recordsByBrother  = new Map<number, typeof allRecords>();
@@ -105,16 +110,19 @@ export async function recalcAllBrothersInSemester(
   }
 
   // One updateMany per distinct ratio. In a transaction so partial commits
-  // cannot happen. The `organizationId` guard ensures we never update
-  // brothers from a different org even if the semesterId were reused.
-  const writes = Array.from(byRatio.entries()).map(([ratio, ids]) =>
-    prisma.brother.updateMany({
-      where: { id: { in: ids }, organizationId: orgId },
-      data: { attendance: ratio },
-    }),
-  );
-
-  if (writes.length > 0) {
-    await prisma.$transaction(writes);
+  // cannot happen, and via scoped.$transaction so app.org_id is set for the
+  // batch. The tx client is raw, so the `organizationId` guard stays explicit —
+  // it ensures we never update brothers from a different org even if the
+  // semesterId were reused.
+  const entries = Array.from(byRatio.entries());
+  if (entries.length > 0) {
+    await scoped.$transaction(async tx => {
+      for (const [ratio, ids] of entries) {
+        await tx.brother.updateMany({
+          where: { id: { in: ids }, organizationId: scoped.orgId },
+          data: { attendance: ratio },
+        });
+      }
+    });
   }
 }

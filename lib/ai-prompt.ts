@@ -1,18 +1,21 @@
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
 import { isoWeekBounds } from "@/lib/dates";
+
+/** Org-scoped data accessor (same shape as ctx.db). See lib/ai-tools.ts. */
+type Scoped = ReturnType<typeof db>;
 
 // Per-org caches keyed by orgId. Active semester changes at most a few times a
 // year; caching for 5 minutes avoids a round trip before every chat message.
 const semesterCache = new Map<number, { line: string; expires: number }>();
 
-async function getSemesterLine(orgId: number): Promise<string> {
+async function getSemesterLine(scoped: Scoped, orgId: number): Promise<string> {
   const now = Date.now();
   const cached = semesterCache.get(orgId);
   if (cached && cached.expires > now) return cached.line;
   let line = "";
   try {
-    const s = await prisma.semester.findFirst({
-      where: { isActive: true, organizationId: orgId },
+    const s = await scoped.semester.findFirst({
+      where: { isActive: true },
       select: { label: true, startDate: true, endDate: true },
     });
     if (s) line = `Active semester: ${s.label} (${s.startDate} → ${s.endDate}).`;
@@ -25,15 +28,15 @@ async function getSemesterLine(orgId: number): Promise<string> {
 // it expires at the day boundary rather than going stale at 11:59 PM.
 const lastMeetingCache = new Map<string, { line: string; expires: number }>();
 
-async function getLastMeetingLine(orgId: number, todayIso: string): Promise<string> {
+async function getLastMeetingLine(scoped: Scoped, orgId: number, todayIso: string): Promise<string> {
   const cacheKey = `${orgId}:${todayIso}`;
   const now = Date.now();
   const cached = lastMeetingCache.get(cacheKey);
   if (cached && cached.expires > now) return cached.line;
   let line = "";
   try {
-    const m = await prisma.calendarEvent.findFirst({
-      where: { organizationId: orgId, category: "chapter", date: { lt: todayIso } },
+    const m = await scoped.calendarEvent.findFirst({
+      where: { category: "chapter", date: { lt: todayIso } },
       orderBy: { date: "desc" },
       select: { date: true },
     });
@@ -60,31 +63,34 @@ function roundTo(n: number, step: number): number {
   return Math.round(n / step) * step;
 }
 
-async function getSnapshotLine(orgId: number): Promise<string> {
+async function getSnapshotLine(scoped: Scoped, orgId: number): Promise<string> {
   const now = Date.now();
   const cached = snapshotCache.get(orgId);
   if (cached && cached.expires > now) return cached.line;
   let line = "";
   try {
     const [agg, owing, doorAgg, txByType] = await Promise.all([
-      prisma.brother.aggregate({
-        where: { isGhost: false, organizationId: orgId },
+      scoped.brother.aggregate({
+        where: { isGhost: false },
         _count: { _all: true },
         _sum: { duesOwed: true },
         _avg: { attendance: true, gpa: true },
       }),
-      prisma.brother.count({ where: { isGhost: false, organizationId: orgId, duesOwed: { gt: 0 } } }),
-      prisma.partyEvent.aggregate({ where: { organizationId: orgId }, _sum: { doorRevenue: true } }),
-      prisma.transaction.groupBy({ by: ["type"], where: { organizationId: orgId, deletedAt: null }, _sum: { amount: true } }),
+      scoped.brother.count({ where: { isGhost: false, duesOwed: { gt: 0 } } }),
+      scoped.partyEvent.aggregate({ _sum: { doorRevenue: true } }),
+      scoped.transaction.groupBy({ by: ["type"], where: { deletedAt: null }, _sum: { amount: true } }),
     ]);
-    const count = agg._count._all;
+    // We requested _count: { _all: true }, so _count is the object form at
+    // runtime; the wrapper's widened return type doesn't express that, hence the
+    // guarded read.
+    const count = (typeof agg._count === "object" && agg._count ? agg._count._all : 0) ?? 0;
     if (count > 0) {
-      const totalDues = roundTo(agg._sum.duesOwed ?? 0, 10);
-      const avgAtt = Math.round(agg._avg.attendance ?? 0);
-      const avgGpa = roundTo(agg._avg.gpa ?? 0, 0.05).toFixed(2);
+      const totalDues = roundTo(agg._sum?.duesOwed ?? 0, 10);
+      const avgAtt = Math.round(agg._avg?.attendance ?? 0);
+      const avgGpa = roundTo(agg._avg?.gpa ?? 0, 0.05).toFixed(2);
       const income = txByType.find(g => g.type === "income")?._sum.amount ?? 0;
       const expense = txByType.find(g => g.type === "expense")?._sum.amount ?? 0;
-      const balance = roundTo((doorAgg._sum.doorRevenue ?? 0) + income - expense, 10);
+      const balance = roundTo((doorAgg._sum?.doorRevenue ?? 0) + income - expense, 10);
       line =
         `Chapter snapshot (cached ≤5 min, approximate — call tools for exact/current figures or any list of names): ` +
         `${count} active brothers; ${owing} owe dues (~$${totalDues.toLocaleString("en-US")} total); ` +
@@ -103,15 +109,15 @@ function nextWeekBounds(today: Date): { start: string; end: string } {
 
 const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
-export async function buildSystemPrompt(orgId: number, now: Date = new Date()): Promise<string> {
+export async function buildSystemPrompt(scoped: Scoped, orgId: number, now: Date = new Date()): Promise<string> {
   const today = now.toISOString().slice(0, 10);
   const weekday = WEEKDAYS[now.getDay()];
   const week = isoWeekBounds(now);
   const next = nextWeekBounds(now);
   const [semesterLine, lastMeetingLine, snapshotLine] = await Promise.all([
-    getSemesterLine(orgId),
-    getLastMeetingLine(orgId, today),
-    getSnapshotLine(orgId),
+    getSemesterLine(scoped, orgId),
+    getLastMeetingLine(scoped, orgId, today),
+    getSnapshotLine(scoped, orgId),
   ]);
 
   // Date anchors are kept on their own line so the model doesn't have to do
