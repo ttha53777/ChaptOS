@@ -5,6 +5,7 @@ import type { Brother, PartyEvent, Task, InstagramTask, ActivityEntry, CalendarE
 import type { CurrentUser } from "../../../context/ChapterContext";
 import type { Announcement } from "../AnnouncementCard";
 import type { QuickActionKey } from "../QuickActionsMenu";
+import { isNavVisible } from "../../Sidebar";
 import { MobileSummary } from "./MobileSummary";
 import { MobileTabBar, type MobileTab } from "./MobileTabBar";
 import { MobileHomeTab } from "./MobileHomeTab";
@@ -128,6 +129,8 @@ export function MobileDashboard(props: MobileDashboardProps) {
     onOpenSidebar, onQuickAction, quickActionsAdmin, quickActionsCanManageTasks, enabledWorkflows, onOpenStanding,
   } = props;
 
+  const igEnabled = isNavVisible("Instagram", enabledWorkflows ?? []);
+
   const [activeTab, setActiveTab] = useState<MobileTab>("Home");
   // Inner drill state for the Activity hub: null = the card menu, else the
   // chosen group's full view. Reset whenever you leave/re-enter the tab.
@@ -167,7 +170,7 @@ export function MobileDashboard(props: MobileDashboardProps) {
           Activity tab there's no sticky header, so pad past the notch here. */}
       <div className={`px-4 py-4 pb-28 ${activeTab === "Home" ? "" : "pt-safe"}`}>
         {activeTab === "Home" && (
-          <MobileHomeTab health={health} needsAttention={needsAttention} tasksData={tasksData} actions={actions} />
+          <MobileHomeTab health={health} needsAttention={needsAttention} tasksData={tasksData} actions={actions} igEnabled={igEnabled} />
         )}
         {activeTab === "Activity" && (
           <MobileActivityHub
@@ -178,6 +181,7 @@ export function MobileDashboard(props: MobileDashboardProps) {
             moneyData={moneyData}
             brothersData={brothersData}
             actions={actions}
+            igEnabled={igEnabled}
           />
         )}
       </div>

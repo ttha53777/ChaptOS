@@ -6,9 +6,10 @@ import type { MobileActions, MobileTasksData } from "./MobileDashboard";
 
 const CAP = 4;
 
-export function MobileTasksTab({ tasksData, actions }: {
+export function MobileTasksTab({ tasksData, actions, igEnabled }: {
   tasksData: MobileTasksData;
   actions: MobileActions;
+  igEnabled: boolean;
 }) {
   const { deadlineList, igTaskList } = tasksData;
   const activeIgTasks = igTaskList.filter(t => t.status !== "Complete");
@@ -59,8 +60,8 @@ export function MobileTasksTab({ tasksData, actions }: {
         </div>
       </Card>
 
-      {/* Instagram */}
-      <Card
+      {/* Instagram — hidden when communications workflow is off */}
+      {igEnabled && <Card
         style={{ background: "linear-gradient(to bottom, #f472b610 0%, #10121a 50%)" }}
         className="overflow-hidden transition-colors active:border-white/[0.14]"
         onClick={() => actions.setWidgetDrawer("instagram")}
@@ -101,7 +102,7 @@ export function MobileTasksTab({ tasksData, actions }: {
             <button onClick={() => actions.setWidgetDrawer("instagram")} className="w-full px-4 py-2.5 text-center text-[11px] font-medium text-[#c9c2b4] active:bg-white/[0.03]">+{activeIgTasks.length - CAP} more · View all</button>
           )}
         </div>
-      </Card>
+      </Card>}
     </div>
   );
 }

@@ -1018,7 +1018,8 @@ export default function Home() {
   const orgName = currentUser?.org?.name ?? null;
   // Matches the timeline/settings deadline modal: when the org's Instagram page
   // is visible, the form offers to log the deadline as an Instagram post instead.
-  const igEnabled = isNavVisible("Instagram", currentUser?.org?.enabledWorkflows ?? []);
+  const igEnabled      = isNavVisible("Instagram", currentUser?.org?.enabledWorkflows ?? []);
+  const partiesEnabled = isNavVisible("Parties",   currentUser?.org?.enabledWorkflows ?? []);
   useEffect(() => {
     if (welcomeToastShownRef.current || !orgName) return;
     const params = new URLSearchParams(window.location.search);
@@ -1274,7 +1275,7 @@ export default function Home() {
         key: digestKey,
         weekRange,
         deadlines: weeklyDigest.deadlinesDue.map(d => ({ title: d.title, dueDate: d.dueDate })),
-        instagram: weeklyDigest.igDue.map(t => ({ title: t.title, dueDate: t.dueDate })),
+        instagram: igEnabled ? weeklyDigest.igDue.map(t => ({ title: t.title, dueDate: t.dueDate })) : [],
         events:    weeklyDigest.eventsThisWeek.map(e => ({ title: e.title, date: e.date })),
         parties:   weeklyDigest.partiesThisWeek.map(p => ({ name: p.name, date: p.date })),
         atRiskCount: weeklyDigest.atRiskCount,
@@ -1994,21 +1995,25 @@ export default function Home() {
 
                 {/* Remaining rail — Socials / Instagram / Activity */}
                 <div className="area-rail">
-                <SocialsRail
-                  parties={partyList}
-                  totalDoorRev={totalDoorRev}
-                  maxRevenue={maxRevenue}
-                  bestEvent={bestEvent}
-                  today={todayISO}
-                  onAdd={() => setActiveModal("revenue")}
-                  onAll={() => setWidgetDrawer("parties")}
-                />
-                <InstagramRail
-                  tasks={igTaskList.filter(t => t.status !== "Complete")}
-                  today={todayISO}
-                  onAdd={() => setActiveModal("ig")}
-                  onAll={() => setWidgetDrawer("instagram")}
-                />
+                {partiesEnabled && (
+                  <SocialsRail
+                    parties={partyList}
+                    totalDoorRev={totalDoorRev}
+                    maxRevenue={maxRevenue}
+                    bestEvent={bestEvent}
+                    today={todayISO}
+                    onAdd={() => setActiveModal("revenue")}
+                    onAll={() => setWidgetDrawer("parties")}
+                  />
+                )}
+                {igEnabled && (
+                  <InstagramRail
+                    tasks={igTaskList.filter(t => t.status !== "Complete")}
+                    today={todayISO}
+                    onAdd={() => setActiveModal("ig")}
+                    onAll={() => setWidgetDrawer("instagram")}
+                  />
+                )}
                 <ActivityRail entries={activityFeed} onAll={() => setWidgetDrawer("activity")} />
                 </div>
               </div>
@@ -2061,7 +2066,7 @@ export default function Home() {
           <AddRevenueForm onSubmit={handleAddRevenue} />
         </Modal>
       )}
-      {activeModal === "ig" && (
+      {igEnabled && activeModal === "ig" && (
         <Modal title="Add Instagram Task" tone="dusk" onClose={closeModal}>
           <AddIGTaskForm onSubmit={handleAddIGTask} />
         </Modal>

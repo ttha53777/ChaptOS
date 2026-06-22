@@ -12,7 +12,7 @@ export type ActivityGroup = "Tasks" | "Money" | "People";
 
 export function MobileActivityHub({
   activeGroup, onSelectGroup, onBack,
-  tasksData, moneyData, brothersData, actions,
+  tasksData, moneyData, brothersData, actions, igEnabled,
 }: {
   activeGroup: ActivityGroup | null;
   onSelectGroup: (g: ActivityGroup) => void;
@@ -21,6 +21,7 @@ export function MobileActivityHub({
   moneyData: MobileMoneyData;
   brothersData: MobileBrothersData;
   actions: MobileActions;
+  igEnabled: boolean;
 }) {
   const v = useVocab();
 
@@ -37,7 +38,7 @@ export function MobileActivityHub({
           </svg>
           Activity
         </button>
-        {activeGroup === "Tasks"  && <MobileTasksTab    tasksData={tasksData}     actions={actions} />}
+        {activeGroup === "Tasks"  && <MobileTasksTab    tasksData={tasksData}     actions={actions} igEnabled={igEnabled} />}
         {activeGroup === "Money"  && <MobileMoneyTab    moneyData={moneyData}     actions={actions} />}
         {activeGroup === "People" && <MobileBrothersTab brothersData={brothersData} actions={actions} />}
       </div>
@@ -47,7 +48,7 @@ export function MobileActivityHub({
   // Hub menu: glanceable summary cards that drill into each group.
   const dueCount =
     tasksData.deadlineList.filter(d => d.status !== "done").length +
-    tasksData.igTaskList.filter(t => t.status !== "Complete").length;
+    (igEnabled ? tasksData.igTaskList.filter(t => t.status !== "Complete").length : 0);
   const atRisk = brothersData.statusCounts["At Risk"];
 
   const cards: {
@@ -55,7 +56,7 @@ export function MobileActivityHub({
     iconBg: string; stat: string; statCls: string;
   }[] = [
     {
-      group: "Tasks", label: "Tasks", sub: "Deadlines & Instagram",
+      group: "Tasks", label: "Tasks", sub: igEnabled ? "Deadlines & Instagram" : "Deadlines",
       icon: "M9 11l3 3 8-8M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11",
       iconBg: "bg-[var(--gold-bg)] text-[var(--gold)]",
       stat: dueCount > 0 ? `${dueCount} due` : "All clear",

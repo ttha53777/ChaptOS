@@ -15,17 +15,19 @@ const HEALTH_TONE: Record<MobileHealth["label"], { dot: string; num: string; str
   "Critical":         { dot: "bg-[var(--rose)]", num: "text-[var(--rose)]", stroke: "#d98ba3" },
 };
 
-export function MobileHomeTab({ health, needsAttention, tasksData, actions }: {
+export function MobileHomeTab({ health, needsAttention, tasksData, actions, igEnabled }: {
   health: MobileHealth;
   needsAttention: AttentionItem[];
   tasksData: MobileTasksData;
   actions: MobileActions;
+  igEnabled: boolean;
 }) {
   const v = useVocab();
   const { weeklyDigest, weekRange, digestNarration } = tasksData;
   const tone = HEALTH_TONE[health.label];
   const digestTotal =
-    weeklyDigest.deadlinesDue.length + weeklyDigest.igDue.length +
+    weeklyDigest.deadlinesDue.length +
+    (igEnabled ? weeklyDigest.igDue.length : 0) +
     weeklyDigest.eventsThisWeek.length + weeklyDigest.partiesThisWeek.length;
 
   return (
@@ -71,10 +73,10 @@ export function MobileHomeTab({ health, needsAttention, tasksData, actions }: {
           ) : (
             <div className="grid grid-cols-2 gap-2">
               {([
-                ["Deadlines", weeklyDigest.deadlinesDue.length,    "text-[var(--vio)]"],
-                ["Instagram", weeklyDigest.igDue.length,           "text-[var(--rose)]"],
-                ["Events",    weeklyDigest.eventsThisWeek.length,  "text-[var(--ok)]"],
-                ["Parties",   weeklyDigest.partiesThisWeek.length, "text-[var(--gold)]"],
+                ["Deadlines", weeklyDigest.deadlinesDue.length,                        "text-[var(--vio)]"],
+                ...(igEnabled ? [["Instagram", weeklyDigest.igDue.length,              "text-[var(--rose)]"] as const] : []),
+                ["Events",    weeklyDigest.eventsThisWeek.length,                      "text-[var(--ok)]"],
+                ["Parties",   weeklyDigest.partiesThisWeek.length,                     "text-[var(--gold)]"],
               ] as const).map(([label, count, color]) => (
                 <div key={label} className={`flex items-center justify-between rounded-md px-2.5 py-1.5 ${count > 0 ? "bg-[rgba(236,231,221,0.05)]" : "bg-[rgba(236,231,221,0.02)]"}`}>
                   <span className={`text-[11px] ${count > 0 ? "text-[var(--ink-soft)]" : "text-[var(--faint)]"}`}>{label}</span>
