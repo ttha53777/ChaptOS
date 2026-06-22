@@ -109,7 +109,7 @@ Every organization is a fully isolated tenant. The enforcement layers, from oute
 1. **Active-org cookie.** `proxy.ts` reads the `active_org_id` cookie on every request and the resolved org flows into `requireUser()`.
 2. **`buildContext()`** resolves the `RequestContext` for the request, which includes `ctx.orgId` and an org-scoped `ctx.db` instance. Route handlers never resolve org context themselves.
 3. **`ctx.db` (org-scoped wrapper).** `lib/db/tenant.ts` wraps every Prisma model to inject `organizationId` on all reads and writes automatically. `findUnique` is silently promoted to `findFirst + org filter`; updates and deletes use a verify-then-mutate pattern to avoid needing `@@unique([id, organizationId])` on every model.
-4. **Postgres RLS.** Row-level security policies are the DB-layer backstop. Policies are currently permissive during Phase 2.5 rollout; enforcing policies will flip automatically without code changes.
+4. **Postgres RLS.** Row-level security policies are the DB-layer backstop. As of Phase 4, `allow_all` permissive policies have been dropped on all org-scoped tables; only `org_isolation` (`organizationId = app.org_id`) remains. `RLS_SET_ORG_ID=1` must be set in every env — `db()` issues `SET LOCAL app.org_id` on every scoped query. Bootstrap paths (claim, redeem-invite, provisionOrg) run as `prismaPrivileged` (BYPASSRLS via `DIRECT_URL`) and are unaffected. To revert to permissive, apply `prisma/migrations/20260622000002_phase4_revert_allow_all/migration.sql` directly.
 
 Every write must go through `ctx.db.<model>` (org-scoped) or carry an explicit `organizationId` in the data. Tenancy tests in `tests/tenancy/` guard this invariant.
 
@@ -460,6 +460,7 @@ cp .env.example .env.local
 | `NEXT_PUBLIC_DOMAIN_ALIASES` | Optional | Comma-separated extra apexes that should also resolve org subdomains. |
 | `NEXT_PUBLIC_APP_NAME` | Optional | Display name for the wordmark/footer. Defaults to `ChaptOS`. |
 | `OPENAI_API_KEY` | Optional | Enables AI features (chat, digest narration, meeting summaries). All three degrade gracefully when unset. |
+| `RLS_SET_ORG_ID` | Yes | Must be `1` in every env. Causes `db()` to issue `SET LOCAL app.org_id` on every scoped query, which Postgres RLS uses to enforce tenant isolation. |
 | `SENTRY_DSN` | Optional | When set, `logError` forwards to Sentry via a lazy dynamic import. No dependency cost when unset. |
 
 **Where to find these in Supabase:**
@@ -534,7 +535,7 @@ See [evals/ask-the-chapter/README.md](evals/ask-the-chapter/README.md) for the c
 Built for **Vercel** with a Supabase backend.
 
 1. **Import the repository** in Vercel.
-2. **Add environment variables** (Project Settings → Environment Variables): `DATABASE_URL`, `DIRECT_URL`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` (and `SUPABASE_SERVICE_ROLE_KEY`, `OPENAI_API_KEY`, `SENTRY_DSN` if used).
+2. **Add environment variables** (Project Settings → Environment Variables): `DATABASE_URL`, `DIRECT_URL`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `RLS_SET_ORG_ID=1` (and `SUPABASE_SERVICE_ROLE_KEY`, `OPENAI_API_KEY`, `SENTRY_DSN` if used).
 3. **Add the production redirect URL** in Supabase → Authentication → URL Configuration → Redirect URLs:
    ```
    https://your-app.vercel.app/auth/callback
