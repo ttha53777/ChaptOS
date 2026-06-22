@@ -360,6 +360,7 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
           dueDate:          { type: "string", description: "YYYY-MM-DD." },
           assigneeBrotherId:{ type: "integer", description: "Member id responsible (from list_brothers). Provide this OR assigneeRoleId." },
           assigneeRoleId:   { type: "integer", description: "Role id responsible (from list_roles). Provide this OR assigneeBrotherId." },
+          notes:            { type: "string", description: "Optional free-text note / extra detail for the deadline." },
         },
         required: ["title", "dueDate"],
       },
@@ -1312,9 +1313,12 @@ function proposeAddDeadline(args: ToolArgs): Proposal | { error: string } {
   const dueDate = String(args.dueDate ?? "").trim();
   const assigneeBrotherId = typeof args.assigneeBrotherId === "number" ? args.assigneeBrotherId : undefined;
   const assigneeRoleId    = typeof args.assigneeRoleId === "number" ? args.assigneeRoleId : undefined;
+  // Optional note — mirror createTaskInput's 2000-char cap so the proposal can't
+  // produce a payload the POST would then reject.
+  const notes = typeof args.notes === "string" ? args.notes.trim() : "";
   if (!title || !dueDate) return badProposal("Missing required fields.");
   if (!DATE_RE.test(dueDate)) return badProposal("dueDate must be YYYY-MM-DD.");
-  if (title.length > 200) return badProposal("Field too long.");
+  if (title.length > 200 || notes.length > 2000) return badProposal("Field too long.");
   if (!assigneeBrotherId && !assigneeRoleId) {
     return badProposal("A deadline needs an assignee. Resolve the owner with list_brothers or list_roles, then pass assigneeBrotherId or assigneeRoleId.");
   }
@@ -1326,6 +1330,7 @@ function proposeAddDeadline(args: ToolArgs): Proposal | { error: string } {
     payload: {
       title,
       dueDate,
+      ...(notes ? { notes } : {}),
       assigneeBrotherIds: assigneeBrotherId ? [assigneeBrotherId] : [],
       assigneeRoleIds:    assigneeRoleId ? [assigneeRoleId] : [],
     },
