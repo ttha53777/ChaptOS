@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { requireUser } from "@/lib/auth/require-user";
+import { buildContext } from "@/lib/context";
 import { checkMutationRate } from "@/lib/rate-limit";
 import { aiEnabled, recommendSetup, type RawSetupRecommendation } from "@/lib/ai";
 import { ALL_WORKFLOWS, type WorkflowId } from "@/lib/org-types";
@@ -198,13 +199,15 @@ Return concise choices. The "rationale" is ONE short sentence (max ~20 words) th
 }
 
 export async function POST(req: NextRequest) {
-  const user = await requireUser();
-  if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  // Membership gate (see ai/chat). Stateless transform of the request body, but
+  // gated for a uniform, fail-closed AI surface. Rate limit handled below.
+  const { ctx, error } = await buildContext({ rateLimit: false });
+  if (error) return error;
 
   // Feature dormant without a key — tell the client so it hides the step.
   if (!aiEnabled()) return Response.json({ enabled: false });
 
-  const limited = checkMutationRate(user.id, 20, 60_000);
+  const limited = checkMutationRate(ctx.actorId, 20, 60_000);
   if (limited) return limited;
 
   const body = (await req.json().catch(() => null)) as { description?: unknown } | null;

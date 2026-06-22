@@ -1,6 +1,7 @@
 import type { NextRequest } from "next/server";
 import OpenAI from "openai";
 import { requireUser } from "@/lib/auth/require-user";
+import { buildContext } from "@/lib/context";
 import { checkMutationRate } from "@/lib/rate-limit";
 import { aiEnabled, getOpenAI, CHAT_MODEL, MAX_COMPLETION_TOKENS, type RawSetupRecommendation } from "@/lib/ai";
 import { ALL_WORKFLOWS, getOrgType, type OrgTypeTemplate } from "@/lib/org-types";
@@ -194,12 +195,15 @@ ROLES: 2-4 officer roles {name, rank 0-90, color hex, permissions: names from ${
 }
 
 export async function POST(req: NextRequest) {
-  const user = await requireUser();
-  if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  // Membership gate (see ai/chat). This route doesn't read org data — it shapes a
+  // setup recommendation from the request body — but gating keeps the AI surface
+  // uniform and fail-closed. The founder has a membership immediately post-create.
+  const { ctx, error } = await buildContext({ rateLimit: false });
+  if (error) return error;
 
   if (!aiEnabled()) return Response.json({ enabled: false });
 
-  const limited = checkMutationRate(user.id, 20, 60_000);
+  const limited = checkMutationRate(ctx.actorId, 20, 60_000);
   if (limited) return limited;
 
   const body = await req.json().catch(() => null) as { messages?: ClientMessage[]; orgType?: string } | null;
@@ -341,7 +345,7 @@ export async function POST(req: NextRequest) {
 
         send("done", {});
       } catch (e) {
-        logError(e, { route: "/api/ai/setup-chat", method: "POST", userId: user.id });
+        logError(e, { route: "/api/ai/setup-chat", method: "POST", userId: ctx.actorId });
         send("text", { delta: "\n\n(Sorry — I hit an error. You can set things up manually below.)" });
         send("done", {});
       } finally {

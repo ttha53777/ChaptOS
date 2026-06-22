@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { requireUser } from "@/lib/auth/require-user";
+import { buildContext } from "@/lib/context";
 import { checkMutationRate } from "@/lib/rate-limit";
 import { aiEnabled, narrate } from "@/lib/ai";
 
@@ -28,13 +28,15 @@ interface DigestBody {
 }
 
 export async function POST(req: NextRequest) {
-  const user = await requireUser();
-  if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  // Membership gate (see ai/chat): operates on chapter data, so require an
+  // active membership, not just a resolvable org. Rate limit handled below.
+  const { ctx, error } = await buildContext({ rateLimit: false });
+  if (error) return error;
 
   // Feature dormant without a key — tell the client so it stops asking.
   if (!aiEnabled()) return Response.json({ narration: null, enabled: false });
 
-  const limited = checkMutationRate(user.id, 20, 60_000);
+  const limited = checkMutationRate(ctx.actorId, 20, 60_000);
   if (limited) return limited;
 
   const body = (await req.json().catch(() => null)) as DigestBody | null;

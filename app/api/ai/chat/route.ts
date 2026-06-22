@@ -1,6 +1,6 @@
 import type { NextRequest } from "next/server";
 import OpenAI from "openai";
-import { requireUser } from "@/lib/auth/require-user";
+import { buildContext } from "@/lib/context";
 import { checkMutationRate } from "@/lib/rate-limit";
 import { aiEnabled, getOpenAI, CHAT_MODEL, MAX_COMPLETION_TOKENS, CHAT_REASONING_EFFORT } from "@/lib/ai";
 import { TOOLS, runTool, isReadTool, runProposal, isProposalTool } from "@/lib/ai-tools";
@@ -26,13 +26,18 @@ function sseEvent(event: string, data: unknown): string {
 }
 
 export async function POST(req: NextRequest) {
-  const user = await requireUser();
-  if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  // buildContext gates on an active Membership (not just a resolvable org), which
+  // requireUser() did NOT — a member removed from their only org could still
+  // resolve their stale home org and reach these read tools. ctx.db is org-scoped
+  // for every tool query. Rate limiting is handled explicitly below (20/min), so
+  // skip buildContext's default writer limit.
+  const { ctx, error } = await buildContext({ rateLimit: false });
+  if (error) return error;
 
   if (!aiEnabled()) return Response.json({ enabled: false });
 
   // Rate-limit: 20 chat messages per minute per brother.
-  const limited = checkMutationRate(user.id, 20, 60_000);
+  const limited = checkMutationRate(ctx.actorId, 20, 60_000);
   if (limited) return limited;
 
   const body = await req.json().catch(() => null) as { messages?: ClientMessage[] } | null;
@@ -61,7 +66,7 @@ export async function POST(req: NextRequest) {
   // Kick off the prompt build but don't await it here — awaiting before
   // constructing the Response delays the SSE headers (and the client's
   // "thinking" state) by a DB round trip on cache miss. The stream awaits it.
-  const systemPromptPromise = buildSystemPrompt(user.orgId);
+  const systemPromptPromise = buildSystemPrompt(ctx.db, ctx.orgId);
 
   const encoder = new TextEncoder();
   const stream = new ReadableStream<Uint8Array>({
@@ -93,7 +98,7 @@ export async function POST(req: NextRequest) {
         // non-match / error returns null and we fall through to the LLM loop
         // unchanged, so the worst case is "no faster than before," never wrong.
         const latest = history.at(-1);
-        const fast = latest ? await tryFastPath(latest.content, user.orgId) : null;
+        const fast = latest ? await tryFastPath(latest.content, ctx.db, ctx.orgId) : null;
         if (fast) {
           fastPathPattern = fast.pattern;
           ttftMs = performance.now() - reqStart;
@@ -138,7 +143,7 @@ export async function POST(req: NextRequest) {
             // by org routes repeat requests to the same cache shard, so the
             // prefix is served from OpenAI's prompt cache — lower TTFT on
             // every model call, including the per-tool-loop iterations.
-            prompt_cache_key: `chat-org-${user.orgId}`,
+            prompt_cache_key: `chat-org-${ctx.orgId}`,
             // Cap output length. Chat answers are short by design; on gpt-5.x this
             // is max_completion_tokens (counts reasoning tokens too — see lib/ai),
             // so it's higher than the old gpt-4o cap to leave reasoning headroom.
@@ -214,9 +219,9 @@ export async function POST(req: NextRequest) {
             let resultPayload: unknown;
             let proposalEvent: { send: true; proposal: Awaited<ReturnType<typeof runProposal>> } | null = null;
             if (isReadTool(tc.name)) {
-              resultPayload = await runTool(tc.name, argsObj, user.orgId);
+              resultPayload = await runTool(tc.name, argsObj, ctx.db, ctx.orgId);
             } else if (isProposalTool(tc.name)) {
-              const proposal = await runProposal(tc.name, argsObj, user.orgId);
+              const proposal = await runProposal(tc.name, argsObj, ctx.db);
               if ("error" in proposal) {
                 resultPayload = proposal;
               } else {
@@ -252,7 +257,7 @@ export async function POST(req: NextRequest) {
 
         send("done", {});
       } catch (e) {
-        logError(e, { route: "/api/ai/chat", method: "POST", userId: user.id });
+        logError(e, { route: "/api/ai/chat", method: "POST", userId: ctx.actorId });
         send("text", { delta: "\n\n_(Sorry — I hit an error. Try again in a moment.)_" });
         send("done", {});
       } finally {
@@ -261,10 +266,10 @@ export async function POST(req: NextRequest) {
         logTiming({
           route: "/api/ai/chat",
           method: "POST",
-          userId: user.id,
+          userId: ctx.actorId,
           message: "chat-timing",
           extra: {
-            orgId: user.orgId,
+            orgId: ctx.orgId,
             // On a fast-path hit there are no LLM iterations; the pattern name
             // tells us which deterministic answer served it.
             fastPath: fastPathPattern,
