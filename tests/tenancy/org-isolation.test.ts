@@ -501,9 +501,105 @@ describe("tenancy: ChapterAnnouncement", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Membership (pass-through — no organizationId injection, but org integrity)
+// Org-column-less join tables (F2 hardening): no organizationId column, scoped
+// through a required relation to an org-bound parent. These were raw
+// pass-throughs before — a bare id/brotherId WHERE used to leak cross-org rows.
 // ---------------------------------------------------------------------------
-describe("tenancy: Membership (pass-through integrity)", () => {
+describe("tenancy: AttendanceRecord (relation-scoped via CalendarEvent)", () => {
+  it("findMany never returns another org's records", async () => {
+    const orgA = await createOrg("Alpha", "alpha");
+    const orgB = await createOrg("Beta", "beta");
+    const semA = await createSemester({ orgId: orgA.id });
+    const semB = await createSemester({ orgId: orgB.id });
+    const evtA = await createCalendarEvent({ orgId: orgA.id });
+    const evtB = await createCalendarEvent({ orgId: orgB.id });
+    const broA = await createBrother({ orgId: orgA.id });
+    const broB = await createBrother({ orgId: orgB.id });
+    await testPrisma.attendanceRecord.create({ data: { calendarEventId: evtA.id, brotherId: broA.id, semesterId: semA.id, attended: true } });
+    await testPrisma.attendanceRecord.create({ data: { calendarEventId: evtB.id, brotherId: broB.id, semesterId: semB.id, attended: true } });
+
+    // Cross-org read attempt: orgA asks for orgB's event id (the F3 IDOR shape).
+    const leak = await db(orgA.id).attendanceRecord.findMany({ where: { calendarEventId: evtB.id } });
+    expect(leak).toEqual([]);
+
+    const own = await db(orgA.id).attendanceRecord.findMany({ where: { calendarEventId: evtA.id } });
+    expect(own).toHaveLength(1);
+  });
+
+  it("findUnique by cross-org composite key returns null", async () => {
+    const orgA = await createOrg("Alpha", "alpha");
+    const orgB = await createOrg("Beta", "beta");
+    const semB = await createSemester({ orgId: orgB.id });
+    const evtB = await createCalendarEvent({ orgId: orgB.id });
+    const broB = await createBrother({ orgId: orgB.id });
+    await testPrisma.attendanceRecord.create({ data: { calendarEventId: evtB.id, brotherId: broB.id, semesterId: semB.id, attended: true } });
+
+    const leak = await db(orgA.id).attendanceRecord.findUnique({
+      where: { calendarEventId_brotherId: { calendarEventId: evtB.id, brotherId: broB.id } },
+    });
+    expect(leak).toBeNull();
+  });
+});
+
+describe("tenancy: AttendanceExcuse (relation-scoped via Brother)", () => {
+  it("findMany and updateMany never touch another org's excuse", async () => {
+    const orgA = await createOrg("Alpha", "alpha");
+    const orgB = await createOrg("Beta", "beta");
+    const semB = await createSemester({ orgId: orgB.id });
+    const evtB = await createCalendarEvent({ orgId: orgB.id });
+    const broB = await createBrother({ orgId: orgB.id });
+    const excuseB = await testPrisma.attendanceExcuse.create({
+      data: { calendarEventId: evtB.id, brotherId: broB.id, semesterId: semB.id, reason: "B reason", status: "pending" },
+    });
+
+    // Cross-org read: orgA sees nothing.
+    expect(await db(orgA.id).attendanceExcuse.findMany({ where: { id: excuseB.id } })).toEqual([]);
+    expect(await db(orgA.id).attendanceExcuse.findUnique({ where: { id: excuseB.id } })).toBeNull();
+
+    // Cross-org write (the decideExcuse IDOR): zero rows affected, B unchanged.
+    const res = await db(orgA.id).attendanceExcuse.updateMany({
+      where: { id: excuseB.id, status: "pending" },
+      data:  { status: "approved" },
+    });
+    expect(res.count).toBe(0);
+    const stillPending = await testPrisma.attendanceExcuse.findUnique({ where: { id: excuseB.id } });
+    expect(stillPending?.status).toBe("pending");
+  });
+});
+
+describe("tenancy: BudgetAllocation (relation-scoped via Budget)", () => {
+  it("findMany never returns another org's allocations", async () => {
+    const orgA = await createOrg("Alpha", "alpha");
+    const orgB = await createOrg("Beta", "beta");
+    const budgetB = await createBudget({ orgId: orgB.id, semester: "SPR26" });
+    await testPrisma.budgetAllocation.create({ data: { budgetId: budgetB.id, category: "Events", percent: 50 } });
+
+    expect(await db(orgA.id).budgetAllocation.findMany({ where: { budgetId: budgetB.id } })).toEqual([]);
+    expect(await db(orgA.id).budgetAllocation.count()).toBe(0);
+    expect(await db(orgB.id).budgetAllocation.count()).toBe(1);
+  });
+});
+
+describe("tenancy: InviteRedemption (relation-scoped via OrgInvite)", () => {
+  it("findMany never returns another org's redemptions", async () => {
+    const orgA = await createOrg("Alpha", "alpha");
+    const orgB = await createOrg("Beta", "beta");
+    const broB = await createBrother({ orgId: orgB.id });
+    const inviteB = await testPrisma.orgInvite.create({
+      data: { organizationId: orgB.id, token: "tok-beta", mode: "open", createdByBrotherId: broB.id },
+    });
+    await testPrisma.inviteRedemption.create({ data: { inviteId: inviteB.id, brotherId: broB.id } });
+
+    expect(await db(orgA.id).inviteRedemption.findMany({ where: { inviteId: inviteB.id } })).toEqual([]);
+    expect(await db(orgA.id).inviteRedemption.count()).toBe(0);
+    expect(await db(orgB.id).inviteRedemption.count()).toBe(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Membership (now org-scoped by organizationId injection)
+// ---------------------------------------------------------------------------
+describe("tenancy: Membership", () => {
   it("memberships seed correctly per org via createBrother factory", async () => {
     const orgA = await createOrg("Alpha", "alpha");
     const orgB = await createOrg("Beta", "beta");
@@ -522,6 +618,46 @@ describe("tenancy: Membership (pass-through integrity)", () => {
       where: { brotherId_organizationId: { brotherId: admin.id, organizationId: org.id } },
     });
     expect(m?.isOrgAdmin).toBe(true);
+  });
+
+  it("ctx.db.membership.count and findMany are org-scoped", async () => {
+    const orgA = await createOrg("Alpha", "alpha");
+    const orgB = await createOrg("Beta", "beta");
+    await createBrother({ orgId: orgA.id });
+    await createBrother({ orgId: orgB.id });
+    await createBrother({ orgId: orgB.id });
+    expect(await db(orgA.id).membership.count()).toBe(1);
+    expect(await db(orgB.id).membership.count()).toBe(2);
+    const fromA = await db(orgA.id).membership.findMany();
+    expect(fromA.every(m => m.organizationId === orgA.id)).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Organization root (id-scoped: a request can only touch its own org row)
+// ---------------------------------------------------------------------------
+describe("tenancy: Organization (root, id-scoped)", () => {
+  it("findUnique can never return a different org's row", async () => {
+    const orgA = await createOrg("Alpha", "alpha");
+    const orgB = await createOrg("Beta", "beta");
+    // The wrapper forces where.id = the active org, so asking for orgB's id
+    // through orgA's client resolves to orgA's own row — never orgB's. The point
+    // is that orgB's data is unreachable, not the precise miss/hit semantics.
+    const viaForeignId = await db(orgA.id).organization.findUnique({ where: { id: orgB.id } });
+    expect(viaForeignId?.id).not.toBe(orgB.id);
+
+    const own = await db(orgA.id).organization.findUnique({ where: { id: orgA.id } });
+    expect(own?.id).toBe(orgA.id);
+  });
+
+  it("update only ever mutates the active org's row", async () => {
+    const orgA = await createOrg("Alpha", "alpha");
+    const orgB = await createOrg("Beta", "beta");
+    await db(orgA.id).organization.update({ where: { id: orgB.id }, data: { name: "Hijacked" } });
+    const a = await testPrisma.organization.findUnique({ where: { id: orgA.id } });
+    const b = await testPrisma.organization.findUnique({ where: { id: orgB.id } });
+    expect(a?.name).toBe("Hijacked"); // the write landed on orgA, not orgB
+    expect(b?.name).toBe("Beta");
   });
 });
 
