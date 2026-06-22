@@ -8,7 +8,15 @@
  * If this file ever goes red, every other test that relies on isolation is
  * suspect. Treat regressions here as P0.
  *
- * Coverage: all 13 org-scoped models in lib/db/tenant.ts.
+ * Coverage: every org-scoped delegate in lib/db/tenant.ts — first-class models
+ * (organizationId column), relation-scoped join tables (AttendanceRecord/Excuse,
+ * BudgetAllocation, InviteRedemption), Membership, the Organization root, and the
+ * newer org tables (BrotherRole, OrgInvite, OrgMetricDefinition,
+ * BrotherMetricValue, Reimbursement, ProgrammingEvent).
+ *
+ * This suite runs as the schema owner and therefore validates the APPLICATION
+ * wrapper only. The Postgres RLS policies are exercised separately in
+ * rls-enforced.test.ts (connects as a NOBYPASSRLS role).
  */
 
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
@@ -712,5 +720,196 @@ describe("tenancy: OrganizationConfig", () => {
     });
     const read = await testPrisma.organization.findUnique({ where: { id: org.id } });
     expect(read?.orgType).toBe("fraternity");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Aggregations: groupBy / aggregate must not pull cross-org rows into a group
+// (added for the Phase 1 AI-layer migration off raw prisma).
+// ---------------------------------------------------------------------------
+describe("tenancy: aggregations", () => {
+  it("transaction.groupBy only sums the active org's rows", async () => {
+    const orgA = await createOrg("Alpha", "alpha");
+    const orgB = await createOrg("Beta", "beta");
+    await createTransaction({ orgId: orgA.id, type: "income", amount: 100 });
+    await createTransaction({ orgId: orgA.id, type: "income", amount: 50 });
+    await createTransaction({ orgId: orgB.id, type: "income", amount: 999 });
+
+    const grouped = await db(orgA.id).transaction.groupBy({
+      by: ["type"],
+      _sum: { amount: true },
+    });
+    expect(grouped).toHaveLength(1);
+    expect(grouped[0]?._sum.amount).toBe(150); // not 1149
+  });
+
+  it("brother.aggregate is org-scoped", async () => {
+    const orgA = await createOrg("Alpha", "alpha");
+    const orgB = await createOrg("Beta", "beta");
+    await createBrother({ orgId: orgA.id, serviceHours: 5 });
+    await createBrother({ orgId: orgA.id, serviceHours: 15 });
+    await createBrother({ orgId: orgB.id, serviceHours: 999 });
+
+    const agg = await db(orgA.id).brother.aggregate({ _avg: { serviceHours: true } });
+    expect(agg._avg?.serviceHours).toBe(10); // (5+15)/2, B excluded
+  });
+});
+
+// ---------------------------------------------------------------------------
+// BrotherRole (role assignments; has organizationId)
+// ---------------------------------------------------------------------------
+describe("tenancy: BrotherRole", () => {
+  it("findMany only returns the active org's assignments", async () => {
+    const orgA = await createOrg("Alpha", "alpha");
+    const orgB = await createOrg("Beta", "beta");
+    const aBro = await createBrother({ orgId: orgA.id });
+    const bBro = await createBrother({ orgId: orgB.id });
+    const aRole = await testPrisma.role.create({ data: { organizationId: orgA.id, name: "Treasurer" } });
+    const bRole = await testPrisma.role.create({ data: { organizationId: orgB.id, name: "Treasurer" } });
+    await testPrisma.brotherRole.create({ data: { organizationId: orgA.id, brotherId: aBro.id, roleId: aRole.id } });
+    await testPrisma.brotherRole.create({ data: { organizationId: orgB.id, brotherId: bBro.id, roleId: bRole.id } });
+
+    const fromA = await db(orgA.id).brotherRole.findMany();
+    expect(fromA).toHaveLength(1);
+    expect(fromA[0]?.brotherId).toBe(aBro.id);
+  });
+
+  it("count is org-scoped", async () => {
+    const orgA = await createOrg("Alpha", "alpha");
+    const orgB = await createOrg("Beta", "beta");
+    const aBro = await createBrother({ orgId: orgA.id });
+    const bBro = await createBrother({ orgId: orgB.id });
+    const aRole = await testPrisma.role.create({ data: { organizationId: orgA.id, name: "R" } });
+    const bRole = await testPrisma.role.create({ data: { organizationId: orgB.id, name: "R" } });
+    await testPrisma.brotherRole.create({ data: { organizationId: orgA.id, brotherId: aBro.id, roleId: aRole.id } });
+    await testPrisma.brotherRole.create({ data: { organizationId: orgB.id, brotherId: bBro.id, roleId: bRole.id } });
+
+    expect(await db(orgA.id).brotherRole.count()).toBe(1);
+    expect(await db(orgB.id).brotherRole.count()).toBe(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// OrgInvite (has organizationId)
+// ---------------------------------------------------------------------------
+describe("tenancy: OrgInvite", () => {
+  it("findFirst cannot read another org's invite", async () => {
+    const orgA = await createOrg("Alpha", "alpha");
+    const orgB = await createOrg("Beta", "beta");
+    const aBro = await createBrother({ orgId: orgA.id });
+    const bBro = await createBrother({ orgId: orgB.id });
+    await testPrisma.orgInvite.create({
+      data: { organizationId: orgA.id, token: "tok-a", mode: "single_use", createdByBrotherId: aBro.id },
+    });
+    await testPrisma.orgInvite.create({
+      data: { organizationId: orgB.id, token: "tok-b", mode: "single_use", createdByBrotherId: bBro.id },
+    });
+
+    // Looking up org B's token from org A's scope returns nothing.
+    const leak = await db(orgA.id).orgInvite.findFirst({ where: { token: "tok-b" } });
+    expect(leak).toBeNull();
+
+    const own = await db(orgA.id).orgInvite.findFirst({ where: { token: "tok-a" } });
+    expect(own?.token).toBe("tok-a");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// OrgMetricDefinition (has organizationId)
+// ---------------------------------------------------------------------------
+describe("tenancy: OrgMetricDefinition", () => {
+  it("findMany only returns the active org's definitions", async () => {
+    const orgA = await createOrg("Alpha", "alpha");
+    const orgB = await createOrg("Beta", "beta");
+    await testPrisma.orgMetricDefinition.create({
+      data: { organizationId: orgA.id, slug: "pushups", name: "Pushups", goal: 50, atRiskBelow: 10, aggregation: "avg" },
+    });
+    await testPrisma.orgMetricDefinition.create({
+      data: { organizationId: orgB.id, slug: "pushups", name: "Pushups", goal: 50, atRiskBelow: 10, aggregation: "avg" },
+    });
+
+    const fromA = await db(orgA.id).orgMetricDefinition.findMany();
+    expect(fromA).toHaveLength(1);
+    expect(fromA[0]?.organizationId).toBe(orgA.id);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// BrotherMetricValue (denormalized organizationId)
+// ---------------------------------------------------------------------------
+describe("tenancy: BrotherMetricValue", () => {
+  it("findMany only returns the active org's values", async () => {
+    const orgA = await createOrg("Alpha", "alpha");
+    const orgB = await createOrg("Beta", "beta");
+    const aBro = await createBrother({ orgId: orgA.id });
+    const bBro = await createBrother({ orgId: orgB.id });
+    const aDef = await testPrisma.orgMetricDefinition.create({
+      data: { organizationId: orgA.id, slug: "m", name: "M", goal: 1, atRiskBelow: 0, aggregation: "avg" },
+    });
+    const bDef = await testPrisma.orgMetricDefinition.create({
+      data: { organizationId: orgB.id, slug: "m", name: "M", goal: 1, atRiskBelow: 0, aggregation: "avg" },
+    });
+    await testPrisma.brotherMetricValue.create({
+      data: { organizationId: orgA.id, brotherId: aBro.id, metricDefinitionId: aDef.id, value: 5 },
+    });
+    await testPrisma.brotherMetricValue.create({
+      data: { organizationId: orgB.id, brotherId: bBro.id, metricDefinitionId: bDef.id, value: 9 },
+    });
+
+    const fromA = await db(orgA.id).brotherMetricValue.findMany();
+    expect(fromA).toHaveLength(1);
+    expect(fromA[0]?.value).toBe(5);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Reimbursement (has organizationId)
+// ---------------------------------------------------------------------------
+describe("tenancy: Reimbursement", () => {
+  it("findMany only returns the active org's tickets", async () => {
+    const orgA = await createOrg("Alpha", "alpha");
+    const orgB = await createOrg("Beta", "beta");
+    const aBro = await createBrother({ orgId: orgA.id });
+    const bBro = await createBrother({ orgId: orgB.id });
+    await testPrisma.reimbursement.create({
+      data: { organizationId: orgA.id, brotherId: aBro.id, amount: 25, date: "2026-05-01", description: "A" },
+    });
+    await testPrisma.reimbursement.create({
+      data: { organizationId: orgB.id, brotherId: bBro.id, amount: 40, date: "2026-05-01", description: "B" },
+    });
+
+    const fromA = await db(orgA.id).reimbursement.findMany();
+    expect(fromA.map(r => r.description)).toEqual(["A"]);
+  });
+
+  it("findUnique on another org's ticket returns null", async () => {
+    const orgA = await createOrg("Alpha", "alpha");
+    const orgB = await createOrg("Beta", "beta");
+    const bBro = await createBrother({ orgId: orgB.id });
+    const bTicket = await testPrisma.reimbursement.create({
+      data: { organizationId: orgB.id, brotherId: bBro.id, amount: 40, date: "2026-05-01", description: "B" },
+    });
+
+    const leak = await db(orgA.id).reimbursement.findUnique({ where: { id: bTicket.id } });
+    expect(leak).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// ProgrammingEvent (has organizationId)
+// ---------------------------------------------------------------------------
+describe("tenancy: ProgrammingEvent", () => {
+  it("findMany only returns the active org's events", async () => {
+    const orgA = await createOrg("Alpha", "alpha");
+    const orgB = await createOrg("Beta", "beta");
+    await testPrisma.programmingEvent.create({
+      data: { organizationId: orgA.id, title: "A retreat", category: "brotherhood" },
+    });
+    await testPrisma.programmingEvent.create({
+      data: { organizationId: orgB.id, title: "B retreat", category: "brotherhood" },
+    });
+
+    const fromA = await db(orgA.id).programmingEvent.findMany();
+    expect(fromA.map(e => e.title)).toEqual(["A retreat"]);
   });
 });

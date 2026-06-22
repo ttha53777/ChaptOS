@@ -10,6 +10,12 @@ services:
       - "54330:5432"
     tmpfs:
       - /var/lib/postgresql/data
+    volumes:
+      # Creates the non-BYPASSRLS `figurints_test_app` role at container init so
+      # tests/tenancy/rls-enforced.test.ts can connect as a role that RLS
+      # actually filters. Roles are cluster-level and survive `db push
+      # --force-reset`; GRANTs/policies are reapplied per-run by the test harness.
+      - ./tests/setup/init-app-role.sql:/docker-entrypoint-initdb.d/10-init-app-role.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U figurints_test"]
       interval: 1s
