@@ -9,11 +9,13 @@
  * drive the service directly.
  */
 
-import { afterAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { randomUUID } from "node:crypto";
 import { testPrisma, resetDb } from "../setup/prisma";
 import { createOrg, createBrother, createSemester } from "../setup/factories";
 import { db } from "@/lib/db";
+import { prisma } from "@/lib/prisma";
+import { createTaskInput } from "@/lib/validation/task";
 import {
   createTask,
   updateTask,
@@ -28,6 +30,10 @@ import type { RequestContext } from "@/lib/context";
 
 beforeEach(async () => {
   await resetDb();
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
 });
 
 afterAll(async () => {
@@ -378,5 +384,49 @@ describe("listTasks", () => {
     const memberCtx = ctxFor(org.id, member.id);
     const mine = await listTasks(memberCtx, { mine: true });
     expect(mine.map(t => t.id).sort()).toEqual([direct.id, viaRole.id].sort());
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Date validation (P2): impossible-but-well-formed dates are rejected at the
+// validation layer before reaching the service.
+// ---------------------------------------------------------------------------
+
+describe("dueDate validation", () => {
+  it("rejects an impossible-but-well-formed date (2026-02-31)", () => {
+    const parsed = createTaskInput.safeParse({ title: "x", dueDate: "2026-02-31", assigneeBrotherIds: [1] });
+    expect(parsed.success).toBe(false);
+  });
+
+  it("rejects a malformed month/day (2026-13-99)", () => {
+    const parsed = createTaskInput.safeParse({ title: "x", dueDate: "2026-13-99", assigneeBrotherIds: [1] });
+    expect(parsed.success).toBe(false);
+  });
+
+  it("accepts a real calendar date and a leap day", () => {
+    expect(createTaskInput.safeParse({ title: "x", dueDate: "2026-06-30", assigneeBrotherIds: [1] }).success).toBe(true);
+    expect(createTaskInput.safeParse({ title: "x", dueDate: "2024-02-29", assigneeBrotherIds: [1] }).success).toBe(true);
+    // 2026 is not a leap year, so Feb 29 must be rejected.
+    expect(createTaskInput.safeParse({ title: "x", dueDate: "2026-02-29", assigneeBrotherIds: [1] }).success).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Events are best-effort and post-commit: a telemetry failure must not roll
+// back or fail the business write.
+// ---------------------------------------------------------------------------
+
+describe("emit is best-effort (post-commit)", () => {
+  it("createTask still persists when the OperationalEvent insert throws", async () => {
+    const { org, admin, adminCtx } = await seedOrg();
+    // emit() runs after the transaction commits and swallows its own errors, so a
+    // failing telemetry insert must not surface or undo the created task.
+    const spy = vi.spyOn(prisma.operationalEvent, "create").mockRejectedValueOnce(new Error("boom"));
+
+    const t = await createTask(adminCtx, { title: "Survives", assigneeBrotherIds: [admin.id], assigneeRoleIds: [] });
+    expect(t.id).toBeGreaterThan(0);
+    expect(spy).toHaveBeenCalled();
+    expect((await testPrisma.task.findUnique({ where: { id: t.id } }))?.title).toBe("Survives");
+    expect(await assignmentCount(t.id)).toBe(1);
   });
 });

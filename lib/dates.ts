@@ -5,7 +5,26 @@
 
 // Matches a "YYYY-MM-DD" calendar-date string. Shared by the Zod validators
 // (z.string().regex(DATE_RE)) and the AI tool layer (DATE_RE.test(...)).
+//
+// NOTE: this is a SHAPE check only — it accepts impossible calendars like
+// "2026-02-31" or "2026-13-01". Downstream date math (Date.UTC) silently rolls
+// those over to a different real date. Where that matters, pair it with
+// isValidCalendarDate(). The shared regex stays shape-only to avoid changing
+// behavior for every entity at once; tightening it globally is a coordinated PR.
 export const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * True only for a real calendar date in "YYYY-MM-DD" form — rejects both the
+ * wrong shape and well-formed-but-impossible dates ("2026-02-31", "2026-13-01").
+ * Parses the components and confirms they round-trip through a UTC Date, so a
+ * rollover (Feb 31 → Mar 3) is caught instead of silently accepted.
+ */
+export function isValidCalendarDate(value: string): boolean {
+  if (!DATE_RE.test(value)) return false;
+  const [y, m, d] = value.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  return dt.getUTCFullYear() === y && dt.getUTCMonth() === m - 1 && dt.getUTCDate() === d;
+}
 
 // Inclusive Mon–Sun bounds (as local "YYYY-MM-DD") of the calendar week
 // containing `today`. Uses local date components — toISOString() would shift

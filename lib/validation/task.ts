@@ -1,13 +1,18 @@
 import { z } from "zod";
 import { TASK_STATUSES } from "@/lib/state";
-import { DATE_RE } from "@/lib/dates";
+import { isValidCalendarDate } from "@/lib/dates";
 
 const idArray = z.array(z.number().int().positive());
+
+// A real "YYYY-MM-DD" calendar date: rejects impossible dates (2026-02-31) that
+// the shape-only DATE_RE would let through and that downstream urgency math
+// would silently roll over to a different day.
+const dateString = z.string().refine(isValidCalendarDate, { message: "Must be a valid date (YYYY-MM-DD)" });
 
 export const createTaskInput = z
   .object({
     title:              z.string().trim().min(1).max(200),
-    dueDate:            z.string().regex(DATE_RE).optional(),
+    dueDate:            dateString.optional(),
     notes:              z.string().trim().max(2000).optional(),
     assigneeBrotherIds: idArray.default([]),
     assigneeRoleIds:    idArray.default([]),
@@ -24,7 +29,7 @@ export type CreateTaskInput = z.infer<typeof createTaskInput>;
 // `dueDate: null` explicitly clears the date (turns a deadline into a loose to-do).
 export const updateTaskInput = z.object({
   title:              z.string().trim().min(1).max(200).optional(),
-  dueDate:            z.string().regex(DATE_RE).nullable().optional(),
+  dueDate:            dateString.nullable().optional(),
   notes:              z.string().trim().max(2000).nullable().optional(),
   status:             z.enum(TASK_STATUSES as readonly [string, ...string[]]).optional(),
   assigneeBrotherIds: idArray.optional(),

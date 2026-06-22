@@ -50,7 +50,15 @@ async function actorRoleIds(ctx: RequestContext): Promise<Set<number>> {
   return new Set(rows.map(r => r.roleId));
 }
 
-/** True when the actor is an assignee of `task` — directly or via a role they hold. */
+/**
+ * True when the actor is an assignee of `task` — directly or via a role they hold.
+ *
+ * Role targets resolve to CURRENT holders at read time. A consequence: a task
+ * assigned only to a role that currently has no holders resolves to no one — it
+ * stays `open` but is un-actionable until someone is granted the role. This is by
+ * design (not a bug); removing a member from a role correctly drops the task from
+ * their "mine" list without rewriting any TaskAssignment row.
+ */
 function isAssignee(task: TaskRow, actorId: number, heldRoleIds: Set<number>): boolean {
   return task.assignments.some(a =>
     (a.brotherId != null && a.brotherId === actorId) ||
