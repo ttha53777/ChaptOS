@@ -750,6 +750,152 @@ function scopedReimbursement(orgId: number) {
 }
 
 // ---------------------------------------------------------------------------
+// Relation-scoped delegates for org-column-less join tables
+// ---------------------------------------------------------------------------
+//
+// AttendanceRecord, AttendanceExcuse, BudgetAllocation and InviteRedemption have
+// no organizationId column, so the org filter is injected via a required relation
+// to an org-bound parent (e.g. calendarEvent.organizationId). Previously these
+// were raw pass-throughs (prisma.*) — a bare `id`/`brotherId` WHERE returned rows
+// from any org, so tenancy depended on every caller remembering to add the filter
+// itself. These wrappers make org scoping automatic and the cross-tenant default
+// fail-closed.
+//
+// Reads only: every write to these tables today happens inside a $transaction
+// callback whose `tx` client is intentionally raw (it SET LOCALs app.org_id and
+// the caller injects org scoping explicitly). The wrappers below cover the read
+// surface that flows through ctx.db.
+
+// Each delegate is generic over the caller's args so Prisma's conditional return
+// types (the select/include payload shapes) flow through unchanged — the wrapper
+// only rewrites `where`, never the result type. findUnique is mapped to findFirst
+// because a relation/extra filter can't live in WhereUniqueInput; the return type
+// is still T | null, identical for every existing caller.
+
+// findUnique selectors may use a compound-key shorthand (e.g.
+// `calendarEventId_brotherId: { calendarEventId, brotherId }`) that only exists on
+// WhereUniqueInput. WhereInput (used by findFirst) doesn't know it, so flatten any
+// such nested key object up to its scalar fields before handing it to findFirst.
+// Scalar/relation keys pass through untouched.
+function flattenCompoundKey(where: Record<string, unknown> | undefined): Record<string, unknown> {
+  if (!where) return {};
+  const out: Record<string, unknown> = {};
+  for (const [key, val] of Object.entries(where)) {
+    // A compound-key entry is a plain object whose key name joins fields with "_"
+    // (Prisma's @@unique naming). Spread its inner scalar fields to the top level.
+    if (key.includes("_") && val !== null && typeof val === "object" && !Array.isArray(val)) {
+      Object.assign(out, val as Record<string, unknown>);
+    } else {
+      out[key] = val;
+    }
+  }
+  return out;
+}
+
+function scopedAttendanceRecord(orgId: number) {
+  type W = Prisma.AttendanceRecordWhereInput;
+  // Scope through the CalendarEvent parent (org-bound). The relation filter
+  // narrows to records whose event belongs to this org regardless of the
+  // caller's WHERE (calendarEventId, brotherId, semesterId, …).
+  const org = (w?: W): W => ({ ...w, calendarEvent: { is: { organizationId: orgId } } });
+  return {
+    findMany: <T extends Prisma.AttendanceRecordFindManyArgs>(args?: Prisma.SelectSubset<T, Prisma.AttendanceRecordFindManyArgs>) =>
+      prisma.attendanceRecord.findMany<T>({ ...(args as object), where: org((args as T | undefined)?.where) } as Prisma.SelectSubset<T, Prisma.AttendanceRecordFindManyArgs>),
+    findFirst: <T extends Prisma.AttendanceRecordFindFirstArgs>(args?: Prisma.SelectSubset<T, Prisma.AttendanceRecordFindFirstArgs>) =>
+      prisma.attendanceRecord.findFirst<T>({ ...(args as object), where: org((args as T | undefined)?.where) } as Prisma.SelectSubset<T, Prisma.AttendanceRecordFindFirstArgs>),
+    // findUnique → findFirst: WhereUniqueInput can't carry a relation filter, so
+    // a composite-key lookup (calendarEventId_brotherId) becomes a findFirst that
+    // ANDs the same key fields with the org relation. Same T | null shape.
+    findUnique: <T extends Prisma.AttendanceRecordFindUniqueArgs>(args: Prisma.SelectSubset<T, Prisma.AttendanceRecordFindUniqueArgs>) =>
+      prisma.attendanceRecord.findFirst<T & Prisma.AttendanceRecordFindFirstArgs>({ ...(args as object), where: org(flattenCompoundKey((args as { where?: Record<string, unknown> }).where) as W) } as Prisma.SelectSubset<T & Prisma.AttendanceRecordFindFirstArgs, Prisma.AttendanceRecordFindFirstArgs>),
+    count: (args?: Prisma.AttendanceRecordCountArgs) => prisma.attendanceRecord.count({ ...args, where: org(args?.where) }),
+  };
+}
+
+function scopedAttendanceExcuse(orgId: number) {
+  type W = Prisma.AttendanceExcuseWhereInput;
+  // Scope through the Brother parent (org-bound) — the same relation excuse-service
+  // already used to close this IDOR by hand. Equivalent to calendarEvent scoping
+  // since an excuse's brother and event are always in the same org.
+  const org = (w?: W): W => ({ ...w, brother: { is: { organizationId: orgId } } });
+  return {
+    findMany: <T extends Prisma.AttendanceExcuseFindManyArgs>(args?: Prisma.SelectSubset<T, Prisma.AttendanceExcuseFindManyArgs>) =>
+      prisma.attendanceExcuse.findMany<T>({ ...(args as object), where: org((args as T | undefined)?.where) } as Prisma.SelectSubset<T, Prisma.AttendanceExcuseFindManyArgs>),
+    findFirst: <T extends Prisma.AttendanceExcuseFindFirstArgs>(args?: Prisma.SelectSubset<T, Prisma.AttendanceExcuseFindFirstArgs>) =>
+      prisma.attendanceExcuse.findFirst<T>({ ...(args as object), where: org((args as T | undefined)?.where) } as Prisma.SelectSubset<T, Prisma.AttendanceExcuseFindFirstArgs>),
+    findUnique: <T extends Prisma.AttendanceExcuseFindUniqueArgs>(args: Prisma.SelectSubset<T, Prisma.AttendanceExcuseFindUniqueArgs>) =>
+      prisma.attendanceExcuse.findFirst<T & Prisma.AttendanceExcuseFindFirstArgs>({ ...(args as object), where: org(flattenCompoundKey((args as { where?: Record<string, unknown> }).where) as W) } as Prisma.SelectSubset<T & Prisma.AttendanceExcuseFindFirstArgs, Prisma.AttendanceExcuseFindFirstArgs>),
+    // updateMany accepts WhereInput, so the org relation is injected directly.
+    // A foreign-org excuse matches zero rows (count: 0) rather than being mutated.
+    updateMany: (args: Omit<Prisma.AttendanceExcuseUpdateManyArgs, "where"> & { where?: W }) =>
+      prisma.attendanceExcuse.updateMany({ ...args, where: org(args.where) }),
+    count: (args?: Prisma.AttendanceExcuseCountArgs) => prisma.attendanceExcuse.count({ ...args, where: org(args?.where) }),
+  };
+}
+
+function scopedBudgetAllocation(orgId: number) {
+  type W = Prisma.BudgetAllocationWhereInput;
+  // Scope through the Budget parent (org-bound). No ctx.db read callers today —
+  // writes go through budget-service's $transaction — but this keeps the delegate
+  // fail-closed for any future read.
+  const org = (w?: W): W => ({ ...w, budget: { is: { organizationId: orgId } } });
+  return {
+    findMany: <T extends Prisma.BudgetAllocationFindManyArgs>(args?: Prisma.SelectSubset<T, Prisma.BudgetAllocationFindManyArgs>) =>
+      prisma.budgetAllocation.findMany<T>({ ...(args as object), where: org((args as T | undefined)?.where) } as Prisma.SelectSubset<T, Prisma.BudgetAllocationFindManyArgs>),
+    findFirst: <T extends Prisma.BudgetAllocationFindFirstArgs>(args?: Prisma.SelectSubset<T, Prisma.BudgetAllocationFindFirstArgs>) =>
+      prisma.budgetAllocation.findFirst<T>({ ...(args as object), where: org((args as T | undefined)?.where) } as Prisma.SelectSubset<T, Prisma.BudgetAllocationFindFirstArgs>),
+    count: (args?: Prisma.BudgetAllocationCountArgs) => prisma.budgetAllocation.count({ ...args, where: org(args?.where) }),
+  };
+}
+
+function scopedInviteRedemption(orgId: number) {
+  type W = Prisma.InviteRedemptionWhereInput;
+  // Scope through the OrgInvite parent (org-bound). No ctx.db read callers today
+  // (the count is computed via scopedOrgInvite.redemptionCountByInvite from
+  // org-scoped invite ids), but fail-closed for any future read.
+  const org = (w?: W): W => ({ ...w, invite: { is: { organizationId: orgId } } });
+  return {
+    findMany: <T extends Prisma.InviteRedemptionFindManyArgs>(args?: Prisma.SelectSubset<T, Prisma.InviteRedemptionFindManyArgs>) =>
+      prisma.inviteRedemption.findMany<T>({ ...(args as object), where: org((args as T | undefined)?.where) } as Prisma.SelectSubset<T, Prisma.InviteRedemptionFindManyArgs>),
+    findFirst: <T extends Prisma.InviteRedemptionFindFirstArgs>(args?: Prisma.SelectSubset<T, Prisma.InviteRedemptionFindFirstArgs>) =>
+      prisma.inviteRedemption.findFirst<T>({ ...(args as object), where: org((args as T | undefined)?.where) } as Prisma.SelectSubset<T, Prisma.InviteRedemptionFindFirstArgs>),
+    count: (args?: Prisma.InviteRedemptionCountArgs) => prisma.inviteRedemption.count({ ...args, where: org(args?.where) }),
+  };
+}
+
+function scopedMembership(orgId: number) {
+  type W = Prisma.MembershipWhereInput;
+  // Membership HAS an organizationId column, so it's scoped directly like the
+  // first-class delegates. Reads are limited to this org's memberships; the
+  // last-admin guard (membership-service) and any roster-by-membership read are
+  // now org-safe by default instead of relying on a manual organizationId filter.
+  const org = (w?: W): W => ({ ...w, organizationId: orgId });
+  return {
+    findMany: <T extends Prisma.MembershipFindManyArgs>(args?: Prisma.SelectSubset<T, Prisma.MembershipFindManyArgs>) =>
+      prisma.membership.findMany<T>({ ...(args as object), where: org((args as T | undefined)?.where) } as Prisma.SelectSubset<T, Prisma.MembershipFindManyArgs>),
+    findFirst: <T extends Prisma.MembershipFindFirstArgs>(args?: Prisma.SelectSubset<T, Prisma.MembershipFindFirstArgs>) =>
+      prisma.membership.findFirst<T>({ ...(args as object), where: org((args as T | undefined)?.where) } as Prisma.SelectSubset<T, Prisma.MembershipFindFirstArgs>),
+    count: (args?: Prisma.MembershipCountArgs) => prisma.membership.count({ ...args, where: org(args?.where) }),
+  };
+}
+
+function scopedOrganization(orgId: number) {
+  // Organization is the tenant ROOT, not an org-scoped child: there is no
+  // organizationId column — the row IS the org. "Scoping" means the only row a
+  // request may touch is its own active org, so we force where.id = orgId on
+  // every read/update. A caller can never select or mutate a different org's row.
+  type W = Prisma.OrganizationWhereInput;
+  return {
+    findUnique: <T extends Prisma.OrganizationFindUniqueArgs>(args: Prisma.SelectSubset<T, Prisma.OrganizationFindUniqueArgs>) =>
+      prisma.organization.findFirst<T & Prisma.OrganizationFindFirstArgs>({ ...(args as object), where: { ...((args as { where?: W }).where), id: orgId } } as Prisma.SelectSubset<T & Prisma.OrganizationFindFirstArgs, Prisma.OrganizationFindFirstArgs>),
+    findFirst: <T extends Prisma.OrganizationFindFirstArgs>(args?: Prisma.SelectSubset<T, Prisma.OrganizationFindFirstArgs>) =>
+      prisma.organization.findFirst<T>({ ...(args as object), where: { ...((args as T | undefined)?.where), id: orgId } } as Prisma.SelectSubset<T, Prisma.OrganizationFindFirstArgs>),
+    update: (args: Omit<Prisma.OrganizationUpdateArgs, "where"> & { where?: Prisma.OrganizationWhereUniqueInput }) =>
+      prisma.organization.update({ ...args, where: { id: orgId } }),
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Main export
 // ---------------------------------------------------------------------------
 
@@ -790,21 +936,22 @@ export function db(orgId: number) {
     orgMetricDefinition:  scopedOrgMetricDefinition(orgId),
     brotherMetricValue:   scopedBrotherMetricValue(orgId),
 
-    // Pass-through for join tables that have no organizationId column and are
-    // always accessed through a verified parent id.
-    // AttendanceRecord / AttendanceExcuse: reached via CalendarEvent (org-scoped).
-    // BudgetAllocation: reached via Budget (org-scoped).
-    // These three are candidates for the next hardening pass.
-    attendanceRecord:    prisma.attendanceRecord,
-    attendanceExcuse:    prisma.attendanceExcuse,
-    budgetAllocation:    prisma.budgetAllocation,
-    membership:          prisma.membership,
-    organization:        prisma.organization,
+    // Org-column-less join tables: scoped via a required relation to an org-bound
+    // parent (CalendarEvent / Brother / Budget / OrgInvite). Membership and the
+    // Organization root are scoped directly. These were raw pass-throughs before
+    // the F2 hardening — a bare id/brotherId WHERE used to return cross-org rows.
+    attendanceRecord:    scopedAttendanceRecord(orgId),
+    attendanceExcuse:    scopedAttendanceExcuse(orgId),
+    budgetAllocation:    scopedBudgetAllocation(orgId),
+    inviteRedemption:    scopedInviteRedemption(orgId),
+    membership:          scopedMembership(orgId),
+    organization:        scopedOrganization(orgId),
+
+    // PlatformAdmin is intentionally GLOBAL (not org-scoped): it records
+    // platform-level super-admins, who exist independent of any single org. It's
+    // only ever touched via the raw `tx` client in deleteOrg's teardown, never as
+    // org-scoped data, so it stays a raw pass-through by design.
     platformAdmin:       prisma.platformAdmin,
-    // InviteRedemption has no organizationId column — it's reached via an
-    // org-verified OrgInvite (count is per-invite), so it's a pass-through like
-    // the attendance join tables above.
-    inviteRedemption:    prisma.inviteRedemption,
 
     // Interactive transaction pass-through. Sets app.org_id via SET LOCAL so
     // Postgres RLS policies can enforce org scoping at the DB layer for the

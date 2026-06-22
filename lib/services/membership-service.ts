@@ -48,11 +48,11 @@ export async function leaveOrg(
     throw new ValidationError("Confirmation does not match the organization slug");
   }
 
-  // Last-admin guard. ctx.db.membership is a pass-through (no auto org scoping),
-  // so we filter organizationId explicitly — exactly as deleteOrg does.
+  // Last-admin guard. ctx.db.membership is org-scoped (organizationId injected),
+  // so this counts only admins in the active org.
   if (ctx.isOrgAdmin) {
     const otherAdmins = await ctx.db.membership.count({
-      where: { organizationId: ctx.orgId, isOrgAdmin: true, brotherId: { not: ctx.actorId } },
+      where: { isOrgAdmin: true, brotherId: { not: ctx.actorId } },
     });
     if (otherAdmins === 0) {
       throw new ConflictError("You're the last admin. Promote another admin before leaving.");
