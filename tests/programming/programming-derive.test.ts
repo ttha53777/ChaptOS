@@ -27,6 +27,7 @@ function task(over: Partial<ProgrammingTaskDto> = {}): ProgrammingTaskDto {
     status: "Upcoming",
     type: "Social",
     stage: "confirmed",
+    mandatory: false,
     collab: null,
     owner: "",
     description: null,

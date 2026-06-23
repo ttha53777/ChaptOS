@@ -17,6 +17,7 @@ export const createProgrammingTaskInput = z.object({
   owner:    z.string().trim().max(200).optional(),
   status:   z.string().min(1).optional(),
   type:     z.string().min(1),
+  mandatory: z.boolean().optional(),
 });
 export type CreateProgrammingTaskInput = z.infer<typeof createProgrammingTaskInput>;
 
@@ -29,6 +30,7 @@ export const updateProgrammingTaskInput = z.object({
   owner:           z.string().trim().max(200).optional(),
   status:          z.string().min(1).optional(),
   type:            z.string().min(1).optional(),
+  mandatory:       z.boolean().optional(),
   description:     z.string().max(5000).nullable().optional(),
   itineraryUrl:    optionalHttpsUrl, // deprecated — use attachmentUrl
   attachmentUrl:   optionalHttpsUrl,

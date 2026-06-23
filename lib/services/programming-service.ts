@@ -104,7 +104,11 @@ async function requireProgrammingEvent(ctx: RequestContext, id: number): Promise
 
 async function loadTask(ctx: RequestContext, id: number) {
   const row = await ctx.db.programmingEvent.findUnique({ where: { id }, select: ROW_SELECT }) as ProgrammingRow | null;
-  return toProgrammingTask(row!);
+  // Reload after a committed mutation — the row normally exists, but guard the
+  // race where it's deleted in between so we return a clean 404 instead of a
+  // raw TypeError 500. Mirrors requireProgrammingEvent above.
+  if (!row) throw new NotFoundError("Programming event");
+  return toProgrammingTask(row);
 }
 
 export async function listProgrammingTasks(ctx: RequestContext) {
@@ -154,6 +158,7 @@ export async function updateProgrammingTask(ctx: RequestContext, id: number, inp
   if (input.location !== undefined)     { data.location = input.location?.trim() || null; changedFields.push("location"); }
   if (input.time !== undefined)         { data.time = input.time?.trim() || null; changedFields.push("time"); }
   if (input.owner !== undefined)        { data.owner = input.owner.trim(); changedFields.push("owner"); }
+  if (input.mandatory !== undefined)    { data.mandatory = input.mandatory; changedFields.push("mandatory"); }
   if (input.status !== undefined)       { data.status = input.status; changedFields.push("status"); }
   if (input.description !== undefined)  { data.description = input.description; changedFields.push("description"); }
   if (input.itineraryUrl !== undefined)  { data.itineraryUrl = input.itineraryUrl; changedFields.push("itineraryUrl"); }

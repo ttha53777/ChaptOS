@@ -111,6 +111,7 @@ export interface ProgrammingTask {
   status: TaskStatus;
   type: string;
   stage: "idea" | "planning" | "confirmed" | "done";
+  mandatory: boolean;
   collab: string | null;
   owner: string;
   description: string | null;
@@ -154,6 +155,9 @@ export interface CalendarEvent {
   notesSummary?: string | null;
   notesSummaryAt?: string | null;
   notesUpdatedAt?: string | null;
+  /** When this calendar row was created by promoting a programming event, the id of
+   *  that ProgrammingEvent — lets the timeline deep-link into the Programming page. */
+  programmingEventId?: number | null;
 }
 
 // ─── Thresholds ───────────────────────────────────────────────────────────────

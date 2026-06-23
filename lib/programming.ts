@@ -86,6 +86,7 @@ export interface ProgrammingTaskRow {
   status: string;
   stage: string;
   category: string;
+  mandatory: boolean;
   description: string | null;
   collabOrg: string;
   owner: string;
@@ -113,6 +114,7 @@ export interface ProgrammingTaskDto {
   status: TaskStatus;
   type: string;
   stage: ProgrammingStage;
+  mandatory: boolean;
   collab: string | null;
   owner: string;
   description: string | null;
@@ -144,6 +146,7 @@ export function toProgrammingTask(row: ProgrammingTaskRow): ProgrammingTaskDto {
     status:          (row.status ?? "Upcoming") as TaskStatus,
     type:            categoryToTypeLabel(row.category),
     stage:           row.stage as ProgrammingStage,
+    mandatory:       row.mandatory ?? false,
     collab,
     owner:           row.owner ?? "",
     description:     row.description ?? null,
@@ -172,6 +175,7 @@ export interface ProgrammingTaskInput {
   owner?:   string;
   status?:  string;
   type:     string;
+  mandatory?: boolean;
 }
 
 function optionalTime(value: string | null | undefined): string | null {
@@ -189,7 +193,7 @@ export function fromProgrammingInput(input: ProgrammingTaskInput) {
     status:    input.status ?? "Upcoming",
     category:  typeLabelToCategory(input.type),
     stage:     "idea",
-    mandatory: false,
+    mandatory: input.mandatory ?? false,
     owner:     input.owner?.trim() ?? "",
     collabOrg: input.collab?.trim() ?? "",
   };

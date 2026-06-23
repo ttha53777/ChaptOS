@@ -11,10 +11,23 @@ export async function listCalendar(ctx: RequestContext, opts: { category?: strin
     opts.category && (CALENDAR_CATEGORIES as readonly string[]).includes(opts.category)
       ? { category: opts.category }
       : {};
-  return ctx.db.calendarEvent.findMany({
+  // The scoped wrapper's return type doesn't carry the `include` through, so type the
+  // payload explicitly. The runtime select matches this shape.
+  type CalendarRowWithProgramming = Prisma.CalendarEventGetPayload<{
+    include: { programmingEvent: { select: { id: true } } };
+  }>;
+  const rows = await ctx.db.calendarEvent.findMany({
     where,
     orderBy: [{ date: "desc" }, { id: "desc" }],
-  });
+    // Pull the owning ProgrammingEvent id (1:1 back-relation) so the Timeline can
+    // deep-link a programming-backed event into the Programming page.
+    include: { programmingEvent: { select: { id: true } } },
+  }) as CalendarRowWithProgramming[];
+  // Flatten the relation to a scalar so the client DTO stays flat (app/data.ts).
+  return rows.map(({ programmingEvent, ...row }) => ({
+    ...row,
+    programmingEventId: programmingEvent?.id ?? null,
+  }));
 }
 
 export async function createCalendar(ctx: RequestContext, input: CreateCalendarInput) {
