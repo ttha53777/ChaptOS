@@ -70,6 +70,9 @@ export function ProgrammingBoard({
                 <span className="lh">{STAGE_LABELS[stage]}</span>
                 <span className="lc">{items.length}</span>
               </div>
+              <p className="ev-lane-sub">
+                {stage === "idea" ? "Backlog · not on the timeline" : "On the timeline"}
+              </p>
               <div className="ev-lane-body">
                 {items.length === 0 ? (
                   <p className="empty">{dndEnabled ? "Drop here" : "Nothing here"}</p>

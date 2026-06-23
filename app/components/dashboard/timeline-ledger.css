@@ -91,6 +91,40 @@
 .dash .seg button.on .ct { color: var(--vio); }
 .dash .tl-scope { margin-left: auto; font-family: var(--mono); font-size: 10px; letter-spacing: .08em; color: var(--faint); white-space: nowrap; }
 
+/* Legend popover — moved off the rail; a "?" disclosure on the toolbar. */
+.dash .tl-legend-wrap { position: relative; flex-shrink: 0; }
+.dash .tl-legend-btn { display: inline-flex; align-items: center; gap: 6px; font-family: var(--mono);
+  font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted);
+  border: 1px solid var(--line); background: var(--card); border-radius: 8px; padding: 6px 10px; cursor: pointer; }
+.dash .tl-legend-btn:hover, .dash .tl-legend-btn.on { color: var(--ink); border-color: var(--ink-soft); }
+.dash .tl-legend-scrim { position: fixed; inset: 0; z-index: 30; background: none; border: 0; cursor: default; }
+.dash .tl-legend-pop { position: absolute; z-index: 31; top: calc(100% + 7px); right: 0; min-width: 220px;
+  border: 1px solid var(--line); border-radius: 12px; background: var(--card); box-shadow: var(--shadow); padding: 14px 16px; }
+.dash .tl-legend-pop .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 14px; }
+.dash .tl-legend-pop .li { display: flex; align-items: center; gap: 8px; }
+.dash .tl-legend-pop .li .d { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.dash .tl-legend-pop .li span { font-size: 11.5px; color: var(--ink-soft); }
+.dash .tl-legend-pop .li .req-key { font-family: var(--mono); font-size: 7.5px; font-weight: 600; letter-spacing: .12em;
+  color: var(--gold); background: var(--gold-bg); border-radius: 3px; padding: 1px 4px; }
+
+/* ── Rail: "Needs attention" action queue (idle rail, top block) ─────────────── */
+.dash .tl-todo { border: 1px solid var(--line); border-radius: 12px; background: var(--card); box-shadow: var(--shadow); overflow: hidden; }
+.dash .tl-todo-empty { padding: 14px 16px; font-size: 11.5px; color: var(--faint); font-style: italic; font-family: var(--serif); }
+.dash .tl-todo-row { display: flex; align-items: center; gap: 10px; padding: 11px 14px; border-bottom: 1px solid var(--line-soft); }
+.dash .tl-todo-row:last-child { border-bottom: 0; }
+.dash .tl-todo-row .tag { flex-shrink: 0; font-family: var(--mono); font-size: 8px; font-weight: 600; letter-spacing: .12em;
+  text-transform: uppercase; border-radius: 4px; padding: 2px 5px; }
+.dash .tl-todo-row .tag.rose { color: var(--rose); background: var(--rose-bg); }
+.dash .tl-todo-row .tag.gold { color: var(--gold); background: var(--gold-bg); }
+.dash .tl-todo-row .tag.vio  { color: var(--vio);  background: var(--vio-bg); }
+.dash .tl-todo-row .body { flex: 1; min-width: 0; text-align: left; background: none; border: 0; cursor: pointer; padding: 0; }
+.dash .tl-todo-row .body .t { font-size: 12.5px; font-weight: 550; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dash .tl-todo-row .body:hover .t { color: var(--vio); }
+.dash .tl-todo-row .body .m { font-family: var(--mono); font-size: 9px; letter-spacing: .04em; color: var(--faint); margin-top: 2px; }
+.dash .tl-todo-row .act { flex-shrink: 0; font-family: var(--mono); font-size: 9px; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--ok); border: 1px solid var(--ok-bg); background: transparent; border-radius: 7px; padding: 5px 9px; cursor: pointer; }
+.dash .tl-todo-row .act:hover { border-color: var(--ok); }
+
 /* ── Layout: spine + rail ────────────────────────────────────────────────────── */
 .dash .tl-layout { margin-top: 18px; display: grid; grid-template-columns: 1fr; gap: 30px; align-items: start; }
 .dash .tl-rail { display: none; }
@@ -110,6 +144,12 @@
   letter-spacing: .12em; text-transform: uppercase; color: var(--gold); }
 .dash .tl-review-h .chev { font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); }
 .dash .tl-review-body { border-top: 1px solid var(--line-soft); padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; }
+.dash .tl-review-bulk { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.dash .tl-review-bulk span { font-size: 11px; color: var(--faint); }
+.dash .tl-review-bulk button { font-family: var(--mono); font-size: 9.5px; letter-spacing: .06em; text-transform: uppercase;
+  border-radius: 7px; padding: 5px 12px; cursor: pointer; border: 1px solid var(--ok-bg); background: transparent; color: var(--ok); }
+.dash .tl-review-bulk button:hover { border-color: var(--ok); }
+.dash .tl-review-bulk button:disabled { opacity: .55; cursor: default; }
 .dash .tl-excuse { border: 1px solid var(--line); border-radius: 10px; background: var(--card-2); padding: 12px; }
 .dash .tl-excuse .top { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
 .dash .tl-excuse .who { font-size: 13px; font-weight: 600; color: var(--ink); }
@@ -265,6 +305,15 @@
 .dash .ev-meta-row { border: 1px solid var(--line-soft); border-radius: 9px; background: var(--card); padding: 9px 12px; font-size: 12px; color: var(--ink-soft); }
 .dash .ev-meta-row .lab { font-family: var(--mono); font-size: 8.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--faint); margin-right: 8px; }
 .dash .ev-meta-row.ddl { border-color: var(--rose-bg); color: var(--rose); font-family: var(--mono); font-size: 10px; letter-spacing: .06em; text-transform: uppercase; }
+/* Cross-link to the Programming page for events promoted from a programming idea. */
+.dash .ev-prog-link {
+  display: inline-flex; align-items: center; gap: 7px; margin-top: 10px;
+  font-family: var(--mono); font-size: 10px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--vio); background: var(--vio-bg); border: 1px solid var(--vio-bg); border-radius: 8px;
+  padding: 9px 13px; cursor: pointer; transition: border-color .12s, background .12s, color .12s;
+}
+.dash .ev-prog-link:hover { border-color: var(--vio); background: color-mix(in srgb, var(--vio) 16%, transparent); color: var(--ink); }
+.dash .ev-prog-link svg { stroke: currentColor; }
 .dash .ev-att { border: 1px solid var(--line); border-radius: 12px; background: var(--card); box-shadow: var(--shadow); overflow: hidden; }
 .dash .ev-att-h { display: flex; align-items: center; justify-content: space-between; padding: 11px 14px; border-bottom: 1px solid var(--line-soft); }
 .dash .ev-att-h .lab { font-family: var(--mono); font-size: 9.5px; letter-spacing: .13em; text-transform: uppercase; color: var(--muted); }

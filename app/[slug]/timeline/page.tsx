@@ -238,6 +238,7 @@ function EventDetail({
   canLogAttendance,
   onEdit,
   onDelete,
+  onOpenProgramming,
   brotherList,
   selfBrotherId,
   deadlineStatus,
@@ -251,6 +252,8 @@ function EventDetail({
   canLogAttendance: boolean;
   onEdit: () => void;
   onDelete: () => void;
+  /** Present only for programming-backed events — jumps to the Programming page. */
+  onOpenProgramming?: () => void;
   brotherList: { id: number; name: string }[];
   selfBrotherId: number | null;
   /** Status of the source Task, when this row is a live dated task; null otherwise. */
@@ -418,6 +421,16 @@ function EventDetail({
             </div>
           )}
         </div>
+      )}
+
+      {/* Programming-backed events live in the Programming pipeline — jump there. */}
+      {onOpenProgramming && (
+        <button className="ev-prog-link" onClick={onOpenProgramming}>
+          Open in Programming
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+            <path d="M5 12h14M13 6l6 6-6 6" />
+          </svg>
+        </button>
       )}
 
       {/* Deadline submission — mark a live deadline complete (or reopen it). */}
@@ -637,6 +650,77 @@ function GlanceDetail({
   );
 }
 
+// ─── TimelineTodo (rail, idle — "what needs me" action queue) ─────────────────
+
+/**
+ * The action surface at the top of the idle rail. Aggregates the timeline's own
+ * needs-attention items from data the page already derives — overdue deadlines,
+ * deadlines due this week, and (admin) pending excuses. Mirrors the dashboard's
+ * NeedsAttention pattern but stays scoped to timeline concerns; it never touches
+ * dues / reimbursements / member-risk. Every action routes to an existing handler.
+ */
+function TimelineTodo({
+  overdue, dueThisWeek, pendingExcuseCount, isAdmin,
+  onMarkDone, onOpenEvent, onReviewExcuses,
+}: {
+  overdue: CalendarEvent[];
+  dueThisWeek: CalendarEvent[];
+  pendingExcuseCount: number;
+  isAdmin: boolean;
+  onMarkDone: (deadlineId: number) => void;
+  onOpenEvent: (event: CalendarEvent) => void;
+  onReviewExcuses: () => void;
+}) {
+  const showExcuses = isAdmin && pendingExcuseCount > 0;
+  const count = overdue.length + dueThisWeek.length + (showExcuses ? 1 : 0);
+
+  return (
+    <div>
+      <p className="lbl">Needs attention{count > 0 ? ` · ${count}` : ""}</p>
+      <div className="tl-todo">
+        {count === 0 ? (
+          <p className="tl-todo-empty">Nothing needs you right now — all clear.</p>
+        ) : (
+          <>
+            {overdue.map(ev => {
+              const late = -daysFromToday(ev.date);
+              return (
+                <div key={`o-${ev.id}`} className="tl-todo-row">
+                  <span className="tag rose">Overdue</span>
+                  <button type="button" className="body" onClick={() => onOpenEvent(ev)}>
+                    <p className="t">{ev.title}</p>
+                    <p className="m">{late} day{late === 1 ? "" : "s"} late · {fmtDate(ev.date)}</p>
+                  </button>
+                  <button type="button" className="act" onClick={() => { const id = deadlineIdOf(ev); if (id != null) onMarkDone(id); }}>Mark done</button>
+                </div>
+              );
+            })}
+            {showExcuses && (
+              <div className="tl-todo-row">
+                <span className="tag gold">Excuses</span>
+                <button type="button" className="body" onClick={onReviewExcuses}>
+                  <p className="t">{pendingExcuseCount} excuse{pendingExcuseCount === 1 ? "" : "s"} awaiting review</p>
+                  <p className="m">Approve or reject below</p>
+                </button>
+                <button type="button" className="act" onClick={onReviewExcuses}>Review</button>
+              </div>
+            )}
+            {dueThisWeek.map(ev => (
+              <div key={`w-${ev.id}`} className="tl-todo-row">
+                <span className="tag vio">Due</span>
+                <button type="button" className="body" onClick={() => onOpenEvent(ev)}>
+                  <p className="t">{ev.title}</p>
+                  <p className="m">{relWhen(ev.date)} · {fmtDate(ev.date)}</p>
+                </button>
+              </div>
+            ))}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function TimelinePage() {
@@ -669,10 +753,21 @@ export default function TimelinePage() {
   const [rejectingId, setRejectingId] = useState<number | null>(null);
   const [rejectionNote, setRejectionNote] = useState("");
   const [excuseActionBusy, setExcuseActionBusy] = useState<number | null>(null);
+  const [bulkApproving, setBulkApproving] = useState(false);
 
   const mainRef          = useRef<HTMLDivElement | null>(null);
   const todayRef         = useRef<HTMLDivElement | null>(null);
   const currentMonthRef  = useRef<HTMLDivElement | null>(null);
+  const reviewRef        = useRef<HTMLDivElement | null>(null);
+
+  // True when the today anchor is off-screen — drives whether "Jump to today"
+  // shows, and which direction it points. Starts true so the button renders
+  // until the observer reports otherwise.
+  const [todayOffscreen, setTodayOffscreen] = useState(true);
+  const [todayAbove,      setTodayAbove]     = useState(false);
+
+  // Legend popover on the filter toolbar.
+  const [legendOpen, setLegendOpen] = useState(false);
 
   useEffect(() => {
     requestJson<CalendarEvent[]>("/api/calendar")
@@ -711,6 +806,47 @@ export default function TimelinePage() {
       requestJson<PendingExcuse[]>("/api/excuses?status=pending").then(setPendingExcuses).catch(() => {});
     } finally {
       setExcuseActionBusy(null);
+    }
+  }
+
+  // Bulk-approve every currently pending excuse. decideExcuse is race-safe on the
+  // server (updateMany on status=pending), so we fan out and only drop the rows
+  // that actually resolved; failures stay in the queue. Rejections are never
+  // bulked — each carries its own note.
+  async function approveAll() {
+    if (bulkApproving) return;
+    const targets = [...pendingExcuses];
+    if (targets.length === 0) return;
+    setBulkApproving(true);
+    try {
+      const results = await Promise.allSettled(
+        targets.map(t =>
+          requestJson<{ brotherId: number; attendance: number | null }>(`/api/excuses/${t.id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ action: "approve" }),
+          }).then(res => ({ id: t.id, ...res })),
+        ),
+      );
+      const okIds = new Set<number>();
+      const attendanceById: Record<number, number> = {};
+      for (const r of results) {
+        if (r.status === "fulfilled") {
+          okIds.add(r.value.id);
+          if (r.value.attendance !== null) attendanceById[r.value.brotherId] = r.value.attendance;
+        }
+      }
+      setPendingExcuses(prev => prev.filter(e => !okIds.has(e.id)));
+      if (Object.keys(attendanceById).length > 0) {
+        setBrotherList(prev => prev.map(b => b.id in attendanceById ? { ...b, attendance: attendanceById[b.id] } : b));
+      }
+      const failed = targets.length - okIds.size;
+      if (failed > 0) {
+        // Resync the queue so any rows decided elsewhere clear too.
+        requestJson<PendingExcuse[]>("/api/excuses?status=pending").then(setPendingExcuses).catch(() => {});
+      }
+    } finally {
+      setBulkApproving(false);
     }
   }
 
@@ -856,7 +992,8 @@ export default function TimelinePage() {
   const thisWeekCount     = weekEvents.length;
   const requiredThisMonth = requiredEvents.length;
   const upcomingDeadlines = deadlineEvents.length;
-  const deadlinesThisWeek = deadlineEvents.filter(e => e.date <= weekEnd).length;
+  const deadlinesDueThisWeek = useMemo(() => deadlineEvents.filter(e => e.date <= weekEnd), [deadlineEvents, weekEnd]);
+  const deadlinesThisWeek = deadlinesDueThisWeek.length;
   const overdueCount      = overdueEvents.length;
 
   // The events behind whichever glance measure is focused.
@@ -886,6 +1023,33 @@ export default function TimelinePage() {
     const s = clauses.join(", ");
     return s ? s.charAt(0).toUpperCase() + s.slice(1) + "." : "";
   }, [allEvents.length, upNext, deadlinesThisWeek, overdueCount, lastEvent]);
+
+  // Open the admin excuse-review panel and scroll it into view (it lives above
+  // the spine/rail layout). Triggered from the rail's "Needs attention" block.
+  function openReviewPanel() {
+    setReviewPanelOpen(true);
+    requestAnimationFrame(() => reviewRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
+  }
+
+  // Scroll-spy: show "Jump to today" only when the today anchor is off-screen,
+  // and point the arrow toward it. Re-attaches whenever the anchor row remounts
+  // (filter change, month collapse) — todayRef is set imperatively in the row.
+  useEffect(() => {
+    const main = mainRef.current;
+    const target = todayRef.current;
+    if (!main || !target) { setTodayOffscreen(true); return; }
+    const obs = new IntersectionObserver(
+      ([entry]) => {
+        setTodayOffscreen(!entry.isIntersecting);
+        // boundingClientRect.top < root top ⇒ anchor sits above the viewport.
+        const rootTop = entry.rootBounds?.top ?? 0;
+        setTodayAbove(entry.boundingClientRect.top < rootTop);
+      },
+      { root: main, threshold: 0 },
+    );
+    obs.observe(target);
+    return () => obs.disconnect();
+  }, [todayAnchorId, monthGroups, collapsedMonths]);
 
   // Jump-to-today helper for the rail button. No auto-scroll on load — the
   // timeline opens at the top of the page (briefing first).
@@ -1147,12 +1311,43 @@ export default function TimelinePage() {
                   );
                 })}
               </div>
+              <div className="tl-legend-wrap">
+                <button
+                  type="button"
+                  className={`tl-legend-btn${legendOpen ? " on" : ""}`}
+                  aria-expanded={legendOpen}
+                  aria-label="Category legend"
+                  onClick={() => setLegendOpen(o => !o)}
+                >
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                    <circle cx="12" cy="12" r="9" />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 11v5m0-8h.01" />
+                  </svg>
+                  Legend
+                </button>
+                {legendOpen && (
+                  <>
+                    <button type="button" className="tl-legend-scrim" aria-hidden tabIndex={-1} onClick={() => setLegendOpen(false)} />
+                    <div className="tl-legend-pop" role="dialog" aria-label="Category legend">
+                      <div className="grid2">
+                        {LEGEND.map(cat => (
+                          <div key={cat} className="li">
+                            <span className="d" style={{ background: `var(--c-${cat})` }} />
+                            <span>{CATEGORY_LABEL[cat]}</span>
+                          </div>
+                        ))}
+                        <div className="li"><span className="req-key">REQ</span><span>Attendance taken</span></div>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
               <span className="tl-scope">{filtered.length} event{filtered.length === 1 ? "" : "s"}</span>
             </div>
 
             {/* ── Admin: pending-excuse review ─────────────────────────────── */}
             {isAdmin && pendingExcuses.length > 0 && (
-              <div className="tl-review" style={{ marginTop: 18 }}>
+              <div className="tl-review" style={{ marginTop: 18 }} ref={reviewRef}>
                 <button className="tl-review-h" onClick={() => setReviewPanelOpen(o => !o)}>
                   <span className="lead">
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
@@ -1164,6 +1359,14 @@ export default function TimelinePage() {
                 </button>
                 {reviewPanelOpen && (
                   <div className="tl-review-body">
+                    {pendingExcuses.length > 1 && (
+                      <div className="tl-review-bulk">
+                        <span>Reviewed each one?</span>
+                        <button type="button" onClick={approveAll} disabled={bulkApproving}>
+                          {bulkApproving ? "Approving…" : `Approve all ${pendingExcuses.length}`}
+                        </button>
+                      </div>
+                    )}
                     {pendingExcuses.map(ex => {
                       const isRejecting = rejectingId === ex.id;
                       const busy = excuseActionBusy === ex.id;
@@ -1180,7 +1383,7 @@ export default function TimelinePage() {
                               </div>
                               <p className="ctx">
                                 {ex.eventTitle} · {ex.eventDate}
-                                {ex.isRetroactive && <span className="retro"> · retroactive</span>}
+                                {ex.isRetroactive && <span className="retro" title="Submitted after the event already took place"> · retroactive</span>}
                               </p>
                               <p className="reason">{ex.reason}</p>
                             </div>
@@ -1305,6 +1508,11 @@ export default function TimelinePage() {
                     canLogAttendance={isAdmin}
                     onEdit={() => setActiveModal("edit")}
                     onDelete={handleDeleteEvent}
+                    onOpenProgramming={
+                      selectedEvent.programmingEventId != null
+                        ? () => router.push(orgPath(`/events?open=${selectedEvent.programmingEventId}`))
+                        : undefined
+                    }
                     brotherList={brotherList}
                     selfBrotherId={selfId}
                     deadlineStatus={selectedDeadline?.status ?? null}
@@ -1322,6 +1530,16 @@ export default function TimelinePage() {
                   />
                 ) : (
                   <>
+                    <TimelineTodo
+                      overdue={overdueEvents}
+                      dueThisWeek={deadlinesDueThisWeek}
+                      pendingExcuseCount={pendingExcuses.length}
+                      isAdmin={isAdmin}
+                      onMarkDone={(id) => setDeadlineComplete(id, true)}
+                      onOpenEvent={setSelectedEvent}
+                      onReviewExcuses={openReviewPanel}
+                    />
+
                     {upNext && (
                       <div>
                         <p className="lbl">Up next</p>
@@ -1357,22 +1575,11 @@ export default function TimelinePage() {
                       </div>
                     )}
 
-                    <div>
-                      <p className="lbl">Legend</p>
-                      <div className="legend">
-                        <div className="grid2">
-                          {LEGEND.map(cat => (
-                            <div key={cat} className="li">
-                              <span className="d" style={{ background: `var(--c-${cat})` }} />
-                              <span>{CATEGORY_LABEL[cat]}</span>
-                            </div>
-                          ))}
-                          <div className="li"><span className="req-key">REQ</span><span>Attendance taken</span></div>
-                        </div>
-                      </div>
-                    </div>
-
-                    <button className="jump" onClick={() => scrollToToday(true)}>↑ Jump to today</button>
+                    {todayOffscreen && (
+                      <button className="jump" onClick={() => scrollToToday(true)}>
+                        {todayAbove ? "↑" : "↓"} Jump to today
+                      </button>
+                    )}
                   </>
                 )}
               </aside>

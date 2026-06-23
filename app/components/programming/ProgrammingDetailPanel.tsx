@@ -189,6 +189,9 @@ export function ProgrammingDetailPanel({
                   )}
                 </div>
               )}
+              <span className="text-[10px] font-medium uppercase tracking-[0.08em] text-[#6b6354]">
+                {event.calendarEventId != null ? "· On the timeline" : "· Promote to add to the timeline"}
+              </span>
             </div>
           </div>
           {canManage && (

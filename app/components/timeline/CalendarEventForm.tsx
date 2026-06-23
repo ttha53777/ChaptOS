@@ -5,7 +5,9 @@ import type { CalendarEvent, CalEventCategory } from "../../data";
 import { toDateStr } from "../../lib/dates";
 import "./calendar-event-form.css";
 
-export type CalendarDraft = Omit<CalendarEvent, "id">;
+// `collab` is programming-only (the timeline's calendar events don't carry it); it's
+// optional on the draft and populated solely when the form is rendered with `showCollab`.
+export type CalendarDraft = Omit<CalendarEvent, "id"> & { collab?: string };
 
 export const CATEGORY_OPTIONS: { id: CalEventCategory; label: string }[] = [
   { id: "chapter", label: "Chapter" },
@@ -27,19 +29,25 @@ const TODAY = { year: _now.getFullYear(), month: _now.getMonth(), day: _now.getD
 
 export function CalendarEventForm({
   initialEvent,
+  initialCollab,
   submitLabel,
   onSubmit,
   allowedCategories,
   defaultCategory = "chapter",
+  showCollab = false,
   minDate,
   maxDate,
 }: {
   initialEvent?: CalendarEvent;
+  /** Prefill for the optional Collab field (programming events; CalendarEvent has none). */
+  initialCollab?: string | null;
   submitLabel: string;
   onSubmit: (draft: CalendarDraft) => void;
   /** When set, only these categories appear in the dropdown (e.g. programming page). */
   allowedCategories?: CalEventCategory[];
   defaultCategory?: CalEventCategory;
+  /** Render the optional "Collab" field in the details block (programming page). */
+  showCollab?: boolean;
   /** Active-semester bounds (YYYY-MM-DD) that constrain the date picker. */
   minDate?: string;
   maxDate?: string;
@@ -53,6 +61,7 @@ export function CalendarEventForm({
   const [time, setTime] = useState(initialEvent?.time ?? "");
   const [category, setCategory] = useState<CalEventCategory>(initialEvent?.category ?? defaultCategory);
   const [mandatory, setMandatory] = useState(initialEvent?.mandatory ?? false);
+  const [collab, setCollab] = useState(initialCollab ?? "");
   const [location, setLocation] = useState(initialEvent?.location ?? "");
   const [description, setDescription] = useState(initialEvent?.description ?? "");
   const categoryOptions = allowedCategories
@@ -71,6 +80,7 @@ export function CalendarEventForm({
       mandatory,
       location: optionalValue(location),
       description: optionalValue(description),
+      ...(showCollab ? { collab: collab.trim() } : {}),
     });
   }
 
@@ -143,6 +153,12 @@ export function CalendarEventForm({
         {/* Optional details — folded below a divider so the essentials read first */}
         <div className="cef-details">
           <span className="cef-details-lbl">Details · optional</span>
+          {showCollab && (
+            <div className="cef-field">
+              <label className="cef-label" htmlFor="event-collab">Collab<span className="opt">opt</span></label>
+              <input id="event-collab" className="cef-input" value={collab} onChange={e => setCollab(e.target.value)} placeholder="KDF, DSP…" />
+            </div>
+          )}
           <div className="cef-field">
             <label className="cef-label" htmlFor="event-location">Location</label>
             <input id="event-location" className="cef-input" value={location} onChange={e => setLocation(e.target.value)} placeholder="Chapter Room" />
