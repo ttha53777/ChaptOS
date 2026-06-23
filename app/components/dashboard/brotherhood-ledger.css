@@ -68,6 +68,10 @@
 /* role subline nested under the name (dashboard put role in its own column) */
 .dash .b-name .rl { font-size: 10.5px; color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 230px; margin-top: 1px; }
 .dash .b-name .nm { font-size: 13px; font-weight: 550; color: var(--ink); white-space: nowrap; }
+/* pending-excuse review chip — gold "needs attention" tone, mirrors .count-chip */
+.dash .b-name .excuse-chip { display: inline-block; margin-left: 7px; vertical-align: 1px;
+  font-family: var(--mono); font-size: 9.5px; font-weight: 600; line-height: 1;
+  color: var(--gold); background: var(--gold-bg); border-radius: 999px; padding: 3px 7px; }
 /* slightly larger avatar than the dashboard rail's 26px, for the roomy page */
 .dash .roster .b-name .avatar { width: 30px; height: 30px; font-size: 10px; }
 /* sortable header affordance + active arrow */

@@ -37,7 +37,6 @@ import { Card, Modal, ConfirmDialog, FieldLabel } from "../components/dashboard/
 import { KPI_ICONS, SECTION_IDS, inputDuskCls, btnDuskGhostCls, btnDuskActionCls } from "../components/dashboard/styles";
 import { type Announcement } from "../components/dashboard/AnnouncementCard";
 import { AnnouncementEditor } from "../components/dashboard/AnnouncementEditor";
-import { MobileDashboard } from "../components/dashboard/mobile/MobileDashboard";
 import "../components/dashboard/dashboard-ledger.css";
 import "../components/dashboard/drawer-ledger.css";
 import { BriefingHeader } from "../components/dashboard/ledger/BriefingHeader";
@@ -1314,23 +1313,6 @@ export default function Home() {
     else { setSortKey(key); setSortDir("asc"); }
   }
 
-  // ── Chart data ─────────────────────────────────────────────────────────────
-  const partyChartData = useMemo(() => partyList.map(e => ({
-    name: e.name.length > 12 ? e.name.slice(0, 11) + "…" : e.name,
-    revenue: e.doorRevenue,
-  })), [partyList]);
-
-  const statusChartData = useMemo(() => [
-    { name: "Good",    count: statusCounts.Good,       fill: "#34d399" },
-    { name: "Watch",   count: statusCounts.Watch,      fill: "#fbbf24" },
-    { name: "At Risk", count: statusCounts["At Risk"], fill: "#f87171" },
-  ], [statusCounts]);
-
-  const svcChartData = useMemo(() => [...brotherList]
-    .sort((a, b) => b.serviceHours - a.serviceHours)
-    .map(b => ({ name: b.name.split(" ")[0], hours: b.serviceHours })),
-  [brotherList]);
-
   const brotherNames = useMemo(() => brotherList.map(b => b.name), [brotherList]);
 
   // ── Inline attendance edit ─────────────────────────────────────────────────
@@ -1716,10 +1698,21 @@ export default function Home() {
 
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
 
-        {/* No mobile toolbar on the dashboard: the greeting header inside
-            MobileDashboard now carries the org label, quick-actions ("+"),
-            "My Standing", and the bottom bar's "More" opens the sidebar. The
-            desktop ledger (md+) folds these into BriefingActions as before. */}
+        {/* ── Mobile toolbar (hamburger + breadcrumb) ──────────────────────────
+            Matches every other page: a frosted slim bar that opens the sidebar
+            drawer and labels the section. The ledger below reflows into a single
+            column at phone widths, folding the My Standing / Quick Actions
+            controls into BriefingActions exactly as the desktop pane does. */}
+        <header className="toolbar-frosted dash-toolbar relative z-20 flex h-14 shrink-0 items-center gap-3 border-b border-white/[0.05] px-4 sm:px-6 lg:hidden">
+          <button onClick={() => setSidebarOpen(true)}
+            className="tb-icon-btn flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-white/[0.07] lg:hidden"
+            aria-label="Open menu">
+            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+          </button>
+          <span className="truncate text-[13px] font-semibold text-[#ece7dd]">Dashboard</span>
+        </header>
 
         {/* ── Scrollable body ──────────────────────────────────────────────── */}
         <main ref={mainRef} className="page-ambient flex-1 overflow-y-auto">
@@ -1747,60 +1740,14 @@ export default function Home() {
             </div>
           )}
 
-          {/* ── Mobile view (below md) — Summary + tabs ─────────────────────── */}
-          <div className="md:hidden">
-            <MobileDashboard
-              firstName={currentUser?.name?.split(" ")[0] ?? "there"}
-              orgName={currentUser?.org?.name ?? null}
-              health={health}
-              needsAttention={needsAttention}
-              announcement={announcement}
-              onEditAnnouncement={() => setAnnouncementEditorOpen(true)}
-              onOpenSidebar={() => setSidebarOpen(true)}
-              onQuickAction={handleQuickAction}
-              quickActionsAdmin={isAdmin || canTreasury || canAttendance}
-              quickActionsCanManageTasks={canTasks}
-              enabledWorkflows={currentUser?.org?.enabledWorkflows}
-              onOpenStanding={
-                selfId !== null && brotherList.some(b => b.id === selfId)
-                  ? () => setSelectedBrotherId(selfId)
-                  : undefined
-              }
-              kpis={{
-                avgAttendance, belowAttCount,
-                outstandingDues, owingCount,
-                chapterGPA, belowGpaCount,
-                totalServiceHrs, onTrackSvc, brotherCount: brotherList.length,
-                liveBalance, liveProjected,
-                totalDoorRev, bestEvent,
-              }}
-              brothersData={{
-                filteredBrothers, brotherList, statusCounts,
-                search, statusFilter, selfId, currentUser, avatarRevision, isAdmin,
-              }}
-              tasksData={{ weeklyDigest, weekRange, digestNarration, deadlineList: taskList, igTaskList, activityFeed }}
-              moneyData={{
-                liveBalance, liveProjected, liveTrend, totalDoorRev, partyList,
-                partyChartData, statusChartData, svcChartData,
-                goodCount: statusCounts.Good, brotherCount: brotherList.length,
-                onTrackSvc, serviceHoursGoal: THRESHOLDS.serviceHoursGoal, maxRevenue, bestEvent,
-              }}
-              actions={{
-                setSearch, setStatusFilter, setSelectedBrotherId,
-                setActiveDrawer, setWidgetDrawer, setActiveModal,
-                openPayDues, addServiceHour,
-                completeDeadline, openEditDeadline, deleteDeadline,
-                completeIG, openEditIG, deleteIG,
-                openReimbursements: () => router.push(orgPath("/treasury?tab=Reimbursements")),
-              }}
-            />
-          </div>
-
-          {/* ── Desktop view (md and up) — "Chapter Ledger" redesign ──────── */}
-          {/* Warm editorial pane, scoped under `.dash` (dashboard-ledger.css). The
-              sidebar, toolbar (warmed separately at md+), drawers, and modals are
-              outside this wrapper and keep their own styling. */}
-          <div className="dash hidden md:block" data-dashboard-theme="dusk">
+          {/* ── "Chapter Ledger" — responsive at all widths ──────────────────
+              Warm editorial pane, scoped under `.dash` (dashboard-ledger.css).
+              The two-column grid reflows to a single column below 1280px and
+              compresses further on phones (see the <768px block in the CSS), so
+              the dashboard now reflows like every other page instead of swapping
+              in a bespoke tabbed shell. The sidebar, toolbar, drawers, and modals
+              live outside this wrapper and keep their own styling. */}
+          <div className="dash" data-dashboard-theme="dusk">
 
             {/* ── Briefing + health dial ──────────────────────────────────── */}
             <BriefingHeader

@@ -3,7 +3,6 @@ import type { Brother, CalendarEvent, InstagramType, TaskStatus } from "../../da
 import { FieldLabel } from "./primitives";
 import { inputDuskCls, btnDuskPrimaryCls } from "./styles";
 import { orgFetch } from "../../lib/api";
-import { parseProgrammingTitle } from "@/lib/programming";
 import { INSTAGRAM_TYPES } from "@/lib/validation/instagram";
 
 export function AddRevenueForm({ onSubmit }: {
@@ -75,66 +74,6 @@ export function AddIGTaskForm({ onSubmit, initial }: {
   );
 }
 
-export function AddProgrammingTaskForm({ onSubmit, initial, minDate, maxDate }: {
-  onSubmit: (t: { title: string; dueDate: string | null; location: string | null; time?: string | null; collab?: string | null; type: string; status: TaskStatus }) => void;
-  initial?: { title: string; dueDate: string | null; location: string; time?: string | null; collab?: string | null; type: string; status: TaskStatus };
-  /** Active-semester bounds (YYYY-MM-DD) that constrain the date picker. */
-  minDate?: string;
-  maxDate?: string;
-}) {
-  const parsedInitial = initial ? parseProgrammingTitle(initial.title) : null;
-  const [title,    setTitle]    = useState(parsedInitial?.title ?? initial?.title ?? "");
-  const [dueDate,  setDueDate]  = useState(initial?.dueDate  ?? "");
-  const [location, setLocation] = useState(initial?.location ?? "");
-  const [time,     setTime]     = useState(initial?.time     ?? "");
-  const [collab,   setCollab]   = useState(initial?.collab ?? parsedInitial?.collab ?? "");
-  const [type,     setType]     = useState(initial?.type      ?? "Program");
-  const [status,   setStatus]   = useState<TaskStatus>(initial?.status ?? "Upcoming");
-
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!title.trim()) return;
-    onSubmit({
-      title: title.trim(),
-      dueDate: dueDate || null,
-      location: location.trim() || null,
-      time: time.trim() || null,
-      collab: collab.trim() || null,
-      type,
-      status,
-    });
-  }
-
-  return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <div><FieldLabel tone="dusk">Event Title</FieldLabel><input className={inputDuskCls} value={title} onChange={e => setTitle(e.target.value)} placeholder="Event name…" required /></div>
-      <div><FieldLabel tone="dusk">Collab <span className="font-normal text-[#6b6354]">(optional)</span></FieldLabel><input className={inputDuskCls} value={collab} onChange={e => setCollab(e.target.value)} placeholder="KDF, DSP…" /></div>
-      <div className="grid grid-cols-2 gap-3">
-        <div><FieldLabel tone="dusk">Event Date <span className="font-normal text-[#6b6354]">(optional)</span></FieldLabel><input type="date" className={inputDuskCls} value={dueDate} onChange={e => setDueDate(e.target.value)} min={minDate} max={maxDate} /></div>
-        <div><FieldLabel tone="dusk">Time <span className="font-normal text-[#6b6354]">(optional)</span></FieldLabel><input className={inputDuskCls} value={time} onChange={e => setTime(e.target.value)} placeholder="7:00 PM" /></div>
-      </div>
-      <div><FieldLabel tone="dusk">Where <span className="font-normal text-[#6b6354]">(optional)</span></FieldLabel><input className={inputDuskCls} value={location} onChange={e => setLocation(e.target.value)} placeholder="Student Union, Room 204…" /></div>
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <FieldLabel tone="dusk">Type</FieldLabel>
-          <select className={inputDuskCls} value={type} onChange={e => setType(e.target.value)}>
-            {["Program", "Social", "Fundraiser", "Community Service"].map(t => <option key={t}>{t}</option>)}
-          </select>
-        </div>
-        <div>
-          <FieldLabel tone="dusk">Status</FieldLabel>
-          <select className={inputDuskCls} value={status} onChange={e => setStatus(e.target.value as TaskStatus)}>
-            {(["Upcoming", "Due Soon", "Urgent"] as TaskStatus[]).map(s => <option key={s}>{s}</option>)}
-          </select>
-        </div>
-      </div>
-      <button type="submit" className={btnDuskPrimaryCls}>
-        {initial ? "Save Changes" : "Add Event"}
-      </button>
-    </form>
-  );
-}
-
 export function LogAttendanceForm({ event, bList, onSubmit }: {
   event: CalendarEvent;
   bList: Brother[];
@@ -144,6 +83,7 @@ export function LogAttendanceForm({ event, bList, onSubmit }: {
   const [attended,   setAttended]   = useState<Set<number>>(new Set());
   const [loading,    setLoading]    = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [query,      setQuery]      = useState("");
   // Stable ref so the effect doesn't re-run just because the array object changed
   const bListRef = React.useRef(bList);
   bListRef.current = bList;
@@ -176,6 +116,11 @@ export function LogAttendanceForm({ event, bList, onSubmit }: {
     });
   }
 
+  function markAll(value: boolean) {
+    // Eligible (non-excused) only — excused brothers are never in the present set.
+    setAttended(value ? new Set(bList.filter(b => !excusedIds.has(b.id)).map(b => b.id)) : new Set());
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (submitting) return;
@@ -190,23 +135,44 @@ export function LogAttendanceForm({ event, bList, onSubmit }: {
   const eligible = bList.filter(b => !excusedIds.has(b.id));
   const excused  = bList.filter(b => excusedIds.has(b.id));
   const busy = loading || submitting;
+  const q = query.trim().toLowerCase();
+  const visibleEligible = q ? eligible.filter(b => b.name.toLowerCase().includes(q)) : eligible;
+  const visibleExcused  = q ? excused.filter(b => b.name.toLowerCase().includes(q)) : excused;
 
   return (
     <form onSubmit={handleSubmit}>
       <p className="mb-1 text-[13px] font-semibold text-[#ece7dd]">{event.title}</p>
       <p className="mb-4 text-[12px] text-[#958d7c]">{event.date}{event.location ? ` · ${event.location}` : ""}</p>
+      {!loading && eligible.length > 0 && (
+        <div className="mb-2 flex items-center gap-3">
+          {eligible.length > 6 && (
+            <input
+              type="text"
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              placeholder="Search brothers…"
+              className={`${inputDuskCls} flex-1`}
+            />
+          )}
+          <button type="button" onClick={() => markAll(true)} className="text-[11px] font-medium text-[#a78bfa] hover:text-[#ece7dd]">All present</button>
+          <button type="button" onClick={() => markAll(false)} className="text-[11px] font-medium text-[#958d7c] hover:text-[#ece7dd]">Clear</button>
+        </div>
+      )}
       {loading ? (
         <p className="mb-4 text-[12px] text-[#6b6354]">Loading excuses…</p>
       ) : (
         <div className="mb-4 max-h-64 space-y-0.5 overflow-y-auto rounded-lg border border-[rgba(236,231,221,0.08)] bg-[#0f0d0a] p-2">
-          {eligible.map(b => (
+          {q && visibleEligible.length === 0 && visibleExcused.length === 0 && (
+            <p className="px-2 py-2 text-[12px] text-[#6b6354]">No brothers match “{query}”.</p>
+          )}
+          {visibleEligible.map(b => (
             <label key={b.id} className="flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2 hover:bg-[rgba(236,231,221,0.05)] transition-colors">
               <input type="checkbox" checked={attended.has(b.id)} onChange={() => toggle(b.id)} className="h-4 w-4 rounded border-[rgba(236,231,221,0.2)] bg-transparent text-[#a78bfa] focus:ring-[#a78bfa]/30" />
               <span className="flex-1 text-[13px] font-medium text-[#ece7dd]">{b.name}</span>
               <span className="text-[11px] tabular-nums text-[#6b6354]">{b.attendance}%</span>
             </label>
           ))}
-          {excused.map(b => (
+          {visibleExcused.map(b => (
             <div key={b.id} className="flex items-center gap-3 rounded-lg px-2 py-2 opacity-50">
               <input type="checkbox" disabled className="h-4 w-4 rounded border-[rgba(236,231,221,0.2)] bg-transparent" />
               <span className="flex-1 text-[13px] font-medium text-[#958d7c]">{b.name}</span>
@@ -227,6 +193,9 @@ export function LogAttendanceForm({ event, bList, onSubmit }: {
   );
 }
 
+// Common excuse reasons — clicking one fills the textarea (still fully editable).
+const EXCUSE_PRESETS = ["Sick", "Class conflict", "Work", "Family", "Travel"];
+
 export function ExcuseForm({ event, bList, isAdmin, selfBrotherId, onDone }: {
   event: CalendarEvent;
   bList: Brother[];
@@ -234,8 +203,9 @@ export function ExcuseForm({ event, bList, isAdmin, selfBrotherId, onDone }: {
   selfBrotherId: number | null;
   onDone: (result: { excuseStatus: "approved" | "pending" }) => void;
 }) {
-  const adminDefault = bList[0]?.id != null ? String(bList[0].id) : "";
-  const [brotherId, setBrotherId] = useState<string>(isAdmin ? adminDefault : "");
+  // Default to an empty selection (not the first brother) so an admin must
+  // consciously pick who the excuse is for — avoids approving for the wrong person.
+  const [brotherId, setBrotherId] = useState<string>("");
   const [reason,    setReason]    = useState("");
   const [submitting,setSubmitting]= useState(false);
   const [error,     setError]     = useState<string | null>(null);
@@ -291,7 +261,20 @@ export function ExcuseForm({ event, bList, isAdmin, selfBrotherId, onDone }: {
       )}
       <div>
         <FieldLabel tone="dusk">Reason</FieldLabel>
+        <div className="mb-2 flex flex-wrap gap-1.5">
+          {EXCUSE_PRESETS.map(p => (
+            <button
+              key={p}
+              type="button"
+              onClick={() => setReason(p)}
+              className="rounded-full border border-[rgba(236,231,221,0.14)] px-2.5 py-1 text-[11px] text-[#bcb4a3] hover:border-[#a78bfa]/50 hover:text-[#ece7dd] transition-colors"
+            >
+              {p}
+            </button>
+          ))}
+        </div>
         <textarea value={reason} onChange={e => setReason(e.target.value)} required rows={3} placeholder="Why are you (or this brother) missing this event?" className={inputDuskCls} maxLength={1000} />
+        <p className="mt-1 text-right text-[10px] text-[#6b6354]">{reason.length}/1000</p>
       </div>
       {!isAdmin && (
         <p className="text-[11px] text-[#6b6354]">Submissions are reviewed by chapter admins.</p>

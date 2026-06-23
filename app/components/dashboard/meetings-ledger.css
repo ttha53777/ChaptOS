@@ -115,9 +115,18 @@
 .dash .roster .r-head { display: flex; align-items: baseline; gap: 8px; padding: 13px 16px 11px; border-bottom: 1px solid var(--line-soft); }
 .dash .roster .r-head .h { font-family: var(--serif); font-size: 15px; color: var(--ink); }
 .dash .roster .r-head .c { margin-left: auto; font-family: var(--mono); font-size: 9px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.dash .roster .r-tools { display: flex; flex-direction: column; gap: 8px; padding: 10px 16px; border-bottom: 1px solid var(--line-soft); }
+.dash .roster .r-search { width: 100%; font-size: 12px; color: var(--ink); background: var(--card-2);
+  border: 1px solid var(--line); border-radius: 7px; padding: 6px 9px; }
+.dash .roster .r-search::placeholder { color: var(--faint); }
+.dash .roster .r-bulk { display: flex; gap: 14px; }
+.dash .roster .r-bulk button { font-family: var(--mono); font-size: 9px; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--vio); background: transparent; border: none; cursor: pointer; padding: 0; }
+.dash .roster .r-bulk button:hover { color: var(--ink); }
+.dash .roster .r-list { max-height: 360px; overflow-y: auto; }
 .dash .rmember { display: flex; align-items: center; gap: 10px; padding: 9px 16px; border-bottom: 1px solid var(--line-soft);
   width: 100%; text-align: left; background: transparent; border-left: none; border-right: none; border-top: none; }
-.dash .rmember:last-of-type { border-bottom: none; }
+.dash .roster .r-list .rmember:last-child { border-bottom: none; }
 .dash .rmember .av { width: 26px; height: 26px; border-radius: 50%; flex-shrink: 0; display: grid; place-items: center;
   font-family: var(--mono); font-size: 9px; font-weight: 600; background: var(--vio-bg); color: var(--vio); }
 .dash .rmember .nm { font-size: 12.5px; color: var(--ink); min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

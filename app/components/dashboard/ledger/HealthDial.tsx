@@ -60,7 +60,7 @@ export function HealthDial({
         </div>
       </div>
       <div className="dial">
-        <svg width="92" height="92" viewBox="0 0 92 92">
+        <svg width="100%" height="100%" viewBox="0 0 92 92">
           <circle cx="46" cy="46" r={R} fill="none" style={{ stroke: "var(--line)" }} strokeWidth="5" />
           <circle
             cx="46"

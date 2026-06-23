@@ -433,6 +433,43 @@
   .dash .col-secondary { display: none; }
 }
 
+/* Phone (Phase 2 reflow): the ledger now renders below 768px too (the bespoke
+   tabbed mobile shell was retired). At this width the priority/rail pairs and the
+   KPI strip must collapse to a true single column — the 340px auto-fit floor above
+   would otherwise force lopsided 2-up rows on a ~360px screen — and the editorial
+   spacing tightens so the dense roster/cards aren't cramped against the gutters.
+   A frosted hamburger toolbar (header.dash-toolbar, styled below) sits above this,
+   matching every other page; the briefing keeps the My Standing / Quick Actions
+   chips it already folds in, so no controls are lost relative to the old tabs. */
+@media (max-width: 767px) {
+  .dash {
+    --dash-gutter: 16px;
+    --dash-section-gap: 12px;
+    --dash-greeting: clamp(22px, 7vw, 27px);
+    padding: 18px var(--dash-gutter) 32px;
+    font-size: 13px;
+  }
+  /* Stack the priority pair and the rail one card per row. */
+  .dash .grid > .col-rail > .area-priority,
+  .dash .grid > .col-rail > .area-rail {
+    grid-template-columns: 1fr;
+  }
+  /* KPI strip: 2-up tiles read fine at phone width and keep the strip compact
+     instead of one tall stack; drop the floor so two always fit. */
+  .dash .ledger {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .dash .measure .v { font-size: 19px; }
+  /* The briefing action chips wrap; give them room and a touch-friendly tap. */
+  .dash .brief-actions { gap: 7px; }
+  .dash footer { margin-top: 22px; }
+  /* Hide the Chapter Health dial on phones — it's the only `.dash-group` inside
+     the briefing, so this targets the health widget without affecting the other
+     `.dash-group` wrappers elsewhere in the pane. The score stays one tap away
+     in the health detail drawer (and the KPI strip carries the same numbers). */
+  .dash .briefing > .dash-group { display: none; }
+}
+
 /* Fluid ultrawide: column grows with the viewport above 1280px, capped at
    1800px so it never goes full-bleed. Rail scales proportionally. */
 @media (min-width: 1280px) {
@@ -440,6 +477,18 @@
     --dash-max-width: min(calc(1230px + 22vw), 1800px);
     --dash-rail-width: min(calc(338px + 4vw), 420px);
   }
+
+  /* Scale up the Chapter Health dial on desktop — it shares the briefing header
+     with the greeting, so it has room to read bigger on a wide canvas. */
+  .dash .health { gap: 24px; }
+  .dash .dial { width: 116px; height: 116px; }
+  .dash .dial .num span { font-size: 34px; }
+  .dash .health .meta .label { font-size: 11px; }
+  .dash .health .meta .state { font-size: 18px; margin: 3px 0 11px; }
+  .dash .bk { grid-template-columns: 40px 104px 28px; gap: 4px 12px; }
+  .dash .bk .k { font-size: 9.5px; }
+  .dash .bk .bar { height: 4px; }
+  .dash .bk .v { font-size: 10px; }
 }
 
 /* ── Touch devices (Phase 2) ─────────────────────────────────────────────────
@@ -465,11 +514,11 @@
    The <header> is a sibling of <main>, OUTSIDE `.dash`, so these rules cannot
    nest under `.dash`. Qualified `header.dash-toolbar …` beats the cold theme's
    single-class Tailwind utilities on specificity (an extra element/class wins).
-   md+ only, so the mobile (<768px) toolbar stays cold/unchanged — and the desktop
-   ledger only renders at md+ anyway. The dusk palette is redeclared as local vars
-   here because the header has no `data-dashboard-theme` to inherit from. */
-@media (min-width: 768px) {
-  header.dash-toolbar {
+   Applies at all widths now that the ledger reflows down to phones — the mobile
+   hamburger toolbar shares the dusk palette of the pane beneath it instead of
+   reading cold. The dusk palette is redeclared as local vars here because the
+   header has no `data-dashboard-theme` to inherit from. */
+header.dash-toolbar {
     --tb-ink:    #ece7dd;
     --tb-soft:   #c9c2b4;
     --tb-muted:  #958d7c;
@@ -534,7 +583,6 @@
     background: var(--tb-vio-bg);
     box-shadow: 0 0 0 2px rgba(167, 139, 250, 0.15);
   }
-}
 
 @media (prefers-reduced-motion: reduce) {
   .dash * { transition: none !important; animation: none !important; }

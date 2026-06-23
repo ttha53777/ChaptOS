@@ -331,10 +331,22 @@
 .dash-drawer .dd-att .body .t { font-size: 12px; font-weight: 500; color: var(--ink-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .dash-drawer .dd-att .body .m { font-family: var(--mono); font-size: 9.5px; color: var(--faint); margin-top: 2px; }
 .dash-drawer .dd-att .body .rej { font-size: 10px; color: var(--rose); font-style: italic; margin-top: 3px; }
+.dash-drawer .dd-att .body .note { font-size: 10px; color: var(--faint); font-style: italic; margin-top: 3px; }
 .dash-drawer .dd-att .excuse { flex-shrink: 0; font-family: var(--mono); font-size: 9.5px; letter-spacing: .04em;
   text-transform: uppercase; color: var(--gold); border: 1px solid var(--gold-bg); background: transparent;
   border-radius: 6px; padding: 4px 9px; cursor: pointer; transition: .15s; }
 .dash-drawer .dd-att .excuse:hover { border-color: var(--gold); }
+
+/* admin review controls on a pending excuse */
+.dash-drawer .dd-att-review { flex-shrink: 0; display: flex; gap: 6px; }
+.dash-drawer .dd-att-review button { font-family: var(--mono); font-size: 9.5px; letter-spacing: .04em;
+  text-transform: uppercase; border-radius: 6px; padding: 4px 9px; cursor: pointer; transition: .15s;
+  background: transparent; border: 1px solid; }
+.dash-drawer .dd-att-review button:disabled { opacity: .5; cursor: default; }
+.dash-drawer .dd-att-review .approve { color: var(--ok); border-color: var(--ok-bg); }
+.dash-drawer .dd-att-review .approve:hover:not(:disabled) { border-color: var(--ok); }
+.dash-drawer .dd-att-review .reject { color: var(--rose); border-color: var(--rose-bg); }
+.dash-drawer .dd-att-review .reject:hover:not(:disabled) { border-color: var(--rose); }
 
 /* loading skeletons */
 .dash-drawer .dd-skel { height: 40px; border-radius: 10px; background: var(--card); animation: dd-pulse 1.4s ease-in-out infinite; }
