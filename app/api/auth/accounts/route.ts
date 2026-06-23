@@ -7,6 +7,13 @@ export async function GET() {
   const user = await requireUser();
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
+  // Membership gate (mirrors buildContext's at request-context.ts and the check in
+  // /api/auth/active-org). This route reads with db(user.orgId) directly instead of
+  // buildContext, so without this a removed member whose stale Brother.organizationId
+  // still points here would read the org's full roster. Platform admins are exempt.
+  const isMember = user.isPlatformAdmin || user.memberships.some(m => m.organizationId === user.orgId);
+  if (!isMember) return Response.json({ error: "Forbidden" }, { status: 403 });
+
   try {
     // Try the with-roles query first (post-migration). If the role tables
     // don't exist yet, fall through to a query without them — the UI shows
