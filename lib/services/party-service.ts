@@ -2,6 +2,7 @@ import type { Prisma } from "@/app/generated/prisma/client";
 import type { RequestContext } from "@/lib/context";
 import { emit } from "@/lib/events";
 import { NotFoundError, ValidationError } from "@/lib/errors";
+import { logError } from "@/lib/observability";
 import { ExcuseStatus } from "@/lib/state";
 import { getActiveSemester } from "@/lib/attendance";
 import type { CreatePartyInput, UpdatePartyInput, WrapUpPartyInput } from "@/lib/validation/party";
@@ -117,7 +118,18 @@ export async function deleteParty(ctx: RequestContext, id: number) {
   // Clean up the backing attendance event (and its records cascade via FK) if one
   // was created. SetNull already detached the party side; remove the orphan event.
   if (target.attendanceEventId != null) {
-    await ctx.db.calendarEvent.delete({ where: { id: target.attendanceEventId } }).catch(() => {});
+    // Best-effort cleanup: the backing event may already be gone (SetNull detached
+    // the party side). Stay non-throwing so the party delete still succeeds, but
+    // surface a genuine DB failure through the structured pipeline rather than
+    // swallowing it silently.
+    await ctx.db.calendarEvent.delete({ where: { id: target.attendanceEventId } }).catch(e => {
+      logError(e, {
+        route: "lib/services/party-service",
+        userId: ctx.actorId,
+        requestId: ctx.requestId,
+        extra: { fn: "deleteParty", partyId: id, attendanceEventId: target.attendanceEventId },
+      });
+    });
   }
   await emit(ctx, "party.deleted", { type: "PartyEvent", id }, { name: target.name });
 }

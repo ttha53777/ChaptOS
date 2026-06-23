@@ -1,4 +1,5 @@
 import { parseAvatarFromMetadata } from "@/lib/avatar";
+import { logError } from "@/lib/observability";
 import { prisma } from "@/lib/prisma";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 
@@ -16,7 +17,9 @@ export async function syncBrotherAvatar(authUserId: string, avatarUrl: string | 
     // authUserId, so ctx.db doesn't apply — same rationale as the auth bootstrap.
     await prisma.brother.updateMany({ where: { authUserId }, data: { avatarUrl } }); // lint-direct-prisma:ignore
   } catch (e) {
-    console.error("syncBrotherAvatar failed:", e);
+    // Best-effort avatar cache write; never fail the caller. Route through the
+    // structured pipeline instead of a bare console.error.
+    logError(e, { route: "lib/brother-avatar", extra: { fn: "syncBrotherAvatar" } });
   }
 }
 

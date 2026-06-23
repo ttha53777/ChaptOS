@@ -14,7 +14,10 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ eve
     if (!Number.isInteger(calendarEventId) || calendarEventId <= 0) throw new ValidationError("Invalid eventId");
 
     const semester = await getActiveSemester(ctx.db);
-    if (!semester) throw new ValidationError("No active semester");
+    // No active semester is an empty state, not a client error: there's simply no
+    // attendance to report yet. Return empty buckets so the rail renders its empty
+    // state instead of the timeline logging a spurious 400.
+    if (!semester) return Response.json({ excused: [], unexcused: [], attended: [] });
 
     const [records, excuses] = await Promise.all([
       ctx.db.attendanceRecord.findMany({

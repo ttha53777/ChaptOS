@@ -118,7 +118,6 @@ export async function GET() {
       roles: perms.roles,
     });
   } catch (e) {
-    console.error("[/api/auth/me] 500 cause:", e);
     logError(e, { route: "/api/auth/me", method: "GET", userId: user?.id });
     return toResponse(e);
   }
