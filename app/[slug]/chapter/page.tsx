@@ -411,6 +411,7 @@ function RollCallPanel({
   const [dirty, setDirty]     = useState(false);
   const [saving, setSaving]   = useState(false);
   const [error, setError]     = useState<string | null>(null);
+  const [query, setQuery]     = useState("");
 
   useEffect(() => {
     if (!event || !event.mandatory) { setDetail(null); return; }
@@ -418,6 +419,7 @@ function RollCallPanel({
     setDetail(null);
     setDirty(false);
     setError(null);
+    setQuery("");
     setLoading(true);
     fetch(`/api/attendance/${event.id}`, { signal: controller.signal })
       .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
@@ -446,6 +448,14 @@ function RollCallPanel({
       if (next.has(id)) next.delete(id); else next.add(id);
       return next;
     });
+    setDirty(true);
+  }
+
+  // Bulk mark operates on eligible (non-excused) brothers only. Excused stay out
+  // of the present set regardless — they're dropped from the attendance math.
+  function markAll(value: boolean) {
+    if (!canManage) return;
+    setPresent(value ? new Set(eligible.map(b => b.id)) : new Set());
     setDirty(true);
   }
 
@@ -485,6 +495,8 @@ function RollCallPanel({
     ? brotherList
     : [...(detail?.attended ?? []), ...(detail?.unexcused ?? []), ...(detail?.excused ?? [])]
         .map(b => ({ id: b.brotherId, name: b.brotherName }));
+  const q = query.trim().toLowerCase();
+  const visible = q ? roster.filter(b => b.name.toLowerCase().includes(q)) : roster;
 
   return (
     <div className="roster">
@@ -493,27 +505,49 @@ function RollCallPanel({
         <span className="c">{loading ? "…" : `${presentCount} / ${eligibleCount} present`}</span>
       </div>
 
+      {canManage && !loading && roster.length > 0 && (
+        <div className="r-tools">
+          {roster.length > 6 && (
+            <input
+              type="text"
+              className="r-search"
+              placeholder="Search brothers…"
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+            />
+          )}
+          <div className="r-bulk">
+            <button type="button" onClick={() => markAll(true)}>Mark all present</button>
+            <button type="button" onClick={() => markAll(false)}>Clear all</button>
+          </div>
+        </div>
+      )}
+
       {loading ? (
         <div className="r-locked">Loading attendance…</div>
       ) : roster.length === 0 ? (
         <div className="r-locked">No brothers on the roster yet.</div>
+      ) : visible.length === 0 ? (
+        <div className="r-locked">No brothers match “{query}”.</div>
       ) : (
-        roster.slice(0, 8).map(b => {
-          const st = statusOf(b.id);
-          return (
-            <button
-              key={b.id}
-              type="button"
-              className={`rmember${canManage && !excusedIds.has(b.id) ? " clickable" : ""}`}
-              onClick={() => toggle(b.id)}
-              disabled={!canManage || excusedIds.has(b.id)}
-            >
-              <span className="av">{initials(b.name)}</span>
-              <span className="nm">{b.name}</span>
-              <span className={`st ${st}`}>{st === "pending" ? "Pending" : st === "present" ? "Present" : "Excused"}</span>
-            </button>
-          );
-        })
+        <div className="r-list">
+          {visible.map(b => {
+            const st = statusOf(b.id);
+            return (
+              <button
+                key={b.id}
+                type="button"
+                className={`rmember${canManage && !excusedIds.has(b.id) ? " clickable" : ""}`}
+                onClick={() => toggle(b.id)}
+                disabled={!canManage || excusedIds.has(b.id)}
+              >
+                <span className="av">{initials(b.name)}</span>
+                <span className="nm">{b.name}</span>
+                <span className={`st ${st}`}>{st === "pending" ? "Pending" : st === "present" ? "Present" : "Excused"}</span>
+              </button>
+            );
+          })}
+        </div>
       )}
 
       {error && <div className="r-locked" style={{ color: "var(--rose)", fontStyle: "normal", fontFamily: "var(--sans)" }}>{error}</div>}
@@ -521,7 +555,7 @@ function RollCallPanel({
       <div className="r-foot">
         {canManage ? (
           <button type="button" onClick={save} disabled={!dirty || saving}>
-            {saving ? "Saving…" : dirty ? "Save attendance" : roster.length > 8 ? `View all ${roster.length} →` : "Saved"}
+            {saving ? "Saving…" : dirty ? "Save attendance" : "Saved"}
           </button>
         ) : (
           <span className="r-locked" style={{ padding: 0 }}>Read-only · ask an officer to take roll</span>

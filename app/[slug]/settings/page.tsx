@@ -173,6 +173,9 @@ export default function SettingsPage() {
   const { can, currentUser, brotherList, taskList, partyList } = useChapter();
   const orgPath = useOrgPath();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  // Settings section nav (.set-nav) drawer — static column at lg+, slide-in drawer
+  // on mobile (mirrors the main app Sidebar's open/close behaviour).
+  const [navOpen, setNavOpen] = useState(false);
   const [dest, setDest] = useState<Destination>("index");
   const [pendingAnchor, setPendingAnchor] = useState<string | null>(null);
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
@@ -222,6 +225,7 @@ export default function SettingsPage() {
   function selectDest(d: Destination) {
     setDest(d);
     setSidebarOpen(false);
+    setNavOpen(false);
     setFilter("");
   }
 
@@ -232,6 +236,7 @@ export default function SettingsPage() {
     setDest(item.group);
     setPendingAnchor(`set-${id}`);
     setSidebarOpen(false);
+    setNavOpen(false);
     setFilter("");
   }
 
@@ -292,8 +297,20 @@ export default function SettingsPage() {
 
       <div className="flex min-w-0 flex-1 overflow-hidden">
 
-        {/* ── Settings nav (lg+ static; <lg lives in the mobile toolbar flow) ── */}
-        <nav aria-label="Settings navigation" className="set-nav hidden lg:flex">
+        {/* ── Settings nav: static column at lg+, slide-in drawer below lg ──────
+            The drawer mirrors the main app Sidebar — a tap-to-close backdrop and a
+            translate-x slide, opened from the toolbar's "Settings" breadcrumb. */}
+        {navOpen && (
+          <div
+            className="fixed inset-0 z-40 bg-black/60 lg:hidden"
+            onClick={() => setNavOpen(false)}
+            aria-hidden="true"
+          />
+        )}
+        <nav
+          aria-label="Settings navigation"
+          className={`set-nav set-nav-drawer ${navOpen ? "is-open" : ""}`}
+        >
           <div className="set-nav-head">
             <Link href={orgPath("/")} className="set-back-app">
               <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -378,6 +395,17 @@ export default function SettingsPage() {
             >
               <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            </button>
+
+            {/* Open the settings section nav (drawer below lg). */}
+            <button
+              onClick={() => setNavOpen(true)}
+              className="tb-icon-btn flex h-8 w-8 items-center justify-center rounded-lg text-[#958d7c] hover:bg-white/[0.07] lg:hidden"
+              aria-label="Open settings sections"
+            >
+              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
               </svg>
             </button>
 

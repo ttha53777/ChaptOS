@@ -53,9 +53,6 @@ export const WORKFLOW_FEATURES: Record<WorkflowId, readonly WorkflowFeature[]> =
     { id: "kpi-treasury",     label: "Treasury KPI",     description: "Treasury-balance measure in the ledger strip." },
     { id: "health",          label: "Health widget",     description: "Chapter health dial and metric breakdown." },
     { id: "needs-attention", label: "Needs attention",   description: "Queue of overdue deadlines, outstanding dues, and at-risk members." },
-    // `charts` now governs the mobile-only Recharts panels (MobileMoneyTab); the
-    // desktop redesign folds those numbers into the ledger strip + Treasury/Socials rail.
-    { id: "charts",          label: "Charts",            description: "Balance, status, and service trend charts (mobile)." },
     { id: "brother-tracking", label: "Member tracking",  description: "The sortable member roster table." },
   ],
   finance: [],

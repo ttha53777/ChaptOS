@@ -133,7 +133,7 @@ function MetricRow({
 
   return (
     <div className="rounded-xl px-4 py-3 space-y-3" style={{ border: "1px solid rgba(167,139,250,.35)", background: "var(--card)" }}>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div>
           <label className="sc-mlabel">Name</label>
           <input className="sc-input sc-input-sm mt-1" value={form.name} onChange={e => field("name", e.target.value)} maxLength={40} />
@@ -143,7 +143,7 @@ function MetricRow({
           <input className="sc-input sc-input-sm mt-1" value={form.unit} onChange={e => field("unit", e.target.value)} placeholder="hrs, reps, %…" maxLength={10} />
         </div>
       </div>
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <div>
           <label className="sc-mlabel">Goal (per member)</label>
           <input type="number" min={0} step="any" className="sc-input sc-input-sm mt-1" value={form.goal} onChange={e => field("goal", e.target.value)} />
@@ -318,7 +318,7 @@ export function CustomMetricsSection({
       {showNew && (
         <div className="rounded-xl px-4 py-4 space-y-3" style={{ border: "1px solid rgba(167,139,250,.35)", background: "var(--card)" }}>
           <h3 className="sc-h" style={{ fontSize: 14 }}>New metric</h3>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <label className="sc-mlabel">Name *</label>
               <input className="sc-input sc-input-sm mt-1" value={form.name} onChange={e => field("name", e.target.value)} placeholder="Practice Reps" maxLength={40} />
@@ -339,7 +339,7 @@ export function CustomMetricsSection({
             <label className="sc-mlabel">Unit (optional)</label>
             <input className="sc-input sc-input-sm mt-1" value={form.unit} onChange={e => field("unit", e.target.value)} placeholder="hrs, reps, %…" maxLength={10} />
           </div>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <div>
               <label className="sc-mlabel">Goal (per member) *</label>
               <input type="number" min={0} step="any" className="sc-input sc-input-sm mt-1" value={form.goal} onChange={e => field("goal", e.target.value)} placeholder="10" />

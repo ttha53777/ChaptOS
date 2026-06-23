@@ -214,7 +214,8 @@ header.dash-toolbar .ev-crumb {
 @media (max-width: 900px) { .dash .ev-pipeline { grid-template-columns: 1fr; } }
 .dash .ev-lane { border: 1px solid var(--line); border-radius: 12px; background: var(--card); box-shadow: var(--shadow); overflow: hidden; transition: border-color .15s, background .15s; }
 .dash .ev-lane.drop { border-color: var(--vio); background: var(--vio-bg); }
-.dash .ev-lane-head { display: flex; align-items: center; gap: 8px; padding: 12px 14px; border-bottom: 1px solid var(--line-soft); }
+.dash .ev-lane-head { display: flex; align-items: center; gap: 8px; padding: 12px 14px 6px; }
+.dash .ev-lane-sub { padding: 0 14px 11px; border-bottom: 1px solid var(--line-soft); font-family: var(--mono); font-size: 8.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--faint); }
 .dash .ev-lane-head .dot { width: 7px; height: 7px; border-radius: 50%; }
 .dash .ev-lane-head .lh { font-family: var(--mono); font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-soft); }
 .dash .ev-lane-head .lc {

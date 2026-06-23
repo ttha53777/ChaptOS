@@ -54,10 +54,27 @@
   .dash.dash-settings { padding: 22px 18px 64px; }
 }
 
-/* ── Settings nav column (desktop) ───────────────────────────────────────────── */
+/* ── Settings nav column ──────────────────────────────────────────────────────
+   At lg+ (≥1024px) it's a static 250px column. Below lg it becomes a slide-in
+   drawer: fixed to the left edge, off-screen until `.is-open`, with a tap-to-close
+   backdrop rendered by the page (mirrors the main app Sidebar). */
 .set-nav {
   width: 250px; flex-shrink: 0; border-right: 1px solid var(--line);
   background: var(--paper-2); display: flex; flex-direction: column;
+}
+.set-nav-drawer {
+  position: fixed; inset-block: 0; left: 0; z-index: 50;
+  width: 270px; max-width: 84vw;
+  transform: translateX(-100%);
+  transition: transform .2s ease-in-out;
+}
+.set-nav-drawer.is-open { transform: translateX(0); }
+@media (min-width: 1024px) {
+  /* Static column on desktop — drop the drawer positioning entirely. */
+  .set-nav-drawer {
+    position: static; z-index: auto; width: 250px; max-width: none;
+    transform: none; transition: none;
+  }
 }
 .set-nav .set-nav-head { padding: 18px 20px 14px; }
 .set-nav .set-back-app {
@@ -436,6 +453,28 @@ header.dash-toolbar .set-crumb svg { color: var(--tb-faint, #6b6354); }
 }
 .dash .set-section .sc-empty .t { font-family: var(--serif); font-weight: 500; font-size: 15px; color: var(--ink); }
 .dash .set-section .sc-empty .h { font-size: 12px; color: var(--faint); margin-top: 5px; }
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+   MOBILE REFLOW (≤640px)
+   The shell (nav drawer, hamburger toolbar, content padding) is already responsive.
+   These rules reflow the content layer: the index hero stacks, key→control rows
+   wrap instead of colliding, and stacked sections tighten. All scoped under
+   `.dash` / `.dash .set-section` to honour the file's isolation contract.
+   ═══════════════════════════════════════════════════════════════════════════════ */
+@media (max-width: 640px) {
+  /* Index hero — drop the org-strip below the heading instead of beside it. */
+  .dash .set-briefing { flex-direction: column; gap: 18px; }
+  .dash .set-briefing .sub { max-width: none; }
+  .dash .org-strip { align-self: stretch; }
+
+  /* Key/value rows — wrap so the control falls to its own line under the label. */
+  .dash .set-section .sc-row { flex-wrap: wrap; gap: 10px; }
+  .dash .set-section .sc-row-between .sc-row-lead { flex: 1 1 100%; }
+
+  /* Tighten stacked-block rhythm on small screens. */
+  .dash .set-section .sc-stack { gap: 18px; }
+  .dash .set-section .sc-stack-tight { gap: 14px; }
+}
 
 @media (prefers-reduced-motion: reduce) {
   .dash.dash-settings * { transition: none !important; animation: none !important; }

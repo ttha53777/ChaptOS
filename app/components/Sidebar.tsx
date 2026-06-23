@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import type { WorkflowId } from "@/lib/org-types";
 import { useOrgPath } from "../hooks/useOrgPath";
+import { orgFetch } from "../lib/api";
 import { useChapter } from "../context/ChapterContext";
 import { useVocab } from "../hooks/useVocab";
 import { OrgSwitcher } from "./OrgSwitcher";
@@ -136,11 +138,30 @@ export function Sidebar({ open, onClose, activeSection, onNavClick }: {
   const pathname = usePathname();
   const router   = useRouter();
   const orgPath  = useOrgPath();
-  const { currentUser, reimbursementList } = useChapter();
+  const { currentUser, reimbursementList, can } = useChapter();
   const v = useVocab();
 
   // Pending reimbursement tickets drive the red count badge next to Treasury.
   const pendingReimbursements = reimbursementList.filter(r => r.status === "pending").length;
+
+  // Pending excuses drive a review badge on Timeline (where the review queue lives).
+  // Only MANAGE_ATTENDANCE holders can read the endpoint (members get 403), so gate
+  // the fetch on the perm and treat any failure as zero. Refetch on navigation so
+  // the count reflects decisions made on the Timeline/brother-drawer queues.
+  const canManageAttendance = can("MANAGE_ATTENDANCE");
+  const [pendingExcuses, setPendingExcuses] = useState(0);
+  useEffect(() => {
+    if (!canManageAttendance) { setPendingExcuses(0); return; }
+    let cancelled = false;
+    orgFetch("/api/excuses/pending-counts")
+      .then(r => (r.ok ? r.json() : {}))
+      .then((counts: Record<string, number>) => {
+        if (cancelled) return;
+        setPendingExcuses(Object.values(counts).reduce((a, b) => a + b, 0));
+      })
+      .catch(() => { if (!cancelled) setPendingExcuses(0); });
+    return () => { cancelled = true; };
+  }, [canManageAttendance, pathname]);
   const orgName = currentUser?.org?.name ?? "Operations";
   const logoUrl = currentUser?.org?.logoUrl ?? null;
   const { active: activeSemester } = useSemesters(!!currentUser?.org?.slug);
@@ -247,6 +268,9 @@ export function Sidebar({ open, onClose, activeSection, onNavClick }: {
           {displayLabel}
           {isTreasury && pendingReimbursements > 0 && (
             <NavCountBadge count={pendingReimbursements} label="reimbursement requests awaiting review" />
+          )}
+          {isTimeline && pendingExcuses > 0 && (
+            <NavCountBadge count={pendingExcuses} label="excuses awaiting review" />
           )}
         </Link>
       );

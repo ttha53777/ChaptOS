@@ -1,16 +1,17 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { Sidebar } from "../../components/Sidebar";
 import { Modal, ConfirmDialog } from "../../components/dashboard/primitives";
 import { inputDuskCls, btnDuskPrimaryCls } from "../../components/dashboard/styles";
-import { AddProgrammingTaskForm } from "../../components/dashboard/forms";
+import { CalendarEventForm, type CalendarDraft } from "../../components/timeline/CalendarEventForm";
 import { ProgrammingBoard } from "../../components/programming/ProgrammingBoard";
 import { ProgrammingCalendarView } from "../../components/programming/ProgrammingCalendarView";
 import { ProgrammingInspector } from "../../components/programming/ProgrammingInspector";
 import { ProgrammingTable } from "../../components/programming/ProgrammingTable";
 import { LedgerStrip, Measure } from "../../components/dashboard/ledger/LedgerStrip";
-import type { ProgrammingTask, TaskStatus } from "../../data";
+import type { ProgrammingTask, TaskStatus, CalEventCategory } from "../../data";
 import { fmt$, fmtDate } from "../../data";
 import type { Doc } from "../docs/DocCard";
 import { useChapter } from "../../context/ChapterContext";
@@ -19,10 +20,12 @@ import { useActiveSemester } from "../../hooks/useActiveSemester";
 import { useSemesterErrorHandler } from "../../hooks/useSemesterErrorHandler";
 import { todayStr } from "../../lib/dates";
 import {
+  categoryToTypeLabel,
   eventsNeedingAttention,
   eventsTermStats,
   nextOnDeckEvent,
   programmingPrepChecks,
+  typeLabelToCategory,
   type AttentionEntry,
 } from "@/lib/programming";
 import type { ProgrammingStage } from "@/lib/state/programming-stage";
@@ -40,14 +43,33 @@ type ApiPatch = Record<string, unknown>;
 
 type FormInput = {
   title: string; dueDate: string | null; location: string | null; time?: string | null;
-  collab?: string | null; type: string; status: TaskStatus;
+  collab?: string | null; type: string; status: TaskStatus; mandatory: boolean;
+  description: string | null;
 };
+
+const PROGRAMMING_FORM_CATEGORIES: CalEventCategory[] = ["program", "social", "fundy", "service"];
+
+/** Map the shared CalendarEventForm draft to the programming API input shape. */
+function draftToFormInput(draft: CalendarDraft): FormInput {
+  return {
+    title:     draft.title,
+    dueDate:   draft.date || null,
+    location:  draft.location ?? null,
+    time:      draft.time ?? null,
+    collab:    draft.collab?.trim() || null,
+    type:      categoryToTypeLabel(draft.category),
+    status:    "Upcoming",
+    mandatory: draft.mandatory,
+    description: draft.description ?? null,
+  };
+}
 
 export default function ProgrammingPage() {
   const { currentUser, can, setProgrammingTaskList } = useChapter();
   const canManage = can("MANAGE_EVENTS");
   const activeSemester = useActiveSemester();
   const handleSemesterError = useSemesterErrorHandler();
+  const searchParams = useSearchParams();
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [events, setEvents] = useState<ProgrammingTask[]>([]);
@@ -219,7 +241,8 @@ export default function ProgrammingPage() {
     weekday: "long", month: "long", day: "numeric", year: "numeric",
   });
 
-  async function handleAdd(input: FormInput) {
+  async function handleAdd(draft: CalendarDraft) {
+    const input = draftToFormInput(draft);
     try {
       const created = await requestJson<ProgrammingTask>("/api/programming", {
         method: "POST",
@@ -234,8 +257,11 @@ export default function ProgrammingPage() {
     }
   }
 
-  async function handleEdit(input: FormInput) {
+  async function handleEdit(draft: CalendarDraft) {
     if (!editTarget) return;
+    const input = draftToFormInput(draft);
+    // `status` is owned by the inspector (Upcoming/Due Soon/Urgent); the unified form
+    // doesn't edit it, so don't PATCH it here and clobber an inspector-set value.
     await patchEvent(editTarget.id, {
       title: input.title,
       dueDate: input.dueDate,
@@ -243,7 +269,8 @@ export default function ProgrammingPage() {
       time: input.time,
       collab: input.collab,
       type: input.type,
-      status: input.status,
+      mandatory: input.mandatory,
+      description: input.description,
     });
     setModal(null);
     setEditTarget(null);
@@ -275,6 +302,19 @@ export default function ProgrammingPage() {
     setIsClosingDrawer(false);
     setSelectedId(id);
   }, [selectedId, closeDrawer]);
+
+  // Deep-link: ?open=<id> (e.g. from the Timeline's "Open in Programming" link) opens
+  // that event's inspector once the list has loaded. Fires once per id so it doesn't
+  // fight the user manually closing the drawer.
+  const openedDeepLinkRef = useRef<string | null>(null);
+  useEffect(() => {
+    const openId = searchParams.get("open");
+    if (!openId || loading || openedDeepLinkRef.current === openId) return;
+    if (events.some(e => e.id === Number(openId))) {
+      openedDeepLinkRef.current = openId;
+      selectCard(Number(openId));
+    }
+  }, [searchParams, loading, events, selectCard]);
 
   const railOpen = selected || isClosingDrawer;
 
@@ -525,23 +565,37 @@ export default function ProgrammingPage() {
 
       {modal === "add" && (
         <Modal title="New Event" tone="dusk" onClose={() => setModal(null)}>
-          <AddProgrammingTaskForm onSubmit={handleAdd} minDate={activeSemester?.startDate} maxDate={activeSemester?.endDate} />
+          <CalendarEventForm
+            submitLabel="Add Event"
+            onSubmit={handleAdd}
+            allowedCategories={PROGRAMMING_FORM_CATEGORIES}
+            defaultCategory="program"
+            showCollab
+            minDate={activeSemester?.startDate}
+            maxDate={activeSemester?.endDate}
+          />
         </Modal>
       )}
 
       {modal === "edit" && editTarget && (
         <Modal title="Edit Event" tone="dusk" onClose={() => { setModal(null); setEditTarget(null); }}>
-          <AddProgrammingTaskForm
-            initial={{
+          <CalendarEventForm
+            submitLabel="Save Changes"
+            initialEvent={{
+              id: editTarget.id,
               title: editTarget.title,
-              dueDate: editTarget.dueDate,
-              location: editTarget.location,
+              date: editTarget.dueDate ?? "",
               time: editTarget.time ?? undefined,
-              collab: editTarget.collab,
-              type: editTarget.type,
-              status: editTarget.status,
+              category: typeLabelToCategory(editTarget.type),
+              mandatory: editTarget.mandatory,
+              location: editTarget.location || undefined,
+              description: editTarget.description ?? undefined,
             }}
+            initialCollab={editTarget.collab}
             onSubmit={handleEdit}
+            allowedCategories={PROGRAMMING_FORM_CATEGORIES}
+            defaultCategory="program"
+            showCollab
             minDate={activeSemester?.startDate}
             maxDate={activeSemester?.endDate}
           />
@@ -584,12 +638,12 @@ function PromoteDateModal({ onConfirm, onCancel, minDate, maxDate }: {
 }) {
   const [date, setDate] = useState("");
   return (
-    <Modal title="Set a date" tone="dusk" onClose={onCancel}>
+    <Modal title="Schedule this event" tone="dusk" onClose={onCancel}>
       <form
         onSubmit={e => { e.preventDefault(); if (date) onConfirm(date); }}
         className="space-y-4"
       >
-        <p className="text-[12px] text-[#958d7c]">Events need a date once they leave the Idea stage — they&apos;ll show on the timeline.</p>
+        <p className="text-[12px] text-[#958d7c]">Pick a date to move this event out of the Idea backlog. Scheduling it adds it to the chapter timeline, where brothers can see it.</p>
         <input
           type="date"
           value={date}
@@ -600,7 +654,7 @@ function PromoteDateModal({ onConfirm, onCancel, minDate, maxDate }: {
           className={inputDuskCls}
         />
         <button type="submit" disabled={!date} className={btnDuskPrimaryCls}>
-          Move event
+          Schedule &amp; move
         </button>
       </form>
     </Modal>

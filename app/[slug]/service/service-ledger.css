@@ -45,6 +45,9 @@
 @media (max-width: 640px) {
   .dash.dash-service { padding: 22px 18px 56px; }
 }
+@media (max-width: 380px) {
+  .dash.dash-service { padding: 20px 14px 52px; }
+}
 
 /* ── Toolbar bar (mobile breadcrumb) ─────────────────────────────────────────── */
 header.dash-toolbar.svc-toolbar-bar {
@@ -81,6 +84,13 @@ header.dash-toolbar .svc-crumb {
 .dash .svc-add:disabled { opacity: .45; cursor: not-allowed; }
 .dash .svc-add:disabled:hover { border-color: var(--line); color: var(--ink-soft); }
 
+@media (max-width: 640px) {
+  .dash .svc-briefing { flex-direction: column; gap: 16px; }
+  .dash .svc-briefing h1 { font-size: 27px; }
+  .dash .svc-actions { width: 100%; }
+  .dash .svc-add { flex: 1 1 auto; justify-content: center; }
+}
+
 /* ── Glance strip ────────────────────────────────────────────────────────────── */
 .dash .svc-glance { margin-top: 22px; display: grid; grid-auto-flow: column; grid-auto-columns: 1fr;
   border: 1px solid var(--line); border-radius: 12px; background: var(--card); box-shadow: var(--shadow); overflow: hidden; }
@@ -92,7 +102,10 @@ header.dash-toolbar .svc-crumb {
 .dash .svc-measure .note { font-size: 11px; color: var(--faint); margin-top: 3px; }
 @media (max-width: 640px) {
   .dash .svc-glance { grid-auto-flow: row; grid-template-columns: repeat(2, 1fr); grid-auto-columns: auto; }
-  .dash .svc-measure { border-bottom: 1px solid var(--line-soft); }
+  .dash .svc-measure { padding: 13px 15px 12px; border-bottom: 1px solid var(--line-soft); }
+  .dash .svc-measure .v { font-size: 21px; }
+  /* Right-column cells lose their divider; only the inner (odd) cells keep it. */
+  .dash .svc-measure:nth-child(2n) { border-right: none; }
 }
 
 /* ── Toolbar: search + view toggle ───────────────────────────────────────────── */
@@ -113,6 +126,12 @@ header.dash-toolbar .svc-crumb {
 .dash .svc-seg button:hover { color: var(--ink-soft); }
 .dash .svc-seg button.on { color: var(--ink); background: var(--card-2); box-shadow: inset 0 0 0 1px var(--line); }
 .dash .svc-toolbar .svc-scope { margin-left: auto; font-family: var(--mono); font-size: 10px; letter-spacing: .08em; color: var(--faint); white-space: nowrap; }
+
+@media (max-width: 640px) {
+  /* Search takes its own full-width row; the seg toggle + count share the next. */
+  .dash .svc-search { flex-basis: 100%; max-width: none; }
+  .dash .svc-toolbar .svc-scope { margin-left: 0; }
+}
 
 /* ── Events view: accordion list ─────────────────────────────────────────────── */
 .dash .svc-events { margin-top: 20px; display: flex; flex-direction: column; gap: 10px; }
@@ -223,6 +242,30 @@ header.dash-toolbar .svc-crumb {
 .svc-md-events .t { flex: 1; min-width: 0; font-size: 13px; color: #ece7dd; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .svc-md-events .d { font-family: var(--font-geist-mono), monospace; font-size: 10px; color: #6b6354; }
 .svc-md-events .h { font-family: var(--font-geist-mono), monospace; font-size: 13px; color: #a78bfa; font-variant-numeric: tabular-nums; }
+
+/* ── Narrow-phone tightening for the event accordion ─────────────────────────── */
+@media (max-width: 560px) {
+  .dash .svc-event-head { gap: 10px; padding: 13px 14px; }
+  .dash .svc-event-stats { gap: 11px; }
+  .dash .svc-event-stats .stat b { font-size: 14px; }
+  .dash .svc-event-body { padding-left: 36px; }
+}
+
+/* ── Touch targets ───────────────────────────────────────────────────────────── */
+/* Service classes aren't in the shared dashboard coarse-pointer list, so the
+   action buttons and attendee-remove control get their own 44px floor here. */
+@media (pointer: coarse) {
+  .dash .svc-add,
+  .dash .svc-seg button,
+  .dash .svc-event-actions button {
+    min-height: 44px;
+  }
+  .dash .svc-attendees .rm,
+  .dash .svc-search .clr {
+    width: 32px;
+    height: 32px;
+  }
+}
 
 @media (prefers-reduced-motion: reduce) {
   .dash.dash-service * { transition: none !important; animation: none !important; }
