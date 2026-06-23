@@ -93,9 +93,11 @@ export function formatActivityMessage(ctx: RequestContext, action: Action, m: an
         ? `${who} ${m.isRetroactive ? "submitted retroactive excuse for" : "excused"} brother #${m.brotherId}`
         : `${who} submitted excuse for review`;
     case "excuse.approved":
-      return `${who} approved excuse for brother #${m.brotherId} (${m.eventTitle})`;
+      return `${m.brotherName}'s excuse for ${m.eventTitle} was approved`;
     case "excuse.rejected":
-      return `${who} rejected excuse for brother #${m.brotherId} (${m.eventTitle})`;
+      return m.rejectionNote
+        ? `${m.brotherName}'s excuse for ${m.eventTitle} was not approved — ${m.rejectionNote}`
+        : `${m.brotherName}'s excuse for ${m.eventTitle} was not approved`;
     case "attendance.recorded":
       return `${who} recorded attendance for ${m.eventTitle}: ${m.presentCount}/${m.eligibleCount} present`;
     case "transaction.created":

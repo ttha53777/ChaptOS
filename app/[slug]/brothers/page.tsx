@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo, useCallback } from "react";
+import React, { useState, useMemo, useCallback, useEffect } from "react";
 import { Sidebar } from "../../components/Sidebar";
 import { BrotherAvatar } from "../../components/BrotherAvatar";
 import { Modal, FieldLabel } from "../../components/dashboard/primitives";
@@ -134,6 +134,8 @@ export default function BrothersPage() {
   const toast = useToast();
   const THRESHOLDS = useThresholds();
   const canBrothers = can("MANAGE_BROTHERS");
+  // Distinct from MANAGE_BROTHERS — gates the pending-excuse chip + drawer review.
+  const canAttendance = can("MANAGE_ATTENDANCE");
   const customFieldDefs = useMemo(
     () => (currentUser?.org?.customMemberFields ?? []).filter(f => f.showOnRoster).sort((a, b) => a.rosterOrder - b.rosterOrder),
     [currentUser?.org?.customMemberFields],
@@ -147,6 +149,14 @@ export default function BrothersPage() {
   const [sortDir,          setSortDir]          = useState<"asc" | "desc">("asc");
   const [selectedId,       setSelectedId]       = useState<number | null>(null);
   const [showAddModal,     setShowAddModal]     = useState(false);
+  // "Record Payment" modal — opened from the Pay button on a roster row or the
+  // Brother drawer. Holds the target brother; the amount entered is deducted
+  // from their outstanding dues.
+  const [payTarget,        setPayTarget]        = useState<Brother | null>(null);
+  const [payAmountStr,     setPayAmountStr]     = useState("");
+  // Pending-excuse counts keyed by brotherId — drives the roster review chip.
+  // Loaded once for MANAGE_ATTENDANCE holders; missing key = 0 (no chip).
+  const [pendingCounts,    setPendingCounts]    = useState<Record<number, number>>({});
   const [pageError,        setPageError]        = useState<string | null>(null);
   const [deleteError,      setDeleteError]      = useState<string | null>(null);
   // "Log service hours" modal (opened from the Brother drawer's + control).
@@ -168,6 +178,29 @@ export default function BrothersPage() {
       })
       .catch(() => toast.error("Could not load service events."));
   }
+
+  // Load pending-excuse counts for the review chip (MANAGE_ATTENDANCE only).
+  useEffect(() => {
+    if (!canAttendance) { setPendingCounts({}); return; }
+    requestJson<Record<number, number>>("/api/excuses/pending-counts")
+      .then(setPendingCounts)
+      .catch(() => {});
+  }, [canAttendance]);
+
+  // After a drawer approve/reject, drop the acted-on member's chip (floor 0) and
+  // patch attendance on approval (mirrors the Timeline review queue).
+  const handleExcuseDecided = useCallback(
+    (brotherId: number, _action: "approve" | "reject", attendance: number | null) => {
+      setPendingCounts(prev => {
+        const next = Math.max(0, (prev[brotherId] ?? 0) - 1);
+        return { ...prev, [brotherId]: next };
+      });
+      if (attendance !== null) {
+        setBrotherList(prev => prev.map(b => b.id === brotherId ? { ...b, attendance } : b));
+      }
+    },
+    [setBrotherList],
+  );
 
   async function submitLogServiceHours() {
     if (!logHoursFor || logHoursEventId == null) return;
@@ -266,17 +299,30 @@ export default function BrothersPage() {
     });
   }, [brotherList, setBrotherList]);
 
+  // Opens the Record Payment modal pre-filled with the full outstanding balance.
   const payDues = useCallback((b: Brother) => {
-    setBrotherList(prev => prev.map(x => x.id === b.id ? { ...x, duesOwed: 0 } : x));
+    setPayTarget(b);
+    setPayAmountStr(b.duesOwed > 0 ? String(b.duesOwed) : "");
+  }, []);
+
+  const submitPayment = useCallback(() => {
+    if (!payTarget) return;
+    const amount = Math.max(0, parseFloat(payAmountStr) || 0);
+    if (amount === 0) return;
+    const b = payTarget;
+    const newOwed = Math.max(0, b.duesOwed - amount);
+    setPayTarget(null);
+    setPayAmountStr("");
+    setBrotherList(prev => prev.map(x => x.id === b.id ? { ...x, duesOwed: newOwed } : x));
     requestJson<Brother>(`/api/brothers/${b.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ duesOwed: 0 }),
+      body: JSON.stringify({ duesOwed: newOwed }),
     }).catch(() => {
       setBrotherList(prev => prev.map(x => x.id === b.id ? b : x));
       setPageError("Dues update failed. Changes were reverted.");
     });
-  }, [setBrotherList]);
+  }, [payTarget, payAmountStr, setBrotherList]);
 
   const deleteBrother = useCallback(async (b: Brother) => {
     setBrotherList(prev => prev.filter(x => x.id !== b.id));
@@ -569,7 +615,14 @@ export default function BrothersPage() {
                                   ringClassName="bg-[var(--vio-bg)] text-[var(--vio)] text-[10px]"
                                 />
                                 <div style={{ minWidth: 0 }}>
-                                  <div className="nm">{b.name}</div>
+                                  <div className="nm">
+                                    {b.name}
+                                    {canAttendance && (pendingCounts[b.id] ?? 0) > 0 && (
+                                      <span className="excuse-chip" title={`${pendingCounts[b.id]} pending excuse ${pendingCounts[b.id] === 1 ? "review" : "reviews"}`}>
+                                        {pendingCounts[b.id]}
+                                      </span>
+                                    )}
+                                  </div>
                                   <div className="rl">{b.role}</div>
                                 </div>
                               </div>
@@ -637,6 +690,8 @@ export default function BrothersPage() {
         onLogServiceHours={openLogServiceHours}
         onDelete={deleteBrother}
         isAdmin={canBrothers}
+        canManageExcuses={canAttendance}
+        onExcuseDecided={handleExcuseDecided}
         selfId={selfId}
       />
 
@@ -695,6 +750,56 @@ export default function BrothersPage() {
                 className={btnDuskActionCls}
               >
                 {logHoursBusy ? "Saving…" : "Log Hours"}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* ── Record Payment Modal ── */}
+      {payTarget && (
+        <Modal title="Record Payment" tone="dusk" onClose={() => setPayTarget(null)}>
+          <div className="space-y-4">
+            <div>
+              <p className="text-[12px] text-[#958d7c] mb-3">
+                {payTarget.name} currently owes{" "}
+                <span className="font-semibold text-[#ddb36a]">{fmt$(payTarget.duesOwed)}</span>
+              </p>
+              <FieldLabel tone="dusk">Amount Paid ($)</FieldLabel>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                className={inputDuskCls}
+                value={payAmountStr}
+                onChange={e => setPayAmountStr(e.target.value)}
+                autoFocus
+                onKeyDown={e => { if (e.key === "Enter") submitPayment(); }}
+              />
+              {(() => {
+                const amt = parseFloat(payAmountStr) || 0;
+                if (amt <= 0) return null;
+                const newOwed = Math.max(0, payTarget.duesOwed - amt);
+                return (
+                  <p className="mt-1.5 text-[11px] text-[#958d7c]">
+                    New balance:{" "}
+                    <span className={newOwed === 0 ? "text-[#a78bfa] font-semibold" : "text-[#c9c2b4]"}>
+                      {fmt$(newOwed)}
+                    </span>
+                  </p>
+                );
+              })()}
+            </div>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setPayTarget(null)} className={btnDuskGhostCls}>
+                Cancel
+              </button>
+              <button
+                onClick={submitPayment}
+                disabled={!(parseFloat(payAmountStr) > 0)}
+                className={btnDuskActionCls}
+              >
+                Record Payment
               </button>
             </div>
           </div>

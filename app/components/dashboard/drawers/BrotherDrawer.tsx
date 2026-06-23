@@ -20,6 +20,7 @@ type AttendanceRow = {
   date: string;
   attended: boolean | null;
   excused: boolean;
+  excuseId: number | null;
   excuseReason: string | null;
   excuseStatus: "pending" | "approved" | "rejected" | null;
   excuseRejection: string | null;
@@ -36,6 +37,8 @@ export function BrotherDrawer({
   onLogServiceHours,
   onDelete,
   isAdmin = true,
+  canManageExcuses = false,
+  onExcuseDecided,
   selfId = null,
 }: {
   brotherId: number | null;
@@ -48,6 +51,12 @@ export function BrotherDrawer({
   onDelete?: (b: Brother) => void;
   /** When false, restrict to "view + self-edit" mode. Defaults true for back-compat. */
   isAdmin?: boolean;
+  /** Holder of MANAGE_ATTENDANCE — distinct from isAdmin (MANAGE_BROTHERS). Gates the
+   *  inline approve/reject controls on pending excuses. Defaults false. */
+  canManageExcuses?: boolean;
+  /** Fired after a pending excuse is approved/rejected from the attendance tab, so the
+   *  parent roster can decrement its pending-count chip and patch attendance on approval. */
+  onExcuseDecided?: (brotherId: number, action: "approve" | "reject", attendance: number | null) => void;
   /** Brother id of the current viewer; used to allow self-edits when not admin. */
   selfId?: number | null;
 }) {
@@ -95,6 +104,12 @@ export function BrotherDrawer({
   const [excuseReason,    setExcuseReason]    = useState("");
   const [excuseSaving,    setExcuseSaving]    = useState(false);
 
+  // Admin review state (canManageExcuses): excuse id being rejected (reveals the
+  // note input) and the excuse id whose approve/reject PATCH is in flight.
+  const [rejectingExcuseId, setRejectingExcuseId] = useState<number | null>(null);
+  const [rejectNote,        setRejectNote]        = useState("");
+  const [decideBusyId,      setDecideBusyId]      = useState<number | null>(null);
+
   // Sync form fields when a different brother is selected
   useEffect(() => {
     if (!brother) return;
@@ -110,6 +125,9 @@ export function BrotherDrawer({
     setHistError(null);
     setExcusingEventId(null);
     setExcuseReason("");
+    setRejectingExcuseId(null);
+    setRejectNote("");
+    setDecideBusyId(null);
     setRoleError(null);
     setCustomFieldError(null);
     setMetrics([]);
@@ -281,6 +299,48 @@ export function BrotherDrawer({
       // keep form open so user can retry
     } finally {
       setExcuseSaving(false);
+    }
+  }
+
+  // Admin (MANAGE_ATTENDANCE) approve/reject of a pending excuse, inline in the
+  // attendance tab. Mutates the acted-on history row in place — the once-per-brother
+  // fetch never auto-refetches a non-empty array — and notifies the parent roster so
+  // it can drop the pending-count chip and patch attendance on approval. A 409 means
+  // someone already decided it (e.g. from Timeline): resync this brother's history
+  // instead of flipping the row or over-decrementing the chip.
+  async function decideExcuse(excuseId: number, action: "approve" | "reject", note?: string) {
+    if (!brother) return;
+    setDecideBusyId(excuseId);
+    try {
+      const res = await orgFetch(`/api/excuses/${excuseId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action, rejectionNote: note }),
+      });
+      if (res.status === 409) {
+        fetchHistory(brother.id);
+        return;
+      }
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const result = await res.json().catch(() => null) as { attendance?: number | null } | null;
+      const attendance = result?.attendance ?? null;
+      setHistory(prev => prev.map(row =>
+        row.excuseId === excuseId
+          ? {
+              ...row,
+              excused:         action === "approve",
+              excuseStatus:    action === "approve" ? "approved" : "rejected",
+              excuseRejection: action === "reject" ? (note?.trim() || null) : null,
+            }
+          : row
+      ));
+      onExcuseDecided?.(brother.id, action, attendance);
+    } catch {
+      // leave the controls in place so the admin can retry
+    } finally {
+      setDecideBusyId(null);
+      setRejectingExcuseId(null);
+      setRejectNote("");
     }
   }
 
@@ -692,6 +752,10 @@ export function BrotherDrawer({
                               : row.attended === true ? "Attended" : row.attended === false ? "Absent" : "No record";
                         // Allow re-submission only if there is no excuse yet, or the existing one was rejected.
                         const canSubmitExcuse = row.attended === false && !row.excused && !pendingExcuse && onDelete;
+                        // Admin review controls show on a pending excuse for MANAGE_ATTENDANCE holders.
+                        const canReview = canManageExcuses && pendingExcuse && row.excuseId !== null;
+                        const isRejecting = canReview && rejectingExcuseId === row.excuseId;
+                        const decideBusy = row.excuseId !== null && decideBusyId === row.excuseId;
 
                         return (
                           <div key={row.calendarEventId} className="dd-att">
@@ -700,11 +764,33 @@ export function BrotherDrawer({
                               <div className="body">
                                 <p className="t">{row.title}</p>
                                 <p className="m">{fmtDate(row.date)} · {label}</p>
-                                {rejectedExcuse && row.excuseRejection && (
-                                  <p className="rej">Reason: {row.excuseRejection}</p>
+                                {pendingExcuse && row.excuseReason && (
+                                  <p className="note">Your reason: {row.excuseReason}</p>
+                                )}
+                                {rejectedExcuse && (
+                                  <p className="rej">
+                                    Not approved{row.excuseRejection ? `: ${row.excuseRejection}` : "."}
+                                  </p>
                                 )}
                               </div>
-                              {canSubmitExcuse && (
+                              {canReview ? (
+                                <div className="dd-att-review">
+                                  <button
+                                    onClick={() => row.excuseId !== null && decideExcuse(row.excuseId, "approve")}
+                                    disabled={decideBusy}
+                                    className="approve"
+                                  >
+                                    {decideBusy && !isRejecting ? "…" : "Approve"}
+                                  </button>
+                                  <button
+                                    onClick={() => { setRejectingExcuseId(isRejecting ? null : row.excuseId); setRejectNote(""); }}
+                                    disabled={decideBusy}
+                                    className="reject"
+                                  >
+                                    {isRejecting ? "Cancel" : "Reject"}
+                                  </button>
+                                </div>
+                              ) : canSubmitExcuse && (
                                 <button
                                   onClick={() => { setExcusingEventId(isExcusing ? null : row.calendarEventId); setExcuseReason(""); }}
                                   className="excuse"
@@ -713,6 +799,29 @@ export function BrotherDrawer({
                                 </button>
                               )}
                             </div>
+                            {isRejecting && (
+                              <form
+                                onSubmit={e => { e.preventDefault(); if (row.excuseId !== null) decideExcuse(row.excuseId, "reject", rejectNote.trim() || undefined); }}
+                                className="dd-tile-form"
+                                style={{ marginTop: 10 }}
+                              >
+                                <input
+                                  autoFocus
+                                  value={rejectNote}
+                                  onChange={e => setRejectNote(e.target.value)}
+                                  placeholder="Rejection note (optional)…"
+                                  style={{ flex: 1 }}
+                                />
+                                <button
+                                  type="submit"
+                                  disabled={decideBusy}
+                                  className="dd-btn-primary"
+                                  style={{ width: "auto", padding: "6px 14px", fontSize: 11 }}
+                                >
+                                  {decideBusy ? "…" : "Reject"}
+                                </button>
+                              </form>
+                            )}
                             {isExcusing && (
                               <form onSubmit={handleExcuseSubmit} className="dd-tile-form" style={{ marginTop: 10 }}>
                                 <input

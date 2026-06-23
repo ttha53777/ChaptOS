@@ -22,7 +22,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       }),
       ctx.db.attendanceExcuse.findMany({
         where: { brotherId, semesterId: semester.id },
-        select: { calendarEventId: true, reason: true, status: true, rejectionNote: true },
+        select: { id: true, calendarEventId: true, reason: true, status: true, rejectionNote: true },
       }),
       ctx.db.calendarEvent.findMany({
         where: { mandatory: true },
@@ -42,6 +42,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
         date:            event.date,
         attended:        recordMap.get(event.id) ?? null,
         excused:         !!excuse && excuse.status === "approved",
+        excuseId:        excuse?.id ?? null,
         excuseReason:    excuse?.reason ?? null,
         excuseStatus:    excuse?.status ?? null,
         excuseRejection: excuse?.rejectionNote ?? null,

@@ -67,6 +67,28 @@ export async function listExcuses(
 }
 
 /**
+ * Pending-excuse counts grouped by brotherId for the active org. Powers the
+ * /brothers roster review chip. Org isolation comes through ctx.db (same as
+ * listExcuses). Brothers with zero pending excuses are simply absent from the
+ * map — callers must treat a missing key as 0.
+ * Requires MANAGE_ATTENDANCE (caller enforces via buildContext).
+ */
+export async function pendingExcuseCountsByBrother(
+  ctx: RequestContext,
+): Promise<Record<number, number>> {
+  // The org-scoped attendanceExcuse wrapper exposes findMany (not groupBy), so
+  // tally in JS. Pending-excuse volume per org is small — a select of brotherId
+  // only is cheap and keeps us on the audited org-scoped read path.
+  const rows = await ctx.db.attendanceExcuse.findMany({
+    where: { status: ExcuseStatus.Pending },
+    select: { brotherId: true },
+  });
+  const counts: Record<number, number> = {};
+  for (const r of rows) counts[r.brotherId] = (counts[r.brotherId] ?? 0) + 1;
+  return counts;
+}
+
+/**
  * Submit a new excuse. Members can only submit for themselves; MANAGE_ATTENDANCE
  * holders may submit on behalf of any brother. Admin submissions auto-approve.
  * Resubmission after rejection clears the rejection note and resets to pending.
@@ -216,14 +238,14 @@ export async function decideExcuse(
       ctx,
       "excuse.approved",
       { type: "AttendanceExcuse", id: updated.id },
-      { brotherId: updated.brotherId, calendarEventId: updated.calendarEventId, semesterId: updated.semesterId, eventTitle: updated.calendarEvent.title },
+      { brotherId: updated.brotherId, brotherName: updated.brother.name, calendarEventId: updated.calendarEventId, semesterId: updated.semesterId, eventTitle: updated.calendarEvent.title },
     );
   } else {
     await emit(
       ctx,
       "excuse.rejected",
       { type: "AttendanceExcuse", id: updated.id },
-      { brotherId: updated.brotherId, calendarEventId: updated.calendarEventId, semesterId: updated.semesterId, eventTitle: updated.calendarEvent.title, rejectionNote },
+      { brotherId: updated.brotherId, brotherName: updated.brother.name, calendarEventId: updated.calendarEventId, semesterId: updated.semesterId, eventTitle: updated.calendarEvent.title, rejectionNote },
     );
   }
 

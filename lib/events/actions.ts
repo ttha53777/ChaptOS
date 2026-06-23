@@ -40,8 +40,8 @@ export type SubjectType =
 export interface EventMetadata {
   // Attendance / Excuses
   "excuse.submitted":   { brotherId: number; calendarEventId: number; semesterId: number; reason: string; isRetroactive: boolean; autoApproved: boolean };
-  "excuse.approved":    { brotherId: number; calendarEventId: number; semesterId: number; eventTitle: string };
-  "excuse.rejected":    { brotherId: number; calendarEventId: number; semesterId: number; eventTitle: string; rejectionNote: string | null };
+  "excuse.approved":    { brotherId: number; brotherName: string; calendarEventId: number; semesterId: number; eventTitle: string };
+  "excuse.rejected":    { brotherId: number; brotherName: string; calendarEventId: number; semesterId: number; eventTitle: string; rejectionNote: string | null };
   "attendance.recorded":{ calendarEventId: number; semesterId: number; eventTitle: string; presentCount: number; eligibleCount: number };
 
   // Transactions / Budget
