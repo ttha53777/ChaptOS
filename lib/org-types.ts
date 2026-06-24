@@ -136,6 +136,116 @@ const GENERIC_CLUB: OrgTypeTemplate = {
   },
 };
 
+const SPORTS_TEAM: OrgTypeTemplate = {
+  id: "sports-team",
+  label: "Sports / club team",
+  description:
+    "Roster, practice attendance, game-day events, and team comms. No dues, " +
+    "GPA, or service hours by default.",
+  // Attendance-forward; no finance/service. "events" covers games/practices,
+  // "communications" the team channel, "docs" the playbook/forms.
+  enabledWorkflows: [
+    "members",
+    "events",
+    "attendance",
+    "communications",
+    "docs",
+    "tasks",
+    "operations",
+  ],
+  roleSeeds: [
+    { name: "Captain",       color: "#F59E0B", rank: 100, permissions: [], all: true },
+    { name: "Coach",         color: "#3B82F6", rank: 60, permissions: ["MANAGE_EVENTS", "MANAGE_ATTENDANCE", "MANAGE_BROTHERS"] },
+    { name: "Team Manager",  color: "#10B981", rank: 50, permissions: ["MANAGE_ANNOUNCEMENTS", "MANAGE_TASKS", "MANAGE_DOCS"] },
+  ],
+  vocabularyOverrides: {
+    Member:   "Player",
+    Meetings: "Practices",
+  },
+};
+
+const SERVICE_ORG: OrgTypeTemplate = {
+  id: "service-org",
+  label: "Service / volunteer org",
+  description:
+    "Members, service events, logged volunteer hours, and announcements. " +
+    "No parties.",
+  // Service-forward: keep service + finance (for fundraising), drop parties.
+  enabledWorkflows: [
+    "members",
+    "events",
+    "attendance",
+    "finance",
+    "service",
+    "communications",
+    "docs",
+    "tasks",
+    "operations",
+  ],
+  roleSeeds: [
+    { name: "President",        color: "#F59E0B", rank: 100, permissions: [], all: true },
+    { name: "Service Chair",    color: "#10B981", rank: 50, permissions: ["MANAGE_SERVICE", "MANAGE_EVENTS"] },
+    { name: "Treasurer",        color: "#3B82F6", rank: 50, permissions: ["MANAGE_TREASURY"] },
+    { name: "Comms Chair",      color: "#EC4899", rank: 50, permissions: ["MANAGE_ANNOUNCEMENTS", "MANAGE_INSTAGRAM"] },
+  ],
+  vocabularyOverrides: {
+    Meetings: "Service events",
+  },
+};
+
+const HONOR_SOCIETY: OrgTypeTemplate = {
+  id: "honor-society",
+  label: "Honor society / academic",
+  description:
+    "Members, meetings, attendance, dues, service hours, and shared docs. " +
+    "Tuned for academic + service requirements.",
+  enabledWorkflows: [
+    "members",
+    "events",
+    "attendance",
+    "finance",
+    "service",
+    "communications",
+    "docs",
+    "tasks",
+    "operations",
+  ],
+  roleSeeds: [
+    { name: "President",     color: "#F59E0B", rank: 100, permissions: [], all: true },
+    { name: "Vice President", color: "#8B5CF6", rank: 60, permissions: ["MANAGE_EVENTS", "MANAGE_ATTENDANCE", "MANAGE_TASKS"] },
+    { name: "Treasurer",     color: "#10B981", rank: 50, permissions: ["MANAGE_TREASURY"] },
+    { name: "Secretary",     color: "#3B82F6", rank: 50, permissions: ["MANAGE_ANNOUNCEMENTS", "MANAGE_DOCS"] },
+  ],
+  vocabularyOverrides: {},
+};
+
+const PERFORMING_ARTS: OrgTypeTemplate = {
+  id: "performing-arts",
+  label: "Performing arts group",
+  description:
+    "Members, rehearsals, performance events, dues, and shared scores/scripts. " +
+    "No service-hour tracking.",
+  enabledWorkflows: [
+    "members",
+    "events",
+    "attendance",
+    "finance",
+    "communications",
+    "docs",
+    "tasks",
+    "operations",
+  ],
+  roleSeeds: [
+    { name: "Director",        color: "#F59E0B", rank: 100, permissions: [], all: true },
+    { name: "Stage Manager",   color: "#3B82F6", rank: 60, permissions: ["MANAGE_EVENTS", "MANAGE_ATTENDANCE", "MANAGE_TASKS"] },
+    { name: "Treasurer",       color: "#10B981", rank: 50, permissions: ["MANAGE_TREASURY"] },
+    { name: "Publicity",       color: "#EC4899", rank: 50, permissions: ["MANAGE_INSTAGRAM", "MANAGE_ANNOUNCEMENTS"] },
+  ],
+  vocabularyOverrides: {
+    Meetings: "Rehearsals",
+  },
+};
+
 const GENERIC_ORG: OrgTypeTemplate = {
   id: "generic-org",
   label: "Generic organization",
@@ -154,15 +264,23 @@ const GENERIC_ORG: OrgTypeTemplate = {
 // ---------------------------------------------------------------------------
 
 const REGISTRY: Record<string, OrgTypeTemplate> = {
-  [FRATERNITY.id]:    FRATERNITY,
-  [GENERIC_CLUB.id]:  GENERIC_CLUB,
-  [GENERIC_ORG.id]:   GENERIC_ORG,
+  [FRATERNITY.id]:      FRATERNITY,
+  [GENERIC_CLUB.id]:    GENERIC_CLUB,
+  [SPORTS_TEAM.id]:     SPORTS_TEAM,
+  [SERVICE_ORG.id]:     SERVICE_ORG,
+  [HONOR_SOCIETY.id]:   HONOR_SOCIETY,
+  [PERFORMING_ARTS.id]: PERFORMING_ARTS,
+  [GENERIC_ORG.id]:     GENERIC_ORG,
 };
 
 /** All templates in display order — first is the recommended default. */
 export const ORG_TYPES: readonly OrgTypeTemplate[] = [
   FRATERNITY,
   GENERIC_CLUB,
+  SPORTS_TEAM,
+  SERVICE_ORG,
+  HONOR_SOCIETY,
+  PERFORMING_ARTS,
   GENERIC_ORG,
 ];
 
