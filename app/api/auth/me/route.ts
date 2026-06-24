@@ -33,7 +33,7 @@ export async function GET() {
           logoUrl: true,
           // The sidebar and onboarding picker filter surfaces by the org's
           // enabled workflows. Pull it in the same round-trip as the org name.
-          config: { select: { enabledWorkflows: true, vocabularyOverrides: true, thresholds: true, disabledFeatures: true, customMemberFields: true } },
+          config: { select: { enabledWorkflows: true, vocabularyOverrides: true, thresholds: true, disabledFeatures: true, customMemberFields: true, onboardingCompletedAt: true } },
         },
       }),
       resolvePermissions(user),
@@ -109,6 +109,11 @@ export async function GET() {
             // Count of active metric definitions — used by BrotherDrawer to decide
             // whether to show the "metrics" tab (avoids a separate API call).
             metricDefinitionCount,
+            // Whether the founder has finished the setup wizard. Drives the
+            // dashboard "finish setting up" checklist (shown only once setup is
+            // complete) and is the same signal the server onboarding guard gates
+            // on. A missing config row reads as not-yet-complete.
+            onboardingComplete: org.config?.onboardingCompletedAt != null,
           }
         : null,
       orgId: user.orgId,

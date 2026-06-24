@@ -872,7 +872,7 @@ function scopedOrganizationConfig(orgId: number, run: Run) {
      * throwing P2025 on update. organizationId is injected, never taken from the
      * caller, so it can't be spoofed across tenants.
      */
-    upsert: (data: { enabledWorkflows?: string[]; vocabularyOverrides?: Record<string, string>; thresholds?: Prisma.InputJsonValue; disabledFeatures?: Prisma.InputJsonValue; customMemberFields?: Prisma.InputJsonValue }) =>
+    upsert: (data: { enabledWorkflows?: string[]; vocabularyOverrides?: Record<string, string>; thresholds?: Prisma.InputJsonValue; disabledFeatures?: Prisma.InputJsonValue; customMemberFields?: Prisma.InputJsonValue; onboardingCompletedAt?: Date }) =>
       run(p => p.organizationConfig.upsert({
         where:  { organizationId: orgId },
         update: data,

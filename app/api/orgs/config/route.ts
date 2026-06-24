@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { buildContext } from "@/lib/context";
 import { toResponse } from "@/lib/errors";
 import { updateOrgConfigInput } from "@/lib/validation/org";
-import { setWorkflows, setVocab, setThresholds, setDisabledFeatures, setCustomMemberFields } from "@/lib/services/org-config-service";
+import { setWorkflows, setVocab, setThresholds, setDisabledFeatures, setCustomMemberFields, completeOnboarding } from "@/lib/services/org-config-service";
 import { logError } from "@/lib/observability";
 
 // PATCH /api/orgs/config — update the active org's config.
@@ -34,6 +34,11 @@ export async function PATCH(req: NextRequest) {
     }
     if (input.customMemberFields !== undefined) {
       await setCustomMemberFields(ctx, input.customMemberFields);
+    }
+    // Stamp completion LAST, after every config field is persisted, so the
+    // marker is never set on a partially-saved org.
+    if (input.completeOnboarding) {
+      await completeOnboarding(ctx);
     }
 
     return Response.json({ ok: true });

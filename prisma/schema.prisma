@@ -85,6 +85,14 @@ model OrganizationConfig {
   disabledFeatures    Json     @default("{}")
   // Org-defined extra fields (label, type, showOnRoster, etc.). See lib/custom-member-fields.ts.
   customMemberFields  Json     @default("[]")
+  // When the founder finished the post-creation setup wizard, or null while
+  // setup is still in progress. This is the authoritative "is onboarding done?"
+  // signal — the OrgGuard layout gates every /[slug]/* route on it being set.
+  // Replaces the old proxy (enabledWorkflows.length === 0), which was never
+  // empty because provisionOrg seeds workflows at creation time. Null on legacy
+  // rows; backfilled to createdAt in this column's migration so existing orgs
+  // aren't bounced back into onboarding.
+  onboardingCompletedAt DateTime?
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 

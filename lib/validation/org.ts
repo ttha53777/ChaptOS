@@ -107,6 +107,10 @@ export const updateOrgConfigInput = z.object({
     })
     .optional(),
   customMemberFields: customMemberFieldsInput.optional(),
+  // Set true on the final wizard step to stamp OrganizationConfig.onboardingCompletedAt.
+  // Folded into this PATCH so finishing setup is one round-trip alongside the
+  // config save. Idempotent in the service, so re-sending it is harmless.
+  completeOnboarding: z.literal(true).optional(),
 });
 
 export type UpdateOrgConfigInput = z.infer<typeof updateOrgConfigInput>;

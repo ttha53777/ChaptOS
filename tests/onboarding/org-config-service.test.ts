@@ -13,7 +13,7 @@ import { randomUUID } from "node:crypto";
 import { testPrisma, resetDb } from "../setup/prisma";
 import { createOrg, createBrother } from "../setup/factories";
 import { db } from "@/lib/db";
-import { setWorkflows, setThresholds, setDisabledFeatures } from "@/lib/services/org-config-service";
+import { setWorkflows, setThresholds, setDisabledFeatures, completeOnboarding } from "@/lib/services/org-config-service";
 import { ForbiddenError } from "@/lib/errors";
 import { ALWAYS_ON_WORKFLOWS } from "@/lib/org-types";
 import { DEFAULT_THRESHOLDS, type Thresholds } from "@/lib/thresholds";
@@ -267,11 +267,11 @@ describe("setDisabledFeatures: happy path", () => {
     // Deliberately NO config row created.
     const ctx = ctxFor(org.id, admin.id, { isOrgAdmin: true });
 
-    await setDisabledFeatures(ctx, { disabledFeatures: { operations: ["charts"] } });
+    await setDisabledFeatures(ctx, { disabledFeatures: { operations: ["health"] } });
 
     const row = await testPrisma.organizationConfig.findUnique({ where: { organizationId: org.id } });
     expect(row).not.toBeNull();
-    expect((row?.disabledFeatures as Record<string, string[]>).operations).toEqual(["charts"]);
+    expect((row?.disabledFeatures as Record<string, string[]>).operations).toEqual(["health"]);
   });
 
   it("emits an org.config.updated operational event", async () => {
@@ -328,8 +328,8 @@ describe("setDisabledFeatures: authorization", () => {
     const { org, admin } = await seedAdminOrg();
     const ctx = ctxFor(org.id, admin.id, { isOrgAdmin: false, isPlatformAdmin: true });
 
-    const out = await setDisabledFeatures(ctx, { disabledFeatures: { operations: ["charts"] } });
-    expect(out.operations).toEqual(["charts"]);
+    const out = await setDisabledFeatures(ctx, { disabledFeatures: { operations: ["health"] } });
+    expect(out.operations).toEqual(["health"]);
   });
 });
 
@@ -338,7 +338,7 @@ describe("setDisabledFeatures: tenancy", () => {
     const { org: orgA, admin: adminA } = await seedAdminOrg();
     const orgB = await createOrg("Other Org", "other-org");
     await testPrisma.organizationConfig.create({
-      data: { organizationId: orgB.id, enabledWorkflows: ["parties"], disabledFeatures: { operations: ["charts"] } },
+      data: { organizationId: orgB.id, enabledWorkflows: ["parties"], disabledFeatures: { operations: ["health"] } },
     });
 
     const ctx = ctxFor(orgA.id, adminA.id, { isOrgAdmin: true });
@@ -346,6 +346,51 @@ describe("setDisabledFeatures: tenancy", () => {
 
     // Org B is untouched — the scoped db only ever addresses orgA's row.
     const bRow = await testPrisma.organizationConfig.findUnique({ where: { organizationId: orgB.id } });
-    expect(bRow?.disabledFeatures).toEqual({ operations: ["charts"] });
+    expect(bRow?.disabledFeatures).toEqual({ operations: ["health"] });
+  });
+});
+
+describe("completeOnboarding", () => {
+  it("stamps onboardingCompletedAt for an admin", async () => {
+    const { org, admin } = await seedAdminOrg();
+    const ctx = ctxFor(org.id, admin.id, { isOrgAdmin: true });
+
+    const before = await testPrisma.organizationConfig.findUnique({ where: { organizationId: org.id } });
+    expect(before?.onboardingCompletedAt).toBeNull();
+
+    const { completedAt } = await completeOnboarding(ctx);
+    expect(completedAt).toBeInstanceOf(Date);
+
+    const after = await testPrisma.organizationConfig.findUnique({ where: { organizationId: org.id } });
+    expect(after?.onboardingCompletedAt).not.toBeNull();
+  });
+
+  it("is idempotent — a second call keeps the original timestamp", async () => {
+    const { org, admin } = await seedAdminOrg();
+    const ctx = ctxFor(org.id, admin.id, { isOrgAdmin: true });
+
+    const first = await completeOnboarding(ctx);
+    const second = await completeOnboarding(ctx);
+    expect(second.completedAt.getTime()).toBe(first.completedAt.getTime());
+  });
+
+  it("rejects a non-admin", async () => {
+    const { org, admin } = await seedAdminOrg();
+    const ctx = ctxFor(org.id, admin.id, { isOrgAdmin: false });
+    await expect(completeOnboarding(ctx)).rejects.toBeInstanceOf(ForbiddenError);
+  });
+
+  it("only stamps the actor's own org", async () => {
+    const { org: orgA, admin: adminA } = await seedAdminOrg();
+    const orgB = await createOrg("Other Org", "other-org");
+    await testPrisma.organizationConfig.create({
+      data: { organizationId: orgB.id, enabledWorkflows: ["operations"] },
+    });
+
+    const ctx = ctxFor(orgA.id, adminA.id, { isOrgAdmin: true });
+    await completeOnboarding(ctx);
+
+    const bRow = await testPrisma.organizationConfig.findUnique({ where: { organizationId: orgB.id } });
+    expect(bRow?.onboardingCompletedAt).toBeNull();
   });
 });

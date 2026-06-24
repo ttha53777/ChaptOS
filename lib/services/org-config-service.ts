@@ -73,6 +73,41 @@ export async function setWorkflows(
   return { enabledWorkflows };
 }
 
+/**
+ * Stamp the org as having finished the post-creation setup wizard.
+ * Authorization: org admins only.
+ *
+ * Idempotent: if onboardingCompletedAt is already set we return the existing
+ * timestamp without a write or a duplicate event, so a double-tap on "Continue"
+ * (or a retried request) can't re-fire the completion event. The marker is what
+ * the OrgGuard layout gates every /[slug]/* route on, so once set the founder is
+ * never bounced back into the wizard.
+ */
+export async function completeOnboarding(ctx: RequestContext): Promise<{ completedAt: Date }> {
+  if (!ctx.isOrgAdmin && !ctx.isPlatformAdmin) {
+    throw new ForbiddenError("Only an org admin can finish onboarding");
+  }
+
+  const existing = await ctx.db.organizationConfig.find();
+  if (existing?.onboardingCompletedAt) {
+    return { completedAt: existing.onboardingCompletedAt };
+  }
+
+  const completedAt = new Date();
+  // upsert so a legacy org missing its config row self-heals rather than 404-ing.
+  await ctx.db.organizationConfig.upsert({ onboardingCompletedAt: completedAt });
+
+  // Read the org type for the audit payload (Organization, not config). Scoped
+  // to the active org by ctx.db; null for legacy orgs that predate org types.
+  const org = await ctx.db.organization.findUnique({ where: { id: ctx.orgId }, select: { orgType: true } });
+
+  await emit(ctx, "org.onboarding.completed", { type: "Organization", id: ctx.orgId }, {
+    orgType: org?.orgType ?? null,
+  });
+
+  return { completedAt };
+}
+
 /** Replace the org's vocabulary overrides. Authorization: org admins only. */
 export async function setVocab(
   ctx: RequestContext,
