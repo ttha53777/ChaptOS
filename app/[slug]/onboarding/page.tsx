@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { useChapter } from "../../context/ChapterContext";
 import { useOrgPath } from "../../hooks/useOrgPath";
@@ -105,9 +105,11 @@ interface SetupRecommendation {
 // the assistant then proposes a setup. Typing a real answer is always available.
 const STARTER_CHIPS: { label: string; seed: string }[] = [
   { label: "Sports team",     seed: "We're a competitive sports team. We track practice attendance and game turnout. No dues or GPA." },
-  { label: "Volunteer group", seed: "We're a volunteer group. We track volunteer hours and event turnout. No dues or GPA." },
+  { label: "Volunteer group", seed: "We're a service/volunteer group. We track volunteer hours and event turnout, and we fundraise. No dues or GPA." },
   { label: "Student club",    seed: "We're a student club with members, regular meetings, dues, and events." },
   { label: "Greek life",      seed: "We're a fraternity/sorority chapter — brothers, chapter meetings, attendance, dues, service hours, and social events." },
+  { label: "Honor society",   seed: "We're an academic honor society with members, meetings, attendance, dues, and required service hours." },
+  { label: "Performing arts", seed: "We're a performing arts group — members, rehearsals, performance events, dues, and shared scores/scripts. No service hours." },
 ];
 
 // Sentinel the founder's "Build my setup now" button sends. The setup-chat
@@ -179,6 +181,10 @@ export default function OnboardingPage() {
   const [customMemberFields, setCustomMemberFields] = useState<NonNullable<SetupRecommendation["customMemberFields"]>>([]);
   // True once a recommendation has arrived — gates the review cards.
   const [recommended, setRecommended] = useState(false);
+  // Which wizard step the founder is on, once the review begins. The step list
+  // is computed below and skips any section with no content, so this index is
+  // always clamped into the live set before use.
+  const [step, setStep] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -223,6 +229,7 @@ export default function OnboardingPage() {
     setRoles(rec.roles ?? []);
     setCustomMemberFields(rec.customMemberFields ?? []);
     setRationale(rec.rationale || null);
+    setStep(0); // a fresh proposal always restarts the wizard at the first step
     setRecommended(true);
   }
 
@@ -359,6 +366,9 @@ export default function OnboardingPage() {
           vocabularyOverrides,
           ...(recommended ? { thresholds } : {}),
           ...(recommended && customMemberFields.length > 0 ? { customMemberFields } : {}),
+          // Stamp the onboarding-complete marker so the OrgGuard layout stops
+          // bouncing the founder back here. Folded into this one PATCH.
+          completeOnboarding: true,
         }),
       });
 
@@ -407,6 +417,245 @@ export default function OnboardingPage() {
   // conversation and the founder picks manually (today's fallback behavior). While
   // AI is on and still interviewing, the form stays hidden so the chat is the focus.
   const showForm = recommended || !aiOn;
+
+  // ── Wizard steps ──────────────────────────────────────────────────────────
+  // The review is paced into a few short steps instead of one long scroll. Each
+  // step declares whether it has any content; empty ones are dropped so the
+  // count stays honest (a no-AI founder only sees Pages + Finish; a founder with
+  // no proposed roles never sees an empty Roles step). The last present step
+  // carries the Continue button.
+  const hasVocab = Object.keys(vocab).length > 0;
+  const hasRoles = recommended && roles.length > 0;
+  const hasFields = recommended && customMemberFields.length > 0;
+
+  interface WizardStep { key: string; title: string; render: () => ReactNode; }
+  const STEPS: WizardStep[] = [
+    { key: "pages", title: "Pages", render: renderPagesStep },
+    // Dashboard widgets are only tunable when the AI proposed a starting set;
+    // labels only when it suggested overrides. Skip the whole step otherwise.
+    ...(recommended || hasVocab
+      ? [{ key: "dashboard", title: "Dashboard & labels", render: renderDashboardStep }]
+      : []),
+    ...(hasRoles || hasFields
+      ? [{ key: "roles", title: "Roles & fields", render: renderRolesStep }]
+      : []),
+    // Thresholds only meaningful once the AI tuned them; always paired with the
+    // finish button. When AI is off this collapses into the Pages step's finish.
+    ...(recommended
+      ? [{ key: "cutoffs", title: "Cutoffs", render: renderCutoffsStep }]
+      : []),
+  ];
+  const stepCount = STEPS.length;
+  const activeStep = Math.min(step, stepCount - 1);
+  const isLastStep = activeStep === stepCount - 1;
+
+  // ── Step renderers ────────────────────────────────────────────────────────
+  // Each returns the section JSX for one wizard step. Kept as hoisted function
+  // declarations so the STEPS array above can reference them before definition.
+
+  function renderPagesStep() {
+    return (
+      <div className="auth-stack-28">
+        {/* Locked, always-on surfaces */}
+        <div>
+          <p className="auth-label" style={{ padding: 0 }}>Always included</p>
+          <p className="auth-hint">Every organization gets these.</p>
+          <div className="auth-radios">
+            {ALWAYS_ON_LABELS.map((label) => (
+              <div key={label} className="auth-radio on" style={{ cursor: "default", opacity: 0.85 }}>
+                <span className="auth-dot" aria-hidden />
+                <div>
+                  <div className="t">{label}</div>
+                  {ALWAYS_ON_DESCRIPTIONS[label] && <div className="d">{ALWAYS_ON_DESCRIPTIONS[label]}</div>}
+                </div>
+                <span
+                  aria-hidden
+                  style={{ marginLeft: "auto", alignSelf: "center", fontSize: 11, color: "var(--ink-32)", textTransform: "uppercase", letterSpacing: ".1em" }}
+                >
+                  Locked
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Toggleable pages */}
+        <fieldset style={{ border: 0, padding: 0, margin: 0, borderTop: "1px solid var(--line-soft)", paddingTop: 20 }}>
+          <legend className="auth-label" style={{ padding: 0 }}>Optional pages</legend>
+          <p className="auth-hint">Toggle the ones you want. Unselected pages are hidden from the sidebar.</p>
+          <div className="auth-radios">
+            {PICKER_ITEMS.map((item) => {
+              const on = selected.has(item.workflow);
+              return (
+                <label key={item.workflow} className={`auth-radio${on ? " on" : ""}`}>
+                  <input
+                    type="checkbox"
+                    checked={on}
+                    onChange={() => toggle(item.workflow)}
+                    className="sr-only"
+                  />
+                  <span className="auth-dot" aria-hidden />
+                  <div>
+                    <div className="t">{item.label}</div>
+                    <div className="d">{item.description}</div>
+                  </div>
+                </label>
+              );
+            })}
+          </div>
+        </fieldset>
+      </div>
+    );
+  }
+
+  function renderDashboardStep() {
+    return (
+      <div className="auth-stack-28">
+        {/* Dashboard widgets — only when the AI proposed a starting set. */}
+        {recommended && (
+          <fieldset style={{ border: 0, padding: 0, margin: 0 }}>
+            <legend className="auth-label" style={{ padding: 0 }}>Dashboard widgets</legend>
+            <p className="auth-hint">Pick what shows on your dashboard home. You can change these later in Settings.</p>
+            <div className="auth-radios">
+              {DASHBOARD_WIDGETS.map((w) => {
+                const on = shownWidgets.has(w.id);
+                return (
+                  <label key={w.id} className={`auth-radio${on ? " on" : ""}`}>
+                    <input
+                      type="checkbox"
+                      checked={on}
+                      onChange={() => toggleWidget(w.id)}
+                      className="sr-only"
+                    />
+                    <span className="auth-dot" aria-hidden />
+                    <div>
+                      <div className="t">{w.label}</div>
+                      {w.description && <div className="d">{w.description}</div>}
+                    </div>
+                  </label>
+                );
+              })}
+            </div>
+          </fieldset>
+        )}
+
+        {/* Vocabulary — only shown when the AI suggested label overrides, so a
+            no-AI founder isn't faced with 12 empty label fields. */}
+        {hasVocab && (
+          <fieldset style={{ border: 0, padding: 0, margin: 0, borderTop: recommended ? "1px solid var(--line-soft)" : 0, paddingTop: recommended ? 20 : 0 }}>
+            <legend className="auth-label" style={{ padding: 0 }}>Labels</legend>
+            <p className="auth-hint">We suggested wording that fits your organization. Edit or clear any of these.</p>
+            <div className="auth-stack-28">
+              {VOCAB_KEYS.filter((k) => k in vocab).map((key) => (
+                <div key={key} style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <span className="auth-footnote" style={{ minWidth: 110 }}>
+                    {DEFAULT_LABELS[key]} →
+                  </span>
+                  <input
+                    type="text"
+                    value={vocab[key] ?? ""}
+                    maxLength={40}
+                    onChange={(e) => setVocab((prev) => ({ ...prev, [key]: e.target.value }))}
+                    placeholder={DEFAULT_LABELS[key]}
+                    className="auth-input"
+                  />
+                </div>
+              ))}
+            </div>
+          </fieldset>
+        )}
+      </div>
+    );
+  }
+
+  function renderRolesStep() {
+    return (
+      <div className="auth-stack-28">
+        {/* Roles — shown after the AI proposes a set. Replaces the default
+            President/Treasurer roles; the founder keeps full admin. */}
+        {hasRoles && (
+          <fieldset style={{ border: 0, padding: 0, margin: 0 }}>
+            <legend className="auth-label" style={{ padding: 0 }}>Roles</legend>
+            <p className="auth-hint">Suggested officer roles for your organization. You stay an admin with full access. Remove any you don&rsquo;t need — you can fine-tune them later in Settings.</p>
+            <div className="auth-radios">
+              {roles.map((r, idx) => (
+                <div key={`${r.name}-${idx}`} className="auth-radio on" style={{ cursor: "default" }}>
+                  <span className="auth-dot" aria-hidden style={{ background: r.color }} />
+                  <div style={{ minWidth: 0 }}>
+                    <div className="t" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.name}</div>
+                    <div className="d" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{summarizePermissions(r.permissions)}</div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => removeRole(idx)}
+                    className="auth-chip"
+                    style={{ marginLeft: "auto", alignSelf: "center" }}
+                  >
+                    Remove
+                  </button>
+                </div>
+              ))}
+            </div>
+          </fieldset>
+        )}
+
+        {/* Custom member fields — shown after the AI proposes them. */}
+        {hasFields && (
+          <fieldset style={{ border: 0, padding: 0, margin: 0, borderTop: hasRoles ? "1px solid var(--line-soft)" : 0, paddingTop: hasRoles ? 20 : 0 }}>
+            <legend className="auth-label" style={{ padding: 0 }}>Member fields</legend>
+            <p className="auth-hint">Extra per-member data fields for your roster. Remove any you don&rsquo;t need — you can add or edit them later in Settings → Member fields.</p>
+            <div className="auth-radios">
+              {customMemberFields.map((f, idx) => (
+                <div key={f.id} className="auth-radio on" style={{ cursor: "default" }}>
+                  <div style={{ minWidth: 0 }}>
+                    <div className="t" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{f.label}</div>
+                    <div className="d" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {f.type}{f.showOnRoster ? " · roster column" : ""}{f.required ? " · required" : ""}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => removeCustomField(idx)}
+                    className="auth-chip"
+                    style={{ marginLeft: "auto", alignSelf: "center" }}
+                  >
+                    Remove
+                  </button>
+                </div>
+              ))}
+            </div>
+          </fieldset>
+        )}
+      </div>
+    );
+  }
+
+  function renderCutoffsStep() {
+    return (
+      <fieldset style={{ border: 0, padding: 0, margin: 0 }}>
+        <legend className="auth-label" style={{ padding: 0 }}>Member status cutoffs</legend>
+        <p className="auth-hint">When a member is flagged Watch or At Risk. Tuned to your organization — adjust if needed.</p>
+        <div className="auth-stack-28">
+          {THRESHOLD_KEYS.map((key) => (
+            <div key={key} style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <span className="auth-footnote" style={{ minWidth: 200 }}>{THRESHOLD_LABELS[key]}</span>
+              <input
+                type="number"
+                value={thresholds[key]}
+                step={key.startsWith("gpa") ? 0.1 : 1}
+                onChange={(e) => {
+                  const n = parseFloat(e.target.value);
+                  setThresholds((prev) => ({ ...prev, [key]: Number.isFinite(n) ? n : prev[key] }));
+                }}
+                className="auth-input"
+                style={{ maxWidth: 120 }}
+              />
+            </div>
+          ))}
+        </div>
+      </fieldset>
+    );
+  }
 
   return (
     <div className="auth-scope">
@@ -581,186 +830,82 @@ export default function OnboardingPage() {
               )}
 
               {/* The editable form — hidden during the AI interview, shown after a
-                  proposal (or immediately when AI is off). */}
-              {showForm && (<div style={{ animation: recommended ? "review-rise 0.55s cubic-bezier(.16,1,.3,1) both" : undefined, animationDelay: recommended ? "80ms" : undefined }}>
-              {/* Locked, always-on surfaces */}
-              <div>
-                <p className="auth-label" style={{ padding: 0 }}>Always included</p>
-                <p className="auth-hint">Every organization gets these.</p>
-                <div className="auth-radios">
-                  {ALWAYS_ON_LABELS.map((label) => (
-                    <div key={label} className="auth-radio on" style={{ cursor: "default", opacity: 0.85 }}>
-                      <span className="auth-dot" aria-hidden />
-                      <div>
-                        <div className="t">{label}</div>
-                        {ALWAYS_ON_DESCRIPTIONS[label] && <div className="d">{ALWAYS_ON_DESCRIPTIONS[label]}</div>}
-                      </div>
-                      <span
-                        aria-hidden
-                        style={{ marginLeft: "auto", alignSelf: "center", fontSize: 11, color: "var(--ink-32)", textTransform: "uppercase", letterSpacing: ".1em" }}
-                      >
-                        Locked
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Toggleable pages */}
-              <fieldset style={{ border: 0, padding: 0, margin: 0, borderTop: "1px solid var(--line-soft)", paddingTop: 20 }}>
-                <legend className="auth-label" style={{ padding: 0 }}>Optional pages</legend>
-                <p className="auth-hint">Toggle the ones you want. Unselected pages are hidden from the sidebar.</p>
-                <div className="auth-radios">
-                  {PICKER_ITEMS.map((item) => {
-                    const on = selected.has(item.workflow);
-                    return (
-                      <label key={item.workflow} className={`auth-radio${on ? " on" : ""}`}>
-                        <input
-                          type="checkbox"
-                          checked={on}
-                          onChange={() => toggle(item.workflow)}
-                          className="sr-only"
-                        />
-                        <span className="auth-dot" aria-hidden />
-                        <div>
-                          <div className="t">{item.label}</div>
-                          <div className="d">{item.description}</div>
-                        </div>
-                      </label>
-                    );
-                  })}
-                </div>
-              </fieldset>
-
-              </div>)}
-
-              {/* Vocabulary — only shown when the AI suggested label overrides, so
-                  a no-AI founder isn't faced with 12 empty label fields. */}
-              {Object.keys(vocab).length > 0 && (
-                <fieldset style={{ border: 0, padding: 0, margin: 0, borderTop: "1px solid var(--line-soft)", paddingTop: 20 }}>
-                  <legend className="auth-label" style={{ padding: 0 }}>Labels</legend>
-                  <p className="auth-hint">We suggested wording that fits your organization. Edit or clear any of these.</p>
-                  <div className="auth-stack-28">
-                    {VOCAB_KEYS.filter((k) => k in vocab).map((key) => (
-                      <div key={key} style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                        <span className="auth-footnote" style={{ minWidth: 110 }}>
-                          {DEFAULT_LABELS[key]} →
-                        </span>
-                        <input
-                          type="text"
-                          value={vocab[key] ?? ""}
-                          maxLength={40}
-                          onChange={(e) => setVocab((prev) => ({ ...prev, [key]: e.target.value }))}
-                          placeholder={DEFAULT_LABELS[key]}
-                          className="auth-input"
-                        />
-                      </div>
-                    ))}
-                  </div>
-                </fieldset>
-              )}
-
-              {/* Roles — shown after the AI proposes a set. Replaces the default
-                  President/Treasurer roles; the founder keeps full admin. */}
-              {recommended && roles.length > 0 && (
-                <fieldset style={{ border: 0, padding: 0, margin: 0, borderTop: "1px solid var(--line-soft)", paddingTop: 20 }}>
-                  <legend className="auth-label" style={{ padding: 0 }}>Roles</legend>
-                  <p className="auth-hint">Suggested officer roles for your organization. You stay an admin with full access. Remove any you don&rsquo;t need — you can fine-tune them later in Settings.</p>
-                  <div className="auth-radios">
-                    {roles.map((r, idx) => (
-                      <div key={`${r.name}-${idx}`} className="auth-radio on" style={{ cursor: "default" }}>
-                        <span className="auth-dot" aria-hidden style={{ background: r.color }} />
-                        <div style={{ minWidth: 0 }}>
-                          <div className="t" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.name}</div>
-                          <div className="d" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{summarizePermissions(r.permissions)}</div>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => removeRole(idx)}
-                          className="auth-chip"
-                          style={{ marginLeft: "auto", alignSelf: "center" }}
-                        >
-                          Remove
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </fieldset>
-              )}
-
-              {/* Custom member fields — shown after the AI proposes them. */}
-              {recommended && customMemberFields.length > 0 && (
-                <fieldset style={{ border: 0, padding: 0, margin: 0, borderTop: "1px solid var(--line-soft)", paddingTop: 20 }}>
-                  <legend className="auth-label" style={{ padding: 0 }}>Member fields</legend>
-                  <p className="auth-hint">Extra per-member data fields for your roster. Remove any you don&rsquo;t need — you can add or edit them later in Settings → Member fields.</p>
-                  <div className="auth-radios">
-                    {customMemberFields.map((f, idx) => (
-                      <div key={f.id} className="auth-radio on" style={{ cursor: "default" }}>
-                        <div style={{ minWidth: 0 }}>
-                          <div className="t" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{f.label}</div>
-                          <div className="d" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                            {f.type}{f.showOnRoster ? " · roster column" : ""}{f.required ? " · required" : ""}
-                          </div>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => removeCustomField(idx)}
-                          className="auth-chip"
-                          style={{ marginLeft: "auto", alignSelf: "center" }}
-                        >
-                          Remove
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </fieldset>
-              )}
-
-              {/* Thresholds — member-status cutoffs, shown after the AI tunes them. */}
-              {recommended && (
-                <fieldset style={{ border: 0, padding: 0, margin: 0, borderTop: "1px solid var(--line-soft)", paddingTop: 20 }}>
-                  <legend className="auth-label" style={{ padding: 0 }}>Member status cutoffs</legend>
-                  <p className="auth-hint">When a member is flagged Watch or At Risk. Tuned to your organization — adjust if needed.</p>
-                  <div className="auth-stack-28">
-                    {THRESHOLD_KEYS.map((key) => (
-                      <div key={key} style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                        <span className="auth-footnote" style={{ minWidth: 200 }}>{THRESHOLD_LABELS[key]}</span>
-                        <input
-                          type="number"
-                          value={thresholds[key]}
-                          step={key.startsWith("gpa") ? 0.1 : 1}
-                          onChange={(e) => {
-                            const n = parseFloat(e.target.value);
-                            setThresholds((prev) => ({ ...prev, [key]: Number.isFinite(n) ? n : prev[key] }));
-                          }}
-                          className="auth-input"
-                          style={{ maxWidth: 120 }}
-                        />
-                      </div>
-                    ))}
-                  </div>
-                </fieldset>
-              )}
-
-              {serverError && (
-                <div className="auth-alert" role="alert">
-                  <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z" clipRule="evenodd" />
-                  </svg>
-                  {serverError}
-                </div>
-              )}
-
+                  proposal (or immediately when AI is off). Paced into short steps;
+                  each renders one section. The last step carries Continue. */}
               {showForm && (
-                <div className="auth-stack">
-                  <button
-                    type="button"
-                    onClick={handleContinue}
-                    disabled={submitting}
-                    className="auth-btn-vio"
-                  >
-                    {submitting ? "Saving…" : "Continue to dashboard"}
-                  </button>
+                <div style={{ animation: recommended ? "review-rise 0.55s cubic-bezier(.16,1,.3,1) both" : undefined, animationDelay: recommended ? "80ms" : undefined }}>
+                  {/* Stepper header — a quiet "Step N of M" with the section title.
+                      Only shown when there's more than one step (a no-AI founder
+                      with a single Pages step sees no chrome). */}
+                  {stepCount > 1 && (
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18 }}>
+                      <span className="auth-footnote">Step {activeStep + 1} of {stepCount} · {STEPS[activeStep]!.title}</span>
+                      <div style={{ display: "flex", gap: 6 }} aria-hidden>
+                        {STEPS.map((s, i) => (
+                          <span
+                            key={s.key}
+                            style={{
+                              width: i === activeStep ? 18 : 6,
+                              height: 6,
+                              borderRadius: 3,
+                              background: i <= activeStep ? "var(--vio, #a78bfa)" : "var(--line-soft)",
+                              transition: "width .2s ease, background .2s ease",
+                            }}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Active step body. Keyed on the step so each entry re-animates. */}
+                  <div key={STEPS[activeStep]!.key} style={{ animation: "review-rise 0.4s cubic-bezier(.16,1,.3,1) both" }}>
+                    {STEPS[activeStep]!.render()}
+                  </div>
+
+                  {serverError && (
+                    <div className="auth-alert" role="alert" style={{ marginTop: 20 }}>
+                      <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z" clipRule="evenodd" />
+                      </svg>
+                      {serverError}
+                    </div>
+                  )}
+
+                  {/* Step navigation — Back (after the first step) + Next/Continue.
+                      The last step's primary button finishes setup. */}
+                  <div className="auth-stack" style={{ marginTop: 24, display: "flex", flexDirection: "row", gap: 12, alignItems: "center" }}>
+                    {activeStep > 0 && (
+                      <button
+                        type="button"
+                        className="auth-btn"
+                        style={{ flex: "0 0 auto", width: "auto", padding: "0 22px" }}
+                        onClick={() => setStep(Math.max(0, activeStep - 1))}
+                        disabled={submitting}
+                      >
+                        Back
+                      </button>
+                    )}
+                    {isLastStep ? (
+                      <button
+                        type="button"
+                        onClick={handleContinue}
+                        disabled={submitting}
+                        className="auth-btn-vio"
+                        style={{ flex: 1 }}
+                      >
+                        {submitting ? "Saving…" : "Continue to dashboard"}
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setStep(Math.min(stepCount - 1, activeStep + 1))}
+                        className="auth-btn-vio"
+                        style={{ flex: 1 }}
+                      >
+                        Next
+                      </button>
+                    )}
+                  </div>
                 </div>
               )}
             </div>

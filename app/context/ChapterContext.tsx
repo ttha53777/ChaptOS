@@ -27,7 +27,7 @@ function normalizeCurrentUser(me: CurrentUser): CurrentUser {
     // Defensive: an older/cached /me payload may omit enabledWorkflows. Default
     // to an empty array so the sidebar filter never reads `.includes` of
     // undefined — the Sidebar treats the always-on surfaces as visible regardless.
-    org: me.org ? { ...me.org, logoUrl: me.org.logoUrl ?? null, enabledWorkflows: me.org.enabledWorkflows ?? [], vocabularyOverrides: me.org.vocabularyOverrides ?? {}, thresholds: me.org.thresholds ?? DEFAULT_THRESHOLDS, disabledFeatures: me.org.disabledFeatures ?? {}, customMemberFields: me.org.customMemberFields ?? [], metricDefinitionCount: me.org.metricDefinitionCount ?? 0 } : null,
+    org: me.org ? { ...me.org, logoUrl: me.org.logoUrl ?? null, enabledWorkflows: me.org.enabledWorkflows ?? [], vocabularyOverrides: me.org.vocabularyOverrides ?? {}, thresholds: me.org.thresholds ?? DEFAULT_THRESHOLDS, disabledFeatures: me.org.disabledFeatures ?? {}, customMemberFields: me.org.customMemberFields ?? [], metricDefinitionCount: me.org.metricDefinitionCount ?? 0, onboardingComplete: me.org.onboardingComplete ?? true } : null,
   };
 }
 
@@ -79,7 +79,7 @@ export interface CurrentUser {
    *  read via useThresholds() rather than directly.
    *  `disabledFeatures` is the OPT-OUT map of hidden page sections (workflow id →
    *  feature ids) — read via useFeature() rather than directly. */
-  org: { name: string; slug: string; orgType: string | null; logoUrl: string | null; enabledWorkflows: string[]; vocabularyOverrides: Record<string, string>; thresholds: Thresholds; disabledFeatures: Record<string, string[]>; customMemberFields: CustomMemberFieldDef[]; metricDefinitionCount: number } | null;
+  org: { name: string; slug: string; orgType: string | null; logoUrl: string | null; enabledWorkflows: string[]; vocabularyOverrides: Record<string, string>; thresholds: Thresholds; disabledFeatures: Record<string, string[]>; customMemberFields: CustomMemberFieldDef[]; metricDefinitionCount: number; onboardingComplete: boolean } | null;
   orgId: number;
   /** All orgs this user belongs to. UI renders a switcher when length > 1. */
   memberships: MembershipSummary[];
@@ -147,6 +147,19 @@ type ChapterSection =
 const ChapterContext = createContext<ChapterContextValue | null>(null);
 
 
+/**
+ * Marker on errors thrown by fetchJson for an aborted/timed-out request (vs. a
+ * real HTTP failure). These are transient — a slow first Turbopack compile, an
+ * HMR reload, or a momentary network drop — and recover on the next refresh, so
+ * callers downgrade them from console.error (which trips Next's dev error
+ * overlay) to a warning rather than treating them as a code regression.
+ */
+const TRANSIENT_FETCH_ERROR = Symbol.for("figurints.transientFetchError");
+
+function isTransientFetchError(err: unknown): boolean {
+  return typeof err === "object" && err !== null && (err as Record<symbol, unknown>)[TRANSIENT_FETCH_ERROR] === true;
+}
+
 async function fetchJson<T>(url: string): Promise<T | null> {
   // Bootstrap fan-out can run while Turbopack is compiling — allow a generous
   // timeout so a slow first compile doesn't abort with a raw fetch TypeError.
@@ -157,7 +170,14 @@ async function fetchJson<T>(url: string): Promise<T | null> {
     // Network drop / timeout / dev HMR — surface as a normal Error so callers'
     // catch + allSettled paths handle it without an uncaught TypeError from fetch().
     const reason = error instanceof Error ? error.message : String(error);
-    throw new Error(`${url} unreachable: ${reason}`);
+    const wrapped = new Error(`${url} unreachable: ${reason}`);
+    // AbortSignal.timeout() rejects with a TimeoutError DOMException; a user/HMR
+    // abort gives an AbortError. Both are transient — tag them so callers can
+    // tell them apart from a genuine failure.
+    if (error instanceof DOMException && (error.name === "TimeoutError" || error.name === "AbortError")) {
+      (wrapped as unknown as Record<symbol, unknown>)[TRANSIENT_FETCH_ERROR] = true;
+    }
+    throw wrapped;
   }
   // 401 is the normal "no session" path — return null so callers can handle it
   // without throwing (avoids spurious console errors in browser devtools).
@@ -310,7 +330,15 @@ export function ChapterProvider({ children }: { children: React.ReactNode }) {
     const trackFailure = (section: ChapterSection, result: PromiseSettledResult<unknown>) => {
       if (result.status === "rejected") {
         failed.add(section);
-        console.error(`[ChapterContext] ${section} fetch failed:`, result.reason);
+        // A transient abort/timeout (slow first compile, HMR, brief network drop)
+        // recovers on the next refresh — warn rather than error so it doesn't trip
+        // the dev error overlay or read as a code regression. Real failures still
+        // log at console.error.
+        if (isTransientFetchError(result.reason)) {
+          console.warn(`[ChapterContext] ${section} fetch timed out (transient):`, result.reason);
+        } else {
+          console.error(`[ChapterContext] ${section} fetch failed:`, result.reason);
+        }
       }
     };
 

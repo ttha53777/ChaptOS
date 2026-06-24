@@ -40,7 +40,7 @@ export default async function OrgLayout({
   // membership gate below passes, so nothing leaks on the deny paths.
   const configPromise = prisma.organizationConfig.findFirst({
     where: { organization: { slug } },
-    select: { enabledWorkflows: true },
+    select: { onboardingCompletedAt: true },
   });
   // Pre-handle rejection for the paths that redirect before awaiting it; the
   // explicit await below still surfaces the original error when the value is used.
@@ -96,14 +96,18 @@ export default async function OrgLayout({
     return <AccessDenied slug={slug} homeSlug={homeSlug} />;
   }
 
-  // Onboarding gate: if the org has never saved its workflow config (empty
-  // enabledWorkflows), the founder hasn't finished setup. Redirect every route
-  // except /[slug]/onboarding itself so a second tab can't bypass the wizard.
+  // Onboarding gate: until the founder finishes the setup wizard
+  // (OrganizationConfig.onboardingCompletedAt is null), redirect every route
+  // except /[slug]/onboarding itself so a second tab — or a founder who closed
+  // the tab mid-setup and came back — can't bypass it. The marker is explicit;
+  // we no longer infer "done" from enabledWorkflows (which provisionOrg seeds
+  // non-empty at creation, so it was never a reliable signal). Legacy orgs were
+  // backfilled to createdAt in the column's migration, so they read as complete.
   const requestPath = (await headers()).get("x-pathname") ?? "";
   const isOnboardingRoute = requestPath === `/${slug}/onboarding`;
   if (!isOnboardingRoute) {
     const config = await configPromise;
-    if (!config || config.enabledWorkflows.length === 0) {
+    if (!config || config.onboardingCompletedAt == null) {
       redirect(`/${slug}/onboarding`);
     }
   }

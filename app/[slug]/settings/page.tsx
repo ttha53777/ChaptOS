@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import Link from "next/link";
 import { Sidebar } from "../../components/Sidebar";
 import { useOrgPath } from "../../hooks/useOrgPath";
@@ -247,6 +247,33 @@ export default function SettingsPage() {
     el?.scrollIntoView({ behavior: "smooth", block: "start" });
     setPendingAnchor(null);
   }, [pendingAnchor, dest]);
+
+  // Deep-link support: a ?section=<id> param (e.g. from the dashboard setup
+  // checklist) opens that section's group page and scrolls to its anchor on
+  // mount, then strips the param so a refresh doesn't re-trigger it. Unknown or
+  // not-visible ids are ignored. Read via window.location to avoid wrapping the
+  // page in a Suspense boundary for useSearchParams (mirrors the dashboard's
+  // welcome-toast param handling).
+  const deepLinkHandledRef = useRef(false);
+  useEffect(() => {
+    if (deepLinkHandledRef.current) return;
+    const params = new URLSearchParams(window.location.search);
+    const id = params.get("section");
+    deepLinkHandledRef.current = true;
+    // Match against the real id list (not `id in BY_ID`, which would also accept
+    // inherited Object keys like "toString" and set dest to undefined).
+    const known = NAV_ITEMS.some(n => n.id === id);
+    if (id && known && isVisible(id as NavItem["id"])) {
+      selectSection(id as NavItem["id"]);
+    }
+    if (id) {
+      params.delete("section");
+      const qs = params.toString();
+      window.history.replaceState(null, "", `${window.location.pathname}${qs ? `?${qs}` : ""}`);
+    }
+    // selectSection/isVisible are stable enough for a once-on-mount effect.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const activeGroup = dest === "index" ? null : dest;
 

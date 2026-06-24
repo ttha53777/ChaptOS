@@ -53,6 +53,7 @@ import { SocialsRail } from "../components/dashboard/ledger/SocialsRail";
 import { InstagramRail } from "../components/dashboard/ledger/InstagramRail";
 import { ActivityRail } from "../components/dashboard/ledger/ActivityRail";
 import { DashHideButton } from "../components/dashboard/ledger/DashHideButton";
+import { SetupChecklist } from "../components/dashboard/SetupChecklist";
 import { orgFetch, requestJson } from "../lib/api";
 import type { MetricSnapshot } from "@/lib/metrics";
 
@@ -1782,6 +1783,11 @@ export default function Home() {
                 </div>
               ) : null}
             />
+
+            {/* ── Post-onboarding setup checklist ─────────────────────────── */}
+            {/* Self-gating: renders only when onboarding is complete, items
+                remain, and it hasn't been dismissed. */}
+            <SetupChecklist />
 
             {/* ── Pinned announcement ─────────────────────────────────────── */}
             {feature("operations", "announcement") && (
