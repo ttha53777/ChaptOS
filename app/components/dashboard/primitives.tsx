@@ -48,8 +48,11 @@ export function Card({ children, className = "", id, onClick, style }: {
 /** Selector matching every focusable element inside the modal. */
 const FOCUSABLE = 'a[href], area[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), iframe, [tabindex]:not([tabindex="-1"])';
 
-export function Modal({ title, onClose, children, tone = "slate", dismissable = true }: {
-  title: string;
+export function Modal({ title, onClose, children, tone = "slate", dismissable = true, maxWidthClass = "max-w-md" }: {
+  /** Header text. When omitted/empty the header bar is dropped entirely (body-only
+   *  modal) — but the ✕ button rides along in the header, so a dismissable modal
+   *  with no title still gets a minimal header bar carrying just the close button. */
+  title?: string;
   onClose: () => void;
   children: React.ReactNode;
   /** Panel palette. "slate" (default) is the operations theme; "dusk" matches the
@@ -60,6 +63,9 @@ export function Modal({ title, onClose, children, tone = "slate", dismissable = 
    *  inert, and Escape is ignored. The only way out is whatever action the body
    *  provides. Used by the no-active-semester gate. Default true (normal modal). */
   dismissable?: boolean;
+  /** Tailwind max-width class for the panel. Defaults to "max-w-md" (28rem); pass
+   *  e.g. "max-w-lg" for a slightly roomier dialog. */
+  maxWidthClass?: string;
 }) {
   const panelRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
@@ -121,22 +127,24 @@ export function Modal({ title, onClose, children, tone = "slate", dismissable = 
         ref={panelRef}
         role="dialog"
         aria-modal="true"
-        aria-labelledby={titleId}
+        aria-labelledby={title ? titleId : undefined}
         tabIndex={-1}
-        className={`card-premium-elevated relative w-full max-w-md rounded-2xl border outline-none ${
+        className={`card-premium-elevated relative w-full ${maxWidthClass} rounded-2xl border outline-none ${
           dusk ? "border-[rgba(236,231,221,0.1)] bg-[#0f0d0a]" : "border-white/[0.08] bg-[#10121a]"
         }`}
       >
-        <div className={`flex items-center justify-between border-b px-6 py-4 ${dusk ? "border-[rgba(236,231,221,0.07)]" : "border-white/[0.07]"}`}>
-          <h3 id={titleId} className={`text-[15px] font-semibold ${dusk ? "text-[#ece7dd]" : "text-white"}`}>{title}</h3>
-          {dismissable && (
-            <button onClick={onClose} aria-label="Close dialog" className={`flex h-10 w-10 items-center justify-center rounded-lg transition-colors sm:h-7 sm:w-7 ${dusk ? "text-[#958d7c] hover:bg-[rgba(236,231,221,0.08)] hover:text-[#ece7dd]" : "text-slate-500 hover:bg-white/[0.08] hover:text-white"}`}>
-              <svg className="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          )}
-        </div>
+        {(title || dismissable) && (
+          <div className={`flex items-center justify-between border-b px-6 py-4 ${dusk ? "border-[rgba(236,231,221,0.07)]" : "border-white/[0.07]"}`}>
+            <h3 id={titleId} className={`text-[15px] font-semibold ${dusk ? "text-[#ece7dd]" : "text-white"}`}>{title}</h3>
+            {dismissable && (
+              <button onClick={onClose} aria-label="Close dialog" className={`flex h-10 w-10 items-center justify-center rounded-lg transition-colors sm:h-7 sm:w-7 ${dusk ? "text-[#958d7c] hover:bg-[rgba(236,231,221,0.08)] hover:text-[#ece7dd]" : "text-slate-500 hover:bg-white/[0.08] hover:text-white"}`}>
+                <svg className="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            )}
+          </div>
+        )}
         <div className="p-6">{children}</div>
       </div>
     </div>

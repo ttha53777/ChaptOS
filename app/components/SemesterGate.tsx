@@ -130,8 +130,9 @@ export function SemesterGate() {
 
   return (
     <Modal
-      title={isFirstSemester ? "Create your first semester" : "No active semester"}
+      title={isFirstSemester ? undefined : "No active semester"}
       tone="dusk"
+      maxWidthClass="max-w-lg"
       dismissable={false}
       onClose={() => {}}
     >
@@ -170,10 +171,11 @@ function SemesterGateForm({
           unlock the app.
         </p>
       ) : (
-        // New org: one quiet serif line with italic-violet emphasis (mirrors h1.greeting em).
-        <p className="text-[16px] leading-snug" style={{ fontFamily: "var(--serif)", color: "var(--ink)" }}>
+        // New org: serif display title with italic-violet emphasis (mirrors h1.greeting em).
+        // Sized up to carry the modal now that the header bar is gone.
+        <h2 className="text-center text-[26px] leading-[1.15] tracking-tight" style={{ fontFamily: "var(--serif)", fontWeight: 500, color: "var(--ink)" }}>
           Set your <em style={{ fontStyle: "italic", color: "var(--vio)" }}>first semester</em> to unlock the app.
-        </p>
+        </h2>
       )}
 
       {canExtend && (
