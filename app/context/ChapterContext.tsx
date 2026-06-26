@@ -2,7 +2,7 @@
 
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import {
-  Brother, Task, InstagramTask, ProgrammingTask, PartyEvent, ActivityEntry, Transaction, Reimbursement,
+  Brother, Task, Poll, InstagramTask, ProgrammingTask, PartyEvent, ActivityEntry, Transaction, Reimbursement,
 } from "../data";
 import { AVATAR_CHANGED_EVENT, parseAvatarFromMetadata } from "@/lib/avatar";
 import { createClient } from "@/lib/supabase/client";
@@ -97,6 +97,8 @@ interface ChapterContextValue {
   setBrotherList: React.Dispatch<React.SetStateAction<Brother[]>>;
   taskList: Task[];
   setTaskList: React.Dispatch<React.SetStateAction<Task[]>>;
+  pollList: Poll[];
+  setPollList: React.Dispatch<React.SetStateAction<Poll[]>>;
   igTaskList: InstagramTask[];
   setIgTaskList: React.Dispatch<React.SetStateAction<InstagramTask[]>>;
   programmingTaskList: ProgrammingTask[];
@@ -142,7 +144,8 @@ type ChapterSection =
   | "activity"
   | "treasury"
   | "transactions"
-  | "reimbursements";
+  | "reimbursements"
+  | "polls";
 
 const ChapterContext = createContext<ChapterContextValue | null>(null);
 
@@ -195,6 +198,7 @@ async function fetchJson<T>(url: string): Promise<T | null> {
 export function ChapterProvider({ children }: { children: React.ReactNode }) {
   const [brotherList,      setBrotherList]      = useState<Brother[]>([]);
   const [taskList,         setTaskList]         = useState<Task[]>([]);
+  const [pollList,         setPollList]         = useState<Poll[]>([]);
   const [igTaskList,       setIgTaskList]       = useState<InstagramTask[]>([]);
   const [programmingTaskList, setProgrammingTaskList] = useState<ProgrammingTask[]>([]);
   const [partyList,        setPartyList]        = useState<PartyEvent[]>([]);
@@ -290,6 +294,7 @@ export function ChapterProvider({ children }: { children: React.ReactNode }) {
           fetchJson<TreasuryData>("/api/treasury"),
           fetchJson<Transaction[]>("/api/transactions"),
           fetchJson<Reimbursement[]>("/api/reimbursements"),
+          fetchJson<Poll[]>("/api/polls"),
         ])
       : null;
 
@@ -322,7 +327,7 @@ export function ChapterProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    const [brothers, deadlines, instagram, programming, parties, activity, treasury, transactions, reimbursements] = await sectionsPromise;
+    const [brothers, deadlines, instagram, programming, parties, activity, treasury, transactions, reimbursements, polls] = await sectionsPromise;
 
     if (!isLatest()) return;
 
@@ -347,6 +352,9 @@ export function ChapterProvider({ children }: { children: React.ReactNode }) {
 
     if (deadlines.status === "fulfilled")    setTaskList(deadlines.value ?? []);
     else                                     trackFailure("deadlines", deadlines);
+
+    if (polls.status === "fulfilled")        setPollList(polls.value ?? []);
+    else                                     trackFailure("polls", polls);
 
     if (instagram.status === "fulfilled")    setIgTaskList(instagram.value ?? []);
     else                                     trackFailure("instagram", instagram);
@@ -453,6 +461,7 @@ export function ChapterProvider({ children }: { children: React.ReactNode }) {
     can,
     brotherList, setBrotherList,
     taskList, setTaskList,
+    pollList, setPollList,
     igTaskList, setIgTaskList,
     programmingTaskList, setProgrammingTaskList,
     partyList, setPartyList,
@@ -469,7 +478,7 @@ export function ChapterProvider({ children }: { children: React.ReactNode }) {
     avatarRevision,
     setAvatarUrl,
     can,
-    brotherList, taskList, igTaskList, programmingTaskList, partyList,
+    brotherList, taskList, pollList, igTaskList, programmingTaskList, partyList,
     activityFeed, treasuryData, transactionList, reimbursementList,
     isLoading, loadError, sectionErrors, mutationError, hasLoaded,
     refreshChapterData,

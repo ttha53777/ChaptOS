@@ -87,6 +87,34 @@ export interface Task {
   assignments: TaskAssignment[];
 }
 
+// A poll is task-shaped (members/roles + optional date) with a question and 2-10
+// options that attached members vote on. Single-choice; results are live. The
+// server flattens the vote rows into per-option voteCount + the caller's own
+// pick (myVoteOptionId) — see poll-service toDTO.
+export interface PollOption { id: number; label: string; position: number; voteCount: number }
+export interface PollAssignment {
+  id: number;
+  brotherId: number | null;
+  roleId: number | null;
+  brother: TaskAssigneeBrother | null;
+  role: TaskAssigneeRole | null;
+}
+export interface Poll {
+  id: number;
+  title: string;
+  question: string;
+  closeDate: string | null;
+  status: "open" | "closed";
+  createdById: number | null;
+  closedById: number | null;
+  closedAt: string | null;
+  createdAt: string;
+  options: PollOption[];
+  assignments: PollAssignment[];
+  totalVotes: number;
+  myVoteOptionId: number | null;
+}
+
 export interface InstagramTask {
   id: number;
   title: string;
