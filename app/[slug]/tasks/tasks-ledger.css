@@ -434,3 +434,170 @@
 @media (min-width: 1280px) {
   .dash.dash-tasks { max-width: min(calc(1230px + 22vw), 1800px); }
 }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Polls — same ledger language as the tasks view, switched into via .tk-viewswitch.
+   A poll card carries its question, live result bars (clickable for assignees),
+   a status pill, and the same assignee chips + relative date copy as task rows.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+.dash.dash-tasks .tk-viewswitch {
+  display: inline-flex;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  overflow: hidden;
+  margin-bottom: 18px;
+}
+.dash.dash-tasks .tk-viewswitch button {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  padding: 8px 18px;
+  color: var(--muted);
+  transition: color .12s, background .12s;
+}
+.dash.dash-tasks .tk-viewswitch button.on { color: var(--paper); background: var(--vio); }
+.dash.dash-tasks .tk-viewswitch button:hover:not(.on) { color: var(--ink-soft); }
+
+.dash.dash-tasks .pl-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.dash.dash-tasks .pl-card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 16px 18px;
+  box-shadow: var(--shadow);
+}
+.dash.dash-tasks .pl-card.closed { opacity: .82; }
+
+.dash.dash-tasks .pl-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+.dash.dash-tasks .pl-card-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.dash.dash-tasks .pl-card-question {
+  font-family: var(--serif);
+  font-size: 16px;
+  color: var(--ink-soft);
+  margin-top: 3px;
+}
+.dash.dash-tasks .pl-status {
+  flex-shrink: 0;
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  padding: 4px 9px;
+  border-radius: 999px;
+}
+.dash.dash-tasks .pl-status.open   { color: var(--ok);   background: var(--ok-bg); }
+.dash.dash-tasks .pl-status.closed { color: var(--muted); background: var(--line-soft); }
+
+.dash.dash-tasks .pl-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.dash.dash-tasks .pl-bar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  overflow: hidden;
+  text-align: left;
+  color: var(--ink-soft);
+  transition: border-color .12s, color .12s;
+}
+.dash.dash-tasks .pl-bar.votable { cursor: pointer; }
+.dash.dash-tasks .pl-bar.votable:hover { border-color: var(--vio); color: var(--ink); }
+.dash.dash-tasks .pl-bar:disabled { cursor: default; }
+.dash.dash-tasks .pl-bar.mine { border-color: var(--vio); color: var(--ink); }
+.dash.dash-tasks .pl-bar-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--vio-bg);
+  transition: width .35s cubic-bezier(.4,0,.2,1);
+  pointer-events: none;
+}
+.dash.dash-tasks .pl-bar.mine .pl-bar-fill { background: rgba(167,139,250,.20); }
+.dash.dash-tasks .pl-bar-label {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  min-width: 0;
+}
+.dash.dash-tasks .pl-bar-check { width: 14px; height: 14px; color: var(--vio); flex-shrink: 0; }
+.dash.dash-tasks .pl-bar-count {
+  position: relative;
+  flex-shrink: 0;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: .04em;
+  color: var(--muted);
+}
+
+.dash.dash-tasks .pl-card-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 13px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.dash.dash-tasks .pl-votes { font-family: var(--mono); font-size: 11px; }
+
+.dash.dash-tasks .pl-card-acts {
+  display: flex;
+  gap: 6px;
+  margin-top: 13px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line-soft);
+}
+
+/* PollForm option rows (rendered inside the dusk modal, not under .dash). */
+.pl-options { display: flex; flex-direction: column; gap: 8px; }
+.pl-option-row { display: flex; align-items: center; gap: 8px; }
+.pl-option-row input { flex: 1; }
+.pl-option-del {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  color: #958d7c;
+  transition: color .12s, background .12s;
+}
+.pl-option-del:hover { color: #d98ba3; background: rgba(217,139,163,.10); }
+.pl-option-del svg { width: 15px; height: 15px; }
+.pl-option-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  font-size: 12px;
+  color: #a78bfa;
+}
+.pl-option-add svg { width: 14px; height: 14px; }
+.pl-option-add:hover { color: #c4b0fc; }
