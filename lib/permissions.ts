@@ -29,6 +29,10 @@ export const PERMISSIONS = {
   // Assignees without this bit can still mark their own assigned tasks done
   // (enforced in task-service, not at the route guard).
   MANAGE_TASKS:         1 << 12,
+  // Polls: create, assign (to members/roles), edit options, close/reopen, and
+  // delete. Attached members without this bit can still cast/change their own
+  // vote (enforced in poll-service, not at the route guard).
+  MANAGE_POLLS:         1 << 13,
 } as const;
 
 export type Permission = keyof typeof PERMISSIONS;

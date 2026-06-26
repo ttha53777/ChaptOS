@@ -391,6 +391,78 @@ function scopedTaskAssignment(orgId: number, run: Run) {
   };
 }
 
+function scopedPoll(orgId: number, run: Run) {
+  type W = Prisma.PollWhereInput;
+  const org = (w?: W): W => ({ ...w, organizationId: orgId });
+
+  async function verify(where: Prisma.PollWhereUniqueInput): Promise<number> {
+    const row = await run(p => p.poll.findFirst({ where: org(where as W), select: { id: true } }));
+    if (!row) notInOrg();
+    return row.id;
+  }
+
+  return {
+    // Generic over the caller's args so include/select payload types survive the
+    // wrapper (mirrors scopedTask — the non-generic form erases them to base Poll).
+    findMany:   <T extends Prisma.PollFindManyArgs>(args?: Prisma.SelectSubset<T, Prisma.PollFindManyArgs>) =>
+      run(p => p.poll.findMany<T>({ ...(args as object), where: org((args as T | undefined)?.where) } as Prisma.SelectSubset<T, Prisma.PollFindManyArgs>)),
+    findFirst:  (args?: Prisma.PollFindFirstArgs) => run(p => p.poll.findFirst({ ...args, where: org(args?.where) })),
+    findUnique: (args: Prisma.PollFindUniqueArgs) => run(p => p.poll.findFirst({ ...args, where: org(args.where as W) })),
+    create:     (args: Omit<Prisma.PollCreateArgs, "data"> & { data: Omit<Prisma.PollUncheckedCreateInput, "organizationId"> }) =>
+      run(p => p.poll.create({ ...args, data: { ...args.data, organizationId: orgId } })),
+    update:     async (args: Prisma.PollUpdateArgs) => {
+      const id = await verify(args.where);
+      return run(p => p.poll.update({ ...args, where: { id } }));
+    },
+    delete:     async (args: Prisma.PollDeleteArgs) => {
+      const id = await verify(args.where);
+      return run(p => p.poll.delete({ where: { id } }));
+    },
+    count:      (args?: Prisma.PollCountArgs)     => run(p => p.poll.count({ ...args, where: org(args?.where) })),
+  };
+}
+
+function scopedPollOption(orgId: number, run: Run) {
+  type W = Prisma.PollOptionWhereInput;
+  const org = (w?: W): W => ({ ...w, organizationId: orgId });
+
+  return {
+    findMany:   (args?: Prisma.PollOptionFindManyArgs) => run(p => p.pollOption.findMany({ ...args, where: org(args?.where) })),
+    createMany: (args: { data: Omit<Prisma.PollOptionUncheckedCreateInput, "organizationId">[] }) =>
+      run(p => p.pollOption.createMany({ data: args.data.map(d => ({ ...d, organizationId: orgId })) })),
+    deleteMany: (args?: Prisma.PollOptionDeleteManyArgs) => run(p => p.pollOption.deleteMany({ ...args, where: org(args?.where) })),
+    count:      (args?: Prisma.PollOptionCountArgs)     => run(p => p.pollOption.count({ ...args, where: org(args?.where) })),
+  };
+}
+
+function scopedPollAssignment(orgId: number, run: Run) {
+  type W = Prisma.PollAssignmentWhereInput;
+  const org = (w?: W): W => ({ ...w, organizationId: orgId });
+
+  return {
+    findMany:   (args?: Prisma.PollAssignmentFindManyArgs) => run(p => p.pollAssignment.findMany({ ...args, where: org(args?.where) })),
+    createMany: (args: { data: Omit<Prisma.PollAssignmentUncheckedCreateInput, "organizationId">[] }) =>
+      run(p => p.pollAssignment.createMany({ data: args.data.map(d => ({ ...d, organizationId: orgId })) })),
+    deleteMany: (args?: Prisma.PollAssignmentDeleteManyArgs) => run(p => p.pollAssignment.deleteMany({ ...args, where: org(args?.where) })),
+    count:      (args?: Prisma.PollAssignmentCountArgs)     => run(p => p.pollAssignment.count({ ...args, where: org(args?.where) })),
+  };
+}
+
+function scopedPollVote(orgId: number, run: Run) {
+  type W = Prisma.PollVoteWhereInput;
+  const org = (w?: W): W => ({ ...w, organizationId: orgId });
+
+  return {
+    findMany:   (args?: Prisma.PollVoteFindManyArgs) => run(p => p.pollVote.findMany({ ...args, where: org(args?.where) })),
+    // upsert is a pass-through (mirrors scopedBudget): the (pollId, brotherId)
+    // unique key already pins the row, and create carries organizationId from
+    // the caller. The target poll is verified org-scoped before this runs.
+    upsert:     (args: Prisma.PollVoteUpsertArgs) => run(p => p.pollVote.upsert(args)),
+    deleteMany: (args?: Prisma.PollVoteDeleteManyArgs) => run(p => p.pollVote.deleteMany({ ...args, where: org(args?.where) })),
+    count:      (args?: Prisma.PollVoteCountArgs)     => run(p => p.pollVote.count({ ...args, where: org(args?.where) })),
+  };
+}
+
 function scopedInstagramTask(orgId: number, run: Run) {
   type W = Prisma.InstagramTaskWhereInput;
   const org = (w?: W): W => ({ ...w, organizationId: orgId });
@@ -1090,6 +1162,10 @@ export function db(orgId: number) {
     partyEvent:          scopedPartyEvent(orgId, run),
     task:                scopedTask(orgId, run),
     taskAssignment:      scopedTaskAssignment(orgId, run),
+    poll:                scopedPoll(orgId, run),
+    pollOption:          scopedPollOption(orgId, run),
+    pollAssignment:      scopedPollAssignment(orgId, run),
+    pollVote:            scopedPollVote(orgId, run),
     instagramTask:       scopedInstagramTask(orgId, run),
     doc:                 scopedDoc(orgId, run),
     programmingEvent:    scopedProgrammingEvent(orgId, run),
@@ -1181,6 +1257,10 @@ export function _dbWithClient(orgId: number, client: P) {
     partyEvent:          scopedPartyEvent(orgId, run),
     task:                scopedTask(orgId, run),
     taskAssignment:      scopedTaskAssignment(orgId, run),
+    poll:                scopedPoll(orgId, run),
+    pollOption:          scopedPollOption(orgId, run),
+    pollAssignment:      scopedPollAssignment(orgId, run),
+    pollVote:            scopedPollVote(orgId, run),
     instagramTask:       scopedInstagramTask(orgId, run),
     doc:                 scopedDoc(orgId, run),
     programmingEvent:    scopedProgrammingEvent(orgId, run),

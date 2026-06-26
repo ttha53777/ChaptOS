@@ -42,6 +42,10 @@ model Organization {
   partyEvents               PartyEvent[]
   tasks                     Task[]
   taskAssignments           TaskAssignment[]
+  polls                     Poll[]
+  pollOptions               PollOption[]
+  pollAssignments           PollAssignment[]
+  pollVotes                 PollVote[]
   instagramTasks            InstagramTask[]
   docs                      Doc[]
   programmingEvents         ProgrammingEvent[]
@@ -156,6 +160,8 @@ model Brother {
   serviceParticipations ServiceParticipation[]
   reimbursements        Reimbursement[]
   taskAssignments       TaskAssignment[]
+  pollAssignments       PollAssignment[]
+  pollVotes             PollVote[]
 
   organization Organization @relation(fields: [organizationId], references: [id])
 
@@ -224,6 +230,7 @@ model Role {
   createdAt      DateTime      @default(now())
   brothers       BrotherRole[]
   taskAssignments TaskAssignment[]
+  pollAssignments PollAssignment[]
 
   organization Organization @relation(fields: [organizationId], references: [id])
 
@@ -349,6 +356,87 @@ model TaskAssignment {
   @@index([taskId])
   @@index([organizationId, brotherId])
   @@index([organizationId, roleId])
+}
+
+// A poll is task-shaped (attach members/roles + an optional date) but adds a
+// question with 2-10 options that attached members vote on. Single-choice: one
+// vote per voter (PollVote @@unique). Results are live; closing locks voting but
+// keeps results visible. status is open/closed (PollStatus union in @/lib/state).
+model Poll {
+  id             Int       @id @default(autoincrement())
+  organizationId Int
+  title          String
+  question       String
+  closeDate      String? // ISO YYYY-MM-DD; null = no date (mirrors Task.dueDate)
+  status         String    @default("open") // PollStatus: "open" | "closed"
+  createdById    Int?
+  closedById     Int?
+  closedAt       DateTime?
+  createdAt      DateTime  @default(now())
+
+  organization Organization     @relation(fields: [organizationId], references: [id])
+  options      PollOption[]
+  assignments  PollAssignment[]
+  votes        PollVote[]
+
+  @@index([organizationId])
+  @@index([organizationId, status])
+}
+
+model PollOption {
+  id             Int    @id @default(autoincrement())
+  organizationId Int
+  pollId         Int
+  label          String
+  position       Int    @default(0) // display order
+
+  poll         Poll         @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id])
+  votes        PollVote[]
+
+  @@index([pollId])
+  @@index([organizationId])
+}
+
+// Join: mirrors TaskAssignment. Exactly one of brotherId/roleId per row (CHECK
+// constraint in the migration). Role targets resolve to current holders at READ
+// time, so a member granted a role gains the right to vote on its open polls.
+model PollAssignment {
+  id             Int @id @default(autoincrement())
+  pollId         Int
+  organizationId Int
+  brotherId      Int?
+  roleId         Int?
+
+  poll         Poll         @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  brother      Brother?     @relation(fields: [brotherId], references: [id], onDelete: Cascade)
+  role         Role?        @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([pollId])
+  @@index([organizationId, brotherId])
+  @@index([organizationId, roleId])
+}
+
+// One row per voter per poll (single-choice). Re-voting updates optionId via
+// upsert on @@unique([pollId, brotherId]). Keyed to the poll, not the
+// assignment, so a vote survives the voter later being un-assigned.
+model PollVote {
+  id             Int      @id @default(autoincrement())
+  organizationId Int
+  pollId         Int
+  optionId       Int
+  brotherId      Int // who voted
+  createdAt      DateTime @default(now())
+
+  poll         Poll         @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  option       PollOption   @relation(fields: [optionId], references: [id], onDelete: Cascade)
+  brother      Brother      @relation(fields: [brotherId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@unique([pollId, brotherId])
+  @@index([pollId])
+  @@index([optionId])
 }
 
 model InstagramTask {
