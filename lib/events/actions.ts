@@ -24,6 +24,7 @@ export type SubjectType =
   | "ServiceParticipation"
   | "PartyEvent"
   | "Task"
+  | "Poll"
   | "InstagramTask"
   | "Doc"
   | "ChapterAnnouncement"
@@ -85,6 +86,11 @@ export interface EventMetadata {
   "task.completed": { title: string };
   "task.reopened":  { title: string };
   "task.deleted":   { title: string };
+  "poll.created":   { title: string; closeDate: string | null; assigneeCount: number };
+  "poll.updated":   { title: string; changedFields: string[] };
+  "poll.closed":    { title: string };
+  "poll.reopened":  { title: string };
+  "poll.deleted":   { title: string };
   "instagram_task.created": { title: string; dueDate: string };
   "instagram_task.updated": { title: string; changedFields: string[] };
   "instagram_task.deleted": { title: string };
@@ -135,6 +141,7 @@ const KNOWN_ACTIONS = new Set<Action>([
   "service_participation.logged", "service_participation.removed",
   "party.created", "party.updated", "party.completed", "party.deleted",
   "task.created", "task.updated", "task.completed", "task.reopened", "task.deleted",
+  "poll.created", "poll.updated", "poll.closed", "poll.reopened", "poll.deleted",
   "instagram_task.created", "instagram_task.updated", "instagram_task.deleted",
   "doc.created", "doc.updated", "doc.deleted",
   "announcement.updated", "semester.created", "semester.activated",
