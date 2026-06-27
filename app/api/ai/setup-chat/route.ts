@@ -10,6 +10,7 @@ import { VOCAB_KEYS, DEFAULT_LABELS } from "@/lib/vocab";
 import { PERMISSIONS } from "@/lib/permissions";
 import { DEFAULT_THRESHOLDS } from "@/lib/thresholds";
 import { validateRecommendation } from "@/app/api/ai/recommend-setup/route";
+import { withIdleTimeout, StreamIdleTimeoutError, STREAM_IDLE_MS } from "@/lib/ai-stream";
 import { logError } from "@/lib/observability";
 
 // POST /api/ai/setup-chat — the CONVERSATIONAL onboarding agent (Phase 2). A
@@ -267,7 +268,9 @@ export async function POST(req: NextRequest) {
           stream: true,
         });
 
-        for await (const chunk of completion) {
+        // Idle watchdog — abort and bail if the stream stalls between chunks so
+        // the SSE response can't hang. The throw lands in the catch below.
+        for await (const chunk of withIdleTimeout(completion, STREAM_IDLE_MS, () => completion.controller.abort())) {
           const choice = chunk.choices[0];
           if (!choice) continue;
           const delta = choice.delta;
@@ -345,8 +348,13 @@ export async function POST(req: NextRequest) {
 
         send("done", {});
       } catch (e) {
-        logError(e, { route: "/api/ai/setup-chat", method: "POST", userId: ctx.actorId });
-        send("text", { delta: "\n\n(Sorry — I hit an error. You can set things up manually below.)" });
+        if (e instanceof StreamIdleTimeoutError) {
+          logError(e, { route: "/api/ai/setup-chat", method: "POST", userId: ctx.actorId, extra: { reason: "stream-idle-timeout" } });
+          send("text", { delta: "\n\n(The response timed out. You can try again or set things up manually below.)" });
+        } else {
+          logError(e, { route: "/api/ai/setup-chat", method: "POST", userId: ctx.actorId });
+          send("text", { delta: "\n\n(Sorry — I hit an error. You can set things up manually below.)" });
+        }
         send("done", {});
       } finally {
         controller.close();

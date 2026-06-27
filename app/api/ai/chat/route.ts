@@ -6,6 +6,7 @@ import { aiEnabled, getOpenAI, CHAT_MODEL, MAX_COMPLETION_TOKENS, CHAT_REASONING
 import { TOOLS, runTool, isReadTool, runProposal, isProposalTool } from "@/lib/ai-tools";
 import { buildSystemPrompt } from "@/lib/ai-prompt";
 import { tryFastPath } from "@/lib/ai-fastpath";
+import { withIdleTimeout, StreamIdleTimeoutError, STREAM_IDLE_MS } from "@/lib/ai-stream";
 import { logError, logTiming } from "@/lib/observability";
 
 // Force the Node runtime — Edge would buffer SSE differently and we want full
@@ -151,7 +152,10 @@ export async function POST(req: NextRequest) {
             stream: true,
           });
 
-          for await (const chunk of completion) {
+          // Idle watchdog: the client `timeout` bounds the connect, not the gap
+          // between streamed chunks. Abort the upstream stream if it stalls so the
+          // SSE response can't hang indefinitely; the throw lands in the catch below.
+          for await (const chunk of withIdleTimeout(completion, STREAM_IDLE_MS, () => completion.controller.abort())) {
             const choice = chunk.choices[0];
             if (!choice) continue;
             const delta = choice.delta;
@@ -257,8 +261,15 @@ export async function POST(req: NextRequest) {
 
         send("done", {});
       } catch (e) {
-        logError(e, { route: "/api/ai/chat", method: "POST", userId: ctx.actorId });
-        send("text", { delta: "\n\n_(Sorry — I hit an error. Try again in a moment.)_" });
+        if (e instanceof StreamIdleTimeoutError) {
+          // A stalled upstream stream — not an app bug. Tell the client the
+          // response timed out rather than the generic error copy.
+          logError(e, { route: "/api/ai/chat", method: "POST", userId: ctx.actorId, extra: { reason: "stream-idle-timeout" } });
+          send("text", { delta: "\n\n_(The response timed out. Please try again.)_" });
+        } else {
+          logError(e, { route: "/api/ai/chat", method: "POST", userId: ctx.actorId });
+          send("text", { delta: "\n\n_(Sorry — I hit an error. Try again in a moment.)_" });
+        }
         send("done", {});
       } finally {
         // One structured timing line per request. iters/perIterMs expose the
