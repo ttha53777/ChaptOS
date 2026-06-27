@@ -1,6 +1,10 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextRequest, NextResponse } from "next/server";
 import { DEV_IMPERSONATE_COOKIE, devBypassEnabled, verifyImpersonation } from "@/lib/auth/dev-bypass";
+import { isSameOrigin } from "@/lib/auth/same-origin";
+
+/** Methods that mutate state and therefore need CSRF gating. */
+const UNSAFE_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
 /**
  * Auth proxy. Two jobs, nothing more:
@@ -20,6 +24,25 @@ import { DEV_IMPERSONATE_COOKIE, devBypassEnabled, verifyImpersonation } from "@
  * a protected route directly.
  */
 export async function proxy(request: NextRequest) {
+  // API routes: the proxy's ONLY job here is central CSRF enforcement. Route
+  // handlers do their own auth (createServerSupabaseClient / buildContext), so
+  // we don't run the session refresh below, and an API request must NEVER be
+  // bounced to /login (it would turn a 401 JSON contract into an HTML redirect).
+  //
+  // Our auth cookies are SameSite=Lax, so the browser sends them on cross-site
+  // top-level navigations — a CSRF window for plain form POSTs. isSameOrigin()
+  // rejects definite cross-origin browser mutations and fails open for callers
+  // with no Origin/Sec-Fetch-Site (server-to-server, test clients). Reads
+  // (GET/HEAD/OPTIONS) pass straight through. This is the single choke point
+  // that covers all ~64 mutating routes, including the pre-auth bootstrap POSTs
+  // (claim/redeem-invite/orgs/avatar) that never reach buildContext.
+  if (request.nextUrl.pathname.startsWith("/api/")) {
+    if (UNSAFE_METHODS.has(request.method) && !isSameOrigin(request)) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+    return NextResponse.next();
+  }
+
   // Inject the request pathname so server layouts can read it via headers().
   // App Router layouts receive params but not the full URL path; [slug]/layout
   // reads x-pathname for its onboarding-gate check (is this /[slug]/onboarding?).
@@ -99,10 +122,15 @@ export const config = {
   // /welcome stays BEHIND the proxy so its session cookie is refreshed (the
   // browser client reads it on /welcome/create). Authenticated users pass
   // straight through now that the link-status bounce is gone, so new founders
-  // reach the create flow without a detour. login/auth/join/pending-access/api
+  // reach the create flow without a detour. login/auth/join/pending-access
   // are excluded — they must be reachable while signed out (/join lets an
   // invited, signed-out user land and trigger OAuth themselves).
+  //
+  // /api is INCLUDED (it was previously excluded): the proxy is the central
+  // CSRF choke point for mutating API routes. The proxy() body short-circuits
+  // /api/* to a CSRF-only check and skips the session-refresh/login-bounce
+  // logic, so including it here is purely additive for security.
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|login|auth|join|pending-access|api|images|fonts).*)",
+    "/((?!_next/static|_next/image|favicon.ico|login|auth|join|pending-access|images|fonts).*)",
   ],
 };
