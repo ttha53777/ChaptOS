@@ -365,7 +365,6 @@ model TaskAssignment {
 model Poll {
   id             Int       @id @default(autoincrement())
   organizationId Int
-  title          String
   question       String
   closeDate      String? // ISO YYYY-MM-DD; null = no date (mirrors Task.dueDate)
   status         String    @default("open") // PollStatus: "open" | "closed"

@@ -101,7 +101,6 @@ export interface PollAssignment {
 }
 export interface Poll {
   id: number;
-  title: string;
   question: string;
   closeDate: string | null;
   status: "open" | "closed";
