@@ -167,15 +167,15 @@ export function formatActivityMessage(ctx: RequestContext, action: Action, m: an
     case "task.deleted":
       return `${who} deleted task ${m.title}`;
     case "poll.created":
-      return m.closeDate ? `${who} opened poll ${m.title} (closes ${m.closeDate})` : `${who} opened poll ${m.title}`;
+      return m.closeDate ? `${who} opened poll ${m.question} (closes ${m.closeDate})` : `${who} opened poll ${m.question}`;
     case "poll.updated":
-      return `${who} updated poll ${m.title}`;
+      return `${who} updated poll ${m.question}`;
     case "poll.closed":
-      return `${who} closed poll ${m.title}`;
+      return `${who} closed poll ${m.question}`;
     case "poll.reopened":
-      return `${who} reopened poll ${m.title}`;
+      return `${who} reopened poll ${m.question}`;
     case "poll.deleted":
-      return `${who} deleted poll ${m.title}`;
+      return `${who} deleted poll ${m.question}`;
     case "instagram_task.created":
       return `${who} added IG task ${m.title}`;
     case "instagram_task.updated":

@@ -41,7 +41,6 @@ export interface PollAssignmentDTO {
 }
 export interface PollDTO {
   id: number;
-  title: string;
   question: string;
   closeDate: string | null;
   status: string;
@@ -59,7 +58,6 @@ function toDTO(row: PollRow, actorId: number): PollDTO {
   const myVote = row.votes.find(v => v.brotherId === actorId);
   return {
     id:          row.id,
-    title:       row.title,
     question:    row.question,
     closeDate:   row.closeDate,
     status:      row.status,
@@ -157,7 +155,6 @@ export async function createPoll(ctx: RequestContext, input: CreatePollInput): P
     const poll = await tx.poll.create({
       data: {
         organizationId: orgId,
-        title:       input.title,
         question:    input.question,
         closeDate:   input.closeDate ?? null,
         status:      PollStatus.Open,
@@ -177,7 +174,7 @@ export async function createPoll(ctx: RequestContext, input: CreatePollInput): P
   });
 
   await emit(ctx, "poll.created", { type: "Poll", id: created.id }, {
-    title: created.title,
+    question: created.question,
     closeDate: created.closeDate,
     assigneeCount: brotherIds.length + roleIds.length,
   });
@@ -193,7 +190,6 @@ export async function updatePoll(ctx: RequestContext, id: number, input: UpdateP
   const manage = canManage(ctx);
 
   const editsFields =
-    input.title !== undefined ||
     input.question !== undefined ||
     input.closeDate !== undefined ||
     input.options !== undefined ||
@@ -219,7 +215,6 @@ export async function updatePoll(ctx: RequestContext, id: number, input: UpdateP
 
   const changedFields: string[] = [];
   const data: Record<string, unknown> = {};
-  if (input.title !== undefined)     { data.title = input.title; changedFields.push("title"); }
   if (input.question !== undefined)  { data.question = input.question; changedFields.push("question"); }
   if (input.closeDate !== undefined) { data.closeDate = input.closeDate; changedFields.push("closeDate"); }
   if (changesStatus) {
@@ -271,7 +266,7 @@ export async function updatePoll(ctx: RequestContext, id: number, input: UpdateP
     }
   });
 
-  await emit(ctx, "poll.updated", { type: "Poll", id }, { title: existing.title, changedFields });
+  await emit(ctx, "poll.updated", { type: "Poll", id }, { question: existing.question, changedFields });
 
   const [row] = await loadPolls(ctx, { ids: [id] });
   return toDTO(row, ctx.actorId);
@@ -294,7 +289,7 @@ async function setStatus(ctx: RequestContext, id: number, status: string): Promi
     },
   });
 
-  await emit(ctx, closed ? "poll.closed" : "poll.reopened", { type: "Poll", id }, { title: existing.title });
+  await emit(ctx, closed ? "poll.closed" : "poll.reopened", { type: "Poll", id }, { question: existing.question });
 
   const [row] = await loadPolls(ctx, { ids: [id] });
   return toDTO(row, ctx.actorId);
@@ -343,8 +338,8 @@ export async function castVote(ctx: RequestContext, pollId: number, optionId: nu
 
 export async function deletePoll(ctx: RequestContext, id: number): Promise<void> {
   if (!canManage(ctx)) throw new ForbiddenError("You do not have permission to delete polls");
-  const target = await ctx.db.poll.findUnique({ where: { id }, select: { title: true } });
+  const target = await ctx.db.poll.findUnique({ where: { id }, select: { question: true } });
   if (!target) throw new NotFoundError("Poll");
   await ctx.db.poll.delete({ where: { id } }); // options / assignments / votes cascade
-  await emit(ctx, "poll.deleted", { type: "Poll", id }, { title: target.title });
+  await emit(ctx, "poll.deleted", { type: "Poll", id }, { question: target.question });
 }

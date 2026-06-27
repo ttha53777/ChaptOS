@@ -86,11 +86,11 @@ export interface EventMetadata {
   "task.completed": { title: string };
   "task.reopened":  { title: string };
   "task.deleted":   { title: string };
-  "poll.created":   { title: string; closeDate: string | null; assigneeCount: number };
-  "poll.updated":   { title: string; changedFields: string[] };
-  "poll.closed":    { title: string };
-  "poll.reopened":  { title: string };
-  "poll.deleted":   { title: string };
+  "poll.created":   { question: string; closeDate: string | null; assigneeCount: number };
+  "poll.updated":   { question: string; changedFields: string[] };
+  "poll.closed":    { question: string };
+  "poll.reopened":  { question: string };
+  "poll.deleted":   { question: string };
   "instagram_task.created": { title: string; dueDate: string };
   "instagram_task.updated": { title: string; changedFields: string[] };
   "instagram_task.deleted": { title: string };

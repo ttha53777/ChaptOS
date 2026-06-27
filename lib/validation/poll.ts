@@ -14,7 +14,6 @@ const optionLabels = z.array(z.string().trim().min(1).max(200)).min(2, "A poll n
 
 export const createPollInput = z
   .object({
-    title:              z.string().trim().min(1).max(200),
     question:           z.string().trim().min(1).max(500),
     options:            optionLabels,
     closeDate:          dateString.optional(),
@@ -32,7 +31,6 @@ export type CreatePollInput = z.infer<typeof createPollInput>;
 // present, REPLACE that side of the set. `options`, when present, replaces the
 // whole option set — rejected by the service if votes already exist.
 export const updatePollInput = z.object({
-  title:              z.string().trim().min(1).max(200).optional(),
   question:           z.string().trim().min(1).max(500).optional(),
   options:            optionLabels.optional(),
   closeDate:          dateString.nullable().optional(),
