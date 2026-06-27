@@ -121,6 +121,10 @@
 }
 .dash.dash-tasks .tk-add:hover { border-color: var(--vio); }
 .dash.dash-tasks .tk-add svg { width: 13px; height: 13px; }
+/* Secondary action (e.g. "New poll" next to "New task"): quieter, outline-only. */
+.dash.dash-tasks .tk-add.ghost { color: var(--ink-soft); background: transparent; border-color: var(--line); }
+.dash.dash-tasks .tk-add.ghost:hover { border-color: var(--vio); color: var(--vio); }
+.dash.dash-tasks .tk-briefing-acts { flex-shrink: 0; display: inline-flex; align-items: center; gap: 8px; }
 
 /* ── Glance strip ──────────────────────────────────────────────────────────── */
 .dash.dash-tasks .tk-glance {
@@ -382,6 +386,8 @@
 .dash.dash-tasks .tk-empty h3 { font-family: var(--serif); font-weight: 500; font-size: 19px; color: var(--ink); }
 .dash.dash-tasks .tk-empty p { font-size: 13px; color: var(--muted); margin: 7px auto 0; max-width: 38ch; line-height: 1.55; }
 .dash.dash-tasks .tk-empty .tk-add { margin: 20px auto 0; }
+.dash.dash-tasks .tk-empty .tk-briefing-acts { margin: 20px auto 0; justify-content: center; }
+.dash.dash-tasks .tk-empty .tk-briefing-acts .tk-add { margin: 0; }
 .dash.dash-tasks .tk-link { color: var(--vio); text-decoration: underline; text-underline-offset: 2px; }
 
 .dash.dash-tasks .tk-error {
@@ -436,29 +442,55 @@
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   Polls — same ledger language as the tasks view, switched into via .tk-viewswitch.
-   A poll card carries its question, live result bars (clickable for assignees),
-   a status pill, and the same assignee chips + relative date copy as task rows.
+   Polls — same ledger language as the tasks list. A poll reads as a compact row
+   (.pl-row) pinned above the tasks; clicking it opens the .pl-card vote modal,
+   which carries the question, live result bars, status pill, and assignee chips.
    ───────────────────────────────────────────────────────────────────────────── */
 
-.dash.dash-tasks .tk-viewswitch {
-  display: inline-flex;
-  border: 1px solid var(--line);
-  border-radius: 9px;
-  overflow: hidden;
-  margin-bottom: 18px;
+/* Poll row — mirrors .tk-row, but the whole body is a button that opens the modal. */
+.dash.dash-tasks .tk-row.pl-row { padding-right: 8px; }
+.dash.dash-tasks .tk-row.pl-row::before { background: var(--gold); opacity: .55; }
+.dash.dash-tasks .tk-row.pl-row.awaits::before { background: var(--vio); opacity: 1; }
+.dash.dash-tasks .tk-row.pl-row.done::before { background: var(--faint); opacity: .5; }
+.dash.dash-tasks .pl-row-open {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 13px;
+  padding: 0 0 0 18px;
+  text-align: left;
 }
-.dash.dash-tasks .tk-viewswitch button {
+.dash.dash-tasks .pl-row-glyph {
+  flex-shrink: 0;
+  margin-top: 1px;
+  width: 19px; height: 19px;
+  border-radius: 6px;
+  background: var(--vio-bg);
+  color: var(--vio);
+  display: grid;
+  place-items: center;
+}
+.dash.dash-tasks .pl-row-glyph svg { width: 12px; height: 12px; }
+.dash.dash-tasks .pl-row .tk-row-meta { gap: 8px; }
+.dash.dash-tasks .pl-row .pl-status { padding: 3px 8px; font-size: 8.5px; }
+.dash.dash-tasks .pl-row-hint {
+  flex-shrink: 0;
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
   font-family: var(--mono);
-  font-size: 10px;
+  font-size: 9.5px;
   letter-spacing: .08em;
   text-transform: uppercase;
-  padding: 8px 18px;
   color: var(--muted);
-  transition: color .12s, background .12s;
+  transition: color .14s;
 }
-.dash.dash-tasks .tk-viewswitch button.on { color: var(--paper); background: var(--vio); }
-.dash.dash-tasks .tk-viewswitch button:hover:not(.on) { color: var(--ink-soft); }
+.dash.dash-tasks .pl-row-hint.on { color: var(--vio); }
+.dash.dash-tasks .pl-row-hint svg { width: 13px; height: 13px; }
+.dash.dash-tasks .pl-row:hover .pl-row-hint { color: var(--ink-soft); }
+.dash.dash-tasks .pl-row:hover .pl-row-hint.on { color: var(--vio); }
 
 .dash.dash-tasks .pl-list {
   display: flex;

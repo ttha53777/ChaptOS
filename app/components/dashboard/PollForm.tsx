@@ -9,7 +9,6 @@ import type { RoleOption } from "./TaskForm";
 // What the caller receives on submit — the parent owns the POST/PATCH + optimistic
 // list update (mirrors TaskForm).
 export type PollFormValue = {
-  title: string;
   question: string;
   closeDate: string; // ISO YYYY-MM-DD or "" (no date)
   options: string[]; // 2-10 trimmed, non-empty labels
@@ -26,7 +25,6 @@ const MODES: { key: AssignMode; label: string }[] = [
 ];
 
 export type PollFormInitial = {
-  title: string;
   question: string;
   closeDate: string;
   options: string[];
@@ -34,7 +32,7 @@ export type PollFormInitial = {
   roleIds: number[];
 };
 
-const EMPTY: PollFormInitial = { title: "", question: "", closeDate: "", options: ["", ""], brotherIds: [], roleIds: [] };
+const EMPTY: PollFormInitial = { question: "", closeDate: "", options: ["", ""], brotherIds: [], roleIds: [] };
 
 const MAX_OPTIONS = 10;
 
@@ -62,7 +60,6 @@ export function PollForm({
   onSubmit: (value: PollFormValue) => void;
 }) {
   const init = initial ?? EMPTY;
-  const [title,      setTitle]      = useState(init.title);
   const [question,   setQuestion]   = useState(init.question);
   const [closeDate,  setCloseDate]  = useState(init.closeDate);
   const [options,    setOptions]    = useState<string[]>(init.options.length >= 2 ? init.options : ["", ""]);
@@ -92,7 +89,6 @@ export function PollForm({
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!title.trim()) { setLocalError("A poll needs a title."); return; }
     if (!question.trim()) { setLocalError("A poll needs a question."); return; }
     const cleanOptions = options.map(o => o.trim()).filter(Boolean);
     if (!optionsLocked && cleanOptions.length < 2) { setLocalError("Add at least two options."); return; }
@@ -102,7 +98,6 @@ export function PollForm({
     }
     setLocalError(null);
     onSubmit({
-      title: title.trim(),
       question: question.trim(),
       closeDate,
       options: cleanOptions,
@@ -114,14 +109,8 @@ export function PollForm({
   return (
     <form onSubmit={handleSubmit} className="tk-form">
       <div>
-        <FieldLabel htmlFor="pl-title" tone="dusk">Title</FieldLabel>
-        <input id="pl-title" className={inputDuskCls} value={title} autoFocus
-          onChange={e => setTitle(e.target.value)} placeholder="What's this poll about…" />
-      </div>
-
-      <div>
         <FieldLabel htmlFor="pl-question" tone="dusk">Question</FieldLabel>
-        <input id="pl-question" className={inputDuskCls} value={question}
+        <input id="pl-question" className={inputDuskCls} value={question} autoFocus
           onChange={e => setQuestion(e.target.value)} placeholder="What are you asking?" />
       </div>
 

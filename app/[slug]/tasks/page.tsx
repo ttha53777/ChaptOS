@@ -54,13 +54,10 @@ function initials(name: string): string {
   return ((parts[0]?.[0] ?? "") + (parts[1]?.[0] ?? "")).toUpperCase() || "?";
 }
 
-type View = "tasks" | "polls";
-
 export default function TasksPage() {
   const { taskList, setTaskList, pollList, setPollList, brotherList, currentUser, can } = useChapter();
   const params = useSearchParams();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [view, setView] = useState<View>("tasks");
 
   const canManage = can("MANAGE_TASKS");
   const canManagePolls = can("MANAGE_POLLS");
@@ -93,6 +90,11 @@ export default function TasksPage() {
   const [pollFormError, setPollFormError] = useState<string | null>(null);
   const [confirmDeletePoll, setConfirmDeletePoll] = useState<{ id: number; title: string } | null>(null);
 
+  // Poll-detail (voting) modal. Tracked by id, not a snapshot, so the modal stays
+  // in sync as vote()/setPollStatus() replace the poll object in pollList.
+  const [pollViewId, setPollViewId] = useState<number | null>(null);
+  const pollView = pollViewId == null ? null : pollList.find(p => p.id === pollViewId) ?? null;
+
   // Load the org's roles for the assignee picker.
   useEffect(() => {
     requestJson<RoleOption[]>("/api/roles").then(setRoles).catch(() => setRoles([]));
@@ -106,6 +108,7 @@ export default function TasksPage() {
   const openEdit = useCallback((t: Task) => { setFormError(null); setModal({ kind: "edit", task: t }); }, []);
   const openAddPoll = useCallback(() => { setPollFormError(null); setPollModal({ kind: "add" }); }, []);
   const openEditPoll = useCallback((p: Poll) => { setPollFormError(null); setPollModal({ kind: "edit", poll: p }); }, []);
+  const openPollView = useCallback((p: Poll) => { setError(null); setPollViewId(p.id); }, []);
 
   // Whether the current user may vote on a poll (assigned directly or via a held role).
   const canVote = useCallback((p: Poll) => p.assignments.some(a =>
@@ -113,13 +116,13 @@ export default function TasksPage() {
   ), [selfId, myRoleIds]);
 
   // Honor ?new=1 / ?task=<id> (tasks) and ?newPoll=1 / ?poll=<id> (polls) from
-  // links on the dashboard / timeline. A poll deep-link also flips the view.
+  // links on the dashboard / timeline.
   useEffect(() => {
-    if (params.get("newPoll") === "1") { setView("polls"); openAddPoll(); return; }
+    if (params.get("newPoll") === "1") { openAddPoll(); return; }
     const pollParam = params.get("poll");
     if (pollParam) {
       const p = pollList.find(x => x.id === Number(pollParam));
-      if (p) { setView("polls"); openEditPoll(p); return; }
+      if (p) { openEditPoll(p); return; }
     }
     if (params.get("new") === "1") { openAdd(); return; }
     const taskParam = params.get("task");
@@ -197,6 +200,26 @@ export default function TasksPage() {
     );
   }, [pollList, canVote]);
 
+  // Polls pinned above the task list. Filters mirror the task filters: "mine"
+  // keeps polls you can vote on; "Show done" reveals closed polls. Sort puts
+  // polls awaiting your vote first, then other open polls by close date, then
+  // closed polls last.
+  const pinnedPolls = useMemo(() => {
+    let rows = pollList;
+    if (assigneeFilter === "mine") rows = rows.filter(canVote);
+    if (!showDone) rows = rows.filter(p => p.status !== "closed");
+    const awaitsMine = (p: Poll) => p.status === "open" && canVote(p) && p.myVoteOptionId == null;
+    const closeKey = (p: Poll) => p.closeDate ? daysUntil(p.closeDate, today) : Number.POSITIVE_INFINITY;
+    return [...rows].sort((a, b) => {
+      // Closed polls always sink to the bottom.
+      if ((a.status === "closed") !== (b.status === "closed")) return a.status === "closed" ? 1 : -1;
+      // Then polls awaiting the current user's vote float to the top.
+      if (awaitsMine(a) !== awaitsMine(b)) return awaitsMine(a) ? -1 : 1;
+      // Then by soonest close date.
+      return closeKey(a) - closeKey(b);
+    });
+  }, [pollList, assigneeFilter, showDone, canVote, today]);
+
   // ── Mutations (optimistic, mirroring the parties/dashboard pattern) ─────────
   // TaskForm validates title + at least-one-assignee; here we just persist.
   async function submitForm(value: TaskFormValue) {
@@ -262,7 +285,6 @@ export default function TasksPage() {
   async function submitPollForm(value: PollFormValue) {
     setPollFormError(null);
     const base = {
-      title: value.title,
       question: value.question,
       assigneeBrotherIds: value.assigneeBrotherIds,
       assigneeRoleIds: value.assigneeRoleIds,
@@ -363,7 +385,7 @@ export default function TasksPage() {
     { k: "Done", v: counts.done, tone: "sage", note: "this semester", noteTone: "" },
   ] as const;
 
-  const hasAny = taskList.length > 0;
+  const hasAny = taskList.length > 0 || pollList.length > 0;
 
   return (
     <div className="flex h-screen overflow-hidden bg-[#0f0d0a]">
@@ -384,52 +406,40 @@ export default function TasksPage() {
 
         <main className="page-ambient flex-1 overflow-y-auto">
           <div className="dash dash-tasks" data-dashboard-theme="dusk">
-            {/* ── View switch: Tasks | Polls ── */}
-            <div className="tk-viewswitch" role="tablist" aria-label="Tasks or polls">
-              <button role="tab" aria-selected={view === "tasks"} className={view === "tasks" ? "on" : ""} onClick={() => setView("tasks")}>Tasks</button>
-              <button role="tab" aria-selected={view === "polls"} className={view === "polls" ? "on" : ""} onClick={() => setView("polls")}>Polls</button>
-            </div>
-
             {/* ── Briefing ── */}
             <header className="tk-briefing">
-              {view === "tasks" ? (
-                <>
-                  <div>
-                    <div className="tk-kicker">Tasks · <span className="today">Today {todayLabel}</span></div>
-                    <h1 className="tk-title">Things to get <em>done</em>.</h1>
-                    <div className="tk-digest">
-                      <span className="tk-digest-chip">CHAPTER</span>
-                      <p>{digest}</p>
-                    </div>
+              <div>
+                <div className="tk-kicker">Tasks · <span className="today">Today {todayLabel}</span></div>
+                <h1 className="tk-title">Things to get <em>done</em>.</h1>
+                <div className="tk-digest">
+                  <span className="tk-digest-chip">CHAPTER</span>
+                  <p>{digest}</p>
+                </div>
+                {pollList.length > 0 && (
+                  <div className="tk-digest">
+                    <span className="tk-digest-chip">POLLS</span>
+                    <p>{pollDigest}</p>
                   </div>
+                )}
+              </div>
+              {(canManage || canManagePolls) && (
+                <div className="tk-briefing-acts">
+                  {canManagePolls && (
+                    <button className="tk-add ghost" onClick={openAddPoll}>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4}><path strokeLinecap="round" strokeLinejoin="round" d="M12 5v14M5 12h14" /></svg>
+                      New poll
+                    </button>
+                  )}
                   {canManage && (
                     <button className="tk-add" onClick={openAdd}>
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4}><path strokeLinecap="round" strokeLinejoin="round" d="M12 5v14M5 12h14" /></svg>
                       New task
                     </button>
                   )}
-                </>
-              ) : (
-                <>
-                  <div>
-                    <div className="tk-kicker">Polls · <span className="today">Today {todayLabel}</span></div>
-                    <h1 className="tk-title">Ask the <em>chapter</em>.</h1>
-                    <div className="tk-digest">
-                      <span className="tk-digest-chip">CHAPTER</span>
-                      <p>{pollDigest}</p>
-                    </div>
-                  </div>
-                  {canManagePolls && (
-                    <button className="tk-add" onClick={openAddPoll}>
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4}><path strokeLinecap="round" strokeLinejoin="round" d="M12 5v14M5 12h14" /></svg>
-                      New poll
-                    </button>
-                  )}
-                </>
+                </div>
               )}
             </header>
 
-            {view === "tasks" && (<>
             {/* ── Glance strip ── */}
             <div className="tk-glance">
               {measures.map(m => (
@@ -468,29 +478,41 @@ export default function TasksPage() {
                 <div className="glyph">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
                 </div>
-                <h3>No tasks yet.</h3>
-                <p>Hand out tasks and deadlines to members or roles, and track what gets done. Dated tasks also show up on the chapter timeline.</p>
-                {canManage && (
-                  <button className="tk-add" onClick={openAdd}>
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4}><path strokeLinecap="round" strokeLinejoin="round" d="M12 5v14M5 12h14" /></svg>
-                    Create the first task
-                  </button>
-                )}
-              </div>
-            ) : filtered.length === 0 ? (
-              <div className="tk-empty">
-                <div className="glyph">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4" /><circle cx="12" cy="12" r="9" /></svg>
+                <h3>Nothing here yet.</h3>
+                <p>Hand out tasks and deadlines to members or roles, or ask the chapter a question with a poll. Dated tasks and polls also show up on the chapter timeline.</p>
+                <div className="tk-briefing-acts">
+                  {canManagePolls && (
+                    <button className="tk-add ghost" onClick={openAddPoll}>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4}><path strokeLinecap="round" strokeLinejoin="round" d="M12 5v14M5 12h14" /></svg>
+                      New poll
+                    </button>
+                  )}
+                  {canManage && (
+                    <button className="tk-add" onClick={openAdd}>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4}><path strokeLinecap="round" strokeLinejoin="round" d="M12 5v14M5 12h14" /></svg>
+                      New task
+                    </button>
+                  )}
                 </div>
-                <h3>{assigneeFilter === "mine" ? "You're all caught up." : "Nothing to show."}</h3>
-                <p>
-                  {assigneeFilter === "mine"
-                    ? "No open tasks are assigned to you or your roles right now."
-                    : <>Everything is done — flip on <button className="tk-link" onClick={() => setShowDone(true)}>Show done</button> to review it.</>}
-                </p>
               </div>
             ) : (
               <div className="tk-groups">
+                {/* Pinned polls — they read as rows in the same list, opening a vote modal on click. */}
+                {pinnedPolls.length > 0 && (
+                  <section>
+                    <p className="tk-group-label gold"><span className="dot" />Polls <span className="ct">({pinnedPolls.length})</span></p>
+                    <div className="tk-list">
+                      {pinnedPolls.map(p => (
+                        <PollRow key={p.id} poll={p} today={today} canManage={canManagePolls} canVote={canVote(p)}
+                          onOpen={() => openPollView(p)}
+                          onEdit={() => openEditPoll(p)}
+                          onClose={() => setPollStatus(p, "closed")} onReopen={() => setPollStatus(p, "open")}
+                          onDelete={() => setConfirmDeletePoll({ id: p.id, title: p.question })} />
+                      ))}
+                    </div>
+                  </section>
+                )}
+
                 {groups.map(g => (
                   <section key={g.urgency}>
                     <p className={`tk-group-label ${URGENCY_TONE[g.urgency]}`}>
@@ -518,38 +540,25 @@ export default function TasksPage() {
                     </div>
                   </section>
                 )}
+
+                {/* No tasks (but polls exist, or filtered out) — quiet note under the polls. */}
+                {groups.length === 0 && !(showDone && doneTasks.length > 0) && (
+                  <div className="tk-empty">
+                    <div className="glyph">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4" /><circle cx="12" cy="12" r="9" /></svg>
+                    </div>
+                    <h3>{assigneeFilter === "mine" ? "You're all caught up." : "No open tasks."}</h3>
+                    <p>
+                      {assigneeFilter === "mine"
+                        ? "No open tasks are assigned to you or your roles right now."
+                        : taskList.length === 0
+                          ? <>No tasks on the board yet.{canManage ? <> <button className="tk-link" onClick={openAdd}>Add one</button> to get the chapter moving.</> : null}</>
+                          : <>Everything is done — flip on <button className="tk-link" onClick={() => setShowDone(true)}>Show done</button> to review it.</>}
+                    </p>
+                  </div>
+                )}
               </div>
             )}
-            </>)}
-
-            {view === "polls" && (<>
-              {error && <div className="tk-error" role="alert">{error}</div>}
-              {pollList.length === 0 ? (
-                <div className="tk-empty">
-                  <div className="glyph">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6}><path strokeLinecap="round" strokeLinejoin="round" d="M9 17V9m4 8V5m4 12v-6M5 21h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
-                  </div>
-                  <h3>No polls yet.</h3>
-                  <p>Ask the chapter a question and let members vote. Attach members or roles just like a task; add an optional close date to put it on the timeline.</p>
-                  {canManagePolls && (
-                    <button className="tk-add" onClick={openAddPoll}>
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4}><path strokeLinecap="round" strokeLinejoin="round" d="M12 5v14M5 12h14" /></svg>
-                      Create the first poll
-                    </button>
-                  )}
-                </div>
-              ) : (
-                <div className="pl-list">
-                  {pollList.map(p => (
-                    <PollCard key={p.id} poll={p} today={today} canManage={canManagePolls} canVote={canVote(p)}
-                      onVote={(optionId) => vote(p, optionId)}
-                      onClose={() => setPollStatus(p, "closed")} onReopen={() => setPollStatus(p, "open")}
-                      onEdit={() => openEditPoll(p)}
-                      onDelete={() => setConfirmDeletePoll({ id: p.id, title: p.title })} />
-                  ))}
-                </div>
-              )}
-            </>)}
           </div>
         </main>
       </div>
@@ -596,7 +605,6 @@ export default function TasksPage() {
             error={pollFormError}
             optionsLocked={pollModal.kind === "edit" && pollModal.poll.totalVotes > 0}
             initial={pollModal.kind === "edit" ? {
-              title: pollModal.poll.title,
               question: pollModal.poll.question,
               closeDate: pollModal.poll.closeDate ?? "",
               options: pollModal.poll.options.map(o => o.label),
@@ -616,6 +624,16 @@ export default function TasksPage() {
           onConfirm={() => doDeletePoll(confirmDeletePoll.id)}
           onCancel={() => setConfirmDeletePoll(null)}
         />
+      )}
+
+      {pollView && (
+        <Modal title="Poll" tone="dusk" maxWidthClass="max-w-lg" onClose={() => setPollViewId(null)}>
+          <PollCard poll={pollView} today={today} canManage={canManagePolls} canVote={canVote(pollView)}
+            onVote={(optionId) => vote(pollView, optionId)}
+            onClose={() => setPollStatus(pollView, "closed")} onReopen={() => setPollStatus(pollView, "open")}
+            onEdit={() => { setPollViewId(null); openEditPoll(pollView); }}
+            onDelete={() => { setPollViewId(null); setConfirmDeletePoll({ id: pollView.id, title: pollView.question }); }} />
+        </Modal>
       )}
     </div>
   );
@@ -696,6 +714,91 @@ function TaskRow({ task, today, spine, canManage, canComplete, onComplete, onReo
   );
 }
 
+function PollRow({ poll, today, canManage, canVote, onOpen, onEdit, onClose, onReopen, onDelete }: {
+  poll: Poll;
+  today: Date;
+  canManage: boolean;
+  canVote: boolean;
+  onOpen: () => void;
+  onEdit: () => void;
+  onClose: () => void;
+  onReopen: () => void;
+  onDelete: () => void;
+}) {
+  const closed = poll.status === "closed";
+  const total = poll.totalVotes;
+  const dateLabel = closed
+    ? (poll.closeDate ? `Closed · ${fmtDate(poll.closeDate)}` : "Closed")
+    : relWhen(poll.closeDate, today).txt;
+  const dateCls = closed ? "" : relWhen(poll.closeDate, today).cls;
+  const awaitsMine = !closed && canVote && poll.myVoteOptionId == null;
+  // Right-edge hint: open polls awaiting your vote say "Vote", everything else "View".
+  const hint = awaitsMine ? "Vote" : closed ? "Results" : "View";
+
+  return (
+    <div className={`tk-row pl-row${closed ? " done" : ""}${awaitsMine ? " awaits" : ""}`}>
+      <button className="pl-row-open" onClick={onOpen} aria-label={`Open poll: ${poll.question}`}>
+        <span className="pl-row-glyph" aria-hidden>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M9 17V9m4 8V5m4 12v-6" /></svg>
+        </span>
+        <span className="tk-row-main">
+          <span className="tk-row-title">{poll.question}</span>
+          <span className="tk-row-meta">
+            <span className={`pl-status ${closed ? "closed" : "open"}`}>{closed ? "Closed" : "Open"}</span>
+            <span className="tk-sep">·</span>
+            <span className={`tk-when ${dateCls}`}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}><circle cx="12" cy="12" r="9" /><path strokeLinecap="round" strokeLinejoin="round" d="M12 7.5V12l3 2" /></svg>
+              {dateLabel}
+            </span>
+            <span className="tk-sep">·</span>
+            <span className="pl-votes">{total} {total === 1 ? "vote" : "votes"}</span>
+            {poll.assignments.length > 0 && (
+              <>
+                <span className="tk-sep">·</span>
+                <span className="tk-chips">
+                  {poll.assignments.map(a => a.role ? (
+                    <span key={`r${a.id}`} className="tk-chip role" style={a.role.color ? { ["--rc" as string]: a.role.color } : undefined}>
+                      <span className="pip" />{a.role.name}
+                    </span>
+                  ) : a.brother ? (
+                    <span key={`b${a.id}`} className="tk-chip">
+                      <span className="av">{initials(a.brother.name)}</span>{a.brother.name}
+                    </span>
+                  ) : null)}
+                </span>
+              </>
+            )}
+          </span>
+        </span>
+        <span className={`pl-row-hint${awaitsMine ? " on" : ""}`}>
+          {hint}
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 6l6 6-6 6" /></svg>
+        </span>
+      </button>
+
+      {canManage && (
+        <div className="tk-row-acts">
+          <button className="tk-act" title="Edit" onClick={onEdit}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M15.2 5.2l3.6 3.6M16.7 3.7a2.5 2.5 0 113.6 3.6L7 20.5l-4 1 1-4z" /></svg>
+          </button>
+          {closed ? (
+            <button className="tk-act" title="Reopen" onClick={onReopen}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M4 4v6h6M20 20v-6h-6M20 9A8 8 0 006 5.3M4 15a8 8 0 0014 3.7" /></svg>
+            </button>
+          ) : (
+            <button className="tk-act" title="Close poll" onClick={onClose}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}><rect x="5" y="11" width="14" height="9" rx="2" /><path strokeLinecap="round" strokeLinejoin="round" d="M8 11V7a4 4 0 018 0v4" /></svg>
+            </button>
+          )}
+          <button className="tk-act danger" title="Delete" onClick={onDelete}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M5 7h14M9 7V5a1 1 0 011-1h4a1 1 0 011 1v2m1 0l-.7 12.1A2 2 0 0114.4 21H9.6a2 2 0 01-2-1.9L7 7" /></svg>
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function PollCard({ poll, today, canManage, canVote, onVote, onClose, onReopen, onEdit, onDelete }: {
   poll: Poll;
   today: Date;
@@ -720,7 +823,6 @@ function PollCard({ poll, today, canManage, canVote, onVote, onClose, onReopen, 
     <div className={`pl-card${closed ? " closed" : ""}`}>
       <div className="pl-card-head">
         <div className="pl-card-titles">
-          <p className="pl-card-title">{poll.title}</p>
           <p className="pl-card-question">{poll.question}</p>
         </div>
         <span className={`pl-status ${closed ? "closed" : "open"}`}>{closed ? "Closed" : "Open"}</span>
