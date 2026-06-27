@@ -15,7 +15,16 @@ let client: OpenAI | null = null;
 function getClient(): OpenAI | null {
   const key = process.env.OPENAI_API_KEY;
   if (!key) return null; // feature stays dormant until a key is configured
-  if (!client) client = new OpenAI({ apiKey: key });
+  if (!client) {
+    // Bound every call: without these, a hung connection blocks the request
+    // indefinitely. The SDK throws APITimeoutError on timeout, which narrate/
+    // recommendSetup's try/catch already degrades to null — so this turns an
+    // unbounded hang into a graceful fallback. 30s sits above normal turn
+    // latency; maxRetries lets the SDK ride out transient 429s/5xx with backoff.
+    // (Streaming routes also need a mid-stream idle watchdog — timeout covers the
+    // initial connect / non-stream call, not stalls between chunks.)
+    client = new OpenAI({ apiKey: key, timeout: 30_000, maxRetries: 2 });
+  }
   return client;
 }
 
