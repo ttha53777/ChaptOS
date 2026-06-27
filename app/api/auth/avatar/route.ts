@@ -1,6 +1,7 @@
 import { syncBrotherAvatar } from "@/lib/brother-avatar";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { logError } from "@/lib/observability";
+import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
 
 const MAX_BYTES = 2 * 1024 * 1024;
 const BUCKET = "avatars";
@@ -16,6 +17,11 @@ export async function POST(request: Request) {
   const supabase = await createServerSupabaseClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
+
+  // Throttle uploads per user — guards the Supabase storage bucket against
+  // runaway/abusive loops. CSRF is covered centrally by the proxy (/api/*).
+  const limit = rateLimit(`avatar:${user.id}`, 10, 60_000); // 10 uploads/min/user
+  if (!limit.ok) return tooManyRequests(limit);
 
   let formData: FormData;
   try {
