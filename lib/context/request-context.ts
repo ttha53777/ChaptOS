@@ -42,6 +42,14 @@ export interface RequestContext {
 export interface BuildContextOpts {
   /** Require this permission; 403 if missing (platform admins and org admins bypass). */
   requirePerm?: Permission;
+  /**
+   * Require org-admin authority; 403 if the actor is neither org admin nor
+   * platform admin. For routes that gate on admin status rather than a single
+   * permission bit (org config, setup-apply, activity writes). Defense-in-depth:
+   * the underlying services also re-check, but this enforces the gate at the
+   * route boundary like requirePerm does everywhere else.
+   */
+  requireOrgAdmin?: boolean;
   /** Allow this brother id through even without the permission (self-edit). */
   selfId?: number;
   /** Rate-limit writes per actor. Pass false to skip. Default: true with 30/10s. */
@@ -111,6 +119,13 @@ export async function buildContext(opts: BuildContextOpts = {}): Promise<BuildCo
     if (!allowedAsSelf && !hasPermission(permissions, opts.requirePerm)) {
       return { error: Response.json({ error: "Forbidden" }, { status: 403 }) };
     }
+  }
+
+  // ── Org-admin gate ──────────────────────────────────────────────────────────
+  // For admin-only routes that key off admin status, not a permission bit.
+  // Platform admins satisfy it (they operate on any org via the active-org cookie).
+  if (opts.requireOrgAdmin && !user.isPlatformAdmin && !isOrgAdmin) {
+    return { error: Response.json({ error: "Forbidden" }, { status: 403 }) };
   }
 
   // ── Rate limit ────────────────────────────────────────────────────────────

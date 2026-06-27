@@ -14,7 +14,7 @@ import { logError } from "@/lib/observability";
 // x-org-slug header so there is no slug in the path to drift out of sync with
 // ctx.orgId.
 export async function PATCH(req: NextRequest) {
-  const { ctx, error } = await buildContext();
+  const { ctx, error } = await buildContext({ requireOrgAdmin: true });
   if (error) return error;
   try {
     const body = await req.json().catch(() => ({}));

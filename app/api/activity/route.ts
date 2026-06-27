@@ -26,11 +26,8 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const { ctx, error } = await buildContext();
+  const { ctx, error } = await buildContext({ requireOrgAdmin: true });
   if (error) return error;
-  if (!ctx.isOrgAdmin && !ctx.isPlatformAdmin) {
-    return Response.json({ error: "Forbidden" }, { status: 403 });
-  }
   try {
     const body = await req.json().catch(() => ({}));
     const message = typeof body.message === "string" ? body.message.trim() : "";

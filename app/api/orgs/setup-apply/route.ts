@@ -27,7 +27,7 @@ const setupApplyInput = z.object({
 });
 
 export async function POST(req: NextRequest) {
-  const { ctx, error } = await buildContext();
+  const { ctx, error } = await buildContext({ requireOrgAdmin: true });
   if (error) return error;
   try {
     const body = await req.json().catch(() => ({}));
