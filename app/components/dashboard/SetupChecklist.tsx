@@ -39,23 +39,18 @@ interface ChecklistItem {
   section: string;
 }
 
-export function SetupChecklist() {
+/**
+ * Derives the starter checklist + completion state from live org data. Shared by
+ * the SetupChecklist card and by the dashboard, which hides the Chapter Health
+ * widget until setup is finished (so an empty new org doesn't show a meaningless
+ * health dial).
+ */
+export function useSetupChecklist() {
   const { currentUser, brotherList } = useChapter();
-  const router = useRouter();
-  const orgPath = useOrgPath();
   const activeSemester = useActiveSemester();
   const v = useVocab();
 
-  const slug = currentUser?.org?.slug ?? "";
   const onboardingComplete = currentUser?.org?.onboardingComplete ?? false;
-
-  // Read the dismissal flag once on first render. Lazy initializer so SSR (where
-  // window is undefined) and the client agree on a stable initial value.
-  const [dismissed, setDismissed] = useState<boolean>(() => {
-    if (typeof window === "undefined" || !slug) return false;
-    try { return window.localStorage.getItem(DISMISS_KEY(slug)) === "1"; }
-    catch { return false; }
-  });
 
   const items: ChecklistItem[] = useMemo(() => {
     const memberLabel = v("Member", true).toLowerCase();
@@ -91,6 +86,30 @@ export function SetupChecklist() {
   const doneCount = items.filter(i => i.done).length;
   const allDone = doneCount === items.length;
 
+  // "Setup finished" gates dependent widgets: onboarding done AND every starter
+  // item satisfied. Note this ignores the card's dismissal flag on purpose —
+  // dismissing the nudge doesn't make the org actually set up.
+  const setupComplete = onboardingComplete && allDone;
+
+  return { items, doneCount, allDone, onboardingComplete, setupComplete };
+}
+
+export function SetupChecklist() {
+  const { currentUser } = useChapter();
+  const router = useRouter();
+  const orgPath = useOrgPath();
+  const { items, doneCount, allDone, onboardingComplete } = useSetupChecklist();
+
+  const slug = currentUser?.org?.slug ?? "";
+
+  // Read the dismissal flag once on first render. Lazy initializer so SSR (where
+  // window is undefined) and the client agree on a stable initial value.
+  const [dismissed, setDismissed] = useState<boolean>(() => {
+    if (typeof window === "undefined" || !slug) return false;
+    try { return window.localStorage.getItem(DISMISS_KEY(slug)) === "1"; }
+    catch { return false; }
+  });
+
   // Hide entirely until onboarding is finished, once dismissed, or once every
   // item is satisfied (the card has served its purpose).
   if (!onboardingComplete || dismissed || allDone || !slug) return null;
@@ -109,15 +128,40 @@ export function SetupChecklist() {
       <div
         className="dash-card"
         style={{
-          border: "1px solid var(--line, rgba(236,231,221,.09))",
+          position: "relative",
+          overflow: "hidden",
+          border: "1px solid rgba(167,139,219,.38)",
           borderRadius: 14,
-          padding: "18px 20px",
-          background: "var(--card, #161310)",
+          padding: "18px 20px 18px 23px",
+          background: "linear-gradient(180deg, rgba(167,139,219,.08), rgba(167,139,219,.02))",
+          boxShadow: "0 0 0 1px rgba(167,139,219,.06), 0 8px 28px -16px rgba(167,139,219,.5)",
         }}
       >
+        {/* Purple accent rail — pulls the eye to this card over the plain dashboard widgets. */}
+        <span
+          aria-hidden
+          style={{
+            position: "absolute", left: 0, top: 0, bottom: 0, width: 4,
+            background: "linear-gradient(180deg, #a78bdb, rgba(167,139,219,.35))",
+          }}
+        />
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
           <div>
-            <h3 style={{ fontSize: 15, fontWeight: 600, color: "var(--ink, #ece7dd)", margin: 0 }}>
+            <span
+              style={{
+                display: "inline-flex", alignItems: "center", gap: 5,
+                fontSize: 10.5, fontWeight: 700, letterSpacing: ".07em", textTransform: "uppercase",
+                color: "#b9a3e6", background: "rgba(167,139,219,.14)",
+                border: "1px solid rgba(167,139,219,.3)", borderRadius: 999,
+                padding: "2px 8px", marginBottom: 8,
+              }}
+            >
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} aria-hidden>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M13 2L4.5 13.5H11l-1 8.5 9.5-12H13z" />
+              </svg>
+              Get started
+            </span>
+            <h3 style={{ fontSize: 15.5, fontWeight: 700, color: "var(--ink, #ece7dd)", margin: 0 }}>
               Finish setting up {currentUser?.org?.name ?? "your org"}
             </h3>
             <p style={{ fontSize: 12.5, color: "var(--muted, #958d7c)", margin: "3px 0 0" }}>
@@ -136,6 +180,21 @@ export function SetupChecklist() {
           >
             Dismiss
           </button>
+        </div>
+
+        {/* Progress bar — reinforces the "almost there" nudge in the accent color. */}
+        <div
+          aria-hidden
+          style={{ height: 4, borderRadius: 999, background: "rgba(236,231,221,.08)", overflow: "hidden", marginBottom: 14 }}
+        >
+          <div
+            style={{
+              height: "100%", borderRadius: 999,
+              width: `${(doneCount / items.length) * 100}%`,
+              background: "linear-gradient(90deg, #8a6fd1, #b9a3e6)",
+              transition: "width .35s ease",
+            }}
+          />
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>

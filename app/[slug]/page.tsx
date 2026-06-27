@@ -53,7 +53,7 @@ import { SocialsRail } from "../components/dashboard/ledger/SocialsRail";
 import { InstagramRail } from "../components/dashboard/ledger/InstagramRail";
 import { ActivityRail } from "../components/dashboard/ledger/ActivityRail";
 import { DashHideButton } from "../components/dashboard/ledger/DashHideButton";
-import { SetupChecklist } from "../components/dashboard/SetupChecklist";
+import { SetupChecklist, useSetupChecklist } from "../components/dashboard/SetupChecklist";
 import { orgFetch, requestJson } from "../lib/api";
 import type { MetricSnapshot } from "@/lib/metrics";
 
@@ -1082,6 +1082,9 @@ export default function Home() {
   // Drives the briefing HealthDial (score + ATT/GPA/DUES/SVC/DDL breakdown) and
   // the health detail drawer.
   const health = useMemo(() => calcHealthScore(brotherList, taskList, THRESHOLDS), [brotherList, taskList, THRESHOLDS]);
+  // Hold the Chapter Health widget back until the founder finishes setup — a
+  // brand-new org has no real data, so the dial would only show a noise score.
+  const { setupComplete } = useSetupChecklist();
 
   // ── Announcement (pinned single record) ───────────────────────────────────
   useEffect(() => {
@@ -1771,7 +1774,7 @@ export default function Home() {
                   enabledWorkflows={currentUser?.org?.enabledWorkflows}
                 />
               }
-              health={feature("operations", "health") ? (
+              health={feature("operations", "health") && setupComplete ? (
                 <div className="dash-group">
                   <HealthDial
                     score={health.score}
