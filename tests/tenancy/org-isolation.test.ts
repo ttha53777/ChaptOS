@@ -405,6 +405,54 @@ describe("tenancy: Doc", () => {
 });
 
 // ---------------------------------------------------------------------------
+// DocFolder
+// ---------------------------------------------------------------------------
+describe("tenancy: DocFolder", () => {
+  it("findMany is org-scoped", async () => {
+    const orgA = await createOrg("Alpha", "alpha");
+    const orgB = await createOrg("Beta", "beta");
+    await db(orgA.id).docFolder.create({ data: { name: "A folder" } });
+    await db(orgB.id).docFolder.create({ data: { name: "B folder" } });
+    const fromA = await db(orgA.id).docFolder.findMany();
+    expect(fromA.map(f => f.name)).toEqual(["A folder"]);
+  });
+
+  it("create injects organizationId", async () => {
+    const org = await createOrg("Alpha", "alpha");
+    const f = await db(org.id).docFolder.create({ data: { name: "Injected Folder" } });
+    expect(f.organizationId).toBe(org.id);
+  });
+
+  it("findUnique with a cross-org id returns null (the moveDoc target guard)", async () => {
+    const orgA = await createOrg("Alpha", "alpha");
+    const orgB = await createOrg("Beta", "beta");
+    const folderB = await db(orgB.id).docFolder.create({ data: { name: "B folder" } });
+    // moveDoc verifies the target folder via ctx.db.docFolder.findUnique; a
+    // cross-org id must be invisible so an orgA doc cannot land in orgB's folder.
+    const leak = await db(orgA.id).docFolder.findUnique({ where: { id: folderB.id } });
+    expect(leak).toBeNull();
+  });
+
+  it("updateMany on Doc.folderId only releases the active org's docs (folder delete path)", async () => {
+    const orgA = await createOrg("Alpha", "alpha");
+    const orgB = await createOrg("Beta", "beta");
+    const folderA = await db(orgA.id).docFolder.create({ data: { name: "A folder" } });
+    const folderB = await db(orgB.id).docFolder.create({ data: { name: "B folder" } });
+    await db(orgA.id).doc.create({ data: { title: "A doc", url: "https://example.com/a", folderId: folderA.id } });
+    await db(orgB.id).doc.create({ data: { title: "B doc", url: "https://example.com/b", folderId: folderB.id } });
+
+    // deleteFolder nulls folderId on the folder's docs via updateMany; it must
+    // never touch another org's doc that happens to share a folder id.
+    await db(orgA.id).doc.updateMany({ where: { folderId: folderA.id }, data: { folderId: null } });
+
+    const bDoc = (await db(orgB.id).doc.findMany())[0];
+    expect(bDoc?.folderId).toBe(folderB.id); // B's doc untouched
+    const aDoc = (await db(orgA.id).doc.findMany())[0];
+    expect(aDoc?.folderId).toBeNull(); // A's doc released to root
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Budget
 // ---------------------------------------------------------------------------
 describe("tenancy: Budget", () => {

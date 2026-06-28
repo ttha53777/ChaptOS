@@ -17,7 +17,14 @@ export async function listDocs(ctx: RequestContext) {
   }
 }
 
+/** Reject a folderId that isn't a folder in this org (ctx.db hides cross-org). */
+async function assertFolderInOrg(ctx: RequestContext, folderId: number) {
+  const folder = await ctx.db.docFolder.findUnique({ where: { id: folderId }, select: { id: true } });
+  if (!folder) throw new NotFoundError("DocFolder");
+}
+
 export async function createDoc(ctx: RequestContext, input: CreateDocInput) {
+  if (input.folderId != null) await assertFolderInOrg(ctx, input.folderId);
   // 5s budget for inline metadata scrape; failure is non-fatal.
   const meta = await scrapeMetadata(input.url).catch(() => null);
   const doc = await ctx.db.doc.create({
@@ -25,6 +32,7 @@ export async function createDoc(ctx: RequestContext, input: CreateDocInput) {
       title:       input.title,
       url:         input.url,
       description: input.description ?? null,
+      folderId:    input.folderId   ?? null,
       ogImage:     meta?.ogImage    ?? null,
       ogTitle:     meta?.ogTitle    ?? null,
       faviconUrl:  meta?.faviconUrl ?? null,
@@ -41,6 +49,11 @@ export async function updateDoc(ctx: RequestContext, id: number, input: UpdateDo
   const changedFields: string[] = [];
   if (input.title !== undefined)       { data.title = input.title; changedFields.push("title"); }
   if (input.description !== undefined) { data.description = input.description; changedFields.push("description"); }
+  if (input.folderId !== undefined) {
+    if (input.folderId != null) await assertFolderInOrg(ctx, input.folderId);
+    data.folder = input.folderId == null ? { disconnect: true } : { connect: { id: input.folderId } };
+    changedFields.push("folderId");
+  }
   if (input.url !== undefined) {
     data.url = input.url; changedFields.push("url");
     const meta = await scrapeMetadata(input.url).catch(() => null);
