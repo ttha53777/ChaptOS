@@ -14,6 +14,7 @@ export interface Doc {
   createdAt: string;
   updatedAt: string;
   createdById: number | null;
+  folderId: number | null;
 }
 
 /** A small, recognizable "source" type inferred from the URL. We lead with this
@@ -52,11 +53,13 @@ export function DocCard({
   canManage,
   onEdit,
   onDelete,
+  onMove,
 }: {
   doc: Doc;
   canManage: boolean;
   onEdit: () => void;
   onDelete: () => void;
+  onMove: () => void;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [favFailed, setFavFailed] = useState(false);
@@ -133,6 +136,7 @@ export function DocCard({
               <div className="fixed inset-0 z-10" onClick={(e) => { stop(e); setMenuOpen(false); }} />
               <div className="dx-menu">
                 <button type="button" onClick={(e) => { stop(e); setMenuOpen(false); onEdit(); }}>Edit</button>
+                <button type="button" onClick={(e) => { stop(e); setMenuOpen(false); onMove(); }}>Move to folder…</button>
                 <button type="button" className="del" onClick={(e) => { stop(e); setMenuOpen(false); onDelete(); }}>Delete</button>
               </div>
             </>

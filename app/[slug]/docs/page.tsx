@@ -7,6 +7,9 @@ import { useToast } from "../../components/dashboard/Toast";
 import { useChapter } from "../../context/ChapterContext";
 import { DocCard, kindOf, type Doc } from "./DocCard";
 import { DocForm, type DocDraft } from "./DocForm";
+import { FolderCard, type Folder } from "./FolderCard";
+import { FolderForm } from "./FolderForm";
+import { MoveDocDialog } from "./MoveDocDialog";
 import { requestJson } from "../../lib/api";
 import "../../components/dashboard/dashboard-ledger.css";
 import "./docs-ledger.css";
@@ -40,15 +43,25 @@ export default function DocsPage() {
 
   const [sidebarOpen,  setSidebarOpen]  = useState(false);
   const [docs,         setDocs]         = useState<Doc[]>([]);
+  const [folders,      setFolders]      = useState<Folder[]>([]);
+  const [currentFolderId, setCurrentFolderId] = useState<number | null>(null);
   const [loading,      setLoading]      = useState(true);
   const [loadError,    setLoadError]    = useState<string | null>(null);
   const [pageError,    setPageError]    = useState<string | null>(null);
   const [showAdd,      setShowAdd]      = useState(false);
   const [editTarget,   setEditTarget]   = useState<Doc | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Doc | null>(null);
+  const [moveTarget,   setMoveTarget]   = useState<Doc | null>(null);
+  const [showAddFolder, setShowAddFolder] = useState(false);
+  const [renameTarget, setRenameTarget] = useState<Folder | null>(null);
+  const [deleteFolderTarget, setDeleteFolderTarget] = useState<Folder | null>(null);
   const [submitting,   setSubmitting]   = useState(false);
   const [query,        setQuery]        = useState("");
   const [filter,       setFilter]       = useState<KindFilter>("all");
+
+  const currentFolder = currentFolderId == null
+    ? null
+    : folders.find(f => f.id === currentFolderId) ?? null;
 
   // Which glance measures are visible. Default: all on. Restored from
   // localStorage on mount, persisted on every change.
@@ -78,8 +91,11 @@ export default function DocsPage() {
   }
 
   useEffect(() => {
-    requestJson<Doc[]>("/api/docs")
-      .then(setDocs)
+    Promise.all([
+      requestJson<Doc[]>("/api/docs"),
+      requestJson<Folder[]>("/api/docs/folders").catch(() => [] as Folder[]),
+    ])
+      .then(([d, f]) => { setDocs(d); setFolders(f); })
       .catch(() => setLoadError("Could not load docs. Please refresh."))
       .finally(() => setLoading(false));
   }, []);
@@ -95,6 +111,7 @@ export default function DocsPage() {
           title: draft.title.trim(),
           url: draft.url.trim(),
           description: draft.description.trim() || null,
+          folderId: currentFolderId,
         }),
       });
       setDocs(prev => [created, ...prev]);
@@ -151,16 +168,112 @@ export default function DocsPage() {
     }
   }
 
+  async function handleAddFolder(name: string) {
+    setPageError(null);
+    setSubmitting(true);
+    try {
+      const created = await requestJson<Folder>("/api/docs/folders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: name.trim() }),
+      });
+      setFolders(prev => [created, ...prev]);
+      setShowAddFolder(false);
+      toast.success(`Created folder "${created.name}".`);
+    } catch (err) {
+      const message = err instanceof Error ? err.message.replace(/^.*?: /, "") : "Failed to create folder.";
+      setPageError(message);
+      toast.error(message);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleRenameFolder(name: string) {
+    if (!renameTarget) return;
+    setPageError(null);
+    setSubmitting(true);
+    try {
+      const updated = await requestJson<Folder>(`/api/docs/folders/${renameTarget.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: name.trim() }),
+      });
+      setFolders(prev => prev.map(f => f.id === updated.id ? updated : f));
+      setRenameTarget(null);
+      toast.success("Folder renamed.");
+    } catch (err) {
+      const message = err instanceof Error ? err.message.replace(/^.*?: /, "") : "Failed to rename folder.";
+      setPageError(message);
+      toast.error(message);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleDeleteFolder() {
+    if (!deleteFolderTarget) return;
+    const id = deleteFolderTarget.id;
+    const name = deleteFolderTarget.name;
+    setDeleteFolderTarget(null);
+    try {
+      await requestJson<void>(`/api/docs/folders/${id}`, { method: "DELETE" });
+      setFolders(prev => prev.filter(f => f.id !== id));
+      // Released docs return to the library root.
+      setDocs(prev => prev.map(d => d.folderId === id ? { ...d, folderId: null } : d));
+      if (currentFolderId === id) setCurrentFolderId(null);
+      toast.success(`Deleted folder "${name}".`);
+    } catch (err) {
+      const message = err instanceof Error ? err.message.replace(/^.*?: /, "") : "Failed to delete folder.";
+      setPageError(message);
+      toast.error(message);
+    }
+  }
+
+  async function handleMove(folderId: number | null) {
+    if (!moveTarget) return;
+    const docId = moveTarget.id;
+    try {
+      const updated = await requestJson<Doc>(`/api/docs/${docId}/move`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ folderId }),
+      });
+      setDocs(prev => prev.map(d => d.id === updated.id ? updated : d));
+      setMoveTarget(null);
+      const dest = folderId == null ? "Library" : (folders.find(f => f.id === folderId)?.name ?? "folder");
+      toast.success(`Moved to ${dest}.`);
+    } catch (err) {
+      const message = err instanceof Error ? err.message.replace(/^.*?: /, "") : "Failed to move doc.";
+      setPageError(message);
+      toast.error(message);
+    }
+  }
+
   const sorted = useMemo(
     () => [...docs].sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id - a.id),
     [docs],
   );
 
+  // Docs visible in the current view: root shows folderId == null; inside a
+  // folder shows that folder's docs.
+  const scopedDocs = useMemo(
+    () => sorted.filter(d => (d.folderId ?? null) === currentFolderId),
+    [sorted, currentFolderId],
+  );
+
+  // Doc counts per folder, for the folder tiles.
+  const folderCounts = useMemo(() => {
+    const m = new Map<number, number>();
+    for (const d of docs) if (d.folderId != null) m.set(d.folderId, (m.get(d.folderId) ?? 0) + 1);
+    return m;
+  }, [docs]);
+
   // Per-kind counts for the filter segment. "Sheet" and "Drive" both fold into
   // their own buttons; anything not Doc/Sheet/Form reads as a Link here.
   const counts = useMemo(() => {
-    const c = { all: sorted.length, doc: 0, sheet: 0, form: 0, link: 0 } as Record<KindFilter, number>;
-    for (const d of sorted) {
+    const c = { all: scopedDocs.length, doc: 0, sheet: 0, form: 0, link: 0 } as Record<KindFilter, number>;
+    for (const d of scopedDocs) {
       const k = kindOf(d.url);
       if (k === "doc") c.doc++;
       else if (k === "sheet") c.sheet++;
@@ -168,11 +281,11 @@ export default function DocsPage() {
       else c.link++; // drive + link both surface under "Links"
     }
     return c;
-  }, [sorted]);
+  }, [scopedDocs]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return sorted.filter(d => {
+    return scopedDocs.filter(d => {
       if (filter !== "all") {
         const k = kindOf(d.url);
         const bucket: KindFilter = k === "drive" ? "link" : (k as KindFilter);
@@ -183,7 +296,7 @@ export default function DocsPage() {
         || (d.description?.toLowerCase().includes(q) ?? false)
         || d.url.toLowerCase().includes(q);
     });
-  }, [sorted, query, filter]);
+  }, [scopedDocs, query, filter]);
 
   // Glance metrics, all derived from the live library.
   const glance = useMemo(() => {
@@ -198,6 +311,11 @@ export default function DocsPage() {
 
   const orgName = currentUser?.org?.name ?? "ChaptOS";
   const hasDocs = sorted.length > 0;
+  const atRoot = currentFolderId == null;
+  // Folder tiles only show at root (flat hierarchy — no nested folders).
+  const showFolders = atRoot && folders.length > 0;
+  // Whether the current view has anything to render (docs and/or folder tiles).
+  const viewHasContent = filtered.length > 0 || (showFolders && !query && filter === "all");
   const anyVisible = MEASURES.some(m => visible[m.id]);
   const allVisible = MEASURES.every(m => visible[m.id]);
   const measureValue: Record<MeasureId, ReactNode> = {
@@ -253,12 +371,27 @@ export default function DocsPage() {
                 </div>
               </div>
               {canManage && (
-                <button className="dx-add" onClick={() => setShowAdd(true)}>
-                  <svg viewBox="0 0 24 24" fill="none" strokeWidth={2.4} strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
-                  Add doc
-                </button>
+                <div className="dx-actions">
+                  <button className="dx-add ghost" onClick={() => setShowAddFolder(true)}>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z" /><path d="M12 11v4M10 13h4" /></svg>
+                    New folder
+                  </button>
+                  <button className="dx-add" onClick={() => setShowAdd(true)}>
+                    <svg viewBox="0 0 24 24" fill="none" strokeWidth={2.4} strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
+                    Add doc
+                  </button>
+                </div>
               )}
             </section>
+
+            {/* ── Breadcrumb (inside a folder) ── */}
+            {!atRoot && currentFolder && (
+              <nav className="dx-breadcrumb" aria-label="Folder path">
+                <button type="button" onClick={() => setCurrentFolderId(null)}>Library</button>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
+                <span className="cur">{currentFolder.name}</span>
+              </nav>
+            )}
 
             {/* ── Glance strip — hide any measure from its top-right ✕ ── */}
             {hasDocs && anyVisible && (
@@ -334,7 +467,7 @@ export default function DocsPage() {
               </div>
             )}
 
-            {!loading && !loadError && !hasDocs && (
+            {!loading && !loadError && !hasDocs && folders.length === 0 && (
               <div className="dx-empty">
                 <div className="ic">
                   <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>
@@ -344,7 +477,19 @@ export default function DocsPage() {
               </div>
             )}
 
-            {!loading && !loadError && hasDocs && filtered.length === 0 && (
+            {/* Folder is empty (no docs, after the breadcrumb). */}
+            {!loading && !loadError && !atRoot && filtered.length === 0 && !query && filter === "all" && (
+              <div className="dx-empty">
+                <div className="ic">
+                  <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z" /></svg>
+                </div>
+                <p className="t">This folder is empty</p>
+                <p className="h">{canManage ? "Move a doc here from its menu, or add a new one." : "No docs in this folder yet."}</p>
+              </div>
+            )}
+
+            {/* Search / filter matched nothing in the current view. */}
+            {!loading && !loadError && (hasDocs || folders.length > 0) && filtered.length === 0 && (query || filter !== "all") && (
               <div className="dx-empty">
                 <div className="ic">
                   <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.6}><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M11 19a8 8 0 100-16 8 8 0 000 16z" /></svg>
@@ -355,8 +500,19 @@ export default function DocsPage() {
               </div>
             )}
 
-            {!loading && !loadError && filtered.length > 0 && (
+            {!loading && !loadError && viewHasContent && (
               <div className="dx-grid">
+                {showFolders && folders.map(folder => (
+                  <FolderCard
+                    key={`f-${folder.id}`}
+                    folder={folder}
+                    count={folderCounts.get(folder.id) ?? 0}
+                    canManage={canManage}
+                    onOpen={() => { setCurrentFolderId(folder.id); setQuery(""); setFilter("all"); }}
+                    onRename={() => setRenameTarget(folder)}
+                    onDelete={() => setDeleteFolderTarget(folder)}
+                  />
+                ))}
                 {filtered.map(doc => (
                   <DocCard
                     key={doc.id}
@@ -364,6 +520,7 @@ export default function DocsPage() {
                     canManage={canManage}
                     onEdit={() => setEditTarget(doc)}
                     onDelete={() => setDeleteTarget(doc)}
+                    onMove={() => setMoveTarget(doc)}
                   />
                 ))}
               </div>
@@ -422,6 +579,54 @@ export default function DocsPage() {
           onConfirm={handleDelete}
           onCancel={() => setDeleteTarget(null)}
         />
+      )}
+
+      {/* ── Add folder modal ── */}
+      {showAddFolder && (
+        <Modal title="New folder" tone="dusk" onClose={() => !submitting && setShowAddFolder(false)}>
+          <FolderForm
+            initial=""
+            submitLabel={submitting ? "Creating…" : "Create"}
+            onSubmit={handleAddFolder}
+            onClose={() => setShowAddFolder(false)}
+          />
+        </Modal>
+      )}
+
+      {/* ── Rename folder modal ── */}
+      {renameTarget && (
+        <Modal title="Rename folder" tone="dusk" onClose={() => !submitting && setRenameTarget(null)}>
+          <FolderForm
+            initial={renameTarget.name}
+            submitLabel={submitting ? "Saving…" : "Save"}
+            onSubmit={handleRenameFolder}
+            onClose={() => setRenameTarget(null)}
+          />
+        </Modal>
+      )}
+
+      {/* ── Delete folder confirm ── */}
+      {deleteFolderTarget && (
+        <ConfirmDialog
+          tone="dusk"
+          title="Delete this folder?"
+          message={`"${deleteFolderTarget.name}" will be deleted. Its docs return to the library root — they aren't deleted.`}
+          confirmLabel="Delete folder"
+          onConfirm={handleDeleteFolder}
+          onCancel={() => setDeleteFolderTarget(null)}
+        />
+      )}
+
+      {/* ── Move doc modal ── */}
+      {moveTarget && (
+        <Modal title={`Move "${moveTarget.title}"`} tone="dusk" onClose={() => setMoveTarget(null)}>
+          <MoveDocDialog
+            folders={folders}
+            currentFolderId={moveTarget.folderId ?? null}
+            onMove={handleMove}
+            onClose={() => setMoveTarget(null)}
+          />
+        </Modal>
       )}
     </div>
   );

@@ -222,3 +222,55 @@
 @media (min-width: 1280px) {
   .dash.dash-docs { max-width: min(calc(1180px + 22vw), 1760px); }
 }
+
+/* ── Folders ─────────────────────────────────────────────────────────────────── */
+/* Header action group (New folder + Add doc). */
+.dash .dx-actions { flex-shrink: 0; display: inline-flex; align-items: center; gap: 8px; }
+.dash .dx-add.ghost { color: var(--ink-soft); background: none; border-color: var(--line); }
+.dash .dx-add.ghost svg { stroke: var(--ink-soft); }
+.dash .dx-add.ghost:hover { color: var(--ink); border-color: var(--vio); }
+.dash .dx-add.ghost:hover svg { stroke: var(--vio); }
+
+/* Folder tile — shares the grid cell with .dx-card. */
+.dash .dx-folder { position: relative; display: flex; align-items: center; gap: 12px; width: 100%; text-align: left;
+  padding: 16px; border: 1px solid var(--line); border-radius: 14px; background: var(--card); box-shadow: var(--shadow);
+  cursor: pointer; transition: background .12s, border-color .12s, transform .12s; }
+.dash .dx-folder:hover { background: var(--card-2); border-color: rgba(167,139,250,.28); transform: translateY(-1px); }
+.dash .dx-folder:focus-visible { outline: none; border-color: var(--vio); box-shadow: 0 0 0 3px var(--vio-bg); }
+.dash .dx-folder .ic { width: 40px; height: 40px; border-radius: 11px; flex-shrink: 0; display: grid; place-items: center;
+  background: var(--vio-bg); color: var(--vio); }
+.dash .dx-folder .ic svg { width: 20px; height: 20px; }
+.dash .dx-folder .meta { min-width: 0; flex: 1; }
+.dash .dx-folder .meta .t { font-size: 14px; font-weight: 600; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dash .dx-folder .meta .ct { font-family: var(--mono); font-size: 9.5px; letter-spacing: .04em; color: var(--faint); margin-top: 3px; }
+
+/* Folder tiles reuse the card menu styles. */
+.dash .dx-folder .dx-menu-btn { position: absolute; top: 12px; right: 12px; width: 26px; height: 26px; border-radius: 7px;
+  display: grid; place-items: center; color: var(--faint); background: none; border: none; cursor: pointer;
+  opacity: 0; transition: opacity .12s, background .12s, color .12s; }
+.dash .dx-folder:hover .dx-menu-btn, .dash .dx-folder .dx-menu-btn[aria-expanded="true"] { opacity: 1; }
+.dash .dx-folder .dx-menu-btn:hover { background: var(--card-2); color: var(--ink); }
+.dash .dx-folder .dx-menu-btn svg { width: 16px; height: 16px; }
+
+/* Breadcrumb shown inside a folder. */
+.dash .dx-breadcrumb { margin-top: 18px; display: flex; align-items: center; gap: 7px; font-size: 13px; }
+.dash .dx-breadcrumb button { font-family: var(--mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--vio); background: none; border: none; cursor: pointer; }
+.dash .dx-breadcrumb button:hover { text-decoration: underline; }
+.dash .dx-breadcrumb svg { width: 13px; height: 13px; color: var(--faint); }
+.dash .dx-breadcrumb .cur { font-family: var(--serif); font-size: 15px; font-weight: 500; color: var(--ink); }
+
+/* ── Move-to-folder picker ───────────────────────────────────────────────────── */
+.dash .dx-move { display: flex; flex-direction: column; gap: 12px; }
+.dx-move .dx-move-list { list-style: none; margin: 0; padding: 0; max-height: 320px; overflow-y: auto;
+  display: flex; flex-direction: column; gap: 4px; }
+.dx-move .dx-move-list > li > button { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
+  padding: 10px 12px; border-radius: 9px; border: 1px solid var(--line); background: var(--card);
+  font-size: 13px; color: var(--ink-soft); cursor: pointer; transition: background .12s, border-color .12s, color .12s; }
+.dx-move .dx-move-list > li > button:hover { background: var(--card-2); color: var(--ink); border-color: rgba(167,139,250,.28); }
+.dx-move .dx-move-list > li > button.on { border-color: var(--vio); color: var(--ink); }
+.dx-move .dx-move-list .ic { display: grid; place-items: center; color: var(--vio); }
+.dx-move .dx-move-list .ic svg { width: 17px; height: 17px; }
+.dx-move .dx-move-list .here { margin-left: auto; font-family: var(--mono); font-size: 9px; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--vio); }
+.dx-move .dx-move-empty { padding: 14px 12px; font-size: 12.5px; color: var(--faint); text-align: center; }
