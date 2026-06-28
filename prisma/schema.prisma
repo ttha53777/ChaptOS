@@ -48,6 +48,7 @@ model Organization {
   pollVotes                 PollVote[]
   instagramTasks            InstagramTask[]
   docs                      Doc[]
+  docFolders                DocFolder[]
   programmingEvents         ProgrammingEvent[]
   programmingEventDocs      ProgrammingEventDoc[]
   programmingChecklistItems ProgrammingChecklistItem[]
@@ -470,12 +471,33 @@ model Doc {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
   createdById    Int?
+  // Library folder this doc lives in. null = library root (no folder).
+  folderId       Int?
 
   organization           Organization          @relation(fields: [organizationId], references: [id])
+  folder                 DocFolder?            @relation(fields: [folderId], references: [id])
   programmingLinks       ProgrammingEventDoc[]
   programmingAttachments ProgrammingEvent[]
 
   @@index([organizationId, createdAt])
+  @@index([organizationId, folderId])
+}
+
+// A flat (one-level) folder for grouping Docs on the /docs page, à la Google
+// Drive. Docs reference it via Doc.folderId; deleting a folder releases its docs
+// back to the library root rather than cascading the docs away.
+model DocFolder {
+  id             Int      @id @default(autoincrement())
+  organizationId Int
+  name           String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  createdById    Int?
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  docs         Doc[]
+
+  @@index([organizationId, name])
 }
 
 model PartyEvent {

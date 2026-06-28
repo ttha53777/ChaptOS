@@ -27,6 +27,7 @@ export type SubjectType =
   | "Poll"
   | "InstagramTask"
   | "Doc"
+  | "DocFolder"
   | "ChapterAnnouncement"
   | "Semester"
   | "Organization"
@@ -97,6 +98,10 @@ export interface EventMetadata {
   "doc.created": { title: string; url: string };
   "doc.updated": { title: string; changedFields: string[] };
   "doc.deleted": { title: string };
+  "doc.moved":   { title: string; folderId: number | null };
+  "docFolder.created": { name: string };
+  "docFolder.renamed": { name: string; changedFields: string[] };
+  "docFolder.deleted": { name: string; releasedDocs: number };
 
   // Misc
   "announcement.updated": { title: string };
@@ -143,7 +148,8 @@ const KNOWN_ACTIONS = new Set<Action>([
   "task.created", "task.updated", "task.completed", "task.reopened", "task.deleted",
   "poll.created", "poll.updated", "poll.closed", "poll.reopened", "poll.deleted",
   "instagram_task.created", "instagram_task.updated", "instagram_task.deleted",
-  "doc.created", "doc.updated", "doc.deleted",
+  "doc.created", "doc.updated", "doc.deleted", "doc.moved",
+  "docFolder.created", "docFolder.renamed", "docFolder.deleted",
   "announcement.updated", "semester.created", "semester.activated",
   "org.created", "org.config.updated", "org.onboarding.completed", "org.logo.updated",
   "membership.left",

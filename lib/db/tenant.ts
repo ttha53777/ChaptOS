@@ -511,11 +511,41 @@ function scopedDoc(orgId: number, run: Run) {
       const id = await verify(args.where);
       return run(p => p.doc.update({ ...args, where: { id } }));
     },
+    updateMany: (args: Omit<Prisma.DocUpdateManyArgs, "where"> & { where?: W }) =>
+      run(p => p.doc.updateMany({ ...args, where: org(args.where) })),
     delete:     async (args: Prisma.DocDeleteArgs) => {
       const id = await verify(args.where);
       return run(p => p.doc.delete({ where: { id } }));
     },
     count:      (args?: Prisma.DocCountArgs)     => run(p => p.doc.count({ ...args, where: org(args?.where) })),
+  };
+}
+
+function scopedDocFolder(orgId: number, run: Run) {
+  type W = Prisma.DocFolderWhereInput;
+  const org = (w?: W): W => ({ ...w, organizationId: orgId });
+
+  async function verify(where: Prisma.DocFolderWhereUniqueInput): Promise<number> {
+    const row = await run(p => p.docFolder.findFirst({ where: org(where as W), select: { id: true } }));
+    if (!row) notInOrg();
+    return row.id;
+  }
+
+  return {
+    findMany:   (args?: Prisma.DocFolderFindManyArgs)  => run(p => p.docFolder.findMany({ ...args, where: org(args?.where) })),
+    findFirst:  (args?: Prisma.DocFolderFindFirstArgs) => run(p => p.docFolder.findFirst({ ...args, where: org(args?.where) })),
+    findUnique: (args: Prisma.DocFolderFindUniqueArgs) => run(p => p.docFolder.findFirst({ ...args, where: org(args.where as W) })),
+    create:     (args: Omit<Prisma.DocFolderCreateArgs, "data"> & { data: Omit<Prisma.DocFolderUncheckedCreateInput, "organizationId"> }) =>
+      run(p => p.docFolder.create({ ...args, data: { ...args.data, organizationId: orgId } })),
+    update:     async (args: Prisma.DocFolderUpdateArgs) => {
+      const id = await verify(args.where);
+      return run(p => p.docFolder.update({ ...args, where: { id } }));
+    },
+    delete:     async (args: Prisma.DocFolderDeleteArgs) => {
+      const id = await verify(args.where);
+      return run(p => p.docFolder.delete({ where: { id } }));
+    },
+    count:      (args?: Prisma.DocFolderCountArgs)     => run(p => p.docFolder.count({ ...args, where: org(args?.where) })),
   };
 }
 
@@ -1168,6 +1198,7 @@ export function db(orgId: number) {
     pollVote:            scopedPollVote(orgId, run),
     instagramTask:       scopedInstagramTask(orgId, run),
     doc:                 scopedDoc(orgId, run),
+    docFolder:           scopedDocFolder(orgId, run),
     programmingEvent:    scopedProgrammingEvent(orgId, run),
     programmingEventDoc: scopedProgrammingEventDoc(orgId, run),
     programmingChecklistItem: scopedProgrammingChecklistItem(orgId, run),
@@ -1263,6 +1294,7 @@ export function _dbWithClient(orgId: number, client: P) {
     pollVote:            scopedPollVote(orgId, run),
     instagramTask:       scopedInstagramTask(orgId, run),
     doc:                 scopedDoc(orgId, run),
+    docFolder:           scopedDocFolder(orgId, run),
     programmingEvent:    scopedProgrammingEvent(orgId, run),
     programmingEventDoc: scopedProgrammingEventDoc(orgId, run),
     programmingChecklistItem: scopedProgrammingChecklistItem(orgId, run),
