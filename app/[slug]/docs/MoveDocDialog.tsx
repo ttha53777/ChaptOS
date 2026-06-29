@@ -1,6 +1,8 @@
 "use client";
 
+import { useState } from "react";
 import type { Folder } from "./FolderCard";
+import { FolderForm } from "./FolderForm";
 
 /**
  * A small picker for moving a doc into a folder (or back to the library root).
@@ -10,13 +12,18 @@ export function MoveDocDialog({
   folders,
   currentFolderId,
   onMove,
+  onCreateFolder,
+  submitting,
   onClose,
 }: {
   folders: Folder[];
   currentFolderId: number | null;
   onMove: (folderId: number | null) => void;
+  onCreateFolder: (name: string) => void;
+  submitting: boolean;
   onClose: () => void;
 }) {
+  const [creating, setCreating] = useState(false);
   const sorted = [...folders].sort((a, b) => a.name.localeCompare(b.name));
 
   return (
@@ -55,9 +62,27 @@ export function MoveDocDialog({
           </li>
         ))}
         {sorted.length === 0 && (
-          <li className="dx-move-empty">No folders yet — create one first.</li>
+          <li className="dx-move-empty">No folders yet — create one below.</li>
         )}
       </ul>
+
+      {/* Create a new folder and move this doc into it in one step. */}
+      {creating ? (
+        <div className="dx-move-new">
+          <FolderForm
+            initial=""
+            submitLabel={submitting ? "Creating…" : "Create & move"}
+            onSubmit={(name) => onCreateFolder(name)}
+            onClose={() => setCreating(false)}
+          />
+        </div>
+      ) : (
+        <button type="button" className="dx-move-newbtn" onClick={() => setCreating(true)}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14M5 12h14" /></svg>
+          New folder
+        </button>
+      )}
+
       <div className="flex justify-end gap-2 pt-1">
         <button
           type="button"

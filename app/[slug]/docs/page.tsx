@@ -214,18 +214,42 @@ export default function DocsPage() {
     }
   }
 
+  // Create a folder and add it to local state; returns it so callers can chain
+  // (e.g. the Move dialog moves a doc into the folder it just created).
+  async function createFolderApi(name: string): Promise<Folder> {
+    const created = await requestJson<Folder>("/api/docs/folders", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: name.trim() }),
+    });
+    setFolders(prev => [created, ...prev]);
+    return created;
+  }
+
   async function handleAddFolder(name: string) {
     setPageError(null);
     setSubmitting(true);
     try {
-      const created = await requestJson<Folder>("/api/docs/folders", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: name.trim() }),
-      });
-      setFolders(prev => [created, ...prev]);
+      const created = await createFolderApi(name);
       setShowAddFolder(false);
       toast.success(`Created folder "${created.name}".`);
+    } catch (err) {
+      const message = err instanceof Error ? err.message.replace(/^.*?: /, "") : "Failed to create folder.";
+      setPageError(message);
+      toast.error(message);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  // From the Move dialog: create a folder, then move the doc into it.
+  async function handleCreateFolderForMove(name: string) {
+    if (!moveTarget) return;
+    const docId = moveTarget.id;
+    setSubmitting(true);
+    try {
+      const created = await createFolderApi(name);
+      await handleMove(docId, created.id);
     } catch (err) {
       const message = err instanceof Error ? err.message.replace(/^.*?: /, "") : "Failed to create folder.";
       setPageError(message);
@@ -701,7 +725,7 @@ export default function DocsPage() {
         <ConfirmDialog
           tone="dusk"
           title="Delete this folder?"
-          message={`"${deleteFolderTarget.name}" will be deleted. Its docs return to the library root — they aren't deleted.`}
+          message={folderDeleteMessage(deleteFolderTarget.name, folderCounts.get(deleteFolderTarget.id) ?? 0)}
           confirmLabel="Delete folder"
           onConfirm={handleDeleteFolder}
           onCancel={() => setDeleteFolderTarget(null)}
@@ -715,6 +739,8 @@ export default function DocsPage() {
             folders={folders}
             currentFolderId={moveTarget.folderId ?? null}
             onMove={(folderId) => handleMove(moveTarget.id, folderId)}
+            onCreateFolder={handleCreateFolderForMove}
+            submitting={submitting}
             onClose={() => setMoveTarget(null)}
           />
         </Modal>
@@ -751,6 +777,13 @@ function digestLine(docs: Doc[], orgName: string): string {
     ? ` ${recent === 1 ? "One was" : `${recent} were`} added this week.`
     : "";
   return `${cap(numWord(docs.length))} ${noun} pinned for the chapter to reach for.${tail}`;
+}
+
+/** Folder-delete confirm copy, with the live doc count it will release to root. */
+function folderDeleteMessage(name: string, count: number): string {
+  if (count === 0) return `"${name}" will be deleted. It has no docs.`;
+  const docs = count === 1 ? "Its 1 doc returns" : `Its ${count} docs return`;
+  return `"${name}" will be deleted. ${docs} to the library root — they aren't deleted.`;
 }
 
 function cap(s: string) { return s.charAt(0).toUpperCase() + s.slice(1); }

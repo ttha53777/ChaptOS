@@ -287,3 +287,12 @@
 .dx-move .dx-move-list .here { margin-left: auto; font-family: var(--mono); font-size: 9px; letter-spacing: .1em;
   text-transform: uppercase; color: var(--vio); }
 .dx-move .dx-move-empty { padding: 14px 12px; font-size: 12.5px; color: var(--faint); text-align: center; }
+
+/* Create-a-folder-from-Move affordance + inline form. */
+.dx-move .dx-move-newbtn { display: inline-flex; align-items: center; gap: 7px; align-self: flex-start;
+  font-family: var(--mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--vio); background: none; border: 1px dashed var(--line); border-radius: 8px; padding: 8px 12px; cursor: pointer;
+  transition: border-color .12s; }
+.dx-move .dx-move-newbtn:hover { border-color: var(--vio); }
+.dx-move .dx-move-newbtn svg { width: 12px; height: 12px; stroke: var(--vio); }
+.dx-move .dx-move-new { border-top: 1px solid var(--line-soft); padding-top: 12px; }
