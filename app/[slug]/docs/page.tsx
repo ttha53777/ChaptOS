@@ -25,6 +25,14 @@ const FILTERS: { id: KindFilter; label: string }[] = [
   { id: "link",  label: "Links" },
 ];
 
+type SortId = "newest" | "name" | "kind";
+const SORTS: { id: SortId; label: string }[] = [
+  { id: "newest", label: "Newest" },
+  { id: "name",   label: "Name" },
+  { id: "kind",   label: "Kind" },
+];
+const SORT_PREF_KEY = "chaptos-docs-sort";
+
 // The four "at a glance" measures. Each can be hidden from its own top-right ✕;
 // the choice persists per browser in localStorage (GLANCE_PREF_KEY).
 type MeasureId = "total" | "kinds" | "contributors" | "newest";
@@ -58,6 +66,7 @@ export default function DocsPage() {
   const [submitting,   setSubmitting]   = useState(false);
   const [query,        setQuery]        = useState("");
   const [filter,       setFilter]       = useState<KindFilter>("all");
+  const [sort,         setSort]         = useState<SortId>("newest");
 
   const currentFolder = currentFolderId == null
     ? null
@@ -77,7 +86,16 @@ export default function DocsPage() {
         setVisible(v => ({ ...v, ...saved }));
       }
     } catch { /* ignore malformed prefs */ }
+    try {
+      const savedSort = localStorage.getItem(SORT_PREF_KEY);
+      if (savedSort === "newest" || savedSort === "name" || savedSort === "kind") setSort(savedSort);
+    } catch { /* ignore */ }
   }, []);
+
+  function changeSort(id: SortId) {
+    setSort(id);
+    try { localStorage.setItem(SORT_PREF_KEY, id); } catch { /* ignore */ }
+  }
 
   function persistVisible(next: Record<MeasureId, boolean>) {
     try { localStorage.setItem(GLANCE_PREF_KEY, JSON.stringify(next)); } catch { /* ignore */ }
@@ -255,10 +273,21 @@ export default function DocsPage() {
     }
   }
 
-  const sorted = useMemo(
+  // Newest-first always — used by the glance metrics ("Newest", contributors)
+  // independent of the user's chosen display sort.
+  const newestFirst = useMemo(
     () => [...docs].sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id - a.id),
     [docs],
   );
+
+  const sorted = useMemo(() => {
+    const arr = [...newestFirst];
+    if (sort === "name") arr.sort((a, b) => a.title.localeCompare(b.title) || a.id - b.id);
+    else if (sort === "kind") arr.sort((a, b) =>
+      kindOf(a.url).localeCompare(kindOf(b.url)) || a.title.localeCompare(b.title) || a.id - b.id);
+    // "newest" keeps newestFirst order.
+    return arr;
+  }, [newestFirst, sort]);
 
   // Docs visible in the current view: root shows folderId == null; inside a
   // folder shows that folder's docs.
@@ -305,14 +334,14 @@ export default function DocsPage() {
 
   // Glance metrics, all derived from the live library.
   const glance = useMemo(() => {
-    const kinds = new Set(sorted.map(d => {
+    const kinds = new Set(newestFirst.map(d => {
       const k = kindOf(d.url);
       return k === "drive" || k === "link" ? "link" : k;
     }));
-    const contributors = new Set(sorted.map(d => d.createdById).filter((x): x is number => x != null));
-    const newest = sorted[0]?.createdAt ? relDays(sorted[0].createdAt) : "—";
-    return { total: sorted.length, kinds: kinds.size, contributors: contributors.size, newest };
-  }, [sorted]);
+    const contributors = new Set(newestFirst.map(d => d.createdById).filter((x): x is number => x != null));
+    const newest = newestFirst[0]?.createdAt ? relDays(newestFirst[0].createdAt) : "—";
+    return { total: newestFirst.length, kinds: kinds.size, contributors: contributors.size, newest };
+  }, [newestFirst]);
 
   const orgName = currentUser?.org?.name ?? "ChaptOS";
   const hasDocs = sorted.length > 0;
@@ -451,6 +480,12 @@ export default function DocsPage() {
                     </button>
                   ))}
                 </div>
+                <label className="dx-sort">
+                  <span className="lbl">Sort</span>
+                  <select value={sort} onChange={e => changeSort(e.target.value as SortId)} aria-label="Sort docs">
+                    {SORTS.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
+                  </select>
+                </label>
                 <span className="dx-scope">{filtered.length} of {sorted.length}</span>
               </div>
             )}

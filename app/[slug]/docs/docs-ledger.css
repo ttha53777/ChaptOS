@@ -132,6 +132,16 @@
 .dash .dx-seg button.on { color: var(--ink); background: var(--card-2); box-shadow: inset 0 0 0 1px var(--line); }
 .dash .dx-seg button .ct { font-size: 9px; color: var(--faint); }
 .dash .dx-seg button.on .ct { color: var(--vio); }
+/* Sort control — compact native select styled to match the toolbar. */
+.dash .dx-sort { margin-left: auto; display: inline-flex; align-items: center; gap: 7px; }
+.dash .dx-sort .lbl { font-family: var(--mono); font-size: 9px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+.dash .dx-sort select { font-family: var(--mono); font-size: 10px; letter-spacing: .06em; color: var(--ink-soft);
+  background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 6px 9px; cursor: pointer;
+  transition: border-color .12s; }
+.dash .dx-sort select:hover { border-color: rgba(167,139,250,.4); }
+.dash .dx-sort select:focus-visible { outline: none; border-color: var(--vio); box-shadow: 0 0 0 3px var(--vio-bg); }
+/* When a sort control is present, the scope count no longer needs the auto push. */
+.dash .dx-toolbar .dx-sort + .dx-scope { margin-left: 0; }
 .dash .dx-toolbar .dx-scope { margin-left: auto; font-family: var(--mono); font-size: 10px; letter-spacing: .08em; color: var(--faint); white-space: nowrap; }
 
 /* ── Card grid ───────────────────────────────────────────────────────────────── */
