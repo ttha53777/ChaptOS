@@ -55,12 +55,16 @@ export function DocCard({
   onEdit,
   onDelete,
   onMove,
+  onCopy,
+  onRefresh,
 }: {
   doc: Doc;
   canManage: boolean;
   onEdit: () => void;
   onDelete: () => void;
   onMove: () => void;
+  onCopy: () => void;
+  onRefresh: () => void;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [favFailed, setFavFailed] = useState(false);
@@ -134,30 +138,33 @@ export function DocCard({
         </span>
       </div>
 
-      {/* ── Manage menu ── */}
-      {canManage && (
+      {/* ── Actions menu — Copy link is available to everyone; the rest are
+            admin-only (gated by canManage). ── */}
+      <button
+        type="button"
+        className="dx-menu-btn"
+        aria-label="Doc actions"
+        aria-expanded={menuOpen}
+        onClick={(e) => { stop(e); setMenuOpen(v => !v); }}
+      >
+        <svg fill="currentColor" viewBox="0 0 20 20">
+          <path d="M10 6a1.5 1.5 0 110-3 1.5 1.5 0 010 3zm0 5.5a1.5 1.5 0 110-3 1.5 1.5 0 010 3zm0 5.5a1.5 1.5 0 110-3 1.5 1.5 0 010 3z" />
+        </svg>
+      </button>
+      {menuOpen && (
         <>
-          <button
-            type="button"
-            className="dx-menu-btn"
-            aria-label="Doc actions"
-            aria-expanded={menuOpen}
-            onClick={(e) => { stop(e); setMenuOpen(v => !v); }}
-          >
-            <svg fill="currentColor" viewBox="0 0 20 20">
-              <path d="M10 6a1.5 1.5 0 110-3 1.5 1.5 0 010 3zm0 5.5a1.5 1.5 0 110-3 1.5 1.5 0 010 3zm0 5.5a1.5 1.5 0 110-3 1.5 1.5 0 010 3z" />
-            </svg>
-          </button>
-          {menuOpen && (
-            <>
-              <div className="fixed inset-0 z-10" onClick={(e) => { stop(e); setMenuOpen(false); }} />
-              <div className="dx-menu">
+          <div className="fixed inset-0 z-10" onClick={(e) => { stop(e); setMenuOpen(false); }} />
+          <div className="dx-menu">
+            <button type="button" onClick={(e) => { stop(e); setMenuOpen(false); onCopy(); }}>Copy link</button>
+            {canManage && (
+              <>
                 <button type="button" onClick={(e) => { stop(e); setMenuOpen(false); onEdit(); }}>Edit</button>
                 <button type="button" onClick={(e) => { stop(e); setMenuOpen(false); onMove(); }}>Move to folder…</button>
+                <button type="button" onClick={(e) => { stop(e); setMenuOpen(false); onRefresh(); }}>Refresh preview</button>
                 <button type="button" className="del" onClick={(e) => { stop(e); setMenuOpen(false); onDelete(); }}>Delete</button>
-              </div>
-            </>
-          )}
+              </>
+            )}
+          </div>
         </>
       )}
     </a>

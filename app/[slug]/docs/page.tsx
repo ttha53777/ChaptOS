@@ -189,6 +189,31 @@ export default function DocsPage() {
     }
   }
 
+  async function handleCopy(doc: Doc) {
+    try {
+      await navigator.clipboard.writeText(doc.url);
+      toast.success("Link copied.");
+    } catch {
+      toast.error("Couldn't copy the link.");
+    }
+  }
+
+  async function handleRefresh(doc: Doc) {
+    try {
+      const updated = await requestJson<Doc>("/api/docs/refresh-metadata", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: doc.id }),
+      });
+      // Endpoint returns the raw doc (no createdByName); preserve attribution.
+      setDocs(prev => prev.map(d => d.id === updated.id ? { ...updated, createdByName: d.createdByName } : d));
+      toast.success("Preview refreshed.");
+    } catch (err) {
+      const message = err instanceof Error ? err.message.replace(/^.*?: /, "") : "Failed to refresh preview.";
+      toast.error(message);
+    }
+  }
+
   async function handleAddFolder(name: string) {
     setPageError(null);
     setSubmitting(true);
@@ -585,6 +610,8 @@ export default function DocsPage() {
                     onEdit={() => setEditTarget(doc)}
                     onDelete={() => setDeleteTarget(doc)}
                     onMove={() => setMoveTarget(doc)}
+                    onCopy={() => handleCopy(doc)}
+                    onRefresh={() => handleRefresh(doc)}
                   />
                 ))}
               </div>

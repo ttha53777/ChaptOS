@@ -101,13 +101,19 @@ export async function refreshDocMetadata(ctx: RequestContext, id: number) {
   const existing = await ctx.db.doc.findUnique({ where: { id }, select: { url: true } });
   if (!existing) throw new NotFoundError("Doc");
   const meta = await scrapeMetadata(existing.url).catch(() => null);
+  // A scrape that yields nothing (network failure, blocked, etc.) returns all
+  // nulls. Don't let a transient miss clobber a previously-good favicon/title —
+  // reject so the caller can tell the user it couldn't refresh. A scrape with
+  // *any* field is trusted in full (so a genuine removal still propagates).
+  const gotAnything = meta != null && (meta.ogImage != null || meta.ogTitle != null || meta.faviconUrl != null || meta.embedOk != null);
+  if (!gotAnything) throw new ValidationError("Couldn't fetch a preview for this link.");
   return ctx.db.doc.update({
     where: { id },
     data: {
-      ogImage:    meta?.ogImage    ?? null,
-      ogTitle:    meta?.ogTitle    ?? null,
-      faviconUrl: meta?.faviconUrl ?? null,
-      embedOk:    meta?.embedOk    ?? null,
+      ogImage:    meta!.ogImage,
+      ogTitle:    meta!.ogTitle,
+      faviconUrl: meta!.faviconUrl,
+      embedOk:    meta!.embedOk,
     },
   });
 }
