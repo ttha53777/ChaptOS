@@ -14,6 +14,7 @@ export interface Doc {
   createdAt: string;
   updatedAt: string;
   createdById: number | null;
+  createdByName: string | null;
   folderId: number | null;
 }
 
@@ -108,7 +109,10 @@ export function DocCard({
       </p>
 
       <div className="foot">
-        <span className="added">Added {fmtDate(doc.createdAt)}</span>
+        <span className="added">
+          Added {fmtDate(doc.createdAt)}
+          {doc.createdByName ? ` · ${doc.createdByName}` : ""}
+        </span>
         <span className="open">
           Open
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>

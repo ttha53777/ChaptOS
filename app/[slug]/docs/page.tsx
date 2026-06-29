@@ -114,7 +114,9 @@ export default function DocsPage() {
           folderId: currentFolderId,
         }),
       });
-      setDocs(prev => [created, ...prev]);
+      // POST returns the raw doc (no createdByName); the creator is the current
+      // user, so attribute it immediately instead of waiting for a reload.
+      setDocs(prev => [{ ...created, createdByName: currentUser?.name ?? null }, ...prev]);
       setShowAdd(false);
       toast.success(`Added "${created.title}".`);
     } catch (err) {
@@ -140,7 +142,8 @@ export default function DocsPage() {
           description: draft.description.trim() || null,
         }),
       });
-      setDocs(prev => prev.map(d => d.id === updated.id ? updated : d));
+      // PATCH returns the raw doc (no createdByName); preserve attribution.
+      setDocs(prev => prev.map(d => d.id === updated.id ? { ...updated, createdByName: d.createdByName } : d));
       setEditTarget(null);
       toast.success("Doc updated.");
     } catch (err) {
@@ -239,7 +242,9 @@ export default function DocsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ folderId }),
       });
-      setDocs(prev => prev.map(d => d.id === updated.id ? updated : d));
+      // The move endpoint doesn't enrich createdByName (only listDocs does);
+      // carry the existing value forward so attribution doesn't vanish.
+      setDocs(prev => prev.map(d => d.id === updated.id ? { ...updated, createdByName: d.createdByName } : d));
       setMoveTarget(null);
       const dest = folderId == null ? "Library" : (folders.find(f => f.id === folderId)?.name ?? "folder");
       toast.success(`Moved to ${dest}.`);

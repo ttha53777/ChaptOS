@@ -7,10 +7,30 @@ import type { CreateDocInput, UpdateDocInput } from "@/lib/validation/doc";
 
 export async function listDocs(ctx: RequestContext) {
   try {
-    return await ctx.db.doc.findMany({
+    const docs = await ctx.db.doc.findMany({
       where: { programmingLinks: { none: {} } },
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     });
+    // Resolve contributor names in one scoped lookup. ctx.db.brother is
+    // org-scoped (Phase 1: by Brother.organizationId), so a creator whose home
+    // org differs from the current org resolves to null — the card then falls
+    // back to date-only, which is the intended graceful behavior.
+    const creatorIds = [...new Set(docs.map(d => d.createdById).filter((id): id is number => id != null))];
+    // Tolerate a name-lookup failure independently — degrade to no attribution
+    // rather than dropping the whole library (the outer catch is for the
+    // Doc/DocFolder pre-migration window, not the brother table).
+    const names = creatorIds.length
+      ? new Map(
+          (await ctx.db.brother
+            .findMany({ where: { id: { in: creatorIds } }, select: { id: true, name: true } })
+            .catch(() => []))
+            .map(b => [b.id, b.name]),
+        )
+      : new Map<number, string>();
+    return docs.map(d => ({
+      ...d,
+      createdByName: d.createdById != null ? (names.get(d.createdById) ?? null) : null,
+    }));
   } catch {
     // Pre-migration safety mirroring the previous behavior.
     return [];
