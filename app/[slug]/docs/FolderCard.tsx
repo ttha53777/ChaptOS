@@ -17,6 +17,8 @@ export function FolderCard({
   onOpen,
   onRename,
   onDelete,
+  onDropDoc,
+  readDropId,
 }: {
   folder: Folder;
   count: number;
@@ -24,6 +26,8 @@ export function FolderCard({
   onOpen: () => void;
   onRename: () => void;
   onDelete: () => void;
+  onDropDoc: (docId: number) => void;
+  readDropId: (e: React.DragEvent) => number | null;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -33,7 +37,19 @@ export function FolderCard({
   }
 
   return (
-    <button type="button" className="dx-folder" onClick={onOpen}>
+    <button
+      type="button"
+      className="dx-folder"
+      onClick={onOpen}
+      onDragOver={canManage ? (e) => { e.preventDefault(); e.currentTarget.classList.add("drag-over"); } : undefined}
+      onDragLeave={canManage ? (e) => e.currentTarget.classList.remove("drag-over") : undefined}
+      onDrop={canManage ? (e) => {
+        e.preventDefault();
+        e.currentTarget.classList.remove("drag-over");
+        const id = readDropId(e);
+        if (id != null) onDropDoc(id);
+      } : undefined}
+    >
       <div className="ic">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z" />

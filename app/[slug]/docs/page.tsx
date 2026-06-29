@@ -251,9 +251,13 @@ export default function DocsPage() {
     }
   }
 
-  async function handleMove(folderId: number | null) {
-    if (!moveTarget) return;
-    const docId = moveTarget.id;
+  // Move a doc to a folder (or null = library root). Shared by the Move dialog
+  // and drag-and-drop onto folder tiles / the breadcrumb.
+  async function handleMove(docId: number, folderId: number | null) {
+    // No-op if the doc is already there (e.g. dropping onto its own folder, or
+    // re-picking "Here" in the dialog) — just close, no needless request/toast.
+    const current = docs.find(d => d.id === docId);
+    if (current && (current.folderId ?? null) === folderId) { setMoveTarget(null); return; }
     try {
       const updated = await requestJson<Doc>(`/api/docs/${docId}/move`, {
         method: "PATCH",
@@ -271,6 +275,13 @@ export default function DocsPage() {
       setPageError(message);
       toast.error(message);
     }
+  }
+
+  // Read a dragged doc id from a drop event (set by DocCard.onDragStart).
+  function docIdFromDrop(e: React.DragEvent): number | null {
+    const raw = e.dataTransfer.getData("application/x-doc-id") || e.dataTransfer.getData("text/plain");
+    const id = Number(raw);
+    return Number.isInteger(id) && id > 0 ? id : null;
   }
 
   // Newest-first always — used by the glance metrics ("Newest", contributors)
@@ -421,7 +432,18 @@ export default function DocsPage() {
             {/* ── Breadcrumb (inside a folder) ── */}
             {!atRoot && currentFolder && (
               <nav className="dx-breadcrumb" aria-label="Folder path">
-                <button type="button" onClick={() => setCurrentFolderId(null)}>Library</button>
+                <button
+                  type="button"
+                  onClick={() => setCurrentFolderId(null)}
+                  onDragOver={canManage ? (e) => { e.preventDefault(); e.currentTarget.classList.add("drag-over"); } : undefined}
+                  onDragLeave={canManage ? (e) => e.currentTarget.classList.remove("drag-over") : undefined}
+                  onDrop={canManage ? (e) => {
+                    e.preventDefault();
+                    e.currentTarget.classList.remove("drag-over");
+                    const id = docIdFromDrop(e);
+                    if (id != null) handleMove(id, null);
+                  } : undefined}
+                >Library</button>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
                 <span className="cur">{currentFolder.name}</span>
               </nav>
@@ -551,6 +573,8 @@ export default function DocsPage() {
                     onOpen={() => { setCurrentFolderId(folder.id); setQuery(""); setFilter("all"); }}
                     onRename={() => setRenameTarget(folder)}
                     onDelete={() => setDeleteFolderTarget(folder)}
+                    onDropDoc={(docId) => handleMove(docId, folder.id)}
+                    readDropId={docIdFromDrop}
                   />
                 ))}
                 {filtered.map(doc => (
@@ -663,7 +687,7 @@ export default function DocsPage() {
           <MoveDocDialog
             folders={folders}
             currentFolderId={moveTarget.folderId ?? null}
-            onMove={handleMove}
+            onMove={(folderId) => handleMove(moveTarget.id, folderId)}
             onClose={() => setMoveTarget(null)}
           />
         </Modal>

@@ -78,6 +78,17 @@ export function DocCard({
     e.preventDefault();
   }
 
+  // Admins can drag a card onto a folder tile / the breadcrumb to move it. The
+  // root is an <a>, which the browser drags as a URL link by default — so we
+  // overwrite the payload with our doc id and let the drop targets read that.
+  function handleDragStart(e: React.DragEvent) {
+    if (!canManage) return;
+    e.dataTransfer.clearData();
+    e.dataTransfer.setData("application/x-doc-id", String(doc.id));
+    e.dataTransfer.setData("text/plain", String(doc.id));
+    e.dataTransfer.effectAllowed = "move";
+  }
+
   return (
     <a
       href={doc.url}
@@ -85,6 +96,8 @@ export function DocCard({
       rel="noopener noreferrer"
       className={`dx-card k-${kind}`}
       style={{ ["--kc" as string]: `var(--k-${kind})` }}
+      draggable={canManage}
+      onDragStart={handleDragStart}
     >
       {/* ── Source: favicon (or kind glyph) + title + host ── */}
       <div className="top">
