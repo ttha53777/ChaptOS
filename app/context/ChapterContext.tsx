@@ -27,7 +27,7 @@ function normalizeCurrentUser(me: CurrentUser): CurrentUser {
     // Defensive: an older/cached /me payload may omit enabledWorkflows. Default
     // to an empty array so the sidebar filter never reads `.includes` of
     // undefined — the Sidebar treats the always-on surfaces as visible regardless.
-    org: me.org ? { ...me.org, logoUrl: me.org.logoUrl ?? null, enabledWorkflows: me.org.enabledWorkflows ?? [], vocabularyOverrides: me.org.vocabularyOverrides ?? {}, thresholds: me.org.thresholds ?? DEFAULT_THRESHOLDS, disabledFeatures: me.org.disabledFeatures ?? {}, customMemberFields: me.org.customMemberFields ?? [], metricDefinitionCount: me.org.metricDefinitionCount ?? 0, onboardingComplete: me.org.onboardingComplete ?? true } : null,
+    org: me.org ? { ...me.org, logoUrl: me.org.logoUrl ?? null, enabledWorkflows: me.org.enabledWorkflows ?? [], vocabularyOverrides: me.org.vocabularyOverrides ?? {}, thresholds: me.org.thresholds ?? DEFAULT_THRESHOLDS, disabledFeatures: me.org.disabledFeatures ?? {}, customMemberFields: me.org.customMemberFields ?? [], navOrder: me.org.navOrder ?? [], metricDefinitionCount: me.org.metricDefinitionCount ?? 0, onboardingComplete: me.org.onboardingComplete ?? true } : null,
   };
 }
 
@@ -79,7 +79,7 @@ export interface CurrentUser {
    *  read via useThresholds() rather than directly.
    *  `disabledFeatures` is the OPT-OUT map of hidden page sections (workflow id →
    *  feature ids) — read via useFeature() rather than directly. */
-  org: { name: string; slug: string; orgType: string | null; logoUrl: string | null; enabledWorkflows: string[]; vocabularyOverrides: Record<string, string>; thresholds: Thresholds; disabledFeatures: Record<string, string[]>; customMemberFields: CustomMemberFieldDef[]; metricDefinitionCount: number; onboardingComplete: boolean } | null;
+  org: { name: string; slug: string; orgType: string | null; logoUrl: string | null; enabledWorkflows: string[]; vocabularyOverrides: Record<string, string>; thresholds: Thresholds; disabledFeatures: Record<string, string[]>; customMemberFields: CustomMemberFieldDef[]; navOrder: string[]; metricDefinitionCount: number; onboardingComplete: boolean } | null;
   orgId: number;
   /** All orgs this user belongs to. UI renders a switcher when length > 1. */
   memberships: MembershipSummary[];
@@ -131,6 +131,7 @@ interface ChapterContextValue {
    * background, roll back on failure. No-op if there's no active org.
    */
   setDisabledFeaturesLocal: (disabledFeatures: Record<string, string[]>) => void;
+  setNavOrderLocal: (navOrder: string[]) => void;
   hasLoaded: boolean;
 }
 
@@ -251,6 +252,14 @@ export function ChapterProvider({ children }: { children: React.ReactNode }) {
   // Mirrors setAvatarUrl's targeted setCurrentUser patch.
   const setDisabledFeaturesLocal = useCallback((disabledFeatures: Record<string, string[]>) => {
     setCurrentUser(prev => (prev?.org ? { ...prev, org: { ...prev.org, disabledFeatures } } : prev));
+  }, []);
+
+  // Patch the active org's navOrder in local state only — no network. Lets the
+  // sidebar reorder pages optimistically on drop (the new order paints
+  // immediately) while the PATCH persists in the background. Mirrors
+  // setDisabledFeaturesLocal's targeted setCurrentUser patch.
+  const setNavOrderLocal = useCallback((navOrder: string[]) => {
+    setCurrentUser(prev => (prev?.org ? { ...prev, org: { ...prev.org, navOrder } } : prev));
   }, []);
 
   const refreshChapterData = useCallback(async () => {
@@ -473,6 +482,7 @@ export function ChapterProvider({ children }: { children: React.ReactNode }) {
     mutationError, setMutationError,
     refreshChapterData, hasLoaded,
     setDisabledFeaturesLocal,
+    setNavOrderLocal,
   }), [
     currentUser,
     avatarRevision,
@@ -483,6 +493,7 @@ export function ChapterProvider({ children }: { children: React.ReactNode }) {
     isLoading, loadError, sectionErrors, mutationError, hasLoaded,
     refreshChapterData,
     setDisabledFeaturesLocal,
+    setNavOrderLocal,
   ]);
 
   return (

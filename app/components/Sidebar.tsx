@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import type { WorkflowId } from "@/lib/org-types";
+import { NAV_GROUPS, NAV_LABELS, applyNavOrder } from "@/lib/nav-order";
 import { useOrgPath } from "../hooks/useOrgPath";
-import { orgFetch } from "../lib/api";
+import { orgFetch, requestJson } from "../lib/api";
 import { useChapter } from "../context/ChapterContext";
 import { useVocab } from "../hooks/useVocab";
 import { OrgSwitcher } from "./OrgSwitcher";
@@ -31,15 +32,12 @@ export const NAV_ICONS: Record<string, string> = {
   Settings:  "M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z",
 };
 
-// Main nav — Settings is pinned at the bottom of the sidebar
-export const NAV = ["Dashboard", "Timeline", "Tasks", "Brotherhood", "Chapter", "Docs", "Instagram", "Programming", "Treasury", "Service", "Parties"];
+// Main nav — Settings is pinned at the bottom of the sidebar. The flat list and
+// the groups now live in lib/nav-order.ts (server-safe) so the org-config
+// service and the reorder editor share one source of truth; re-exported here so
+// existing importers (onboarding picker, Workflows section) keep working.
+export const NAV = NAV_LABELS;
 export const SETTINGS_NAV = "Settings";
-
-const NAV_GROUPS: Array<{ label: string; items: string[] }> = [
-  { label: "Overview", items: ["Dashboard", "Timeline"] },
-  { label: "Members", items: ["Brotherhood", "Chapter", "Tasks"] },
-  { label: "Operations", items: ["Docs", "Instagram", "Programming", "Service", "Parties", "Treasury"] },
-];
 
 // Which workflow each nav surface belongs to. A label maps to `null` when it is
 // ALWAYS shown regardless of the org's enabled workflows:
@@ -138,7 +136,7 @@ export function Sidebar({ open, onClose, activeSection, onNavClick }: {
   const pathname = usePathname();
   const router   = useRouter();
   const orgPath  = useOrgPath();
-  const { currentUser, reimbursementList, can } = useChapter();
+  const { currentUser, reimbursementList, can, setNavOrderLocal } = useChapter();
   const v = useVocab();
 
   // Pending reimbursement tickets drive the red count badge next to Treasury.
@@ -217,7 +215,73 @@ export function Sidebar({ open, onClose, activeSection, onNavClick }: {
     : NAV;
   const visibleNavSet = new Set(visibleNav);
 
-  function renderNavItem(label: string) {
+  // Admin-chosen sidebar order. Applied per-group below so reordering stays
+  // within each heading. Empty/absent → default order (applyNavOrder no-ops).
+  const navOrder = currentUser?.org?.navOrder ?? [];
+
+  // Reordering the sidebar is an org-wide layout change — gated on org admin
+  // (platform admin OR Membership.isOrgAdmin for the active org), the same
+  // posture the org-config service enforces server-side. Mirrors how /me derives
+  // `elevated`. Members see a normal, non-draggable sidebar.
+  const isOrgAdmin =
+    !!currentUser &&
+    (currentUser.isAdmin ||
+      (currentUser.memberships.find(m => m.organizationId === currentUser.orgId)?.isOrgAdmin ?? false));
+
+  // ── Drag-to-reorder (org admin only) ──────────────────────────────────────
+  // Native HTML5 DnD, matching the docs drag-into-folders pattern. We track the
+  // label being dragged and the label currently hovered (for the drop-line),
+  // both scoped to one group so a drag can't cross the Overview/Members/
+  // Operations headings. On drop we splice the dragged label in front of the
+  // target within that group, recompute the FULL flattened order across every
+  // group, optimistically patch local state, and PATCH it to persist.
+  const [dragLabel, setDragLabel] = useState<string | null>(null);
+  const [dragOverLabel, setDragOverLabel] = useState<string | null>(null);
+  // Guards against a stale PATCH clobbering a newer one if drops happen quickly.
+  const navOrderSaveId = useRef(0);
+
+  // The per-group ordered+visible label lists, derived once for both render and
+  // the drop math so they can't drift.
+  function persistNavOrder(nextFullOrder: string[]) {
+    setNavOrderLocal(nextFullOrder); // optimistic — paints immediately
+    const myId = ++navOrderSaveId.current;
+    requestJson("/api/orgs/config", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ navOrder: nextFullOrder }),
+    }).catch(() => {
+      // Roll back to the server's truth only if this is still the latest save —
+      // a refetch would also work, but reverting the local patch is cheaper.
+      if (navOrderSaveId.current === myId) {
+        setNavOrderLocal(currentUser?.org?.navOrder ?? []);
+      }
+    });
+  }
+
+  function handleNavDrop(groupLabel: string, target: string) {
+    const from = dragLabel;
+    setDragLabel(null);
+    setDragOverLabel(null);
+    if (!from || from === target) return;
+
+    // Recompose the full order group by group. For the group being edited, pull
+    // `from` out and insert it before `target`; every other group keeps its
+    // current order. We emit ALL groups so a single navOrder array fully
+    // describes the sidebar (the service normalizes; applyNavOrder ignores
+    // out-of-group labels, so an explicit complete list is safe).
+    const fullOrder = NAV_GROUPS.flatMap(g => {
+      const ordered = applyNavOrder(g.items, navOrder);
+      if (g.label !== groupLabel) return ordered;
+      if (!ordered.includes(from) || !ordered.includes(target)) return ordered;
+      const next = ordered.filter(l => l !== from);
+      next.splice(next.indexOf(target), 0, from);
+      return next;
+    });
+
+    persistNavOrder(fullOrder);
+  }
+
+  function renderNavItem(label: string, groupLabel: string) {
     const isTimeline    = label === "Timeline";
     const isTasks       = label === "Tasks";
     const isTreasury    = label === "Treasury";
@@ -254,39 +318,75 @@ export function Sidebar({ open, onClose, activeSection, onNavClick }: {
 
     const displayLabel = NAV_DISPLAY[label] ?? label;
 
-    if (isStandalone) {
-      return (
-        <Link
-          key={label}
-          href={orgPath(standaloneSub)}
-          onClick={onClose}
-          aria-current={isActive ? "page" : undefined}
-          className={navItemClass(isActive)}
-        >
-          {isActive && <ActiveBar />}
-          <SvgIcon d={NAV_ICONS[label] ?? ""} className="h-4 w-4 shrink-0 opacity-75" />
-          {displayLabel}
-          {isTreasury && pendingReimbursements > 0 && (
-            <NavCountBadge count={pendingReimbursements} label="reimbursement requests awaiting review" />
-          )}
-          {isTimeline && pendingExcuses > 0 && (
-            <NavCountBadge count={pendingExcuses} label="excuses awaiting review" />
-          )}
-        </Link>
-      );
-    }
-
-    return (
+    const inner = isStandalone ? (
+      <Link
+        href={orgPath(standaloneSub)}
+        onClick={onClose}
+        aria-current={isActive ? "page" : undefined}
+        className={navItemClass(isActive)}
+        draggable={false}
+      >
+        {isActive && <ActiveBar />}
+        <SvgIcon d={NAV_ICONS[label] ?? ""} className="h-4 w-4 shrink-0 opacity-75" />
+        {displayLabel}
+        {isTreasury && pendingReimbursements > 0 && (
+          <NavCountBadge count={pendingReimbursements} label="reimbursement requests awaiting review" />
+        )}
+        {isTimeline && pendingExcuses > 0 && (
+          <NavCountBadge count={pendingExcuses} label="excuses awaiting review" />
+        )}
+      </Link>
+    ) : (
       <button
-        key={label}
         onClick={() => goToDashboardSection(label)}
         aria-current={isActive ? "page" : undefined}
         className={navItemClass(isActive)}
+        draggable={false}
       >
         {isActive && <ActiveBar />}
         <SvgIcon d={NAV_ICONS[label] ?? ""} className="h-4 w-4 shrink-0 opacity-75" />
         {displayLabel}
       </button>
+    );
+
+    // Members get a plain item. Admins get a drag-reorderable wrapper: the whole
+    // row is the drag handle (draggable=true), with a drop-line shown above the
+    // hovered target during a drag. We stop the inner Link/button from being
+    // independently draggable so the row-level drag owns the gesture.
+    if (!isOrgAdmin) return <div key={label}>{inner}</div>;
+
+    const isDragging = dragLabel === label;
+    const isDropTarget = dragOverLabel === label && dragLabel !== null && dragLabel !== label;
+    return (
+      <div
+        key={label}
+        draggable
+        onDragStart={(e) => {
+          e.dataTransfer.effectAllowed = "move";
+          e.dataTransfer.setData("text/plain", label);
+          setDragLabel(label);
+        }}
+        onDragEnd={() => { setDragLabel(null); setDragOverLabel(null); }}
+        onDragOver={(e) => {
+          if (!dragLabel || dragLabel === label) return;
+          e.preventDefault();
+          e.dataTransfer.dropEffect = "move";
+          if (dragOverLabel !== label) setDragOverLabel(label);
+        }}
+        onDragLeave={(e) => {
+          // Only clear when actually leaving the row (not entering a child).
+          if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+            setDragOverLabel(prev => (prev === label ? null : prev));
+          }
+        }}
+        onDrop={(e) => { e.preventDefault(); handleNavDrop(groupLabel, label); }}
+        className={`relative cursor-grab rounded-lg transition-opacity ${isDragging ? "opacity-40" : ""}`}
+      >
+        {isDropTarget && (
+          <span aria-hidden className="absolute -top-[3px] left-2 right-2 h-[2px] rounded-full bg-[#a78bfa]" />
+        )}
+        {inner}
+      </div>
     );
   }
 
@@ -320,7 +420,7 @@ export function Sidebar({ open, onClose, activeSection, onNavClick }: {
         <nav className="flex-1 overflow-y-auto px-2 py-3" aria-label="Main navigation">
           <div className="space-y-5">
             {NAV_GROUPS.map(group => {
-              const items = group.items.filter(label => visibleNavSet.has(label));
+              const items = applyNavOrder(group.items, navOrder).filter(label => visibleNavSet.has(label));
               if (items.length === 0) return null;
               const headingId = `sidebar-group-${group.label.toLowerCase().replace(/\s+/g, "-")}`;
               return (
@@ -329,7 +429,7 @@ export function Sidebar({ open, onClose, activeSection, onNavClick }: {
                     {group.label}
                   </p>
                   <div className="space-y-0.5">
-                    {items.map(renderNavItem)}
+                    {items.map(label => renderNavItem(label, group.label))}
                   </div>
                 </section>
               );

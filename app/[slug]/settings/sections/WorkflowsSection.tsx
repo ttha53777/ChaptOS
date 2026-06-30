@@ -6,6 +6,8 @@ import { requestJson } from "../../../lib/api";
 import { NAV, NAV_WORKFLOW_MAP, NAV_DESCRIPTIONS } from "../../../components/Sidebar";
 import { ALWAYS_ON_WORKFLOWS, type WorkflowId } from "@/lib/org-types";
 import { WORKFLOW_FEATURES, type DisabledFeatures } from "@/lib/workflow-features";
+import { NAV_GROUPS, applyNavOrder } from "@/lib/nav-order";
+import { isNavVisible } from "../../../components/Sidebar";
 
 // Settings → Workflows. Lets an org admin choose which optional pages the org
 // exposes, AND which sections within a page are shown, at any time after
@@ -132,6 +134,69 @@ export function WorkflowsSection({
     setDisabled(new Map([...persistedDisabled].map(([w, s]) => [w, new Set(s)])));
   }, [persistedDisabledKey, persistedDisabled]);
 
+  // ── Sidebar order (reorder pages within each group, Notion-style) ──────────
+  // The persisted navOrder is sparse (see lib/nav-order.ts). We materialize it
+  // into a concrete per-group ordering for the editor by running each group's
+  // default items through applyNavOrder; the result is the full, explicit list
+  // the admin manipulates. On save we flatten every group back into one array.
+  const persistedNavOrder = useMemo(
+    () => (currentUser?.org?.navOrder ?? []) as string[],
+    [currentUser?.org?.navOrder],
+  );
+  const persistedNavOrderKey = useMemo(() => persistedNavOrder.join("|"), [persistedNavOrder]);
+
+  // Working order, keyed by group label → ordered nav labels.
+  const seedOrder = useCallback(
+    () => new Map(NAV_GROUPS.map((g) => [g.label, applyNavOrder(g.items, persistedNavOrder)])),
+    [persistedNavOrder],
+  );
+  const [order, setOrder] = useState<Map<string, string[]>>(seedOrder);
+
+  // Re-seed the working order when the stored order changes (post-save
+  // normalization, or another admin reordering in a different tab). Same pattern
+  // as the workflow/feature re-seeds above.
+  const lastSyncedNavKey = useRef(persistedNavOrderKey);
+  useEffect(() => {
+    if (lastSyncedNavKey.current === persistedNavOrderKey) return;
+    lastSyncedNavKey.current = persistedNavOrderKey;
+    setOrder(seedOrder());
+  }, [persistedNavOrderKey, seedOrder]);
+
+  // The flattened working order, for diffing and saving.
+  const flatOrder = useMemo(
+    () => NAV_GROUPS.flatMap((g) => order.get(g.label) ?? g.items),
+    [order],
+  );
+  // Dirty when the displayed order differs from the persisted order, resolved
+  // through the same applyNavOrder lens so a no-op (persisted is sparse, ours is
+  // explicit but equivalent) doesn't read as dirty.
+  const navDirty = useMemo(() => {
+    const persistedFlat = NAV_GROUPS.flatMap((g) => applyNavOrder(g.items, persistedNavOrder));
+    return persistedFlat.join("|") !== flatOrder.join("|");
+  }, [flatOrder, persistedNavOrder]);
+
+  // Move a label up/down within its group. Within-group only — moving across the
+  // Overview/Members/Operations headings would fight the sidebar's grouping.
+  function moveItem(groupLabel: string, index: number, dir: -1 | 1) {
+    setOrder((prev) => {
+      const next = new Map(prev);
+      const items = [...(next.get(groupLabel) ?? [])];
+      const target = index + dir;
+      if (target < 0 || target >= items.length) return prev;
+      [items[index], items[target]] = [items[target], items[index]];
+      next.set(groupLabel, items);
+      return next;
+    });
+  }
+
+  // Which labels are visible in the org's current setup — hidden pages still
+  // appear in the reorder list (dimmed) so their slot is preserved, matching the
+  // sparse-order contract.
+  const enabled = useMemo(
+    () => new Set(NAV.filter((label) => isNavVisible(label, [...persisted]))),
+    [persisted],
+  );
+
   // Dirty = the optional page picks OR the feature picks differ from persisted.
   // Always-on workflow ids are forced on by the service either way, so we don't
   // diff them; disabled-feature ids are diffed via the content key.
@@ -143,8 +208,9 @@ export function WorkflowsSection({
       Object.fromEntries([...disabled].map(([w, s]) => [w, [...s]])) as DisabledFeatures,
     );
     if (currentDisabledKey !== persistedDisabledKey) return true;
+    if (navDirty) return true;
     return false;
-  }, [selected, persisted, disabled, persistedDisabledKey]);
+  }, [selected, persisted, disabled, persistedDisabledKey, navDirty]);
 
   // A feature is ON when it's NOT in the workflow's disabled set.
   function featureOn(workflow: WorkflowId, id: string): boolean {
@@ -175,6 +241,7 @@ export function WorkflowsSection({
   function reset() {
     setSelected(new Set(persisted));
     setDisabled(new Map([...persistedDisabled].map(([w, s]) => [w, new Set(s)])));
+    setOrder(seedOrder());
   }
 
   const save = useCallback(async () => {
@@ -204,12 +271,19 @@ export function WorkflowsSection({
     }
 
     try {
-      // Both fields go in one PATCH so a combined edit (page + section toggles)
-      // applies atomically and only triggers one /me refresh.
+      // All fields go in one PATCH so a combined edit (page + section toggles +
+      // reorder) applies atomically and only triggers one /me refresh. navOrder
+      // is sent only when the order actually changed, so a pages-only edit never
+      // rewrites the order column. We send the FULL flattened order (the service
+      // stores it sparse-or-not; applyNavOrder makes an explicit list harmless).
       await requestJson("/api/orgs/config", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ enabledWorkflows: [...chosen], disabledFeatures }),
+        body: JSON.stringify({
+          enabledWorkflows: [...chosen],
+          disabledFeatures,
+          ...(navDirty ? { navOrder: flatOrder } : {}),
+        }),
       });
       // Re-fetch /me so the sidebar and page sections reflect the new state
       // immediately (no reload).
@@ -225,7 +299,7 @@ export function WorkflowsSection({
     } finally {
       setSaving(false);
     }
-  }, [saving, selected, persisted, disabled, refreshChapterData, onStatus, onError]);
+  }, [saving, selected, persisted, disabled, navDirty, flatOrder, refreshChapterData, onStatus, onError]);
 
   // Renders the indented feature checkboxes for one workflow. Shared by the
   // always-on Dashboard group and the per-page nested groups.
@@ -327,6 +401,65 @@ export function WorkflowsSection({
           })}
         </div>
       </fieldset>
+
+      {/* Sidebar order — reorder pages within each group (Notion-style up/down).
+          Hidden pages stay in the list (dimmed) so their slot is preserved and
+          re-enabling lands them back where they were. Cross-group moves aren't
+          offered — that would fight the sidebar's group headings. */}
+      <div>
+        <p className="sc-grp-label">Sidebar order</p>
+        <p className="sc-note" style={{ margin: "-4px 0 9px 2px" }}>
+          Arrange pages within each section. This is the order everyone in the
+          organization sees in the sidebar.
+        </p>
+        <div className="space-y-4">
+          {NAV_GROUPS.map((group) => {
+            const items = order.get(group.label) ?? group.items;
+            return (
+              <div key={group.label}>
+                <p className="sc-note" style={{ margin: "0 0 5px 2px", fontWeight: 600 }}>{group.label}</p>
+                <div className="sc-card sc-card-pad sc-reorder">
+                  {items.map((label, i) => {
+                    const off = !enabled.has(label);
+                    return (
+                      <div key={label} className="sc-row sc-row-between">
+                        <span className={`sc-row-key${off ? " is-off" : ""}`}>
+                          {label}
+                          {off && <span className="sc-reorder-hidden">Hidden</span>}
+                        </span>
+                        <div className="sc-reorder-btns">
+                          <button
+                            type="button"
+                            className="sc-iconbtn"
+                            onClick={() => moveItem(group.label, i, -1)}
+                            disabled={i === 0 || saving}
+                            aria-label={`Move ${label} up`}
+                          >
+                            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M8 12V4M4 8l4-4 4 4" />
+                            </svg>
+                          </button>
+                          <button
+                            type="button"
+                            className="sc-iconbtn"
+                            onClick={() => moveItem(group.label, i, 1)}
+                            disabled={i === items.length - 1 || saving}
+                            aria-label={`Move ${label} down`}
+                          >
+                            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M8 4v8M4 8l4 4 4-4" />
+                            </svg>
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
 
       <div className="sc-actions">
         <button onClick={save} disabled={!dirty || saving} className="sc-btn sc-btn-primary">
