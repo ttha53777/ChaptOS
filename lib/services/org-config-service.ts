@@ -16,6 +16,7 @@ import type { RequestContext } from "@/lib/context";
 import { emit } from "@/lib/events";
 import { ForbiddenError } from "@/lib/errors";
 import { ALWAYS_ON_WORKFLOWS, ALL_WORKFLOWS, type WorkflowId } from "@/lib/org-types";
+import { normalizeNavOrder, NAV_LABELS } from "@/lib/nav-order";
 import { VOCAB_KEYS, type VocabKey, type VocabOverrides } from "@/lib/vocab";
 import { resolveThresholds, type Thresholds } from "@/lib/thresholds";
 import { normalizeDisabledFeatures, type DisabledFeatures } from "@/lib/workflow-features";
@@ -106,6 +107,38 @@ export async function completeOnboarding(ctx: RequestContext): Promise<{ complet
   });
 
   return { completedAt };
+}
+
+/**
+ * Replace the org's sidebar nav order. Authorization: org admins only.
+ *
+ * Same posture and gate as setWorkflows/setDisabledFeatures: arranging the
+ * sidebar is an org-wide layout choice every member sees, so it's an org-owner
+ * action, not a delegated permission bit. The incoming list is normalized
+ * (trimmed, de-duped, unknown labels dropped, order preserved) so a stale or
+ * hand-crafted client can't write junk into the column. The list is SPARSE —
+ * labels it omits keep their default sidebar position (see lib/nav-order.ts), so
+ * we store exactly what the admin sent without padding it out.
+ */
+export async function setNavOrder(
+  ctx: RequestContext,
+  input: { navOrder: string[] },
+): Promise<{ navOrder: string[] }> {
+  if (!ctx.isOrgAdmin && !ctx.isPlatformAdmin) {
+    throw new ForbiddenError("Only an org admin can reorder the sidebar");
+  }
+
+  const navOrder = normalizeNavOrder(input.navOrder, NAV_LABELS);
+
+  // upsert (not update) so a legacy org missing its config row self-heals.
+  // organizationId is injected by ctx.db — never client-supplied.
+  await ctx.db.organizationConfig.upsert({ navOrder });
+
+  await emit(ctx, "org.config.updated", { type: "Organization", id: ctx.orgId }, {
+    navOrder,
+  });
+
+  return { navOrder };
 }
 
 /** Replace the org's vocabulary overrides. Authorization: org admins only. */

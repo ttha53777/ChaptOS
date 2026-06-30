@@ -13,7 +13,7 @@ import { randomUUID } from "node:crypto";
 import { testPrisma, resetDb } from "../setup/prisma";
 import { createOrg, createBrother } from "../setup/factories";
 import { db } from "@/lib/db";
-import { setWorkflows, setThresholds, setDisabledFeatures, completeOnboarding } from "@/lib/services/org-config-service";
+import { setWorkflows, setThresholds, setDisabledFeatures, setNavOrder, completeOnboarding } from "@/lib/services/org-config-service";
 import { ForbiddenError } from "@/lib/errors";
 import { ALWAYS_ON_WORKFLOWS } from "@/lib/org-types";
 import { DEFAULT_THRESHOLDS, type Thresholds } from "@/lib/thresholds";
@@ -392,5 +392,47 @@ describe("completeOnboarding", () => {
 
     const bRow = await testPrisma.organizationConfig.findUnique({ where: { organizationId: orgB.id } });
     expect(bRow?.onboardingCompletedAt).toBeNull();
+  });
+});
+
+describe("setNavOrder", () => {
+  it("persists the (normalized) order for an admin", async () => {
+    const { org, admin } = await seedAdminOrg();
+    const ctx = ctxFor(org.id, admin.id, { isOrgAdmin: true });
+
+    const out = await setNavOrder(ctx, { navOrder: ["Treasury", "Docs"] });
+
+    expect(out.navOrder).toEqual(["Treasury", "Docs"]);
+    const row = await testPrisma.organizationConfig.findUnique({ where: { organizationId: org.id } });
+    expect(row?.navOrder).toEqual(["Treasury", "Docs"]);
+  });
+
+  it("drops unknown labels and duplicates while preserving order", async () => {
+    const { org, admin } = await seedAdminOrg();
+    const ctx = ctxFor(org.id, admin.id, { isOrgAdmin: true });
+
+    const out = await setNavOrder(ctx, { navOrder: ["Treasury", "Bogus", "Treasury", "Docs"] });
+
+    expect(out.navOrder).toEqual(["Treasury", "Docs"]);
+  });
+
+  it("rejects a non-admin", async () => {
+    const { org, admin } = await seedAdminOrg();
+    const ctx = ctxFor(org.id, admin.id, { isOrgAdmin: false });
+    await expect(setNavOrder(ctx, { navOrder: ["Docs"] })).rejects.toBeInstanceOf(ForbiddenError);
+  });
+
+  it("only writes the actor's own org", async () => {
+    const { org: orgA, admin: adminA } = await seedAdminOrg();
+    const orgB = await createOrg("Other Org", "other-order-org");
+    await testPrisma.organizationConfig.create({
+      data: { organizationId: orgB.id, enabledWorkflows: ["operations"] },
+    });
+
+    const ctx = ctxFor(orgA.id, adminA.id, { isOrgAdmin: true });
+    await setNavOrder(ctx, { navOrder: ["Docs", "Treasury"] });
+
+    const bRow = await testPrisma.organizationConfig.findUnique({ where: { organizationId: orgB.id } });
+    expect(bRow?.navOrder).toEqual([]);
   });
 });

@@ -110,7 +110,7 @@ export interface EventMetadata {
 
   // Onboarding
   "org.created": { name: string; slug: string; orgType: string; founderName: string };
-  "org.config.updated": { enabledWorkflows?: string[]; vocabularyOverrides?: Record<string, string>; thresholds?: Record<string, number>; disabledFeatures?: Record<string, string[]>; customMemberFields?: string[] };
+  "org.config.updated": { enabledWorkflows?: string[]; vocabularyOverrides?: Record<string, string>; thresholds?: Record<string, number>; disabledFeatures?: Record<string, string[]>; customMemberFields?: string[]; navOrder?: string[] };
   "org.onboarding.completed": { orgType: string | null };
   "org.logo.updated": { cleared: boolean };
 

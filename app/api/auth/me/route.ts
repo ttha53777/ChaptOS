@@ -33,7 +33,7 @@ export async function GET() {
           logoUrl: true,
           // The sidebar and onboarding picker filter surfaces by the org's
           // enabled workflows. Pull it in the same round-trip as the org name.
-          config: { select: { enabledWorkflows: true, vocabularyOverrides: true, thresholds: true, disabledFeatures: true, customMemberFields: true, onboardingCompletedAt: true } },
+          config: { select: { enabledWorkflows: true, vocabularyOverrides: true, thresholds: true, disabledFeatures: true, customMemberFields: true, navOrder: true, onboardingCompletedAt: true } },
         },
       }),
       resolvePermissions(user),
@@ -100,6 +100,10 @@ export async function GET() {
             // OPT-OUT map of hidden page sections. Empty {} (or a missing config
             // row) means every feature is on — the safe default, same as workflows.
             disabledFeatures: (org.config?.disabledFeatures ?? {}) as Record<string, string[]>,
+            // Admin-chosen sidebar order (nav labels). Empty [] (or missing
+            // config) means the default order — the sidebar's applyNavOrder
+            // no-ops on an empty list.
+            navOrder: org.config?.navOrder ?? [],
             // Org-defined extra fields. Empty [] means no custom fields — roster
             // and drawer render identically to today. Sanitized through the same
             // helper used by the service so the client always gets a clean list.

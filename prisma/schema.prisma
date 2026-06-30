@@ -90,6 +90,14 @@ model OrganizationConfig {
   disabledFeatures    Json     @default("{}")
   // Org-defined extra fields (label, type, showOnRoster, etc.). See lib/custom-member-fields.ts.
   customMemberFields  Json     @default("[]")
+  // Admin-chosen sidebar order — a list of nav labels (e.g. "Treasury",
+  // "Docs"). Sparse and advisory: the sidebar sorts each NAV_GROUP by this list,
+  // appending any labels not present (new pages, or labels the org never
+  // reordered) in their default order. Empty [] means "use the default order".
+  // Labels here are NOT validated against enabledWorkflows — a hidden page can
+  // keep its slot so re-enabling it lands back where the admin put it. See
+  // lib/nav-order.ts.
+  navOrder            String[] @default([])
   // When the founder finished the post-creation setup wizard, or null while
   // setup is still in progress. This is the authoritative "is onboarding done?"
   // signal — the OrgGuard layout gates every /[slug]/* route on it being set.

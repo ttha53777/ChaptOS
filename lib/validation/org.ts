@@ -3,6 +3,7 @@ import { MAX_SLUG_LEN, MIN_SLUG_LEN } from "@/lib/slug-rules";
 import { ORG_TYPE_IDS, ALL_WORKFLOWS, type WorkflowId } from "@/lib/org-types";
 import { featureExists } from "@/lib/workflow-features";
 import { isValidFieldId, MAX_FIELDS, MAX_LABEL } from "@/lib/custom-member-fields";
+import { NAV_LABELS } from "@/lib/nav-order";
 
 // Input for POST /api/orgs (self-serve org creation).
 //
@@ -107,6 +108,13 @@ export const updateOrgConfigInput = z.object({
     })
     .optional(),
   customMemberFields: customMemberFieldsInput.optional(),
+  // Admin-chosen sidebar order — a list of nav labels. A full replace like the
+  // other fields (present → mutate, absent → leave alone). Loosely validated
+  // here (strings, length-capped); the service normalizes against the real nav
+  // label set and drops anything unknown, so an unrecognized label is silently
+  // ignored rather than 400-ing — a reorder shouldn't fail because the client
+  // and server disagree on which pages exist.
+  navOrder: z.array(z.string().max(40)).max(NAV_LABELS.length).optional(),
   // Set true on the final wizard step to stamp OrganizationConfig.onboardingCompletedAt.
   // Folded into this PATCH so finishing setup is one round-trip alongside the
   // config save. Idempotent in the service, so re-sending it is harmless.
