@@ -1,10 +1,21 @@
-import React from "react";
+"use client";
+
+import React, { useEffect, useState } from "react";
 import { fmtRange } from "../../../data";
 
 function greetingFor(hour: number): string {
   if (hour < 12) return "Good morning";
   if (hour < 18) return "Good afternoon";
   return "Good evening";
+}
+
+function fmtDate(d: Date): string {
+  return d.toLocaleDateString("en-US", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
 }
 
 /**
@@ -33,13 +44,22 @@ export function BriefingHeader({
    *  folded in from the removed top toolbar. Renders below the digest. */
   actions?: React.ReactNode;
 }) {
-  const now = new Date();
-  const dateLabel = now.toLocaleDateString("en-US", {
-    weekday: "long",
-    month: "long",
-    day: "numeric",
-    year: "numeric",
-  });
+  // `new Date()` resolves differently on the server (its clock/timezone, baked
+  // into the SSR HTML) and on the client (the viewer's local clock). Around a day
+  // boundary or across timezones those disagree, which is a hydration mismatch.
+  // So we seed from `weekStart` — a server-provided snapshot that's identical on
+  // both sides — and swap in the viewer's actual local date/greeting only after
+  // mount, where it's client-only and can't mismatch.
+  const [clock, setClock] = useState<{ label: string; greeting: string }>(() => ({
+    label: fmtDate(new Date(`${weekStart}T00:00:00`)),
+    greeting: "Welcome",
+  }));
+  useEffect(() => {
+    const now = new Date();
+    setClock({ label: fmtDate(now), greeting: greetingFor(now.getHours()) });
+  }, []);
+
+  const dateLabel = clock.label;
 
   return (
     <section id="sec-dashboard" className="briefing" aria-label="Chapter briefing">
@@ -49,7 +69,7 @@ export function BriefingHeader({
           &ensp;·&ensp;Week of {fmtRange(weekStart, weekEnd)}
         </p>
         <h1 className="greeting">
-          {greetingFor(now.getHours())}, <em>{firstName}</em>.
+          {clock.greeting}, <em>{firstName}</em>.
         </h1>
         {(digest || digestLoading) && (
           <div className="digest">
