@@ -1,0 +1,602 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Dashboard Widget Concepts — Chapter Ledger</title>
+
+<!--
+  5 new/improved dashboard widgets for the chapter-management app.
+  Built in the app's real "Chapter Ledger / dusk" design language
+  (tokens lifted verbatim from app/components/dashboard/dashboard-ledger.css)
+  so these read as if they already shipped, not a generic mockup.
+
+  Each widget is grounded in data the app ALREADY captures:
+    1. Attendance Momentum   — AttendanceRecord per CalendarEvent, thresholds
+    2. Dues Collection        — Transaction(dues) / Brother.duesOwed
+    3. Quorum Pulse           — CalendarEvent(mandatory) + AttendanceExcuse + roster
+    4. Officer Load           — Task / TaskAssignment resolved to Role
+    5. Engagement Radar       — attendance + dues + service + poll participation
+
+  Data shown is illustrative placeholder, picked to look like a real mid-size
+  chapter (~42 members). Numbers are internally consistent, not random.
+-->
+
+<!-- App uses next/font (Fraunces / Geist Sans / Geist Mono). Mirror with the
+     closest Google Fonts so the mockup matches outside the Next runtime. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;1,9..144,400&family=Geist:wght@400;500;550;600&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+<style>
+/* ── Tokens copied from the real dusk theme ─────────────────────────────── */
+:root {
+  --serif: "Fraunces", Georgia, serif;
+  --sans:  "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --mono:  "Geist Mono", ui-monospace, Menlo, monospace;
+
+  --paper:    #0f0d0a;
+  --paper-2:  #14120e;
+  --card:     #161310;
+  --card-2:   #1b1813;
+  --ink:      #ece7dd;
+  --ink-soft: #c9c2b4;
+  --muted:    #958d7c;
+  --faint:    #6b6354;
+  --line:     rgba(236,231,221,.09);
+  --line-soft:rgba(236,231,221,.05);
+  --vio:      #a78bfa;
+  --vio-deep: #7c3aed;
+  --vio-bg:   rgba(167,139,250,.10);
+  --gold:     #ddb36a;
+  --gold-bg:  rgba(221,179,106,.10);
+  --rose:     #d98ba3;
+  --rose-bg:  rgba(217,139,163,.10);
+  --ok:       #7fb08a;
+  --ok-bg:    rgba(127,176,138,.10);
+  --shadow:   0 1px 0 rgba(0,0,0,.4), 0 16px 40px -24px rgba(0,0,0,.7);
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 13.5px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+  padding: 40px clamp(20px, 4vw, 56px) 64px;
+}
+::selection { background: var(--vio-bg); }
+
+/* page header */
+.page-head { max-width: 1180px; margin: 0 auto 8px; }
+.page-head .kicker { font-family: var(--mono); font-size: 10.5px; letter-spacing: .18em;
+  text-transform: uppercase; color: var(--muted); }
+.page-head .kicker em { color: var(--vio); font-style: normal; }
+.page-head h1 { font-family: var(--serif); font-weight: 400; font-size: 32px;
+  letter-spacing: -.01em; margin: 8px 0 0; }
+.page-head h1 em { font-style: italic; color: var(--vio); }
+.page-head p { max-width: 640px; margin: 12px 0 0; color: var(--ink-soft);
+  font-family: var(--serif); font-weight: 350; font-style: italic; font-size: 14.5px; }
+
+/* concept grid */
+.concepts { max-width: 1180px; margin: 40px auto 0;
+  display: grid; grid-template-columns: repeat(2, 1fr); gap: 28px 24px; align-items: start; }
+.concept.wide { grid-column: 1 / -1; }
+@media (max-width: 880px) { .concepts { grid-template-columns: 1fr; } }
+
+.concept-label { display: flex; align-items: baseline; gap: 10px; margin-bottom: 11px; }
+.concept-label .num { font-family: var(--mono); font-size: 10px; font-weight: 600;
+  letter-spacing: .1em; color: var(--vio); border: 1px solid var(--vio-bg);
+  background: var(--vio-bg); border-radius: 5px; padding: 2px 6px; }
+.concept-label .name { font-family: var(--serif); font-size: 17px; color: var(--ink); }
+.concept-label .src { margin-left: auto; font-family: var(--mono); font-size: 8.5px;
+  letter-spacing: .1em; text-transform: uppercase; color: var(--faint); text-align: right; }
+
+/* ── shared card chrome (from .card / .card-h) ──────────────────────────── */
+.card { border: 1px solid var(--line); border-radius: 12px; background: var(--card);
+  box-shadow: var(--shadow); overflow: hidden; }
+.card-h { display: flex; align-items: baseline; justify-content: space-between;
+  padding: 15px 18px 12px; border-bottom: 1px solid var(--line-soft); }
+.card-h h2 { font-family: var(--serif); font-weight: 500; font-size: 16.5px; color: var(--ink); }
+.card-h .sub { font-family: var(--mono); font-size: 9.5px; letter-spacing: .13em;
+  text-transform: uppercase; color: var(--faint); }
+.card-h .right { display: flex; align-items: center; gap: 9px; }
+.card-act { font-family: var(--mono); font-size: 9.5px; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--muted); border: 1px solid var(--line); background: transparent; border-radius: 6px;
+  padding: 3px 9px; cursor: pointer; }
+.card-act:hover { color: var(--vio); border-color: var(--vio); }
+.count-chip { font-family: var(--mono); font-size: 10px; color: var(--rose); background: var(--rose-bg);
+  border-radius: 999px; padding: 2px 8px; }
+.count-chip.gold { color: var(--gold); background: var(--gold-bg); }
+.count-chip.ok   { color: var(--ok);   background: var(--ok-bg); }
+
+.mono { font-family: var(--mono); }
+.tnum { font-variant-numeric: tabular-nums; }
+.rose { color: var(--rose); } .gold { color: var(--gold); } .sage { color: var(--ok); } .vio { color: var(--vio); }
+
+/* status tag (from roster) */
+.status-tag { font-family: var(--mono); font-size: 8.5px; font-weight: 600; letter-spacing: .13em;
+  border-radius: 5px; padding: 3px 7px; white-space: nowrap; }
+.st-good { color: var(--ok); background: var(--ok-bg); }
+.st-watch { color: var(--gold); background: var(--gold-bg); }
+.st-risk { color: var(--rose); background: var(--rose-bg); }
+
+.avatar { width: 26px; height: 26px; border-radius: 50%; background: var(--vio-bg); color: var(--vio);
+  display: grid; place-items: center; font-family: var(--mono); font-size: 9px; font-weight: 600; flex-shrink: 0; }
+
+/* ════════════════════════════════════════════════════════════════════════
+   1 · ATTENDANCE MOMENTUM
+   Improves the flat attendance KPI: a per-meeting trend + a forecast of who's
+   about to fall under the at-risk threshold (so leadership intervenes early).
+   ════════════════════════════════════════════════════════════════════════ */
+.am-body { padding: 16px 18px 14px; }
+.am-headline { display: flex; align-items: flex-end; gap: 12px; }
+.am-headline .big { font-family: var(--mono); font-size: 30px; font-weight: 500; letter-spacing: -.02em; }
+.am-headline .delta { font-family: var(--mono); font-size: 12px; padding-bottom: 5px; }
+.am-headline .delta::before { content: "▲ "; font-size: 9px; }
+.am-headline .lab { margin-left: auto; font-size: 11px; color: var(--faint); padding-bottom: 5px; text-align: right; }
+/* meeting-by-meeting bars */
+.am-bars { display: flex; align-items: flex-end; gap: 7px; height: 78px; margin: 18px 0 6px; }
+.am-bars .b { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; height: 100%; justify-content: flex-end; }
+.am-bars .b .col { width: 100%; border-radius: 3px 3px 0 0; background: var(--vio); opacity: .85; min-height: 3px; }
+.am-bars .b.dim .col { background: var(--muted); opacity: .35; }
+.am-bars .b.next .col { background: repeating-linear-gradient(45deg, var(--vio-bg), var(--vio-bg) 4px, transparent 4px, transparent 8px);
+  border: 1px dashed var(--vio); opacity: 1; }
+.am-bars .b .d { font-family: var(--mono); font-size: 8px; letter-spacing: .04em; color: var(--faint); }
+.am-bars .b.next .d { color: var(--vio); }
+/* threshold line marker */
+.am-thresh { font-family: var(--mono); font-size: 9px; letter-spacing: .08em; color: var(--gold);
+  border-top: 1px dashed var(--gold); padding-top: 5px; margin-top: 2px; text-transform: uppercase; }
+/* forecast row */
+.am-forecast { border-top: 1px solid var(--line-soft); padding: 11px 18px; display: flex; align-items: center; gap: 11px; }
+.am-forecast .ico { width: 28px; height: 28px; border-radius: 7px; background: var(--gold-bg); color: var(--gold);
+  display: grid; place-items: center; flex-shrink: 0; font-family: var(--mono); font-weight: 600; font-size: 13px; }
+.am-forecast .txt { flex: 1; font-size: 12.5px; color: var(--ink-soft); }
+.am-forecast .txt b { color: var(--ink); font-weight: 600; }
+.am-forecast .act { font-family: var(--mono); font-size: 10px; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--muted); border: 1px solid var(--line); border-radius: 7px; padding: 5px 11px; cursor: pointer; }
+.am-forecast .act:hover { color: var(--vio); border-color: var(--vio); }
+
+/* ════════════════════════════════════════════════════════════════════════
+   2 · DUES COLLECTION THERMOMETER
+   Treasury rail shows balance; treasurers actually need: how much of the
+   semester's dues is collected vs outstanding, and the long tail of who owes.
+   ════════════════════════════════════════════════════════════════════════ */
+.du-body { padding: 16px 18px 14px; }
+.du-num { display: flex; align-items: baseline; gap: 9px; }
+.du-num .big { font-family: var(--mono); font-size: 27px; font-weight: 500; letter-spacing: -.02em; }
+.du-num .of { font-family: var(--mono); font-size: 13px; color: var(--muted); }
+.du-num .pct { margin-left: auto; font-family: var(--mono); font-size: 13px; color: var(--ok); }
+/* segmented progress (collected / pending / overdue) */
+.du-track { display: flex; height: 12px; border-radius: 6px; overflow: hidden; margin: 14px 0 9px; background: var(--line); }
+.du-track .seg.col { background: var(--ok); }
+.du-track .seg.pend { background: var(--gold); opacity: .7; }
+.du-track .seg.over { background: var(--rose); }
+.du-legend { display: flex; gap: 16px; font-family: var(--mono); font-size: 9.5px; letter-spacing: .04em; color: var(--muted); }
+.du-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.du-legend i { width: 8px; height: 8px; border-radius: 2px; display: inline-block; }
+.du-legend .col i { background: var(--ok); } .du-legend .pend i { background: var(--gold); opacity: .7; } .du-legend .over i { background: var(--rose); }
+/* owers list */
+.du-list { border-top: 1px solid var(--line-soft); }
+.du-row { display: flex; align-items: center; gap: 11px; padding: 9px 18px; border-bottom: 1px solid var(--line-soft); }
+.du-row:last-child { border-bottom: none; }
+.du-row .nm { flex: 1; display: flex; align-items: center; gap: 9px; font-size: 12.5px; font-weight: 550; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.du-row .age { font-family: var(--mono); font-size: 9.5px; color: var(--faint); }
+.du-row .amt { font-family: var(--mono); font-size: 12.5px; color: var(--rose); width: 56px; text-align: right; }
+.du-row .nudge { font-family: var(--mono); font-size: 9.5px; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--muted); border: 1px solid var(--line); border-radius: 6px; padding: 3px 9px; cursor: pointer; }
+.du-row .nudge:hover { color: var(--vio); border-color: var(--vio); }
+.du-foot { padding: 9px 18px; background: var(--card-2); font-family: var(--mono); font-size: 10px;
+  letter-spacing: .04em; color: var(--faint); display: flex; justify-content: space-between; }
+.du-foot a { color: var(--vio); text-decoration: none; }
+
+/* ════════════════════════════════════════════════════════════════════════
+   3 · QUORUM PULSE (next mandatory meeting)
+   Before a meeting: will we hit quorum? Reads CalendarEvent(mandatory) +
+   AttendanceExcuse + roster into confirmed / excused / silent.
+   ════════════════════════════════════════════════════════════════════════ */
+.qp-body { padding: 16px 18px 14px; }
+.qp-when { display: flex; align-items: baseline; justify-content: space-between; }
+.qp-when .t { font-family: var(--serif); font-size: 15px; color: var(--ink); }
+.qp-when .d { font-family: var(--mono); font-size: 10px; letter-spacing: .08em; color: var(--vio); text-transform: uppercase; }
+/* big dial-ish number */
+.qp-stat { display: flex; align-items: flex-end; gap: 10px; margin: 14px 0 4px; }
+.qp-stat .big { font-family: var(--mono); font-size: 34px; font-weight: 500; letter-spacing: -.02em; line-height: 1; }
+.qp-stat .need { font-family: var(--mono); font-size: 11.5px; color: var(--muted); padding-bottom: 4px; }
+.qp-stat .verdict { margin-left: auto; padding-bottom: 4px; }
+/* stacked quorum bar */
+.qp-track { position: relative; display: flex; height: 14px; border-radius: 7px; overflow: hidden; margin: 12px 0 8px; background: var(--line); }
+.qp-track .seg.conf { background: var(--ok); }
+.qp-track .seg.exc { background: var(--vio); opacity: .55; }
+.qp-track .seg.sil { background: transparent; }
+/* quorum threshold marker */
+.qp-mark { position: absolute; top: -4px; bottom: -4px; width: 2px; background: var(--gold); }
+.qp-mark::after { content: "QUORUM"; position: absolute; top: -13px; left: 50%; transform: translateX(-50%);
+  font-family: var(--mono); font-size: 7.5px; letter-spacing: .14em; color: var(--gold); white-space: nowrap; }
+.qp-counts { display: flex; gap: 18px; font-family: var(--mono); font-size: 10px; color: var(--muted); margin-top: 14px; }
+.qp-counts span { display: inline-flex; align-items: center; gap: 6px; }
+.qp-counts i { width: 8px; height: 8px; border-radius: 2px; }
+.qp-counts .conf i { background: var(--ok); } .qp-counts .exc i { background: var(--vio); opacity: .55; } .qp-counts .sil i { background: var(--faint); }
+.qp-foot { border-top: 1px solid var(--line-soft); padding: 10px 18px; display: flex; align-items: center; gap: 10px; }
+.qp-foot .av { display: flex; }
+.qp-foot .av .avatar { margin-left: -7px; border: 1.5px solid var(--card); }
+.qp-foot .av .avatar:first-child { margin-left: 0; }
+.qp-foot .txt { font-size: 11.5px; color: var(--faint); flex: 1; }
+.qp-foot .txt b { color: var(--ink-soft); }
+.qp-foot .act { font-family: var(--mono); font-size: 10px; letter-spacing: .07em; text-transform: uppercase;
+  color: var(--vio); border: 1px solid var(--vio-bg); background: var(--vio-bg); border-radius: 7px; padding: 5px 11px; cursor: pointer; }
+.qp-foot .act:hover { background: var(--vio-deep); color: #fff; border-color: var(--vio-deep); }
+
+/* ════════════════════════════════════════════════════════════════════════
+   4 · OFFICER LOAD (role-based task balance)
+   Nothing today visualizes TaskAssignment → Role. Shows per-officer open /
+   overdue load so a president can rebalance before someone drops the ball.
+   ════════════════════════════════════════════════════════════════════════ */
+.ol-row { display: flex; align-items: center; gap: 12px; padding: 11px 18px; border-bottom: 1px solid var(--line-soft); }
+.ol-row:last-child { border-bottom: none; }
+.ol-who { width: 150px; flex-shrink: 0; min-width: 0; }
+.ol-who .nm { display: flex; align-items: center; gap: 9px; }
+.ol-who .nm p { font-size: 12.5px; font-weight: 550; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ol-who .role { font-family: var(--mono); font-size: 9px; letter-spacing: .08em; text-transform: uppercase; color: var(--faint); margin: 3px 0 0 35px; }
+/* load bar: open tasks, segment = overdue */
+.ol-bar { flex: 1; display: flex; align-items: center; gap: 10px; }
+.ol-bar .track { flex: 1; height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; display: flex; }
+.ol-bar .track i { display: block; height: 100%; }
+.ol-bar .track .open { background: var(--vio); opacity: .8; }
+.ol-bar .track .over { background: var(--rose); }
+.ol-bar .n { font-family: var(--mono); font-size: 11.5px; color: var(--ink-soft); width: 78px; text-align: right; }
+.ol-bar .n b { color: var(--ink); } .ol-bar .n .od { color: var(--rose); }
+.ol-foot { padding: 10px 18px; background: var(--card-2); display: flex; justify-content: space-between;
+  font-family: var(--mono); font-size: 10px; letter-spacing: .04em; color: var(--faint); }
+.ol-foot b { color: var(--ink-soft); }
+
+/* ════════════════════════════════════════════════════════════════════════
+   5 · ENGAGEMENT RADAR (early-warning heatmap)  — WIDE
+   Cross-signal grid: attendance · dues · service · poll/vote participation.
+   Surfaces members quietly disengaging across signals BEFORE they hit at-risk.
+   ════════════════════════════════════════════════════════════════════════ */
+.er-wrap { padding: 4px 0 0; }
+.er-grid { width: 100%; border-collapse: collapse; }
+.er-grid thead th { font-family: var(--mono); font-size: 8.5px; font-weight: 500; letter-spacing: .14em;
+  text-transform: uppercase; color: var(--faint); text-align: center; padding: 10px 8px; border-bottom: 1px solid var(--line-soft); }
+.er-grid thead th:first-child { text-align: left; padding-left: 18px; width: 210px; }
+.er-grid thead th.trend { text-align: right; padding-right: 18px; }
+.er-grid tbody td { padding: 7px 8px; border-bottom: 1px solid var(--line-soft); text-align: center; }
+.er-grid tbody tr:last-child td { border-bottom: none; }
+.er-grid tbody tr:hover { background: var(--card-2); }
+.er-grid tbody td:first-child { text-align: left; padding-left: 18px; }
+.er-grid .er-name { display: flex; align-items: center; gap: 10px; }
+.er-grid .er-name p { font-size: 12.5px; font-weight: 550; color: var(--ink); }
+/* heat cells */
+.cell { display: inline-flex; align-items: center; justify-content: center; width: 42px; height: 24px;
+  border-radius: 6px; font-family: var(--mono); font-size: 10.5px; font-variant-numeric: tabular-nums; }
+.cell.h4 { background: var(--ok-bg); color: var(--ok); }                 /* strong */
+.cell.h3 { background: rgba(127,176,138,.05); color: var(--ink-soft); } /* fine */
+.cell.h2 { background: var(--gold-bg); color: var(--gold); }            /* watch */
+.cell.h1 { background: var(--rose-bg); color: var(--rose); }            /* weak */
+.er-trend { display: inline-flex; align-items: center; gap: 7px; justify-content: flex-end; width: 100%; }
+.er-spark { display: flex; align-items: flex-end; gap: 2px; height: 18px; }
+.er-spark i { width: 3px; border-radius: 1px; background: var(--muted); opacity: .5; }
+.er-trend.up i  { background: var(--ok); opacity: .8; }
+.er-trend.down i { background: var(--rose); opacity: .8; }
+.er-arrow { font-family: var(--mono); font-size: 10px; width: 14px; }
+.er-foot { padding: 11px 18px; background: var(--card-2); display: flex; align-items: center; gap: 16px;
+  font-family: var(--mono); font-size: 9.5px; letter-spacing: .04em; color: var(--faint); }
+.er-foot .legend { display: flex; gap: 12px; }
+.er-foot .legend span { display: inline-flex; align-items: center; gap: 6px; }
+.er-foot .legend i { width: 10px; height: 10px; border-radius: 3px; }
+.er-foot .legend .h4 i { background: var(--ok); } .er-foot .legend .h2 i { background: var(--gold); } .er-foot .legend .h1 i { background: var(--rose); }
+.er-foot .ai { margin-left: auto; color: var(--vio); display: inline-flex; align-items: center; gap: 7px; }
+.er-foot .ai .chip { font-family: var(--mono); font-size: 8px; font-weight: 600; letter-spacing: .14em;
+  color: var(--vio); border: 1px solid var(--vio-bg); background: var(--vio-bg); border-radius: 4px; padding: 2px 5px; }
+</style>
+</head>
+<body>
+
+<header class="page-head">
+  <div class="kicker">CHAPTER LEDGER · <em>WIDGET CONCEPTS</em></div>
+  <h1>Five widgets a chapter would <em>actually check</em></h1>
+  <p>Each pulls from data the app already captures — attendance records, dues transactions, the meeting calendar, task assignments, service hours — and turns it into something a president or treasurer can act on in one glance.</p>
+</header>
+
+<div class="concepts">
+
+  <!-- ───────────────────────── 1 · ATTENDANCE MOMENTUM ───────────────────────── -->
+  <section class="concept">
+    <div class="concept-label">
+      <span class="num">01</span>
+      <span class="name">Attendance Momentum</span>
+      <span class="src">AttendanceRecord ·<br>thresholds</span>
+    </div>
+    <div class="card">
+      <div class="card-h">
+        <h2>Attendance Momentum</h2>
+        <div class="right"><span class="sub">LAST 8 MEETINGS</span></div>
+      </div>
+      <div class="am-body">
+        <div class="am-headline">
+          <span class="big tnum">87<small style="font-size:15px;color:var(--muted)">%</small></span>
+          <span class="delta sage">4.1</span>
+          <span class="lab">vs. trailing avg</span>
+        </div>
+        <!-- per-meeting attendance, last bar = projected for next meeting -->
+        <div class="am-bars">
+          <div class="b dim"><div class="col" style="height:71%"></div><div class="d">9/2</div></div>
+          <div class="b dim"><div class="col" style="height:66%"></div><div class="d">9/9</div></div>
+          <div class="b"><div class="col" style="height:74%"></div><div class="d">9/16</div></div>
+          <div class="b"><div class="col" style="height:69%"></div><div class="d">9/23</div></div>
+          <div class="b"><div class="col" style="height:82%"></div><div class="d">9/30</div></div>
+          <div class="b"><div class="col" style="height:80%"></div><div class="d">10/7</div></div>
+          <div class="b"><div class="col" style="height:87%"></div><div class="d">10/14</div></div>
+          <div class="b next"><div class="col" style="height:88%"></div><div class="d">10/21</div></div>
+        </div>
+        <div class="am-thresh">At-risk threshold · 70% &nbsp;—&nbsp; 3 below the line</div>
+      </div>
+      <!-- forecast: who's about to cross the at-risk line -->
+      <div class="am-forecast">
+        <div class="ico">!</div>
+        <div class="txt"><b>3 brothers</b> drop under 70% if they miss the next mandatory meeting.</div>
+        <button class="act">View</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ───────────────────────── 2 · DUES COLLECTION ───────────────────────── -->
+  <section class="concept">
+    <div class="concept-label">
+      <span class="num">02</span>
+      <span class="name">Dues Collection</span>
+      <span class="src">Transaction(dues) ·<br>Brother.duesOwed</span>
+    </div>
+    <div class="card">
+      <div class="card-h">
+        <h2>Dues Collection</h2>
+        <div class="right"><span class="sub">FALL 2026</span></div>
+      </div>
+      <div class="du-body">
+        <div class="du-num">
+          <span class="big tnum">$11,200</span>
+          <span class="of">/ $14,000</span>
+          <span class="pct">80%</span>
+        </div>
+        <!-- segmented: collected / pending plan / overdue -->
+        <div class="du-track">
+          <div class="seg col"  style="width:80%"></div>
+          <div class="seg pend" style="width:11%"></div>
+          <div class="seg over" style="width:9%"></div>
+        </div>
+        <div class="du-legend">
+          <span class="col"><i></i>Collected $11.2k</span>
+          <span class="pend"><i></i>Plan $1.5k</span>
+          <span class="over"><i></i>Overdue $1.3k</span>
+        </div>
+      </div>
+      <!-- the long tail: oldest balances first -->
+      <div class="du-list">
+        <div class="du-row">
+          <span class="nm"><span class="avatar">MR</span>Marcus Reed <span class="age">· 41d</span></span>
+          <span class="amt">$350</span>
+          <button class="nudge">Nudge</button>
+        </div>
+        <div class="du-row">
+          <span class="nm"><span class="avatar">DT</span>Devin Tran <span class="age">· 34d</span></span>
+          <span class="amt">$350</span>
+          <button class="nudge">Nudge</button>
+        </div>
+        <div class="du-row">
+          <span class="nm"><span class="avatar">JK</span>Jordan Kim <span class="age">· 18d</span></span>
+          <span class="amt">$200</span>
+          <button class="nudge">Nudge</button>
+        </div>
+      </div>
+      <div class="du-foot">
+        <span>7 members carry a balance</span>
+        <a href="#">Send reminders →</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ───────────────────────── 3 · QUORUM PULSE ───────────────────────── -->
+  <section class="concept">
+    <div class="concept-label">
+      <span class="num">03</span>
+      <span class="name">Quorum Pulse</span>
+      <span class="src">CalendarEvent(mandatory)<br>· AttendanceExcuse</span>
+    </div>
+    <div class="card">
+      <div class="card-h">
+        <h2>Quorum Pulse</h2>
+        <div class="right"><span class="count-chip ok">ON TRACK</span></div>
+      </div>
+      <div class="qp-body">
+        <div class="qp-when">
+          <span class="t">Chapter Meeting</span>
+          <span class="d">TUE · 7:00 PM</span>
+        </div>
+        <div class="qp-stat">
+          <span class="big tnum sage">29</span>
+          <span class="need">expected present · need <b style="color:var(--gold)">25</b> for quorum</span>
+        </div>
+        <!-- confirmed (present-likely) + excused, quorum marker overlaid -->
+        <div class="qp-track">
+          <div class="seg conf" style="width:55%"></div>
+          <div class="seg exc"  style="width:14%"></div>
+          <div class="seg sil"  style="width:31%"></div>
+          <div class="qp-mark" style="left:60%"></div>
+        </div>
+        <div class="qp-counts">
+          <span class="conf"><i></i>23 likely present</span>
+          <span class="exc"><i></i>6 excused</span>
+          <span class="sil"><i></i>13 silent</span>
+        </div>
+      </div>
+      <div class="qp-foot">
+        <div class="av">
+          <span class="avatar">AB</span><span class="avatar">CL</span><span class="avatar">RW</span>
+          <span class="avatar" style="background:var(--card-2);color:var(--muted)">+10</span>
+        </div>
+        <div class="txt"><b>13 haven't responded.</b> Ping the silent list?</div>
+        <button class="act">Remind</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ───────────────────────── 4 · OFFICER LOAD ───────────────────────── -->
+  <section class="concept">
+    <div class="concept-label">
+      <span class="num">04</span>
+      <span class="name">Officer Load</span>
+      <span class="src">Task · TaskAssignment<br>→ Role</span>
+    </div>
+    <div class="card">
+      <div class="card-h">
+        <h2>Officer Load</h2>
+        <div class="right"><span class="sub">OPEN TASKS BY ROLE</span></div>
+      </div>
+      <div>
+        <div class="ol-row">
+          <div class="ol-who">
+            <div class="nm"><span class="avatar">SP</span><p>Sam Patel</p></div>
+            <div class="role">President</div>
+          </div>
+          <div class="ol-bar">
+            <div class="track"><i class="open" style="width:55%"></i><i class="over" style="width:14%"></i></div>
+            <span class="n"><b>5</b> open · <span class="od">1 late</span></span>
+          </div>
+        </div>
+        <div class="ol-row">
+          <div class="ol-who">
+            <div class="nm"><span class="avatar">EN</span><p>Elena Nguyen</p></div>
+            <div class="role">Social Chair</div>
+          </div>
+          <div class="ol-bar">
+            <div class="track"><i class="open" style="width:90%"></i><i class="over" style="width:30%"></i></div>
+            <span class="n"><b>9</b> open · <span class="od">3 late</span></span>
+          </div>
+        </div>
+        <div class="ol-row">
+          <div class="ol-who">
+            <div class="nm"><span class="avatar">TB</span><p>Theo Brooks</p></div>
+            <div class="role">Treasurer</div>
+          </div>
+          <div class="ol-bar">
+            <div class="track"><i class="open" style="width:33%"></i></div>
+            <span class="n"><b>3</b> open</span>
+          </div>
+        </div>
+        <div class="ol-row">
+          <div class="ol-who">
+            <div class="nm"><span class="avatar">MA</span><p>Mia Acosta</p></div>
+            <div class="role">Recruitment</div>
+          </div>
+          <div class="ol-bar">
+            <div class="track"><i class="open" style="width:22%"></i></div>
+            <span class="n"><b>2</b> open</span>
+          </div>
+        </div>
+      </div>
+      <div class="ol-foot">
+        <span><b>Elena</b> is carrying the heaviest load</span>
+        <span>19 open · 4 late</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ───────────────────────── 5 · ENGAGEMENT RADAR (WIDE) ───────────────────────── -->
+  <section class="concept wide">
+    <div class="concept-label">
+      <span class="num">05</span>
+      <span class="name">Engagement Radar — early-warning heatmap</span>
+      <span class="src">attendance · dues · service · poll participation</span>
+    </div>
+    <div class="card">
+      <div class="card-h">
+        <h2>Engagement Radar</h2>
+        <div class="right">
+          <span class="count-chip gold">4 SLIPPING</span>
+          <button class="card-act">Sort: Trend ↓</button>
+        </div>
+      </div>
+      <div class="er-wrap">
+        <table class="er-grid">
+          <thead>
+            <tr>
+              <th>Member</th>
+              <th>Attendance</th>
+              <th>Dues</th>
+              <th>Service</th>
+              <th>Polls / votes</th>
+              <th>Status</th>
+              <th class="trend">6-week trend</th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- a steady strong member -->
+            <tr>
+              <td><div class="er-name"><span class="avatar">CL</span><p>Chris Lowe</p></div></td>
+              <td><span class="cell h4">94%</span></td>
+              <td><span class="cell h4">$0</span></td>
+              <td><span class="cell h4">12h</span></td>
+              <td><span class="cell h4">8/8</span></td>
+              <td><span class="status-tag st-good">GOOD</span></td>
+              <td><div class="er-trend up"><div class="er-spark"><i style="height:8px"></i><i style="height:10px"></i><i style="height:9px"></i><i style="height:13px"></i><i style="height:14px"></i><i style="height:16px"></i></div><span class="er-arrow sage">▲</span></div></td>
+            </tr>
+            <!-- the key catch: fine on paper, but every signal is sliding -->
+            <tr>
+              <td><div class="er-name"><span class="avatar">DT</span><p>Devin Tran</p></div></td>
+              <td><span class="cell h2">72%</span></td>
+              <td><span class="cell h1">$350</span></td>
+              <td><span class="cell h2">3h</span></td>
+              <td><span class="cell h1">2/8</span></td>
+              <td><span class="status-tag st-watch">WATCH</span></td>
+              <td><div class="er-trend down"><div class="er-spark"><i style="height:16px"></i><i style="height:14px"></i><i style="height:13px"></i><i style="height:9px"></i><i style="height:7px"></i><i style="height:5px"></i></div><span class="er-arrow rose">▼</span></div></td>
+            </tr>
+            <tr>
+              <td><div class="er-name"><span class="avatar">JK</span><p>Jordan Kim</p></div></td>
+              <td><span class="cell h3">81%</span></td>
+              <td><span class="cell h1">$200</span></td>
+              <td><span class="cell h3">7h</span></td>
+              <td><span class="cell h2">4/8</span></td>
+              <td><span class="status-tag st-watch">WATCH</span></td>
+              <td><div class="er-trend down"><div class="er-spark"><i style="height:13px"></i><i style="height:14px"></i><i style="height:11px"></i><i style="height:11px"></i><i style="height:9px"></i><i style="height:8px"></i></div><span class="er-arrow rose">▼</span></div></td>
+            </tr>
+            <tr>
+              <td><div class="er-name"><span class="avatar">MR</span><p>Marcus Reed</p></div></td>
+              <td><span class="cell h1">58%</span></td>
+              <td><span class="cell h1">$350</span></td>
+              <td><span class="cell h1">1h</span></td>
+              <td><span class="cell h1">1/8</span></td>
+              <td><span class="status-tag st-risk">AT RISK</span></td>
+              <td><div class="er-trend down"><div class="er-spark"><i style="height:11px"></i><i style="height:9px"></i><i style="height:8px"></i><i style="height:6px"></i><i style="height:4px"></i><i style="height:3px"></i></div><span class="er-arrow rose">▼</span></div></td>
+            </tr>
+            <tr>
+              <td><div class="er-name"><span class="avatar">AB</span><p>Avery Banks</p></div></td>
+              <td><span class="cell h4">90%</span></td>
+              <td><span class="cell h4">$0</span></td>
+              <td><span class="cell h3">8h</span></td>
+              <td><span class="cell h3">6/8</span></td>
+              <td><span class="status-tag st-good">GOOD</span></td>
+              <td><div class="er-trend up"><div class="er-spark"><i style="height:10px"></i><i style="height:11px"></i><i style="height:10px"></i><i style="height:12px"></i><i style="height:11px"></i><i style="height:13px"></i></div><span class="er-arrow sage">▲</span></div></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="er-foot">
+        <div class="legend">
+          <span class="h4"><i></i>Strong</span>
+          <span class="h2"><i></i>Watch</span>
+          <span class="h1"><i></i>Weak</span>
+        </div>
+        <span>Showing 5 of 42 · sorted by steepest decline</span>
+        <span class="ai"><span class="chip">AI</span>Devin slipped on all four signals this month — flag for a check-in?</span>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+</body>
+</html>

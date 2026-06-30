@@ -1,0 +1,492 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Widget Reimagining — Chapter Ledger</title>
+
+<!--
+  RE-ENVISION of the dashboard's CURRENT widgets (not new concepts).
+  Same dusk "Chapter Ledger" tokens as the live app. Each panel shows the
+  current widget (BEFORE) beside a more-visual, more-useful version (AFTER),
+  while keeping the editorial calm/simplicity of the existing design.
+
+  Reimagined:
+    1. KPI Measure        — flat number + note  →  number + inline mini-viz + at-a-glance distribution
+    2. Chapter Health     — radial + 5 thin bars → radial with delta ring + ranked breakdown w/ movement
+    3. Treasury Rail      — number + area chart  → runway framing + collected-vs-spent + category split
+    4. This Week          — plain date list      → timeline with attendance/quorum signal per event
+    5. Needs Attention    — dot+tag+text rows    → grouped, severity-weighted, with one-line sparkline context
+
+  Data is illustrative placeholder, internally consistent (~42-member chapter).
+  Does NOT touch the real dashboard — this is a standalone mock.
+-->
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;1,9..144,400&family=Geist:wght@400;500;550;600&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+<style>
+/* ── Real dusk tokens ───────────────────────────────────────────────────── */
+:root {
+  --serif: "Fraunces", Georgia, serif;
+  --sans:  "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --mono:  "Geist Mono", ui-monospace, Menlo, monospace;
+  --paper:#0f0d0a; --paper-2:#14120e; --card:#161310; --card-2:#1b1813;
+  --ink:#ece7dd; --ink-soft:#c9c2b4; --muted:#958d7c; --faint:#6b6354;
+  --line:rgba(236,231,221,.09); --line-soft:rgba(236,231,221,.05);
+  --vio:#a78bfa; --vio-deep:#7c3aed; --vio-bg:rgba(167,139,250,.10);
+  --gold:#ddb36a; --gold-bg:rgba(221,179,106,.10);
+  --rose:#d98ba3; --rose-bg:rgba(217,139,163,.10);
+  --ok:#7fb08a; --ok-bg:rgba(127,176,138,.10);
+  --shadow:0 1px 0 rgba(0,0,0,.4), 0 16px 40px -24px rgba(0,0,0,.7);
+}
+* { box-sizing: border-box; }
+html,body { margin:0; }
+body { background:var(--paper); color:var(--ink); font-family:var(--sans); font-size:13.5px;
+  line-height:1.45; -webkit-font-smoothing:antialiased; padding:40px clamp(20px,4vw,56px) 64px; }
+::selection { background:var(--vio-bg); }
+.mono{font-family:var(--mono);} .tnum{font-variant-numeric:tabular-nums;}
+.rose{color:var(--rose);} .gold{color:var(--gold);} .sage{color:var(--ok);} .vio{color:var(--vio);}
+
+.page-head{max-width:1180px;margin:0 auto;}
+.page-head .kicker{font-family:var(--mono);font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);}
+.page-head .kicker em{color:var(--vio);font-style:normal;}
+.page-head h1{font-family:var(--serif);font-weight:400;font-size:32px;letter-spacing:-.01em;margin:8px 0 0;}
+.page-head h1 em{font-style:italic;color:var(--vio);}
+.page-head p{max-width:660px;margin:12px 0 0;color:var(--ink-soft);font-family:var(--serif);font-weight:350;font-style:italic;font-size:14.5px;}
+
+/* before/after panel scaffolding */
+.panels{max-width:1180px;margin:36px auto 0;display:flex;flex-direction:column;gap:34px;}
+.panel-label{display:flex;align-items:baseline;gap:10px;margin-bottom:13px;}
+.panel-label .num{font-family:var(--mono);font-size:10px;font-weight:600;letter-spacing:.1em;color:var(--vio);
+  border:1px solid var(--vio-bg);background:var(--vio-bg);border-radius:5px;padding:2px 6px;}
+.panel-label .name{font-family:var(--serif);font-size:17px;color:var(--ink);}
+.panel-label .gain{margin-left:auto;font-family:var(--mono);font-size:9px;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--muted);max-width:430px;text-align:right;}
+.ba{display:grid;grid-template-columns:0.85fr 1.15fr;gap:18px;align-items:stretch;}
+@media (max-width:900px){.ba{grid-template-columns:1fr;}}
+.ba .side{display:flex;flex-direction:column;gap:9px;}
+.ba .tag{font-family:var(--mono);font-size:8.5px;letter-spacing:.16em;text-transform:uppercase;}
+.ba .tag.before{color:var(--faint);}
+.ba .tag.after{color:var(--vio);}
+
+/* ── shared card chrome ─────────────────────────────────────────────────── */
+.card{border:1px solid var(--line);border-radius:12px;background:var(--card);box-shadow:var(--shadow);overflow:hidden;}
+.card.dim{opacity:.78;}
+.card-h{display:flex;align-items:baseline;justify-content:space-between;padding:14px 18px 11px;border-bottom:1px solid var(--line-soft);}
+.card-h h2{font-family:var(--serif);font-weight:500;font-size:15.5px;color:var(--ink);}
+.card-h .sub{font-family:var(--mono);font-size:9px;letter-spacing:.13em;text-transform:uppercase;color:var(--faint);}
+.card-h .right{display:flex;align-items:center;gap:8px;}
+.count-chip{font-family:var(--mono);font-size:9.5px;border-radius:999px;padding:2px 8px;}
+.count-chip.rose{color:var(--rose);background:var(--rose-bg);} .count-chip.gold{color:var(--gold);background:var(--gold-bg);} .count-chip.ok{color:var(--ok);background:var(--ok-bg);}
+.avatar{width:24px;height:24px;border-radius:50%;background:var(--vio-bg);color:var(--vio);display:grid;place-items:center;font-family:var(--mono);font-size:8.5px;font-weight:600;flex-shrink:0;}
+.status-tag{font-family:var(--mono);font-size:8px;font-weight:600;letter-spacing:.12em;border-radius:5px;padding:2px 6px;white-space:nowrap;}
+.st-good{color:var(--ok);background:var(--ok-bg);} .st-watch{color:var(--gold);background:var(--gold-bg);} .st-risk{color:var(--rose);background:var(--rose-bg);}
+
+/* ════════ 1 · KPI MEASURE ════════ */
+/* BEFORE — the current .measure: label + big number + note + faint spark */
+.m-before{padding:16px 18px 14px;position:relative;min-height:118px;}
+.m-before .k{font-family:var(--mono);font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);}
+.m-before .v{font-family:var(--mono);font-size:23px;font-weight:500;letter-spacing:-.02em;color:var(--ink);margin-top:7px;}
+.m-before .v small{font-size:13px;color:var(--muted);}
+.m-before .note{font-size:11px;color:var(--faint);margin-top:3px;}
+.m-before .spark{position:absolute;right:14px;bottom:14px;}
+/* AFTER — same calm number, but the empty space earns its keep:
+   trend pill + a tiny distribution of where members sit on this metric */
+.m-after-strip{display:grid;grid-template-columns:1fr 1fr;}
+.m-after{padding:16px 18px 14px;border-right:1px solid var(--line-soft);position:relative;}
+.m-after:last-child{border-right:none;}
+.m-after .k{font-family:var(--mono);font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);}
+.m-after .top{display:flex;align-items:baseline;gap:8px;margin-top:7px;}
+.m-after .v{font-family:var(--mono);font-size:23px;font-weight:500;letter-spacing:-.02em;color:var(--ink);}
+.m-after .v small{font-size:13px;color:var(--muted);}
+.m-after .delta{font-family:var(--mono);font-size:10.5px;}
+.m-after .delta.up::before{content:"▲ ";font-size:8px;} .m-after .delta.down::before{content:"▼ ";font-size:8px;}
+/* distribution bar: how many members are good / watch / risk on this metric */
+.m-dist{display:flex;height:6px;border-radius:3px;overflow:hidden;margin:12px 0 6px;background:var(--line);}
+.m-dist i{display:block;height:100%;}
+.m-dist .g{background:var(--ok);} .m-dist .w{background:var(--gold);opacity:.75;} .m-dist .r{background:var(--rose);}
+.m-after .dist-lab{font-family:var(--mono);font-size:9px;letter-spacing:.03em;color:var(--faint);}
+.m-after .dist-lab b{color:var(--ink-soft);}
+
+/* ════════ 2 · CHAPTER HEALTH ════════ */
+.h-body{display:flex;gap:18px;align-items:center;padding:18px;}
+.dial{position:relative;width:92px;height:92px;flex-shrink:0;}
+.dial svg{transform:rotate(-90deg);}
+.dial .num{position:absolute;inset:0;display:grid;place-items:center;}
+.dial .num span{font-family:var(--serif);font-size:27px;font-weight:500;color:var(--ink);}
+.dial .num .d{font-family:var(--mono);font-size:9px;color:var(--ok);margin-top:1px;}
+/* BEFORE bars */
+.h-bk{display:grid;grid-template-columns:54px 1fr 28px;gap:6px 9px;align-items:center;flex:1;}
+.h-bk .k{font-family:var(--mono);font-size:8.5px;letter-spacing:.08em;color:var(--faint);}
+.h-bk .bar{height:3px;border-radius:2px;background:var(--line);overflow:hidden;}
+.h-bk .bar i{display:block;height:100%;border-radius:2px;background:var(--vio);opacity:.85;}
+.h-bk .vv{font-family:var(--mono);font-size:9px;color:var(--muted);text-align:right;}
+.h-meta .label{font-family:var(--mono);font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);}
+.h-meta .state{font-family:var(--serif);font-style:italic;font-size:15px;color:var(--gold);margin:2px 0 9px;}
+/* AFTER: ranked breakdown, each row carries its own movement + drag indicator */
+.h-rank{flex:1;display:flex;flex-direction:column;gap:8px;}
+.h-rrow{display:grid;grid-template-columns:62px 1fr 56px;gap:10px;align-items:center;}
+.h-rrow .k{font-size:11px;color:var(--ink-soft);}
+.h-rrow .track{height:5px;border-radius:3px;background:var(--line);overflow:hidden;}
+.h-rrow .track i{display:block;height:100%;border-radius:3px;}
+.h-rrow .track i.good{background:var(--ok);} .h-rrow .track i.watch{background:var(--gold);} .h-rrow .track i.risk{background:var(--rose);}
+.h-rrow .mv{font-family:var(--mono);font-size:9.5px;text-align:right;}
+.h-rrow .mv.up{color:var(--ok);} .h-rrow .mv.down{color:var(--rose);} .h-rrow .mv.flat{color:var(--faint);}
+.h-foot{border-top:1px solid var(--line-soft);padding:9px 18px;font-size:11.5px;color:var(--faint);}
+.h-foot b{color:var(--ink-soft);}
+
+/* ════════ 3 · TREASURY ════════ */
+.t-before{padding:16px 18px;}
+.t-num{display:flex;align-items:baseline;gap:9px;}
+.t-num .big{font-family:var(--mono);font-size:26px;font-weight:500;letter-spacing:-.02em;}
+.t-num .delta{font-family:var(--mono);font-size:11px;color:var(--ok);}
+.t-note{font-size:11.5px;color:var(--faint);margin-top:2px;}
+.t-area{margin-top:14px;height:54px;width:100%;}
+/* AFTER */
+.t-after-body{padding:16px 18px;}
+.t-runway{display:flex;align-items:baseline;gap:9px;}
+.t-runway .big{font-family:var(--mono);font-size:26px;font-weight:500;letter-spacing:-.02em;}
+.t-runway .lab{font-family:var(--mono);font-size:11px;color:var(--muted);}
+.t-runway .pill{margin-left:auto;font-family:var(--mono);font-size:9.5px;color:var(--ok);background:var(--ok-bg);border-radius:999px;padding:2px 9px;}
+/* income vs spend split */
+.t-flow{display:flex;gap:14px;margin:14px 0 4px;}
+.t-flow .col{flex:1;}
+.t-flow .col .cl{font-family:var(--mono);font-size:8.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);}
+.t-flow .col .cv{font-family:var(--mono);font-size:15px;margin-top:3px;}
+.t-flow .in .cv{color:var(--ok);} .t-flow .out .cv{color:var(--rose);}
+/* category spend split bar */
+.t-split{display:flex;height:8px;border-radius:4px;overflow:hidden;margin:14px 0 8px;background:var(--line);}
+.t-split i{display:block;height:100%;}
+.t-cats{display:flex;flex-wrap:wrap;gap:10px 16px;font-family:var(--mono);font-size:9px;letter-spacing:.02em;color:var(--muted);}
+.t-cats span{display:inline-flex;align-items:center;gap:6px;}
+.t-cats em{width:8px;height:8px;border-radius:2px;font-style:normal;}
+.t-foot{border-top:1px solid var(--line-soft);padding:9px 18px;font-size:11.5px;color:var(--faint);}
+.t-foot b{color:var(--ink-soft);}
+
+/* ════════ 4 · THIS WEEK ════════ */
+.w-before .wk{display:flex;gap:13px;padding:10px 18px;border-bottom:1px solid var(--line-soft);align-items:baseline;}
+.w-before .wk:last-child{border-bottom:none;}
+.w-before .day{font-family:var(--mono);font-size:9px;letter-spacing:.1em;color:var(--faint);width:46px;flex-shrink:0;line-height:1.3;}
+.w-before .day b{display:block;font-size:15px;font-weight:500;color:var(--ink-soft);}
+.w-before .wk.today .day,.w-before .wk.today .day b{color:var(--vio);}
+.w-before .what .t{font-size:12.5px;font-weight:550;color:var(--ink);}
+.w-before .what .m{font-size:11px;color:var(--faint);margin-top:1px;}
+/* AFTER: same compact list, but each event shows a readiness signal
+   (mandatory? RSVP/quorum pulse, or prep-checklist progress) */
+.w-after .wk{display:flex;gap:13px;padding:11px 18px;border-bottom:1px solid var(--line-soft);align-items:center;}
+.w-after .wk:last-child{border-bottom:none;}
+.w-after .day{font-family:var(--mono);font-size:9px;letter-spacing:.1em;color:var(--faint);width:46px;flex-shrink:0;line-height:1.3;}
+.w-after .day b{display:block;font-size:15px;font-weight:500;color:var(--ink-soft);}
+.w-after .wk.today .day,.w-after .wk.today .day b{color:var(--vio);}
+.w-after .what{flex:1;min-width:0;}
+.w-after .what .t{font-size:12.5px;font-weight:550;color:var(--ink);}
+.w-after .what .t .mand{font-family:var(--mono);font-size:7.5px;font-weight:600;letter-spacing:.12em;color:var(--gold);background:var(--gold-bg);border-radius:3px;padding:1px 4px;margin-left:7px;vertical-align:2px;}
+.w-after .what .m{font-size:11px;color:var(--faint);margin-top:2px;}
+/* signal: mini readiness gauge on the right */
+.w-sig{flex-shrink:0;width:96px;text-align:right;}
+.w-sig .track{height:4px;border-radius:2px;background:var(--line);overflow:hidden;margin-bottom:4px;}
+.w-sig .track i{display:block;height:100%;border-radius:2px;}
+.w-sig .track i.ok{background:var(--ok);} .w-sig .track i.warn{background:var(--gold);} .w-sig .track i.vio{background:var(--vio);}
+.w-sig .lab{font-family:var(--mono);font-size:8.5px;letter-spacing:.04em;color:var(--muted);}
+
+/* ════════ 5 · NEEDS ATTENTION ════════ */
+.n-before .att{display:flex;align-items:center;gap:12px;padding:11px 18px;border-bottom:1px solid var(--line-soft);}
+.n-before .att:last-child{border-bottom:none;}
+.n-before .att .dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;}
+.n-before .att .tg{font-family:var(--mono);font-size:8px;font-weight:600;letter-spacing:.14em;width:62px;flex-shrink:0;}
+.n-before .att .bd{flex:1;min-width:0;}
+.n-before .att .bd .t{font-size:12.5px;font-weight:550;color:var(--ink);}
+.n-before .att .bd .m{font-size:11px;color:var(--faint);margin-top:1px;}
+.n-before .att .ac{font-family:var(--mono);font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);border:1px solid var(--line);border-radius:7px;padding:4px 10px;}
+.bg-rose{background:var(--rose);} .bg-gold{background:var(--gold);} .bg-sage{background:var(--ok);}
+/* AFTER: grouped by severity, count header per group, and each row gets
+   a glance-context (count badge or sparkline) so you triage faster */
+.n-group{border-bottom:1px solid var(--line-soft);}
+.n-group:last-child{border-bottom:none;}
+.n-ghead{display:flex;align-items:center;gap:9px;padding:9px 18px 5px;}
+.n-ghead .gt{font-family:var(--mono);font-size:8.5px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;}
+.n-ghead .gc{font-family:var(--mono);font-size:9px;color:var(--faint);}
+.n-ghead .gline{flex:1;height:1px;background:var(--line-soft);}
+.n-arow{display:flex;align-items:center;gap:12px;padding:8px 18px;}
+.n-arow .bd{flex:1;min-width:0;}
+.n-arow .bd .t{font-size:12.5px;font-weight:550;color:var(--ink);}
+.n-arow .bd .m{font-size:11px;color:var(--faint);margin-top:1px;font-variant-numeric:tabular-nums;}
+.n-arow .ctx{flex-shrink:0;display:flex;align-items:center;gap:8px;}
+.n-badge{font-family:var(--mono);font-size:9px;border-radius:5px;padding:2px 7px;}
+.n-spark{display:flex;align-items:flex-end;gap:2px;height:16px;}
+.n-spark i{width:3px;border-radius:1px;}
+.n-arow .ac{font-family:var(--mono);font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);border:1px solid var(--line);border-radius:7px;padding:4px 10px;cursor:pointer;}
+.n-arow .ac:hover{color:var(--vio);border-color:var(--vio);}
+</style>
+</head>
+<body>
+
+<header class="page-head">
+  <div class="kicker">CHAPTER LEDGER · <em>WIDGET REIMAGINING</em></div>
+  <h1>The same widgets, made to <em>show more, say more</em></h1>
+  <p>Each current dashboard widget, reworked to add visualization and usefulness where it has dead space — without losing the editorial calm. Left is what ships today; right is the reimagined version.</p>
+</header>
+
+<div class="panels">
+
+  <!-- ───────── 1 · KPI MEASURE ───────── -->
+  <section>
+    <div class="panel-label">
+      <span class="num">01</span>
+      <span class="name">KPI Measure</span>
+      <span class="gain">Adds a trend delta + a distribution of where members actually fall — the empty corner becomes a read of the spread, not just the average.</span>
+    </div>
+    <div class="ba">
+      <div class="side">
+        <div class="tag before">Today</div>
+        <div class="card dim" style="height:100%">
+          <div class="m-before">
+            <p class="k">Attendance</p>
+            <p class="v tnum">84<small>%</small></p>
+            <p class="note">avg across roster</p>
+            <svg class="spark" width="68" height="22" viewBox="0 0 68 22"><polyline points="0,16 11,14 22,15 34,11 45,12 56,8 68,7" fill="none" stroke="#a78bfa" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" opacity=".8"/></svg>
+          </div>
+        </div>
+      </div>
+      <div class="side">
+        <div class="tag after">Reimagined</div>
+        <div class="card" style="height:100%">
+          <div class="m-after-strip">
+            <div class="m-after">
+              <p class="k">Attendance</p>
+              <div class="top"><span class="v tnum">84<small>%</small></span><span class="delta up sage">3.2</span></div>
+              <div class="m-dist"><i class="g" style="width:67%"></i><i class="w" style="width:21%"></i><i class="r" style="width:12%"></i></div>
+              <p class="dist-lab"><b>28</b> good · <b>9</b> watch · <b class="rose">5</b> at risk</p>
+            </div>
+            <div class="m-after">
+              <p class="k">Dues Collected</p>
+              <div class="top"><span class="v tnum"><small>$</small>11.2k</span><span class="delta up sage">$1.4k</span></div>
+              <div class="m-dist"><i class="g" style="width:80%"></i><i class="w" style="width:11%"></i><i class="r" style="width:9%"></i></div>
+              <p class="dist-lab"><b>35</b> paid · <b class="rose">7</b> owe $2.8k</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ───────── 2 · CHAPTER HEALTH ───────── -->
+  <section>
+    <div class="panel-label">
+      <span class="num">02</span>
+      <span class="name">Chapter Health</span>
+      <span class="gain">Dial gains a week-over-week delta; the 5 equal bars become a ranked list that shows which metric moved and which is dragging the score.</span>
+    </div>
+    <div class="ba">
+      <div class="side">
+        <div class="tag before">Today</div>
+        <div class="card dim" style="height:100%">
+          <div class="h-body">
+            <div class="dial">
+              <svg width="92" height="92"><circle cx="46" cy="46" r="40" fill="none" stroke="rgba(236,231,221,.09)" stroke-width="6"/><circle cx="46" cy="46" r="40" fill="none" stroke="#ddb36a" stroke-width="6" stroke-linecap="round" stroke-dasharray="251" stroke-dashoffset="68"/></svg>
+              <div class="num"><span>73</span></div>
+            </div>
+            <div style="flex:1">
+              <p class="h-meta label" style="font-family:var(--mono);font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted)">CHAPTER HEALTH</p>
+              <p class="h-meta state" style="font-family:var(--serif);font-style:italic;font-size:15px;color:var(--gold);margin:2px 0 9px">Needs Attention</p>
+              <div class="h-bk">
+                <span class="k">Attend</span><div class="bar"><i style="width:84%"></i></div><span class="vv">84%</span>
+                <span class="k">GPA</span><div class="bar"><i style="width:78%"></i></div><span class="vv">78%</span>
+                <span class="k">Dues</span><div class="bar"><i style="width:80%"></i></div><span class="vv">80%</span>
+                <span class="k">Service</span><div class="bar"><i style="width:52%"></i></div><span class="vv">52%</span>
+                <span class="k">Deadlns</span><div class="bar"><i style="width:70%"></i></div><span class="vv">70%</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="side">
+        <div class="tag after">Reimagined</div>
+        <div class="card" style="height:100%">
+          <div class="h-body">
+            <div class="dial">
+              <svg width="92" height="92">
+                <circle cx="46" cy="46" r="40" fill="none" stroke="rgba(236,231,221,.09)" stroke-width="6"/>
+                <!-- faint last-week ring behind -->
+                <circle cx="46" cy="46" r="40" fill="none" stroke="rgba(127,176,138,.25)" stroke-width="2" stroke-linecap="round" stroke-dasharray="251" stroke-dashoffset="80"/>
+                <circle cx="46" cy="46" r="40" fill="none" stroke="#ddb36a" stroke-width="6" stroke-linecap="round" stroke-dasharray="251" stroke-dashoffset="68"/>
+              </svg>
+              <div class="num"><span>73</span><span class="d">▲ 3</span></div>
+            </div>
+            <!-- ranked: worst-dragging first, each with movement -->
+            <div class="h-rank">
+              <div class="h-rrow"><span class="k">Service</span><div class="track"><i class="risk" style="width:52%"></i></div><span class="mv down">▼ 6 · 52%</span></div>
+              <div class="h-rrow"><span class="k">Deadlines</span><div class="track"><i class="watch" style="width:70%"></i></div><span class="mv flat">— 70%</span></div>
+              <div class="h-rrow"><span class="k">GPA</span><div class="track"><i class="watch" style="width:78%"></i></div><span class="mv up">▲ 2 · 78%</span></div>
+              <div class="h-rrow"><span class="k">Dues</span><div class="track"><i class="good" style="width:80%"></i></div><span class="mv up">▲ 5 · 80%</span></div>
+              <div class="h-rrow"><span class="k">Attend</span><div class="track"><i class="good" style="width:84%"></i></div><span class="mv up">▲ 3 · 84%</span></div>
+            </div>
+          </div>
+          <div class="h-foot"><b>Service hours</b> are pulling the score down most — 18 members under goal.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ───────── 3 · TREASURY ───────── -->
+  <section>
+    <div class="panel-label">
+      <span class="num">03</span>
+      <span class="name">Treasury Rail</span>
+      <span class="gain">Balance + line chart → a runway read, income-vs-spend at a glance, and where the money actually goes this period.</span>
+    </div>
+    <div class="ba">
+      <div class="side">
+        <div class="tag before">Today</div>
+        <div class="card dim" style="height:100%">
+          <div class="card-h"><h2>Treasury</h2></div>
+          <div class="t-before">
+            <div class="t-num"><span class="big tnum">$8,420</span><span class="delta">▲ 6%</span></div>
+            <p class="t-note">Projected $7,100 by end of period</p>
+            <svg class="t-area" viewBox="0 0 280 54" preserveAspectRatio="none">
+              <defs><linearGradient id="ta" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7fb08a" stop-opacity=".25"/><stop offset="1" stop-color="#7fb08a" stop-opacity="0"/></linearGradient></defs>
+              <path d="M0,40 L40,36 L80,38 L120,30 L160,32 L200,22 L240,26 L280,18 L280,54 L0,54 Z" fill="url(#ta)"/>
+              <path d="M0,40 L40,36 L80,38 L120,30 L160,32 L200,22 L240,26 L280,18" fill="none" stroke="#7fb08a" stroke-width="1.5"/>
+            </svg>
+          </div>
+        </div>
+      </div>
+      <div class="side">
+        <div class="tag after">Reimagined</div>
+        <div class="card" style="height:100%">
+          <div class="card-h"><h2>Treasury</h2><div class="right"><span class="count-chip ok">~5.9 MO RUNWAY</span></div></div>
+          <div class="t-after-body">
+            <div class="t-runway"><span class="big tnum">$8,420</span><span class="lab">on hand</span><span class="pill">▲ 6% MoM</span></div>
+            <div class="t-flow">
+              <div class="col in"><div class="cl">In this period</div><div class="cv tnum">+$12,800</div></div>
+              <div class="col out"><div class="cl">Out this period</div><div class="cv tnum">−$9,640</div></div>
+              <div class="col"><div class="cl">Net</div><div class="cv tnum sage">+$3,160</div></div>
+            </div>
+            <div class="t-split">
+              <i style="width:38%;background:var(--vio)"></i>
+              <i style="width:27%;background:var(--gold)"></i>
+              <i style="width:20%;background:var(--rose)"></i>
+              <i style="width:15%;background:var(--ok)"></i>
+            </div>
+            <div class="t-cats">
+              <span><em style="background:var(--vio)"></em>Socials 38%</span>
+              <span><em style="background:var(--gold)"></em>Events 27%</span>
+              <span><em style="background:var(--rose)"></em>Philanthropy 20%</span>
+              <span><em style="background:var(--ok)"></em>Ops 15%</span>
+            </div>
+          </div>
+          <div class="t-foot"><b>$1,420</b> in reimbursements pending approval.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ───────── 4 · THIS WEEK ───────── -->
+  <section>
+    <div class="panel-label">
+      <span class="num">04</span>
+      <span class="name">This Week</span>
+      <span class="gain">A plain date list becomes glanceable readiness: mandatory flag, live RSVP/quorum pulse for meetings, prep-checklist progress for events.</span>
+    </div>
+    <div class="ba">
+      <div class="side">
+        <div class="tag before">Today</div>
+        <div class="card dim" style="height:100%">
+          <div class="card-h"><h2>This Week</h2></div>
+          <div class="w-before">
+            <div class="wk today"><div class="day">TUE<b>21</b></div><div class="what"><div class="t">Chapter Meeting</div><div class="m">7:00 PM · Houser Hall</div></div></div>
+            <div class="wk"><div class="day">THU<b>23</b></div><div class="what"><div class="t">Philanthropy Setup</div><div class="m">4:00 PM · Quad</div></div></div>
+            <div class="wk"><div class="day">SAT<b>25</b></div><div class="what"><div class="t">Fall Mixer</div><div class="m">9:00 PM · Annex</div></div></div>
+          </div>
+        </div>
+      </div>
+      <div class="side">
+        <div class="tag after">Reimagined</div>
+        <div class="card" style="height:100%">
+          <div class="card-h"><h2>This Week</h2><div class="right"><span class="sub">READINESS</span></div></div>
+          <div class="w-after">
+            <div class="wk today">
+              <div class="day">TUE<b>21</b></div>
+              <div class="what"><div class="t">Chapter Meeting<span class="mand">MANDATORY</span></div><div class="m">7:00 PM · Houser Hall</div></div>
+              <div class="w-sig"><div class="track"><i class="ok" style="width:72%"></i></div><div class="lab">29 / 25 quorum ✓</div></div>
+            </div>
+            <div class="wk">
+              <div class="day">THU<b>23</b></div>
+              <div class="what"><div class="t">Philanthropy Setup</div><div class="m">4:00 PM · Quad</div></div>
+              <div class="w-sig"><div class="track"><i class="warn" style="width:45%"></i></div><div class="lab">prep 5 / 11 done</div></div>
+            </div>
+            <div class="wk">
+              <div class="day">SAT<b>25</b></div>
+              <div class="what"><div class="t">Fall Mixer</div><div class="m">9:00 PM · Annex</div></div>
+              <div class="w-sig"><div class="track"><i class="vio" style="width:88%"></i></div><div class="lab">prep 8 / 9 done</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ───────── 5 · NEEDS ATTENTION ───────── -->
+  <section>
+    <div class="panel-label">
+      <span class="num">05</span>
+      <span class="name">Needs Attention</span>
+      <span class="gain">Flat colored rows → grouped by type with counts, sorted by severity, each row carrying glance-context (how many, trending which way) so you triage in seconds.</span>
+    </div>
+    <div class="ba">
+      <div class="side">
+        <div class="tag before">Today</div>
+        <div class="card dim" style="height:100%">
+          <div class="card-h"><h2>Needs Attention</h2><div class="right"><span class="count-chip rose">5</span></div></div>
+          <div class="n-before">
+            <div class="att"><span class="dot bg-rose"></span><span class="tg rose">DUES</span><div class="bd"><div class="t">Marcus Reed owes $350</div><div class="m">41 days overdue</div></div><button class="ac">Nudge</button></div>
+            <div class="att"><span class="dot bg-rose"></span><span class="tg rose">RISK</span><div class="bd"><div class="t">Marcus Reed at risk</div><div class="m">58% attendance</div></div><button class="ac">View</button></div>
+            <div class="att"><span class="dot bg-gold"></span><span class="tg gold">DEADLINE</span><div class="bd"><div class="t">Roster export overdue</div><div class="m">due 2 days ago</div></div><button class="ac">Open</button></div>
+            <div class="att"><span class="dot bg-gold"></span><span class="tg gold">REIMB</span><div class="bd"><div class="t">Reimbursement pending</div><div class="m">$420 · Elena N.</div></div><button class="ac">Review</button></div>
+          </div>
+        </div>
+      </div>
+      <div class="side">
+        <div class="tag after">Reimagined</div>
+        <div class="card" style="height:100%">
+          <div class="card-h"><h2>Needs Attention</h2><div class="right"><span class="count-chip rose">2 urgent</span><span class="count-chip gold">3 soon</span></div></div>
+          <div>
+            <!-- URGENT group -->
+            <div class="n-group">
+              <div class="n-ghead"><span class="gt rose">URGENT</span><span class="gline"></span><span class="gc">2 items</span></div>
+              <div class="n-arow">
+                <div class="bd"><div class="t">5 members at risk</div><div class="m">attendance &lt; 70% — trending down</div></div>
+                <div class="ctx">
+                  <div class="n-spark"><i style="height:6px;background:var(--rose)"></i><i style="height:8px;background:var(--rose)"></i><i style="height:10px;background:var(--rose)"></i><i style="height:13px;background:var(--rose)"></i></div>
+                  <button class="ac">Review</button>
+                </div>
+              </div>
+              <div class="n-arow">
+                <div class="bd"><div class="t">$2,800 in overdue dues</div><div class="m">7 members · oldest 41 days</div></div>
+                <div class="ctx"><span class="n-badge st-risk">7</span><button class="ac">Nudge all</button></div>
+              </div>
+            </div>
+            <!-- SOON group -->
+            <div class="n-group">
+              <div class="n-ghead"><span class="gt gold">DUE SOON</span><span class="gline"></span><span class="gc">3 items</span></div>
+              <div class="n-arow">
+                <div class="bd"><div class="t">Roster export overdue</div><div class="m">due 2 days ago</div></div>
+                <div class="ctx"><button class="ac">Open</button></div>
+              </div>
+              <div class="n-arow">
+                <div class="bd"><div class="t">2 reimbursements pending</div><div class="m">$840 total · awaiting review</div></div>
+                <div class="ctx"><span class="n-badge st-watch">$840</span><button class="ac">Review</button></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+</body>
+</html>
