@@ -1,6 +1,6 @@
 # ChaptOS
 
-Chapter operations platform — a single place to run any chapter-based organization. Tracks members, attendance, dues, GPA, service hours, deadlines, treasury and budget, party events, programming/events with prep checklists, Instagram content, community-service hours and participation, meeting notes, and a pinned chapter docs library, with a live activity log, a pinned announcement, and a weekly digest of what's on deck. Members join either by claiming a pre-seeded roster row or through an org invite link.
+Chapter operations platform — a single place to run any chapter-based organization. Tracks members, attendance, dues, GPA, service hours, deadlines, treasury and budget, party events, programming/events with prep checklists, Instagram content, community-service hours and participation, meeting notes, and a foldered chapter docs library, with a live activity log, a pinned announcement, and a weekly digest of what's on deck. Members join either by claiming a pre-seeded roster row or through an org invite link.
 
 Each org self-configures to its own shape: an AI onboarding interview tailors the enabled pages, vocabulary, status thresholds, officer roles, **custom per-member fields**, and **custom org-defined metrics** to the kind of organization being set up — a sports team, a marching band, a volunteer group, or a fraternity all get a fitting starting setup rather than a chapter-only one.
 
@@ -43,6 +43,8 @@ A few things worth showing off:
 - **Structured server-side observability.** One JSON-per-line error log ([lib/observability.ts](lib/observability.ts)) with request IDs, route tags, and optional Sentry forwarding via a lazy dynamic import — no dependency cost until enabled.
 - **Two ways into an org.** Admins can pre-seed roster rows that members claim by name, or share an `OrgInvite` link ([app/join/[token]/](app/join/%5Btoken%5D/)). Invites come in two modes: `open` mints a fresh `Brother` + `Membership` on redemption, `claim` routes the user into the existing name-match claim flow. Every redemption is recorded in `InviteRedemption`.
 - **Soft deletes on financial data.** `Transaction` rows are never hard-deleted; `deletedAt` preserves history for audit and undo.
+- **Foldered docs library with drag-and-drop.** The docs page groups pinned links into one-level `DocFolder`s (à la Google Drive) with drag-and-drop filing, a sort control (newest / name / kind), contributor attribution, and copy-link / refresh-preview card actions. Deleting a folder releases its docs back to the library root instead of cascading them away.
+- **Admin-reorderable sidebar.** Admins can reorder the nav pages within each group; the chosen order persists to `OrganizationConfig.navOrder` as a sparse, advisory list of nav labels. The sidebar sorts each group by it and appends anything not listed, so a hidden page keeps its slot and re-enabling it lands back where the admin put it ([lib/nav-order.ts](lib/nav-order.ts)).
 - **CSS-only responsiveness.** Desktop and mobile dashboards are sibling trees toggled with Tailwind breakpoints — no JS viewport detection, no layout flash on hydration.
 
 ---
@@ -240,7 +242,7 @@ figurints/
 │   │   ├── budget/               # semester budget + allocations
 │   │   ├── calendar/             # chapter events
 │   │   ├── deadlines/
-│   │   ├── docs/                 # pinned chapter links + /refresh-metadata
+│   │   ├── docs/                 # pinned chapter links + folders + /refresh-metadata
 │   │   ├── excuses/              # attendance excuses
 │   │   ├── instagram/            # content calendar
 │   │   ├── invites/              # org invite links (open / claim modes)
@@ -436,7 +438,10 @@ Treasury entries with `type` (`income`/`expense`), `category`, `amount`, `paymen
 ### Budget / BudgetAllocation
 Per-semester budget (`carryoverBalance`, `reserveAmount`) with line-item `allocations`.
 
-### PartyEvent / ServiceEvent / InstagramTask / Deadline / Doc / ChapterAnnouncement / ActivityLog
+### Doc / DocFolder
+`Doc` is a pinned chapter link with cached OG metadata (`title`, favicon, `embedOk`) and an optional `folderId`. `DocFolder` is a flat, one-level folder for grouping docs on the `/docs` page. Deleting a folder releases its docs back to the library root (sets `folderId = null`) rather than cascading them away.
+
+### PartyEvent / ServiceEvent / InstagramTask / Deadline / ChapterAnnouncement / ActivityLog
 See [prisma/schema.prisma](prisma/schema.prisma) for full field lists. All carry `organizationId`.
 
 ---
