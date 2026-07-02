@@ -481,6 +481,9 @@ model Doc {
   createdById    Int?
   // Library folder this doc lives in. null = library root (no folder).
   folderId       Int?
+  // Pinned / favorite. null = not pinned; a timestamp floats the doc to the top
+  // of the library ahead of the chosen sort, most-recently pinned first.
+  pinnedAt       DateTime?
 
   organization           Organization          @relation(fields: [organizationId], references: [id])
   folder                 DocFolder?            @relation(fields: [folderId], references: [id])
@@ -489,6 +492,7 @@ model Doc {
 
   @@index([organizationId, createdAt])
   @@index([organizationId, folderId])
+  @@index([organizationId, pinnedAt])
 }
 
 // A flat (one-level) folder for grouping Docs on the /docs page, à la Google
@@ -501,11 +505,15 @@ model DocFolder {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
   createdById    Int?
+  // Pinned / favorite. null = not pinned; a timestamp floats the folder to the
+  // top of the library ahead of unpinned folders, most-recently pinned first.
+  pinnedAt       DateTime?
 
   organization Organization @relation(fields: [organizationId], references: [id])
   docs         Doc[]
 
   @@index([organizationId, name])
+  @@index([organizationId, pinnedAt])
 }
 
 model PartyEvent {

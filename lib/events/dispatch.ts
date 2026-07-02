@@ -188,6 +188,10 @@ export function formatActivityMessage(ctx: RequestContext, action: Action, m: an
       return `${who} updated doc: ${m.title}`;
     case "doc.deleted":
       return `${who} deleted doc: ${m.title}`;
+    case "doc.pinned":
+      return m.pinned ? `${who} pinned doc: ${m.title}` : `${who} unpinned doc: ${m.title}`;
+    case "docFolder.pinned":
+      return m.pinned ? `${who} pinned folder: ${m.name}` : `${who} unpinned folder: ${m.name}`;
     case "announcement.updated":
       return `${who} updated the chapter announcement`;
     case "semester.created":

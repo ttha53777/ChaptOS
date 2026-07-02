@@ -90,6 +90,17 @@ export async function updateDoc(ctx: RequestContext, id: number, input: UpdateDo
   return doc;
 }
 
+export async function setDocPinned(ctx: RequestContext, id: number, pinned: boolean) {
+  const target = await ctx.db.doc.findUnique({ where: { id }, select: { id: true } });
+  if (!target) throw new NotFoundError("Doc");
+  const doc = await ctx.db.doc.update({
+    where: { id },
+    data: { pinnedAt: pinned ? new Date() : null },
+  });
+  await emit(ctx, "doc.pinned", { type: "Doc", id: doc.id }, { title: doc.title, pinned });
+  return doc;
+}
+
 export async function deleteDoc(ctx: RequestContext, id: number) {
   const target = await ctx.db.doc.findUnique({ where: { id }, select: { title: true } });
   if (!target) throw new NotFoundError("Doc");

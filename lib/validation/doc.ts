@@ -37,3 +37,9 @@ export const moveDocInput = z.object({
   folderId,
 });
 export type MoveDocInput = z.infer<typeof moveDocInput>;
+
+// Pin / unpin a doc or folder. pinned true floats it to the top of the library.
+export const pinInput = z.object({
+  pinned: z.boolean(),
+});
+export type PinInput = z.infer<typeof pinInput>;

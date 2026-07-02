@@ -35,6 +35,17 @@ export async function deleteFolder(ctx: RequestContext, id: number) {
   await emit(ctx, "docFolder.deleted", { type: "DocFolder", id }, { name: target.name, releasedDocs: count });
 }
 
+export async function setFolderPinned(ctx: RequestContext, id: number, pinned: boolean) {
+  const target = await ctx.db.docFolder.findUnique({ where: { id }, select: { id: true } });
+  if (!target) throw new NotFoundError("DocFolder");
+  const folder = await ctx.db.docFolder.update({
+    where: { id },
+    data: { pinnedAt: pinned ? new Date() : null },
+  });
+  await emit(ctx, "docFolder.pinned", { type: "DocFolder", id: folder.id }, { name: folder.name, pinned });
+  return folder;
+}
+
 export async function moveDoc(ctx: RequestContext, docId: number, folderId: number | null) {
   // A non-null target must be a folder in this org; ctx.db scoping makes a
   // cross-org id invisible here.
