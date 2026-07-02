@@ -16,6 +16,7 @@ export interface Doc {
   createdById: number | null;
   createdByName: string | null;
   folderId: number | null;
+  pinnedAt: string | null;
 }
 
 /** A small, recognizable "source" type inferred from the URL. We lead with this
@@ -57,6 +58,7 @@ export function DocCard({
   onMove,
   onCopy,
   onRefresh,
+  onPin,
 }: {
   doc: Doc;
   canManage: boolean;
@@ -65,6 +67,7 @@ export function DocCard({
   onMove: () => void;
   onCopy: () => void;
   onRefresh: () => void;
+  onPin: () => void;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [favFailed, setFavFailed] = useState(false);
@@ -76,6 +79,7 @@ export function DocCard({
   }, [doc.url]);
 
   const showFavicon = doc.faviconUrl && !favFailed;
+  const pinned = doc.pinnedAt != null;
 
   function stop(e: React.MouseEvent) {
     e.stopPropagation();
@@ -98,11 +102,19 @@ export function DocCard({
       href={doc.url}
       target="_blank"
       rel="noopener noreferrer"
-      className={`dx-card k-${kind}`}
+      className={`dx-card k-${kind}${pinned ? " pinned" : ""}`}
       style={{ ["--kc" as string]: `var(--k-${kind})` }}
       draggable={canManage}
       onDragStart={handleDragStart}
     >
+      {pinned && (
+        <span className="dx-pin-badge" title="Pinned" aria-label="Pinned">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path d="M14.4 3.6a1 1 0 00-1.5.1L9.6 8H6.2a1 1 0 00-.7 1.7l3.4 3.4-4.2 5.6a.6.6 0 00.9.9l5.6-4.2 3.4 3.4a1 1 0 001.7-.7v-3.4l4.3-3.3a1 1 0 00.1-1.5z" />
+          </svg>
+        </span>
+      )}
+
       {/* ── Source: favicon (or kind glyph) + title + host ── */}
       <div className="top">
         <div className="fav">
@@ -158,6 +170,7 @@ export function DocCard({
             <button type="button" onClick={(e) => { stop(e); setMenuOpen(false); onCopy(); }}>Copy link</button>
             {canManage && (
               <>
+                <button type="button" onClick={(e) => { stop(e); setMenuOpen(false); onPin(); }}>{pinned ? "Unpin" : "Pin to top"}</button>
                 <button type="button" onClick={(e) => { stop(e); setMenuOpen(false); onEdit(); }}>Edit</button>
                 <button type="button" onClick={(e) => { stop(e); setMenuOpen(false); onMove(); }}>Move to folder…</button>
                 <button type="button" onClick={(e) => { stop(e); setMenuOpen(false); onRefresh(); }}>Refresh preview</button>

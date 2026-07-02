@@ -326,6 +326,43 @@ export default function DocsPage() {
     }
   }
 
+  // Pin / unpin a doc — floats it to the top of the library ahead of the sort.
+  async function handlePinDoc(doc: Doc) {
+    const pinned = doc.pinnedAt == null; // toggling toward pinned?
+    try {
+      const updated = await requestJson<Doc>(`/api/docs/${doc.id}/pin`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pinned }),
+      });
+      // The pin endpoint doesn't enrich createdByName; carry it forward.
+      setDocs(prev => prev.map(d => d.id === updated.id ? { ...updated, createdByName: d.createdByName } : d));
+      toast.success(pinned ? `Pinned "${doc.title}".` : `Unpinned "${doc.title}".`);
+    } catch (err) {
+      const message = err instanceof Error ? err.message.replace(/^.*?: /, "") : "Failed to pin doc.";
+      setPageError(message);
+      toast.error(message);
+    }
+  }
+
+  // Pin / unpin a folder — floats it ahead of unpinned folders at the root.
+  async function handlePinFolder(folder: Folder) {
+    const pinned = folder.pinnedAt == null;
+    try {
+      const updated = await requestJson<Folder>(`/api/docs/folders/${folder.id}/pin`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pinned }),
+      });
+      setFolders(prev => prev.map(f => f.id === updated.id ? updated : f));
+      toast.success(pinned ? `Pinned "${folder.name}".` : `Unpinned "${folder.name}".`);
+    } catch (err) {
+      const message = err instanceof Error ? err.message.replace(/^.*?: /, "") : "Failed to pin folder.";
+      setPageError(message);
+      toast.error(message);
+    }
+  }
+
   // Read a dragged doc id from a drop event (set by DocCard.onDragStart).
   function docIdFromDrop(e: React.DragEvent): number | null {
     const raw = e.dataTransfer.getData("application/x-doc-id") || e.dataTransfer.getData("text/plain");
@@ -346,6 +383,14 @@ export default function DocsPage() {
     else if (sort === "kind") arr.sort((a, b) =>
       kindOf(a.url).localeCompare(kindOf(b.url)) || a.title.localeCompare(b.title) || a.id - b.id);
     // "newest" keeps newestFirst order.
+    // Pinned docs float to the top ahead of the chosen sort, most-recently
+    // pinned first; a stable sort preserves the above order within each group.
+    arr.sort((a, b) => {
+      if (a.pinnedAt && b.pinnedAt) return b.pinnedAt.localeCompare(a.pinnedAt);
+      if (a.pinnedAt) return -1;
+      if (b.pinnedAt) return 1;
+      return 0;
+    });
     return arr;
   }, [newestFirst, sort]);
 
@@ -355,6 +400,17 @@ export default function DocsPage() {
     () => sorted.filter(d => (d.folderId ?? null) === currentFolderId),
     [sorted, currentFolderId],
   );
+
+  // Folders for the root tiles: pinned first (most-recently pinned), then by
+  // name — mirroring the API's name order for the unpinned tail.
+  const sortedFolders = useMemo(() => {
+    return [...folders].sort((a, b) => {
+      if (a.pinnedAt && b.pinnedAt) return b.pinnedAt.localeCompare(a.pinnedAt);
+      if (a.pinnedAt) return -1;
+      if (b.pinnedAt) return 1;
+      return a.name.localeCompare(b.name) || a.id - b.id;
+    });
+  }, [folders]);
 
   // Doc counts per folder, for the folder tiles.
   const folderCounts = useMemo(() => {
@@ -613,7 +669,7 @@ export default function DocsPage() {
 
             {!loading && !loadError && viewHasContent && (
               <div className="dx-grid">
-                {showFolders && folders.map(folder => (
+                {showFolders && sortedFolders.map(folder => (
                   <FolderCard
                     key={`f-${folder.id}`}
                     folder={folder}
@@ -622,6 +678,7 @@ export default function DocsPage() {
                     onOpen={() => { setCurrentFolderId(folder.id); setQuery(""); setFilter("all"); }}
                     onRename={() => setRenameTarget(folder)}
                     onDelete={() => setDeleteFolderTarget(folder)}
+                    onPin={() => handlePinFolder(folder)}
                     onDropDoc={(docId) => handleMove(docId, folder.id)}
                     readDropId={docIdFromDrop}
                   />
@@ -636,6 +693,7 @@ export default function DocsPage() {
                     onMove={() => setMoveTarget(doc)}
                     onCopy={() => handleCopy(doc)}
                     onRefresh={() => handleRefresh(doc)}
+                    onPin={() => handlePinDoc(doc)}
                   />
                 ))}
               </div>

@@ -296,3 +296,23 @@
 .dx-move .dx-move-newbtn:hover { border-color: var(--vio); }
 .dx-move .dx-move-newbtn svg { width: 12px; height: 12px; stroke: var(--vio); }
 .dx-move .dx-move-new { border-top: 1px solid var(--line-soft); padding-top: 12px; }
+
+/* ── Pinned docs / folders ──────────────────────────────────────────────────
+   A pinned card carries a gold left edge + a small pin badge, and floats to the
+   top of the library (the page sorts pinned items ahead of the chosen sort). */
+.dash .dx-card.pinned, .dash .dx-folder.pinned {
+  border-color: rgba(221,179,106,.4);
+  box-shadow: inset 3px 0 0 var(--gold), var(--shadow);
+}
+.dash .dx-card.pinned:hover, .dash .dx-folder.pinned:hover {
+  border-color: rgba(221,179,106,.55);
+}
+.dash .dx-pin-badge {
+  position: absolute; top: 12px; right: 44px; width: 20px; height: 20px;
+  display: grid; place-items: center; border-radius: 6px;
+  color: var(--gold); background: var(--gold-bg); pointer-events: none;
+}
+.dash .dx-pin-badge svg { width: 12px; height: 12px; }
+/* Folder tiles keep their menu button in flow at the far right; nudge the badge
+   clear of it just like the doc card. */
+.dash .dx-folder .dx-pin-badge { top: 10px; right: 40px; }
