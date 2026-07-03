@@ -1,10 +1,10 @@
 # ChaptOS
 
-Chapter operations platform — a single place to run any chapter-based organization. Tracks members, attendance, dues, GPA, service hours, deadlines, treasury and budget, party events, programming/events with prep checklists, Instagram content, community-service hours and participation, meeting notes, and a foldered chapter docs library, with a live activity log, a pinned announcement, and a weekly digest of what's on deck. Members join either by claiming a pre-seeded roster row or through an org invite link.
+Chapter operations platform — a single place to run any chapter-based organization. It covers the whole operational surface — members, attendance, dues, GPA, service hours, deadlines, treasury and budgets, parties, programming events with prep checklists, Instagram content, community-service participation, meeting notes, and a foldered docs library — tied together by a live activity log, a pinned announcement, and a weekly digest of what's on deck. Members join by claiming a pre-seeded roster row or by redeeming an org invite link.
 
-Each org self-configures to its own shape: an AI onboarding interview tailors the enabled pages, vocabulary, status thresholds, officer roles, **custom per-member fields**, and **custom org-defined metrics** to the kind of organization being set up — a sports team, a marching band, a volunteer group, or a fraternity all get a fitting starting setup rather than a chapter-only one.
+Each org shapes the platform to itself: an AI onboarding interview tailors the enabled pages, vocabulary, status thresholds, officer roles, **custom per-member fields**, and **custom org-defined metrics** to the kind of organization being set up — a sports team, a marching band, a volunteer group, or a fraternity each get a starting setup that fits, rather than a chapter-only default.
 
-Built as one operations dashboard with a dedicated, app-like mobile layout. Includes a tool-calling AI assistant ("Ask the Chapter") that answers questions and proposes write actions, backed by an offline eval harness for measuring answer quality.
+Everything runs in one operations dashboard, with a dedicated app-like layout on mobile. A tool-calling AI assistant ("Ask the Chapter") answers questions and proposes write actions, backed by an offline eval harness so answer quality is measured, not guessed at.
 
 Multi-org: each Organization is a fully isolated tenant. One Google account can belong to multiple orgs and switch between them via an `active_org_id` cookie.
 
@@ -29,7 +29,7 @@ Multi-org: each Organization is a fully isolated tenant. One Google account can 
 
 ## Highlights
 
-A few things worth showing off:
+The design decisions that do the most work:
 
 - **Org-scoped DB wrapper with automatic tenancy injection.** `lib/db/tenant.ts` wraps every Prisma operation to inject `organizationId` automatically — services call `ctx.db.transaction.create(...)` and can't accidentally touch another org's data. `findUnique` is replaced by `findFirst + org filter`; updates and deletes run a verify-then-mutate pattern to preserve exact return types without needing composite unique constraints everywhere.
 - **Three-tier auth: PlatformAdmin → OrgAdmin → Member.** `buildContext()` in `lib/context` resolves all three tiers per request, emits a typed `RequestContext`, and optionally gates on a specific permission or rate-limits the caller. Route handlers open with `buildContext()`, parse with Zod, call a service, and map errors with `toResponse()` — no `prisma.*` calls in `app/api/**`.
@@ -141,7 +141,7 @@ A floating chat widget that answers ad-hoc questions about chapter state — *"w
 ### Onboarding interview — conversational org setup
 [app/api/ai/setup-chat/route.ts](app/api/ai/setup-chat/route.ts) · [app/api/ai/recommend-setup/route.ts](app/api/ai/recommend-setup/route.ts) · [app/[slug]/onboarding/page.tsx](app/%5Bslug%5D/onboarding/page.tsx)
 
-Right after creating an org, the founder describes it in plain language and an adaptive agent interviews them (a handful of questions, capped server-side) before proposing a complete starting setup: which workflow pages to enable, vocabulary overrides (e.g. *Member → Player*, *Period → Season*), member-status thresholds, 2–4 officer roles with permission bitfields, and 2–4 custom member fields.
+Right after creating an org, the founder describes it in plain language. An adaptive agent asks a handful of follow-up questions (capped server-side), then proposes a complete starting setup: which workflow pages to enable, vocabulary overrides (e.g. *Member → Player*, *Period → Season*), member-status thresholds, 2–4 officer roles with permission bitfields, and 2–4 custom member fields.
 
 **How it's built:**
 - **Same SSE posture as the chat route** (`requireUser` → `aiEnabled` → `checkMutationRate`) with one tool, `emit_setup_proposal`, whose arguments mirror the single-shot `recommend-setup` schema so one validator handles both paths.
@@ -176,7 +176,7 @@ Score: 24/31  (77.4%)
 
 ## Roles & Access
 
-Access is controlled by three orthogonal tiers.
+Access is controlled by three independent mechanisms: auth tiers, identity flags, and permission bitfields.
 
 ### Auth tiers (checked in order)
 
