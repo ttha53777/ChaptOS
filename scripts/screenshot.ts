@@ -143,6 +143,7 @@ async function main() {
         )
         .catch(() => {});
       await page.waitForTimeout(800);
+      await page.screenshot({ path: file, fullPage: true });
       const landed = page.url().replace(BASE_URL, "");
       const redirected = landed !== route && !landed.startsWith(route);
       console.log(`  ${route} → ${file.replace(process.cwd() + "/", "")}` +
