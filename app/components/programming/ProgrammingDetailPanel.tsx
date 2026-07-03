@@ -9,7 +9,7 @@ import { PrepStatusPill, TypeBadge } from "./PrepStatusPill";
 import { ProgrammingChecklist } from "./ProgrammingChecklist";
 import { AttachmentField } from "./AttachmentField";
 import { TxForm, type TxFormEvent } from "../treasury/TxForm";
-import type { Doc } from "@/app/[slug]/docs/DocCard";
+import type { Doc } from "@/app/[slug]/docs/lib";
 import { requestJson } from "../../lib/api";
 import { programmingPrepChecks, programmingPrepScore } from "@/lib/programming";
 import { STAGE_LABELS, STAGES, type ProgrammingStage } from "@/lib/state/programming-stage";

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { Doc } from "@/app/[slug]/docs/DocCard";
+import type { Doc } from "@/app/[slug]/docs/lib";
 import { inputDuskCls } from "../dashboard/styles";
 
 function hostname(url: string): string {

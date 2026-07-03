@@ -13,7 +13,7 @@ import { ProgrammingTable } from "../../components/programming/ProgrammingTable"
 import { LedgerStrip, Measure } from "../../components/dashboard/ledger/LedgerStrip";
 import type { ProgrammingTask, TaskStatus, CalEventCategory } from "../../data";
 import { fmt$, fmtDate } from "../../data";
-import type { Doc } from "../docs/DocCard";
+import type { Doc } from "../docs/lib";
 import { useChapter } from "../../context/ChapterContext";
 import { requestJson } from "../../lib/api";
 import { useActiveSemester } from "../../hooks/useActiveSemester";

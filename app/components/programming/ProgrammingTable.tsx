@@ -5,7 +5,7 @@ import type { SheetSection } from "../grid/SheetGrid";
 import { SheetGrid } from "../grid/SheetGrid";
 import { programmingTableColumns } from "./programmingTableColumns";
 import type { ProgrammingTask } from "../../data";
-import type { Doc } from "../../[slug]/docs/DocCard";
+import type { Doc } from "../../[slug]/docs/lib";
 
 const NO_DATE_KEY = "zzzz-no-date"; // sorts after every "YYYY-MM" key
 

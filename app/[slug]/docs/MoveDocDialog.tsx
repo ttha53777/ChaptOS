@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { Folder } from "./FolderCard";
+import type { Folder } from "./lib";
 import { FolderForm } from "./FolderForm";
 
 /**

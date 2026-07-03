@@ -1,12 +1,12 @@
 /* ─────────────────────────────────────────────────────────────────────────────
-   Docs — "The Reference Library" dusk redesign
+   Docs — "The Reading Room" dusk redesign (v2)
    Same warm-paper editorial system as dashboard-ledger.css / timeline-ledger.css
-   / settings-ledger.css. Mock: _design/Docs Redesign.html.
+   / settings-ledger.css. Mock: _design/Docs Redesign v2.html.
 
-   The old docs page was cold slate (#07090f / #10121a) with indigo accents and
-   per-card live <iframe> thumbnails — heavy, frequently broken, and visually
-   noisy. This rebuilds it on the shared dusk tokens: lead with the source
-   (favicon + host + inferred kind) instead of a screenshot.
+   v1 was a uniform card grid with drill-in folder tiles. v2 renders the whole
+   library inline: a violet pinned shelf on top, then one collapsible ledger
+   section per folder (plus Unfiled), each row a compact reference line —
+   favicon tile · title + note · host · kind · added · open/menu on hover.
 
    ISOLATION: every rule is scoped under `.dash` (set on the content wrapper, the
    same convention dashboard-ledger.css uses) and all class names are net-new
@@ -75,6 +75,12 @@
   color: var(--vio); border: 1px solid var(--vio-bg); background: var(--vio-bg); border-radius: 4px; padding: 2px 5px; transform: translateY(-1px); }
 .dash .dx-digest p { font-size: 13.5px; color: var(--ink-soft); font-style: italic; font-family: var(--serif); font-weight: 350; }
 
+/* The four glance measures fold into one quiet meta line under the digest. */
+.dash .dx-meta-line { margin-top: 14px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+  font-family: var(--mono); font-size: 10px; letter-spacing: .08em; color: var(--faint); }
+.dash .dx-meta-line b { font-weight: 500; color: var(--muted); }
+.dash .dx-meta-line .dot { color: var(--line); }
+
 .dash .dx-add { flex-shrink: 0; display: inline-flex; align-items: center; gap: 7px; cursor: pointer;
   font-family: var(--mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase;
   color: var(--vio); background: var(--vio-bg); border: 1px solid var(--vio-bg); border-radius: 8px; padding: 8px 14px;
@@ -82,34 +88,14 @@
 .dash .dx-add:hover { border-color: var(--vio); }
 .dash .dx-add svg { width: 13px; height: 13px; stroke: var(--vio); }
 
-/* ── Glance strip ────────────────────────────────────────────────────────────── */
-/* auto-flow column so 1–4 visible measures always divide the row evenly — no
-   empty cells when a measure is hidden from its own ✕. */
-.dash .dx-glance { margin-top: 22px; display: grid; grid-auto-flow: column; grid-auto-columns: 1fr;
-  border: 1px solid var(--line); border-radius: 12px; background: var(--card); box-shadow: var(--shadow); overflow: hidden; }
-.dash .dx-measure { position: relative; padding: 15px 18px 14px; border-right: 1px solid var(--line-soft); }
-.dash .dx-measure:last-child { border-right: none; }
-.dash .dx-measure .k { font-family: var(--mono); font-size: 9px; letter-spacing: .16em; text-transform: uppercase; color: var(--muted); }
-.dash .dx-measure .v { font-family: var(--mono); font-size: 23px; font-weight: 500; letter-spacing: -.02em; color: var(--ink); margin-top: 7px; font-variant-numeric: tabular-nums; }
-.dash .dx-measure .note { font-size: 11px; color: var(--faint); margin-top: 3px; }
+/* Header action group (New folder + Add doc). */
+.dash .dx-actions { flex-shrink: 0; display: inline-flex; align-items: center; gap: 8px; }
+.dash .dx-add.ghost { color: var(--ink-soft); background: none; border-color: var(--line); }
+.dash .dx-add.ghost svg { stroke: var(--ink-soft); }
+.dash .dx-add.ghost:hover { color: var(--ink); border-color: var(--vio); }
+.dash .dx-add.ghost:hover svg { stroke: var(--vio); }
 
-/* Per-measure hide control — top-right of each measure, revealed on hover. */
-.dash .dx-measure-hide { position: absolute; top: 8px; right: 8px; width: 20px; height: 20px; border-radius: 6px;
-  display: grid; place-items: center; cursor: pointer; color: var(--faint); background: none; border: none;
-  opacity: 0; transition: opacity .12s, background .12s, color .12s; }
-.dash .dx-measure:hover .dx-measure-hide, .dash .dx-measure-hide:focus-visible { opacity: 1; }
-.dash .dx-measure-hide:hover { background: var(--rose-bg); color: var(--rose); }
-.dash .dx-measure-hide:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--vio-bg); }
-.dash .dx-measure-hide svg { width: 12px; height: 12px; }
-
-@media (max-width: 640px) {
-  .dash .dx-glance { grid-auto-flow: row; grid-template-columns: repeat(2, 1fr); grid-auto-columns: auto; }
-  .dash .dx-measure { border-bottom: 1px solid var(--line-soft); }
-  /* touch devices have no hover — keep the ✕ visible at smaller widths */
-  .dash .dx-measure-hide { opacity: .55; }
-}
-
-/* ── Toolbar: search + kind filter ───────────────────────────────────────────── */
+/* ── Toolbar: search + kind filter + sort ────────────────────────────────────── */
 .dash .dx-toolbar { margin-top: 18px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .dash .dx-search { display: inline-flex; align-items: center; gap: 8px; padding: 8px 12px; min-width: 240px; flex: 1 1 240px; max-width: 340px;
   border-radius: 9px; border: 1px solid var(--line); background: var(--card); color: var(--faint);
@@ -123,6 +109,8 @@
   background: none; border: none; cursor: pointer; color: var(--faint); flex-shrink: 0; }
 .dash .dx-search .clr:hover { background: var(--card-2); color: var(--ink); }
 .dash .dx-search .clr svg { width: 11px; height: 11px; }
+.dash .dx-search .kbd { flex-shrink: 0; font-family: var(--mono); font-size: 9px; letter-spacing: .06em; color: var(--faint);
+  border: 1px solid var(--line); border-radius: 5px; padding: 2px 6px; }
 
 .dash .dx-seg { display: inline-flex; gap: 2px; padding: 3px; border: 1px solid var(--line); border-radius: 9px; background: var(--card); flex-wrap: wrap; }
 .dash .dx-seg button { display: inline-flex; align-items: center; gap: 6px;
@@ -144,56 +132,128 @@
 .dash .dx-toolbar .dx-sort + .dx-scope { margin-left: 0; }
 .dash .dx-toolbar .dx-scope { margin-left: auto; font-family: var(--mono); font-size: 10px; letter-spacing: .08em; color: var(--faint); white-space: nowrap; }
 
-/* ── Card grid ───────────────────────────────────────────────────────────────── */
-.dash .dx-grid { margin-top: 20px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
-@media (max-width: 1080px) { .dash .dx-grid { grid-template-columns: repeat(2, 1fr); } }
-@media (max-width: 680px)  { .dash .dx-grid { grid-template-columns: 1fr; } }
+/* ── Pinned shelf ────────────────────────────────────────────────────────────── */
+.dash .dx-shelf-label { margin-top: 26px; display: flex; align-items: center; gap: 10px;
+  font-family: var(--mono); font-size: 9.5px; letter-spacing: .16em; text-transform: uppercase; color: var(--vio); }
+.dash .dx-shelf-label svg { width: 12px; height: 12px; }
+.dash .dx-shelf-label::after { content: ""; height: 1px; flex: 1; background: var(--line-soft); }
+.dash .dx-shelf { margin-top: 12px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+@media (max-width: 1080px) { .dash .dx-shelf { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 640px)  { .dash .dx-shelf { grid-template-columns: 1fr; } }
 
-.dash .dx-card { position: relative; display: flex; flex-direction: column; text-decoration: none;
-  border: 1px solid var(--line); border-radius: 12px; background: var(--card); box-shadow: var(--shadow);
-  padding: 16px 17px 15px; transition: background .12s, border-color .12s, transform .12s; }
-.dash .dx-card:hover { background: var(--card-2); border-color: rgba(167,139,250,.28); transform: translateY(-1px); }
-.dash .dx-card:focus-visible { outline: none; border-color: var(--vio); box-shadow: 0 0 0 3px var(--vio-bg); }
-
-.dash .dx-card .top { display: flex; align-items: center; gap: 11px; }
-.dash .dx-card .fav { width: 36px; height: 36px; border-radius: 10px; flex-shrink: 0; display: grid; place-items: center;
-  overflow: hidden; background: var(--vio-bg); color: var(--kc, var(--vio)); }
-.dash .dx-card .fav svg { width: 18px; height: 18px; }
-.dash .dx-card .fav img { width: 20px; height: 20px; object-fit: contain; }
-.dash .dx-card.k-doc   .fav { background: rgba(143,176,214,.12); }
-.dash .dx-card.k-sheet .fav { background: rgba(134,185,136,.12); }
-.dash .dx-card.k-form  .fav { background: var(--vio-bg); }
-.dash .dx-card.k-drive .fav { background: var(--gold-bg); }
-.dash .dx-card.k-link  .fav { background: var(--card-2); }
-.dash .dx-card .meta { min-width: 0; flex: 1; }
-.dash .dx-card .meta .t { font-size: 13.5px; font-weight: 600; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.dash .dx-card .meta .h { font-family: var(--mono); font-size: 9.5px; letter-spacing: .04em; color: var(--faint);
-  margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-
-.dash .dx-card .kind { margin-top: 13px; display: inline-flex; align-items: center; gap: 6px; align-self: flex-start;
-  font-family: var(--mono); font-size: 8.5px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase;
-  color: var(--kc, var(--muted)); }
-.dash .dx-card .kind::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--kc, var(--muted)); }
-
-.dash .dx-card .desc { margin-top: 9px; font-size: 12px; line-height: 1.5; color: var(--ink-soft);
-  display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; min-height: 36px; }
-.dash .dx-card .desc.none { color: var(--faint); font-style: italic; font-family: var(--serif); }
-
-.dash .dx-card .foot { margin-top: 13px; padding-top: 11px; border-top: 1px solid var(--line-soft);
-  display: flex; align-items: center; justify-content: space-between; }
-.dash .dx-card .foot .added { font-family: var(--mono); font-size: 9px; letter-spacing: .06em; color: var(--faint); }
-.dash .dx-card .foot .open { display: inline-flex; align-items: center; gap: 5px; opacity: 0; transition: opacity .12s;
-  font-family: var(--mono); font-size: 9px; letter-spacing: .1em; text-transform: uppercase; color: var(--vio); }
-.dash .dx-card:hover .foot .open, .dash .dx-card:focus-within .foot .open { opacity: 1; }
-.dash .dx-card .foot .open svg { width: 12px; height: 12px; }
-
-/* manage menu */
-.dash .dx-card .dx-menu-btn { position: absolute; top: 12px; right: 12px; width: 26px; height: 26px; border-radius: 7px;
+.dash .dx-pinned-card { position: relative; display: flex; flex-direction: column; text-decoration: none; color: inherit;
+  border: 1px solid rgba(167,139,250,.4); border-radius: 12px; background: var(--card);
+  box-shadow: inset 3px 0 0 var(--vio), var(--shadow); padding: 14px 15px 12px;
+  transition: background .12s, border-color .12s, transform .12s; }
+.dash .dx-pinned-card:hover { background: var(--card-2); border-color: rgba(167,139,250,.55); transform: translateY(-1px); }
+.dash .dx-pinned-card:focus-visible { outline: none; border-color: var(--vio); box-shadow: inset 3px 0 0 var(--vio), 0 0 0 3px var(--vio-bg); }
+.dash .dx-pinned-card .top { display: flex; align-items: center; gap: 10px; }
+.dash .dx-pinned-card .fav { width: 32px; height: 32px; border-radius: 9px; flex-shrink: 0; display: grid; place-items: center;
+  overflow: hidden; background: var(--card-2); color: var(--kc, var(--vio)); }
+.dash .dx-pinned-card .fav svg { width: 16px; height: 16px; }
+.dash .dx-pinned-card .fav img { width: 18px; height: 18px; object-fit: contain; }
+.dash .dx-pinned-card.k-doc   .fav { background: rgba(143,176,214,.12); }
+.dash .dx-pinned-card.k-sheet .fav { background: rgba(134,185,136,.12); }
+.dash .dx-pinned-card.k-form  .fav { background: var(--vio-bg); }
+.dash .dx-pinned-card.k-drive .fav { background: var(--gold-bg); }
+.dash .dx-pinned-card .meta { min-width: 0; flex: 1; }
+.dash .dx-pinned-card .t { font-size: 13px; font-weight: 600; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dash .dx-pinned-card .h { font-family: var(--mono); font-size: 9px; letter-spacing: .04em; color: var(--faint);
+  margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dash .dx-pinned-card .note { margin-top: 9px; font-size: 11.5px; line-height: 1.45; color: var(--ink-soft);
+  display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.dash .dx-pinned-card .note.none { color: var(--faint); font-style: italic; font-family: var(--serif); }
+.dash .dx-pinned-card .pin { position: absolute; top: 10px; right: 10px; width: 20px; height: 20px;
+  display: grid; place-items: center; border-radius: 6px; color: var(--vio); background: var(--vio-bg); }
+.dash .dx-pinned-card .pin svg { width: 11px; height: 11px; }
+/* Shelf-card menu sits left of the pin badge, revealed on hover. */
+.dash .dx-pinned-card .dx-menu-btn { position: absolute; top: 8px; right: 34px; width: 24px; height: 24px; border-radius: 7px;
   display: grid; place-items: center; color: var(--faint); background: none; border: none; cursor: pointer;
   opacity: 0; transition: opacity .12s, background .12s, color .12s; }
-.dash .dx-card:hover .dx-menu-btn, .dash .dx-card .dx-menu-btn[aria-expanded="true"] { opacity: 1; }
-.dash .dx-card .dx-menu-btn:hover { background: var(--card-2); color: var(--ink); }
-.dash .dx-card .dx-menu-btn svg { width: 16px; height: 16px; }
+.dash .dx-pinned-card:hover .dx-menu-btn, .dash .dx-pinned-card .dx-menu-btn[aria-expanded="true"] { opacity: 1; }
+.dash .dx-pinned-card .dx-menu-btn:hover { background: var(--paper-2); color: var(--ink); }
+.dash .dx-pinned-card .dx-menu-btn svg { width: 15px; height: 15px; }
+
+/* ── Folder sections — the library reads inline ──────────────────────────────── */
+.dash .dx-section { margin-top: 26px; }
+.dash .dx-sec-head { position: relative; display: flex; align-items: baseline; gap: 11px; width: 100%; text-align: left;
+  background: none; border: none; border-radius: 8px; cursor: pointer; padding: 0 2px 10px; }
+.dash .dx-sec-head:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--vio-bg); }
+/* Drag-and-drop: a row is being dragged over this section's header. */
+.dash .dx-sec-head.drag-over { background: var(--vio-bg); box-shadow: 0 0 0 3px var(--vio-bg); }
+.dash .dx-sec-head .chev { align-self: center; width: 15px; height: 15px; flex-shrink: 0; color: var(--faint);
+  transition: transform .16s ease, color .12s; }
+.dash .dx-sec-head:hover .chev { color: var(--vio); }
+.dash .dx-section.closed .chev { transform: rotate(-90deg); }
+.dash .dx-sec-head .name { font-family: var(--serif); font-weight: 500; font-size: 17px; letter-spacing: -.005em; color: var(--ink); }
+.dash .dx-sec-head .ct { font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em; color: var(--faint); }
+.dash .dx-sec-head .pin { align-self: center; display: grid; place-items: center; width: 18px; height: 18px;
+  border-radius: 5px; color: var(--vio); background: var(--vio-bg); }
+.dash .dx-sec-head .pin svg { width: 10px; height: 10px; }
+.dash .dx-sec-head .rule { align-self: center; height: 1px; flex: 1; background: var(--line-soft); }
+.dash .dx-sec-head .fold-hint { font-family: var(--mono); font-size: 9px; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--faint); opacity: 0; transition: opacity .12s; }
+.dash .dx-sec-head:hover .fold-hint { opacity: 1; }
+/* Folder actions menu — in flow at the far right of the header, hover-revealed. */
+.dash .dx-sec-head .dx-menu-btn { align-self: center; flex-shrink: 0; width: 24px; height: 24px; border-radius: 6px;
+  display: grid; place-items: center; color: var(--faint); background: none; border: none; cursor: pointer;
+  opacity: 0; transition: opacity .12s, background .12s, color .12s; }
+.dash .dx-sec-head:hover .dx-menu-btn, .dash .dx-sec-head .dx-menu-btn[aria-expanded="true"] { opacity: 1; }
+.dash .dx-sec-head .dx-menu-btn:hover { background: var(--paper-2); color: var(--ink); }
+.dash .dx-sec-head .dx-menu-btn svg { width: 15px; height: 15px; }
+.dash .dx-sec-head .dx-menu { top: 30px; right: 2px; }
+
+/* ── Ledger rows ─────────────────────────────────────────────────────────────── */
+.dash .dx-ledger { border: 1px solid var(--line); border-radius: 12px; background: var(--card);
+  box-shadow: var(--shadow); overflow: hidden; }
+.dash .dx-row { position: relative; display: flex; align-items: center; gap: 12px; padding: 11px 14px;
+  text-decoration: none; color: inherit; border-bottom: 1px solid var(--line-soft);
+  transition: background .12s; }
+.dash .dx-row:last-child { border-bottom: none; }
+.dash .dx-row:hover { background: var(--card-2); }
+.dash .dx-row:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--vio-bg); }
+.dash .dx-row .fav { width: 30px; height: 30px; border-radius: 8px; flex-shrink: 0; display: grid; place-items: center;
+  overflow: hidden; background: var(--card-2); color: var(--kc, var(--muted)); }
+.dash .dx-row .fav svg { width: 15px; height: 15px; }
+.dash .dx-row .fav img { width: 16px; height: 16px; object-fit: contain; }
+.dash .dx-row.k-doc   .fav { background: rgba(143,176,214,.12); }
+.dash .dx-row.k-sheet .fav { background: rgba(134,185,136,.12); }
+.dash .dx-row.k-form  .fav { background: var(--vio-bg); }
+.dash .dx-row.k-drive .fav { background: var(--gold-bg); }
+.dash .dx-row .what { min-width: 0; flex: 1; display: flex; align-items: baseline; gap: 9px; }
+.dash .dx-row .t { font-size: 13px; font-weight: 600; color: var(--ink); white-space: nowrap; }
+.dash .dx-row .d { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.dash .dx-row .d.none { font-style: italic; font-family: var(--serif); color: var(--faint); }
+.dash .dx-row .host { flex-shrink: 0; font-family: var(--mono); font-size: 9.5px; letter-spacing: .04em; color: var(--faint); }
+.dash .dx-row .kind { flex-shrink: 0; display: inline-flex; align-items: center; gap: 6px; width: 52px;
+  font-family: var(--mono); font-size: 8.5px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--kc, var(--muted)); }
+.dash .dx-row .kind::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--kc, var(--muted)); }
+.dash .dx-row .added { flex-shrink: 0; width: 58px; text-align: right; font-family: var(--mono); font-size: 9px; letter-spacing: .06em; color: var(--faint); }
+.dash .dx-row .open { flex-shrink: 0; width: 16px; display: grid; place-items: center; color: var(--vio); opacity: 0; transition: opacity .12s; }
+.dash .dx-row:hover .open, .dash .dx-row:focus-visible .open { opacity: 1; }
+.dash .dx-row .open svg { width: 13px; height: 13px; }
+/* Row actions menu — in flow at the far right, hover-revealed. */
+.dash .dx-row .dx-menu-btn { flex-shrink: 0; width: 24px; height: 24px; border-radius: 6px; display: grid; place-items: center;
+  color: var(--faint); background: none; border: none; cursor: pointer; opacity: 0; transition: opacity .12s, background .12s, color .12s; }
+.dash .dx-row:hover .dx-menu-btn, .dash .dx-row .dx-menu-btn[aria-expanded="true"] { opacity: 1; }
+.dash .dx-row .dx-menu-btn:hover { background: var(--paper-2); color: var(--ink); }
+.dash .dx-row .dx-menu-btn svg { width: 15px; height: 15px; }
+.dash .dx-row .dx-menu { top: 38px; right: 10px; }
+@media (max-width: 900px) { .dash .dx-row .host, .dash .dx-row .added { display: none; } }
+
+/* Every row in a section filtered out (or nothing filed here at all). */
+.dash .dx-none-match { padding: 16px 14px; font-size: 12px; color: var(--faint);
+  font-style: italic; font-family: var(--serif); }
+
+/* Add-to-folder ghost row (manage affordance without a modal trip). */
+.dash .dx-row.ghost-add { color: var(--faint); cursor: pointer; }
+.dash .dx-row.ghost-add .fav { background: none; border: 1px dashed var(--line); color: var(--faint); }
+.dash .dx-row.ghost-add .t { color: var(--muted); font-weight: 500; font-style: italic; font-family: var(--serif); }
+.dash .dx-row.ghost-add:hover .t, .dash .dx-row.ghost-add:focus-visible .t { color: var(--vio); }
+.dash .dx-row.ghost-add:hover .fav, .dash .dx-row.ghost-add:focus-visible .fav { border-color: var(--vio); color: var(--vio); }
+
+/* ── Actions menu popup (shared by shelf cards, rows, section headers) ───────── */
 .dash .dx-menu { position: absolute; top: 40px; right: 12px; z-index: 20; min-width: 130px; overflow: hidden;
   border: 1px solid var(--line); border-radius: 9px; background: var(--paper-2);
   box-shadow: 0 16px 40px -16px rgba(0,0,0,.8); }
@@ -224,55 +284,6 @@
 .dash .dx-toast button { display: grid; place-items: center; background: none; border: none; cursor: pointer; color: var(--rose); }
 .dash .dx-toast button svg { width: 15px; height: 15px; }
 
-@media (prefers-reduced-motion: reduce) {
-  .dash.dash-docs * { transition: none !important; animation: none !important; }
-}
-
-/* Fluid ultrawide */
-@media (min-width: 1280px) {
-  .dash.dash-docs { max-width: min(calc(1180px + 22vw), 1760px); }
-}
-
-/* ── Folders ─────────────────────────────────────────────────────────────────── */
-/* Header action group (New folder + Add doc). */
-.dash .dx-actions { flex-shrink: 0; display: inline-flex; align-items: center; gap: 8px; }
-.dash .dx-add.ghost { color: var(--ink-soft); background: none; border-color: var(--line); }
-.dash .dx-add.ghost svg { stroke: var(--ink-soft); }
-.dash .dx-add.ghost:hover { color: var(--ink); border-color: var(--vio); }
-.dash .dx-add.ghost:hover svg { stroke: var(--vio); }
-
-/* Folder tile — shares the grid cell with .dx-card. */
-.dash .dx-folder { position: relative; display: flex; align-items: center; gap: 12px; width: 100%; text-align: left;
-  padding: 16px; border: 1px solid var(--line); border-radius: 14px; background: var(--card); box-shadow: var(--shadow);
-  cursor: pointer; transition: background .12s, border-color .12s, transform .12s; }
-.dash .dx-folder:hover { background: var(--card-2); border-color: rgba(167,139,250,.28); transform: translateY(-1px); }
-.dash .dx-folder:focus-visible { outline: none; border-color: var(--vio); box-shadow: 0 0 0 3px var(--vio-bg); }
-/* Drag-and-drop: a doc card is being dragged over this folder. */
-.dash .dx-folder.drag-over { border-color: var(--vio); background: var(--vio-bg); box-shadow: 0 0 0 3px var(--vio-bg); }
-.dash .dx-folder .ic { width: 40px; height: 40px; border-radius: 11px; flex-shrink: 0; display: grid; place-items: center;
-  background: var(--vio-bg); color: var(--vio); }
-.dash .dx-folder .ic svg { width: 20px; height: 20px; }
-.dash .dx-folder .meta { min-width: 0; flex: 1; }
-.dash .dx-folder .meta .t { font-size: 14px; font-weight: 600; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.dash .dx-folder .meta .ct { font-family: var(--mono); font-size: 9.5px; letter-spacing: .04em; color: var(--faint); margin-top: 3px; }
-
-/* Folder tiles reuse the card menu styles. */
-.dash .dx-folder .dx-menu-btn { position: absolute; top: 12px; right: 12px; width: 26px; height: 26px; border-radius: 7px;
-  display: grid; place-items: center; color: var(--faint); background: none; border: none; cursor: pointer;
-  opacity: 0; transition: opacity .12s, background .12s, color .12s; }
-.dash .dx-folder:hover .dx-menu-btn, .dash .dx-folder .dx-menu-btn[aria-expanded="true"] { opacity: 1; }
-.dash .dx-folder .dx-menu-btn:hover { background: var(--card-2); color: var(--ink); }
-.dash .dx-folder .dx-menu-btn svg { width: 16px; height: 16px; }
-
-/* Breadcrumb shown inside a folder. */
-.dash .dx-breadcrumb { margin-top: 18px; display: flex; align-items: center; gap: 7px; font-size: 13px; }
-.dash .dx-breadcrumb button { font-family: var(--mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase;
-  color: var(--vio); background: none; border: none; cursor: pointer; }
-.dash .dx-breadcrumb button:hover { text-decoration: underline; }
-.dash .dx-breadcrumb button.drag-over { background: var(--vio-bg); border-radius: 6px; box-shadow: 0 0 0 2px var(--vio-bg); text-decoration: none; }
-.dash .dx-breadcrumb svg { width: 13px; height: 13px; color: var(--faint); }
-.dash .dx-breadcrumb .cur { font-family: var(--serif); font-size: 15px; font-weight: 500; color: var(--ink); }
-
 /* ── Move-to-folder picker ───────────────────────────────────────────────────── */
 .dash .dx-move { display: flex; flex-direction: column; gap: 12px; }
 .dx-move .dx-move-list { list-style: none; margin: 0; padding: 0; max-height: 320px; overflow-y: auto;
@@ -297,22 +308,11 @@
 .dx-move .dx-move-newbtn svg { width: 12px; height: 12px; stroke: var(--vio); }
 .dx-move .dx-move-new { border-top: 1px solid var(--line-soft); padding-top: 12px; }
 
-/* ── Pinned docs / folders ──────────────────────────────────────────────────
-   A pinned card carries a gold left edge + a small pin badge, and floats to the
-   top of the library (the page sorts pinned items ahead of the chosen sort). */
-.dash .dx-card.pinned, .dash .dx-folder.pinned {
-  border-color: rgba(221,179,106,.4);
-  box-shadow: inset 3px 0 0 var(--gold), var(--shadow);
+@media (prefers-reduced-motion: reduce) {
+  .dash.dash-docs * { transition: none !important; animation: none !important; }
 }
-.dash .dx-card.pinned:hover, .dash .dx-folder.pinned:hover {
-  border-color: rgba(221,179,106,.55);
+
+/* Fluid ultrawide */
+@media (min-width: 1280px) {
+  .dash.dash-docs { max-width: min(calc(1180px + 22vw), 1760px); }
 }
-.dash .dx-pin-badge {
-  position: absolute; top: 12px; right: 44px; width: 20px; height: 20px;
-  display: grid; place-items: center; border-radius: 6px;
-  color: var(--gold); background: var(--gold-bg); pointer-events: none;
-}
-.dash .dx-pin-badge svg { width: 12px; height: 12px; }
-/* Folder tiles keep their menu button in flow at the far right; nudge the badge
-   clear of it just like the doc card. */
-.dash .dx-folder .dx-pin-badge { top: 10px; right: 40px; }
