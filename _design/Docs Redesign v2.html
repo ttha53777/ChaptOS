@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dusk">
+<!--
+  ChaptOS · Docs Redesign v2 — "The Reading Room"
+  ────────────────────────────────────────────────
+  ASSUMPTIONS / REASONING
+  · Same dusk/ivory token system, Fraunces serif + Geist / Geist Mono, violet
+    accent + gold/rose/sage semantics as the shipped docs page (docs-ledger.css)
+    and every other ledger mock in _design/. This is a STRUCTURAL reimagining,
+    not a retheme.
+  · What v1 (the current page) does: uniform 3-col card grid, folders as
+    drill-in tiles, a 4-measure glance strip, toolbar. Pain points this mock
+    answers:
+      1. Folders hide their contents — you must drill in and lose the library.
+         v2 renders every folder as an INLINE, collapsible ledger section, so
+         the whole library reads top-to-bottom on one page like a table of
+         contents. Pinned folders float first and carry the gold edge.
+      2. Pinned docs compete inside the same grid. v2 gives them a SHELF — a
+         distinct horizontal row of gold-edged cards above the sections. Pin
+         something and it physically moves to the shelf.
+      3. Cards spend ~120px of height per link; most references only need a
+         row. v2 uses compact ledger rows (favicon tile · title + note · host ·
+         added · open) — roughly 2.5× the density, calmer to scan.
+      4. The glance strip earned its own card in v1; here the same four
+         measures fold into one quiet mono meta line under the digest.
+  · Search/filter/sort keep the v1 toolbar grammar (mono segments with counts).
+  · Data is illustrative — the same believable chapter library as v1.
+  · Interactions in this mock: T toggles dusk/ivory, sections collapse,
+    kind-filter segments really filter the rows, hovers reveal Open/menu.
+-->
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ChaptOS — Docs Redesign v2 · The Reading Room</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..700;1,9..144,300..700&family=Geist:wght@300..700&family=Geist+Mono:wght@300..600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --serif: "Fraunces", Georgia, serif;
+    --sans: "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --mono: "Geist Mono", ui-monospace, Menlo, monospace;
+  }
+  [data-theme="dusk"] {
+    --paper:    #0f0d0a;
+    --paper-2:  #14120e;
+    --card:     #161310;
+    --card-2:   #1b1813;
+    --ink:      #ece7dd;
+    --ink-soft: #c9c2b4;
+    --muted:    #958d7c;
+    --faint:    #6b6354;
+    --line:     rgba(236,231,221,.09);
+    --line-soft:rgba(236,231,221,.05);
+    --vio:      #a78bfa;
+    --vio-deep: #7c3aed;
+    --vio-bg:   rgba(167,139,250,.10);
+    --gold:     #ddb36a;
+    --gold-bg:  rgba(221,179,106,.10);
+    --rose:     #d98ba3;
+    --rose-bg:  rgba(217,139,163,.10);
+    --ok:       #7fb08a;
+    --ok-bg:    rgba(127,176,138,.10);
+    --shadow:   0 1px 0 rgba(0,0,0,.4), 0 16px 40px -24px rgba(0,0,0,.7);
+    --k-doc:    #8fb0d6;
+    --k-sheet:  #86b988;
+    --k-form:   #a78bfa;
+    --k-drive:  #ddb36a;
+    --k-link:   #958d7c;
+  }
+  [data-theme="ivory"] {
+    --paper:    #f2ede3;
+    --paper-2:  #ece6d9;
+    --card:     #faf7f0;
+    --card-2:   #f4f0e6;
+    --ink:      #171410;
+    --ink-soft: #3d382f;
+    --muted:    #6f675a;
+    --faint:    #9a917f;
+    --line:     rgba(23,20,16,.13);
+    --line-soft:rgba(23,20,16,.07);
+    --vio:      #6d28d9;
+    --vio-deep: #5b21b6;
+    --vio-bg:   rgba(109,40,217,.08);
+    --gold:     #9a7224;
+    --gold-bg:  rgba(154,114,36,.10);
+    --rose:     #b34f72;
+    --rose-bg:  rgba(179,79,114,.09);
+    --ok:       #3f7a50;
+    --ok-bg:    rgba(63,122,80,.10);
+    --shadow:   0 1px 2px rgba(23,20,16,.05), 0 14px 34px -26px rgba(23,20,16,.35);
+    --k-doc:    #3f6ea3;
+    --k-sheet:  #4a7d4c;
+    --k-form:   #6d28d9;
+    --k-drive:  #9a7224;
+    --k-link:   #6f675a;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { background: var(--paper); color: var(--ink); font-family: var(--sans); }
+  body { font-size: 13.5px; line-height: 1.45; -webkit-font-smoothing: antialiased; }
+  ::selection { background: var(--vio-bg); }
+  button { font: inherit; color: inherit; }
+
+  .shell { display: grid; grid-template-columns: 228px 1fr; min-height: 100vh; }
+
+  /* ── Sidebar (shared with the other ledger mocks) ────── */
+  .side {
+    border-right: 1px solid var(--line);
+    background: var(--paper-2);
+    padding: 26px 0 20px;
+    display: flex; flex-direction: column; gap: 26px;
+    position: sticky; top: 0; height: 100vh;
+  }
+  .wordmark { padding: 0 24px; }
+  .wordmark .product {
+    font-family: var(--serif); font-style: italic; font-weight: 600;
+    font-size: 19px; letter-spacing: .01em; color: var(--ink);
+  }
+  .wordmark .org {
+    margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line-soft);
+    font-family: var(--mono); font-size: 10px; letter-spacing: .14em;
+    text-transform: uppercase; color: var(--muted); line-height: 1.7;
+  }
+  .nav { display: flex; flex-direction: column; gap: 1px; padding: 0 12px; }
+  .nav a {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 12px; border-radius: 7px; text-decoration: none;
+    font-family: var(--mono); font-size: 11px; letter-spacing: .12em;
+    text-transform: uppercase; color: var(--muted);
+  }
+  .nav a:hover { color: var(--ink-soft); background: var(--line-soft); }
+  .nav a.active { color: var(--ink); background: var(--card-2); }
+  .nav a.active::before { content: ""; width: 3px; height: 14px; border-radius: 2px; background: var(--vio); margin-left: -6px; }
+  .side .spacer { flex: 1; }
+  .user { margin: 0 12px; padding: 12px; border-top: 1px solid var(--line-soft); display: flex; gap: 10px; align-items: center; }
+  .user .avatar { width: 30px; height: 30px; border-radius: 50%; background: var(--vio-bg); color: var(--vio);
+    display: grid; place-items: center; font-family: var(--mono); font-size: 10px; font-weight: 600; }
+  .user .who p:first-child { font-size: 12.5px; font-weight: 600; color: var(--ink); }
+  .user .who p:last-child { font-family: var(--mono); font-size: 9.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--faint); margin-top: 1px; }
+
+  .theme-toggle { position: fixed; bottom: 18px; right: 20px; z-index: 50;
+    font-family: var(--mono); font-size: 10px; letter-spacing: .12em; text-transform: uppercase;
+    color: var(--muted); background: var(--card); border: 1px solid var(--line); border-radius: 999px;
+    padding: 6px 14px; cursor: pointer; }
+  .theme-toggle:hover { color: var(--ink); border-color: var(--vio); }
+
+  /* ── Main ────────────────────────────────────────────── */
+  .main { padding: 30px 38px 48px; max-width: 1080px; }
+
+  .briefing { display: flex; justify-content: space-between; gap: 36px; align-items: flex-start; }
+  .kicker { font-family: var(--mono); font-size: 10.5px; letter-spacing: .18em; text-transform: uppercase; color: var(--muted); }
+  h1.greeting { font-family: var(--serif); font-weight: 400; font-size: 33px; letter-spacing: -.01em; margin-top: 8px; color: var(--ink); }
+  h1.greeting em { font-style: italic; color: var(--vio); }
+  .digest { margin-top: 12px; display: flex; gap: 9px; align-items: baseline; max-width: 600px; }
+  .ai-chip { flex-shrink: 0; font-family: var(--mono); font-size: 8.5px; font-weight: 600; letter-spacing: .14em;
+    color: var(--vio); border: 1px solid var(--vio-bg); background: var(--vio-bg); border-radius: 4px; padding: 2px 5px; transform: translateY(-1px); }
+  .digest p { font-size: 13.5px; color: var(--ink-soft); font-style: italic; font-family: var(--serif); font-weight: 350; }
+
+  /* v2: the four glance measures fold into one quiet meta line. */
+  .meta-line { margin-top: 14px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+    font-family: var(--mono); font-size: 10px; letter-spacing: .08em; color: var(--faint); }
+  .meta-line b { font-weight: 500; color: var(--muted); }
+  .meta-line .dot { color: var(--line); }
+
+  .actions { flex-shrink: 0; display: inline-flex; align-items: center; gap: 8px; }
+  .add-btn { display: inline-flex; align-items: center; gap: 7px;
+    font-family: var(--mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--vio); background: var(--vio-bg); border: 1px solid var(--vio-bg); border-radius: 8px;
+    padding: 8px 14px; cursor: pointer; transition: border-color .12s; }
+  .add-btn:hover { border-color: var(--vio); }
+  .add-btn svg { width: 13px; height: 13px; stroke: var(--vio); }
+  .add-btn.ghost { color: var(--ink-soft); background: none; border-color: var(--line); }
+  .add-btn.ghost svg { stroke: var(--ink-soft); }
+  .add-btn.ghost:hover { color: var(--ink); border-color: var(--vio); }
+
+  /* ── Command bar: search + kind filter + sort ────────── */
+  .toolbar { margin-top: 24px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .searchbox { display: inline-flex; align-items: center; gap: 8px; padding: 8px 12px; flex: 1 1 260px; max-width: 400px;
+    border-radius: 9px; border: 1px solid var(--line); background: var(--card); color: var(--faint);
+    transition: border-color .12s, box-shadow .12s; }
+  .searchbox:focus-within { border-color: rgba(167,139,250,.5); box-shadow: 0 0 0 3px var(--vio-bg); }
+  .searchbox svg { width: 14px; height: 14px; flex-shrink: 0; }
+  .searchbox input { flex: 1; min-width: 0; background: none; border: none; outline: none;
+    color: var(--ink); font-family: var(--mono); font-size: 11px; letter-spacing: .03em; }
+  .searchbox input::placeholder { color: var(--faint); }
+  .searchbox .kbd { font-family: var(--mono); font-size: 9px; letter-spacing: .06em; color: var(--faint);
+    border: 1px solid var(--line); border-radius: 5px; padding: 2px 6px; }
+  .seg { display: inline-flex; gap: 2px; padding: 3px; border: 1px solid var(--line); border-radius: 9px; background: var(--card); }
+  .seg button { display: inline-flex; align-items: center; gap: 6px;
+    font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--muted); border: none; background: transparent; border-radius: 6px; padding: 6px 11px; cursor: pointer; }
+  .seg button:hover { color: var(--ink-soft); }
+  .seg button.on { color: var(--ink); background: var(--card-2); box-shadow: inset 0 0 0 1px var(--line); }
+  .seg button .ct { font-size: 9px; color: var(--faint); }
+  .seg button.on .ct { color: var(--vio); }
+  .sort { margin-left: auto; display: inline-flex; align-items: center; gap: 7px; }
+  .sort .lbl { font-family: var(--mono); font-size: 9px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+  .sort select { font-family: var(--mono); font-size: 10px; letter-spacing: .06em; color: var(--ink-soft);
+    background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 6px 9px; cursor: pointer; }
+
+  /* ── Pinned shelf ────────────────────────────────────── */
+  .shelf-label { margin-top: 26px; display: flex; align-items: center; gap: 10px;
+    font-family: var(--mono); font-size: 9.5px; letter-spacing: .16em; text-transform: uppercase; color: var(--gold); }
+  .shelf-label svg { width: 12px; height: 12px; }
+  .shelf-label::after { content: ""; height: 1px; flex: 1; background: var(--line-soft); }
+  .shelf { margin-top: 12px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  @media (max-width: 1080px) { .shelf { grid-template-columns: repeat(2, 1fr); } }
+  .pinned-card { position: relative; display: flex; flex-direction: column; text-decoration: none; color: inherit;
+    border: 1px solid rgba(221,179,106,.4); border-radius: 12px; background: var(--card);
+    box-shadow: inset 3px 0 0 var(--gold), var(--shadow); padding: 14px 15px 12px;
+    transition: background .12s, border-color .12s, transform .12s; }
+  .pinned-card:hover { background: var(--card-2); border-color: rgba(221,179,106,.55); transform: translateY(-1px); }
+  .pinned-card .top { display: flex; align-items: center; gap: 10px; }
+  .pinned-card .fav { width: 32px; height: 32px; border-radius: 9px; flex-shrink: 0; display: grid; place-items: center;
+    background: var(--vio-bg); color: var(--kc, var(--vio)); }
+  .pinned-card .fav svg { width: 16px; height: 16px; }
+  .pinned-card.k-doc   .fav { background: rgba(143,176,214,.12); }
+  .pinned-card.k-sheet .fav { background: rgba(134,185,136,.12); }
+  .pinned-card.k-form  .fav { background: var(--vio-bg); }
+  .pinned-card .meta { min-width: 0; flex: 1; }
+  .pinned-card .t { font-size: 13px; font-weight: 600; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pinned-card .h { font-family: var(--mono); font-size: 9px; letter-spacing: .04em; color: var(--faint);
+    margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pinned-card .note { margin-top: 9px; font-size: 11.5px; line-height: 1.45; color: var(--ink-soft);
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .pinned-card .pin { position: absolute; top: 10px; right: 10px; width: 20px; height: 20px;
+    display: grid; place-items: center; border-radius: 6px; color: var(--gold); background: var(--gold-bg); }
+  .pinned-card .pin svg { width: 11px; height: 11px; }
+
+  /* ── Folder sections — the library reads inline ──────── */
+  .section { margin-top: 26px; }
+  .sec-head { display: flex; align-items: baseline; gap: 11px; width: 100%; text-align: left;
+    background: none; border: none; cursor: pointer; padding: 0 2px 10px; }
+  .sec-head .chev { align-self: center; width: 15px; height: 15px; flex-shrink: 0; color: var(--faint);
+    transition: transform .16s ease, color .12s; }
+  .sec-head:hover .chev { color: var(--vio); }
+  .section.closed .sec-head .chev { transform: rotate(-90deg); }
+  .sec-head .name { font-family: var(--serif); font-weight: 500; font-size: 17px; letter-spacing: -.005em; color: var(--ink); }
+  .sec-head .ct { font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em; color: var(--faint); }
+  .sec-head .pin { align-self: center; display: grid; place-items: center; width: 18px; height: 18px;
+    border-radius: 5px; color: var(--gold); background: var(--gold-bg); }
+  .sec-head .pin svg { width: 10px; height: 10px; }
+  .sec-head .rule { align-self: center; height: 1px; flex: 1; background: var(--line-soft); }
+  .sec-head .fold-hint { font-family: var(--mono); font-size: 9px; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--faint); opacity: 0; transition: opacity .12s; }
+  .sec-head:hover .fold-hint { opacity: 1; }
+
+  /* Ledger rows */
+  .ledger { border: 1px solid var(--line); border-radius: 12px; background: var(--card);
+    box-shadow: var(--shadow); overflow: hidden; }
+  .section.closed .ledger { display: none; }
+  .row { position: relative; display: flex; align-items: center; gap: 12px; padding: 11px 14px;
+    text-decoration: none; color: inherit; border-bottom: 1px solid var(--line-soft);
+    transition: background .12s; }
+  .row:last-child { border-bottom: none; }
+  .row:hover { background: var(--card-2); }
+  .row .fav { width: 30px; height: 30px; border-radius: 8px; flex-shrink: 0; display: grid; place-items: center;
+    background: var(--card-2); color: var(--kc, var(--muted)); }
+  .row .fav svg { width: 15px; height: 15px; }
+  .row.k-doc   .fav { background: rgba(143,176,214,.12); }
+  .row.k-sheet .fav { background: rgba(134,185,136,.12); }
+  .row.k-form  .fav { background: var(--vio-bg); }
+  .row.k-drive .fav { background: var(--gold-bg); }
+  .row .what { min-width: 0; flex: 1; display: flex; align-items: baseline; gap: 9px; }
+  .row .t { font-size: 13px; font-weight: 600; color: var(--ink); white-space: nowrap; }
+  .row .d { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  .row .d.none { font-style: italic; font-family: var(--serif); color: var(--faint); }
+  .row .host { flex-shrink: 0; font-family: var(--mono); font-size: 9.5px; letter-spacing: .04em; color: var(--faint); }
+  .row .kind { flex-shrink: 0; display: inline-flex; align-items: center; gap: 6px; width: 52px;
+    font-family: var(--mono); font-size: 8.5px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase;
+    color: var(--kc, var(--muted)); }
+  .row .kind::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--kc, var(--muted)); }
+  .row .added { flex-shrink: 0; width: 58px; text-align: right; font-family: var(--mono); font-size: 9px; letter-spacing: .06em; color: var(--faint); }
+  .row .open { flex-shrink: 0; width: 16px; display: grid; place-items: center; color: var(--vio); opacity: 0; transition: opacity .12s; }
+  .row:hover .open { opacity: 1; }
+  .row .open svg { width: 13px; height: 13px; }
+  .row .menu { flex-shrink: 0; width: 24px; height: 24px; border-radius: 6px; display: grid; place-items: center;
+    color: var(--faint); background: none; border: none; cursor: pointer; opacity: 0; transition: opacity .12s, background .12s, color .12s; }
+  .row:hover .menu { opacity: 1; }
+  .row .menu:hover { background: var(--paper-2); color: var(--ink); }
+  .row .menu svg { width: 15px; height: 15px; }
+  @media (max-width: 900px) { .row .host, .row .added { display: none; } }
+
+  /* Row hidden by the kind filter */
+  .row.filtered { display: none; }
+  .ledger .none-match { display: none; padding: 16px 14px; font-size: 12px; color: var(--faint);
+    font-style: italic; font-family: var(--serif); }
+  .ledger.all-filtered .none-match { display: block; }
+
+  /* Add-to-folder ghost row (manage affordance without a modal trip) */
+  .row.ghost-add { color: var(--faint); cursor: pointer; }
+  .row.ghost-add .fav { background: none; border: 1px dashed var(--line); color: var(--faint); }
+  .row.ghost-add .t { color: var(--muted); font-weight: 500; font-style: italic; font-family: var(--serif); }
+  .row.ghost-add:hover .t { color: var(--vio); }
+  .row.ghost-add:hover .fav { border-color: var(--vio); color: var(--vio); }
+
+  footer { margin-top: 40px; padding-top: 16px; border-top: 1px solid var(--line-soft); text-align: center;
+    font-family: var(--mono); font-size: 9.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--faint); }
+</style>
+</head>
+<body>
+<button class="theme-toggle" id="toggle" title="Press T">◐&nbsp; Ivory</button>
+<div class="shell">
+
+  <!-- ── Sidebar ──────────────────────────────────────── -->
+  <aside class="side">
+    <div class="wordmark">
+      <div class="product">ChaptOS</div>
+      <div class="org">Lambda Phi<br>Epsilon</div>
+    </div>
+    <nav class="nav">
+      <a href="#">Dashboard</a>
+      <a href="#">Timeline</a>
+      <a href="#">Brothers</a>
+      <a href="#">Treasury</a>
+      <a href="#">Events</a>
+      <a class="active" href="#">Docs</a>
+      <a href="#">Chapter</a>
+      <a href="#">Settings</a>
+    </nav>
+    <div class="spacer"></div>
+    <div class="user">
+      <div class="avatar">TT</div>
+      <div class="who">
+        <p>Thalha Thabish</p>
+        <p>Secretary</p>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ── Main ─────────────────────────────────────────── -->
+  <main class="main">
+
+    <div class="briefing">
+      <div>
+        <p class="kicker">Reference Library</p>
+        <h1 class="greeting">The chapter&rsquo;s <em>reading room</em>.</h1>
+        <div class="digest">
+          <span class="ai-chip">AI</span>
+          <p>Fourteen references across four collections — Recruitment is the busiest shelf this month, and the dues sheet is one week from its semester refresh.</p>
+        </div>
+        <p class="meta-line">
+          <span><b>14</b> references</span><span class="dot">·</span>
+          <span><b>4</b> kinds</span><span class="dot">·</span>
+          <span><b>6</b> contributors</span><span class="dot">·</span>
+          <span>newest <b>2d</b> ago</span>
+        </p>
+      </div>
+      <div class="actions">
+        <button class="add-btn ghost">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><path d="M12 11v4M10 13h4"/></svg>
+          New folder
+        </button>
+        <button class="add-btn">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+          Add doc
+        </button>
+      </div>
+    </div>
+
+    <!-- ── Command bar ────────────────────────────────── -->
+    <div class="toolbar">
+      <label class="searchbox">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M11 19a8 8 0 100-16 8 8 0 000 16z"/></svg>
+        <input type="search" placeholder="Search the library…">
+        <span class="kbd">⌘K</span>
+      </label>
+      <div class="seg" id="kindseg">
+        <button class="on" data-k="all">All <span class="ct">14</span></button>
+        <button data-k="doc">Docs <span class="ct">5</span></button>
+        <button data-k="sheet">Sheets <span class="ct">4</span></button>
+        <button data-k="form">Forms <span class="ct">2</span></button>
+        <button data-k="link">Links <span class="ct">3</span></button>
+      </div>
+      <label class="sort">
+        <span class="lbl">Sort</span>
+        <select><option>Newest</option><option>Name</option><option>Kind</option></select>
+      </label>
+    </div>
+
+    <!-- ── Pinned shelf ───────────────────────────────── -->
+    <p class="shelf-label">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5M9 3h6l-.75 6.5L18 12H6l3.75-2.5z"/></svg>
+      Pinned
+    </p>
+    <div class="shelf">
+
+      <a class="pinned-card k-doc" href="#" style="--kc:var(--k-doc)">
+        <span class="pin"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5M9 3h6l-.75 6.5L18 12H6l3.75-2.5z"/></svg></span>
+        <div class="top">
+          <div class="fav"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M14 3v4a1 1 0 001 1h4M5 3h9l5 5v11a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2z"/></svg></div>
+          <div class="meta"><div class="t">Chapter Constitution</div><div class="h">docs.google.com</div></div>
+        </div>
+        <p class="note">The governing bylaws — membership, officer duties, amendment process.</p>
+      </a>
+
+      <a class="pinned-card k-sheet" href="#" style="--kc:var(--k-sheet)">
+        <span class="pin"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5M9 3h6l-.75 6.5L18 12H6l3.75-2.5z"/></svg></span>
+        <div class="top">
+          <div class="fav"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M4 5h16v14H4zM4 10h16M4 15h16M10 5v14"/></svg></div>
+          <div class="meta"><div class="t">Dues Tracker — Spring</div><div class="h">docs.google.com</div></div>
+        </div>
+        <p class="note">Live ledger of who&rsquo;s paid, who owes, and payment plans. Updated weekly.</p>
+      </a>
+
+      <a class="pinned-card k-form" href="#" style="--kc:var(--k-form)">
+        <span class="pin"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5M9 3h6l-.75 6.5L18 12H6l3.75-2.5z"/></svg></span>
+        <div class="top">
+          <div class="fav"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg></div>
+          <div class="meta"><div class="t">Rush Interest Form</div><div class="h">forms.gle</div></div>
+        </div>
+        <p class="note">Intake for prospective members. Share the short link at tabling.</p>
+      </a>
+
+    </div>
+
+    <!-- ── Section: Recruitment (pinned folder) ───────── -->
+    <section class="section">
+      <button class="sec-head">
+        <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+        <span class="name">Recruitment</span>
+        <span class="ct">4 docs</span>
+        <span class="pin"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5M9 3h6l-.75 6.5L18 12H6l3.75-2.5z"/></svg></span>
+        <span class="rule"></span>
+        <span class="fold-hint">Collapse</span>
+      </button>
+      <div class="ledger">
+        <a class="row k-sheet" href="#" style="--kc:var(--k-sheet)">
+          <div class="fav"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M4 5h16v14H4zM4 10h16M4 15h16M10 5v14"/></svg></div>
+          <div class="what"><span class="t">Rush Week Schedule</span><span class="d">Night-by-night rundown with room bookings and leads.</span></div>
+          <span class="host">docs.google.com</span>
+          <span class="kind">Sheet</span>
+          <span class="added">Jun 27</span>
+          <span class="open"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg></span>
+          <button class="menu" aria-label="Doc actions"><svg fill="currentColor" viewBox="0 0 20 20"><path d="M10 6a1.5 1.5 0 110-3 1.5 1.5 0 010 3zm0 5.5a1.5 1.5 0 110-3 1.5 1.5 0 010 3zm0 5.5a1.5 1.5 0 110-3 1.5 1.5 0 010 3z"/></svg></button>
+        </a>
+        <a class="row k-sheet" href="#" style="--kc:var(--k-sheet)">
+          <div class="fav"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M4 5h16v14H4zM4 10h16M4 15h16M10 5v14"/></svg></div>
+          <div class="what"><span class="t">PNM Tracker</span><span class="d">Every prospective member, their contact, and where they are in the funnel.</span></div>
+          <span class="host">docs.google.com</span>
+          <span class="kind">Sheet</span>
+          <span class="added">Jun 24</span>
+          <span class="open"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg></span>
+          <button class="menu" aria-label="Doc actions"><svg fill="currentColor" viewBox="0 0 20 20"><path d="M10 6a1.5 1.5 0 110-3 1.5 1.5 0 010 3zm0 5.5a1.5 1.5 0 110-3 1.5 1.5 0 010 3zm0 5.5a1.5 1.5 0 110-3 1.5 1.5 0 010 3z"/></svg></button>
+        </a>
+        <a class="row k-drive" href="#" style="--kc:var(--k-drive)">
+          <div class="fav"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg></div>
+          <div class="what"><span class="t">Tabling Flyer Assets</span><span class="d">Print-ready flyers and the QR code that points at the interest form.</span></div>
+          <span class="host">drive.google.com</span>
+          <span class="kind">Drive</span>
+          <span class="added">Jun 20</span>
+          <span class="open"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg></span>
+          <button class="menu" aria-label="Doc actions"><svg fill="currentColor" viewBox="0 0 20 20"><path d="M10 6a1.5 1.5 0 110-3 1.5 1.5 0 010 3zm0 5.5a1.5 1.5 0 110-3 1.5 1.5 0 010 3zm0 5.5a1.5 1.5 0 110-3 1.5 1.5 0 010 3z"/></svg></button>
+        </a>
+        <a class="row k-doc" href="#" style="--kc:var(--k-doc)">
+          <div class="fav"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M14 3v4a1 1 0 001 1h4M5 3h9l5 5v11a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2z"/></svg></div>
+          <div class="what"><span class="t">Bid Night Runbook</span><span class="d none">No description yet.</span></div>
+          <span class="host">docs.google.com</span>
+          <span class="kind">Doc</span>
+          <span class="added">Jun 29</span>
+          <span class="open"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg></span>
+          <button class="menu" aria-label="Doc actions"><svg fill="currentColor" viewBox="0 0 20 20"><path d="M10 6a1.5 1.5 0 110-3 1.5 1.5 0 010 3zm0 5.5a1.5 1.5 0 110-3 1.5 1.5 0 010 3zm0 5.5a1.5 1.5 0 110-3 1.5 1.5 0 010 3z"/></svg></button>
+        </a>
+        <p class="none-match">Nothing in Recruitment matches this filter.</p>
+        <div class="row ghost-add">
+          <div class="fav"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></div>
+          <div class="what"><span class="t">Add to Recruitment…</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Section: Governance ────────────────────────── -->
+    <section class="section">
+      <button class="sec-head">
+        <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+        <span class="name">Governance</span>
+        <span class="ct">3 docs</span>
+        <span class="rule"></span>
+        <span class="fold-hint">Collapse</span>
+      </button>
+      <div class="ledger">
+        <a class="row k-doc" href="#" style="--kc:var(--k-doc)">
+          <div class="fav"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M14 3v4a1 1 0 001 1h4M5 3h9l5 5v11a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2z"/></svg></div>
+          <div class="what"><span class="t">Risk Management Policy</span><span class="d">Event safety guidelines and the sober-monitor checklist required before any social.</span></div>
+          <span class="host">docs.google.com</span>
+          <span class="kind">Doc</span>
+          <span class="added">Jan 22</span>
+          <span class="open"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg></span>
+          <button class="menu" aria-label="Doc actions"><svg fill="currentColor" viewBox="0 0 20 20"><path d="M10 6a1.5 1.5 0 110-3 1.5 1.5 0 010 3zm0 5.5a1.5 1.5 0 110-3 1.5 1.5 0 010 3zm0 5.5a1.5 1.5 0 110-3 1.5 1.5 0 010 3z"/></svg></button>
+        </a>
+        <a class="row k-drive" href="#" style="--kc:var(--k-drive)">
+          <div class="fav"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg></div>
+          <div class="what"><span class="t">Meeting Minutes Archive</span><span class="d">Every chapter meeting since Fall &rsquo;23, filed by date.</span></div>
+          <span class="host">drive.google.com</span>
+          <span class="kind">Drive</span>
+          <span class="added">May 2</span>
+          <span class="open"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg></span>
+          <button class="menu" aria-label="Doc actions"><svg fill="currentColor" viewBox="0 0 20 20"><path d="M10 6a1.5 1.5 0 110-3 1.5 1.5 0 010 3zm0 5.5a1.5 1.5 0 110-3 1.5 1.5 0 010 3zm0 5.5a1.5 1.5 0 110-3 1.5 1.5 0 010 3z"/></svg></button>
+        </a>
+        <a class="row k-doc" href="#" style="--kc:var(--k-doc)">
+          <div class="fav"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M14 3v4a1 1 0 001 1h4M5 3h9l5 5v11a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2z"/></svg></div>
+          <div class="what"><span class="t">Officer Transition Guide</span><span class="d">What each chair hands off in December — accounts, passwords, contacts.</span></div>
+          <span class="host">docs.google.com</span>
+          <span class="kind">Doc</span>
+          <span class="added">Dec 12</span>
+          <span class="open"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg></span>
+          <button class="menu" aria-label="Doc actions"><svg fill="currentColor" viewBox="0 0 20 20"><path d="M10 6a1.5 1.5 0 110-3 1.5 1.5 0 010 3zm0 5.5a1.5 1.5 0 110-3 1.5 1.5 0 010 3zm0 5.5a1.5 1.5 0 110-3 1.5 1.5 0 010 3z"/></svg></button>
+        </a>
+        <p class="none-match">Nothing in Governance matches this filter.</p>
+        <div class="row ghost-add">
+          <div class="fav"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></div>
+          <div class="what"><span class="t">Add to Governance…</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Section: Finance ───────────────────────────── -->
+    <section class="section">
+      <button class="sec-head">
+        <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+        <span class="name">Finance</span>
+        <span class="ct">2 docs</span>
+        <span class="rule"></span>
+        <span class="fold-hint">Collapse</span>
+      </button>
+      <div class="ledger">
+        <a class="row k-form" href="#" style="--kc:var(--k-form)">
+          <div class="fav"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg></div>
+          <div class="what"><span class="t">Reimbursement Form</span><span class="d">Submit receipts here — Treasury pays out at the end of each month.</span></div>
+          <span class="host">forms.gle</span>
+          <span class="kind">Form</span>
+          <span class="added">Apr 8</span>
+          <span class="open"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg></span>
+          <button class="menu" aria-label="Doc actions"><svg fill="currentColor" viewBox="0 0 20 20"><path d="M10 6a1.5 1.5 0 110-3 1.5 1.5 0 010 3zm0 5.5a1.5 1.5 0 110-3 1.5 1.5 0 010 3zm0 5.5a1.5 1.5 0 110-3 1.5 1.5 0 010 3z"/></svg></button>
+        </a>
+        <a class="row k-sheet" href="#" style="--kc:var(--k-sheet)">
+          <div class="fav"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M4 5h16v14H4zM4 10h16M4 15h16M10 5v14"/></svg></div>
+          <div class="what"><span class="t">Budget — FY26</span><span class="d">Approved line items per committee, against actuals.</span></div>
+          <span class="host">docs.google.com</span>
+          <span class="kind">Sheet</span>
+          <span class="added">Feb 3</span>
+          <span class="open"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg></span>
+          <button class="menu" aria-label="Doc actions"><svg fill="currentColor" viewBox="0 0 20 20"><path d="M10 6a1.5 1.5 0 110-3 1.5 1.5 0 010 3zm0 5.5a1.5 1.5 0 110-3 1.5 1.5 0 010 3zm0 5.5a1.5 1.5 0 110-3 1.5 1.5 0 010 3z"/></svg></button>
+        </a>
+        <p class="none-match">Nothing in Finance matches this filter.</p>
+        <div class="row ghost-add">
+          <div class="fav"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></div>
+          <div class="what"><span class="t">Add to Finance…</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Section: Unfiled ───────────────────────────── -->
+    <section class="section">
+      <button class="sec-head">
+        <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+        <span class="name">Unfiled</span>
+        <span class="ct">3 docs</span>
+        <span class="rule"></span>
+        <span class="fold-hint">Collapse</span>
+      </button>
+      <div class="ledger">
+        <a class="row k-link" href="#" style="--kc:var(--k-link)">
+          <div class="fav"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M13.83 10.17a4 4 0 00-5.66 0l-4 4a4 4 0 105.66 5.66l1.1-1.1m-.76-4.9a4 4 0 005.66 0l4-4a4 4 0 00-5.66-5.66l-1.1 1.1"/></svg></div>
+          <div class="what"><span class="t">Nationals Portal</span><span class="d">National HQ login — chapter reports, insurance, and standards submissions.</span></div>
+          <span class="host">portal.lphie.org</span>
+          <span class="kind">Link</span>
+          <span class="added">Nov 9</span>
+          <span class="open"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg></span>
+          <button class="menu" aria-label="Doc actions"><svg fill="currentColor" viewBox="0 0 20 20"><path d="M10 6a1.5 1.5 0 110-3 1.5 1.5 0 010 3zm0 5.5a1.5 1.5 0 110-3 1.5 1.5 0 010 3zm0 5.5a1.5 1.5 0 110-3 1.5 1.5 0 010 3z"/></svg></button>
+        </a>
+        <a class="row k-drive" href="#" style="--kc:var(--k-drive)">
+          <div class="fav"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg></div>
+          <div class="what"><span class="t">Brand &amp; Logo Assets</span><span class="d">Logos, letter marks, and the merch templates for flyers and apparel.</span></div>
+          <span class="host">drive.google.com</span>
+          <span class="kind">Drive</span>
+          <span class="added">Feb 18</span>
+          <span class="open"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg></span>
+          <button class="menu" aria-label="Doc actions"><svg fill="currentColor" viewBox="0 0 20 20"><path d="M10 6a1.5 1.5 0 110-3 1.5 1.5 0 010 3zm0 5.5a1.5 1.5 0 110-3 1.5 1.5 0 010 3zm0 5.5a1.5 1.5 0 110-3 1.5 1.5 0 010 3z"/></svg></button>
+        </a>
+        <a class="row k-link" href="#" style="--kc:var(--k-link)">
+          <div class="fav"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M13.83 10.17a4 4 0 00-5.66 0l-4 4a4 4 0 105.66 5.66l1.1-1.1m-.76-4.9a4 4 0 005.66 0l4-4a4 4 0 00-5.66-5.66l-1.1 1.1"/></svg></div>
+          <div class="what"><span class="t">House Maintenance Wiki</span><span class="d none">No description yet.</span></div>
+          <span class="host">notion.site</span>
+          <span class="kind">Link</span>
+          <span class="added">Jun 29</span>
+          <span class="open"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg></span>
+          <button class="menu" aria-label="Doc actions"><svg fill="currentColor" viewBox="0 0 20 20"><path d="M10 6a1.5 1.5 0 110-3 1.5 1.5 0 010 3zm0 5.5a1.5 1.5 0 110-3 1.5 1.5 0 010 3zm0 5.5a1.5 1.5 0 110-3 1.5 1.5 0 010 3z"/></svg></button>
+        </a>
+        <p class="none-match">Nothing unfiled matches this filter.</p>
+      </div>
+    </section>
+
+    <footer>Lambda Phi Epsilon · ChaptOS — docs redesign v2 mock · Jul 1, 2026</footer>
+  </main>
+</div>
+
+<script>
+  const root = document.documentElement;
+  const btn = document.getElementById("toggle");
+  function setTheme(t) {
+    root.dataset.theme = t;
+    btn.innerHTML = t === "dusk" ? "◐&nbsp; Ivory" : "◑&nbsp; Dusk";
+    try { localStorage.setItem("chaptos-mock-theme", t); } catch {}
+  }
+  btn.addEventListener("click", () => setTheme(root.dataset.theme === "dusk" ? "ivory" : "dusk"));
+  document.addEventListener("keydown", e => {
+    if (e.key.toLowerCase() === "t" && !e.metaKey && !e.ctrlKey && e.target.tagName !== "INPUT") btn.click();
+  });
+  try { const saved = localStorage.getItem("chaptos-mock-theme"); if (saved === "ivory") setTheme("ivory"); } catch {}
+
+  // Collapsible sections
+  document.querySelectorAll(".sec-head").forEach(h => {
+    h.addEventListener("click", () => {
+      const sec = h.closest(".section");
+      sec.classList.toggle("closed");
+      h.querySelector(".fold-hint").textContent = sec.classList.contains("closed") ? "Expand" : "Collapse";
+    });
+  });
+
+  // Kind filter really filters the ledger rows (pinned shelf stays put).
+  document.querySelectorAll("#kindseg button").forEach(b => {
+    b.addEventListener("click", () => {
+      document.querySelectorAll("#kindseg button").forEach(x => x.classList.remove("on"));
+      b.classList.add("on");
+      const k = b.dataset.k;
+      document.querySelectorAll(".ledger").forEach(led => {
+        let visible = 0;
+        led.querySelectorAll(".row:not(.ghost-add)").forEach(r => {
+          // "drive" folds into the Links bucket, mirroring the real page.
+          const rk = [...r.classList].find(c => c.startsWith("k-"))?.slice(2);
+          const bucket = rk === "drive" ? "link" : rk;
+          const show = k === "all" || bucket === k;
+          r.classList.toggle("filtered", !show);
+          if (show) visible++;
+        });
+        led.classList.toggle("all-filtered", visible === 0);
+      });
+    });
+  });
+
+  // Mock: keep links from navigating
+  document.querySelectorAll("a.row, a.pinned-card").forEach(a => a.addEventListener("click", e => e.preventDefault()));
+</script>
+</body>
+</html>
