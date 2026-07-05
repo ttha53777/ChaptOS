@@ -15,6 +15,9 @@ export interface Doc {
   createdByName: string | null;
   folderId: number | null;
   pinnedAt: string | null;
+  // Manual drag-order within its section; null until hand-ordered. Only honored
+  // under the "manual" library sort.
+  position: number | null;
 }
 
 export interface Folder {
@@ -24,6 +27,8 @@ export interface Folder {
   updatedAt: string;
   createdById: number | null;
   pinnedAt: string | null;
+  // Manual drag-order among unpinned folders; null until hand-ordered.
+  position: number | null;
 }
 
 /** A small, recognizable "source" type inferred from the URL. We lead with this

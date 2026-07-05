@@ -7,8 +7,9 @@ import { KIND_ICON, hostOf, kindOf, type Doc } from "./lib";
 /**
  * A violet-edged card on the pinned shelf. Pinned docs live here exclusively —
  * their folder's ledger doesn't repeat them — so this card carries the full
- * actions menu. Deliberately not draggable: dragging a shelf card onto a
- * folder would change membership with no visible effect; Move stays in the menu.
+ * actions menu. Draggable (admins only) onto a folder header to re-file it: it
+ * stays pinned and on the shelf, but its folder membership follows, so it lands
+ * in the right ledger once unpinned. Same payload as LedgerRow.
  */
 export function PinnedCard({
   doc,
@@ -33,6 +34,16 @@ export function PinnedCard({
   const kind = kindOf(doc.url);
   const showFavicon = doc.faviconUrl && !favFailed;
 
+  // The card root is an <a>, which the browser drags as a URL by default — so we
+  // overwrite the payload with our doc id, matching LedgerRow's drag contract.
+  function handleDragStart(e: React.DragEvent) {
+    if (!canManage) return;
+    e.dataTransfer.clearData();
+    e.dataTransfer.setData("application/x-doc-id", String(doc.id));
+    e.dataTransfer.setData("text/plain", String(doc.id));
+    e.dataTransfer.effectAllowed = "move";
+  }
+
   return (
     <a
       href={doc.url}
@@ -40,6 +51,8 @@ export function PinnedCard({
       rel="noopener noreferrer"
       className={`dx-pinned-card k-${kind}`}
       style={{ ["--kc" as string]: `var(--k-${kind})` }}
+      draggable={canManage}
+      onDragStart={handleDragStart}
     >
       <span className="pin" title="Pinned" aria-label="Pinned">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">

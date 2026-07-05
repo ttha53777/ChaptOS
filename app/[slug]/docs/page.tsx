@@ -27,8 +27,9 @@ const FILTERS: { id: KindFilter; label: string }[] = [
   { id: "link",  label: "Links" },
 ];
 
-type SortId = "newest" | "name" | "kind";
+type SortId = "manual" | "newest" | "name" | "kind";
 const SORTS: { id: SortId; label: string }[] = [
+  { id: "manual", label: "Manual" },
   { id: "newest", label: "Newest" },
   { id: "name",   label: "Name" },
   { id: "kind",   label: "Kind" },
@@ -70,7 +71,7 @@ export default function DocsPage() {
   useEffect(() => {
     try {
       const savedSort = localStorage.getItem(SORT_PREF_KEY);
-      if (savedSort === "newest" || savedSort === "name" || savedSort === "kind") setSort(savedSort);
+      if (savedSort === "manual" || savedSort === "newest" || savedSort === "name" || savedSort === "kind") setSort(savedSort);
     } catch { /* ignore */ }
     try {
       const raw = localStorage.getItem(COLLAPSE_PREF_KEY);
@@ -343,6 +344,83 @@ export default function DocsPage() {
     }
   }
 
+  // Reorder a doc within its section: drop `docId` immediately before
+  // `beforeDocId` (null = drop at the end). `folderId` scopes the section.
+  //
+  // Reorder is same-section only. A doc dropped on a row in a *different* folder
+  // is delegated to handleMove (a plain move into that folder, unpositioned) —
+  // treating cross-folder + reposition as one action invited a move/reorder race
+  // and a rollback that could diverge from the DB.
+  async function handleReorderDocs(folderId: number | null, docId: number, beforeDocId: number | null) {
+    const dragged = docs.find(d => d.id === docId);
+    if (!dragged || dragged.pinnedAt != null) return; // pinned docs live on the shelf
+    if ((dragged.folderId ?? null) !== folderId) { handleMove(docId, folderId); return; }
+
+    // The section's current order (unpinned docs in this folder, in display order),
+    // with the dragged doc pulled out so we can re-insert it at the drop point.
+    const inSection = (d: Doc) => d.pinnedAt == null
+      && ((d.folderId ?? null) === folderId
+        || (folderId == null && d.folderId != null && !folderIds.has(d.folderId)));
+    const currentIds = sorted.filter(inSection).map(d => d.id).filter(id => id !== docId);
+    const at = beforeDocId == null ? currentIds.length : currentIds.indexOf(beforeDocId);
+    const insertAt = at < 0 ? currentIds.length : at;
+    const orderedIds = [...currentIds.slice(0, insertAt), docId, ...currentIds.slice(insertAt)];
+
+    // No-op if the order is unchanged (dropped onto its own slot / current
+    // neighbor) and positions are already dense — skip the needless PATCH.
+    const sectionDocs = sorted.filter(inSection);
+    const unchanged = sectionDocs.length === orderedIds.length
+      && sectionDocs.every((d, i) => d.id === orderedIds[i] && d.position === i);
+    if (unchanged) return;
+
+    const posById = new Map(orderedIds.map((id, i) => [id, i]));
+    const prevDocs = docs;
+    setDocs(prev => prev.map(d => posById.has(d.id) ? { ...d, position: posById.get(d.id)! } : d));
+    if (sort !== "manual") changeSort("manual"); // reordering only shows under Manual
+    try {
+      await requestJson<{ count: number }>("/api/docs/reorder", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ folderId, orderedIds }),
+      });
+    } catch (err) {
+      setDocs(prevDocs); // roll back the optimistic order
+      const message = err instanceof Error ? err.message.replace(/^.*?: /, "") : "Failed to reorder.";
+      setPageError(message);
+      toast.error(message);
+    }
+  }
+
+  // Reorder folder sections: drop `folderId` immediately before `beforeFolderId`
+  // (null = drop at the end of the unpinned run). Pinned folders don't reorder —
+  // they float by pin. Optimistic, same as doc reorder.
+  async function handleReorderFolders(folderId: number, beforeFolderId: number | null) {
+    const unpinned = sortedFolders.filter(f => f.pinnedAt == null);
+    const currentIds = unpinned.map(f => f.id);
+    if (!currentIds.includes(folderId)) return;
+    const without = currentIds.filter(id => id !== folderId);
+    const at = beforeFolderId == null ? without.length : without.indexOf(beforeFolderId);
+    const insertAt = at < 0 ? without.length : at;
+    const orderedIds = [...without.slice(0, insertAt), folderId, ...without.slice(insertAt)];
+    if (orderedIds.length === currentIds.length && orderedIds.every((id, i) => id === currentIds[i])) return;
+
+    const posById = new Map(orderedIds.map((id, i) => [id, i]));
+    const prevFolders = folders;
+    setFolders(prev => prev.map(f => posById.has(f.id) ? { ...f, position: posById.get(f.id)! } : f));
+    try {
+      await requestJson<{ count: number }>("/api/docs/folders/reorder", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderedIds }),
+      });
+    } catch (err) {
+      setFolders(prevFolders);
+      const message = err instanceof Error ? err.message.replace(/^.*?: /, "") : "Failed to reorder folders.";
+      setPageError(message);
+      toast.error(message);
+    }
+  }
+
   // Pin / unpin a doc — pinned docs live on the shelf, not in their section.
   async function handlePinDoc(doc: Doc) {
     const pinned = doc.pinnedAt == null; // toggling toward pinned?
@@ -387,6 +465,14 @@ export default function DocsPage() {
     return Number.isInteger(id) && id > 0 ? id : null;
   }
 
+  // Read a dragged folder id — its own MIME type keeps folder drags from being
+  // mistaken for doc drags (a section header is a target for both).
+  function folderIdFromDrop(e: React.DragEvent): number | null {
+    const raw = e.dataTransfer.getData("application/x-folder-id");
+    const id = Number(raw);
+    return Number.isInteger(id) && id > 0 ? id : null;
+  }
+
   function openAdd(folderId: number | null) {
     setAddFolderId(folderId);
     setShowAdd(true);
@@ -404,6 +490,16 @@ export default function DocsPage() {
     if (sort === "name") arr.sort((a, b) => a.title.localeCompare(b.title) || a.id - b.id);
     else if (sort === "kind") arr.sort((a, b) =>
       kindOf(a.url).localeCompare(kindOf(b.url)) || a.title.localeCompare(b.title) || a.id - b.id);
+    else if (sort === "manual") arr.sort((a, b) => {
+      // Hand-ordered docs (position set) come first in their position; docs never
+      // dragged (null) fall to the bottom in newest order. Comparison is within a
+      // section — grouping by folder happens downstream in docsByFolder.
+      const ap = a.position, bp = b.position;
+      if (ap != null && bp != null) return ap - bp || a.id - b.id;
+      if (ap != null) return -1;
+      if (bp != null) return 1;
+      return 0; // both null → keep newestFirst order
+    });
     // "newest" keeps newestFirst order. Pinned docs render on the shelf, not
     // here, so no pin float — the shelf orders by pinnedAt itself.
     return arr;
@@ -469,12 +565,17 @@ export default function DocsPage() {
     return m;
   }, [filtered, folderIds]);
 
-  // Section order: pinned folders first (most-recently pinned), then by name.
+  // Section order: pinned folders first (most-recently pinned), then hand-ordered
+  // folders (position set) in their order, then the rest by name.
   const sortedFolders = useMemo(() => {
     return [...folders].sort((a, b) => {
       if (a.pinnedAt && b.pinnedAt) return b.pinnedAt.localeCompare(a.pinnedAt);
       if (a.pinnedAt) return -1;
       if (b.pinnedAt) return 1;
+      const ap = a.position, bp = b.position;
+      if (ap != null && bp != null) return ap - bp || a.id - b.id;
+      if (ap != null) return -1;
+      if (bp != null) return 1;
       return a.name.localeCompare(b.name) || a.id - b.id;
     });
   }, [folders]);
@@ -523,6 +624,10 @@ export default function DocsPage() {
   const addFolderName = addFolderId != null
     ? (folders.find(f => f.id === addFolderId)?.name ?? "folder")
     : null;
+  // Drag-reorder is an admin gesture that only makes sense under Manual sort with
+  // no search/filter narrowing the sections (otherwise "before this row" is
+  // ambiguous against a hidden neighbor). Cross-folder moves stay on at all times.
+  const canReorder = canManage && sort === "manual" && !queryActive;
 
   return (
     <div className="flex h-screen overflow-hidden bg-[#0f0d0a]">
@@ -718,10 +823,14 @@ export default function DocsPage() {
                     forceOpen={queryActive}
                     queryActive={queryActive}
                     canManage={canManage}
+                    reorderable={canReorder && folder.pinnedAt == null}
                     onToggle={() => toggleSection(`f-${folder.id}`)}
                     onGhostAdd={openAdd}
                     onDropDoc={(docId) => handleMove(docId, folder.id)}
+                    onDropDocAtEnd={(docId) => handleReorderDocs(folder.id, docId, null)}
+                    onReorderFolderBefore={(draggedId) => handleReorderFolders(draggedId, folder.id)}
                     readDropId={docIdFromDrop}
+                    readFolderDropId={folderIdFromDrop}
                     onRename={() => setRenameTarget(folder)}
                     onDelete={() => setDeleteFolderTarget(folder)}
                     onPin={() => handlePinFolder(folder)}
@@ -731,6 +840,9 @@ export default function DocsPage() {
                         key={doc.id}
                         doc={doc}
                         canManage={canManage}
+                        reorderable={canReorder}
+                        readDropId={docIdFromDrop}
+                        onReorderBefore={(draggedId) => handleReorderDocs(folder.id, draggedId, doc.id)}
                         onEdit={() => setEditTarget(doc)}
                         onDelete={() => setDeleteTarget(doc)}
                         onMove={() => setMoveTarget(doc)}
@@ -752,10 +864,14 @@ export default function DocsPage() {
                     forceOpen={queryActive}
                     queryActive={queryActive}
                     canManage={canManage}
+                    reorderable={canReorder}
                     onToggle={() => toggleSection("unfiled")}
                     onGhostAdd={openAdd}
                     onDropDoc={(docId) => handleMove(docId, null)}
+                    onDropDocAtEnd={(docId) => handleReorderDocs(null, docId, null)}
+                    onReorderFolderBefore={() => {}}
                     readDropId={docIdFromDrop}
+                    readFolderDropId={folderIdFromDrop}
                     onRename={() => {}}
                     onDelete={() => {}}
                     onPin={() => {}}
@@ -765,6 +881,9 @@ export default function DocsPage() {
                         key={doc.id}
                         doc={doc}
                         canManage={canManage}
+                        reorderable={canReorder}
+                        readDropId={docIdFromDrop}
+                        onReorderBefore={(draggedId) => handleReorderDocs(null, draggedId, doc.id)}
                         onEdit={() => setEditTarget(doc)}
                         onDelete={() => setDeleteTarget(doc)}
                         onMove={() => setMoveTarget(doc)}

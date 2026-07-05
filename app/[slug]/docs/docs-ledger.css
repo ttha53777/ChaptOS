@@ -181,6 +181,11 @@
 .dash .dx-sec-head:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--vio-bg); }
 /* Drag-and-drop: a row is being dragged over this section's header. */
 .dash .dx-sec-head.drag-over { background: var(--vio-bg); box-shadow: 0 0 0 3px var(--vio-bg); }
+/* A folder header being dragged (Manual sort) reads as a grab handle. */
+.dash .dx-sec-head.draggable { cursor: grab; }
+.dash .dx-sec-head.draggable:active { cursor: grabbing; }
+/* Another section is being dragged over this one → insert-before line on top. */
+.dash .dx-sec-head.drag-over-folder { box-shadow: inset 0 3px 0 -1px var(--vio); }
 .dash .dx-sec-head .chev { align-self: center; width: 15px; height: 15px; flex-shrink: 0; color: var(--faint);
   transition: transform .16s ease, color .12s; }
 .dash .dx-sec-head:hover .chev { color: var(--vio); }
@@ -212,6 +217,11 @@
 .dash .dx-row:last-child { border-bottom: none; }
 .dash .dx-row:hover { background: var(--card-2); }
 .dash .dx-row:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--vio-bg); }
+/* Reorder cue: a dragged doc will file just before this row (Manual sort). */
+.dash .dx-row.drop-before { box-shadow: inset 0 3px 0 -1px var(--vio); }
+/* End-of-section drop zone — the last slot in a folder's ledger. */
+.dash .dx-drop-end { height: 14px; }
+.dash .dx-drop-end.over { height: 22px; box-shadow: inset 0 3px 0 -1px var(--vio); }
 .dash .dx-row .fav { width: 30px; height: 30px; border-radius: 8px; flex-shrink: 0; display: grid; place-items: center;
   overflow: hidden; background: var(--card-2); color: var(--kc, var(--muted)); }
 .dash .dx-row .fav svg { width: 15px; height: 15px; }
