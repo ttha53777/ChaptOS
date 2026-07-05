@@ -100,10 +100,12 @@ export interface EventMetadata {
   "doc.deleted": { title: string };
   "doc.moved":   { title: string; folderId: number | null };
   "doc.pinned":  { title: string; pinned: boolean };
+  "doc.reordered": { folderId: number | null; count: number };
   "docFolder.created": { name: string };
   "docFolder.renamed": { name: string; changedFields: string[] };
   "docFolder.deleted": { name: string; releasedDocs: number };
   "docFolder.pinned":  { name: string; pinned: boolean };
+  "docFolder.reordered": { count: number };
 
   // Misc
   "announcement.updated": { title: string };
@@ -150,8 +152,8 @@ const KNOWN_ACTIONS = new Set<Action>([
   "task.created", "task.updated", "task.completed", "task.reopened", "task.deleted",
   "poll.created", "poll.updated", "poll.closed", "poll.reopened", "poll.deleted",
   "instagram_task.created", "instagram_task.updated", "instagram_task.deleted",
-  "doc.created", "doc.updated", "doc.deleted", "doc.moved", "doc.pinned",
-  "docFolder.created", "docFolder.renamed", "docFolder.deleted", "docFolder.pinned",
+  "doc.created", "doc.updated", "doc.deleted", "doc.moved", "doc.pinned", "doc.reordered",
+  "docFolder.created", "docFolder.renamed", "docFolder.deleted", "docFolder.pinned", "docFolder.reordered",
   "announcement.updated", "semester.created", "semester.activated",
   "org.created", "org.config.updated", "org.onboarding.completed", "org.logo.updated",
   "membership.left",

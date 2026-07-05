@@ -43,3 +43,25 @@ export const pinInput = z.object({
   pinned: z.boolean(),
 });
 export type PinInput = z.infer<typeof pinInput>;
+
+// A drag-reorder: the complete ordered id list for the section being reordered.
+// The service writes dense 0..n-1 positions from this order (one sequential
+// round-trip each), so a partial or duplicated list is rejected against the
+// section's live membership. Capped well above any realistic section size — the
+// service persists sequentially, so an unbounded list would be a slow request.
+const orderedIds = z.array(z.number().int().positive()).max(500);
+
+// Reorder the docs within one section. folderId scopes the section (null =
+// library root / Unfiled); orderedIds is every doc in it, in the new order.
+export const reorderDocsInput = z.object({
+  folderId,
+  orderedIds,
+});
+export type ReorderDocsInput = z.infer<typeof reorderDocsInput>;
+
+// Reorder the (unpinned) folder sections. orderedIds is every folder, in the
+// new order; pinned folders still float ahead regardless of position.
+export const reorderFoldersInput = z.object({
+  orderedIds,
+});
+export type ReorderFoldersInput = z.infer<typeof reorderFoldersInput>;

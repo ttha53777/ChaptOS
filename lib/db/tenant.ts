@@ -541,6 +541,8 @@ function scopedDocFolder(orgId: number, run: Run) {
       const id = await verify(args.where);
       return run(p => p.docFolder.update({ ...args, where: { id } }));
     },
+    updateMany: (args: Omit<Prisma.DocFolderUpdateManyArgs, "where"> & { where?: W }) =>
+      run(p => p.docFolder.updateMany({ ...args, where: org(args.where) })),
     delete:     async (args: Prisma.DocFolderDeleteArgs) => {
       const id = await verify(args.where);
       return run(p => p.docFolder.delete({ where: { id } }));
