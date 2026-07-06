@@ -1,6 +1,6 @@
 "use client";
 
-import { createClient } from "@/lib/supabase/client";
+import { signInWithGoogle } from "@/lib/supabase/oauth";
 import { APP_NAME } from "@/lib/domains";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
@@ -123,38 +123,6 @@ function LoginContent() {
       </div>
     </div>
   );
-}
-
-/**
- * Kick off Google OAuth. The callback URL carries forward whatever routing
- * hints we have so /auth/callback can land the user in the right place:
- *   - { next, org }      sign-in: original deep-link path + any org context
- *   - { intent: "create" } new founder → /welcome/create after auth
- * All hints are optional; sign-in works with none of them.
- */
-async function signInWithGoogle(
-  opts: { next?: string | null; org?: string | null } | { intent: "create" },
-): Promise<string | null> {
-  try {
-    const supabase = createClient();
-    const params = new URLSearchParams();
-    if ("intent" in opts) {
-      params.set("intent", opts.intent);
-    } else {
-      if (opts.org)  params.set("org", opts.org);
-      if (opts.next) params.set("next", opts.next);
-    }
-    const qs = params.toString();
-    const callbackUrl = `${window.location.origin}/auth/callback${qs ? `?${qs}` : ""}`;
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: { redirectTo: callbackUrl },
-    });
-    if (error) return "Sign-in failed. Please try again.";
-    return null;
-  } catch {
-    return "Sign-in failed. Please try again.";
-  }
 }
 
 /** Shared Google sign-in button. */

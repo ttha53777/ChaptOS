@@ -10,6 +10,7 @@
 import Link from "next/link";
 import { APP_NAME } from "@/lib/domains";
 import { Reveal } from "./Reveal";
+import { SignInLink } from "./SignInLink";
 import { Parallax, Tilt } from "./motion";
 import "./landing.css";
 
@@ -54,7 +55,7 @@ function Topbar() {
           <a href="#intelligence">AI</a>
         </nav>
         <div className="lp-topbar-actions">
-          <Link href="/login" className="lp-signin">Sign in</Link>
+          <SignInLink className="lp-signin">Sign in</SignInLink>
           <Link href="/login" className="lp-btn lp-btn-primary lp-btn-sm">
             Get started
           </Link>
@@ -76,7 +77,7 @@ function Footer() {
           <a href="#product">Product</a>
           <a href="#workflows">Workflows</a>
           <a href="#intelligence">AI</a>
-          <Link href="/login">Sign in</Link>
+          <SignInLink>Sign in</SignInLink>
         </div>
         <div className="legal">© {new Date().getFullYear()} {APP_NAME}</div>
       </div>
