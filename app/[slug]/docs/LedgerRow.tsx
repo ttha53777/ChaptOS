@@ -41,9 +41,19 @@ export function LedgerRow({
   const kind = kindOf(doc.url);
   const showFavicon = doc.faviconUrl && !favFailed;
 
-  // Admins can drag a row onto a section header to move it. The root is an
-  // <a>, which the browser drags as a URL link by default — so we overwrite
-  // the payload with our doc id and let the drop targets read that.
+  // The row opens the doc in a new tab on click. It is NOT an <a href>: a
+  // draggable anchor with an href makes the browser start a native *link* drag
+  // (dragging the URL), which hijacks the HTML5 drag gesture so our drop targets
+  // never receive the doc-id payload — reorder/move silently no-op. The folder
+  // header (which drags fine) is a plain div for the same reason, so the row
+  // follows suit: a div that navigates on click / Enter.
+  // DocMenu stops propagation on all its buttons/overlay, so this only fires for
+  // clicks on the row body itself.
+  function openDoc() {
+    window.open(doc.url, "_blank", "noopener,noreferrer");
+  }
+
+  // Admins can drag a row onto a section header (move) or another row (reorder).
   function handleDragStart(e: React.DragEvent) {
     if (!canManage) return;
     e.dataTransfer.clearData();
@@ -68,14 +78,18 @@ export function LedgerRow({
   } : {};
 
   return (
-    <a
-      href={doc.url}
-      target="_blank"
-      rel="noopener noreferrer"
+    <div
+      role="link"
+      tabIndex={0}
+      title={doc.url}
       className={`dx-row k-${kind}${dropCue ? " drop-before" : ""}`}
       style={{ ["--kc" as string]: `var(--k-${kind})` }}
       draggable={canManage}
       onDragStart={handleDragStart}
+      onClick={openDoc}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openDoc(); }
+      }}
       {...reorderHandlers}
     >
       <div className="fav">
@@ -106,6 +120,6 @@ export function LedgerRow({
         label="Doc actions"
         items={docMenuItems({ pinned: false, canManage, onCopy, onPin, onEdit, onMove, onRefresh, onDelete })}
       />
-    </a>
+    </div>
   );
 }

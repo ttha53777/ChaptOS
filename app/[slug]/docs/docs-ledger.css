@@ -213,7 +213,10 @@
   box-shadow: var(--shadow); overflow: hidden; }
 .dash .dx-row { position: relative; display: flex; align-items: center; gap: 12px; padding: 11px 14px;
   text-decoration: none; color: inherit; border-bottom: 1px solid var(--line-soft);
-  transition: background .12s; }
+  cursor: pointer; transition: background .12s; }
+/* Admins can grab a row to move / reorder it (Manual sort). */
+.dash .dx-row[draggable="true"] { cursor: grab; }
+.dash .dx-row[draggable="true"]:active { cursor: grabbing; }
 .dash .dx-row:last-child { border-bottom: none; }
 .dash .dx-row:hover { background: var(--card-2); }
 .dash .dx-row:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--vio-bg); }
