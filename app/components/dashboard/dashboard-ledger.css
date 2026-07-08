@@ -287,6 +287,8 @@
 .dash .st-good { color: var(--ok); background: var(--ok-bg); }
 .dash .st-watch { color: var(--gold); background: var(--gold-bg); }
 .dash .st-risk { color: var(--rose); background: var(--rose-bg); }
+/* attendance-exempt roster chip (member away this semester — not a % ) */
+.dash .status-tag.exempt { color: var(--muted); background: var(--card-2); border: 1px solid var(--line); }
 /* roster inline action buttons (Pay / +1h) — keep them quiet + on-brand */
 .dash .row-act { font-family: var(--mono); font-size: 10px; letter-spacing: .04em; color: var(--muted);
   border: 1px solid var(--line); background: transparent; border-radius: 6px; padding: 2px 7px; cursor: pointer; margin-left: 8px; }

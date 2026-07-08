@@ -2,7 +2,8 @@
 
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import type { Brother } from "../../../data";
-import { fmt$, getBrotherStatus } from "../../../data";
+import { fmt$, getBrotherStatus, roleTitle } from "../../../data";
+import { isAttendanceExempt } from "@/lib/thresholds";
 import { BrotherAvatar } from "../../BrotherAvatar";
 import { useChapter } from "../../../context/ChapterContext";
 import { useThresholds } from "../../../hooks/useThresholds";
@@ -39,6 +40,7 @@ export function BrotherDrawer({
   isAdmin = true,
   canManageExcuses = false,
   onExcuseDecided,
+  onExemptionChanged,
   selfId = null,
 }: {
   brotherId: number | null;
@@ -57,6 +59,9 @@ export function BrotherDrawer({
   /** Fired after a pending excuse is approved/rejected from the attendance tab, so the
    *  parent roster can decrement its pending-count chip and patch attendance on approval. */
   onExcuseDecided?: (brotherId: number, action: "approve" | "reject", attendance: number | null) => void;
+  /** Fired after a semester exemption is set/cleared, so the parent roster can patch
+   *  the member's attendance value (the -1 exempt sentinel, or the restored ratio). */
+  onExemptionChanged?: (brotherId: number, attendance: number | null) => void;
   /** Brother id of the current viewer; used to allow self-edits when not admin. */
   selfId?: number | null;
 }) {
@@ -109,6 +114,12 @@ export function BrotherDrawer({
   const [rejectingExcuseId, setRejectingExcuseId] = useState<number | null>(null);
   const [rejectNote,        setRejectNote]        = useState("");
   const [decideBusyId,      setDecideBusyId]      = useState<number | null>(null);
+
+  // Semester-exemption toggle (canManageExcuses only). reason drives the POST;
+  // the -1 sentinel on brother.attendance is the source of "currently exempt".
+  const [exemptReason,  setExemptReason]  = useState<string>("inactive");
+  const [exemptBusy,    setExemptBusy]    = useState(false);
+  const [exemptError,   setExemptError]   = useState<string | null>(null);
 
   // Sync form fields when a different brother is selected
   useEffect(() => {
@@ -302,6 +313,44 @@ export function BrotherDrawer({
     }
   }
 
+  // Set the member exempt from attendance for the active semester (admin only).
+  async function handleSetExemption() {
+    if (!brother || exemptBusy) return;
+    setExemptBusy(true);
+    setExemptError(null);
+    try {
+      const res = await orgFetch("/api/exemptions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ brotherId: brother.id, reason: exemptReason }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const result = await res.json().catch(() => null) as { attendance?: number | null } | null;
+      onExemptionChanged?.(brother.id, result?.attendance ?? null);
+    } catch {
+      setExemptError("Could not update exemption.");
+    } finally {
+      setExemptBusy(false);
+    }
+  }
+
+  // Clear the member's exemption for the active semester (admin only).
+  async function handleClearExemption() {
+    if (!brother || exemptBusy) return;
+    setExemptBusy(true);
+    setExemptError(null);
+    try {
+      const res = await orgFetch(`/api/exemptions/${brother.id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const result = await res.json().catch(() => null) as { attendance?: number | null } | null;
+      onExemptionChanged?.(brother.id, result?.attendance ?? null);
+    } catch {
+      setExemptError("Could not update exemption.");
+    } finally {
+      setExemptBusy(false);
+    }
+  }
+
   // Admin (MANAGE_ATTENDANCE) approve/reject of a pending excuse, inline in the
   // attendance tab. Mutates the acted-on history row in place — the once-per-brother
   // fetch never auto-refetches a non-empty array — and notifies the parent roster so
@@ -358,7 +407,8 @@ export function BrotherDrawer({
 
   // tone = "" (on track) | "gold" (watch) | "rose" (at risk) — drives the
   // profile metric tile color + bar fill via the .dd-tile / .dd-track classes.
-  const attTone = brother
+  const attExempt = brother ? isAttendanceExempt(brother.attendance) : false;
+  const attTone = brother && !attExempt
     ? brother.attendance < THRESHOLDS.attendanceAtRisk ? "rose"
       : brother.attendance < THRESHOLDS.attendanceWatch ? "gold"
       : ""
@@ -372,10 +422,10 @@ export function BrotherDrawer({
   const statusFactors = brother
     ? [
         {
-          label: "Attendance", val: `${brother.attendance}%`,
-          ok:   brother.attendance >= THRESHOLDS.attendanceWatch,
-          warn: brother.attendance >= THRESHOLDS.attendanceAtRisk && brother.attendance < THRESHOLDS.attendanceWatch,
-          tip:  `Goal ≥ ${THRESHOLDS.attendanceWatch}%`,
+          label: "Attendance", val: attExempt ? "Exempt" : `${brother.attendance}%`,
+          ok:   attExempt || brother.attendance >= THRESHOLDS.attendanceWatch,
+          warn: !attExempt && brother.attendance >= THRESHOLDS.attendanceAtRisk && brother.attendance < THRESHOLDS.attendanceWatch,
+          tip:  attExempt ? "No attendance obligation this period" : `Goal ≥ ${THRESHOLDS.attendanceWatch}%`,
         },
         {
           label: "GPA", val: brother.gpa.toFixed(2),
@@ -439,7 +489,7 @@ export function BrotherDrawer({
               />
               <div className="min-w-0 flex-1">
                 <h2 className="dd-title">{brother.name}</h2>
-                <p className="dd-sub" style={{ textTransform: "none", letterSpacing: 0 }}>{brother.role}</p>
+                <p className="dd-sub" style={{ textTransform: "none", letterSpacing: 0 }}>{roleTitle(brother)}</p>
               </div>
               <StatusBadge status={status} />
               <button onClick={onClose} className="dd-x" aria-label="Close">
@@ -472,8 +522,17 @@ export function BrotherDrawer({
                     {/* Attendance */}
                     <div className={`dd-tile ${attTone === "rose" ? "risk" : attTone === "gold" ? "warn" : ""}`}>
                       <p className="l">Attendance</p>
-                      <p className={`n ${attTone}`}>{brother.attendance}%</p>
-                      <div className="tt"><i className={attTone} style={{ width: `${brother.attendance}%` }} /></div>
+                      {attExempt ? (
+                        <>
+                          <p className="n muted">Exempt</p>
+                          <div className="tt"><i style={{ width: "0%" }} /></div>
+                        </>
+                      ) : (
+                        <>
+                          <p className={`n ${attTone}`}>{brother.attendance}%</p>
+                          <div className="tt"><i className={attTone} style={{ width: `${brother.attendance}%` }} /></div>
+                        </>
+                      )}
                     </div>
                     {/* GPA */}
                     <div className={`dd-tile ${gpaTone === "rose" ? "risk" : gpaTone === "gold" ? "warn" : ""}`}>
@@ -602,8 +661,8 @@ export function BrotherDrawer({
                           <input className={inputCls} value={name} onChange={e => { setName(e.target.value); setDirty(true); }} />
                         </div>
                         <div>
-                          <label className="dd-field-label">Role / Committees</label>
-                          <input className={inputCls} value={role} onChange={e => { setRole(e.target.value); setDirty(true); }} placeholder="President · Rush · …" />
+                          <label className="dd-field-label">Committees / Notes</label>
+                          <input className={inputCls} value={role} onChange={e => { setRole(e.target.value); setDirty(true); }} placeholder="Rush · Banquet · …" />
                         </div>
                         <div className={`grid grid-cols-1 gap-3 ${canManageDues ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}>
                           <div>
@@ -705,6 +764,46 @@ export function BrotherDrawer({
 
               {tab === "attendance" && (
                 <div>
+                  {canManageExcuses && brother && (
+                    <div className="dd-exempt">
+                      {isAttendanceExempt(brother.attendance) ? (
+                        <>
+                          <p className="dd-exempt-note">Exempt from attendance this {v("Period").toLowerCase()}.</p>
+                          <button
+                            className="dd-exempt-btn"
+                            onClick={handleClearExemption}
+                            disabled={exemptBusy}
+                          >
+                            {exemptBusy ? "…" : "Clear exemption"}
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <select
+                            className={inputCls}
+                            value={exemptReason}
+                            onChange={e => setExemptReason(e.target.value)}
+                            disabled={exemptBusy}
+                            aria-label="Exemption reason"
+                          >
+                            <option value="abroad">Studying abroad</option>
+                            <option value="coop">Co-op / internship</option>
+                            <option value="inactive">Inactive</option>
+                            <option value="other">Other</option>
+                          </select>
+                          <button
+                            className="dd-exempt-btn"
+                            onClick={handleSetExemption}
+                            disabled={exemptBusy}
+                          >
+                            {exemptBusy ? "…" : "Mark exempt this " + v("Period").toLowerCase()}
+                          </button>
+                        </>
+                      )}
+                      {exemptError && <p className="dd-err-inline">{exemptError}</p>}
+                    </div>
+                  )}
+
                   <p className="dd-label">Mandatory Event History — Active {v("Period")}</p>
 
                   {histLoading && (

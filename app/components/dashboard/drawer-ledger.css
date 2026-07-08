@@ -358,6 +358,16 @@
   padding: 11px 13px; font-size: 12px; color: var(--rose); }
 .dash-drawer .dd-err button { margin-left: 6px; color: var(--rose); text-decoration: underline; background: none; border: 0; cursor: pointer; }
 
+/* ── Attendance-exemption toggle (attendance tab) ────────────────────────────── */
+.dash-drawer .dd-exempt { display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+  margin-bottom: 16px; padding: 11px 13px; border: 1px solid var(--line); border-radius: 10px; background: var(--card-2); }
+.dash-drawer .dd-exempt-note { font-size: 12px; color: var(--ink-soft); flex: 1 1 auto; }
+.dash-drawer .dd-exempt-btn { font-family: var(--mono); font-size: 10px; letter-spacing: .04em; color: var(--muted);
+  border: 1px solid var(--line); background: transparent; border-radius: 6px; padding: 4px 9px; cursor: pointer; white-space: nowrap; }
+.dash-drawer .dd-exempt-btn:hover:not(:disabled) { color: var(--vio); border-color: var(--vio); }
+.dash-drawer .dd-exempt-btn:disabled { opacity: .5; cursor: default; }
+.dash-drawer .dd-err-inline { flex-basis: 100%; font-size: 11px; color: var(--rose); }
+
 /* ── Footer (Brother drawer) ─────────────────────────────────────────────────── */
 .dash-drawer .dd-foot { flex-shrink: 0; border-top: 1px solid var(--line); padding: 14px 18px; }
 .dash-drawer .dd-foot > * + * { margin-top: 8px; }
