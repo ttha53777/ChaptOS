@@ -64,7 +64,6 @@ export interface Proposal {
   summary: string;      // human-readable one-liner for the confirm card
 }
 
-const TASK_STATUSES = ["Upcoming", "Due Soon", "Urgent", "Complete"] as const;
 const IG_TYPES = INSTAGRAM_TYPES;
 const CAL_CATEGORIES = ["chapter", "social", "fundy", "program", "party", "deadline", "service"] as const;
 const TX_TYPES = ["income", "expense"] as const;
@@ -148,17 +147,17 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
     function: {
       name: "list_instagram_tasks",
       description:
-        "Instagram content tasks (title, dueDate, status, type). " +
-        "For 'next/soonest' set start=<today> (overdue tasks aren't 'next'), order_by='dueDate', asc, small limit. " +
-        "If filtering by status returns empty, broaden — don't say 'no IG tasks' before checking without the filter.",
+        "Instagram content tasks (title, dueDate, status, type). Status is open or posted. " +
+        "Urgency ('urgent', 'due soon') is NOT a stored status — it's how close dueDate is, so ask for it with a date window, not a status filter. " +
+        "For 'next/soonest' set start=<today> (overdue tasks aren't 'next'), order_by='dueDate', asc, small limit.",
       parameters: {
         type: "object",
         properties: {
           start:  { type: "string", description: "Inclusive YYYY-MM-DD start." },
           end:    { type: "string", description: "Inclusive YYYY-MM-DD end." },
-          status: { type: "string", description: '"Urgent", "Due Soon", "Upcoming", "Complete".' },
+          status: { type: "string", description: '"open" or "posted".' },
           type:   { type: "string", description: "Story | Reel | Carousel." },
-          open_only: { type: "boolean", description: "Exclude Complete tasks." },
+          open_only: { type: "boolean", description: "Exclude posted tasks." },
           order_by:  { type: "string", enum: ["dueDate", "title"], description: "Sort field (default dueDate)." },
           order:     { type: "string", enum: ["asc", "desc"], description: "Default asc." },
           limit:     { type: "integer", minimum: 1, maximum: 100, description: "Default 100." },
@@ -379,13 +378,12 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
       name: "propose_add_instagram_task",
       description:
         "Propose adding an Instagram content task (story, reel, or carousel). Returns a confirm card; the task is NOT created until confirmed. " +
-        "Only ask the user for the required fields (title, dueDate, type); do NOT ask for status — omit it and it defaults to 'Upcoming'.",
+        "Only ask the user for the required fields (title, dueDate, type). New posts start 'open'; there is no status to set.",
       parameters: {
         type: "object",
         properties: {
           title:   { type: "string" },
           dueDate: { type: "string", description: "YYYY-MM-DD." },
-          status:  { type: "string", enum: ["Upcoming", "Due Soon", "Urgent"], description: "Optional. Defaults to 'Upcoming' — only set if the user explicitly mentions urgency." },
           type:    { type: "string", enum: [...IG_TYPES], description: "Content format." },
         },
         required: ["title", "dueDate", "type"],
@@ -807,7 +805,7 @@ async function listInstagram(args: ToolArgs, scoped: Scoped): Promise<ToolResult
   const rows = await scoped.instagramTask.findMany({
     where: {
       ...(start || end ? { dueDate: { ...(start ? { gte: start } : {}), ...(end ? { lte: end } : {}) } } : {}),
-      ...(status ? { status } : openOnly ? { status: { not: "Complete" } } : {}),
+      ...(status ? { status } : openOnly ? { status: { not: "posted" } } : {}),
       ...(typeFilter ? { type: typeFilter } : {}),
     },
     orderBy: { [orderByField]: orderDir },
@@ -1348,19 +1346,17 @@ function proposeAddDeadline(args: ToolArgs): Proposal | { error: string } {
 function proposeAddInstagram(args: ToolArgs): Proposal | { error: string } {
   const title = String(args.title ?? "").trim();
   const dueDate = String(args.dueDate ?? "").trim();
-  const rawStatus = typeof args.status === "string" ? args.status.trim() : "";
-  const status = rawStatus || "Upcoming";
   const type = String(args.type ?? "").trim();
   if (!title || !dueDate || !type) return badProposal("Missing required fields.");
   if (!DATE_RE.test(dueDate)) return badProposal("dueDate must be YYYY-MM-DD.");
-  if (!(TASK_STATUSES as readonly string[]).includes(status)) return badProposal(`status must be one of ${TASK_STATUSES.join(", ")}.`);
   if (!(IG_TYPES as readonly string[]).includes(type)) return badProposal(`type must be one of ${IG_TYPES.join(", ")}.`);
+  // New posts start "open" (the DB default); urgency is derived from dueDate.
   return {
     kind: "proposal",
     action: "propose_add_instagram_task",
     endpoint: "/api/instagram",
     method: "POST",
-    payload: { title, dueDate, status, type },
+    payload: { title, dueDate, type },
     summary: `Add IG ${type}: "${title}" — due ${dueDate}.`,
   };
 }

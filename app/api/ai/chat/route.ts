@@ -67,7 +67,7 @@ export async function POST(req: NextRequest) {
   // Kick off the prompt build but don't await it here — awaiting before
   // constructing the Response delays the SSE headers (and the client's
   // "thinking" state) by a DB round trip on cache miss. The stream awaits it.
-  const systemPromptPromise = buildSystemPrompt(ctx.db, ctx.orgId);
+  const systemPromptPromise = buildSystemPrompt(ctx.db, ctx.orgId, { id: ctx.actorId, name: ctx.actorName });
 
   const encoder = new TextEncoder();
   const stream = new ReadableStream<Uint8Array>({

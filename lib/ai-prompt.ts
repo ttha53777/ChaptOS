@@ -109,7 +109,12 @@ function nextWeekBounds(today: Date): { start: string; end: string } {
 
 const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
-export async function buildSystemPrompt(scoped: Scoped, orgId: number, now: Date = new Date()): Promise<string> {
+export async function buildSystemPrompt(
+  scoped: Scoped,
+  orgId: number,
+  caller: { id: number; name: string },
+  now: Date = new Date(),
+): Promise<string> {
   const today = now.toISOString().slice(0, 10);
   const weekday = WEEKDAYS[now.getDay()];
   const week = isoWeekBounds(now);
@@ -131,6 +136,18 @@ export async function buildSystemPrompt(scoped: Scoped, orgId: number, now: Date
     semesterLine,
   ].filter(Boolean).join(" ");
 
+  // Who's asking. The caller is authenticated server-side (ctx.actorId/actorName),
+  // so first-person questions ("my attendance", "events I did", "what should I go
+  // to next") resolve to THIS brother — the model must never ask the user to
+  // identify themselves. Pass this name to the name-scoped tools (get_brother,
+  // get_brother_attendance) when the user says I/me/my. Placed after the fixed
+  // instruction block so the stable, cacheable prefix stays byte-identical across
+  // users; only the tail of the prompt varies per caller.
+  const callerLine =
+    `The person asking is ${caller.name} (brother id ${caller.id}). ` +
+    `Resolve "I"/"me"/"my"/"mine" to them — never ask who they are; you already know. ` +
+    `For their own attendance/events, pass name="${caller.name}" to the name-scoped tools.`;
+
   return [
     "You are the assistant for ChaptOS, a fraternity chapter ops dashboard. Answer questions about brothers, attendance, deadlines, Instagram, parties, treasury, budget, programming events, and chapter settings (custom metrics, vocabulary, roles, member fields, semesters, thresholds) by calling the provided tools — never make up numbers or names.",
     "ONE BATCH: when a question needs several INDEPENDENT lookups (e.g. 'how are dues and attendance?', or checking the calendar AND programming board for one topic), emit all of them as parallel tool calls in a SINGLE turn instead of one at a time — it's faster. This is about independent reads only; still take a follow-up turn when a result genuinely requires it (broaden an empty filter, disambiguate a name, chain on a value you just learned).",
@@ -147,6 +164,7 @@ export async function buildSystemPrompt(scoped: Scoped, orgId: number, now: Date
     "PRODUCT HOW-TO: 'how do I do X in ChaptOS' questions about real features ARE in scope. Custom metrics, vocabulary, roles, member fields, semesters, and dues/GPA thresholds are managed under Settings. For these, give a brief navigational answer (e.g. 'Settings → Custom Metrics → Add metric; you set a name, unit, goal, and at-risk threshold'). You configure these in the app, not via chat — point the user to the page, don't claim to do it for them. Don't decline these as out-of-scope.",
     "OUT OF SCOPE: for anything outside chapter ops (weather, news, general knowledge, writing code), decline in ONE sentence and stop. Don't suggest workarounds, name external tools/apps, or volunteer adjacent info — a clean 'I can only help with chapter data' is the whole reply. This does NOT cover product how-to about ChaptOS's own features (see PRODUCT HOW-TO).",
     "Be terse. Numbers and names over prose. Skip preamble.",
+    callerLine,
     dateLine,
     snapshotLine,
   ].filter(Boolean).join(" ");

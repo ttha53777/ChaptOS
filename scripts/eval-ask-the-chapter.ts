@@ -384,7 +384,14 @@ async function main() {
   // EVAL_ORG_ID defaults to 1 (the seed org in dev); override via env var if needed.
   const EVAL_ORG_ID = Number(process.env.EVAL_ORG_ID ?? 1);
   const PINNED_DATE = new Date("2026-05-23T12:00:00Z");
-  const systemPrompt = await buildSystemPrompt(db(EVAL_ORG_ID), EVAL_ORG_ID, PINNED_DATE);
+  // Pin a caller so the prompt's first-person resolution line is present and
+  // reproducible. The suite is third-person ("who hasn't paid dues?"), so the
+  // exact identity doesn't affect assertions; override via env for I/me cases.
+  const EVAL_CALLER = {
+    id: Number(process.env.EVAL_CALLER_ID ?? 1),
+    name: process.env.EVAL_CALLER_NAME ?? "Eval Caller",
+  };
+  const systemPrompt = await buildSystemPrompt(db(EVAL_ORG_ID), EVAL_ORG_ID, EVAL_CALLER, PINNED_DATE);
 
   console.log(`Model: ${CHAT_MODEL}`);
   console.log(`Cases: ${cases.length}`);
