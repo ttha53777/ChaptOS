@@ -62,6 +62,25 @@ export interface Brother {
   customFields?: Record<string, string | number | null>;
 }
 
+/**
+ * The office title to SHOW for a brother. Relational roles are the source of
+ * truth for who holds which office (they drive permissions and what the AI's
+ * list_roles reports), so prefer them: join the assigned role names — already
+ * rank-desc sorted by listVisibleBrothers — with " · ". Fall back to the
+ * free-text `role` string only when a brother holds no relational roles (plain
+ * members, freshly imported rosters, non-office committee labels).
+ *
+ * This is what closes the "roster names the wrong treasurer after a handoff"
+ * drift: a handoff done through the role chips now immediately changes the shown
+ * title instead of leaving the stale free-text label in place.
+ */
+export function roleTitle(b: Pick<Brother, "role" | "roles">): string {
+  if (b.roles && b.roles.length > 0) {
+    return b.roles.map(r => r.name).join(" · ");
+  }
+  return b.role;
+}
+
 // A task assignee chip: either a member or a role. Mirrors the assignment join
 // rows resolved server-side in task-service (loadTasks include).
 export interface TaskAssigneeBrother { id: number; name: string; avatarUrl: string | null }

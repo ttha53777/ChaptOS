@@ -1,5 +1,6 @@
 import React from "react";
-import { fmt$, getBrotherStatus, type Brother, type BrotherStatus, type Thresholds } from "../../../data";
+import { fmt$, getBrotherStatus, roleTitle, type Brother, type BrotherStatus, type Thresholds } from "../../../data";
+import { isAttendanceExempt } from "@/lib/thresholds";
 import { BrotherAvatar } from "../../BrotherAvatar";
 
 const STATUS_TAG: Record<BrotherStatus, { cls: string; label: string }> = {
@@ -120,6 +121,7 @@ export function RosterTable({
           ) : (
             brothers.map((b) => {
               const status = getBrotherStatus(b, thresholds);
+              const exempt = isAttendanceExempt(b.attendance);
               const attCls = b.attendance >= thresholds.attendanceWatch ? "sage" : b.attendance >= thresholds.attendanceAtRisk ? "gold" : "rose";
               const attBar = b.attendance >= thresholds.attendanceWatch ? "bg-sage" : b.attendance >= thresholds.attendanceAtRisk ? "bg-gold" : "bg-rose";
               const gpaCls = b.gpa < thresholds.gpaAtRisk ? "rose" : b.gpa < thresholds.gpaWatch ? "gold" : "";
@@ -140,12 +142,16 @@ export function RosterTable({
                       <p>{b.name}</p>
                     </div>
                   </td>
-                  <td className="role">{b.role}</td>
+                  <td className="role">{roleTitle(b)}</td>
                   <td>
-                    <div className="attb">
-                      <span className="track"><i className={attBar} style={{ width: `${b.attendance}%` }} /></span>
-                      <span className={attCls}>{b.attendance}%</span>
-                    </div>
+                    {exempt ? (
+                      <span className="status-tag exempt" title="Exempt from attendance this semester">Exempt</span>
+                    ) : (
+                      <div className="attb">
+                        <span className="track"><i className={attBar} style={{ width: `${b.attendance}%` }} /></span>
+                        <span className={attCls}>{b.attendance}%</span>
+                      </div>
+                    )}
                   </td>
                   <td className="num">
                     {b.duesOwed > 0 ? (

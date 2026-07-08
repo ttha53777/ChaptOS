@@ -96,6 +96,38 @@ async function seedSystemRolesForOrgWithMap(prisma: PrismaClient, organizationId
 }
 
 /**
+ * Refresh the seeded permission bits on every org's system roles.
+ *
+ * `Role.permissions` is written once at seed/create time. When a new capability
+ * bit is added to lib/permissions.ts (e.g. MANAGE_DOCS/TASKS/POLLS were added
+ * after early orgs were seeded), existing system roles keep their OLD bitfield —
+ * so a non-admin President silently 403s on the new features. This walks all
+ * orgs and re-runs the idempotent system-role upsert, which recomputes bits from
+ * the live PERMISSIONS map. Only `isSystem` roles are rewritten; a chapter's
+ * custom roles and their color/rank tweaks are left untouched (see the upsert's
+ * `update` clause).
+ *
+ * Safe to run on every boot — it's a self-healing sweep, not a one-shot. Runs on
+ * the privileged client because it's a cross-org maintenance pass with no tenant
+ * context (same posture as provisionOrg).
+ */
+export async function refreshSystemRolePermissions(
+  prisma: PrismaClient,
+): Promise<{ orgsTouched: number }> {
+  const orgs = await prisma.role.findMany({
+    where: { isSystem: true },
+    distinct: ["organizationId"],
+    select: { organizationId: true },
+  });
+
+  for (const { organizationId } of orgs) {
+    await seedSystemRolesForOrgWithMap(prisma, organizationId);
+  }
+
+  return { orgsTouched: orgs.length };
+}
+
+/**
  * Walk every brother's `role` title, tokenize on " · ", and assign matching
  * system roles. Idempotent: BrotherRole has a composite PK so re-runs no-op.
  * Brothers with `isAdmin = true` are skipped — they already bypass everything
