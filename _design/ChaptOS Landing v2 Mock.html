@@ -1,0 +1,2975 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ChaptOS — Landing v2 Mock</title>
+<!--
+  ChaptOS marketing landing — v2 MOCK (design exploration, not wired to the app)
+  ─────────────────────────────────────────────────────────────────────────────
+  Assumptions
+  · "First two pages" = viewport 1 (topbar + hero w/ dashboard mockup) and
+    viewport 2 (the three-line stats strip). Both are kept byte-identical:
+    landing.css is inlined verbatim below, markup ported 1:1 from
+    LandingPage.tsx, and Reveal/Parallax/Tilt re-implemented in vanilla JS
+    with the same math.
+  · Everything after the stats strip is a fresh design in the same brand
+    language (warm paper / Fraunces / violet), motion-first:
+      – "Three acts"      pinned 320vh scroll story (Treasury→Chapter→Programming)
+      – "Constellation"   workflows as a parallax depth field around a core
+      – "On the record"   scroll-scrubbed activity ticker (Timeline)
+      – "Intelligence"    cinematic chat, masked-line display type
+      – "Ivory steps"     giant drifting numerals, inverted chapter
+      – "Final CTA"       aurora that grows as you approach
+  · Vanilla JS/CSS only: one rAF scroll loop + IntersectionObserver reveals.
+    prefers-reduced-motion or JS-off ⇒ everything static and visible.
+  · Hero photo + fonts: photo referenced relatively from the repo
+    (public/images/landing/hero-lake.jpg); Fraunces/Geist from Google Fonts,
+    matching the next/font variables.
+  Open by double-clicking; keep the file inside the repo so the photo resolves.
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,400;1,9..144,500;1,9..144,600&family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ═══ landing.css — inlined VERBATIM (do not edit; keeps pages 1–2 exact) ═══ */
+/* ─────────────────────────────────────────────────────────────────────────────
+   Marketing landing page — "Dark Editorial, elevated"
+   Scoped under .lp so nothing here touches the dashboard or auth pages.
+   Same family as .auth-scope (warm paper, Fraunces serif, violet accent) so the
+   hero flows seamlessly into /login, but with a marketing-grade scale.
+
+   Color story (each chapter of the page gets its own temperature):
+     hero / stats / pillars  warm near-black paper, accents rotate per pillar
+     workflows               deep violet band
+     intelligence            cool indigo band
+     getting started         inverted ivory
+     final CTA               back to warm paper, violet aurora
+   ───────────────────────────────────────────────────────────────────────────── */
+
+.lp {
+  --paper: #0f0d0a;
+  --paper-2: #14120e;
+  --paper-3: #1b1813;
+  --card: #161310;
+  --ivory: #f2ede3;
+  --ivory-2: #eae4d6;
+  --ivory-ink: #171410;
+  --ivory-ink-60: rgba(23, 20, 16, 0.62);
+  --ivory-line: rgba(23, 20, 16, 0.14);
+  --ink: #ece7dd;
+  --ink-72: rgba(236, 231, 221, 0.72);
+  --ink-55: rgba(236, 231, 221, 0.55);
+  --ink-40: rgba(236, 231, 221, 0.4);
+  --ink-28: rgba(236, 231, 221, 0.28);
+  --line: rgba(236, 231, 221, 0.13);
+  --line-soft: rgba(236, 231, 221, 0.07);
+  --vio: #a78bfa;
+  --vio-deep: #7c3aed;
+  --vio-ivory: #6d28d9;
+  --vio-soft: rgba(167, 139, 250, 0.12);
+  --vio-line: rgba(167, 139, 250, 0.32);
+  --gold: #ddb36a;
+  --rose: #d98ba3;
+  --ok: #7fb08a;
+  --ok-soft: rgba(127, 176, 138, 0.14);
+  --amber: #d9a05b;
+  --amber-soft: rgba(217, 160, 91, 0.14);
+  --serif: var(--font-fraunces), Georgia, serif;
+  --sans: var(--font-geist-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --mono: var(--font-geist-mono), ui-monospace, Menlo, monospace;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+
+  position: relative;
+  min-height: 100vh;
+  min-height: 100dvh;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-feature-settings: normal;
+  font-variant-numeric: normal;
+  overflow-x: clip;
+}
+
+/* Fine dot grain over the whole page, matching the auth pages. */
+.lp::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.55;
+  background-image: radial-gradient(rgba(236, 231, 221, 0.025) 1px, transparent 1px);
+  background-size: 4px 4px;
+}
+
+.lp > * { position: relative; z-index: 1; }
+
+.lp ::selection { background: var(--vio-deep); color: #fff; }
+
+.lp a:focus-visible,
+.lp button:focus-visible {
+  outline: 2px solid var(--vio);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+.lp-container {
+  width: 100%;
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 0 clamp(20px, 5vw, 48px);
+}
+
+/* Fluid ultrawide */
+@media (min-width: 1280px) {
+  .lp-container { max-width: min(calc(1120px + 22vw), 1760px); }
+}
+
+/* ── Topbar ──────────────────────────────────────────────────────────────── */
+
+.lp-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: rgba(15, 13, 10, 0.78);
+  backdrop-filter: saturate(140%) blur(14px);
+  -webkit-backdrop-filter: saturate(140%) blur(14px);
+  border-bottom: 1px solid var(--line-soft);
+}
+.lp-topbar-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  height: 72px;
+  width: 100%;
+  padding: 0 clamp(20px, 3.5vw, 40px);
+}
+.lp-wordmark {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  color: var(--ink);
+}
+.lp-glyph {
+  height: 28px;
+  width: 28px;
+  border-radius: 7px;
+  background: var(--ink);
+  color: var(--paper);
+  font-family: var(--serif);
+  font-weight: 600;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.lp-wm-txt {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.lp-nav {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+}
+.lp-nav a {
+  position: relative;
+  font-size: 13.5px;
+  color: var(--ink-55);
+  text-decoration: none;
+  padding: 4px 0;
+  transition: color 200ms var(--ease-out);
+}
+.lp-nav a::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -2px;
+  height: 1px;
+  background: var(--vio);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 260ms var(--ease-out);
+}
+.lp-nav a:hover { color: var(--ink); }
+.lp-nav a:hover::after { transform: scaleX(1); }
+.lp-topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+.lp-signin {
+  font-size: 13.5px;
+  color: var(--ink-72);
+  text-decoration: none;
+  transition: color 200ms var(--ease-out);
+  padding: 10px 2px;
+}
+.lp-signin:hover { color: var(--ink); }
+
+/* ── Buttons ─────────────────────────────────────────────────────────────── */
+
+.lp-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  min-height: 48px;
+  padding: 0 26px;
+  border-radius: 999px;
+  font-family: var(--sans);
+  font-size: 14.5px;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: background 200ms var(--ease-out), color 200ms var(--ease-out),
+    border-color 200ms var(--ease-out), transform 200ms var(--ease-out),
+    box-shadow 250ms var(--ease-out);
+}
+.lp-btn:active { transform: translateY(1px); }
+.lp-btn-primary {
+  background: var(--ink);
+  color: var(--paper);
+  border-color: var(--ink);
+}
+.lp-btn-primary:hover { background: #fff; border-color: #fff; }
+.lp-btn-primary svg { transition: transform 200ms var(--ease-out); }
+.lp-btn-primary:hover svg { transform: translateX(3px); }
+.lp-btn-ghost {
+  background: transparent;
+  color: var(--ink-72);
+  border-color: var(--line);
+}
+.lp-btn-ghost:hover { color: var(--ink); border-color: var(--vio-line); background: var(--vio-soft); }
+.lp-btn-sm { min-height: 40px; padding: 0 20px; font-size: 13.5px; }
+/* Violet gradient CTA — reserved for the final ask so it stays special. */
+.lp-btn-glow {
+  background: linear-gradient(135deg, #8b5cf6, #6d28d9);
+  color: #fff;
+  border: 0;
+  box-shadow: 0 8px 28px -8px rgba(124, 58, 237, 0.55);
+}
+.lp-btn-glow:hover {
+  background: linear-gradient(135deg, #9d74f8, #7c3aed);
+  box-shadow: 0 12px 36px -8px rgba(124, 58, 237, 0.7);
+}
+.lp-btn-glow svg { transition: transform 200ms var(--ease-out); }
+.lp-btn-glow:hover svg { transform: translateX(3px); }
+
+/* ── Shared section scaffolding ──────────────────────────────────────────── */
+
+.lp-eyebrow {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--vio);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.lp-eyebrow::after { content: ""; height: 1px; width: 48px; background: var(--vio-line); }
+.lp-eyebrow.centered { justify-content: center; }
+.lp-eyebrow.centered::before { content: ""; height: 1px; width: 48px; background: var(--vio-line); }
+
+.lp-h2 {
+  font-family: var(--serif);
+  font-weight: 500;
+  font-size: clamp(30px, 4.4vw, 46px);
+  line-height: 1.08;
+  letter-spacing: -0.018em;
+  margin: 18px 0 0;
+  color: var(--ink);
+}
+.lp-h2 em { font-style: italic; color: var(--vio); }
+.lp-lede {
+  font-size: 16px;
+  line-height: 1.65;
+  color: var(--ink-55);
+  margin: 18px 0 0;
+  max-width: 56ch;
+}
+
+.lp-section { padding: clamp(72px, 10vw, 128px) 0; }
+.lp-section-head { max-width: 720px; }
+.lp-section-head.centered { margin: 0 auto; text-align: center; }
+.lp-section-head.centered .lp-lede { margin-left: auto; margin-right: auto; }
+
+/* ── Scroll reveal ───────────────────────────────────────────────────────── */
+
+.lp-reveal {
+  opacity: 0;
+  transform: translateY(22px);
+  transition: opacity 700ms ease, transform 700ms var(--ease-out);
+}
+.lp-reveal.in { opacity: 1; transform: none; }
+
+/* ── Hero ────────────────────────────────────────────────────────────────── */
+
+.lp-hero {
+  position: relative;
+  padding: clamp(72px, 9vw, 116px) 0 0;
+  text-align: center;
+}
+/* Drifting violet aurora behind the hero + mockup. Two layers, two tempos. */
+.lp-hero::before {
+  content: "";
+  position: absolute;
+  top: -120px;
+  left: 50%;
+  width: min(1100px, 120vw);
+  height: 760px;
+  pointer-events: none;
+  background: radial-gradient(42% 38% at 50% 32%, rgba(124, 58, 237, 0.18), transparent 70%);
+  filter: blur(2px);
+  transform: translateX(-50%);
+  animation: lp-aurora-a 16s ease-in-out infinite alternate;
+}
+.lp-hero::after {
+  content: "";
+  position: absolute;
+  top: -60px;
+  left: 50%;
+  width: min(900px, 110vw);
+  height: 600px;
+  pointer-events: none;
+  background:
+    radial-gradient(30% 26% at 30% 22%, rgba(167, 139, 250, 0.1), transparent 70%),
+    radial-gradient(24% 22% at 72% 30%, rgba(217, 139, 163, 0.07), transparent 70%);
+  transform: translateX(-50%);
+  animation: lp-aurora-b 22s ease-in-out infinite alternate;
+}
+@keyframes lp-aurora-a {
+  from { transform: translateX(-54%) scale(1); opacity: 0.9; }
+  to { transform: translateX(-46%) scale(1.08); opacity: 1; }
+}
+@keyframes lp-aurora-b {
+  from { transform: translateX(-48%) translateY(0); }
+  to { transform: translateX(-52%) translateY(28px); }
+}
+
+/* Hero backdrop photo: misty lake at sunrise. Pulled into the palette by a
+   violet tint + heavy paper scrims (the sky is bright, the type is light), a
+   long fade to --paper so the mockup lands on clean ground, and a top bleed
+   of 72px so the glass topbar sits over water, not a seam. */
+.lp-hero-bg {
+  position: absolute;
+  top: -72px;
+  left: 0;
+  right: 0;
+  height: clamp(640px, 96vh, 1000px);
+  overflow: hidden;
+  pointer-events: none;
+}
+.lp-hero-bg .img {
+  position: absolute;
+  inset: 0;
+  background: url("/images/landing/hero-lake.jpg") center 30% / cover no-repeat;
+  filter: saturate(0.9) brightness(0.95);
+  opacity: 0.6;
+  animation: lp-bg-drift 36s ease-in-out infinite alternate;
+}
+.lp-hero-bg::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(56% 40% at 50% 34%, rgba(124, 58, 237, 0.12), transparent 72%),
+    linear-gradient(
+      180deg,
+      rgba(15, 13, 10, 0.88) 0%,
+      rgba(15, 13, 10, 0.62) 16%,
+      rgba(15, 13, 10, 0.44) 36%,
+      rgba(15, 13, 10, 0.56) 58%,
+      rgba(15, 13, 10, 0.82) 78%,
+      var(--paper) 97%
+    );
+}
+@keyframes lp-bg-drift {
+  from { transform: scale(1.02); }
+  to { transform: scale(1.08); }
+}
+
+.lp-hero > .lp-container { position: relative; z-index: 1; }
+
+.lp-hero-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--vio);
+  border: 1px solid var(--vio-line);
+  background: var(--vio-soft);
+  border-radius: 999px;
+  padding: 8px 16px;
+}
+.lp-hero-eyebrow .dot {
+  height: 5px;
+  width: 5px;
+  border-radius: 50%;
+  background: var(--vio);
+  box-shadow: 0 0 8px var(--vio);
+}
+
+.lp-h1 {
+  font-family: var(--serif);
+  font-weight: 500;
+  font-size: clamp(42px, 7.4vw, 84px);
+  line-height: 1.02;
+  letter-spacing: -0.025em;
+  margin: 28px auto 0;
+  max-width: 13ch;
+  color: var(--ink);
+}
+.lp-h1 em {
+  font-style: italic;
+  background: linear-gradient(105deg, #cdbcfc 5%, #8b5cf6 55%, #b69df8 95%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.lp-hero-lede {
+  font-size: clamp(15.5px, 1.6vw, 17.5px);
+  line-height: 1.65;
+  color: var(--ink-55);
+  max-width: 54ch;
+  margin: 22px auto 0;
+}
+
+.lp-hero-ctas {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-top: 36px;
+}
+.lp-hero-micro {
+  margin-top: 22px;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ink-55);
+}
+.lp-hero-micro span { margin: 0 10px; }
+
+/* Staggered hero entrance (independent of scroll reveal). */
+@keyframes lp-rise {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: none; }
+}
+.lp-hero .lp-rise { animation: lp-rise 800ms var(--ease-out) both; }
+.lp-hero .lp-rise.d1 { animation-delay: 60ms; }
+.lp-hero .lp-rise.d2 { animation-delay: 140ms; }
+.lp-hero .lp-rise.d3 { animation-delay: 220ms; }
+.lp-hero .lp-rise.d4 { animation-delay: 300ms; }
+
+/* ── Hero product mockup + floating cards ────────────────────────────────── */
+
+.lp-mock-wrap {
+  margin-top: clamp(48px, 6vw, 76px);
+  animation: lp-rise 900ms var(--ease-out) 380ms both;
+  position: relative;
+}
+/* Fade the bottom of the mockup into the page, Origin-style. */
+.lp-mock-wrap::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 140px;
+  pointer-events: none;
+  z-index: 3;
+  background: linear-gradient(to bottom, transparent, var(--paper));
+}
+.lp-mock-stage {
+  position: relative;
+  max-width: 980px;
+  margin: 0 auto;
+}
+.lp-mock {
+  position: relative;
+  text-align: left;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--card);
+  box-shadow:
+    0 1px 0 rgba(236, 231, 221, 0.05) inset,
+    0 24px 80px -24px rgba(0, 0, 0, 0.8),
+    0 60px 160px -40px rgba(124, 58, 237, 0.25);
+  overflow: hidden;
+}
+
+/* Floating glass notification cards, parallaxed at different speeds. */
+.lp-float-pos { position: absolute; z-index: 2; }
+.lp-float-pos.pos-pay { left: -54px; top: 150px; }
+.lp-float-pos.pos-att { right: -48px; top: 264px; }
+.lp-float-pos.pos-event { right: -20px; top: 28px; }
+.lp-float {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: rgba(24, 20, 16, 0.72);
+  backdrop-filter: blur(12px) saturate(130%);
+  -webkit-backdrop-filter: blur(12px) saturate(130%);
+  box-shadow: 0 18px 50px -18px rgba(0, 0, 0, 0.8);
+  padding: 11px 16px 11px 12px;
+  text-align: left;
+  white-space: nowrap;
+}
+.lp-float.tilt-l { transform: rotate(-2deg); }
+.lp-float.tilt-r { transform: rotate(2deg); }
+.lp-float .fic {
+  height: 30px;
+  width: 30px;
+  flex: none;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.lp-float .fic.ok { color: var(--ok); background: var(--ok-soft); }
+.lp-float .fic.vio { color: var(--vio); background: var(--vio-soft); }
+.lp-float .fic.rose { color: var(--rose); background: rgba(217, 139, 163, 0.13); }
+.lp-float .ft { font-size: 12px; font-weight: 600; color: var(--ink); }
+.lp-float .fs { font-size: 11px; color: var(--ink-55); margin-top: 2px; }
+.lp-float .ftime {
+  font-family: var(--mono);
+  font-size: 9px;
+  color: var(--ink-28);
+  align-self: flex-start;
+  margin-left: 6px;
+}
+
+.lp-chrome {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--line-soft);
+  background: var(--paper-2);
+}
+.lp-chrome-dots { display: flex; gap: 6px; }
+.lp-chrome-dots span {
+  height: 9px;
+  width: 9px;
+  border-radius: 50%;
+  background: var(--line);
+}
+.lp-chrome-url {
+  flex: 1;
+  max-width: 320px;
+  margin: 0 auto;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--ink-40);
+  text-align: center;
+  border: 1px solid var(--line-soft);
+  border-radius: 6px;
+  padding: 4px 12px;
+  background: var(--paper);
+}
+
+.lp-mock-body {
+  display: grid;
+  grid-template-columns: 192px 1fr;
+  min-height: 480px;
+}
+
+.lp-mock-side {
+  border-right: 1px solid var(--line-soft);
+  background: var(--paper-2);
+  padding: 16px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.lp-mock-side .org {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px 14px;
+}
+.lp-mock-side .org .badge {
+  height: 22px;
+  width: 22px;
+  border-radius: 6px;
+  background: linear-gradient(135deg, var(--vio-deep), var(--vio));
+  color: #fff;
+  font-size: 9px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.lp-mock-side .org .name { font-size: 11px; font-weight: 600; color: var(--ink-72); }
+.lp-mock-side .group {
+  font-family: var(--mono);
+  font-size: 8.5px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-28);
+  padding: 12px 8px 5px;
+}
+.lp-mock-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--ink-55);
+  padding: 6px 8px;
+  border-radius: 6px;
+}
+.lp-mock-nav-item svg { opacity: 0.7; flex: none; }
+.lp-mock-nav-item.active {
+  background: var(--vio-soft);
+  color: var(--ink);
+  border: 1px solid var(--vio-line);
+}
+
+.lp-mock-main { padding: 22px 24px; display: flex; flex-direction: column; gap: 16px; }
+.lp-mock-header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.lp-mock-header .hi { font-family: var(--serif); font-size: 19px; font-weight: 500; color: var(--ink); }
+.lp-mock-header .sem {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-40);
+  border: 1px solid var(--line-soft);
+  border-radius: 999px;
+  padding: 4px 10px;
+}
+
+.lp-kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.lp-kpi {
+  border: 1px solid var(--line-soft);
+  background: var(--paper-2);
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+.lp-kpi .k {
+  font-family: var(--mono);
+  font-size: 8.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-40);
+}
+.lp-kpi .v {
+  font-family: var(--serif);
+  font-size: 21px;
+  font-weight: 500;
+  color: var(--ink);
+  margin-top: 6px;
+  line-height: 1;
+}
+.lp-kpi .d { font-size: 10px; margin-top: 7px; }
+.lp-kpi .d.up { color: var(--ok); }
+.lp-kpi .d.flat { color: var(--ink-40); }
+
+.lp-mock-chart {
+  border: 1px solid var(--line-soft);
+  background: var(--paper-2);
+  border-radius: 10px;
+  padding: 14px 16px 8px;
+}
+.lp-mock-chart .row { display: flex; align-items: baseline; justify-content: space-between; }
+.lp-mock-chart .t { font-size: 11px; font-weight: 600; color: var(--ink-72); }
+.lp-mock-chart .amt { font-family: var(--serif); font-size: 17px; color: var(--ink); }
+.lp-mock-chart svg { display: block; width: 100%; height: auto; margin-top: 8px; }
+
+.lp-mock-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.lp-mock-panel {
+  border: 1px solid var(--line-soft);
+  background: var(--paper-2);
+  border-radius: 10px;
+  padding: 13px 14px;
+}
+.lp-mock-panel .pt {
+  font-family: var(--mono);
+  font-size: 8.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-40);
+  margin-bottom: 10px;
+}
+.lp-mock-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 6px 0;
+  border-top: 1px solid var(--line-soft);
+  font-size: 11px;
+  color: var(--ink-72);
+}
+.lp-mock-row .date {
+  font-family: var(--mono);
+  font-size: 9px;
+  color: var(--vio);
+  border: 1px solid var(--vio-line);
+  background: var(--vio-soft);
+  border-radius: 5px;
+  padding: 2px 7px;
+  flex: none;
+}
+.lp-mock-row .spacer { flex: 1; }
+.lp-mock-row .meta { font-family: var(--mono); font-size: 9px; color: var(--ink-28); }
+
+.lp-ava {
+  height: 18px;
+  width: 18px;
+  flex: none;
+  border-radius: 50%;
+  font-size: 7.5px;
+  font-weight: 700;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.lp-pill {
+  font-family: var(--mono);
+  font-size: 8.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  border-radius: 999px;
+  padding: 2.5px 8px;
+  flex: none;
+}
+.lp-pill.ok { color: var(--ok); background: var(--ok-soft); }
+.lp-pill.owe { color: var(--amber); background: var(--amber-soft); }
+.lp-pill.vio { color: var(--vio); background: var(--vio-soft); }
+
+/* ── Stats strip ─────────────────────────────────────────────────────────── */
+
+.lp-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 32px;
+  border-top: 1px solid var(--line-soft);
+  border-bottom: 1px solid var(--line-soft);
+  padding: clamp(40px, 5vw, 56px) 0;
+}
+.lp-stat { text-align: center; }
+.lp-stat .n {
+  font-family: var(--serif);
+  font-weight: 500;
+  font-size: clamp(26px, 3vw, 38px);
+  line-height: 1.1;
+  letter-spacing: -0.015em;
+  color: var(--ink);
+}
+.lp-stat.hue-vio .n em { font-style: italic; color: var(--vio); }
+.lp-stat.hue-gold .n em { font-style: italic; color: var(--gold); }
+.lp-stat.hue-green .n em { font-style: italic; color: var(--ok); }
+.lp-stat .c {
+  margin-top: 12px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--ink-55);
+  max-width: 30ch;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* ── Feature pillars (accent rotates per pillar via data-accent) ─────────── */
+
+.lp-pillar {
+  --acc: var(--vio);
+  --acc-soft: rgba(167, 139, 250, 0.12);
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: clamp(32px, 6vw, 80px);
+  align-items: center;
+  padding: clamp(40px, 5.5vw, 72px) 0;
+}
+.lp-pillar[data-accent="gold"] { --acc: var(--gold); --acc-soft: rgba(221, 179, 106, 0.12); }
+.lp-pillar[data-accent="rose"] { --acc: var(--rose); --acc-soft: rgba(217, 139, 163, 0.12); }
+.lp-pillar + .lp-pillar { border-top: 1px solid var(--line-soft); }
+.lp-pillar.flip .lp-pillar-copy { order: 2; }
+.lp-pillar.flip .lp-pillar-visual { order: 1; }
+
+.lp-pillar-kicker {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--acc);
+}
+.lp-pillar-copy h3 {
+  font-family: var(--serif);
+  font-weight: 500;
+  font-size: clamp(26px, 3vw, 34px);
+  line-height: 1.12;
+  letter-spacing: -0.015em;
+  margin: 14px 0 0;
+  color: var(--ink);
+}
+.lp-pillar-copy h3 em { font-style: italic; color: var(--acc); }
+.lp-pillar-copy p {
+  font-size: 15px;
+  line-height: 1.7;
+  color: var(--ink-55);
+  margin: 14px 0 0;
+  max-width: 46ch;
+}
+.lp-pillar-points { margin: 20px 0 0; padding: 0; list-style: none; }
+.lp-pillar-points li {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font-size: 13.5px;
+  color: var(--ink-72);
+  padding: 7px 0;
+}
+.lp-pillar-points li::before {
+  content: "";
+  flex: none;
+  height: 5px;
+  width: 5px;
+  border-radius: 50%;
+  background: var(--acc);
+  transform: translateY(-2px);
+}
+
+.lp-pillar-visual { position: relative; }
+.lp-vignette {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--card);
+  padding: 18px;
+  box-shadow:
+    0 1px 0 rgba(236, 231, 221, 0.04) inset,
+    0 20px 60px -20px rgba(0, 0, 0, 0.7),
+    0 40px 110px -42px color-mix(in srgb, var(--acc, #a78bfa) 30%, transparent);
+  transition: transform 320ms var(--ease-out), box-shadow 320ms var(--ease-out),
+    border-color 320ms var(--ease-out);
+}
+.lp-pillar-visual:hover .lp-vignette {
+  transform: translateY(-4px);
+  border-color: color-mix(in srgb, var(--acc, #a78bfa) 35%, transparent);
+  box-shadow:
+    0 1px 0 rgba(236, 231, 221, 0.04) inset,
+    0 26px 70px -20px rgba(0, 0, 0, 0.75),
+    0 48px 130px -42px color-mix(in srgb, var(--acc, #a78bfa) 42%, transparent);
+}
+.lp-vignette .vt {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-40);
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.lp-vignette .vt .amt { font-family: var(--serif); font-size: 18px; color: var(--ink); letter-spacing: 0; text-transform: none; }
+
+/* Programming stage board vignette */
+.lp-board { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.lp-board-col {
+  border: 1px solid var(--line-soft);
+  background: var(--paper-2);
+  border-radius: 10px;
+  padding: 10px;
+  min-height: 150px;
+}
+.lp-board-col .bt {
+  font-family: var(--mono);
+  font-size: 8.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-40);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 9px;
+}
+.lp-board-col .bt .stage-dot {
+  height: 5px;
+  width: 5px;
+  flex: none;
+  border-radius: 50%;
+}
+.lp-board-col .bt .cnt { color: var(--ink-28); margin-left: auto; }
+.lp-board-card {
+  border: 1px solid var(--line-soft);
+  background: var(--card);
+  border-radius: 7px;
+  padding: 8px 9px;
+  margin-bottom: 7px;
+}
+.lp-board-card .n { font-size: 10.5px; font-weight: 600; color: var(--ink-72); line-height: 1.3; }
+.lp-board-card .m { font-family: var(--mono); font-size: 8.5px; color: var(--ink-28); margin-top: 4px; }
+
+/* Attendance vignette */
+.lp-att-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 0;
+  border-top: 1px solid var(--line-soft);
+}
+.lp-att-row:first-of-type { border-top: 0; }
+.lp-att-row .who { font-size: 11.5px; color: var(--ink-72); width: 118px; flex: none; }
+.lp-att-bar {
+  flex: 1;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--line-soft);
+  overflow: hidden;
+}
+.lp-att-bar i {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  background: linear-gradient(90deg, var(--vio-deep), var(--vio));
+}
+.lp-att-row .pct { font-family: var(--mono); font-size: 9.5px; color: var(--ink-40); width: 34px; text-align: right; flex: none; }
+
+/* ── Workflow grid — deep violet band ────────────────────────────────────── */
+
+.lp-wfband {
+  position: relative;
+  /* Eases in from the pillars' warm paper and out into the intelligence
+     band's indigo, so the violet chapter reads as a gradual change of light
+     rather than a stacked slab. */
+  background: linear-gradient(
+    180deg,
+    var(--paper) 0%,
+    #141021 clamp(200px, 26vw, 340px),
+    #141021 calc(100% - clamp(160px, 20vw, 280px)),
+    #0a0d16 100%
+  );
+  overflow: clip;
+}
+.lp-wfband::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(70% 46% at 50% 0%, rgba(124, 58, 237, 0.1), transparent 72%),
+    radial-gradient(30% 38% at 92% 100%, rgba(124, 58, 237, 0.08), transparent 70%);
+}
+.lp-wfband > .lp-container { position: relative; }
+
+/* Editorial bento: 6-column grid, feature cells span 3, standard cells span 2,
+   and the timeline strip runs the full width. Reveal wrappers are the grid
+   children, so spans live on them and the cell fills the wrapper's height. */
+.lp-bento {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 12px;
+  margin-top: clamp(36px, 4.5vw, 56px);
+}
+.lp-bento > .lp-reveal { min-width: 0; height: 100%; }
+.lp-bspan-2 { grid-column: span 2; }
+.lp-bspan-3 { grid-column: span 3; }
+.lp-bspan-6 { grid-column: span 6; }
+
+/* Each cell carries its own hue via --cell (set inline in markup). */
+.lp-bcell {
+  --cell: var(--vio);
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid rgba(236, 231, 221, 0.08);
+  background: rgba(236, 231, 221, 0.025);
+  border-radius: 14px;
+  padding: 22px;
+  transition: border-color 220ms var(--ease-out), background 220ms var(--ease-out),
+    transform 220ms var(--ease-out), box-shadow 260ms var(--ease-out);
+}
+.lp-bcell:hover {
+  border-color: color-mix(in srgb, var(--cell) 45%, transparent);
+  background: color-mix(in srgb, var(--cell) 6%, transparent);
+  transform: translateY(-3px);
+  box-shadow: 0 18px 44px -18px color-mix(in srgb, var(--cell) 35%, rgba(0, 0, 0, 0.6));
+}
+.lp-bcell .bhead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+.lp-bcell .ic {
+  height: 38px;
+  width: 38px;
+  flex: none;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--cell) 30%, transparent);
+  background: color-mix(in srgb, var(--cell) 9%, transparent);
+  color: var(--cell);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 220ms var(--ease-out);
+}
+.lp-bcell:hover .ic { transform: scale(1.08) rotate(-3deg); }
+.lp-bcell .bnum {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  color: color-mix(in srgb, var(--cell) 60%, transparent);
+}
+.lp-bcell h3 { font-size: 15px; font-weight: 600; color: var(--ink); margin: 0; }
+.lp-bcell p { font-size: 13px; line-height: 1.55; color: var(--ink-55); margin: 6px 0 0; }
+
+/* Micro-visuals: pinned to the bottom so cells in a row stay aligned. */
+.lp-bcell .bmini { margin-top: auto; padding-top: 18px; }
+.lp-bcell .bmini svg { display: block; width: 100%; height: auto; }
+.lp-bcell .brow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-40);
+  margin-bottom: 8px;
+}
+.lp-bcell .brow .bamt { font-family: var(--serif); font-size: 16px; color: var(--ink); letter-spacing: 0; text-transform: none; }
+.lp-bcell .bavas { display: flex; align-items: center; margin-bottom: 12px; }
+.lp-bcell .bavas .lp-ava {
+  height: 26px;
+  width: 26px;
+  font-size: 9px;
+  border: 2px solid #15121e;
+  margin-left: -8px;
+}
+.lp-bcell .bavas .lp-ava:first-child { margin-left: 0; }
+.lp-bcell .bavas .more {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--ink-40);
+  margin-left: 10px;
+}
+.lp-bcell .bbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 0;
+}
+.lp-bcell .bbar .who { font-size: 11px; color: var(--ink-55); width: 104px; flex: none; }
+.lp-bcell .bbar .track {
+  flex: 1;
+  height: 5px;
+  border-radius: 3px;
+  background: rgba(236, 231, 221, 0.08);
+  overflow: hidden;
+}
+.lp-bcell .bbar .track i {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  background: var(--cell);
+}
+.lp-bcell .bbar .pct { font-family: var(--mono); font-size: 9.5px; color: var(--ink-40); width: 30px; text-align: right; flex: none; }
+.lp-bcell .bstages {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-55);
+}
+.lp-bcell .bstages span { display: flex; align-items: center; gap: 7px; }
+.lp-bcell .bstages i { height: 5px; width: 5px; border-radius: 50%; flex: none; }
+.lp-bcell .bstat {
+  font-family: var(--serif);
+  font-size: 34px;
+  font-weight: 500;
+  line-height: 1;
+  color: var(--ink);
+}
+.lp-bcell .bstat span {
+  font-family: var(--sans);
+  font-size: 12px;
+  color: var(--ink-55);
+  margin-left: 9px;
+}
+
+/* Timeline strip: horizontal cell with a right-fading activity ticker. */
+.lp-bcell.is-strip {
+  flex-direction: row;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+}
+.lp-bcell.is-strip .bhead { margin-bottom: 0; gap: 12px; justify-content: flex-start; }
+.lp-bcell.is-strip .bcopy h3 { margin: 0; }
+.lp-bcell.is-strip .bcopy p { margin: 4px 0 0; }
+.lp-bcell.is-strip .blog {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  margin-left: auto;
+  overflow: hidden;
+  mask-image: linear-gradient(90deg, #000 86%, transparent);
+  -webkit-mask-image: linear-gradient(90deg, #000 86%, transparent);
+}
+.lp-bcell.is-strip .blog span {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--ink-55);
+  white-space: nowrap;
+  flex: none;
+}
+.lp-bcell.is-strip .blog i {
+  height: 5px;
+  width: 5px;
+  border-radius: 50%;
+  background: var(--cell);
+  flex: none;
+}
+.lp-bcell.is-strip .blog em { font-style: normal; color: var(--ink-28); }
+
+.lp-grid-note {
+  margin-top: 28px;
+  text-align: center;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-55);
+}
+
+/* ── Intelligence — cool indigo band ─────────────────────────────────────── */
+
+.lp-intelband {
+  position: relative;
+  background: #0a0d16;
+  border-bottom: 1px solid rgba(120, 140, 220, 0.1);
+  overflow: clip;
+}
+.lp-intelband::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(40% 50% at 85% 20%, rgba(99, 102, 241, 0.13), transparent 70%),
+    radial-gradient(30% 40% at 8% 90%, rgba(124, 58, 237, 0.1), transparent 70%);
+}
+.lp-intelband > .lp-container { position: relative; }
+
+.lp-intel {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: clamp(36px, 6vw, 88px);
+  align-items: center;
+}
+.lp-chat {
+  border: 1px solid rgba(167, 139, 250, 0.18);
+  border-radius: 16px;
+  background: #10131f;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  box-shadow:
+    0 1px 0 rgba(236, 231, 221, 0.04) inset,
+    0 24px 70px -24px rgba(0, 0, 0, 0.8),
+    0 40px 120px -40px rgba(99, 102, 241, 0.3);
+}
+.lp-chat .q {
+  align-self: flex-end;
+  max-width: 85%;
+  font-size: 13px;
+  color: var(--ink-72);
+  background: var(--vio-soft);
+  border: 1px solid var(--vio-line);
+  border-radius: 14px 14px 4px 14px;
+  padding: 9px 14px;
+}
+.lp-chat .a {
+  font-family: var(--serif);
+  font-size: 15.5px;
+  line-height: 1.55;
+  color: var(--ink);
+  border-left: 2px solid var(--vio-line);
+  padding-left: 14px;
+}
+.lp-chat .a .sub {
+  font-family: var(--sans);
+  font-size: 12px;
+  color: var(--ink-55);
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.lp-chat .a .sub span { display: flex; align-items: center; gap: 8px; }
+.lp-chat .a .sub .amt { font-family: var(--mono); font-size: 10.5px; color: var(--amber); margin-left: auto; }
+.lp-chat-bar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(236, 231, 221, 0.04);
+  padding: 10px 16px;
+  font-size: 12.5px;
+  color: var(--ink-40);
+}
+.lp-chat-bar .caret {
+  width: 1px;
+  height: 14px;
+  margin-right: 6px;
+  background: var(--vio);
+  animation: lp-blink 1.1s steps(2, start) infinite;
+}
+@keyframes lp-blink { to { visibility: hidden; } }
+.lp-chat-bar .send {
+  margin-left: auto;
+  height: 26px;
+  width: 26px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--vio-deep);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ── Ivory chapter (inverted) ────────────────────────────────────────────── */
+
+.lp-ivory {
+  background: var(--ivory);
+  color: var(--ivory-ink);
+  border-top: 1px solid var(--ivory-line);
+  border-bottom: 1px solid var(--ivory-line);
+}
+.lp-ivory .lp-eyebrow { color: var(--vio-ivory); }
+.lp-ivory .lp-eyebrow::before,
+.lp-ivory .lp-eyebrow::after { background: rgba(109, 40, 217, 0.3); }
+.lp-ivory .lp-h2 { color: var(--ivory-ink); }
+.lp-ivory .lp-h2 em { color: var(--vio-ivory); }
+.lp-ivory .lp-lede { color: var(--ivory-ink-60); }
+
+.lp-steps {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: clamp(24px, 4vw, 48px);
+  margin-top: clamp(40px, 5vw, 64px);
+}
+.lp-step {
+  border-top: 1px solid var(--ivory-line);
+  padding-top: 24px;
+  transition: transform 280ms var(--ease-out);
+}
+.lp-step:hover { transform: translateY(-3px); }
+.lp-step .num {
+  font-family: var(--serif);
+  font-style: italic;
+  font-weight: 500;
+  font-size: 42px;
+  line-height: 1;
+  color: var(--vio-ivory);
+}
+.lp-step h3 {
+  font-family: var(--serif);
+  font-weight: 500;
+  font-size: 21px;
+  letter-spacing: -0.01em;
+  margin: 16px 0 0;
+  color: var(--ivory-ink);
+}
+.lp-step p {
+  font-size: 14px;
+  line-height: 1.65;
+  color: var(--ivory-ink-60);
+  margin: 10px 0 0;
+}
+
+/* ── Final CTA ───────────────────────────────────────────────────────────── */
+
+.lp-final {
+  position: relative;
+  text-align: center;
+  padding: clamp(96px, 13vw, 168px) 0;
+  overflow: clip;
+}
+.lp-final::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -260px;
+  transform: translateX(-50%);
+  width: min(900px, 110vw);
+  height: 560px;
+  pointer-events: none;
+  background: radial-gradient(50% 50% at 50% 50%, rgba(124, 58, 237, 0.22), transparent 70%);
+  animation: lp-aurora-a 18s ease-in-out infinite alternate;
+}
+.lp-final .lp-h2 { font-size: clamp(36px, 5.6vw, 60px); max-width: 24ch; margin-left: auto; margin-right: auto; }
+.lp-final .lp-hero-ctas { margin-top: 40px; }
+
+/* ── Footer ──────────────────────────────────────────────────────────────── */
+
+.lp-footer { border-top: 1px solid var(--line-soft); padding: 32px 0; }
+.lp-footer-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+.lp-footer .links { display: flex; align-items: center; gap: 24px; }
+.lp-footer .links a {
+  font-size: 13px;
+  color: var(--ink-40);
+  text-decoration: none;
+  transition: color 200ms var(--ease-out);
+}
+.lp-footer .links a:hover { color: var(--ink); }
+.lp-footer .legal {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-40);
+}
+
+/* ── Responsive ──────────────────────────────────────────────────────────── */
+
+@media (max-width: 1180px) {
+  .lp-float-pos.pos-pay { left: 6px; }
+  .lp-float-pos.pos-att { right: 6px; }
+  .lp-float-pos.pos-event { right: 24px; }
+}
+
+@media (max-width: 960px) {
+  .lp-pillar { grid-template-columns: 1fr; gap: 32px; }
+  .lp-pillar.flip .lp-pillar-copy { order: 1; }
+  .lp-pillar.flip .lp-pillar-visual { order: 2; }
+  .lp-intel { grid-template-columns: 1fr; }
+  /* Bento collapses to two columns: every cell spans 3 of 6 tracks, the
+     timeline strip keeps the full width. */
+  .lp-bspan-2,
+  .lp-bspan-3 { grid-column: span 3; }
+  .lp-float-pos { display: none; }
+}
+
+@media (max-width: 820px) {
+  .lp-mock-body { grid-template-columns: 1fr; }
+  .lp-mock-side { display: none; }
+  .lp-kpis { grid-template-columns: repeat(2, 1fr); }
+  .lp-steps { grid-template-columns: 1fr; }
+  .lp-stats { grid-template-columns: 1fr; gap: 36px; }
+}
+
+@media (max-width: 720px) {
+  .lp-nav { display: none; }
+}
+
+@media (max-width: 560px) {
+  .lp-bento { grid-template-columns: 1fr; }
+  .lp-bspan-2,
+  .lp-bspan-3,
+  .lp-bspan-6 { grid-column: auto; }
+  .lp-bcell.is-strip .blog {
+    margin-left: 0;
+    width: 100%;
+    flex-wrap: wrap;
+    mask-image: none;
+    -webkit-mask-image: none;
+  }
+  .lp-mock-cols { grid-template-columns: 1fr; }
+  .lp-hero-ctas .lp-btn { width: 100%; }
+}
+
+/* ── Reduced motion ──────────────────────────────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  .lp-reveal { opacity: 1; transform: none; transition: none; }
+  .lp-hero .lp-rise,
+  .lp-mock-wrap,
+  .lp-hero::before,
+  .lp-hero::after,
+  .lp-hero-bg .img,
+  .lp-final::before,
+  .lp-chat-bar .caret { animation: none; }
+  .lp * { transition-duration: 0.01ms !important; }
+}
+/* ═══ end of verbatim landing.css ═══ */
+</style>
+<style>
+/* ═══ v2 mock overlay — standalone-file shims + fresh sections (v2-*) ═══════
+   Nothing here restyles the kept pages: the shims only map the next/font
+   variables to Google-Fonts names and repoint the hero photo for file:// use. */
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body { margin: 0; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+h1, h2, h3, h4, p, ul { margin: 0; padding: 0; }
+a { color: inherit; text-decoration: inherit; }
+
+.lp {
+  --font-fraunces: "Fraunces";
+  --font-geist-sans: "Geist";
+  --font-geist-mono: "Geist Mono";
+}
+.lp-hero-bg .img { background-image: url("../public/images/landing/hero-lake.jpg"); }
+
+/* ── Acts — pinned three-act scroll story ─────────────────────────────────── */
+
+.v2-acts { position: relative; padding-top: clamp(20px, 3vw, 36px); }
+.v2-acts-head { max-width: 720px; margin-bottom: clamp(32px, 5vw, 56px); }
+/* Hairline dropping out of the stats strip into the acts head — carries the
+   eye from page 2 into the story instead of an empty gap. */
+.v2-acts-head::before {
+  content: "";
+  display: block;
+  width: 1px;
+  height: clamp(44px, 6vw, 72px);
+  margin: 0 0 clamp(18px, 2.5vw, 26px) 1px;
+  background: linear-gradient(to bottom, transparent, color-mix(in srgb, var(--vio) 65%, transparent));
+}
+
+.v2-acts-track { position: relative; }
+.v2-acts.on .v2-acts-track { height: 320vh; }
+.v2-acts.on .v2-acts-stage {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  overflow: clip;
+}
+
+.v2-acts-glow {
+  position: absolute;
+  top: 50%;
+  right: -14%;
+  width: min(760px, 70vw);
+  aspect-ratio: 1;
+  transform: translateY(-50%);
+  pointer-events: none;
+  opacity: 0;
+}
+.v2-acts:not(.on) .v2-acts-glow { display: none; }
+.v2-acts-glow.g-gold { background: radial-gradient(closest-side, rgba(221, 179, 106, 0.13), transparent 72%); }
+.v2-acts-glow.g-vio  { background: radial-gradient(closest-side, rgba(124, 58, 237, 0.17), transparent 72%); }
+.v2-acts-glow.g-rose { background: radial-gradient(closest-side, rgba(217, 139, 163, 0.13), transparent 72%); }
+
+.v2-acts-frame { display: flex; gap: clamp(28px, 4vw, 64px); width: 100%; }
+.v2-acts-rail { display: none; }
+.v2-acts.on .v2-acts-rail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  flex: none;
+  align-self: stretch;
+  padding: 8vh 0;
+}
+.v2-rail-line { flex: 1; width: 1px; background: var(--line-soft); position: relative; overflow: hidden; }
+.v2-rail-line i {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, var(--gold), var(--vio) 52%, var(--rose));
+  transform: scaleY(0);
+  transform-origin: top;
+  will-change: transform;
+}
+.v2-rail-nums {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  color: var(--ink);
+}
+.v2-rail-nums span { opacity: 0.28; }
+
+.v2-acts-scene { position: relative; flex: 1; min-width: 0; }
+.v2-acts.on .v2-acts-scene { height: min(620px, 76vh); }
+
+.v2-act {
+  display: grid;
+  grid-template-columns: 1fr 1.08fr;
+  gap: clamp(32px, 6vw, 80px);
+  align-items: center;
+}
+.v2-acts:not(.on) .v2-act { padding: clamp(40px, 5.5vw, 72px) 0; }
+.v2-acts:not(.on) .v2-act + .v2-act { border-top: 1px solid var(--line-soft); }
+.v2-acts.on .v2-act { position: absolute; inset: 0; will-change: transform, opacity; }
+.v2-acts.on .v2-act:not(:first-child) { opacity: 0; visibility: hidden; }
+
+.v2-kicker {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--acc);
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+}
+.v2-kicker::before { content: ""; height: 1px; width: 34px; background: color-mix(in srgb, var(--acc) 45%, transparent); }
+.v2-act-copy h3 {
+  font-family: var(--serif);
+  font-weight: 500;
+  font-size: clamp(30px, 3.6vw, 44px);
+  line-height: 1.08;
+  letter-spacing: -0.018em;
+  margin-top: 16px;
+  color: var(--ink);
+}
+.v2-act-copy h3 em { font-style: italic; color: var(--acc); }
+.v2-act-copy p {
+  font-size: 15.5px;
+  line-height: 1.7;
+  color: var(--ink-55);
+  margin-top: 16px;
+  max-width: 42ch;
+}
+
+.v2-act-visual { position: relative; }
+.v2-panel {
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--card);
+  padding: 20px;
+  box-shadow:
+    0 1px 0 rgba(236, 231, 221, 0.04) inset,
+    0 28px 90px -28px rgba(0, 0, 0, 0.78),
+    0 52px 150px -48px color-mix(in srgb, var(--acc) 30%, transparent);
+}
+.v2-panel-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 12px; }
+.v2-panel-head .k {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-40);
+}
+.v2-panel-head .v { font-family: var(--serif); font-size: 22px; color: var(--ink); }
+.v2-panel svg { display: block; width: 100%; height: auto; margin-bottom: 10px; }
+.v2-draw { stroke-dasharray: 1; stroke-dashoffset: 1; }
+.v2-acts:not(.on) .v2-draw { stroke-dashoffset: 0; }
+
+.v2-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 0;
+  border-top: 1px solid var(--line-soft);
+  font-size: 12px;
+  color: var(--ink-72);
+}
+.v2-row .sp { flex: 1; }
+.v2-row .meta { font-family: var(--mono); font-size: 9.5px; color: var(--ink-28); }
+
+/* Act II — roll call rows + minutes card, staggered in on --t1 (set by the
+   scroll loop as act II comes into focus; defaults to 1 for static/JS-off). */
+.v2-rc .v2-row,
+.v2-minutes {
+  transform: translateY(calc((1 - var(--t1, 1)) * (var(--n, 0) + 1) * 12px));
+  opacity: calc(0.25 + var(--t1, 1) * 0.75);
+}
+.v2-rc .v2-row:first-child { border-top: 0; }
+.v2-minutes {
+  margin-top: 14px;
+  border: 1px solid var(--line-soft);
+  background: var(--paper-2);
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+.v2-minutes .mh { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 7px; }
+.v2-minutes .mh .k {
+  font-family: var(--mono);
+  font-size: 8.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-40);
+}
+.v2-minutes .mh .save { font-family: var(--mono); font-size: 9px; color: var(--ok); }
+.v2-minutes p { display: flex; align-items: flex-start; gap: 8px; margin: 0; font-size: 12px; line-height: 1.55; color: var(--ink-72); }
+/* Undo .v2-panel's full-width chart svg rule for the inline sparkle glyph. */
+.v2-minutes p svg { flex: none; width: 13px; height: 13px; margin: 2px 0 0; color: var(--vio); }
+
+.v2-board { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.v2-bcol { border: 1px solid var(--line-soft); background: var(--paper-2); border-radius: 10px; padding: 10px; min-height: 168px; }
+.v2-bcol .bt {
+  font-family: var(--mono);
+  font-size: 8.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-40);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 9px;
+}
+.v2-bcol .bt i { height: 5px; width: 5px; border-radius: 50%; flex: none; }
+.v2-bcol .bt .cnt { color: var(--ink-28); margin-left: auto; }
+.v2-bcard {
+  border: 1px solid var(--line-soft);
+  background: var(--card);
+  border-radius: 7px;
+  padding: 9px 10px;
+  margin-bottom: 7px;
+  transform: translateY(calc((1 - var(--t2, 1)) * (var(--n, 0) + 1) * 16px));
+  opacity: calc(0.3 + var(--t2, 1) * 0.7);
+}
+.v2-bcard .n { font-size: 11px; font-weight: 600; color: var(--ink-72); line-height: 1.3; }
+.v2-bcard .m { font-family: var(--mono); font-size: 8.5px; color: var(--ink-28); margin-top: 4px; }
+
+.v2-fchip {
+  position: absolute;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(24, 20, 16, 0.78);
+  backdrop-filter: blur(12px) saturate(130%);
+  -webkit-backdrop-filter: blur(12px) saturate(130%);
+  box-shadow: 0 18px 50px -18px rgba(0, 0, 0, 0.8);
+  padding: 10px 15px 10px 11px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink);
+  white-space: nowrap;
+}
+.v2-fchip em { font-style: normal; font-family: var(--mono); font-size: 10.5px; font-weight: 400; color: var(--ink-55); }
+.v2-fchip .fic { height: 28px; width: 28px; flex: none; border-radius: 9px; display: flex; align-items: center; justify-content: center; }
+.v2-fchip .fic.ok { color: var(--ok); background: var(--ok-soft); }
+.v2-fchip .fic.gold { color: var(--gold); background: rgba(221, 179, 106, 0.13); }
+.v2-fchip .fic.vio { color: var(--vio); background: var(--vio-soft); }
+.v2-fchip .fic.rose { color: var(--rose); background: rgba(217, 139, 163, 0.13); }
+.v2-fchip.fc-tl { top: -22px; left: -34px; transform: rotate(-2deg); animation: v2-bob-l 5.5s ease-in-out infinite alternate; }
+.v2-fchip.fc-br { bottom: -20px; right: -26px; transform: rotate(1.5deg); animation: v2-bob-r 6.5s ease-in-out infinite alternate; }
+@keyframes v2-bob-l {
+  from { transform: rotate(-2deg) translateY(-4px); }
+  to { transform: rotate(-2deg) translateY(4px); }
+}
+@keyframes v2-bob-r {
+  from { transform: rotate(1.5deg) translateY(4px); }
+  to { transform: rotate(1.5deg) translateY(-4px); }
+}
+
+/* ── Constellation — workflows as a depth field ───────────────────────────── */
+
+.v2-field {
+  position: relative;
+  padding: clamp(96px, 13vw, 176px) 0 clamp(64px, 8vw, 104px);
+  overflow: clip;
+  background: linear-gradient(180deg, var(--paper) 0%, #131019 20%, #131019 80%, var(--paper) 100%);
+}
+.v2-field::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(50% 36% at 50% 54%, rgba(124, 58, 237, 0.1), transparent 72%);
+}
+.v2-field-head { position: relative; text-align: center; max-width: 760px; margin: 0 auto; }
+.v2-field-head .lp-lede { margin-left: auto; margin-right: auto; }
+
+.v2-field-stage {
+  position: relative;
+  max-width: 1280px;
+  margin: clamp(36px, 5vw, 64px) auto 0;
+  height: clamp(520px, 68vh, 660px);
+}
+.v2-links { position: absolute; inset: 0; width: 100%; height: 100%; }
+.v2-links line {
+  stroke: rgba(167, 139, 250, 0.16);
+  stroke-width: 1;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  transition: stroke-dashoffset 1.3s var(--ease-out) var(--d, 0s);
+}
+.v2-field-stage.in .v2-links line { stroke-dashoffset: 0; }
+
+.v2-core { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 2; }
+.v2-core .disc {
+  position: relative;
+  height: 148px;
+  width: 148px;
+  border-radius: 50%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  border: 1px solid var(--vio-line);
+  background: radial-gradient(closest-side, rgba(124, 58, 237, 0.22), rgba(124, 58, 237, 0.05) 78%, transparent);
+  box-shadow: 0 0 80px -12px rgba(124, 58, 237, 0.45);
+}
+.v2-core .glyph {
+  height: 34px;
+  width: 34px;
+  border-radius: 9px;
+  background: var(--ink);
+  color: var(--paper);
+  font-family: var(--serif);
+  font-weight: 600;
+  font-size: 19px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.v2-core .lbl {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--ink-72);
+}
+.v2-core .ring {
+  position: absolute;
+  inset: -1px;
+  border-radius: 50%;
+  border: 1px solid rgba(167, 139, 250, 0.35);
+  animation: v2-ring 3.8s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+  pointer-events: none;
+}
+.v2-core .ring.r2 { animation-delay: 1.9s; }
+@keyframes v2-ring {
+  from { transform: scale(1); opacity: 0.6; }
+  to { transform: scale(1.9); opacity: 0; }
+}
+
+.v2-node { position: absolute; left: var(--x); top: var(--y); transform: translate(-50%, -50%); z-index: 1; }
+.v2-node .bob { animation: v2-bob var(--bs, 6s) ease-in-out var(--bd, 0s) infinite alternate; }
+@keyframes v2-bob {
+  from { transform: translateY(-5px); }
+  to { transform: translateY(5px); }
+}
+.v2-node .card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid color-mix(in srgb, var(--hue) 26%, transparent);
+  background: color-mix(in srgb, var(--hue) 7%, rgba(20, 17, 13, 0.72));
+  border-radius: 12px;
+  padding: 10px 16px 10px 11px;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  box-shadow:
+    0 16px 44px -16px rgba(0, 0, 0, 0.7),
+    0 0 44px -12px color-mix(in srgb, var(--hue) 28%, transparent);
+  white-space: nowrap;
+  opacity: 0;
+  transform: scale(0.82) translateY(12px);
+  transition: opacity 700ms ease var(--d, 0s), transform 700ms var(--ease-out) var(--d, 0s);
+}
+.v2-field-stage.in .v2-node .card { opacity: 1; transform: none; }
+.v2-node .ic {
+  height: 32px;
+  width: 32px;
+  flex: none;
+  border-radius: 9px;
+  color: var(--hue);
+  border: 1px solid color-mix(in srgb, var(--hue) 30%, transparent);
+  background: color-mix(in srgb, var(--hue) 10%, transparent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.v2-node .lbl { font-size: 12.5px; font-weight: 600; color: var(--ink); line-height: 1.2; }
+.v2-node .sub { display: block; font-family: var(--mono); font-size: 9px; font-weight: 400; color: var(--ink-40); margin-top: 3px; }
+.v2-node.far { z-index: 0; }
+.v2-node.far .bob { filter: blur(0.7px); opacity: 0.8; }
+.v2-node.far .card { padding: 8px 13px 8px 9px; }
+.v2-node.far .ic { height: 26px; width: 26px; border-radius: 8px; }
+.v2-node.far .lbl { font-size: 11px; }
+
+.v2-field-note {
+  position: relative;
+  margin-top: clamp(28px, 4vw, 44px);
+  text-align: center;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-55);
+}
+
+/* ── On the record — scroll-scrubbed activity ticker ─────────────────────── */
+
+.v2-record { padding: clamp(96px, 12vw, 160px) 0 clamp(80px, 10vw, 132px); overflow: clip; }
+.v2-record-head { text-align: center; max-width: 640px; margin: 0 auto clamp(44px, 6vw, 72px); }
+.v2-ticker {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
+}
+.v2-ticker .inner { display: flex; gap: 14px; width: max-content; will-change: transform; }
+.v2-ticker .row.r2 .inner { transform: translateX(-760px); }
+.v2-tick {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--line-soft);
+  border-radius: 999px;
+  background: rgba(236, 231, 221, 0.03);
+  padding: 11px 20px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink-55);
+  white-space: nowrap;
+  flex: none;
+}
+.v2-tick i {
+  height: 5px;
+  width: 5px;
+  border-radius: 50%;
+  background: var(--hue, var(--vio));
+  box-shadow: 0 0 10px color-mix(in srgb, var(--hue, var(--vio)) 60%, transparent);
+  flex: none;
+}
+.v2-tick em { font-style: normal; color: var(--ink-28); margin-left: 2px; }
+
+/* ── Intelligence — cinematic chat ────────────────────────────────────────── */
+
+.v2-intel {
+  position: relative;
+  background: #0a0d16;
+  border-top: 1px solid rgba(120, 140, 220, 0.08);
+  border-bottom: 1px solid rgba(120, 140, 220, 0.08);
+  padding: clamp(96px, 13vw, 176px) 0;
+  overflow: clip;
+}
+.v2-orb { position: absolute; border-radius: 50%; pointer-events: none; }
+.v2-orb.o1 { width: min(680px, 60vw); aspect-ratio: 1; right: -12%; top: -6%; background: radial-gradient(closest-side, rgba(99, 102, 241, 0.16), transparent 72%); }
+.v2-orb.o2 { width: min(520px, 50vw); aspect-ratio: 1; left: -10%; bottom: -12%; background: radial-gradient(closest-side, rgba(124, 58, 237, 0.13), transparent 72%); }
+.v2-intel > .lp-container { position: relative; }
+
+.v2-intel-head { max-width: 940px; }
+.v2-giant {
+  font-family: var(--serif);
+  font-weight: 500;
+  font-size: clamp(44px, 7.6vw, 104px);
+  line-height: 1.04;
+  letter-spacing: -0.025em;
+  color: var(--ink);
+}
+.v2-giant em {
+  font-style: italic;
+  background: linear-gradient(105deg, #cdbcfc 5%, #8b5cf6 55%, #b69df8 95%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.v2-mask { overflow: hidden; padding-bottom: 0.1em; margin-bottom: -0.1em; }
+.v2-mask > span { display: block; transform: translateY(112%); transition: transform 950ms var(--ease-out) var(--d, 0s); }
+.lp-reveal.in .v2-mask > span { transform: none; }
+.v2-intel-lede { font-size: 16px; line-height: 1.65; color: var(--ink-55); max-width: 52ch; margin-top: 26px; }
+
+.v2-chat-wrap { position: relative; max-width: 680px; margin: clamp(48px, 6vw, 84px) auto 0; }
+.v2-chat {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  border: 1px solid rgba(167, 139, 250, 0.18);
+  border-radius: 20px;
+  background: rgba(16, 19, 31, 0.92);
+  padding: clamp(22px, 3.5vw, 34px);
+  box-shadow:
+    0 1px 0 rgba(236, 231, 221, 0.04) inset,
+    0 30px 90px -28px rgba(0, 0, 0, 0.8),
+    0 60px 160px -48px rgba(99, 102, 241, 0.35);
+}
+.v2-msg.q {
+  align-self: flex-end;
+  max-width: 82%;
+  font-size: 13.5px;
+  color: var(--ink-72);
+  background: var(--vio-soft);
+  border: 1px solid var(--vio-line);
+  border-radius: 16px 16px 5px 16px;
+  padding: 11px 16px;
+}
+.v2-msg.a {
+  font-family: var(--serif);
+  font-size: 16.5px;
+  line-height: 1.55;
+  color: var(--ink);
+  border-left: 2px solid var(--vio-line);
+  padding-left: 16px;
+  max-width: 92%;
+}
+.v2-msg .sub {
+  font-family: var(--sans);
+  font-size: 12.5px;
+  color: var(--ink-55);
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.v2-msg .sub span { display: flex; align-items: center; gap: 9px; }
+.v2-msg .sub .amt { font-family: var(--mono); font-size: 11px; color: var(--amber); margin-left: auto; }
+.v2-approve { margin-left: auto; animation: v2-approve 2.6s ease-in-out infinite; }
+@keyframes v2-approve {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(127, 176, 138, 0); }
+  50% { box-shadow: 0 0 16px -2px rgba(127, 176, 138, 0.5); }
+}
+.v2-composer {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(236, 231, 221, 0.04);
+  padding: 12px 18px;
+  font-size: 13px;
+  color: var(--ink-40);
+}
+.v2-composer .caret { width: 1px; height: 15px; margin-right: 7px; background: var(--vio); animation: lp-blink 1.1s steps(2, start) infinite; }
+.v2-composer .send {
+  margin-left: auto;
+  height: 28px;
+  width: 28px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--vio-deep);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ── Ivory steps — giant drifting numerals ────────────────────────────────── */
+
+.v2-ivory {
+  background: var(--ivory);
+  color: var(--ivory-ink);
+  border-top: 1px solid var(--ivory-line);
+  border-bottom: 1px solid var(--ivory-line);
+  overflow: clip;
+}
+.v2-ivory .lp-eyebrow { color: var(--vio-ivory); }
+.v2-ivory .lp-eyebrow::after { background: rgba(109, 40, 217, 0.3); }
+.v2-ivory .lp-h2 { color: var(--ivory-ink); }
+.v2-ivory .lp-h2 em { color: var(--vio-ivory); }
+/* lp-section's `padding: … 0` shorthand lands after lp-container in the
+   cascade and zeroes its horizontal padding — restore it for this chapter. */
+.v2-ivory > .lp-container.lp-section {
+  padding-left: clamp(20px, 5vw, 48px);
+  padding-right: clamp(20px, 5vw, 48px);
+}
+.v2-steps { margin-top: clamp(40px, 5vw, 72px); }
+.v2-step {
+  position: relative;
+  display: grid;
+  grid-template-columns: clamp(130px, 18vw, 230px) 1fr;
+  gap: clamp(20px, 4vw, 56px);
+  align-items: center;
+  padding: clamp(36px, 5vw, 60px) 0;
+}
+.v2-step-line {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: var(--ivory-line);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 1.1s var(--ease-out) 120ms;
+}
+.lp-reveal.in .v2-step-line { transform: scaleX(1); }
+.v2-step .num {
+  display: block;
+  font-family: var(--serif);
+  font-style: italic;
+  font-weight: 500;
+  font-size: clamp(88px, 13vw, 176px);
+  line-height: 0.9;
+  color: rgba(109, 40, 217, 0.13);
+}
+.v2-step h3 {
+  font-family: var(--serif);
+  font-weight: 500;
+  font-size: clamp(24px, 2.6vw, 32px);
+  letter-spacing: -0.012em;
+  color: var(--ivory-ink);
+}
+.v2-step p { font-size: 15px; line-height: 1.65; color: var(--ivory-ink-60); margin-top: 10px; max-width: 52ch; }
+
+/* ── Final CTA — aurora crescendo ─────────────────────────────────────────── */
+
+.v2-final { position: relative; text-align: center; padding: clamp(120px, 16vw, 220px) 0; overflow: clip; }
+.v2-final-aur {
+  position: absolute;
+  left: 50%;
+  bottom: -32%;
+  width: min(1000px, 120vw);
+  aspect-ratio: 1.6;
+  transform: translateX(-50%) scale(0.75);
+  pointer-events: none;
+  opacity: 0.4;
+  will-change: transform, opacity;
+  background: radial-gradient(50% 50% at 50% 50%, rgba(124, 58, 237, 0.26), rgba(217, 139, 163, 0.07) 55%, transparent 72%);
+}
+.v2-final > .lp-container { position: relative; }
+.v2-final .v2-h2 {
+  font-family: var(--serif);
+  font-weight: 500;
+  font-size: clamp(38px, 6vw, 72px);
+  line-height: 1.06;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+  max-width: 22ch;
+  margin: 18px auto 0;
+}
+.v2-final .v2-h2 em { font-style: italic; color: var(--vio); }
+.v2-final .lp-hero-ctas { margin-top: 44px; }
+
+/* ── Responsive ───────────────────────────────────────────────────────────── */
+
+@media (max-width: 900px) {
+  .v2-act { grid-template-columns: 1fr; gap: 30px; }
+  .v2-acts.on .v2-act { align-content: center; }
+  .v2-acts.on .v2-acts-rail { display: none; }
+  .v2-act-visual { max-width: 540px; }
+  .v2-fchip.fc-tl { left: -6px; }
+  .v2-fchip.fc-br { right: -6px; }
+}
+@media (max-width: 880px) {
+  .v2-field-stage { height: auto; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 0 20px; }
+  .v2-links, .v2-core { display: none; }
+  .v2-node { position: static; transform: none; }
+  .v2-node .card { white-space: normal; }
+  .v2-node .bob { animation: none; }
+  .v2-node.far .bob { filter: none; opacity: 1; }
+}
+@media (max-width: 720px) {
+  .v2-step { grid-template-columns: 1fr; gap: 10px; }
+  .v2-step .num { font-size: clamp(64px, 18vw, 96px); }
+  .v2-board { grid-template-columns: 1fr 1fr; }
+  .v2-bcol:last-child { display: none; }
+}
+
+/* ── Reduced motion — everything static, everything visible ──────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .v2-mask > span { transform: none; transition: none; }
+  .v2-links line { stroke-dashoffset: 0; transition: none; }
+  .v2-node .card { opacity: 1; transform: none; transition: none; }
+  .v2-step-line { transform: scaleX(1); transition: none; }
+  .v2-draw { stroke-dashoffset: 0; }
+  .v2-rc .v2-row, .v2-minutes { transform: none; opacity: 1; }
+  .v2-bcard { transform: none; opacity: 1; }
+  .v2-fchip.fc-tl, .v2-fchip.fc-br, .v2-node .bob, .v2-core .ring,
+  .v2-approve, .v2-composer .caret { animation: none; }
+  .v2-final-aur { opacity: 1; transform: translateX(-50%) scale(1); }
+}
+</style>
+</head>
+<body>
+<div class="lp">
+  <noscript>
+    <style>
+      .lp-reveal { opacity: 1; transform: none; }
+      .v2-mask > span { transform: none; }
+      .v2-node .card { opacity: 1; transform: none; }
+      .v2-links line { stroke-dashoffset: 0; }
+      .v2-step-line { transform: scaleX(1); }
+      .v2-draw { stroke-dashoffset: 0; }
+      .v2-rc .v2-row, .v2-minutes { transform: none; opacity: 1; }
+    </style>
+  </noscript>
+
+  <!-- ════ PAGE 1 · Topbar + Hero — KEPT IDENTICAL ═══════════════════════ -->
+
+  <header class="lp-topbar">
+    <div class="lp-topbar-inner">
+      <a href="#" class="lp-wordmark" aria-label="ChaptOS home">
+        <span class="lp-glyph" aria-hidden="true">C</span>
+        <span class="lp-wm-txt">ChaptOS</span>
+      </a>
+      <nav class="lp-nav" aria-label="Sections">
+        <a href="#product">Product</a>
+        <a href="#workflows">Workflows</a>
+        <a href="#intelligence">AI</a>
+      </nav>
+      <div class="lp-topbar-actions">
+        <a href="#" class="lp-signin">Sign in</a>
+        <a href="#" class="lp-btn lp-btn-primary lp-btn-sm">Get started</a>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <section class="lp-hero">
+      <div class="lp-hero-bg" aria-hidden="true"><div class="img"></div></div>
+      <div class="lp-container">
+        <div class="lp-rise d1">
+          <span class="lp-hero-eyebrow">
+            <span class="dot" aria-hidden="true"></span>
+            The AI-native operating system for student orgs
+          </span>
+        </div>
+        <h1 class="lp-h1 lp-rise d2">Run your chapter like an <em>institution</em>.</h1>
+        <p class="lp-hero-lede lp-rise d3">
+          Dues, attendance, programming, people — one calm, intelligent home
+          with an AI that handles the busywork, so your time goes back to why
+          you joined. If it has members and a mission, ChaptOS runs it.
+        </p>
+        <div class="lp-hero-ctas lp-rise d4">
+          <a href="#" class="lp-btn lp-btn-primary">
+            Start your chapter
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+          </a>
+          <a href="#product" class="lp-btn lp-btn-ghost">See the product</a>
+        </div>
+        <p class="lp-hero-micro lp-rise d4">
+          Set up in minutes<span aria-hidden="true">·</span>One link to invite
+          the roster<span aria-hidden="true">·</span>Sign in with Google
+        </p>
+
+        <div class="lp-mock-wrap">
+          <div class="lp-mock-stage">
+            <div class="js-tilt" style="perspective: 1400px">
+              <div class="js-tilt-inner" style="will-change: transform; transform-style: preserve-3d">
+                <div class="lp-mock" aria-hidden="true">
+                  <div class="lp-chrome">
+                    <div class="lp-chrome-dots"><span></span><span></span><span></span></div>
+                    <div class="lp-chrome-url">chaptos.app/lambda-phi</div>
+                    <div class="lp-chrome-dots" style="visibility: hidden"><span></span><span></span><span></span></div>
+                  </div>
+                  <div class="lp-mock-body">
+                    <div class="lp-mock-side">
+                      <div class="org">
+                        <span class="badge">ΛΦ</span>
+                        <span class="name">Lambda Phi</span>
+                      </div>
+                      <div class="group">Overview</div>
+                      <div class="lp-mock-nav-item active"><svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><circle cx="5" cy="5" r="2" fill="currentColor"/></svg>Dashboard</div>
+                      <div class="lp-mock-nav-item"><svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><circle cx="5" cy="5" r="2" fill="currentColor"/></svg>Timeline</div>
+                      <div class="group">Members</div>
+                      <div class="lp-mock-nav-item"><svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><circle cx="5" cy="5" r="2" fill="currentColor"/></svg>Brotherhood</div>
+                      <div class="lp-mock-nav-item"><svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><circle cx="5" cy="5" r="2" fill="currentColor"/></svg>Chapter</div>
+                      <div class="group">Operations</div>
+                      <div class="lp-mock-nav-item"><svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><circle cx="5" cy="5" r="2" fill="currentColor"/></svg>Treasury</div>
+                      <div class="lp-mock-nav-item"><svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><circle cx="5" cy="5" r="2" fill="currentColor"/></svg>Programming</div>
+                      <div class="lp-mock-nav-item"><svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><circle cx="5" cy="5" r="2" fill="currentColor"/></svg>Service</div>
+                      <div class="lp-mock-nav-item"><svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><circle cx="5" cy="5" r="2" fill="currentColor"/></svg>Docs</div>
+                    </div>
+                    <div class="lp-mock-main">
+                      <div class="lp-mock-header">
+                        <div class="hi">Good evening, Lambda Phi</div>
+                        <div class="sem">Spring ’26</div>
+                      </div>
+                      <div class="lp-kpis">
+                        <div class="lp-kpi">
+                          <div class="k">Attendance</div>
+                          <div class="v">92%</div>
+                          <div class="d up">▲ 4.2% vs last month</div>
+                        </div>
+                        <div class="lp-kpi">
+                          <div class="k">Dues collected</div>
+                          <div class="v">$18,440</div>
+                          <div class="d up">▲ 12 of 14 paid</div>
+                        </div>
+                        <div class="lp-kpi">
+                          <div class="k">Chapter GPA</div>
+                          <div class="v">3.42</div>
+                          <div class="d flat">— steady</div>
+                        </div>
+                        <div class="lp-kpi">
+                          <div class="k">Service hours</div>
+                          <div class="v">312</div>
+                          <div class="d up">▲ 38 this month</div>
+                        </div>
+                      </div>
+                      <div class="lp-mock-chart">
+                        <div class="row">
+                          <span class="t">Net balance</span>
+                          <span class="amt">$12,480</span>
+                        </div>
+                        <svg viewBox="0 0 560 130" fill="none" role="presentation">
+                          <defs>
+                            <linearGradient id="lpGrad" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="0%" stop-color="#A78BFA" stop-opacity="0.32"/>
+                              <stop offset="100%" stop-color="#A78BFA" stop-opacity="0"/>
+                            </linearGradient>
+                          </defs>
+                          <line x1="0" y1="26" x2="560" y2="26" stroke="rgba(236,231,221,0.06)" stroke-dasharray="3 5"/>
+                          <line x1="0" y1="56" x2="560" y2="56" stroke="rgba(236,231,221,0.06)" stroke-dasharray="3 5"/>
+                          <line x1="0" y1="86" x2="560" y2="86" stroke="rgba(236,231,221,0.06)" stroke-dasharray="3 5"/>
+                          <path d="M0,104 C40,98 70,92 110,86 C150,80 180,90 220,78 C260,66 290,72 330,58 C370,44 400,52 440,38 C480,24 520,28 560,16 L560,130 L0,130 Z" fill="url(#lpGrad)"/>
+                          <path d="M0,104 C40,98 70,92 110,86 C150,80 180,90 220,78 C260,66 290,72 330,58 C370,44 400,52 440,38 C480,24 520,28 560,16" stroke="#A78BFA" stroke-width="2" stroke-linecap="round"/>
+                          <circle cx="560" cy="16" r="3.5" fill="#A78BFA"/>
+                        </svg>
+                      </div>
+                      <div class="lp-mock-cols">
+                        <div class="lp-mock-panel">
+                          <div class="pt">This week</div>
+                          <div class="lp-mock-row" style="border-top: 0">
+                            <span class="date">THU</span>
+                            Chapter meeting
+                            <span class="spacer"></span>
+                            <span class="meta">7:00 PM</span>
+                          </div>
+                          <div class="lp-mock-row">
+                            <span class="date">FRI</span>
+                            Alumni mixer
+                            <span class="spacer"></span>
+                            <span class="meta">6:30 PM</span>
+                          </div>
+                          <div class="lp-mock-row">
+                            <span class="date">SAT</span>
+                            Beach cleanup
+                            <span class="spacer"></span>
+                            <span class="meta">9:00 AM</span>
+                          </div>
+                        </div>
+                        <div class="lp-mock-panel">
+                          <div class="pt">Dues</div>
+                          <div class="lp-mock-row" style="border-top: 0">
+                            <span class="lp-ava" style="background: #7c5cd4">MK</span>
+                            Marcus Kim
+                            <span class="spacer"></span>
+                            <span class="lp-pill ok">Paid</span>
+                          </div>
+                          <div class="lp-mock-row">
+                            <span class="lp-ava" style="background: #4f8a6b">DR</span>
+                            Diego Reyes
+                            <span class="spacer"></span>
+                            <span class="lp-pill ok">Paid</span>
+                          </div>
+                          <div class="lp-mock-row">
+                            <span class="lp-ava" style="background: #a8743d">JT</span>
+                            Jordan Tran
+                            <span class="spacer"></span>
+                            <span class="lp-pill owe">Owes $120</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="lp-float-pos pos-pay" data-parallax="0.14">
+              <div class="px" style="will-change: transform">
+                <div class="lp-float tilt-l" aria-hidden="true">
+                  <span class="fic ok"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg></span>
+                  <span>
+                    <span class="ft">Dues received</span>
+                    <span class="fs" style="display: block">Jordan Tran — $120.00</span>
+                  </span>
+                  <span class="ftime">now</span>
+                </div>
+              </div>
+            </div>
+            <div class="lp-float-pos pos-att" data-parallax="0.22">
+              <div class="px" style="will-change: transform">
+                <div class="lp-float tilt-r" aria-hidden="true">
+                  <span class="fic vio"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
+                  <span>
+                    <span class="ft">Chapter check-in</span>
+                    <span class="fs" style="display: block">41 of 46 present · 89%</span>
+                  </span>
+                </div>
+              </div>
+            </div>
+            <div class="lp-float-pos pos-event" data-parallax="0.08">
+              <div class="px" style="will-change: transform">
+                <div class="lp-float tilt-r" aria-hidden="true">
+                  <span class="fic rose"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2v4"/><path d="M16 2v4"/><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M3 10h18"/></svg></span>
+                  <span>
+                    <span class="ft">Event published</span>
+                    <span class="fs" style="display: block">Alumni mixer · Fri 6:30 PM</span>
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════ PAGE 2 · Stats strip — KEPT IDENTICAL ═══════════════════════ -->
+
+    <section class="lp-section" style="padding-top: 0; padding-bottom: 0">
+      <div class="lp-container">
+        <div class="lp-reveal">
+          <div class="lp-stats">
+            <div class="lp-stat hue-vio">
+              <div class="n">One <em>home</em>.</div>
+              <p class="c">Money, meetings, events, service, docs, people — every workflow your org runs on, in a single source of truth.</p>
+            </div>
+            <div class="lp-stat hue-gold">
+              <div class="n">Built by <em>AI</em>.</div>
+              <p class="c">Describe your org once and the AI architects your whole workspace — workflows, roles, vocabulary — before your next meeting.</p>
+            </div>
+            <div class="lp-stat hue-green">
+              <div class="n">An agent on <em>exec board</em>.</div>
+              <p class="c">Ask it anything, hand it the busywork — it answers from your real data and drafts the changes for one-tap approval.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════ V2 · Three acts — pinned scroll story ═══════════════════════ -->
+
+    <section class="v2-acts" id="product">
+      <div class="lp-container">
+        <div class="lp-reveal v2-acts-head">
+          <span class="lp-eyebrow">The system</span>
+          <h2 class="lp-h2">Everything your exec board touches, <em>finally in one place</em>.</h2>
+        </div>
+      </div>
+      <div class="v2-acts-track">
+        <div class="v2-acts-stage">
+          <div class="v2-acts-glow g-gold" aria-hidden="true"></div>
+          <div class="v2-acts-glow g-vio" aria-hidden="true"></div>
+          <div class="v2-acts-glow g-rose" aria-hidden="true"></div>
+          <div class="lp-container v2-acts-frame">
+            <div class="v2-acts-rail" aria-hidden="true">
+              <div class="v2-rail-nums"><span>01</span><span>02</span><span>03</span></div>
+              <div class="v2-rail-line"><i></i></div>
+            </div>
+            <div class="v2-acts-scene">
+
+              <article class="v2-act" style="--acc: #DDB36A">
+                <div class="v2-act-copy">
+                  <span class="v2-kicker">Act I · Treasury</span>
+                  <h3>Money, <em>accounted for</em>.</h3>
+                  <p>Every due, fine, and reimbursement in one ledger — who’s paid at a glance, the balance trending all semester, books that close without a formula.</p>
+                  <ul class="lp-pillar-points">
+                    <li>Per-member dues statuses that update themselves</li>
+                    <li>Semester-over-semester balance trends</li>
+                    <li>A paper trail for every dollar</li>
+                  </ul>
+                </div>
+                <div class="v2-act-visual" aria-hidden="true">
+                  <div class="v2-panel">
+                    <div class="v2-panel-head">
+                      <span class="k">Semester balance</span>
+                      <span class="v">$12,480</span>
+                    </div>
+                    <svg viewBox="0 0 560 150" fill="none" role="presentation">
+                      <defs>
+                        <linearGradient id="v2GradGold" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stop-color="#DDB36A" stop-opacity="0.3"/>
+                          <stop offset="100%" stop-color="#DDB36A" stop-opacity="0"/>
+                        </linearGradient>
+                      </defs>
+                      <line x1="0" y1="34" x2="560" y2="34" stroke="rgba(236,231,221,0.06)" stroke-dasharray="3 5"/>
+                      <line x1="0" y1="72" x2="560" y2="72" stroke="rgba(236,231,221,0.06)" stroke-dasharray="3 5"/>
+                      <line x1="0" y1="110" x2="560" y2="110" stroke="rgba(236,231,221,0.06)" stroke-dasharray="3 5"/>
+                      <path d="M0,122 C40,115 70,108 110,101 C150,94 180,105 220,91 C260,77 290,84 330,68 C370,52 400,61 440,45 C480,29 520,33 560,19 L560,150 L0,150 Z" fill="url(#v2GradGold)"/>
+                      <path class="v2-draw" pathLength="1" d="M0,122 C40,115 70,108 110,101 C150,94 180,105 220,91 C260,77 290,84 330,68 C370,52 400,61 440,45 C480,29 520,33 560,19" stroke="#DDB36A" stroke-width="2" stroke-linecap="round"/>
+                    </svg>
+                    <div class="v2-row">
+                      <span class="lp-ava" style="background: #7c5cd4">MK</span>
+                      Marcus Kim
+                      <span class="sp"></span>
+                      <span class="meta">Spring dues</span>
+                      <span class="lp-pill ok">Paid</span>
+                    </div>
+                    <div class="v2-row">
+                      <span class="lp-ava" style="background: #a8743d">JT</span>
+                      Jordan Tran
+                      <span class="sp"></span>
+                      <span class="meta">Spring dues</span>
+                      <span class="lp-pill owe">Owes $120</span>
+                    </div>
+                  </div>
+                  <div class="v2-fchip fc-tl">
+                    <span class="fic ok"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
+                    Reimbursement approved
+                    <em>$86.20</em>
+                  </div>
+                  <div class="v2-fchip fc-br">
+                    <span class="fic gold"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></span>
+                    12 of 14 paid
+                    <em>86%</em>
+                  </div>
+                </div>
+              </article>
+
+              <article class="v2-act" style="--acc: #A78BFA">
+                <div class="v2-act-copy">
+                  <span class="v2-kicker">Act II · Chapter</span>
+                  <h3>Events that <em>run themselves</em>.</h3>
+                  <p>Every chapter meeting on one ledger — roll call in two taps, excused absences with the reason attached, and minutes that autosave as you type, then summarize themselves with AI.</p>
+                  <ul class="lp-pillar-points">
+                    <li>One-tap check-ins at every meeting</li>
+                    <li>Attendance history per member, per semester</li>
+                    <li>Health signals that catch problems early</li>
+                  </ul>
+                </div>
+                <div class="v2-act-visual" aria-hidden="true">
+                  <div class="v2-panel">
+                    <div class="v2-panel-head">
+                      <span class="k">Chapter meeting · Today 7:00 PM</span>
+                      <span class="v">41 / 46</span>
+                    </div>
+                    <div class="v2-rc">
+                      <div class="v2-row" style="--n: 0">
+                        <span class="lp-ava" style="background: #7c5cd4">MK</span>
+                        Marcus Kim
+                        <span class="sp"></span>
+                        <span class="lp-pill ok">Present</span>
+                      </div>
+                      <div class="v2-row" style="--n: 1">
+                        <span class="lp-ava" style="background: #4f8a6b">DR</span>
+                        Diego Reyes
+                        <span class="sp"></span>
+                        <span class="lp-pill ok">Present</span>
+                      </div>
+                      <div class="v2-row" style="--n: 2">
+                        <span class="lp-ava" style="background: #a8743d">JT</span>
+                        Jordan Tran
+                        <span class="sp"></span>
+                        <span class="meta">exam conflict</span>
+                        <span class="lp-pill vio">Excused</span>
+                      </div>
+                    </div>
+                    <div class="v2-minutes" style="--n: 3">
+                      <div class="mh">
+                        <span class="k">Meeting minutes</span>
+                        <span class="save">Autosaved ✓</span>
+                      </div>
+                      <p>
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.5l2.1 6.1 6.4.4-5 4 1.6 6.2L12 15.7l-5.1 3.5L8.5 13l-5-4 6.4-.4z"/></svg>
+                        Formal moved to May 2 — venue budget approved 38–3.
+                      </p>
+                    </div>
+                  </div>
+                  <div class="v2-fchip fc-tl">
+                    <span class="fic vio"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
+                    Roll call saved
+                    <em>41 of 46</em>
+                  </div>
+                  <div class="v2-fchip fc-br">
+                    <span class="fic gold"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.5l2.1 6.1 6.4.4-5 4 1.6 6.2L12 15.7l-5.1 3.5L8.5 13l-5-4 6.4-.4z"/></svg></span>
+                    Minutes summarized
+                    <em>just now</em>
+                  </div>
+                </div>
+              </article>
+
+              <article class="v2-act" style="--acc: #D98BA3">
+                <div class="v2-act-copy">
+                  <span class="v2-kicker">Act III · Programming</span>
+                  <h3>From idea to <em>calendar</em>.</h3>
+                  <p>Pitch it, plan it, publish it — the whole semester on one stage board, with owners, dates, and budgets on every event.</p>
+                  <ul class="lp-pillar-points">
+                    <li>Stage-based planning from pitch to published</li>
+                    <li>Owners, dates, and budgets on every event</li>
+                    <li>Promote to the chapter calendar when it’s real</li>
+                  </ul>
+                </div>
+                <div class="v2-act-visual" aria-hidden="true">
+                  <div class="v2-panel">
+                    <div class="v2-panel-head">
+                      <span class="k">Spring programming</span>
+                      <span class="v">6 events</span>
+                    </div>
+                    <div class="v2-board">
+                      <div class="v2-bcol">
+                        <div class="bt"><i style="background: #D98BA3"></i>Idea <span class="cnt">2</span></div>
+                        <div class="v2-bcard" style="--n: 0">
+                          <div class="n">Casino night</div>
+                          <div class="m">No owner yet</div>
+                        </div>
+                        <div class="v2-bcard" style="--n: 1">
+                          <div class="n">Intramural league</div>
+                          <div class="m">Needs budget</div>
+                        </div>
+                      </div>
+                      <div class="v2-bcol">
+                        <div class="bt"><i style="background: #D9A05B"></i>Planned <span class="cnt">2</span></div>
+                        <div class="v2-bcard" style="--n: 1">
+                          <div class="n">Alumni mixer</div>
+                          <div class="m">Fri · D. Reyes</div>
+                        </div>
+                        <div class="v2-bcard" style="--n: 2">
+                          <div class="n">Beach cleanup</div>
+                          <div class="m">Sat · Service</div>
+                        </div>
+                      </div>
+                      <div class="v2-bcol">
+                        <div class="bt"><i style="background: #7FB08A"></i>Live <span class="cnt">1</span></div>
+                        <div class="v2-bcard" style="--n: 2">
+                          <div class="n">Chapter meeting</div>
+                          <div class="m">Thu · Weekly</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="v2-fchip fc-br">
+                    <span class="fic rose"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v4"/><path d="M16 2v4"/><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M3 10h18"/></svg></span>
+                    Alumni mixer → calendar
+                    <em>live</em>
+                  </div>
+                </div>
+              </article>
+
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════ V2 · Constellation — workflow depth field ═══════════════════ -->
+
+    <section class="v2-field" id="workflows">
+      <div class="lp-container">
+        <div class="lp-reveal v2-field-head">
+          <span class="lp-eyebrow centered">Workflows</span>
+          <h2 class="lp-h2">Whatever your org runs on, <em>it runs here</em>.</h2>
+          <p class="lp-lede">Turn on what you need today — everything else is one toggle away when you grow into it.</p>
+        </div>
+      </div>
+      <div class="lp-reveal v2-field-stage" aria-hidden="true">
+        <svg class="v2-links" viewBox="0 0 1200 640" preserveAspectRatio="none" fill="none">
+          <line x1="546" y1="297" x2="270" y2="177" style="--d: 0.20s"/>
+          <line x1="647" y1="293" x2="889" y2="155" style="--d: 0.26s"/>
+          <line x1="529" y1="309" x2="167" y2="254" style="--d: 0.32s"/>
+          <line x1="657" y1="327" x2="951" y2="364" style="--d: 0.38s"/>
+          <line x1="536" y1="331" x2="208" y2="386" style="--d: 0.44s"/>
+          <line x1="671" y1="307" x2="1033" y2="243" style="--d: 0.50s"/>
+          <line x1="566" y1="349" x2="394" y2="496" style="--d: 0.56s"/>
+          <line x1="573" y1="282" x2="435" y2="89" style="--d: 0.62s"/>
+          <line x1="627" y1="352" x2="765" y2="518" style="--d: 0.68s"/>
+        </svg>
+        <div class="v2-core" data-parallax="0.04">
+          <div class="px" style="will-change: transform">
+            <div class="disc">
+              <span class="ring"></span>
+              <span class="ring r2"></span>
+              <span class="glyph">C</span>
+              <span class="lbl">Your chapter</span>
+            </div>
+          </div>
+        </div>
+        <div class="v2-node" style="--x: 18%; --y: 24%; --hue: #DDB36A; --bs: 6.2s; --bd: -1s" data-parallax="0.10">
+          <div class="px" style="will-change: transform"><div class="bob"><div class="card" style="--d: 0ms">
+            <span class="ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></span>
+            <span><span class="lbl">Treasury</span><span class="sub">$12,480 on hand</span></span>
+          </div></div></div>
+        </div>
+        <div class="v2-node" style="--x: 78%; --y: 20%; --hue: #A78BFA; --bs: 7s; --bd: -3s" data-parallax="0.12">
+          <div class="px" style="will-change: transform"><div class="bob"><div class="card" style="--d: 60ms">
+            <span class="ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
+            <span><span class="lbl">Brotherhood</span><span class="sub">46 members</span></span>
+          </div></div></div>
+        </div>
+        <div class="v2-node" style="--x: 8%; --y: 38%; --hue: #9BA7E0; --bs: 6.6s; --bd: -2.2s" data-parallax="0.07">
+          <div class="px" style="will-change: transform"><div class="bob"><div class="card" style="--d: 120ms">
+            <span class="ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></svg></span>
+            <span><span class="lbl">Timeline</span><span class="sub">on the record</span></span>
+          </div></div></div>
+        </div>
+        <div class="v2-node" style="--x: 84%; --y: 58%; --hue: #7EA6E0; --bs: 5.8s; --bd: -4s" data-parallax="0.11">
+          <div class="px" style="will-change: transform"><div class="bob"><div class="card" style="--d: 180ms">
+            <span class="ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3v14"/><path d="M12 3v8"/><path d="M19 3v18"/></svg></span>
+            <span><span class="lbl">Programming</span><span class="sub">6 events live</span></span>
+          </div></div></div>
+        </div>
+        <div class="v2-node" style="--x: 12%; --y: 62%; --hue: #7FB08A; --bs: 6.8s; --bd: -2s" data-parallax="0.07">
+          <div class="px" style="will-change: transform"><div class="bob"><div class="card" style="--d: 240ms">
+            <span class="ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v4"/><path d="M16 2v4"/><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M3 10h18"/><path d="m9 16 2 2 4-4"/></svg></span>
+            <span><span class="lbl">Chapter</span><span class="sub">92% turnout</span></span>
+          </div></div></div>
+        </div>
+        <div class="v2-node far" style="--x: 92%; --y: 36%; --hue: #E0B65C; --bs: 6s; --bd: -3.4s" data-parallax="0.05">
+          <div class="px" style="will-change: transform"><div class="bob"><div class="card" style="--d: 300ms">
+            <span class="ic"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m3 11 18-5v12L3 14v-3z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/></svg></span>
+            <span class="lbl">Communications</span>
+          </div></div></div>
+        </div>
+        <div class="v2-node" style="--x: 30%; --y: 82%; --hue: #D98BA3; --bs: 7.4s; --bd: -1.6s" data-parallax="0.08">
+          <div class="px" style="will-change: transform"><div class="bob"><div class="card" style="--d: 360ms">
+            <span class="ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.29 1.51 4.04 3 5.5l7 7Z"/></svg></span>
+            <span><span class="lbl">Service</span><span class="sub">312 hours</span></span>
+          </div></div></div>
+        </div>
+        <div class="v2-node far" style="--x: 34%; --y: 8%; --hue: #6FB5AC; --bs: 7.2s; --bd: -2.8s" data-parallax="0.04">
+          <div class="px" style="will-change: transform"><div class="bob"><div class="card" style="--d: 420ms">
+            <span class="ic"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg></span>
+            <span class="lbl">Docs</span>
+          </div></div></div>
+        </div>
+        <div class="v2-node far" style="--x: 66%; --y: 86%; --hue: #E09A6A; --bs: 6.4s; --bd: -0.8s" data-parallax="0.05">
+          <div class="px" style="will-change: transform"><div class="bob"><div class="card" style="--d: 480ms">
+            <span class="ic"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/><path d="M20 3v4"/><path d="M22 5h-4"/></svg></span>
+            <span class="lbl">Parties</span>
+          </div></div></div>
+        </div>
+      </div>
+      <p class="lp-reveal v2-field-note">Toggle workflows as your org grows · the AI works across all of them</p>
+    </section>
+
+    <!-- ════ V2 · On the record — scroll-scrubbed ticker ═════════════════ -->
+
+    <section class="v2-record">
+      <div class="lp-container">
+        <div class="lp-reveal v2-record-head">
+          <span class="lp-eyebrow centered">Timeline</span>
+          <h2 class="lp-h2">Every change, <em>on the record</em>.</h2>
+        </div>
+      </div>
+      <div class="v2-ticker" aria-hidden="true">
+        <div class="row r1">
+          <div class="inner">
+            <span class="v2-tick" style="--hue: #A78BFA"><i></i>Dues received — Marcus Kim<em>2m</em></span>
+            <span class="v2-tick" style="--hue: #7FB08A"><i></i>Attendance closed — 41 of 46<em>1h</em></span>
+            <span class="v2-tick" style="--hue: #D98BA3"><i></i>Alumni mixer published<em>3h</em></span>
+            <span class="v2-tick" style="--hue: #DDB36A"><i></i>Reimbursement approved — $86.20<em>5h</em></span>
+            <span class="v2-tick" style="--hue: #7EA6E0"><i></i>Service hours logged — +12<em>1d</em></span>
+            <span class="v2-tick" style="--hue: #6FB5AC"><i></i>Minutes uploaded — Week 9<em>1d</em></span>
+          </div>
+        </div>
+        <div class="row r2">
+          <div class="inner">
+            <span class="v2-tick" style="--hue: #E0B65C"><i></i>Budget updated — Spring formal<em>2d</em></span>
+            <span class="v2-tick" style="--hue: #A78BFA"><i></i>New member joined — invite link<em>2d</em></span>
+            <span class="v2-tick" style="--hue: #7FB08A"><i></i>Fine waived — C. Walker<em>3d</em></span>
+            <span class="v2-tick" style="--hue: #D98BA3"><i></i>Casino night moved to Planned<em>4d</em></span>
+            <span class="v2-tick" style="--hue: #7EA6E0"><i></i>Role assigned — Social chair<em>5d</em></span>
+            <span class="v2-tick" style="--hue: #9BA7E0"><i></i>Semester archived — Fall ’25<em>6d</em></span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════ V2 · Intelligence — cinematic chat ══════════════════════════ -->
+
+    <section class="v2-intel" id="intelligence">
+      <div class="v2-orb o1" data-parallax="0.06" aria-hidden="true"></div>
+      <div class="v2-orb o2" data-parallax="-0.04" aria-hidden="true"></div>
+      <div class="lp-container">
+        <div class="lp-reveal v2-intel-head">
+          <span class="lp-eyebrow">Agentic AI, built in</span>
+          <h2 style="margin-top: 18px">
+            <span class="v2-mask" style="--d: 60ms"><span class="v2-giant">Ask <em>anything</em>.</span></span>
+            <span class="v2-mask" style="--d: 200ms"><span class="v2-giant">Delegate <em>everything</em>.</span></span>
+          </h2>
+          <p class="v2-intel-lede">
+            Answers in seconds, grounded in your chapter’s real data — never a
+            generic chatbot guess. Hand it the work and it drafts the change
+            across any workflow for one-tap approval. It’s even your first
+            hire: describe your org and it architects the workspace.
+          </p>
+        </div>
+        <div class="v2-chat-wrap" data-parallax="0.045">
+          <div class="px" style="will-change: transform">
+            <div class="v2-chat" aria-hidden="true">
+              <div class="lp-reveal v2-msg q">Who still owes dues this semester?</div>
+              <div class="lp-reveal v2-msg a" style="transition-delay: 80ms">
+                Two brothers have an outstanding balance for Spring ’26 —
+                everyone else is paid in full.
+                <div class="sub">
+                  <span><span class="lp-ava" style="background: #a8743d">JT</span>Jordan Tran<span class="amt">$120</span></span>
+                  <span><span class="lp-ava" style="background: #5b7fb3">CW</span>Chris Walker<span class="amt">$60</span></span>
+                </div>
+              </div>
+              <div class="lp-reveal v2-msg q">How was turnout at last week’s chapter?</div>
+              <div class="lp-reveal v2-msg a" style="transition-delay: 80ms">
+                41 of 46 brothers — 89%, up six points from the week before.
+              </div>
+              <div class="lp-reveal v2-msg q">Put the alumni mixer on the calendar — Friday, 6:30.</div>
+              <div class="lp-reveal v2-msg a" style="transition-delay: 80ms">
+                Drafted and ready — approve it and it’s live for the whole chapter.
+                <div class="sub">
+                  <span>
+                    <span class="lp-ava" style="background: #5b7fb3"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2v4"/><path d="M16 2v4"/><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M3 10h18"/></svg></span>
+                    Alumni mixer · Fri 6:30 PM
+                    <span class="lp-pill ok v2-approve">Approve</span>
+                  </span>
+                </div>
+              </div>
+              <div class="lp-reveal v2-composer" style="transition-delay: 140ms">
+                <span class="caret"></span>
+                Ask anything — or hand it the task…
+                <span class="send"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg></span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════ V2 · Ivory steps — giant drifting numerals ══════════════════ -->
+
+    <section class="v2-ivory">
+      <div class="lp-container lp-section">
+        <div class="lp-reveal">
+          <span class="lp-eyebrow">Getting started</span>
+          <h2 class="lp-h2">Running before your <em>next meeting</em>.</h2>
+        </div>
+        <div class="v2-steps">
+          <div class="lp-reveal">
+            <div class="v2-step">
+              <div class="v2-step-line" aria-hidden="true"></div>
+              <div data-parallax="-0.05" aria-hidden="true"><span class="px num">01</span></div>
+              <div>
+                <h3>Describe your org</h3>
+                <p>A short AI interview architects your workspace — the right workflows, the right roles, even the words your org uses.</p>
+              </div>
+            </div>
+          </div>
+          <div class="lp-reveal" style="transition-delay: 70ms">
+            <div class="v2-step">
+              <div class="v2-step-line" aria-hidden="true"></div>
+              <div data-parallax="-0.07" aria-hidden="true"><span class="px num">02</span></div>
+              <div>
+                <h3>Send one link</h3>
+                <p>Members join with Google in seconds. Roles come pre-seeded, so the exec board is exec from day one.</p>
+              </div>
+            </div>
+          </div>
+          <div class="lp-reveal" style="transition-delay: 140ms">
+            <div class="v2-step">
+              <div class="v2-step-line" aria-hidden="true"></div>
+              <div data-parallax="-0.09" aria-hidden="true"><span class="px num">03</span></div>
+              <div>
+                <h3>Run the semester</h3>
+                <p>Dues, attendance, programming, service — live from the first meeting, with an AI teammate drafting the busywork.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════ V2 · Final CTA — aurora crescendo ═══════════════════════════ -->
+
+    <section class="v2-final">
+      <div class="v2-final-aur" aria-hidden="true"></div>
+      <div class="lp-container">
+        <div class="lp-reveal">
+          <span class="lp-eyebrow centered">Ready when you are</span>
+          <h2 class="v2-h2">
+            <span class="v2-mask" style="--d: 60ms"><span>Run your org like</span></span>
+            <span class="v2-mask" style="--d: 180ms"><span>an <em>institution</em> —</span></span>
+            <span class="v2-mask" style="--d: 300ms"><span>starting today.</span></span>
+          </h2>
+          <div class="lp-hero-ctas">
+            <a href="#" class="lp-btn lp-btn-glow">
+              Start your chapter
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+            </a>
+          </div>
+          <p class="lp-hero-micro">
+            Set up in minutes<span aria-hidden="true">·</span>AI included<span aria-hidden="true">·</span>Sign in with Google
+          </p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="lp-footer">
+    <div class="lp-container lp-footer-inner">
+      <div class="lp-wordmark">
+        <span class="lp-glyph" aria-hidden="true">C</span>
+        <span class="lp-wm-txt">ChaptOS</span>
+      </div>
+      <div class="links">
+        <a href="#product">Product</a>
+        <a href="#workflows">Workflows</a>
+        <a href="#intelligence">AI</a>
+        <a href="#">Sign in</a>
+      </div>
+      <div class="legal">© 2026 ChaptOS</div>
+    </div>
+  </footer>
+</div>
+
+<script>
+(() => {
+  "use strict";
+  const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+  const easeOut = t => 1 - Math.pow(1 - t, 3);
+
+  /* ── Scroll reveals (same behavior as the app's <Reveal>) ─────────────── */
+  const revealEls = document.querySelectorAll(".lp-reveal");
+  if (reduced || typeof IntersectionObserver === "undefined") {
+    revealEls.forEach(el => el.classList.add("in"));
+  } else {
+    const io = new IntersectionObserver(
+      entries => {
+        for (const e of entries) {
+          if (e.isIntersecting) {
+            e.target.classList.add("in");
+            io.unobserve(e.target);
+          }
+        }
+      },
+      { threshold: 0.12, rootMargin: "0px 0px -48px 0px" },
+    );
+    revealEls.forEach(el => io.observe(el));
+  }
+
+  if (reduced) return; // everything below is decoration
+
+  /* ── Parallax registry (same math as the app's <Parallax>) ────────────── */
+  const pxItems = [...document.querySelectorAll("[data-parallax]")].map(el => ({
+    el,
+    sp: parseFloat(el.dataset.parallax),
+    target: el.querySelector(":scope > .px") || el,
+  }));
+
+  /* ── Acts scene ───────────────────────────────────────────────────────── */
+  const acts = document.querySelector(".v2-acts");
+  let actParts = null;
+  if (acts) {
+    acts.classList.add("on");
+    actParts = {
+      track: acts.querySelector(".v2-acts-track"),
+      blocks: [...acts.querySelectorAll(".v2-act")],
+      glows: [...acts.querySelectorAll(".v2-acts-glow")],
+      railFill: acts.querySelector(".v2-rail-line i"),
+      nums: [...acts.querySelectorAll(".v2-rail-nums span")],
+      draw: acts.querySelector(".v2-draw"),
+    };
+  }
+
+  /* ── Ticker: duplicate content for seamless travel ────────────────────── */
+  const ticker = document.querySelector(".v2-ticker");
+  let tickRows = [];
+  if (ticker) {
+    tickRows = [...ticker.querySelectorAll(".row .inner")];
+    tickRows.forEach(inner => {
+      inner.innerHTML = inner.innerHTML + inner.innerHTML + inner.innerHTML;
+    });
+  }
+
+  /* ── Final aurora ─────────────────────────────────────────────────────── */
+  const finalSec = document.querySelector(".v2-final");
+  const aur = finalSec ? finalSec.querySelector(".v2-final-aur") : null;
+
+  /* ── One rAF loop drives everything ───────────────────────────────────── */
+  let raf = 0;
+  const update = () => {
+    raf = 0;
+    const vh = innerHeight;
+
+    for (const it of pxItems) {
+      const r = it.el.getBoundingClientRect();
+      if (r.bottom < -120 || r.top > vh + 120) continue;
+      const mid = r.top + r.height / 2 - vh / 2;
+      it.target.style.transform = `translate3d(0, ${(-mid * it.sp).toFixed(1)}px, 0)`;
+    }
+
+    if (actParts) {
+      const r = actParts.track.getBoundingClientRect();
+      const total = actParts.track.offsetHeight - vh;
+      const p = total > 0 ? clamp(-r.top / total, 0, 1) : 0;
+      const f = p * (actParts.blocks.length - 1);
+      actParts.blocks.forEach((b, i) => {
+        const d = f - i;
+        const t = clamp(1 - Math.abs(d) / 0.72, 0, 1);
+        const tt = easeOut(t);
+        b.style.opacity = tt.toFixed(3);
+        b.style.visibility = t <= 0 ? "hidden" : "visible";
+        b.firstElementChild.style.transform = `translate3d(0, ${(-d * 34).toFixed(1)}px, 0)`;
+        b.lastElementChild.style.transform =
+          `translate3d(0, ${(-d * 72).toFixed(1)}px, 0) scale(${(1 - Math.abs(d) * 0.05).toFixed(3)})`;
+        if (actParts.glows[i]) actParts.glows[i].style.opacity = (tt * 0.9).toFixed(3);
+        if (actParts.nums[i]) actParts.nums[i].style.opacity = (0.28 + tt * 0.72).toFixed(3);
+      });
+      actParts.railFill.style.transform = `scaleY(${p.toFixed(4)})`;
+      const t0 = easeOut(clamp(1 - Math.abs(f) / 0.9, 0, 1));
+      if (actParts.draw) actParts.draw.style.strokeDashoffset = (1 - t0).toFixed(3);
+      const t1 = easeOut(clamp(1 - Math.abs(f - 1) / 0.9, 0, 1));
+      acts.style.setProperty("--t1", t1.toFixed(3));
+      const t2 = easeOut(clamp(1 - Math.abs(f - 2) / 0.9, 0, 1));
+      acts.style.setProperty("--t2", t2.toFixed(3));
+    }
+
+    if (ticker) {
+      const r = ticker.getBoundingClientRect();
+      if (!(r.bottom < 0 || r.top > vh)) {
+        const x = vh - r.top;
+        if (tickRows[0]) tickRows[0].style.transform = `translate3d(${(-x * 0.32).toFixed(1)}px, 0, 0)`;
+        if (tickRows[1]) tickRows[1].style.transform = `translate3d(${(x * 0.26 - 760).toFixed(1)}px, 0, 0)`;
+      }
+    }
+
+    if (aur) {
+      const r = finalSec.getBoundingClientRect();
+      const p = clamp((vh - r.top) / (vh + r.height), 0, 1);
+      aur.style.opacity = (0.4 + p * 0.6).toFixed(3);
+      aur.style.transform = `translateX(-50%) scale(${(0.75 + p * 0.45).toFixed(3)})`;
+    }
+  };
+  const queue = () => {
+    if (!raf) raf = requestAnimationFrame(update);
+  };
+  addEventListener("scroll", queue, { passive: true });
+  addEventListener("resize", queue, { passive: true });
+  update();
+
+  /* ── Hero mockup tilt (same lerp as the app's <Tilt>, max 3°) ─────────── */
+  const tiltOuter = document.querySelector(".js-tilt");
+  const tiltInner = document.querySelector(".js-tilt-inner");
+  if (tiltOuter && tiltInner && matchMedia("(hover: hover)").matches) {
+    const max = 3;
+    let tRaf = 0;
+    let tx = 0, ty = 0, cx = 0, cy = 0;
+    const tick = () => {
+      cx += (tx - cx) * 0.12;
+      cy += (ty - cy) * 0.12;
+      tiltInner.style.transform = `rotateX(${cx.toFixed(2)}deg) rotateY(${cy.toFixed(2)}deg)`;
+      if (Math.abs(tx - cx) > 0.01 || Math.abs(ty - cy) > 0.01) {
+        tRaf = requestAnimationFrame(tick);
+      } else {
+        tRaf = 0;
+      }
+    };
+    const start = () => {
+      if (!tRaf) tRaf = requestAnimationFrame(tick);
+    };
+    tiltOuter.addEventListener("pointermove", e => {
+      const r = tiltOuter.getBoundingClientRect();
+      ty = ((e.clientX - r.left) / r.width - 0.5) * max * 2;
+      tx = -((e.clientY - r.top) / r.height - 0.5) * max * 2;
+      start();
+    });
+    tiltOuter.addEventListener("pointerleave", () => {
+      tx = 0;
+      ty = 0;
+      start();
+    });
+  }
+})();
+</script>
+</body>
+</html>

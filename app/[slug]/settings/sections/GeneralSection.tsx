@@ -6,7 +6,7 @@ import { useChapter } from "../../../context/ChapterContext";
 import { Modal } from "../../../components/dashboard/primitives";
 import { isNavVisible } from "../../../components/Sidebar";
 import { AddIGTaskForm, AddRevenueForm } from "../../../components/dashboard/forms";
-import { TaskStatus, InstagramType, ActivityEntry, InstagramTask, PartyEvent, fmt$ } from "../../../data";
+import { InstagramType, ActivityEntry, InstagramTask, PartyEvent, fmt$ } from "../../../data";
 import { useOrgPath } from "../../../hooks/useOrgPath";
 import { useActiveSemester } from "../../../hooks/useActiveSemester";
 import { useSemesterErrorHandler } from "../../../hooks/useSemesterErrorHandler";
@@ -155,9 +155,9 @@ export function GeneralSection({
     );
   }
 
-  function handleAddIGTask(t: { title: string; dueDate: string; type: InstagramType; status: TaskStatus }) {
+  function handleAddIGTask(t: { title: string; dueDate: string; type: InstagramType }) {
     const tempId = _nextId++;
-    setIgTaskList(prev => [...prev, { id: tempId, ...t }]);
+    setIgTaskList(prev => [...prev, { id: tempId, ...t, status: "open" }]);
     setActiveModal(null);
     persist(
       requestJson<InstagramTask>("/api/instagram", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(t) }),

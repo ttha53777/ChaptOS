@@ -14,6 +14,7 @@ import {
   Brother,
   BrotherStatus,
   getBrotherStatus,
+  roleTitle,
   avg,
   fmt$,
   fmtDate,
@@ -202,6 +203,17 @@ export default function BrothersPage() {
     [setBrotherList],
   );
 
+  // After a semester exemption is set/cleared in the drawer, patch the member's
+  // attendance value so the roster chip flips between "Exempt" and a real %.
+  const handleExemptionChanged = useCallback(
+    (brotherId: number, attendance: number | null) => {
+      if (attendance !== null) {
+        setBrotherList(prev => prev.map(b => b.id === brotherId ? { ...b, attendance } : b));
+      }
+    },
+    [setBrotherList],
+  );
+
   async function submitLogServiceHours() {
     if (!logHoursFor || logHoursEventId == null) return;
     const hours = Math.max(0, parseFloat(logHoursStr) || 0);
@@ -250,7 +262,7 @@ export default function BrothersPage() {
   const filtered = useMemo(() => {
     let result = brotherList.filter(b => {
       const q = search.toLowerCase();
-      const matchQ = !q || b.name.toLowerCase().includes(q) || b.role.toLowerCase().includes(q);
+      const matchQ = !q || b.name.toLowerCase().includes(q) || roleTitle(b).toLowerCase().includes(q);
       const matchS = statusFilter === "All" || getBrotherStatus(b, THRESHOLDS) === statusFilter;
       return matchQ && matchS;
     });
@@ -345,7 +357,7 @@ export default function BrothersPage() {
       ["Name", "Role", "Attendance %", "GPA", "Service Hours", "Dues Owed", "Status"],
       ...filtered.map(b => [
         b.name,
-        b.role,
+        roleTitle(b),
         String(b.attendance),
         b.gpa.toFixed(2),
         String(b.serviceHours),
@@ -623,7 +635,7 @@ export default function BrothersPage() {
                                       </span>
                                     )}
                                   </div>
-                                  <div className="rl">{b.role}</div>
+                                  <div className="rl">{roleTitle(b)}</div>
                                 </div>
                               </div>
                             </td>
@@ -692,6 +704,7 @@ export default function BrothersPage() {
         isAdmin={canBrothers}
         canManageExcuses={canAttendance}
         onExcuseDecided={handleExcuseDecided}
+        onExemptionChanged={handleExemptionChanged}
         selfId={selfId}
       />
 

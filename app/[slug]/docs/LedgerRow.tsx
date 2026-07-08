@@ -15,7 +15,12 @@ export function LedgerRow({
   doc,
   canManage,
   reorderable,
+  dragging,
+  cueBefore,
   readDropId,
+  onDragBegin,
+  onDragEnd,
+  onDragOverRow,
   onReorderBefore,
   onEdit,
   onDelete,
@@ -27,7 +32,15 @@ export function LedgerRow({
   doc: Doc;
   canManage: boolean;
   reorderable: boolean;
+  /** True while this row is the one being dragged — dims it in place. */
+  dragging?: boolean;
+  /** True when the dragged doc would land just before this row — shows the line. */
+  cueBefore?: boolean;
   readDropId: (e: React.DragEvent) => number | null;
+  onDragBegin?: () => void;
+  onDragEnd?: () => void;
+  /** Fires while a drag hovers this row — tells the parent which row is targeted. */
+  onDragOverRow?: () => void;
   onReorderBefore: (draggedId: number) => void;
   onEdit: () => void;
   onDelete: () => void;
@@ -37,7 +50,6 @@ export function LedgerRow({
   onPin: () => void;
 }) {
   const [favFailed, setFavFailed] = useState(false);
-  const [dropCue, setDropCue] = useState(false);
   const kind = kindOf(doc.url);
   const showFavicon = doc.faviconUrl && !favFailed;
 
@@ -60,18 +72,19 @@ export function LedgerRow({
     e.dataTransfer.setData("application/x-doc-id", String(doc.id));
     e.dataTransfer.setData("text/plain", String(doc.id));
     e.dataTransfer.effectAllowed = "move";
+    onDragBegin?.();
   }
 
-  // Reorder drop target (Manual sort only). preventDefault marks us a valid drop
-  // and shows the line; on drop we ask the parent to file the dragged doc before
-  // this row. A no-op guard (dragging onto itself) lives in the parent handler.
+  // Reorder drop target (Manual sort only). preventDefault marks us a valid drop;
+  // onDragOverRow tells the parent this is the hovered row so the ledger previews
+  // the dragged doc landing here. On drop we file it before this row — but the
+  // live preview has already put it in place, so the commit is seamless. A no-op
+  // guard (dragging onto itself) lives in the parent handler.
   const reorderHandlers = reorderable ? {
-    onDragOver: (e: React.DragEvent) => { e.preventDefault(); setDropCue(true); },
-    onDragLeave: () => setDropCue(false),
+    onDragOver: (e: React.DragEvent) => { e.preventDefault(); onDragOverRow?.(); },
     onDrop: (e: React.DragEvent) => {
       e.preventDefault();
       e.stopPropagation(); // don't also bubble to the section header (a move)
-      setDropCue(false);
       const id = readDropId(e);
       if (id != null && id !== doc.id) onReorderBefore(id);
     },
@@ -82,10 +95,11 @@ export function LedgerRow({
       role="link"
       tabIndex={0}
       title={doc.url}
-      className={`dx-row k-${kind}${dropCue ? " drop-before" : ""}`}
+      className={`dx-row k-${kind}${dragging ? " dragging" : ""}${cueBefore ? " drop-before" : ""}`}
       style={{ ["--kc" as string]: `var(--k-${kind})` }}
       draggable={canManage}
       onDragStart={handleDragStart}
+      onDragEnd={onDragEnd}
       onClick={openDoc}
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openDoc(); }

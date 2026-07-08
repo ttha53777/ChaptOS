@@ -26,6 +26,7 @@ export function FolderSection({
   onGhostAdd,
   onDropDoc,
   onDropDocAtEnd,
+  onDragOverEnd,
   onReorderFolderBefore,
   readDropId,
   readFolderDropId,
@@ -47,6 +48,8 @@ export function FolderSection({
   onGhostAdd: (folderId: number) => void;
   onDropDoc: (docId: number) => void;
   onDropDocAtEnd: (docId: number) => void;
+  /** Fires while a doc drag hovers the end zone — previews it landing last. */
+  onDragOverEnd?: () => void;
   onReorderFolderBefore: (draggedFolderId: number) => void;
   readDropId: (e: React.DragEvent) => number | null;
   readFolderDropId: (e: React.DragEvent) => number | null;
@@ -146,6 +149,7 @@ export function FolderSection({
                 if (!e.dataTransfer.types.includes("application/x-folder-id")) {
                   e.preventDefault();
                   e.currentTarget.classList.add("over");
+                  onDragOverEnd?.();
                 }
               }}
               onDragLeave={(e) => e.currentTarget.classList.remove("over")}

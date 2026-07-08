@@ -65,6 +65,12 @@ export default function DocsPage() {
   const [filter,       setFilter]       = useState<KindFilter>("all");
   const [sort,         setSort]         = useState<SortId>("newest");
   const [collapsed,    setCollapsed]    = useState<Record<string, boolean>>({});
+  // Live drag cue: the doc being dragged, and the row it's currently over. The
+  // hovered row shows an insertion line so you see where the drop will land; the
+  // dragged row stays put (dimmed) — we don't reorder the DOM mid-drag because
+  // moving the drag source aborts the native drag.
+  const [dragDoc,      setDragDoc]      = useState<{ id: number; folderId: number | null } | null>(null);
+  const [overDocId,    setOverDocId]    = useState<number | "end" | null>(null);
 
   const searchRef = useRef<HTMLInputElement>(null);
 
@@ -473,6 +479,17 @@ export default function DocsPage() {
     return Number.isInteger(id) && id > 0 ? id : null;
   }
 
+  // Drag session for the live preview. A row calls beginDrag on dragstart, sets
+  // the hovered row via setOverDocId, and endDrag clears both (on drop / dragend).
+  function beginDrag(id: number, folderId: number | null) {
+    setDragDoc({ id, folderId });
+    setOverDocId(null);
+  }
+  function endDrag() {
+    setDragDoc(null);
+    setOverDocId(null);
+  }
+
   function openAdd(folderId: number | null) {
     setAddFolderId(folderId);
     setShowAdd(true);
@@ -565,6 +582,20 @@ export default function DocsPage() {
     return m;
   }, [filtered, folderIds]);
 
+  // Which row shows the "will drop before me" line for the section a drag is
+  // hovering. We DON'T reorder the DOM mid-drag: moving the dragged source node
+  // during a native HTML5 drag makes the browser abort the drag. Instead the
+  // dragged row stays put (dimmed) and the hovered row shows an insertion line —
+  // live feedback, stable drag. Only same-section drags cue here; the end-of-list
+  // line is handled imperatively by the section's own drop zone. Returns the
+  // row id to mark, or null.
+  function cueBeforeId(folderKey: number | null): number | null {
+    if (!dragDoc || !canReorder) return null;
+    if ((dragDoc.folderId ?? null) !== folderKey) return null;
+    if (overDocId === dragDoc.id) return null;      // hovering itself → no cue
+    return typeof overDocId === "number" ? overDocId : null;
+  }
+
   // Section order: pinned folders first (most-recently pinned), then hand-ordered
   // folders (position set) in their order, then the rest by name.
   const sortedFolders = useMemo(() => {
@@ -624,10 +655,14 @@ export default function DocsPage() {
   const addFolderName = addFolderId != null
     ? (folders.find(f => f.id === addFolderId)?.name ?? "folder")
     : null;
-  // Drag-reorder is an admin gesture that only makes sense under Manual sort with
-  // no search/filter narrowing the sections (otherwise "before this row" is
-  // ambiguous against a hidden neighbor). Cross-folder moves stay on at all times.
-  const canReorder = canManage && sort === "manual" && !queryActive;
+  // Drag-reorder is an admin gesture, available under any sort as long as no
+  // search/filter is narrowing the sections (otherwise "before this row" is
+  // ambiguous against a hidden neighbor). It isn't gated to Manual sort: dropping
+  // a row commits a hand order and flips the view to Manual (see handleReorderDocs
+  // / handleReorderFolders) so the result is visible — otherwise a page that
+  // defaults to Newest would swallow the gesture with no feedback. Cross-folder
+  // moves stay on at all times.
+  const canReorder = canManage && !queryActive;
 
   return (
     <div className="flex h-screen overflow-hidden bg-[#0f0d0a]">
@@ -828,6 +863,7 @@ export default function DocsPage() {
                     onGhostAdd={openAdd}
                     onDropDoc={(docId) => handleMove(docId, folder.id)}
                     onDropDocAtEnd={(docId) => handleReorderDocs(folder.id, docId, null)}
+                    onDragOverEnd={() => setOverDocId(prev => prev === "end" ? prev : "end")}
                     onReorderFolderBefore={(draggedId) => handleReorderFolders(draggedId, folder.id)}
                     readDropId={docIdFromDrop}
                     readFolderDropId={folderIdFromDrop}
@@ -841,7 +877,12 @@ export default function DocsPage() {
                         doc={doc}
                         canManage={canManage}
                         reorderable={canReorder}
+                        dragging={dragDoc?.id === doc.id}
+                        cueBefore={cueBeforeId(folder.id) === doc.id}
                         readDropId={docIdFromDrop}
+                        onDragBegin={() => beginDrag(doc.id, folder.id)}
+                        onDragEnd={endDrag}
+                        onDragOverRow={() => setOverDocId(prev => prev === doc.id ? prev : doc.id)}
                         onReorderBefore={(draggedId) => handleReorderDocs(folder.id, draggedId, doc.id)}
                         onEdit={() => setEditTarget(doc)}
                         onDelete={() => setDeleteTarget(doc)}
@@ -869,6 +910,7 @@ export default function DocsPage() {
                     onGhostAdd={openAdd}
                     onDropDoc={(docId) => handleMove(docId, null)}
                     onDropDocAtEnd={(docId) => handleReorderDocs(null, docId, null)}
+                    onDragOverEnd={() => setOverDocId(prev => prev === "end" ? prev : "end")}
                     onReorderFolderBefore={() => {}}
                     readDropId={docIdFromDrop}
                     readFolderDropId={folderIdFromDrop}
@@ -882,7 +924,12 @@ export default function DocsPage() {
                         doc={doc}
                         canManage={canManage}
                         reorderable={canReorder}
+                        dragging={dragDoc?.id === doc.id}
+                        cueBefore={cueBeforeId(null) === doc.id}
                         readDropId={docIdFromDrop}
+                        onDragBegin={() => beginDrag(doc.id, null)}
+                        onDragEnd={endDrag}
+                        onDragOverRow={() => setOverDocId(prev => prev === doc.id ? prev : doc.id)}
                         onReorderBefore={(draggedId) => handleReorderDocs(null, draggedId, doc.id)}
                         onEdit={() => setEditTarget(doc)}
                         onDelete={() => setDeleteTarget(doc)}
