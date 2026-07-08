@@ -1,13 +1,15 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Sidebar } from "../../components/Sidebar";
 import { Modal, ConfirmDialog, LoadingSpinner } from "../../components/dashboard/primitives";
-import { InstagramPostForm, type PostDraft } from "./InstagramPostForm";
+import { InstagramPostForm, type PostDraft, type PostFormEvent } from "./InstagramPostForm";
 import { InstagramPostCard, type Lane } from "./InstagramPostCard";
 import { InstagramPostDetail } from "./InstagramPostDetail";
-import { InstagramTask, InstagramType, TaskStatus, fmtDate } from "../../data";
+import { InstagramTask, InstagramType, fmtDate } from "../../data";
 import { useChapter } from "../../context/ChapterContext";
+import { useOrgPath } from "../../hooks/useOrgPath";
 import { requestJson } from "../../lib/api";
 import { daysFromToday, todayStr } from "../../lib/dates";
 import "../../components/dashboard/dashboard-ledger.css";
@@ -34,7 +36,7 @@ type Draft = PostDraft;
 // ─── Briefing digest ────────────────────────────────────────────────────────
 
 function digestLine(tasks: InstagramTask[]): string {
-  const open = tasks.filter(t => t.status !== "Complete");
+  const open = tasks.filter(t => t.status !== "posted");
   if (open.length === 0) {
     return tasks.length === 0
       ? "Nothing queued yet — plan a post to start the calendar."
@@ -44,7 +46,7 @@ function digestLine(tasks: InstagramTask[]): string {
   const thisWeek = open.filter(t => { const d = daysFromToday(t.dueDate); return d >= 0 && d <= 7; }).length;
 
   // Days since the most recent posted item — the cadence signal.
-  const posted = tasks.filter(t => t.status === "Complete").sort((a, b) => b.dueDate.localeCompare(a.dueDate));
+  const posted = tasks.filter(t => t.status === "posted").sort((a, b) => b.dueDate.localeCompare(a.dueDate));
   const sinceLast = posted.length ? daysFromToday(posted[0].dueDate) : null;
 
   const bits: string[] = [];
@@ -66,7 +68,7 @@ const LANE_META: { id: Lane; label: string; cls: string }[] = [
 ];
 
 function laneOf(task: InstagramTask): Lane {
-  if (task.status === "Complete") return "posted";
+  if (task.status === "posted") return "posted";
   const diff = daysFromToday(task.dueDate);
   if (diff < 0) return "overdue";
   if (diff <= 7) return "week";
@@ -149,7 +151,7 @@ function MonthView({ tasks, onSelect }: { tasks: InstagramTask[]; onSelect: (t: 
                 {dayTasks.map(t => (
                   <button
                     key={t.id}
-                    className={`ig-cmark${t.status === "Complete" ? " done" : ""}`}
+                    className={`ig-cmark${t.status === "posted" ? " done" : ""}`}
                     style={{ ["--cmc" as string]: calMarkColor(t.type) } as React.CSSProperties}
                     onClick={() => onSelect(t)}
                     title={t.title}
@@ -173,6 +175,16 @@ let _nextId = Date.now();
 export default function InstagramPage() {
   const { currentUser, igTaskList, setIgTaskList, isLoading, can } = useChapter();
   const canManage = can("MANAGE_INSTAGRAM");
+  const orgPath = useOrgPath();
+  const router = useRouter();
+
+  // Calendar events available to link a post to (loaded once, like Treasury does).
+  const [calendarEvents, setCalendarEvents] = useState<PostFormEvent[]>([]);
+  useEffect(() => {
+    requestJson<PostFormEvent[]>("/api/calendar")
+      .then(evs => setCalendarEvents(evs.map(e => ({ id: e.id, title: e.title, date: e.date }))))
+      .catch(() => {});
+  }, []);
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [view, setView] = useState<ViewMode>("lanes");
@@ -192,10 +204,10 @@ export default function InstagramPage() {
   }, [igTaskList, query]);
 
   const counts = useMemo(() => {
-    const open = igTaskList.filter(t => t.status !== "Complete");
+    const open = igTaskList.filter(t => t.status !== "posted");
     const overdue = open.filter(t => daysFromToday(t.dueDate) < 0).length;
     const thisWeek = open.filter(t => { const d = daysFromToday(t.dueDate); return d >= 0 && d <= 7; }).length;
-    const posted = igTaskList.filter(t => t.status === "Complete").sort((a, b) => b.dueDate.localeCompare(a.dueDate));
+    const posted = igTaskList.filter(t => t.status === "posted").sort((a, b) => b.dueDate.localeCompare(a.dueDate));
     const sinceLast = posted.length ? daysFromToday(posted[0].dueDate) : null;
     return { queued: open.length, overdue, thisWeek, sinceLast };
   }, [igTaskList]);
@@ -216,6 +228,14 @@ export default function InstagramPage() {
     [igTaskList, selectedId],
   );
 
+  // id → event, for resolving a post's linked event when rendering.
+  const eventsById = useMemo(
+    () => new Map(calendarEvents.map(e => [e.id, e])),
+    [calendarEvents],
+  );
+  const linkedEventFor = (t: InstagramTask) =>
+    t.calendarEventId != null ? eventsById.get(t.calendarEventId) ?? null : null;
+
   // ── CRUD (optimistic, preserved from the original page) ──
   function openCreate() { setCreateOpen(true); }
   // Selecting a post opens the rail in read mode. The hover "Edit" icon and the
@@ -225,7 +245,7 @@ export default function InstagramPage() {
 
   function handleCreate(draft: Draft) {
     const tempId = _nextId++;
-    const optimistic: InstagramTask = { id: tempId, ...draft };
+    const optimistic: InstagramTask = { id: tempId, ...draft, status: "open" };
     setIgTaskList(prev => [...prev, optimistic]);
     setCreateOpen(false);
     requestJson<InstagramTask>("/api/instagram", {
@@ -254,12 +274,44 @@ export default function InstagramPage() {
       .catch(err => { console.error(err); setIgTaskList(list => list.map(t => t.id === id ? prev : t)); });
   }
 
+  // Quick inline change of just the posting date from the detail rail's read
+  // view — optimistic, mirrors handleEdit but patches a single field.
+  function handleChangeDate(id: number, dueDate: string) {
+    const prev = igTaskList.find(t => t.id === id);
+    if (!prev || prev.dueDate === dueDate) return;
+    const updated: InstagramTask = { ...prev, dueDate };
+    setIgTaskList(list => list.map(t => t.id === id ? updated : t));
+    requestJson<InstagramTask>(`/api/instagram/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ dueDate }),
+    })
+      .then(saved => setIgTaskList(list => list.map(t => t.id === id ? saved : t)))
+      .catch(err => { console.error(err); setIgTaskList(list => list.map(t => t.id === id ? prev : t)); });
+  }
+
+  // Quick inline change of just the actual posting date, from the rail's read
+  // view. Optimistic, mirrors handleChangeDate but patches postedDate.
+  function handleChangePostedDate(id: number, postedDate: string) {
+    const prev = igTaskList.find(t => t.id === id);
+    if (!prev || prev.postedDate === postedDate) return;
+    const updated: InstagramTask = { ...prev, postedDate };
+    setIgTaskList(list => list.map(t => t.id === id ? updated : t));
+    requestJson<InstagramTask>(`/api/instagram/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ postedDate }),
+    })
+      .then(saved => setIgTaskList(list => list.map(t => t.id === id ? saved : t)))
+      .catch(err => { console.error(err); setIgTaskList(list => list.map(t => t.id === id ? prev : t)); });
+  }
+
   function handleComplete(task: InstagramTask) {
-    setIgTaskList(prev => prev.map(t => t.id === task.id ? { ...t, status: "Complete" as TaskStatus } : t));
+    setIgTaskList(prev => prev.map(t => t.id === task.id ? { ...t, status: "posted" } : t));
     requestJson<InstagramTask>(`/api/instagram/${task.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status: "Complete" }),
+      body: JSON.stringify({ status: "posted" }),
     })
       .then(saved => setIgTaskList(prev => prev.map(t => t.id === task.id ? saved : t)))
       .catch(err => { console.error(err); setIgTaskList(prev => prev.map(t => t.id === task.id ? task : t)); });
@@ -272,7 +324,7 @@ export default function InstagramPage() {
       .catch(err => { console.error(err); setIgTaskList(prev => [...prev, task].sort((a, b) => a.id - b.id)); });
   }
 
-  const createInitial: Draft = { title: "", dueDate: "", type: "Story", status: "Upcoming" };
+  const createInitial: Draft = { title: "", dueDate: "", postedDate: null, type: "Story", calendarEventId: null };
 
   const hasTasks = igTaskList.length > 0;
 
@@ -389,6 +441,7 @@ export default function InstagramPage() {
                             lane={id}
                             canManage={canManage}
                             selected={t.id === selectedId}
+                            linkedEventTitle={linkedEventFor(t)?.title}
                             onSelect={openDetail}
                             onEdit={openEdit}
                             onDelete={setDeleteTarget}
@@ -421,10 +474,15 @@ export default function InstagramPage() {
           task={selectedTask}
           canManage={canManage}
           editing={railEditing}
+          events={calendarEvents}
+          linkedEvent={linkedEventFor(selectedTask)}
+          onOpenEvent={() => router.push(orgPath("/timeline"))}
           onClose={() => { setSelectedId(null); setRailEditing(false); }}
           onStartEdit={() => setRailEditing(true)}
           onCancelEdit={() => setRailEditing(false)}
           onSave={(draft) => handleEdit(selectedTask.id, draft)}
+          onChangeDate={(dueDate) => handleChangeDate(selectedTask.id, dueDate)}
+          onChangePostedDate={(postedDate) => handleChangePostedDate(selectedTask.id, postedDate)}
           onDelete={(t) => { setSelectedId(null); setRailEditing(false); setDeleteTarget(t); }}
           onComplete={handleComplete}
         />
@@ -433,7 +491,7 @@ export default function InstagramPage() {
       {/* ── Create modal (editing is inline in the rail) ── */}
       {createOpen && (
         <Modal title="Add Post" tone="dusk" onClose={() => setCreateOpen(false)}>
-          <InstagramPostForm initial={createInitial} submitLabel="Add Post" onSubmit={handleCreate} onClose={() => setCreateOpen(false)} />
+          <InstagramPostForm initial={createInitial} submitLabel="Add Post" events={calendarEvents} onSubmit={handleCreate} onClose={() => setCreateOpen(false)} />
         </Modal>
       )}
       {deleteTarget && (

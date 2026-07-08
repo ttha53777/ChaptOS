@@ -3,25 +3,41 @@
 import { useState } from "react";
 import { FieldLabel } from "../../components/dashboard/primitives";
 import { inputDuskCls } from "../../components/dashboard/styles";
-import type { InstagramType, TaskStatus } from "../../data";
+import type { InstagramType } from "../../data";
 import { INSTAGRAM_TYPES } from "@/lib/validation/instagram";
 
-export type PostDraft = { title: string; dueDate: string; type: InstagramType; status: TaskStatus };
+export type PostDraft = {
+  title: string;
+  dueDate: string;
+  /** The actual day the post went live, or null if not posted / unset. */
+  postedDate: string | null;
+  type: InstagramType;
+  /** The event this post promotes, or null when unlinked. */
+  calendarEventId: number | null;
+};
 
-// Status the user can pick when planning. "Complete" is reached via "Mark
-// posted", never set in the form (mirrors the old AddIGTaskForm).
-const PLANNABLE_STATUSES: TaskStatus[] = ["Upcoming", "Due Soon", "Urgent"];
+/** Minimal shape of a calendar event, for the optional "Linked event" picker. */
+export type PostFormEvent = { id: number; title: string; date: string };
+
+// No status picker: new posts are "open" and reach "posted" via "Mark posted".
+// Urgency is derived from dueDate, never chosen here.
 
 export function InstagramPostForm({
   initial,
   submitLabel,
   onSubmit,
   onClose,
+  events,
+  showPostedDate = false,
 }: {
   initial: PostDraft;
   submitLabel: string;
   onSubmit: (d: PostDraft) => void;
   onClose: () => void;
+  /** Calendar events the post can optionally be linked to. */
+  events?: PostFormEvent[];
+  /** Show the "Posting Date" field. Only meaningful once a post is posted. */
+  showPostedDate?: boolean;
 }) {
   const [form, setForm] = useState<PostDraft>(initial);
 
@@ -52,29 +68,47 @@ export function InstagramPostForm({
           value={form.dueDate}
           onChange={e => setForm(f => ({ ...f, dueDate: e.target.value }))}
         />
+        <p className="mt-1 text-[11px] text-[#8a8474]">The planned date — drives urgency and the calendar.</p>
       </div>
-      <div className="grid grid-cols-2 gap-3">
+      {showPostedDate && (
         <div>
-          <FieldLabel tone="dusk">Type</FieldLabel>
+          <FieldLabel tone="dusk">Posting Date</FieldLabel>
+          <input
+            type="date"
+            className={inputDuskCls}
+            value={form.postedDate ?? ""}
+            onChange={e => setForm(f => ({ ...f, postedDate: e.target.value || null }))}
+          />
+          <p className="mt-1 text-[11px] text-[#8a8474]">The day it actually went live.</p>
+        </div>
+      )}
+      <div>
+        <FieldLabel tone="dusk">Type</FieldLabel>
+        <select
+          className={inputDuskCls}
+          value={form.type}
+          onChange={e => setForm(f => ({ ...f, type: e.target.value as InstagramType }))}
+        >
+          {INSTAGRAM_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+        </select>
+      </div>
+      {events && events.length > 0 && (
+        <div>
+          <FieldLabel tone="dusk">Linked event (optional)</FieldLabel>
           <select
             className={inputDuskCls}
-            value={form.type}
-            onChange={e => setForm(f => ({ ...f, type: e.target.value as InstagramType }))}
+            value={form.calendarEventId ?? ""}
+            onChange={e =>
+              setForm(f => ({ ...f, calendarEventId: e.target.value ? Number(e.target.value) : null }))
+            }
           >
-            {INSTAGRAM_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+            <option value="">— None —</option>
+            {events.map(ev => (
+              <option key={ev.id} value={ev.id}>{ev.title} · {ev.date}</option>
+            ))}
           </select>
         </div>
-        <div>
-          <FieldLabel tone="dusk">Status</FieldLabel>
-          <select
-            className={inputDuskCls}
-            value={form.status}
-            onChange={e => setForm(f => ({ ...f, status: e.target.value as TaskStatus }))}
-          >
-            {PLANNABLE_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
-          </select>
-        </div>
-      </div>
+      )}
       <div className="flex justify-end gap-2 pt-1">
         <button
           type="button"

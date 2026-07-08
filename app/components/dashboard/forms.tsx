@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import type { Brother, CalendarEvent, InstagramType, TaskStatus } from "../../data";
+import type { Brother, CalendarEvent, InstagramType } from "../../data";
 import { FieldLabel } from "./primitives";
 import { inputDuskCls, btnDuskPrimaryCls } from "./styles";
 import { orgFetch } from "../../lib/api";
@@ -35,37 +35,28 @@ export function AddRevenueForm({ onSubmit }: {
 }
 
 export function AddIGTaskForm({ onSubmit, initial }: {
-  onSubmit: (t: { title: string; dueDate: string; type: InstagramType; status: TaskStatus }) => void;
-  initial?: { title: string; dueDate: string; type: InstagramType; status: TaskStatus };
+  onSubmit: (t: { title: string; dueDate: string; type: InstagramType }) => void;
+  initial?: { title: string; dueDate: string; type: InstagramType };
 }) {
   const [title,   setTitle]   = useState(initial?.title   ?? "");
   const [dueDate, setDueDate] = useState(initial?.dueDate ?? "");
   const [type,    setType]    = useState<InstagramType>(initial?.type ?? "Story");
-  const [status,  setStatus]  = useState<TaskStatus>(initial?.status ?? "Upcoming");
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!title.trim() || !dueDate) return;
-    onSubmit({ title: title.trim(), dueDate, type, status });
+    onSubmit({ title: title.trim(), dueDate, type });
   }
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div><FieldLabel tone="dusk">Post Title</FieldLabel><input className={inputDuskCls} value={title} onChange={e => setTitle(e.target.value)} placeholder="Post name…" required /></div>
       <div><FieldLabel tone="dusk">Due Date</FieldLabel><input type="date" className={inputDuskCls} value={dueDate} onChange={e => setDueDate(e.target.value)} required /></div>
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <FieldLabel tone="dusk">Type</FieldLabel>
-          <select className={inputDuskCls} value={type} onChange={e => setType(e.target.value as InstagramType)}>
-            {INSTAGRAM_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-          </select>
-        </div>
-        <div>
-          <FieldLabel tone="dusk">Status</FieldLabel>
-          <select className={inputDuskCls} value={status} onChange={e => setStatus(e.target.value as TaskStatus)}>
-            {(["Upcoming", "Due Soon", "Urgent"] as TaskStatus[]).map(s => <option key={s}>{s}</option>)}
-          </select>
-        </div>
+      <div>
+        <FieldLabel tone="dusk">Type</FieldLabel>
+        <select className={inputDuskCls} value={type} onChange={e => setType(e.target.value as InstagramType)}>
+          {INSTAGRAM_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+        </select>
       </div>
       <button type="submit" className={btnDuskPrimaryCls}>
         {initial ? "Save Changes" : "Add IG Task"}

@@ -171,6 +171,9 @@ header.dash-toolbar .ig-crumb {
 .dash .ig-post.posted .t { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--line); }
 .dash .ig-post .sub { font-family: var(--mono); font-size: 9.5px; letter-spacing: .04em; color: var(--faint); margin-top: 3px;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dash .ig-post .ig-event-tag { display: flex; align-items: center; gap: 4px; margin-top: 4px; font-size: 10.5px; color: var(--muted);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dash .ig-post .ig-event-tag svg { width: 11px; height: 11px; flex-shrink: 0; opacity: .8; }
 
 .dash .ig-right { display: inline-flex; align-items: center; gap: 8px; justify-self: end; min-width: 128px; justify-content: flex-end; }
 .dash .ig-due { font-family: var(--mono); font-size: 9.5px; font-weight: 600; letter-spacing: .04em;
@@ -316,6 +319,21 @@ header.dash-toolbar .ig-crumb {
 .ig-rail .ig-rail-meta > div:first-child { border-top: none; }
 .ig-rail .ig-rail-meta dt { font-family: var(--mono); font-size: 9.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
 .ig-rail .ig-rail-meta dd { font-size: 13px; color: var(--ink-soft); text-align: right; }
+.ig-rail .ig-event-link { display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; color: var(--tc, var(--muted));
+  background: none; border: none; padding: 0; cursor: pointer; text-align: right; transition: opacity .12s; }
+.ig-rail .ig-event-link:hover { opacity: .8; text-decoration: underline; }
+.ig-rail .ig-event-link svg { width: 13px; height: 13px; flex-shrink: 0; opacity: .85; }
+
+/* Inline "change posting date" control in the read view */
+.ig-rail .ig-date-edit { position: relative; display: inline-flex; align-items: center; gap: 6px;
+  font-size: 13px; color: var(--ink-soft); background: none; border: none; padding: 2px 4px; margin: -2px -4px;
+  border-radius: 6px; cursor: pointer; text-align: right; transition: background .12s, color .12s; }
+.ig-rail .ig-date-edit:hover { color: var(--ink); background: var(--line-soft); }
+.ig-rail .ig-date-edit svg { width: 12px; height: 12px; flex-shrink: 0; opacity: 0; transition: opacity .12s; color: var(--tc, var(--vio)); }
+.ig-rail .ig-date-edit:hover svg { opacity: .9; }
+/* Native picker anchor: invisible but positioned so showPicker()/click lands here */
+.ig-rail .ig-date-input { position: absolute; inset: 0; width: 100%; height: 100%;
+  opacity: 0; border: none; padding: 0; pointer-events: none; }
 
 .ig-rail .ig-rail-acts { display: flex; flex-direction: column; gap: 8px; padding: 16px 18px;
   border-top: 1px solid var(--line-soft); background: var(--card); }

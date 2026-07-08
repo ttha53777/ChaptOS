@@ -314,6 +314,17 @@
 }
 .dash .ev-prog-link:hover { border-color: var(--vio); background: color-mix(in srgb, var(--vio) 16%, transparent); color: var(--ink); }
 .dash .ev-prog-link svg { stroke: currentColor; }
+
+.dash .ev-linked-ig { margin-top: 14px; display: flex; flex-direction: column; gap: 4px; }
+.dash .ev-linked-ig > .lab { font-family: var(--mono); font-size: 9.5px; font-weight: 600; letter-spacing: .12em;
+  text-transform: uppercase; color: var(--muted); margin-bottom: 2px; }
+.dash .ev-ig-row { display: flex; align-items: baseline; gap: 8px; width: 100%; text-align: left;
+  border: 1px solid var(--line); border-radius: 8px; background: var(--card); padding: 8px 11px; cursor: pointer;
+  transition: border-color .12s, background .12s; }
+.dash .ev-ig-row:hover { border-color: var(--line-strong, var(--line)); background: var(--card-hover, var(--card)); }
+.dash .ev-ig-row .ig-type { font-family: var(--mono); font-size: 9px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); flex-shrink: 0; }
+.dash .ev-ig-row .ig-title { font-size: 12.5px; color: var(--ink); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dash .ev-ig-row .ig-due { font-family: var(--mono); font-size: 9.5px; color: var(--faint); flex-shrink: 0; }
 .dash .ev-att { border: 1px solid var(--line); border-radius: 12px; background: var(--card); box-shadow: var(--shadow); overflow: hidden; }
 .dash .ev-att-h { display: flex; align-items: center; justify-content: space-between; padding: 11px 14px; border-bottom: 1px solid var(--line-soft); }
 .dash .ev-att-h .lab { font-family: var(--mono); font-size: 9.5px; letter-spacing: .13em; text-transform: uppercase; color: var(--muted); }

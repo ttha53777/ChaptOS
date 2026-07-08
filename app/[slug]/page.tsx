@@ -8,7 +8,7 @@ const DrawerTrendChart = dynamic(() => import("../components/dashboard/DrawerTre
   loading: () => <div className="h-[110px] w-full rounded-lg bg-white/[0.04] animate-pulse" />,
 });
 import {
-  Brother, CalendarEvent, TaskStatus, InstagramType, ActivityEntry, PartyEvent, Task, InstagramTask, Transaction,
+  Brother, CalendarEvent, InstagramStatus, InstagramType, ActivityEntry, PartyEvent, Task, InstagramTask, Transaction,
   taskAssigneeLabel,
   treasuryTrend, TREASURY_BALANCE, TREASURY_PROJECTED,
   KPI_SPARKLINES,
@@ -22,7 +22,7 @@ import { useThresholds } from "../hooks/useThresholds";
 import { useVocab } from "../hooks/useVocab";
 import { useFeature } from "../hooks/useFeature";
 import { WORKFLOW_FEATURES, type DisabledFeatures } from "@/lib/workflow-features";
-import { taskUrgency, type TaskUrgency } from "@/lib/tasks/urgency";
+import { taskUrgency, URGENCY_ORDER, type TaskUrgency } from "@/lib/tasks/urgency";
 import { Sidebar, SvgIcon, NAV_ICONS, isNavVisible } from "../components/Sidebar";
 import { BrotherAvatar } from "../components/BrotherAvatar";
 import { useChapter } from "../context/ChapterContext";
@@ -450,7 +450,7 @@ function WidgetDetailDrawer({
   weekRange: { start: string; end: string };
   digestNarration: string | null;
   deadlineList: Task[];
-  igTaskList: { id: number; title: string; dueDate: string; status: TaskStatus; type: InstagramType }[];
+  igTaskList: { id: number; title: string; dueDate: string; status: InstagramStatus; type: InstagramType }[];
   activityFeed: ActivityEntry[];
   partyList: PartyEvent[];
   health: { score: number; label: "Healthy" | "Needs Attention" | "Critical"; breakdown: Record<string, number> };
@@ -664,17 +664,26 @@ function WidgetDetailDrawer({
       }
 
       case "instagram": {
-        const urgent   = igTaskList.filter(t => t.status === "Urgent");
-        const dueSoon  = igTaskList.filter(t => t.status === "Due Soon");
-        const upcoming = igTaskList.filter(t => t.status === "Upcoming");
-        const complete = igTaskList.filter(t => t.status === "Complete");
-        const statusTone: Record<TaskStatus, string> = {
-          "Urgent": "rose", "Due Soon": "gold", "Upcoming": "", "Complete": "ok",
+        // Status is binary open | posted; urgency is COMPUTED from dueDate
+        // (lib/tasks/urgency), mirroring the deadlines drawer. Open posts sort
+        // by how close they are; posted ones sit at the end.
+        const open = igTaskList.filter(t => t.status !== "posted");
+        const posted = igTaskList.filter(t => t.status === "posted");
+        const overdue  = open.filter(t => taskUrgency(t.dueDate) === "overdue").length;
+        const dueSoon  = open.filter(t => ["urgent", "due-soon"].includes(taskUrgency(t.dueDate))).length;
+        // Chip tone per computed urgency (matches the deadlines drawer palette).
+        const urgencyTone = (t: { dueDate: string }): string => {
+          const u = taskUrgency(t.dueDate);
+          return u === "overdue" || u === "urgent" ? "rose" : u === "due-soon" ? "gold" : "";
         };
+        const ordered = [...igTaskList].sort((a, b) => {
+          const rank = (t: typeof a) => t.status === "posted" ? 99 : URGENCY_ORDER.indexOf(taskUrgency(t.dueDate));
+          return rank(a) - rank(b);
+        });
         return (
           <>
             <div className="dd-stats c4">
-              {([["Urgent", urgent.length, "rose"], ["Due Soon", dueSoon.length, "gold"], ["Upcoming", upcoming.length, ""], ["Complete", complete.length, "ok"]] as const).map(([label, count, tone]) => (
+              {([["Overdue", overdue, "rose"], ["Due soon", dueSoon, "gold"], ["Queued", open.length, ""], ["Posted", posted.length, "ok"]] as const).map(([label, count, tone]) => (
                 <div key={label} className="dd-stat"><p className={`n ${tone}`}>{count}</p><p className="l">{label}</p></div>
               ))}
             </div>
@@ -682,17 +691,16 @@ function WidgetDetailDrawer({
               <p className="dd-empty">No IG tasks scheduled</p>
             ) : (
               <div className="dd-feed">
-                {[...igTaskList].sort((a, b) => {
-                  const order = { Urgent: 0, "Due Soon": 1, Upcoming: 2, Complete: 3 };
-                  return (order[a.status] ?? 99) - (order[b.status] ?? 99);
-                }).map(t => (
+                {ordered.map(t => {
+                  const isPosted = t.status === "posted";
+                  return (
                   <div key={t.id} className="dd-feed-card">
                     <div className="flex items-start justify-between gap-2" style={{ marginBottom: 6 }}>
-                      <p className={`flex-1 t ${t.status === "Complete" ? "done" : ""}`} style={{ fontSize: 12.5, fontWeight: 600, whiteSpace: "normal" }}>{t.title}</p>
+                      <p className={`flex-1 t ${isPosted ? "done" : ""}`} style={{ fontSize: 12.5, fontWeight: 600, whiteSpace: "normal" }}>{t.title}</p>
                       <div className="flex items-center gap-1 shrink-0">
                         <div className="dd-acts hover-reveal">
-                          {t.status !== "Complete" && (
-                            <button onClick={() => onCompleteIG(t.id)} title="Mark complete" className="dd-act ok">
+                          {!isPosted && (
+                            <button onClick={() => onCompleteIG(t.id)} title="Mark posted" className="dd-act ok">
                               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
                             </button>
                           )}
@@ -703,7 +711,7 @@ function WidgetDetailDrawer({
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                           </button>
                         </div>
-                        <span className={`dd-chip ${statusTone[t.status]}`}>{t.status}</span>
+                        <span className={`dd-chip ${isPosted ? "ok" : urgencyTone(t)}`}>{isPosted ? "posted" : "open"}</span>
                       </div>
                     </div>
                     <div className="flex items-center gap-2 flex-wrap">
@@ -711,7 +719,8 @@ function WidgetDetailDrawer({
                       <span className="dd-meta" style={{ fontSize: 10 }}>{fmtDate(t.dueDate)}</span>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
             <button onClick={() => { onOpenModal("ig"); onClose(); }} className="dd-btn-ghost">
@@ -1405,9 +1414,9 @@ export default function Home() {
     );
   }
 
-  function handleAddIGTask(t: { title: string; dueDate: string; type: InstagramType; status: TaskStatus }) {
+  function handleAddIGTask(t: { title: string; dueDate: string; type: InstagramType }) {
     const tempId = _nextId++;
-    setIgTaskList(prev => [...prev, { id: tempId, ...t }]);
+    setIgTaskList(prev => [...prev, { id: tempId, ...t, status: "open" }]);
     addActivity(`IG task added: "${t.title}"`, "info");
     setActiveModal(null);
     persistMutation(
@@ -1494,14 +1503,14 @@ export default function Home() {
   // ── IG Task CRUD ──────────────────────────────────────────────────────────
   function completeIG(id: number) {
     const t = igTaskList.find(x => x.id === id);
-    if (!t || t.status === "Complete") return;
-    setIgTaskList(prev => prev.map(x => x.id === id ? { ...x, status: "Complete" } : x));
-    addActivity(`IG task "${t.title}" marked complete`, "success");
+    if (!t || t.status === "posted") return;
+    setIgTaskList(prev => prev.map(x => x.id === id ? { ...x, status: "posted" } : x));
+    addActivity(`IG task "${t.title}" marked posted`, "success");
     persistMutation(
       requestJson<InstagramTask>(`/api/instagram/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: "Complete" }),
+        body: JSON.stringify({ status: "posted" }),
       }),
       "Instagram task update failed. Local changes were reverted.",
       () => setIgTaskList(prev => prev.map(x => x.id === id ? t : x)),
@@ -1531,7 +1540,7 @@ export default function Home() {
     setActiveModal("edit-ig");
   }
 
-  function saveEditIG(data: { title: string; dueDate: string; type: InstagramType; status: TaskStatus }) {
+  function saveEditIG(data: { title: string; dueDate: string; type: InstagramType }) {
     if (!editingIgId) return;
     const previous = igTaskList.find(x => x.id === editingIgId);
     setIgTaskList(prev => prev.map(x => x.id === editingIgId ? { ...x, ...data } : x));
@@ -1964,7 +1973,7 @@ export default function Home() {
                 )}
                 {igEnabled && (
                   <InstagramRail
-                    tasks={igTaskList.filter(t => t.status !== "Complete")}
+                    tasks={igTaskList.filter(t => t.status !== "posted")}
                     today={todayISO}
                     onAdd={() => setActiveModal("ig")}
                     onAll={() => setWidgetDrawer("instagram")}

@@ -228,6 +228,8 @@ type AttendanceDetail = {
   excused:   { brotherId: number; brotherName: string; reason: string; isRetroactive: boolean }[];
   unexcused: { brotherId: number; brotherName: string }[];
   attended:  { brotherId: number; brotherName: string }[];
+  // Brother ids exempt from attendance this semester — excluded from the log form.
+  exempt:    number[];
 };
 
 function EventDetail({
@@ -239,6 +241,8 @@ function EventDetail({
   onEdit,
   onDelete,
   onOpenProgramming,
+  linkedPosts,
+  onOpenInstagram,
   brotherList,
   selfBrotherId,
   deadlineStatus,
@@ -254,6 +258,10 @@ function EventDetail({
   onDelete: () => void;
   /** Present only for programming-backed events — jumps to the Programming page. */
   onOpenProgramming?: () => void;
+  /** Instagram posts that promote this event (reverse of InstagramTask.calendarEventId). */
+  linkedPosts?: { id: number; title: string; type: string; dueDate: string }[];
+  /** Jump to the Instagram page. */
+  onOpenInstagram?: () => void;
   brotherList: { id: number; name: string }[];
   selfBrotherId: number | null;
   /** Status of the source Task, when this row is a live dated task; null otherwise. */
@@ -334,8 +342,9 @@ function EventDetail({
 
   function openLogAtt() {
     const excusedIds = new Set((attDetail?.excused ?? []).map(e => e.brotherId));
+    const exemptIds = new Set(attDetail?.exempt ?? []);
     const alreadyAttended = new Set((attDetail?.attended ?? []).map(e => e.brotherId));
-    const eligible = brotherList.filter(b => !excusedIds.has(b.id));
+    const eligible = brotherList.filter(b => !excusedIds.has(b.id) && !exemptIds.has(b.id));
     setLogAttended(alreadyAttended.size > 0 ? alreadyAttended : new Set(eligible.map(b => b.id)));
     setLogError(null);
     setLogAttOpen(true);
@@ -433,6 +442,20 @@ function EventDetail({
         </button>
       )}
 
+      {/* Instagram posts that promote this event (set from the Instagram page). */}
+      {linkedPosts && linkedPosts.length > 0 && (
+        <div className="ev-linked-ig">
+          <span className="lab">On Instagram</span>
+          {linkedPosts.map(p => (
+            <button key={p.id} className="ev-ig-row" onClick={onOpenInstagram}>
+              <span className="ig-type">{p.type}</span>
+              <span className="ig-title">{p.title}</span>
+              <span className="ig-due">{fmtDow(p.dueDate)} {Number(p.dueDate.split("-")[2])} {MONTH_NAMES[Number(p.dueDate.split("-")[1]) - 1]}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* Deadline submission — mark a live deadline complete (or reopen it). */}
       {deadlineStatus !== null && (
         <div className={`ev-deadline${isComplete ? " done" : ""}`}>
@@ -522,7 +545,8 @@ function EventDetail({
           {/* Log attendance form */}
           {logAttOpen && (() => {
             const excusedIds = new Set((attDetail?.excused ?? []).map(e => e.brotherId));
-            const eligible   = brotherList.filter(b => !excusedIds.has(b.id));
+            const exemptIds  = new Set(attDetail?.exempt ?? []);
+            const eligible   = brotherList.filter(b => !excusedIds.has(b.id) && !exemptIds.has(b.id));
             const excused    = brotherList.filter(b => excusedIds.has(b.id));
             return (
               <form onSubmit={submitLogAtt} className="ev-att-form">
@@ -1513,6 +1537,16 @@ export default function TimelinePage() {
                         ? () => router.push(orgPath(`/events?open=${selectedEvent.programmingEventId}`))
                         : undefined
                     }
+                    linkedPosts={
+                      // Only real calendar events (not folded-in deadline/IG rows) can be
+                      // promoted by a post — the FK references the true CalendarEvent id.
+                      apiEventIds.has(selectedEvent.id)
+                        ? igTaskList
+                            .filter(t => t.calendarEventId === selectedEvent.id)
+                            .map(t => ({ id: t.id, title: t.title, type: t.type, dueDate: t.dueDate }))
+                        : []
+                    }
+                    onOpenInstagram={() => router.push(orgPath("/instagram"))}
                     brotherList={brotherList}
                     selfBrotherId={selfId}
                     deadlineStatus={selectedDeadline?.status ?? null}
