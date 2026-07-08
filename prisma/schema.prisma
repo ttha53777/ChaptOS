@@ -36,6 +36,7 @@ model Organization {
   brothers                  Brother[]
   roles                     Role[]
   semesters                 Semester[]
+  attendanceExemptions      AttendanceExemption[]
   calendarEvents            CalendarEvent[]
   serviceEvents             ServiceEvent[]
   serviceParticipations     ServiceParticipation[]
@@ -159,6 +160,7 @@ model Brother {
   customFields          Json                   @default("{}")
   attendanceRecords     AttendanceRecord[]
   attendanceExcuses     AttendanceExcuse[]
+  attendanceExemptions  AttendanceExemption[]
   authoredLogs          ActivityLog[]
   roles                 BrotherRole[]
   memberships           Membership[]
@@ -274,6 +276,7 @@ model Semester {
   isActive       Boolean            @default(false)
   records        AttendanceRecord[]
   excuses        AttendanceExcuse[]
+  exemptions     AttendanceExemption[]
   transactions   Transaction[]
   budgets        Budget[]
 
@@ -319,6 +322,29 @@ model AttendanceExcuse {
   @@index([brotherId, semesterId])
   @@index([calendarEventId, semesterId])
   @@index([status])
+}
+
+// A member marked exempt from mandatory-attendance tracking for a whole semester
+// (studying abroad, co-op, inactive, etc.). Exempt members drop out of every
+// mandatory event's eligible set for that semester — no per-event excuse needed —
+// and are excluded from the chapter-wide attendance ratio (their Brother.attendance
+// is set to the -1 "exempt" sentinel by the recalc). Carries organizationId
+// directly (org-scoped like Poll), so isolation is a plain WHERE, not a relation join.
+model AttendanceExemption {
+  id             Int          @id @default(autoincrement())
+  organizationId Int
+  brotherId      Int
+  semesterId     Int
+  reason         String       @default("inactive")
+  note           String?
+  createdById    Int?
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  brother        Brother      @relation(fields: [brotherId], references: [id])
+  semester       Semester     @relation(fields: [semesterId], references: [id])
+
+  @@unique([semesterId, brotherId])
+  @@index([organizationId, semesterId])
 }
 
 // A task is a unit of work handed out to members and/or roles. A task WITH a
@@ -452,12 +478,22 @@ model InstagramTask {
   organizationId Int
   title          String
   dueDate        String
-  status         String
+  // The actual day the post went live. Null until posted; set when a post is
+  // marked posted (defaults to dueDate) and independently editable. dueDate
+  // stays the planned/target date that drives urgency.
+  postedDate     String?
+  status         String @default("open") // "open" | "posted" — urgency is computed from dueDate, never stored
   type           String
+  // Optional soft reference to the event this post promotes. Not a date
+  // constraint — the post keeps its own dueDate. SetNull so deleting the event
+  // just clears the link (the post survives).
+  calendarEventId Int?
 
-  organization Organization @relation(fields: [organizationId], references: [id])
+  organization  Organization   @relation(fields: [organizationId], references: [id])
+  calendarEvent CalendarEvent? @relation(fields: [calendarEventId], references: [id], onDelete: SetNull)
 
   @@index([organizationId])
+  @@index([calendarEventId])
 }
 
 // A pinned external resource (Google Doc, website, shared drive folder, …)
@@ -569,6 +605,7 @@ model CalendarEvent {
   programmingEvent  ProgrammingEvent?
   partyEvent        PartyEvent?        @relation("PartyAttendance")
   transactionLinks  TransactionCalendarEvent[]
+  instagramTasks    InstagramTask[]
 
   organization Organization @relation(fields: [organizationId], references: [id])
 
