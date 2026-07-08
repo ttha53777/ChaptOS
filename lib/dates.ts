@@ -14,6 +14,16 @@
 export const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 /**
+ * The current local date as "YYYY-MM-DD". Uses local components (not
+ * toISOString(), which would shift across the UTC boundary). `now` defaults to
+ * the current time; pass one to make callers testable.
+ */
+export function todayISO(now: Date = new Date()): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+}
+
+/**
  * True only for a real calendar date in "YYYY-MM-DD" form — rejects both the
  * wrong shape and well-formed-but-impossible dates ("2026-02-31", "2026-13-01").
  * Parses the components and confirms they round-trip through a UTC Date, so a

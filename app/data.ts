@@ -5,6 +5,9 @@ export type TaskStatus = "Upcoming" | "Due Soon" | "Urgent" | "Complete";
 // Canonical post types — mirrors INSTAGRAM_TYPES in lib/validation/instagram.ts
 // (kept as a local literal so this mock-data module stays dependency-light).
 export type InstagramType = "Story" | "Reel" | "Carousel";
+// Binary IG post status — mirrors Task's open|done. Urgency is computed from
+// dueDate, never stored. (TaskStatus above is retained for Programming tasks.)
+export type InstagramStatus = "open" | "posted";
 export type CalEventCategory = "chapter" | "social" | "fundy" | "program" | "party" | "deadline" | "service";
 export type CalLayer = "all" | "mandatory" | "deadlines" | "parties" | "service";
 
@@ -118,8 +121,12 @@ export interface InstagramTask {
   id: number;
   title: string;
   dueDate: string;
-  status: TaskStatus;
+  /** The actual day the post went live. Null until posted. */
+  postedDate?: string | null;
+  status: InstagramStatus;
   type: InstagramType;
+  /** Optional soft link to the calendar event this post promotes. */
+  calendarEventId?: number | null;
 }
 
 export interface ProgrammingChecklistItem {
@@ -226,14 +233,14 @@ export const tasks: Task[] = [
 ];
 
 export const instagramTasks: InstagramTask[] = [
-  { id: 1, title: "Rush Interest Post",        dueDate: "2026-05-13", status: "Urgent",   type: "Story"    },
-  { id: 2, title: "Spring Formal Flyer Drop",  dueDate: "2026-05-14", status: "Urgent",   type: "Story"    },
-  { id: 3, title: "Meet the Bros Reel",        dueDate: "2026-06-17", status: "Due Soon", type: "Reel"     },
-  { id: 4, title: "Community Service Recap",   dueDate: "2026-06-19", status: "Upcoming", type: "Carousel" },
-  { id: 5, title: "Banquet Promo Post",        dueDate: "2026-06-21", status: "Upcoming", type: "Story"    },
-  { id: 6, title: "Stroll Practice Recap",     dueDate: "2026-06-28", status: "Upcoming", type: "Reel"     },
-  { id: 7, title: "Summer Collab Night Teaser",dueDate: "2026-07-04", status: "Upcoming", type: "Story"    },
-  { id: 8, title: "Brotherhood Mixer Recap",   dueDate: "2026-06-11", status: "Complete", type: "Carousel" },
+  { id: 1, title: "Rush Interest Post",        dueDate: "2026-05-13", status: "open",   type: "Story"    },
+  { id: 2, title: "Spring Formal Flyer Drop",  dueDate: "2026-05-14", status: "open",   type: "Story"    },
+  { id: 3, title: "Meet the Bros Reel",        dueDate: "2026-06-17", status: "open",   type: "Reel"     },
+  { id: 4, title: "Community Service Recap",   dueDate: "2026-06-19", status: "open",   type: "Carousel" },
+  { id: 5, title: "Banquet Promo Post",        dueDate: "2026-06-21", status: "open",   type: "Story"    },
+  { id: 6, title: "Stroll Practice Recap",     dueDate: "2026-06-28", status: "open",   type: "Reel"     },
+  { id: 7, title: "Summer Collab Night Teaser",dueDate: "2026-07-04", status: "open",   type: "Story"    },
+  { id: 8, title: "Brotherhood Mixer Recap",   dueDate: "2026-06-11", status: "posted", type: "Carousel" },
 ];
 
 export const partyEvents: PartyEvent[] = [
