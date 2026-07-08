@@ -49,7 +49,7 @@ export async function summarizeAttendance(
     return eventIds.map(id => ({ calendarEventId: id, present: 0, eligible: 0 }));
   }
 
-  const [records, excuses] = await Promise.all([
+  const [records, excuses, exemptions] = await Promise.all([
     ctx.db.attendanceRecord.findMany({
       where: { semesterId: semester.id, calendarEventId: { in: eventIds } },
       select: { calendarEventId: true, brotherId: true, attended: true },
@@ -58,7 +58,14 @@ export async function summarizeAttendance(
       where: { semesterId: semester.id, calendarEventId: { in: eventIds }, status: ExcuseStatus.Approved },
       select: { calendarEventId: true, brotherId: true },
     }),
+    ctx.db.attendanceExemption.findMany({
+      where: { semesterId: semester.id },
+      select: { brotherId: true },
+    }),
   ]);
+  // Semester-exempt members are dropped from every event's numerator and
+  // denominator (they hold no eligible-attendance obligation this term).
+  const exemptBrotherIds = new Set(exemptions.map(e => e.brotherId));
 
   // Excused brothers are dropped from both numerator and denominator, matching
   // the [eventId] route: eligible = records that aren't excused, present =
@@ -73,6 +80,7 @@ export async function summarizeAttendance(
   const counts = new Map<number, { present: number; eligible: number }>();
   for (const id of eventIds) counts.set(id, { present: 0, eligible: 0 });
   for (const r of records) {
+    if (exemptBrotherIds.has(r.brotherId)) continue;
     const excused = excusedByEvent.get(r.calendarEventId);
     if (excused?.has(r.brotherId)) continue;
     const c = counts.get(r.calendarEventId);
@@ -93,31 +101,45 @@ export async function recordAttendance(ctx: RequestContext, input: RecordAttenda
   if (!event.mandatory)  throw new ValidationError("Only mandatory events track attendance");
   if (!semester)         throw new ValidationError("No active semester");
 
-  const [excuses, brothers] = await Promise.all([
+  const [excuses, exemptions, brothers] = await Promise.all([
     ctx.db.attendanceExcuse.findMany({
       where: { calendarEventId: input.calendarEventId, semesterId: semester.id, status: ExcuseStatus.Approved },
+    }),
+    ctx.db.attendanceExemption.findMany({
+      where: { semesterId: semester.id },
+      select: { brotherId: true },
     }),
     ctx.db.brother.findMany({ where: { isGhost: false }, select: { id: true } }),
   ]);
   const excusedBrotherIds = new Set(excuses.map(e => e.brotherId));
-  const eligible = brothers.filter(b => !excusedBrotherIds.has(b.id));
+  const exemptBrotherIds  = new Set(exemptions.map(e => e.brotherId));
+  // Eligible = non-ghost members, minus per-event excused, minus semester-exempt.
+  const eligible = brothers.filter(b => !excusedBrotherIds.has(b.id) && !exemptBrotherIds.has(b.id));
+  const eligibleIds = eligible.map(b => b.id);
+  const attendedSet = new Set(input.attendedIds);
 
-  // The tenant $transaction wrapper takes a callback (it SET LOCALs the org id),
-  // so run the upserts inside it rather than passing an operation array.
+  // Set-based writes: two statements regardless of roster size. A per-member
+  // upsert loop here 500s (P2024 transaction timeout) once a chapter passes ~60
+  // members, because each upsert is a serial round-trip inside the transaction.
+  // The tenant $transaction wrapper takes a callback (it SET LOCALs the org id).
   await ctx.db.$transaction(async tx => {
-    for (const b of eligible) {
-      await tx.attendanceRecord.upsert({
-        where:  { calendarEventId_brotherId: { calendarEventId: input.calendarEventId, brotherId: b.id } },
-        update: { attended: input.attendedIds.includes(b.id) },
-        create: {
+    // Only the eligible members' rows for THIS event. Excused members are absent
+    // from eligibleIds, so their pre-existing rows are left intact — same
+    // semantics as the old upsert loop, which also skipped excused brothers.
+    await tx.attendanceRecord.deleteMany({
+      where: { calendarEventId: input.calendarEventId, brotherId: { in: eligibleIds } },
+    });
+    if (eligibleIds.length > 0) {
+      await tx.attendanceRecord.createMany({
+        data: eligible.map(b => ({
           calendarEventId: input.calendarEventId,
           brotherId:       b.id,
           semesterId:      semester.id,
-          attended:        input.attendedIds.includes(b.id),
-        },
+          attended:        attendedSet.has(b.id),
+        })),
       });
     }
-  });
+  }, { timeout: 15_000 });
 
   await emit(ctx, "attendance.recorded", { type: "CalendarEvent", id: event.id }, {
     calendarEventId: event.id,

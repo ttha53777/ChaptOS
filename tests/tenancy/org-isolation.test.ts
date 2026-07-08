@@ -623,6 +623,46 @@ describe("tenancy: AttendanceExcuse (relation-scoped via Brother)", () => {
   });
 });
 
+describe("tenancy: AttendanceExemption (organizationId-scoped)", () => {
+  it("findMany never returns another org's exemption", async () => {
+    const orgA = await createOrg("Alpha", "alpha");
+    const orgB = await createOrg("Beta", "beta");
+    const semB = await createSemester({ orgId: orgB.id });
+    const broB = await createBrother({ orgId: orgB.id });
+    await testPrisma.attendanceExemption.create({
+      data: { organizationId: orgB.id, brotherId: broB.id, semesterId: semB.id, reason: "abroad" },
+    });
+
+    expect(await db(orgA.id).attendanceExemption.findMany({})).toEqual([]);
+    expect(await db(orgA.id).attendanceExemption.count()).toBe(0);
+    expect(await db(orgB.id).attendanceExemption.count()).toBe(1);
+  });
+
+  it("create injects organizationId", async () => {
+    const org = await createOrg("Alpha", "alpha");
+    const sem = await createSemester({ orgId: org.id });
+    const bro = await createBrother({ orgId: org.id });
+    const ex = await db(org.id).attendanceExemption.create({
+      data: { brotherId: bro.id, semesterId: sem.id, reason: "coop" },
+    });
+    expect(ex.organizationId).toBe(org.id);
+  });
+
+  it("deleteMany cannot clear another org's exemption (the clearExemption path)", async () => {
+    const orgA = await createOrg("Alpha", "alpha");
+    const orgB = await createOrg("Beta", "beta");
+    const semB = await createSemester({ orgId: orgB.id });
+    const broB = await createBrother({ orgId: orgB.id });
+    await testPrisma.attendanceExemption.create({
+      data: { organizationId: orgB.id, brotherId: broB.id, semesterId: semB.id, reason: "abroad" },
+    });
+
+    // orgA tries to clear orgB's exemption by its brother/semester ids: no-op.
+    await db(orgA.id).attendanceExemption.deleteMany({ where: { brotherId: broB.id, semesterId: semB.id } });
+    expect(await db(orgB.id).attendanceExemption.count()).toBe(1);
+  });
+});
+
 describe("tenancy: BudgetAllocation (relation-scoped via Budget)", () => {
   it("findMany never returns another org's allocations", async () => {
     const orgA = await createOrg("Alpha", "alpha");

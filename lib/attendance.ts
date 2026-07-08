@@ -1,4 +1,7 @@
 import { db } from "@/lib/db";
+import { ATTENDANCE_EXEMPT } from "@/lib/thresholds";
+
+export { ATTENDANCE_EXEMPT };
 
 /** Org-scoped data accessor (same shape as ctx.db). */
 type Scoped = ReturnType<typeof db>;
@@ -31,13 +34,20 @@ export async function recalcBrotherAttendance(
   brotherId: number,
   semesterId: number,
 ): Promise<number> {
-  const [records, excuses, mandatory] = await Promise.all([
+  const [records, excuses, exemption, mandatory] = await Promise.all([
     // Relation-scoped wrappers AND the org via the record's/excuse's parent, so
     // these bare brotherId/semesterId reads stay org-safe.
     scoped.attendanceRecord.findMany({ where: { brotherId, semesterId } }),
     scoped.attendanceExcuse.findMany({ where: { brotherId, semesterId, status: "approved" } }),
+    scoped.attendanceExemption.findFirst({ where: { brotherId, semesterId }, select: { id: true } }),
     mandatoryEventIds(scoped),
   ]);
+
+  // Exempt this semester → park at the sentinel, skip the ratio math entirely.
+  if (exemption) {
+    await scoped.brother.updateMany({ where: { id: brotherId }, data: { attendance: ATTENDANCE_EXEMPT } });
+    return ATTENDANCE_EXEMPT;
+  }
 
   const excusedEventIds = new Set(excuses.map(e => e.calendarEventId));
   const eligible = records.filter(r => mandatory.has(r.calendarEventId) && !excusedEventIds.has(r.calendarEventId));
@@ -71,15 +81,18 @@ export async function recalcAllBrothersInSemester(
   scoped: Scoped,
   semesterId: number,
 ): Promise<void> {
-  const [brothers, allRecords, allExcuses, mandatory] = await Promise.all([
+  const [brothers, allRecords, allExcuses, allExemptions, mandatory] = await Promise.all([
     scoped.brother.findMany({
       where: { isGhost: false },
       select: { id: true },
     }),
     scoped.attendanceRecord.findMany({ where: { semesterId } }),
     scoped.attendanceExcuse.findMany({ where: { semesterId, status: "approved" } }),
+    scoped.attendanceExemption.findMany({ where: { semesterId }, select: { brotherId: true } }),
     mandatoryEventIds(scoped),
   ]);
+
+  const exemptBrotherIds = new Set(allExemptions.map(e => e.brotherId));
 
   const recordsByBrother  = new Map<number, typeof allRecords>();
   const excusedByBrother  = new Map<number, Set<number>>();
@@ -98,6 +111,13 @@ export async function recalcAllBrothersInSemester(
   // Group brother IDs by computed ratio so we can batch updateMany per ratio value.
   const byRatio = new Map<number, number[]>();
   for (const b of brothers) {
+    // Exempt this semester → the sentinel bucket, no ratio math.
+    if (exemptBrotherIds.has(b.id)) {
+      const ids = byRatio.get(ATTENDANCE_EXEMPT) ?? [];
+      ids.push(b.id);
+      byRatio.set(ATTENDANCE_EXEMPT, ids);
+      continue;
+    }
     const records  = recordsByBrother.get(b.id) ?? [];
     const excused  = excusedByBrother.get(b.id) ?? new Set<number>();
     const eligible = records.filter(r => mandatory.has(r.calendarEventId) && !excused.has(r.calendarEventId));

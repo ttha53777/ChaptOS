@@ -17,9 +17,9 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ eve
     // No active semester is an empty state, not a client error: there's simply no
     // attendance to report yet. Return empty buckets so the rail renders its empty
     // state instead of the timeline logging a spurious 400.
-    if (!semester) return Response.json({ excused: [], unexcused: [], attended: [] });
+    if (!semester) return Response.json({ excused: [], unexcused: [], attended: [], exempt: [] });
 
-    const [records, excuses] = await Promise.all([
+    const [records, excuses, exemptions] = await Promise.all([
       ctx.db.attendanceRecord.findMany({
         where: { calendarEventId, semesterId: semester.id },
         include: { brother: { select: { id: true, name: true } } },
@@ -28,12 +28,19 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ eve
         where: { calendarEventId, semesterId: semester.id, status: ExcuseStatus.Approved },
         include: { brother: { select: { id: true, name: true } } },
       }),
+      ctx.db.attendanceExemption.findMany({
+        where: { semesterId: semester.id },
+        select: { brotherId: true },
+      }),
     ]);
 
     const excusedBrotherIds = new Set(excuses.map(e => e.brotherId));
-    const attended = records.filter(r => r.attended && !excusedBrotherIds.has(r.brotherId))
+    // Semester-exempt members drop from every bucket, so the timeline log form
+    // (built from attended + unexcused) never lists them.
+    const exemptBrotherIds = new Set(exemptions.map(e => e.brotherId));
+    const attended = records.filter(r => r.attended && !excusedBrotherIds.has(r.brotherId) && !exemptBrotherIds.has(r.brotherId))
       .map(r => ({ brotherId: r.brotherId, brotherName: r.brother.name }));
-    const unexcused = records.filter(r => !r.attended && !excusedBrotherIds.has(r.brotherId))
+    const unexcused = records.filter(r => !r.attended && !excusedBrotherIds.has(r.brotherId) && !exemptBrotherIds.has(r.brotherId))
       .map(r => ({ brotherId: r.brotherId, brotherName: r.brother.name }));
     const excused = excuses.map(e => ({
       brotherId: e.brotherId,
@@ -42,7 +49,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ eve
       isRetroactive: e.isRetroactive,
     }));
 
-    return Response.json({ excused, unexcused, attended });
+    return Response.json({ excused, unexcused, attended, exempt: [...exemptBrotherIds] });
   } catch (e) {
     logError(e, { route: "/api/attendance/[eventId]", method: "GET", userId: ctx.actorId, extra: { requestId: ctx.requestId } });
     return toResponse(e);

@@ -45,6 +45,7 @@ export interface EventMetadata {
   "excuse.approved":    { brotherId: number; brotherName: string; calendarEventId: number; semesterId: number; eventTitle: string };
   "excuse.rejected":    { brotherId: number; brotherName: string; calendarEventId: number; semesterId: number; eventTitle: string; rejectionNote: string | null };
   "attendance.recorded":{ calendarEventId: number; semesterId: number; eventTitle: string; presentCount: number; eligibleCount: number };
+  "exemption.changed":  { brotherId: number; semesterId: number };
 
   // Transactions / Budget
   "transaction.created":      { type: "income" | "expense"; category: string; amount: number; description: string };
@@ -140,7 +141,7 @@ export interface EventMetadata {
 export type Action = keyof EventMetadata;
 
 const KNOWN_ACTIONS = new Set<Action>([
-  "excuse.submitted", "excuse.approved", "excuse.rejected", "attendance.recorded",
+  "excuse.submitted", "excuse.approved", "excuse.rejected", "attendance.recorded", "exemption.changed",
   "transaction.created", "transaction.updated", "transaction.soft_deleted", "budget.upserted",
   "role.created", "role.updated", "role.deleted", "role.granted", "role.revoked",
   "brother.claimed", "brother.added", "brother.updated", "brother.removed", "brother.admin_changed", "brother.account_unlinked",

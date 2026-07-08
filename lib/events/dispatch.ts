@@ -100,6 +100,8 @@ export function formatActivityMessage(ctx: RequestContext, action: Action, m: an
         : `${m.brotherName}'s excuse for ${m.eventTitle} was not approved`;
     case "attendance.recorded":
       return `${who} recorded attendance for ${m.eventTitle}: ${m.presentCount}/${m.eligibleCount} present`;
+    case "exemption.changed":
+      return `${who} updated the attendance exemption for brother #${m.brotherId}`;
     case "transaction.created":
       return `${who} added a $${Number(m.amount).toFixed(2)} ${m.type} for ${m.category}: ${m.description}`;
     case "transaction.updated":

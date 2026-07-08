@@ -11,6 +11,20 @@
  * a per-org value never has to be threaded through a module-level mutable.
  */
 
+/**
+ * Sentinel stored in Brother.attendance for a member exempt from attendance for
+ * the semester (abroad / co-op / inactive). A real ratio is always 0–100, so -1
+ * is unambiguous: the roster renders it as an "Exempt" chip and drops the member
+ * from the Good/Watch/At-Risk math. Lives here (not lib/attendance.ts) so client
+ * components can import it without pulling in the Prisma client.
+ */
+export const ATTENDANCE_EXEMPT = -1;
+
+/** True when a Brother.attendance value is the exempt sentinel, not a real %. */
+export function isAttendanceExempt(attendance: number): boolean {
+  return attendance === ATTENDANCE_EXEMPT;
+}
+
 export interface Thresholds {
   /** Attendance % below which a member is flagged At Risk. */
   attendanceAtRisk: number;

@@ -25,3 +25,9 @@ on("excuse.submitted", async (ctx, { metadata }) => {
 on("attendance.recorded", async (ctx, { metadata }) => {
   await recalcAllBrothersInSemester(ctx.db, metadata.semesterId);
 });
+
+on("exemption.changed", async (ctx, { metadata }) => {
+  // Setting or clearing an exemption only moves that one member's ratio (to/from
+  // the exempt sentinel), so a single-brother recalc is enough.
+  await recalcBrotherAttendance(ctx.db, metadata.brotherId, metadata.semesterId);
+});

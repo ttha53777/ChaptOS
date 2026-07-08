@@ -194,7 +194,7 @@ export interface CalendarEvent {
 // name so existing `import { THRESHOLDS } from "../data"` call sites keep working
 // as the app-wide fallback. Per-org overrides flow through useThresholds() /
 // resolveThresholds() and are passed explicitly to the helpers below.
-import { DEFAULT_THRESHOLDS, type Thresholds } from "@/lib/thresholds";
+import { DEFAULT_THRESHOLDS, isAttendanceExempt, type Thresholds } from "@/lib/thresholds";
 export type { Thresholds } from "@/lib/thresholds";
 export const THRESHOLDS = DEFAULT_THRESHOLDS;
 
@@ -428,9 +428,13 @@ export function calcHealthScore(
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 export function getBrotherStatus(b: Brother, thresholds: Thresholds = THRESHOLDS): BrotherStatus {
-  if (b.attendance < thresholds.attendanceAtRisk || b.gpa < thresholds.gpaAtRisk) return "At Risk";
+  // Exempt members (attendance === ATTENDANCE_EXEMPT sentinel) carry no
+  // attendance obligation this semester, so attendance never counts against
+  // their status. GPA/dues/service can still flag them.
+  const exempt = isAttendanceExempt(b.attendance);
+  if ((!exempt && b.attendance < thresholds.attendanceAtRisk) || b.gpa < thresholds.gpaAtRisk) return "At Risk";
   if (
-    b.attendance < thresholds.attendanceWatch ||
+    (!exempt && b.attendance < thresholds.attendanceWatch) ||
     b.gpa < thresholds.gpaWatch ||
     b.duesOwed > 0 ||
     b.serviceHours < thresholds.serviceHoursGoal

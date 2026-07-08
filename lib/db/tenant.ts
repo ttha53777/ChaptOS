@@ -391,6 +391,41 @@ function scopedTaskAssignment(orgId: number, run: Run) {
   };
 }
 
+function scopedAttendanceExemption(orgId: number, run: Run) {
+  type W = Prisma.AttendanceExemptionWhereInput;
+  const org = (w?: W): W => ({ ...w, organizationId: orgId });
+
+  async function verify(where: Prisma.AttendanceExemptionWhereUniqueInput): Promise<number> {
+    const row = await run(p => p.attendanceExemption.findFirst({ where: org(where as W), select: { id: true } }));
+    if (!row) notInOrg();
+    return row.id;
+  }
+
+  return {
+    findMany: <T extends Prisma.AttendanceExemptionFindManyArgs>(args?: Prisma.SelectSubset<T, Prisma.AttendanceExemptionFindManyArgs>) =>
+      run(p => p.attendanceExemption.findMany<T>({ ...(args as object), where: org((args as T | undefined)?.where) } as Prisma.SelectSubset<T, Prisma.AttendanceExemptionFindManyArgs>)),
+    findFirst:  (args?: Prisma.AttendanceExemptionFindFirstArgs) => run(p => p.attendanceExemption.findFirst({ ...args, where: org(args?.where) })),
+    findUnique: (args: Prisma.AttendanceExemptionFindUniqueArgs) => run(p => p.attendanceExemption.findFirst({ ...args, where: org(flattenCompoundKey(args.where) as W) })),
+    create:     (args: Omit<Prisma.AttendanceExemptionCreateArgs, "data"> & { data: Omit<Prisma.AttendanceExemptionUncheckedCreateInput, "organizationId"> }) =>
+      run(p => p.attendanceExemption.create({ ...args, data: { ...args.data, organizationId: orgId } })),
+    update:     async (args: Prisma.AttendanceExemptionUpdateArgs) => {
+      const id = await verify(args.where);
+      return run(p => p.attendanceExemption.update({ ...args, where: { id } }));
+    },
+    // upsert-by-unique: verify() can't run on a not-yet-existing row, so scope the
+    // create branch's organizationId here and let the compound unique dedupe.
+    upsert:     (args: Omit<Prisma.AttendanceExemptionUpsertArgs, "create"> & { create: Omit<Prisma.AttendanceExemptionUncheckedCreateInput, "organizationId"> }) =>
+      run(p => p.attendanceExemption.upsert({ ...args, create: { ...args.create, organizationId: orgId } } as Prisma.AttendanceExemptionUpsertArgs)),
+    delete:     async (args: Prisma.AttendanceExemptionDeleteArgs) => {
+      const id = await verify(args.where);
+      return run(p => p.attendanceExemption.delete({ where: { id } }));
+    },
+    deleteMany: (args?: Omit<Prisma.AttendanceExemptionDeleteManyArgs, "where"> & { where?: W }) =>
+      run(p => p.attendanceExemption.deleteMany({ ...args, where: org(args?.where) })),
+    count:      (args?: Prisma.AttendanceExemptionCountArgs) => run(p => p.attendanceExemption.count({ ...args, where: org(args?.where) })),
+  };
+}
+
 function scopedPoll(orgId: number, run: Run) {
   type W = Prisma.PollWhereInput;
   const org = (w?: W): W => ({ ...w, organizationId: orgId });
@@ -1222,6 +1257,7 @@ export function db(orgId: number) {
     // the F2 hardening — a bare id/brotherId WHERE used to return cross-org rows.
     attendanceRecord:    scopedAttendanceRecord(orgId, run),
     attendanceExcuse:    scopedAttendanceExcuse(orgId, run),
+    attendanceExemption: scopedAttendanceExemption(orgId, run),
     budgetAllocation:    scopedBudgetAllocation(orgId, run),
     inviteRedemption:    scopedInviteRedemption(orgId, run),
     membership:          scopedMembership(orgId, run),
@@ -1312,6 +1348,7 @@ export function _dbWithClient(orgId: number, client: P) {
     brotherMetricValue:   scopedBrotherMetricValue(orgId, run),
     attendanceRecord:    scopedAttendanceRecord(orgId, run),
     attendanceExcuse:    scopedAttendanceExcuse(orgId, run),
+    attendanceExemption: scopedAttendanceExemption(orgId, run),
     budgetAllocation:    scopedBudgetAllocation(orgId, run),
     inviteRedemption:    scopedInviteRedemption(orgId, run),
     membership:          scopedMembership(orgId, run),

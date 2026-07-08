@@ -48,6 +48,47 @@ describe("recordAttendance", () => {
     expect(present.has(b3.id)).toBe(false);
   });
 
+  it("records a 60-member roll in one set-based write (no per-member loop)", async () => {
+    // Regression for the P2024 timeout: the old per-member upsert loop blew the
+    // 5s transaction budget at ~60 members. The set-based rewrite writes N rows
+    // in two statements, so this must complete well under the timeout.
+    const org = await createOrg("Big Org", "big-org");
+    const admin = await createBrother({ orgId: org.id, isOrgAdmin: true, name: "Admin" });
+    const others = [];
+    for (let i = 0; i < 59; i++) {
+      others.push(await createBrother({ orgId: org.id, name: `Member ${i}` }));
+    }
+    await createSemester({ orgId: org.id, isActive: true });
+    const event = await createCalendarEvent({ orgId: org.id, mandatory: true });
+    const ctx = ctxFor(org.id, admin.id);
+
+    const presentIds = [admin.id, ...others.slice(0, 40).map(b => b.id)]; // 41 present, 19 absent
+    await recordAttendance(ctx, { calendarEventId: event.id, attendedIds: presentIds });
+
+    const records = await testPrisma.attendanceRecord.findMany({ where: { calendarEventId: event.id } });
+    expect(records).toHaveLength(60);
+    expect(records.filter(r => r.attended)).toHaveLength(41);
+  });
+
+  it("excludes semester-exempt members from the eligible set", async () => {
+    const org = await createOrg("Att Org", "att-org");
+    const admin = await createBrother({ orgId: org.id, isOrgAdmin: true, name: "Admin" });
+    const away = await createBrother({ orgId: org.id, name: "Abroad" });
+    const semester = await createSemester({ orgId: org.id, isActive: true });
+    const event = await createCalendarEvent({ orgId: org.id, mandatory: true });
+    await testPrisma.attendanceExemption.create({
+      data: { organizationId: org.id, brotherId: away.id, semesterId: semester.id, reason: "abroad" },
+    });
+    const ctx = ctxFor(org.id, admin.id);
+
+    await recordAttendance(ctx, { calendarEventId: event.id, attendedIds: [admin.id] });
+
+    const records = await testPrisma.attendanceRecord.findMany({ where: { calendarEventId: event.id } });
+    // Only the admin gets a row; the exempt member is not enrolled at all.
+    expect(records).toHaveLength(1);
+    expect(records[0].brotherId).toBe(admin.id);
+  });
+
   it("is idempotent — re-recording updates in place", async () => {
     const org = await createOrg("Att Org", "att-org");
     const admin = await createBrother({ orgId: org.id, isOrgAdmin: true });
