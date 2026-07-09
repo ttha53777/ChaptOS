@@ -170,7 +170,8 @@ WORKFLOWS (pages the org can enable), choose the relevant subset by id:
   - service: Service events and per-member service-hour totals.
   - communications: Social post planning and announcements (Instagram page).
   - docs: Pinned links and shared documents.
-  - operations: Always-on — backs Dashboard, Timeline, and Chapter pages.
+  - meetings: The Chapter page — meeting minutes, agendas, and meeting records. Enable it for orgs that hold formal recurring meetings (fraternities, clubs, honor societies); omit it for orgs that don't (a pickup sports team, a loose interest group).
+  - operations: Always-on — backs the Dashboard and Timeline pages.
 Always include "operations" (it backs the always-on Dashboard/Timeline pages). Include "events" for any org that plans and tracks programs, events, or activities.
 
 DASHBOARD WIDGETS (return the ones to SHOW in "shownWidgets"; omitted ones are hidden):

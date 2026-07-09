@@ -47,8 +47,9 @@ const PICKER_ITEMS: PickerItem[] = NAV.flatMap((label) => {
 // owns the nav-mapped ones. See the save handler.
 const TOGGLEABLE_WORKFLOWS = new Set<WorkflowId>(PICKER_ITEMS.map((i) => i.workflow));
 
-// Always-on surfaces (Dashboard/Timeline/Chapter map to null), shown as locked
-// rows so admins understand what every org gets regardless of their choices.
+// Always-on surfaces (Dashboard/Timeline map to null), shown as locked rows so
+// admins understand what every org gets regardless of their choices. Chapter is
+// now the toggleable "meetings" workflow and renders as a normal page toggle.
 const ALWAYS_ON_LABELS = NAV.filter((label) => NAV_WORKFLOW_MAP[label] == null);
 
 // Dashboard widgets live under the always-on "operations" workflow. The page

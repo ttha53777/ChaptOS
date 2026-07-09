@@ -30,6 +30,7 @@ export type WorkflowId =
   | "communications"
   | "docs"
   | "tasks"
+  | "meetings"
   | "operations";
 
 export const ALL_WORKFLOWS: readonly WorkflowId[] = [
@@ -42,17 +43,23 @@ export const ALL_WORKFLOWS: readonly WorkflowId[] = [
   "communications",
   "docs",
   "tasks",
+  "meetings",
   "operations",
 ] as const;
 
 /**
  * Workflows that are always on and cannot be turned off in the page picker.
  *
- * "operations" backs the Dashboard, Timeline, and Chapter surfaces plus the
- * internal audit/activity plumbing every org needs — disabling it would leave a
- * member with no landing page. The org-config service force-enables these on
- * every write, and the onboarding picker renders them as locked-on, so the two
+ * "operations" backs the Dashboard and Timeline surfaces plus the internal
+ * audit/activity plumbing every org needs — disabling it would leave a member
+ * with no landing page. The org-config service force-enables these on every
+ * write, and the onboarding picker renders them as locked-on, so the two
  * surfaces agree on what can never be removed.
+ *
+ * The Chapter (meetings) surface used to live here too, but it is now the
+ * toggleable "meetings" workflow — an org that doesn't hold formal meetings (a
+ * sports team, a loose generic org) can turn it off. Dashboard/Timeline stay,
+ * so there is still always a landing page.
  */
 export const ALWAYS_ON_WORKFLOWS: readonly WorkflowId[] = ["operations"] as const;
 
@@ -124,6 +131,7 @@ const GENERIC_CLUB: OrgTypeTemplate = {
     "communications",
     "docs",
     "tasks",
+    "meetings",
     "operations",
   ],
   roleSeeds: [
@@ -180,6 +188,7 @@ const SERVICE_ORG: OrgTypeTemplate = {
     "communications",
     "docs",
     "tasks",
+    "meetings",
     "operations",
   ],
   roleSeeds: [
@@ -208,6 +217,7 @@ const HONOR_SOCIETY: OrgTypeTemplate = {
     "communications",
     "docs",
     "tasks",
+    "meetings",
     "operations",
   ],
   roleSeeds: [
@@ -233,6 +243,7 @@ const PERFORMING_ARTS: OrgTypeTemplate = {
     "communications",
     "docs",
     "tasks",
+    "meetings",
     "operations",
   ],
   roleSeeds: [

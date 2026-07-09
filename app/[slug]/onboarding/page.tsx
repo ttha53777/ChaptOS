@@ -18,8 +18,8 @@ import { PERMISSIONS, type Permission } from "@/lib/permissions";
 //
 // A founder lands here right after creating their org (the create flow
 // redirects to /{slug}/onboarding instead of straight to the dashboard). They
-// choose which optional pages the org exposes; Dashboard, Timeline, and Chapter
-// are always on and shown as locked. On Continue we PATCH /api/orgs/config with
+// choose which optional pages the org exposes; Dashboard and Timeline are always
+// on and shown as locked. On Continue we PATCH /api/orgs/config with
 // the chosen workflow set and hard-navigate into the dashboard.
 //
 // Visual language matches /welcome/create (the auth-scope design) because this
@@ -47,13 +47,13 @@ const PICKER_ITEMS: PickerItem[] = NAV.flatMap((label) => {
 });
 
 // Always-on surfaces, shown as locked rows so the founder understands what they
-// get regardless of their choices. Dashboard/Timeline/Chapter map to null.
+// get regardless of their choices. Dashboard/Timeline map to null. (Chapter is
+// now the toggleable "meetings" workflow and appears in the picker instead.)
 const ALWAYS_ON_LABELS = NAV.filter((label) => NAV_WORKFLOW_MAP[label] == null);
 
 const ALWAYS_ON_DESCRIPTIONS: Record<string, string> = {
   Dashboard: "Your org's home — attendance, dues, GPA, and activity at a glance.",
   Timeline:  "A shared calendar for all upcoming events and meetings.",
-  Chapter:   "Meeting minutes, agenda, and chapter-wide records.",
 };
 
 // The toggleable dashboard widgets (always-on "operations" workflow). The AI step

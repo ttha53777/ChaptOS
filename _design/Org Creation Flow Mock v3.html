@@ -26,8 +26,10 @@
 
   Concrete v2->v3 changes (see the drift table in the plan):
     · Workflow ids → real WorkflowId union: members, events, attendance, finance,
-      parties, service, communications, docs, tasks, operations (operations is
-      always-on: Dashboard/Timeline/Chapter).
+      parties, service, communications, docs, tasks, meetings, operations.
+      operations is always-on (Dashboard/Timeline). meetings backs the Chapter
+      page and is TOGGLEABLE — default on except sports-team / generic-org, so an
+      org that doesn't meet formally can drop it.
     · Vocab → real VOCAB_KEYS (canonical singular: Member, Meetings, Period,
       Event, Dues…); plurals derived, not stored.
     · Org types → the real 7: fraternity, generic-club, sports-team, service-org,
@@ -361,7 +363,7 @@ details.standards[open] summary::after { content: "–"; }
    monogram avatar, and clean ability toggles using consistent SVG line icons
    (no emoji). State reads from fill, not a trailing checkbox. */
 .bp.roles { padding-bottom: 120px; }
-.roles-stack { max-width: 700px; margin: 30px auto 0; display: flex; flex-direction: column; gap: 14px; }
+.roles-stack { position: relative; max-width: 700px; margin: 30px auto 0; display: flex; flex-direction: column; gap: 14px; }
 .role-card {
   position: relative; overflow: hidden;
   background: var(--card); border: 1px solid var(--line); border-radius: 16px;
@@ -371,7 +373,7 @@ details.standards[open] summary::after { content: "–"; }
 /* Colored left accent — the role's identity, at a glance. */
 .role-card::before {
   content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
-  background: var(--rc, var(--ink-40)); opacity: .9;
+  background: var(--rc, var(--ink-40)); opacity: .55;
 }
 .role-card:hover { border-color: rgba(236,231,221,.2); }
 .role-card.founder {
@@ -383,9 +385,9 @@ details.standards[open] summary::after { content: "–"; }
 .rc-avatar {
   height: 34px; width: 34px; border-radius: 10px; flex: none;
   display: flex; align-items: center; justify-content: center;
-  font-family: var(--serif); font-weight: 600; font-size: 15px; color: #fff;
-  border: 1px solid rgba(255,255,255,.16);
-  box-shadow: 0 6px 16px -8px rgba(0,0,0,.7), inset 0 1px 0 rgba(255,255,255,.14);
+  font-family: var(--serif); font-weight: 600; font-size: 15px;
+  color: var(--rc, var(--ink)); border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--rc, var(--ink)) 11%, var(--paper-3));
 }
 .rc-namecol { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
 .rc-title { font-family: var(--serif); font-size: 19px; font-weight: 500; letter-spacing: -.01em; cursor: text; border-bottom: 1px dashed transparent; transition: border-color 200ms; width: fit-content; }
@@ -415,11 +417,10 @@ details.standards[open] summary::after { content: "–"; }
 .pill:hover { border-color: var(--vio-line); color: var(--ink-72); background: rgba(167,139,250,.05); }
 .pill:hover .pi { opacity: 1; }
 .pill.on {
-  border-color: transparent; color: #fff;
-  background: linear-gradient(180deg, var(--vio), var(--vio-deep));
-  box-shadow: 0 6px 16px -8px rgba(124,58,237,.6);
+  border-color: var(--vio-line); color: var(--ink);
+  background: rgba(167,139,250,.18); box-shadow: none;
 }
-.pill.on .pi { opacity: 1; }
+.pill.on .pi { opacity: 1; color: var(--vio); }
 .pill.partial {
   border-color: var(--vio-line); color: var(--ink); background: var(--vio-soft);
 }
@@ -438,6 +439,53 @@ details.standards[open] summary::after { content: "–"; }
 
 .rc-founder-note { margin-top: 14px; font-size: 12px; color: var(--ink-55); line-height: 1.5; }
 .rc-founder-note b { color: var(--ink-72); }
+
+/* Hover peek — a concrete "here's exactly what this role can do" card that
+   surfaces the real per-ability grants without opening Advanced. Anchored to
+   the hovered role card; shows on the card's own hover so it never blocks the
+   pills. Purely a preview, so it's pointer-transparent. */
+.rc-peek {
+  position: absolute; z-index: 40; width: 300px; pointer-events: none;
+  background: var(--paper-2); border: 1px solid var(--line-2, var(--vio-line));
+  border-radius: 14px; padding: 15px 16px 14px;
+  box-shadow: 0 24px 60px -24px rgba(0,0,0,.85), 0 0 0 1px rgba(0,0,0,.3);
+  opacity: 0; transform: translateY(6px) scale(.985);
+  transition: opacity 180ms var(--ease), transform 180ms var(--ease);
+}
+.rc-peek.show { opacity: 1; transform: none; }
+.rc-peek-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 3px; }
+.rc-peek-title { font-family: var(--serif); font-size: 15px; font-weight: 500; letter-spacing: -.01em; }
+.rc-peek-title em { color: var(--rc, var(--vio)); font-style: normal; }
+.rc-peek-who { margin-left: auto; font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em; color: var(--ink-40); text-transform: uppercase; }
+.rc-peek-sum { font-size: 12px; color: var(--ink-55); line-height: 1.45; margin-bottom: 11px; }
+.rc-peek-lab { font-family: var(--mono); font-size: 9px; font-weight: 600; letter-spacing: .18em; text-transform: uppercase; color: var(--ink-40); margin-bottom: 8px; }
+.rc-peek-areas { display: flex; flex-direction: column; gap: 9px; }
+.rc-peek-area { display: flex; gap: 9px; align-items: flex-start; }
+.rc-peek-area .pi { height: 13px; width: 13px; flex: none; margin-top: 1px; color: var(--vio); opacity: .85; }
+.rc-peek-area .pi svg { display: block; height: 100%; width: 100%; }
+.rc-peek-area .txt { min-width: 0; }
+.rc-peek-area .an { font-size: 11px; font-family: var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--ink-40); }
+.rc-peek-area .al { font-size: 12.5px; color: var(--ink-72); line-height: 1.4; }
+.rc-peek-none { font-size: 12.5px; color: var(--ink-40); font-style: italic; line-height: 1.45; }
+
+/* Per-pill tooltip — one line on what an ability lets a role do, so you can
+   grant a pill confidently without opening Advanced. Only the top-level pills
+   carry it; the advanced per-permission toggles do not. */
+.pill-tip {
+  position: absolute; z-index: 45; max-width: 260px; pointer-events: none;
+  background: var(--paper-2); border: 1px solid var(--vio-line); border-radius: 10px;
+  padding: 8px 11px; font-size: 12px; line-height: 1.45; color: var(--ink-72);
+  box-shadow: 0 16px 40px -18px rgba(0,0,0,.85);
+  opacity: 0; transform: translateY(4px); transition: opacity 140ms var(--ease), transform 140ms var(--ease);
+}
+.pill-tip.show { opacity: 1; transform: none; }
+.pill-tip::after {
+  content: ""; position: absolute; left: var(--tx, 24px); bottom: -5px;
+  height: 9px; width: 9px; background: var(--paper-2);
+  border-right: 1px solid var(--vio-line); border-bottom: 1px solid var(--vio-line);
+  transform: rotate(45deg);
+}
+.pill-tip.below::after { bottom: auto; top: -5px; transform: rotate(225deg); }
 
 details.rc-adv { margin-top: 14px; border-top: 1px solid var(--line-soft); }
 details.rc-adv summary { cursor: pointer; list-style: none; padding: 12px 0 2px; font-family: var(--mono); font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-40); transition: color 180ms; display: flex; align-items: center; gap: 8px; }
@@ -753,13 +801,110 @@ details.rc-adv[open] summary::after { transform: rotate(90deg); }
 .url-field.taken .url-state { color: var(--rose); }
 .url-field.taken .url-state .ic { border-color: rgba(217,139,163,.5); background: rgba(217,139,163,.12); color: var(--rose); }
 /* Helper line under the field — one short row; a suggestion when taken. */
-.url-note { margin-top: 9px; padding-left: 2px; font-size: 12px; color: var(--ink-40); line-height: 1.5; min-height: 17px; }
+.url-note { margin-top: 9px; text-align: center; font-size: 12px; color: var(--ink-40); line-height: 1.5; min-height: 17px; }
 .url-note:empty { margin-top: 0; min-height: 0; }
 .url-note .suggest {
   color: var(--vio); cursor: pointer; font-family: var(--mono); font-size: 11.5px;
   border-bottom: 1px solid var(--vio-line); padding-bottom: 1px; transition: color 160ms, border-color 160ms;
 }
 .url-note .suggest:hover { color: var(--ink); border-color: var(--ink-40); }
+
+/* ═══ 12 · Add-a-role panel ══════════════════════════════════════════════
+   Replaces the bare "+ Add a seat" text on both the blueprint Leadership card
+   and the roles screen with a real trigger that opens a right-anchored sheet:
+   name + live monogram, accent swatches, quick-fill chips from the seat pool,
+   the same workflow-gated ability pills as the roles screen, a live "Can …"
+   summary, and Add/Cancel. Reuses activeAreas()/toggleArea/roleSummary so the
+   role it produces is a correct roleSeeds entry. */
+.add-role-btn {
+  display: inline-flex; align-items: center; gap: 9px; margin-top: 14px;
+  padding: 9px 15px; border-radius: 10px; border: 1px dashed var(--line);
+  color: var(--ink-55); font-size: 13px; font-weight: 500;
+  transition: border-color 180ms var(--ease), color 180ms var(--ease), background 180ms var(--ease);
+}
+.add-role-btn:hover { border-color: var(--vio-line); color: var(--ink); background: var(--vio-soft); }
+.add-role-btn .plus { display: grid; place-items: center; height: 18px; width: 18px; border-radius: 6px; border: 1px solid currentColor; font-size: 14px; line-height: 0; }
+
+.rp-scrim {
+  position: fixed; inset: 0; z-index: 80; background: rgba(8,7,5,.5);
+  backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px);
+  opacity: 0; pointer-events: none; transition: opacity 260ms var(--ease);
+}
+.rp-scrim.show { opacity: 1; pointer-events: auto; }
+.rp-sheet {
+  position: fixed; top: 0; right: 0; bottom: 0; z-index: 81; width: 400px; max-width: 92vw;
+  background: var(--paper-2); border-left: 1px solid var(--line);
+  box-shadow: -32px 0 80px -24px rgba(0,0,0,.7);
+  transform: translateX(100%); transition: transform 340ms var(--ease);
+  display: flex; flex-direction: column;
+}
+.rp-sheet.show { transform: none; }
+.rp-head { display: flex; align-items: flex-start; gap: 14px; padding: 22px 22px 16px; border-bottom: 1px solid var(--line-soft); }
+.rp-avatar {
+  height: 44px; width: 44px; border-radius: 12px; flex: none; display: grid; place-items: center;
+  font-family: var(--serif); font-weight: 600; font-size: 18px; color: var(--rc, var(--vio));
+  border: 1px solid var(--line); background: color-mix(in srgb, var(--rc, var(--vio)) 14%, var(--paper-3));
+  transition: color 300ms var(--ease), background 300ms var(--ease);
+}
+.rp-htext { min-width: 0; flex: 1; }
+.rp-kicker { font-family: var(--mono); font-size: 9.5px; letter-spacing: .2em; text-transform: uppercase; color: var(--ink-40); margin-bottom: 5px; }
+.rp-name {
+  width: 100%; background: transparent; border: none; outline: none; color: var(--ink);
+  font-family: var(--serif); font-size: 22px; font-weight: 500; letter-spacing: -.01em;
+  border-bottom: 1px solid var(--line); padding: 0 0 6px; caret-color: var(--vio); transition: border-color 200ms var(--ease);
+}
+.rp-name::placeholder { color: var(--ink-28); font-style: italic; }
+.rp-name:focus { border-color: var(--vio-line); }
+.rp-close { flex: none; height: 30px; width: 30px; border-radius: 8px; color: var(--ink-40); font-size: 16px; line-height: 0; display: grid; place-items: center; transition: all 160ms var(--ease); }
+.rp-close:hover { background: var(--paper-3); color: var(--ink); }
+
+.rp-body { flex: 1; min-height: 0; overflow-y: auto; padding: 16px 22px 8px; scrollbar-width: thin; }
+.rp-lab { font-family: var(--mono); font-size: 9.5px; font-weight: 600; letter-spacing: .18em; text-transform: uppercase; color: var(--ink-40); margin: 16px 0 10px; }
+.rp-lab:first-child { margin-top: 2px; }
+.rp-swatches { display: flex; gap: 9px; }
+.rp-sw { height: 26px; width: 26px; border-radius: 50%; position: relative; transition: transform 150ms var(--ease); }
+.rp-sw::after { content: ""; position: absolute; inset: -4px; border-radius: 50%; border: 1.5px solid transparent; transition: border-color 150ms; }
+.rp-sw:hover { transform: scale(1.1); }
+.rp-sw.on::after { border-color: var(--ink-55); }
+.rp-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.rp-chip {
+  display: inline-flex; align-items: center; gap: 7px; padding: 7px 13px; border-radius: 999px;
+  border: 1px solid var(--line); color: var(--ink-72); font-size: 12.5px; background: rgba(236,231,221,.02);
+  transition: all 170ms var(--ease);
+}
+.rp-chip:hover { border-color: var(--vio-line); color: var(--ink); background: var(--vio-soft); transform: translateY(-1px); }
+.rp-chip .cdot { height: 7px; width: 7px; border-radius: 50%; }
+.rp-chip.empty { color: var(--ink-40); font-style: italic; border-style: dashed; }
+.rp-pills { display: flex; flex-wrap: wrap; gap: 8px; }
+.rp-pill {
+  display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: 10px; font-size: 13px; font-weight: 500;
+  border: 1px solid var(--line); color: var(--ink-40); background: rgba(236,231,221,.015);
+  transition: all 170ms var(--ease); user-select: none;
+}
+.rp-pill .pi { height: 15px; width: 15px; flex: none; opacity: .7; transition: opacity 170ms; }
+.rp-pill .pi svg { display: block; height: 100%; width: 100%; }
+.rp-pill:hover { border-color: var(--vio-line); color: var(--ink-72); background: rgba(167,139,250,.05); }
+.rp-pill:hover .pi { opacity: 1; }
+.rp-pill.on { border-color: var(--vio-line); color: var(--ink); background: rgba(167,139,250,.18); }
+.rp-pill.on .pi { opacity: 1; color: var(--vio); }
+.rp-pill.partial { border-color: var(--vio-line); color: var(--ink); background: var(--vio-soft); }
+.rp-pill.partial .pi { opacity: 1; color: var(--vio); }
+.rp-pill.partial::after { content: "•"; margin-left: 3px; color: var(--vio); font-size: 15px; line-height: 0; }
+.rp-hint { margin-top: 9px; font-size: 12px; color: var(--ink-40); font-style: italic; line-height: 1.5; min-height: 17px; transition: color 150ms; }
+.rp-foot { border-top: 1px solid var(--line-soft); padding: 15px 22px 20px; background: linear-gradient(180deg, transparent, rgba(0,0,0,.12)); }
+.rp-summary { font-size: 12.5px; color: var(--ink-55); line-height: 1.5; margin-bottom: 13px; min-height: 19px; }
+.rp-summary b { color: var(--ink); font-weight: 600; }
+.rp-actions { display: flex; gap: 10px; }
+.rp-add {
+  flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 12px; border-radius: 999px; background: var(--ink); color: var(--paper); font-size: 14px; font-weight: 600;
+  transition: transform 180ms var(--ease), box-shadow 180ms var(--ease), opacity 180ms;
+}
+.rp-add:hover { transform: translateY(-1px); box-shadow: 0 10px 26px -12px rgba(236,231,221,.35); }
+.rp-add:disabled { opacity: .4; cursor: not-allowed; transform: none; box-shadow: none; }
+.rp-cancel { padding: 12px 20px; border-radius: 999px; border: 1px solid var(--line); color: var(--ink-55); font-size: 14px; transition: all 180ms var(--ease); }
+.rp-cancel:hover { border-color: var(--ink-40); color: var(--ink); }
+@media (prefers-reduced-motion: reduce) { .rp-scrim, .rp-sheet { transition: none; } }
 </style>
 </head>
 <body>
@@ -840,7 +985,7 @@ details.rc-adv[open] summary::after { transform: rotate(90deg); }
             <div class="bp-card">
               <h3>Leadership <span class="why">titles &amp; abilities are yours to change</span></h3>
               <div id="seatList"></div>
-              <button class="add-seat" id="addSeat">+ Add a seat — <b id="addSeatHint"></b></button>
+              <button class="add-role-btn" id="addSeat"><span class="plus">+</span> Add a role</button>
               <p class="seat-note">Name a seat now so you know <b>who to assign it to</b> — everyone joins through one shared link, then you seat them in a tap. <button class="add-seat" data-go="3b" style="margin:0">← Back to roles &amp; abilities</button></p>
             </div>
             <div class="bp-card">
@@ -957,6 +1102,35 @@ details.rc-adv[open] summary::after { transform: rotate(90deg); }
 
   </main>
 
+  <!-- ── Add-a-role panel (shared by the blueprint card + roles screen) ── -->
+  <div class="rp-scrim" id="rpScrim"></div>
+  <aside class="rp-sheet" id="rpSheet" aria-hidden="true" aria-label="Add a role">
+    <div class="rp-head">
+      <span class="rp-avatar" id="rpAvatar">?</span>
+      <div class="rp-htext">
+        <div class="rp-kicker">New role</div>
+        <input class="rp-name" id="rpName" placeholder="Name this role&hellip;" autocomplete="off" spellcheck="false" aria-label="Role name">
+      </div>
+      <button class="rp-close" id="rpClose" title="Close" aria-label="Close">&times;</button>
+    </div>
+    <div class="rp-body">
+      <div class="rp-lab">Accent</div>
+      <div class="rp-swatches" id="rpSwatches"></div>
+      <div class="rp-lab" id="rpPoolLab">Start from</div>
+      <div class="rp-chips" id="rpChips"></div>
+      <div class="rp-lab">What can they do?</div>
+      <div class="rp-pills" id="rpPills"></div>
+      <p class="rp-hint" id="rpHint"></p>
+    </div>
+    <div class="rp-foot">
+      <p class="rp-summary" id="rpSummary"></p>
+      <div class="rp-actions">
+        <button class="rp-add" id="rpAdd" disabled>Add role<span>&rarr;</span></button>
+        <button class="rp-cancel" id="rpCancel">Cancel</button>
+      </div>
+    </div>
+  </aside>
+
   <div class="rail-cap" id="railCap"></div>
   <nav class="rail" id="rail" aria-label="Steps">
     <button data-go="1"><span class="n">1</span><span class="lbl">NAME</span></button>
@@ -1028,16 +1202,18 @@ const VOCAB_OVERRIDES = {
 };
 
 /* ── Workflows ─────────────────────────────────────────────────────────────
-   Keys are the real WorkflowId union. "operations" (Dashboard/Timeline/Chapter)
-   is ALWAYS_ON and never appears in this toggle map — it's rendered locked-on. */
+   Keys are the real WorkflowId union. "operations" (Dashboard/Timeline) is
+   ALWAYS_ON and never appears in this toggle map — it's rendered locked-on.
+   "meetings" (the Chapter page) IS a normal toggle here — default on except
+   sports-team / generic-org. */
 const DEFAULT_WF = {
-  fraternity:       { members: 1, finance: 1, attendance: 1, events: 1, parties: 1, service: 1, docs: 1, tasks: 0, communications: 0 },
-  "generic-club":   { members: 1, finance: 1, attendance: 1, events: 1, parties: 0, service: 0, docs: 1, tasks: 1, communications: 1 },
-  "sports-team":    { members: 1, finance: 0, attendance: 1, events: 1, parties: 0, service: 0, docs: 1, tasks: 1, communications: 1 },
-  "service-org":    { members: 1, finance: 1, attendance: 1, events: 1, parties: 0, service: 1, docs: 1, tasks: 1, communications: 1 },
-  "honor-society":  { members: 1, finance: 1, attendance: 1, events: 1, parties: 0, service: 1, docs: 1, tasks: 1, communications: 1 },
-  "performing-arts":{ members: 1, finance: 1, attendance: 1, events: 1, parties: 0, service: 0, docs: 1, tasks: 1, communications: 1 },
-  "generic-org":    { members: 1, finance: 0, attendance: 0, events: 1, parties: 0, service: 0, docs: 1, tasks: 1, communications: 1 },
+  fraternity:       { members: 1, finance: 1, attendance: 1, events: 1, parties: 1, service: 1, docs: 1, tasks: 0, communications: 0, meetings: 1 },
+  "generic-club":   { members: 1, finance: 1, attendance: 1, events: 1, parties: 0, service: 0, docs: 1, tasks: 1, communications: 1, meetings: 1 },
+  "sports-team":    { members: 1, finance: 0, attendance: 1, events: 1, parties: 0, service: 0, docs: 1, tasks: 1, communications: 1, meetings: 0 },
+  "service-org":    { members: 1, finance: 1, attendance: 1, events: 1, parties: 0, service: 1, docs: 1, tasks: 1, communications: 1, meetings: 1 },
+  "honor-society":  { members: 1, finance: 1, attendance: 1, events: 1, parties: 0, service: 1, docs: 1, tasks: 1, communications: 1, meetings: 1 },
+  "performing-arts":{ members: 1, finance: 1, attendance: 1, events: 1, parties: 0, service: 0, docs: 1, tasks: 1, communications: 1, meetings: 1 },
+  "generic-org":    { members: 1, finance: 0, attendance: 0, events: 1, parties: 0, service: 0, docs: 1, tasks: 1, communications: 1, meetings: 0 },
 };
 /* The "what eats your time" answer → the workflow it forces on. */
 const PAIN_WF = { dues: "finance", attendance: "attendance", events: "events", comms: "communications" };
@@ -1048,57 +1224,57 @@ const PAIN_WF = { dues: "finance", attendance: "attendance", events: "events", c
    the real orgType id; the founder colors/ranks match the templates. */
 const SEAT_TEMPLATES = {
   fraternity: [
-    { title: "President", color: "#F59E0B", able: "everything — that's you", you: true, all: true },
-    { title: "Treasurer", color: "#10B981", able: "logs dues & payments", perms: ["TREASURY"] },
-    { title: "Social",    color: "#EC4899", able: "plans events & parties", perms: ["EVENTS", "PARTIES", "TASKS"] },
-    { title: "PR",        color: "#3B82F6", able: "runs posts & announcements", perms: ["INSTAGRAM"] },
+    { title: "President", color: "#a78bfa", able: "everything — that's you", you: true, all: true },
+    { title: "Treasurer", color: "#7fb08a", able: "logs dues & payments", perms: ["TREASURY"] },
+    { title: "Social",    color: "#d98ba3", able: "plans events & parties", perms: ["EVENTS", "PARTIES", "TASKS"] },
+    { title: "PR",        color: "#7fb3d9", able: "runs posts & announcements", perms: ["INSTAGRAM"] },
   ],
   "generic-club": [
-    { title: "President", color: "#F59E0B", able: "everything — that's you", you: true, all: true },
-    { title: "Treasurer", color: "#10B981", able: "logs dues & payments", perms: ["TREASURY"] },
-    { title: "Secretary", color: "#3B82F6", able: "meetings, announcements & tasks", perms: ["EVENTS", "ANNOUNCEMENTS", "TASKS"] },
+    { title: "President", color: "#a78bfa", able: "everything — that's you", you: true, all: true },
+    { title: "Treasurer", color: "#7fb08a", able: "logs dues & payments", perms: ["TREASURY"] },
+    { title: "Secretary", color: "#7fb3d9", able: "meetings, announcements & tasks", perms: ["EVENTS", "ANNOUNCEMENTS", "TASKS"] },
   ],
   "sports-team": [
-    { title: "Captain",      color: "#F59E0B", able: "everything — that's you", you: true, all: true },
-    { title: "Coach",        color: "#3B82F6", able: "runs practices & the roster", perms: ["EVENTS", "ATTENDANCE", "BROTHERS"] },
-    { title: "Team Manager", color: "#10B981", able: "logistics, docs & fees", perms: ["ANNOUNCEMENTS", "TASKS", "DOCS"] },
+    { title: "Captain",      color: "#a78bfa", able: "everything — that's you", you: true, all: true },
+    { title: "Coach",        color: "#7fb3d9", able: "runs practices & the roster", perms: ["EVENTS", "ATTENDANCE", "BROTHERS"] },
+    { title: "Team Manager", color: "#7fb08a", able: "logistics, docs & fees", perms: ["ANNOUNCEMENTS", "TASKS", "DOCS"] },
   ],
   "service-org": [
-    { title: "President",     color: "#F59E0B", able: "everything — that's you", you: true, all: true },
-    { title: "Service Chair", color: "#10B981", able: "tracks service hours & events", perms: ["SERVICE", "EVENTS"] },
-    { title: "Treasurer",     color: "#3B82F6", able: "logs dues & payments", perms: ["TREASURY"] },
-    { title: "Comms Chair",   color: "#EC4899", able: "announcements & posts", perms: ["ANNOUNCEMENTS", "INSTAGRAM"] },
+    { title: "President",     color: "#a78bfa", able: "everything — that's you", you: true, all: true },
+    { title: "Service Chair", color: "#7fb08a", able: "tracks service hours & events", perms: ["SERVICE", "EVENTS"] },
+    { title: "Treasurer",     color: "#7fb3d9", able: "logs dues & payments", perms: ["TREASURY"] },
+    { title: "Comms Chair",   color: "#d98ba3", able: "announcements & posts", perms: ["ANNOUNCEMENTS", "INSTAGRAM"] },
   ],
   "honor-society": [
-    { title: "President",      color: "#F59E0B", able: "everything — that's you", you: true, all: true },
-    { title: "Vice President", color: "#8B5CF6", able: "events, attendance & tasks", perms: ["EVENTS", "ATTENDANCE", "TASKS"] },
-    { title: "Treasurer",      color: "#10B981", able: "logs dues & payments", perms: ["TREASURY"] },
-    { title: "Secretary",      color: "#3B82F6", able: "announcements & docs", perms: ["ANNOUNCEMENTS", "DOCS"] },
+    { title: "President",      color: "#a78bfa", able: "everything — that's you", you: true, all: true },
+    { title: "Vice President", color: "#d98ba3", able: "events, attendance & tasks", perms: ["EVENTS", "ATTENDANCE", "TASKS"] },
+    { title: "Treasurer",      color: "#7fb08a", able: "logs dues & payments", perms: ["TREASURY"] },
+    { title: "Secretary",      color: "#7fb3d9", able: "announcements & docs", perms: ["ANNOUNCEMENTS", "DOCS"] },
   ],
   "performing-arts": [
-    { title: "Director",      color: "#F59E0B", able: "everything — that's you", you: true, all: true },
-    { title: "Stage Manager", color: "#3B82F6", able: "rehearsals, attendance & tasks", perms: ["EVENTS", "ATTENDANCE", "TASKS"] },
-    { title: "Treasurer",     color: "#10B981", able: "logs dues & payments", perms: ["TREASURY"] },
-    { title: "Publicity",     color: "#EC4899", able: "posts & announcements", perms: ["INSTAGRAM", "ANNOUNCEMENTS"] },
+    { title: "Director",      color: "#a78bfa", able: "everything — that's you", you: true, all: true },
+    { title: "Stage Manager", color: "#7fb3d9", able: "rehearsals, attendance & tasks", perms: ["EVENTS", "ATTENDANCE", "TASKS"] },
+    { title: "Treasurer",     color: "#7fb08a", able: "logs dues & payments", perms: ["TREASURY"] },
+    { title: "Publicity",     color: "#d98ba3", able: "posts & announcements", perms: ["INSTAGRAM", "ANNOUNCEMENTS"] },
   ],
   "generic-org": [
-    { title: "Admin",     color: "#F59E0B", able: "everything — that's you", you: true, all: true },
-    { title: "Organizer", color: "#3B82F6", able: "events, announcements & tasks", perms: ["EVENTS", "ANNOUNCEMENTS", "TASKS"] },
+    { title: "Admin",     color: "#a78bfa", able: "everything — that's you", you: true, all: true },
+    { title: "Organizer", color: "#7fb3d9", able: "events, announcements & tasks", perms: ["EVENTS", "ANNOUNCEMENTS", "TASKS"] },
   ],
 };
 /* Extra offices "+ Add a seat" can pull from, per org type. */
 const SEAT_POOL = {
   fraternity: [
-    { title: "Service Chair", color: "#10B981", able: "tracks service hours", perms: ["SERVICE", "EVENTS"] },
+    { title: "Service Chair", color: "#7fb08a", able: "tracks service hours", perms: ["SERVICE", "EVENTS"] },
     { title: "Scribe",        color: "#ddb36a", able: "minutes & docs", perms: ["DOCS", "ANNOUNCEMENTS"] },
     { title: "Rush Chair",    color: "#a78bfa", able: "recruitment events", perms: ["EVENTS", "TASKS"] },
   ],
   "generic-club": [
-    { title: "Events Lead", color: "#EC4899", able: "plans meetings & socials", perms: ["EVENTS", "PARTIES"] },
+    { title: "Events Lead", color: "#d98ba3", able: "plans meetings & socials", perms: ["EVENTS", "PARTIES"] },
     { title: "Outreach",    color: "#a78bfa", able: "partnerships & comms", perms: ["ANNOUNCEMENTS", "INSTAGRAM"] },
   ],
   "sports-team": [
-    { title: "Assistant Coach", color: "#EC4899", able: "drills & attendance", perms: ["ATTENDANCE", "EVENTS"] },
+    { title: "Assistant Coach", color: "#d98ba3", able: "drills & attendance", perms: ["ATTENDANCE", "EVENTS"] },
     { title: "Equipment Mgr",   color: "#ddb36a", able: "gear & logistics", perms: ["DOCS", "TASKS"] },
   ],
   "service-org": [
@@ -1114,8 +1290,8 @@ const SEAT_POOL = {
     { title: "House Manager", color: "#ddb36a", able: "events & attendance", perms: ["EVENTS", "ATTENDANCE"] },
   ],
   "generic-org": [
-    { title: "Treasurer", color: "#10B981", able: "logs dues & payments", perms: ["TREASURY"] },
-    { title: "Secretary", color: "#3B82F6", able: "docs & announcements", perms: ["DOCS", "ANNOUNCEMENTS"] },
+    { title: "Treasurer", color: "#7fb08a", able: "logs dues & payments", perms: ["TREASURY"] },
+    { title: "Secretary", color: "#7fb3d9", able: "docs & announcements", perms: ["DOCS", "ANNOUNCEMENTS"] },
   ],
 };
 
@@ -1173,6 +1349,17 @@ const PERM_LABELS = {
 const AREA_PHRASE = {
   money: "handle the money", people: "manage the roster", meetings: "run meetings",
   events: "plan events", comms: "get the word out", content: "keep docs & tasks",
+};
+/* One-line "what this ability lets a role do" — shown on a pill's hover so the
+   founder can grant confidently without opening Advanced. Plain-English, tied
+   to the real MANAGE_* flags each pill bundles. */
+const AREA_DESC = {
+  money:    "Record dues and payments, and see who still owes.",
+  people:   "Add or remove members, assign roles, and manage org settings & invite links.",
+  meetings: "Take attendance and set up the term's meeting schedule.",
+  events:   "Create events, and plan parties & socials.",
+  comms:    "Post announcements to the chapter and run the Instagram.",
+  content:  "Manage shared docs, assign tasks, run polls, and track service hours.",
 };
 
 const GRADS = [
@@ -1317,14 +1504,16 @@ const sheet = document.createElement("div");
 sheet.className = "sheet-wrap";
 function pageChips() {
   const v = vocab(), w = wf();
-  // Always-on "operations" surfaces (Dashboard/Timeline/Chapter). `k` matches
-  // the workflow id where one exists so the pain-highlight (`lead`) lines up.
+  // Always-on "operations" surfaces (Dashboard/Timeline). `k` matches the
+  // workflow id where one exists so the pain-highlight (`lead`) lines up.
+  // Chapter is the toggleable "meetings" workflow now — it's a normal chip, not
+  // a locked one, so an org that doesn't meet formally can drop it.
   const pages = [
     { k: "operations", l: "Dashboard", locked: true },
     { k: "operations", l: "Timeline", locked: true },
-    { k: "operations", l: v.meeting, locked: true },
   ];
   if (S.kind) {
+    if (w.meetings) pages.push({ k: "meetings", l: v.meeting });
     if (w.members) pages.push({ k: "members", l: v.members });
     if (w.finance) pages.push({ k: "finance", l: v.dues });
     if (w.attendance) pages.push({ k: "attendance", l: "Attendance" });
@@ -1610,9 +1799,11 @@ $("#skipBtn").addEventListener("click", () => {
 
 /* ═══ Step 4 — blueprint ═══════════════════════════════════════════════ */
 /* Toggle rows are the optional workflows only. "operations" (Dashboard/
-   Timeline/Chapter) is ALWAYS_ON and shown separately as a locked row. */
+   Timeline) is ALWAYS_ON and shown separately as a locked row. "meetings" (the
+   Chapter page) is a normal toggle row, first in the list. */
 const WF_META = [
-  { key: "members", name: () => vocab().members, why: () => "every " + KIND_LABEL[S.kind].toLowerCase().replace(/^a |an /, "") + " starts with the roster." },
+  { key: "meetings", name: () => vocab().meeting, why: () => orgType() === "sports-team" ? "off by default — flip on if you hold formal meetings with minutes." : S.cadence ? "minutes, agendas & records for " + vocab().meeting + " — flip off if you don't meet formally." : "minutes, agendas & records for your meetings." },
+  { key: "members", name: () => vocab().members, why: () => "your roster — " + vocab().member.toLowerCase() + " profiles, attendance, and dues, all in one place." },
   { key: "finance", name: () => vocab().dues + " & Treasury", why: () => S.pain === "dues" ? 'because you said <q>chasing dues</q> eats your time.' : (S.term && S.term.dues ? "you collect dues each " + vocab().period.toLowerCase() + "." : "off until you collect dues — one tap away.") },
   { key: "attendance", name: () => "Attendance", why: () => S.pain === "attendance" ? 'because you said <q>tracking attendance</q> is the drain.' : (S.cadence ? "because " + vocab().meeting + " repeats weekly — worth counting." : "meetings worth counting.") },
   { key: "events", name: () => "Events", why: () => S.pain === "events" ? 'because you said <q>planning events</q> takes the most time.' : "you meet on a rhythm; socials live here too." },
@@ -1715,7 +1906,7 @@ function renderBlueprint() {
   const lockedRow =
     '<div class="wf-row locked">' +
       '<span class="wf-name">Core</span>' +
-      '<span class="wf-why">Dashboard, Timeline &amp; ' + esc(vocab().meeting) + " — every org gets these.</span>" +
+      '<span class="wf-why">Dashboard &amp; Timeline — every org gets these, so you always have a home.</span>' +
       '<button class="wf-tgl locked" disabled>ALWAYS</button></div>';
   $("#wfList").innerHTML = lockedRow + WF_META.map(m => {
     const on = !!wf()[m.key];
@@ -1765,13 +1956,23 @@ function renderBlueprint() {
     '<span class="dot"></span>' + esc(v.meeting) + " · " + esc(S.cadence.time) + " · repeats weekly — already placed";
 }
 
+/* Short italic description for a seat's row. Template seats carry a hand-written
+   `able`; a seat added through the role panel has none, so derive one from its
+   granted abilities (roleSummary, lower-cased to read as a clause). */
+function seatAble(s) {
+  if (s.you || s.all) return "everything — that's you";
+  const sum = roleSummary(s);
+  if (sum.startsWith("Can ")) return sum.slice(4, -1).toLowerCase();
+  return "along for the ride — no abilities yet";
+}
+
 /* Leadership v2: renameable titles + optional holder names + add-a-seat */
 function renderSeats() {
   $("#seatList").innerHTML = S.seats.map((s, i) =>
     '<div class="seat" data-i="' + i + '">' +
       '<span class="seat-dot" style="background:' + s.color + '"></span>' +
       '<span class="seat-title" title="Click to rename">' + esc(s.title) + "</span>" +
-      '<span class="seat-able">' + esc(s.able) + "</span>" +
+      '<span class="seat-able">' + esc(s.able || seatAble(s)) + "</span>" +
       (s.you
         ? '<span class="seat-you">YOU</span>'
         : '<input class="seat-who' + (s.name ? " named" : "") + '" value="' + esc(s.name) + '" placeholder="Who holds it? — optional">') +
@@ -1794,14 +1995,8 @@ function renderSeats() {
       who.addEventListener("input", () => { S.seats[i].name = who.value; who.classList.toggle("named", !!who.value.trim()); });
     }
   });
-  const pool = SEAT_POOL[orgType()].filter(p => !S.seats.some(s => s.title === p.title));
-  $("#addSeat").style.display = pool.length ? "" : "none";
-  if (pool.length) $("#addSeatHint").textContent = pool.map(p => p.title).join(", ");
 }
-$("#addSeat").addEventListener("click", () => {
-  const pool = SEAT_POOL[orgType()].filter(p => !S.seats.some(s => s.title === p.title));
-  if (pool.length) { S.seats.push(makeSeat(pool[0])); renderSeats(); }
-});
+$("#addSeat").addEventListener("click", () => openRolePanel(renderSeats));
 
 /* ═══ Step 3b — your roles (stacked cards + ability pills) ═════════════ */
 /* Plain-English "Can X and Y." from a seat's lit areas. */
@@ -1812,6 +2007,30 @@ function roleSummary(seat) {
   const list = on.length === 1 ? on[0]
     : on.slice(0, -1).join(", ") + (on.length > 2 ? "," : "") + " and " + on[on.length - 1];
   return "Can " + list + ".";
+}
+/* The concrete grant list behind a seat, grouped by area — the honest
+   "here's exactly what it can do" content for the hover peek. Each active area
+   the seat touches, with its real MANAGE_* flags spelled out as human labels. */
+function roleAbilities(seat) {
+  return activeAreas().map(area => {
+    const perms = seat.all ? area.perms : area.perms.filter(p => seat.perms.includes(p));
+    if (!perms.length) return null;
+    return { area, labels: perms.map(p => PERM_LABELS[p] || p) };
+  }).filter(Boolean);
+}
+function peekHtml(seat) {
+  const who = seat.you ? "YOU" : (seat.name.trim() || "Unassigned");
+  const groups = roleAbilities(seat);
+  const body = groups.length
+    ? '<div class="rc-peek-lab">Can do</div><div class="rc-peek-areas">' + groups.map(g =>
+        '<div class="rc-peek-area">' + areaIcon(g.area.icon) +
+          '<div class="txt"><div class="an">' + esc(g.area.label) + '</div>' +
+          '<div class="al">' + g.labels.map(esc).join(" · ") + "</div></div></div>"
+      ).join("") + "</div>"
+    : '<div class="rc-peek-none">No admin abilities yet — this seat can see the workspace but can\'t change it. Tap a pill to grant one.</div>';
+  return '<div class="rc-peek-head"><span class="rc-peek-title"><em>' + esc(seat.title) + "</em></span>" +
+      '<span class="rc-peek-who">' + esc(who) + "</span></div>" +
+    '<div class="rc-peek-sum">' + esc(roleSummary(seat)) + "</div>" + body;
 }
 function pillHtml(seat, area) {
   const st = seat.all ? "on" : areaState(seat, area);
@@ -1843,7 +2062,7 @@ function renderRoles() {
     const founder = !!s.you;
     const head =
       '<div class="rc-head">' +
-        '<span class="rc-avatar" style="background:' + s.color + '">' + esc(roleMonogram(s.title)) + "</span>" +
+        '<span class="rc-avatar">' + esc(roleMonogram(s.title)) + "</span>" +
         '<div class="rc-namecol">' +
           '<span class="rc-title" title="' + (founder ? "" : "Click to rename") + '">' + esc(s.title) + "</span>" +
           '<span class="rc-summary">' + roleSummary(s) + "</span>" +
@@ -1875,13 +2094,16 @@ function renderRoles() {
     // holder name
     const who = card.querySelector(".rc-who");
     if (who) who.addEventListener("input", () => { seat.name = who.value; who.classList.toggle("named", !!who.value.trim()); });
-    // pill taps
+    // pill taps + per-pill description tooltip
     card.querySelectorAll(".pill").forEach(pill => {
-      if (seat.you) return;
-      pill.addEventListener("click", () => {
+      if (!seat.you) pill.addEventListener("click", () => {
         toggleArea(seat, PERM_AREAS.find(a => a.id === pill.dataset.area));
         renderRoles();
       });
+      // hover a pill → describe the ability; suppress the big role peek so the
+      // two never stack. Restore the role peek when leaving the pill.
+      pill.addEventListener("mouseenter", () => { hidePeek(); showTip(pill); });
+      pill.addEventListener("mouseleave", () => { hideTip(); showPeek(card, seat); });
     });
     // advanced per-ability toggles — keep the disclosure open across re-render
     card.querySelectorAll(".abil").forEach(ab => ab.addEventListener("click", () => {
@@ -1891,16 +2113,174 @@ function renderRoles() {
     // remember manual open/close of the advanced disclosure across re-renders
     const adv = card.querySelector(".rc-adv");
     if (adv) adv.addEventListener("toggle", () => { seat._advOpen = adv.open; });
+
+    // hover peek — show exactly what this role can do, right on this page
+    card.addEventListener("mouseenter", () => showPeek(card, seat));
+    card.addEventListener("mouseleave", hidePeek);
   });
 
   const pool = SEAT_POOL[orgType()].filter(p => !S.seats.some(s => s.title === p.title));
   $("#rolesAddSeat").style.display = pool.length ? "" : "none";
   if (pool.length) $("#rolesAddHint").textContent = pool.map(p => p.title).join(", ");
 }
+
+/* Hover peek — one shared card, positioned next to the hovered role. Sits in
+   the right-hand gutter when there's room, otherwise flips to the left so it
+   never covers the pills. Inherits the role's --rc for its accent. */
+let peekEl = null, peekTimer = null;
+function showPeek(card, seat) {
+  clearTimeout(peekTimer);
+  const stack = $("#rolesStack");
+  if (!peekEl) { peekEl = document.createElement("div"); peekEl.className = "rc-peek"; stack.appendChild(peekEl); }
+  peekEl.style.setProperty("--rc", seat.color);
+  peekEl.innerHTML = peekHtml(seat);
+
+  // stack is centered in a wider scroll container; the peek prefers the gutter,
+  // but flips or tucks inside so it's never clipped off-screen at any width.
+  const gap = 18, w = 300;
+  const gutter = (stack.parentElement.clientWidth - stack.clientWidth) / 2;
+  let left, top = card.offsetTop;
+  if (w + gap <= gutter) {                          // room in the (symmetric) gutter — sit to the right
+    left = card.offsetLeft + card.offsetWidth + gap;
+  } else {                                          // no room — tuck inside, below the head
+    left = card.offsetLeft + card.offsetWidth - w - 16;
+    top = card.offsetTop + 74;
+  }
+  // clamp within the stack's coordinate space so it never runs past either edge
+  const min = -gutter + 8, max = stack.clientWidth + gutter - w - 8;
+  peekEl.style.left = Math.max(min, Math.min(left, max)) + "px";
+  peekEl.style.top = top + "px";
+  requestAnimationFrame(() => peekEl && peekEl.classList.add("show"));
+}
+function hidePeek() {
+  if (!peekEl) return;
+  peekEl.classList.remove("show");
+  peekTimer = setTimeout(() => { if (peekEl) { peekEl.remove(); peekEl = null; } }, 220);
+}
+
+/* Per-pill tooltip — one shared element, positioned above the hovered pill
+   (flips below when it'd clip the top). Describes what the ability lets a role
+   do. Only pills get this; the advanced per-permission toggles don't. */
+let tipEl = null, tipTimer = null;
+function showTip(pill) {
+  const desc = AREA_DESC[pill.dataset.area];
+  if (!desc) return;
+  clearTimeout(tipTimer);
+  const stack = $("#rolesStack");
+  if (!tipEl) { tipEl = document.createElement("div"); tipEl.className = "pill-tip"; stack.appendChild(tipEl); }
+  tipEl.className = "pill-tip";
+  tipEl.textContent = desc;
+  // pill position within the stack, via rects (nesting-independent)
+  const sr = stack.getBoundingClientRect(), pr = pill.getBoundingClientRect();
+  const px = pr.left - sr.left, py = pr.top - sr.top;
+  const tw = tipEl.offsetWidth, th = tipEl.offsetHeight;
+  // horizontally: align left edge to the pill, clamped inside the stack; the
+  // caret tracks back to the pill's center.
+  const left = Math.max(0, Math.min(px, stack.clientWidth - tw));
+  const caret = Math.max(12, Math.min(px - left + pr.width / 2 - 4, tw - 16));
+  tipEl.style.setProperty("--tx", caret + "px");
+  // vertically: above the pill, or below if it'd run off the top
+  let top = py - th - 9;
+  if (top < 0) { top = py + pr.height + 9; tipEl.classList.add("below"); }
+  tipEl.style.left = left + "px";
+  tipEl.style.top = top + "px";
+  requestAnimationFrame(() => tipEl && tipEl.classList.add("show"));
+}
+function hideTip() {
+  if (!tipEl) return;
+  tipEl.classList.remove("show");
+  tipTimer = setTimeout(() => { if (tipEl) { tipEl.remove(); tipEl = null; } }, 160);
+}
+
 $("#rolesAddSeat").addEventListener("click", () => {
   const pool = SEAT_POOL[orgType()].filter(p => !S.seats.some(s => s.title === p.title));
   if (pool.length) { S.seats.push(makeSeat(pool[0])); renderRoles(); }
 });
+
+/* ═══ Add-a-role panel ═════════════════════════════════════════════════════
+   One shared sheet, opened from both the blueprint Leadership card and the roles
+   screen. It builds a fresh seat ({title, color, name, perms}) using the same
+   machinery the rest of the flow uses — activeAreas()/toggleArea for the pills,
+   roleSummary() for the live "Can …" line — so the seat it appends produces a
+   correct roleSeeds entry in buildPayload(). `onDone` re-renders whichever
+   surface opened it. */
+const ROLE_COLORS = ["#a78bfa", "#7fb08a", "#d98ba3", "#7fb3d9", "#ddb36a", "#d9a05b"];
+let rpDraft = null, rpOnDone = null;
+const RP_HINT_DEFAULT = "Tap an ability to grant it. Leave them all off for a title-only seat.";
+
+function rpSummary() {
+  // Reuse roleSummary() by handing it a seat-shaped object; swap the leading
+  // "This role" for the typed name so the footer reads personally.
+  const who = rpDraft.title.trim() ? "<b>" + esc(rpDraft.title.trim()) + "</b>" : "This role";
+  const base = roleSummary(rpDraft); // "Can …." / "Along for the ride …"
+  if (base.startsWith("Can ")) return who + " can " + base.slice(4);
+  return who + " — title only, no admin abilities yet.";
+}
+function rpPaint() {
+  const sheet = $("#rpSheet");
+  sheet.style.setProperty("--rc", rpDraft.color);
+  $("#rpAvatar").textContent = roleMonogram(rpDraft.title || "?");
+  $("#rpSwatches").innerHTML = ROLE_COLORS.map(c =>
+    '<button class="rp-sw' + (c === rpDraft.color ? " on" : "") + '" style="background:' + c + '" data-c="' + c + '" title="' + c + '"></button>').join("");
+  // Quick-fill chips = the org's unused seat pool. Absent when the pool's spent.
+  const pool = SEAT_POOL[orgType()].filter(p => !S.seats.some(s => s.title === p.title) && p.title !== rpDraft.title);
+  $("#rpPoolLab").style.display = pool.length ? "" : "none";
+  $("#rpChips").style.display = pool.length ? "" : "none";
+  $("#rpChips").innerHTML = pool.map(p =>
+    '<button class="rp-chip" data-t="' + esc(p.title) + '"><span class="cdot" style="background:' + p.color + '"></span>' + esc(p.title) + "</button>").join("");
+  // Ability pills — workflow-gated, exactly like the roles screen.
+  $("#rpPills").innerHTML = activeAreas().map(a =>
+    '<button class="rp-pill ' + areaState(rpDraft, a) + '" data-a="' + a.id + '">' + areaIcon(a.icon) + esc(a.label) + "</button>").join("");
+  $("#rpSummary").innerHTML = rpSummary();
+  $("#rpAdd").disabled = !rpDraft.title.trim();
+
+  $$("#rpSwatches .rp-sw").forEach(sw => sw.onclick = () => { rpDraft.color = sw.dataset.c; rpPaint(); });
+  $$("#rpChips .rp-chip").forEach(ch => ch.onclick = () => {
+    const p = SEAT_POOL[orgType()].find(x => x.title === ch.dataset.t);
+    rpDraft.title = p.title; rpDraft.color = p.color; rpDraft.perms = [...(p.perms || [])];
+    $("#rpName").value = p.title; rpPaint();
+  });
+  $$("#rpPills .rp-pill").forEach(pl => {
+    const a = activeAreas().find(x => x.id === pl.dataset.a);
+    pl.onclick = () => { toggleArea(rpDraft, a); rpPaint(); };
+    pl.onmouseenter = () => { $("#rpHint").textContent = AREA_DESC[a.id] || RP_HINT_DEFAULT; };
+    pl.onmouseleave = () => { $("#rpHint").textContent = RP_HINT_DEFAULT; };
+  });
+}
+function openRolePanel(onDone) {
+  rpOnDone = onDone;
+  rpDraft = { title: "", color: ROLE_COLORS[0], perms: [] };
+  $("#rpName").value = "";
+  $("#rpHint").textContent = RP_HINT_DEFAULT;
+  rpPaint();
+  $("#rpScrim").classList.add("show");
+  $("#rpSheet").classList.add("show");
+  $("#rpSheet").setAttribute("aria-hidden", "false");
+  setTimeout(() => $("#rpName").focus(), 260);
+}
+function closeRolePanel() {
+  $("#rpScrim").classList.remove("show");
+  $("#rpSheet").classList.remove("show");
+  $("#rpSheet").setAttribute("aria-hidden", "true");
+}
+function commitRole() {
+  if (!rpDraft.title.trim()) return;
+  S.seats.push({ title: rpDraft.title.trim(), color: rpDraft.color, able: "", name: "", perms: [...rpDraft.perms] });
+  closeRolePanel();
+  if (rpOnDone) rpOnDone();
+}
+$("#rpName").addEventListener("input", e => {
+  rpDraft.title = e.target.value;
+  $("#rpAvatar").textContent = roleMonogram(rpDraft.title || "?");
+  $("#rpSummary").innerHTML = rpSummary();
+  $("#rpAdd").disabled = !rpDraft.title.trim();
+});
+$("#rpName").addEventListener("keydown", e => { if (e.key === "Enter") commitRole(); });
+$("#rpAdd").addEventListener("click", commitRole);
+$("#rpClose").addEventListener("click", closeRolePanel);
+$("#rpCancel").addEventListener("click", closeRolePanel);
+$("#rpScrim").addEventListener("click", closeRolePanel);
+document.addEventListener("keydown", e => { if (e.key === "Escape" && $("#rpSheet").classList.contains("show")) closeRolePanel(); });
 
 /* ═══ Step 4 — sign-in + build ═════════════════════════════════════════ */
 let buildTimers = [];

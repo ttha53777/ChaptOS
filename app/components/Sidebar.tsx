@@ -42,14 +42,15 @@ export const SETTINGS_NAV = "Settings";
 // Which workflow each nav surface belongs to. A label maps to `null` when it is
 // ALWAYS shown regardless of the org's enabled workflows:
 //   - Dashboard / Timeline: every org's home + planning surfaces (product rule).
-//   - Chapter: backed by the always-on "operations" workflow.
 // All other labels are hidden when their workflow isn't in the org's
-// enabledWorkflows. The onboarding page picker imports this map so the toggles
-// it shows are exactly the surfaces this filter can hide — one source of truth.
+// enabledWorkflows. Chapter is now the toggleable "meetings" workflow, so an org
+// that doesn't hold formal meetings can hide it. The onboarding page picker
+// imports this map so the toggles it shows are exactly the surfaces this filter
+// can hide — one source of truth.
 export const NAV_WORKFLOW_MAP: Record<string, WorkflowId | null> = {
   Dashboard:   null,
   Timeline:    null,
-  Chapter:     null, // "operations" — always on
+  Chapter:     "meetings",
   Tasks:       "tasks",
   Brotherhood: "members",
   Docs:        "docs",
@@ -64,8 +65,9 @@ export const NAV_WORKFLOW_MAP: Record<string, WorkflowId | null> = {
 // to the toggle in both the post-creation page picker (/[slug]/onboarding) and
 // the Workflows settings section, so the two surfaces describe a page the same
 // way. Only labels whose workflow is non-null in NAV_WORKFLOW_MAP need an entry;
-// the always-on surfaces (Dashboard/Timeline/Chapter) are never toggled.
+// the always-on surfaces (Dashboard/Timeline) are never toggled.
 export const NAV_DESCRIPTIONS: Record<string, string> = {
+  Chapter:     "Meeting minutes, agenda, and chapter-wide records.",
   Tasks:       "Hand out tasks and deadlines to members or roles, and track what's done.",
   Brotherhood: "Member roster, profiles, attendance, and dues.",
   Treasury:    "Budget, transactions, and the running balance.",
@@ -207,8 +209,8 @@ export function Sidebar({ open, onClose, activeSection, onNavClick }: {
   // Filter nav surfaces by the org's enabled workflows. Until /api/auth/me
   // resolves (currentUser null) we render the FULL nav so there's no flash of a
   // half-empty sidebar; once the org loads we hide the surfaces it disabled.
-  // Always-on labels (Dashboard/Timeline/Chapter) survive the filter via
-  // isNavVisible's null-workflow rule.
+  // Always-on labels (Dashboard/Timeline) survive the filter via isNavVisible's
+  // null-workflow rule. Chapter is now the toggleable "meetings" workflow.
   const enabledWorkflows = currentUser?.org?.enabledWorkflows;
   const visibleNav = enabledWorkflows
     ? NAV.filter(label => isNavVisible(label, enabledWorkflows))
