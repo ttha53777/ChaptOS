@@ -1,0 +1,1352 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ChaptOS — Org Creation Flow Mock</title>
+<!--
+  ChaptOS org-creation pipeline — CONCEPT MOCK (design exploration, not wired)
+  ────────────────────────────────────────────────────────────────────────────
+  Source design guide: Interview → Blueprint → Reveal.
+  Six screens, fully clickable; the bottom rail jumps page-to-page.
+
+    1 · Name       pre-auth. One input; monogram/slug/accent materialize in a
+                   live preview pane that persists through the interview.
+    2 · Interview  4 chip-driven questions. Every answer visibly mutates the
+                   preview (vocabulary flips, sidebar items arrive, calendar
+                   dot lands). "Skip — pick a template" always present.
+    3 · Blueprint  the proposal screen. Cards with "because you said…"
+                   rationales; workflows toggle, vocabulary edits inline.
+    4 · Build      Google sign-in at the last responsible moment, then ~3s of
+                   honest provisioning theater. Auto-advances to the reveal.
+    5 · Reveal     the anti-empty-state: drafted announcement, meeting on the
+                   calendar, 3-item checklist keyed to the stated pain point.
+    6 · Invite     role-tagged exec links + one member link; live join ticker.
+
+  Design language: steps 1–3 live in the landing's warm paper world
+  (Fraunces / Geist / violet, dot grain); the build moment crosses into the
+  app's cool #07090f world for steps 5–6. The transition IS the narrative.
+
+  Assumptions (flagged, not asked — direct-execution request)
+    · Default persona "Kappa Sigma", fraternity, dues pain, Sunday chapter —
+      jumping ahead via the rail fills these so every screen stands alone.
+    · Role seats/colors mirror the real product (President amber, Treasurer
+      green, Social pink, PR blue); thresholds are the real defaults.
+    · Same delivery contract as every _design mock: one file, vanilla JS/CSS,
+      double-click to open, fonts from Google.
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,400;1,9..144,500;1,9..144,600&family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ═══ 0 · Tokens ═════════════════════════════════════════════════════════ */
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body { margin: 0; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+h1, h2, h3, h4, p, ul { margin: 0; padding: 0; }
+button { font: inherit; color: inherit; background: none; border: none; cursor: pointer; }
+input { font: inherit; }
+
+:root {
+  --paper: #0f0d0a;
+  --paper-2: #14120e;
+  --paper-3: #1b1813;
+  --card: #161310;
+  --ink: #ece7dd;
+  --ink-72: rgba(236,231,221,.72);
+  --ink-55: rgba(236,231,221,.55);
+  --ink-40: rgba(236,231,221,.4);
+  --ink-28: rgba(236,231,221,.28);
+  --line: rgba(236,231,221,.13);
+  --line-soft: rgba(236,231,221,.07);
+  --vio: #a78bfa;
+  --vio-deep: #7c3aed;
+  --vio-soft: rgba(167,139,250,.12);
+  --vio-line: rgba(167,139,250,.32);
+  --gold: #ddb36a;
+  --rose: #d98ba3;
+  --ok: #7fb08a;
+  --ok-soft: rgba(127,176,138,.14);
+  --amber: #d9a05b;
+  --sky: #7fb3d9;
+  /* app world */
+  --app-bg: #07090f;
+  --app-surface: #10121a;
+  --app-raised: #141820;
+  --app-line: rgba(255,255,255,.07);
+  --app-line-2: rgba(255,255,255,.12);
+  --app-fg: #f1f5f9;
+  --app-fg-60: rgba(241,245,249,.6);
+  --app-fg-40: rgba(241,245,249,.4);
+  --serif: "Fraunces", Georgia, serif;
+  --sans: "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --mono: "Geist Mono", ui-monospace, Menlo, monospace;
+  --ease: cubic-bezier(.16,1,.3,1);
+}
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--sans);
+  overflow: hidden;
+}
+/* Fine dot grain, matching the landing/auth pages. */
+body::before {
+  content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 0;
+  opacity: .55;
+  background-image: radial-gradient(rgba(236,231,221,.025) 1px, transparent 1px);
+  background-size: 4px 4px;
+}
+::selection { background: var(--vio-deep); color: #fff; }
+button:focus-visible, input:focus-visible, a:focus-visible { outline: 2px solid var(--vio); outline-offset: 3px; border-radius: 4px; }
+
+/* ═══ 1 · Stage & chrome ═════════════════════════════════════════════════ */
+.stage { position: relative; z-index: 1; height: 100vh; height: 100dvh; display: flex; flex-direction: column; }
+
+.chrome {
+  display: flex; align-items: center; justify-content: space-between;
+  height: 60px; padding: 0 28px; flex: none;
+}
+.wm { display: flex; align-items: center; gap: 10px; }
+.glyph {
+  height: 26px; width: 26px; border-radius: 7px;
+  background: var(--ink); color: var(--paper);
+  font-family: var(--serif); font-weight: 600; font-size: 15px;
+  display: flex; align-items: center; justify-content: center;
+}
+.wm-txt { font-size: 12px; font-weight: 600; letter-spacing: .14em; }
+.chrome-tag { font-family: var(--mono); font-size: 10.5px; letter-spacing: .16em; color: var(--ink-28); }
+.scr-app-chrome .glyph, .scr-dark-chrome .glyph { background: var(--app-fg); color: var(--app-bg); }
+
+/* ═══ 2 · Screens ════════════════════════════════════════════════════════ */
+#screens { flex: 1; min-height: 0; position: relative; }
+.scr {
+  position: absolute; inset: 0; display: none;
+  animation: scr-in 560ms var(--ease) both;
+}
+.scr.active { display: block; }
+@keyframes scr-in {
+  from { opacity: 0; transform: translateY(12px) scale(.995); filter: blur(3px); }
+  to   { opacity: 1; transform: none; filter: blur(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .scr, .pv-side li, .bp-card, .bld-line, .rvl-main > *, .msg { animation: none !important; transition: none !important; }
+}
+
+.split {
+  height: 100%; display: grid;
+  grid-template-columns: minmax(440px, 46%) 1fr;
+  gap: clamp(24px, 4vw, 64px);
+  padding: 0 clamp(28px, 4.5vw, 72px) 84px;
+  align-items: center;
+}
+
+/* ═══ 3 · Step 1 — Name ══════════════════════════════════════════════════ */
+.ask { max-width: 520px; }
+.kicker { font-family: var(--mono); font-size: 11px; letter-spacing: .22em; text-transform: uppercase; color: var(--ink-40); margin-bottom: 22px; }
+.q-serif { font-family: var(--serif); font-weight: 500; font-size: clamp(30px, 3.4vw, 44px); line-height: 1.12; letter-spacing: -.01em; }
+.ask .q-serif { margin-bottom: 30px; }
+
+.name-input {
+  width: 100%; background: transparent; border: none; color: var(--ink);
+  border-bottom: 1px solid var(--line);
+  font-family: var(--serif); font-size: clamp(26px, 2.6vw, 36px); font-weight: 500;
+  padding: 6px 2px 14px; outline: none;
+  transition: border-color 240ms var(--ease);
+  caret-color: var(--vio);
+}
+.name-input::placeholder { color: var(--ink-28); font-style: italic; }
+.name-input:focus { border-color: var(--vio-line); }
+
+.slugline {
+  margin-top: 16px; font-family: var(--mono); font-size: 13px; color: var(--ink-40);
+  min-height: 20px; transition: opacity 240ms var(--ease);
+}
+.slugline b { color: var(--ink-72); font-weight: 500; }
+
+.accents { display: flex; align-items: center; gap: 12px; margin-top: 28px; }
+.accents-label { font-size: 12.5px; color: var(--ink-40); margin-right: 4px; }
+.swatch {
+  height: 22px; width: 22px; border-radius: 50%; padding: 0;
+  border: 2px solid transparent; background-clip: content-box !important;
+  transition: transform 180ms var(--ease), border-color 180ms var(--ease);
+}
+.swatch:hover { transform: scale(1.15); }
+.swatch.sel { border-color: var(--ink-55); }
+
+.cta {
+  display: inline-flex; align-items: center; gap: 10px;
+  margin-top: 40px; padding: 13px 26px; border-radius: 999px;
+  background: var(--ink); color: var(--paper);
+  font-size: 14.5px; font-weight: 600;
+  transition: transform 200ms var(--ease), box-shadow 200ms var(--ease);
+}
+.cta:hover { transform: translateY(-1px); box-shadow: 0 10px 30px -12px rgba(236,231,221,.35); }
+.fine { margin-top: 18px; font-size: 12.5px; color: var(--ink-40); }
+
+/* ═══ 4 · Preview pane (persists through steps 1–2) ══════════════════════ */
+.pv-slot { height: min(72vh, 640px); display: flex; align-items: center; }
+.pv-wrap { width: 100%; height: 100%; position: relative; }
+.pv-wrap::before { /* soft aurora behind the pane */
+  content: ""; position: absolute; inset: -8% -6%;
+  background:
+    radial-gradient(42% 46% at 22% 24%, color-mix(in oklab, var(--acc, #a78bfa) 16%, transparent), transparent 70%),
+    radial-gradient(38% 42% at 82% 78%, rgba(217,179,106,.08), transparent 70%);
+  filter: blur(6px); pointer-events: none;
+}
+.pv {
+  --acc: var(--vio);
+  position: relative; height: 100%; width: 100%;
+  background: var(--app-bg); border: 1px solid var(--app-line-2); border-radius: 14px;
+  box-shadow: 0 2px 4px rgba(0,0,0,.5), 0 32px 80px -24px rgba(0,0,0,.7);
+  overflow: hidden; color: var(--app-fg);
+  display: flex; flex-direction: column;
+  font-size: 12.5px;
+}
+.pv-cap {
+  position: absolute; top: -28px; left: 2px;
+  font-family: var(--mono); font-size: 10px; letter-spacing: .18em; color: var(--ink-28); text-transform: uppercase;
+}
+.pv-top {
+  flex: none; display: flex; align-items: center; gap: 10px;
+  height: 46px; padding: 0 14px;
+  border-bottom: 1px solid var(--app-line);
+  background: rgba(7,9,15,.85);
+}
+.pv-glyph {
+  height: 24px; width: 24px; border-radius: 6px; flex: none;
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--serif); font-weight: 600; font-size: 11px;
+  background: color-mix(in oklab, var(--acc) 28%, #1a1d28); color: var(--app-fg);
+  border: 1px solid color-mix(in oklab, var(--acc) 45%, transparent);
+}
+.pv-glyph.empty { background: var(--app-raised); border: 1px dashed var(--app-line-2); color: var(--app-fg-40); }
+.pv-name { font-weight: 600; font-size: 13px; letter-spacing: -.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pv-name.ghost { color: var(--app-fg-40); font-weight: 400; font-style: italic; }
+.pv-term {
+  margin-left: auto; flex: none; font-family: var(--mono); font-size: 10px; letter-spacing: .06em;
+  padding: 3px 9px; border-radius: 999px;
+  border: 1px solid var(--app-line-2); color: var(--app-fg-60);
+}
+.pv-term.on { border-color: color-mix(in oklab, var(--acc) 45%, transparent); color: var(--acc); background: color-mix(in oklab, var(--acc) 10%, transparent); }
+.pv-body { flex: 1; min-height: 0; display: flex; }
+.pv-side { flex: none; width: 138px; border-right: 1px solid var(--app-line); padding: 10px 8px; }
+.pv-side ul { list-style: none; display: flex; flex-direction: column; gap: 2px; }
+.pv-side li {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 9px; border-radius: 7px; color: var(--app-fg-60);
+  animation: side-in 460ms var(--ease) both;
+}
+@keyframes side-in { from { opacity: 0; transform: translateX(-8px); } to { opacity: 1; transform: none; } }
+.pv-side li.lead { color: var(--app-fg); background: var(--app-surface); }
+.pv-side li .dot { height: 5px; width: 5px; border-radius: 50%; background: var(--app-fg-40); flex: none; }
+.pv-side li.lead .dot { background: var(--acc); box-shadow: 0 0 8px color-mix(in oklab, var(--acc) 60%, transparent); }
+.pv-side li.fresh { color: var(--app-fg); }
+.pv-side li.fresh .dot { background: var(--acc); }
+.pv-side .sk { height: 12px; border-radius: 6px; margin: 8px 9px; }
+.pv-main { flex: 1; min-width: 0; padding: 14px; display: flex; flex-direction: column; gap: 10px; overflow: hidden; }
+
+.sk {
+  background: linear-gradient(100deg, var(--app-surface) 40%, var(--app-raised) 50%, var(--app-surface) 60%);
+  background-size: 200% 100%;
+  animation: shimmer 2.2s linear infinite;
+  border-radius: 8px;
+}
+@keyframes shimmer { to { background-position: -200% 0; } }
+
+.pv-card {
+  border: 1px solid var(--app-line); border-radius: 10px; background: var(--app-surface);
+  padding: 10px 12px;
+}
+.pv-card.flash { animation: flash 900ms var(--ease); }
+@keyframes flash {
+  0% { border-color: color-mix(in oklab, var(--acc) 70%, transparent); box-shadow: 0 0 0 3px color-mix(in oklab, var(--acc) 18%, transparent); }
+  100% { border-color: var(--app-line); box-shadow: none; }
+}
+.pv-card h5 { font-size: 10px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--app-fg-40); margin-bottom: 7px; font-family: var(--mono); }
+.pv-card .big { font-size: 16px; font-weight: 600; letter-spacing: -.01em; }
+.pv-card .sub { font-size: 11px; color: var(--app-fg-60); margin-top: 2px; }
+.pv-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+.pv-week { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-top: 2px; }
+.pv-day { text-align: center; padding: 5px 0 6px; border-radius: 7px; border: 1px solid transparent; }
+.pv-day .d { font-family: var(--mono); font-size: 9px; color: var(--app-fg-40); }
+.pv-day .n { font-size: 12px; margin-top: 3px; color: var(--app-fg-60); }
+.pv-day.mark { border-color: color-mix(in oklab, var(--acc) 45%, transparent); background: color-mix(in oklab, var(--acc) 12%, transparent); }
+.pv-day.mark .n { color: var(--acc); font-weight: 600; }
+.pv-evt { margin-top: 8px; font-size: 11px; color: var(--app-fg-60); display: flex; gap: 7px; align-items: center; }
+.pv-evt .dot { height: 5px; width: 5px; border-radius: 50%; background: var(--acc); flex: none; }
+.pv-foot { margin-top: auto; font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em; color: var(--app-fg-40); text-transform: uppercase; }
+
+/* ═══ 5 · Step 2 — Interview ═════════════════════════════════════════════ */
+.chat-col { height: min(72vh, 640px); display: flex; flex-direction: column; max-width: 560px; width: 100%; }
+.chat { flex: 1; min-height: 0; overflow-y: auto; padding: 8px 4px 16px; display: flex; flex-direction: column; gap: 16px; scrollbar-width: thin; }
+.msg { display: flex; gap: 12px; animation: msg-in 420ms var(--ease) both; max-width: 92%; }
+@keyframes msg-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+.msg .m-glyph {
+  height: 26px; width: 26px; border-radius: 7px; flex: none; margin-top: 2px;
+  background: var(--ink); color: var(--paper);
+  font-family: var(--serif); font-weight: 600; font-size: 14px;
+  display: flex; align-items: center; justify-content: center;
+}
+.msg .m-body { font-size: 15px; line-height: 1.55; color: var(--ink-72); padding-top: 4px; }
+.msg .m-body b { color: var(--ink); font-weight: 600; }
+.msg.q .m-body { font-family: var(--serif); font-size: 19px; line-height: 1.4; color: var(--ink); }
+.msg.user { align-self: flex-end; max-width: 80%; }
+.msg.user .m-body {
+  background: var(--paper-3); border: 1px solid var(--line);
+  padding: 9px 16px; border-radius: 999px; font-size: 14px; color: var(--ink);
+}
+.typing { display: inline-flex; gap: 5px; padding: 10px 2px; }
+.typing i { height: 5px; width: 5px; border-radius: 50%; background: var(--ink-40); animation: tp 1.1s ease-in-out infinite; }
+.typing i:nth-child(2) { animation-delay: .15s; }
+.typing i:nth-child(3) { animation-delay: .3s; }
+@keyframes tp { 0%, 60%, 100% { transform: none; opacity: .5; } 30% { transform: translateY(-4px); opacity: 1; } }
+
+.chips { display: flex; flex-wrap: wrap; gap: 9px; padding: 2px 0 0 38px; }
+.chip {
+  padding: 9px 17px; border-radius: 999px;
+  border: 1px solid var(--line); color: var(--ink-72); font-size: 13.5px;
+  transition: all 200ms var(--ease); background: rgba(236,231,221,.02);
+}
+.chip:hover { border-color: var(--vio-line); color: var(--ink); background: var(--vio-soft); transform: translateY(-1px); }
+.chat-foot { flex: none; display: flex; align-items: center; gap: 14px; padding-top: 14px; border-top: 1px solid var(--line-soft); }
+.free {
+  flex: 1; background: transparent; border: 1px solid var(--line); border-radius: 999px;
+  color: var(--ink); padding: 10px 18px; font-size: 13.5px; outline: none;
+  transition: border-color 200ms var(--ease);
+}
+.free::placeholder { color: var(--ink-28); }
+.free:focus { border-color: var(--vio-line); }
+.ghost-link { font-size: 12.5px; color: var(--ink-40); white-space: nowrap; text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--line); transition: color 200ms; }
+.ghost-link:hover { color: var(--ink-72); }
+.chat-cta { align-self: flex-start; margin-left: 38px; }
+
+/* ═══ 6 · Step 3 — Blueprint ═════════════════════════════════════════════ */
+.bp { height: 100%; overflow-y: auto; padding: 12px clamp(28px, 5vw, 80px) 110px; scrollbar-width: thin; }
+.bp-head { max-width: 760px; margin: 0 auto 8px; text-align: center; padding-top: 2vh; }
+.bp-head .q-serif { margin-bottom: 12px; }
+.bp-sub { font-size: 14.5px; color: var(--ink-55); }
+.bp-banner {
+  max-width: 640px; margin: 18px auto 0; padding: 10px 18px; border-radius: 10px;
+  border: 1px solid var(--amber); border-color: rgba(217,160,91,.35); background: rgba(217,160,91,.08);
+  color: var(--amber); font-size: 13px; text-align: center; display: none;
+}
+.bp-banner.show { display: block; }
+.bp-grid {
+  max-width: 980px; margin: 34px auto 0;
+  display: grid; grid-template-columns: 1.25fr 1fr; gap: 18px;
+  align-items: start;
+}
+.bp-card {
+  background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 20px 22px;
+  animation: msg-in 480ms var(--ease) both;
+}
+.bp-grid > *:nth-child(1) { animation-delay: 40ms; }
+.bp-grid > *:nth-child(2) { animation-delay: 120ms; }
+.bp-col { display: flex; flex-direction: column; gap: 18px; }
+.bp-card h3 { font-family: var(--mono); font-size: 11px; font-weight: 600; letter-spacing: .2em; text-transform: uppercase; color: var(--ink-40); margin-bottom: 16px; }
+.bp-card h3 .why { float: right; letter-spacing: .04em; text-transform: none; color: var(--ink-28); font-weight: 400; }
+
+.wf-row { display: flex; align-items: baseline; gap: 12px; padding: 9px 0; border-top: 1px solid var(--line-soft); }
+.wf-row:first-of-type { border-top: 0; }
+.wf-name { font-size: 14.5px; font-weight: 600; flex: none; width: 118px; }
+.wf-row.off .wf-name { color: var(--ink-40); font-weight: 500; }
+.wf-why { flex: 1; font-size: 12.5px; color: var(--ink-55); font-style: italic; }
+.wf-why q { quotes: "“" "”"; color: var(--ink-72); }
+.wf-row.off .wf-why { color: var(--ink-28); }
+.wf-tgl {
+  flex: none; font-family: var(--mono); font-size: 10px; letter-spacing: .1em;
+  padding: 4px 12px; border-radius: 999px; border: 1px solid var(--ok);
+  border-color: rgba(127,176,138,.4); color: var(--ok); background: var(--ok-soft);
+  transition: all 180ms var(--ease); min-width: 46px;
+}
+.wf-row.off .wf-tgl { border-color: var(--line); color: var(--ink-40); background: transparent; }
+.wf-tgl:hover { transform: scale(1.05); }
+
+.vocab-row { display: flex; flex-wrap: wrap; gap: 10px; }
+.vocab-chip {
+  display: inline-flex; align-items: baseline; gap: 8px;
+  border: 1px solid var(--line); border-radius: 10px; padding: 9px 14px;
+  transition: border-color 200ms;
+}
+.vocab-chip:hover { border-color: var(--vio-line); }
+.vocab-chip .vl { font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-40); }
+.vocab-chip .vv { font-family: var(--serif); font-size: 16px; color: var(--ink); }
+.vocab-chip input { background: transparent; border: none; outline: none; color: var(--ink); font-family: var(--serif); font-size: 16px; width: 96px; padding: 0; border-bottom: 1px dashed var(--vio-line); }
+.vocab-note { margin-top: 14px; font-size: 12.5px; color: var(--ink-55); font-style: italic; }
+
+.seat { display: flex; align-items: center; gap: 12px; padding: 9px 0; border-top: 1px solid var(--line-soft); }
+.seat:first-of-type { border-top: 0; }
+.seat-dot { height: 9px; width: 9px; border-radius: 50%; flex: none; }
+.seat-title { font-size: 14px; font-weight: 600; flex: none; width: 96px; }
+.seat-note { font-size: 12px; color: var(--ink-55); flex: 1; }
+.seat-you { font-family: var(--mono); font-size: 10px; letter-spacing: .12em; color: var(--paper); background: var(--ink); border-radius: 999px; padding: 3px 10px; }
+.seat-open { font-family: var(--mono); font-size: 10px; letter-spacing: .1em; color: var(--ink-40); border: 1px dashed var(--line); border-radius: 999px; padding: 3px 10px; }
+
+.term-line { font-family: var(--serif); font-size: 21px; margin-bottom: 8px; }
+.term-meta { font-size: 13px; color: var(--ink-55); line-height: 1.7; }
+.term-meta .dot { display: inline-block; height: 5px; width: 5px; border-radius: 50%; background: var(--vio); margin: 0 4px 2px 0; }
+
+details.standards { border-top: 1px solid var(--line-soft); margin-top: 4px; }
+details.standards summary { cursor: pointer; list-style: none; padding: 14px 0 4px; font-family: var(--mono); font-size: 11px; letter-spacing: .2em; text-transform: uppercase; color: var(--ink-40); }
+details.standards summary::after { content: "+"; float: right; }
+details.standards[open] summary::after { content: "–"; }
+.std-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; padding: 10px 0 6px; }
+.std { border: 1px solid var(--line-soft); border-radius: 10px; padding: 10px 12px; }
+.std .sv { font-family: var(--mono); font-size: 15px; color: var(--ink); }
+.std .sl { font-size: 10.5px; color: var(--ink-40); margin-top: 3px; line-height: 1.4; }
+
+.bp-cta-row { max-width: 980px; margin: 30px auto 0; display: flex; align-items: center; justify-content: center; gap: 22px; }
+.cta.big { font-size: 15.5px; padding: 15px 34px; margin-top: 0; }
+.bp-foot { text-align: center; margin-top: 14px; font-size: 12px; color: var(--ink-28); }
+
+/* ═══ 7 · Step 4 — Sign-in + build ═══════════════════════════════════════ */
+.scr-dark { background: #060504; }
+.bld { height: 100%; display: flex; align-items: center; justify-content: center; padding-bottom: 60px; }
+.signin {
+  width: 400px; text-align: center;
+  background: var(--card); border: 1px solid var(--line); border-radius: 18px;
+  padding: 44px 40px 38px;
+  box-shadow: 0 40px 100px -30px rgba(0,0,0,.8);
+}
+.signin .pv-glyph { margin: 0 auto 18px; height: 44px; width: 44px; border-radius: 12px; font-size: 19px; }
+.signin h2 { font-family: var(--serif); font-weight: 500; font-size: 24px; line-height: 1.25; margin-bottom: 6px; }
+.signin p { font-size: 13px; color: var(--ink-55); margin-bottom: 26px; }
+.gbtn {
+  width: 100%; display: flex; align-items: center; justify-content: center; gap: 12px;
+  background: #fff; color: #1f1f1f; border-radius: 999px; padding: 12px 20px;
+  font-size: 14.5px; font-weight: 600;
+  transition: transform 200ms var(--ease), box-shadow 200ms var(--ease);
+}
+.gbtn:hover { transform: translateY(-1px); box-shadow: 0 12px 30px -12px rgba(255,255,255,.3); }
+.signin .fine { margin-top: 16px; font-size: 11.5px; }
+
+.building { display: none; text-align: center; width: 480px; }
+.building.show { display: block; }
+.bld-glyph {
+  margin: 0 auto 34px; height: 64px; width: 64px; border-radius: 16px;
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--serif); font-weight: 600; font-size: 26px; color: var(--app-fg);
+  background: color-mix(in oklab, var(--acc, #a78bfa) 28%, #1a1d28);
+  border: 1px solid color-mix(in oklab, var(--acc, #a78bfa) 45%, transparent);
+  animation: breathe 2s ease-in-out infinite;
+}
+@keyframes breathe { 50% { box-shadow: 0 0 44px -6px color-mix(in oklab, var(--acc, #a78bfa) 55%, transparent); transform: scale(1.04); } }
+.bld-lines { display: flex; flex-direction: column; gap: 13px; text-align: left; width: 380px; margin: 0 auto; }
+.bld-line {
+  display: flex; align-items: center; gap: 12px;
+  font-family: var(--mono); font-size: 12.5px; color: var(--ink-40);
+  opacity: 0; transform: translateY(6px);
+  transition: all 420ms var(--ease);
+}
+.bld-line.show { opacity: 1; transform: none; }
+.bld-line.done { color: var(--ink-72); }
+.bld-line .tick { width: 16px; flex: none; color: var(--ok); opacity: 0; transition: opacity 300ms; }
+.bld-line.done .tick { opacity: 1; }
+
+/* ═══ 8 · Steps 5–6 — App world ══════════════════════════════════════════ */
+.scr-app { background: var(--app-bg); color: var(--app-fg); }
+.scr-app::before {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(60% 40% at 50% 0%, color-mix(in oklab, var(--acc, #a78bfa) 7%, transparent), transparent 70%);
+}
+.app-frame { position: relative; height: 100%; display: flex; }
+.app-side {
+  flex: none; width: 208px; border-right: 1px solid var(--app-line);
+  padding: 18px 12px; display: flex; flex-direction: column;
+  background: rgba(16,18,26,.5);
+}
+.app-side .org { display: flex; align-items: center; gap: 10px; padding: 0 8px 18px; }
+.app-side .org .pv-glyph { height: 28px; width: 28px; border-radius: 8px; font-size: 12px; }
+.app-side .org b { font-size: 13.5px; letter-spacing: -.01em; }
+.app-side ul { list-style: none; display: flex; flex-direction: column; gap: 2px; }
+.app-side li {
+  display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 8px;
+  font-size: 13px; color: var(--app-fg-60);
+  animation: side-in 460ms var(--ease) both;
+}
+.app-side li.on { background: var(--app-surface); color: var(--app-fg); }
+.app-side li .dot { height: 5px; width: 5px; border-radius: 50%; background: var(--app-fg-40); flex: none; }
+.app-side li.on .dot { background: var(--acc, var(--vio)); box-shadow: 0 0 8px color-mix(in oklab, var(--acc, #a78bfa) 60%, transparent); }
+.app-side .side-foot { margin-top: auto; padding: 8px 10px; font-size: 12.5px; color: var(--app-fg-40); }
+
+.rvl-main { flex: 1; min-width: 0; overflow-y: auto; padding: 34px clamp(24px, 3.5vw, 56px) 110px; scrollbar-width: thin; }
+.rvl-main > * { animation: msg-in 520ms var(--ease) both; }
+.rvl-main > *:nth-child(2) { animation-delay: 100ms; }
+.rvl-main > *:nth-child(3) { animation-delay: 200ms; }
+.rvl-main > *:nth-child(4) { animation-delay: 300ms; }
+.rvl-hello { font-family: var(--serif); font-weight: 500; font-size: clamp(26px, 2.6vw, 36px); letter-spacing: -.01em; }
+.rvl-sub { margin-top: 8px; font-size: 13.5px; color: var(--app-fg-60); }
+.rvl-grid { display: grid; grid-template-columns: 1.5fr 1fr; gap: 18px; margin-top: 28px; align-items: start; max-width: 1060px; }
+.rvl-col { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+.app-card {
+  background: var(--app-surface); border: 1px solid var(--app-line); border-radius: 14px; padding: 18px 20px;
+  box-shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px -12px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.04);
+}
+.app-card h4 { font-family: var(--mono); font-size: 10.5px; font-weight: 600; letter-spacing: .18em; text-transform: uppercase; color: var(--app-fg-40); margin-bottom: 14px; }
+.app-card h4 .tag { float: right; letter-spacing: .04em; color: var(--acc, var(--vio)); text-transform: none; font-weight: 500; }
+.ann-body { font-size: 14px; line-height: 1.65; color: var(--app-fg); }
+.ann-body .sig { display: block; margin-top: 10px; color: var(--app-fg-60); font-style: italic; }
+.ann-foot { display: flex; gap: 16px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--app-line); }
+.ann-foot button { font-size: 12px; color: var(--app-fg-60); text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--app-line-2); }
+.ann-foot button:hover { color: var(--app-fg); }
+
+.week-wide { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+.week-wide .pv-day { padding: 8px 0 9px; }
+.week-wide .pv-day .n { font-size: 14px; }
+
+.check { display: flex; flex-direction: column; }
+.check-item { display: flex; gap: 13px; padding: 13px 0; border-top: 1px solid var(--app-line); }
+.check-item:first-of-type { border-top: 0; padding-top: 2px; }
+.check-n {
+  flex: none; height: 22px; width: 22px; border-radius: 50%; margin-top: 1px;
+  border: 1px solid color-mix(in oklab, var(--acc, #a78bfa) 50%, transparent); color: var(--acc, var(--vio));
+  font-family: var(--mono); font-size: 11px; display: flex; align-items: center; justify-content: center;
+}
+.check-item b { display: block; font-size: 13.5px; margin-bottom: 3px; }
+.check-item p { font-size: 12px; color: var(--app-fg-60); line-height: 1.5; }
+.check-item .go { margin-top: 7px; font-size: 12px; color: var(--acc, var(--vio)); }
+.check-item .go:hover { text-decoration: underline; text-underline-offset: 3px; }
+
+.atc {
+  position: absolute; right: 28px; bottom: 92px; z-index: 5;
+  display: flex; align-items: center; gap: 12px;
+  background: var(--app-raised); border: 1px solid var(--app-line-2); border-radius: 999px;
+  padding: 10px 18px 10px 12px; font-size: 12.5px; color: var(--app-fg-60);
+  box-shadow: 0 16px 40px -16px rgba(0,0,0,.6);
+  animation: msg-in 600ms var(--ease) 700ms both;
+}
+.atc .pv-glyph { height: 24px; width: 24px; font-size: 11px; border-radius: 7px; }
+.atc b { color: var(--app-fg); font-weight: 600; }
+
+/* ═══ 9 · Step 6 — Invite ════════════════════════════════════════════════ */
+.inv { position: relative; height: 100%; overflow-y: auto; padding: 5vh clamp(28px, 5vw, 80px) 120px; scrollbar-width: thin; }
+.inv-head { max-width: 720px; margin: 0 auto; text-align: center; }
+.inv-head .q-serif { color: var(--app-fg); }
+.inv-sub { margin-top: 12px; font-size: 14px; color: var(--app-fg-60); }
+.inv-grid { max-width: 880px; margin: 38px auto 0; display: grid; grid-template-columns: 1fr 1fr; gap: 18px; align-items: start; }
+.inv-grid .app-card { animation: msg-in 480ms var(--ease) both; }
+.inv-grid .app-card:nth-child(2) { animation-delay: 90ms; }
+.exec-row { display: flex; align-items: center; gap: 11px; padding: 10px 0; border-top: 1px solid var(--app-line); }
+.exec-row:first-of-type { border-top: 0; padding-top: 0; }
+.exec-row .seat-dot { margin-top: 0; }
+.exec-row b { font-size: 13px; width: 76px; flex: none; }
+.exec-link { flex: 1; min-width: 0; font-family: var(--mono); font-size: 10.5px; color: var(--app-fg-40); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.copy {
+  flex: none; font-family: var(--mono); font-size: 10px; letter-spacing: .08em;
+  border: 1px solid var(--app-line-2); border-radius: 999px; padding: 4px 12px; color: var(--app-fg-60);
+  transition: all 180ms var(--ease);
+}
+.copy:hover { border-color: color-mix(in oklab, var(--acc, #a78bfa) 50%, transparent); color: var(--app-fg); }
+.copy.ok { border-color: rgba(127,176,138,.5); color: var(--ok); }
+.biglink {
+  display: flex; align-items: center; gap: 12px;
+  border: 1px dashed var(--app-line-2); border-radius: 11px; padding: 13px 16px; margin-bottom: 14px;
+}
+.biglink code { flex: 1; font-family: var(--mono); font-size: 12px; color: var(--app-fg); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.qr { height: 74px; width: 74px; flex: none; border-radius: 8px; background: var(--app-raised); border: 1px solid var(--app-line); display: flex; align-items: center; justify-content: center; font-family: var(--mono); font-size: 9px; letter-spacing: .12em; color: var(--app-fg-40); }
+.inv-note { font-size: 12px; color: var(--app-fg-60); line-height: 1.55; }
+
+.joins { max-width: 880px; margin: 26px auto 0; display: flex; align-items: center; gap: 16px; min-height: 44px; }
+.join-avs { display: flex; }
+.av {
+  height: 34px; width: 34px; border-radius: 50%; flex: none;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 600; color: var(--app-fg);
+  border: 2px solid var(--app-bg); margin-left: -8px;
+  animation: av-in 480ms var(--ease) both;
+}
+.av:first-child { margin-left: 0; }
+@keyframes av-in { from { opacity: 0; transform: scale(.4); } to { opacity: 1; transform: none; } }
+.join-count { font-size: 13.5px; color: var(--app-fg-60); }
+.join-count b { color: var(--app-fg); font-variant-numeric: tabular-nums; }
+.inv-foot { max-width: 880px; margin: 26px auto 0; font-size: 12px; color: var(--app-fg-40); font-style: italic; }
+.inv-cta-row { max-width: 880px; margin: 34px auto 0; }
+.cta.app-cta { background: var(--app-fg); color: var(--app-bg); }
+
+/* ═══ 10 · Step rail ═════════════════════════════════════════════════════ */
+.rail {
+  position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); z-index: 60;
+  display: flex; align-items: stretch; gap: 2px;
+  background: rgba(15,13,10,.82); border: 1px solid var(--line); border-radius: 999px;
+  padding: 5px; backdrop-filter: blur(14px) saturate(140%); -webkit-backdrop-filter: blur(14px) saturate(140%);
+  box-shadow: 0 20px 50px -20px rgba(0,0,0,.8);
+}
+.rail button {
+  display: flex; align-items: center; gap: 8px;
+  padding: 7px 14px; border-radius: 999px;
+  font-family: var(--mono); font-size: 10.5px; letter-spacing: .08em; color: var(--ink-40);
+  transition: all 200ms var(--ease); white-space: nowrap;
+}
+.rail button .n { font-size: 9.5px; opacity: .7; }
+.rail button:hover { color: var(--ink); }
+.rail button.on { background: var(--ink); color: var(--paper); }
+.rail-cap {
+  position: fixed; left: 50%; bottom: 66px; transform: translateX(-50%); z-index: 60;
+  font-family: var(--serif); font-style: italic; font-size: 13px; color: var(--ink-40);
+  pointer-events: none; text-align: center; width: max-content; max-width: 80vw;
+  padding: 4px 14px; border-radius: 999px;
+  background: rgba(10, 9, 7, .55); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  transition: opacity 300ms;
+}
+.scr-app ~ .rail-cap { color: var(--app-fg-40); }
+
+@media (max-width: 980px) {
+  .split { grid-template-columns: 1fr; align-items: start; padding-top: 12px; overflow-y: auto; }
+  .pv-slot { height: 380px; }
+  .bp-grid, .rvl-grid, .inv-grid { grid-template-columns: 1fr; }
+  .rail button .lbl { display: none; }
+}
+</style>
+</head>
+<body>
+<div class="stage">
+  <header class="chrome" id="chrome">
+    <div class="wm"><span class="glyph">C</span><span class="wm-txt">CHAPTOS</span></div>
+    <div class="chrome-tag" id="chromeTag">ORG CREATION · CONCEPT MOCK</div>
+  </header>
+
+  <main id="screens">
+
+    <!-- ── STEP 1 · NAME ─────────────────────────────────────────────── -->
+    <section class="scr" data-step="1">
+      <div class="split">
+        <div class="ask">
+          <p class="kicker">Create your organization · no account needed yet</p>
+          <h1 class="q-serif">What&rsquo;s your organization called?</h1>
+          <input class="name-input" id="orgName" placeholder="Kappa Sigma" autocomplete="off" spellcheck="false">
+          <div class="slugline" id="slugLine" style="opacity:0">chaptos.app/<b>&nbsp;</b></div>
+          <div class="accents">
+            <span class="accents-label">Your color</span>
+            <button class="swatch sel" data-acc="#a78bfa" style="background:#a78bfa" aria-label="Violet"></button>
+            <button class="swatch" data-acc="#ddb36a" style="background:#ddb36a" aria-label="Gold"></button>
+            <button class="swatch" data-acc="#d98ba3" style="background:#d98ba3" aria-label="Rose"></button>
+            <button class="swatch" data-acc="#7fb08a" style="background:#7fb08a" aria-label="Green"></button>
+            <button class="swatch" data-acc="#7fb3d9" style="background:#7fb3d9" aria-label="Sky"></button>
+          </div>
+          <button class="cta" data-go="2">Continue<span>→</span></button>
+          <p class="fine">Fifteen seconds in, your org already exists on the right.</p>
+        </div>
+        <div class="pv-slot" data-pv></div>
+      </div>
+    </section>
+
+    <!-- ── STEP 2 · INTERVIEW ────────────────────────────────────────── -->
+    <section class="scr" data-step="2">
+      <div class="split">
+        <div class="chat-col">
+          <div class="chat" id="chat"></div>
+          <div class="chat-foot">
+            <input class="free" id="freeText" placeholder="Type your own answer&hellip;">
+            <button class="ghost-link" id="skipBtn">Skip — pick a template instead</button>
+          </div>
+        </div>
+        <div class="pv-slot" data-pv></div>
+      </div>
+    </section>
+
+    <!-- ── STEP 3 · BLUEPRINT ────────────────────────────────────────── -->
+    <section class="scr" data-step="3">
+      <div class="bp">
+        <div class="bp-head">
+          <p class="kicker">Your blueprint</p>
+          <h1 class="q-serif" id="bpTitle">Here&rsquo;s the workspace I&rsquo;d build for you.</h1>
+          <p class="bp-sub">Everything below came from your answers. Tap anything to change it — nothing is locked in.</p>
+          <div class="bp-banner" id="bpBanner">Fraternity template applied — the interview would have tailored each line below to your answers.</div>
+        </div>
+        <div class="bp-grid">
+          <div class="bp-card">
+            <h3>Pages <span class="why">why it&rsquo;s here</span></h3>
+            <div id="wfList"></div>
+          </div>
+          <div class="bp-col">
+            <div class="bp-card">
+              <h3>Your words</h3>
+              <div class="vocab-row" id="vocabRow"></div>
+              <p class="vocab-note" id="vocabNote"></p>
+            </div>
+            <div class="bp-card">
+              <h3>Leadership</h3>
+              <div id="seatList"></div>
+            </div>
+            <div class="bp-card">
+              <h3>This term</h3>
+              <div class="term-line" id="termLine">Fall 2026</div>
+              <div class="term-meta" id="termMeta"></div>
+              <details class="standards">
+                <summary>Standards &amp; thresholds</summary>
+                <div class="std-grid">
+                  <div class="std"><div class="sv">65% · 80%</div><div class="sl">attendance at-risk · watch</div></div>
+                  <div class="std"><div class="sv">2.7 · 3.0</div><div class="sl">GPA at-risk · watch</div></div>
+                  <div class="std"><div class="sv">10 hrs</div><div class="sl">service goal / term</div></div>
+                </div>
+              </details>
+            </div>
+          </div>
+        </div>
+        <div class="bp-cta-row">
+          <button class="cta big" data-go="4">Looks right — build it<span>→</span></button>
+        </div>
+        <p class="bp-foot">Every decision here has a home in Settings later. This is a fast path, not a lock-in.</p>
+      </div>
+    </section>
+
+    <!-- ── STEP 4 · SIGN IN + BUILD ──────────────────────────────────── -->
+    <section class="scr scr-dark" data-step="4">
+      <div class="bld">
+        <div class="signin" id="signinCard">
+          <div class="pv-glyph" id="signGlyph">KS</div>
+          <h2 id="signTitle">Sign in to create Kappa&nbsp;Sigma</h2>
+          <p>Your blueprint is saved — this just makes it yours.</p>
+          <button class="gbtn" id="googleBtn">
+            <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
+            Continue with Google
+          </button>
+          <p class="fine">One account · one chapter to start · switch orgs anytime</p>
+        </div>
+        <div class="building" id="building">
+          <div class="bld-glyph" id="bldGlyph">KS</div>
+          <div class="bld-lines" id="bldLines"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── STEP 5 · REVEAL ───────────────────────────────────────────── -->
+    <section class="scr scr-app" data-step="5">
+      <div class="app-frame">
+        <aside class="app-side" id="rvlSide"></aside>
+        <div class="rvl-main" id="rvlMain"></div>
+      </div>
+      <div class="atc" id="atc"></div>
+    </section>
+
+    <!-- ── STEP 6 · INVITE ───────────────────────────────────────────── -->
+    <section class="scr scr-app" data-step="6">
+      <div class="inv">
+        <div class="inv-head">
+          <p class="kicker" style="color:var(--app-fg-40)">Last step — and it isn&rsquo;t yours</p>
+          <h1 class="q-serif" id="invTitle">Bring in your brothers.</h1>
+          <p class="inv-sub" id="invSub">Share one link. They pick their name, sign in, and land on the roster — you don&rsquo;t lift a finger.</p>
+        </div>
+        <div class="inv-grid">
+          <div class="app-card">
+            <h4>Exec board <span class="tag">role-tagged links</span></h4>
+            <div id="execList"></div>
+            <p class="inv-note" style="margin-top:12px">Each link seats them with the right role — your treasurer lands as <b>Treasurer</b>.</p>
+          </div>
+          <div class="app-card">
+            <h4 id="everyoneHead">Everyone else</h4>
+            <div class="biglink">
+              <code id="joinLink">chaptos.app/join/x7Kp9mQv2R</code>
+              <button class="copy" data-copy="member">COPY</button>
+            </div>
+            <div style="display:flex; gap:14px; align-items:center">
+              <div class="qr">QR — TODO</div>
+              <p class="inv-note">Drop it in the group chat or put the QR on the meeting slide. The link is revocable and expires when you say so.</p>
+            </div>
+          </div>
+        </div>
+        <div class="joins">
+          <div class="join-avs" id="joinAvs"></div>
+          <div class="join-count" id="joinCount"></div>
+        </div>
+        <p class="inv-foot">If anything on the checklist is left tomorrow, a quiet day-2 digest nudges it — onboarding ends at first real value, not at &ldquo;org created.&rdquo;</p>
+        <div class="inv-cta-row">
+          <button class="cta app-cta" data-go="5">Go to your dashboard<span>→</span></button>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <div class="rail-cap" id="railCap"></div>
+  <nav class="rail" id="rail" aria-label="Steps">
+    <button data-go="1"><span class="n">1</span><span class="lbl">NAME</span></button>
+    <button data-go="2"><span class="n">2</span><span class="lbl">INTERVIEW</span></button>
+    <button data-go="3"><span class="n">3</span><span class="lbl">BLUEPRINT</span></button>
+    <button data-go="4"><span class="n">4</span><span class="lbl">BUILD</span></button>
+    <button data-go="5"><span class="n">5</span><span class="lbl">REVEAL</span></button>
+    <button data-go="6"><span class="n">6</span><span class="lbl">INVITE</span></button>
+  </nav>
+</div>
+
+<script>
+/* ═══ State ════════════════════════════════════════════════════════════ */
+const S = {
+  step: 1,
+  name: "",
+  acc: "#a78bfa",
+  kind: null,          // fraternity | sorority | club | team
+  pain: null,          // dues | attendance | events | comms
+  cadence: null,       // {label, day, time}
+  term: null,          // {name, dates, dues}
+  skipped: false,      // took the template path
+  interviewDone: false,
+  wf: null,            // workflow map, set by template/answers
+  vocab: null,         // {member, members, meeting, period}
+  chatStage: 0,        // which interview question is live
+};
+
+const VOCAB = {
+  fraternity: { member: "Brother",  members: "Brothers", meeting: "Chapter",  period: "Semester" },
+  sorority:   { member: "Sister",   members: "Sisters",  meeting: "Chapter",  period: "Semester" },
+  club:       { member: "Member",   members: "Members",  meeting: "Meeting",  period: "Term" },
+  team:       { member: "Player",   members: "Players",  meeting: "Practice", period: "Season" },
+};
+const KIND_LABEL = { fraternity: "A fraternity", sorority: "A sorority", club: "A club", team: "A sports team" };
+
+const DEFAULT_WF = {
+  fraternity: { roster: 1, dues: 1, attendance: 1, events: 1, docs: 1, tasks: 0, service: 0, comms: 0 },
+  sorority:   { roster: 1, dues: 1, attendance: 1, events: 1, docs: 1, tasks: 0, service: 0, comms: 0 },
+  club:       { roster: 1, dues: 0, attendance: 0, events: 1, docs: 1, tasks: 0, service: 0, comms: 1 },
+  team:       { roster: 1, dues: 1, attendance: 1, events: 1, docs: 0, tasks: 0, service: 0, comms: 0 },
+};
+const PAIN_WF = { dues: "dues", attendance: "attendance", events: "events", comms: "comms" };
+
+const JOIN_NAMES = ["Marcus Cole", "Devon Price", "Eli Navarro", "Jordan Wu", "Sam Okafor", "Theo Grant"];
+const AV_COLORS = ["#7c5cd6", "#b08948", "#a86478", "#5e8c69", "#5b84a6", "#8a6f5c"];
+
+/* ═══ Helpers ══════════════════════════════════════════════════════════ */
+const $ = (sel, root) => (root || document).querySelector(sel);
+const $$ = (sel, root) => [...(root || document).querySelectorAll(sel)];
+const esc = s => s.replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+function displayName() { return S.name.trim() || "Kappa Sigma"; }
+function monogram() {
+  const words = displayName().split(/\s+/).filter(Boolean);
+  return words.slice(0, 2).map(w => w[0].toUpperCase()).join("") || "K";
+}
+function slug() { return displayName().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, ""); }
+function vocab() { return S.vocab || VOCAB.fraternity; }
+function wf() { return S.wf || DEFAULT_WF.fraternity; }
+
+function ensureDefaults(upto) {
+  if (upto >= 2 && !S.name) S.name = "Kappa Sigma";
+  if (upto >= 3) {
+    if (!S.kind) { S.kind = "fraternity"; S.skipped = !S.interviewDone; }
+    if (!S.vocab) S.vocab = { ...VOCAB[S.kind] };
+    if (!S.wf) S.wf = { ...DEFAULT_WF[S.kind] };
+    if (!S.pain && S.skipped) S.pain = "dues";
+    if (!S.cadence) S.cadence = { label: "Sundays at 7", day: 0, time: "7:00 PM" };
+    if (!S.term) S.term = { name: "Fall 2026", dates: "Aug 24 – Dec 18", dues: wf().dues === 1 };
+  }
+}
+
+/* ═══ Live preview pane ════════════════════════════════════════════════ */
+const pv = document.createElement("div");
+pv.className = "pv-wrap";
+function sideItems(freshKey) {
+  const v = vocab(), w = wf();
+  const items = [
+    { key: "dash", label: "Dashboard" },
+    { key: "timeline", label: "Timeline" },
+    { key: "meeting", label: v.meeting },
+  ];
+  if (S.kind) {
+    if (w.roster) items.push({ key: "roster", label: v.members });
+    if (w.dues) items.push({ key: "dues", label: "Dues" });
+    if (w.attendance) items.push({ key: "attendance", label: "Attendance" });
+    if (w.events) items.push({ key: "events", label: "Events" });
+    if (w.docs) items.push({ key: "docs", label: "Docs" });
+    if (w.comms) items.push({ key: "comms", label: "Announcements" });
+    if (w.tasks) items.push({ key: "tasks", label: "Tasks" });
+    if (w.service) items.push({ key: "service", label: "Service" });
+  }
+  return items.map(it => ({ ...it, fresh: it.key === freshKey, lead: it.key === PAIN_WF[S.pain] }));
+}
+function weekHtml(marked, wide) {
+  const days = ["S", "M", "T", "W", "T", "F", "S"], nums = [24, 25, 26, 27, 28, 29, 30];
+  return '<div class="' + (wide ? "week-wide pv-week" : "pv-week") + '">' + days.map((d, i) =>
+    '<div class="pv-day' + (marked === i ? " mark" : "") + '"><div class="d">' + d + '</div><div class="n">' + nums[i] + "</div></div>"
+  ).join("") + "</div>";
+}
+function renderPreview(fresh) {
+  const v = vocab(), named = !!S.name.trim();
+  const sideList = S.kind || named
+    ? "<ul>" + sideItems(fresh && fresh.side).map(it =>
+        '<li class="' + (it.fresh ? "fresh " : "") + (it.lead ? "lead" : "") + '"><span class="dot"></span>' + esc(it.label) + "</li>"
+      ).join("") + "</ul>"
+    : '<div class="sk" style="height:12px"></div><div class="sk" style="height:12px;width:70%"></div><div class="sk" style="height:12px;width:82%"></div>';
+
+  let main = "";
+  if (!S.kind) {
+    main =
+      '<div class="pv-card' + (named && fresh === "name" ? " flash" : "") + '"><h5>Getting to know you</h5><div class="big">' +
+      (named ? esc(displayName()) : '<span style="color:var(--app-fg-40)">Your workspace</span>') +
+      '</div><div class="sub">' + (named ? "Reserved at chaptos.app/" + esc(slug()) : "starts assembling as you talk") + "</div></div>" +
+      '<div class="sk" style="height:56px"></div>' +
+      '<div class="pv-row"><div class="sk" style="height:74px"></div><div class="sk" style="height:74px"></div></div>' +
+      '<div class="pv-foot">live preview · nothing saved yet</div>';
+  } else {
+    const painCard = {
+      dues:       { h: "Dues", big: "0 of — collected", sub: "every unpaid " + v.member.toLowerCase() + " at a glance" },
+      attendance: { h: "Attendance", big: "— %", sub: "mandatory " + v.meeting.toLowerCase() + "s, excuses, live percentages" },
+      events:     { h: "Events", big: "1 planned", sub: "socials, wrap-ups & door revenue" },
+      comms:      { h: "Announcements", big: "1 draft", sub: "one place to say it, everywhere it lands" },
+    }[S.pain];
+    main =
+      (painCard
+        ? '<div class="pv-card' + (fresh === "pain" ? " flash" : "") + '"><h5>' + painCard.h + " — front and center</h5><div class=\"big\">" + painCard.big + '</div><div class="sub">' + painCard.sub + "</div></div>"
+        : '<div class="pv-card' + (fresh === "kind" ? " flash" : "") + '"><h5>' + esc(v.members) + '</h5><div class="big">Roster ready</div><div class="sub">speaks your language now</div></div>') +
+      '<div class="pv-card' + (fresh === "cadence" ? " flash" : "") + '"><h5>This week</h5>' +
+      weekHtml(S.cadence ? S.cadence.day : -1) +
+      (S.cadence ? '<div class="pv-evt"><span class="dot"></span>' + esc(v.meeting) + " · " + esc(S.cadence.time) + " · weekly</div>" : "") +
+      "</div>" +
+      (S.term
+        ? '<div class="pv-card' + (fresh === "term" ? " flash" : "") + '"><h5>' + esc(v.period) + '</h5><div class="big">' + esc(S.term.name) + '</div><div class="sub">' + esc(S.term.dates) + (S.term.dues ? " · dues on" : " · no dues") + "</div></div>"
+        : '<div class="sk" style="height:48px"></div>') +
+      '<div class="pv-foot">live preview · built from your answers</div>';
+  }
+
+  pv.innerHTML =
+    '<div class="pv-cap">Live preview — your workspace</div>' +
+    '<div class="pv" style="--acc:' + S.acc + '">' +
+      '<div class="pv-top">' +
+        (named || S.kind ? '<span class="pv-glyph">' + esc(monogram()) + "</span>" : '<span class="pv-glyph empty">·</span>') +
+        (named || S.kind ? '<span class="pv-name">' + esc(displayName()) + "</span>" : '<span class="pv-name ghost">Your organization</span>') +
+        '<span class="pv-term' + (S.term ? " on" : "") + '">' + (S.term ? esc(S.term.name) : "term —") + "</span>" +
+      "</div>" +
+      '<div class="pv-body"><aside class="pv-side">' + sideList + '</aside><main class="pv-main">' + main + "</main></div>" +
+    "</div>";
+}
+function mountPreview() {
+  const slot = $('.scr[data-step="' + S.step + '"] [data-pv]');
+  if (slot && pv.parentElement !== slot) slot.appendChild(pv);
+}
+
+/* ═══ Step 1 — name ════════════════════════════════════════════════════ */
+$("#orgName").addEventListener("input", e => {
+  S.name = e.target.value;
+  const sl = $("#slugLine");
+  sl.style.opacity = S.name.trim() ? 1 : 0;
+  sl.innerHTML = "chaptos.app/<b>" + esc(slug() || "&nbsp;") + "</b> — reserved while you set up";
+  renderPreview("name");
+});
+$$(".swatch").forEach(sw => sw.addEventListener("click", () => {
+  $$(".swatch").forEach(x => x.classList.remove("sel"));
+  sw.classList.add("sel");
+  S.acc = sw.dataset.acc;
+  renderPreview();
+}));
+
+/* ═══ Step 2 — interview ═══════════════════════════════════════════════ */
+const chat = $("#chat");
+let chatTimers = [];
+function later(fn, ms) { chatTimers.push(setTimeout(fn, ms)); }
+function clearChatTimers() { chatTimers.forEach(clearTimeout); chatTimers = []; }
+function scrollChat() { chat.scrollTop = chat.scrollHeight; }
+
+function botMsg(html, isQ) {
+  const el = document.createElement("div");
+  el.className = "msg" + (isQ ? " q" : "");
+  el.innerHTML = '<span class="m-glyph">C</span><div class="m-body">' + html + "</div>";
+  chat.appendChild(el); scrollChat();
+  return el;
+}
+function userMsg(text) {
+  const el = document.createElement("div");
+  el.className = "msg user";
+  el.innerHTML = '<div class="m-body">' + esc(text) + "</div>";
+  chat.appendChild(el); scrollChat();
+}
+function typingEl() {
+  const el = document.createElement("div");
+  el.className = "msg";
+  el.innerHTML = '<span class="m-glyph">C</span><div class="typing"><i></i><i></i><i></i></div>';
+  chat.appendChild(el); scrollChat();
+  return el;
+}
+function chipsEl(options, onPick) {
+  const el = document.createElement("div");
+  el.className = "chips";
+  options.forEach(opt => {
+    const b = document.createElement("button");
+    b.className = "chip"; b.textContent = opt.label;
+    b.addEventListener("click", () => { el.remove(); onPick(opt); });
+    el.appendChild(b);
+  });
+  chat.appendChild(el); scrollChat();
+  return el;
+}
+
+const QUESTIONS = [
+  {
+    id: "kind",
+    prompt: () => "Tell me about <b>" + esc(displayName()) + "</b> — what kind of organization is it?",
+    chips: () => [
+      { label: "A fraternity", apply: () => setKind("fraternity") },
+      { label: "A sorority", apply: () => setKind("sorority") },
+      { label: "A club or student org", apply: () => setKind("club") },
+      { label: "A sports team", apply: () => setKind("team") },
+    ],
+    reply: () => ({
+      fraternity: "A fraternity — so it&rsquo;s <b>Brothers</b>, <b>Chapter</b>, and <b>Semesters</b> from here on. Watch the sidebar: your workspace just learned to speak Greek.",
+      sorority: "A sorority — <b>Sisters</b>, <b>Chapter</b>, <b>Semesters</b>. Your workspace speaks your language now.",
+      club: "Got it — <b>Members</b>, <b>Meetings</b>, <b>Terms</b>. No Greek assumed.",
+      team: "A team — <b>Players</b>, <b>Practice</b>, <b>Seasons</b>. Roster&rsquo;s set up that way.",
+    }[S.kind]),
+    fresh: "kind",
+  },
+  {
+    id: "pain",
+    prompt: () => "What eats most of your time running it?",
+    chips: () => [
+      { label: "Chasing dues", apply: () => setPain("dues") },
+      { label: "Tracking attendance", apply: () => setPain("attendance") },
+      { label: "Planning events", apply: () => setPain("events") },
+      { label: "Keeping everyone informed", apply: () => setPain("comms") },
+    ],
+    reply: () => ({
+      dues: "Heard. <b>Dues goes front and center</b> — every unpaid " + vocab().member.toLowerCase() + " at a glance, and nobody chases screenshots again.",
+      attendance: "Then attendance runs itself from now on — mandatory " + vocab().meeting.toLowerCase() + "s, excuses, and a live percentage per " + vocab().member.toLowerCase() + ".",
+      events: "Planning it is. <b>The calendar leads</b>, with wrap-ups and door revenue one tap away.",
+      comms: "One place to say it, everywhere it lands — <b>Announcements go up top</b>.",
+    }[S.pain]),
+    fresh: "pain",
+  },
+  {
+    id: "cadence",
+    prompt: () => "When does " + esc(vocab().meeting) + " meet?",
+    chips: () => [
+      { label: "Sundays at 7", apply: () => { S.cadence = { label: "Sundays at 7", day: 0, time: "7:00 PM" }; } },
+      { label: "Wednesdays at 8", apply: () => { S.cadence = { label: "Wednesdays at 8", day: 3, time: "8:00 PM" }; } },
+      { label: "Every other week", apply: () => { S.cadence = { label: "Every other week", day: 0, time: "7:00 PM" }; } },
+    ],
+    reply: () => "Done — <b>" + esc(vocab().meeting) + " · " + esc(S.cadence.time) + "</b>. It&rsquo;s already on your calendar, repeating.",
+    fresh: "cadence",
+  },
+  {
+    id: "term",
+    prompt: () => "Last one — what do you call this " + vocab().period.toLowerCase() + ", and do you collect dues?",
+    chips: () => [
+      { label: "Fall 2026 — with dues", apply: () => { S.term = { name: "Fall 2026", dates: "Aug 24 – Dec 18", dues: true }; S.wf.dues = 1; } },
+      { label: "Fall 2026 — no dues", apply: () => { S.term = { name: "Fall 2026", dates: "Aug 24 – Dec 18", dues: false }; S.wf.dues = 0; } },
+    ],
+    reply: () => "<b>" + esc(S.term.name) + "</b> it is — " + esc(S.term.dates) + (S.term.dues ? ", dues on." : ", dues off.") + " Your blueprint is ready.",
+    fresh: "term",
+  },
+];
+
+function setKind(k) { S.kind = k; S.vocab = { ...VOCAB[k] }; S.wf = { ...DEFAULT_WF[k] }; S.skipped = false; }
+function setPain(p) {
+  S.pain = p;
+  const key = PAIN_WF[p];
+  if (key === "dues") S.wf.dues = 1;
+  if (key === "attendance") S.wf.attendance = 1;
+  if (key === "events") S.wf.events = 1;
+  if (key === "comms") S.wf.comms = 1;
+}
+
+function askQuestion(idx) {
+  if (idx >= QUESTIONS.length) {
+    S.interviewDone = true;
+    later(() => {
+      const b = document.createElement("button");
+      b.className = "cta chat-cta"; b.innerHTML = "See my blueprint<span>→</span>";
+      b.addEventListener("click", () => goto(3));
+      chat.appendChild(b); scrollChat();
+    }, 500);
+    return;
+  }
+  S.chatStage = idx;
+  const q = QUESTIONS[idx];
+  const t = typingEl();
+  later(() => {
+    t.remove();
+    botMsg(q.prompt(), true);
+    chipsEl(q.chips(), opt => answer(q, opt.label, opt.apply));
+  }, idx === 0 ? 700 : 900);
+}
+function answer(q, label, apply) {
+  userMsg(label);
+  apply();
+  renderPreview(q.fresh === "kind" ? { side: "roster" } && "kind" : q.fresh);
+  if (q.fresh === "kind") renderPreview("kind");
+  const t = typingEl();
+  later(() => {
+    t.remove();
+    botMsg(q.reply());
+    later(() => askQuestion(QUESTIONS.indexOf(q) + 1), 650);
+  }, 850);
+}
+$("#freeText").addEventListener("keydown", e => {
+  if (e.key !== "Enter" || !e.target.value.trim() || S.interviewDone) return;
+  const text = e.target.value.trim(); e.target.value = "";
+  const q = QUESTIONS[S.chatStage];
+  $$(".chips", chat).forEach(el => el.remove());
+  // light keyword routing so free text still tailors
+  const lower = text.toLowerCase();
+  let apply;
+  if (q.id === "kind") {
+    const k = lower.includes("frat") ? "fraternity" : lower.includes("soror") ? "sorority" : lower.includes("team") ? "team" : "club";
+    apply = () => setKind(k);
+  } else if (q.id === "pain") {
+    const p = lower.includes("due") || lower.includes("money") ? "dues" : lower.includes("attend") ? "attendance" : lower.includes("event") || lower.includes("social") ? "events" : "comms";
+    apply = () => setPain(p);
+  } else if (q.id === "cadence") {
+    apply = () => { S.cadence = { label: text, day: 0, time: "7:00 PM" }; };
+  } else {
+    apply = () => { S.term = { name: text, dates: "Aug 24 – Dec 18", dues: true }; };
+  }
+  answer(q, text, apply);
+});
+function bootInterview() {
+  if (chat.dataset.booted) return;   // keep transcript on revisit
+  chat.dataset.booted = "1";
+  botMsg("I&rsquo;m going to ask four quick questions. Everything you say builds the workspace on the right — nothing is a form.", false);
+  later(() => askQuestion(0), 900);
+}
+$("#skipBtn").addEventListener("click", () => {
+  S.skipped = true; S.interviewDone = false;
+  S.kind = S.kind || "fraternity";
+  S.vocab = { ...VOCAB[S.kind] };
+  S.wf = { ...DEFAULT_WF[S.kind] };
+  goto(3);
+});
+
+/* ═══ Step 3 — blueprint ═══════════════════════════════════════════════ */
+const WF_META = [
+  { key: "roster", name: () => vocab().members, why: () => "every " + KIND_LABEL[S.kind].toLowerCase().replace(/^a |an /, "") + " starts with the roster." },
+  { key: "dues", name: () => "Dues & Treasury", why: () => S.pain === "dues" ? 'because you said <q>chasing dues</q> eats your time.' : (S.term && S.term.dues ? "you collect dues each " + vocab().period.toLowerCase() + "." : "off until you collect dues — one tap away.") },
+  { key: "attendance", name: () => "Attendance", why: () => S.pain === "attendance" ? 'because you said <q>tracking attendance</q> is the drain.' : (S.cadence ? "because " + vocab().meeting + " repeats weekly — worth counting." : "meetings worth counting.") },
+  { key: "events", name: () => "Events", why: () => S.pain === "events" ? 'because you said <q>planning events</q> takes the most time.' : "you meet on a rhythm; socials live here too." },
+  { key: "docs", name: () => "Docs", why: () => "bylaws, minutes and links — pinned, not lost in the chat." },
+  { key: "comms", name: () => "Announcements", why: () => S.pain === "comms" ? 'because you said <q>keeping everyone informed</q> is the struggle.' : "start light — turn on when the group chat stops scaling." },
+  { key: "tasks", name: () => "Tasks", why: () => "start light — turn on when exec needs assignments." },
+  { key: "service", name: () => "Service", why: () => "no service hours mentioned — flip it on if that changes." },
+];
+function renderBlueprint() {
+  const v = vocab();
+  $("#bpTitle").innerHTML = "Here&rsquo;s the workspace I&rsquo;d build for <em style=\"color:var(--vio)\">" + esc(displayName()) + "</em>.";
+  $("#bpBanner").classList.toggle("show", S.skipped);
+
+  $("#wfList").innerHTML = WF_META.map(m => {
+    const on = !!wf()[m.key];
+    return '<div class="wf-row' + (on ? "" : " off") + '" data-wf="' + m.key + '">' +
+      '<span class="wf-name">' + esc(m.name()) + "</span>" +
+      '<span class="wf-why">' + m.why() + "</span>" +
+      '<button class="wf-tgl">' + (on ? "ON" : "OFF") + "</button></div>";
+  }).join("");
+  $$("#wfList .wf-row").forEach(row => row.querySelector(".wf-tgl").addEventListener("click", () => {
+    const key = row.dataset.wf;
+    S.wf[key] = S.wf[key] ? 0 : 1;
+    renderBlueprint();
+  }));
+
+  $("#vocabRow").innerHTML = [
+    { l: "members", k: "members" }, { l: "meeting", k: "meeting" }, { l: "period", k: "period" },
+  ].map(t =>
+    '<span class="vocab-chip" data-vk="' + t.k + '" title="Click to edit"><span class="vl">' + t.l + '</span><span class="vv">' + esc(v[t.k]) + "</span></span>"
+  ).join("");
+  $("#vocabNote").innerHTML = "You said " + KIND_LABEL[S.kind].toLowerCase() + " — so I&rsquo;ll use <b>your</b> words everywhere. Click any to change it.";
+  $$("#vocabRow .vocab-chip").forEach(chip => chip.addEventListener("click", () => {
+    if (chip.querySelector("input")) return;
+    const k = chip.dataset.vk, vv = chip.querySelector(".vv");
+    const inp = document.createElement("input");
+    inp.value = vocab()[k];
+    vv.replaceWith(inp); inp.focus(); inp.select();
+    const save = () => {
+      S.vocab[k] = inp.value.trim() || S.vocab[k];
+      if (k === "members") S.vocab.member = S.vocab.members.replace(/s$/i, "");
+      renderBlueprint();
+    };
+    inp.addEventListener("blur", save);
+    inp.addEventListener("keydown", ev => { if (ev.key === "Enter") inp.blur(); });
+  }));
+
+  const seats = S.kind === "team"
+    ? [["Captain", "#d9a05b", "you — full access", true], ["Coach", "#7fb08a", "practices & roster", false], ["Team Manager", "#7fb3d9", "logistics & fees", false]]
+    : [["President", "#d9a05b", "you — full access", true], ["Treasurer", "#7fb08a", "dues & treasury", false], ["Social", "#d98ba3", "events & parties", false], ["PR", "#7fb3d9", "posts & comms", false]];
+  $("#seatList").innerHTML = seats.map(s =>
+    '<div class="seat"><span class="seat-dot" style="background:' + s[1] + '"></span><span class="seat-title">' + s[0] + "</span>" +
+    '<span class="seat-note">' + s[2] + "</span>" +
+    (s[3] ? '<span class="seat-you">YOU</span>' : '<span class="seat-open">SEAT READY</span>') + "</div>"
+  ).join("");
+
+  $("#termLine").textContent = S.term.name;
+  $("#termMeta").innerHTML =
+    S.term.dates + " &nbsp;·&nbsp; " + (S.term.dues ? "dues on" : "no dues") + "<br>" +
+    '<span class="dot"></span>' + esc(v.meeting) + " · " + esc(S.cadence.time) + " · repeats weekly — already placed";
+}
+
+/* ═══ Step 4 — sign-in + build ═════════════════════════════════════════ */
+let buildTimers = [];
+function clearBuild() { buildTimers.forEach(clearTimeout); buildTimers = []; }
+function resetBuildScreen() {
+  clearBuild();
+  $("#signinCard").style.display = "";
+  $("#building").classList.remove("show");
+  $("#signGlyph").textContent = monogram();
+  $("#signGlyph").style.setProperty("--acc", S.acc);
+  $("#signTitle").innerHTML = "Sign in to create <br>" + esc(displayName());
+}
+$("#googleBtn").addEventListener("click", () => {
+  $("#signinCard").style.display = "none";
+  const bld = $("#building");
+  bld.classList.add("show");
+  $("#bldGlyph").textContent = monogram();
+  $("#bldGlyph").style.setProperty("--acc", S.acc);
+  const v = vocab();
+  const lines = [
+    "reserving chaptos.app/" + slug(),
+    "seeding roles — " + (S.kind === "team" ? "Captain (you), Coach, Team Manager" : "President (you), Treasurer, Social, PR"),
+    "opening " + S.term.name + " · " + S.term.dates,
+    "placing " + v.meeting + " on the calendar — weekly, " + S.cadence.time,
+    "hanging the letters",
+  ];
+  $("#bldLines").innerHTML = lines.map(l =>
+    '<div class="bld-line"><span class="tick">✓</span><span>' + esc(l) + "</span></div>"
+  ).join("");
+  const els = $$("#bldLines .bld-line");
+  els.forEach((el, i) => {
+    buildTimers.push(setTimeout(() => el.classList.add("show"), 300 + i * 480));
+    buildTimers.push(setTimeout(() => el.classList.add("done"), 640 + i * 480));
+  });
+  buildTimers.push(setTimeout(() => goto(5), 300 + els.length * 480 + 700));
+});
+
+/* ═══ Step 5 — reveal ══════════════════════════════════════════════════ */
+const PAIN_CHECK = {
+  dues:       { t: "Log your first dues payment", p: "Treasury and member balances update together — the chase ends here." },
+  attendance: { t: () => "Take attendance at " + vocab().meeting, p: "One tap per head. Percentages and excuses handle themselves." },
+  events:     { t: "Plan your first social", p: "Budget, guest list and wrap-up in one place." },
+  comms:      { t: "Post your first announcement", p: "It lands on every dashboard, not page 4 of the group chat." },
+};
+function painDashCard() {
+  const v = vocab();
+  const c = {
+    dues:       { h: "Dues — front and center", big: "0 collected", sub: "balances fill in as your " + v.members.toLowerCase() + " join — the roster arrives with your invites" },
+    attendance: { h: "Attendance — front and center", big: "First " + v.meeting + " Sunday", sub: "one tap per head; percentages and excuses handle themselves" },
+    events:     { h: "Events — front and center", big: "1 on the calendar", sub: "budgets, guest lists and wrap-ups live with each event" },
+    comms:      { h: "Announcements — front and center", big: "1 draft ready", sub: "posts land on every dashboard, not page 4 of the group chat" },
+  }[S.pain || "dues"];
+  return '<div class="app-card"><h4>' + esc(c.h) + ' <span class="tag">because you asked for it</span></h4>' +
+    '<div class="pv-card" style="border:0; padding:0; background:transparent"><div class="big" style="font-size:18px; font-weight:600">' + esc(c.big) + '</div>' +
+    '<div class="sub" style="font-size:12px; color:var(--app-fg-60); margin-top:3px">' + c.sub + "</div></div></div>";
+}
+function renderReveal() {
+  const v = vocab(), scr = $('.scr[data-step="5"]');
+  scr.style.setProperty("--acc", S.acc);
+  $("#rvlSide").innerHTML =
+    '<div class="org"><span class="pv-glyph" style="--acc:' + S.acc + '">' + esc(monogram()) + "</span><b>" + esc(displayName()) + "</b></div>" +
+    "<ul>" + sideItems().map((it, i) =>
+      '<li class="' + (i === 0 ? "on" : "") + '" style="animation-delay:' + i * 60 + 'ms"><span class="dot"></span>' + esc(it.label) + "</li>"
+    ).join("") + "</ul>" +
+    '<div class="side-foot">Settings</div>';
+
+  const pc = PAIN_CHECK[S.pain || "dues"];
+  const painTitle = typeof pc.t === "function" ? pc.t() : pc.t;
+  $("#rvlMain").innerHTML =
+    '<div><h1 class="rvl-hello">Welcome to ' + esc(displayName()) + ".</h1>" +
+    '<p class="rvl-sub">Built from a four-question conversation · ' + esc(S.term.name) + " is live · everything here is yours to change.</p></div>" +
+    '<div class="rvl-grid">' +
+      '<div class="rvl-col">' +
+        '<div class="app-card"><h4>Announcement <span class="tag">drafted for you — edit or delete</span></h4>' +
+          '<div class="ann-body">' + esc(v.members) + " — we&rsquo;re moving " + esc(displayName()) + " operations to one place. " +
+          (wf().dues ? "Dues, attendance and the calendar" : "Attendance and the calendar") + " all live here now. First " +
+          esc(v.meeting) + " is " + esc(S.cadence.label) + " — it&rsquo;s already on the calendar." +
+          '<span class="sig">— your ' + (S.kind === "team" ? "Captain" : "President") + "</span></div>" +
+          '<div class="ann-foot"><button>Edit draft</button><button>Post it</button><button>Delete</button></div>' +
+        "</div>" +
+        '<div class="app-card"><h4>This week <span class="tag">' + esc(v.meeting) + " · " + esc(S.cadence.time) + " · weekly</span></h4>" +
+          weekHtml(S.cadence.day, true) +
+        "</div>" +
+        painDashCard() +
+      "</div>" +
+      '<div class="rvl-col">' +
+        '<div class="app-card check"><h4>Three things, then you&rsquo;re done</h4>' +
+          '<div class="check-item"><span class="check-n">1</span><div><b>Invite your exec board</b><p>Role-tagged links — your treasurer lands as Treasurer.</p><button class="go" data-go="6">Get exec links →</button></div></div>' +
+          '<div class="check-item"><span class="check-n">2</span><div><b>Bring in your ' + esc(v.members.toLowerCase()) + "</b><p>One link. They self-onboard; you watch the counter.</p><button class=\"go\" data-go=\"6\">Copy invite link →</button></div></div>" +
+          '<div class="check-item"><span class="check-n">3</span><div><b>' + esc(painTitle) + "</b><p>" + esc(pc.p) + "</p><button class=\"go\">Do it now →</button></div></div>" +
+        "</div>" +
+      "</div>" +
+    "</div>";
+  $$("#rvlMain [data-go]").forEach(b => b.addEventListener("click", () => goto(+b.dataset.go)));
+  $("#atc").innerHTML =
+    '<span class="pv-glyph" style="--acc:' + S.acc + '">C</span>' +
+    "<span><b>Ask the " + esc(v.meeting) + "</b> — I remember everything you told me. Try &ldquo;how do I track attendance?&rdquo;</span>";
+}
+
+/* ═══ Step 6 — invite ══════════════════════════════════════════════════ */
+let joinTimers = [], joined = 0;
+function clearJoins() { joinTimers.forEach(clearTimeout); joinTimers = []; }
+function renderInvite() {
+  const v = vocab(), scr = $('.scr[data-step="6"]');
+  scr.style.setProperty("--acc", S.acc);
+  $("#invTitle").textContent = "Bring in your " + v.members.toLowerCase() + ".";
+  $("#joinLink").textContent = "chaptos.app/join/" + slug().slice(0, 4) + "-x7Kp9mQv";
+  $("#everyoneHead").textContent = "Every " + v.member.toLowerCase();
+  const seats = S.kind === "team"
+    ? [["Coach", "#7fb08a"], ["Team Manager", "#7fb3d9"]]
+    : [["Treasurer", "#7fb08a"], ["Social", "#d98ba3"], ["PR", "#7fb3d9"]];
+  $("#execList").innerHTML = seats.map(s =>
+    '<div class="exec-row"><span class="seat-dot" style="background:' + s[1] + '"></span><b>' + s[0] + "</b>" +
+    '<span class="exec-link">chaptos.app/join/' + s[0].toLowerCase().replace(/\s+/g, "-") + "-8Fw2…</span>" +
+    '<button class="copy" data-copy="' + s[0] + '">COPY</button></div>'
+  ).join("");
+  if (!joined) { $("#joinAvs").innerHTML = ""; $("#joinCount").innerHTML = "<b>0</b> " + esc(v.members.toLowerCase()) + " joined — share a link to open the doors"; }
+  $$('.scr[data-step="6"] .copy').forEach(b => b.addEventListener("click", () => {
+    if (navigator.clipboard) navigator.clipboard.writeText("https://" + $("#joinLink").textContent).catch(() => {});
+    b.textContent = "COPIED"; b.classList.add("ok");
+    setTimeout(() => { b.textContent = "COPY"; b.classList.remove("ok"); }, 1800);
+    startJoins();
+  }));
+}
+function startJoins() {
+  if (joinTimers.length) return;
+  const v = vocab();
+  JOIN_NAMES.slice(0, 5).forEach((name, i) => {
+    joinTimers.push(setTimeout(() => {
+      joined = i + 1;
+      const initials = name.split(" ").map(w => w[0]).join("");
+      const av = document.createElement("div");
+      av.className = "av"; av.style.background = AV_COLORS[i]; av.textContent = initials; av.title = name;
+      $("#joinAvs").appendChild(av);
+      $("#joinCount").innerHTML = "<b>" + joined + "</b> " + esc((joined === 1 ? v.member : v.members).toLowerCase()) + " joined — " +
+        (joined < 3 ? "self-onboarding, no work on your end" : "your part was one link");
+    }, 1100 + i * 1300));
+  });
+}
+
+/* ═══ Router ═══════════════════════════════════════════════════════════ */
+const CAPS = {
+  1: "Fifteen seconds in, the org visually exists.",
+  2: "Four questions. Every answer rebuilds the preview.",
+  3: "A proposal to review — not a settings page to fill.",
+  4: "Auth at the last responsible moment, then honest theater.",
+  5: "The anti-empty-state: it arrives already alive.",
+  6: "The leader&rsquo;s job ends at sharing a link.",
+};
+function goto(step) {
+  step = Math.max(1, Math.min(6, step));
+  clearChatTimers(); clearBuild(); clearJoins();
+  ensureDefaults(step);
+  S.step = step;
+  $$(".scr").forEach(s => s.classList.toggle("active", +s.dataset.step === step));
+  $$("#rail button").forEach(b => b.classList.toggle("on", +b.dataset.go === step));
+  $("#railCap").innerHTML = CAPS[step];
+  const appWorld = step >= 5, darkWorld = step === 4;
+  document.body.style.background = appWorld ? "var(--app-bg)" : darkWorld ? "#060504" : "var(--paper)";
+  $("#chrome").className = "chrome" + (appWorld ? " scr-app-chrome" : darkWorld ? " scr-dark-chrome" : "");
+  $("#chromeTag").style.color = appWorld ? "var(--app-fg-40)" : "";
+  if (step <= 2) { renderPreview(); mountPreview(); }
+  if (step === 2) bootInterview();
+  if (step === 3) renderBlueprint();
+  if (step === 4) resetBuildScreen();
+  if (step === 5) renderReveal();
+  if (step === 6) renderInvite();
+  if (location.hash !== "#step-" + step) history.replaceState(null, "", "#step-" + step);
+}
+$$("[data-go]").forEach(b => b.addEventListener("click", () => goto(+b.dataset.go)));
+document.addEventListener("keydown", e => {
+  if (e.target.tagName === "INPUT") return;
+  if (e.key === "ArrowRight") goto(S.step + 1);
+  if (e.key === "ArrowLeft") goto(S.step - 1);
+});
+
+const m = location.hash.match(/step-(\d)/);
+goto(m ? +m[1] : 1);
+</script>
+</body>
+</html>
