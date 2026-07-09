@@ -1,0 +1,2449 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ChaptOS — Landing v3 Mock</title>
+<!--
+  ChaptOS marketing landing — v3 MOCK (design exploration, not wired to the app)
+  ─────────────────────────────────────────────────────────────────────────────
+  Brief: v2 as the base, "eye-opening parallax with depth — but also simplicity."
+
+  The idea: ONE motion language instead of five. The page is a camera dolly.
+  Every scroll-linked effect is the same physical metaphor — things far away
+  move slowly and sit soft; things near move fast and sharp; sections arrive
+  by coming *into focus*, not by sliding in.
+
+    · Hero          4 true depth planes (photo 0.30 · aurora 0.18 · UI 1× ·
+                    chips lead at −0.07…−0.16). Scrolling away performs a
+                    focus pull: the dashboard scales up, dims, softens.
+    · Statements    the three columns drift at ±0.04 — quiet plane separation.
+    · Three acts    kept the 320vh pin, replaced the flat crossfade with a
+                    dolly-through: outgoing act grows past the camera, the
+                    incoming one sharpens up from the far plane.
+    · Constellation (#workflows — the showpiece) three parallax planes
+                    (near/mid/far) driven by pointer *and* scroll; the
+                    connection lines are re-plotted every frame so the web
+                    flexes with the nodes.
+    · Ticker        kept — two rows scrubbing against each other.
+    · Intelligence  trimmed to two exchanges; chat arrives with a focus pull.
+    · Ivory steps   giant numerals drift on the foreground plane (−0.06…−0.11).
+    · Final CTA     aurora crescendo kept.
+
+  Fixes over v2 (beyond the motion rework)
+    1  Constellation link lines rendered 1px-dotted and never drew in
+       (stroke-dasharray:1 with no pathLength) → pathLength="1" + real draw,
+       endpoints tracked live.
+    2  Anchor links buried content under the sticky topbar → scroll-padding.
+    3  ~800 lines of dead v1 CSS (pillars/bento/wfband/v1-chat) dropped.
+    4  Competing idle loops (photo ken-burns vs scroll transform, twin-chip
+       bobs per act) consolidated; rAF now sleeps when the page settles.
+    5  Blur effects gated to fine pointers; reduced-motion / no-JS / narrow
+       viewports all fall back to fully static, fully visible layouts
+       (acts unpin < 760px, constellation becomes a grid < 880px).
+
+  Assumptions (flagged, not asked — direct-execution request)
+    · Copy is kept from v2 nearly verbatim; this pass is design/motion only.
+    · Brand system unchanged: warm paper / Fraunces / violet.
+    · Same delivery contract as every _design mock: one file, vanilla JS/CSS,
+      double-click to open, keep inside the repo so the hero photo resolves
+      (../public/images/landing/hero-lake.jpg) and fonts load from Google.
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,400;1,9..144,500;1,9..144,600&family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ═══ 0 · Base + tokens (ported from landing.css, pruned) ════════════════ */
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: 84px; }
+body { margin: 0; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+h1, h2, h3, h4, p, ul { margin: 0; padding: 0; }
+a { color: inherit; text-decoration: inherit; }
+
+.lp {
+  --paper: #0f0d0a;
+  --paper-2: #14120e;
+  --paper-3: #1b1813;
+  --card: #161310;
+  --ivory: #f2ede3;
+  --ivory-ink: #171410;
+  --ivory-ink-60: rgba(23, 20, 16, 0.62);
+  --ivory-line: rgba(23, 20, 16, 0.14);
+  --ink: #ece7dd;
+  --ink-72: rgba(236, 231, 221, 0.72);
+  --ink-55: rgba(236, 231, 221, 0.55);
+  --ink-40: rgba(236, 231, 221, 0.4);
+  --ink-28: rgba(236, 231, 221, 0.28);
+  --line: rgba(236, 231, 221, 0.13);
+  --line-soft: rgba(236, 231, 221, 0.07);
+  --vio: #a78bfa;
+  --vio-deep: #7c3aed;
+  --vio-ivory: #6d28d9;
+  --vio-soft: rgba(167, 139, 250, 0.12);
+  --vio-line: rgba(167, 139, 250, 0.32);
+  --gold: #ddb36a;
+  --rose: #d98ba3;
+  --ok: #7fb08a;
+  --ok-soft: rgba(127, 176, 138, 0.14);
+  --amber: #d9a05b;
+  --amber-soft: rgba(217, 160, 91, 0.14);
+  --serif: "Fraunces", Georgia, serif;
+  --sans: "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --mono: "Geist Mono", ui-monospace, Menlo, monospace;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+
+  position: relative;
+  min-height: 100vh;
+  min-height: 100dvh;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--sans);
+  overflow-x: clip;
+}
+
+/* Fine dot grain, matching the auth pages. */
+.lp::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.55;
+  background-image: radial-gradient(rgba(236, 231, 221, 0.025) 1px, transparent 1px);
+  background-size: 4px 4px;
+}
+/* Soft fixed vignette — the cheapest depth cue there is: the frame is always
+   a touch darker than the focal plane. */
+.lp::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2;
+  background: radial-gradient(120% 92% at 50% 42%, transparent 62%, rgba(5, 4, 2, 0.15) 100%);
+}
+.lp > * { position: relative; z-index: 1; }
+
+.lp ::selection { background: var(--vio-deep); color: #fff; }
+.lp a:focus-visible,
+.lp button:focus-visible {
+  outline: 2px solid var(--vio);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+.lp-container {
+  width: 100%;
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 0 clamp(20px, 5vw, 48px);
+}
+@media (min-width: 1280px) {
+  .lp-container { max-width: min(calc(1120px + 22vw), 1760px); }
+}
+
+/* ═══ 1 · Journey chrome — progress hairline ═════════════════════════════ */
+
+.v3-progress {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  z-index: 80;
+  pointer-events: none;
+  background: linear-gradient(90deg, var(--gold), var(--vio) 52%, var(--rose));
+  transform: scaleX(0);
+  transform-origin: left;
+  opacity: 0.85;
+}
+
+/* ═══ 2 · Topbar ═════════════════════════════════════════════════════════ */
+
+.lp-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: rgba(15, 13, 10, 0.78);
+  backdrop-filter: saturate(140%) blur(14px);
+  -webkit-backdrop-filter: saturate(140%) blur(14px);
+  border-bottom: 1px solid var(--line-soft);
+}
+.lp-topbar-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  height: 72px;
+  width: 100%;
+  padding: 0 clamp(20px, 3.5vw, 40px);
+}
+.lp-wordmark { display: flex; align-items: center; gap: 10px; text-decoration: none; color: var(--ink); }
+.lp-glyph {
+  height: 28px;
+  width: 28px;
+  border-radius: 7px;
+  background: var(--ink);
+  color: var(--paper);
+  font-family: var(--serif);
+  font-weight: 600;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.lp-wm-txt { font-size: 13px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; }
+.lp-nav { display: flex; align-items: center; gap: 28px; }
+.lp-nav a {
+  position: relative;
+  font-size: 13.5px;
+  color: var(--ink-55);
+  text-decoration: none;
+  padding: 4px 0;
+  transition: color 200ms var(--ease-out);
+}
+.lp-nav a::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -2px;
+  height: 1px;
+  background: var(--vio);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 260ms var(--ease-out);
+}
+.lp-nav a:hover { color: var(--ink); }
+.lp-nav a:hover::after { transform: scaleX(1); }
+.lp-topbar-actions { display: flex; align-items: center; gap: 18px; }
+.lp-signin { font-size: 13.5px; color: var(--ink-72); text-decoration: none; transition: color 200ms var(--ease-out); padding: 10px 2px; }
+.lp-signin:hover { color: var(--ink); }
+
+/* ═══ 3 · Buttons ════════════════════════════════════════════════════════ */
+
+.lp-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  min-height: 48px;
+  padding: 0 26px;
+  border-radius: 999px;
+  font-family: var(--sans);
+  font-size: 14.5px;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: background 200ms var(--ease-out), color 200ms var(--ease-out),
+    border-color 200ms var(--ease-out), transform 200ms var(--ease-out),
+    box-shadow 250ms var(--ease-out);
+}
+.lp-btn:active { transform: translateY(1px); }
+.lp-btn-primary { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+.lp-btn-primary:hover { background: #fff; border-color: #fff; }
+.lp-btn-primary svg { transition: transform 200ms var(--ease-out); }
+.lp-btn-primary:hover svg { transform: translateX(3px); }
+.lp-btn-ghost { background: transparent; color: var(--ink-72); border-color: var(--line); }
+.lp-btn-ghost:hover { color: var(--ink); border-color: var(--vio-line); background: var(--vio-soft); }
+.lp-btn-sm { min-height: 40px; padding: 0 20px; font-size: 13.5px; }
+/* Violet gradient reserved for the final ask so it stays special. */
+.lp-btn-glow {
+  background: linear-gradient(135deg, #8b5cf6, #6d28d9);
+  color: #fff;
+  border: 0;
+  box-shadow: 0 8px 28px -8px rgba(124, 58, 237, 0.55);
+}
+.lp-btn-glow:hover {
+  background: linear-gradient(135deg, #9d74f8, #7c3aed);
+  box-shadow: 0 12px 36px -8px rgba(124, 58, 237, 0.7);
+}
+.lp-btn-glow svg { transition: transform 200ms var(--ease-out); }
+.lp-btn-glow:hover svg { transform: translateX(3px); }
+
+/* ═══ 4 · Shared section scaffolding ═════════════════════════════════════ */
+
+.lp-eyebrow {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--vio);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.lp-eyebrow::after { content: ""; height: 1px; width: 48px; background: var(--vio-line); }
+.lp-eyebrow.centered { justify-content: center; }
+.lp-eyebrow.centered::before { content: ""; height: 1px; width: 48px; background: var(--vio-line); }
+
+.lp-h2 {
+  font-family: var(--serif);
+  font-weight: 500;
+  font-size: clamp(30px, 4.4vw, 46px);
+  line-height: 1.08;
+  letter-spacing: -0.018em;
+  margin: 18px 0 0;
+  color: var(--ink);
+  text-wrap: balance;
+}
+.lp-h2 em { font-style: italic; color: var(--vio); }
+.lp-lede {
+  font-size: 16px;
+  line-height: 1.65;
+  color: var(--ink-55);
+  margin: 18px 0 0;
+  max-width: 56ch;
+  text-wrap: pretty;
+}
+
+/* ═══ 5 · Focus-pull reveal — the single reveal used everywhere ══════════ */
+/* Elements arrive from the far plane: low, slightly small, soft. */
+
+.fx {
+  opacity: 0;
+  transform: translateY(26px) scale(0.975);
+  transition:
+    opacity 950ms ease var(--fxd, 0ms),
+    transform 950ms var(--ease-out) var(--fxd, 0ms),
+    filter 950ms ease var(--fxd, 0ms);
+}
+.fx-blur { filter: blur(7px); }
+.fx.in { opacity: 1; transform: none; }
+.fx-blur.in { filter: blur(0); }
+@media (pointer: coarse) { .fx-blur { filter: none; } }
+
+/* Masked display lines (Intelligence + final CTA). */
+.v3-mask { overflow: hidden; padding-bottom: 0.1em; margin-bottom: -0.1em; }
+.v3-mask > span { display: block; transform: translateY(112%); transition: transform 950ms var(--ease-out) var(--d, 0s); }
+.fx.in .v3-mask > span { transform: none; }
+
+/* ═══ 6 · Hero — four depth planes ═══════════════════════════════════════ */
+
+.lp-hero {
+  position: relative;
+  padding: clamp(72px, 9vw, 116px) 0 0;
+  text-align: center;
+}
+/* Plane 1 · the photo (slowest). Bled generously past the container so the
+   scroll parallax never exposes an edge; the scrim stays fixed to the
+   container so the fade line never moves. */
+.lp-hero-bg {
+  position: absolute;
+  top: -72px;
+  left: 0;
+  right: 0;
+  height: clamp(640px, 96vh, 1000px);
+  overflow: hidden;
+  pointer-events: none;
+}
+.lp-hero-bg .img {
+  position: absolute;
+  inset: -90px 0 -320px;
+  background: url("../public/images/landing/hero-lake.jpg") center 30% / cover no-repeat;
+  filter: saturate(0.9) brightness(0.95);
+  opacity: 0.62;
+  will-change: transform;
+}
+/* Plane 2 · aurora mid-layer. */
+.v3-hero-aur {
+  position: absolute;
+  inset: -60px 0 0;
+  pointer-events: none;
+  will-change: transform;
+  background:
+    radial-gradient(42% 34% at 50% 30%, rgba(124, 58, 237, 0.17), transparent 70%),
+    radial-gradient(26% 22% at 30% 20%, rgba(167, 139, 250, 0.1), transparent 70%),
+    radial-gradient(22% 20% at 72% 28%, rgba(217, 139, 163, 0.07), transparent 70%);
+}
+.lp-hero-bg::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(56% 40% at 50% 34%, rgba(124, 58, 237, 0.12), transparent 72%),
+    linear-gradient(
+      180deg,
+      rgba(15, 13, 10, 0.88) 0%,
+      rgba(15, 13, 10, 0.62) 16%,
+      rgba(15, 13, 10, 0.44) 36%,
+      rgba(15, 13, 10, 0.56) 58%,
+      rgba(15, 13, 10, 0.82) 78%,
+      var(--paper) 97%
+    );
+}
+
+.lp-hero > .lp-container { position: relative; z-index: 1; }
+
+.lp-hero-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--vio);
+  border: 1px solid var(--vio-line);
+  background: var(--vio-soft);
+  border-radius: 999px;
+  padding: 8px 16px;
+}
+.lp-hero-eyebrow .dot { height: 5px; width: 5px; border-radius: 50%; background: var(--vio); box-shadow: 0 0 8px var(--vio); }
+
+.lp-h1 {
+  font-family: var(--serif);
+  font-weight: 500;
+  font-size: clamp(42px, 7.4vw, 84px);
+  line-height: 1.02;
+  letter-spacing: -0.025em;
+  margin: 28px auto 0;
+  max-width: 13ch;
+  color: var(--ink);
+  text-wrap: balance;
+}
+.lp-h1 em {
+  font-style: italic;
+  background: linear-gradient(105deg, #cdbcfc 5%, #8b5cf6 55%, #b69df8 95%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.lp-hero-lede {
+  font-size: clamp(15.5px, 1.6vw, 17.5px);
+  line-height: 1.65;
+  color: var(--ink-55);
+  max-width: 54ch;
+  margin: 22px auto 0;
+  text-wrap: pretty;
+}
+.lp-hero-ctas {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-top: 36px;
+}
+.lp-hero-micro {
+  margin-top: 22px;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ink-55);
+}
+.lp-hero-micro span { margin: 0 10px; }
+
+@keyframes lp-rise {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: none; }
+}
+.lp-hero .lp-rise { animation: lp-rise 800ms var(--ease-out) both; }
+.lp-hero .lp-rise.d1 { animation-delay: 60ms; }
+.lp-hero .lp-rise.d2 { animation-delay: 140ms; }
+.lp-hero .lp-rise.d3 { animation-delay: 220ms; }
+.lp-hero .lp-rise.d4 { animation-delay: 300ms; }
+
+/* Plane 3 · the product (1×). JS performs the focus pull on .lp-mock-stage
+   as the hero scrolls away — scale up, dim, soften — so keep this element
+   free of CSS transforms/animations. */
+.lp-mock-wrap {
+  margin-top: clamp(56px, 6vw, 76px);
+  animation: lp-rise 900ms var(--ease-out) 380ms both;
+  position: relative;
+}
+.lp-mock-wrap::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 140px;
+  pointer-events: none;
+  z-index: 3;
+  background: linear-gradient(to bottom, transparent, var(--paper));
+}
+.lp-mock-stage {
+  position: relative;
+  max-width: 980px;
+  margin: 0 auto;
+  will-change: transform, opacity, filter;
+}
+.lp-mock {
+  position: relative;
+  text-align: left;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--card);
+  box-shadow:
+    0 1px 0 rgba(236, 231, 221, 0.05) inset,
+    0 24px 80px -24px rgba(0, 0, 0, 0.8),
+    0 60px 160px -40px rgba(124, 58, 237, 0.25);
+  overflow: hidden;
+}
+
+/* Plane 4 · floating glass cards — the nearest layer, so they *lead* the
+   scroll (negative depth) at three different rates. */
+.lp-float-pos { position: absolute; z-index: 2; }
+.lp-float-pos.pos-pay { left: -54px; top: 150px; }
+.lp-float-pos.pos-att { right: -48px; top: 264px; }
+.lp-float-pos.pos-event { right: -20px; top: 28px; }
+.lp-float {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: rgba(24, 20, 16, 0.72);
+  backdrop-filter: blur(12px) saturate(130%);
+  -webkit-backdrop-filter: blur(12px) saturate(130%);
+  box-shadow: 0 18px 50px -18px rgba(0, 0, 0, 0.8);
+  padding: 11px 16px 11px 12px;
+  text-align: left;
+  white-space: nowrap;
+}
+.lp-float.tilt-l { transform: rotate(-2deg); }
+.lp-float.tilt-r { transform: rotate(2deg); }
+.lp-float .fic {
+  height: 30px;
+  width: 30px;
+  flex: none;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.lp-float .fic.ok { color: var(--ok); background: var(--ok-soft); }
+.lp-float .fic.vio { color: var(--vio); background: var(--vio-soft); }
+.lp-float .fic.rose { color: var(--rose); background: rgba(217, 139, 163, 0.13); }
+.lp-float .ft { font-size: 12px; font-weight: 600; color: var(--ink); }
+.lp-float .fs { font-size: 11px; color: var(--ink-55); margin-top: 2px; }
+.lp-float .ftime { font-family: var(--mono); font-size: 9px; color: var(--ink-28); align-self: flex-start; margin-left: 6px; }
+
+/* ── Dashboard mock internals (ported verbatim) ─────────────────────────── */
+
+.lp-chrome {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--line-soft);
+  background: var(--paper-2);
+}
+.lp-chrome-dots { display: flex; gap: 6px; }
+.lp-chrome-dots span { height: 9px; width: 9px; border-radius: 50%; background: var(--line); }
+.lp-chrome-url {
+  flex: 1;
+  max-width: 320px;
+  margin: 0 auto;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--ink-40);
+  text-align: center;
+  border: 1px solid var(--line-soft);
+  border-radius: 6px;
+  padding: 4px 12px;
+  background: var(--paper);
+}
+.lp-mock-body { display: grid; grid-template-columns: 192px 1fr; min-height: 480px; }
+.lp-mock-side {
+  border-right: 1px solid var(--line-soft);
+  background: var(--paper-2);
+  padding: 16px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.lp-mock-side .org { display: flex; align-items: center; gap: 8px; padding: 6px 8px 14px; }
+.lp-mock-side .org .badge {
+  height: 22px;
+  width: 22px;
+  border-radius: 6px;
+  background: linear-gradient(135deg, var(--vio-deep), var(--vio));
+  color: #fff;
+  font-size: 9px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.lp-mock-side .org .name { font-size: 11px; font-weight: 600; color: var(--ink-72); }
+.lp-mock-side .group {
+  font-family: var(--mono);
+  font-size: 8.5px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-28);
+  padding: 12px 8px 5px;
+}
+.lp-mock-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--ink-55);
+  padding: 6px 8px;
+  border-radius: 6px;
+}
+.lp-mock-nav-item svg { opacity: 0.7; flex: none; }
+.lp-mock-nav-item.active { background: var(--vio-soft); color: var(--ink); border: 1px solid var(--vio-line); }
+.lp-mock-main { padding: 22px 24px; display: flex; flex-direction: column; gap: 16px; }
+.lp-mock-header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.lp-mock-header .hi { font-family: var(--serif); font-size: 19px; font-weight: 500; color: var(--ink); }
+.lp-mock-header .sem {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-40);
+  border: 1px solid var(--line-soft);
+  border-radius: 999px;
+  padding: 4px 10px;
+}
+.lp-kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.lp-kpi { border: 1px solid var(--line-soft); background: var(--paper-2); border-radius: 10px; padding: 12px 14px; }
+.lp-kpi .k { font-family: var(--mono); font-size: 8.5px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-40); }
+.lp-kpi .v { font-family: var(--serif); font-size: 21px; font-weight: 500; color: var(--ink); margin-top: 6px; line-height: 1; }
+.lp-kpi .d { font-size: 10px; margin-top: 7px; }
+.lp-kpi .d.up { color: var(--ok); }
+.lp-kpi .d.flat { color: var(--ink-40); }
+.lp-mock-chart { border: 1px solid var(--line-soft); background: var(--paper-2); border-radius: 10px; padding: 14px 16px 8px; }
+.lp-mock-chart .row { display: flex; align-items: baseline; justify-content: space-between; }
+.lp-mock-chart .t { font-size: 11px; font-weight: 600; color: var(--ink-72); }
+.lp-mock-chart .amt { font-family: var(--serif); font-size: 17px; color: var(--ink); }
+.lp-mock-chart svg { display: block; width: 100%; height: auto; margin-top: 8px; }
+.lp-mock-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.lp-mock-panel { border: 1px solid var(--line-soft); background: var(--paper-2); border-radius: 10px; padding: 13px 14px; }
+.lp-mock-panel .pt {
+  font-family: var(--mono);
+  font-size: 8.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-40);
+  margin-bottom: 10px;
+}
+.lp-mock-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 6px 0;
+  border-top: 1px solid var(--line-soft);
+  font-size: 11px;
+  color: var(--ink-72);
+}
+.lp-mock-row .date {
+  font-family: var(--mono);
+  font-size: 9px;
+  color: var(--vio);
+  border: 1px solid var(--vio-line);
+  background: var(--vio-soft);
+  border-radius: 5px;
+  padding: 2px 7px;
+  flex: none;
+}
+.lp-mock-row .spacer { flex: 1; }
+.lp-mock-row .meta { font-family: var(--mono); font-size: 9px; color: var(--ink-28); }
+.lp-ava {
+  height: 18px;
+  width: 18px;
+  flex: none;
+  border-radius: 50%;
+  font-size: 7.5px;
+  font-weight: 700;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.lp-pill {
+  font-family: var(--mono);
+  font-size: 8.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  border-radius: 999px;
+  padding: 2.5px 8px;
+  flex: none;
+}
+.lp-pill.ok { color: var(--ok); background: var(--ok-soft); }
+.lp-pill.owe { color: var(--amber); background: var(--amber-soft); }
+.lp-pill.vio { color: var(--vio); background: var(--vio-soft); }
+
+/* ═══ 7 · Statements strip — quiet plane separation ══════════════════════ */
+
+.lp-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 32px;
+  border-top: 1px solid var(--line-soft);
+  padding: clamp(40px, 5vw, 56px) 0 0;
+}
+.lp-stat { text-align: center; }
+.lp-stat .n {
+  font-family: var(--serif);
+  font-weight: 500;
+  font-size: clamp(26px, 3vw, 38px);
+  line-height: 1.1;
+  letter-spacing: -0.015em;
+  color: var(--ink);
+}
+.lp-stat.hue-vio .n em { font-style: italic; color: var(--vio); }
+.lp-stat.hue-gold .n em { font-style: italic; color: var(--gold); }
+.lp-stat.hue-green .n em { font-style: italic; color: var(--ok); }
+.lp-stat .c {
+  margin-top: 12px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--ink-55);
+  max-width: 30ch;
+  margin-left: auto;
+  margin-right: auto;
+  text-wrap: pretty;
+}
+
+/* ═══ 8 · Three acts — pinned dolly-through ══════════════════════════════ */
+
+/* Bridges the statements strip into this section, no heading needed: a soft
+   glow rises behind the seam and a single connecting rule drops from the
+   strip's border into the pinned stage, so it reads as one continuous
+   surface instead of two stacked slabs. */
+.v3-acts { position: relative; padding-top: clamp(28px, 3.4vw, 40px); overflow: clip; }
+.v3-acts::before {
+  content: "";
+  position: absolute;
+  top: -120px;
+  left: 50%;
+  width: min(920px, 90vw);
+  height: 420px;
+  transform: translateX(-50%);
+  pointer-events: none;
+  background: radial-gradient(50% 55% at 50% 100%, rgba(124, 58, 237, 0.1), transparent 72%);
+}
+.v3-acts::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: clamp(20px, 5vw, 48px);
+  width: 1px;
+  height: clamp(52px, 6.4vw, 76px);
+  background: linear-gradient(to bottom, color-mix(in srgb, var(--vio) 55%, transparent), transparent);
+  pointer-events: none;
+}
+
+.v3-acts-track { position: relative; }
+.v3-acts.on .v3-acts-track { height: 320vh; }
+.v3-acts.on .v3-acts-stage {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  overflow: clip;
+}
+
+.v3-acts-glow {
+  position: absolute;
+  top: 50%;
+  right: -14%;
+  width: min(760px, 70vw);
+  aspect-ratio: 1;
+  transform: translateY(-50%);
+  pointer-events: none;
+  opacity: 0;
+}
+.v3-acts:not(.on) .v3-acts-glow { display: none; }
+.v3-acts-glow.g-gold { background: radial-gradient(closest-side, rgba(221, 179, 106, 0.13), transparent 72%); }
+.v3-acts-glow.g-vio  { background: radial-gradient(closest-side, rgba(124, 58, 237, 0.17), transparent 72%); }
+.v3-acts-glow.g-rose { background: radial-gradient(closest-side, rgba(217, 139, 163, 0.13), transparent 72%); }
+
+.v3-acts-frame { display: flex; gap: clamp(28px, 4vw, 64px); width: 100%; }
+.v3-acts-rail { display: none; }
+.v3-acts.on .v3-acts-rail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  flex: none;
+  align-self: stretch;
+  padding: 8vh 0;
+}
+.v3-rail-line { flex: 1; width: 1px; background: var(--line-soft); position: relative; overflow: hidden; }
+.v3-rail-line i {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, var(--gold), var(--vio) 52%, var(--rose));
+  transform: scaleY(0);
+  transform-origin: top;
+  will-change: transform;
+}
+.v3-rail-nums {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  color: var(--ink);
+}
+.v3-rail-nums span { opacity: 0.28; }
+
+.v3-acts-scene { position: relative; flex: 1; min-width: 0; }
+.v3-acts.on .v3-acts-scene { height: min(620px, 76vh); }
+
+.v3-act {
+  display: grid;
+  grid-template-columns: 1fr 1.08fr;
+  gap: clamp(32px, 6vw, 80px);
+  align-items: center;
+}
+.v3-acts:not(.on) .v3-act { padding: clamp(40px, 5.5vw, 72px) 0; }
+.v3-acts:not(.on) .v3-act + .v3-act { border-top: 1px solid var(--line-soft); }
+.v3-acts.on .v3-act { position: absolute; inset: 0; will-change: transform, opacity; }
+.v3-acts.on .v3-act:not(:first-child) { opacity: 0; visibility: hidden; }
+.v3-acts.on .v3-act > * { will-change: transform, filter; }
+
+.v3-kicker {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--acc);
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+}
+.v3-kicker::before { content: ""; height: 1px; width: 34px; background: color-mix(in srgb, var(--acc) 45%, transparent); }
+.v3-act-copy h3 {
+  font-family: var(--serif);
+  font-weight: 500;
+  font-size: clamp(30px, 3.6vw, 44px);
+  line-height: 1.08;
+  letter-spacing: -0.018em;
+  margin-top: 16px;
+  color: var(--ink);
+  text-wrap: balance;
+}
+.v3-act-copy h3 em { font-style: italic; color: var(--acc); }
+.v3-act-copy p {
+  font-size: 15.5px;
+  line-height: 1.7;
+  color: var(--ink-55);
+  margin-top: 16px;
+  max-width: 42ch;
+  text-wrap: pretty;
+}
+.v3-points { margin: 20px 0 0; padding: 0; list-style: none; }
+.v3-points li {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font-size: 13.5px;
+  color: var(--ink-72);
+  padding: 7px 0;
+}
+.v3-points li::before {
+  content: "";
+  flex: none;
+  height: 5px;
+  width: 5px;
+  border-radius: 50%;
+  background: var(--acc);
+  transform: translateY(-2px);
+}
+
+.v3-act-visual { position: relative; }
+.v3-panel {
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--card);
+  padding: 20px;
+  box-shadow:
+    0 1px 0 rgba(236, 231, 221, 0.04) inset,
+    0 28px 90px -28px rgba(0, 0, 0, 0.78),
+    0 52px 150px -48px color-mix(in srgb, var(--acc) 30%, transparent);
+}
+.v3-panel-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 12px; }
+.v3-panel-head .k { font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-40); }
+.v3-panel-head .v { font-family: var(--serif); font-size: 22px; color: var(--ink); }
+.v3-panel svg { display: block; width: 100%; height: auto; margin-bottom: 10px; }
+.v3-draw { stroke-dasharray: 1; stroke-dashoffset: 1; }
+.v3-acts:not(.on) .v3-draw { stroke-dashoffset: 0; }
+
+.v3-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 0;
+  border-top: 1px solid var(--line-soft);
+  font-size: 12px;
+  color: var(--ink-72);
+}
+.v3-row .sp { flex: 1; }
+.v3-row .meta { font-family: var(--mono); font-size: 9.5px; color: var(--ink-28); }
+
+/* Act II roll call + minutes stagger on --t1 (set per-frame; defaults 1). */
+.v3-rc .v3-row,
+.v3-minutes {
+  transform: translateY(calc((1 - var(--t1, 1)) * (var(--n, 0) + 1) * 12px));
+  opacity: calc(0.25 + var(--t1, 1) * 0.75);
+}
+.v3-rc .v3-row:first-child { border-top: 0; }
+.v3-minutes {
+  margin-top: 14px;
+  border: 1px solid var(--line-soft);
+  background: var(--paper-2);
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+.v3-minutes .mh { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 7px; }
+.v3-minutes .mh .k { font-family: var(--mono); font-size: 8.5px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-40); }
+.v3-minutes .mh .save { font-family: var(--mono); font-size: 9px; color: var(--ok); }
+.v3-minutes p { display: flex; align-items: flex-start; gap: 8px; margin: 0; font-size: 12px; line-height: 1.55; color: var(--ink-72); }
+.v3-minutes p svg { flex: none; width: 13px; height: 13px; margin: 2px 0 0; color: var(--vio); }
+
+/* Act III board stagger on --t2. */
+.v3-board { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.v3-bcol { border: 1px solid var(--line-soft); background: var(--paper-2); border-radius: 10px; padding: 10px; min-height: 168px; }
+.v3-bcol .bt {
+  font-family: var(--mono);
+  font-size: 8.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-40);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 9px;
+}
+.v3-bcol .bt i { height: 5px; width: 5px; border-radius: 50%; flex: none; }
+.v3-bcol .bt .cnt { color: var(--ink-28); margin-left: auto; }
+.v3-bcard {
+  border: 1px solid var(--line-soft);
+  background: var(--card);
+  border-radius: 7px;
+  padding: 9px 10px;
+  margin-bottom: 7px;
+  transform: translateY(calc((1 - var(--t2, 1)) * (var(--n, 0) + 1) * 16px));
+  opacity: calc(0.3 + var(--t2, 1) * 0.7);
+}
+.v3-bcard .n { font-size: 11px; font-weight: 600; color: var(--ink-72); line-height: 1.3; }
+.v3-bcard .m { font-family: var(--mono); font-size: 8.5px; color: var(--ink-28); margin-top: 4px; }
+
+/* One floating chip per act. */
+.v3-fchip {
+  position: absolute;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(24, 20, 16, 0.78);
+  backdrop-filter: blur(12px) saturate(130%);
+  -webkit-backdrop-filter: blur(12px) saturate(130%);
+  box-shadow: 0 18px 50px -18px rgba(0, 0, 0, 0.8);
+  padding: 10px 15px 10px 11px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink);
+  white-space: nowrap;
+}
+.v3-fchip em { font-style: normal; font-family: var(--mono); font-size: 10.5px; font-weight: 400; color: var(--ink-55); }
+.v3-fchip .fic { height: 28px; width: 28px; flex: none; border-radius: 9px; display: flex; align-items: center; justify-content: center; }
+.v3-fchip .fic.ok { color: var(--ok); background: var(--ok-soft); }
+.v3-fchip .fic.gold { color: var(--gold); background: rgba(221, 179, 106, 0.13); }
+.v3-fchip .fic.vio { color: var(--vio); background: var(--vio-soft); }
+.v3-fchip .fic.rose { color: var(--rose); background: rgba(217, 139, 163, 0.13); }
+.v3-fchip.fc-tl { top: -22px; left: -34px; transform: rotate(-2deg); }
+.v3-fchip.fc-br { bottom: -20px; right: -26px; transform: rotate(1.5deg); }
+
+/* ═══ 9 · Constellation — three live parallax planes (#workflows) ════════ */
+
+.v3-field {
+  position: relative;
+  padding: clamp(96px, 13vw, 176px) 0 clamp(64px, 8vw, 104px);
+  overflow: clip;
+  background: linear-gradient(180deg, var(--paper) 0%, #131019 22%, #131019 78%, var(--paper) 100%);
+}
+.v3-field::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(50% 36% at 50% 54%, rgba(124, 58, 237, 0.1), transparent 72%);
+}
+.v3-field-head { position: relative; text-align: center; max-width: 760px; margin: 0 auto; }
+.v3-field-head .lp-lede { margin-left: auto; margin-right: auto; }
+
+.v3-stage {
+  position: relative;
+  max-width: 1280px;
+  margin: clamp(36px, 5vw, 64px) auto 0;
+  height: clamp(540px, 70vh, 680px);
+}
+.v3-stage * { pointer-events: none; } /* decoration — the parallax IS the interaction */
+
+.v3-links { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.v3-links line {
+  stroke-width: 1;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  transition: stroke-dashoffset 1.3s var(--ease-out) var(--d, 0s);
+}
+.v3-links line.l-near { stroke: rgba(167, 139, 250, 0.22); }
+.v3-links line.l-mid  { stroke: rgba(167, 139, 250, 0.15); }
+.v3-links line.l-far  { stroke: rgba(167, 139, 250, 0.09); }
+.v3-stage.in .v3-links line { stroke-dashoffset: 0; }
+
+.v3-core { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 2; }
+.v3-core .px { will-change: transform; }
+.v3-core .disc {
+  position: relative;
+  height: 148px;
+  width: 148px;
+  border-radius: 50%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  border: 1px solid var(--vio-line);
+  background: radial-gradient(closest-side, rgba(124, 58, 237, 0.22), rgba(124, 58, 237, 0.05) 78%, transparent);
+  box-shadow: 0 0 80px -12px rgba(124, 58, 237, 0.45);
+}
+.v3-core .glyph {
+  height: 34px;
+  width: 34px;
+  border-radius: 9px;
+  background: var(--ink);
+  color: var(--paper);
+  font-family: var(--serif);
+  font-weight: 600;
+  font-size: 19px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.v3-core .lbl { font-family: var(--mono); font-size: 9px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--ink-72); }
+.v3-core .ring {
+  position: absolute;
+  inset: -1px;
+  border-radius: 50%;
+  border: 1px solid rgba(167, 139, 250, 0.35);
+  animation: v3-ring 3.8s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+  pointer-events: none;
+}
+.v3-core .ring.r2 { animation-delay: 1.9s; }
+@keyframes v3-ring {
+  from { transform: scale(1); opacity: 0.6; }
+  to { transform: scale(1.9); opacity: 0; }
+}
+
+.v3-node { position: absolute; left: var(--x); top: var(--y); transform: translate(-50%, -50%); z-index: 1; }
+.v3-node .px { will-change: transform; }
+.v3-node .bob { animation: v3-bob var(--bs, 6s) ease-in-out var(--bd, 0s) infinite alternate; }
+@keyframes v3-bob {
+  from { transform: translateY(-4px); }
+  to { transform: translateY(4px); }
+}
+.v3-node .card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid color-mix(in srgb, var(--hue) 26%, transparent);
+  background: color-mix(in srgb, var(--hue) 7%, rgba(20, 17, 13, 0.72));
+  border-radius: 12px;
+  padding: 10px 16px 10px 11px;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  box-shadow:
+    0 16px 44px -16px rgba(0, 0, 0, 0.7),
+    0 0 44px -12px color-mix(in srgb, var(--hue) 28%, transparent);
+  white-space: nowrap;
+  opacity: 0;
+  transform: scale(0.82) translateY(12px);
+  transition: opacity 700ms ease var(--d, 0s), transform 700ms var(--ease-out) var(--d, 0s);
+}
+.v3-stage.in .v3-node .card { opacity: 1; transform: none; }
+.v3-node .ic {
+  height: 32px;
+  width: 32px;
+  flex: none;
+  border-radius: 9px;
+  color: var(--hue);
+  border: 1px solid color-mix(in srgb, var(--hue) 30%, transparent);
+  background: color-mix(in srgb, var(--hue) 10%, transparent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.v3-node .lbl { font-size: 12.5px; font-weight: 600; color: var(--ink); line-height: 1.2; }
+.v3-node .sub { display: block; font-family: var(--mono); font-size: 9px; font-weight: 400; color: var(--ink-40); margin-top: 3px; }
+/* Atmospheric perspective per plane. */
+.v3-node.mid { z-index: 1; }
+.v3-node.mid .card { padding: 9px 14px 9px 10px; }
+.v3-node.mid .ic { height: 28px; width: 28px; }
+.v3-node.mid .lbl { font-size: 11.5px; }
+.v3-node.mid .bob { opacity: 0.92; }
+.v3-node.far { z-index: 0; }
+.v3-node.far .bob { filter: blur(0.7px); opacity: 0.75; }
+.v3-node.far .card { padding: 8px 13px 8px 9px; }
+.v3-node.far .ic { height: 26px; width: 26px; border-radius: 8px; }
+.v3-node.far .lbl { font-size: 11px; }
+
+.v3-field-note {
+  position: relative;
+  margin-top: clamp(28px, 4vw, 44px);
+  text-align: center;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-55);
+}
+
+/* ═══ 10 · On the record — scroll-scrubbed ticker ════════════════════════ */
+
+.v3-record { padding: clamp(96px, 12vw, 160px) 0 clamp(80px, 10vw, 132px); overflow: clip; }
+.v3-record-head { text-align: center; max-width: 640px; margin: 0 auto clamp(44px, 6vw, 72px); }
+.v3-ticker {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
+}
+.v3-ticker .inner { display: flex; gap: 14px; width: max-content; will-change: transform; }
+.v3-ticker .row.r2 .inner { transform: translateX(-760px); }
+.v3-tick {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--line-soft);
+  border-radius: 999px;
+  background: rgba(236, 231, 221, 0.03);
+  padding: 11px 20px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink-55);
+  white-space: nowrap;
+  flex: none;
+}
+.v3-tick i {
+  height: 5px;
+  width: 5px;
+  border-radius: 50%;
+  background: var(--hue, var(--vio));
+  box-shadow: 0 0 10px color-mix(in srgb, var(--hue, var(--vio)) 60%, transparent);
+  flex: none;
+}
+.v3-tick em { font-style: normal; color: var(--ink-28); margin-left: 2px; }
+
+/* ═══ 11 · Intelligence — cinematic chat ═════════════════════════════════ */
+
+.v3-intel {
+  position: relative;
+  background: #0a0d16;
+  border-top: 1px solid rgba(120, 140, 220, 0.08);
+  border-bottom: 1px solid rgba(120, 140, 220, 0.08);
+  padding: clamp(96px, 13vw, 176px) 0;
+  overflow: clip;
+}
+.v3-orb { position: absolute; border-radius: 50%; pointer-events: none; }
+.v3-orb.o1 { width: min(680px, 60vw); aspect-ratio: 1; right: -12%; top: -6%; background: radial-gradient(closest-side, rgba(99, 102, 241, 0.16), transparent 72%); }
+.v3-orb.o2 { width: min(520px, 50vw); aspect-ratio: 1; left: -10%; bottom: -12%; background: radial-gradient(closest-side, rgba(124, 58, 237, 0.13), transparent 72%); }
+.v3-intel > .lp-container { position: relative; }
+
+.v3-intel-head { max-width: 940px; }
+.v3-giant {
+  font-family: var(--serif);
+  font-weight: 500;
+  font-size: clamp(44px, 7.6vw, 104px);
+  line-height: 1.04;
+  letter-spacing: -0.025em;
+  color: var(--ink);
+}
+.v3-giant em {
+  font-style: italic;
+  background: linear-gradient(105deg, #cdbcfc 5%, #8b5cf6 55%, #b69df8 95%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.v3-intel-lede { font-size: 16px; line-height: 1.65; color: var(--ink-55); max-width: 52ch; margin-top: 26px; text-wrap: pretty; }
+
+.v3-chat-wrap { position: relative; max-width: 680px; margin: clamp(48px, 6vw, 84px) auto 0; }
+.v3-chat {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  border: 1px solid rgba(167, 139, 250, 0.18);
+  border-radius: 20px;
+  background: rgba(16, 19, 31, 0.92);
+  padding: clamp(22px, 3.5vw, 34px);
+  box-shadow:
+    0 1px 0 rgba(236, 231, 221, 0.04) inset,
+    0 30px 90px -28px rgba(0, 0, 0, 0.8),
+    0 60px 160px -48px rgba(99, 102, 241, 0.35);
+}
+.v3-msg.q {
+  align-self: flex-end;
+  max-width: 82%;
+  font-size: 13.5px;
+  color: var(--ink-72);
+  background: var(--vio-soft);
+  border: 1px solid var(--vio-line);
+  border-radius: 16px 16px 5px 16px;
+  padding: 11px 16px;
+}
+.v3-msg.a {
+  font-family: var(--serif);
+  font-size: 16.5px;
+  line-height: 1.55;
+  color: var(--ink);
+  border-left: 2px solid var(--vio-line);
+  padding-left: 16px;
+  max-width: 92%;
+}
+.v3-msg .sub {
+  font-family: var(--sans);
+  font-size: 12.5px;
+  color: var(--ink-55);
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.v3-msg .sub span { display: flex; align-items: center; gap: 9px; }
+.v3-msg .sub .amt { font-family: var(--mono); font-size: 11px; color: var(--amber); margin-left: auto; }
+.v3-approve { margin-left: auto; animation: v3-approve 2.6s ease-in-out infinite; }
+@keyframes v3-approve {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(127, 176, 138, 0); }
+  50% { box-shadow: 0 0 16px -2px rgba(127, 176, 138, 0.5); }
+}
+.v3-composer {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(236, 231, 221, 0.04);
+  padding: 12px 18px;
+  font-size: 13px;
+  color: var(--ink-40);
+}
+.v3-composer .caret { width: 1px; height: 15px; margin-right: 7px; background: var(--vio); animation: v3-blink 1.1s steps(2, start) infinite; }
+@keyframes v3-blink { to { visibility: hidden; } }
+.v3-composer .send {
+  margin-left: auto;
+  height: 28px;
+  width: 28px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--vio-deep);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ═══ 12 · Ivory steps — foreground numerals ═════════════════════════════ */
+
+.v3-ivory {
+  background: var(--ivory);
+  color: var(--ivory-ink);
+  border-top: 1px solid var(--ivory-line);
+  border-bottom: 1px solid var(--ivory-line);
+  overflow: clip;
+}
+.v3-ivory .lp-eyebrow { color: var(--vio-ivory); }
+.v3-ivory .lp-eyebrow::after { background: rgba(109, 40, 217, 0.3); }
+.v3-ivory .lp-h2 { color: var(--ivory-ink); }
+.v3-ivory .lp-h2 em { color: var(--vio-ivory); }
+.v3-ivory-pad { padding-top: clamp(72px, 10vw, 128px); padding-bottom: clamp(72px, 10vw, 128px); }
+.v3-steps { margin-top: clamp(40px, 5vw, 72px); }
+.v3-step {
+  position: relative;
+  display: grid;
+  grid-template-columns: clamp(130px, 18vw, 230px) 1fr;
+  gap: clamp(20px, 4vw, 56px);
+  align-items: center;
+  padding: clamp(36px, 5vw, 60px) 0;
+}
+.v3-step-line {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: var(--ivory-line);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 1.1s var(--ease-out) 120ms;
+}
+.fx.in .v3-step-line { transform: scaleX(1); }
+.v3-step .num {
+  display: block;
+  font-family: var(--serif);
+  font-style: italic;
+  font-weight: 500;
+  font-size: clamp(88px, 13vw, 176px);
+  line-height: 0.9;
+  color: rgba(109, 40, 217, 0.13);
+}
+.v3-step h3 {
+  font-family: var(--serif);
+  font-weight: 500;
+  font-size: clamp(24px, 2.6vw, 32px);
+  letter-spacing: -0.012em;
+  color: var(--ivory-ink);
+}
+.v3-step p { font-size: 15px; line-height: 1.65; color: var(--ivory-ink-60); margin-top: 10px; max-width: 52ch; text-wrap: pretty; }
+
+/* ═══ 13 · Final CTA — aurora crescendo ══════════════════════════════════ */
+
+.v3-final { position: relative; text-align: center; padding: clamp(120px, 16vw, 220px) 0; overflow: clip; }
+.v3-final-aur {
+  position: absolute;
+  left: 50%;
+  bottom: -32%;
+  width: min(1000px, 120vw);
+  aspect-ratio: 1.6;
+  transform: translateX(-50%) scale(0.75);
+  pointer-events: none;
+  opacity: 0.4;
+  will-change: transform, opacity;
+  background: radial-gradient(50% 50% at 50% 50%, rgba(124, 58, 237, 0.26), rgba(217, 139, 163, 0.07) 55%, transparent 72%);
+}
+.v3-final > .lp-container { position: relative; }
+.v3-final .v3-h2 {
+  font-family: var(--serif);
+  font-weight: 500;
+  font-size: clamp(38px, 6vw, 72px);
+  line-height: 1.06;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+  max-width: 22ch;
+  margin: 18px auto 0;
+}
+.v3-final .v3-h2 em { font-style: italic; color: var(--vio); }
+.v3-final .lp-hero-ctas { margin-top: 44px; }
+
+/* ═══ 14 · Footer ════════════════════════════════════════════════════════ */
+
+.lp-footer { border-top: 1px solid var(--line-soft); padding: 32px 0; }
+.lp-footer-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+.lp-footer .links { display: flex; align-items: center; gap: 24px; }
+.lp-footer .links a { font-size: 13px; color: var(--ink-40); text-decoration: none; transition: color 200ms var(--ease-out); }
+.lp-footer .links a:hover { color: var(--ink); }
+.lp-footer .legal { font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-40); }
+
+/* ═══ 15 · Responsive ════════════════════════════════════════════════════ */
+
+@media (max-width: 1180px) {
+  .lp-float-pos.pos-pay { left: 6px; }
+  .lp-float-pos.pos-att { right: 6px; }
+  .lp-float-pos.pos-event { right: 24px; }
+}
+@media (max-width: 960px) {
+  .lp-float-pos { display: none; }
+}
+@media (max-width: 900px) {
+  .v3-act { grid-template-columns: 1fr; gap: 30px; }
+  .v3-acts.on .v3-act { align-content: center; }
+  .v3-acts.on .v3-acts-rail { display: none; }
+  .v3-act-visual { max-width: 540px; }
+  .v3-fchip.fc-tl { left: -6px; }
+  .v3-fchip.fc-br { right: -6px; }
+}
+@media (max-width: 880px) {
+  .v3-stage { height: auto; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 0 20px; }
+  .v3-links, .v3-core { display: none; }
+  .v3-node { position: static; transform: none; }
+  /* clear any parallax offsets left behind by a desktop-width session */
+  .v3-node .px { transform: none !important; }
+  .v3-node .card { white-space: normal; }
+  .v3-node .bob { animation: none; }
+  .v3-node.far .bob, .v3-node.mid .bob { filter: none; opacity: 1; }
+}
+@media (max-width: 820px) {
+  .lp-mock-body { grid-template-columns: 1fr; }
+  .lp-mock-side { display: none; }
+  .lp-kpis { grid-template-columns: repeat(2, 1fr); }
+  .lp-stats { grid-template-columns: 1fr; gap: 36px; }
+}
+@media (max-width: 720px) {
+  .lp-nav { display: none; }
+  .v3-step { grid-template-columns: 1fr; gap: 10px; }
+  .v3-step .num { font-size: clamp(64px, 18vw, 96px); }
+  .v3-board { grid-template-columns: 1fr 1fr; }
+  .v3-bcol:last-child { display: none; }
+}
+@media (max-width: 560px) {
+  .lp-mock-cols { grid-template-columns: 1fr; }
+  .lp-hero-ctas .lp-btn { width: 100%; }
+}
+
+/* ═══ 16 · Reduced motion — everything static, everything visible ════════ */
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .fx { opacity: 1; transform: none; filter: none; transition: none; }
+  .v3-mask > span { transform: none; transition: none; }
+  .v3-links line { stroke-dashoffset: 0; transition: none; }
+  .v3-node .card { opacity: 1; transform: none; transition: none; }
+  .v3-step-line { transform: scaleX(1); transition: none; }
+  .v3-draw { stroke-dashoffset: 0; }
+  .v3-rc .v3-row, .v3-minutes { transform: none; opacity: 1; }
+  .v3-bcard { transform: none; opacity: 1; }
+  .v3-final-aur { opacity: 1; transform: translateX(-50%) scale(1); }
+  .v3-progress { display: none; }
+  .lp-hero .lp-rise, .lp-mock-wrap, .v3-node .bob, .v3-core .ring,
+  .v3-approve, .v3-composer .caret { animation: none; }
+  .lp * { transition-duration: 0.01ms !important; }
+}
+</style>
+</head>
+<body>
+<div class="lp">
+  <noscript>
+    <style>
+      .fx { opacity: 1; transform: none; filter: none; }
+      .v3-mask > span { transform: none; }
+      .v3-node .card { opacity: 1; transform: none; }
+      .v3-links { display: none; }
+      .v3-step-line { transform: scaleX(1); }
+      .v3-draw { stroke-dashoffset: 0; }
+      .v3-rc .v3-row, .v3-minutes { transform: none; opacity: 1; }
+      .v3-bcard { transform: none; opacity: 1; }
+      .v3-progress { display: none; }
+    </style>
+  </noscript>
+
+  <div class="v3-progress" aria-hidden="true"></div>
+
+  <!-- ════ Topbar ════════════════════════════════════════════════════════ -->
+
+  <header class="lp-topbar">
+    <div class="lp-topbar-inner">
+      <a href="#" class="lp-wordmark" aria-label="ChaptOS home">
+        <span class="lp-glyph" aria-hidden="true">C</span>
+        <span class="lp-wm-txt">ChaptOS</span>
+      </a>
+      <nav class="lp-nav" aria-label="Sections">
+        <a href="#product">Product</a>
+        <a href="#workflows">Workflows</a>
+        <a href="#intelligence">AI</a>
+      </nav>
+      <div class="lp-topbar-actions">
+        <a href="#" class="lp-signin">Sign in</a>
+        <a href="#" class="lp-btn lp-btn-primary lp-btn-sm">Get started</a>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <!-- ════ Hero — four depth planes ════════════════════════════════════ -->
+
+    <section class="lp-hero">
+      <div class="lp-hero-bg" aria-hidden="true">
+        <div class="img" data-hero-img></div>
+        <div class="v3-hero-aur" data-hero-aur></div>
+      </div>
+      <div class="lp-container">
+        <div class="lp-rise d1">
+          <span class="lp-hero-eyebrow">
+            <span class="dot" aria-hidden="true"></span>
+            The AI-native operating system for student orgs
+          </span>
+        </div>
+        <h1 class="lp-h1 lp-rise d2">Run your chapter like an <em>institution</em>.</h1>
+        <p class="lp-hero-lede lp-rise d3">
+          Dues, attendance, programming, people — one calm, intelligent home
+          with an AI that handles the busywork, so your time goes back to why
+          you joined. If it has members and a mission, ChaptOS runs it.
+        </p>
+        <div class="lp-hero-ctas lp-rise d4">
+          <a href="#" class="lp-btn lp-btn-primary">
+            Start your chapter
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+          </a>
+          <a href="#product" class="lp-btn lp-btn-ghost">See the product</a>
+        </div>
+        <p class="lp-hero-micro lp-rise d4">
+          Set up in minutes<span aria-hidden="true">·</span>One link to invite
+          the roster<span aria-hidden="true">·</span>Sign in with Google
+        </p>
+
+        <div class="lp-mock-wrap">
+          <div class="lp-mock-stage" data-mock-stage>
+            <div class="js-tilt" style="perspective: 1400px">
+              <div class="js-tilt-inner" style="will-change: transform; transform-style: preserve-3d">
+                <div class="lp-mock" aria-hidden="true">
+                  <div class="lp-chrome">
+                    <div class="lp-chrome-dots"><span></span><span></span><span></span></div>
+                    <div class="lp-chrome-url">chaptos.app/lambda-phi</div>
+                    <div class="lp-chrome-dots" style="visibility: hidden"><span></span><span></span><span></span></div>
+                  </div>
+                  <div class="lp-mock-body">
+                    <div class="lp-mock-side">
+                      <div class="org">
+                        <span class="badge">ΛΦ</span>
+                        <span class="name">Lambda Phi</span>
+                      </div>
+                      <div class="group">Overview</div>
+                      <div class="lp-mock-nav-item active"><svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><circle cx="5" cy="5" r="2" fill="currentColor"/></svg>Dashboard</div>
+                      <div class="lp-mock-nav-item"><svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><circle cx="5" cy="5" r="2" fill="currentColor"/></svg>Timeline</div>
+                      <div class="group">Members</div>
+                      <div class="lp-mock-nav-item"><svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><circle cx="5" cy="5" r="2" fill="currentColor"/></svg>Brotherhood</div>
+                      <div class="lp-mock-nav-item"><svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><circle cx="5" cy="5" r="2" fill="currentColor"/></svg>Chapter</div>
+                      <div class="group">Operations</div>
+                      <div class="lp-mock-nav-item"><svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><circle cx="5" cy="5" r="2" fill="currentColor"/></svg>Treasury</div>
+                      <div class="lp-mock-nav-item"><svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><circle cx="5" cy="5" r="2" fill="currentColor"/></svg>Programming</div>
+                      <div class="lp-mock-nav-item"><svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><circle cx="5" cy="5" r="2" fill="currentColor"/></svg>Service</div>
+                      <div class="lp-mock-nav-item"><svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><circle cx="5" cy="5" r="2" fill="currentColor"/></svg>Docs</div>
+                    </div>
+                    <div class="lp-mock-main">
+                      <div class="lp-mock-header">
+                        <div class="hi">Good evening, Lambda Phi</div>
+                        <div class="sem">Spring ’26</div>
+                      </div>
+                      <div class="lp-kpis">
+                        <div class="lp-kpi">
+                          <div class="k">Attendance</div>
+                          <div class="v">92%</div>
+                          <div class="d up">▲ 4.2% vs last month</div>
+                        </div>
+                        <div class="lp-kpi">
+                          <div class="k">Dues collected</div>
+                          <div class="v">$18,440</div>
+                          <div class="d up">▲ 12 of 14 paid</div>
+                        </div>
+                        <div class="lp-kpi">
+                          <div class="k">Chapter GPA</div>
+                          <div class="v">3.42</div>
+                          <div class="d flat">— steady</div>
+                        </div>
+                        <div class="lp-kpi">
+                          <div class="k">Service hours</div>
+                          <div class="v">312</div>
+                          <div class="d up">▲ 38 this month</div>
+                        </div>
+                      </div>
+                      <div class="lp-mock-chart">
+                        <div class="row">
+                          <span class="t">Net balance</span>
+                          <span class="amt">$12,480</span>
+                        </div>
+                        <svg viewBox="0 0 560 130" fill="none" role="presentation">
+                          <defs>
+                            <linearGradient id="lpGrad" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="0%" stop-color="#A78BFA" stop-opacity="0.32"/>
+                              <stop offset="100%" stop-color="#A78BFA" stop-opacity="0"/>
+                            </linearGradient>
+                          </defs>
+                          <line x1="0" y1="26" x2="560" y2="26" stroke="rgba(236,231,221,0.06)" stroke-dasharray="3 5"/>
+                          <line x1="0" y1="56" x2="560" y2="56" stroke="rgba(236,231,221,0.06)" stroke-dasharray="3 5"/>
+                          <line x1="0" y1="86" x2="560" y2="86" stroke="rgba(236,231,221,0.06)" stroke-dasharray="3 5"/>
+                          <path d="M0,104 C40,98 70,92 110,86 C150,80 180,90 220,78 C260,66 290,72 330,58 C370,44 400,52 440,38 C480,24 520,28 560,16 L560,130 L0,130 Z" fill="url(#lpGrad)"/>
+                          <path d="M0,104 C40,98 70,92 110,86 C150,80 180,90 220,78 C260,66 290,72 330,58 C370,44 400,52 440,38 C480,24 520,28 560,16" stroke="#A78BFA" stroke-width="2" stroke-linecap="round"/>
+                          <circle cx="560" cy="16" r="3.5" fill="#A78BFA"/>
+                        </svg>
+                      </div>
+                      <div class="lp-mock-cols">
+                        <div class="lp-mock-panel">
+                          <div class="pt">This week</div>
+                          <div class="lp-mock-row" style="border-top: 0">
+                            <span class="date">THU</span>
+                            Chapter meeting
+                            <span class="spacer"></span>
+                            <span class="meta">7:00 PM</span>
+                          </div>
+                          <div class="lp-mock-row">
+                            <span class="date">FRI</span>
+                            Alumni mixer
+                            <span class="spacer"></span>
+                            <span class="meta">6:30 PM</span>
+                          </div>
+                          <div class="lp-mock-row">
+                            <span class="date">SAT</span>
+                            Beach cleanup
+                            <span class="spacer"></span>
+                            <span class="meta">9:00 AM</span>
+                          </div>
+                        </div>
+                        <div class="lp-mock-panel">
+                          <div class="pt">Dues</div>
+                          <div class="lp-mock-row" style="border-top: 0">
+                            <span class="lp-ava" style="background: #7c5cd4">MK</span>
+                            Marcus Kim
+                            <span class="spacer"></span>
+                            <span class="lp-pill ok">Paid</span>
+                          </div>
+                          <div class="lp-mock-row">
+                            <span class="lp-ava" style="background: #4f8a6b">DR</span>
+                            Diego Reyes
+                            <span class="spacer"></span>
+                            <span class="lp-pill ok">Paid</span>
+                          </div>
+                          <div class="lp-mock-row">
+                            <span class="lp-ava" style="background: #a8743d">JT</span>
+                            Jordan Tran
+                            <span class="spacer"></span>
+                            <span class="lp-pill owe">Owes $120</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="lp-float-pos pos-pay" data-depth="-0.16">
+              <div class="px" style="will-change: transform">
+                <div class="lp-float tilt-l" aria-hidden="true">
+                  <span class="fic ok"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg></span>
+                  <span>
+                    <span class="ft">Dues received</span>
+                    <span class="fs" style="display: block">Jordan Tran — $120.00</span>
+                  </span>
+                  <span class="ftime">now</span>
+                </div>
+              </div>
+            </div>
+            <div class="lp-float-pos pos-att" data-depth="-0.10">
+              <div class="px" style="will-change: transform">
+                <div class="lp-float tilt-r" aria-hidden="true">
+                  <span class="fic vio"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
+                  <span>
+                    <span class="ft">Chapter check-in</span>
+                    <span class="fs" style="display: block">41 of 46 present · 89%</span>
+                  </span>
+                </div>
+              </div>
+            </div>
+            <div class="lp-float-pos pos-event" data-depth="-0.07">
+              <div class="px" style="will-change: transform">
+                <div class="lp-float tilt-r" aria-hidden="true">
+                  <span class="fic rose"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2v4"/><path d="M16 2v4"/><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M3 10h18"/></svg></span>
+                  <span>
+                    <span class="ft">Event published</span>
+                    <span class="fs" style="display: block">Alumni mixer · Fri 6:30 PM</span>
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════ Statements — columns on three shallow planes ════════════════ -->
+
+    <section class="lp-section-strip">
+      <div class="lp-container">
+        <div class="lp-stats">
+          <div class="lp-stat hue-vio fx" data-depth="0.05">
+            <div class="px">
+              <div class="n">One <em>home</em>.</div>
+              <p class="c">Money, meetings, events, service, docs, people — every workflow your org runs on, in a single source of truth.</p>
+            </div>
+          </div>
+          <div class="lp-stat hue-gold fx" data-depth="0.01" style="--fxd: 90ms">
+            <div class="px">
+              <div class="n">Set up in <em>minutes</em>.</div>
+              <p class="c">Describe your org in a short AI conversation and it drafts a starting setup — workflows, roles, vocabulary — for you to review and launch.</p>
+            </div>
+          </div>
+          <div class="lp-stat hue-green fx" data-depth="-0.03" style="--fxd: 180ms">
+            <div class="px">
+              <div class="n">Time, <em>back</em>.</div>
+              <p class="c">Ask it anything, hand it the busywork — it answers from your real data and drafts the change, ready for one-tap approval.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════ Three acts — pinned dolly-through ═══════════════════════════ -->
+
+    <section class="v3-acts" id="product">
+      <div class="v3-acts-track">
+        <div class="v3-acts-stage">
+          <div class="v3-acts-glow g-gold" aria-hidden="true"></div>
+          <div class="v3-acts-glow g-vio" aria-hidden="true"></div>
+          <div class="v3-acts-glow g-rose" aria-hidden="true"></div>
+          <div class="lp-container v3-acts-frame">
+            <div class="v3-acts-rail" aria-hidden="true">
+              <div class="v3-rail-nums"><span>01</span><span>02</span><span>03</span></div>
+              <div class="v3-rail-line"><i></i></div>
+            </div>
+            <div class="v3-acts-scene">
+
+              <article class="v3-act" style="--acc: #DDB36A">
+                <div class="v3-act-copy">
+                  <span class="v3-kicker">Act I · Treasury</span>
+                  <h3>Money, <em>accounted for</em>.</h3>
+                  <p>Every due, fine, and reimbursement in one ledger — who’s paid at a glance, the balance trending all semester, books that close without a formula.</p>
+                  <ul class="v3-points">
+                    <li>Per-member dues statuses that update themselves</li>
+                    <li>Semester-over-semester balance trends</li>
+                    <li>A paper trail for every dollar</li>
+                  </ul>
+                </div>
+                <div class="v3-act-visual" aria-hidden="true">
+                  <div class="v3-panel">
+                    <div class="v3-panel-head">
+                      <span class="k">Semester balance</span>
+                      <span class="v">$12,480</span>
+                    </div>
+                    <svg viewBox="0 0 560 150" fill="none" role="presentation">
+                      <defs>
+                        <linearGradient id="v3GradGold" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stop-color="#DDB36A" stop-opacity="0.3"/>
+                          <stop offset="100%" stop-color="#DDB36A" stop-opacity="0"/>
+                        </linearGradient>
+                      </defs>
+                      <line x1="0" y1="34" x2="560" y2="34" stroke="rgba(236,231,221,0.06)" stroke-dasharray="3 5"/>
+                      <line x1="0" y1="72" x2="560" y2="72" stroke="rgba(236,231,221,0.06)" stroke-dasharray="3 5"/>
+                      <line x1="0" y1="110" x2="560" y2="110" stroke="rgba(236,231,221,0.06)" stroke-dasharray="3 5"/>
+                      <path d="M0,122 C40,115 70,108 110,101 C150,94 180,105 220,91 C260,77 290,84 330,68 C370,52 400,61 440,45 C480,29 520,33 560,19 L560,150 L0,150 Z" fill="url(#v3GradGold)"/>
+                      <path class="v3-draw" pathLength="1" d="M0,122 C40,115 70,108 110,101 C150,94 180,105 220,91 C260,77 290,84 330,68 C370,52 400,61 440,45 C480,29 520,33 560,19" stroke="#DDB36A" stroke-width="2" stroke-linecap="round"/>
+                    </svg>
+                    <div class="v3-row">
+                      <span class="lp-ava" style="background: #7c5cd4">MK</span>
+                      Marcus Kim
+                      <span class="sp"></span>
+                      <span class="meta">Spring dues</span>
+                      <span class="lp-pill ok">Paid</span>
+                    </div>
+                    <div class="v3-row">
+                      <span class="lp-ava" style="background: #a8743d">JT</span>
+                      Jordan Tran
+                      <span class="sp"></span>
+                      <span class="meta">Spring dues</span>
+                      <span class="lp-pill owe">Owes $120</span>
+                    </div>
+                  </div>
+                  <div class="v3-fchip fc-br">
+                    <span class="fic ok"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
+                    Reimbursement approved
+                    <em>$86.20</em>
+                  </div>
+                </div>
+              </article>
+
+              <article class="v3-act" style="--acc: #A78BFA">
+                <div class="v3-act-copy">
+                  <span class="v3-kicker">Act II · Chapter</span>
+                  <h3>Events that <em>run themselves</em>.</h3>
+                  <p>Every chapter meeting on one ledger — roll call in two taps, excused absences with the reason attached, and minutes that autosave as you type, then summarize themselves with AI.</p>
+                  <ul class="v3-points">
+                    <li>One-tap check-ins at every meeting</li>
+                    <li>Attendance history per member, per semester</li>
+                    <li>Health signals that catch problems early</li>
+                  </ul>
+                </div>
+                <div class="v3-act-visual" aria-hidden="true">
+                  <div class="v3-panel">
+                    <div class="v3-panel-head">
+                      <span class="k">Chapter meeting · Today 7:00 PM</span>
+                      <span class="v">41 / 46</span>
+                    </div>
+                    <div class="v3-rc">
+                      <div class="v3-row" style="--n: 0">
+                        <span class="lp-ava" style="background: #7c5cd4">MK</span>
+                        Marcus Kim
+                        <span class="sp"></span>
+                        <span class="lp-pill ok">Present</span>
+                      </div>
+                      <div class="v3-row" style="--n: 1">
+                        <span class="lp-ava" style="background: #4f8a6b">DR</span>
+                        Diego Reyes
+                        <span class="sp"></span>
+                        <span class="lp-pill ok">Present</span>
+                      </div>
+                      <div class="v3-row" style="--n: 2">
+                        <span class="lp-ava" style="background: #a8743d">JT</span>
+                        Jordan Tran
+                        <span class="sp"></span>
+                        <span class="meta">exam conflict</span>
+                        <span class="lp-pill vio">Excused</span>
+                      </div>
+                    </div>
+                    <div class="v3-minutes" style="--n: 3">
+                      <div class="mh">
+                        <span class="k">Meeting minutes</span>
+                        <span class="save">Autosaved ✓</span>
+                      </div>
+                      <p>
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.5l2.1 6.1 6.4.4-5 4 1.6 6.2L12 15.7l-5.1 3.5L8.5 13l-5-4 6.4-.4z"/></svg>
+                        Formal moved to May 2 — venue budget approved 38–3.
+                      </p>
+                    </div>
+                  </div>
+                  <div class="v3-fchip fc-tl">
+                    <span class="fic vio"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
+                    Roll call saved
+                    <em>41 of 46</em>
+                  </div>
+                </div>
+              </article>
+
+              <article class="v3-act" style="--acc: #D98BA3">
+                <div class="v3-act-copy">
+                  <span class="v3-kicker">Act III · Programming</span>
+                  <h3>From idea to <em>calendar</em>.</h3>
+                  <p>Pitch it, plan it, publish it — the whole semester on one stage board, with owners, dates, and budgets on every event.</p>
+                  <ul class="v3-points">
+                    <li>Stage-based planning from pitch to published</li>
+                    <li>Owners, dates, and budgets on every event</li>
+                    <li>Promote to the chapter calendar when it’s real</li>
+                  </ul>
+                </div>
+                <div class="v3-act-visual" aria-hidden="true">
+                  <div class="v3-panel">
+                    <div class="v3-panel-head">
+                      <span class="k">Spring programming</span>
+                      <span class="v">6 events</span>
+                    </div>
+                    <div class="v3-board">
+                      <div class="v3-bcol">
+                        <div class="bt"><i style="background: #D98BA3"></i>Idea <span class="cnt">2</span></div>
+                        <div class="v3-bcard" style="--n: 0">
+                          <div class="n">Casino night</div>
+                          <div class="m">No owner yet</div>
+                        </div>
+                        <div class="v3-bcard" style="--n: 1">
+                          <div class="n">Intramural league</div>
+                          <div class="m">Needs budget</div>
+                        </div>
+                      </div>
+                      <div class="v3-bcol">
+                        <div class="bt"><i style="background: #D9A05B"></i>Planned <span class="cnt">2</span></div>
+                        <div class="v3-bcard" style="--n: 1">
+                          <div class="n">Alumni mixer</div>
+                          <div class="m">Fri · D. Reyes</div>
+                        </div>
+                        <div class="v3-bcard" style="--n: 2">
+                          <div class="n">Beach cleanup</div>
+                          <div class="m">Sat · Service</div>
+                        </div>
+                      </div>
+                      <div class="v3-bcol">
+                        <div class="bt"><i style="background: #7FB08A"></i>Live <span class="cnt">1</span></div>
+                        <div class="v3-bcard" style="--n: 2">
+                          <div class="n">Chapter meeting</div>
+                          <div class="m">Thu · Weekly</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="v3-fchip fc-br">
+                    <span class="fic rose"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v4"/><path d="M16 2v4"/><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M3 10h18"/></svg></span>
+                    Alumni mixer → calendar
+                    <em>live</em>
+                  </div>
+                </div>
+              </article>
+
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════ Constellation — live parallax planes ════════════════════════ -->
+
+    <section class="v3-field" id="workflows">
+      <div class="lp-container">
+        <div class="fx v3-field-head">
+          <span class="lp-eyebrow centered">Workflows</span>
+          <h2 class="lp-h2">Whatever your org runs on, <em>it runs here</em>.</h2>
+          <p class="lp-lede">Turn on what you need today — everything else is one toggle away when you grow into it.</p>
+        </div>
+      </div>
+      <div class="fx v3-stage" data-stage aria-hidden="true">
+        <svg class="v3-links" data-links>
+          <line pathLength="1" class="l-near" data-b="treasury"     style="--d: 0.20s"/>
+          <line pathLength="1" class="l-near" data-b="programming"  style="--d: 0.26s"/>
+          <line pathLength="1" class="l-near" data-b="chapter"      style="--d: 0.32s"/>
+          <line pathLength="1" class="l-mid"  data-b="brotherhood"  style="--d: 0.38s"/>
+          <line pathLength="1" class="l-mid"  data-b="timeline"     style="--d: 0.44s"/>
+          <line pathLength="1" class="l-mid"  data-b="service"      style="--d: 0.50s"/>
+          <line pathLength="1" class="l-far"  data-b="docs"         style="--d: 0.56s"/>
+          <line pathLength="1" class="l-far"  data-b="comms"        style="--d: 0.62s"/>
+          <line pathLength="1" class="l-far"  data-b="parties"      style="--d: 0.68s"/>
+        </svg>
+        <div class="v3-core" data-node="core" style="--x: 50%; --y: 50%">
+          <div class="px">
+            <div class="disc">
+              <span class="ring"></span>
+              <span class="ring r2"></span>
+              <span class="glyph">C</span>
+              <span class="lbl">Your chapter</span>
+            </div>
+          </div>
+        </div>
+        <div class="v3-node near" data-node="treasury" style="--x: 16%; --y: 22%; --hue: #DDB36A; --bs: 6.2s; --bd: -1s">
+          <div class="px"><div class="bob"><div class="card" style="--d: 0ms">
+            <span class="ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></span>
+            <span><span class="lbl">Treasury</span><span class="sub">$12,480 on hand</span></span>
+          </div></div></div>
+        </div>
+        <div class="v3-node near" data-node="programming" style="--x: 84%; --y: 28%; --hue: #7EA6E0; --bs: 5.8s; --bd: -4s">
+          <div class="px"><div class="bob"><div class="card" style="--d: 60ms">
+            <span class="ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3v14"/><path d="M12 3v8"/><path d="M19 3v18"/></svg></span>
+            <span><span class="lbl">Programming</span><span class="sub">6 events live</span></span>
+          </div></div></div>
+        </div>
+        <div class="v3-node near" data-node="chapter" style="--x: 20%; --y: 78%; --hue: #7FB08A; --bs: 6.8s; --bd: -2s">
+          <div class="px"><div class="bob"><div class="card" style="--d: 120ms">
+            <span class="ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v4"/><path d="M16 2v4"/><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M3 10h18"/><path d="m9 16 2 2 4-4"/></svg></span>
+            <span><span class="lbl">Chapter</span><span class="sub">92% turnout</span></span>
+          </div></div></div>
+        </div>
+        <div class="v3-node mid" data-node="brotherhood" style="--x: 80%; --y: 74%; --hue: #A78BFA; --bs: 7s; --bd: -3s">
+          <div class="px"><div class="bob"><div class="card" style="--d: 180ms">
+            <span class="ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
+            <span><span class="lbl">Brotherhood</span><span class="sub">46 members</span></span>
+          </div></div></div>
+        </div>
+        <div class="v3-node mid" data-node="timeline" style="--x: 6%; --y: 48%; --hue: #9BA7E0; --bs: 6.6s; --bd: -2.2s">
+          <div class="px"><div class="bob"><div class="card" style="--d: 240ms">
+            <span class="ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></svg></span>
+            <span><span class="lbl">Timeline</span><span class="sub">on the record</span></span>
+          </div></div></div>
+        </div>
+        <div class="v3-node mid" data-node="service" style="--x: 52%; --y: 90%; --hue: #D98BA3; --bs: 7.4s; --bd: -1.6s">
+          <div class="px"><div class="bob"><div class="card" style="--d: 300ms">
+            <span class="ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.29 1.51 4.04 3 5.5l7 7Z"/></svg></span>
+            <span><span class="lbl">Service</span><span class="sub">312 hours</span></span>
+          </div></div></div>
+        </div>
+        <div class="v3-node far" data-node="docs" style="--x: 34%; --y: 8%; --hue: #6FB5AC; --bs: 8.2s; --bd: -2.8s">
+          <div class="px"><div class="bob"><div class="card" style="--d: 360ms">
+            <span class="ic"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg></span>
+            <span class="lbl">Docs</span>
+          </div></div></div>
+        </div>
+        <div class="v3-node far" data-node="comms" style="--x: 94%; --y: 46%; --hue: #E0B65C; --bs: 8.6s; --bd: -3.4s">
+          <div class="px"><div class="bob"><div class="card" style="--d: 420ms">
+            <span class="ic"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m3 11 18-5v12L3 14v-3z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/></svg></span>
+            <span class="lbl">Communications</span>
+          </div></div></div>
+        </div>
+        <div class="v3-node far" data-node="parties" style="--x: 66%; --y: 10%; --hue: #E09A6A; --bs: 8.8s; --bd: -0.8s">
+          <div class="px"><div class="bob"><div class="card" style="--d: 480ms">
+            <span class="ic"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/><path d="M20 3v4"/><path d="M22 5h-4"/></svg></span>
+            <span class="lbl">Parties</span>
+          </div></div></div>
+        </div>
+      </div>
+      <p class="fx v3-field-note">Toggle workflows as your org grows · the AI works across all of them</p>
+    </section>
+
+    <!-- ════ On the record — scroll-scrubbed ticker ══════════════════════ -->
+
+    <section class="v3-record">
+      <div class="lp-container">
+        <div class="fx v3-record-head">
+          <span class="lp-eyebrow centered">Timeline</span>
+          <h2 class="lp-h2">Every change, <em>on the record</em>.</h2>
+        </div>
+      </div>
+      <div class="v3-ticker" data-ticker aria-hidden="true">
+        <div class="row r1">
+          <div class="inner">
+            <span class="v3-tick" style="--hue: #A78BFA"><i></i>Dues received — Marcus Kim<em>2m</em></span>
+            <span class="v3-tick" style="--hue: #7FB08A"><i></i>Attendance closed — 41 of 46<em>1h</em></span>
+            <span class="v3-tick" style="--hue: #D98BA3"><i></i>Alumni mixer published<em>3h</em></span>
+            <span class="v3-tick" style="--hue: #DDB36A"><i></i>Reimbursement approved — $86.20<em>5h</em></span>
+            <span class="v3-tick" style="--hue: #7EA6E0"><i></i>Service hours logged — +12<em>1d</em></span>
+            <span class="v3-tick" style="--hue: #6FB5AC"><i></i>Minutes uploaded — Week 9<em>1d</em></span>
+          </div>
+        </div>
+        <div class="row r2">
+          <div class="inner">
+            <span class="v3-tick" style="--hue: #E0B65C"><i></i>Budget updated — Spring formal<em>2d</em></span>
+            <span class="v3-tick" style="--hue: #A78BFA"><i></i>New member joined — invite link<em>2d</em></span>
+            <span class="v3-tick" style="--hue: #7FB08A"><i></i>Fine waived — C. Walker<em>3d</em></span>
+            <span class="v3-tick" style="--hue: #D98BA3"><i></i>Casino night moved to Planned<em>4d</em></span>
+            <span class="v3-tick" style="--hue: #7EA6E0"><i></i>Role assigned — Social chair<em>5d</em></span>
+            <span class="v3-tick" style="--hue: #9BA7E0"><i></i>Semester archived — Fall ’25<em>6d</em></span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════ Intelligence — cinematic chat ═══════════════════════════════ -->
+
+    <section class="v3-intel" id="intelligence">
+      <div class="v3-orb o1" data-depth="0.06" aria-hidden="true"></div>
+      <div class="v3-orb o2" data-depth="-0.04" aria-hidden="true"></div>
+      <div class="lp-container">
+        <div class="fx v3-intel-head">
+          <span class="lp-eyebrow">Agentic AI, built in</span>
+          <h2 style="margin-top: 18px">
+            <span class="v3-mask" style="--d: 60ms"><span class="v3-giant">Ask <em>anything</em>.</span></span>
+            <span class="v3-mask" style="--d: 200ms"><span class="v3-giant">Delegate <em>everything</em>.</span></span>
+          </h2>
+          <p class="v3-intel-lede">
+            Answers in seconds, grounded in your chapter’s real data — never a
+            generic chatbot guess. Hand it the work and it drafts the change
+            across any workflow for one-tap approval. It’s even your first
+            hire: describe your org and it architects the workspace.
+          </p>
+        </div>
+        <div class="v3-chat-wrap fx fx-blur" data-depth="0.05" style="--fxd: 120ms">
+          <div class="px" style="will-change: transform">
+            <div class="v3-chat" aria-hidden="true">
+              <div class="v3-msg q">Who still owes dues this semester?</div>
+              <div class="v3-msg a">
+                Two brothers have an outstanding balance for Spring ’26 —
+                everyone else is paid in full.
+                <div class="sub">
+                  <span><span class="lp-ava" style="background: #a8743d">JT</span>Jordan Tran<span class="amt">$120</span></span>
+                  <span><span class="lp-ava" style="background: #5b7fb3">CW</span>Chris Walker<span class="amt">$60</span></span>
+                </div>
+              </div>
+              <div class="v3-msg q">Put the alumni mixer on the calendar — Friday, 6:30.</div>
+              <div class="v3-msg a">
+                Drafted and ready — approve it and it’s live for the whole chapter.
+                <div class="sub">
+                  <span>
+                    <span class="lp-ava" style="background: #5b7fb3"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2v4"/><path d="M16 2v4"/><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M3 10h18"/></svg></span>
+                    Alumni mixer · Fri 6:30 PM
+                    <span class="lp-pill ok v3-approve">Approve</span>
+                  </span>
+                </div>
+              </div>
+              <div class="v3-composer">
+                <span class="caret"></span>
+                Ask anything — or hand it the task…
+                <span class="send"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg></span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════ Ivory steps — foreground numerals ═══════════════════════════ -->
+
+    <section class="v3-ivory">
+      <div class="lp-container v3-ivory-pad">
+        <div class="fx">
+          <span class="lp-eyebrow">Getting started</span>
+          <h2 class="lp-h2">Running before your <em>next meeting</em>.</h2>
+        </div>
+        <div class="v3-steps">
+          <div class="fx">
+            <div class="v3-step">
+              <div class="v3-step-line" aria-hidden="true"></div>
+              <div data-depth="-0.06" aria-hidden="true"><span class="px num">01</span></div>
+              <div>
+                <h3>Describe your org</h3>
+                <p>A short AI interview architects your workspace — the right workflows, the right roles, even the words your org uses.</p>
+              </div>
+            </div>
+          </div>
+          <div class="fx" style="--fxd: 70ms">
+            <div class="v3-step">
+              <div class="v3-step-line" aria-hidden="true"></div>
+              <div data-depth="-0.085" aria-hidden="true"><span class="px num">02</span></div>
+              <div>
+                <h3>Send one link</h3>
+                <p>Members join with Google in seconds. Roles come pre-seeded, so the exec board is exec from day one.</p>
+              </div>
+            </div>
+          </div>
+          <div class="fx" style="--fxd: 140ms">
+            <div class="v3-step">
+              <div class="v3-step-line" aria-hidden="true"></div>
+              <div data-depth="-0.11" aria-hidden="true"><span class="px num">03</span></div>
+              <div>
+                <h3>Run the semester</h3>
+                <p>Dues, attendance, programming, service — live from the first meeting, with an AI teammate drafting the busywork.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════ Final CTA — aurora crescendo ════════════════════════════════ -->
+
+    <section class="v3-final" data-final>
+      <div class="v3-final-aur" data-final-aur aria-hidden="true"></div>
+      <div class="lp-container">
+        <div class="fx">
+          <span class="lp-eyebrow centered">Ready when you are</span>
+          <h2 class="v3-h2">
+            <span class="v3-mask" style="--d: 60ms"><span>Run your org like</span></span>
+            <span class="v3-mask" style="--d: 180ms"><span>an <em>institution</em> —</span></span>
+            <span class="v3-mask" style="--d: 300ms"><span>starting today.</span></span>
+          </h2>
+          <div class="lp-hero-ctas">
+            <a href="#" class="lp-btn lp-btn-glow">
+              Start your chapter
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+            </a>
+          </div>
+          <p class="lp-hero-micro">
+            Set up in minutes<span aria-hidden="true">·</span>AI included<span aria-hidden="true">·</span>Sign in with Google
+          </p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="lp-footer">
+    <div class="lp-container lp-footer-inner">
+      <div class="lp-wordmark">
+        <span class="lp-glyph" aria-hidden="true">C</span>
+        <span class="lp-wm-txt">ChaptOS</span>
+      </div>
+      <div class="links">
+        <a href="#product">Product</a>
+        <a href="#workflows">Workflows</a>
+        <a href="#intelligence">AI</a>
+        <a href="#">Sign in</a>
+      </div>
+      <div class="legal">© 2026 ChaptOS</div>
+    </div>
+  </footer>
+</div>
+
+<script>
+(() => {
+  "use strict";
+  const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const finePointer = matchMedia("(pointer: fine)").matches;
+  const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+  const easeOut = t => 1 - Math.pow(1 - t, 3);
+
+  /* ── Focus-pull reveals ─────────────────────────────────────────────── */
+  const fxEls = document.querySelectorAll(".fx");
+  if (reduced || typeof IntersectionObserver === "undefined") {
+    fxEls.forEach(el => el.classList.add("in"));
+  } else {
+    const io = new IntersectionObserver(
+      entries => {
+        for (const e of entries) {
+          if (e.isIntersecting) {
+            e.target.classList.add("in");
+            io.unobserve(e.target);
+          }
+        }
+      },
+      { threshold: 0.12, rootMargin: "0px 0px -48px 0px" },
+    );
+    fxEls.forEach(el => io.observe(el));
+  }
+
+  if (reduced) return; // everything below is decoration
+
+  /* ── Depth registry — the shared plane system ───────────────────────────
+     Positive depth = far plane (lags the scroll), negative = near plane
+     (leads it). Same center-offset math as v2's <Parallax>. */
+  const depthItems = [...document.querySelectorAll("[data-depth]")].map(el => ({
+    el,
+    sp: parseFloat(el.dataset.depth),
+    target: el.querySelector(":scope > .px") || el,
+  }));
+
+  /* ── Hero planes ────────────────────────────────────────────────────── */
+  const heroImg = document.querySelector("[data-hero-img]");
+  const heroAur = document.querySelector("[data-hero-aur]");
+  const mockStage = document.querySelector("[data-mock-stage]");
+
+  /* ── Acts — pinned dolly (unpins below 760px; static stack instead) ──── */
+  const acts = document.querySelector(".v3-acts");
+  const pinMQ = matchMedia("(min-width: 760px)");
+  let actParts = null;
+  const buildActs = () => ({
+    track: acts.querySelector(".v3-acts-track"),
+    blocks: [...acts.querySelectorAll(".v3-act")],
+    glows: [...acts.querySelectorAll(".v3-acts-glow")],
+    railFill: acts.querySelector(".v3-rail-line i"),
+    nums: [...acts.querySelectorAll(".v3-rail-nums span")],
+    draw: acts.querySelector(".v3-draw"),
+  });
+  const resetActs = () => {
+    if (!actParts) return;
+    for (const b of actParts.blocks) {
+      b.style.cssText = "";
+      b.firstElementChild.style.cssText = "";
+      b.lastElementChild.style.cssText = "";
+    }
+    actParts.glows.forEach(g => (g.style.opacity = ""));
+    actParts.nums.forEach(n => (n.style.opacity = ""));
+    if (actParts.draw) actParts.draw.style.strokeDashoffset = "";
+    acts.style.removeProperty("--t1");
+    acts.style.removeProperty("--t2");
+  };
+  const setPin = () => {
+    if (!acts) return;
+    if (pinMQ.matches) {
+      acts.classList.add("on");
+      actParts = actParts || buildActs();
+    } else {
+      acts.classList.remove("on");
+      resetActs();
+    }
+  };
+  if (acts) {
+    setPin();
+    (pinMQ.addEventListener || pinMQ.addListener).call(pinMQ, "change", () => { setPin(); kick(); });
+  }
+
+  /* ── Constellation — pointer + scroll planes, live line endpoints ─────── */
+  const stage = document.querySelector("[data-stage]");
+  const stageMQ = matchMedia("(min-width: 881px)");
+  const PLANES = {
+    core: { gain: 6, sp: 0.03 },
+    near: { gain: 34, sp: 0.15 },
+    mid: { gain: 20, sp: 0.09 },
+    far: { gain: 10, sp: 0.045 },
+  };
+  let nodes = [], links = [], stageW = 0, stageH = 0;
+  let ptx = 0, pty = 0, pcx = 0, pcy = 0; // pointer target / current (lerped)
+  if (stage) {
+    const byId = {};
+    nodes = [...stage.querySelectorAll("[data-node]")].map(el => {
+      const plane =
+        el.dataset.node === "core" ? "core" :
+        el.classList.contains("far") ? "far" :
+        el.classList.contains("mid") ? "mid" : "near";
+      const n = {
+        el,
+        target: el.querySelector(":scope > .px"),
+        x: parseFloat(el.style.getPropertyValue("--x")) / 100,
+        y: parseFloat(el.style.getPropertyValue("--y")) / 100,
+        ...PLANES[plane],
+        ox: 0,
+        oy: 0,
+      };
+      byId[el.dataset.node] = n;
+      return n;
+    });
+    const svg = stage.querySelector("[data-links]");
+    links = [...svg.querySelectorAll("line")].map(line => ({
+      line,
+      a: byId.core,
+      b: byId[line.dataset.b],
+    }));
+    const sizeStage = () => {
+      stageW = stage.offsetWidth;
+      stageH = stage.offsetHeight;
+      svg.setAttribute("viewBox", `0 0 ${stageW} ${stageH}`);
+    };
+    sizeStage();
+    addEventListener("resize", sizeStage, { passive: true });
+    stage.addEventListener("pointermove", e => {
+      const r = stage.getBoundingClientRect();
+      ptx = clamp(((e.clientX - r.left) / r.width) * 2 - 1, -1, 1);
+      pty = clamp(((e.clientY - r.top) / r.height) * 2 - 1, -1, 1);
+      kick();
+    });
+    stage.addEventListener("pointerleave", () => {
+      ptx = 0;
+      pty = 0;
+      kick();
+    });
+  }
+
+  /* ── Ticker — triple the content for seamless travel ──────────────────── */
+  const ticker = document.querySelector("[data-ticker]");
+  let tickRows = [];
+  if (ticker) {
+    tickRows = [...ticker.querySelectorAll(".row .inner")];
+    tickRows.forEach(inner => {
+      inner.innerHTML = inner.innerHTML + inner.innerHTML + inner.innerHTML;
+    });
+  }
+
+  /* ── Final aurora + progress hairline ─────────────────────────────────── */
+  const finalSec = document.querySelector("[data-final]");
+  const aur = document.querySelector("[data-final-aur]");
+  const prog = document.querySelector(".v3-progress");
+
+  /* ── One rAF loop drives everything; sleeps when the page settles ─────── */
+  const update = () => {
+    const vh = innerHeight;
+    const y = scrollY;
+
+    /* depth registry */
+    for (const it of depthItems) {
+      const r = it.el.getBoundingClientRect();
+      if (r.bottom < -160 || r.top > vh + 160) continue;
+      const mid = r.top + r.height / 2 - vh / 2;
+      it.target.style.transform = `translate3d(0, ${(-mid * it.sp).toFixed(1)}px, 0)`;
+    }
+
+    /* hero planes + focus pull — keyed to the mock's own departure, so the
+       dashboard stays sharp while it owns the viewport and only softens as
+       its bottom edge climbs past ~85% of the screen. */
+    if (heroImg && y < vh * 3) {
+      heroImg.style.transform = `translate3d(0, ${Math.min(y * 0.3, 290).toFixed(1)}px, 0)`;
+      heroAur.style.transform = `translate3d(0, ${Math.min(y * 0.18, 200).toFixed(1)}px, 0)`;
+      const b = mockStage.getBoundingClientRect().bottom / vh;
+      const p = easeOut(clamp((0.85 - b) / 0.55, 0, 1));
+      mockStage.style.transform = `scale(${(1 + p * 0.05).toFixed(4)})`;
+      mockStage.style.opacity = (1 - p * 0.38).toFixed(3);
+      if (finePointer) mockStage.style.filter = p > 0.01 ? `blur(${(p * 4).toFixed(2)}px)` : "";
+    }
+
+    /* acts dolly-through */
+    if (actParts && acts.classList.contains("on")) {
+      const r = actParts.track.getBoundingClientRect();
+      const total = actParts.track.offsetHeight - vh;
+      const p = total > 0 ? clamp(-r.top / total, 0, 1) : 0;
+      const f = p * (actParts.blocks.length - 1);
+      actParts.blocks.forEach((b, i) => {
+        const d = f - i; // >0 → passed (recede toward camera), <0 → upcoming (far plane)
+        const t = clamp(1 - Math.abs(d) / 0.72, 0, 1);
+        const tt = easeOut(t);
+        b.style.opacity = tt.toFixed(3);
+        b.style.visibility = t <= 0 ? "hidden" : "visible";
+        b.firstElementChild.style.transform = `translate3d(0, ${(-d * 34).toFixed(1)}px, 0)`;
+        b.lastElementChild.style.transform =
+          `translate3d(0, ${(-d * 78).toFixed(1)}px, 0) scale(${(1 + d * 0.07).toFixed(3)})`;
+        if (finePointer) {
+          b.lastElementChild.style.filter =
+            t >= 1 || t <= 0 ? "" : `blur(${((1 - tt) * 6).toFixed(2)}px)`;
+        }
+        if (actParts.glows[i]) actParts.glows[i].style.opacity = (tt * 0.9).toFixed(3);
+        if (actParts.nums[i]) actParts.nums[i].style.opacity = (0.28 + tt * 0.72).toFixed(3);
+      });
+      actParts.railFill.style.transform = `scaleY(${p.toFixed(4)})`;
+      const t0 = easeOut(clamp(1 - Math.abs(f) / 0.9, 0, 1));
+      if (actParts.draw) actParts.draw.style.strokeDashoffset = (1 - t0).toFixed(3);
+      acts.style.setProperty("--t1", easeOut(clamp(1 - Math.abs(f - 1) / 0.9, 0, 1)).toFixed(3));
+      acts.style.setProperty("--t2", easeOut(clamp(1 - Math.abs(f - 2) / 0.9, 0, 1)).toFixed(3));
+    }
+
+    /* constellation planes */
+    let stageActive = false;
+    if (stage && stageMQ.matches) {
+      const r = stage.getBoundingClientRect();
+      if (!(r.bottom < -80 || r.top > vh + 80)) {
+        stageActive = true;
+        pcx += (ptx - pcx) * 0.07;
+        pcy += (pty - pcy) * 0.07;
+        const mid = r.top + r.height / 2 - vh / 2;
+        for (const n of nodes) {
+          n.ox = pcx * n.gain;
+          n.oy = pcy * n.gain * 0.7 - mid * n.sp;
+          n.target.style.transform = `translate3d(${n.ox.toFixed(1)}px, ${n.oy.toFixed(1)}px, 0)`;
+        }
+        for (const l of links) {
+          const ax = l.a.x * stageW + l.a.ox;
+          const ay = l.a.y * stageH + l.a.oy;
+          const bx = l.b.x * stageW + l.b.ox;
+          const by = l.b.y * stageH + l.b.oy;
+          const dx = bx - ax, dy = by - ay;
+          const dist = Math.hypot(dx, dy) || 1;
+          const rim = Math.min(84, dist * 0.5); // spokes start at the disc rim
+          l.line.setAttribute("x1", (ax + (dx / dist) * rim).toFixed(1));
+          l.line.setAttribute("y1", (ay + (dy / dist) * rim).toFixed(1));
+          l.line.setAttribute("x2", bx.toFixed(1));
+          l.line.setAttribute("y2", by.toFixed(1));
+        }
+      }
+    }
+
+    /* ticker scrub */
+    if (ticker) {
+      const r = ticker.getBoundingClientRect();
+      if (!(r.bottom < 0 || r.top > vh)) {
+        const x = vh - r.top;
+        if (tickRows[0]) tickRows[0].style.transform = `translate3d(${(-x * 0.32).toFixed(1)}px, 0, 0)`;
+        if (tickRows[1]) tickRows[1].style.transform = `translate3d(${(x * 0.26 - 760).toFixed(1)}px, 0, 0)`;
+      }
+    }
+
+    /* final aurora */
+    if (aur) {
+      const r = finalSec.getBoundingClientRect();
+      const p = clamp((vh - r.top) / (vh + r.height), 0, 1);
+      aur.style.opacity = (0.4 + p * 0.6).toFixed(3);
+      aur.style.transform = `translateX(-50%) scale(${(0.75 + p * 0.45).toFixed(3)})`;
+    }
+
+    /* progress hairline */
+    if (prog) {
+      const max = document.documentElement.scrollHeight - vh;
+      prog.style.transform = `scaleX(${max > 0 ? clamp(y / max, 0, 1).toFixed(4) : 0})`;
+    }
+
+    /* still lerping the pointer? keep the loop alive */
+    return stageActive && (Math.abs(ptx - pcx) > 0.002 || Math.abs(pty - pcy) > 0.002);
+  };
+
+  let running = false;
+  let lastKick = 0;
+  const frame = now => {
+    const busy = update();
+    if (busy || now - lastKick < 240) {
+      requestAnimationFrame(frame);
+    } else {
+      running = false;
+    }
+  };
+  const kick = () => {
+    lastKick = performance.now();
+    if (!running) {
+      running = true;
+      requestAnimationFrame(frame);
+    }
+  };
+  addEventListener("scroll", kick, { passive: true });
+  addEventListener("resize", kick, { passive: true });
+  kick();
+
+  /* ── Hero mockup tilt (same lerp as the app's <Tilt>, max 3°) ─────────── */
+  const tiltOuter = document.querySelector(".js-tilt");
+  const tiltInner = document.querySelector(".js-tilt-inner");
+  if (tiltOuter && tiltInner && matchMedia("(hover: hover)").matches) {
+    const max = 3;
+    let tRaf = 0;
+    let tx = 0, ty = 0, cx = 0, cy = 0;
+    const tick = () => {
+      cx += (tx - cx) * 0.12;
+      cy += (ty - cy) * 0.12;
+      tiltInner.style.transform = `rotateX(${cx.toFixed(2)}deg) rotateY(${cy.toFixed(2)}deg)`;
+      if (Math.abs(tx - cx) > 0.01 || Math.abs(ty - cy) > 0.01) {
+        tRaf = requestAnimationFrame(tick);
+      } else {
+        tRaf = 0;
+      }
+    };
+    const start = () => {
+      if (!tRaf) tRaf = requestAnimationFrame(tick);
+    };
+    tiltOuter.addEventListener("pointermove", e => {
+      const r = tiltOuter.getBoundingClientRect();
+      ty = ((e.clientX - r.left) / r.width - 0.5) * max * 2;
+      tx = -((e.clientY - r.top) / r.height - 0.5) * max * 2;
+      start();
+    });
+    tiltOuter.addEventListener("pointerleave", () => {
+      tx = 0;
+      ty = 0;
+      start();
+    });
+  }
+})();
+</script>
+</body>
+</html>
