@@ -11,7 +11,7 @@ import { testPrisma, resetDb } from "../setup/prisma";
 import { provisionOrg } from "@/lib/services/org-service";
 import { ConflictError, ValidationError } from "@/lib/errors";
 import { getOrgType } from "@/lib/org-types";
-import { ALL_PERMISSIONS } from "@/lib/permissions";
+import { ALL_PERMISSIONS, PERMISSIONS } from "@/lib/permissions";
 
 beforeEach(async () => {
   await resetDb();
@@ -206,6 +206,152 @@ describe("provisionOrg: trim + sanitization", () => {
     expect(org!.name).toBe("Test Org");
     expect(org!.slug).toBe("trimmed");
     expect(org!.brothers[0]!.name).toBe("Jordan");
+  });
+});
+
+describe("provisionOrg: blueprint (atomic pre-creation setup)", () => {
+  it("applies enabledWorkflows from the blueprint (normalized, operations forced on)", async () => {
+    const out = await provisionOrg(
+      { ...VALID, slug: "bp-wf", blueprint: { enabledWorkflows: ["members", "finance"] } },
+      "u-bp-wf",
+      null,
+    );
+    const cfg = await testPrisma.organizationConfig.findUnique({
+      where: { organizationId: out.organizationId },
+    });
+    // Founder chose members+finance; operations is force-unioned even though not sent.
+    expect(new Set(cfg!.enabledWorkflows)).toEqual(new Set(["members", "finance", "operations"]));
+  });
+
+  it("merges blueprint vocab OVER the template defaults (sparse), dropping unknown keys", async () => {
+    const out = await provisionOrg(
+      {
+        ...VALID,
+        slug: "bp-vocab",
+        // fraternity template defaults: { Member: "Brother", Meetings: "Chapter" }
+        blueprint: { vocabularyOverrides: { Member: "Knight", NotAKey: "ignored" } },
+      },
+      "u-bp-vocab",
+      null,
+    );
+    const cfg = await testPrisma.organizationConfig.findUnique({
+      where: { organizationId: out.organizationId },
+    });
+    // Member overridden, Meetings inherited from template, unknown key stripped.
+    expect(cfg!.vocabularyOverrides).toEqual({ Member: "Knight", Meetings: "Chapter" });
+  });
+
+  it("seeds blueprint roleSeeds (non-founder as editable isSystem=false) with correct permission bits", async () => {
+    const out = await provisionOrg(
+      {
+        ...VALID,
+        slug: "bp-roles",
+        blueprint: {
+          roleSeeds: [
+            { name: "Founder", rank: 99, all: true },
+            { name: "Money Person", rank: 40, permissions: ["MANAGE_TREASURY"] },
+            { name: "Poster", rank: 30, permissions: ["MANAGE_ANNOUNCEMENTS", "MANAGE_INSTAGRAM"] },
+          ],
+        },
+      },
+      "u-bp-roles",
+      "founder@example.com",
+    );
+    const roles = await testPrisma.role.findMany({
+      where: { organizationId: out.organizationId },
+      orderBy: { rank: "desc" },
+    });
+    expect(roles).toHaveLength(3);
+
+    const founder = roles.find(r => r.name === "Founder")!;
+    // Founder is forced to rank 100 + full bitfield regardless of the sent rank.
+    expect(founder.rank).toBe(100);
+    expect(founder.permissions).toBe(ALL_PERMISSIONS);
+
+    const treasurer = roles.find(r => r.name === "Money Person")!;
+    expect(treasurer.isSystem).toBe(false); // editable in Settings
+    expect(treasurer.permissions).toBe(PERMISSIONS.MANAGE_TREASURY);
+
+    const poster = roles.find(r => r.name === "Poster")!;
+    expect(poster.permissions).toBe(PERMISSIONS.MANAGE_ANNOUNCEMENTS | PERMISSIONS.MANAGE_INSTAGRAM);
+  });
+
+  it("links the founder to the (possibly renamed) all-perms role, keeping full access", async () => {
+    const out = await provisionOrg(
+      {
+        ...VALID,
+        slug: "bp-founder",
+        founderName: "Casey",
+        blueprint: {
+          roleSeeds: [
+            { name: "Grand Poobah", rank: 50, all: true },
+            { name: "Helper", rank: 20, permissions: ["MANAGE_EVENTS"] },
+          ],
+        },
+      },
+      "u-bp-founder",
+      null,
+    );
+    const founderLinks = await testPrisma.brotherRole.findMany({
+      where: { brotherId: out.brotherId },
+      include: { role: true },
+    });
+    expect(founderLinks).toHaveLength(1);
+    expect(founderLinks[0]!.role.name).toBe("Grand Poobah");
+    expect(founderLinks[0]!.role.rank).toBe(100);
+    expect(founderLinks[0]!.role.permissions).toBe(ALL_PERMISSIONS);
+    // Legacy Brother.role string reflects the renamed founder role.
+    const brother = await testPrisma.brother.findUnique({ where: { id: out.brotherId } });
+    expect(brother!.role).toBe("Grand Poobah");
+  });
+
+  it("synthesizes a founder role when the blueprint roleSeeds omit an all:true seat", async () => {
+    const out = await provisionOrg(
+      {
+        ...VALID,
+        slug: "bp-nofounder",
+        blueprint: { roleSeeds: [{ name: "Only Officer", rank: 40, permissions: ["MANAGE_DOCS"] }] },
+      },
+      "u-bp-nofounder",
+      null,
+    );
+    // Founder still gets an all-perms rank-100 role even though none was sent.
+    const founderLinks = await testPrisma.brotherRole.findMany({
+      where: { brotherId: out.brotherId },
+      include: { role: true },
+    });
+    expect(founderLinks).toHaveLength(1);
+    expect(founderLinks[0]!.role.rank).toBe(100);
+    expect(founderLinks[0]!.role.permissions).toBe(ALL_PERMISSIONS);
+    // Two roles total: the synthesized founder + the one sent seat.
+    const roles = await testPrisma.role.findMany({ where: { organizationId: out.organizationId } });
+    expect(roles).toHaveLength(2);
+  });
+
+  it("stamps onboardingCompletedAt at creation so founders skip the retired wizard", async () => {
+    const out = await provisionOrg(
+      { ...VALID, slug: "bp-onboarded", blueprint: { enabledWorkflows: ["members"] } },
+      "u-bp-onboarded",
+      null,
+    );
+    const cfg = await testPrisma.organizationConfig.findUnique({
+      where: { organizationId: out.organizationId },
+    });
+    expect(cfg!.onboardingCompletedAt).not.toBeNull();
+  });
+
+  it("falls back to the template when no blueprint is sent (regression guard)", async () => {
+    const out = await provisionOrg({ ...VALID, slug: "no-bp" }, "u-no-bp", null);
+    const cfg = await testPrisma.organizationConfig.findUnique({
+      where: { organizationId: out.organizationId },
+    });
+    const template = getOrgType("fraternity")!;
+    expect(new Set(cfg!.enabledWorkflows)).toEqual(new Set(template.enabledWorkflows));
+    expect(cfg!.vocabularyOverrides).toEqual(template.vocabularyOverrides);
+    // Template roles stay isSystem=true (protected in Settings).
+    const roles = await testPrisma.role.findMany({ where: { organizationId: out.organizationId } });
+    expect(roles).toHaveLength(template.roleSeeds.length);
+    expect(roles.every(r => r.isSystem)).toBe(true);
   });
 });
 

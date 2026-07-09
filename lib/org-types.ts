@@ -72,6 +72,22 @@ export interface RoleSeed {
   all?: boolean;
 }
 
+/**
+ * Normalize a desired workflow set into what actually gets stored:
+ *   - keep only known ids (defense in depth; Zod already rejects unknowns),
+ *   - de-duplicate,
+ *   - union with ALWAYS_ON_WORKFLOWS so core surfaces can never be dropped,
+ *   - order by ALL_WORKFLOWS for a stable, readable column.
+ *
+ * Pure — no DB, no ctx. Shared by setWorkflows (the config PATCH) and
+ * provisionOrg (the create blueprint) so both write an identically-shaped set.
+ */
+export function normalizeWorkflows(ids: readonly string[]): WorkflowId[] {
+  const requested = new Set<WorkflowId>(ids as WorkflowId[]);
+  for (const w of ALWAYS_ON_WORKFLOWS) requested.add(w);
+  return ALL_WORKFLOWS.filter(w => requested.has(w));
+}
+
 export interface OrgTypeTemplate {
   /** Registry key. Stored on Organization.orgType. */
   id: string;

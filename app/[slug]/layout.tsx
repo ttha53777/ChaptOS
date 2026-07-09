@@ -1,7 +1,5 @@
 import { redirect } from "next/navigation";
-import { headers } from "next/headers";
 import { requireUser, hasSession } from "@/lib/auth/require-user";
-import { prisma } from "@/lib/prisma";
 import { AccessDenied } from "./AccessDenied";
 import { ActiveOrgSync } from "./ActiveOrgSync";
 
@@ -33,18 +31,6 @@ export default async function OrgLayout({
   children: React.ReactNode;
 }) {
   const { slug } = await params;
-  // Onboarding-gate lookup (consumed further down) starts in parallel with auth
-  // so it doesn't add a sequential DB round-trip to every page render.
-  // Organization.slug is unique, so this resolves the same config row the
-  // post-membership findUnique used to; the result is only USED after the
-  // membership gate below passes, so nothing leaks on the deny paths.
-  const configPromise = prisma.organizationConfig.findFirst({
-    where: { organization: { slug } },
-    select: { onboardingCompletedAt: true },
-  });
-  // Pre-handle rejection for the paths that redirect before awaiting it; the
-  // explicit await below still surfaces the original error when the value is used.
-  configPromise.catch(() => undefined);
   // Pass the URL slug so org resolution follows the URL (the source of truth for
   // /[slug]/* routes) rather than the active_org cookie. For a member of <slug>
   // this makes user.orgId == that membership's org, so the page renders this
@@ -96,21 +82,12 @@ export default async function OrgLayout({
     return <AccessDenied slug={slug} homeSlug={homeSlug} />;
   }
 
-  // Onboarding gate: until the founder finishes the setup wizard
-  // (OrganizationConfig.onboardingCompletedAt is null), redirect every route
-  // except /[slug]/onboarding itself so a second tab — or a founder who closed
-  // the tab mid-setup and came back — can't bypass it. The marker is explicit;
-  // we no longer infer "done" from enabledWorkflows (which provisionOrg seeds
-  // non-empty at creation, so it was never a reliable signal). Legacy orgs were
-  // backfilled to createdAt in the column's migration, so they read as complete.
-  const requestPath = (await headers()).get("x-pathname") ?? "";
-  const isOnboardingRoute = requestPath === `/${slug}/onboarding`;
-  if (!isOnboardingRoute) {
-    const config = await configPromise;
-    if (!config || config.onboardingCompletedAt == null) {
-      redirect(`/${slug}/onboarding`);
-    }
-  }
+  // The post-create onboarding wizard is RETIRED. Setup now happens
+  // pre-creation: the founder reviews a blueprint (workflows/vocab/roles) and
+  // provisionOrg applies it atomically, stamping onboardingCompletedAt at
+  // creation. So new orgs are always "complete", legacy orgs were backfilled to
+  // createdAt, and /[slug]/onboarding just redirects here. There is nothing left
+  // to gate on — a founder lands straight in the workspace on first entry.
 
   // Authorized, and org resolution already followed the URL slug (we passed it to
   // requireUser), so this page renders the right org's data now — no reload.

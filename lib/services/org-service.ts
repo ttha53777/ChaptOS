@@ -31,7 +31,8 @@ import { AlreadyLinkedError, ConflictError, ForbiddenError, NotFoundError, Valid
 import { logError } from "@/lib/observability";
 import { emit } from "@/lib/events";
 import { validateSlugFormat } from "@/lib/slug-rules";
-import { getOrgType } from "@/lib/org-types";
+import { getOrgType, normalizeWorkflows, type RoleSeed } from "@/lib/org-types";
+import { sanitizeVocabOverrides } from "@/lib/vocab";
 import { PERMISSIONS, ALL_PERMISSIONS, type Permission } from "@/lib/permissions";
 import { uploadOrgLogoObject, removeOrgLogoObject } from "@/lib/supabase/org-logo";
 import type { CreateOrgInput } from "@/lib/validation/org";
@@ -41,6 +42,80 @@ export interface ProvisionedOrg {
   organizationId: number;
   slug:           string;
   brotherId:      number;
+}
+
+/** The founder role always outranks every other role and holds every bit. */
+const FOUNDER_RANK = 100;
+
+/** A role to seed at provisioning, with whether it's a protected system role. */
+interface SeededRole {
+  seed:     RoleSeed;
+  isSystem: boolean;
+}
+
+/**
+ * Resolve the effective OrganizationConfig + role set for a new org from the
+ * founder's blueprint, falling back to the org-type template for any field the
+ * blueprint omits. Pure — no DB — so it's unit-testable and callable inside the
+ * provisioning transaction.
+ *
+ * Roles:
+ *   - Template path: every RoleSeed is seeded as-is with isSystem=true (the
+ *     Settings → Roles UI protects these from rename/delete).
+ *   - Blueprint path: the founder role (the seed with all:true, or a synthesized
+ *     one if the blueprint omits it) is forced to rank 100 + full bitfield so the
+ *     founder can never end up locked out. Every OTHER blueprint role is seeded as
+ *     a NORMAL role (isSystem=false) so the founder can rename/delete it later —
+ *     matching what applyRoleSet did post-creation, only now atomic at creation.
+ */
+function resolveBlueprint(
+  template: NonNullable<ReturnType<typeof getOrgType>>,
+  founderRoleSpec: RoleSeed,
+  blueprint: CreateOrgInput["blueprint"],
+): { enabledWorkflows: string[]; vocabularyOverrides: Record<string, string>; roles: SeededRole[] } {
+  const enabledWorkflows = blueprint?.enabledWorkflows
+    ? normalizeWorkflows(blueprint.enabledWorkflows)
+    : [...template.enabledWorkflows];
+
+  // Sparse overrides layer ON TOP of the template's defaults (e.g. a fraternity
+  // keeps Member→Brother unless the founder retyped it), matching the mock.
+  const vocabularyOverrides: Record<string, string> = {
+    ...template.vocabularyOverrides,
+    ...(blueprint?.vocabularyOverrides ? sanitizeVocabOverrides(blueprint.vocabularyOverrides) : {}),
+  };
+
+  let roles: SeededRole[];
+  if (blueprint?.roleSeeds && blueprint.roleSeeds.length > 0) {
+    const founderInput = blueprint.roleSeeds.find(r => r.all);
+    // The founder role: keep the founder's chosen NAME/COLOR if they marked one
+    // `all`, but force rank 100 + full bitfield. If no seed was flagged `all`,
+    // synthesize one from the template's founder spec so there is always exactly
+    // one all-permission role and the founder is never locked out.
+    const founderSeed: RoleSeed = {
+      name:        founderInput?.name ?? founderRoleSpec.name,
+      color:       founderInput?.color ?? founderRoleSpec.color,
+      rank:        FOUNDER_RANK,
+      permissions: [],
+      all:         true,
+    };
+    const others: SeededRole[] = blueprint.roleSeeds
+      .filter(r => r !== founderInput)
+      .map(r => ({
+        seed: {
+          name:        r.name,
+          color:       r.color ?? "#64748B",
+          // Clamp strictly below the founder so nothing ties/outranks it.
+          rank:        Math.max(0, Math.min(FOUNDER_RANK - 1, Math.round(r.rank))),
+          permissions: (r.permissions ?? []) as Permission[],
+        },
+        isSystem: false,
+      }));
+    roles = [{ seed: founderSeed, isSystem: false }, ...others];
+  } else {
+    roles = template.roleSeeds.map(seed => ({ seed, isSystem: true }));
+  }
+
+  return { enabledWorkflows, vocabularyOverrides, roles };
 }
 
 /**
@@ -99,6 +174,19 @@ export async function provisionOrg(
     throw new Error(`Template ${template.id} is missing a founder role`);
   }
 
+  // Resolve the effective config + role set from the founder's blueprint (or the
+  // template when no blueprint was sent). The founder role is guaranteed to be
+  // present with rank 100 + full bitfield; we grab it here so step 3 (the legacy
+  // Brother.role string) and step 6 (the BrotherRole link) agree on its name even
+  // when the founder renamed it in the blueprint.
+  const resolved = resolveBlueprint(template, founderRoleSpec, input.blueprint);
+  const founderRole = resolved.roles.find(r => r.seed.all);
+  if (!founderRole) {
+    // Impossible: resolveBlueprint always emits exactly one all-perms role.
+    throw new Error("resolveBlueprint produced no founder role");
+  }
+  const founderRoleName = founderRole.seed.name;
+
   // Inputs are already trimmed by Zod's z.string().trim() in createOrgInput.
   let result: ProvisionedOrg;
   try {
@@ -113,12 +201,16 @@ export async function provisionOrg(
         select: { id: true, slug: true },
       });
 
-      // 2. OrganizationConfig.
+      // 2. OrganizationConfig — from the resolved blueprint (template fallback).
+      // onboardingCompletedAt is stamped NOW: setup happens pre-creation in the
+      // interview/blueprint flow, so the founder should land straight in the
+      // workspace and never be bounced into the (retired) post-create wizard.
       await tx.organizationConfig.create({
         data: {
           organizationId:      org.id,
-          enabledWorkflows:    [...template.enabledWorkflows],
-          vocabularyOverrides: template.vocabularyOverrides as Prisma.InputJsonValue,
+          enabledWorkflows:    resolved.enabledWorkflows,
+          vocabularyOverrides: resolved.vocabularyOverrides as Prisma.InputJsonValue,
+          onboardingCompletedAt: new Date(),
         },
       });
 
@@ -140,7 +232,7 @@ export async function provisionOrg(
           data: {
             organizationId: org.id,
             name:           input.founderName,
-            role:           founderRoleSpec.name,
+            role:           founderRoleName,
             attendance:     0,
             duesOwed:       0,
             gpa:            0,
@@ -171,25 +263,29 @@ export async function provisionOrg(
         },
       });
 
-      // 6. Seed roles from template + assign the founder role to the founder.
+      // 6. Seed the resolved roles + assign the founder role to the founder.
+      // The founder role (seed.all) is created isSystem=false too — the founder
+      // owns it — but always carries the full bitfield and rank 100. Template
+      // (no-blueprint) roles are isSystem=true; blueprint roles are isSystem=false
+      // so they stay editable in Settings later.
       let founderRoleId: number | null = null;
-      for (const spec of template.roleSeeds) {
-        const bits = spec.all ? ALL_PERMISSIONS : permissionBits(spec.permissions);
+      for (const { seed, isSystem } of resolved.roles) {
+        const bits = seed.all ? ALL_PERMISSIONS : permissionBits(seed.permissions);
         const role = await tx.role.create({
           data: {
             organizationId: org.id,
-            name:           spec.name,
-            color:          spec.color,
-            rank:           spec.rank,
+            name:           seed.name,
+            color:          seed.color,
+            rank:           seed.rank,
             permissions:    bits,
-            isSystem:       true,
+            isSystem,
           },
-          select: { id: true, name: true },
+          select: { id: true },
         });
-        if (role.name === founderRoleSpec.name) founderRoleId = role.id;
+        if (seed.all) founderRoleId = role.id;
       }
       if (founderRoleId === null) {
-        // Defensive — should be impossible given the find above.
+        // Defensive — resolveBlueprint guarantees exactly one all-perms role.
         throw new Error("Founder role missing after seeding");
       }
       await tx.brotherRole.create({
@@ -216,6 +312,9 @@ export async function provisionOrg(
             slug:        org.slug,
             orgType:     template.id,
             founderName: brotherName,
+            // Whether the founder customized setup pre-creation vs took the
+            // template defaults — useful when auditing the new atomic flow.
+            blueprint:   !!input.blueprint,
           },
         },
       });

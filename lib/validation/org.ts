@@ -1,9 +1,57 @@
 import { z } from "zod";
 import { MAX_SLUG_LEN, MIN_SLUG_LEN } from "@/lib/slug-rules";
 import { ORG_TYPE_IDS, ALL_WORKFLOWS, type WorkflowId } from "@/lib/org-types";
+import { PERMISSIONS, type Permission } from "@/lib/permissions";
 import { featureExists } from "@/lib/workflow-features";
 import { isValidFieldId, MAX_FIELDS, MAX_LABEL } from "@/lib/custom-member-fields";
 import { NAV_LABELS } from "@/lib/nav-order";
+
+// A single known WorkflowId. Shared by the blueprint's enabledWorkflows and the
+// config PATCH so both surfaces reject unknown ids with the identical message
+// instead of drifting.
+const workflowIdSchema = z
+  .string()
+  .refine((v): v is WorkflowId => (ALL_WORKFLOWS as readonly string[]).includes(v), {
+    message: "Unknown workflow",
+  });
+
+// The rank reserved for the founder/admin role. Non-founder blueprint roles must
+// stay strictly below it so nothing can tie or outrank the founder.
+const FOUNDER_RANK = 100;
+
+// One founder-authored role in the create blueprint. Permissions are the bare
+// MANAGE_* names (matching how org-type templates store RoleSeed.permissions);
+// the service turns them into a bitfield via permissionBits(). `all: true` marks
+// the founder role — it is granted the full bitfield and rank 100 regardless of
+// what else is sent, so `rank`/`permissions` on that seed are advisory only.
+const roleSeedInput = z.object({
+  name:        z.string().trim().min(1, "Role name is required").max(60, "Role name must be at most 60 characters"),
+  rank:        z.number().int().min(0).max(FOUNDER_RANK - 1),
+  all:         z.boolean().optional(),
+  permissions: z.array(z.enum(Object.keys(PERMISSIONS) as [Permission, ...Permission[]])).optional(),
+  color:       z.string().max(9).optional(),
+});
+
+// The pre-creation "blueprint" — the founder's reviewed setup, applied ATOMICALLY
+// inside provisionOrg's transaction. Every field is optional: an absent blueprint
+// (or an absent field within it) falls back to the org-type template, so the bare
+// 4-field create and the recovery/already-linked path keep working unchanged.
+//
+// Deliberately NARROWER than updateOrgConfigInput — creation only sets the three
+// things the interview produces (workflows, vocab, roles). Thresholds, custom
+// fields, nav order, disabled features stay post-creation Settings concerns.
+const blueprintInput = z.object({
+  enabledWorkflows: z
+    .array(workflowIdSchema)
+    .max(ALL_WORKFLOWS.length, "Too many workflows")
+    .optional(),
+  vocabularyOverrides: z
+    .record(z.string(), z.string().trim().max(40, "Label must be 40 characters or fewer"))
+    .optional(),
+  roleSeeds: z.array(roleSeedInput).max(16, "Too many roles").optional(),
+});
+
+export type BlueprintInput = z.infer<typeof blueprintInput>;
 
 // Input for POST /api/orgs (self-serve org creation).
 //
@@ -20,6 +68,9 @@ export const createOrgInput = z.object({
   slug:        z.string().trim().min(MIN_SLUG_LEN).max(MAX_SLUG_LEN),
   orgType:     z.string().refine((v) => ORG_TYPE_IDS.includes(v), { message: "Unknown organization type" }),
   founderName: z.string().trim().min(1, "Your name is required").max(120, "Name must be at most 120 characters"),
+  // The founder's reviewed setup from the pre-creation interview. Optional so a
+  // minimal client (or the recovery path) can still create a template-only org.
+  blueprint:   blueprintInput.optional(),
 });
 
 export type CreateOrgInput = z.infer<typeof createOrgInput>;
@@ -68,13 +119,7 @@ export type CustomMemberFieldDefInput = z.infer<typeof customMemberFieldDefSchem
 
 export const updateOrgConfigInput = z.object({
   enabledWorkflows: z
-    .array(
-      z
-        .string()
-        .refine((v): v is WorkflowId => (ALL_WORKFLOWS as readonly string[]).includes(v), {
-          message: "Unknown workflow",
-        }),
-    )
+    .array(workflowIdSchema)
     .max(ALL_WORKFLOWS.length, "Too many workflows")
     .optional(),
   vocabularyOverrides: z

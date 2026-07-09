@@ -46,6 +46,20 @@ export const DEFAULT_LABELS: Record<VocabKey, string> = {
 };
 
 /**
+ * Keep only known VocabKeys from an arbitrary override map, so client input
+ * can't pollute the JSON column with unknown keys. Pure — shared by setVocab
+ * (the config PATCH) and provisionOrg (the create blueprint).
+ */
+export function sanitizeVocabOverrides(overrides: Record<string, string>): VocabOverrides {
+  const validKeys = new Set<string>(VOCAB_KEYS);
+  const sanitized: VocabOverrides = {};
+  for (const [k, v] of Object.entries(overrides)) {
+    if (validKeys.has(k)) sanitized[k as VocabKey] = v;
+  }
+  return sanitized;
+}
+
+/**
  * Resolve a vocab key to its display string.
  *
  * @param key      - canonical vocab key

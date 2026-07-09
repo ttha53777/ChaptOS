@@ -345,7 +345,7 @@ button:focus-visible, input:focus-visible, a:focus-visible { outline: 2px solid 
 .term-meta { font-size: 13px; color: var(--ink-55); line-height: 1.7; }
 .term-meta .dot { display: inline-block; height: 5px; width: 5px; border-radius: 50%; background: var(--vio); margin: 0 4px 2px 0; }
 
-details.standards { border-top: 1px solid var(--line-soft); margin-top: 4px; }
+details.standards { border-top: 1px solid var(--line-soft); margin-top: 12px; }
 details.standards summary { cursor: pointer; list-style: none; padding: 14px 0 4px; font-family: var(--mono); font-size: 11px; letter-spacing: .2em; text-transform: uppercase; color: var(--ink-40); }
 details.standards summary::after { content: "+"; float: right; }
 details.standards[open] summary::after { content: "–"; }
@@ -985,8 +985,7 @@ details.rc-adv[open] summary::after { transform: rotate(90deg); }
             <div class="bp-card">
               <h3>Leadership <span class="why">titles &amp; abilities are yours to change</span></h3>
               <div id="seatList"></div>
-              <button class="add-role-btn" id="addSeat"><span class="plus">+</span> Add a role</button>
-              <p class="seat-note">Name a seat now so you know <b>who to assign it to</b> — everyone joins through one shared link, then you seat them in a tap. <button class="add-seat" data-go="3b" style="margin:0">← Back to roles &amp; abilities</button></p>
+              <p class="seat-note">Name a seat now so you know <b>who to assign it to</b> — everyone joins through one link, then you seat them in a tap.<button class="add-seat" data-go="3b" style="display:block;margin:6px 0 0">← Back to roles &amp; abilities</button></p>
             </div>
             <div class="bp-card">
               <h3>This term</h3>
@@ -1996,7 +1995,6 @@ function renderSeats() {
     }
   });
 }
-$("#addSeat").addEventListener("click", () => openRolePanel(renderSeats));
 
 /* ═══ Step 3b — your roles (stacked cards + ability pills) ═════════════ */
 /* Plain-English "Can X and Y." from a seat's lit areas. */

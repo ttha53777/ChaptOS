@@ -15,9 +15,9 @@
 import type { RequestContext } from "@/lib/context";
 import { emit } from "@/lib/events";
 import { ForbiddenError } from "@/lib/errors";
-import { ALWAYS_ON_WORKFLOWS, ALL_WORKFLOWS, type WorkflowId } from "@/lib/org-types";
+import { normalizeWorkflows, type WorkflowId } from "@/lib/org-types";
 import { normalizeNavOrder, NAV_LABELS } from "@/lib/nav-order";
-import { VOCAB_KEYS, type VocabKey, type VocabOverrides } from "@/lib/vocab";
+import { sanitizeVocabOverrides } from "@/lib/vocab";
 import { resolveThresholds, type Thresholds } from "@/lib/thresholds";
 import { normalizeDisabledFeatures, type DisabledFeatures } from "@/lib/workflow-features";
 import {
@@ -56,12 +56,9 @@ export async function setWorkflows(
     throw new ForbiddenError("Only an org admin can change enabled workflows");
   }
 
-  const requested = new Set<WorkflowId>(input.enabledWorkflows as WorkflowId[]);
-  for (const w of ALWAYS_ON_WORKFLOWS) requested.add(w);
-
-  // Order by ALL_WORKFLOWS so the stored array is deterministic regardless of
-  // the order the client sent ids in.
-  const enabledWorkflows = ALL_WORKFLOWS.filter(w => requested.has(w));
+  // normalizeWorkflows de-dupes, force-unions ALWAYS_ON_WORKFLOWS, and orders by
+  // ALL_WORKFLOWS so the stored array is deterministic. Shared with provisionOrg.
+  const enabledWorkflows = normalizeWorkflows(input.enabledWorkflows);
 
   // upsert (not update) so a legacy org missing its config row self-heals rather
   // than 404-ing. organizationId is injected by ctx.db — never client-supplied.
@@ -151,11 +148,7 @@ export async function setVocab(
   }
 
   // Strip unknown keys so arbitrary client input can't pollute the JSON column.
-  const validKeys = new Set<string>(VOCAB_KEYS);
-  const sanitized: VocabOverrides = {};
-  for (const [k, v] of Object.entries(overrides)) {
-    if (validKeys.has(k)) sanitized[k as VocabKey] = v;
-  }
+  const sanitized = sanitizeVocabOverrides(overrides);
 
   await ctx.db.organizationConfig.upsert({ vocabularyOverrides: sanitized });
 
