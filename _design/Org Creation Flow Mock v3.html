@@ -1,0 +1,2123 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ChaptOS — Org Creation Flow Mock v3</title>
+<!--
+  ChaptOS org-creation pipeline — CONCEPT MOCK v3 (phase-in-ready spec)
+  ────────────────────────────────────────────────────────────────────────────
+  v3 is a FIDELITY pass on v2: same visual language and animation, but the data
+  model now matches the real backend so this doubles as a buildable spec. The
+  confirmed phase-in decisions it encodes:
+    · Interview is PRE-creation (today the AI interview lives post-create on
+      /[slug]/onboarding). The blueprint the founder reviews IS what gets built.
+    · The blueprint EXTENDS provisionOrg — workflows, vocabulary, renamed
+      roles/seats + permission bundles, meeting cadence, and term/dues are all
+      chosen up front and provisioned atomically. Step 4 logs the exact payload
+      it would POST (open the console) so the backend work has a concrete target.
+    · Icon upload is a first-class step (real: POST /api/orgs/logo after create,
+      image/* <= 2 MB). The gradient monogram is the FALLBACK, not the only option.
+    · Invites reuse the existing org-wide model (one /join/{token}, mode+expiry).
+      Named seats are display-only with a labeled "future" role-tag affordance —
+      no promise the backend can't keep.
+    · "Reveal" is the ACTUAL app — the flow hands off into the live /[slug]
+      workspace. Step 6 is framed as that hand-off, not a rendered fake.
+
+  Concrete v2->v3 changes (see the drift table in the plan):
+    · Workflow ids → real WorkflowId union: members, events, attendance, finance,
+      parties, service, communications, docs, tasks, operations (operations is
+      always-on: Dashboard/Timeline/Chapter).
+    · Vocab → real VOCAB_KEYS (canonical singular: Member, Meetings, Period,
+      Event, Dues…); plurals derived, not stored.
+    · Org types → the real 7: fraternity, generic-club, sports-team, service-org,
+      honor-society, performing-arts, generic-org (sorority = fraternity template
+      + Sister vocab).
+    · Permissions → all 14 real MANAGE_* flags incl. MANAGE_SETTINGS.
+
+  Seven screens, fully clickable; the bottom rail jumps page-to-page.
+    1 Name → 2 Interview → 3 Roles → 4 Blueprint → 5 Build → 6 Reveal → 7 Invite
+
+  Assumptions: default persona "Kappa Sigma", fraternity, dues pain, Sunday
+  chapter — jumping ahead via the rail fills these so every screen stands
+  alone. Same delivery contract as every _design mock: one file, vanilla
+  JS/CSS, double-click to open, fonts from Google.
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,400;1,9..144,500;1,9..144,600&family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ═══ 0 · Tokens ═════════════════════════════════════════════════════════ */
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body { margin: 0; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+h1, h2, h3, h4, h6, p, ul { margin: 0; padding: 0; }
+button { font: inherit; color: inherit; background: none; border: none; cursor: pointer; }
+input { font: inherit; }
+
+:root {
+  --paper: #0f0d0a;
+  --paper-2: #14120e;
+  --paper-3: #1b1813;
+  --card: #161310;
+  --ink: #ece7dd;
+  --ink-72: rgba(236,231,221,.72);
+  --ink-55: rgba(236,231,221,.55);
+  --ink-40: rgba(236,231,221,.4);
+  --ink-28: rgba(236,231,221,.28);
+  --line: rgba(236,231,221,.13);
+  --line-soft: rgba(236,231,221,.07);
+  --vio: #a78bfa;
+  --vio-deep: #7c3aed;
+  --vio-soft: rgba(167,139,250,.12);
+  --vio-line: rgba(167,139,250,.32);
+  --gold: #ddb36a;
+  --rose: #d98ba3;
+  --ok: #7fb08a;
+  --ok-soft: rgba(127,176,138,.14);
+  --amber: #d9a05b;
+  --sky: #7fb3d9;
+  /* app world */
+  --app-bg: #07090f;
+  --app-surface: #10121a;
+  --app-raised: #141820;
+  --app-line: rgba(255,255,255,.07);
+  --app-line-2: rgba(255,255,255,.12);
+  --app-fg: #f1f5f9;
+  --app-fg-60: rgba(241,245,249,.6);
+  --app-fg-40: rgba(241,245,249,.4);
+  --serif: "Fraunces", Georgia, serif;
+  --sans: "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --mono: "Geist Mono", ui-monospace, Menlo, monospace;
+  --ease: cubic-bezier(.16,1,.3,1);
+}
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--sans);
+  overflow: hidden;
+}
+body::before {
+  content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 0;
+  opacity: .55;
+  background-image: radial-gradient(rgba(236,231,221,.025) 1px, transparent 1px);
+  background-size: 4px 4px;
+}
+::selection { background: var(--vio-deep); color: #fff; }
+button:focus-visible, input:focus-visible, a:focus-visible { outline: 2px solid var(--vio); outline-offset: 3px; border-radius: 4px; }
+
+/* ═══ 1 · Stage & chrome ═════════════════════════════════════════════════ */
+.stage { position: relative; z-index: 1; height: 100vh; height: 100dvh; display: flex; flex-direction: column; }
+.chrome { display: flex; align-items: center; justify-content: space-between; height: 60px; padding: 0 28px; flex: none; }
+.wm { display: flex; align-items: center; gap: 10px; }
+.glyph {
+  height: 26px; width: 26px; border-radius: 7px;
+  background: var(--ink); color: var(--paper);
+  font-family: var(--serif); font-weight: 600; font-size: 15px;
+  display: flex; align-items: center; justify-content: center;
+}
+.wm-txt { font-size: 12px; font-weight: 600; letter-spacing: .14em; }
+.chrome-tag { font-family: var(--mono); font-size: 10.5px; letter-spacing: .16em; color: var(--ink-28); }
+.scr-app-chrome .glyph, .scr-dark-chrome .glyph { background: var(--app-fg); color: var(--app-bg); }
+
+/* ═══ 2 · Screens ════════════════════════════════════════════════════════ */
+#screens { flex: 1; min-height: 0; position: relative; }
+.scr { position: absolute; inset: 0; display: none; animation: scr-in 560ms var(--ease) both; }
+.scr.active { display: block; }
+@keyframes scr-in {
+  from { opacity: 0; transform: translateY(12px) scale(.995); filter: blur(3px); }
+  to   { opacity: 1; transform: none; filter: blur(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .scr, .sheet-sec, .bp-card, .role-card, .bld-line, .rvl-main > *, .msg, .app-side li { animation: none !important; transition: none !important; }
+}
+
+.split {
+  height: 100%; display: grid;
+  grid-template-columns: minmax(440px, 46%) 1fr;
+  gap: clamp(24px, 4vw, 64px);
+  padding: 0 clamp(28px, 4.5vw, 72px) 84px;
+  align-items: center;
+}
+
+/* ═══ 3 · Step 1 — Name ══════════════════════════════════════════════════ */
+.ask { max-width: 520px; }
+.kicker { font-family: var(--mono); font-size: 11px; letter-spacing: .22em; text-transform: uppercase; color: var(--ink-40); margin-bottom: 22px; }
+.q-serif { font-family: var(--serif); font-weight: 500; font-size: clamp(30px, 3.4vw, 44px); line-height: 1.12; letter-spacing: -.01em; }
+.ask .q-serif { margin-bottom: 30px; }
+
+.name-input {
+  width: 100%; background: transparent; border: none; color: var(--ink);
+  border-bottom: 1px solid var(--line);
+  font-family: var(--serif); font-size: clamp(26px, 2.6vw, 36px); font-weight: 500;
+  padding: 6px 2px 14px; outline: none;
+  transition: border-color 240ms var(--ease);
+  caret-color: var(--vio);
+}
+.name-input::placeholder { color: var(--ink-28); font-style: italic; }
+.name-input:focus { border-color: var(--vio-line); }
+
+.slugline { margin-top: 16px; font-family: var(--mono); font-size: 13px; color: var(--ink-40); min-height: 20px; transition: opacity 240ms var(--ease); }
+.slugline b { color: var(--ink-72); font-weight: 500; }
+
+.idrow { display: flex; align-items: center; gap: 16px; margin-top: 30px; min-height: 44px; }
+.mark {
+  height: 44px; width: 44px; border-radius: 12px; flex: none;
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--serif); font-weight: 600; font-size: 17px; color: #fff;
+  border: 1px solid rgba(255,255,255,.14);
+  box-shadow: 0 8px 24px -10px rgba(0,0,0,.6);
+  transition: background 400ms var(--ease);
+}
+.mark.empty { background: var(--paper-3) !important; border: 1px dashed var(--line); color: var(--ink-28); box-shadow: none; }
+.idnote { font-size: 12.5px; color: var(--ink-55); line-height: 1.55; max-width: 330px; }
+.idnote b { color: var(--ink-72); }
+
+.cta {
+  display: inline-flex; align-items: center; gap: 10px;
+  margin-top: 40px; padding: 13px 26px; border-radius: 999px;
+  background: var(--ink); color: var(--paper);
+  font-size: 14.5px; font-weight: 600;
+  transition: transform 200ms var(--ease), box-shadow 200ms var(--ease);
+}
+.cta:hover { transform: translateY(-1px); box-shadow: 0 10px 30px -12px rgba(236,231,221,.35); }
+.fine { margin-top: 18px; font-size: 12.5px; color: var(--ink-40); }
+
+/* ═══ 4 · Blueprint sheet (assembles live through steps 1–2) ═════════════ */
+.sheet-slot { height: min(72vh, 640px); display: flex; align-items: center; }
+.sheet-wrap { width: 100%; height: 100%; position: relative; }
+.sheet-wrap::before {
+  content: ""; position: absolute; inset: -8% -6%;
+  background:
+    radial-gradient(42% 46% at 22% 24%, rgba(167,139,250,.12), transparent 70%),
+    radial-gradient(38% 42% at 82% 78%, rgba(217,179,106,.07), transparent 70%);
+  filter: blur(6px); pointer-events: none;
+}
+.sheet-cap { position: absolute; top: -28px; left: 2px; font-family: var(--mono); font-size: 10px; letter-spacing: .18em; color: var(--ink-28); text-transform: uppercase; }
+.sheet {
+  position: relative; height: 100%; width: 100%;
+  background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+  box-shadow: 0 2px 4px rgba(0,0,0,.5), 0 32px 80px -24px rgba(0,0,0,.7);
+  overflow: hidden; display: flex; flex-direction: column;
+  padding: 22px 24px 16px;
+}
+.sheet-head { display: flex; align-items: center; gap: 14px; padding-bottom: 16px; }
+.sheet-head .mark { height: 40px; width: 40px; font-size: 15px; margin: 0; }
+.sheet-title { min-width: 0; }
+.sheet-title .nm { font-family: var(--serif); font-weight: 500; font-size: 21px; letter-spacing: -.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sheet-title .nm.ghost { color: var(--ink-28); font-style: italic; }
+.sheet-title .sl { font-family: var(--mono); font-size: 10.5px; color: var(--ink-40); margin-top: 3px; }
+.sheet-sec {
+  border-top: 1px solid var(--line-soft); padding: 13px 0;
+  animation: sec-in 480ms var(--ease) both;
+}
+@keyframes sec-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+.sheet-sec h6 { font-family: var(--mono); font-size: 9.5px; font-weight: 600; letter-spacing: .2em; text-transform: uppercase; color: var(--ink-40); margin-bottom: 9px; }
+.sheet-sec.pending h6 { color: var(--ink-28); }
+.sheet-sec .pend { font-size: 12px; color: var(--ink-28); font-style: italic; }
+.sheet-sec.flash { animation: sec-flash 900ms var(--ease); }
+@keyframes sec-flash {
+  0% { background: var(--vio-soft); box-shadow: inset 3px 0 0 var(--vio); }
+  100% { background: transparent; box-shadow: none; }
+}
+.pg-chips { display: flex; flex-wrap: wrap; gap: 7px; }
+.pg {
+  display: inline-flex; align-items: center; gap: 7px;
+  font-size: 12px; color: var(--ink-72);
+  border: 1px solid var(--line); border-radius: 999px; padding: 4px 12px;
+  animation: sec-in 420ms var(--ease) both;
+}
+.pg .dot { height: 4px; width: 4px; border-radius: 50%; background: var(--ink-40); }
+.pg.lead { border-color: var(--vio-line); color: var(--ink); background: var(--vio-soft); }
+.pg.lead .dot { background: var(--vio); box-shadow: 0 0 8px rgba(167,139,250,.6); }
+.words-line { font-family: var(--serif); font-size: 17px; color: var(--ink); }
+.words-line span { color: var(--ink-28); font-size: 14px; margin: 0 7px; }
+.sheet-line { font-size: 13px; color: var(--ink-72); display: flex; align-items: center; gap: 9px; }
+.sheet-line .dot { height: 5px; width: 5px; border-radius: 50%; background: var(--vio); flex: none; }
+.sheet-line b { color: var(--ink); font-weight: 600; }
+.sheet-foot { margin-top: auto; padding-top: 12px; font-family: var(--mono); font-size: 9.5px; letter-spacing: .12em; color: var(--ink-28); text-transform: uppercase; }
+
+/* ═══ 5 · Step 2 — Interview ═════════════════════════════════════════════ */
+.chat-col { height: min(72vh, 640px); display: flex; flex-direction: column; max-width: 560px; width: 100%; }
+.chat { flex: 1; min-height: 0; overflow-y: auto; padding: 8px 4px 16px; display: flex; flex-direction: column; gap: 16px; scrollbar-width: thin; }
+.msg { display: flex; gap: 12px; animation: msg-in 420ms var(--ease) both; max-width: 92%; }
+@keyframes msg-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+.msg .m-glyph {
+  height: 26px; width: 26px; border-radius: 7px; flex: none; margin-top: 2px;
+  background: var(--ink); color: var(--paper);
+  font-family: var(--serif); font-weight: 600; font-size: 14px;
+  display: flex; align-items: center; justify-content: center;
+}
+.msg .m-body { font-size: 15px; line-height: 1.55; color: var(--ink-72); padding-top: 4px; }
+.msg .m-body b { color: var(--ink); font-weight: 600; }
+.msg.q .m-body { font-family: var(--serif); font-size: 19px; line-height: 1.4; color: var(--ink); }
+.msg.user { align-self: flex-end; max-width: 80%; }
+.msg.user .m-body { background: var(--paper-3); border: 1px solid var(--line); padding: 9px 16px; border-radius: 999px; font-size: 14px; color: var(--ink); }
+.typing { display: inline-flex; gap: 5px; padding: 10px 2px; }
+.typing i { height: 5px; width: 5px; border-radius: 50%; background: var(--ink-40); animation: tp 1.1s ease-in-out infinite; }
+.typing i:nth-child(2) { animation-delay: .15s; }
+.typing i:nth-child(3) { animation-delay: .3s; }
+@keyframes tp { 0%, 60%, 100% { transform: none; opacity: .5; } 30% { transform: translateY(-4px); opacity: 1; } }
+
+.chips { display: flex; flex-wrap: wrap; gap: 9px; padding: 2px 0 0 38px; }
+.chip {
+  padding: 9px 17px; border-radius: 999px;
+  border: 1px solid var(--line); color: var(--ink-72); font-size: 13.5px;
+  transition: all 200ms var(--ease); background: rgba(236,231,221,.02);
+}
+.chip:hover { border-color: var(--vio-line); color: var(--ink); background: var(--vio-soft); transform: translateY(-1px); }
+.chat-foot { flex: none; display: flex; align-items: center; gap: 14px; padding-top: 14px; border-top: 1px solid var(--line-soft); }
+.free {
+  flex: 1; background: transparent; border: 1px solid var(--line); border-radius: 999px;
+  color: var(--ink); padding: 10px 18px; font-size: 13.5px; outline: none;
+  transition: border-color 200ms var(--ease);
+}
+.free::placeholder { color: var(--ink-28); }
+.free:focus { border-color: var(--vio-line); }
+.ghost-link { font-size: 12.5px; color: var(--ink-40); white-space: nowrap; text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--line); transition: color 200ms; }
+.ghost-link:hover { color: var(--ink-72); }
+.chat-cta { align-self: flex-start; margin-left: 38px; }
+
+/* ═══ 6 · Step 3 — Blueprint (full-screen) ═══════════════════════════════ */
+.bp { height: 100%; overflow-y: auto; padding: 12px clamp(28px, 5vw, 80px) 110px; scrollbar-width: thin; }
+.bp-head { max-width: 760px; margin: 0 auto 8px; text-align: center; padding-top: 2vh; }
+.bp-head .q-serif { margin-bottom: 12px; }
+.bp-sub { font-size: 14.5px; color: var(--ink-55); }
+.bp-grid { max-width: 1010px; margin: 34px auto 0; display: grid; grid-template-columns: 1.15fr 1fr; gap: 18px; align-items: start; }
+.bp-card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 20px 22px; animation: msg-in 480ms var(--ease) both; }
+.bp-grid > *:nth-child(1) { animation-delay: 40ms; }
+.bp-grid > *:nth-child(2) { animation-delay: 120ms; }
+.bp-col { display: flex; flex-direction: column; gap: 18px; }
+.bp-card h3 { font-family: var(--mono); font-size: 11px; font-weight: 600; letter-spacing: .2em; text-transform: uppercase; color: var(--ink-40); margin-bottom: 16px; }
+.bp-card h3 .why { float: right; letter-spacing: .04em; text-transform: none; color: var(--ink-28); font-weight: 400; }
+
+.wf-row { display: flex; align-items: baseline; gap: 12px; padding: 9px 0; border-top: 1px solid var(--line-soft); }
+.wf-row:first-of-type { border-top: 0; }
+.wf-name { font-size: 14.5px; font-weight: 600; flex: none; width: 118px; }
+.wf-row.off .wf-name { color: var(--ink-40); font-weight: 500; }
+.wf-why { flex: 1; font-size: 12.5px; color: var(--ink-55); font-style: italic; }
+.wf-why q { quotes: "“" "”"; color: var(--ink-72); }
+.wf-row.off .wf-why { color: var(--ink-28); }
+.wf-tgl {
+  flex: none; font-family: var(--mono); font-size: 10px; letter-spacing: .1em;
+  padding: 4px 12px; border-radius: 999px;
+  border: 1px solid rgba(127,176,138,.4); color: var(--ok); background: var(--ok-soft);
+  transition: all 180ms var(--ease); min-width: 46px;
+}
+.wf-row.off .wf-tgl { border-color: var(--line); color: var(--ink-40); background: transparent; }
+.wf-tgl:hover { transform: scale(1.05); }
+
+.vocab-row { display: flex; flex-wrap: wrap; gap: 10px; }
+.vocab-chip { display: inline-flex; align-items: baseline; gap: 8px; border: 1px solid var(--line); border-radius: 10px; padding: 9px 14px; transition: border-color 200ms; cursor: text; }
+.vocab-chip:hover { border-color: var(--vio-line); }
+.vocab-chip .vl { font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-40); }
+.vocab-chip .vv { font-family: var(--serif); font-size: 16px; color: var(--ink); }
+.vocab-chip input { background: transparent; border: none; outline: none; color: var(--ink); font-family: var(--serif); font-size: 16px; width: 96px; padding: 0; border-bottom: 1px dashed var(--vio-line); }
+.vocab-note { margin-top: 14px; font-size: 12.5px; color: var(--ink-55); font-style: italic; }
+
+/* Leadership v2 — seats are people, not furniture */
+.seat { display: grid; grid-template-columns: 9px 108px 1fr 150px; align-items: center; gap: 11px; padding: 10px 0; border-top: 1px solid var(--line-soft); }
+.seat:first-of-type { border-top: 0; }
+.seat-dot { height: 9px; width: 9px; border-radius: 50%; }
+.seat-title { font-size: 14px; font-weight: 600; cursor: text; border-bottom: 1px dashed transparent; transition: border-color 200ms; width: fit-content; max-width: 108px; white-space: nowrap; overflow: hidden; }
+.seat-title:hover { border-color: var(--vio-line); }
+.seat-title input { background: transparent; border: none; outline: none; color: var(--ink); font-size: 14px; font-weight: 600; width: 100px; padding: 0; border-bottom: 1px dashed var(--vio-line); }
+.seat-able { font-size: 12px; color: var(--ink-55); font-style: italic; }
+.seat-you { font-family: var(--mono); font-size: 10px; letter-spacing: .12em; color: var(--paper); background: var(--ink); border-radius: 999px; padding: 3px 10px; justify-self: end; }
+.seat-who {
+  width: 100%; background: transparent; border: none; outline: none; color: var(--ink);
+  border-bottom: 1px dashed var(--line); font-size: 12.5px; padding: 3px 1px;
+  transition: border-color 200ms;
+}
+.seat-who::placeholder { color: var(--ink-28); font-style: italic; }
+.seat-who:focus { border-color: var(--vio-line); }
+.seat-who.named { border-bottom-style: solid; border-color: rgba(127,176,138,.4); }
+.add-seat { margin-top: 12px; font-size: 12.5px; color: var(--ink-40); transition: color 200ms; }
+.add-seat:hover { color: var(--ink); }
+.add-seat b { color: var(--ink-55); font-weight: 500; }
+.seat-note { margin-top: 12px; font-size: 12px; color: var(--ink-55); font-style: italic; line-height: 1.5; }
+.seat-note b { color: var(--ink-72); }
+
+.term-line { font-family: var(--serif); font-size: 21px; margin-bottom: 8px; }
+.term-meta { font-size: 13px; color: var(--ink-55); line-height: 1.7; }
+.term-meta .dot { display: inline-block; height: 5px; width: 5px; border-radius: 50%; background: var(--vio); margin: 0 4px 2px 0; }
+
+details.standards { border-top: 1px solid var(--line-soft); margin-top: 4px; }
+details.standards summary { cursor: pointer; list-style: none; padding: 14px 0 4px; font-family: var(--mono); font-size: 11px; letter-spacing: .2em; text-transform: uppercase; color: var(--ink-40); }
+details.standards summary::after { content: "+"; float: right; }
+details.standards[open] summary::after { content: "–"; }
+.std-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; padding: 10px 0 6px; }
+.std { border: 1px solid var(--line-soft); border-radius: 10px; padding: 10px 12px; }
+.std .sv { font-family: var(--mono); font-size: 15px; color: var(--ink); }
+.std .sl { font-size: 10.5px; color: var(--ink-40); margin-top: 3px; line-height: 1.4; }
+
+.bp-cta-row { max-width: 1010px; margin: 30px auto 0; display: flex; align-items: center; justify-content: center; gap: 22px; }
+.cta.big { font-size: 15.5px; padding: 15px 34px; margin-top: 0; }
+.bp-foot { text-align: center; margin-top: 14px; font-size: 12px; color: var(--ink-28); }
+
+/* ═══ 6b · Step 3b — Your roles (redesigned) ═════════════════════════════
+   Each role is a card with a colored left accent tied to its role color, a
+   monogram avatar, and clean ability toggles using consistent SVG line icons
+   (no emoji). State reads from fill, not a trailing checkbox. */
+.bp.roles { padding-bottom: 120px; }
+.roles-stack { max-width: 700px; margin: 30px auto 0; display: flex; flex-direction: column; gap: 14px; }
+.role-card {
+  position: relative; overflow: hidden;
+  background: var(--card); border: 1px solid var(--line); border-radius: 16px;
+  padding: 18px 22px 17px 24px; animation: msg-in 480ms var(--ease) both;
+  transition: border-color 200ms var(--ease);
+}
+/* Colored left accent — the role's identity, at a glance. */
+.role-card::before {
+  content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+  background: var(--rc, var(--ink-40)); opacity: .9;
+}
+.role-card:hover { border-color: rgba(236,231,221,.2); }
+.role-card.founder {
+  border-color: var(--vio-line);
+  background: radial-gradient(120% 100% at 0% 0%, var(--vio-soft), transparent 55%), var(--card);
+}
+
+.rc-head { display: flex; align-items: center; gap: 13px; }
+.rc-avatar {
+  height: 34px; width: 34px; border-radius: 10px; flex: none;
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--serif); font-weight: 600; font-size: 15px; color: #fff;
+  border: 1px solid rgba(255,255,255,.16);
+  box-shadow: 0 6px 16px -8px rgba(0,0,0,.7), inset 0 1px 0 rgba(255,255,255,.14);
+}
+.rc-namecol { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.rc-title { font-family: var(--serif); font-size: 19px; font-weight: 500; letter-spacing: -.01em; cursor: text; border-bottom: 1px dashed transparent; transition: border-color 200ms; width: fit-content; }
+.rc-title:hover { border-color: var(--vio-line); }
+.rc-title input { background: transparent; border: none; outline: none; color: var(--ink); font-family: var(--serif); font-size: 19px; font-weight: 500; width: 160px; padding: 0; border-bottom: 1px dashed var(--vio-line); }
+.rc-summary { font-size: 12px; color: var(--ink-40); line-height: 1.4; }
+.rc-summary b { color: var(--ink-72); font-weight: 500; }
+.rc-you { margin-left: auto; font-family: var(--mono); font-size: 9.5px; letter-spacing: .14em; color: var(--paper); background: var(--ink); border-radius: 999px; padding: 4px 11px; flex: none; }
+.rc-who {
+  margin-left: auto; width: 200px; background: transparent; border: none; outline: none; color: var(--ink);
+  border-bottom: 1px dashed var(--line); font-size: 12.5px; padding: 5px 2px; transition: border-color 200ms; text-align: right; flex: none;
+}
+.rc-who::placeholder { color: var(--ink-28); font-style: italic; }
+.rc-who:focus { border-color: var(--vio-line); }
+.rc-who.named { border-bottom-style: solid; border-color: rgba(127,176,138,.45); }
+
+/* Ability toggles — icon + label; state carried by fill and icon tint. */
+.pill-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 15px; }
+.pill {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 8px 14px; border-radius: 10px; font-size: 13px; font-weight: 500;
+  border: 1px solid var(--line); color: var(--ink-40); background: rgba(236,231,221,.015);
+  transition: all 170ms var(--ease); cursor: pointer; user-select: none;
+}
+.pill .pi { height: 15px; width: 15px; flex: none; color: currentColor; opacity: .7; transition: opacity 170ms; }
+.pill .pi svg { display: block; height: 100%; width: 100%; }
+.pill:hover { border-color: var(--vio-line); color: var(--ink-72); background: rgba(167,139,250,.05); }
+.pill:hover .pi { opacity: 1; }
+.pill.on {
+  border-color: transparent; color: #fff;
+  background: linear-gradient(180deg, var(--vio), var(--vio-deep));
+  box-shadow: 0 6px 16px -8px rgba(124,58,237,.6);
+}
+.pill.on .pi { opacity: 1; }
+.pill.partial {
+  border-color: var(--vio-line); color: var(--ink); background: var(--vio-soft);
+}
+.pill.partial .pi { opacity: 1; color: var(--vio); }
+.pill.partial::after {
+  content: "•"; margin-left: 3px; color: var(--vio); font-size: 15px; line-height: 0;
+}
+/* Founder pills are non-interactive and "fully granted" — a calm violet-tinted
+   confirmation rather than the loud gradient of an editable on-pill. */
+.role-card.founder .pill {
+  cursor: default; border-color: var(--vio-line); color: var(--ink);
+  background: var(--vio-soft); box-shadow: none;
+}
+.role-card.founder .pill .pi { opacity: 1; color: var(--vio); }
+.role-card.founder .pill:hover { border-color: var(--vio-line); background: var(--vio-soft); }
+
+.rc-founder-note { margin-top: 14px; font-size: 12px; color: var(--ink-55); line-height: 1.5; }
+.rc-founder-note b { color: var(--ink-72); }
+
+details.rc-adv { margin-top: 14px; border-top: 1px solid var(--line-soft); }
+details.rc-adv summary { cursor: pointer; list-style: none; padding: 12px 0 2px; font-family: var(--mono); font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-40); transition: color 180ms; display: flex; align-items: center; gap: 8px; }
+details.rc-adv summary:hover { color: var(--ink-72); }
+details.rc-adv summary::after { content: "›"; margin-left: auto; transition: transform 200ms; font-size: 14px; }
+details.rc-adv[open] summary::after { transform: rotate(90deg); }
+.adv-area { padding: 11px 0 5px; border-top: 1px solid var(--line-soft); }
+.adv-area:first-of-type { border-top: 0; }
+.adv-area h6 { display: flex; align-items: center; gap: 7px; font-family: var(--mono); font-size: 9.5px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; color: var(--ink-40); margin-bottom: 9px; }
+.adv-area h6 .pi { height: 13px; width: 13px; opacity: .7; }
+.adv-area h6 .pi svg { display: block; height: 100%; width: 100%; }
+.adv-abils { display: flex; flex-wrap: wrap; gap: 8px; }
+.abil {
+  display: inline-flex; align-items: center; gap: 8px; padding: 7px 12px; border-radius: 9px;
+  border: 1px solid var(--line); font-size: 12.5px; color: var(--ink-40); cursor: pointer;
+  transition: all 160ms var(--ease); user-select: none; background: rgba(236,231,221,.015);
+}
+.abil .ac { height: 14px; width: 14px; border-radius: 5px; border: 1.5px solid var(--ink-28); display: flex; align-items: center; justify-content: center; font-size: 9px; color: transparent; transition: all 160ms; flex: none; }
+.abil:hover { border-color: var(--vio-line); color: var(--ink-72); }
+.abil.on { border-color: var(--vio-line); color: var(--ink); background: var(--vio-soft); }
+.abil.on .ac { background: var(--vio); border-color: var(--vio); color: #fff; }
+.roles-add { display: block; max-width: 700px; margin: 14px auto 0; }
+
+/* ═══ 7 · Step 4 — Sign-in + build ═══════════════════════════════════════ */
+.scr-dark { background: #060504; }
+.bld { height: 100%; display: flex; align-items: center; justify-content: center; padding-bottom: 60px; }
+.signin {
+  width: 400px; text-align: center;
+  background: var(--card); border: 1px solid var(--line); border-radius: 18px;
+  padding: 44px 40px 38px;
+  box-shadow: 0 40px 100px -30px rgba(0,0,0,.8);
+}
+.signin .mark { margin: 0 auto 18px; }
+.signin h2 { font-family: var(--serif); font-weight: 500; font-size: 24px; line-height: 1.25; margin-bottom: 6px; }
+.signin p { font-size: 13px; color: var(--ink-55); margin-bottom: 26px; }
+.gbtn {
+  width: 100%; display: flex; align-items: center; justify-content: center; gap: 12px;
+  background: #fff; color: #1f1f1f; border-radius: 999px; padding: 12px 20px;
+  font-size: 14.5px; font-weight: 600;
+  transition: transform 200ms var(--ease), box-shadow 200ms var(--ease);
+}
+.gbtn:hover { transform: translateY(-1px); box-shadow: 0 12px 30px -12px rgba(255,255,255,.3); }
+.signin .fine { margin-top: 16px; font-size: 11.5px; }
+
+.building { display: none; text-align: center; width: 480px; }
+.building.show { display: block; }
+.bld-glyph {
+  margin: 0 auto 34px; height: 64px; width: 64px; border-radius: 16px;
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--serif); font-weight: 600; font-size: 26px; color: #fff;
+  border: 1px solid rgba(255,255,255,.14);
+  animation: breathe 2s ease-in-out infinite;
+}
+@keyframes breathe { 50% { box-shadow: 0 0 44px -6px rgba(167,139,250,.55); transform: scale(1.04); } }
+.bld-lines { display: flex; flex-direction: column; gap: 13px; text-align: left; width: 400px; margin: 0 auto; }
+.bld-line {
+  display: flex; align-items: center; gap: 12px;
+  font-family: var(--mono); font-size: 12.5px; color: var(--ink-40);
+  opacity: 0; transform: translateY(6px);
+  transition: all 420ms var(--ease);
+}
+.bld-line.show { opacity: 1; transform: none; }
+.bld-line.done { color: var(--ink-72); }
+.bld-line .tick { width: 16px; flex: none; color: var(--ok); opacity: 0; transition: opacity 300ms; }
+.bld-line.done .tick { opacity: 1; }
+
+/* ═══ 8 · Steps 5–6 — App world ══════════════════════════════════════════ */
+.scr-app { background: var(--app-bg); color: var(--app-fg); }
+.scr-app::before {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(60% 40% at 50% 0%, rgba(167,139,250,.06), transparent 70%);
+}
+.app-frame { position: relative; height: 100%; display: flex; }
+.app-side {
+  flex: none; width: 208px; border-right: 1px solid var(--app-line);
+  padding: 18px 12px; display: flex; flex-direction: column;
+  background: rgba(16,18,26,.5);
+}
+.app-side .org { display: flex; align-items: center; gap: 10px; padding: 0 8px 18px; }
+.app-side .org .mark { height: 28px; width: 28px; border-radius: 8px; font-size: 12px; margin: 0; box-shadow: none; }
+.app-side .org b { font-size: 13.5px; letter-spacing: -.01em; }
+.app-side ul { list-style: none; display: flex; flex-direction: column; gap: 2px; }
+.app-side li {
+  display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 8px;
+  font-size: 13px; color: var(--app-fg-60);
+  animation: sec-in 460ms var(--ease) both;
+}
+.app-side li.on { background: var(--app-surface); color: var(--app-fg); }
+.app-side li .dot { height: 5px; width: 5px; border-radius: 50%; background: var(--app-fg-40); flex: none; }
+.app-side li.on .dot { background: var(--vio); box-shadow: 0 0 8px rgba(167,139,250,.6); }
+.app-side .side-foot { margin-top: auto; padding: 8px 10px; font-size: 12.5px; color: var(--app-fg-40); }
+
+.rvl-main { flex: 1; min-width: 0; overflow-y: auto; padding: 34px clamp(24px, 3.5vw, 56px) 110px; scrollbar-width: thin; }
+.rvl-main > * { animation: msg-in 520ms var(--ease) both; }
+.rvl-main > *:nth-child(2) { animation-delay: 100ms; }
+.rvl-hello { font-family: var(--serif); font-weight: 500; font-size: clamp(26px, 2.6vw, 36px); letter-spacing: -.01em; }
+.rvl-sub { margin-top: 8px; font-size: 13.5px; color: var(--app-fg-60); }
+.rvl-grid { display: grid; grid-template-columns: 1.5fr 1fr; gap: 18px; margin-top: 28px; align-items: start; max-width: 1060px; }
+.rvl-col { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+.app-card {
+  background: var(--app-surface); border: 1px solid var(--app-line); border-radius: 14px; padding: 18px 20px;
+  box-shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px -12px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.04);
+}
+.app-card h4 { font-family: var(--mono); font-size: 10.5px; font-weight: 600; letter-spacing: .18em; text-transform: uppercase; color: var(--app-fg-40); margin-bottom: 14px; }
+.app-card h4 .tag { float: right; letter-spacing: .04em; color: var(--vio); text-transform: none; font-weight: 500; }
+.ann-body { font-size: 14px; line-height: 1.65; color: var(--app-fg); }
+.ann-body .sig { display: block; margin-top: 10px; color: var(--app-fg-60); font-style: italic; }
+.ann-foot { display: flex; gap: 16px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--app-line); }
+.ann-foot button { font-size: 12px; color: var(--app-fg-60); text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--app-line-2); }
+.ann-foot button:hover { color: var(--app-fg); }
+
+.pv-week { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+.pv-day { text-align: center; padding: 8px 0 9px; border-radius: 7px; border: 1px solid transparent; }
+.pv-day .d { font-family: var(--mono); font-size: 9px; color: var(--app-fg-40); }
+.pv-day .n { font-size: 14px; margin-top: 3px; color: var(--app-fg-60); }
+.pv-day.mark { border-color: rgba(167,139,250,.45); background: rgba(167,139,250,.12); }
+.pv-day.mark .n { color: var(--vio); font-weight: 600; }
+.dash-big { font-size: 18px; font-weight: 600; }
+.dash-sub { font-size: 12px; color: var(--app-fg-60); margin-top: 3px; }
+
+.check { display: flex; flex-direction: column; }
+.check-item { display: flex; gap: 13px; padding: 13px 0; border-top: 1px solid var(--app-line); }
+.check-item:first-of-type { border-top: 0; padding-top: 2px; }
+.check-n {
+  flex: none; height: 22px; width: 22px; border-radius: 50%; margin-top: 1px;
+  border: 1px solid rgba(167,139,250,.5); color: var(--vio);
+  font-family: var(--mono); font-size: 11px; display: flex; align-items: center; justify-content: center;
+}
+.check-item b { display: block; font-size: 13.5px; margin-bottom: 3px; }
+.check-item p { font-size: 12px; color: var(--app-fg-60); line-height: 1.5; }
+.check-item .go { margin-top: 7px; font-size: 12px; color: var(--vio); }
+.check-item .go:hover { text-decoration: underline; text-underline-offset: 3px; }
+
+.atc {
+  position: absolute; right: 28px; bottom: 92px; z-index: 5;
+  display: flex; align-items: center; gap: 12px;
+  background: var(--app-raised); border: 1px solid var(--app-line-2); border-radius: 999px;
+  padding: 10px 18px 10px 12px; font-size: 12.5px; color: var(--app-fg-60);
+  box-shadow: 0 16px 40px -16px rgba(0,0,0,.6);
+  animation: msg-in 600ms var(--ease) 700ms both;
+}
+.atc .mark { height: 24px; width: 24px; font-size: 11px; border-radius: 7px; margin: 0; box-shadow: none; }
+.atc b { color: var(--app-fg); font-weight: 600; }
+
+/* ═══ 9 · Step 6 — Invite ════════════════════════════════════════════════ */
+.inv { position: relative; height: 100%; overflow-y: auto; padding: 5vh clamp(28px, 5vw, 80px) 120px; scrollbar-width: thin; }
+.inv-head { max-width: 720px; margin: 0 auto; text-align: center; }
+.inv-head .q-serif { color: var(--app-fg); }
+.inv-sub { margin-top: 12px; font-size: 14px; color: var(--app-fg-60); }
+.inv-grid { max-width: 900px; margin: 38px auto 0; display: grid; grid-template-columns: 1.1fr 1fr; gap: 18px; align-items: start; }
+.inv-grid .app-card { animation: msg-in 480ms var(--ease) both; }
+.inv-grid .app-card:nth-child(2) { animation-delay: 90ms; }
+.exec-row { display: flex; align-items: center; gap: 11px; padding: 10px 0; border-top: 1px solid var(--app-line); }
+.exec-row:first-of-type { border-top: 0; padding-top: 0; }
+.exec-row .who { flex: 1; min-width: 0; }
+.exec-row .who b { display: block; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.exec-row .who span { display: block; font-family: var(--mono); font-size: 10px; color: var(--app-fg-40); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.exec-row .role-tag { flex: none; font-family: var(--mono); font-size: 9.5px; letter-spacing: .08em; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--app-line-2); color: var(--app-fg-60); }
+.copy {
+  flex: none; font-family: var(--mono); font-size: 10px; letter-spacing: .08em;
+  border: 1px solid var(--app-line-2); border-radius: 999px; padding: 4px 12px; color: var(--app-fg-60);
+  transition: all 180ms var(--ease);
+}
+.copy:hover { border-color: rgba(167,139,250,.5); color: var(--app-fg); }
+.copy.ok { border-color: rgba(127,176,138,.5); color: var(--ok); }
+.biglink { display: flex; align-items: center; gap: 12px; border: 1px dashed var(--app-line-2); border-radius: 11px; padding: 13px 16px; margin-bottom: 14px; }
+.biglink code { flex: 1; font-family: var(--mono); font-size: 12px; color: var(--app-fg); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.qr { height: 74px; width: 74px; flex: none; border-radius: 8px; background: var(--app-raised); border: 1px solid var(--app-line); display: flex; align-items: center; justify-content: center; font-family: var(--mono); font-size: 9px; letter-spacing: .12em; color: var(--app-fg-40); }
+.inv-note { font-size: 12px; color: var(--app-fg-60); line-height: 1.55; }
+.joins { max-width: 900px; margin: 26px auto 0; display: flex; align-items: center; gap: 16px; min-height: 44px; }
+.join-avs { display: flex; }
+.av {
+  height: 34px; width: 34px; border-radius: 50%; flex: none;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 600; color: var(--app-fg);
+  border: 2px solid var(--app-bg); margin-left: -8px;
+  animation: av-in 480ms var(--ease) both;
+}
+.av:first-child { margin-left: 0; }
+@keyframes av-in { from { opacity: 0; transform: scale(.4); } to { opacity: 1; transform: none; } }
+.join-count { font-size: 13.5px; color: var(--app-fg-60); }
+.join-count b { color: var(--app-fg); font-variant-numeric: tabular-nums; }
+.inv-foot { max-width: 900px; margin: 26px auto 0; font-size: 12px; color: var(--app-fg-40); font-style: italic; }
+.inv-cta-row { max-width: 900px; margin: 34px auto 0; }
+.cta.app-cta { background: var(--app-fg); color: var(--app-bg); }
+
+/* ═══ 10 · Step rail ═════════════════════════════════════════════════════ */
+.rail {
+  position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); z-index: 60;
+  display: flex; align-items: stretch; gap: 2px;
+  background: rgba(15,13,10,.82); border: 1px solid var(--line); border-radius: 999px;
+  padding: 5px; backdrop-filter: blur(14px) saturate(140%); -webkit-backdrop-filter: blur(14px) saturate(140%);
+  box-shadow: 0 20px 50px -20px rgba(0,0,0,.8);
+}
+.rail button {
+  display: flex; align-items: center; gap: 8px;
+  padding: 7px 14px; border-radius: 999px;
+  font-family: var(--mono); font-size: 10.5px; letter-spacing: .08em; color: var(--ink-40);
+  transition: all 200ms var(--ease); white-space: nowrap;
+}
+.rail button .n { font-size: 9.5px; opacity: .7; }
+.rail button:hover { color: var(--ink); }
+.rail button.on { background: var(--ink); color: var(--paper); }
+.rail-cap {
+  position: fixed; left: 50%; bottom: 66px; transform: translateX(-50%); z-index: 60;
+  font-family: var(--serif); font-style: italic; font-size: 13px; color: var(--ink-40);
+  pointer-events: none; text-align: center; width: max-content; max-width: 80vw;
+  padding: 4px 14px; border-radius: 999px;
+  background: rgba(10, 9, 7, .55); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  transition: opacity 300ms;
+}
+
+@media (max-width: 980px) {
+  .split { grid-template-columns: 1fr; align-items: start; padding-top: 12px; overflow-y: auto; }
+  .sheet-slot { height: 420px; }
+  .bp-grid, .rvl-grid, .inv-grid { grid-template-columns: 1fr; }
+  .rail button .lbl { display: none; }
+}
+
+/* ═══ 11 · v3 additions ══════════════════════════════════════════════════ */
+/* Icon upload (step 1) — the mark becomes a button with a hover "upload" cap. */
+.mark-btn { position: relative; padding: 0; border-radius: 12px; flex: none; line-height: 0; }
+.mark-btn .mark { margin: 0; }
+.mark-btn:hover .mark { border-color: var(--vio-line); }
+.mark-edit {
+  position: absolute; left: 50%; bottom: -7px; transform: translateX(-50%);
+  font-family: var(--mono); font-size: 8px; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--paper); background: var(--vio); padding: 2px 6px; border-radius: 999px;
+  opacity: 0; transition: opacity 180ms var(--ease); pointer-events: none; white-space: nowrap;
+}
+.mark-btn:hover .mark-edit { opacity: 1; }
+.link-btn { color: var(--vio); text-decoration: underline; text-underline-offset: 2px; font: inherit; }
+.link-btn:hover { color: var(--ink); }
+
+/* Always-on (locked) workflow row on the blueprint. */
+.wf-row.locked .wf-name { color: var(--ink-72); }
+.wf-tgl.locked {
+  border-color: var(--vio-line); color: var(--vio); background: var(--vio-soft);
+  cursor: default; opacity: .9;
+}
+.wf-tgl.locked:hover { transform: none; }
+
+/* Derived-plural hint on the vocab chips. */
+.vocab-chip .vv-plural { color: var(--ink-40); font-family: var(--serif); }
+
+/* Blueprint "what gets built" footer. */
+.bp-foot code { font-family: var(--mono); font-size: 11px; color: var(--ink-72); }
+.bp-foot-dev { color: var(--ink-40); }
+
+/* Reveal — "this is the real app" caption above the hello. */
+.rvl-caption {
+  display: inline-flex; align-items: center; gap: 7px; margin-bottom: 10px;
+  font-family: var(--mono); font-size: 10px; letter-spacing: .16em; text-transform: uppercase;
+  color: var(--ok); border: 1px solid var(--ok-soft); background: var(--ok-soft);
+  padding: 4px 11px; border-radius: 999px;
+}
+.rvl-caption::before { content: "●"; font-size: 7px; color: var(--ok); }
+
+/* Invite — expiry preset row + "coming soon" tag. */
+.inv-expiry { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.exp-label { font-family: var(--mono); font-size: 9.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--app-fg-40); margin-right: 2px; }
+.exp-opt {
+  font-family: var(--mono); font-size: 10.5px; padding: 3px 10px; border-radius: 999px;
+  border: 1px solid var(--app-line-2); color: var(--app-fg-60); cursor: default;
+}
+.exp-opt.on { border-color: rgba(167,139,250,.5); color: var(--app-fg); background: rgba(167,139,250,.1); }
+.exp-note { font-size: 11px; color: var(--app-fg-40); font-style: italic; margin-left: 2px; }
+.soon {
+  display: inline-block; margin-top: 6px; font-family: var(--mono); font-size: 9.5px;
+  letter-spacing: .1em; text-transform: uppercase; color: var(--app-fg-40);
+  border: 1px dashed var(--app-line-2); border-radius: 999px; padding: 2px 9px; font-style: normal;
+}
+
+/* Blueprint — editable chapter URL. A single cohesive pill: a quiet
+   `chaptos.app/` prefix set off by a hairline, the slug as the clear focal
+   input, and an integrated status chip on the right. Boxed, but light. */
+.bp-url { max-width: 520px; margin: 18px auto 0; animation: msg-in 480ms var(--ease) both; }
+.url-field {
+  display: flex; align-items: stretch; overflow: hidden;
+  border: 1px solid var(--line); border-radius: 12px;
+  background: linear-gradient(180deg, rgba(236,231,221,.02), transparent), var(--card);
+  transition: border-color 220ms var(--ease), box-shadow 220ms var(--ease);
+}
+.url-field.focus { border-color: var(--vio-line); box-shadow: 0 0 0 4px var(--vio-soft); }
+.url-field.taken { border-color: rgba(217,139,163,.45); }
+.url-host {
+  display: flex; align-items: center; padding: 0 12px 0 16px;
+  font-family: var(--mono); font-size: 13.5px; color: var(--ink-40);
+  border-right: 1px solid var(--line-soft); white-space: nowrap; user-select: none;
+}
+.url-slug {
+  flex: 1; min-width: 0; background: transparent; border: none;
+  color: var(--ink); font-family: var(--mono); font-size: 15px; font-weight: 500;
+  padding: 13px 14px; caret-color: var(--vio); letter-spacing: .01em;
+}
+/* The container carries the focus ring, so the input's own outline is redundant. */
+.url-slug:focus, .url-slug:focus-visible { outline: none; }
+.url-slug::placeholder { color: var(--ink-28); }
+/* Right-side status chip — carries the whole "state" signal in one place. */
+.url-state {
+  display: flex; align-items: center; gap: 6px; flex: none;
+  padding: 0 16px 0 12px; font-family: var(--mono); font-size: 11px;
+  letter-spacing: .04em; color: var(--ink-28);
+}
+.url-state .ic {
+  height: 16px; width: 16px; border-radius: 50%; flex: none;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 10px; line-height: 1; border: 1px solid var(--line);
+  color: var(--ink-28); transition: all 200ms var(--ease);
+}
+.url-field.ok .url-state { color: var(--ok); }
+.url-field.ok .url-state .ic { border-color: rgba(127,176,138,.5); background: var(--ok-soft); color: var(--ok); }
+.url-field.taken .url-state { color: var(--rose); }
+.url-field.taken .url-state .ic { border-color: rgba(217,139,163,.5); background: rgba(217,139,163,.12); color: var(--rose); }
+/* Helper line under the field — one short row; a suggestion when taken. */
+.url-note { margin-top: 9px; padding-left: 2px; font-size: 12px; color: var(--ink-40); line-height: 1.5; min-height: 17px; }
+.url-note:empty { margin-top: 0; min-height: 0; }
+.url-note .suggest {
+  color: var(--vio); cursor: pointer; font-family: var(--mono); font-size: 11.5px;
+  border-bottom: 1px solid var(--vio-line); padding-bottom: 1px; transition: color 160ms, border-color 160ms;
+}
+.url-note .suggest:hover { color: var(--ink); border-color: var(--ink-40); }
+</style>
+</head>
+<body>
+<div class="stage">
+  <header class="chrome" id="chrome">
+    <div class="wm"><span class="glyph">C</span><span class="wm-txt">CHAPTOS</span></div>
+    <div class="chrome-tag" id="chromeTag">ORG CREATION · CONCEPT MOCK · V3</div>
+  </header>
+
+  <main id="screens">
+
+    <!-- ── STEP 1 · NAME ─────────────────────────────────────────────── -->
+    <section class="scr" data-step="1">
+      <div class="split">
+        <div class="ask">
+          <p class="kicker">Create your organization · no account needed yet</p>
+          <h1 class="q-serif">What&rsquo;s your organization called?</h1>
+          <input class="name-input" id="orgName" placeholder="Kappa Sigma" autocomplete="off" spellcheck="false">
+          <div class="slugline" id="slugLine" style="opacity:0">chaptos.app/<b>&nbsp;</b></div>
+          <div class="idrow">
+            <button type="button" class="mark-btn" id="idMarkBtn" title="Upload an icon">
+              <span class="mark empty" id="idMark">·</span>
+              <span class="mark-edit" id="idMarkEdit">upload</span>
+            </button>
+            <input type="file" id="logoInput" accept="image/*" hidden>
+            <p class="idnote" id="idNote"><b>Your mark.</b> We generate one from your letters — or <button type="button" class="link-btn" id="uploadLink">upload your crest now</button>. Change it anytime in Settings.</p>
+          </div>
+          <button class="cta" data-go="2">Continue<span>→</span></button>
+          <p class="fine">Fifteen seconds in, the blueprint on the right has your name on it.</p>
+        </div>
+        <div class="sheet-slot" data-sheet></div>
+      </div>
+    </section>
+
+    <!-- ── STEP 2 · INTERVIEW ────────────────────────────────────────── -->
+    <section class="scr" data-step="2">
+      <div class="split">
+        <div class="chat-col">
+          <div class="chat" id="chat"></div>
+          <div class="chat-foot">
+            <input class="free" id="freeText" placeholder="Type your own answer&hellip;">
+            <button class="ghost-link" id="skipBtn">Skip — pick a template instead</button>
+          </div>
+        </div>
+        <div class="sheet-slot" data-sheet></div>
+      </div>
+    </section>
+
+    <!-- ── STEP 3 · BLUEPRINT ────────────────────────────────────────── -->
+    <section class="scr" data-step="3">
+      <div class="bp">
+        <div class="bp-head">
+          <p class="kicker">Your blueprint — the sheet you watched assemble</p>
+          <h1 class="q-serif" id="bpTitle">Here&rsquo;s the workspace I&rsquo;d build for you.</h1>
+          <p class="bp-sub">Everything below came from your answers. Tap anything to change it — nothing is locked in.</p>
+        </div>
+        <div class="bp-url" id="bpUrl">
+          <div class="url-field" id="urlField">
+            <span class="url-host">chaptos.app/</span>
+            <input class="url-slug" id="slugEdit" spellcheck="false" autocomplete="off" autocapitalize="off" aria-label="Chapter URL slug" placeholder="your-chapter">
+            <span class="url-state" id="urlState" aria-live="polite"><span class="ic" id="urlIc"></span><span id="urlWord"></span></span>
+          </div>
+          <p class="url-note" id="urlNote"></p>
+        </div>
+        <div class="bp-grid">
+          <div class="bp-col">
+            <div class="bp-card">
+              <h3>Pages <span class="why">why it&rsquo;s here</span></h3>
+              <div id="wfList"></div>
+            </div>
+            <div class="bp-card">
+              <h3>Your words</h3>
+              <div class="vocab-row" id="vocabRow"></div>
+              <p class="vocab-note" id="vocabNote"></p>
+            </div>
+          </div>
+          <div class="bp-col">
+            <div class="bp-card">
+              <h3>Leadership <span class="why">titles &amp; abilities are yours to change</span></h3>
+              <div id="seatList"></div>
+              <button class="add-seat" id="addSeat">+ Add a seat — <b id="addSeatHint"></b></button>
+              <p class="seat-note">Name a seat now so you know <b>who to assign it to</b> — everyone joins through one shared link, then you seat them in a tap. <button class="add-seat" data-go="3b" style="margin:0">← Back to roles &amp; abilities</button></p>
+            </div>
+            <div class="bp-card">
+              <h3>This term</h3>
+              <div class="term-line" id="termLine">Fall 2026</div>
+              <div class="term-meta" id="termMeta"></div>
+              <details class="standards">
+                <summary>Standards &amp; thresholds</summary>
+                <div class="std-grid">
+                  <div class="std"><div class="sv">65% · 80%</div><div class="sl">attendance at-risk · watch</div></div>
+                  <div class="std"><div class="sv">2.7 · 3.0</div><div class="sl">GPA at-risk · watch</div></div>
+                  <div class="std"><div class="sv">10 hrs</div><div class="sl">service goal / term</div></div>
+                </div>
+              </details>
+            </div>
+          </div>
+        </div>
+        <div class="bp-cta-row">
+          <button class="cta big" data-go="4">Looks right — build it<span>→</span></button>
+        </div>
+        <p class="bp-foot">This exact sheet is what gets created — one atomic <code>provisionOrg</code> call. <span class="bp-foot-dev">Open the console to see the payload.</span> Every line still has a home in Settings later; a fast path, not a lock-in.</p>
+      </div>
+    </section>
+
+    <!-- ── STEP 3b · YOUR ROLES ──────────────────────────────────────── -->
+    <section class="scr" data-step="3b">
+      <div class="bp roles">
+        <div class="bp-head">
+          <p class="kicker">Your roles — who can do what</p>
+          <h1 class="q-serif" id="rolesTitle">Who can do what?</h1>
+          <p class="bp-sub" id="rolesSub"></p>
+        </div>
+        <div class="roles-stack" id="rolesStack"></div>
+        <button class="add-seat roles-add" id="rolesAddSeat">+ Add a seat — <b id="rolesAddHint"></b></button>
+        <div class="bp-cta-row">
+          <button class="cta big" data-go="3">Looks right — review the blueprint<span>→</span></button>
+        </div>
+        <p class="bp-foot">Every role and ability has a home in Settings later — this is a fast start, not a lock-in.</p>
+      </div>
+    </section>
+
+    <!-- ── STEP 4 · SIGN IN + BUILD ──────────────────────────────────── -->
+    <section class="scr scr-dark" data-step="4">
+      <div class="bld">
+        <div class="signin" id="signinCard">
+          <div class="mark" id="signMark">KS</div>
+          <h2 id="signTitle">Sign in to create Kappa&nbsp;Sigma</h2>
+          <p>Your blueprint is saved — this just makes it yours.</p>
+          <button class="gbtn" id="googleBtn">
+            <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
+            Continue with Google
+          </button>
+          <p class="fine">One account · one chapter to start · switch orgs anytime</p>
+        </div>
+        <div class="building" id="building">
+          <div class="bld-glyph" id="bldGlyph">KS</div>
+          <div class="bld-lines" id="bldLines"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── STEP 5 · REVEAL ───────────────────────────────────────────── -->
+    <section class="scr scr-app" data-step="5">
+      <div class="app-frame">
+        <aside class="app-side" id="rvlSide"></aside>
+        <div class="rvl-main" id="rvlMain"></div>
+      </div>
+      <div class="atc" id="atc"></div>
+    </section>
+
+    <!-- ── STEP 6 · INVITE ───────────────────────────────────────────── -->
+    <section class="scr scr-app" data-step="6">
+      <div class="inv">
+        <div class="inv-head">
+          <p class="kicker" style="color:var(--app-fg-40)">Last step — and it isn&rsquo;t yours</p>
+          <h1 class="q-serif" id="invTitle">Bring in your brothers.</h1>
+          <p class="inv-sub" id="invSub">Share one link. They sign in, land on the roster, and you assign roles in-app — you barely lift a finger.</p>
+        </div>
+        <div class="inv-grid">
+          <div class="app-card">
+            <h4 id="everyoneHead">Everyone — members</h4>
+            <div class="biglink">
+              <code id="joinLink">chaptos.app/join/x7Kp9mQv2R</code>
+              <button class="copy" data-copy="member">COPY</button>
+            </div>
+            <div class="inv-expiry">
+              <span class="exp-label">Expires</span>
+              <span class="exp-opt on">7 days</span>
+              <span class="exp-opt">1 day</span>
+              <span class="exp-opt">Never</span>
+              <span class="exp-note">revocable anytime</span>
+            </div>
+            <div style="display:flex; gap:14px; align-items:center; margin-top:14px">
+              <div class="qr">QR — TODO</div>
+              <p class="inv-note">Drop it in the group chat or put the QR on the meeting slide. One link, many joins — the real model today.</p>
+            </div>
+          </div>
+          <div class="app-card">
+            <h4>Your exec seats <span class="tag" id="execTag">assign after they join</span></h4>
+            <div id="execList"></div>
+            <p class="inv-note" id="execNote" style="margin-top:12px"></p>
+          </div>
+        </div>
+        <div class="joins">
+          <div class="join-avs" id="joinAvs"></div>
+          <div class="join-count" id="joinCount"></div>
+        </div>
+        <p class="inv-foot">If anything on the checklist is left tomorrow, a quiet day-2 digest nudges it — onboarding ends at first real value, not at &ldquo;org created.&rdquo;</p>
+        <div class="inv-cta-row">
+          <button class="cta app-cta" data-go="5">Go to your dashboard<span>→</span></button>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <div class="rail-cap" id="railCap"></div>
+  <nav class="rail" id="rail" aria-label="Steps">
+    <button data-go="1"><span class="n">1</span><span class="lbl">NAME</span></button>
+    <button data-go="2"><span class="n">2</span><span class="lbl">INTERVIEW</span></button>
+    <button data-go="3b"><span class="n">3</span><span class="lbl">ROLES</span></button>
+    <button data-go="3"><span class="n">4</span><span class="lbl">BLUEPRINT</span></button>
+    <button data-go="4"><span class="n">5</span><span class="lbl">BUILD</span></button>
+    <button data-go="5"><span class="n">6</span><span class="lbl">REVEAL</span></button>
+    <button data-go="6"><span class="n">7</span><span class="lbl">INVITE</span></button>
+  </nav>
+</div>
+
+<script>
+/* ═══ State ════════════════════════════════════════════════════════════ */
+const S = {
+  step: 1,
+  name: "",
+  slug: null,          // explicit URL slug override; null → derived from name
+  kind: null,          // human answer: fraternity|sorority|club|team|service|honor|arts|other
+  type: null,          // real orgType id (KIND_TO_TYPE[kind]) — the template key
+  logo: null,          // {url, name} when the founder uploads an icon; else null → monogram
+  pain: null,          // dues | attendance | events | comms (interview pain answer)
+  cadence: null,       // {label, day, time}
+  term: null,          // {name, dates, dues}
+  skipped: false,
+  interviewDone: false,
+  wf: null,            // workflow map keyed by real WorkflowId (operations always-on, not here)
+  vocab: null,         // sparse override map keyed by real VOCAB_KEYS (singular)
+  seats: null,         // [{title, color, able, name, you, all?, perms:[MANAGE_* names]}]
+  chatStage: 0,
+};
+
+/* ── Org types ─────────────────────────────────────────────────────────────
+   `kind` is the human answer in the interview; it resolves to one of the real
+   seven orgType ids in lib/org-types.ts. Sorority shares the fraternity
+   template and only differs in vocab (Member: "Sister"). */
+const ORG_TYPES = ["fraternity", "generic-club", "sports-team", "service-org", "honor-society", "performing-arts", "generic-org"];
+const KIND_TO_TYPE = {
+  fraternity: "fraternity", sorority: "fraternity",
+  club: "generic-club", team: "sports-team",
+  service: "service-org", honor: "honor-society", arts: "performing-arts", other: "generic-org",
+};
+const KIND_LABEL = {
+  fraternity: "A fraternity", sorority: "A sorority", club: "A club",
+  team: "A sports team", service: "A service org", honor: "An honor society",
+  arts: "A performing-arts group", other: "Another kind of org",
+};
+
+/* ── Vocabulary ────────────────────────────────────────────────────────────
+   Keys are the real canonical VOCAB_KEYS from lib/vocab.ts (singular). The app
+   stores only singular overrides and DERIVES the plural — so does plural()
+   below. `vocabOverrides()` returns the sparse override map for the org type;
+   getVocab() resolves a key to its display string, honoring live edits in S.vocab. */
+const DEFAULT_LABELS = {
+  Member: "Member", Period: "Semester", Meetings: "Meetings", Event: "Event",
+  Attendance: "Attendance", Treasury: "Treasury", Dues: "Dues", Role: "Role",
+  Admin: "Admin", Service: "Service", Announcement: "Announcement", Doc: "Doc",
+};
+/* Sparse overrides per org type — mirrors each template's vocabularyOverrides. */
+const VOCAB_OVERRIDES = {
+  fraternity:       { Member: "Brother", Meetings: "Chapter", Period: "Semester" },
+  sorority:         { Member: "Sister",  Meetings: "Chapter", Period: "Semester" },
+  "generic-club":   {},
+  "sports-team":    { Member: "Player",  Meetings: "Practice", Event: "Practice", Period: "Season" },
+  "service-org":    {},
+  "honor-society":  {},
+  "performing-arts":{ Member: "Cast member", Meetings: "Rehearsal", Event: "Rehearsal" },
+  "generic-org":    {},
+};
+
+/* ── Workflows ─────────────────────────────────────────────────────────────
+   Keys are the real WorkflowId union. "operations" (Dashboard/Timeline/Chapter)
+   is ALWAYS_ON and never appears in this toggle map — it's rendered locked-on. */
+const DEFAULT_WF = {
+  fraternity:       { members: 1, finance: 1, attendance: 1, events: 1, parties: 1, service: 1, docs: 1, tasks: 0, communications: 0 },
+  "generic-club":   { members: 1, finance: 1, attendance: 1, events: 1, parties: 0, service: 0, docs: 1, tasks: 1, communications: 1 },
+  "sports-team":    { members: 1, finance: 0, attendance: 1, events: 1, parties: 0, service: 0, docs: 1, tasks: 1, communications: 1 },
+  "service-org":    { members: 1, finance: 1, attendance: 1, events: 1, parties: 0, service: 1, docs: 1, tasks: 1, communications: 1 },
+  "honor-society":  { members: 1, finance: 1, attendance: 1, events: 1, parties: 0, service: 1, docs: 1, tasks: 1, communications: 1 },
+  "performing-arts":{ members: 1, finance: 1, attendance: 1, events: 1, parties: 0, service: 0, docs: 1, tasks: 1, communications: 1 },
+  "generic-org":    { members: 1, finance: 0, attendance: 0, events: 1, parties: 0, service: 0, docs: 1, tasks: 1, communications: 1 },
+};
+/* The "what eats your time" answer → the workflow it forces on. */
+const PAIN_WF = { dues: "finance", attendance: "attendance", events: "events", comms: "communications" };
+
+/* Seat `perms` mirror the real roleSeeds in lib/org-types.ts — each entry is a
+   real permission key (the honest MANAGE_* flags, minus the MANAGE_ prefix in
+   the UI). `all: true` = the founder seat, every ability (rank 100). Keyed by
+   the real orgType id; the founder colors/ranks match the templates. */
+const SEAT_TEMPLATES = {
+  fraternity: [
+    { title: "President", color: "#F59E0B", able: "everything — that's you", you: true, all: true },
+    { title: "Treasurer", color: "#10B981", able: "logs dues & payments", perms: ["TREASURY"] },
+    { title: "Social",    color: "#EC4899", able: "plans events & parties", perms: ["EVENTS", "PARTIES", "TASKS"] },
+    { title: "PR",        color: "#3B82F6", able: "runs posts & announcements", perms: ["INSTAGRAM"] },
+  ],
+  "generic-club": [
+    { title: "President", color: "#F59E0B", able: "everything — that's you", you: true, all: true },
+    { title: "Treasurer", color: "#10B981", able: "logs dues & payments", perms: ["TREASURY"] },
+    { title: "Secretary", color: "#3B82F6", able: "meetings, announcements & tasks", perms: ["EVENTS", "ANNOUNCEMENTS", "TASKS"] },
+  ],
+  "sports-team": [
+    { title: "Captain",      color: "#F59E0B", able: "everything — that's you", you: true, all: true },
+    { title: "Coach",        color: "#3B82F6", able: "runs practices & the roster", perms: ["EVENTS", "ATTENDANCE", "BROTHERS"] },
+    { title: "Team Manager", color: "#10B981", able: "logistics, docs & fees", perms: ["ANNOUNCEMENTS", "TASKS", "DOCS"] },
+  ],
+  "service-org": [
+    { title: "President",     color: "#F59E0B", able: "everything — that's you", you: true, all: true },
+    { title: "Service Chair", color: "#10B981", able: "tracks service hours & events", perms: ["SERVICE", "EVENTS"] },
+    { title: "Treasurer",     color: "#3B82F6", able: "logs dues & payments", perms: ["TREASURY"] },
+    { title: "Comms Chair",   color: "#EC4899", able: "announcements & posts", perms: ["ANNOUNCEMENTS", "INSTAGRAM"] },
+  ],
+  "honor-society": [
+    { title: "President",      color: "#F59E0B", able: "everything — that's you", you: true, all: true },
+    { title: "Vice President", color: "#8B5CF6", able: "events, attendance & tasks", perms: ["EVENTS", "ATTENDANCE", "TASKS"] },
+    { title: "Treasurer",      color: "#10B981", able: "logs dues & payments", perms: ["TREASURY"] },
+    { title: "Secretary",      color: "#3B82F6", able: "announcements & docs", perms: ["ANNOUNCEMENTS", "DOCS"] },
+  ],
+  "performing-arts": [
+    { title: "Director",      color: "#F59E0B", able: "everything — that's you", you: true, all: true },
+    { title: "Stage Manager", color: "#3B82F6", able: "rehearsals, attendance & tasks", perms: ["EVENTS", "ATTENDANCE", "TASKS"] },
+    { title: "Treasurer",     color: "#10B981", able: "logs dues & payments", perms: ["TREASURY"] },
+    { title: "Publicity",     color: "#EC4899", able: "posts & announcements", perms: ["INSTAGRAM", "ANNOUNCEMENTS"] },
+  ],
+  "generic-org": [
+    { title: "Admin",     color: "#F59E0B", able: "everything — that's you", you: true, all: true },
+    { title: "Organizer", color: "#3B82F6", able: "events, announcements & tasks", perms: ["EVENTS", "ANNOUNCEMENTS", "TASKS"] },
+  ],
+};
+/* Extra offices "+ Add a seat" can pull from, per org type. */
+const SEAT_POOL = {
+  fraternity: [
+    { title: "Service Chair", color: "#10B981", able: "tracks service hours", perms: ["SERVICE", "EVENTS"] },
+    { title: "Scribe",        color: "#ddb36a", able: "minutes & docs", perms: ["DOCS", "ANNOUNCEMENTS"] },
+    { title: "Rush Chair",    color: "#a78bfa", able: "recruitment events", perms: ["EVENTS", "TASKS"] },
+  ],
+  "generic-club": [
+    { title: "Events Lead", color: "#EC4899", able: "plans meetings & socials", perms: ["EVENTS", "PARTIES"] },
+    { title: "Outreach",    color: "#a78bfa", able: "partnerships & comms", perms: ["ANNOUNCEMENTS", "INSTAGRAM"] },
+  ],
+  "sports-team": [
+    { title: "Assistant Coach", color: "#EC4899", able: "drills & attendance", perms: ["ATTENDANCE", "EVENTS"] },
+    { title: "Equipment Mgr",   color: "#ddb36a", able: "gear & logistics", perms: ["DOCS", "TASKS"] },
+  ],
+  "service-org": [
+    { title: "Volunteer Lead", color: "#a78bfa", able: "coordinates service events", perms: ["SERVICE", "EVENTS", "TASKS"] },
+    { title: "Scribe",         color: "#ddb36a", able: "minutes & docs", perms: ["DOCS", "ANNOUNCEMENTS"] },
+  ],
+  "honor-society": [
+    { title: "Standards Chair", color: "#a78bfa", able: "attendance & member standing", perms: ["ATTENDANCE", "BROTHERS"] },
+    { title: "Historian",       color: "#ddb36a", able: "docs & posts", perms: ["DOCS", "INSTAGRAM"] },
+  ],
+  "performing-arts": [
+    { title: "Tech Director", color: "#a78bfa", able: "logistics & docs", perms: ["TASKS", "DOCS"] },
+    { title: "House Manager", color: "#ddb36a", able: "events & attendance", perms: ["EVENTS", "ATTENDANCE"] },
+  ],
+  "generic-org": [
+    { title: "Treasurer", color: "#10B981", able: "logs dues & payments", perms: ["TREASURY"] },
+    { title: "Secretary", color: "#3B82F6", able: "docs & announcements", perms: ["DOCS", "ANNOUNCEMENTS"] },
+  ],
+};
+
+/* ── Permissions, plain-language ───────────────────────────────────────
+   AREAS bucket the 14 real MANAGE_* flags into human "abilities". Each pill
+   on the roles screen is one area; tapping grants/removes its whole bundle.
+   Advanced splits a bundle into its individual perms (PERM_LABELS).
+   `gate` ties an area's visibility to the org's enabled workflows (S.wf),
+   so the roles screen only shows abilities the workspace actually has. */
+/* Areas are DISJOINT — each real permission belongs to exactly one pill —
+   so a role never lights two areas from one ability (keeps the glance honest).
+   All 14 real MANAGE_* flags are covered, including SETTINGS (org config +
+   invite links), which lives in the People/admin area. */
+const PERM_AREAS = [
+  { id: "money",    icon: "money",    label: "Money",    perms: ["TREASURY"],                     gate: w => w.finance },
+  { id: "people",   icon: "people",   label: "People",   perms: ["BROTHERS", "ROLES", "SETTINGS"], gate: () => true },
+  { id: "meetings", icon: "meetings", label: "Meetings", perms: ["ATTENDANCE", "SEMESTERS"],       gate: w => w.attendance },
+  { id: "events",   icon: "events",   label: "Events",   perms: ["EVENTS", "PARTIES"],             gate: w => w.events },
+  { id: "comms",    icon: "comms",    label: "Comms",    perms: ["ANNOUNCEMENTS", "INSTAGRAM"],    gate: () => true },
+  { id: "content",  icon: "content",  label: "Content",  perms: ["DOCS", "TASKS", "POLLS", "SERVICE"], gate: w => w.docs || w.tasks || w.service },
+];
+/* Consistent stroke icons (Lucide-style) — one per ability area — so the roles
+   screen reads as a refined product surface, not an emoji settings form. */
+const ICON_PATHS = {
+  money:    '<circle cx="12" cy="12" r="8"/><path d="M14.5 9.5a2.5 2 0 0 0-2.5-1.5c-1.4 0-2.5.7-2.5 1.8s1.1 1.6 2.5 1.9 2.5.8 2.5 1.9-1.1 1.8-2.5 1.8a2.5 2 0 0 1-2.5-1.5M12 6.7v1M12 16.3v1"/>',
+  people:   '<circle cx="9" cy="8" r="3"/><path d="M4 19a5 5 0 0 1 10 0"/><path d="M16 6a3 3 0 0 1 0 6M20 19a5 5 0 0 0-3-4.6"/>',
+  meetings: '<rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 9h16M8 3v4M16 3v4"/><path d="m9 14 2 2 3.5-3.5"/>',
+  events:   '<path d="M4.5 19.5 9 9l6 6-10.5 4.5Z"/><path d="M14.5 4.5 16 6M19.5 7.5 18 9M13 3l.5 1.5L15 5l-1.5.5L13 7l-.5-1.5L11 5l1.5-.5L13 3ZM20 11l.4 1.2 1.1.3-1.1.4-.4 1.1-.4-1.1-1.1-.4 1.1-.3.4-1.2Z"/>',
+  comms:    '<path d="M4 11v2a1 1 0 0 0 1 1h2l4 4V6L7 10H5a1 1 0 0 0-1 1Z"/><path d="M15 9a3 3 0 0 1 0 6M18 6.5a6 6 0 0 1 0 11"/>',
+  content:  '<path d="M4 7a2 2 0 0 1 2-2h3l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7Z"/>',
+};
+function areaIcon(id) {
+  return '<span class="pi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">' +
+    (ICON_PATHS[id] || "") + "</svg></span>";
+}
+/* Short human labels for the advanced per-ability toggles. These are the
+   honest, load-bearing names — one per real MANAGE_* flag (14 total). */
+const PERM_LABELS = {
+  TREASURY:      "Log dues & payments",
+  BROTHERS:      "Edit the roster",
+  ROLES:         "Assign roles",
+  SETTINGS:      "Org settings & invites",
+  ATTENDANCE:    "Take attendance",
+  SEMESTERS:     "Manage the term",
+  EVENTS:        "Manage events",
+  PARTIES:       "Run parties & socials",
+  ANNOUNCEMENTS: "Post announcements",
+  INSTAGRAM:     "Run Instagram",
+  DOCS:          "Manage docs",
+  TASKS:         "Assign tasks",
+  POLLS:         "Run polls",
+  SERVICE:       "Track service hours",
+};
+/* One short verb-phrase per area, for the auto-generated "Can …" summary. */
+const AREA_PHRASE = {
+  money: "handle the money", people: "manage the roster", meetings: "run meetings",
+  events: "plan events", comms: "get the word out", content: "keep docs & tasks",
+};
+
+const GRADS = [
+  ["#7c3aed", "#a78bfa"], ["#9a6b1f", "#ddb36a"], ["#a04a68", "#d98ba3"],
+  ["#3f6e4e", "#7fb08a"], ["#2f5d7c", "#7fb3d9"], ["#7a4a2b", "#d9a05b"],
+];
+const JOIN_NAMES = ["Marcus Cole", "Devon Price", "Eli Navarro", "Jordan Wu", "Sam Okafor"];
+const AV_COLORS = ["#7c5cd6", "#b08948", "#a86478", "#5e8c69", "#5b84a6"];
+
+/* ═══ Helpers ══════════════════════════════════════════════════════════ */
+const $ = (sel, root) => (root || document).querySelector(sel);
+const $$ = (sel, root) => [...(root || document).querySelectorAll(sel)];
+const esc = s => s.replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+function displayName() { return S.name.trim() || "Kappa Sigma"; }
+function monogram() {
+  const words = displayName().split(/\s+/).filter(Boolean);
+  return words.slice(0, 2).map(w => w[0].toUpperCase()).join("") || "K";
+}
+function slugify(s) { return s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, ""); }
+// The org's slug: an explicit edit (S.slug) wins; otherwise it's derived from
+// the name. Editing the URL on the blueprint sets S.slug so later name typing
+// doesn't clobber a deliberate choice.
+function slug() { return S.slug != null ? S.slug : slugify(displayName()); }
+// Demo-only "already taken" set + reserved words, standing in for the real
+// /api/orgs/slug-check + validateSlugFormat() reserved-list.
+const TAKEN_SLUGS = ["kappa-sigma", "test", "demo", "admin", "chapter"];
+function slugStatus(s) {
+  if (!s || s.length < 3) return { kind: "bad", msg: "3+ characters" };
+  if (TAKEN_SLUGS.includes(s)) return { kind: "taken", msg: "taken", suggest: s + "-" + (2026) };
+  return { kind: "ok", msg: "available" };
+}
+function grad() {
+  // deterministic, like the product's gradient-initials logo fallback
+  let h = 0;
+  for (const ch of displayName()) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  const g = GRADS[h % GRADS.length];
+  return "linear-gradient(135deg, " + g[0] + ", " + g[1] + ")";
+}
+/* Render the org mark into an element: uploaded icon if present, else the
+   deterministic gradient monogram (the real logo-fallback behavior). */
+function paintMark(el, opts) {
+  const o = opts || {};
+  el.classList.remove("empty");
+  if (S.logo) {
+    el.style.background = "#000";
+    el.style.backgroundImage = "url(" + S.logo.url + ")";
+    el.style.backgroundSize = "cover";
+    el.style.backgroundPosition = "center";
+    el.textContent = "";
+  } else {
+    el.style.backgroundImage = "";
+    if (!o.named && !S.name.trim()) { el.classList.add("empty"); el.style.background = ""; el.textContent = "·"; }
+    else { el.style.background = grad(); el.textContent = monogram(); }
+  }
+}
+/* Real logo-upload constraints (lib/supabase/org-logo.ts): image/* <= 2 MB.
+   The upload itself is a post-create POST /api/orgs/logo; here we just preview. */
+const MAX_LOGO_BYTES = 2 * 1024 * 1024;
+function acceptLogoFile(file, onDone) {
+  if (!file) return;
+  if (!file.type.startsWith("image/")) { onDone("Please upload an image (PNG, JPG, SVG, WEBP, GIF)."); return; }
+  if (file.size > MAX_LOGO_BYTES) { onDone("Image must be under 2 MB."); return; }
+  if (S.logo && S.logo.url) URL.revokeObjectURL(S.logo.url);
+  S.logo = { url: URL.createObjectURL(file), name: file.name };
+  onDone(null);
+}
+function clearLogo() {
+  if (S.logo && S.logo.url) URL.revokeObjectURL(S.logo.url);
+  S.logo = null;
+}
+/* Real orgType id for the current org (S.kind is the human interview answer). */
+function orgType() { return S.type || KIND_TO_TYPE[S.kind] || "fraternity"; }
+/* Naive English pluralizer — the app derives plurals from the singular override
+   the same way, so the mock stays honest about what's stored (singular only). */
+function plural(word) {
+  if (/[^aeiou]y$/i.test(word)) return word.slice(0, -1) + "ies";
+  if (/(s|x|z|ch|sh)$/i.test(word)) return word + "es";
+  return word + "s";
+}
+/* Resolve a canonical VOCAB_KEY to its display string, honoring live edits in
+   S.vocab (sparse singular overrides) then DEFAULT_LABELS. */
+function getVocab(key, wantPlural) {
+  const single = (S.vocab && S.vocab[key]) || DEFAULT_LABELS[key] || key;
+  return wantPlural ? plural(single) : single;
+}
+/* Convenience view for the renderers — the same four accessors the render layer
+   used in v2, now DERIVED from the real key model instead of stored directly. */
+function vocab() {
+  return {
+    member:  getVocab("Member"),
+    members: getVocab("Member", true),
+    meeting: getVocab("Meetings"),
+    period:  getVocab("Period"),
+    event:   getVocab("Event"),
+    dues:    getVocab("Dues"),
+  };
+}
+function wf() { return S.wf || DEFAULT_WF.fraternity; }
+function leaderTitle() { return (S.seats && S.seats[0].title) || "President"; }
+function firstName(full) { return full.trim().split(/\s+/)[0]; }
+
+/* Build a fresh seat from a template — clones `perms` so each seat owns
+   its own mutable ability set (templates/pool are shared references). */
+function makeSeat(t) { return { ...t, name: "", perms: t.all ? [] : [...(t.perms || [])] }; }
+/* Areas visible for the current org (workflow-gated). */
+function activeAreas() { return PERM_AREAS.filter(a => a.gate(wf())); }
+/* An area's state on a seat: "on" (all its perms) · "partial" (some) · "off". */
+function areaState(seat, area) {
+  if (seat.all) return "on";
+  const have = area.perms.filter(p => seat.perms.includes(p)).length;
+  return have === 0 ? "off" : have === area.perms.length ? "on" : "partial";
+}
+function toggleArea(seat, area) {
+  if (seat.all) return;
+  const st = areaState(seat, area);
+  if (st === "on") seat.perms = seat.perms.filter(p => !area.perms.includes(p));
+  else area.perms.forEach(p => { if (!seat.perms.includes(p)) seat.perms.push(p); });
+}
+function togglePerm(seat, perm) {
+  if (seat.all) return;
+  const i = seat.perms.indexOf(perm);
+  if (i >= 0) seat.perms.splice(i, 1); else seat.perms.push(perm);
+}
+
+function ensureDefaults(upto) {
+  if (upto >= 2 && !S.name) S.name = "Kappa Sigma";
+  if (upto >= 3) {
+    if (!S.kind) { S.kind = "fraternity"; S.skipped = !S.interviewDone; }
+    if (!S.type) S.type = KIND_TO_TYPE[S.kind];
+    if (!S.vocab) S.vocab = { ...VOCAB_OVERRIDES[orgType()] };
+    if (!S.wf) S.wf = { ...DEFAULT_WF[orgType()] };
+    if (!S.seats) S.seats = SEAT_TEMPLATES[orgType()].map(makeSeat);
+    if (!S.pain && S.skipped) S.pain = "dues";
+    if (!S.cadence) S.cadence = { label: "Sundays at 7", day: 0, time: "7:00 PM" };
+    if (!S.term) S.term = { name: "Fall 2026", dates: "Aug 24 – Dec 18", dues: wf().finance === 1 };
+  }
+}
+
+/* ═══ Blueprint sheet (live pane, steps 1–2) ═══════════════════════════ */
+const sheet = document.createElement("div");
+sheet.className = "sheet-wrap";
+function pageChips() {
+  const v = vocab(), w = wf();
+  // Always-on "operations" surfaces (Dashboard/Timeline/Chapter). `k` matches
+  // the workflow id where one exists so the pain-highlight (`lead`) lines up.
+  const pages = [
+    { k: "operations", l: "Dashboard", locked: true },
+    { k: "operations", l: "Timeline", locked: true },
+    { k: "operations", l: v.meeting, locked: true },
+  ];
+  if (S.kind) {
+    if (w.members) pages.push({ k: "members", l: v.members });
+    if (w.finance) pages.push({ k: "finance", l: v.dues });
+    if (w.attendance) pages.push({ k: "attendance", l: "Attendance" });
+    if (w.events) pages.push({ k: "events", l: "Events" });
+    if (w.parties) pages.push({ k: "parties", l: "Parties" });
+    if (w.service) pages.push({ k: "service", l: "Service" });
+    if (w.docs) pages.push({ k: "docs", l: "Docs" });
+    if (w.communications) pages.push({ k: "communications", l: "Announcements" });
+    if (w.tasks) pages.push({ k: "tasks", l: "Tasks" });
+  }
+  return pages.map(p => ({ ...p, lead: !p.locked && p.k === PAIN_WF[S.pain] }));
+}
+function sec(title, body, opts) {
+  const o = opts || {};
+  return '<div class="sheet-sec' + (o.pending ? " pending" : "") + (o.flash ? " flash" : "") + '">' +
+    "<h6>" + title + "</h6>" + body + "</div>";
+}
+function renderSheet(fresh) {
+  const v = vocab(), named = !!S.name.trim();
+  const head =
+    '<div class="sheet-head">' +
+      '<span class="mark' + (named || S.logo ? "" : " empty") + '" data-sheet-mark>·</span>' +
+      '<div class="sheet-title">' +
+        (named ? '<div class="nm">' + esc(displayName()) + "</div>" : '<div class="nm ghost">Your organization</div>') +
+        '<div class="sl">' + (named ? "chaptos.app/" + esc(slug()) + " · reserved while you set up" : "the sheet fills in as we talk") + "</div>" +
+      "</div></div>";
+
+  const pages = S.kind
+    ? sec("Pages", '<div class="pg-chips">' + pageChips().map((p, i) =>
+        '<span class="pg' + (p.lead ? " lead" : "") + '" style="animation-delay:' + i * 45 + 'ms"><span class="dot"></span>' + esc(p.l) + "</span>"
+      ).join("") + "</div>", { flash: fresh === "pages" })
+    : sec("Pages", '<span class="pend">your pages appear as we talk — only what you need</span>', { pending: true });
+
+  const words = S.kind
+    ? sec("Your words", '<div class="words-line">' + esc(v.members) + "<span>·</span>" + esc(v.meeting) + "<span>·</span>" + esc(v.period) + "</div>", { flash: fresh === "words" })
+    : sec("Your words", '<span class="pend">the words you already use — I&rsquo;ll match them</span>', { pending: true });
+
+  const meeting = S.cadence
+    ? sec("Meeting", '<div class="sheet-line"><span class="dot"></span><span><b>' + esc(v.meeting) + "</b> · " + esc(S.cadence.time) + " · repeats weekly — goes straight onto the calendar</span></div>", { flash: fresh === "meeting" })
+    : sec("Meeting", '<span class="pend">when you meet — it lands on the calendar at creation</span>', { pending: true });
+
+  const term = S.term
+    ? sec("This " + v.period.toLowerCase(), '<div class="sheet-line"><span class="dot"></span><span><b>' + esc(S.term.name) + "</b> · " + esc(S.term.dates) + " · " + (S.term.dues ? "dues on" : "no dues") + "</span></div>", { flash: fresh === "term" })
+    : sec("This " + (S.kind ? v.period.toLowerCase() : "term"), '<span class="pend">what you call it, and whether dues are collected</span>', { pending: true });
+
+  const seats = S.seats
+    ? sec("Leadership", '<div class="sheet-line"><span class="dot"></span><span><b>' + esc(S.seats[0].title) + "</b> — you · " +
+        esc(S.seats.slice(1).map(s => s.title).join(", ")) + " seats ready</span></div>", { flash: fresh === "seats" })
+    : "";
+
+  sheet.innerHTML =
+    '<div class="sheet-cap">Your blueprint — assembling as you answer</div>' +
+    '<div class="sheet">' + head + pages + words + meeting + term + seats +
+      '<div class="sheet-foot">blueprint · nothing built yet — you review every line before anything is created</div>' +
+    "</div>";
+  const sm = sheet.querySelector("[data-sheet-mark]");
+  if (sm && (named || S.logo)) paintMark(sm, { named: true });
+}
+function mountSheet() {
+  const slot = $('.scr[data-step="' + S.step + '"] [data-sheet]');
+  if (slot && sheet.parentElement !== slot) slot.appendChild(sheet);
+}
+
+/* ═══ Step 1 — name + icon ═════════════════════════════════════════════ */
+function refreshStep1Mark() {
+  paintMark($("#idMark"));
+  $("#idMarkEdit").textContent = S.logo ? "change" : "upload";
+  $("#uploadLink").textContent = S.logo ? "replace it" : "upload your crest now";
+}
+$("#orgName").addEventListener("input", e => {
+  S.name = e.target.value;
+  const named = !!S.name.trim();
+  const sl = $("#slugLine");
+  sl.style.opacity = named ? 1 : 0;
+  sl.innerHTML = "chaptos.app/<b>" + esc(slug() || "&nbsp;") + "</b> — reserved while you set up";
+  refreshStep1Mark();
+  renderSheet("name");
+});
+// Icon upload — real constraints (image/* <= 2 MB). Preview only in the mock;
+// the real upload is POST /api/orgs/logo after the org is created.
+$("#logoInput").addEventListener("change", e => {
+  const file = e.target.files && e.target.files[0];
+  e.target.value = "";
+  acceptLogoFile(file, err => {
+    if (err) { $("#idNote").innerHTML = '<b style="color:var(--rose)">' + esc(err) + "</b>"; return; }
+    refreshStep1Mark();
+    renderSheet("name");
+  });
+});
+$("#idMarkBtn").addEventListener("click", () => $("#logoInput").click());
+$("#uploadLink").addEventListener("click", () => $("#logoInput").click());
+
+/* ═══ Step 2 — interview ═══════════════════════════════════════════════ */
+const chat = $("#chat");
+let chatTimers = [];
+function later(fn, ms) { chatTimers.push(setTimeout(fn, ms)); }
+function clearChatTimers() { chatTimers.forEach(clearTimeout); chatTimers = []; }
+function scrollChat() { chat.scrollTop = chat.scrollHeight; }
+
+function botMsg(html, isQ) {
+  const el = document.createElement("div");
+  el.className = "msg" + (isQ ? " q" : "");
+  el.innerHTML = '<span class="m-glyph">C</span><div class="m-body">' + html + "</div>";
+  chat.appendChild(el); scrollChat();
+  return el;
+}
+function userMsg(text) {
+  const el = document.createElement("div");
+  el.className = "msg user";
+  el.innerHTML = '<div class="m-body">' + esc(text) + "</div>";
+  chat.appendChild(el); scrollChat();
+}
+function typingEl() {
+  const el = document.createElement("div");
+  el.className = "msg";
+  el.innerHTML = '<span class="m-glyph">C</span><div class="typing"><i></i><i></i><i></i></div>';
+  chat.appendChild(el); scrollChat();
+  return el;
+}
+function chipsEl(options, onPick) {
+  const el = document.createElement("div");
+  el.className = "chips";
+  options.forEach(opt => {
+    const b = document.createElement("button");
+    b.className = "chip"; b.textContent = opt.label;
+    b.addEventListener("click", () => { el.remove(); onPick(opt); });
+    el.appendChild(b);
+  });
+  chat.appendChild(el); scrollChat();
+  return el;
+}
+
+function setKind(k) {
+  S.kind = k;                       // human answer
+  S.type = KIND_TO_TYPE[k];         // real orgType id
+  S.vocab = { ...VOCAB_OVERRIDES[orgType()] };
+  S.wf = { ...DEFAULT_WF[orgType()] };
+  S.seats = SEAT_TEMPLATES[orgType()].map(makeSeat);
+  S.skipped = false;
+}
+function setPain(p) {
+  S.pain = p;
+  const key = PAIN_WF[p];           // real WorkflowId
+  if (key) S.wf[key] = 1;
+}
+
+const QUESTIONS = [
+  {
+    id: "kind", fresh: "pages",
+    prompt: () => "Tell me about <b>" + esc(displayName()) + "</b> — what kind of organization is it?",
+    chips: () => [
+      { label: "A fraternity", apply: () => setKind("fraternity") },
+      { label: "A sorority", apply: () => setKind("sorority") },
+      { label: "A club or student org", apply: () => setKind("club") },
+      { label: "A sports team", apply: () => setKind("team") },
+      { label: "A service org", apply: () => setKind("service") },
+      { label: "An honor society", apply: () => setKind("honor") },
+      { label: "A performing-arts group", apply: () => setKind("arts") },
+      { label: "Something else", apply: () => setKind("other") },
+    ],
+    reply: () => ({
+      fraternity: "A fraternity — so it&rsquo;s <b>Brothers</b>, <b>Chapter</b>, and <b>Semesters</b> from here on. Watch the sheet: your blueprint just learned to speak Greek.",
+      sorority: "A sorority — <b>Sisters</b>, <b>Chapter</b>, <b>Semesters</b>. The blueprint speaks your language now.",
+      club: "Got it — <b>Members</b>, <b>Meetings</b>, <b>Semesters</b>. No Greek assumed.",
+      team: "A team — <b>Players</b>, <b>Practice</b>, <b>Seasons</b>. The sheet is set up that way.",
+      service: "A service org — I&rsquo;ll put <b>service hours</b> and <b>events</b> forward, and keep the words plain.",
+      honor: "An honor society — <b>attendance</b> and <b>standards</b> lead; parties stay off.",
+      arts: "A performing-arts group — <b>Cast members</b>, <b>Rehearsals</b>, and a calendar built for a run.",
+      other: "Got it — I&rsquo;ll start you neutral: <b>Members</b>, <b>Meetings</b>, and only the pages you turn on.",
+    }[S.kind]),
+  },
+  {
+    id: "pain", fresh: "pages",
+    prompt: () => "What eats most of your time running it?",
+    chips: () => [
+      { label: "Chasing dues", apply: () => setPain("dues") },
+      { label: "Tracking attendance", apply: () => setPain("attendance") },
+      { label: "Planning events", apply: () => setPain("events") },
+      { label: "Keeping everyone informed", apply: () => setPain("comms") },
+    ],
+    reply: () => ({
+      dues: "Heard. <b>Dues goes front and center</b> — every unpaid " + vocab().member.toLowerCase() + " at a glance, and nobody chases screenshots again.",
+      attendance: "Then attendance runs itself from now on — mandatory " + vocab().meeting.toLowerCase() + "s, excuses, and a live percentage per " + vocab().member.toLowerCase() + ".",
+      events: "Planning it is. <b>The calendar leads</b>, with wrap-ups and door revenue one tap away.",
+      comms: "One place to say it, everywhere it lands — <b>Announcements go up top</b>.",
+    }[S.pain]),
+  },
+  {
+    id: "cadence", fresh: "meeting",
+    prompt: () => "When does " + esc(vocab().meeting) + " meet?",
+    chips: () => [
+      { label: "Sundays at 7", apply: () => { S.cadence = { label: "Sundays at 7", day: 0, time: "7:00 PM" }; } },
+      { label: "Wednesdays at 8", apply: () => { S.cadence = { label: "Wednesdays at 8", day: 3, time: "8:00 PM" }; } },
+      { label: "Every other week", apply: () => { S.cadence = { label: "Every other week", day: 0, time: "7:00 PM" }; } },
+    ],
+    reply: () => "Done — <b>" + esc(vocab().meeting) + " · " + esc(S.cadence.time) + "</b>. It goes straight onto the calendar the moment we build.",
+  },
+  {
+    id: "term", fresh: "term",
+    prompt: () => "Last one — what do you call this " + vocab().period.toLowerCase() + ", and do you collect dues?",
+    chips: () => [
+      { label: "Fall 2026 — with dues", apply: () => { S.term = { name: "Fall 2026", dates: "Aug 24 – Dec 18", dues: true }; S.wf.finance = 1; } },
+      { label: "Fall 2026 — no dues", apply: () => { S.term = { name: "Fall 2026", dates: "Aug 24 – Dec 18", dues: false }; S.wf.finance = 0; } },
+    ],
+    reply: () => "<b>" + esc(S.term.name) + "</b> it is — " + esc(S.term.dates) + (S.term.dues ? ", dues on." : ", dues off.") + " Your blueprint is ready to review.",
+  },
+];
+
+function askQuestion(idx) {
+  if (idx >= QUESTIONS.length) {
+    S.interviewDone = true;
+    later(() => {
+      const b = document.createElement("button");
+      b.className = "cta chat-cta"; b.innerHTML = "Set up your roles<span>→</span>";
+      b.addEventListener("click", () => goto("3b"));
+      chat.appendChild(b); scrollChat();
+    }, 500);
+    return;
+  }
+  S.chatStage = idx;
+  const q = QUESTIONS[idx];
+  const t = typingEl();
+  later(() => {
+    t.remove();
+    botMsg(q.prompt(), true);
+    chipsEl(q.chips(), opt => answer(q, opt.label, opt.apply));
+  }, idx === 0 ? 700 : 900);
+}
+function answer(q, label, apply) {
+  userMsg(label);
+  apply();
+  renderSheet(q.fresh);
+  if (q.id === "kind") setTimeout(() => renderSheet("words"), 500);
+  const t = typingEl();
+  later(() => {
+    t.remove();
+    botMsg(q.reply());
+    later(() => askQuestion(QUESTIONS.indexOf(q) + 1), 650);
+  }, 850);
+}
+$("#freeText").addEventListener("keydown", e => {
+  if (e.key !== "Enter" || !e.target.value.trim() || S.interviewDone) return;
+  const text = e.target.value.trim(); e.target.value = "";
+  const q = QUESTIONS[S.chatStage];
+  $$(".chips", chat).forEach(el => el.remove());
+  const lower = text.toLowerCase();
+  let apply;
+  if (q.id === "kind") {
+    const k = lower.includes("frat") ? "fraternity"
+      : lower.includes("soror") ? "sorority"
+      : lower.includes("team") || lower.includes("sport") ? "team"
+      : lower.includes("service") || lower.includes("volunteer") ? "service"
+      : lower.includes("honor") ? "honor"
+      : lower.includes("theat") || lower.includes("danc") || lower.includes("music") || lower.includes("art") || lower.includes("choir") || lower.includes("band") ? "arts"
+      : lower.includes("club") || lower.includes("student") || lower.includes("org") ? "club"
+      : "other";
+    apply = () => setKind(k);
+  } else if (q.id === "pain") {
+    const p = lower.includes("due") || lower.includes("money") ? "dues" : lower.includes("attend") ? "attendance" : lower.includes("event") || lower.includes("social") ? "events" : "comms";
+    apply = () => setPain(p);
+  } else if (q.id === "cadence") {
+    apply = () => { S.cadence = { label: text, day: 0, time: "7:00 PM" }; };
+  } else {
+    apply = () => { S.term = { name: text, dates: "Aug 24 – Dec 18", dues: true }; };
+  }
+  answer(q, text, apply);
+});
+function bootInterview() {
+  if (chat.dataset.booted) return;
+  chat.dataset.booted = "1";
+  botMsg("Four quick questions. Everything you say goes onto the blueprint on the right — you&rsquo;ll review the whole sheet before anything is built.", false);
+  later(() => askQuestion(0), 900);
+}
+$("#skipBtn").addEventListener("click", () => {
+  S.skipped = true; S.interviewDone = false;
+  S.kind = S.kind || "fraternity";
+  S.type = KIND_TO_TYPE[S.kind];
+  S.vocab = { ...VOCAB_OVERRIDES[orgType()] };
+  S.wf = { ...DEFAULT_WF[orgType()] };
+  S.seats = SEAT_TEMPLATES[orgType()].map(makeSeat);
+  goto("3b");
+});
+
+/* ═══ Step 4 — blueprint ═══════════════════════════════════════════════ */
+/* Toggle rows are the optional workflows only. "operations" (Dashboard/
+   Timeline/Chapter) is ALWAYS_ON and shown separately as a locked row. */
+const WF_META = [
+  { key: "members", name: () => vocab().members, why: () => "every " + KIND_LABEL[S.kind].toLowerCase().replace(/^a |an /, "") + " starts with the roster." },
+  { key: "finance", name: () => vocab().dues + " & Treasury", why: () => S.pain === "dues" ? 'because you said <q>chasing dues</q> eats your time.' : (S.term && S.term.dues ? "you collect dues each " + vocab().period.toLowerCase() + "." : "off until you collect dues — one tap away.") },
+  { key: "attendance", name: () => "Attendance", why: () => S.pain === "attendance" ? 'because you said <q>tracking attendance</q> is the drain.' : (S.cadence ? "because " + vocab().meeting + " repeats weekly — worth counting." : "meetings worth counting.") },
+  { key: "events", name: () => "Events", why: () => S.pain === "events" ? 'because you said <q>planning events</q> takes the most time.' : "you meet on a rhythm; socials live here too." },
+  { key: "parties", name: () => "Parties", why: () => "socials with a guest list, budget and door — separate from plain events." },
+  { key: "service", name: () => "Service", why: () => orgType() === "service-org" ? "service hours are the point — this leads." : "flip it on if you track service hours." },
+  { key: "docs", name: () => "Docs", why: () => "bylaws, minutes and links — pinned, not lost in the chat." },
+  { key: "communications", name: () => "Announcements", why: () => S.pain === "comms" ? 'because you said <q>keeping everyone informed</q> is the struggle.' : "start light — turn on when the group chat stops scaling." },
+  { key: "tasks", name: () => "Tasks", why: () => "start light — turn on when exec needs assignments." },
+];
+/* The exact object this flow would POST — shaped as the PROPOSED extension to
+   the real createOrgInput (lib/validation/org.ts). Today's route only accepts
+   {name, slug, orgType, founderName}; the `blueprint` field is the phase-in
+   target that provisionOrg would consume atomically. Logged on the blueprint
+   step so the backend work has a concrete contract to build against. `perms`
+   are real MANAGE_* flag names; roleSeeds mirror lib/org-types.ts RoleSeed. */
+function buildPayload() {
+  const seedRank = (s, i) => (s.all ? 100 : Math.max(40, 60 - i * 5));
+  return {
+    name: displayName(),
+    slug: slug(),
+    orgType: orgType(),
+    founderName: "You",                        // real form field
+    logo: S.logo ? { pending: true, note: "uploaded post-create via POST /api/orgs/logo" } : null,
+    blueprint: {
+      enabledWorkflows: ["operations", ...Object.keys(wf()).filter(k => wf()[k])],
+      vocabularyOverrides: { ...S.vocab },     // sparse, canonical singular keys
+      roleSeeds: S.seats.map((s, i) => ({
+        name: s.title,
+        rank: seedRank(s, i),
+        all: !!s.all,
+        permissions: s.all ? [] : s.perms.map(p => "MANAGE_" + p),
+        holderName: s.name.trim() || null,     // convenience; not in RoleSeed today
+      })),
+      meeting: S.cadence ? { label: S.cadence.label, weekday: S.cadence.day, time: S.cadence.time, repeats: "weekly" } : null,
+      term: S.term ? { name: S.term.name, dates: S.term.dates, collectsDues: !!S.term.dues } : null,
+    },
+  };
+}
+/* The editable chapter URL, at the top of the blueprint. Mirrors the real
+   live slug check: format rule (3+ chars) + a demo "taken" list standing in
+   for /api/orgs/slug-check. An explicit edit pins S.slug so it survives later
+   name changes. `built` avoids re-binding listeners on every re-render. */
+let slugEditorBuilt = false;
+function paintSlugState() {
+  const inp = $("#slugEdit"), field = $("#urlField"), note = $("#urlNote");
+  const ic = $("#urlIc"), word = $("#urlWord");
+  const st = slugStatus(inp.value.trim());
+  const bad = st.kind === "taken" || st.kind === "bad";
+  field.classList.toggle("taken", bad);
+  field.classList.toggle("ok", st.kind === "ok");
+  // Integrated status chip: a check when available, an × when taken/too short.
+  ic.textContent = st.kind === "ok" ? "✓" : bad ? "✕" : "";
+  word.textContent = st.kind === "ok" ? "available" : st.kind === "taken" ? "taken" : st.kind === "bad" ? "too short" : "";
+  if (st.kind === "taken" && st.suggest) {
+    note.innerHTML = "Try <span class=\"suggest\" id=\"slugSuggest\">" + esc(st.suggest) + "</span> instead";
+    $("#slugSuggest").addEventListener("click", () => {
+      inp.value = st.suggest; S.slug = st.suggest; paintSlugState(); renderSheet("name");
+    });
+  } else if (st.kind === "bad") {
+    note.textContent = "3 characters or more.";
+  } else {
+    note.textContent = ""; // quiet when the address is fine
+  }
+}
+function renderSlugEditor() {
+  const inp = $("#slugEdit");
+  inp.value = slug();
+  paintSlugState();
+  if (slugEditorBuilt) return;
+  slugEditorBuilt = true;
+  const field = $("#urlField");
+  inp.addEventListener("focus", () => field.classList.add("focus"));
+  inp.addEventListener("blur", () => {
+    field.classList.remove("focus");
+    // Normalize to a valid slug on blur; empty falls back to the name-derived slug.
+    const cleaned = slugify(inp.value);
+    if (!cleaned) { S.slug = null; } else { S.slug = cleaned; }
+    inp.value = slug();
+    paintSlugState();
+    renderSheet("name");
+  });
+  inp.addEventListener("input", () => {
+    // Live-sanitize as they type (lowercase, hyphenate) without fighting the caret.
+    const cleaned = slugify(inp.value);
+    if (inp.value !== cleaned) inp.value = cleaned;
+    S.slug = cleaned || null;
+    paintSlugState();
+    renderSheet("name");
+  });
+  inp.addEventListener("keydown", ev => { if (ev.key === "Enter") inp.blur(); });
+}
+function renderBlueprint() {
+  const v = vocab();
+  try { console.log("[ChaptOS] org-create payload (proposed extended createOrgInput):", buildPayload()); } catch (_) {}
+  $("#bpTitle").innerHTML = "Here&rsquo;s the workspace I&rsquo;d build for <em style=\"color:var(--vio)\">" + esc(displayName()) + "</em>.";
+  renderSlugEditor();
+
+  // Always-on operations surfaces — locked, cannot be toggled off (mirrors
+  // ALWAYS_ON_WORKFLOWS = ["operations"]).
+  const lockedRow =
+    '<div class="wf-row locked">' +
+      '<span class="wf-name">Core</span>' +
+      '<span class="wf-why">Dashboard, Timeline &amp; ' + esc(vocab().meeting) + " — every org gets these.</span>" +
+      '<button class="wf-tgl locked" disabled>ALWAYS</button></div>';
+  $("#wfList").innerHTML = lockedRow + WF_META.map(m => {
+    const on = !!wf()[m.key];
+    return '<div class="wf-row' + (on ? "" : " off") + '" data-wf="' + m.key + '">' +
+      '<span class="wf-name">' + esc(m.name()) + "</span>" +
+      '<span class="wf-why">' + m.why() + "</span>" +
+      '<button class="wf-tgl">' + (on ? "ON" : "OFF") + "</button></div>";
+  }).join("");
+  $$("#wfList .wf-row[data-wf]").forEach(row => row.querySelector(".wf-tgl").addEventListener("click", () => {
+    const key = row.dataset.wf;
+    S.wf[key] = S.wf[key] ? 0 : 1;
+    renderBlueprint();
+  }));
+
+  // Vocab edits the real canonical singular keys; the plural is DERIVED (shown
+  // in parens) so the founder sees exactly what's stored vs. computed.
+  const VOCAB_EDIT = [
+    { k: "Member", note: "plural derived" },
+    { k: "Meetings" },
+    { k: "Period" },
+  ];
+  $("#vocabRow").innerHTML = VOCAB_EDIT.map(t =>
+    '<span class="vocab-chip" data-vk="' + t.k + '" title="Click to edit"><span class="vl">' + t.k.toLowerCase() + '</span><span class="vv">' + esc(getVocab(t.k)) +
+    (t.note ? '<span class="vv-plural"> / ' + esc(getVocab(t.k, true)) + "</span>" : "") + "</span></span>"
+  ).join("");
+  $("#vocabNote").innerHTML = "You said " + KIND_LABEL[S.kind].toLowerCase() + " — so I&rsquo;ll use <b>your</b> words everywhere. Click any to change it; the plural is figured out for you.";
+  $$("#vocabRow .vocab-chip").forEach(chip => chip.addEventListener("click", () => {
+    if (chip.querySelector("input")) return;
+    const k = chip.dataset.vk, vv = chip.querySelector(".vv");
+    const inp = document.createElement("input");
+    inp.value = getVocab(k);
+    vv.replaceWith(inp); inp.focus(); inp.select();
+    const save = () => {
+      const val = inp.value.trim();
+      if (val) S.vocab[k] = val; else delete S.vocab[k];
+      renderBlueprint();
+    };
+    inp.addEventListener("blur", save);
+    inp.addEventListener("keydown", ev => { if (ev.key === "Enter") inp.blur(); });
+  }));
+
+  renderSeats();
+
+  $("#termLine").textContent = S.term.name;
+  $("#termMeta").innerHTML =
+    S.term.dates + " &nbsp;·&nbsp; " + (S.term.dues ? "dues on" : "no dues") + "<br>" +
+    '<span class="dot"></span>' + esc(v.meeting) + " · " + esc(S.cadence.time) + " · repeats weekly — already placed";
+}
+
+/* Leadership v2: renameable titles + optional holder names + add-a-seat */
+function renderSeats() {
+  $("#seatList").innerHTML = S.seats.map((s, i) =>
+    '<div class="seat" data-i="' + i + '">' +
+      '<span class="seat-dot" style="background:' + s.color + '"></span>' +
+      '<span class="seat-title" title="Click to rename">' + esc(s.title) + "</span>" +
+      '<span class="seat-able">' + esc(s.able) + "</span>" +
+      (s.you
+        ? '<span class="seat-you">YOU</span>'
+        : '<input class="seat-who' + (s.name ? " named" : "") + '" value="' + esc(s.name) + '" placeholder="Who holds it? — optional">') +
+    "</div>"
+  ).join("");
+  $$("#seatList .seat").forEach(row => {
+    const i = +row.dataset.i;
+    const title = row.querySelector(".seat-title");
+    title.addEventListener("click", () => {
+      if (title.querySelector("input")) return;
+      const inp = document.createElement("input");
+      inp.value = S.seats[i].title;
+      title.textContent = ""; title.appendChild(inp); inp.focus(); inp.select();
+      const save = () => { S.seats[i].title = inp.value.trim() || S.seats[i].title; renderSeats(); };
+      inp.addEventListener("blur", save);
+      inp.addEventListener("keydown", ev => { if (ev.key === "Enter") inp.blur(); });
+    });
+    const who = row.querySelector(".seat-who");
+    if (who) {
+      who.addEventListener("input", () => { S.seats[i].name = who.value; who.classList.toggle("named", !!who.value.trim()); });
+    }
+  });
+  const pool = SEAT_POOL[orgType()].filter(p => !S.seats.some(s => s.title === p.title));
+  $("#addSeat").style.display = pool.length ? "" : "none";
+  if (pool.length) $("#addSeatHint").textContent = pool.map(p => p.title).join(", ");
+}
+$("#addSeat").addEventListener("click", () => {
+  const pool = SEAT_POOL[orgType()].filter(p => !S.seats.some(s => s.title === p.title));
+  if (pool.length) { S.seats.push(makeSeat(pool[0])); renderSeats(); }
+});
+
+/* ═══ Step 3b — your roles (stacked cards + ability pills) ═════════════ */
+/* Plain-English "Can X and Y." from a seat's lit areas. */
+function roleSummary(seat) {
+  if (seat.all) return "Runs everything — that's you.";
+  const on = activeAreas().filter(a => areaState(seat, a) !== "off").map(a => AREA_PHRASE[a.id]);
+  if (!on.length) return "Along for the ride — no admin abilities yet. Tap a pill to add one.";
+  const list = on.length === 1 ? on[0]
+    : on.slice(0, -1).join(", ") + (on.length > 2 ? "," : "") + " and " + on[on.length - 1];
+  return "Can " + list + ".";
+}
+function pillHtml(seat, area) {
+  const st = seat.all ? "on" : areaState(seat, area);
+  return '<button class="pill ' + st + '" data-area="' + area.id + '">' +
+    areaIcon(area.icon) + esc(area.label) + "</button>";
+}
+function advHtml(seat) {
+  return activeAreas().map(area =>
+    '<div class="adv-area"><h6>' + areaIcon(area.icon) + esc(area.label) + "</h6><div class=\"adv-abils\">" +
+    area.perms.map(p => {
+      const on = seat.perms.includes(p);
+      return '<button class="abil ' + (on ? "on" : "") + '" data-perm="' + p + '">' +
+        '<span class="ac">' + (on ? "✓" : "") + '</span>' + esc(PERM_LABELS[p] || p) + "</button>";
+    }).join("") + "</div></div>"
+  ).join("");
+}
+/* A role's monogram — the first letter(s) of its title, for the avatar chip. */
+function roleMonogram(title) {
+  const w = title.trim().split(/\s+/).filter(Boolean);
+  return (w.length >= 2 ? w[0][0] + w[1][0] : (title.trim()[0] || "?")).toUpperCase();
+}
+function renderRoles() {
+  const v = vocab();
+  $("#rolesTitle").innerHTML = "Who can do what at <em style=\"color:var(--vio)\">" + esc(displayName()) + "</em>?";
+  $("#rolesSub").innerHTML = "I set these roles up for " + KIND_LABEL[S.kind].toLowerCase() +
+    " — each already does its job. Tap a pill to add or remove an ability, or just leave them.";
+
+  $("#rolesStack").innerHTML = S.seats.map((s, i) => {
+    const founder = !!s.you;
+    const head =
+      '<div class="rc-head">' +
+        '<span class="rc-avatar" style="background:' + s.color + '">' + esc(roleMonogram(s.title)) + "</span>" +
+        '<div class="rc-namecol">' +
+          '<span class="rc-title" title="' + (founder ? "" : "Click to rename") + '">' + esc(s.title) + "</span>" +
+          '<span class="rc-summary">' + roleSummary(s) + "</span>" +
+        "</div>" +
+        (founder
+          ? '<span class="rc-you">YOU</span>'
+          : '<input class="rc-who' + (s.name ? " named" : "") + '" value="' + esc(s.name) + '" placeholder="Who holds it? — optional">') +
+      "</div>";
+    const pills = '<div class="pill-row">' + activeAreas().map(a => pillHtml(s, a)).join("") + "</div>";
+    const adv = founder
+      ? '<p class="rc-founder-note">The founder seat holds <b>full authority</b> and can delegate every role — you can hand it off in Settings later.</p>'
+      : '<details class="rc-adv"' + (s._advOpen ? " open" : "") + '><summary>Advanced — fine-tune each ability</summary>' + advHtml(s) + "</details>";
+    return '<div class="role-card' + (founder ? " founder" : "") + '" data-i="' + i + '" style="--rc:' + s.color + '">' + head + pills + adv + "</div>";
+  }).join("");
+
+  $$("#rolesStack .role-card").forEach(card => {
+    const i = +card.dataset.i, seat = S.seats[i];
+    // rename title
+    const title = card.querySelector(".rc-title");
+    if (!seat.you) title.addEventListener("click", () => {
+      if (title.querySelector("input")) return;
+      const inp = document.createElement("input");
+      inp.value = seat.title;
+      title.textContent = ""; title.appendChild(inp); inp.focus(); inp.select();
+      const save = () => { seat.title = inp.value.trim() || seat.title; renderRoles(); };
+      inp.addEventListener("blur", save);
+      inp.addEventListener("keydown", ev => { if (ev.key === "Enter") inp.blur(); });
+    });
+    // holder name
+    const who = card.querySelector(".rc-who");
+    if (who) who.addEventListener("input", () => { seat.name = who.value; who.classList.toggle("named", !!who.value.trim()); });
+    // pill taps
+    card.querySelectorAll(".pill").forEach(pill => {
+      if (seat.you) return;
+      pill.addEventListener("click", () => {
+        toggleArea(seat, PERM_AREAS.find(a => a.id === pill.dataset.area));
+        renderRoles();
+      });
+    });
+    // advanced per-ability toggles — keep the disclosure open across re-render
+    card.querySelectorAll(".abil").forEach(ab => ab.addEventListener("click", () => {
+      togglePerm(seat, ab.dataset.perm);
+      seat._advOpen = true; renderRoles();
+    }));
+    // remember manual open/close of the advanced disclosure across re-renders
+    const adv = card.querySelector(".rc-adv");
+    if (adv) adv.addEventListener("toggle", () => { seat._advOpen = adv.open; });
+  });
+
+  const pool = SEAT_POOL[orgType()].filter(p => !S.seats.some(s => s.title === p.title));
+  $("#rolesAddSeat").style.display = pool.length ? "" : "none";
+  if (pool.length) $("#rolesAddHint").textContent = pool.map(p => p.title).join(", ");
+}
+$("#rolesAddSeat").addEventListener("click", () => {
+  const pool = SEAT_POOL[orgType()].filter(p => !S.seats.some(s => s.title === p.title));
+  if (pool.length) { S.seats.push(makeSeat(pool[0])); renderRoles(); }
+});
+
+/* ═══ Step 4 — sign-in + build ═════════════════════════════════════════ */
+let buildTimers = [];
+function clearBuild() { buildTimers.forEach(clearTimeout); buildTimers = []; }
+function resetBuildScreen() {
+  clearBuild();
+  $("#signinCard").style.display = "";
+  $("#building").classList.remove("show");
+  paintMark($("#signMark"), { named: true });
+  $("#signTitle").innerHTML = "Sign in to create <br>" + esc(displayName());
+}
+$("#googleBtn").addEventListener("click", () => {
+  $("#signinCard").style.display = "none";
+  $("#building").classList.add("show");
+  paintMark($("#bldGlyph"), { named: true });
+  const v = vocab();
+  // These mirror the real provisionOrg() transaction steps, in order.
+  const lines = [
+    "reserving chaptos.app/" + slug(),
+    "creating your workspace + config",
+    "seeding roles — " + S.seats.map((s, i) => s.title + (i === 0 ? " (you)" : "")).join(", "),
+    "linking you as founder — full authority",
+    "opening " + S.term.name + " · " + S.term.dates,
+    "placing " + v.meeting + " on the calendar — weekly, " + S.cadence.time,
+    "opening your workspace",
+  ];
+  $("#bldLines").innerHTML = lines.map(l =>
+    '<div class="bld-line"><span class="tick">✓</span><span>' + esc(l) + "</span></div>"
+  ).join("");
+  const els = $$("#bldLines .bld-line");
+  els.forEach((el, i) => {
+    buildTimers.push(setTimeout(() => el.classList.add("show"), 300 + i * 460));
+    buildTimers.push(setTimeout(() => el.classList.add("done"), 620 + i * 460));
+  });
+  buildTimers.push(setTimeout(() => goto(5), 300 + els.length * 460 + 700));
+});
+
+/* ═══ Step 5 — reveal ══════════════════════════════════════════════════ */
+function weekHtml(marked) {
+  const days = ["S", "M", "T", "W", "T", "F", "S"], nums = [24, 25, 26, 27, 28, 29, 30];
+  return '<div class="pv-week">' + days.map((d, i) =>
+    '<div class="pv-day' + (marked === i ? " mark" : "") + '"><div class="d">' + d + '</div><div class="n">' + nums[i] + "</div></div>"
+  ).join("") + "</div>";
+}
+const PAIN_CHECK = {
+  dues:       { t: "Log your first dues payment", p: "Treasury and member balances update together — the chase ends here." },
+  attendance: { t: () => "Take attendance at " + vocab().meeting, p: "One tap per head. Percentages and excuses handle themselves." },
+  events:     { t: "Plan your first social", p: "Budget, guest list and wrap-up in one place." },
+  comms:      { t: "Post your first announcement", p: "It lands on every dashboard, not page 4 of the group chat." },
+};
+function painDashCard() {
+  const v = vocab();
+  const c = {
+    dues:       { h: "Dues — front and center", big: "0 collected", sub: "balances fill in as your " + v.members.toLowerCase() + " join — the roster arrives with your invites" },
+    attendance: { h: "Attendance — front and center", big: "First " + v.meeting + " Sunday", sub: "one tap per head; percentages and excuses handle themselves" },
+    events:     { h: "Events — front and center", big: "1 on the calendar", sub: "budgets, guest lists and wrap-ups live with each event" },
+    comms:      { h: "Announcements — front and center", big: "1 draft ready", sub: "posts land on every dashboard, not page 4 of the group chat" },
+  }[S.pain || "dues"];
+  return '<div class="app-card"><h4>' + esc(c.h) + ' <span class="tag">because you asked for it</span></h4>' +
+    '<div class="dash-big">' + esc(c.big) + '</div><div class="dash-sub">' + c.sub + "</div></div>";
+}
+function renderReveal() {
+  const v = vocab();
+  $("#rvlSide").innerHTML =
+    '<div class="org"><span class="mark" data-side-mark>·</span><b>' + esc(displayName()) + "</b></div>" +
+    "<ul>" + pageChips().map((p, i) =>
+      '<li class="' + (i === 0 ? "on" : "") + '" style="animation-delay:' + i * 60 + 'ms"><span class="dot"></span>' + esc(p.l) + "</li>"
+    ).join("") + "</ul>" +
+    '<div class="side-foot">Settings</div>';
+
+  const pc = PAIN_CHECK[S.pain || "dues"];
+  const painTitle = typeof pc.t === "function" ? pc.t() : pc.t;
+  const named = S.seats.filter(s => !s.you && s.name.trim());
+  const execLine = named.length
+    ? "Share one link with your exec — " + named.map(s => firstName(s.name)).join(" and ") + " and the rest join, then you assign each their role in one tap."
+    : "Share one link with your exec; assign " + S.seats[1].title + " and the rest their roles once they join.";
+  $("#rvlMain").innerHTML =
+    '<div><p class="rvl-caption">This is your real workspace — you&rsquo;re in ' + esc(displayName()) + " now.</p>" +
+    '<h1 class="rvl-hello">Welcome to ' + esc(displayName()) + ".</h1>" +
+    '<p class="rvl-sub">Built from your answers · ' + esc(S.term.name) + " is live · " + esc(vocab().meeting) + " is on the calendar · everything here is yours to change.</p></div>" +
+    '<div class="rvl-grid">' +
+      '<div class="rvl-col">' +
+        '<div class="app-card"><h4>Announcement <span class="tag">drafted for you — edit or delete</span></h4>' +
+          '<div class="ann-body">' + esc(v.members) + " — we&rsquo;re moving " + esc(displayName()) + " operations to one place. " +
+          (wf().finance ? esc(v.dues) + ", attendance and the calendar" : "Attendance and the calendar") + " all live here now. First " +
+          esc(v.meeting) + " is " + esc(S.cadence.label) + " — it&rsquo;s already on the calendar." +
+          '<span class="sig">— your ' + esc(leaderTitle()) + "</span></div>" +
+          '<div class="ann-foot"><button>Edit draft</button><button>Post it</button><button>Delete</button></div>' +
+        "</div>" +
+        '<div class="app-card"><h4>This week <span class="tag">' + esc(v.meeting) + " · " + esc(S.cadence.time) + " · weekly</span></h4>" +
+          weekHtml(S.cadence.day) +
+        "</div>" +
+        painDashCard() +
+      "</div>" +
+      '<div class="rvl-col">' +
+        '<div class="app-card check"><h4>Three things, then you&rsquo;re done</h4>' +
+          '<div class="check-item"><span class="check-n">1</span><div><b>Invite your exec board</b><p>' + esc(execLine) + '</p><button class="go" data-go="6">Get exec links →</button></div></div>' +
+          '<div class="check-item"><span class="check-n">2</span><div><b>Bring in your ' + esc(v.members.toLowerCase()) + "</b><p>One link. They self-onboard; you watch the counter.</p><button class=\"go\" data-go=\"6\">Copy invite link →</button></div></div>" +
+          '<div class="check-item"><span class="check-n">3</span><div><b>' + esc(painTitle) + "</b><p>" + esc(pc.p) + "</p><button class=\"go\">Do it now →</button></div></div>" +
+        "</div>" +
+      "</div>" +
+    "</div>";
+  $$("#rvlMain [data-go]").forEach(b => b.addEventListener("click", () => goto(b.dataset.go)));
+  const sideMark = $("[data-side-mark]");
+  if (sideMark) paintMark(sideMark, { named: true });
+  $("#atc").innerHTML =
+    '<span class="mark" data-atc-mark>C</span>' +
+    "<span><b>Ask the " + esc(v.meeting) + "</b> — I remember everything you told me. Try &ldquo;how do I track attendance?&rdquo;</span>";
+  const atcMark = $("[data-atc-mark]");
+  if (atcMark) { if (S.logo) paintMark(atcMark, { named: true }); else { atcMark.style.background = grad(); atcMark.textContent = "C"; } }
+}
+
+/* ═══ Step 6 — invite ══════════════════════════════════════════════════ */
+let joinTimers = [], joined = 0;
+function clearJoins() { joinTimers.forEach(clearTimeout); joinTimers = []; }
+function renderInvite() {
+  const v = vocab();
+  $("#invTitle").textContent = "Bring in your " + v.members.toLowerCase() + ".";
+  // One org-wide invite link — the real model today (OrgInvite: mode + expiry,
+  // one token, many redemptions). No per-seat personal links (not a real
+  // feature yet), so we don't promise them.
+  $("#joinLink").textContent = "chaptos.app/join/" + slug().slice(0, 4) + "-x7Kp9mQv2R";
+  $("#everyoneHead").textContent = "Everyone — " + v.members.toLowerCase();
+  // Exec seats are shown as an at-a-glance reminder of who holds what — display
+  // only. Assigning a role happens in-app after they join via the shared link.
+  const seats = S.seats.filter(s => !s.you);
+  const anyNamed = seats.some(s => s.name.trim());
+  $("#execTag").textContent = "assign after they join";
+  $("#execList").innerHTML = seats.map(s => {
+    const named = !!s.name.trim();
+    const label = named ? esc(s.name.trim()) : "—";
+    return '<div class="exec-row"><span class="seat-dot" style="background:' + s.color + '"></span>' +
+      '<div class="who"><b>' + esc(s.title) + "</b><span>" + (named ? "holder: " + label : "no holder named yet") + "</span></div>" +
+      '<span class="role-tag">' + esc(s.title.toUpperCase()) + "</span></div>";
+  }).join("");
+  $("#execNote").innerHTML = anyNamed
+    ? "You named these on the blueprint — after they join through the shared link, seat them with one tap. <span class=\"soon\">Role-tagged personal links — coming soon.</span>"
+    : "Everyone joins through the one link below, then you assign roles in-app. <span class=\"soon\">Role-tagged personal links — coming soon.</span>";
+  if (!joined) { $("#joinAvs").innerHTML = ""; $("#joinCount").innerHTML = "<b>0</b> " + esc(v.members.toLowerCase()) + " joined — share the link to open the doors"; }
+  $$('.scr[data-step="6"] .copy').forEach(b => b.addEventListener("click", () => {
+    if (navigator.clipboard) navigator.clipboard.writeText("https://" + $("#joinLink").textContent).catch(() => {});
+    b.textContent = "COPIED"; b.classList.add("ok");
+    setTimeout(() => { b.textContent = "COPY"; b.classList.remove("ok"); }, 1800);
+    startJoins();
+  }));
+}
+function startJoins() {
+  if (joinTimers.length) return;
+  const v = vocab();
+  const namedFirst = S.seats.filter(s => !s.you && s.name.trim()).map(s => s.name.trim());
+  const queue = [...namedFirst, ...JOIN_NAMES].slice(0, 5);
+  queue.forEach((name, i) => {
+    joinTimers.push(setTimeout(() => {
+      joined = i + 1;
+      const initials = name.split(/\s+/).map(w => w[0].toUpperCase()).join("").slice(0, 2);
+      const av = document.createElement("div");
+      av.className = "av"; av.style.background = AV_COLORS[i % AV_COLORS.length]; av.textContent = initials; av.title = name;
+      $("#joinAvs").appendChild(av);
+      $("#joinCount").innerHTML = "<b>" + joined + "</b> " + esc((joined === 1 ? v.member : v.members).toLowerCase()) + " joined — " +
+        (joined < 3 ? "self-onboarding, no work on your end" : "your part was one link");
+    }, 1100 + i * 1300));
+  });
+}
+
+/* ═══ Router ═══════════════════════════════════════════════════════════ */
+/* Steps are string ids so "3b" (Your roles) slots between 3 and 4 without
+   renumbering the app-world screens. `phase` is the numeric build-progress
+   used by ensureDefaults + the world-theme switch (3b shares phase 3). */
+const STEPS = ["1", "2", "3b", "3", "4", "5", "6"];
+const PHASE = { "1": 1, "2": 2, "3b": 3, "3": 3, "4": 4, "5": 5, "6": 6 };
+const CAPS = {
+  "1": "Fifteen seconds in, the blueprint has your name on it.",
+  "2": "Four questions. The sheet assembles as you answer — honestly a plan, not a fake app.",
+  "3b": "You own the roles — one glance to see them, one tap to change them. Real MANAGE_* flags underneath.",
+  "3": "The whole plan on one sheet — a last look before provisionOrg builds exactly this.",
+  "4": "Auth at the last responsible moment, then the real provisioning steps run.",
+  "5": "The anti-empty-state: you land in the <b>real</b> workspace, already alive.",
+  "6": "One org-wide link. The leader&rsquo;s job ends at sharing it.",
+};
+function goto(step) {
+  step = String(step);
+  let idx = STEPS.indexOf(step);
+  if (idx < 0) idx = 0;
+  step = STEPS[Math.max(0, Math.min(STEPS.length - 1, idx))];
+  const phase = PHASE[step];
+  clearChatTimers(); clearBuild(); clearJoins();
+  ensureDefaults(phase);
+  S.step = step;
+  $$(".scr").forEach(s => s.classList.toggle("active", s.dataset.step === step));
+  $$("#rail button").forEach(b => b.classList.toggle("on", b.dataset.go === step));
+  $("#railCap").innerHTML = CAPS[step];
+  const appWorld = phase >= 5, darkWorld = phase === 4;
+  document.body.style.background = appWorld ? "var(--app-bg)" : darkWorld ? "#060504" : "var(--paper)";
+  $("#chrome").className = "chrome" + (appWorld ? " scr-app-chrome" : darkWorld ? " scr-dark-chrome" : "");
+  $("#chromeTag").style.color = appWorld ? "var(--app-fg-40)" : "";
+  if (phase <= 2) { renderSheet(); mountSheet(); }
+  if (step === "2") bootInterview();
+  if (step === "3") renderBlueprint();
+  if (step === "3b") renderRoles();
+  if (step === "4") resetBuildScreen();
+  if (step === "5") renderReveal();
+  if (step === "6") renderInvite();
+  if (location.hash !== "#step-" + step) history.replaceState(null, "", "#step-" + step);
+}
+function stepBy(delta) {
+  const idx = STEPS.indexOf(S.step);
+  goto(STEPS[Math.max(0, Math.min(STEPS.length - 1, idx + delta))]);
+}
+$$("[data-go]").forEach(b => b.addEventListener("click", () => goto(b.dataset.go)));
+document.addEventListener("keydown", e => {
+  if (e.target.tagName === "INPUT") return;
+  if (e.key === "ArrowRight") stepBy(1);
+  if (e.key === "ArrowLeft") stepBy(-1);
+});
+
+const m = location.hash.match(/step-(\d\w?)/);
+goto(m ? m[1] : "1");
+</script>
+</body>
+</html>
