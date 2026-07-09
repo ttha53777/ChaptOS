@@ -1,0 +1,1639 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ChaptOS — Org Creation Flow Mock v2</title>
+<!--
+  ChaptOS org-creation pipeline — CONCEPT MOCK v2 (design exploration, not wired)
+  ────────────────────────────────────────────────────────────────────────────
+  v2 changes, from feedback on v1:
+    · No fake workspace preview (can't render the real app pre-creation).
+      The right pane is now the BLUEPRINT SHEET assembling live — a plan,
+      not a product screenshot. Step 3 is the same sheet, full-screen.
+      Honest and cheap to build: it's just config state rendered as cards.
+    · No color picker (no per-org accent feature exists). The org's mark is
+      a gradient monogram generated deterministically from the name — which
+      the product already does for logo fallbacks. "Upload your crest in
+      Settings" is the honest deferral.
+    · Roles reworked: seats are renameable titles with plain-language
+      abilities and an optional "who holds it?" name. Naming a seat turns
+      the generic exec invite into a PERSONAL link on the final screen,
+      and "+ Add a seat" pulls from org-type-appropriate offices.
+
+  Six screens, fully clickable; the bottom rail jumps page-to-page.
+    1 Name → 2 Interview → 3 Blueprint → 4 Build → 5 Reveal → 6 Invite
+
+  Assumptions: default persona "Kappa Sigma", fraternity, dues pain, Sunday
+  chapter — jumping ahead via the rail fills these so every screen stands
+  alone. Same delivery contract as every _design mock: one file, vanilla
+  JS/CSS, double-click to open, fonts from Google.
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,400;1,9..144,500;1,9..144,600&family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ═══ 0 · Tokens ═════════════════════════════════════════════════════════ */
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body { margin: 0; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+h1, h2, h3, h4, h6, p, ul { margin: 0; padding: 0; }
+button { font: inherit; color: inherit; background: none; border: none; cursor: pointer; }
+input { font: inherit; }
+
+:root {
+  --paper: #0f0d0a;
+  --paper-2: #14120e;
+  --paper-3: #1b1813;
+  --card: #161310;
+  --ink: #ece7dd;
+  --ink-72: rgba(236,231,221,.72);
+  --ink-55: rgba(236,231,221,.55);
+  --ink-40: rgba(236,231,221,.4);
+  --ink-28: rgba(236,231,221,.28);
+  --line: rgba(236,231,221,.13);
+  --line-soft: rgba(236,231,221,.07);
+  --vio: #a78bfa;
+  --vio-deep: #7c3aed;
+  --vio-soft: rgba(167,139,250,.12);
+  --vio-line: rgba(167,139,250,.32);
+  --gold: #ddb36a;
+  --rose: #d98ba3;
+  --ok: #7fb08a;
+  --ok-soft: rgba(127,176,138,.14);
+  --amber: #d9a05b;
+  --sky: #7fb3d9;
+  /* app world */
+  --app-bg: #07090f;
+  --app-surface: #10121a;
+  --app-raised: #141820;
+  --app-line: rgba(255,255,255,.07);
+  --app-line-2: rgba(255,255,255,.12);
+  --app-fg: #f1f5f9;
+  --app-fg-60: rgba(241,245,249,.6);
+  --app-fg-40: rgba(241,245,249,.4);
+  --serif: "Fraunces", Georgia, serif;
+  --sans: "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --mono: "Geist Mono", ui-monospace, Menlo, monospace;
+  --ease: cubic-bezier(.16,1,.3,1);
+}
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--sans);
+  overflow: hidden;
+}
+body::before {
+  content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 0;
+  opacity: .55;
+  background-image: radial-gradient(rgba(236,231,221,.025) 1px, transparent 1px);
+  background-size: 4px 4px;
+}
+::selection { background: var(--vio-deep); color: #fff; }
+button:focus-visible, input:focus-visible, a:focus-visible { outline: 2px solid var(--vio); outline-offset: 3px; border-radius: 4px; }
+
+/* ═══ 1 · Stage & chrome ═════════════════════════════════════════════════ */
+.stage { position: relative; z-index: 1; height: 100vh; height: 100dvh; display: flex; flex-direction: column; }
+.chrome { display: flex; align-items: center; justify-content: space-between; height: 60px; padding: 0 28px; flex: none; }
+.wm { display: flex; align-items: center; gap: 10px; }
+.glyph {
+  height: 26px; width: 26px; border-radius: 7px;
+  background: var(--ink); color: var(--paper);
+  font-family: var(--serif); font-weight: 600; font-size: 15px;
+  display: flex; align-items: center; justify-content: center;
+}
+.wm-txt { font-size: 12px; font-weight: 600; letter-spacing: .14em; }
+.chrome-tag { font-family: var(--mono); font-size: 10.5px; letter-spacing: .16em; color: var(--ink-28); }
+.scr-app-chrome .glyph, .scr-dark-chrome .glyph { background: var(--app-fg); color: var(--app-bg); }
+
+/* ═══ 2 · Screens ════════════════════════════════════════════════════════ */
+#screens { flex: 1; min-height: 0; position: relative; }
+.scr { position: absolute; inset: 0; display: none; animation: scr-in 560ms var(--ease) both; }
+.scr.active { display: block; }
+@keyframes scr-in {
+  from { opacity: 0; transform: translateY(12px) scale(.995); filter: blur(3px); }
+  to   { opacity: 1; transform: none; filter: blur(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .scr, .sheet-sec, .bp-card, .role-card, .bld-line, .rvl-main > *, .msg, .app-side li { animation: none !important; transition: none !important; }
+}
+
+.split {
+  height: 100%; display: grid;
+  grid-template-columns: minmax(440px, 46%) 1fr;
+  gap: clamp(24px, 4vw, 64px);
+  padding: 0 clamp(28px, 4.5vw, 72px) 84px;
+  align-items: center;
+}
+
+/* ═══ 3 · Step 1 — Name ══════════════════════════════════════════════════ */
+.ask { max-width: 520px; }
+.kicker { font-family: var(--mono); font-size: 11px; letter-spacing: .22em; text-transform: uppercase; color: var(--ink-40); margin-bottom: 22px; }
+.q-serif { font-family: var(--serif); font-weight: 500; font-size: clamp(30px, 3.4vw, 44px); line-height: 1.12; letter-spacing: -.01em; }
+.ask .q-serif { margin-bottom: 30px; }
+
+.name-input {
+  width: 100%; background: transparent; border: none; color: var(--ink);
+  border-bottom: 1px solid var(--line);
+  font-family: var(--serif); font-size: clamp(26px, 2.6vw, 36px); font-weight: 500;
+  padding: 6px 2px 14px; outline: none;
+  transition: border-color 240ms var(--ease);
+  caret-color: var(--vio);
+}
+.name-input::placeholder { color: var(--ink-28); font-style: italic; }
+.name-input:focus { border-color: var(--vio-line); }
+
+.slugline { margin-top: 16px; font-family: var(--mono); font-size: 13px; color: var(--ink-40); min-height: 20px; transition: opacity 240ms var(--ease); }
+.slugline b { color: var(--ink-72); font-weight: 500; }
+
+.idrow { display: flex; align-items: center; gap: 16px; margin-top: 30px; min-height: 44px; }
+.mark {
+  height: 44px; width: 44px; border-radius: 12px; flex: none;
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--serif); font-weight: 600; font-size: 17px; color: #fff;
+  border: 1px solid rgba(255,255,255,.14);
+  box-shadow: 0 8px 24px -10px rgba(0,0,0,.6);
+  transition: background 400ms var(--ease);
+}
+.mark.empty { background: var(--paper-3) !important; border: 1px dashed var(--line); color: var(--ink-28); box-shadow: none; }
+.idnote { font-size: 12.5px; color: var(--ink-55); line-height: 1.55; max-width: 330px; }
+.idnote b { color: var(--ink-72); }
+
+.cta {
+  display: inline-flex; align-items: center; gap: 10px;
+  margin-top: 40px; padding: 13px 26px; border-radius: 999px;
+  background: var(--ink); color: var(--paper);
+  font-size: 14.5px; font-weight: 600;
+  transition: transform 200ms var(--ease), box-shadow 200ms var(--ease);
+}
+.cta:hover { transform: translateY(-1px); box-shadow: 0 10px 30px -12px rgba(236,231,221,.35); }
+.fine { margin-top: 18px; font-size: 12.5px; color: var(--ink-40); }
+
+/* ═══ 4 · Blueprint sheet (assembles live through steps 1–2) ═════════════ */
+.sheet-slot { height: min(72vh, 640px); display: flex; align-items: center; }
+.sheet-wrap { width: 100%; height: 100%; position: relative; }
+.sheet-wrap::before {
+  content: ""; position: absolute; inset: -8% -6%;
+  background:
+    radial-gradient(42% 46% at 22% 24%, rgba(167,139,250,.12), transparent 70%),
+    radial-gradient(38% 42% at 82% 78%, rgba(217,179,106,.07), transparent 70%);
+  filter: blur(6px); pointer-events: none;
+}
+.sheet-cap { position: absolute; top: -28px; left: 2px; font-family: var(--mono); font-size: 10px; letter-spacing: .18em; color: var(--ink-28); text-transform: uppercase; }
+.sheet {
+  position: relative; height: 100%; width: 100%;
+  background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+  box-shadow: 0 2px 4px rgba(0,0,0,.5), 0 32px 80px -24px rgba(0,0,0,.7);
+  overflow: hidden; display: flex; flex-direction: column;
+  padding: 22px 24px 16px;
+}
+.sheet-head { display: flex; align-items: center; gap: 14px; padding-bottom: 16px; }
+.sheet-head .mark { height: 40px; width: 40px; font-size: 15px; margin: 0; }
+.sheet-title { min-width: 0; }
+.sheet-title .nm { font-family: var(--serif); font-weight: 500; font-size: 21px; letter-spacing: -.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sheet-title .nm.ghost { color: var(--ink-28); font-style: italic; }
+.sheet-title .sl { font-family: var(--mono); font-size: 10.5px; color: var(--ink-40); margin-top: 3px; }
+.sheet-sec {
+  border-top: 1px solid var(--line-soft); padding: 13px 0;
+  animation: sec-in 480ms var(--ease) both;
+}
+@keyframes sec-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+.sheet-sec h6 { font-family: var(--mono); font-size: 9.5px; font-weight: 600; letter-spacing: .2em; text-transform: uppercase; color: var(--ink-40); margin-bottom: 9px; }
+.sheet-sec.pending h6 { color: var(--ink-28); }
+.sheet-sec .pend { font-size: 12px; color: var(--ink-28); font-style: italic; }
+.sheet-sec.flash { animation: sec-flash 900ms var(--ease); }
+@keyframes sec-flash {
+  0% { background: var(--vio-soft); box-shadow: inset 3px 0 0 var(--vio); }
+  100% { background: transparent; box-shadow: none; }
+}
+.pg-chips { display: flex; flex-wrap: wrap; gap: 7px; }
+.pg {
+  display: inline-flex; align-items: center; gap: 7px;
+  font-size: 12px; color: var(--ink-72);
+  border: 1px solid var(--line); border-radius: 999px; padding: 4px 12px;
+  animation: sec-in 420ms var(--ease) both;
+}
+.pg .dot { height: 4px; width: 4px; border-radius: 50%; background: var(--ink-40); }
+.pg.lead { border-color: var(--vio-line); color: var(--ink); background: var(--vio-soft); }
+.pg.lead .dot { background: var(--vio); box-shadow: 0 0 8px rgba(167,139,250,.6); }
+.words-line { font-family: var(--serif); font-size: 17px; color: var(--ink); }
+.words-line span { color: var(--ink-28); font-size: 14px; margin: 0 7px; }
+.sheet-line { font-size: 13px; color: var(--ink-72); display: flex; align-items: center; gap: 9px; }
+.sheet-line .dot { height: 5px; width: 5px; border-radius: 50%; background: var(--vio); flex: none; }
+.sheet-line b { color: var(--ink); font-weight: 600; }
+.sheet-foot { margin-top: auto; padding-top: 12px; font-family: var(--mono); font-size: 9.5px; letter-spacing: .12em; color: var(--ink-28); text-transform: uppercase; }
+
+/* ═══ 5 · Step 2 — Interview ═════════════════════════════════════════════ */
+.chat-col { height: min(72vh, 640px); display: flex; flex-direction: column; max-width: 560px; width: 100%; }
+.chat { flex: 1; min-height: 0; overflow-y: auto; padding: 8px 4px 16px; display: flex; flex-direction: column; gap: 16px; scrollbar-width: thin; }
+.msg { display: flex; gap: 12px; animation: msg-in 420ms var(--ease) both; max-width: 92%; }
+@keyframes msg-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+.msg .m-glyph {
+  height: 26px; width: 26px; border-radius: 7px; flex: none; margin-top: 2px;
+  background: var(--ink); color: var(--paper);
+  font-family: var(--serif); font-weight: 600; font-size: 14px;
+  display: flex; align-items: center; justify-content: center;
+}
+.msg .m-body { font-size: 15px; line-height: 1.55; color: var(--ink-72); padding-top: 4px; }
+.msg .m-body b { color: var(--ink); font-weight: 600; }
+.msg.q .m-body { font-family: var(--serif); font-size: 19px; line-height: 1.4; color: var(--ink); }
+.msg.user { align-self: flex-end; max-width: 80%; }
+.msg.user .m-body { background: var(--paper-3); border: 1px solid var(--line); padding: 9px 16px; border-radius: 999px; font-size: 14px; color: var(--ink); }
+.typing { display: inline-flex; gap: 5px; padding: 10px 2px; }
+.typing i { height: 5px; width: 5px; border-radius: 50%; background: var(--ink-40); animation: tp 1.1s ease-in-out infinite; }
+.typing i:nth-child(2) { animation-delay: .15s; }
+.typing i:nth-child(3) { animation-delay: .3s; }
+@keyframes tp { 0%, 60%, 100% { transform: none; opacity: .5; } 30% { transform: translateY(-4px); opacity: 1; } }
+
+.chips { display: flex; flex-wrap: wrap; gap: 9px; padding: 2px 0 0 38px; }
+.chip {
+  padding: 9px 17px; border-radius: 999px;
+  border: 1px solid var(--line); color: var(--ink-72); font-size: 13.5px;
+  transition: all 200ms var(--ease); background: rgba(236,231,221,.02);
+}
+.chip:hover { border-color: var(--vio-line); color: var(--ink); background: var(--vio-soft); transform: translateY(-1px); }
+.chat-foot { flex: none; display: flex; align-items: center; gap: 14px; padding-top: 14px; border-top: 1px solid var(--line-soft); }
+.free {
+  flex: 1; background: transparent; border: 1px solid var(--line); border-radius: 999px;
+  color: var(--ink); padding: 10px 18px; font-size: 13.5px; outline: none;
+  transition: border-color 200ms var(--ease);
+}
+.free::placeholder { color: var(--ink-28); }
+.free:focus { border-color: var(--vio-line); }
+.ghost-link { font-size: 12.5px; color: var(--ink-40); white-space: nowrap; text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--line); transition: color 200ms; }
+.ghost-link:hover { color: var(--ink-72); }
+.chat-cta { align-self: flex-start; margin-left: 38px; }
+
+/* ═══ 6 · Step 3 — Blueprint (full-screen) ═══════════════════════════════ */
+.bp { height: 100%; overflow-y: auto; padding: 12px clamp(28px, 5vw, 80px) 110px; scrollbar-width: thin; }
+.bp-head { max-width: 760px; margin: 0 auto 8px; text-align: center; padding-top: 2vh; }
+.bp-head .q-serif { margin-bottom: 12px; }
+.bp-sub { font-size: 14.5px; color: var(--ink-55); }
+.bp-banner {
+  max-width: 640px; margin: 18px auto 0; padding: 10px 18px; border-radius: 10px;
+  border: 1px solid rgba(217,160,91,.35); background: rgba(217,160,91,.08);
+  color: var(--amber); font-size: 13px; text-align: center; display: none;
+}
+.bp-banner.show { display: block; }
+.bp-grid { max-width: 1010px; margin: 34px auto 0; display: grid; grid-template-columns: 1.15fr 1fr; gap: 18px; align-items: start; }
+.bp-card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 20px 22px; animation: msg-in 480ms var(--ease) both; }
+.bp-grid > *:nth-child(1) { animation-delay: 40ms; }
+.bp-grid > *:nth-child(2) { animation-delay: 120ms; }
+.bp-col { display: flex; flex-direction: column; gap: 18px; }
+.bp-card h3 { font-family: var(--mono); font-size: 11px; font-weight: 600; letter-spacing: .2em; text-transform: uppercase; color: var(--ink-40); margin-bottom: 16px; }
+.bp-card h3 .why { float: right; letter-spacing: .04em; text-transform: none; color: var(--ink-28); font-weight: 400; }
+
+.wf-row { display: flex; align-items: baseline; gap: 12px; padding: 9px 0; border-top: 1px solid var(--line-soft); }
+.wf-row:first-of-type { border-top: 0; }
+.wf-name { font-size: 14.5px; font-weight: 600; flex: none; width: 118px; }
+.wf-row.off .wf-name { color: var(--ink-40); font-weight: 500; }
+.wf-why { flex: 1; font-size: 12.5px; color: var(--ink-55); font-style: italic; }
+.wf-why q { quotes: "“" "”"; color: var(--ink-72); }
+.wf-row.off .wf-why { color: var(--ink-28); }
+.wf-tgl {
+  flex: none; font-family: var(--mono); font-size: 10px; letter-spacing: .1em;
+  padding: 4px 12px; border-radius: 999px;
+  border: 1px solid rgba(127,176,138,.4); color: var(--ok); background: var(--ok-soft);
+  transition: all 180ms var(--ease); min-width: 46px;
+}
+.wf-row.off .wf-tgl { border-color: var(--line); color: var(--ink-40); background: transparent; }
+.wf-tgl:hover { transform: scale(1.05); }
+
+.vocab-row { display: flex; flex-wrap: wrap; gap: 10px; }
+.vocab-chip { display: inline-flex; align-items: baseline; gap: 8px; border: 1px solid var(--line); border-radius: 10px; padding: 9px 14px; transition: border-color 200ms; cursor: text; }
+.vocab-chip:hover { border-color: var(--vio-line); }
+.vocab-chip .vl { font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-40); }
+.vocab-chip .vv { font-family: var(--serif); font-size: 16px; color: var(--ink); }
+.vocab-chip input { background: transparent; border: none; outline: none; color: var(--ink); font-family: var(--serif); font-size: 16px; width: 96px; padding: 0; border-bottom: 1px dashed var(--vio-line); }
+.vocab-note { margin-top: 14px; font-size: 12.5px; color: var(--ink-55); font-style: italic; }
+
+/* Leadership v2 — seats are people, not furniture */
+.seat { display: grid; grid-template-columns: 9px 108px 1fr 150px; align-items: center; gap: 11px; padding: 10px 0; border-top: 1px solid var(--line-soft); }
+.seat:first-of-type { border-top: 0; }
+.seat-dot { height: 9px; width: 9px; border-radius: 50%; }
+.seat-title { font-size: 14px; font-weight: 600; cursor: text; border-bottom: 1px dashed transparent; transition: border-color 200ms; width: fit-content; max-width: 108px; white-space: nowrap; overflow: hidden; }
+.seat-title:hover { border-color: var(--vio-line); }
+.seat-title input { background: transparent; border: none; outline: none; color: var(--ink); font-size: 14px; font-weight: 600; width: 100px; padding: 0; border-bottom: 1px dashed var(--vio-line); }
+.seat-able { font-size: 12px; color: var(--ink-55); font-style: italic; }
+.seat-you { font-family: var(--mono); font-size: 10px; letter-spacing: .12em; color: var(--paper); background: var(--ink); border-radius: 999px; padding: 3px 10px; justify-self: end; }
+.seat-who {
+  width: 100%; background: transparent; border: none; outline: none; color: var(--ink);
+  border-bottom: 1px dashed var(--line); font-size: 12.5px; padding: 3px 1px;
+  transition: border-color 200ms;
+}
+.seat-who::placeholder { color: var(--ink-28); font-style: italic; }
+.seat-who:focus { border-color: var(--vio-line); }
+.seat-who.named { border-bottom-style: solid; border-color: rgba(127,176,138,.4); }
+.add-seat { margin-top: 12px; font-size: 12.5px; color: var(--ink-40); transition: color 200ms; }
+.add-seat:hover { color: var(--ink); }
+.add-seat b { color: var(--ink-55); font-weight: 500; }
+.seat-note { margin-top: 12px; font-size: 12px; color: var(--ink-55); font-style: italic; line-height: 1.5; }
+.seat-note b { color: var(--ink-72); }
+
+.term-line { font-family: var(--serif); font-size: 21px; margin-bottom: 8px; }
+.term-meta { font-size: 13px; color: var(--ink-55); line-height: 1.7; }
+.term-meta .dot { display: inline-block; height: 5px; width: 5px; border-radius: 50%; background: var(--vio); margin: 0 4px 2px 0; }
+
+details.standards { border-top: 1px solid var(--line-soft); margin-top: 4px; }
+details.standards summary { cursor: pointer; list-style: none; padding: 14px 0 4px; font-family: var(--mono); font-size: 11px; letter-spacing: .2em; text-transform: uppercase; color: var(--ink-40); }
+details.standards summary::after { content: "+"; float: right; }
+details.standards[open] summary::after { content: "–"; }
+.std-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; padding: 10px 0 6px; }
+.std { border: 1px solid var(--line-soft); border-radius: 10px; padding: 10px 12px; }
+.std .sv { font-family: var(--mono); font-size: 15px; color: var(--ink); }
+.std .sl { font-size: 10.5px; color: var(--ink-40); margin-top: 3px; line-height: 1.4; }
+
+.bp-cta-row { max-width: 1010px; margin: 30px auto 0; display: flex; align-items: center; justify-content: center; gap: 22px; }
+.cta.big { font-size: 15.5px; padding: 15px 34px; margin-top: 0; }
+.bp-foot { text-align: center; margin-top: 14px; font-size: 12px; color: var(--ink-28); }
+
+/* ═══ 6b · Step 3b — Your roles (stacked cards + ability pills) ═══════════ */
+.bp.roles { padding-bottom: 120px; }
+.roles-stack { max-width: 720px; margin: 30px auto 0; display: flex; flex-direction: column; gap: 16px; }
+.role-card {
+  background: var(--card); border: 1px solid var(--line); border-radius: 16px;
+  padding: 18px 22px 16px; animation: msg-in 480ms var(--ease) both;
+}
+.role-card.founder { border-color: var(--vio-line); background: linear-gradient(180deg, var(--vio-soft), transparent 60%), var(--card); }
+.rc-head { display: flex; align-items: center; gap: 12px; }
+.rc-dot { height: 11px; width: 11px; border-radius: 50%; flex: none; box-shadow: 0 0 10px -1px currentColor; }
+.rc-title { font-family: var(--serif); font-size: 20px; font-weight: 500; cursor: text; border-bottom: 1px dashed transparent; transition: border-color 200ms; }
+.rc-title:hover { border-color: var(--vio-line); }
+.rc-title input { background: transparent; border: none; outline: none; color: var(--ink); font-family: var(--serif); font-size: 20px; font-weight: 500; width: 150px; padding: 0; border-bottom: 1px dashed var(--vio-line); }
+.rc-you { font-family: var(--mono); font-size: 10px; letter-spacing: .12em; color: var(--paper); background: var(--ink); border-radius: 999px; padding: 3px 10px; }
+.rc-who {
+  margin-left: auto; width: 190px; background: transparent; border: none; outline: none; color: var(--ink);
+  border-bottom: 1px dashed var(--line); font-size: 12.5px; padding: 4px 1px; transition: border-color 200ms; text-align: right;
+}
+.rc-who::placeholder { color: var(--ink-28); font-style: italic; }
+.rc-who:focus { border-color: var(--vio-line); }
+.rc-who.named { border-bottom-style: solid; border-color: rgba(127,176,138,.4); }
+
+.pill-row { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 16px; }
+.pill {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 9px 15px 9px 13px; border-radius: 999px; font-size: 13.5px; font-weight: 500;
+  border: 1px solid var(--line); color: var(--ink-40); background: rgba(236,231,221,.02);
+  transition: all 180ms var(--ease); cursor: pointer; user-select: none;
+}
+.pill .pi { font-size: 15px; line-height: 1; filter: grayscale(1) opacity(.5); transition: filter 180ms; }
+.pill .pc { flex: none; height: 15px; width: 15px; border-radius: 50%; border: 1.5px solid var(--ink-28); display: flex; align-items: center; justify-content: center; font-size: 10px; color: transparent; transition: all 180ms; }
+.pill:hover { transform: translateY(-1px); border-color: var(--vio-line); color: var(--ink-72); }
+.pill.on {
+  border-color: var(--vio-line); color: var(--ink); background: var(--vio-soft);
+}
+.pill.on .pi, .pill.partial .pi { filter: none; }
+.pill.on .pc { background: var(--vio); border-color: var(--vio); color: #fff; }
+.pill.partial { border-color: var(--vio-line); color: var(--ink-72); background: rgba(167,139,250,.06); }
+.pill.partial .pc { border-color: var(--vio); color: var(--vio); }
+.role-card.founder .pill { cursor: default; }
+.role-card.founder .pill:hover { transform: none; }
+
+.rc-summary { margin-top: 13px; font-size: 13px; color: var(--ink-55); font-style: italic; line-height: 1.5; }
+.rc-summary b { color: var(--ink-72); font-style: normal; font-weight: 500; }
+.rc-founder-note { margin-top: 14px; font-size: 12.5px; color: var(--ink-55); }
+.rc-founder-note b { color: var(--ink-72); }
+
+details.rc-adv { margin-top: 12px; border-top: 1px solid var(--line-soft); }
+details.rc-adv summary { cursor: pointer; list-style: none; padding: 11px 0 2px; font-family: var(--mono); font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-40); transition: color 180ms; }
+details.rc-adv summary:hover { color: var(--ink-72); }
+details.rc-adv summary::after { content: "›"; float: right; transition: transform 200ms; }
+details.rc-adv[open] summary::after { transform: rotate(90deg); }
+.adv-area { padding: 10px 0 4px; border-top: 1px solid var(--line-soft); }
+.adv-area:first-of-type { border-top: 0; }
+.adv-area h6 { font-family: var(--mono); font-size: 9.5px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; color: var(--ink-40); margin-bottom: 8px; }
+.adv-abils { display: flex; flex-wrap: wrap; gap: 8px; }
+.abil {
+  display: inline-flex; align-items: center; gap: 7px; padding: 6px 12px; border-radius: 8px;
+  border: 1px solid var(--line); font-size: 12.5px; color: var(--ink-40); cursor: pointer;
+  transition: all 160ms var(--ease); user-select: none; background: rgba(236,231,221,.02);
+}
+.abil .ac { height: 13px; width: 13px; border-radius: 4px; border: 1.5px solid var(--ink-28); display: flex; align-items: center; justify-content: center; font-size: 9px; color: transparent; transition: all 160ms; }
+.abil:hover { border-color: var(--vio-line); color: var(--ink-72); }
+.abil.on { border-color: var(--vio-line); color: var(--ink); background: var(--vio-soft); }
+.abil.on .ac { background: var(--vio); border-color: var(--vio); color: #fff; }
+.roles-add { display: block; max-width: 720px; margin: 16px auto 0; }
+
+/* ═══ 7 · Step 4 — Sign-in + build ═══════════════════════════════════════ */
+.scr-dark { background: #060504; }
+.bld { height: 100%; display: flex; align-items: center; justify-content: center; padding-bottom: 60px; }
+.signin {
+  width: 400px; text-align: center;
+  background: var(--card); border: 1px solid var(--line); border-radius: 18px;
+  padding: 44px 40px 38px;
+  box-shadow: 0 40px 100px -30px rgba(0,0,0,.8);
+}
+.signin .mark { margin: 0 auto 18px; }
+.signin h2 { font-family: var(--serif); font-weight: 500; font-size: 24px; line-height: 1.25; margin-bottom: 6px; }
+.signin p { font-size: 13px; color: var(--ink-55); margin-bottom: 26px; }
+.gbtn {
+  width: 100%; display: flex; align-items: center; justify-content: center; gap: 12px;
+  background: #fff; color: #1f1f1f; border-radius: 999px; padding: 12px 20px;
+  font-size: 14.5px; font-weight: 600;
+  transition: transform 200ms var(--ease), box-shadow 200ms var(--ease);
+}
+.gbtn:hover { transform: translateY(-1px); box-shadow: 0 12px 30px -12px rgba(255,255,255,.3); }
+.signin .fine { margin-top: 16px; font-size: 11.5px; }
+
+.building { display: none; text-align: center; width: 480px; }
+.building.show { display: block; }
+.bld-glyph {
+  margin: 0 auto 34px; height: 64px; width: 64px; border-radius: 16px;
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--serif); font-weight: 600; font-size: 26px; color: #fff;
+  border: 1px solid rgba(255,255,255,.14);
+  animation: breathe 2s ease-in-out infinite;
+}
+@keyframes breathe { 50% { box-shadow: 0 0 44px -6px rgba(167,139,250,.55); transform: scale(1.04); } }
+.bld-lines { display: flex; flex-direction: column; gap: 13px; text-align: left; width: 400px; margin: 0 auto; }
+.bld-line {
+  display: flex; align-items: center; gap: 12px;
+  font-family: var(--mono); font-size: 12.5px; color: var(--ink-40);
+  opacity: 0; transform: translateY(6px);
+  transition: all 420ms var(--ease);
+}
+.bld-line.show { opacity: 1; transform: none; }
+.bld-line.done { color: var(--ink-72); }
+.bld-line .tick { width: 16px; flex: none; color: var(--ok); opacity: 0; transition: opacity 300ms; }
+.bld-line.done .tick { opacity: 1; }
+
+/* ═══ 8 · Steps 5–6 — App world ══════════════════════════════════════════ */
+.scr-app { background: var(--app-bg); color: var(--app-fg); }
+.scr-app::before {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(60% 40% at 50% 0%, rgba(167,139,250,.06), transparent 70%);
+}
+.app-frame { position: relative; height: 100%; display: flex; }
+.app-side {
+  flex: none; width: 208px; border-right: 1px solid var(--app-line);
+  padding: 18px 12px; display: flex; flex-direction: column;
+  background: rgba(16,18,26,.5);
+}
+.app-side .org { display: flex; align-items: center; gap: 10px; padding: 0 8px 18px; }
+.app-side .org .mark { height: 28px; width: 28px; border-radius: 8px; font-size: 12px; margin: 0; box-shadow: none; }
+.app-side .org b { font-size: 13.5px; letter-spacing: -.01em; }
+.app-side ul { list-style: none; display: flex; flex-direction: column; gap: 2px; }
+.app-side li {
+  display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 8px;
+  font-size: 13px; color: var(--app-fg-60);
+  animation: sec-in 460ms var(--ease) both;
+}
+.app-side li.on { background: var(--app-surface); color: var(--app-fg); }
+.app-side li .dot { height: 5px; width: 5px; border-radius: 50%; background: var(--app-fg-40); flex: none; }
+.app-side li.on .dot { background: var(--vio); box-shadow: 0 0 8px rgba(167,139,250,.6); }
+.app-side .side-foot { margin-top: auto; padding: 8px 10px; font-size: 12.5px; color: var(--app-fg-40); }
+
+.rvl-main { flex: 1; min-width: 0; overflow-y: auto; padding: 34px clamp(24px, 3.5vw, 56px) 110px; scrollbar-width: thin; }
+.rvl-main > * { animation: msg-in 520ms var(--ease) both; }
+.rvl-main > *:nth-child(2) { animation-delay: 100ms; }
+.rvl-hello { font-family: var(--serif); font-weight: 500; font-size: clamp(26px, 2.6vw, 36px); letter-spacing: -.01em; }
+.rvl-sub { margin-top: 8px; font-size: 13.5px; color: var(--app-fg-60); }
+.rvl-grid { display: grid; grid-template-columns: 1.5fr 1fr; gap: 18px; margin-top: 28px; align-items: start; max-width: 1060px; }
+.rvl-col { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+.app-card {
+  background: var(--app-surface); border: 1px solid var(--app-line); border-radius: 14px; padding: 18px 20px;
+  box-shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px -12px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.04);
+}
+.app-card h4 { font-family: var(--mono); font-size: 10.5px; font-weight: 600; letter-spacing: .18em; text-transform: uppercase; color: var(--app-fg-40); margin-bottom: 14px; }
+.app-card h4 .tag { float: right; letter-spacing: .04em; color: var(--vio); text-transform: none; font-weight: 500; }
+.ann-body { font-size: 14px; line-height: 1.65; color: var(--app-fg); }
+.ann-body .sig { display: block; margin-top: 10px; color: var(--app-fg-60); font-style: italic; }
+.ann-foot { display: flex; gap: 16px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--app-line); }
+.ann-foot button { font-size: 12px; color: var(--app-fg-60); text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--app-line-2); }
+.ann-foot button:hover { color: var(--app-fg); }
+
+.pv-week { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+.pv-day { text-align: center; padding: 8px 0 9px; border-radius: 7px; border: 1px solid transparent; }
+.pv-day .d { font-family: var(--mono); font-size: 9px; color: var(--app-fg-40); }
+.pv-day .n { font-size: 14px; margin-top: 3px; color: var(--app-fg-60); }
+.pv-day.mark { border-color: rgba(167,139,250,.45); background: rgba(167,139,250,.12); }
+.pv-day.mark .n { color: var(--vio); font-weight: 600; }
+.dash-big { font-size: 18px; font-weight: 600; }
+.dash-sub { font-size: 12px; color: var(--app-fg-60); margin-top: 3px; }
+
+.check { display: flex; flex-direction: column; }
+.check-item { display: flex; gap: 13px; padding: 13px 0; border-top: 1px solid var(--app-line); }
+.check-item:first-of-type { border-top: 0; padding-top: 2px; }
+.check-n {
+  flex: none; height: 22px; width: 22px; border-radius: 50%; margin-top: 1px;
+  border: 1px solid rgba(167,139,250,.5); color: var(--vio);
+  font-family: var(--mono); font-size: 11px; display: flex; align-items: center; justify-content: center;
+}
+.check-item b { display: block; font-size: 13.5px; margin-bottom: 3px; }
+.check-item p { font-size: 12px; color: var(--app-fg-60); line-height: 1.5; }
+.check-item .go { margin-top: 7px; font-size: 12px; color: var(--vio); }
+.check-item .go:hover { text-decoration: underline; text-underline-offset: 3px; }
+
+.atc {
+  position: absolute; right: 28px; bottom: 92px; z-index: 5;
+  display: flex; align-items: center; gap: 12px;
+  background: var(--app-raised); border: 1px solid var(--app-line-2); border-radius: 999px;
+  padding: 10px 18px 10px 12px; font-size: 12.5px; color: var(--app-fg-60);
+  box-shadow: 0 16px 40px -16px rgba(0,0,0,.6);
+  animation: msg-in 600ms var(--ease) 700ms both;
+}
+.atc .mark { height: 24px; width: 24px; font-size: 11px; border-radius: 7px; margin: 0; box-shadow: none; }
+.atc b { color: var(--app-fg); font-weight: 600; }
+
+/* ═══ 9 · Step 6 — Invite ════════════════════════════════════════════════ */
+.inv { position: relative; height: 100%; overflow-y: auto; padding: 5vh clamp(28px, 5vw, 80px) 120px; scrollbar-width: thin; }
+.inv-head { max-width: 720px; margin: 0 auto; text-align: center; }
+.inv-head .q-serif { color: var(--app-fg); }
+.inv-sub { margin-top: 12px; font-size: 14px; color: var(--app-fg-60); }
+.inv-grid { max-width: 900px; margin: 38px auto 0; display: grid; grid-template-columns: 1.1fr 1fr; gap: 18px; align-items: start; }
+.inv-grid .app-card { animation: msg-in 480ms var(--ease) both; }
+.inv-grid .app-card:nth-child(2) { animation-delay: 90ms; }
+.exec-row { display: flex; align-items: center; gap: 11px; padding: 10px 0; border-top: 1px solid var(--app-line); }
+.exec-row:first-of-type { border-top: 0; padding-top: 0; }
+.exec-row .who { flex: 1; min-width: 0; }
+.exec-row .who b { display: block; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.exec-row .who span { display: block; font-family: var(--mono); font-size: 10px; color: var(--app-fg-40); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.exec-row .role-tag { flex: none; font-family: var(--mono); font-size: 9.5px; letter-spacing: .08em; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--app-line-2); color: var(--app-fg-60); }
+.copy {
+  flex: none; font-family: var(--mono); font-size: 10px; letter-spacing: .08em;
+  border: 1px solid var(--app-line-2); border-radius: 999px; padding: 4px 12px; color: var(--app-fg-60);
+  transition: all 180ms var(--ease);
+}
+.copy:hover { border-color: rgba(167,139,250,.5); color: var(--app-fg); }
+.copy.ok { border-color: rgba(127,176,138,.5); color: var(--ok); }
+.biglink { display: flex; align-items: center; gap: 12px; border: 1px dashed var(--app-line-2); border-radius: 11px; padding: 13px 16px; margin-bottom: 14px; }
+.biglink code { flex: 1; font-family: var(--mono); font-size: 12px; color: var(--app-fg); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.qr { height: 74px; width: 74px; flex: none; border-radius: 8px; background: var(--app-raised); border: 1px solid var(--app-line); display: flex; align-items: center; justify-content: center; font-family: var(--mono); font-size: 9px; letter-spacing: .12em; color: var(--app-fg-40); }
+.inv-note { font-size: 12px; color: var(--app-fg-60); line-height: 1.55; }
+.joins { max-width: 900px; margin: 26px auto 0; display: flex; align-items: center; gap: 16px; min-height: 44px; }
+.join-avs { display: flex; }
+.av {
+  height: 34px; width: 34px; border-radius: 50%; flex: none;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 600; color: var(--app-fg);
+  border: 2px solid var(--app-bg); margin-left: -8px;
+  animation: av-in 480ms var(--ease) both;
+}
+.av:first-child { margin-left: 0; }
+@keyframes av-in { from { opacity: 0; transform: scale(.4); } to { opacity: 1; transform: none; } }
+.join-count { font-size: 13.5px; color: var(--app-fg-60); }
+.join-count b { color: var(--app-fg); font-variant-numeric: tabular-nums; }
+.inv-foot { max-width: 900px; margin: 26px auto 0; font-size: 12px; color: var(--app-fg-40); font-style: italic; }
+.inv-cta-row { max-width: 900px; margin: 34px auto 0; }
+.cta.app-cta { background: var(--app-fg); color: var(--app-bg); }
+
+/* ═══ 10 · Step rail ═════════════════════════════════════════════════════ */
+.rail {
+  position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); z-index: 60;
+  display: flex; align-items: stretch; gap: 2px;
+  background: rgba(15,13,10,.82); border: 1px solid var(--line); border-radius: 999px;
+  padding: 5px; backdrop-filter: blur(14px) saturate(140%); -webkit-backdrop-filter: blur(14px) saturate(140%);
+  box-shadow: 0 20px 50px -20px rgba(0,0,0,.8);
+}
+.rail button {
+  display: flex; align-items: center; gap: 8px;
+  padding: 7px 14px; border-radius: 999px;
+  font-family: var(--mono); font-size: 10.5px; letter-spacing: .08em; color: var(--ink-40);
+  transition: all 200ms var(--ease); white-space: nowrap;
+}
+.rail button .n { font-size: 9.5px; opacity: .7; }
+.rail button:hover { color: var(--ink); }
+.rail button.on { background: var(--ink); color: var(--paper); }
+.rail-cap {
+  position: fixed; left: 50%; bottom: 66px; transform: translateX(-50%); z-index: 60;
+  font-family: var(--serif); font-style: italic; font-size: 13px; color: var(--ink-40);
+  pointer-events: none; text-align: center; width: max-content; max-width: 80vw;
+  padding: 4px 14px; border-radius: 999px;
+  background: rgba(10, 9, 7, .55); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  transition: opacity 300ms;
+}
+
+@media (max-width: 980px) {
+  .split { grid-template-columns: 1fr; align-items: start; padding-top: 12px; overflow-y: auto; }
+  .sheet-slot { height: 420px; }
+  .bp-grid, .rvl-grid, .inv-grid { grid-template-columns: 1fr; }
+  .rail button .lbl { display: none; }
+}
+</style>
+</head>
+<body>
+<div class="stage">
+  <header class="chrome" id="chrome">
+    <div class="wm"><span class="glyph">C</span><span class="wm-txt">CHAPTOS</span></div>
+    <div class="chrome-tag" id="chromeTag">ORG CREATION · CONCEPT MOCK · V2</div>
+  </header>
+
+  <main id="screens">
+
+    <!-- ── STEP 1 · NAME ─────────────────────────────────────────────── -->
+    <section class="scr" data-step="1">
+      <div class="split">
+        <div class="ask">
+          <p class="kicker">Create your organization · no account needed yet</p>
+          <h1 class="q-serif">What&rsquo;s your organization called?</h1>
+          <input class="name-input" id="orgName" placeholder="Kappa Sigma" autocomplete="off" spellcheck="false">
+          <div class="slugline" id="slugLine" style="opacity:0">chaptos.app/<b>&nbsp;</b></div>
+          <div class="idrow">
+            <span class="mark empty" id="idMark">·</span>
+            <p class="idnote" id="idNote"><b>Your mark</b>, generated from your letters. Upload a crest anytime in Settings — until then, this is you.</p>
+          </div>
+          <button class="cta" data-go="2">Continue<span>→</span></button>
+          <p class="fine">Fifteen seconds in, the blueprint on the right has your name on it.</p>
+        </div>
+        <div class="sheet-slot" data-sheet></div>
+      </div>
+    </section>
+
+    <!-- ── STEP 2 · INTERVIEW ────────────────────────────────────────── -->
+    <section class="scr" data-step="2">
+      <div class="split">
+        <div class="chat-col">
+          <div class="chat" id="chat"></div>
+          <div class="chat-foot">
+            <input class="free" id="freeText" placeholder="Type your own answer&hellip;">
+            <button class="ghost-link" id="skipBtn">Skip — pick a template instead</button>
+          </div>
+        </div>
+        <div class="sheet-slot" data-sheet></div>
+      </div>
+    </section>
+
+    <!-- ── STEP 3 · BLUEPRINT ────────────────────────────────────────── -->
+    <section class="scr" data-step="3">
+      <div class="bp">
+        <div class="bp-head">
+          <p class="kicker">Your blueprint — the sheet you watched assemble</p>
+          <h1 class="q-serif" id="bpTitle">Here&rsquo;s the workspace I&rsquo;d build for you.</h1>
+          <p class="bp-sub">Everything below came from your answers. Tap anything to change it — nothing is locked in.</p>
+          <div class="bp-banner" id="bpBanner">Fraternity template applied — the interview would have tailored each line below to your answers.</div>
+        </div>
+        <div class="bp-grid">
+          <div class="bp-col">
+            <div class="bp-card">
+              <h3>Pages <span class="why">why it&rsquo;s here</span></h3>
+              <div id="wfList"></div>
+            </div>
+            <div class="bp-card">
+              <h3>Your words</h3>
+              <div class="vocab-row" id="vocabRow"></div>
+              <p class="vocab-note" id="vocabNote"></p>
+            </div>
+          </div>
+          <div class="bp-col">
+            <div class="bp-card">
+              <h3>Leadership <span class="why">titles &amp; abilities are yours to change</span></h3>
+              <div id="seatList"></div>
+              <button class="add-seat" id="addSeat">+ Add a seat — <b id="addSeatHint"></b></button>
+              <p class="seat-note">Name a seat and its holder gets a <b>personal invite link</b> at the end — they land already wearing the right role. <button class="add-seat" data-go="3b" style="margin:0">← Back to roles &amp; abilities</button></p>
+            </div>
+            <div class="bp-card">
+              <h3>This term</h3>
+              <div class="term-line" id="termLine">Fall 2026</div>
+              <div class="term-meta" id="termMeta"></div>
+              <details class="standards">
+                <summary>Standards &amp; thresholds</summary>
+                <div class="std-grid">
+                  <div class="std"><div class="sv">65% · 80%</div><div class="sl">attendance at-risk · watch</div></div>
+                  <div class="std"><div class="sv">2.7 · 3.0</div><div class="sl">GPA at-risk · watch</div></div>
+                  <div class="std"><div class="sv">10 hrs</div><div class="sl">service goal / term</div></div>
+                </div>
+              </details>
+            </div>
+          </div>
+        </div>
+        <div class="bp-cta-row">
+          <button class="cta big" data-go="4">Looks right — build it<span>→</span></button>
+        </div>
+        <p class="bp-foot">Every decision here has a home in Settings later. This is a fast path, not a lock-in.</p>
+      </div>
+    </section>
+
+    <!-- ── STEP 3b · YOUR ROLES ──────────────────────────────────────── -->
+    <section class="scr" data-step="3b">
+      <div class="bp roles">
+        <div class="bp-head">
+          <p class="kicker">Your roles — who can do what</p>
+          <h1 class="q-serif" id="rolesTitle">Who can do what?</h1>
+          <p class="bp-sub" id="rolesSub"></p>
+        </div>
+        <div class="roles-stack" id="rolesStack"></div>
+        <button class="add-seat roles-add" id="rolesAddSeat">+ Add a seat — <b id="rolesAddHint"></b></button>
+        <div class="bp-cta-row">
+          <button class="cta big" data-go="3">Looks right — review the blueprint<span>→</span></button>
+        </div>
+        <p class="bp-foot">Every role and ability has a home in Settings later — this is a fast start, not a lock-in.</p>
+      </div>
+    </section>
+
+    <!-- ── STEP 4 · SIGN IN + BUILD ──────────────────────────────────── -->
+    <section class="scr scr-dark" data-step="4">
+      <div class="bld">
+        <div class="signin" id="signinCard">
+          <div class="mark" id="signMark">KS</div>
+          <h2 id="signTitle">Sign in to create Kappa&nbsp;Sigma</h2>
+          <p>Your blueprint is saved — this just makes it yours.</p>
+          <button class="gbtn" id="googleBtn">
+            <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
+            Continue with Google
+          </button>
+          <p class="fine">One account · one chapter to start · switch orgs anytime</p>
+        </div>
+        <div class="building" id="building">
+          <div class="bld-glyph" id="bldGlyph">KS</div>
+          <div class="bld-lines" id="bldLines"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── STEP 5 · REVEAL ───────────────────────────────────────────── -->
+    <section class="scr scr-app" data-step="5">
+      <div class="app-frame">
+        <aside class="app-side" id="rvlSide"></aside>
+        <div class="rvl-main" id="rvlMain"></div>
+      </div>
+      <div class="atc" id="atc"></div>
+    </section>
+
+    <!-- ── STEP 6 · INVITE ───────────────────────────────────────────── -->
+    <section class="scr scr-app" data-step="6">
+      <div class="inv">
+        <div class="inv-head">
+          <p class="kicker" style="color:var(--app-fg-40)">Last step — and it isn&rsquo;t yours</p>
+          <h1 class="q-serif" id="invTitle">Bring in your brothers.</h1>
+          <p class="inv-sub" id="invSub">Share one link. They pick their name, sign in, and land on the roster — you don&rsquo;t lift a finger.</p>
+        </div>
+        <div class="inv-grid">
+          <div class="app-card">
+            <h4>Exec board <span class="tag" id="execTag">personal links</span></h4>
+            <div id="execList"></div>
+            <p class="inv-note" id="execNote" style="margin-top:12px"></p>
+          </div>
+          <div class="app-card">
+            <h4 id="everyoneHead">Everyone else</h4>
+            <div class="biglink">
+              <code id="joinLink">chaptos.app/join/x7Kp9mQv2R</code>
+              <button class="copy" data-copy="member">COPY</button>
+            </div>
+            <div style="display:flex; gap:14px; align-items:center">
+              <div class="qr">QR — TODO</div>
+              <p class="inv-note">Drop it in the group chat or put the QR on the meeting slide. The link is revocable and expires when you say so.</p>
+            </div>
+          </div>
+        </div>
+        <div class="joins">
+          <div class="join-avs" id="joinAvs"></div>
+          <div class="join-count" id="joinCount"></div>
+        </div>
+        <p class="inv-foot">If anything on the checklist is left tomorrow, a quiet day-2 digest nudges it — onboarding ends at first real value, not at &ldquo;org created.&rdquo;</p>
+        <div class="inv-cta-row">
+          <button class="cta app-cta" data-go="5">Go to your dashboard<span>→</span></button>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <div class="rail-cap" id="railCap"></div>
+  <nav class="rail" id="rail" aria-label="Steps">
+    <button data-go="1"><span class="n">1</span><span class="lbl">NAME</span></button>
+    <button data-go="2"><span class="n">2</span><span class="lbl">INTERVIEW</span></button>
+    <button data-go="3b"><span class="n">3</span><span class="lbl">ROLES</span></button>
+    <button data-go="3"><span class="n">4</span><span class="lbl">BLUEPRINT</span></button>
+    <button data-go="4"><span class="n">5</span><span class="lbl">BUILD</span></button>
+    <button data-go="5"><span class="n">6</span><span class="lbl">REVEAL</span></button>
+    <button data-go="6"><span class="n">7</span><span class="lbl">INVITE</span></button>
+  </nav>
+</div>
+
+<script>
+/* ═══ State ════════════════════════════════════════════════════════════ */
+const S = {
+  step: 1,
+  name: "",
+  kind: null,          // fraternity | sorority | club | team
+  pain: null,          // dues | attendance | events | comms
+  cadence: null,       // {label, day, time}
+  term: null,          // {name, dates, dues}
+  skipped: false,
+  interviewDone: false,
+  wf: null,            // workflow map
+  vocab: null,         // {member, members, meeting, period}
+  seats: null,         // [{title, color, able, name, you}]
+  chatStage: 0,
+};
+
+const VOCAB = {
+  fraternity: { member: "Brother",  members: "Brothers", meeting: "Chapter",  period: "Semester" },
+  sorority:   { member: "Sister",   members: "Sisters",  meeting: "Chapter",  period: "Semester" },
+  club:       { member: "Member",   members: "Members",  meeting: "Meeting",  period: "Term" },
+  team:       { member: "Player",   members: "Players",  meeting: "Practice", period: "Season" },
+};
+const KIND_LABEL = { fraternity: "A fraternity", sorority: "A sorority", club: "A club", team: "A sports team" };
+
+const DEFAULT_WF = {
+  fraternity: { roster: 1, dues: 1, attendance: 1, events: 1, docs: 1, tasks: 0, service: 0, comms: 0 },
+  sorority:   { roster: 1, dues: 1, attendance: 1, events: 1, docs: 1, tasks: 0, service: 0, comms: 0 },
+  club:       { roster: 1, dues: 0, attendance: 0, events: 1, docs: 1, tasks: 0, service: 0, comms: 1 },
+  team:       { roster: 1, dues: 1, attendance: 1, events: 1, docs: 0, tasks: 0, service: 0, comms: 0 },
+};
+const PAIN_WF = { dues: "dues", attendance: "attendance", events: "events", comms: "comms" };
+
+/* Seat `perms` mirror the real role templates in lib/org-types.ts — each
+   entry is a plain permission key (the honest MANAGE_* flags, minus the
+   MANAGE_ prefix in the UI). `all: true` = the founder seat, every ability. */
+const SEAT_TEMPLATES = {
+  fraternity: [
+    { title: "President", color: "#d9a05b", able: "everything — that's you", you: true, all: true },
+    { title: "Treasurer", color: "#7fb08a", able: "logs dues & payments", perms: ["TREASURY"] },
+    { title: "Social",    color: "#d98ba3", able: "plans events & parties", perms: ["EVENTS", "PARTIES", "TASKS"] },
+    { title: "PR",        color: "#7fb3d9", able: "runs posts & announcements", perms: ["INSTAGRAM"] },
+  ],
+  club: [
+    { title: "President", color: "#d9a05b", able: "everything — that's you", you: true, all: true },
+    { title: "Treasurer", color: "#7fb08a", able: "logs dues & payments", perms: ["TREASURY"] },
+    { title: "Secretary", color: "#7fb3d9", able: "minutes, docs & announcements", perms: ["EVENTS", "ANNOUNCEMENTS", "TASKS"] },
+  ],
+  team: [
+    { title: "Captain",      color: "#d9a05b", able: "everything — that's you", you: true, all: true },
+    { title: "Coach",        color: "#7fb08a", able: "runs practices & the roster", perms: ["EVENTS", "ATTENDANCE", "BROTHERS"] },
+    { title: "Team Manager", color: "#7fb3d9", able: "handles logistics & fees", perms: ["ANNOUNCEMENTS", "TASKS", "DOCS"] },
+  ],
+};
+SEAT_TEMPLATES.sorority = SEAT_TEMPLATES.fraternity;
+const SEAT_POOL = {
+  fraternity: [
+    { title: "Service Chair", color: "#7fb08a", able: "tracks service hours", perms: ["SERVICE", "EVENTS"] },
+    { title: "Scribe",        color: "#ddb36a", able: "minutes & docs", perms: ["DOCS", "ANNOUNCEMENTS"] },
+    { title: "Rush Chair",    color: "#a78bfa", able: "recruitment events", perms: ["EVENTS", "TASKS"] },
+  ],
+  club: [
+    { title: "Events Lead",   color: "#d98ba3", able: "plans meetings & socials", perms: ["EVENTS", "PARTIES"] },
+    { title: "Outreach",      color: "#a78bfa", able: "partnerships & comms", perms: ["ANNOUNCEMENTS", "INSTAGRAM"] },
+  ],
+  team: [
+    { title: "Assistant Coach", color: "#d98ba3", able: "drills & attendance", perms: ["ATTENDANCE", "EVENTS"] },
+    { title: "Equipment Mgr",   color: "#ddb36a", able: "gear & logistics", perms: ["DOCS", "TASKS"] },
+  ],
+};
+SEAT_POOL.sorority = SEAT_POOL.fraternity;
+
+/* ── Permissions, plain-language ───────────────────────────────────────
+   AREAS bucket the 14 real MANAGE_* flags into human "abilities". Each pill
+   on the roles screen is one area; tapping grants/removes its whole bundle.
+   Advanced splits a bundle into its individual perms (PERM_LABELS).
+   `gate` ties an area's visibility to the org's enabled workflows (S.wf),
+   so the roles screen only shows abilities the workspace actually has. */
+/* Areas are DISJOINT — each real permission belongs to exactly one pill —
+   so a role never lights two areas from one ability (keeps the glance honest). */
+const PERM_AREAS = [
+  { id: "money",    icon: "💰", label: "Money",    perms: ["TREASURY"],                  gate: w => w.dues },
+  { id: "people",   icon: "👥", label: "People",   perms: ["BROTHERS", "ROLES"],         gate: () => true },
+  { id: "meetings", icon: "📅", label: "Meetings", perms: ["ATTENDANCE", "SEMESTERS"],   gate: w => w.attendance },
+  { id: "events",   icon: "🎉", label: "Events",   perms: ["EVENTS", "PARTIES"],         gate: w => w.events },
+  { id: "comms",    icon: "📢", label: "Comms",    perms: ["ANNOUNCEMENTS", "INSTAGRAM"], gate: () => true },
+  { id: "content",  icon: "📁", label: "Content",  perms: ["DOCS", "TASKS", "POLLS"],    gate: w => w.docs || w.tasks },
+];
+/* Short human labels for the advanced per-ability toggles. These are the
+   honest, load-bearing names — one per real MANAGE_* flag. */
+const PERM_LABELS = {
+  TREASURY:      "Log dues & payments",
+  BROTHERS:      "Edit the roster",
+  ROLES:         "Assign roles",
+  ATTENDANCE:    "Take attendance",
+  EVENTS:        "Manage events",
+  SEMESTERS:     "Manage the term",
+  PARTIES:       "Run parties & socials",
+  ANNOUNCEMENTS: "Post announcements",
+  INSTAGRAM:     "Run Instagram",
+  DOCS:          "Manage docs",
+  TASKS:         "Assign tasks",
+  POLLS:         "Run polls",
+};
+/* One short verb-phrase per area, for the auto-generated "Can …" summary. */
+const AREA_PHRASE = {
+  money: "handle the money", people: "manage the roster", meetings: "run meetings",
+  events: "plan events", comms: "get the word out", content: "keep docs & tasks",
+};
+
+const GRADS = [
+  ["#7c3aed", "#a78bfa"], ["#9a6b1f", "#ddb36a"], ["#a04a68", "#d98ba3"],
+  ["#3f6e4e", "#7fb08a"], ["#2f5d7c", "#7fb3d9"], ["#7a4a2b", "#d9a05b"],
+];
+const JOIN_NAMES = ["Marcus Cole", "Devon Price", "Eli Navarro", "Jordan Wu", "Sam Okafor"];
+const AV_COLORS = ["#7c5cd6", "#b08948", "#a86478", "#5e8c69", "#5b84a6"];
+
+/* ═══ Helpers ══════════════════════════════════════════════════════════ */
+const $ = (sel, root) => (root || document).querySelector(sel);
+const $$ = (sel, root) => [...(root || document).querySelectorAll(sel)];
+const esc = s => s.replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+function displayName() { return S.name.trim() || "Kappa Sigma"; }
+function monogram() {
+  const words = displayName().split(/\s+/).filter(Boolean);
+  return words.slice(0, 2).map(w => w[0].toUpperCase()).join("") || "K";
+}
+function slug() { return displayName().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, ""); }
+function grad() {
+  // deterministic, like the product's gradient-initials logo fallback
+  let h = 0;
+  for (const ch of displayName()) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  const g = GRADS[h % GRADS.length];
+  return "linear-gradient(135deg, " + g[0] + ", " + g[1] + ")";
+}
+function vocab() { return S.vocab || VOCAB.fraternity; }
+function wf() { return S.wf || DEFAULT_WF.fraternity; }
+function leaderTitle() { return (S.seats && S.seats[0].title) || "President"; }
+function firstName(full) { return full.trim().split(/\s+/)[0]; }
+
+/* Build a fresh seat from a template — clones `perms` so each seat owns
+   its own mutable ability set (templates/pool are shared references). */
+function makeSeat(t) { return { ...t, name: "", perms: t.all ? [] : [...(t.perms || [])] }; }
+/* Areas visible for the current org (workflow-gated). */
+function activeAreas() { return PERM_AREAS.filter(a => a.gate(wf())); }
+/* An area's state on a seat: "on" (all its perms) · "partial" (some) · "off". */
+function areaState(seat, area) {
+  if (seat.all) return "on";
+  const have = area.perms.filter(p => seat.perms.includes(p)).length;
+  return have === 0 ? "off" : have === area.perms.length ? "on" : "partial";
+}
+function toggleArea(seat, area) {
+  if (seat.all) return;
+  const st = areaState(seat, area);
+  if (st === "on") seat.perms = seat.perms.filter(p => !area.perms.includes(p));
+  else area.perms.forEach(p => { if (!seat.perms.includes(p)) seat.perms.push(p); });
+}
+function togglePerm(seat, perm) {
+  if (seat.all) return;
+  const i = seat.perms.indexOf(perm);
+  if (i >= 0) seat.perms.splice(i, 1); else seat.perms.push(perm);
+}
+
+function ensureDefaults(upto) {
+  if (upto >= 2 && !S.name) S.name = "Kappa Sigma";
+  if (upto >= 3) {
+    if (!S.kind) { S.kind = "fraternity"; S.skipped = !S.interviewDone; }
+    if (!S.vocab) S.vocab = { ...VOCAB[S.kind] };
+    if (!S.wf) S.wf = { ...DEFAULT_WF[S.kind] };
+    if (!S.seats) S.seats = SEAT_TEMPLATES[S.kind].map(makeSeat);
+    if (!S.pain && S.skipped) S.pain = "dues";
+    if (!S.cadence) S.cadence = { label: "Sundays at 7", day: 0, time: "7:00 PM" };
+    if (!S.term) S.term = { name: "Fall 2026", dates: "Aug 24 – Dec 18", dues: wf().dues === 1 };
+  }
+}
+
+/* ═══ Blueprint sheet (live pane, steps 1–2) ═══════════════════════════ */
+const sheet = document.createElement("div");
+sheet.className = "sheet-wrap";
+function pageChips() {
+  const v = vocab(), w = wf();
+  const pages = [{ k: "dash", l: "Dashboard" }, { k: "timeline", l: "Timeline" }, { k: "meeting", l: v.meeting }];
+  if (S.kind) {
+    if (w.roster) pages.push({ k: "roster", l: v.members });
+    if (w.dues) pages.push({ k: "dues", l: "Dues" });
+    if (w.attendance) pages.push({ k: "attendance", l: "Attendance" });
+    if (w.events) pages.push({ k: "events", l: "Events" });
+    if (w.docs) pages.push({ k: "docs", l: "Docs" });
+    if (w.comms) pages.push({ k: "comms", l: "Announcements" });
+    if (w.tasks) pages.push({ k: "tasks", l: "Tasks" });
+    if (w.service) pages.push({ k: "service", l: "Service" });
+  }
+  return pages.map(p => ({ ...p, lead: p.k === PAIN_WF[S.pain] }));
+}
+function sec(title, body, opts) {
+  const o = opts || {};
+  return '<div class="sheet-sec' + (o.pending ? " pending" : "") + (o.flash ? " flash" : "") + '">' +
+    "<h6>" + title + "</h6>" + body + "</div>";
+}
+function renderSheet(fresh) {
+  const v = vocab(), named = !!S.name.trim();
+  const head =
+    '<div class="sheet-head">' +
+      (named ? '<span class="mark" style="background:' + grad() + '">' + esc(monogram()) + "</span>" : '<span class="mark empty">·</span>') +
+      '<div class="sheet-title">' +
+        (named ? '<div class="nm">' + esc(displayName()) + "</div>" : '<div class="nm ghost">Your organization</div>') +
+        '<div class="sl">' + (named ? "chaptos.app/" + esc(slug()) + " · reserved while you set up" : "the sheet fills in as we talk") + "</div>" +
+      "</div></div>";
+
+  const pages = S.kind
+    ? sec("Pages", '<div class="pg-chips">' + pageChips().map((p, i) =>
+        '<span class="pg' + (p.lead ? " lead" : "") + '" style="animation-delay:' + i * 45 + 'ms"><span class="dot"></span>' + esc(p.l) + "</span>"
+      ).join("") + "</div>", { flash: fresh === "pages" })
+    : sec("Pages", '<span class="pend">your pages appear as we talk — only what you need</span>', { pending: true });
+
+  const words = S.kind
+    ? sec("Your words", '<div class="words-line">' + esc(v.members) + "<span>·</span>" + esc(v.meeting) + "<span>·</span>" + esc(v.period) + "</div>", { flash: fresh === "words" })
+    : sec("Your words", '<span class="pend">the words you already use — I&rsquo;ll match them</span>', { pending: true });
+
+  const meeting = S.cadence
+    ? sec("Meeting", '<div class="sheet-line"><span class="dot"></span><span><b>' + esc(v.meeting) + "</b> · " + esc(S.cadence.time) + " · repeats weekly — goes straight onto the calendar</span></div>", { flash: fresh === "meeting" })
+    : sec("Meeting", '<span class="pend">when you meet — it lands on the calendar at creation</span>', { pending: true });
+
+  const term = S.term
+    ? sec("This " + v.period.toLowerCase(), '<div class="sheet-line"><span class="dot"></span><span><b>' + esc(S.term.name) + "</b> · " + esc(S.term.dates) + " · " + (S.term.dues ? "dues on" : "no dues") + "</span></div>", { flash: fresh === "term" })
+    : sec("This " + (S.kind ? v.period.toLowerCase() : "term"), '<span class="pend">what you call it, and whether dues are collected</span>', { pending: true });
+
+  const seats = S.seats
+    ? sec("Leadership", '<div class="sheet-line"><span class="dot"></span><span><b>' + esc(S.seats[0].title) + "</b> — you · " +
+        esc(S.seats.slice(1).map(s => s.title).join(", ")) + " seats ready</span></div>", { flash: fresh === "seats" })
+    : "";
+
+  sheet.innerHTML =
+    '<div class="sheet-cap">Your blueprint — assembling as you answer</div>' +
+    '<div class="sheet">' + head + pages + words + meeting + term + seats +
+      '<div class="sheet-foot">blueprint · nothing built yet — you review every line before anything is created</div>' +
+    "</div>";
+}
+function mountSheet() {
+  const slot = $('.scr[data-step="' + S.step + '"] [data-sheet]');
+  if (slot && sheet.parentElement !== slot) slot.appendChild(sheet);
+}
+
+/* ═══ Step 1 — name ════════════════════════════════════════════════════ */
+$("#orgName").addEventListener("input", e => {
+  S.name = e.target.value;
+  const named = !!S.name.trim();
+  const sl = $("#slugLine");
+  sl.style.opacity = named ? 1 : 0;
+  sl.innerHTML = "chaptos.app/<b>" + esc(slug() || "&nbsp;") + "</b> — reserved while you set up";
+  const mk = $("#idMark");
+  mk.classList.toggle("empty", !named);
+  mk.textContent = named ? monogram() : "·";
+  mk.style.background = named ? grad() : "";
+  renderSheet("name");
+});
+
+/* ═══ Step 2 — interview ═══════════════════════════════════════════════ */
+const chat = $("#chat");
+let chatTimers = [];
+function later(fn, ms) { chatTimers.push(setTimeout(fn, ms)); }
+function clearChatTimers() { chatTimers.forEach(clearTimeout); chatTimers = []; }
+function scrollChat() { chat.scrollTop = chat.scrollHeight; }
+
+function botMsg(html, isQ) {
+  const el = document.createElement("div");
+  el.className = "msg" + (isQ ? " q" : "");
+  el.innerHTML = '<span class="m-glyph">C</span><div class="m-body">' + html + "</div>";
+  chat.appendChild(el); scrollChat();
+  return el;
+}
+function userMsg(text) {
+  const el = document.createElement("div");
+  el.className = "msg user";
+  el.innerHTML = '<div class="m-body">' + esc(text) + "</div>";
+  chat.appendChild(el); scrollChat();
+}
+function typingEl() {
+  const el = document.createElement("div");
+  el.className = "msg";
+  el.innerHTML = '<span class="m-glyph">C</span><div class="typing"><i></i><i></i><i></i></div>';
+  chat.appendChild(el); scrollChat();
+  return el;
+}
+function chipsEl(options, onPick) {
+  const el = document.createElement("div");
+  el.className = "chips";
+  options.forEach(opt => {
+    const b = document.createElement("button");
+    b.className = "chip"; b.textContent = opt.label;
+    b.addEventListener("click", () => { el.remove(); onPick(opt); });
+    el.appendChild(b);
+  });
+  chat.appendChild(el); scrollChat();
+  return el;
+}
+
+function setKind(k) {
+  S.kind = k;
+  S.vocab = { ...VOCAB[k] };
+  S.wf = { ...DEFAULT_WF[k] };
+  S.seats = SEAT_TEMPLATES[k].map(makeSeat);
+  S.skipped = false;
+}
+function setPain(p) {
+  S.pain = p;
+  const key = PAIN_WF[p];
+  if (key === "dues") S.wf.dues = 1;
+  if (key === "attendance") S.wf.attendance = 1;
+  if (key === "events") S.wf.events = 1;
+  if (key === "comms") S.wf.comms = 1;
+}
+
+const QUESTIONS = [
+  {
+    id: "kind", fresh: "pages",
+    prompt: () => "Tell me about <b>" + esc(displayName()) + "</b> — what kind of organization is it?",
+    chips: () => [
+      { label: "A fraternity", apply: () => setKind("fraternity") },
+      { label: "A sorority", apply: () => setKind("sorority") },
+      { label: "A club or student org", apply: () => setKind("club") },
+      { label: "A sports team", apply: () => setKind("team") },
+    ],
+    reply: () => ({
+      fraternity: "A fraternity — so it&rsquo;s <b>Brothers</b>, <b>Chapter</b>, and <b>Semesters</b> from here on. Watch the sheet: your blueprint just learned to speak Greek.",
+      sorority: "A sorority — <b>Sisters</b>, <b>Chapter</b>, <b>Semesters</b>. The blueprint speaks your language now.",
+      club: "Got it — <b>Members</b>, <b>Meetings</b>, <b>Terms</b>. No Greek assumed.",
+      team: "A team — <b>Players</b>, <b>Practice</b>, <b>Seasons</b>. The sheet is set up that way.",
+    }[S.kind]),
+  },
+  {
+    id: "pain", fresh: "pages",
+    prompt: () => "What eats most of your time running it?",
+    chips: () => [
+      { label: "Chasing dues", apply: () => setPain("dues") },
+      { label: "Tracking attendance", apply: () => setPain("attendance") },
+      { label: "Planning events", apply: () => setPain("events") },
+      { label: "Keeping everyone informed", apply: () => setPain("comms") },
+    ],
+    reply: () => ({
+      dues: "Heard. <b>Dues goes front and center</b> — every unpaid " + vocab().member.toLowerCase() + " at a glance, and nobody chases screenshots again.",
+      attendance: "Then attendance runs itself from now on — mandatory " + vocab().meeting.toLowerCase() + "s, excuses, and a live percentage per " + vocab().member.toLowerCase() + ".",
+      events: "Planning it is. <b>The calendar leads</b>, with wrap-ups and door revenue one tap away.",
+      comms: "One place to say it, everywhere it lands — <b>Announcements go up top</b>.",
+    }[S.pain]),
+  },
+  {
+    id: "cadence", fresh: "meeting",
+    prompt: () => "When does " + esc(vocab().meeting) + " meet?",
+    chips: () => [
+      { label: "Sundays at 7", apply: () => { S.cadence = { label: "Sundays at 7", day: 0, time: "7:00 PM" }; } },
+      { label: "Wednesdays at 8", apply: () => { S.cadence = { label: "Wednesdays at 8", day: 3, time: "8:00 PM" }; } },
+      { label: "Every other week", apply: () => { S.cadence = { label: "Every other week", day: 0, time: "7:00 PM" }; } },
+    ],
+    reply: () => "Done — <b>" + esc(vocab().meeting) + " · " + esc(S.cadence.time) + "</b>. It goes straight onto the calendar the moment we build.",
+  },
+  {
+    id: "term", fresh: "term",
+    prompt: () => "Last one — what do you call this " + vocab().period.toLowerCase() + ", and do you collect dues?",
+    chips: () => [
+      { label: "Fall 2026 — with dues", apply: () => { S.term = { name: "Fall 2026", dates: "Aug 24 – Dec 18", dues: true }; S.wf.dues = 1; } },
+      { label: "Fall 2026 — no dues", apply: () => { S.term = { name: "Fall 2026", dates: "Aug 24 – Dec 18", dues: false }; S.wf.dues = 0; } },
+    ],
+    reply: () => "<b>" + esc(S.term.name) + "</b> it is — " + esc(S.term.dates) + (S.term.dues ? ", dues on." : ", dues off.") + " Your blueprint is ready to review.",
+  },
+];
+
+function askQuestion(idx) {
+  if (idx >= QUESTIONS.length) {
+    S.interviewDone = true;
+    later(() => {
+      const b = document.createElement("button");
+      b.className = "cta chat-cta"; b.innerHTML = "Set up your roles<span>→</span>";
+      b.addEventListener("click", () => goto("3b"));
+      chat.appendChild(b); scrollChat();
+    }, 500);
+    return;
+  }
+  S.chatStage = idx;
+  const q = QUESTIONS[idx];
+  const t = typingEl();
+  later(() => {
+    t.remove();
+    botMsg(q.prompt(), true);
+    chipsEl(q.chips(), opt => answer(q, opt.label, opt.apply));
+  }, idx === 0 ? 700 : 900);
+}
+function answer(q, label, apply) {
+  userMsg(label);
+  apply();
+  renderSheet(q.fresh);
+  if (q.id === "kind") setTimeout(() => renderSheet("words"), 500);
+  const t = typingEl();
+  later(() => {
+    t.remove();
+    botMsg(q.reply());
+    later(() => askQuestion(QUESTIONS.indexOf(q) + 1), 650);
+  }, 850);
+}
+$("#freeText").addEventListener("keydown", e => {
+  if (e.key !== "Enter" || !e.target.value.trim() || S.interviewDone) return;
+  const text = e.target.value.trim(); e.target.value = "";
+  const q = QUESTIONS[S.chatStage];
+  $$(".chips", chat).forEach(el => el.remove());
+  const lower = text.toLowerCase();
+  let apply;
+  if (q.id === "kind") {
+    const k = lower.includes("frat") ? "fraternity" : lower.includes("soror") ? "sorority" : lower.includes("team") ? "team" : "club";
+    apply = () => setKind(k);
+  } else if (q.id === "pain") {
+    const p = lower.includes("due") || lower.includes("money") ? "dues" : lower.includes("attend") ? "attendance" : lower.includes("event") || lower.includes("social") ? "events" : "comms";
+    apply = () => setPain(p);
+  } else if (q.id === "cadence") {
+    apply = () => { S.cadence = { label: text, day: 0, time: "7:00 PM" }; };
+  } else {
+    apply = () => { S.term = { name: text, dates: "Aug 24 – Dec 18", dues: true }; };
+  }
+  answer(q, text, apply);
+});
+function bootInterview() {
+  if (chat.dataset.booted) return;
+  chat.dataset.booted = "1";
+  botMsg("Four quick questions. Everything you say goes onto the blueprint on the right — you&rsquo;ll review the whole sheet before anything is built.", false);
+  later(() => askQuestion(0), 900);
+}
+$("#skipBtn").addEventListener("click", () => {
+  S.skipped = true; S.interviewDone = false;
+  S.kind = S.kind || "fraternity";
+  S.vocab = { ...VOCAB[S.kind] };
+  S.wf = { ...DEFAULT_WF[S.kind] };
+  S.seats = SEAT_TEMPLATES[S.kind].map(makeSeat);
+  goto("3b");
+});
+
+/* ═══ Step 3 — blueprint ═══════════════════════════════════════════════ */
+const WF_META = [
+  { key: "roster", name: () => vocab().members, why: () => "every " + KIND_LABEL[S.kind].toLowerCase().replace(/^a |an /, "") + " starts with the roster." },
+  { key: "dues", name: () => "Dues & Treasury", why: () => S.pain === "dues" ? 'because you said <q>chasing dues</q> eats your time.' : (S.term && S.term.dues ? "you collect dues each " + vocab().period.toLowerCase() + "." : "off until you collect dues — one tap away.") },
+  { key: "attendance", name: () => "Attendance", why: () => S.pain === "attendance" ? 'because you said <q>tracking attendance</q> is the drain.' : (S.cadence ? "because " + vocab().meeting + " repeats weekly — worth counting." : "meetings worth counting.") },
+  { key: "events", name: () => "Events", why: () => S.pain === "events" ? 'because you said <q>planning events</q> takes the most time.' : "you meet on a rhythm; socials live here too." },
+  { key: "docs", name: () => "Docs", why: () => "bylaws, minutes and links — pinned, not lost in the chat." },
+  { key: "comms", name: () => "Announcements", why: () => S.pain === "comms" ? 'because you said <q>keeping everyone informed</q> is the struggle.' : "start light — turn on when the group chat stops scaling." },
+  { key: "tasks", name: () => "Tasks", why: () => "start light — turn on when exec needs assignments." },
+  { key: "service", name: () => "Service", why: () => "no service hours mentioned — flip it on if that changes." },
+];
+function renderBlueprint() {
+  const v = vocab();
+  $("#bpTitle").innerHTML = "Here&rsquo;s the workspace I&rsquo;d build for <em style=\"color:var(--vio)\">" + esc(displayName()) + "</em>.";
+  $("#bpBanner").classList.toggle("show", S.skipped);
+
+  $("#wfList").innerHTML = WF_META.map(m => {
+    const on = !!wf()[m.key];
+    return '<div class="wf-row' + (on ? "" : " off") + '" data-wf="' + m.key + '">' +
+      '<span class="wf-name">' + esc(m.name()) + "</span>" +
+      '<span class="wf-why">' + m.why() + "</span>" +
+      '<button class="wf-tgl">' + (on ? "ON" : "OFF") + "</button></div>";
+  }).join("");
+  $$("#wfList .wf-row").forEach(row => row.querySelector(".wf-tgl").addEventListener("click", () => {
+    const key = row.dataset.wf;
+    S.wf[key] = S.wf[key] ? 0 : 1;
+    renderBlueprint();
+  }));
+
+  $("#vocabRow").innerHTML = [
+    { l: "members", k: "members" }, { l: "meeting", k: "meeting" }, { l: "period", k: "period" },
+  ].map(t =>
+    '<span class="vocab-chip" data-vk="' + t.k + '" title="Click to edit"><span class="vl">' + t.l + '</span><span class="vv">' + esc(v[t.k]) + "</span></span>"
+  ).join("");
+  $("#vocabNote").innerHTML = "You said " + KIND_LABEL[S.kind].toLowerCase() + " — so I&rsquo;ll use <b>your</b> words everywhere. Click any to change it.";
+  $$("#vocabRow .vocab-chip").forEach(chip => chip.addEventListener("click", () => {
+    if (chip.querySelector("input")) return;
+    const k = chip.dataset.vk, vv = chip.querySelector(".vv");
+    const inp = document.createElement("input");
+    inp.value = vocab()[k];
+    vv.replaceWith(inp); inp.focus(); inp.select();
+    const save = () => {
+      S.vocab[k] = inp.value.trim() || S.vocab[k];
+      if (k === "members") S.vocab.member = S.vocab.members.replace(/s$/i, "");
+      renderBlueprint();
+    };
+    inp.addEventListener("blur", save);
+    inp.addEventListener("keydown", ev => { if (ev.key === "Enter") inp.blur(); });
+  }));
+
+  renderSeats();
+
+  $("#termLine").textContent = S.term.name;
+  $("#termMeta").innerHTML =
+    S.term.dates + " &nbsp;·&nbsp; " + (S.term.dues ? "dues on" : "no dues") + "<br>" +
+    '<span class="dot"></span>' + esc(v.meeting) + " · " + esc(S.cadence.time) + " · repeats weekly — already placed";
+}
+
+/* Leadership v2: renameable titles + optional holder names + add-a-seat */
+function renderSeats() {
+  $("#seatList").innerHTML = S.seats.map((s, i) =>
+    '<div class="seat" data-i="' + i + '">' +
+      '<span class="seat-dot" style="background:' + s.color + '"></span>' +
+      '<span class="seat-title" title="Click to rename">' + esc(s.title) + "</span>" +
+      '<span class="seat-able">' + esc(s.able) + "</span>" +
+      (s.you
+        ? '<span class="seat-you">YOU</span>'
+        : '<input class="seat-who' + (s.name ? " named" : "") + '" value="' + esc(s.name) + '" placeholder="Who holds it? — optional">') +
+    "</div>"
+  ).join("");
+  $$("#seatList .seat").forEach(row => {
+    const i = +row.dataset.i;
+    const title = row.querySelector(".seat-title");
+    title.addEventListener("click", () => {
+      if (title.querySelector("input")) return;
+      const inp = document.createElement("input");
+      inp.value = S.seats[i].title;
+      title.textContent = ""; title.appendChild(inp); inp.focus(); inp.select();
+      const save = () => { S.seats[i].title = inp.value.trim() || S.seats[i].title; renderSeats(); };
+      inp.addEventListener("blur", save);
+      inp.addEventListener("keydown", ev => { if (ev.key === "Enter") inp.blur(); });
+    });
+    const who = row.querySelector(".seat-who");
+    if (who) {
+      who.addEventListener("input", () => { S.seats[i].name = who.value; who.classList.toggle("named", !!who.value.trim()); });
+    }
+  });
+  const pool = SEAT_POOL[S.kind].filter(p => !S.seats.some(s => s.title === p.title));
+  $("#addSeat").style.display = pool.length ? "" : "none";
+  if (pool.length) $("#addSeatHint").textContent = pool.map(p => p.title).join(", ");
+}
+$("#addSeat").addEventListener("click", () => {
+  const pool = SEAT_POOL[S.kind].filter(p => !S.seats.some(s => s.title === p.title));
+  if (pool.length) { S.seats.push(makeSeat(pool[0])); renderSeats(); }
+});
+
+/* ═══ Step 3b — your roles (stacked cards + ability pills) ═════════════ */
+/* Plain-English "Can X and Y." from a seat's lit areas. */
+function roleSummary(seat) {
+  if (seat.all) return "Runs everything — that's you.";
+  const on = activeAreas().filter(a => areaState(seat, a) !== "off").map(a => AREA_PHRASE[a.id]);
+  if (!on.length) return "Along for the ride — no admin abilities yet. Tap a pill to add one.";
+  const list = on.length === 1 ? on[0]
+    : on.slice(0, -1).join(", ") + (on.length > 2 ? "," : "") + " and " + on[on.length - 1];
+  return "Can " + list + ".";
+}
+function pillHtml(seat, area) {
+  const st = seat.all ? "on" : areaState(seat, area);
+  const mark = st === "on" ? "✓" : st === "partial" ? "–" : "";
+  return '<button class="pill ' + st + '" data-area="' + area.id + '">' +
+    '<span class="pi">' + area.icon + '</span>' + esc(area.label) +
+    '<span class="pc">' + mark + '</span></button>';
+}
+function advHtml(seat) {
+  return activeAreas().map(area =>
+    '<div class="adv-area"><h6>' + area.icon + " " + esc(area.label) + "</h6><div class=\"adv-abils\">" +
+    area.perms.map(p => {
+      const on = seat.perms.includes(p);
+      return '<button class="abil ' + (on ? "on" : "") + '" data-perm="' + p + '">' +
+        '<span class="ac">' + (on ? "✓" : "") + '</span>' + esc(PERM_LABELS[p] || p) + "</button>";
+    }).join("") + "</div></div>"
+  ).join("");
+}
+function renderRoles() {
+  const v = vocab();
+  $("#rolesTitle").innerHTML = "Who can do what at <em style=\"color:var(--vio)\">" + esc(displayName()) + "</em>?";
+  $("#rolesSub").innerHTML = "I set these roles up for " + KIND_LABEL[S.kind].toLowerCase() +
+    " — each already does its job. Tap a pill to add or remove an ability, or just leave them.";
+
+  $("#rolesStack").innerHTML = S.seats.map((s, i) => {
+    const founder = !!s.you;
+    const head =
+      '<div class="rc-head">' +
+        '<span class="rc-dot" style="background:' + s.color + ';color:' + s.color + '"></span>' +
+        '<span class="rc-title" title="' + (founder ? "" : "Click to rename") + '">' + esc(s.title) + "</span>" +
+        (founder
+          ? '<span class="rc-you">YOU</span>'
+          : '<input class="rc-who' + (s.name ? " named" : "") + '" value="' + esc(s.name) + '" placeholder="Who holds it? — optional">') +
+      "</div>";
+    const pills = '<div class="pill-row">' + activeAreas().map(a => pillHtml(s, a)).join("") + "</div>";
+    const summary = '<p class="rc-summary">' + roleSummary(s) + "</p>";
+    const adv = founder
+      ? '<p class="rc-founder-note">The founder seat holds <b>full authority</b> and can delegate every role — you can hand it off in Settings later.</p>'
+      : '<details class="rc-adv"' + (s._advOpen ? " open" : "") + '><summary>Advanced — fine-tune each ability</summary>' + advHtml(s) + "</details>";
+    return '<div class="role-card' + (founder ? " founder" : "") + '" data-i="' + i + '">' + head + pills + summary + adv + "</div>";
+  }).join("");
+
+  $$("#rolesStack .role-card").forEach(card => {
+    const i = +card.dataset.i, seat = S.seats[i];
+    // rename title
+    const title = card.querySelector(".rc-title");
+    if (!seat.you) title.addEventListener("click", () => {
+      if (title.querySelector("input")) return;
+      const inp = document.createElement("input");
+      inp.value = seat.title;
+      title.textContent = ""; title.appendChild(inp); inp.focus(); inp.select();
+      const save = () => { seat.title = inp.value.trim() || seat.title; renderRoles(); };
+      inp.addEventListener("blur", save);
+      inp.addEventListener("keydown", ev => { if (ev.key === "Enter") inp.blur(); });
+    });
+    // holder name
+    const who = card.querySelector(".rc-who");
+    if (who) who.addEventListener("input", () => { seat.name = who.value; who.classList.toggle("named", !!who.value.trim()); });
+    // pill taps
+    card.querySelectorAll(".pill").forEach(pill => {
+      if (seat.you) return;
+      pill.addEventListener("click", () => {
+        toggleArea(seat, PERM_AREAS.find(a => a.id === pill.dataset.area));
+        renderRoles();
+      });
+    });
+    // advanced per-ability toggles — keep the disclosure open across re-render
+    card.querySelectorAll(".abil").forEach(ab => ab.addEventListener("click", () => {
+      togglePerm(seat, ab.dataset.perm);
+      seat._advOpen = true; renderRoles();
+    }));
+    // remember manual open/close of the advanced disclosure across re-renders
+    const adv = card.querySelector(".rc-adv");
+    if (adv) adv.addEventListener("toggle", () => { seat._advOpen = adv.open; });
+  });
+
+  const pool = SEAT_POOL[S.kind].filter(p => !S.seats.some(s => s.title === p.title));
+  $("#rolesAddSeat").style.display = pool.length ? "" : "none";
+  if (pool.length) $("#rolesAddHint").textContent = pool.map(p => p.title).join(", ");
+}
+$("#rolesAddSeat").addEventListener("click", () => {
+  const pool = SEAT_POOL[S.kind].filter(p => !S.seats.some(s => s.title === p.title));
+  if (pool.length) { S.seats.push(makeSeat(pool[0])); renderRoles(); }
+});
+
+/* ═══ Step 4 — sign-in + build ═════════════════════════════════════════ */
+let buildTimers = [];
+function clearBuild() { buildTimers.forEach(clearTimeout); buildTimers = []; }
+function resetBuildScreen() {
+  clearBuild();
+  $("#signinCard").style.display = "";
+  $("#building").classList.remove("show");
+  const mk = $("#signMark");
+  mk.textContent = monogram(); mk.style.background = grad();
+  $("#signTitle").innerHTML = "Sign in to create <br>" + esc(displayName());
+}
+$("#googleBtn").addEventListener("click", () => {
+  $("#signinCard").style.display = "none";
+  $("#building").classList.add("show");
+  const g = $("#bldGlyph");
+  g.textContent = monogram(); g.style.background = grad();
+  const v = vocab();
+  const named = S.seats.filter(s => !s.you && s.name.trim());
+  const lines = [
+    "reserving chaptos.app/" + slug(),
+    "seeding roles — " + S.seats.map((s, i) => s.title + (i === 0 ? " (you)" : "")).join(", "),
+    named.length ? "preparing personal links — " + named.map(s => firstName(s.name)).join(", ") : "preparing seat links for your exec",
+    "opening " + S.term.name + " · " + S.term.dates,
+    "placing " + v.meeting + " on the calendar — weekly, " + S.cadence.time,
+    "hanging the letters",
+  ];
+  $("#bldLines").innerHTML = lines.map(l =>
+    '<div class="bld-line"><span class="tick">✓</span><span>' + esc(l) + "</span></div>"
+  ).join("");
+  const els = $$("#bldLines .bld-line");
+  els.forEach((el, i) => {
+    buildTimers.push(setTimeout(() => el.classList.add("show"), 300 + i * 460));
+    buildTimers.push(setTimeout(() => el.classList.add("done"), 620 + i * 460));
+  });
+  buildTimers.push(setTimeout(() => goto(5), 300 + els.length * 460 + 700));
+});
+
+/* ═══ Step 5 — reveal ══════════════════════════════════════════════════ */
+function weekHtml(marked) {
+  const days = ["S", "M", "T", "W", "T", "F", "S"], nums = [24, 25, 26, 27, 28, 29, 30];
+  return '<div class="pv-week">' + days.map((d, i) =>
+    '<div class="pv-day' + (marked === i ? " mark" : "") + '"><div class="d">' + d + '</div><div class="n">' + nums[i] + "</div></div>"
+  ).join("") + "</div>";
+}
+const PAIN_CHECK = {
+  dues:       { t: "Log your first dues payment", p: "Treasury and member balances update together — the chase ends here." },
+  attendance: { t: () => "Take attendance at " + vocab().meeting, p: "One tap per head. Percentages and excuses handle themselves." },
+  events:     { t: "Plan your first social", p: "Budget, guest list and wrap-up in one place." },
+  comms:      { t: "Post your first announcement", p: "It lands on every dashboard, not page 4 of the group chat." },
+};
+function painDashCard() {
+  const v = vocab();
+  const c = {
+    dues:       { h: "Dues — front and center", big: "0 collected", sub: "balances fill in as your " + v.members.toLowerCase() + " join — the roster arrives with your invites" },
+    attendance: { h: "Attendance — front and center", big: "First " + v.meeting + " Sunday", sub: "one tap per head; percentages and excuses handle themselves" },
+    events:     { h: "Events — front and center", big: "1 on the calendar", sub: "budgets, guest lists and wrap-ups live with each event" },
+    comms:      { h: "Announcements — front and center", big: "1 draft ready", sub: "posts land on every dashboard, not page 4 of the group chat" },
+  }[S.pain || "dues"];
+  return '<div class="app-card"><h4>' + esc(c.h) + ' <span class="tag">because you asked for it</span></h4>' +
+    '<div class="dash-big">' + esc(c.big) + '</div><div class="dash-sub">' + c.sub + "</div></div>";
+}
+function renderReveal() {
+  const v = vocab();
+  $("#rvlSide").innerHTML =
+    '<div class="org"><span class="mark" style="background:' + grad() + '">' + esc(monogram()) + "</span><b>" + esc(displayName()) + "</b></div>" +
+    "<ul>" + pageChips().map((p, i) =>
+      '<li class="' + (i === 0 ? "on" : "") + '" style="animation-delay:' + i * 60 + 'ms"><span class="dot"></span>' + esc(p.l) + "</li>"
+    ).join("") + "</ul>" +
+    '<div class="side-foot">Settings</div>';
+
+  const pc = PAIN_CHECK[S.pain || "dues"];
+  const painTitle = typeof pc.t === "function" ? pc.t() : pc.t;
+  const named = S.seats.filter(s => !s.you && s.name.trim());
+  const execLine = named.length
+    ? "Send " + named.map(s => firstName(s.name)).join(" and ") + " their seat links — they land already wearing the role."
+    : "Role-tagged links — your " + S.seats[1].title.toLowerCase() + " lands as " + S.seats[1].title + ".";
+  $("#rvlMain").innerHTML =
+    '<div><h1 class="rvl-hello">Welcome to ' + esc(displayName()) + ".</h1>" +
+    '<p class="rvl-sub">Built from a four-question conversation · ' + esc(S.term.name) + " is live · everything here is yours to change.</p></div>" +
+    '<div class="rvl-grid">' +
+      '<div class="rvl-col">' +
+        '<div class="app-card"><h4>Announcement <span class="tag">drafted for you — edit or delete</span></h4>' +
+          '<div class="ann-body">' + esc(v.members) + " — we&rsquo;re moving " + esc(displayName()) + " operations to one place. " +
+          (wf().dues ? "Dues, attendance and the calendar" : "Attendance and the calendar") + " all live here now. First " +
+          esc(v.meeting) + " is " + esc(S.cadence.label) + " — it&rsquo;s already on the calendar." +
+          '<span class="sig">— your ' + esc(leaderTitle()) + "</span></div>" +
+          '<div class="ann-foot"><button>Edit draft</button><button>Post it</button><button>Delete</button></div>' +
+        "</div>" +
+        '<div class="app-card"><h4>This week <span class="tag">' + esc(v.meeting) + " · " + esc(S.cadence.time) + " · weekly</span></h4>" +
+          weekHtml(S.cadence.day) +
+        "</div>" +
+        painDashCard() +
+      "</div>" +
+      '<div class="rvl-col">' +
+        '<div class="app-card check"><h4>Three things, then you&rsquo;re done</h4>' +
+          '<div class="check-item"><span class="check-n">1</span><div><b>Invite your exec board</b><p>' + esc(execLine) + '</p><button class="go" data-go="6">Get exec links →</button></div></div>' +
+          '<div class="check-item"><span class="check-n">2</span><div><b>Bring in your ' + esc(v.members.toLowerCase()) + "</b><p>One link. They self-onboard; you watch the counter.</p><button class=\"go\" data-go=\"6\">Copy invite link →</button></div></div>" +
+          '<div class="check-item"><span class="check-n">3</span><div><b>' + esc(painTitle) + "</b><p>" + esc(pc.p) + "</p><button class=\"go\">Do it now →</button></div></div>" +
+        "</div>" +
+      "</div>" +
+    "</div>";
+  $$("#rvlMain [data-go]").forEach(b => b.addEventListener("click", () => goto(b.dataset.go)));
+  $("#atc").innerHTML =
+    '<span class="mark" style="background:' + grad() + '">C</span>' +
+    "<span><b>Ask the " + esc(v.meeting) + "</b> — I remember everything you told me. Try &ldquo;how do I track attendance?&rdquo;</span>";
+}
+
+/* ═══ Step 6 — invite ══════════════════════════════════════════════════ */
+let joinTimers = [], joined = 0;
+function clearJoins() { joinTimers.forEach(clearTimeout); joinTimers = []; }
+function renderInvite() {
+  const v = vocab();
+  $("#invTitle").textContent = "Bring in your " + v.members.toLowerCase() + ".";
+  $("#joinLink").textContent = "chaptos.app/join/" + slug().slice(0, 4) + "-x7Kp9mQv";
+  $("#everyoneHead").textContent = "Every " + v.member.toLowerCase();
+  const seats = S.seats.filter(s => !s.you);
+  const anyNamed = seats.some(s => s.name.trim());
+  $("#execTag").textContent = anyNamed ? "personal links" : "role-tagged links";
+  $("#execList").innerHTML = seats.map(s => {
+    const named = !!s.name.trim();
+    const label = named ? esc(s.name.trim()) : esc(s.title);
+    const link = "chaptos.app/join/" + (named ? firstName(s.name).toLowerCase() : s.title.toLowerCase().replace(/\s+/g, "-")) + "-8Fw2…";
+    return '<div class="exec-row"><span class="seat-dot" style="background:' + s.color + '"></span>' +
+      '<div class="who"><b>' + label + "</b><span>" + link + "</span></div>" +
+      '<span class="role-tag">' + esc(s.title.toUpperCase()) + "</span>" +
+      '<button class="copy" data-copy="' + esc(s.title) + '">COPY</button></div>';
+  }).join("");
+  $("#execNote").innerHTML = anyNamed
+    ? "You named these seats on the blueprint — each link is <b>personal</b> and lands them already wearing the role."
+    : "Each link seats whoever redeems it with the right role. Name your exec on the blueprint and these become personal.";
+  if (!joined) { $("#joinAvs").innerHTML = ""; $("#joinCount").innerHTML = "<b>0</b> " + esc(v.members.toLowerCase()) + " joined — share a link to open the doors"; }
+  $$('.scr[data-step="6"] .copy').forEach(b => b.addEventListener("click", () => {
+    if (navigator.clipboard) navigator.clipboard.writeText("https://" + $("#joinLink").textContent).catch(() => {});
+    b.textContent = "COPIED"; b.classList.add("ok");
+    setTimeout(() => { b.textContent = "COPY"; b.classList.remove("ok"); }, 1800);
+    startJoins();
+  }));
+}
+function startJoins() {
+  if (joinTimers.length) return;
+  const v = vocab();
+  const namedFirst = S.seats.filter(s => !s.you && s.name.trim()).map(s => s.name.trim());
+  const queue = [...namedFirst, ...JOIN_NAMES].slice(0, 5);
+  queue.forEach((name, i) => {
+    joinTimers.push(setTimeout(() => {
+      joined = i + 1;
+      const initials = name.split(/\s+/).map(w => w[0].toUpperCase()).join("").slice(0, 2);
+      const av = document.createElement("div");
+      av.className = "av"; av.style.background = AV_COLORS[i % AV_COLORS.length]; av.textContent = initials; av.title = name;
+      $("#joinAvs").appendChild(av);
+      $("#joinCount").innerHTML = "<b>" + joined + "</b> " + esc((joined === 1 ? v.member : v.members).toLowerCase()) + " joined — " +
+        (joined < 3 ? "self-onboarding, no work on your end" : "your part was one link");
+    }, 1100 + i * 1300));
+  });
+}
+
+/* ═══ Router ═══════════════════════════════════════════════════════════ */
+/* Steps are string ids so "3b" (Your roles) slots between 3 and 4 without
+   renumbering the app-world screens. `phase` is the numeric build-progress
+   used by ensureDefaults + the world-theme switch (3b shares phase 3). */
+const STEPS = ["1", "2", "3b", "3", "4", "5", "6"];
+const PHASE = { "1": 1, "2": 2, "3b": 3, "3": 3, "4": 4, "5": 5, "6": 6 };
+const CAPS = {
+  "1": "Fifteen seconds in, the blueprint has your name on it.",
+  "2": "Four questions. The sheet assembles as you answer — honestly a plan, not a fake app.",
+  "3b": "You own the roles — one glance to see them, one tap to change them. Name a seat and its invite turns personal.",
+  "3": "The whole plan on one sheet — a last look before it&rsquo;s built.",
+  "4": "Auth at the last responsible moment, then honest theater.",
+  "5": "The anti-empty-state: it arrives already alive.",
+  "6": "The leader&rsquo;s job ends at sharing a link.",
+};
+function goto(step) {
+  step = String(step);
+  let idx = STEPS.indexOf(step);
+  if (idx < 0) idx = 0;
+  step = STEPS[Math.max(0, Math.min(STEPS.length - 1, idx))];
+  const phase = PHASE[step];
+  clearChatTimers(); clearBuild(); clearJoins();
+  ensureDefaults(phase);
+  S.step = step;
+  $$(".scr").forEach(s => s.classList.toggle("active", s.dataset.step === step));
+  $$("#rail button").forEach(b => b.classList.toggle("on", b.dataset.go === step));
+  $("#railCap").innerHTML = CAPS[step];
+  const appWorld = phase >= 5, darkWorld = phase === 4;
+  document.body.style.background = appWorld ? "var(--app-bg)" : darkWorld ? "#060504" : "var(--paper)";
+  $("#chrome").className = "chrome" + (appWorld ? " scr-app-chrome" : darkWorld ? " scr-dark-chrome" : "");
+  $("#chromeTag").style.color = appWorld ? "var(--app-fg-40)" : "";
+  if (phase <= 2) { renderSheet(); mountSheet(); }
+  if (step === "2") bootInterview();
+  if (step === "3") renderBlueprint();
+  if (step === "3b") renderRoles();
+  if (step === "4") resetBuildScreen();
+  if (step === "5") renderReveal();
+  if (step === "6") renderInvite();
+  if (location.hash !== "#step-" + step) history.replaceState(null, "", "#step-" + step);
+}
+function stepBy(delta) {
+  const idx = STEPS.indexOf(S.step);
+  goto(STEPS[Math.max(0, Math.min(STEPS.length - 1, idx + delta))]);
+}
+$$("[data-go]").forEach(b => b.addEventListener("click", () => goto(b.dataset.go)));
+document.addEventListener("keydown", e => {
+  if (e.target.tagName === "INPUT") return;
+  if (e.key === "ArrowRight") stepBy(1);
+  if (e.key === "ArrowLeft") stepBy(-1);
+});
+
+const m = location.hash.match(/step-(\d\w?)/);
+goto(m ? m[1] : "1");
+</script>
+</body>
+</html>
