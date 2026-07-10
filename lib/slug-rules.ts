@@ -30,7 +30,7 @@ import {
 // Next.js routes and infra hostnames. Anything under app/ becomes a path; if a
 // future page named app/foo/ exists, /foo as an org slug would shadow it.
 const SYSTEM_ROUTES: readonly string[] = [
-  "admin", "api", "app", "auth", "callback", "chapter", "dashboard",
+  "admin", "api", "app", "auth", "callback", "chapter", "create", "dashboard",
   "docs", "login", "logout", "settings", "signin", "signout", "signup",
   "welcome", "pending-access", "brothers", "timeline", "treasury",
   "service", "parties", "instagram",
