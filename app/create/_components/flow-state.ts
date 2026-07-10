@@ -8,6 +8,7 @@
  */
 
 import { useEffect, useReducer, useRef } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   DRAFT_STORAGE_KEY,
   emptyDraft,
@@ -127,20 +128,33 @@ export function flowReducer(draft: Draft, action: FlowAction): Draft {
 }
 
 /**
- * The flow's Draft store: restores from localStorage on mount (client-only,
- * after hydration, so the server render never touches window) and writes
- * through on every change. QuotaExceeded (a 2 MB logo on a full origin) keeps
- * the in-memory draft working — persistence is best-effort.
+ * The flow's Draft store: writes through to localStorage on every change
+ * (client-only, after hydration, so the server render never touches window).
+ * QuotaExceeded (a 2 MB logo on a full origin) keeps the in-memory draft
+ * working — persistence is best-effort.
+ *
+ * A stored draft is restored ONLY on the post-OAuth resume leg (?resume=1).
+ * Every other visit to /create starts a fresh, empty draft and discards any
+ * leftover — so a founder who reopens /create to "start again" never lands on
+ * top of a half-finished draft from days ago.
  */
 export function useDraft(): [Draft, React.Dispatch<FlowAction>, boolean] {
   const [draft, dispatch] = useReducer(flowReducer, undefined, emptyDraft);
   const restored = useRef(false);
   const [, forceRender] = useReducer((n: number) => n + 1, 0);
+  const isResume = useSearchParams().get("resume") === "1";
 
   useEffect(() => {
     if (restored.current) return;
     restored.current = true;
     try {
+      if (!isResume) {
+        // Fresh visit: never resume a leftover draft — clear it so the write-
+        // through effect below can't re-persist the stale one either.
+        window.localStorage.removeItem(DRAFT_STORAGE_KEY);
+        forceRender();
+        return;
+      }
       const saved = parseDraft(window.localStorage.getItem(DRAFT_STORAGE_KEY));
       if (saved) dispatch({ type: "hydrate", draft: saved });
       else forceRender();
