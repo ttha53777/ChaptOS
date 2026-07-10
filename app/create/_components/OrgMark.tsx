@@ -21,7 +21,10 @@ export function OrgMark({
     return (
       <span
         className={className}
-        style={{ background: "#000", backgroundImage: `url(${logoUrl})` }}
+        // Separate longhands, not the `background` shorthand: the shorthand
+        // resets background-size to `auto`, clobbering the stylesheet's `cover`
+        // and rendering the image at native size in the corner.
+        style={{ backgroundColor: "#000", backgroundImage: `url(${logoUrl})` }}
         aria-hidden
       />
     );
