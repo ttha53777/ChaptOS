@@ -76,7 +76,7 @@ export function CreateFlow() {
   const world = step === "build" ? "dark" : "paper";
 
   return (
-    <div className="crf" data-world={world}>
+    <div className="crf" data-world={world} data-step={step}>
       <header className="chrome">
         <div className="wm">
           <span className="glyph">{APP_NAME[0]}</span>
@@ -88,9 +88,11 @@ export function CreateFlow() {
       <main className="screens">
         {step === "name" && (
           <section className="scr" data-step="name" key="name">
-            <div className="split">
+            {/* data-named drives the "reveal" choreography: empty → centered name,
+                no sheet; first keystroke slides the sheet in and the name to the left. */}
+            <div className="split split--name" data-named={draft.name.trim() ? "1" : "0"}>
               <NameStep draft={draft} dispatch={dispatch} onContinue={() => goto("interview")} />
-              <div className="sheet-slot">
+              <div className="sheet-slot" aria-hidden={!draft.name.trim()}>
                 <BlueprintSheet draft={draft} flash={flash} />
               </div>
             </div>

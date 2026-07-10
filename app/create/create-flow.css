@@ -86,7 +86,116 @@
   align-items: center;
 }
 
-/* ═══ Step 1 — Name ═══ */
+/* ═══ Step 1 reveal choreography ═══
+   Three tracks, stable columns: the name lives in col 1, a collapsing spacer in
+   col 2, the blueprint in col 3. Empty → col 1 fills the row (name centered
+   inside its 520px cap) and col 3 is 0fr, so the sheet is absent. First
+   keystroke eases col 1 down to its 46% rest width and opens col 3 + the gap,
+   sliding the sheet in from the right. Grid <flex> tracks animate (widely
+   supported), so the layout shifts in one gesture; the sheet's own opacity /
+   translate ride along for the "come in" feel. Columns never change, so nothing
+   jumps. */
+.crf .split--name {
+  /* --reveal-ease / --reveal-dur: one shared curve and duration for every
+     property in the reveal (layout tracks, gap, the name's justify-self, and
+     the sheet's fade + slide). Same timing, same easing, no delays — so the
+     name shifting left and the blueprint arriving are a single fluid motion
+     that starts and lands together. */
+  --reveal-ease: cubic-bezier(.4, 0, .2, 1);
+  --reveal-dur: 1100ms;
+  position: relative;
+  grid-template-columns: minmax(0, 1fr) 0fr 0fr;
+  gap: 0;
+  justify-items: start;
+  transition: grid-template-columns var(--reveal-dur) var(--reveal-ease), gap var(--reveal-dur) var(--reveal-ease);
+}
+.crf .split--name > .ask {
+  grid-column: 1;
+  justify-self: center;
+  transition: justify-self var(--reveal-dur) var(--reveal-ease);
+}
+
+/* Empty state = a composed hero moment: the whole card is centered and its
+   content center-aligns for a balanced, symmetric focal point. Once typing
+   begins the [data-named] block below flips everything back to the left-aligned
+   working layout — the align swap rides the same reveal so it stays fluid. */
+.crf .split--name[data-named="0"] > .ask { text-align: center; max-width: 600px; }
+.crf .split--name[data-named="0"] .kicker { margin-bottom: 26px; }
+.crf .split--name[data-named="0"] .ask .q-serif { margin-bottom: 38px; }
+/* Hero input: a centered field on its own underline — flat, no violet glow. */
+.crf .split--name[data-named="0"] .name-input {
+  text-align: center;
+  font-size: clamp(30px, 3vw, 42px);
+  padding: 10px 8px 18px;
+}
+.crf .split--name[data-named="0"] .name-input:focus,
+.crf .split--name[data-named="0"] .name-input:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+.crf .split--name[data-named="0"] .slugline { text-align: center; }
+.crf .split--name[data-named="0"] .idrow { justify-content: center; margin-top: 36px; }
+.crf .split--name[data-named="0"] .idnote { max-width: 340px; text-align: left; }
+.crf .split--name[data-named="0"] .cta { margin-left: auto; margin-right: auto; }
+.crf .split--name[data-named="0"] .fine { text-align: center; }
+
+/* Empty hero holds only the question + input. The mark row, Continue, and the
+   fine print stay hidden until the shift to the left begins, then fade + rise
+   in on the same reveal timing. Kept in flow (no display:none) so their reveal
+   can animate; collapsed to zero height so they claim no space while centered. */
+.crf .split--name .idrow,
+.crf .split--name .cta,
+.crf .split--name .fine {
+  transition:
+    opacity calc(var(--reveal-dur) * .7) var(--reveal-ease) calc(var(--reveal-dur) * .3),
+    transform calc(var(--reveal-dur) * .7) var(--reveal-ease) calc(var(--reveal-dur) * .3);
+}
+.crf .split--name[data-named="0"] .idrow,
+.crf .split--name[data-named="0"] .cta,
+.crf .split--name[data-named="0"] .fine {
+  opacity: 0;
+  transform: translateY(10px);
+  pointer-events: none;
+  margin-top: 0;
+  height: 0;
+  min-height: 0;
+  overflow: hidden;
+  transition-delay: 0ms;
+}
+
+/* No ambient gradients on page 1 — flat surface, per request: neither the violet
+   aura behind the hero nor the glow bloom behind the blueprint sheet. Scoped to
+   the name step so the interview step keeps its sheet glow. */
+.crf .split--name::after { content: none; }
+.crf[data-step="name"] .sheet-wrap::before { content: none; }
+.crf .split--name > .sheet-slot {
+  grid-column: 3;
+  min-width: 0;
+  opacity: 0;
+  transform: translateX(56px) scale(.94);
+  transform-origin: left center;
+  transition: opacity var(--reveal-dur) var(--reveal-ease), transform var(--reveal-dur) var(--reveal-ease);
+  pointer-events: none;
+}
+.crf .split--name[data-named="1"] {
+  grid-template-columns: minmax(440px, 46%) 0fr minmax(340px, 1fr);
+  gap: clamp(24px, 4vw, 64px);
+}
+.crf .split--name[data-named="1"] > .ask { justify-self: start; }
+.crf .split--name[data-named="1"] > .sheet-slot {
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+}
+@media (prefers-reduced-motion: reduce) {
+  .crf .split--name,
+  .crf .split--name > .ask,
+  .crf .split--name > .sheet-slot { transition: none !important; }
+}
+
+/* ═══ Step 1 — Name ═══
+   Page 1 inherits the shared warm v3 "paper" tokens like every other step —
+   no Dusk reskin — so the whole flow reads as one consistent world. */
 .crf .ask { max-width: 520px; }
 .crf .kicker { font-family: var(--mono); font-size: 11px; letter-spacing: .22em; text-transform: uppercase; color: var(--ink-40); margin-bottom: 22px; }
 .crf .q-serif { font-family: var(--serif); font-weight: 500; font-size: clamp(30px, 3.4vw, 44px); line-height: 1.12; letter-spacing: -.01em; }
@@ -103,6 +212,9 @@
 }
 .crf .name-input::placeholder { color: var(--ink-28); font-style: italic; }
 .crf .name-input:focus { border-color: var(--vio-line); }
+/* No violet focus-visible box outline on the name field — the underline is the
+   focus affordance. */
+.crf .name-input:focus-visible { outline: none; }
 
 .crf .slugline { margin-top: 16px; font-family: var(--mono); font-size: 13px; color: var(--ink-40); min-height: 20px; transition: opacity 240ms var(--ease); }
 .crf .slugline b { color: var(--ink-72); font-weight: 500; }
@@ -580,4 +692,17 @@
   .crf .sheet-slot { height: 420px; }
   .crf .bp-grid { grid-template-columns: 1fr; }
   .crf .rail button .lbl { display: none; }
+
+  /* Stacked: the side-by-side reveal doesn't apply — the sheet slides down
+     into view under the input instead. */
+  .crf .split--name,
+  .crf .split--name[data-named="1"] {
+    grid-template-columns: 1fr; gap: 0; justify-items: stretch;
+  }
+  .crf .split--name > .ask { grid-column: 1; justify-self: stretch; }
+  .crf .split--name > .sheet-slot {
+    grid-column: 1;
+    transform: translateY(24px) scale(.98);
+  }
+  .crf .split--name[data-named="1"] > .sheet-slot { transform: none; }
 }
