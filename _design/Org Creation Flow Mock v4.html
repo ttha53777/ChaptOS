@@ -57,37 +57,73 @@ h1, h2, h3, h4, h6, p, ul { margin: 0; padding: 0; }
 button { font: inherit; color: inherit; background: none; border: none; cursor: pointer; }
 input { font: inherit; }
 
+/* ─────────────────────────────────────────────────────────────────────────
+   v4 · REAL DUSK THEME. Every token below is the app's actual Dusk palette,
+   lifted verbatim from `.dash[data-dashboard-theme="dusk"]` in
+   app/components/dashboard/dashboard-ledger.css — the surface the founder
+   lands on. v3 was "close to dusk"; v4 IS dusk.
+
+   The three big fidelity moves vs. v3:
+     1. Named tone tokens. The real theme names its greys (--ink-soft #c9c2b4,
+        --muted #958d7c, --faint #6b6354) instead of ramping --ink by opacity.
+        The mock's old --ink-72/55/40/28 aliases are re-pointed at those exact
+        tones so all existing markup keeps working but reads true-to-app.
+     2. Hairlines at .09 (was .13) and accent washes at .10 (was .12–.14) —
+        the real theme is quieter and warmer than v3's slightly punchier lines.
+     3. The "app world" (--app-*, steps 5–6) was a COLD slate palette
+        (#07090f / #f1f5f9 / white lines). That never matched the real product,
+        whose dashboard is this same warm Dusk paper. So the --app-* tokens now
+        alias straight onto the Dusk surfaces — Reveal & Invite finally look
+        like the workspace the founder actually gets.
+   ───────────────────────────────────────────────────────────────────────── */
 :root {
-  --paper: #0f0d0a;
-  --paper-2: #14120e;
-  --paper-3: #1b1813;
-  --card: #161310;
-  --ink: #ece7dd;
-  --ink-72: rgba(236,231,221,.72);
-  --ink-55: rgba(236,231,221,.55);
-  --ink-40: rgba(236,231,221,.4);
-  --ink-28: rgba(236,231,221,.28);
-  --line: rgba(236,231,221,.13);
-  --line-soft: rgba(236,231,221,.07);
-  --vio: #a78bfa;
+  /* ── Dusk palette (verbatim from dashboard-ledger.css) ── */
+  --paper:    #0f0d0a;
+  --paper-2:  #14120e;
+  --card:     #161310;
+  --card-2:   #1b1813;
+  --ink:      #ece7dd;
+  --ink-soft: #c9c2b4;
+  --muted:    #958d7c;
+  --faint:    #6b6354;
+  --line:     rgba(236,231,221,.09);
+  --line-soft:rgba(236,231,221,.05);
+  --vio:      #a78bfa;
   --vio-deep: #7c3aed;
-  --vio-soft: rgba(167,139,250,.12);
+  --vio-bg:   rgba(167,139,250,.10);
+  --gold:     #ddb36a;
+  --gold-bg:  rgba(221,179,106,.10);
+  --rose:     #d98ba3;
+  --rose-bg:  rgba(217,139,163,.10);
+  --ok:       #7fb08a;
+  --ok-bg:    rgba(127,176,138,.10);
+  --shadow:   0 1px 0 rgba(0,0,0,.4), 0 16px 40px -24px rgba(0,0,0,.7);
+  --amber:    #d9a05b;
+  --sky:      #7fb3d9;
+
+  /* ── Back-compat aliases: v3 markup names → real Dusk tones ──
+     Nothing downstream needs rewriting; these just re-route the old
+     opacity-ramp names at the true named tones, and give the accent
+     wash/border names the app uses (.10 fill, a .32 hairline for focus). */
+  --paper-3:  var(--card-2);
+  --ink-72:   var(--ink-soft);
+  --ink-55:   var(--muted);
+  --ink-40:   var(--muted);
+  --ink-28:   var(--faint);
+  --vio-soft: var(--vio-bg);
   --vio-line: rgba(167,139,250,.32);
-  --gold: #ddb36a;
-  --rose: #d98ba3;
-  --ok: #7fb08a;
-  --ok-soft: rgba(127,176,138,.14);
-  --amber: #d9a05b;
-  --sky: #7fb3d9;
-  /* app world */
-  --app-bg: #07090f;
-  --app-surface: #10121a;
-  --app-raised: #141820;
-  --app-line: rgba(255,255,255,.07);
-  --app-line-2: rgba(255,255,255,.12);
-  --app-fg: #f1f5f9;
-  --app-fg-60: rgba(241,245,249,.6);
-  --app-fg-40: rgba(241,245,249,.4);
+  --ok-soft:  var(--ok-bg);
+
+  /* ── App world = the same Dusk surface (was cold slate in v3) ── */
+  --app-bg:      var(--paper);
+  --app-surface: var(--card);
+  --app-raised:  var(--card-2);
+  --app-line:    var(--line);
+  --app-line-2:  rgba(236,231,221,.16);
+  --app-fg:      var(--ink);
+  --app-fg-60:   var(--muted);
+  --app-fg-40:   var(--faint);
+
   --serif: "Fraunces", Georgia, serif;
   --sans: "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --mono: "Geist Mono", ui-monospace, Menlo, monospace;
@@ -136,18 +172,35 @@ button:focus-visible, input:focus-visible, a:focus-visible { outline: 2px solid 
 }
 
 .split {
+  position: relative;
   height: 100%; display: grid;
   grid-template-columns: minmax(440px, 46%) 1fr;
   gap: clamp(24px, 4vw, 64px);
   padding: 0 clamp(28px, 4.5vw, 72px) 84px;
   align-items: center;
 }
+/* v4 · Ambient dusk aura for the two intro screens — a slow warm violet
+   wash low-left plus a whisper of gold, so the entry pages breathe instead
+   of sitting on flat black. Behind everything, pointer-transparent. */
+.split::before {
+  content: ""; position: absolute; inset: -20% -10% -10%; z-index: -1; pointer-events: none;
+  background:
+    radial-gradient(46% 52% at 14% 84%, rgba(167,139,250,.11), transparent 68%),
+    radial-gradient(40% 44% at 88% 12%, rgba(221,179,106,.05), transparent 66%);
+  filter: blur(2px);
+  animation: aura-drift 22s ease-in-out infinite alternate;
+}
+@keyframes aura-drift {
+  from { transform: translate3d(0,0,0) scale(1); opacity: .85; }
+  to   { transform: translate3d(2%,-2%,0) scale(1.05); opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) { .split::before { animation: none; } }
 
 /* ═══ 3 · Step 1 — Name ══════════════════════════════════════════════════ */
 .ask { max-width: 520px; }
 .kicker { font-family: var(--mono); font-size: 11px; letter-spacing: .22em; text-transform: uppercase; color: var(--ink-40); margin-bottom: 22px; }
 .q-serif { font-family: var(--serif); font-weight: 500; font-size: clamp(30px, 3.4vw, 44px); line-height: 1.12; letter-spacing: -.01em; }
-.ask .q-serif { margin-bottom: 30px; font-size: clamp(34px, 3.9vw, 52px); }
+.ask .q-serif { margin-bottom: 30px; }
 
 .name-input {
   width: 100%; background: transparent; border: none; color: var(--ink);
@@ -188,7 +241,7 @@ button:focus-visible, input:focus-visible, a:focus-visible { outline: 2px solid 
 
 /* ═══ 4 · Blueprint sheet (assembles live through steps 1–2) ═════════════ */
 .sheet-slot { height: min(72vh, 640px); display: flex; align-items: center; }
-.sheet-wrap { width: 100%; max-height: 100%; position: relative; }
+.sheet-wrap { width: 100%; height: 100%; position: relative; }
 .sheet-wrap::before {
   content: ""; position: absolute; inset: -8% -6%;
   background:
@@ -198,11 +251,11 @@ button:focus-visible, input:focus-visible, a:focus-visible { outline: 2px solid 
 }
 .sheet-cap { position: absolute; top: -28px; left: 2px; font-family: var(--mono); font-size: 10px; letter-spacing: .18em; color: var(--ink-28); text-transform: uppercase; }
 .sheet {
-  position: relative; width: 100%; max-height: 100%;
+  position: relative; height: 100%; width: 100%;
   background: var(--card); border: 1px solid var(--line); border-radius: 14px;
   box-shadow: 0 2px 4px rgba(0,0,0,.5), 0 32px 80px -24px rgba(0,0,0,.7);
   overflow: hidden; display: flex; flex-direction: column;
-  padding: 22px 24px 18px;
+  padding: 22px 24px 16px;
 }
 .sheet-head { display: flex; align-items: center; gap: 14px; padding-bottom: 16px; }
 .sheet-head .mark { height: 40px; width: 40px; font-size: 15px; margin: 0; }
@@ -238,18 +291,7 @@ button:focus-visible, input:focus-visible, a:focus-visible { outline: 2px solid 
 .sheet-line { font-size: 13px; color: var(--ink-72); display: flex; align-items: center; gap: 9px; }
 .sheet-line .dot { height: 5px; width: 5px; border-radius: 50%; background: var(--vio); flex: none; }
 .sheet-line b { color: var(--ink); font-weight: 600; }
-.sheet-foot { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line-soft); font-family: var(--mono); font-size: 9.5px; letter-spacing: .12em; color: var(--ink-28); text-transform: uppercase; }
-
-/* Interview stage: widen the chat, slim the blueprint beside it */
-.scr[data-step="2"] .split { grid-template-columns: minmax(520px, 58%) 1fr; }
-.scr[data-step="2"] .chat-col { height: auto; max-height: min(72vh, 640px); max-width: none; }
-.scr[data-step="2"] .chat { flex: 0 1 auto; }
-.scr[data-step="2"] .sheet { min-height: min(66vh, 560px); }
-.scr[data-step="2"] .msg .m-body { font-size: 16.5px; }
-.scr[data-step="2"] .msg.q .m-body { font-size: 22px; }
-.scr[data-step="2"] .chip { font-size: 14.5px; }
-.scr[data-step="2"] .sheet-sec { padding: 18px 0; }
-.scr[data-step="2"] .sheet-foot { margin-top: auto; }
+.sheet-foot { margin-top: auto; padding-top: 12px; font-family: var(--mono); font-size: 9.5px; letter-spacing: .12em; color: var(--ink-28); text-transform: uppercase; }
 
 /* ═══ 5 · Step 2 — Interview ═════════════════════════════════════════════ */
 .chat-col { height: min(72vh, 640px); display: flex; flex-direction: column; max-width: 560px; width: 100%; }
@@ -932,7 +974,7 @@ details.rc-adv[open] summary::after { transform: rotate(90deg); }
       <div class="split">
         <div class="ask">
           <p class="kicker">Create your organization · no account needed yet</p>
-          <h1 class="q-serif">Let&rsquo;s set up your <em style="color:var(--vio);font-style:italic">chapter</em> — what&rsquo;s it called?</h1>
+          <h1 class="q-serif">What&rsquo;s your organization called?</h1>
           <input class="name-input" id="orgName" placeholder="Kappa Sigma" autocomplete="off" spellcheck="false">
           <div class="slugline" id="slugLine" style="opacity:0">chaptos.app/<b>&nbsp;</b></div>
           <div class="idrow">
@@ -1561,9 +1603,13 @@ function renderSheet(fresh) {
     ? sec("Your words", '<div class="words-line">' + esc(v.members) + "<span>·</span>" + esc(v.meeting) + "<span>·</span>" + esc(v.period) + "</div>", { flash: fresh === "words" })
     : sec("Your words", '<span class="pend">the words you already use — I&rsquo;ll match them</span>', { pending: true });
 
+  const meeting = S.cadence
+    ? sec("Meeting", '<div class="sheet-line"><span class="dot"></span><span><b>' + esc(v.meeting) + "</b> · " + esc(S.cadence.time) + " · repeats weekly — goes straight onto the calendar</span></div>", { flash: fresh === "meeting" })
+    : sec("Meeting", '<span class="pend">when you meet — it lands on the calendar at creation</span>', { pending: true });
+
   const term = S.term
     ? sec("This " + v.period.toLowerCase(), '<div class="sheet-line"><span class="dot"></span><span><b>' + esc(S.term.name) + "</b> · " + esc(S.term.dates) + " · " + (S.term.dues ? "dues on" : "no dues") + "</span></div>", { flash: fresh === "term" })
-    : sec("This " + (S.kind ? v.period.toLowerCase() : "term"), '<span class="pend">what you call it, and how long it lasts</span>', { pending: true });
+    : sec("This " + (S.kind ? v.period.toLowerCase() : "term"), '<span class="pend">what you call it, and whether dues are collected</span>', { pending: true });
 
   const seats = S.seats
     ? sec("Leadership", '<div class="sheet-line"><span class="dot"></span><span><b>' + esc(S.seats[0].title) + "</b> — you · " +
@@ -1572,7 +1618,7 @@ function renderSheet(fresh) {
 
   sheet.innerHTML =
     '<div class="sheet-cap">Your blueprint — assembling as you answer</div>' +
-    '<div class="sheet">' + head + pages + words + term + seats +
+    '<div class="sheet">' + head + pages + words + meeting + term + seats +
       '<div class="sheet-foot">blueprint · nothing built yet — you review every line before anything is created</div>' +
     "</div>";
   const sm = sheet.querySelector("[data-sheet-mark]");
@@ -1669,7 +1715,7 @@ function setPain(p) {
 const QUESTIONS = [
   {
     id: "kind", fresh: "pages",
-    prompt: () => "Tell me about <em style=\"color:var(--vio);font-style:italic;font-weight:600\">" + esc(displayName()) + "</em> — what kind of organization is it?",
+    prompt: () => "Tell me about <b>" + esc(displayName()) + "</b> — what kind of organization is it?",
     chips: () => [
       { label: "A fraternity", apply: () => setKind("fraternity") },
       { label: "A sorority", apply: () => setKind("sorority") },
@@ -1904,7 +1950,7 @@ function renderSlugEditor() {
 function renderBlueprint() {
   const v = vocab();
   try { console.log("[ChaptOS] org-create payload (proposed extended createOrgInput):", buildPayload()); } catch (_) {}
-  $("#bpTitle").innerHTML = "Here&rsquo;s the workspace I&rsquo;d build for <em style=\"color:var(--vio);font-style:italic\">" + esc(displayName()) + "</em>.";
+  $("#bpTitle").innerHTML = "Here&rsquo;s the workspace I&rsquo;d build for <em style=\"color:var(--vio)\">" + esc(displayName()) + "</em>.";
   renderSlugEditor();
 
   // Always-on operations surfaces — locked, cannot be toggled off (mirrors
@@ -2059,7 +2105,7 @@ function roleMonogram(title) {
 }
 function renderRoles() {
   const v = vocab();
-  $("#rolesTitle").innerHTML = "Who can do what at <em style=\"color:var(--vio);font-style:italic\">" + esc(displayName()) + "</em>?";
+  $("#rolesTitle").innerHTML = "Who can do what at <em style=\"color:var(--vio)\">" + esc(displayName()) + "</em>?";
   $("#rolesSub").innerHTML = "I set these roles up for " + KIND_LABEL[S.kind].toLowerCase() +
     " — each already does its job. Tap a pill to add or remove an ability, or just leave them.";
 
