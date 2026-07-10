@@ -2,7 +2,7 @@
 
 Chapter operations platform — a single place to run any chapter-based organization. It covers the whole operational surface — members, attendance, dues, GPA, service hours, deadlines, treasury and budgets, parties, programming events with prep checklists, Instagram content, community-service participation, meeting notes, and a foldered docs library — tied together by a live activity log, a pinned announcement, and a weekly digest of what's on deck. Members join by claiming a pre-seeded roster row or by redeeming an org invite link.
 
-Each org shapes the platform to itself: an AI onboarding interview tailors the enabled pages, vocabulary, status thresholds, officer roles, **custom per-member fields**, and **custom org-defined metrics** to the kind of organization being set up — a sports team, a marching band, a volunteer group, or a fraternity each get a starting setup that fits, rather than a chapter-only default.
+Each org shapes the platform to itself: a founder builds their org through a short pre-auth `/create` flow that tailors the enabled pages, vocabulary, officer roles, **custom per-member fields**, and **custom org-defined metrics** to the kind of organization being set up — a sports team, a marching band, a volunteer group, or a fraternity each get a starting setup that fits, rather than a chapter-only default.
 
 Everything runs in one operations dashboard, with a dedicated app-like layout on mobile. A tool-calling AI assistant ("Ask the Chapter") answers questions and proposes write actions, backed by an offline eval harness so answer quality is measured, not guessed at.
 
@@ -16,6 +16,7 @@ Multi-org: each Organization is a fully isolated tenant. One Google account can 
 - [Tech Stack](#tech-stack)
 - [Architecture](#architecture)
 - [Tenancy Model](#tenancy-model)
+- [Org Creation](#org-creation)
 - [AI Features](#ai-features)
 - [Roles & Access](#roles--access)
 - [Project Structure](#project-structure)
@@ -35,7 +36,7 @@ The design decisions that do the most work:
 - **Three-tier auth: PlatformAdmin → OrgAdmin → Member.** `buildContext()` in `lib/context` resolves all three tiers per request, emits a typed `RequestContext`, and optionally gates on a specific permission or rate-limits the caller. Route handlers open with `buildContext()`, parse with Zod, call a service, and map errors with `toResponse()` — no `prisma.*` calls in `app/api/**`.
 - **Side effects through events, never service-to-service calls.** Services call `emit(ctx, action, subject, metadata)` from `lib/events`. Reactions (recalcs, notifications, projections) live as `on(action, handler)` registrations in `lib/events/handlers/`. The event writer also dual-writes an `ActivityLog` row so the existing feed keeps working.
 - **Tool-calling AI assistant with self-correcting validation.** Sixteen read tools + six write-proposal tools in one file ([lib/ai-tools.ts](lib/ai-tools.ts)) so schema and dispatcher can't drift. `validateArgs` walks the schema before dispatch — a wrong enum returns a structured error the model self-corrects on the next iteration.
-- **AI onboarding interview that configures the org safely.** A founder describes their organization in plain language; a conversational agent ([app/api/ai/setup-chat/route.ts](app/api/ai/setup-chat/route.ts)) runs an adaptive interview and *proposes* a starting setup — enabled workflows, vocabulary overrides, status thresholds, officer roles, and custom member fields. Every id/key the model returns is intersected with the real registries in [validateRecommendation()](app/api/ai/recommend-setup/route.ts) before it can reach the client or be persisted, so a hallucinated workflow or permission can never leak through.
+- **Pre-auth org creation that survives OAuth.** A founder builds their org through a five-step `/create` flow (name → interview → roles → blueprint → build) while signed out — Google sign-in happens *last*, at the Build step. The in-progress answers live in a `localStorage` draft ([lib/onboarding/draft.ts](lib/onboarding/draft.ts)) so the whole flow round-trips through the OAuth redirect and resumes at `/create?resume=1`. The draft is untrusted on the way back in: `parseDraft()` Zod-validates and expires it, and `draftToCreateOrgInput()` is the single mapping to the real `POST /api/orgs` payload. `provisionOrg` applies the resulting blueprint atomically and stamps `onboardingCompletedAt` at creation — there is no separate post-creation setup step.
 - **Org-defined custom fields and metrics.** Admins can add per-member fields (stored sparsely on `Brother.customFields`) and define their own KPIs (`OrgMetricDefinition` + `BrotherMetricValue`) with goal / watch / at-risk bands and an aggregation (`avg` / `sum` / `count_on_track`) — so a team can track "Jersey #" and a band can track "Section" without schema changes. Pure status/headline math lives in [lib/metrics.ts](lib/metrics.ts) and [lib/custom-member-fields.ts](lib/custom-member-fields.ts), importable from both server and client.
 - **Offline eval harness.** Hand-written cases at [evals/ask-the-chapter/cases.jsonl](evals/ask-the-chapter/cases.jsonl) drive the same loop as the production route in-process, graded on tool selection, args, and final-answer substrings. Lets prompt and model changes be measured instead of vibes-checked.
 - **Discord-style role system with permission bitfields.** Twelve named permissions ([lib/permissions.ts](lib/permissions.ts)) packed into a 32-bit int on each `Role`. A member's effective bits are the bitwise OR of every role they hold. Role hierarchy ranks prevent privilege escalation — a caller can only grant/edit roles strictly below their own highest rank.
@@ -79,8 +80,6 @@ Browser
   │     ├── app/[slug]/page.tsx — the Operations Dashboard (desktop + mobile)
   │     └── app/api/** — JSON API routes (thin controllers)
   │            ├── api/ai/chat        — streaming tool-calling assistant
-  │            ├── api/ai/setup-chat  — streaming onboarding interview (proposes org config)
-  │            ├── api/ai/recommend-setup — single-shot setup recommendation
   │            ├── api/ai/digest      — one-sentence weekly recap (cached)
   │            └── api/ai/summarize-meeting — meeting-notes summary (cached)
   │
@@ -119,9 +118,32 @@ Every write must go through `ctx.db.<model>` (org-scoped) or carry an explicit `
 
 ---
 
+## Org Creation
+
+Founders build a new org through a self-contained, **pre-auth** flow at [app/create/](app/create/) — the whole interview runs signed out, and Google sign-in happens *last*, at the Build step. This keeps the door to the platform open to anyone with a Google account: no invite, no pre-seeded row, no admin required to start.
+
+**The five steps** ([CreateFlow.tsx](app/create/_components/CreateFlow.tsx)):
+
+1. **Name** — org name, live slug preview, and an optional logo/crest upload.
+2. **Interview** — a scripted, **fully deterministic** three-question chat (org kind, biggest pain, the founder's name). Tap-chip answers with a free-text fallback routed through keyword matchers ([lib/onboarding/kinds.ts](lib/onboarding/kinds.ts)) — no AI, so it works with `OPENAI_API_KEY` unset and never blocks on a model. Picking a kind flashes the live blueprint sheet as vocabulary and workflows update.
+3. **Roles** — stacked seat cards with renameable titles, workflow-gated ability pills (whole-area grants) and an Advanced disclosure of the individual `MANAGE_*` flags. Seats describe *authority*, not people — no holder names, no invite step here.
+4. **Blueprint** — a full review sheet: editable chapter URL with a live slug check, workflow toggles with rationale, the high-signal vocab words with derived plurals, and the leadership seat list.
+5. **Build** — Google sign-in (for a signed-out founder), then the real `POST /api/orgs` fires and provisioning animates.
+
+**How it holds together:**
+
+- **The draft survives OAuth.** All answers live in a `localStorage` draft ([lib/onboarding/draft.ts](lib/onboarding/draft.ts)) keyed `figurints:create-draft:v1`. The founder signs in at the Build step; the OAuth callback lands back at `/create?resume=1`, the draft is restored, and Build auto-fires provisioning. Drafts older than 7 days are discarded on restore.
+- **The draft is untrusted on the way back in.** It round-trips through the browser, so `parseDraft()` Zod-validates and expires it rather than trusting our own writes — a draft that fails to parse is discarded and the founder restarts, never crashes. `draftToCreateOrgInput()` is the single mapping from draft to the `POST /api/orgs` payload, and `tests/onboarding/create-draft.test.ts` asserts its output parses under `createOrgInput` for every org kind.
+- **`provisionOrg` applies the blueprint atomically.** [lib/services/org-service.ts](lib/services/org-service.ts) resolves the founder's blueprint against the org-type template (filling any omitted field), then runs the whole org + config + roles + founder-membership provisioning in a single `$transaction`, stamping `OrganizationConfig.onboardingCompletedAt` at creation. The founder role is forced to rank 100 + full bitfield so the founder can never lock themselves out. Bootstrap provisioning runs as `prismaPrivileged` (BYPASSRLS) since no org context exists yet.
+- **Org-type priors as a fallback.** [lib/org-types.ts](lib/org-types.ts) seeds a sensible preset per org type, so provisioning still yields a coherent setup for any field the blueprint leaves unset.
+
+> The old post-creation `/[slug]/onboarding` wizard is **retired** — setup now happens entirely pre-creation, and that route redirects straight into the live workspace.
+
+---
+
 ## AI Features
 
-Four AI surfaces, all server-side behind auth, all dormant when `OPENAI_API_KEY` is unset:
+Three AI surfaces, all server-side behind auth, all dormant when `OPENAI_API_KEY` is unset:
 
 ### Ask the Chapter — tool-calling assistant
 [app/api/ai/chat/route.ts](app/api/ai/chat/route.ts) · [app/components/ChatWidget.tsx](app/components/ChatWidget.tsx)
@@ -137,16 +159,6 @@ A floating chat widget that answers ad-hoc questions about chapter state — *"w
 - **Writes are proposals, not executions.** `propose_*` tools validate inputs but never write — the client renders a confirm card and POSTs to the real route on user confirmation. `buildContext()` guards still decide whether the write happens.
 - **Date context injected at prompt build time** ([lib/ai-prompt.ts](lib/ai-prompt.ts)): today's date + weekday, week bounds, last chapter-meeting date, active semester.
 - **History trimmed before send.** Last 12 turns, prior messages capped at 600 chars.
-
-### Onboarding interview — conversational org setup
-[app/api/ai/setup-chat/route.ts](app/api/ai/setup-chat/route.ts) · [app/api/ai/recommend-setup/route.ts](app/api/ai/recommend-setup/route.ts) · [app/[slug]/onboarding/page.tsx](app/%5Bslug%5D/onboarding/page.tsx)
-
-Right after creating an org, the founder describes it in plain language. An adaptive agent asks a handful of follow-up questions (capped server-side), then proposes a complete starting setup: which workflow pages to enable, vocabulary overrides (e.g. *Member → Player*, *Period → Season*), member-status thresholds, 2–4 officer roles with permission bitfields, and 2–4 custom member fields.
-
-**How it's built:**
-- **Same SSE posture as the chat route** (`requireUser` → `aiEnabled` → `checkMutationRate`) with one tool, `emit_setup_proposal`, whose arguments mirror the single-shot `recommend-setup` schema so one validator handles both paths.
-- **Proposes, never writes.** The model's output is untrusted: `validateRecommendation()` intersects every workflow id, vocab key, threshold, permission name, and field type with the real registries before it leaves the route. The founder confirms in the UI, and the apply step saves through the existing admin-gated `PATCH /api/orgs/config`.
-- **Org-type priors.** [lib/org-types.ts](lib/org-types.ts) seeds a sensible preset per org type, so the flow still works (and falls back gracefully) when AI is disabled or the model errors.
 
 ### Weekly digest narration
 [app/api/ai/digest/route.ts](app/api/ai/digest/route.ts)
@@ -225,12 +237,15 @@ figurints/
 │   ├── [slug]/                   # per-org routes (org resolved from the slug segment)
 │   │   ├── layout.tsx            # gates link/membership status, syncs active org
 │   │   ├── page.tsx              # the Operations Dashboard (desktop + mobile)
-│   │   ├── onboarding/           # AI setup interview (post org-creation)
+│   │   ├── onboarding/           # retired — redirects into the live workspace
 │   │   ├── brothers/  chapter/  docs/  events/  instagram/
 │   │   ├── parties/  service/  settings/  timeline/  treasury/
 │   │   └── AccessDenied.tsx · ActiveOrgSync.tsx
+│   ├── create/                   # pre-auth org-creation flow (name→interview→roles→blueprint→build)
+│   │   ├── page.tsx · create-flow.css
+│   │   └── _components/          # CreateFlow + step components, flow-state (useDraft)
 │   ├── api/                      # JSON API routes (thin controllers)
-│   │   ├── ai/                   # chat (SSE), setup-chat (SSE), recommend-setup, digest, summarize-meeting
+│   │   ├── ai/                   # chat (SSE), digest, summarize-meeting
 │   │   ├── metrics/              # custom metric definitions + dashboard snapshot
 │   │   │                         #   (per-member values live under brothers/[id]/metrics)
 │   │   ├── activity/             # activity log (+ /full)
@@ -301,6 +316,7 @@ figurints/
 │   ├── ai.ts                     # OpenAI client + shared narrate() helper
 │   ├── ai-prompt.ts              # buildSystemPrompt
 │   ├── ai-tools.ts               # tool schemas + dispatcher + validateArgs
+│   ├── onboarding/               # /create draft model (draft, kinds, seats, perm-areas)
 │   ├── org-types.ts              # org-type presets + workflow registry (onboarding priors)
 │   ├── metrics.ts                # custom-metric status/headline math (pure)
 │   ├── custom-member-fields.ts   # custom member-field types + helpers (pure)
@@ -319,6 +335,7 @@ figurints/
 ├── prisma/                       # schema, seed, migrations
 ├── supabase/                     # storage bucket + RLS SQL
 ├── tests/tenancy/                # tenancy isolation tests
+├── tests/onboarding/             # /create draft mapping + org provisioning tests
 ├── proxy.ts                      # Next.js middleware (auth gate + org resolution)
 ├── prisma.config.ts              # Prisma 7 datasource for CLI
 └── next.config.ts
@@ -368,6 +385,8 @@ figurints/
 > **Note:** Link status is the DB's truth, resolved by `requireUser()` in the pages/layouts that need it — there is no `brother_linked` cookie. (A legacy `brother_linked` cookie was removed; signout/unlink only *expire* it to clean up sessions carried across that deploy.) The `[slug]` layout gates an authenticated-but-unlinked user into the claim flow.
 
 **Admin workflow:** add a `Brother` row from the Brothers page **before** the person signs in. They claim it themselves on first login by entering their name exactly. Alternatively, share an invite link (**Settings → Invites**) — an `open`-mode link creates a member on redemption, a `claim`-mode link drops the user into the name-match claim flow above.
+
+**Founder workflow:** a brand-new founder starts at `/create` (linked from `/login`). The pre-auth flow builds a full org blueprint *before* any sign-in; Google OAuth happens at the final Build step, the callback returns to `/create?resume=1`, and `POST /api/orgs` provisions the org and makes the founder its first admin member. See [Org Creation](#org-creation).
 
 ---
 
