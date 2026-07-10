@@ -66,13 +66,13 @@ export default function WelcomePage() {
             </p>
 
             <div className="auth-body auth-stack-22">
-              <Link href="/welcome/create?new=1" className="auth-tile feature">
+              <Link href="/create" className="auth-tile feature">
                 <div className="auth-tile-row">
                   <span className="auth-tile-num">＋</span>
                   <div>
                     <div className="auth-tile-title">Create a new organization</div>
                     <div className="auth-tile-desc">
-                      Name your org, pick a type, and become its first admin.
+                      A quick interview builds your blueprint — you review every line before it&rsquo;s created.
                     </div>
                   </div>
                   <span className="auth-tile-arrow" aria-hidden>

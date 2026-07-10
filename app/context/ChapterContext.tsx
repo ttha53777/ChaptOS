@@ -271,10 +271,10 @@ export function ChapterProvider({ children }: { children: React.ReactNode }) {
     setSectionErrors(new Set());
 
     // The org-scoped fan-out below only makes sense inside an org dashboard
-    // (/[slug]/…). On platform/auth routes (/welcome, /welcome/create, /login,
+    // (/[slug]/…). On platform/auth routes (/welcome, /create, /login,
     // /pending-access, …) there's no org slug in the URL, so these reads would
     // resolve to a non-membership org context and 403. A signed-in but
-    // already-onboarded user can legitimately sit on /welcome/create (founding
+    // already-onboarded user can legitimately sit on /create (founding
     // another org), so we skip the section fetches there rather than firing a
     // wall of doomed 403s. The route check only needs the URL, so it happens
     // up front — letting the fan-out start in PARALLEL with /api/auth/me

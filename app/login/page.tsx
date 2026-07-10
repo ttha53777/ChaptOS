@@ -39,17 +39,12 @@ function LoginContent() {
     }
   }
 
-  // "Start a new chapter" — a founder. Sign in first (creating an org needs a
-  // session), then the callback routes the user to /welcome/create via
-  // intent=create.
-  async function handleCreate() {
+  // "Start a new chapter" — a founder. The /create flow is pre-auth: the whole
+  // interview runs signed out and Google sign-in happens at its Build step, so
+  // this is a plain navigation with no OAuth detour.
+  function handleCreate() {
     setCreating(true);
-    setError(null);
-    const err = await signInWithGoogle({ intent: "create" });
-    if (err) {
-      setError(err);
-      setCreating(false);
-    }
+    window.location.assign("/create");
   }
 
   const showError = urlError || error;
@@ -89,7 +84,7 @@ function LoginContent() {
 
               <div className="auth-divider">or</div>
 
-              {/* Create-org tile — signs in first, then routes to /welcome/create. */}
+              {/* Create-org tile — straight into the pre-auth /create flow. */}
               <button
                 type="button"
                 onClick={handleCreate}
@@ -105,7 +100,7 @@ function LoginContent() {
                   <div>
                     <div className="auth-tile-title">Start a new chapter on {APP_NAME}</div>
                     <div className="auth-tile-desc">
-                      {creating ? "Redirecting to Google…" : "Create your organization →"}
+                      {creating ? "Opening the create flow…" : "Create your organization →"}
                     </div>
                   </div>
                   {!creating && (

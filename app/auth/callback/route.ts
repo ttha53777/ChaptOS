@@ -76,10 +76,10 @@ export async function GET(request: NextRequest) {
     // "Start a new chapter": a linked user founding ANOTHER org. A Google
     // account maps to one Brother, but that Brother can own multiple orgs via
     // Membership (provisionOrg reuses the existing Brother). Honor the create
-    // intent instead of bouncing them to an org they already have. ?new=1 tells
-    // /welcome/create to skip its redirect-home guard for this onboarded user.
+    // intent instead of bouncing them to an org they already have. ?resume=1
+    // tells /create to restore the localStorage draft and auto-fire the build.
     if (intent === "create") {
-      return redirectTo(buildUrl(origin, "/welcome/create", null, "new=1"));
+      return redirectTo(buildUrl(origin, "/create", null, "resume=1"));
     }
 
     // Resolve which org to land in, in priority order:
@@ -140,11 +140,11 @@ export async function GET(request: NextRequest) {
     return redirectTo(buildUrl(origin, "/pending-access", orgSlug));
   }
 
-  // Unlinked and no org hint. If they came to create an org, go straight to the
-  // create form (?new=1 for symmetry with the linked path); otherwise drop them
-  // on /welcome to choose between joining an existing org and creating a new one.
+  // Unlinked and no org hint. If they came to create an org, return to the
+  // create flow's build step (?resume=1 restores the saved draft); otherwise
+  // drop them on /welcome to choose between joining and creating.
   if (intent === "create") {
-    return redirectTo(buildUrl(origin, "/welcome/create", null, "new=1"));
+    return redirectTo(buildUrl(origin, "/create", null, "resume=1"));
   }
   return redirectTo(buildUrl(origin, "/welcome", null));
 }

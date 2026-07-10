@@ -23,10 +23,10 @@ export function OrgSwitcher() {
   if (!currentUser || currentUser.memberships.length <= 1) return null;
 
   function onChange(e: React.ChangeEvent<HTMLSelectElement>) {
-    // Sentinel: "found another org" — carry ?new=1 so /welcome/create skips its
-    // redirect-home guard for this already-onboarded user.
+    // Sentinel: "found another org" — the /create flow detects the existing
+    // session at its Build step and skips the Google button.
     if (e.target.value === "__new__") {
-      window.location.assign("/welcome/create?new=1");
+      window.location.assign("/create");
       return;
     }
     const organizationId = Number(e.target.value);

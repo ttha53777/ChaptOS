@@ -168,8 +168,9 @@ table {
 /* ───────────────────────────────────────────────────────────────────────────
    Pre-auth pages — "Dark Editorial" design system
    Scoped under .auth-scope so none of these tokens or component classes touch
-   the dashboard. Used by: /login, /join/[token], /welcome, /welcome/create,
-   /pending-access. Fonts come from next/font (--font-fraunces / --font-geist-*).
+   the dashboard. Used by: /login, /join/[token], /welcome, /pending-access.
+   (The /create flow has its own scope, app/create/create-flow.css.)
+   Fonts come from next/font (--font-fraunces / --font-geist-*).
    Accent = app violet (#A78BFA / #7C3AED). Error = red (#F87171).
    ─────────────────────────────────────────────────────────────────────────── */
 .auth-scope {
@@ -350,16 +351,6 @@ table {
 .auth-scope .auth-tile-arrow { margin-left: auto; color: var(--ink-32); transition: transform var(--ease), color var(--ease); flex: 0 0 auto; }
 .auth-scope .auth-tile:hover .auth-tile-arrow { transform: translateX(3px); color: var(--ink); }
 
-.auth-scope .auth-radios { display: flex; flex-direction: column; }
-.auth-scope .auth-radio { display: flex; align-items: flex-start; gap: 14px; cursor: pointer; padding: 16px 4px; border-bottom: 1px solid var(--line-soft); }
-.auth-scope .auth-radio:first-child { border-top: 1px solid var(--line-soft); }
-.auth-scope .auth-dot { margin-top: 2px; height: 16px; width: 16px; flex: 0 0 auto; border-radius: 999px;
-  border: 1.5px solid var(--ink-32); position: relative; transition: border-color var(--ease); }
-.auth-scope .auth-radio.on .auth-dot { border-color: var(--vio); }
-.auth-scope .auth-radio.on .auth-dot::after { content: ""; position: absolute; inset: 3px; border-radius: 999px; background: var(--vio); }
-.auth-scope .auth-radio .t { font-size: 14px; font-weight: 600; }
-.auth-scope .auth-radio .d { font-size: 12.5px; color: var(--ink-45); margin-top: 2px; line-height: 1.4; }
-
 .auth-scope .auth-alert { display: flex; align-items: center; gap: 11px; border: 1px solid var(--danger-line); border-radius: var(--r);
   background: var(--danger-bg); padding: 12px 16px; font-size: 13.5px; color: var(--danger); margin-bottom: 28px; }
 .auth-scope .auth-alert svg { flex: 0 0 auto; }
@@ -370,15 +361,6 @@ table {
   transition: border-color var(--ease), background var(--ease), color var(--ease); }
 .auth-scope .auth-chip:hover { border-color: var(--vio-line); background: var(--vio-soft); color: var(--vio); }
 .auth-scope .auth-footnote { font-size: 12px; color: var(--ink-45); line-height: 1.55; }
-
-/* Org logo picker (welcome/create) */
-.auth-scope .auth-logo-row { display: flex; align-items: center; gap: 16px; }
-.auth-scope .auth-logo-controls { display: flex; flex-wrap: wrap; gap: 8px; }
-.auth-scope .auth-logo-preview { flex: none; height: 56px; width: 56px; border-radius: 14px;
-  overflow: hidden; display: flex; align-items: center; justify-content: center;
-  border: 1px solid var(--line); background: linear-gradient(135deg, var(--vio-deep), var(--vio));
-  color: #fff; font-size: 15px; font-weight: 700; letter-spacing: .01em; }
-.auth-scope .auth-logo-preview img { height: 100%; width: 100%; object-fit: cover; }
 
 .auth-scope .auth-badmark { height: 48px; width: 48px; border-radius: 12px; background: var(--danger-bg);
   border: 1px solid var(--danger-line); color: var(--danger); display: flex; align-items: center; justify-content: center; margin: 0 auto; }

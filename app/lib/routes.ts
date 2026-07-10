@@ -11,6 +11,7 @@
 export const RESERVED_SEGMENTS = new Set([
   "login",
   "welcome",
+  "create",
   "pending-access",
   "join",
   "auth",

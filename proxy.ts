@@ -86,6 +86,11 @@ export async function proxy(request: NextRequest) {
     // being bounced to /login. Signed-in users still hit app/page.tsx, which
     // routes them into their org. Everything else stays gated.
     if (request.nextUrl.pathname === "/") return response;
+    // /create is the pre-auth org-creation flow: a founder runs the whole
+    // interview signed out and signs in at the Build step. It stays inside the
+    // matcher (unlike /login) so the post-OAuth resume leg still gets a fresh
+    // session cookie from the refresh above.
+    if (request.nextUrl.pathname === "/create") return response;
     return redirectToLogin(request);
   }
 
@@ -119,12 +124,12 @@ function redirectToLogin(request: NextRequest) {
 }
 
 export const config = {
-  // /welcome stays BEHIND the proxy so its session cookie is refreshed (the
-  // browser client reads it on /welcome/create). Authenticated users pass
-  // straight through now that the link-status bounce is gone, so new founders
-  // reach the create flow without a detour. login/auth/join/pending-access
-  // are excluded — they must be reachable while signed out (/join lets an
-  // invited, signed-out user land and trigger OAuth themselves).
+  // /welcome and /create stay BEHIND the proxy so their session cookies are
+  // refreshed (/create's Build step and post-OAuth resume leg read the session
+  // in the browser); /create is then allowed through anonymously in the body.
+  // login/auth/join/pending-access are excluded — they must be reachable while
+  // signed out (/join lets an invited, signed-out user land and trigger OAuth
+  // themselves).
   //
   // /api is INCLUDED (it was previously excluded): the proxy is the central
   // CSRF choke point for mutating API routes. The proxy() body short-circuits

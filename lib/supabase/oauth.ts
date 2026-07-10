@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/client";
  * whatever routing hints we have so /auth/callback can land the user in the
  * right place:
  *   - { next, org }        sign-in: original deep-link path + any org context
- *   - { intent: "create" } new founder → /welcome/create after auth
+ *   - { intent: "create" } founder mid-/create-flow → /create?resume=1 after auth
  * All hints are optional; a bare sign-in works with none of them.
  *
  * Returns null on a clean redirect kickoff, or a user-facing error string.
