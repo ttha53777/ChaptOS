@@ -1,7 +1,7 @@
 /**
  * Boundary test for buildContext({ requireOrgAdmin: true }).
  *
- * Three admin-only routes (orgs/config, orgs/setup-apply, activity POST) gate on
+ * Admin-only routes (orgs/config, activity POST) gate on
  * org-admin status rather than a single permission bit. The gate now lives at the
  * route boundary via this option — mirroring requirePerm — instead of (or in
  * addition to) an in-service check. This asserts the boundary behavior directly:
