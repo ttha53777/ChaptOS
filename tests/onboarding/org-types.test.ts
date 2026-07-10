@@ -12,10 +12,14 @@ describe("org-types: registry", () => {
     expect(ORG_TYPE_IDS).toEqual(expect.arrayContaining(["fraternity", "generic-club", "generic-org"]));
   });
 
-  it("fraternity template enables every workflow", () => {
+  it("fraternity template enables the full chapter set, minus start-light surfaces", () => {
     const t = getOrgType("fraternity");
     expect(t).not.toBeNull();
-    expect(new Set(t!.enabledWorkflows)).toEqual(new Set(ALL_WORKFLOWS));
+    // communications + tasks start OFF (the group chat covers both at first);
+    // everything else a chapter runs on is on from day one.
+    expect(new Set(t!.enabledWorkflows)).toEqual(
+      new Set(ALL_WORKFLOWS.filter(w => w !== "communications" && w !== "tasks")),
+    );
   });
 
   it("generic-org has the most minimal workflow set", () => {

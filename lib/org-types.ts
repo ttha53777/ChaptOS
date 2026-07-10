@@ -12,7 +12,8 @@
  *     OrganizationConfig on provisioning, and seeds the role hierarchy.
  *   - The sidebar/dashboard/route guards (once the workflow registry ships):
  *     filters surfaces by OrganizationConfig.enabledWorkflows.
- *   - The org-type picker UI on /welcome/create: reads label + description.
+ *   - The /create flow: the interview's "kind" answer resolves to a template
+ *     (lib/onboarding/kinds.ts), which seeds the editable blueprint.
  *
  * Workflow ids match the workflow audit from the planning doc. Keep this list
  * in sync with the workflow registry when that lands.
@@ -117,7 +118,19 @@ const FRATERNITY: OrgTypeTemplate = {
   description:
     "Full chapter operations: brothers, meetings, attendance, dues, " +
     "parties, service hours, semesters.",
-  enabledWorkflows: ALL_WORKFLOWS,
+  // Announcements (communications) and tasks start OFF: a chapter's group
+  // chat covers both until exec outgrows it, and they're one toggle away.
+  enabledWorkflows: [
+    "members",
+    "events",
+    "attendance",
+    "finance",
+    "parties",
+    "service",
+    "docs",
+    "meetings",
+    "operations",
+  ],
   // Mirrors the existing SYSTEM_ROLES from lib/seed-roles.ts so an LPE-style
   // org can be provisioned from scratch and look identical to a seeded one.
   // President is rank 100 and ALL_PERMISSIONS — that's what the founder gets.
@@ -182,9 +195,12 @@ const SPORTS_TEAM: OrgTypeTemplate = {
     { name: "Coach",         color: "#3B82F6", rank: 60, permissions: ["MANAGE_EVENTS", "MANAGE_ATTENDANCE", "MANAGE_BROTHERS"] },
     { name: "Team Manager",  color: "#10B981", rank: 50, permissions: ["MANAGE_ANNOUNCEMENTS", "MANAGE_TASKS", "MANAGE_DOCS"] },
   ],
+  // Singular forms only — plurals are derived at render time (lib/vocab.ts).
   vocabularyOverrides: {
     Member:   "Player",
-    Meetings: "Practices",
+    Meetings: "Practice",
+    Event:    "Practice",
+    Period:   "Season",
   },
 };
 
@@ -268,8 +284,11 @@ const PERFORMING_ARTS: OrgTypeTemplate = {
     { name: "Treasurer",       color: "#10B981", rank: 50, permissions: ["MANAGE_TREASURY"] },
     { name: "Publicity",       color: "#EC4899", rank: 50, permissions: ["MANAGE_INSTAGRAM", "MANAGE_ANNOUNCEMENTS"] },
   ],
+  // Singular forms only — plurals are derived at render time (lib/vocab.ts).
   vocabularyOverrides: {
-    Meetings: "Rehearsals",
+    Member:   "Cast member",
+    Meetings: "Rehearsal",
+    Event:    "Rehearsal",
   },
 };
 
