@@ -1,0 +1,232 @@
+/**
+ * Tests for POST/GET /api/ai/interview — the pre-auth interview interpreter.
+ *
+ * validateInterviewResult() is the security-critical seam (same posture as
+ * validateRecommendation): every id/key in the model's raw output must be
+ * intersected with the real registries before it reaches the client. Pure
+ * function, no model. The route itself is tested with interpretInterview
+ * mocked — it's pre-auth, so it can be invoked directly with a NextRequest.
+ */
+
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { NextRequest } from "next/server";
+import { GET, POST, validateInterviewResult } from "@/app/api/ai/interview/route";
+import type { RawInterviewResult } from "@/lib/ai";
+
+vi.mock("@/lib/ai", () => ({
+  aiEnabled: vi.fn(() => true),
+  interpretInterview: vi.fn(async () => null),
+}));
+
+import { aiEnabled, interpretInterview } from "@/lib/ai";
+
+const mockedEnabled = vi.mocked(aiEnabled);
+const mockedInterpret = vi.mocked(interpretInterview);
+
+beforeEach(() => {
+  mockedEnabled.mockReturnValue(true);
+  mockedInterpret.mockResolvedValue(null);
+});
+
+function raw(over: Partial<RawInterviewResult> = {}): RawInterviewResult {
+  return {
+    reply: "Got it.",
+    addWorkflows: [],
+    removeWorkflows: [],
+    vocabulary: {},
+    kind: null,
+    variant: null,
+    customMetrics: [],
+    founderTitle: null,
+    followUpQuestion: null,
+    followUpChips: [],
+    confidence: "high",
+    ...over,
+  };
+}
+
+const INPUT = {
+  answers: { kind: "fraternity" as const },
+  transcript: [{ role: "q" as const, text: "What does it do?" }, { role: "user" as const, text: "stuff" }],
+};
+
+describe("validateInterviewResult", () => {
+  it("drops hallucinated workflow ids and never removes always-on", () => {
+    const out = validateInterviewResult(
+      raw({
+        addWorkflows: ["finance", "blockchain", "finance"],
+        removeWorkflows: ["parties", "operations", "not-real"],
+      }),
+      INPUT,
+    );
+    expect(out.picks.addWorkflows).toEqual(["finance"]);
+    expect(out.picks.removeWorkflows).toEqual(["parties"]);
+  });
+
+  it("keeps only real vocab keys, trimmed and capped at 40 chars", () => {
+    const out = validateInterviewResult(
+      raw({ vocabulary: { Member: `  ${"K".repeat(60)}  `, Bogus: "Nope", Period: "" } }),
+      INPUT,
+    );
+    expect(out.picks.vocab.Member).toBe("K".repeat(40));
+    expect(out.picks.vocab).not.toHaveProperty("Bogus");
+    expect(out.picks.vocab).not.toHaveProperty("Period");
+  });
+
+  it("validates kind against KIND_IDS and variant against the resolved kind", () => {
+    const good = validateInterviewResult(raw({ kind: "fraternity", variant: "professional" }), INPUT);
+    expect(good.picks.kind).toBe("fraternity");
+    expect(good.picks.variant).toBe("professional");
+
+    const badKind = validateInterviewResult(raw({ kind: "cartel", variant: "professional" }), INPUT);
+    expect(badKind.picks.kind).toBeNull();
+    // Falls back to the prior kind (fraternity) — professional is still valid.
+    expect(badKind.picks.variant).toBe("professional");
+
+    // A variant that doesn't belong to the kind is dropped.
+    const crossed = validateInterviewResult(
+      raw({ kind: "team", variant: "professional" }),
+      INPUT,
+    );
+    expect(crossed.picks.variant).toBeNull();
+
+    // No kind anywhere → no variant can validate.
+    const noKind = validateInterviewResult(raw({ variant: "professional" }), {
+      answers: {},
+      transcript: INPUT.transcript,
+    });
+    expect(noKind.picks.variant).toBeNull();
+  });
+
+  it("caps custom metrics at 3, trims names/units, drops empties", () => {
+    const out = validateInterviewResult(
+      raw({
+        customMetrics: [
+          { name: "  Chapter Points  ", unit: "  pts  " },
+          { name: "", unit: "x" },
+          { name: "A", unit: null },
+          { name: "B", unit: "y".repeat(20) },
+          { name: "C", unit: null },
+        ],
+      }),
+      INPUT,
+    );
+    expect(out.picks.customMetrics).toEqual([
+      { name: "Chapter Points", unit: "pts" },
+      { name: "A", unit: null },
+      { name: "B", unit: "y".repeat(10) },
+    ]);
+  });
+
+  it("caps follow-up chips at 4, de-dupes, and drops the follow-up when the transcript is full", () => {
+    const out = validateInterviewResult(
+      raw({ followUpQuestion: "Dues?", followUpChips: ["Yes", "Yes", "No", "Maybe", "Kinda", "Extra"] }),
+      INPUT,
+    );
+    expect(out.followUp).toEqual({ question: "Dues?", chips: ["Yes", "No", "Maybe", "Kinda"] });
+
+    const full = validateInterviewResult(raw({ followUpQuestion: "Dues?", followUpChips: ["Yes"] }), {
+      answers: {},
+      transcript: Array.from({ length: 13 }, (_, i) => ({
+        role: i % 2 ? ("user" as const) : ("q" as const),
+        text: "x",
+      })),
+    });
+    expect(full.followUp).toBeNull();
+  });
+
+  it("caps the reply and founder title lengths", () => {
+    const out = validateInterviewResult(
+      raw({ reply: "r".repeat(500), founderTitle: `  ${"T".repeat(80)}` }),
+      INPUT,
+    );
+    expect(out.reply).toHaveLength(200);
+    expect(out.picks.founderTitle).toHaveLength(60);
+  });
+});
+
+/* ─── Route ──────────────────────────────────────────────────────────────── */
+
+let ipCounter = 0;
+function buildPost(body: unknown, ip?: string): NextRequest {
+  return new NextRequest("http://localhost/api/ai/interview", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-forwarded-for": ip ?? `10.9.${Math.floor(ipCounter / 250)}.${(ipCounter++ % 250) + 1}`,
+    },
+    body: JSON.stringify(body),
+  });
+}
+
+const VALID_BODY = {
+  stage: "activity",
+  orgName: "Kappa Sigma",
+  answers: { kind: "fraternity", variant: "social", enabledWorkflows: ["members"], termModel: null },
+  transcript: [
+    { role: "q", text: "What does the org do?" },
+    { role: "user", text: "we throw events and track dues" },
+  ],
+};
+
+describe("POST /api/ai/interview", () => {
+  it("returns enabled:false without calling the model when AI is off", async () => {
+    mockedEnabled.mockReturnValue(false);
+    const res = await POST(buildPost(VALID_BODY));
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ enabled: false, result: null });
+    expect(mockedInterpret).not.toHaveBeenCalled();
+  });
+
+  it("returns a validated result on a successful interpretation", async () => {
+    mockedInterpret.mockResolvedValue(
+      raw({
+        reply: "No parties then.",
+        removeWorkflows: ["parties", "hallucinated-id"],
+        followUpQuestion: "Do you collect dues?",
+        followUpChips: ["Yes", "No"],
+      }),
+    );
+    const res = await POST(buildPost(VALID_BODY));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.enabled).toBe(true);
+    expect(body.result.picks.removeWorkflows).toEqual(["parties"]);
+    expect(body.result.followUp).toEqual({ question: "Do you collect dues?", chips: ["Yes", "No"] });
+  });
+
+  it("returns result:null (not an error) when the model fails", async () => {
+    mockedInterpret.mockResolvedValue(null);
+    const res = await POST(buildPost(VALID_BODY));
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ enabled: true, result: null });
+  });
+
+  it("400s on junk bodies and over-long transcripts", async () => {
+    expect((await POST(buildPost({ nope: 1 }))).status).toBe(400);
+    const long = {
+      ...VALID_BODY,
+      transcript: Array.from({ length: 15 }, () => ({ role: "user", text: "x" })),
+    };
+    expect((await POST(buildPost(long))).status).toBe(400);
+  });
+
+  it("429s past the per-minute IP limit", async () => {
+    const ip = "10.99.99.99";
+    let status = 200;
+    for (let i = 0; i < 20; i++) {
+      status = (await POST(buildPost(VALID_BODY, ip))).status;
+      if (status === 429) break;
+    }
+    expect(status).toBe(429);
+  });
+});
+
+describe("GET /api/ai/interview", () => {
+  it("probes AI availability", async () => {
+    const res = await GET(new NextRequest("http://localhost/api/ai/interview", {
+      headers: { "x-forwarded-for": "10.42.0.1" },
+    }));
+    expect(await res.json()).toEqual({ enabled: true });
+  });
+});

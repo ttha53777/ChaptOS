@@ -2,49 +2,57 @@
  * Pure-function tests for the /create draft: the localStorage round-trip
  * (parseDraft) and the draft → POST /api/orgs mapping (draftToCreateOrgInput).
  *
- * The headline invariant: for EVERY interview kind, the mapped payload parses
- * under the real createOrgInput schema. This is the regression test for the
- * founder-rank bug (templates store the founder seed at rank 100; the schema
- * caps seeds at 99 — the old flow sent 100 verbatim and 400'd).
+ * The headline invariant: for EVERY interview kind × variant, the mapped
+ * payload parses under the real createOrgInput schema. This is the regression
+ * test for the founder-rank bug (templates store the founder seed at rank 100;
+ * the schema caps seeds at 99 — the old flow sent 100 verbatim and 400'd).
  */
 
 import { describe, expect, it } from "vitest";
 import {
   DRAFT_MAX_AGE_MS,
+  defaultMetrics,
   draftToCreateOrgInput,
   emptyDraft,
   parseDraft,
   type Draft,
 } from "@/lib/onboarding/draft";
-import { KIND_IDS, KIND_TO_TYPE, PAIN_WF, matchKind, matchPain } from "@/lib/onboarding/kinds";
+import { KIND_IDS, KIND_TO_TYPE, KIND_VARIANTS, matchKind, matchVariant } from "@/lib/onboarding/kinds";
+import { matchTermModel } from "@/lib/onboarding/terms";
 import { seatsFromTemplate } from "@/lib/onboarding/seats";
 import { createOrgInput } from "@/lib/validation/org";
 import { getOrgType } from "@/lib/org-types";
 
 /** A completed draft for a kind, as the flow would hold it entering Build. */
-function draftFor(kind: (typeof KIND_IDS)[number]): Draft {
+function draftFor(kind: (typeof KIND_IDS)[number], variant: string | null = null): Draft {
   const template = getOrgType(KIND_TO_TYPE[kind])!;
   return {
     ...emptyDraft(),
     step: "build",
     name: "Kappa Sigma",
     kind,
-    pain: "dues",
+    variant,
     founderName: "Alex Founder",
     interviewDone: true,
-    enabledWorkflows: [...template.enabledWorkflows, PAIN_WF.dues],
+    enabledWorkflows: [...template.enabledWorkflows],
+    termModel: "semester",
+    term: { label: "Fall 2026", startDate: "2026-08-24", endDate: "2026-12-18" },
+    metrics: { ...defaultMetrics(kind), custom: [{ name: "Chapter Points", unit: "pts" }] },
     seats: seatsFromTemplate(KIND_TO_TYPE[kind]),
   };
 }
 
 describe("draftToCreateOrgInput", () => {
-  it("output parses under createOrgInput for every kind (founder-rank regression)", () => {
+  it("output parses under createOrgInput for every kind × variant (founder-rank regression)", () => {
     for (const kind of KIND_IDS) {
-      const result = createOrgInput.safeParse(draftToCreateOrgInput(draftFor(kind)));
-      expect(
-        result.success,
-        `${kind}: ${result.success ? "" : result.error.issues.map(i => `${i.path.join(".")}: ${i.message}`).join("; ")}`,
-      ).toBe(true);
+      const variants = [null, ...(KIND_VARIANTS[kind] ?? []).map(v => v.id)];
+      for (const variant of variants) {
+        const result = createOrgInput.safeParse(draftToCreateOrgInput(draftFor(kind, variant)));
+        expect(
+          result.success,
+          `${kind}/${variant}: ${result.success ? "" : result.error.issues.map(i => `${i.path.join(".")}: ${i.message}`).join("; ")}`,
+        ).toBe(true);
+      }
     }
   });
 
@@ -106,11 +114,37 @@ describe("draftToCreateOrgInput", () => {
     const { blueprint } = draftToCreateOrgInput(draft);
     expect(blueprint!.roleSeeds!.every(r => r.name.length > 0)).toBe(true);
   });
+
+  it("maps the confirmed term into blueprint.term", () => {
+    const { blueprint } = draftToCreateOrgInput(draftFor("fraternity"));
+    expect(blueprint!.term).toEqual({
+      label: "Fall 2026",
+      startDate: "2026-08-24",
+      endDate: "2026-12-18",
+    });
+  });
+
+  it("omits blueprint.term when the interview never confirmed one (skip path)", () => {
+    const draft = { ...draftFor("fraternity"), termModel: null, term: null };
+    const { blueprint } = draftToCreateOrgInput(draft);
+    expect(blueprint!.term).toBeUndefined();
+    // The payload still parses — the term is genuinely optional server-side.
+    expect(createOrgInput.safeParse(draftToCreateOrgInput(draft)).success).toBe(true);
+  });
+
+  it("always sends blueprint.metrics: builtin flags + custom definitions", () => {
+    const { blueprint } = draftToCreateOrgInput(draftFor("team"));
+    // Team kind defaults: attendance only.
+    expect(blueprint!.metrics).toEqual({
+      builtins: { attendance: true, gpa: false, duesOwed: false, serviceHours: false },
+      custom: [{ name: "Chapter Points", unit: "pts" }],
+    });
+  });
 });
 
 describe("parseDraft", () => {
   it("round-trips a serialized draft", () => {
-    const draft = draftFor("fraternity");
+    const draft = draftFor("fraternity", "professional");
     expect(parseDraft(JSON.stringify(draft))).toEqual(draft);
   });
 
@@ -121,12 +155,33 @@ describe("parseDraft", () => {
     expect(parseDraft("not json {")).toBeNull();
     expect(parseDraft(JSON.stringify({ hello: "world" }))).toBeNull();
     // Legacy/foreign version marker.
-    expect(parseDraft(JSON.stringify({ ...draftFor("club"), v: 2 }))).toBeNull();
+    expect(parseDraft(JSON.stringify({ ...draftFor("club"), v: 1 }))).toBeNull();
     // Invalid enum members.
     expect(parseDraft(JSON.stringify({ ...draftFor("club"), kind: "dynasty" }))).toBeNull();
+    expect(parseDraft(JSON.stringify({ ...draftFor("club"), termModel: "epoch" }))).toBeNull();
     expect(
       parseDraft(JSON.stringify({ ...draftFor("club"), enabledWorkflows: ["bitcoin"] })),
     ).toBeNull();
+  });
+
+  it("discards a v1 (pain-era) draft instead of migrating it", () => {
+    // The exact shape the pre-redesign flow persisted — no variant/term/metrics.
+    const v1 = {
+      v: 1,
+      savedAt: Date.now(),
+      step: "build",
+      name: "Kappa Sigma",
+      slug: null,
+      kind: "fraternity",
+      pain: "dues",
+      founderName: "Alex",
+      skipped: false,
+      interviewDone: true,
+      enabledWorkflows: ["members", "finance", "operations"],
+      vocab: {},
+      seats: [],
+    };
+    expect(parseDraft(JSON.stringify(v1))).toBeNull();
   });
 
   it("expires drafts older than the max age", () => {
@@ -142,6 +197,19 @@ describe("parseDraft", () => {
     const good = { ...draftFor("club"), logoDataUrl: "data:image/png;base64,iVBORw0KGgo=" };
     expect(parseDraft(JSON.stringify(good))).not.toBeNull();
   });
+
+  it("rejects invalid term shapes and over-long custom metrics", () => {
+    const badDate = { ...draftFor("club"), term: { label: "Fall", startDate: "soon", endDate: "2026-12-18" } };
+    expect(parseDraft(JSON.stringify(badDate))).toBeNull();
+    const tooMany = {
+      ...draftFor("club"),
+      metrics: {
+        ...defaultMetrics("club"),
+        custom: Array.from({ length: 6 }, (_, i) => ({ name: `M${i}`, unit: null })),
+      },
+    };
+    expect(parseDraft(JSON.stringify(tooMany))).toBeNull();
+  });
 });
 
 describe("interview keyword matchers", () => {
@@ -156,11 +224,25 @@ describe("interview keyword matchers", () => {
     expect(matchKind("a book circle")).toBe("other");
   });
 
-  it("matchPain hits the expected pains and defaults to comms", () => {
-    expect(matchPain("chasing dues")).toBe("dues");
-    expect(matchPain("money stuff")).toBe("dues");
-    expect(matchPain("tracking attendance")).toBe("attendance");
-    expect(matchPain("planning socials")).toBe("events");
-    expect(matchPain("nobody reads the chat")).toBe("comms");
+  it("matchVariant resolves the disambiguation follow-up per kind", () => {
+    expect(matchVariant("fraternity", "we're a pre-med professional frat")).toBe("professional");
+    expect(matchVariant("fraternity", "a service fraternity like APO")).toBe("service");
+    expect(matchVariant("fraternity", "regular social frat")).toBe("social");
+    expect(matchVariant("club", "cultural heritage club")).toBe("cultural");
+    expect(matchVariant("club", "we compete in debate")).toBe("competition");
+    expect(matchVariant("team", "intramural pickup")).toBe("casual");
+    expect(matchVariant("arts", "an a cappella ensemble")).toBe("ensemble");
+    // Unmatched text falls back to the kind's default (first) variant.
+    expect(matchVariant("fraternity", "hmm not sure")).toBe("social");
+    // Kinds without variants return null.
+    expect(matchVariant("honor", "whatever")).toBeNull();
+  });
+
+  it("matchTermModel resolves calendar text and defaults to semester", () => {
+    expect(matchTermModel("we're on the quarter system")).toBe("quarter");
+    expect(matchTermModel("seasons — fall ball and spring")).toBe("season");
+    expect(matchTermModel("we run year-round")).toBe("year-round");
+    expect(matchTermModel("normal semesters")).toBe("semester");
+    expect(matchTermModel("idk")).toBe("semester");
   });
 });

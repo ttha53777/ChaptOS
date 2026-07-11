@@ -77,3 +77,82 @@ describe("createOrgInput: blueprint", () => {
     expect(parsed.blueprint?.roleSeeds?.[0]!.name).toBe("Scribe");
   });
 });
+
+describe("createOrgInput: blueprint.term", () => {
+  const TERM = { label: "Fall 2026", startDate: "2026-08-24", endDate: "2026-12-18" };
+
+  it("accepts a well-formed term", () => {
+    const parsed = createOrgInput.parse({ ...BASE, blueprint: { term: TERM } });
+    expect(parsed.blueprint?.term).toEqual(TERM);
+  });
+
+  it("rejects non-YYYY-MM-DD dates", () => {
+    expect(
+      createOrgInput.safeParse({ ...BASE, blueprint: { term: { ...TERM, startDate: "Aug 24" } } }).success,
+    ).toBe(false);
+  });
+
+  it("rejects an end date before the start date", () => {
+    expect(
+      createOrgInput.safeParse({
+        ...BASE,
+        blueprint: { term: { label: "Backwards", startDate: "2026-12-18", endDate: "2026-08-24" } },
+      }).success,
+    ).toBe(false);
+  });
+
+  it("rejects an empty or over-long label", () => {
+    expect(
+      createOrgInput.safeParse({ ...BASE, blueprint: { term: { ...TERM, label: "  " } } }).success,
+    ).toBe(false);
+    expect(
+      createOrgInput.safeParse({ ...BASE, blueprint: { term: { ...TERM, label: "x".repeat(41) } } }).success,
+    ).toBe(false);
+  });
+});
+
+describe("createOrgInput: blueprint.metrics", () => {
+  const BUILTINS = { attendance: true, gpa: false, duesOwed: true, serviceHours: false };
+
+  it("accepts builtin flags plus custom definitions", () => {
+    const parsed = createOrgInput.parse({
+      ...BASE,
+      blueprint: {
+        metrics: { builtins: BUILTINS, custom: [{ name: "Chapter Points", unit: "pts" }, { name: "Books Read" }] },
+      },
+    });
+    expect(parsed.blueprint?.metrics?.builtins.gpa).toBe(false);
+    expect(parsed.blueprint?.metrics?.custom).toHaveLength(2);
+  });
+
+  it("rejects more than 5 custom metrics", () => {
+    const custom = Array.from({ length: 6 }, (_, i) => ({ name: `Metric ${i}` }));
+    expect(
+      createOrgInput.safeParse({ ...BASE, blueprint: { metrics: { builtins: BUILTINS, custom } } }).success,
+    ).toBe(false);
+  });
+
+  it("rejects an empty metric name and an over-long unit", () => {
+    expect(
+      createOrgInput.safeParse({
+        ...BASE,
+        blueprint: { metrics: { builtins: BUILTINS, custom: [{ name: "  " }] } },
+      }).success,
+    ).toBe(false);
+    expect(
+      createOrgInput.safeParse({
+        ...BASE,
+        blueprint: { metrics: { builtins: BUILTINS, custom: [{ name: "Ok", unit: "x".repeat(11) }] } },
+      }).success,
+    ).toBe(false);
+  });
+
+  it("rejects a metrics block missing a builtin flag", () => {
+    expect(
+      createOrgInput.safeParse({
+        ...BASE,
+        blueprint: { metrics: { builtins: { attendance: true }, custom: [] } },
+      }).success,
+    ).toBe(false);
+  });
+});
