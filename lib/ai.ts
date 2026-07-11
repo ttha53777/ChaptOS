@@ -164,7 +164,6 @@ export interface RawInterviewResult {
   kind: string | null;
   variant: string | null;
   customMetrics: RawInterviewMetric[];
-  founderTitle: string | null;
   followUpQuestion: string | null;
   followUpChips: string[];
   confidence: "high" | "low";
@@ -241,7 +240,6 @@ export async function interpretInterview(
                   required: ["name", "unit"],
                 },
               },
-              founderTitle:     { type: ["string", "null"] },
               followUpQuestion: { type: ["string", "null"] },
               followUpChips:    { type: "array", items: { type: "string" } },
               confidence:       { type: "string", enum: ["high", "low"] },
@@ -253,7 +251,7 @@ export async function interpretInterview(
             },
             required: [
               "reply", "addWorkflows", "removeWorkflows", "vocabulary", "kind", "variant",
-              "customMetrics", "founderTitle", "followUpQuestion", "followUpChips", "confidence",
+              "customMetrics", "followUpQuestion", "followUpChips", "confidence",
               "founderName", "nextQuestion", "nextChips", "done",
             ],
           },
@@ -293,7 +291,6 @@ export async function interpretInterview(
       kind:             nullableString(parsed.kind),
       variant:          nullableString(parsed.variant),
       customMetrics,
-      founderTitle:     nullableString(parsed.founderTitle),
       followUpQuestion: nullableString(parsed.followUpQuestion),
       followUpChips:    strings(parsed.followUpChips),
       confidence:       parsed.confidence === "low" ? "low" : "high",

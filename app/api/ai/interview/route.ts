@@ -16,8 +16,8 @@ import { logError } from "@/lib/observability";
 // transcript cap, and small token budgets in interpretInterview().
 //
 // The model only INTERPRETS: it turns a typed answer into structured picks
-// (workflow add/removes, vocab tweaks, a kind/variant, custom metrics, a
-// founder title) plus at most ONE clarifying follow-up per response. Nothing
+// (workflow add/removes, vocab tweaks, a kind/variant, custom metrics, the
+// founder's name) plus at most ONE clarifying follow-up per response. Nothing
 // here writes anywhere — the client dispatches the picks into the same draft
 // reducer the founder's own taps use, and the blueprint review still stands
 // between the draft and provisioning.
@@ -42,11 +42,11 @@ const MAX_TRANSCRIPT = 24;
 
 /** The still-needed fields the client sends the concierge each turn so it never
     ends early. Advisory hints — the client re-derives + re-guards them too. */
-export const REQUIRED_FIELDS = ["kind", "workflows", "metrics", "founderTitle"] as const;
+export const REQUIRED_FIELDS = ["kind", "workflows", "metrics"] as const;
 export type RequiredField = (typeof REQUIRED_FIELDS)[number];
 
 export const interviewAiInput = z.object({
-  stage:   z.enum(["kind", "activity", "metrics", "founder-title", "concierge"]),
+  stage:   z.enum(["kind", "activity", "metrics", "concierge"]),
   orgName: z.string().trim().max(120),
   // Concierge-only: which required fields are still unresolved (client-derived
   // from the draft). Injected into the prompt as "STILL NEEDED" so the model
@@ -84,7 +84,6 @@ export interface ValidatedInterviewResult {
     kind:            KindId | null;
     variant:         string | null;
     customMetrics:   { name: string; unit: string | null }[];
-    founderTitle:    string | null;
     // Concierge-stage pick (null on legacy stages).
     founderName:     string | null;
   };
@@ -135,8 +134,6 @@ export function validateInterviewResult(
     .filter(m => m.name.length > 0)
     .slice(0, MAX_CUSTOM_METRICS);
 
-  const founderTitle = raw.founderTitle?.trim().slice(0, 60) || null;
-
   // founderName is display-only + overridable by the Google name, so clamp only.
   const founderName = raw.founderName?.trim().slice(0, 120) || null;
 
@@ -156,7 +153,7 @@ export function validateInterviewResult(
 
   return {
     reply: raw.reply.trim().slice(0, 200),
-    picks: { addWorkflows, removeWorkflows, vocab, kind, variant, customMetrics, founderTitle, founderName },
+    picks: { addWorkflows, removeWorkflows, vocab, kind, variant, customMetrics, founderName },
     followUp,
     next,
     done,
@@ -188,10 +185,9 @@ const WORKFLOW_DESCRIPTIONS: Record<WorkflowId, string> = {
 const LEGACY_DEFAULTS = `Always return "done": false, "nextQuestion": null, "nextChips": [], "founderName": null.`;
 
 const STAGE_GOALS: Record<Exclude<InterviewAiInput["stage"], "concierge">, string> = {
-  kind: `GOAL: resolve which KIND of organization this is (set "kind"), and — when the text makes it obvious — its variant too (set "variant"). Leave workflows/vocabulary/customMetrics/founderTitle empty. Ask a follow-up ONLY if the text is genuinely ambiguous between two kinds. ${LEGACY_DEFAULTS}`,
+  kind: `GOAL: resolve which KIND of organization this is (set "kind"), and — when the text makes it obvious — its variant too (set "variant"). Leave workflows/vocabulary/customMetrics empty. Ask a follow-up ONLY if the text is genuinely ambiguous between two kinds. ${LEGACY_DEFAULTS}`,
   activity: `GOAL: settle the org's final page set. Compare what the founder says the org DOES against currently enabled workflows; return "addWorkflows" for pages they need and "removeWorkflows" for enabled pages that don't fit. You may also fix vocabulary via "vocabulary" pairs when the founder's words clearly imply it. This is the stage where clarifying follow-ups matter: each follow-up must target ONE concrete unresolved page decision (Is attendance taken and does it matter? Is money collected — regular dues, event-by-event, or none? Formal meetings with minutes, or none? A recruitment/rush season? A public/social-media presence?). Never ask a generic "tell me more". Never re-ask anything the PRIORS or the transcript already answer. STOP asking (followUpQuestion: null) the moment the page set is confidently resolved — most orgs need 1–3 follow-ups, and a clear answer deserves none. ${LEGACY_DEFAULTS}`,
   metrics: `GOAL: turn the founder's "we also track …" answer into 1–${MAX_CUSTOM_METRICS} custom per-member metrics in "customMetrics" — each a short display name (e.g. "Chapter Points") and an optional short unit (e.g. "pts", "hrs", null for a bare number). Do not duplicate the built-ins (attendance, GPA, dues, service hours). Leave other pick fields empty. Ask a follow-up only if you cannot tell WHAT quantity they mean. ${LEGACY_DEFAULTS}`,
-  "founder-title": `GOAL: extract the founder's own title into "founderTitle" (e.g. "President", "Head Coach", "VP Operations"). Title-case it, keep it under 60 characters, no sentence. Leave every other pick field empty. No follow-ups. ${LEGACY_DEFAULTS}`,
 };
 
 /** The registry blocks both prompt contracts share — the security ground truth
@@ -261,11 +257,13 @@ ${registryBlock(input)}
 STILL NEEDED this conversation (keep going until these are all covered): ${missing}
 When STILL NEEDED is empty, you are DONE gathering — do not re-ask or refine anything already settled. Set "done": true with a brief warm close.
 
+OPEN by inviting the founder to introduce themselves and capture their name into "founderName" from that intro — do NOT save this question for the end. Then move on to the org itself.
+
 TOPICS to cover, lightly and only if relevant — weave them into the conversation, don't recite them:
+  - the founder's own name ("founderName") — captured from their opening introduction
   - what the org actually does → its pages (set addWorkflows/removeWorkflows; fix vocabulary when their words imply it)
   - what they track per member (1–${MAX_CUSTOM_METRICS} "customMetrics", short name + optional unit; never duplicate attendance/GPA/dues/service hours)
   - the org's kind (set "kind", and "variant" when obvious)
-  - the founder's own name ("founderName") and title ("founderTitle")
 
 HOW TO REACT ("reply", ≤25 words, no markdown): open by reflecting what they just told you, in THEIR words — concrete, warm but not gushing. NEVER expose internal machinery: don't name a kind/variant/workflow id, don't say which template or bucket you picked, and never say you'll "treat it as" or "categorize it as" a type (especially not "other"). For an org that fits no preset, just mirror what they said and what it means for their setup.
 

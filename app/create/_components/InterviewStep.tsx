@@ -3,10 +3,11 @@
 /**
  * Step 2 — INTERVIEW. A scripted spine with AI branches.
  *
- * The question skeleton is deterministic (kind → variant → activity → metrics →
- * your name → your title) and every CHIP tap is handled locally with zero AI.
- * (The current term is set later, in the workspace — see SemesterGate.) Free-text
- * answers route through
+ * The question skeleton is deterministic (a warm intro that captures the
+ * founder's name → kind → variant → activity → metrics) and every CHIP tap is
+ * handled locally with zero AI. (The founder's seat title keeps the kind
+ * default, editable on the Roles step; the current term is set later, in the
+ * workspace — see SemesterGate.) Free-text answers route through
  * POST /api/ai/interview when it's configured (probed once on mount): the
  * model interprets the words into structured picks and — on the activity
  * stage — may ask up to MAX_ACTIVITY_FOLLOWUPS specific clarifying questions
@@ -23,7 +24,6 @@ import type { Draft } from "@/lib/onboarding/draft";
 import {
   BUILTIN_METRIC_IDS,
   BUILTIN_METRIC_LABEL,
-  FOUNDER_TITLE_ALTERNATES,
   KIND_VARIANTS,
   VARIANT_QUESTION,
   matchKind,
@@ -42,12 +42,11 @@ import {
 import type { SheetFlash } from "./BlueprintSheet";
 
 type Stage =
+  | "intro"
   | "kind"
   | "variant"
   | "activity"
   | "metrics"
-  | "founderName"
-  | "founderTitle"
   | "done";
 
 type Msg = { id: number; kind: "bot" | "q" | "user"; body: ReactNode };
@@ -67,7 +66,7 @@ const MAX_CONCIERGE_TURNS = 12;
     resume stage when the concierge hands off (mid-conversation fallback or the
     early-exit/loop-cap backstop). First still-missing stage wins. */
 const STAGE_ORDER: Stage[] = [
-  "kind", "variant", "activity", "metrics", "founderName", "founderTitle",
+  "intro", "kind", "variant", "activity", "metrics",
 ];
 
 /** How long the "typing…" indicator shows before an AI reply lands — scaled to
@@ -109,6 +108,35 @@ function titleCase(text: string): string {
     .replace(/\s+/g, " ")
     .slice(0, 60)
     .replace(/\b[a-z]/g, c => c.toUpperCase());
+}
+
+/** Pull a founder's name out of a free-text intro ("hey, I'm Alex — starting a
+    frat" → "Alex"). Deterministic fallback for the scripted path (the concierge
+    extracts founderName via the model). Strips a leading greeting + self-intro
+    lead-in, then keeps the first 1–3 name-ish words before any sentence break.
+    Returns "" when nothing name-like is found, so the caller falls back to the
+    Google name. */
+function extractFounderName(text: string): string {
+  let s = text.trim().replace(/\s+/g, " ");
+  // Drop a leading greeting: "hi", "hey", "hello", "yo", optionally with "there".
+  s = s.replace(/^(hi|hey|hello|yo|hiya|howdy)\b[\s,!.]*(there\b[\s,!.]*)?/i, "");
+  // Drop a self-intro lead-in. Order matters: "my name is" must be tried before
+  // "my name('s)" so the "is" isn't left behind.
+  s = s.replace(/^(i'?m|i am|my name is|my name'?s|this is|it'?s|name'?s|call me)\b[\s,:]*/i, "");
+  // Take the run up to the first sentence break — punctuation that separates
+  // clauses (comma, period, semicolon, spaced dash) or a filler/verb word.
+  // NOTE: a bare hyphen is NOT a break (keeps "Jean-Luc" intact).
+  const head =
+    s.split(/[,.;]|\s[—–-]\s|\b(?:and|but|from|starting|setting|here|founder|president|the)\b/i)[0]?.trim() ?? "";
+  // Keep at most three name-ish words: alphabetic (apostrophes/hyphens allowed),
+  // and drop filler articles/pronouns that aren't names.
+  const STOP = new Set(["the", "a", "an", "im", "and", "of", "my", "our"]);
+  const words = head
+    .split(" ")
+    .filter(Boolean)
+    .filter(w => /^[\p{L}][\p{L}'’-]*$/u.test(w) && !STOP.has(w.toLowerCase()))
+    .slice(0, 3);
+  return titleCase(words.join(" ")).slice(0, 60);
 }
 
 export function InterviewStep({
@@ -176,6 +204,11 @@ export function InterviewStep({
   function ask(stage: Stage) {
     setStage(stage);
     switch (stage) {
+      case "intro": {
+        push("q", <>Hi! I&rsquo;ll help you set up <em>{draftRef.current.name.trim() || "your organization"}</em> in a few minutes. First though — who do I have the pleasure of meeting?</>);
+        setChips([{ label: "I'll use my Google name", pick: () => answerIntro("", "I'll use my Google name") }]);
+        break;
+      }
       case "kind": {
         push("q", <>Tell me about <em>{draftRef.current.name.trim() || "your organization"}</em> — what kind of organization is it?</>);
         setChips([
@@ -209,21 +242,6 @@ export function InterviewStep({
       case "metrics": {
         push("q", <>What should I track for each {vocab("Member").toLowerCase()}? Tap everything you want on the sheet — or type your own.</>);
         setChips(null); // metrics chips render live from the draft, below
-        break;
-      }
-      case "founderName": {
-        push("q", <>Almost done — what should everyone call <b>you</b>?</>);
-        setChips([{ label: "I'll use my Google name", pick: () => answerName("", "I'll use my Google name") }]);
-        break;
-      }
-      case "founderTitle": {
-        const current = draftRef.current.seats.find(s => s.all)?.title ?? "President";
-        const alternates = FOUNDER_TITLE_ALTERNATES[draftRef.current.kind ?? "other"].filter(t => t !== current);
-        push("q", <>And what&rsquo;s your title?</>);
-        setChips([
-          { label: current, pick: () => answerTitle(current, current) },
-          ...alternates.map(t => ({ label: t, pick: () => answerTitle(t, t) })),
-        ]);
         break;
       }
       case "done": {
@@ -357,43 +375,30 @@ export function InterviewStep({
     push("user", "That's the list");
     respond(
       all.length ? (
-        <>Tracking <b>{all.join(", ")}</b> per {vocab("Member").toLowerCase()} — the dashboard shows exactly that, nothing else.</>
+        <>Tracking <b>{all.join(", ")}</b> per {vocab("Member").toLowerCase()} — that&rsquo;s the whole blueprint. Let&rsquo;s set up the rest of your roles.</>
       ) : (
-        <>Nothing tracked per {vocab("Member").toLowerCase()} — the dashboard stays clean. You can add measures in Settings anytime.</>
+        <>Nothing tracked per {vocab("Member").toLowerCase()} — the dashboard stays clean, and you can add measures in Settings anytime. That&rsquo;s the whole blueprint; let&rsquo;s set up your roles.</>
       ),
-      "founderName",
+      "done",
       "metrics",
     );
   }
 
-  function answerName(name: string, label: string) {
+  /** The opener: the founder introduces themselves; we pull their name out of
+      the free text (or fall back to the Google name via the chip) and move on
+      to the org questions. */
+  function answerIntro(rawText: string, label: string) {
     push("user", label);
+    const name = extractFounderName(rawText);
     dispatch({ type: "setFounderName", name });
     const first = name.trim().split(/\s+/)[0];
     respond(
-      first ? <>Nice to meet you, <b>{first}</b>. Last one.</> : <>No problem — we&rsquo;ll use your Google name. Last one.</>,
-      "founderTitle",
-    );
-  }
-
-  async function answerTitle(title: string, label: string, viaText = false) {
-    push("user", label);
-    let resolved = title;
-    if (viaText && aiOn.current) {
-      setChips(null);
-      setTyping(true);
-      const result = await askInterviewAi("founder-title", draftRef.current, [
-        { role: "q", text: "What is your title?" },
-        { role: "user", text: label },
-      ]);
-      setTyping(false);
-      if (result?.picks.founderTitle) resolved = result.picks.founderTitle;
-    }
-    dispatch({ type: "setFounderTitle", title: resolved });
-    respond(
-      <><b>{resolved}</b> of <em>{draftRef.current.name.trim() || "your org"}</em> — it&rsquo;s on the founder seat. Your blueprint is ready; let&rsquo;s set up the rest of your roles.</>,
-      "done",
-      "seats",
+      first ? (
+        <>Great to meet you, <b>{first}</b>! Let&rsquo;s get <em>{draftRef.current.name.trim() || "your org"}</em> set up.</>
+      ) : (
+        <>No problem — I&rsquo;ll use your Google name. Let&rsquo;s get <em>{draftRef.current.name.trim() || "your org"}</em> set up.</>
+      ),
+      "kind",
     );
   }
 
@@ -424,7 +429,6 @@ export function InterviewStep({
       }
     }
     if (p.founderName) dispatch({ type: "setFounderName", name: p.founderName });
-    if (p.founderTitle) dispatch({ type: "setFounderTitle", title: p.founderTitle });
 
     // Flash the sheet sections that changed (kind/variant reshuffle seats).
     if (p.kind || p.variant) onFlash("seats");
@@ -437,11 +441,13 @@ export function InterviewStep({
       machine should pick up when the concierge hands off. */
   function resumeStage(): Stage {
     const missing = new Set<string>(missingFields(draftRef.current));
-    // Map field ids → the scripted stage that collects them.
-    if (missing.has("kind")) return "kind";
-    // kind settled → the only thing the scripted spine still owes is the
-    // founder's name + title (metrics are optional and already offered in chat).
-    return "founderName";
+    // kind is the only hard gate. If it's missing, resume from the intro — that
+    // beat captures the founder's name and then flows into the kind question.
+    if (missing.has("kind")) return "intro";
+    // kind settled → nothing is strictly owed (name falls back to the Google
+    // name, metrics/roles are optional). Land on metrics so the founder gets one
+    // last look at per-member tracking before the blueprint.
+    return "metrics";
   }
 
   /** Hand the rest of the interview to the scripted machine. Used by the
@@ -531,7 +537,9 @@ export function InterviewStep({
 
   async function onFreeText(text: string) {
     const s = stageRef.current;
-    if (s === "kind") {
+    if (s === "intro") {
+      answerIntro(text, text);
+    } else if (s === "kind") {
       if (aiOn.current) {
         push("user", text);
         setChips(null);
@@ -566,10 +574,6 @@ export function InterviewStep({
       void answerActivity(text);
     } else if (s === "metrics") {
       void answerMetricText(text);
-    } else if (s === "founderName") {
-      answerName(text, text);
-    } else if (s === "founderTitle") {
-      void answerTitle(titleCase(text), text, true);
     }
   }
 
@@ -586,27 +590,28 @@ export function InterviewStep({
       setShowCta(true);
       return;
     }
-    setStage("kind");
+    setStage("intro");
     setChips(null);
     setShowCta(false);
     setMessages([{ id: nextId.current++, kind: "bot", body: <>A few quick questions. Everything you say goes onto the blueprint on the right — you&rsquo;ll review the whole sheet before anything is built.</> }]);
 
     // Await the probe so we can branch the very first question: an AI-led
     // concierge opener when configured, else the deterministic scripted spine
-    // (identical to before). The concierge's opening turn seeds its transcript
-    // with an internal system beat and lets the model phrase question #1 itself.
+    // (starting with the intro). The concierge's opening turn seeds its
+    // transcript with an internal system beat and lets the model phrase
+    // question #1 itself.
     let cancelled = false;
     void probeInterviewAi().then(enabled => {
       if (cancelled) return;
       aiOn.current = enabled;
       if (enabled) {
         setMode("ai");
-        convoTranscript.current = [{ role: "q", text: "Greet the founder warmly and ask your first question to get the setup going." }];
+        convoTranscript.current = [{ role: "q", text: "Warmly greet the founder and invite them to introduce themselves (capture their name into founderName), then get the setup going." }];
         convoTurns.current = 0;
         void runConcierge(null);
       } else {
         setMode("scripted");
-        later(() => ask("kind"), 900);
+        later(() => ask("intro"), 900);
       }
     });
     return () => { cancelled = true; };
@@ -623,10 +628,10 @@ export function InterviewStep({
       ? "One moment…"
       : mode === "ai"
         ? "Answer in your own words…"
-        : stage === "metrics"
-          ? 'Type another measure — e.g. "chapter points"…'
-          : stage === "founderTitle"
-            ? "Type your title…"
+        : stage === "intro"
+          ? "Introduce yourself — just your name is plenty…"
+          : stage === "metrics"
+            ? 'Type another measure — e.g. "chapter points"…'
             : stage === "activity"
               ? "Describe it in your own words — a sentence or two…"
               : "Type your own answer…";

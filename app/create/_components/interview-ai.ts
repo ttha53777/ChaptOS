@@ -16,11 +16,11 @@ import type { WorkflowId } from "@/lib/org-types";
 import type { VocabKey } from "@/lib/vocab";
 import type { KindId } from "@/lib/onboarding/kinds";
 
-export type InterviewAiStage = "kind" | "activity" | "metrics" | "founder-title" | "concierge";
+export type InterviewAiStage = "kind" | "activity" | "metrics" | "concierge";
 
 /** The required fields the concierge is sent each turn (mirrors REQUIRED_FIELDS
     in the route). metrics/founderName aren't gated — see missingFields(). */
-export type RequiredField = "kind" | "workflows" | "metrics" | "founderTitle";
+export type RequiredField = "kind" | "workflows" | "metrics";
 
 export interface InterviewAiTurn {
   role: "q" | "user";
@@ -37,7 +37,6 @@ export interface InterviewAiResult {
     kind: KindId | null;
     variant: string | null;
     customMetrics: { name: string; unit: string | null }[];
-    founderTitle: string | null;
     founderName: string | null;
   };
   followUp: { question: string; chips: string[] } | null;
@@ -52,11 +51,12 @@ export interface InterviewAiResult {
  * client-side before honoring the model's "done" (a guard against early exit).
  *
  * kind is the only hard gate (null in the draft = still missing). workflows /
- * metrics / founderTitle are inherently satisfiable-by-default (workflows are
- * non-empty from the moment a kind is set; metrics + the founder title always
- * have a sensible default), so they are TOPICS the concierge raises once, never
- * gates — we never block completion on them here. The current term is no longer
- * collected in the interview at all — a fresh org sets it in the workspace via
+ * metrics are inherently satisfiable-by-default (workflows are non-empty from
+ * the moment a kind is set; metrics always have a sensible default), so they are
+ * TOPICS the concierge raises once, never gates — we never block completion on
+ * them here. The founder's seat title is no longer asked at all (it keeps the
+ * kind default, editable on the Roles step); the current term is no longer
+ * collected in the interview either — a fresh org sets it in the workspace via
  * SemesterGate.
  */
 export function missingFields(draft: Draft): RequiredField[] {

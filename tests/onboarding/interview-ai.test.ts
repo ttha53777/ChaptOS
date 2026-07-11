@@ -37,7 +37,6 @@ function raw(over: Partial<RawInterviewResult> = {}): RawInterviewResult {
     kind: null,
     variant: null,
     customMetrics: [],
-    founderTitle: null,
     followUpQuestion: null,
     followUpChips: [],
     confidence: "high",
@@ -140,24 +139,20 @@ describe("validateInterviewResult", () => {
     expect(full.followUp).toBeNull();
   });
 
-  it("caps the reply and founder title lengths", () => {
-    const out = validateInterviewResult(
-      raw({ reply: "r".repeat(500), founderTitle: `  ${"T".repeat(80)}` }),
-      INPUT,
-    );
+  it("caps the reply length", () => {
+    const out = validateInterviewResult(raw({ reply: "r".repeat(500) }), INPUT);
     expect(out.reply).toHaveLength(200);
-    expect(out.picks.founderTitle).toHaveLength(60);
   });
 });
 
 describe("validateInterviewResult — concierge fields", () => {
   it("clamps founderName and maps the concierge next-question + done", () => {
     const out = validateInterviewResult(
-      raw({ founderName: `  ${"N".repeat(140)}`, nextQuestion: "How does your year reset?", nextChips: ["Semesters", "Semesters", "Year-round"], done: false }),
+      raw({ founderName: `  ${"N".repeat(140)}`, nextQuestion: "What do you track per member?", nextChips: ["Points", "Points", "Hours"], done: false }),
       INPUT,
     );
     expect(out.picks.founderName).toHaveLength(120);
-    expect(out.next).toEqual({ question: "How does your year reset?", chips: ["Semesters", "Year-round"] });
+    expect(out.next).toEqual({ question: "What do you track per member?", chips: ["Points", "Hours"] });
     expect(out.done).toBe(false);
   });
 

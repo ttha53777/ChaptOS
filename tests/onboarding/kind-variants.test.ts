@@ -147,17 +147,6 @@ describe("flowReducer: metrics + founder title", () => {
     expect(next.vocab.Member).toBe("Knight");
   });
 
-  it("setFounderTitle renames only the founder seat", () => {
-    const base = flowReducer(emptyDraft(), { type: "setKind", kind: "fraternity" });
-    const next = flowReducer(base, { type: "setFounderTitle", title: "VP Operations" });
-    expect(next.seats.find(s => s.all)!.title).toBe("VP Operations");
-    expect(next.seats.filter(s => !s.all)).toEqual(base.seats.filter(s => !s.all));
-    // Blank titles are ignored (the seat must keep a valid name).
-    expect(flowReducer(next, { type: "setFounderTitle", title: "  " }).seats.find(s => s.all)!.title).toBe(
-      "VP Operations",
-    );
-  });
-
   it("addCustomMetric trims, caps at 5, and rejects empties", () => {
     let draft = flowReducer(emptyDraft(), { type: "setKind", kind: "club" });
     draft = flowReducer(draft, { type: "addCustomMetric", name: "  Points  ", unit: "  pts " });

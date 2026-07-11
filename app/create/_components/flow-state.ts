@@ -48,7 +48,6 @@ export type FlowAction =
   | { type: "setKind"; kind: KindId }
   | { type: "setVariant"; variant: string }
   | { type: "setFounderName"; name: string }
-  | { type: "setFounderTitle"; title: string }
   | { type: "setBuiltinMetric"; metric: BuiltinMetricId; on: boolean }
   | { type: "addCustomMetric"; name: string; unit: string | null }
   | { type: "removeCustomMetric"; index: number }
@@ -143,11 +142,6 @@ export function flowReducer(draft: Draft, action: FlowAction): Draft {
       return applyVariant(draft, action.variant);
     case "setFounderName":
       return { ...draft, founderName: action.name };
-    case "setFounderTitle":
-      return {
-        ...draft,
-        seats: draft.seats.map(s => (s.all ? { ...s, title: action.title.trim().slice(0, 60) || s.title } : s)),
-      };
     case "setBuiltinMetric":
       return { ...draft, metrics: { ...draft.metrics, [action.metric]: action.on } };
     case "addCustomMetric": {
