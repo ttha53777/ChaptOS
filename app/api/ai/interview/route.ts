@@ -193,7 +193,7 @@ ${vocabList}
 
 ${STAGE_GOALS[input.stage]}
 
-REPLY: "reply" is the one short conversational sentence the founder sees (max ~25 words, warm, concrete about what you just changed or understood — e.g. "No parties then — I'll lead with pro-dev events and dues."). No markdown.
+REPLY: "reply" is the one short conversational sentence the founder sees (max ~25 words, warm, concrete about what you just changed or understood — e.g. "No parties then — I'll lead with pro-dev events and dues."). No markdown. Speak in the founder's own words for their org; NEVER expose the internal machinery — don't name a kind/variant/workflow id, don't say which bucket or template you picked, and never say you'll "treat it as" or "categorize it as" a type (especially not "other"). When an org doesn't fit a preset, just reflect what THEY said and describe what it means for their setup — e.g. for "homeowner group" say "A homeowners' group — I'll keep the words plain and start you with only the pages you turn on." not "I'll treat it as an 'other' org type."
 
 FOLLOW-UPS: at most ONE per response, via "followUpQuestion" (a single short question) plus 2–${MAX_CHIPS} "followUpChips" (short tap-answers covering the likely cases). When you don't need one, followUpQuestion is null and followUpChips is [].
 

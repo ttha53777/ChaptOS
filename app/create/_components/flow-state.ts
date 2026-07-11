@@ -57,7 +57,6 @@ export type FlowAction =
   | { type: "removeCustomMetric"; index: number }
   | { type: "applyAiPicks"; picks: AiPicks }
   | { type: "interviewDone" }
-  | { type: "skipInterview" }
   | { type: "goto"; step: CreateStep }
   | { type: "setSlug"; slug: string | null }
   | { type: "toggleWorkflow"; workflow: WorkflowId }
@@ -195,8 +194,6 @@ export function flowReducer(draft: Draft, action: FlowAction): Draft {
     }
     case "interviewDone":
       return { ...draft, interviewDone: true, skipped: false };
-    case "skipInterview":
-      return { ...ensureKind({ ...draft, kind: draft.kind ?? null }), skipped: true, step: "roles" };
     case "goto": {
       const next = action.step === "name" || action.step === "interview" ? draft : ensureKind(draft);
       return { ...next, step: action.step };

@@ -107,7 +107,6 @@ export function CreateFlow() {
                 dispatch={dispatch}
                 onFlash={onFlash}
                 onDone={() => goto("roles")}
-                onSkip={() => dispatch({ type: "skipInterview" })}
               />
               <div className="sheet-slot">
                 <BlueprintSheet draft={draft} flash={flash} />

@@ -112,21 +112,20 @@ export function InterviewStep({
   dispatch,
   onFlash,
   onDone,
-  onSkip,
 }: {
   draft: Draft;
   dispatch: React.Dispatch<FlowAction>;
   onFlash: (section: NonNullable<SheetFlash>["section"]) => void;
   onDone: () => void;
-  onSkip: () => void;
 }) {
   const [messages, setMessages] = useState<Msg[]>([]);
   const [typing, setTyping] = useState(false);
   const [chips, setChips] = useState<Chip[] | null>(null);
   const [stage, setStage] = useState<Stage>("kind");
   const [showCta, setShowCta] = useState(false);
+  const [draftText, setDraftText] = useState("");
   const chatRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const nextId = useRef(0);
 
@@ -511,12 +510,39 @@ export function InterviewStep({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const placeholder =
-    stage === "metrics"
-      ? 'Type another measure — e.g. "chapter points"…'
-      : stage === "founderTitle"
-        ? "Type your title…"
-        : "Type your own answer…";
+  // The composer disables while a message is in flight (typing) or the
+  // interview is over — otherwise a keystroke would be silently swallowed.
+  const composerBusy = typing;
+  const composerDone = stage === "done";
+  const placeholder = composerDone
+    ? "That's everything — your blueprint is on the right."
+    : composerBusy
+      ? "One moment…"
+      : stage === "metrics"
+        ? 'Type another measure — e.g. "chapter points"…'
+        : stage === "founderTitle"
+          ? "Type your title…"
+          : stage === "activity"
+            ? "Describe it in your own words — a sentence or two…"
+            : "Type your own answer…";
+
+  // A short hint that free-text is genuinely read, not just a fallback box.
+  const composerHint =
+    composerDone || composerBusy
+      ? null
+      : stage === "activity"
+        ? aiOn.current
+          ? "I'll read this and adjust the sheet"
+          : "Or tap an option above"
+        : "Prefer to tap? Use the options above";
+
+  function submitDraft() {
+    const value = draftText.trim();
+    if (!value || composerBusy || composerDone) return;
+    setDraftText("");
+    if (inputRef.current) inputRef.current.style.height = "auto";
+    void onFreeText(value);
+  }
 
   return (
     <div className="chat-col">
@@ -587,22 +613,44 @@ export function InterviewStep({
         )}
       </div>
       <div className="chat-foot">
-        <input
-          ref={inputRef}
-          className="free"
-          placeholder={placeholder}
-          disabled={stage === "done"}
-          onKeyDown={e => {
-            const value = e.currentTarget.value.trim();
-            if (e.key !== "Enter" || !value || typing || stageRef.current === "done") return;
-            e.currentTarget.value = "";
-            void onFreeText(value);
-          }}
-          aria-label="Type your own answer"
-        />
-        <button className="ghost-link" onClick={onSkip}>
-          Skip — pick a template instead
-        </button>
+        <div className={`composer${composerBusy ? " busy" : ""}${composerDone ? " done" : ""}`}>
+          <textarea
+            ref={inputRef}
+            className="free"
+            rows={1}
+            value={draftText}
+            placeholder={placeholder}
+            disabled={composerDone}
+            onChange={e => {
+              setDraftText(e.target.value);
+              // Auto-grow: reset then track content, capped so the chat stays
+              // the focus. The cap matches the max-height in CSS.
+              const el = e.target;
+              el.style.height = "auto";
+              el.style.height = `${Math.min(el.scrollHeight, 128)}px`;
+            }}
+            onKeyDown={e => {
+              // Enter sends; Shift+Enter (or a busy/done composer) inserts a
+              // newline / does nothing — never eats the keystroke silently.
+              if (e.key !== "Enter" || e.shiftKey) return;
+              e.preventDefault();
+              submitDraft();
+            }}
+            aria-label="Type your own answer"
+          />
+          <button
+            type="button"
+            className="send"
+            onClick={submitDraft}
+            disabled={composerBusy || composerDone || !draftText.trim()}
+            aria-label="Send"
+          >
+            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+              <path d="M4 12h13M11 6l6 6-6 6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
+        </div>
+        {composerHint && <p className="composer-hint">{composerHint}</p>}
       </div>
     </div>
   );

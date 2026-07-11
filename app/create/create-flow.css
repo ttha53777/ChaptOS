@@ -137,22 +137,19 @@
 .crf .split--name[data-named="0"] .idrow { justify-content: center; margin-top: 36px; }
 .crf .split--name[data-named="0"] .idnote { max-width: 340px; text-align: left; }
 .crf .split--name[data-named="0"] .cta { margin-left: auto; margin-right: auto; }
-.crf .split--name[data-named="0"] .fine { text-align: center; }
 
-/* Empty hero holds only the question + input. The mark row, Continue, and the
-   fine print stay hidden until the shift to the left begins, then fade + rise
-   in on the same reveal timing. Kept in flow (no display:none) so their reveal
-   can animate; collapsed to zero height so they claim no space while centered. */
+/* Empty hero holds only the question + input. The mark row and Continue stay
+   hidden until the shift to the left begins, then fade + rise in on the same
+   reveal timing. Kept in flow (no display:none) so their reveal can animate;
+   collapsed to zero height so they claim no space while centered. */
 .crf .split--name .idrow,
-.crf .split--name .cta,
-.crf .split--name .fine {
+.crf .split--name .cta {
   transition:
     opacity calc(var(--reveal-dur) * .7) var(--reveal-ease) calc(var(--reveal-dur) * .3),
     transform calc(var(--reveal-dur) * .7) var(--reveal-ease) calc(var(--reveal-dur) * .3);
 }
 .crf .split--name[data-named="0"] .idrow,
-.crf .split--name[data-named="0"] .cta,
-.crf .split--name[data-named="0"] .fine {
+.crf .split--name[data-named="0"] .cta {
   opacity: 0;
   transform: translateY(10px);
   pointer-events: none;
@@ -343,14 +340,39 @@
   transition: all 200ms var(--ease); background: rgba(236,231,221,.02);
 }
 .crf .chip:hover { border-color: var(--vio-line); color: var(--ink); background: var(--vio-soft); transform: translateY(-1px); }
-.crf .chat-foot { flex: none; display: flex; align-items: center; gap: 14px; padding-top: 14px; border-top: 1px solid var(--line-soft); }
+/* The composer sits with the chips as one answer zone — no dividing border,
+   just breathing room. It's a framed card so free-text reads as a first-class
+   way to answer, not an afterthought stapled below the conversation. */
+.crf .chat-foot { flex: none; display: flex; flex-direction: column; gap: 7px; padding-top: 16px; }
+.crf .composer {
+  display: flex; align-items: flex-end; gap: 8px;
+  background: var(--paper-2); border: 1px solid var(--line); border-radius: 18px;
+  padding: 7px 7px 7px 16px;
+  transition: border-color 200ms var(--ease), box-shadow 200ms var(--ease), opacity 200ms var(--ease);
+}
+.crf .composer:focus-within { border-color: var(--vio-line); box-shadow: 0 0 0 3px var(--vio-soft); }
+.crf .composer.busy { opacity: .6; }
+.crf .composer.done { opacity: .45; }
 .crf .free {
-  flex: 1; background: transparent; border: 1px solid var(--line); border-radius: 999px;
-  color: var(--ink); padding: 10px 18px; font-size: 13.5px; outline: none;
-  transition: border-color 200ms var(--ease);
+  flex: 1; min-width: 0; resize: none; background: transparent; border: 0;
+  color: var(--ink); padding: 8px 0; font-size: 14.5px; line-height: 1.5;
+  font-family: inherit; outline: none; max-height: 128px; overflow-y: auto;
+  scrollbar-width: thin;
 }
 .crf .free::placeholder { color: var(--ink-28); }
-.crf .free:focus { border-color: var(--vio-line); }
+.crf .free:disabled { cursor: not-allowed; }
+.crf .composer .send {
+  flex: none; height: 34px; width: 34px; border-radius: 11px;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--ink); color: var(--paper);
+  transition: transform 160ms var(--ease), background 200ms var(--ease), opacity 200ms var(--ease);
+}
+.crf .composer .send:hover:not(:disabled) { transform: translateY(-1px); background: var(--vio); }
+.crf .composer .send:disabled { background: var(--paper-3); color: var(--ink-28); cursor: not-allowed; }
+.crf .composer-hint {
+  padding: 0 4px; font-size: 12px; color: var(--ink-40);
+  animation: crf-msg-in 320ms var(--ease) both;
+}
 .crf .ghost-link { font-size: 12.5px; color: var(--ink-40); white-space: nowrap; text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--line); transition: color 200ms; }
 .crf .ghost-link:hover { color: var(--ink-72); }
 .crf .chat-cta { align-self: flex-start; margin-left: 38px; }
@@ -677,16 +699,6 @@
 .crf .rail button:hover:not(:disabled) { color: var(--ink); }
 .crf .rail button.on { background: var(--ink); color: var(--paper); }
 .crf .rail button:disabled { opacity: .4; cursor: default; }
-.crf .rail-cap {
-  position: fixed; left: 50%; bottom: 66px; transform: translateX(-50%); z-index: 60;
-  font-family: var(--serif); font-style: italic; font-size: 13px; color: var(--ink-40);
-  pointer-events: none; text-align: center; width: max-content; max-width: 80vw;
-  padding: 4px 14px; border-radius: 999px;
-  background: rgba(10, 9, 7, .55); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
-  transition: opacity 300ms;
-}
-.crf .rail-cap b { color: var(--ink-72); }
-
 /* ═══ Interview: multi-select metric chips ═══ */
 .crf .chip.sel {
   border-color: var(--vio-line); color: var(--ink); background: var(--vio-soft);

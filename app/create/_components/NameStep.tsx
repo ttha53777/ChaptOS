@@ -104,7 +104,6 @@ export function NameStep({
       <button className="cta" onClick={onContinue} disabled={!named}>
         Continue<span>→</span>
       </button>
-      <p className="fine">Fifteen seconds in, the blueprint on the right has your name on it.</p>
     </div>
   );
 }
