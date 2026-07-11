@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { MAX_SLUG_LEN, MIN_SLUG_LEN } from "@/lib/slug-rules";
+import { DATE_RE } from "@/lib/dates";
 import { ORG_TYPE_IDS, ALL_WORKFLOWS, type WorkflowId } from "@/lib/org-types";
 import { PERMISSIONS, type Permission } from "@/lib/permissions";
 import { featureExists } from "@/lib/workflow-features";
@@ -37,9 +38,11 @@ const roleSeedInput = z.object({
 // (or an absent field within it) falls back to the org-type template, so the bare
 // 4-field create and the recovery/already-linked path keep working unchanged.
 //
-// Deliberately NARROWER than updateOrgConfigInput — creation only sets the three
-// things the interview produces (workflows, vocab, roles). Thresholds, custom
-// fields, nav order, disabled features stay post-creation Settings concerns.
+// Deliberately NARROWER than updateOrgConfigInput — creation only sets what the
+// interview produces (workflows, vocab, roles, the first term, per-member
+// metrics). Thresholds, custom fields, and nav order stay post-creation
+// Settings concerns; disabledFeatures is derived from metrics.builtins rather
+// than accepted raw.
 const blueprintInput = z.object({
   enabledWorkflows: z
     .array(workflowIdSchema)
@@ -49,6 +52,38 @@ const blueprintInput = z.object({
     .record(z.string(), z.string().trim().max(40, "Label must be 40 characters or fewer"))
     .optional(),
   roleSeeds: z.array(roleSeedInput).max(16, "Too many roles").optional(),
+  // The interview's "which term are we in right now?" answer — becomes the
+  // org's first ACTIVE Semester row, so day one already has a period to book
+  // attendance and dues against.
+  term: z
+    .object({
+      label:     z.string().trim().min(1, "Term label is required").max(40, "Term label must be at most 40 characters"),
+      startDate: z.string().regex(DATE_RE, "Start date must be YYYY-MM-DD"),
+      endDate:   z.string().regex(DATE_RE, "End date must be YYYY-MM-DD"),
+    })
+    .refine(t => t.startDate <= t.endDate, { message: "End date must be on or after the start date" })
+    .optional(),
+  // The interview's "what do you track per member?" answer. builtins toggles
+  // map to the operations KPI widgets (off → disabledFeatures); custom entries
+  // are seeded as OrgMetricDefinition rows with tunable defaults.
+  metrics: z
+    .object({
+      builtins: z.object({
+        attendance:   z.boolean(),
+        gpa:          z.boolean(),
+        duesOwed:     z.boolean(),
+        serviceHours: z.boolean(),
+      }),
+      custom: z
+        .array(
+          z.object({
+            name: z.string().trim().min(1, "Metric name is required").max(40, "Metric name must be at most 40 characters"),
+            unit: z.string().trim().max(10, "Unit must be at most 10 characters").nullable().optional(),
+          }),
+        )
+        .max(5, "Too many custom metrics"),
+    })
+    .optional(),
 });
 
 export type BlueprintInput = z.infer<typeof blueprintInput>;

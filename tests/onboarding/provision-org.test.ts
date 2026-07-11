@@ -373,3 +373,95 @@ describe("provisionOrg → org discoverable by Join lookup", () => {
     expect(found?.name).toBe("Lookup Test");
   });
 });
+
+describe("provisionOrg: blueprint.term → first active Semester", () => {
+  const TERM = { label: "Fall 2026", startDate: "2026-08-24", endDate: "2026-12-18" };
+
+  it("creates the confirmed term as the org's active semester", async () => {
+    const out = await provisionOrg(
+      { ...VALID, slug: "with-term", blueprint: { term: TERM } },
+      "u-term",
+      null,
+    );
+    const semesters = await testPrisma.semester.findMany({
+      where: { organizationId: out.organizationId },
+    });
+    expect(semesters).toHaveLength(1);
+    expect(semesters[0]!).toMatchObject({ ...TERM, isActive: true });
+  });
+
+  it("creates no semester when the blueprint has no term (skip path regression)", async () => {
+    const out = await provisionOrg({ ...VALID, slug: "no-term" }, "u-no-term", null);
+    const count = await testPrisma.semester.count({ where: { organizationId: out.organizationId } });
+    expect(count).toBe(0);
+  });
+});
+
+describe("provisionOrg: blueprint.metrics", () => {
+  const BUILTINS_ALL = { attendance: true, gpa: true, duesOwed: true, serviceHours: true };
+
+  it("seeds custom OrgMetricDefinition rows with generated slugs and stable order", async () => {
+    const out = await provisionOrg(
+      {
+        ...VALID,
+        slug: "with-metrics",
+        blueprint: {
+          metrics: {
+            builtins: BUILTINS_ALL,
+            custom: [
+              { name: "Chapter Points", unit: "pts" },
+              { name: "Chapter Points", unit: null }, // duplicate name → de-duped slug
+              { name: "Books Read" },
+            ],
+          },
+        },
+      },
+      "u-metrics",
+      null,
+    );
+    const defs = await testPrisma.orgMetricDefinition.findMany({
+      where: { organizationId: out.organizationId },
+      orderBy: { displayOrder: "asc" },
+    });
+    expect(defs.map(d => d.slug)).toEqual(["chapter-points", "chapter-points-2", "books-read"]);
+    expect(defs.map(d => d.name)).toEqual(["Chapter Points", "Chapter Points", "Books Read"]);
+    expect(defs[0]!.unit).toBe("pts");
+    expect(defs[2]!.unit).toBeNull();
+    expect(defs.map(d => d.displayOrder)).toEqual([0, 1, 2]);
+    // Threshold invariant the Settings validator enforces: atRiskBelow <= goal.
+    for (const d of defs) expect(d.atRiskBelow).toBeLessThanOrEqual(d.goal);
+  });
+
+  it("hides the KPI widgets for un-tracked builtins via disabledFeatures", async () => {
+    const out = await provisionOrg(
+      {
+        ...VALID,
+        slug: "hidden-kpis",
+        blueprint: {
+          metrics: {
+            builtins: { attendance: true, gpa: false, duesOwed: true, serviceHours: false },
+            custom: [],
+          },
+        },
+      },
+      "u-kpis",
+      null,
+    );
+    const cfg = await testPrisma.organizationConfig.findUnique({
+      where: { organizationId: out.organizationId },
+    });
+    expect(cfg!.disabledFeatures).toEqual({ operations: ["kpi-gpa", "kpi-service"] });
+  });
+
+  it("leaves disabledFeatures empty and seeds nothing when metrics are absent (regression)", async () => {
+    const out = await provisionOrg({ ...VALID, slug: "no-metrics" }, "u-no-metrics", null);
+    const cfg = await testPrisma.organizationConfig.findUnique({
+      where: { organizationId: out.organizationId },
+    });
+    expect(cfg!.disabledFeatures).toEqual({});
+    const count = await testPrisma.orgMetricDefinition.count({
+      where: { organizationId: out.organizationId },
+    });
+    expect(count).toBe(0);
+  });
+});

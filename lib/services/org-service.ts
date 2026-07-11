@@ -32,6 +32,7 @@ import { logError } from "@/lib/observability";
 import { emit } from "@/lib/events";
 import { validateSlugFormat } from "@/lib/slug-rules";
 import { getOrgType, normalizeWorkflows, type RoleSeed } from "@/lib/org-types";
+import { normalizeDisabledFeatures, type DisabledFeatures } from "@/lib/workflow-features";
 import { sanitizeVocabOverrides } from "@/lib/vocab";
 import { PERMISSIONS, ALL_PERMISSIONS, type Permission } from "@/lib/permissions";
 import { uploadOrgLogoObject, removeOrgLogoObject } from "@/lib/supabase/org-logo";
@@ -51,6 +52,67 @@ const FOUNDER_RANK = 100;
 interface SeededRole {
   seed:     RoleSeed;
   isSystem: boolean;
+}
+
+/** A custom per-member metric to seed, slug already generated + de-duped. */
+interface SeededMetric {
+  slug: string;
+  name: string;
+  unit: string | null;
+}
+
+/**
+ * Built-in metric toggle → the operations KPI widget it shows. An un-tracked
+ * built-in hides its widget via OrganizationConfig.disabledFeatures (opt-out
+ * map). kpi-treasury deliberately absent: it follows the finance workflow,
+ * not a per-member metric.
+ */
+const BUILTIN_METRIC_KPI = {
+  attendance:   "kpi-attendance",
+  gpa:          "kpi-gpa",
+  duesOwed:     "kpi-dues",
+  serviceHours: "kpi-service",
+} as const;
+
+/**
+ * Kebab-slug a metric name the same shape lib/validation/metrics.ts SLUG_RE
+ * accepts, de-duped against slugs already taken in this org's seed batch.
+ */
+function metricSlug(name: string, used: Set<string>): string {
+  const base =
+    name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 46).replace(/-+$/, "") ||
+    "metric";
+  let slug = base;
+  for (let n = 2; used.has(slug); n++) slug = `${base}-${n}`;
+  used.add(slug);
+  return slug;
+}
+
+/**
+ * Resolve the interview's per-member metrics answer: which built-in KPI widgets
+ * to hide, and which custom OrgMetricDefinition rows to seed. Pure — no DB.
+ * An absent metrics block means "track everything, define nothing", i.e. the
+ * pre-redesign behavior for minimal clients and the skip path.
+ */
+function resolveMetrics(metrics: NonNullable<CreateOrgInput["blueprint"]>["metrics"]): {
+  disabledFeatures: DisabledFeatures;
+  customMetrics: SeededMetric[];
+} {
+  if (!metrics) return { disabledFeatures: {}, customMetrics: [] };
+
+  const hidden = (Object.keys(BUILTIN_METRIC_KPI) as (keyof typeof BUILTIN_METRIC_KPI)[])
+    .filter(id => !metrics.builtins[id])
+    .map(id => BUILTIN_METRIC_KPI[id]);
+  const disabledFeatures = normalizeDisabledFeatures(hidden.length ? { operations: hidden } : {});
+
+  const used = new Set<string>();
+  const customMetrics = metrics.custom.map(m => ({
+    slug: metricSlug(m.name, used),
+    name: m.name,
+    unit: m.unit ?? null,
+  }));
+
+  return { disabledFeatures, customMetrics };
 }
 
 /**
@@ -126,6 +188,8 @@ function resolveBlueprint(
  *   1. Insert Organization row (orgType + createdAt + createdByBrotherId set
  *      in a second update once the founder Brother id is known).
  *   2. Insert OrganizationConfig row from the template.
+ *      2b. Insert the first ACTIVE Semester when the blueprint carries a term.
+ *      2c. Seed custom OrgMetricDefinition rows from the metrics answer.
  *   3. Insert Brother for the founder with authUserId set.
  *   4. Backfill Organization.createdByBrotherId now that we have the id.
  *   5. Insert Membership(isOrgAdmin=true).
@@ -180,6 +244,7 @@ export async function provisionOrg(
   // Brother.role string) and step 6 (the BrotherRole link) agree on its name even
   // when the founder renamed it in the blueprint.
   const resolved = resolveBlueprint(template, founderRoleSpec, input.blueprint);
+  const metrics = resolveMetrics(input.blueprint?.metrics);
   const founderRole = resolved.roles.find(r => r.seed.all);
   if (!founderRole) {
     // Impossible: resolveBlueprint always emits exactly one all-perms role.
@@ -205,14 +270,56 @@ export async function provisionOrg(
       // onboardingCompletedAt is stamped NOW: setup happens pre-creation in the
       // interview/blueprint flow, so the founder should land straight in the
       // workspace and never be bounced into the (retired) post-create wizard.
+      // disabledFeatures hides the KPI widgets for built-in metrics the founder
+      // said they don't track (opt-out map, same shape the config PATCH writes).
       await tx.organizationConfig.create({
         data: {
           organizationId:      org.id,
           enabledWorkflows:    resolved.enabledWorkflows,
           vocabularyOverrides: resolved.vocabularyOverrides as Prisma.InputJsonValue,
+          ...(Object.keys(metrics.disabledFeatures).length > 0
+            ? { disabledFeatures: metrics.disabledFeatures as Prisma.InputJsonValue }
+            : {}),
           onboardingCompletedAt: new Date(),
         },
       });
+
+      // 2b. The first term. Created ACTIVE (it's the only semester in a fresh
+      // org, so no deactivate pass is needed — mirrors createSemester's active
+      // semantics) so requireActiveSemester passes on day one. An absent term
+      // (skip path, minimal client) keeps today's behavior: no semester until
+      // the founder makes one in Settings.
+      if (input.blueprint?.term) {
+        await tx.semester.create({
+          data: {
+            organizationId: org.id,
+            label:          input.blueprint.term.label,
+            startDate:      input.blueprint.term.startDate,
+            endDate:        input.blueprint.term.endDate,
+            isActive:       true,
+          },
+        });
+      }
+
+      // 2c. Custom per-member metrics from the interview ("chapter points").
+      // Goal/threshold defaults are deliberately bland — the interview only
+      // collects name + unit; the founder tunes goals in Settings → Metrics
+      // (atRiskBelow: 0 <= goal keeps validateThresholds' invariant).
+      for (const [i, m] of metrics.customMetrics.entries()) {
+        await tx.orgMetricDefinition.create({
+          data: {
+            organizationId: org.id,
+            slug:           m.slug,
+            name:           m.name,
+            unit:           m.unit,
+            goal:           10,
+            atRiskBelow:    0,
+            watchBelow:     null,
+            aggregation:    "sum",
+            displayOrder:   i,
+          },
+        });
+      }
 
       // 3. Founder Brother. For a brand-new account we create the Brother row;
       // for an already-linked account founding an additional org we REUSE their
@@ -315,6 +422,8 @@ export async function provisionOrg(
             // Whether the founder customized setup pre-creation vs took the
             // template defaults — useful when auditing the new atomic flow.
             blueprint:   !!input.blueprint,
+            termSeeded:    !!input.blueprint?.term,
+            customMetrics: metrics.customMetrics.length,
           },
         },
       });
