@@ -11,26 +11,51 @@ import { useEffect, useReducer, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   DRAFT_STORAGE_KEY,
+  LEGACY_DRAFT_STORAGE_KEY,
+  defaultMetrics,
   emptyDraft,
   parseDraft,
   type CreateStep,
   type Draft,
 } from "@/lib/onboarding/draft";
-import { KIND_TO_TYPE, KIND_VOCAB_DELTA, PAIN_WF, type KindId, type PainId } from "@/lib/onboarding/kinds";
+import {
+  BUILTIN_METRIC_DEFAULTS,
+  KIND_TO_TYPE,
+  KIND_VOCAB_DELTA,
+  getVariant,
+  type BuiltinMetricId,
+  type KindId,
+} from "@/lib/onboarding/kinds";
+import { TERM_PERIOD_VOCAB, type TermModel } from "@/lib/onboarding/terms";
 import { seatsFromTemplate, type Seat } from "@/lib/onboarding/seats";
 import { PERM_AREAS, togglePerm, toggleArea } from "@/lib/onboarding/perm-areas";
-import { getOrgType, type WorkflowId } from "@/lib/org-types";
+import { ALWAYS_ON_WORKFLOWS, getOrgType, type WorkflowId } from "@/lib/org-types";
 import type { Permission } from "@/lib/permissions";
 import { resolveLabel, type VocabKey } from "@/lib/vocab";
 import { ROOT_DOMAIN } from "@/lib/domains";
+
+/** The structured picks an AI interpretation may apply — nothing the founder
+    couldn't also do by hand (workflow toggles + vocab chips). */
+export interface AiPicks {
+  addWorkflows: WorkflowId[];
+  removeWorkflows: WorkflowId[];
+  vocab: Partial<Record<VocabKey, string>>;
+}
 
 export type FlowAction =
   | { type: "hydrate"; draft: Draft }
   | { type: "setName"; name: string }
   | { type: "setLogo"; dataUrl: string | undefined }
   | { type: "setKind"; kind: KindId }
-  | { type: "setPain"; pain: PainId }
+  | { type: "setVariant"; variant: string }
   | { type: "setFounderName"; name: string }
+  | { type: "setFounderTitle"; title: string }
+  | { type: "setTermModel"; model: TermModel }
+  | { type: "setTerm"; term: { label: string; startDate: string; endDate: string } | null }
+  | { type: "setBuiltinMetric"; metric: BuiltinMetricId; on: boolean }
+  | { type: "addCustomMetric"; name: string; unit: string | null }
+  | { type: "removeCustomMetric"; index: number }
+  | { type: "applyAiPicks"; picks: AiPicks }
   | { type: "interviewDone" }
   | { type: "skipInterview" }
   | { type: "goto"; step: CreateStep }
@@ -42,16 +67,54 @@ export type FlowAction =
   | { type: "toggleSeatPerm"; index: number; perm: Permission }
   | { type: "addSeat"; seat: Seat };
 
-/** Template-backed defaults for a kind (workflows honor an already-given pain). */
-function kindDefaults(draft: Draft, kind: KindId): Pick<Draft, "kind" | "enabledWorkflows" | "seats" | "vocab"> {
+/** Template-backed defaults for a kind. Resets variant and metric flags too —
+    a new kind answer means the old activity profile no longer applies. */
+function kindDefaults(
+  draft: Draft,
+  kind: KindId,
+): Pick<Draft, "kind" | "variant" | "enabledWorkflows" | "seats" | "vocab" | "metrics"> {
   const template = getOrgType(KIND_TO_TYPE[kind])!;
-  const workflows = new Set<WorkflowId>(template.enabledWorkflows);
-  if (draft.pain) workflows.add(PAIN_WF[draft.pain]);
   return {
     kind,
-    enabledWorkflows: [...workflows],
+    variant: null,
+    enabledWorkflows: [...template.enabledWorkflows],
     seats: seatsFromTemplate(KIND_TO_TYPE[kind]),
     vocab: {},
+    metrics: { ...BUILTIN_METRIC_DEFAULTS[kind], custom: draft.metrics.custom },
+  };
+}
+
+/**
+ * Recompute the draft for a variant pick: base template first, then the
+ * modifier's deltas. Always derived from the base (never incremental) so
+ * re-picking a variant — or picking a different one — resets cleanly instead
+ * of stacking deltas. Runs at S2, before any AI/manual workflow edits, so the
+ * recompute can't clobber later customization.
+ */
+function applyVariant(draft: Draft, variantId: string): Draft {
+  if (!draft.kind) return draft;
+  const base = kindDefaults(draft, draft.kind);
+  const mod = getVariant(draft.kind, variantId);
+  if (!mod) return { ...draft, ...base };
+
+  const workflows = new Set<WorkflowId>(base.enabledWorkflows);
+  for (const w of mod.addWorkflows ?? []) workflows.add(w);
+  for (const w of mod.removeWorkflows ?? []) workflows.delete(w);
+
+  const removed = new Set(mod.seatRemove ?? []);
+  const seats: Seat[] = base.seats.filter(s => s.all || !removed.has(s.title));
+  for (const add of mod.seatAdd ?? []) {
+    seats.push({ title: add.title, color: add.color, permissions: [...add.permissions] });
+  }
+
+  return {
+    ...draft,
+    ...base,
+    variant: variantId,
+    enabledWorkflows: [...workflows],
+    seats,
+    vocab: { ...base.vocab, ...mod.vocabDelta },
+    metrics: { ...base.metrics, ...mod.metricDefaults },
   };
 }
 
@@ -80,13 +143,56 @@ export function flowReducer(draft: Draft, action: FlowAction): Draft {
       return { ...draft, logoDataUrl: action.dataUrl };
     case "setKind":
       return { ...draft, ...kindDefaults(draft, action.kind), skipped: false };
-    case "setPain": {
-      const workflows = new Set(draft.enabledWorkflows);
-      workflows.add(PAIN_WF[action.pain]);
-      return { ...draft, pain: action.pain, enabledWorkflows: [...workflows] };
-    }
+    case "setVariant":
+      return applyVariant(draft, action.variant);
     case "setFounderName":
       return { ...draft, founderName: action.name };
+    case "setFounderTitle":
+      return {
+        ...draft,
+        seats: draft.seats.map(s => (s.all ? { ...s, title: action.title.trim().slice(0, 60) || s.title } : s)),
+      };
+    case "setTermModel": {
+      // The founder's direct answer to "how does your calendar reset?" wins
+      // over any template Period override. Changing the model invalidates a
+      // previously picked term (its dates belong to the old shape).
+      const vocab = { ...draft.vocab, Period: TERM_PERIOD_VOCAB[action.model] };
+      return {
+        ...draft,
+        termModel: action.model,
+        vocab,
+        term: draft.termModel === action.model ? draft.term : null,
+      };
+    }
+    case "setTerm":
+      return { ...draft, term: action.term };
+    case "setBuiltinMetric":
+      return { ...draft, metrics: { ...draft.metrics, [action.metric]: action.on } };
+    case "addCustomMetric": {
+      const name = action.name.trim().slice(0, 40);
+      // Cap matches the draft schema (and the API's) so write-through and the
+      // eventual payload can never carry more than provisioning accepts.
+      if (!name || draft.metrics.custom.length >= 5) return draft;
+      const unit = action.unit?.trim().slice(0, 10) || null;
+      return { ...draft, metrics: { ...draft.metrics, custom: [...draft.metrics.custom, { name, unit }] } };
+    }
+    case "removeCustomMetric":
+      return {
+        ...draft,
+        metrics: { ...draft.metrics, custom: draft.metrics.custom.filter((_, i) => i !== action.index) },
+      };
+    case "applyAiPicks": {
+      const workflows = new Set(draft.enabledWorkflows);
+      for (const w of action.picks.addWorkflows) workflows.add(w);
+      for (const w of action.picks.removeWorkflows) {
+        if (!ALWAYS_ON_WORKFLOWS.includes(w)) workflows.delete(w);
+      }
+      const vocab = { ...draft.vocab };
+      for (const [k, v] of Object.entries(action.picks.vocab)) {
+        if (v) vocab[k] = v.trim().slice(0, 40);
+      }
+      return { ...draft, enabledWorkflows: [...workflows], vocab };
+    }
     case "interviewDone":
       return { ...draft, interviewDone: true, skipped: false };
     case "skipInterview":
@@ -148,6 +254,9 @@ export function useDraft(): [Draft, React.Dispatch<FlowAction>, boolean] {
     if (restored.current) return;
     restored.current = true;
     try {
+      // A pre-redesign v1 draft can never parse under the v2 schema — drop the
+      // old key on sight so it doesn't linger in storage forever.
+      window.localStorage.removeItem(LEGACY_DRAFT_STORAGE_KEY);
       if (!isResume) {
         // Fresh visit: never resume a leftover draft — clear it so the write-
         // through effect below can't re-persist the stale one either.

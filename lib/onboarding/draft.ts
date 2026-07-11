@@ -7,6 +7,8 @@
  * browser, so parseDraft() Zod-validates it (and expires it after
  * DRAFT_MAX_AGE_MS) rather than assuming our own writes are intact. A draft
  * that fails to parse is discarded — the founder restarts, never crashes.
+ * That discard IS the version-migration story: v1 drafts (the pain-question
+ * era) fail the z.literal(2) check and simply restart the two-minute flow.
  *
  * draftToCreateOrgInput() is the single mapping from draft to the real
  * POST /api/orgs payload. tests/onboarding/create-draft.test.ts asserts its
@@ -19,11 +21,16 @@ import { ALL_WORKFLOWS, normalizeWorkflows, type WorkflowId } from "@/lib/org-ty
 import { PERMISSIONS, type Permission } from "@/lib/permissions";
 import { sanitizeVocabOverrides } from "@/lib/vocab";
 import { suggestSlug } from "@/lib/slug-rules";
+import { DATE_RE } from "@/lib/dates";
 import type { CreateOrgInput } from "@/lib/validation/org";
-import { KIND_IDS, KIND_TO_TYPE, KIND_VOCAB_DELTA, PAIN_IDS } from "./kinds";
+import { BUILTIN_METRIC_DEFAULTS, KIND_IDS, KIND_TO_TYPE, KIND_VOCAB_DELTA, type KindId } from "./kinds";
+import { TERM_MODELS } from "./terms";
 import type { Seat } from "./seats";
 
-export const DRAFT_STORAGE_KEY = "figurints:create-draft:v1";
+export const DRAFT_STORAGE_KEY = "figurints:create-draft:v2";
+
+/** The v1 key — removed on sight so pre-redesign leftovers don't linger. */
+export const LEGACY_DRAFT_STORAGE_KEY = "figurints:create-draft:v1";
 
 /** Drafts older than this are discarded on restore (stale slug checks, stale mind). */
 export const DRAFT_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
@@ -44,42 +51,78 @@ const seatSchema = z.object({
 });
 
 export const draftSchema = z.object({
-  v:       z.literal(1),
+  v:       z.literal(2),
   savedAt: z.number().int().positive(),
   step:    z.enum(CREATE_STEPS),
   name:    z.string().max(120),
   /** Explicit URL override from the blueprint's slug editor; null → derive from name. */
   slug:    z.string().max(40).nullable(),
   kind:    z.enum(KIND_IDS).nullable(),
-  pain:    z.enum(PAIN_IDS).nullable(),
+  /** Activity-profile variant id (KIND_VARIANTS); null → kind default / not asked. */
+  variant: z.string().max(30).nullable(),
   founderName:   z.string().max(120),
   skipped:       z.boolean(),
   interviewDone: z.boolean(),
   enabledWorkflows: z.array(z.enum(ALL_WORKFLOWS as [WorkflowId, ...WorkflowId[]])).max(ALL_WORKFLOWS.length),
-  /** Sparse vocab edits from the blueprint's "Your words" chips (singular only).
-      Permissive keys, like blueprintInput — unknown keys are dropped when
-      mapping (sanitizeVocabOverrides), and again server-side by provisionOrg. */
+  /** Sparse vocab edits from the interview + blueprint's "Your words" chips
+      (singular only). Permissive keys, like blueprintInput — unknown keys are
+      dropped when mapping (sanitizeVocabOverrides), and again server-side. */
   vocab: z.record(z.string(), z.string().trim().min(1).max(40)),
+  /** "How does your calendar reset?" — null until asked / when skipped. */
+  termModel: z.enum(TERM_MODELS).nullable(),
+  /** The current term the founder confirmed; becomes the first active Semester. */
+  term: z
+    .object({
+      label:     z.string().trim().min(1).max(40),
+      startDate: z.string().regex(DATE_RE),
+      endDate:   z.string().regex(DATE_RE),
+    })
+    .nullable(),
+  /** Per-member tracking: built-in toggles + custom metric definitions. */
+  metrics: z.object({
+    attendance:   z.boolean(),
+    gpa:          z.boolean(),
+    duesOwed:     z.boolean(),
+    serviceHours: z.boolean(),
+    custom: z
+      .array(
+        z.object({
+          name: z.string().trim().min(1).max(40),
+          unit: z.string().trim().max(10).nullable(),
+        }),
+      )
+      .max(5),
+  }),
   seats: z.array(seatSchema).max(16),
   logoDataUrl: z.string().startsWith("data:image/").max(MAX_LOGO_DATA_URL_CHARS).optional(),
 });
 
 export type Draft = z.infer<typeof draftSchema>;
+export type DraftMetrics = Draft["metrics"];
+
+/** The four built-in flags for a kind, as a fresh metrics object (custom empty). */
+export function defaultMetrics(kind: KindId | null): DraftMetrics {
+  const flags = BUILTIN_METRIC_DEFAULTS[kind ?? "other"];
+  return { ...flags, custom: [] };
+}
 
 export function emptyDraft(): Draft {
   return {
-    v: 1,
+    v: 2,
     savedAt: Date.now(),
     step: "name",
     name: "",
     slug: null,
     kind: null,
-    pain: null,
+    variant: null,
     founderName: "",
     skipped: false,
     interviewDone: false,
     enabledWorkflows: [],
     vocab: {},
+    termModel: null,
+    term: null,
+    metrics: defaultMetrics(null),
     seats: [],
   };
 }
@@ -151,6 +194,18 @@ export function draftToCreateOrgInput(draft: Draft, fallbackFounderName?: string
       enabledWorkflows: normalizeWorkflows(draft.enabledWorkflows),
       vocabularyOverrides,
       roleSeeds,
+      // Only send a term the founder actually confirmed — absent means "no
+      // active period yet", exactly like the skip-interview path today.
+      ...(draft.term ? { term: draft.term } : {}),
+      metrics: {
+        builtins: {
+          attendance:   draft.metrics.attendance,
+          gpa:          draft.metrics.gpa,
+          duesOwed:     draft.metrics.duesOwed,
+          serviceHours: draft.metrics.serviceHours,
+        },
+        custom: draft.metrics.custom.map(m => ({ name: m.name, unit: m.unit })),
+      },
     },
   };
 }

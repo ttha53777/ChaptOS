@@ -18,7 +18,7 @@ const RAIL: { step: CreateStep; n: string; label: string }[] = [
 
 const CAPS: Record<CreateStep, React.ReactNode> = {
   name: "Fifteen seconds in, the blueprint has your name on it.",
-  interview: "Three questions. The sheet assembles as you answer — honestly a plan, not a fake app.",
+  interview: "A few quick questions. The sheet assembles as you answer — honestly a plan, not a fake app.",
   roles: "You own the roles — one glance to see them, one tap to change them.",
   blueprint: "The whole plan on one sheet — a last look before we build exactly this.",
   build: "Auth at the last responsible moment, then the real provisioning steps run.",
