@@ -20,6 +20,11 @@ import { todayISO } from "@/lib/dates";
 export const TERM_MODELS = ["semester", "quarter", "season", "year-round"] as const;
 export type TermModel = (typeof TERM_MODELS)[number];
 
+/** Narrow an untrusted string to a TermModel (mirrors isKindId in kinds.ts). */
+export function isTermModel(value: string): value is TermModel {
+  return (TERM_MODELS as readonly string[]).includes(value);
+}
+
 export const TERM_MODEL_LABEL: Record<TermModel, string> = {
   semester:     "Semesters",
   quarter:      "Quarters",
