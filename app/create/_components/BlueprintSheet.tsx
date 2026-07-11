@@ -3,18 +3,20 @@
 /**
  * The live blueprint sheet — the right-hand pane that assembles as the founder
  * names the org and answers the interview. Sections: head, Pages, Your words,
- * Leadership. (The mock's Meeting/Term sections were cut with the cadence/term
- * questions.) `flash` briefly highlights the section that just changed.
+ * This term, Tracking, Leadership. `flash` briefly highlights the section that
+ * just changed.
  */
 
 import type { Draft } from "@/lib/onboarding/draft";
-import { PAIN_WF } from "@/lib/onboarding/kinds";
+import { BUILTIN_METRIC_IDS, BUILTIN_METRIC_LABEL } from "@/lib/onboarding/kinds";
 import { DISPLAY_HOST, draftSlug, draftVocab, wfSet } from "./flow-state";
 import { OrgMark } from "./OrgMark";
 
-export type SheetFlash = { section: "pages" | "words" | "seats" | "name"; key: number } | null;
+export type SheetFlash =
+  | { section: "pages" | "words" | "seats" | "name" | "term" | "metrics"; key: number }
+  | null;
 
-function pageChips(draft: Draft): { k: string; l: string; locked?: boolean; lead?: boolean }[] {
+function pageChips(draft: Draft): { k: string; l: string; locked?: boolean }[] {
   const w = wfSet(draft);
   const v = (key: Parameters<typeof draftVocab>[1], plural = false) => draftVocab(draft, key, plural);
   const pages: { k: string; l: string; locked?: boolean }[] = [
@@ -33,8 +35,14 @@ function pageChips(draft: Draft): { k: string; l: string; locked?: boolean; lead
     if (w.has("communications")) pages.push({ k: "communications", l: "Announcements" });
     if (w.has("tasks")) pages.push({ k: "tasks", l: "Tasks" });
   }
-  const lead = draft.pain ? PAIN_WF[draft.pain] : null;
-  return pages.map(p => ({ ...p, lead: !p.locked && p.k === lead }));
+  return pages;
+}
+
+/** "Aug 24 – Dec 18" from the draft's YYYY-MM-DD term dates. */
+function termRange(term: NonNullable<Draft["term"]>): string {
+  const f = (d: string) =>
+    new Date(`${d}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  return `${f(term.startDate)} – ${f(term.endDate)}`;
 }
 
 function Sec({
@@ -84,11 +92,7 @@ export function BlueprintSheet({ draft, flash }: { draft: Draft; flash: SheetFla
           <Sec title="Pages" flash={isFlash("pages")} key={`pages-${flash?.key ?? 0}`}>
             <div className="pg-chips">
               {pageChips(draft).map((p, i) => (
-                <span
-                  key={p.l}
-                  className={`pg${p.lead ? " lead" : ""}`}
-                  style={{ animationDelay: `${i * 45}ms` }}
-                >
+                <span key={p.l} className="pg" style={{ animationDelay: `${i * 45}ms` }}>
                   <span className="dot" />
                   {p.l}
                 </span>
@@ -114,6 +118,51 @@ export function BlueprintSheet({ draft, flash }: { draft: Draft; flash: SheetFla
         ) : (
           <Sec title="Your words" pending>
             <span className="pend">the words you already use — I&rsquo;ll match them</span>
+          </Sec>
+        )}
+
+        {draft.termModel ? (
+          <Sec title="This term" flash={isFlash("term")} key={`term-${flash?.key ?? 0}`}>
+            <div className="sheet-line">
+              <span className="dot" />
+              <span>
+                {draft.term ? (
+                  <>
+                    <b>{draft.term.label}</b> · {termRange(draft.term)}
+                  </>
+                ) : (
+                  <>{draftVocab(draft, "Period", true)} — dates on the blueprint</>
+                )}
+              </span>
+            </div>
+          </Sec>
+        ) : (
+          draft.kind && (
+            <Sec title="This term" pending>
+              <span className="pend">how your calendar resets — coming up</span>
+            </Sec>
+          )
+        )}
+
+        {draft.kind && (
+          <Sec title="Tracking" flash={isFlash("metrics")} key={`metrics-${flash?.key ?? 0}`}>
+            <div className="pg-chips">
+              {BUILTIN_METRIC_IDS.filter(id => draft.metrics[id]).map(id => (
+                <span key={id} className="pg">
+                  <span className="dot" />
+                  {BUILTIN_METRIC_LABEL[id]}
+                </span>
+              ))}
+              {draft.metrics.custom.map((m, i) => (
+                <span key={`${m.name}-${i}`} className="pg">
+                  <span className="dot" />
+                  {m.name}
+                </span>
+              ))}
+              {!BUILTIN_METRIC_IDS.some(id => draft.metrics[id]) && draft.metrics.custom.length === 0 && (
+                <span className="pend">nothing tracked per {draftVocab(draft, "Member").toLowerCase()}</span>
+              )}
+            </div>
           </Sec>
         )}
 

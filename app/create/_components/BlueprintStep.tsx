@@ -4,13 +4,26 @@
  * Step 4 — BLUEPRINT. The full-screen review sheet: editable chapter URL with
  * a live slug check, workflow toggle rows with a "why it's here" rationale
  * (plus the locked Core row), the three high-signal vocab words with derived
- * plurals, and the Leadership seat list. The mock's "This term" card was cut
- * with the term question.
+ * plurals, the "This term" card (term model + editable dates), the "Tracking"
+ * card (built-in metric toggles + custom metrics), and the Leadership seat
+ * list.
  */
 
 import { useEffect, useRef, useState } from "react";
 import type { Draft } from "@/lib/onboarding/draft";
-import { KIND_LABEL } from "@/lib/onboarding/kinds";
+import {
+  BUILTIN_METRIC_IDS,
+  BUILTIN_METRIC_LABEL,
+  KIND_LABEL,
+  getVariant,
+  type BuiltinMetricId,
+} from "@/lib/onboarding/kinds";
+import {
+  TERM_MODELS,
+  TERM_MODEL_LABEL,
+  suggestTerms,
+  type TermModel,
+} from "@/lib/onboarding/terms";
 import { roleSummary } from "@/lib/onboarding/perm-areas";
 import type { WorkflowId } from "@/lib/org-types";
 import type { VocabKey } from "@/lib/vocab";
@@ -145,10 +158,16 @@ export function SlugEditor({
 
 /* ─── Workflow rows ──────────────────────────────────────────────────────── */
 
-/** Toggle rows with their "why it's here" rationale (cadence/term variants cut). */
+/** Toggle rows with their "why it's here" rationale, citing the founder's
+    variant answer where it drove the default. */
 function wfRows(draft: Draft): { key: WorkflowId; name: string; why: React.ReactNode }[] {
   const v = (key: VocabKey, plural = false) => draftVocab(draft, key, plural);
+  const variant = getVariant(draft.kind, draft.variant);
+  const variantWord = variant?.label.toLowerCase() ?? null;
   const isTeam = draft.kind === "team";
+  const partiesOff = !!variant?.removeWorkflows?.includes("parties");
+  const financeOff = !!variant?.removeWorkflows?.includes("finance");
+  const attendanceOff = !!variant?.removeWorkflows?.includes("attendance");
   return [
     {
       key: "meetings",
@@ -160,48 +179,45 @@ function wfRows(draft: Draft): { key: WorkflowId; name: string; why: React.React
     {
       key: "members",
       name: v("Member", true),
-      why: `your roster — ${v("Member").toLowerCase()} profiles, attendance, and dues, all in one place.`,
+      why: `your roster — ${v("Member").toLowerCase()} profiles and everything tracked per person.`,
     },
     {
       key: "finance",
       name: `${v("Dues")} & Treasury`,
-      why:
-        draft.pain === "dues" ? (
-          <>because you said <q>chasing dues</q> eats your time.</>
-        ) : (
-          `${v("Dues").toLowerCase()}, budgets and who owes what — one tap away.`
-        ),
+      why: financeOff ? (
+        <>off — you said <q>{variantWord}</q>, so no treasury until you need one.</>
+      ) : (
+        `${v("Dues").toLowerCase()}, budgets and who owes what — one tap away.`
+      ),
     },
     {
       key: "attendance",
       name: "Attendance",
-      why:
-        draft.pain === "attendance" ? (
-          <>because you said <q>tracking attendance</q> is the drain.</>
-        ) : (
-          "meetings worth counting."
-        ),
+      why: attendanceOff ? (
+        <>off — <q>{variantWord}</q> means nobody takes roll.</>
+      ) : (
+        `${v("Meetings").toLowerCase()} worth counting.`
+      ),
     },
     {
       key: "events",
       name: "Events",
-      why:
-        draft.pain === "events" ? (
-          <>because you said <q>planning events</q> takes the most time.</>
-        ) : (
-          "you meet on a rhythm; socials live here too."
-        ),
+      why: "you meet on a rhythm; socials live here too.",
     },
     {
       key: "parties",
       name: "Parties",
-      why: "socials with a guest list, budget and door — separate from plain events.",
+      why: partiesOff ? (
+        <>off — you said <q>{variantWord}</q>, and parties aren&rsquo;t that shape.</>
+      ) : (
+        "socials with a guest list, budget and door — separate from plain events."
+      ),
     },
     {
       key: "service",
       name: "Service",
       why:
-        draft.kind === "service"
+        draft.kind === "service" || draft.variant === "service"
           ? "service hours are the point — this leads."
           : "flip it on if you track service hours.",
     },
@@ -209,12 +225,7 @@ function wfRows(draft: Draft): { key: WorkflowId; name: string; why: React.React
     {
       key: "communications",
       name: "Announcements",
-      why:
-        draft.pain === "comms" ? (
-          <>because you said <q>keeping everyone informed</q> is the struggle.</>
-        ) : (
-          "start light — turn on when the group chat stops scaling."
-        ),
+      why: "start light — turn on when the group chat stops scaling.",
     },
     { key: "tasks", name: "Tasks", why: "start light — turn on when exec needs assignments." },
   ];
@@ -260,6 +271,171 @@ function VocabChip({
         </span>
       )}
     </span>
+  );
+}
+
+/* ─── This term ──────────────────────────────────────────────────────────── */
+
+function TermCard({ draft, dispatch }: { draft: Draft; dispatch: React.Dispatch<FlowAction> }) {
+  const model = draft.termModel;
+  const term = draft.term;
+  const period = draftVocab(draft, "Period").toLowerCase();
+
+  // Commit helpers keep the stored term valid: the label never empties (the
+  // draft schema and the API both require min(1)) and the dates never cross
+  // (the API refuses endDate < startDate).
+  const commitLabel = (value: string) => {
+    const label = value.trim().slice(0, 40);
+    if (label && term) dispatch({ type: "setTerm", term: { ...term, label } });
+  };
+  const commitDate = (field: "startDate" | "endDate", value: string) => {
+    if (!value || !term) return;
+    const next = { ...term, [field]: value };
+    if (next.startDate > next.endDate) {
+      if (field === "startDate") next.endDate = value;
+      else next.startDate = value;
+    }
+    dispatch({ type: "setTerm", term: next });
+  };
+
+  return (
+    <div className="bp-card">
+      <h3>
+        This term <span className="why">how your calendar resets</span>
+      </h3>
+      <div className="term-models">
+        {TERM_MODELS.map((m: TermModel) => (
+          <button
+            key={m}
+            className={`term-chip${model === m ? " sel" : ""}`}
+            aria-pressed={model === m}
+            onClick={() => dispatch({ type: "setTermModel", model: m })}
+          >
+            {TERM_MODEL_LABEL[m]}
+          </button>
+        ))}
+      </div>
+      {model && term && (
+        <div className="term-edit">
+          <input
+            className="term-label"
+            key={term.label}
+            defaultValue={term.label}
+            aria-label="Term label"
+            onBlur={e => commitLabel(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === "Enter") e.currentTarget.blur();
+            }}
+          />
+          <input
+            type="date"
+            value={term.startDate}
+            aria-label="Term start date"
+            onChange={e => commitDate("startDate", e.target.value)}
+          />
+          <span className="term-dash">→</span>
+          <input
+            type="date"
+            value={term.endDate}
+            aria-label="Term end date"
+            onChange={e => commitDate("endDate", e.target.value)}
+          />
+        </div>
+      )}
+      {model && !term && (
+        <div className="term-models term-suggest">
+          {suggestTerms(model).map(t => (
+            <button key={t.label} className="term-chip" onClick={() => dispatch({ type: "setTerm", term: t })}>
+              {t.label}
+            </button>
+          ))}
+        </div>
+      )}
+      <p className="vocab-note">
+        {model && term ? (
+          <>
+            <b>{term.label}</b> is created active with the org — attendance and {draftVocab(draft, "Dues").toLowerCase()} book
+            against it from day one.
+          </>
+        ) : model ? (
+          <>Pick the current {period} — its dates stay editable right here.</>
+        ) : (
+          <>No term yet — pick how your calendar resets, or add one later in Settings.</>
+        )}
+      </p>
+    </div>
+  );
+}
+
+/* ─── Tracking ───────────────────────────────────────────────────────────── */
+
+const METRIC_WHY: Record<BuiltinMetricId, string> = {
+  attendance:   "a live percentage per person, from the meetings you count.",
+  gpa:          "academic standing — off unless you collect grades.",
+  duesOwed:     "who owes what, at a glance.",
+  serviceHours: "volunteer hours logged per person.",
+};
+
+function TrackingCard({ draft, dispatch }: { draft: Draft; dispatch: React.Dispatch<FlowAction> }) {
+  const member = draftVocab(draft, "Member").toLowerCase();
+  return (
+    <div className="bp-card">
+      <h3>
+        Tracking <span className="why">measured per {member}</span>
+      </h3>
+      <div>
+        {BUILTIN_METRIC_IDS.map(id => {
+          const on = draft.metrics[id];
+          return (
+            <div key={id} className={`wf-row${on ? "" : " off"}`}>
+              <span className="wf-name">{BUILTIN_METRIC_LABEL[id]}</span>
+              <span className="wf-why">{METRIC_WHY[id]}</span>
+              <button
+                className="wf-tgl"
+                onClick={() => dispatch({ type: "setBuiltinMetric", metric: id, on: !on })}
+                aria-pressed={on}
+              >
+                {on ? "ON" : "OFF"}
+              </button>
+            </div>
+          );
+        })}
+      </div>
+      <div className="metric-customs">
+        {draft.metrics.custom.map((m, i) => (
+          <span key={`${m.name}-${i}`} className="vocab-chip metric-chip">
+            <span className="vv">
+              {m.name}
+              {m.unit ? ` (${m.unit})` : ""}
+            </span>
+            <button
+              className="metric-x"
+              aria-label={`Remove ${m.name}`}
+              onClick={() => dispatch({ type: "removeCustomMetric", index: i })}
+            >
+              ×
+            </button>
+          </span>
+        ))}
+        {draft.metrics.custom.length < 5 && (
+          <input
+            className="metric-add"
+            placeholder="+ add a measure"
+            aria-label="Add a custom metric"
+            onKeyDown={e => {
+              const value = e.currentTarget.value.trim();
+              if (e.key !== "Enter" || !value) return;
+              e.currentTarget.value = "";
+              dispatch({ type: "addCustomMetric", name: value, unit: null });
+            }}
+          />
+        )}
+      </div>
+      <p className="vocab-note">
+        Off just hides it from the dashboard — nothing is deleted, and every measure has a home in
+        Settings later.
+      </p>
+    </div>
   );
 }
 
@@ -343,6 +519,8 @@ export function BlueprintStep({
           </div>
         </div>
         <div className="bp-col">
+          <TermCard draft={draft} dispatch={dispatch} />
+          <TrackingCard draft={draft} dispatch={dispatch} />
           <div className="bp-card">
             <h3>
               Leadership <span className="why">titles &amp; abilities are yours to change</span>
