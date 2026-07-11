@@ -39,7 +39,13 @@ import {
   type TermSuggestion,
 } from "@/lib/onboarding/terms";
 import { draftVocab, type FlowAction } from "./flow-state";
-import { askInterviewAi, probeInterviewAi, type InterviewAiTurn } from "./interview-ai";
+import {
+  askInterviewAi,
+  probeInterviewAi,
+  missingFields,
+  type InterviewAiResult,
+  type InterviewAiTurn,
+} from "./interview-ai";
 import type { SheetFlash } from "./BlueprintSheet";
 
 type Stage =
@@ -57,8 +63,28 @@ type Msg = { id: number; kind: "bot" | "q" | "user"; body: ReactNode };
 type Chip = { label: string; pick: () => void };
 
 /** Activity-stage clarify loop: at most this many AI follow-up questions
-    (≈6 questions total in the workflow portion, counting the opener). */
+    (≈6 questions total in the workflow portion, counting the opener). Used by
+    the SCRIPTED fallback path only. */
 const MAX_ACTIVITY_FOLLOWUPS = 5;
+
+/** Concierge (AI-led) loop cap: after this many model-driven turns we stop
+    asking the model and drain any still-missing fields through the scripted
+    machine, so the interview always terminates regardless of model behavior. */
+const MAX_CONCIERGE_TURNS = 12;
+
+/** Canonical order the scripted machine collects fields in — used to pick the
+    resume stage when the concierge hands off (mid-conversation fallback or the
+    early-exit/loop-cap backstop). First still-missing stage wins. */
+const STAGE_ORDER: Stage[] = [
+  "kind", "variant", "activity", "termModel", "term", "metrics", "founderName", "founderTitle",
+];
+
+/** How long the "typing…" indicator shows before an AI reply lands — scaled to
+    the reply length so a longer message "takes longer to type" (reads far more
+    human than a fixed delay). The scripted path keeps its own fixed timings. */
+function typingDelay(text: string): number {
+  return Math.min(1400, Math.max(500, 400 + text.length * 12));
+}
 
 const KIND_REPLIES: Record<KindId, ReactNode> = {
   fraternity: <>A fraternity — so it&rsquo;s <b>Brothers</b>, <b>Chapter</b>, and <b>Semesters</b> from here on. The words are set; what you actually <em>do</em> comes next.</>,
@@ -134,6 +160,16 @@ export function InterviewStep({
   const aiOn = useRef(false);
   const activityTranscript = useRef<InterviewAiTurn[]>([]);
   const activityFollowUps = useRef(0);
+
+  // Concierge (AI-led) plumbing. `mode` decides which driver owns the
+  // conversation: "ai" = the concierge asks its own questions; "scripted" = the
+  // deterministic spine (also the mid-conversation fallback target). The whole
+  // interview flows through convoTranscript; convoTurns caps the model loop.
+  const [mode, setMode] = useState<"ai" | "scripted">("scripted");
+  const modeRef = useRef(mode);
+  modeRef.current = mode;
+  const convoTranscript = useRef<InterviewAiTurn[]>([]);
+  const convoTurns = useRef(0);
 
   // Refs mirror the latest draft/stage for use inside timeouts/async handlers.
   const draftRef = useRef(draft);
@@ -435,6 +471,141 @@ export function InterviewStep({
     );
   }
 
+  /* ─── Concierge (AI-led) driver ───────────────────────────────────────── */
+
+  /** Apply a validated concierge result's picks to the draft — the SAME reducer
+      actions the founder's own taps use, so the blueprint stays the one source
+      of truth. Flashes the sheet sections that actually changed. */
+  function applyConciergePicks(picks: InterviewAiResult["picks"]) {
+    const p = picks;
+    if (p.kind) dispatch({ type: "setKind", kind: p.kind });
+    // A variant only makes sense once a kind exists; setKind resets variant, so
+    // this sequential dispatch (reducer sees the new kind) applies it cleanly.
+    if (p.variant) dispatch({ type: "setVariant", variant: p.variant });
+    if (p.addWorkflows.length || p.removeWorkflows.length || Object.keys(p.vocab).length) {
+      dispatch({ type: "applyAiPicks", picks: { addWorkflows: p.addWorkflows, removeWorkflows: p.removeWorkflows, vocab: p.vocab } });
+    }
+    if (p.termModel) dispatch({ type: "setTermModel", model: p.termModel });
+    if (p.term) dispatch({ type: "setTerm", term: p.term });
+    // The model re-sends the FULL metric list every turn (it can't see what's
+    // already on the sheet), so only add names not already present — otherwise
+    // "Chapter points" lands twice. Case-insensitive, matching how a founder
+    // would read a duplicate.
+    const existing = new Set(draftRef.current.metrics.custom.map(c => c.name.trim().toLowerCase()));
+    for (const m of p.customMetrics) {
+      const key = m.name.trim().toLowerCase();
+      if (key && !existing.has(key)) {
+        existing.add(key);
+        dispatch({ type: "addCustomMetric", name: m.name, unit: m.unit });
+      }
+    }
+    if (p.founderName) dispatch({ type: "setFounderName", name: p.founderName });
+    if (p.founderTitle) dispatch({ type: "setFounderTitle", title: p.founderTitle });
+
+    // Flash the sheet sections that changed (kind/variant reshuffle seats).
+    if (p.kind || p.variant) onFlash("seats");
+    if (p.addWorkflows.length || p.removeWorkflows.length) onFlash("pages");
+    if (Object.keys(p.vocab).length) later(() => onFlash("words"), 450);
+    if (p.termModel || p.term) later(() => onFlash("term"), 300);
+    if (p.customMetrics.length) later(() => onFlash("metrics"), 300);
+  }
+
+  /** The first stage still unresolved, in canonical order — where the scripted
+      machine should pick up when the concierge hands off. */
+  function resumeStage(): Stage {
+    const missing = new Set<string>(missingFields(draftRef.current));
+    // Map field ids → the scripted stage that collects them.
+    if (missing.has("kind")) return "kind";
+    if (missing.has("termModel")) return "termModel";
+    if (missing.has("term")) return "term";
+    // kind/term settled → the only thing the scripted spine still owes is the
+    // founder's name + title (metrics are optional and already offered in chat).
+    return "founderName";
+  }
+
+  /** Hand the rest of the interview to the scripted machine. Used by the
+      mid-conversation fallback (AI turn failed) and the early-exit/loop-cap
+      backstops. The draft already holds every prior pick, so the spine resumes
+      with no re-asking. `bridge` is a short human line easing the transition. */
+  function handoffToScripted(bridge: ReactNode) {
+    setMode("scripted");
+    aiOn.current = false; // don't thrash a failing/exhausted model for the rest
+    push("bot", bridge);
+    const next = resumeStage();
+    later(() => ask(next), 650);
+  }
+
+  /**
+   * One AI-led turn. `userText` is the founder's message (null only for the
+   * opening turn). The model reacts, extracts picks across the whole transcript,
+   * asks its OWN next question, and signals completion — with client-side guards
+   * so it can neither end early (missing fields) nor loop forever (turn cap).
+   */
+  async function runConcierge(userText: string | null) {
+    if (userText !== null) {
+      push("user", userText);
+      convoTranscript.current.push({ role: "user", text: userText });
+    }
+    setChips(null);
+    setTyping(true);
+    convoTurns.current += 1;
+
+    const result = await askInterviewAi(
+      "concierge",
+      draftRef.current,
+      convoTranscript.current,
+      missingFields(draftRef.current),
+    );
+
+    if (!result) {
+      // Mid-conversation failure → fall back to the scripted spine at the right
+      // stage. setTyping(false) inside handoff's push path via respond? No —
+      // clear it here since we bypass respond().
+      setTyping(false);
+      handoffToScripted(<>Let me just confirm a couple of things.</>);
+      return;
+    }
+
+    applyConciergePicks(result.picks);
+    // Draft mutations above are async (reducer) — read freshness from the draft
+    // on the NEXT tick when deciding completion; for now trust the model's
+    // picks were applied and re-check missingFields after the reply lands.
+    later(() => {
+      setTyping(false);
+      push("bot", <>{result.reply || "Got it — the sheet's updated."}</>);
+
+      const stillMissing = missingFields(draftRef.current);
+      const hitCap = convoTurns.current >= MAX_CONCIERGE_TURNS;
+
+      // Completion: honor the model's "done" only when nothing is actually left.
+      if (result.done && stillMissing.length === 0) {
+        later(() => finishInterview(), 650);
+        return;
+      }
+      // Early-exit or loop-cap guard: fields remain but the model quit (or we're
+      // out of turns) → drain the rest through the scripted machine.
+      if ((result.done && stillMissing.length > 0) || hitCap || !result.next) {
+        handoffToScripted(<>Let me just confirm a couple of things.</>);
+        return;
+      }
+
+      // Normal case: ask the model's own next question with its tap-chips.
+      convoTranscript.current.push({ role: "q", text: result.next.question });
+      later(() => {
+        push("q", <>{result.next!.question}</>);
+        setChips(result.next!.chips.map(c => ({ label: c, pick: () => void runConcierge(c) })));
+      }, 400);
+    }, typingDelay(result.reply));
+  }
+
+  /** Wrap up the interview (from either driver): mark done + reveal the CTA. */
+  function finishInterview() {
+    dispatch({ type: "interviewDone" });
+    setStage("done");
+    setChips(null);
+    later(() => setShowCta(true), 500);
+  }
+
   /* ─── Free-text routing ───────────────────────────────────────────────── */
 
   async function onFreeText(text: string) {
@@ -492,9 +663,6 @@ export function InterviewStep({
   // founder revisiting a finished interview gets a short recap + CTA instead
   // of being made to re-answer.
   useEffect(() => {
-    void probeInterviewAi().then(enabled => {
-      aiOn.current = enabled;
-    });
     if (draftRef.current.interviewDone) {
       setStage("done");
       setMessages([{ id: nextId.current++, kind: "bot", body: <>We&rsquo;ve already talked — your blueprint is on the right, built from your answers. Head to your roles whenever you&rsquo;re ready.</> }]);
@@ -505,8 +673,26 @@ export function InterviewStep({
     setChips(null);
     setShowCta(false);
     setMessages([{ id: nextId.current++, kind: "bot", body: <>A few quick questions. Everything you say goes onto the blueprint on the right — you&rsquo;ll review the whole sheet before anything is built.</> }]);
-    const boot = setTimeout(() => ask("kind"), 900);
-    return () => clearTimeout(boot);
+
+    // Await the probe so we can branch the very first question: an AI-led
+    // concierge opener when configured, else the deterministic scripted spine
+    // (identical to before). The concierge's opening turn seeds its transcript
+    // with an internal system beat and lets the model phrase question #1 itself.
+    let cancelled = false;
+    void probeInterviewAi().then(enabled => {
+      if (cancelled) return;
+      aiOn.current = enabled;
+      if (enabled) {
+        setMode("ai");
+        convoTranscript.current = [{ role: "q", text: "Greet the founder warmly and ask your first question to get the setup going." }];
+        convoTurns.current = 0;
+        void runConcierge(null);
+      } else {
+        setMode("scripted");
+        later(() => ask("kind"), 900);
+      }
+    });
+    return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -518,30 +704,37 @@ export function InterviewStep({
     ? "That's everything — your blueprint is on the right."
     : composerBusy
       ? "One moment…"
-      : stage === "metrics"
-        ? 'Type another measure — e.g. "chapter points"…'
-        : stage === "founderTitle"
-          ? "Type your title…"
-          : stage === "activity"
-            ? "Describe it in your own words — a sentence or two…"
-            : "Type your own answer…";
+      : mode === "ai"
+        ? "Answer in your own words…"
+        : stage === "metrics"
+          ? 'Type another measure — e.g. "chapter points"…'
+          : stage === "founderTitle"
+            ? "Type your title…"
+            : stage === "activity"
+              ? "Describe it in your own words — a sentence or two…"
+              : "Type your own answer…";
 
   // A short hint that free-text is genuinely read, not just a fallback box.
   const composerHint =
     composerDone || composerBusy
       ? null
-      : stage === "activity"
-        ? aiOn.current
-          ? "I'll read this and adjust the sheet"
-          : "Or tap an option above"
-        : "Prefer to tap? Use the options above";
+      : mode === "ai"
+        ? "Type a reply, or tap an option"
+        : stage === "activity"
+          ? aiOn.current
+            ? "I'll read this and adjust the sheet"
+            : "Or tap an option above"
+          : "Prefer to tap? Use the options above";
 
   function submitDraft() {
     const value = draftText.trim();
     if (!value || composerBusy || composerDone) return;
     setDraftText("");
     if (inputRef.current) inputRef.current.style.height = "auto";
-    void onFreeText(value);
+    // In AI mode every answer (typed or tapped) is just a concierge turn; the
+    // scripted spine keeps its per-stage free-text routing.
+    if (modeRef.current === "ai") void runConcierge(value);
+    else void onFreeText(value);
   }
 
   return (
@@ -574,7 +767,7 @@ export function InterviewStep({
             ))}
           </div>
         )}
-        {stage === "metrics" && !typing && (
+        {mode === "scripted" && stage === "metrics" && !typing && (
           <div className="chips chips-multi">
             {BUILTIN_METRIC_IDS.map(id => (
               <button

@@ -15,8 +15,13 @@ import type { Draft } from "@/lib/onboarding/draft";
 import type { WorkflowId } from "@/lib/org-types";
 import type { VocabKey } from "@/lib/vocab";
 import type { KindId } from "@/lib/onboarding/kinds";
+import type { TermModel, TermSuggestion } from "@/lib/onboarding/terms";
 
-export type InterviewAiStage = "kind" | "activity" | "metrics" | "founder-title";
+export type InterviewAiStage = "kind" | "activity" | "metrics" | "founder-title" | "concierge";
+
+/** The required fields the concierge is sent each turn (mirrors REQUIRED_FIELDS
+    in the route). metrics/founderName aren't gated — see missingFields(). */
+export type RequiredField = "kind" | "workflows" | "termModel" | "term" | "metrics" | "founderTitle";
 
 export interface InterviewAiTurn {
   role: "q" | "user";
@@ -34,9 +39,35 @@ export interface InterviewAiResult {
     variant: string | null;
     customMetrics: { name: string; unit: string | null }[];
     founderTitle: string | null;
+    termModel: TermModel | null;
+    term: TermSuggestion | null;
+    founderName: string | null;
   };
   followUp: { question: string; chips: string[] } | null;
+  next: { question: string; chips: string[] } | null;
+  done: boolean;
   confidence: "high" | "low";
+}
+
+/**
+ * Which required fields the concierge still needs, derived from the draft each
+ * turn. Sent as a prior so the model never ends early, and re-checked
+ * client-side before honoring the model's "done" (a guard against early exit).
+ *
+ * kind / termModel / term are hard gates (null in the draft = still missing;
+ * a DEFERRED term counts as resolved — the founder said "I'll set dates later",
+ * which the client records as a real draft.term). workflows / metrics /
+ * founderTitle are inherently satisfiable-by-default (workflows are non-empty
+ * from the moment a kind is set; metrics + the founder title always have a
+ * sensible default), so they are TOPICS the concierge raises once, never gates —
+ * we never block completion on them here.
+ */
+export function missingFields(draft: Draft): RequiredField[] {
+  const missing: RequiredField[] = [];
+  if (draft.kind === null) missing.push("kind");
+  if (draft.termModel === null) missing.push("termModel");
+  if (draft.term === null) missing.push("term");
+  return missing;
 }
 
 const TIMEOUT_MS = 10_000;
@@ -57,6 +88,7 @@ export async function askInterviewAi(
   stage: InterviewAiStage,
   draft: Draft,
   transcript: InterviewAiTurn[],
+  missing?: RequiredField[],
 ): Promise<InterviewAiResult | null> {
   try {
     const res = await fetch("/api/ai/interview", {
@@ -72,9 +104,12 @@ export async function askInterviewAi(
           enabledWorkflows: draft.enabledWorkflows,
           termModel: draft.termModel,
         },
+        ...(missing ? { missingFields: missing } : {}),
         // Server caps text at 300 chars — trim here so a long paste degrades
         // to a truncated answer instead of a 400 (which would read as "AI down").
-        transcript: transcript.slice(-14).map(t => ({ role: t.role, text: t.text.slice(0, 300) })),
+        // The concierge runs the whole interview through one transcript, so the
+        // window is wider than the legacy per-stage clarify loops needed.
+        transcript: transcript.slice(-24).map(t => ({ role: t.role, text: t.text.slice(0, 300) })),
       }),
     });
     if (!res.ok) return null;

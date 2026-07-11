@@ -41,6 +41,12 @@ function raw(over: Partial<RawInterviewResult> = {}): RawInterviewResult {
     followUpQuestion: null,
     followUpChips: [],
     confidence: "high",
+    termModel: null,
+    termLabel: null,
+    founderName: null,
+    nextQuestion: null,
+    nextChips: [],
+    done: false,
     ...over,
   };
 }
@@ -125,9 +131,10 @@ describe("validateInterviewResult", () => {
     );
     expect(out.followUp).toEqual({ question: "Dues?", chips: ["Yes", "No", "Maybe", "Kinda"] });
 
+    // roomForFollowUp needs transcript.length <= MAX_TRANSCRIPT - 2 (= 22).
     const full = validateInterviewResult(raw({ followUpQuestion: "Dues?", followUpChips: ["Yes"] }), {
       answers: {},
-      transcript: Array.from({ length: 13 }, (_, i) => ({
+      transcript: Array.from({ length: 23 }, (_, i) => ({
         role: i % 2 ? ("user" as const) : ("q" as const),
         text: "x",
       })),
@@ -142,6 +149,79 @@ describe("validateInterviewResult", () => {
     );
     expect(out.reply).toHaveLength(200);
     expect(out.picks.founderTitle).toHaveLength(60);
+  });
+});
+
+describe("validateInterviewResult — concierge fields", () => {
+  it("validates termModel against TERM_MODELS and resolves term server-side from the label", () => {
+    // A real model + a label that matches one of that model's suggestions.
+    const out = validateInterviewResult(raw({ termModel: "semester", termLabel: "fall 2026" }), INPUT);
+    expect(out.picks.termModel).toBe("semester");
+    expect(out.picks.term).toMatchObject({ label: "Fall 2026", startDate: "2026-08-24", endDate: "2026-12-18" });
+  });
+
+  it("drops a hallucinated termModel and never emits model-supplied dates", () => {
+    const bad = validateInterviewResult(raw({ termModel: "lunar-cycle", termLabel: "Blood Moon" }), INPUT);
+    expect(bad.picks.termModel).toBeNull();
+    // No model + an unmatched label → no term at all (client asks deterministically).
+    expect(bad.picks.term).toBeNull();
+  });
+
+  it("resolves the term against the prior termModel when the model omits one", () => {
+    const out = validateInterviewResult(raw({ termLabel: "Fall 2026" }), {
+      answers: { kind: "fraternity", termModel: "semester" },
+      transcript: INPUT.transcript,
+    });
+    expect(out.picks.term).toMatchObject({ label: "Fall 2026" });
+  });
+
+  it("resolves a bare, yearless term label fuzzily ('the fall term' → Fall 2026)", () => {
+    // Founders say "the fall term", not "Fall 2026" — the exact match would
+    // miss, so the season-word fallback must still land the right window.
+    const out = validateInterviewResult(raw({ termModel: "semester", termLabel: "the fall term" }), INPUT);
+    expect(out.picks.term).toMatchObject({ label: "Fall 2026" });
+
+    // A label with no overlap at all still safely yields null.
+    const none = validateInterviewResult(raw({ termModel: "semester", termLabel: "the wet season" }), INPUT);
+    expect(none.picks.term).toBeNull();
+  });
+
+  it("clamps founderName and maps the concierge next-question + done", () => {
+    const out = validateInterviewResult(
+      raw({ founderName: `  ${"N".repeat(140)}`, nextQuestion: "How does your year reset?", nextChips: ["Semesters", "Semesters", "Year-round"], done: false }),
+      INPUT,
+    );
+    expect(out.picks.founderName).toHaveLength(120);
+    expect(out.next).toEqual({ question: "How does your year reset?", chips: ["Semesters", "Year-round"] });
+    expect(out.done).toBe(false);
+  });
+
+  it("suppresses next when the model signals done, and coerces done to a real boolean", () => {
+    const out = validateInterviewResult(
+      raw({ done: true, nextQuestion: "Anything else?", nextChips: ["No"], reply: "All set." }),
+      INPUT,
+    );
+    expect(out.done).toBe(true);
+    expect(out.next).toBeNull();
+  });
+});
+
+describe("missingFields", () => {
+  it("gates on kind, termModel, and term; ignores optional metrics/name/title", async () => {
+    const { missingFields } = await import("@/app/create/_components/interview-ai");
+    const { emptyDraft } = await import("@/lib/onboarding/draft");
+
+    const empty = emptyDraft();
+    expect(missingFields(empty)).toEqual(["kind", "termModel", "term"]);
+
+    const partial = { ...empty, kind: "club" as const, termModel: "semester" as const };
+    expect(missingFields(partial)).toEqual(["term"]);
+
+    const full = {
+      ...partial,
+      term: { label: "Fall 2026", startDate: "2026-08-24", endDate: "2026-12-18" },
+    };
+    expect(missingFields(full)).toEqual([]);
   });
 });
 
@@ -206,7 +286,7 @@ describe("POST /api/ai/interview", () => {
     expect((await POST(buildPost({ nope: 1 }))).status).toBe(400);
     const long = {
       ...VALID_BODY,
-      transcript: Array.from({ length: 15 }, () => ({ role: "user", text: "x" })),
+      transcript: Array.from({ length: 25 }, () => ({ role: "user", text: "x" })),
     };
     expect((await POST(buildPost(long))).status).toBe(400);
   });
