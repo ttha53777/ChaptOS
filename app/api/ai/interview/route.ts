@@ -5,7 +5,7 @@ import { aiEnabled, interpretInterview, type RawInterviewResult } from "@/lib/ai
 import { ALL_WORKFLOWS, ALWAYS_ON_WORKFLOWS, type WorkflowId } from "@/lib/org-types";
 import { VOCAB_KEYS, DEFAULT_LABELS, type VocabKey } from "@/lib/vocab";
 import { KIND_IDS, KIND_VARIANTS, isKindId, type KindId } from "@/lib/onboarding/kinds";
-import { TERM_MODELS } from "@/lib/onboarding/terms";
+import { TERM_MODELS, TERM_MODEL_LABEL, suggestTerms, isTermModel, type TermModel, type TermSuggestion } from "@/lib/onboarding/terms";
 import { logError } from "@/lib/observability";
 
 // POST /api/ai/interview — the /create interview's free-text interpreter.
@@ -35,13 +35,24 @@ const MINUTE_LIMIT = 15;
 const DAY_LIMIT    = 80;
 const PROBE_LIMIT  = 30;
 
-/** Hard server-side transcript bound — the activity stage's up-to-6-question
-    clarify loop tops out well under this; anything longer is not our client. */
-const MAX_TRANSCRIPT = 14;
+/** Hard server-side transcript bound. The legacy per-stage clarify loops top
+    out well under this; the concierge stage runs the WHOLE interview through
+    one transcript (~8 questions × 2 turns + slack), so the cap is generous. The
+    draft is the source of truth, so a sliding window never loses a decision. */
+const MAX_TRANSCRIPT = 24;
+
+/** The still-needed fields the client sends the concierge each turn so it never
+    ends early. Advisory hints — the client re-derives + re-guards them too. */
+export const REQUIRED_FIELDS = ["kind", "workflows", "termModel", "term", "metrics", "founderTitle"] as const;
+export type RequiredField = (typeof REQUIRED_FIELDS)[number];
 
 export const interviewAiInput = z.object({
-  stage:   z.enum(["kind", "activity", "metrics", "founder-title"]),
+  stage:   z.enum(["kind", "activity", "metrics", "founder-title", "concierge"]),
   orgName: z.string().trim().max(120),
+  // Concierge-only: which required fields are still unresolved (client-derived
+  // from the draft). Injected into the prompt as "STILL NEEDED" so the model
+  // keeps asking until they're all covered. Optional — legacy stages omit it.
+  missingFields: z.array(z.enum(REQUIRED_FIELDS)).optional(),
   // Structured priors so the model never re-asks what the chips already
   // answered. All optional — early stages have fewer of them.
   answers: z
@@ -76,8 +87,16 @@ export interface ValidatedInterviewResult {
     variant:         string | null;
     customMetrics:   { name: string; unit: string | null }[];
     founderTitle:    string | null;
+    // Concierge-stage picks (null on legacy stages). term is resolved
+    // server-side from the model's termLabel — the model never emits dates.
+    termModel:       TermModel | null;
+    term:            TermSuggestion | null;
+    founderName:     string | null;
   };
   followUp: { question: string; chips: string[] } | null;
+  // Concierge-stage: the model's own next question + its completion signal.
+  next: { question: string; chips: string[] } | null;
+  done: boolean;
   confidence: "high" | "low";
 }
 
@@ -123,6 +142,16 @@ export function validateInterviewResult(
 
   const founderTitle = raw.founderTitle?.trim().slice(0, 60) || null;
 
+  // Concierge picks. termModel is intersected with the registry; term is
+  // resolved SERVER-SIDE from the model's label against suggestTerms() — the
+  // model never emits dates, so a hallucinated label just yields null (the
+  // client then asks the term question deterministically).
+  const termModel: TermModel | null =
+    raw.termModel && isTermModel(raw.termModel) ? raw.termModel : null;
+  const term = resolveTerm(termModel ?? input.answers.termModel ?? null, raw.termLabel);
+  // founderName is display-only + overridable by the Google name, so clamp only.
+  const founderName = raw.founderName?.trim().slice(0, 120) || null;
+
   // A follow-up needs room for one more q+answer inside the transcript cap;
   // past that the client would drop it anyway, so don't even send it.
   const roomForFollowUp = input.transcript.length <= MAX_TRANSCRIPT - 2;
@@ -130,12 +159,48 @@ export function validateInterviewResult(
   const chips = [...new Set(raw.followUpChips.map(c => c.trim().slice(0, 40)).filter(Boolean))].slice(0, MAX_CHIPS);
   const followUp = roomForFollowUp && question ? { question, chips } : null;
 
+  // Concierge's own next question — same display-only treatment as followUp;
+  // never interpreted as an id. Suppressed when done or out of transcript room.
+  const nextQuestion = raw.nextQuestion?.trim().slice(0, 200) || null;
+  const nextChips = [...new Set(raw.nextChips.map(c => c.trim().slice(0, 40)).filter(Boolean))].slice(0, MAX_CHIPS);
+  const done = raw.done === true;
+  const next = !done && roomForFollowUp && nextQuestion ? { question: nextQuestion, chips: nextChips } : null;
+
   return {
     reply: raw.reply.trim().slice(0, 200),
-    picks: { addWorkflows, removeWorkflows, vocab, kind, variant, customMetrics, founderTitle },
+    picks: { addWorkflows, removeWorkflows, vocab, kind, variant, customMetrics, founderTitle, termModel, term, founderName },
     followUp,
+    next,
+    done,
     confidence: raw.confidence,
   };
+}
+
+/** Resolve the model's free-text term label to a real suggestion window for
+    the given model. The model never supplies dates, so we match its label
+    against suggestTerms() and take those exact windows. Matching is forgiving —
+    a founder says "the fall term", not "Fall 2026" — so we fall back from an
+    exact label match to a season-word / year match before giving up (null then
+    means the client asks the term question deterministically). Same fuzzy
+    posture as the scripted answerTermText fallback. */
+function resolveTerm(model: TermModel | null, label: string | null | undefined): TermSuggestion | null {
+  const wanted = label?.trim().toLowerCase();
+  if (!model || !wanted) return null;
+  const options = suggestTerms(model);
+  // 1) exact label ("fall 2026").
+  const exact = options.find(t => t.label.toLowerCase() === wanted);
+  if (exact) return exact;
+  // 2) the label's season/year word appears in a suggestion, or vice-versa
+  //    ("fall", "the fall term", "2026" → Fall 2026). First match wins, and
+  //    suggestTerms is ordered by relevance (current period first), so a bare
+  //    "fall" picks the nearest upcoming Fall.
+  const words = wanted.split(/\s+/).filter(w => w.length > 2);
+  return (
+    options.find(t => {
+      const lbl = t.label.toLowerCase();
+      return words.some(w => lbl.includes(w)) || lbl.split(/\s+/).some(w => wanted.includes(w));
+    }) ?? null
+  );
 }
 
 // ─── System prompt ───────────────────────────────────────────────────────────
@@ -154,20 +219,30 @@ const WORKFLOW_DESCRIPTIONS: Record<WorkflowId, string> = {
   operations:     "Always-on — Dashboard and Timeline. Never add or remove it.",
 };
 
-const STAGE_GOALS: Record<InterviewAiInput["stage"], string> = {
-  kind: `GOAL: resolve which KIND of organization this is (set "kind"), and — when the text makes it obvious — its variant too (set "variant"). Leave workflows/vocabulary/customMetrics/founderTitle empty. Ask a follow-up ONLY if the text is genuinely ambiguous between two kinds.`,
-  activity: `GOAL: settle the org's final page set. Compare what the founder says the org DOES against currently enabled workflows; return "addWorkflows" for pages they need and "removeWorkflows" for enabled pages that don't fit. You may also fix vocabulary via "vocabulary" pairs when the founder's words clearly imply it. This is the stage where clarifying follow-ups matter: each follow-up must target ONE concrete unresolved page decision (Is attendance taken and does it matter? Is money collected — regular dues, event-by-event, or none? Formal meetings with minutes, or none? A recruitment/rush season? A public/social-media presence?). Never ask a generic "tell me more". Never re-ask anything the PRIORS or the transcript already answer. STOP asking (followUpQuestion: null) the moment the page set is confidently resolved — most orgs need 1–3 follow-ups, and a clear answer deserves none.`,
-  metrics: `GOAL: turn the founder's "we also track …" answer into 1–${MAX_CUSTOM_METRICS} custom per-member metrics in "customMetrics" — each a short display name (e.g. "Chapter Points") and an optional short unit (e.g. "pts", "hrs", null for a bare number). Do not duplicate the built-ins (attendance, GPA, dues, service hours). Leave other pick fields empty. Ask a follow-up only if you cannot tell WHAT quantity they mean.`,
-  "founder-title": `GOAL: extract the founder's own title into "founderTitle" (e.g. "President", "Head Coach", "VP Operations"). Title-case it, keep it under 60 characters, no sentence. Leave every other pick field empty. No follow-ups.`,
+// Legacy per-stage goals (the scripted-spine fallback path). Each drives ONE
+// field and uses followUpQuestion/followUpChips — never the concierge fields.
+// The shared LEGACY_DEFAULTS line forces the concierge-only fields to their
+// null/[]/false defaults so a legacy turn can't accidentally satisfy the schema
+// with completion state or drive the interview forward on its own.
+const LEGACY_DEFAULTS = `Always return "done": false, "nextQuestion": null, "nextChips": [], "termModel": null, "termLabel": null, "founderName": null.`;
+
+const STAGE_GOALS: Record<Exclude<InterviewAiInput["stage"], "concierge">, string> = {
+  kind: `GOAL: resolve which KIND of organization this is (set "kind"), and — when the text makes it obvious — its variant too (set "variant"). Leave workflows/vocabulary/customMetrics/founderTitle empty. Ask a follow-up ONLY if the text is genuinely ambiguous between two kinds. ${LEGACY_DEFAULTS}`,
+  activity: `GOAL: settle the org's final page set. Compare what the founder says the org DOES against currently enabled workflows; return "addWorkflows" for pages they need and "removeWorkflows" for enabled pages that don't fit. You may also fix vocabulary via "vocabulary" pairs when the founder's words clearly imply it. This is the stage where clarifying follow-ups matter: each follow-up must target ONE concrete unresolved page decision (Is attendance taken and does it matter? Is money collected — regular dues, event-by-event, or none? Formal meetings with minutes, or none? A recruitment/rush season? A public/social-media presence?). Never ask a generic "tell me more". Never re-ask anything the PRIORS or the transcript already answer. STOP asking (followUpQuestion: null) the moment the page set is confidently resolved — most orgs need 1–3 follow-ups, and a clear answer deserves none. ${LEGACY_DEFAULTS}`,
+  metrics: `GOAL: turn the founder's "we also track …" answer into 1–${MAX_CUSTOM_METRICS} custom per-member metrics in "customMetrics" — each a short display name (e.g. "Chapter Points") and an optional short unit (e.g. "pts", "hrs", null for a bare number). Do not duplicate the built-ins (attendance, GPA, dues, service hours). Leave other pick fields empty. Ask a follow-up only if you cannot tell WHAT quantity they mean. ${LEGACY_DEFAULTS}`,
+  "founder-title": `GOAL: extract the founder's own title into "founderTitle" (e.g. "President", "Head Coach", "VP Operations"). Title-case it, keep it under 60 characters, no sentence. Leave every other pick field empty. No follow-ups. ${LEGACY_DEFAULTS}`,
 };
 
-function buildSystemPrompt(input: InterviewAiInput): string {
+/** The registry blocks both prompt contracts share — the security ground truth
+    (only these ids are valid) plus the priors so nothing is ever re-asked. */
+function registryBlock(input: InterviewAiInput): string {
   const workflowList = ALL_WORKFLOWS.map(w => `  - ${w}: ${WORKFLOW_DESCRIPTIONS[w]}`).join("\n");
   const vocabList = VOCAB_KEYS.map(k => `  - ${k} (default "${DEFAULT_LABELS[k]}")`).join("\n");
   const kind = input.answers.kind ?? null;
   const variantList = kind && KIND_VARIANTS[kind]?.length
     ? KIND_VARIANTS[kind]!.map(v => `  - ${v.id}: ${v.label}`).join("\n")
     : "  (none for this kind)";
+  const termList = TERM_MODELS.map(m => `  - ${m} (${TERM_MODEL_LABEL[m]})`).join("\n");
   const priors = [
     `org name: ${input.orgName || "(unnamed)"}`,
     `kind: ${kind ?? "(unknown)"}`,
@@ -176,9 +251,7 @@ function buildSystemPrompt(input: InterviewAiInput): string {
     `term model: ${input.answers.termModel ?? "(not asked yet)"}`,
   ].join("\n  ");
 
-  return `You are the setup interviewer inside an org-management app's creation flow. A founder is answering short questions; your job is to interpret ONE free-text answer into structured picks — you never write anything, the founder reviews everything on a blueprint before it's built.
-
-PRIORS (already answered — never re-ask these):
+  return `PRIORS (already answered — never re-ask these):
   ${priors}
 
 VALID WORKFLOW IDS (the org's pages) — use ONLY these exact ids in addWorkflows/removeWorkflows:
@@ -188,8 +261,19 @@ VALID KIND IDS: ${KIND_IDS.join(", ")}
 VALID VARIANT IDS for the current kind:
 ${variantList}
 
+VALID TERM MODEL IDS — use ONLY these exact ids in "termModel":
+${termList}
+
 VOCABULARY KEYS (optional label overrides) — return "vocabulary" as {key,label} pairs using ONLY these keys:
-${vocabList}
+${vocabList}`;
+}
+
+function buildSystemPrompt(input: InterviewAiInput): string {
+  if (input.stage === "concierge") return buildConciergePrompt(input);
+
+  return `You are the setup interviewer inside an org-management app's creation flow. A founder is answering short questions; your job is to interpret ONE free-text answer into structured picks — you never write anything, the founder reviews everything on a blueprint before it's built.
+
+${registryBlock(input)}
 
 ${STAGE_GOALS[input.stage]}
 
@@ -198,6 +282,43 @@ REPLY: "reply" is the one short conversational sentence the founder sees (max ~2
 FOLLOW-UPS: at most ONE per response, via "followUpQuestion" (a single short question) plus 2–${MAX_CHIPS} "followUpChips" (short tap-answers covering the likely cases). When you don't need one, followUpQuestion is null and followUpChips is [].
 
 Set "confidence" to "low" only when you had to guess.`;
+}
+
+/**
+ * The concierge prompt — the AI-led conversation. Unlike the legacy stages
+ * (which each interpret ONE answer), the concierge holds the WHOLE interview:
+ * it reacts to what the founder just said, extracts every pick it can from the
+ * transcript, and — crucially — decides and phrases its OWN next question
+ * ("nextQuestion" + "nextChips"), stopping ("done": true) only once nothing is
+ * left in STILL NEEDED. All tone is lexical (reasoning_effort "none", no
+ * temperature), and every id it emits is still intersected server-side.
+ */
+function buildConciergePrompt(input: InterviewAiInput): string {
+  const missing = input.missingFields?.length ? input.missingFields.join(", ") : "(nothing — you may finish)";
+
+  return `You are the setup concierge inside an org-management app's creation flow. A founder is creating their organization. Hold ONE calm, warm, genuinely human conversation that gathers everything the setup needs, then stop. You are polished and efficient — never chatty, never over-familiar, never scripted-sounding. This app serves fraternities AND clubs, teams, service orgs, honor societies, performing-arts groups, homeowner associations — anything. NEVER assume Greek life.
+
+You DRIVE the conversation: you decide the next question yourself, in a natural order, and you react genuinely to each answer before moving on. You never write anything to their org — everything you gather appears on a blueprint they review before anything is built.
+
+${registryBlock(input)}
+
+STILL NEEDED this conversation (keep going until these are all covered): ${missing}
+When STILL NEEDED is empty, you are DONE gathering — do not re-ask or refine anything already settled. Set "done": true with a brief warm close.
+
+TOPICS to cover, lightly and only if relevant — weave them into the conversation, don't recite them:
+  - what the org actually does → its pages (set addWorkflows/removeWorkflows; fix vocabulary when their words imply it)
+  - how its calendar resets ("termModel") AND which period it's in right now ("termLabel" — accept the founder's natural phrasing like "the fall term" and move on; NEVER interrogate them about the exact label or year, the dates are editable later on the blueprint. Combine the reset + current-period into ONE question.)
+  - what they track per member (1–${MAX_CUSTOM_METRICS} "customMetrics", short name + optional unit; never duplicate attendance/GPA/dues/service hours)
+  - the org's kind (set "kind", and "variant" when obvious)
+  - the founder's own name ("founderName") and title ("founderTitle")
+
+HOW TO REACT ("reply", ≤25 words, no markdown): open by reflecting what they just told you, in THEIR words — concrete, warm but not gushing. NEVER expose internal machinery: don't name a kind/variant/workflow/term id, don't say which template or bucket you picked, and never say you'll "treat it as" or "categorize it as" a type (especially not "other"). For an org that fits no preset, just mirror what they said and what it means for their setup.
+
+HOW TO ASK THE NEXT QUESTION ("nextQuestion", ≤25 words): pick the most natural next thing given what's STILL NEEDED. Combine two cheap questions into one when it flows. Ask exactly ONE question. Phrase it freshly yourself — never recite a fixed script. Offer 2–${MAX_CHIPS} short tap-answers in "nextChips" covering the likely cases; the founder can always type instead.
+
+WHEN TO STOP: once nothing remains in STILL NEEDED and you've lightly covered the topics, set "done": true, "nextQuestion": null, "nextChips": [], and make "reply" a brief, warm close. Do NOT set "done": true while STILL NEEDED is non-empty — ask the next missing thing instead.
+
+Set "confidence" to "low" only when you had to guess. Set unused pick fields to their empty/null defaults.`;
 }
 
 // ─── Handlers ────────────────────────────────────────────────────────────────
