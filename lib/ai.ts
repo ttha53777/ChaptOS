@@ -126,7 +126,7 @@ export interface RawSetupRecommendation {
   roles: RawSetupRoleProposal[];
   // Proposed custom member fields (2–4 max, capped by caller). No id/rosterOrder
   // — those are generated server-side in validateCustomMemberFields(). Optional so
-  // existing callers (tests, setup-chat) can omit it before upgrading.
+  // existing callers (tests) can omit it before upgrading.
   customMemberFields?: RawSetupCustomField[];
   rationale: string;
 }
@@ -141,6 +141,153 @@ export interface RawSetupRecommendation {
  * so the model is grounded. Returns null on missing key, network/API error, or
  * unparseable output — the caller falls back to the org-type preset.
  */
+/**
+ * The raw, UNVALIDATED /create-interview interpretation from the model. Every
+ * id/key is the model's free choice and MUST be intersected with the real
+ * registries by the caller (validateInterviewResult in the interview route)
+ * before use.
+ *
+ * followUp is flattened into a nullable question + a chips array (instead of a
+ * nested nullable object) because strict json_schema handles ["string","null"]
+ * unions much more reliably than nullable sub-objects.
+ */
+export interface RawInterviewMetric {
+  name: string;
+  unit: string | null;
+}
+
+export interface RawInterviewResult {
+  reply: string;
+  addWorkflows: string[];
+  removeWorkflows: string[];
+  vocabulary: Record<string, string>;
+  kind: string | null;
+  variant: string | null;
+  customMetrics: RawInterviewMetric[];
+  founderTitle: string | null;
+  followUpQuestion: string | null;
+  followUpChips: string[];
+  confidence: "high" | "low";
+}
+
+/**
+ * Interpret one free-text /create-interview turn: resolve the founder's words
+ * into structured picks and optionally ONE clarifying follow-up question.
+ *
+ * `system` enumerates the valid ids for the current stage (the route builds
+ * it); `messages` is the short interview transcript so far. Non-streaming —
+ * these are one-or-two-sentence turns, and a null return (missing key, API
+ * error, unparseable output) tells the caller to use its deterministic
+ * fallback. reasoning_effort "none" keeps latency down on what is a short
+ * classification turn; NOTE gpt-5.2 rejects any non-default temperature once
+ * reasoning_effort is set, so none is passed.
+ */
+export async function interpretInterview(
+  system: string,
+  messages: { role: "assistant" | "user"; content: string }[],
+): Promise<RawInterviewResult | null> {
+  const openai = getClient();
+  if (!openai) return null;
+  try {
+    const completion = await openai.chat.completions.create({
+      model: MODEL,
+      // Structured picks + a one-liner reply; reasoning tokens count too.
+      max_completion_tokens: 700,
+      reasoning_effort: "none",
+      response_format: {
+        type: "json_schema",
+        json_schema: {
+          name: "interview_interpretation",
+          strict: true,
+          schema: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+              reply:           { type: "string" },
+              addWorkflows:    { type: "array", items: { type: "string" } },
+              removeWorkflows: { type: "array", items: { type: "string" } },
+              // {key,label}[] instead of an open object — strict json_schema
+              // rejects open-ended additionalProperties (see recommendSetup).
+              vocabulary: {
+                type: "array",
+                items: {
+                  type: "object",
+                  additionalProperties: false,
+                  properties: { key: { type: "string" }, label: { type: "string" } },
+                  required: ["key", "label"],
+                },
+              },
+              kind:    { type: ["string", "null"] },
+              variant: { type: ["string", "null"] },
+              customMetrics: {
+                type: "array",
+                items: {
+                  type: "object",
+                  additionalProperties: false,
+                  properties: {
+                    name: { type: "string" },
+                    unit: { type: ["string", "null"] },
+                  },
+                  required: ["name", "unit"],
+                },
+              },
+              founderTitle:     { type: ["string", "null"] },
+              followUpQuestion: { type: ["string", "null"] },
+              followUpChips:    { type: "array", items: { type: "string" } },
+              confidence:       { type: "string", enum: ["high", "low"] },
+            },
+            required: [
+              "reply", "addWorkflows", "removeWorkflows", "vocabulary", "kind", "variant",
+              "customMetrics", "founderTitle", "followUpQuestion", "followUpChips", "confidence",
+            ],
+          },
+        },
+      },
+      messages: [{ role: "system" as const, content: system }, ...messages],
+    });
+    const text = completion.choices[0]?.message?.content?.trim();
+    if (!text) return null;
+    const parsed = JSON.parse(text) as Record<string, unknown>;
+
+    const strings = (v: unknown): string[] =>
+      Array.isArray(v) ? v.filter((s): s is string => typeof s === "string") : [];
+    const nullableString = (v: unknown): string | null => (typeof v === "string" ? v : null);
+
+    const vocabulary: Record<string, string> = {};
+    if (Array.isArray(parsed.vocabulary)) {
+      for (const pair of parsed.vocabulary as Array<{ key?: unknown; label?: unknown }>) {
+        if (typeof pair?.key === "string" && typeof pair?.label === "string") {
+          vocabulary[pair.key] = pair.label;
+        }
+      }
+    }
+    const customMetrics: RawInterviewMetric[] = [];
+    if (Array.isArray(parsed.customMetrics)) {
+      for (const m of parsed.customMetrics as Array<Record<string, unknown>>) {
+        if (typeof m?.name !== "string") continue;
+        customMetrics.push({ name: m.name, unit: typeof m.unit === "string" ? m.unit : null });
+      }
+    }
+
+    return {
+      reply:            typeof parsed.reply === "string" ? parsed.reply : "",
+      addWorkflows:     strings(parsed.addWorkflows),
+      removeWorkflows:  strings(parsed.removeWorkflows),
+      vocabulary,
+      kind:             nullableString(parsed.kind),
+      variant:          nullableString(parsed.variant),
+      customMetrics,
+      founderTitle:     nullableString(parsed.founderTitle),
+      followUpQuestion: nullableString(parsed.followUpQuestion),
+      followUpChips:    strings(parsed.followUpChips),
+      confidence:       parsed.confidence === "low" ? "low" : "high",
+    };
+  } catch (e) {
+    console.error("interpretInterview() failed:", e);
+    return null;
+  }
+}
+
 export async function recommendSetup(system: string, user: string): Promise<RawSetupRecommendation | null> {
   const openai = getClient();
   if (!openai) return null;
