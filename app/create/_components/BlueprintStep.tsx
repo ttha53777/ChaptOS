@@ -4,9 +4,9 @@
  * Step 4 — BLUEPRINT. The full-screen review sheet: editable chapter URL with
  * a live slug check, workflow toggle rows with a "why it's here" rationale
  * (plus the locked Core row), the three high-signal vocab words with derived
- * plurals, the "This term" card (term model + editable dates), the "Tracking"
- * card (built-in metric toggles + custom metrics), and the Leadership seat
- * list.
+ * plurals, the "Tracking" card (built-in metric toggles + custom metrics), and
+ * the Leadership seat list. (The current term is set later, in the workspace —
+ * see SemesterGate.)
  */
 
 import { useEffect, useRef, useState } from "react";
@@ -18,12 +18,6 @@ import {
   getVariant,
   type BuiltinMetricId,
 } from "@/lib/onboarding/kinds";
-import {
-  TERM_MODELS,
-  TERM_MODEL_LABEL,
-  suggestTerms,
-  type TermModel,
-} from "@/lib/onboarding/terms";
 import { roleSummary } from "@/lib/onboarding/perm-areas";
 import type { WorkflowId } from "@/lib/org-types";
 import type { VocabKey } from "@/lib/vocab";
@@ -274,99 +268,6 @@ function VocabChip({
   );
 }
 
-/* ─── This term ──────────────────────────────────────────────────────────── */
-
-function TermCard({ draft, dispatch }: { draft: Draft; dispatch: React.Dispatch<FlowAction> }) {
-  const model = draft.termModel;
-  const term = draft.term;
-  const period = draftVocab(draft, "Period").toLowerCase();
-
-  // Commit helpers keep the stored term valid: the label never empties (the
-  // draft schema and the API both require min(1)) and the dates never cross
-  // (the API refuses endDate < startDate).
-  const commitLabel = (value: string) => {
-    const label = value.trim().slice(0, 40);
-    if (label && term) dispatch({ type: "setTerm", term: { ...term, label } });
-  };
-  const commitDate = (field: "startDate" | "endDate", value: string) => {
-    if (!value || !term) return;
-    const next = { ...term, [field]: value };
-    if (next.startDate > next.endDate) {
-      if (field === "startDate") next.endDate = value;
-      else next.startDate = value;
-    }
-    dispatch({ type: "setTerm", term: next });
-  };
-
-  return (
-    <div className="bp-card">
-      <h3>
-        This term <span className="why">how your calendar resets</span>
-      </h3>
-      <div className="term-models">
-        {TERM_MODELS.map((m: TermModel) => (
-          <button
-            key={m}
-            className={`term-chip${model === m ? " sel" : ""}`}
-            aria-pressed={model === m}
-            onClick={() => dispatch({ type: "setTermModel", model: m })}
-          >
-            {TERM_MODEL_LABEL[m]}
-          </button>
-        ))}
-      </div>
-      {model && term && (
-        <div className="term-edit">
-          <input
-            className="term-label"
-            key={term.label}
-            defaultValue={term.label}
-            aria-label="Term label"
-            onBlur={e => commitLabel(e.target.value)}
-            onKeyDown={e => {
-              if (e.key === "Enter") e.currentTarget.blur();
-            }}
-          />
-          <input
-            type="date"
-            value={term.startDate}
-            aria-label="Term start date"
-            onChange={e => commitDate("startDate", e.target.value)}
-          />
-          <span className="term-dash">→</span>
-          <input
-            type="date"
-            value={term.endDate}
-            aria-label="Term end date"
-            onChange={e => commitDate("endDate", e.target.value)}
-          />
-        </div>
-      )}
-      {model && !term && (
-        <div className="term-models term-suggest">
-          {suggestTerms(model).map(t => (
-            <button key={t.label} className="term-chip" onClick={() => dispatch({ type: "setTerm", term: t })}>
-              {t.label}
-            </button>
-          ))}
-        </div>
-      )}
-      <p className="vocab-note">
-        {model && term ? (
-          <>
-            <b>{term.label}</b> is created active with the org — attendance and {draftVocab(draft, "Dues").toLowerCase()} book
-            against it from day one.
-          </>
-        ) : model ? (
-          <>Pick the current {period} — its dates stay editable right here.</>
-        ) : (
-          <>No term yet — pick how your calendar resets, or add one later in Settings.</>
-        )}
-      </p>
-    </div>
-  );
-}
-
 /* ─── Tracking ───────────────────────────────────────────────────────────── */
 
 const METRIC_WHY: Record<BuiltinMetricId, string> = {
@@ -519,7 +420,6 @@ export function BlueprintStep({
           </div>
         </div>
         <div className="bp-col">
-          <TermCard draft={draft} dispatch={dispatch} />
           <TrackingCard draft={draft} dispatch={dispatch} />
           <div className="bp-card">
             <h3>

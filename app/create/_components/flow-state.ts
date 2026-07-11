@@ -26,7 +26,6 @@ import {
   type BuiltinMetricId,
   type KindId,
 } from "@/lib/onboarding/kinds";
-import { TERM_PERIOD_VOCAB, type TermModel } from "@/lib/onboarding/terms";
 import { seatsFromTemplate, type Seat } from "@/lib/onboarding/seats";
 import { PERM_AREAS, togglePerm, toggleArea } from "@/lib/onboarding/perm-areas";
 import { ALWAYS_ON_WORKFLOWS, getOrgType, type WorkflowId } from "@/lib/org-types";
@@ -50,8 +49,6 @@ export type FlowAction =
   | { type: "setVariant"; variant: string }
   | { type: "setFounderName"; name: string }
   | { type: "setFounderTitle"; title: string }
-  | { type: "setTermModel"; model: TermModel }
-  | { type: "setTerm"; term: { label: string; startDate: string; endDate: string } | null }
   | { type: "setBuiltinMetric"; metric: BuiltinMetricId; on: boolean }
   | { type: "addCustomMetric"; name: string; unit: string | null }
   | { type: "removeCustomMetric"; index: number }
@@ -151,20 +148,6 @@ export function flowReducer(draft: Draft, action: FlowAction): Draft {
         ...draft,
         seats: draft.seats.map(s => (s.all ? { ...s, title: action.title.trim().slice(0, 60) || s.title } : s)),
       };
-    case "setTermModel": {
-      // The founder's direct answer to "how does your calendar reset?" wins
-      // over any template Period override. Changing the model invalidates a
-      // previously picked term (its dates belong to the old shape).
-      const vocab = { ...draft.vocab, Period: TERM_PERIOD_VOCAB[action.model] };
-      return {
-        ...draft,
-        termModel: action.model,
-        vocab,
-        term: draft.termModel === action.model ? draft.term : null,
-      };
-    }
-    case "setTerm":
-      return { ...draft, term: action.term };
     case "setBuiltinMetric":
       return { ...draft, metrics: { ...draft.metrics, [action.metric]: action.on } };
     case "addCustomMetric": {

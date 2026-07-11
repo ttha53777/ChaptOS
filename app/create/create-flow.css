@@ -709,28 +709,6 @@
 .crf .chip .chip-x { margin-left: 7px; color: var(--ink-40); font-size: 12px; }
 .crf .chip.custom:hover .chip-x { color: var(--ink); }
 
-/* ═══ Blueprint: This term ═══ */
-.crf .term-models { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
-.crf .term-suggest { margin: 2px 0 0; }
-.crf .term-chip {
-  padding: 7px 14px; border-radius: 999px;
-  border: 1px solid var(--line); color: var(--ink-72); font-size: 12.5px;
-  transition: all 180ms var(--ease);
-}
-.crf .term-chip:hover { border-color: var(--vio-line); color: var(--ink); background: var(--vio-soft); }
-.crf .term-chip.sel { border-color: var(--vio-line); color: var(--vio); background: var(--vio-soft); font-weight: 600; }
-.crf .term-edit { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding-top: 4px; }
-.crf .term-edit input {
-  background: transparent; border: 1px solid var(--line); border-radius: 8px;
-  color: var(--ink); padding: 7px 10px; font-size: 13px; outline: none;
-  transition: border-color 200ms var(--ease);
-}
-.crf .term-edit input:focus { border-color: var(--vio-line); }
-.crf .term-edit .term-label { font-family: var(--serif); font-size: 15px; width: 128px; }
-.crf .term-edit input[type="date"] { font-family: var(--mono); font-size: 11.5px; color-scheme: light; }
-.crf [data-world="dark"] .term-edit input[type="date"] { color-scheme: dark; }
-.crf .term-dash { color: var(--ink-40); font-size: 12px; }
-
 /* ═══ Blueprint: Tracking (custom metrics) ═══ */
 .crf .metric-customs { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; }
 .crf .metric-chip { cursor: default; }

@@ -5,7 +5,6 @@ import { aiEnabled, interpretInterview, type RawInterviewResult } from "@/lib/ai
 import { ALL_WORKFLOWS, ALWAYS_ON_WORKFLOWS, type WorkflowId } from "@/lib/org-types";
 import { VOCAB_KEYS, DEFAULT_LABELS, type VocabKey } from "@/lib/vocab";
 import { KIND_IDS, KIND_VARIANTS, isKindId, type KindId } from "@/lib/onboarding/kinds";
-import { TERM_MODELS, TERM_MODEL_LABEL, suggestTerms, isTermModel, type TermModel, type TermSuggestion } from "@/lib/onboarding/terms";
 import { logError } from "@/lib/observability";
 
 // POST /api/ai/interview — the /create interview's free-text interpreter.
@@ -43,7 +42,7 @@ const MAX_TRANSCRIPT = 24;
 
 /** The still-needed fields the client sends the concierge each turn so it never
     ends early. Advisory hints — the client re-derives + re-guards them too. */
-export const REQUIRED_FIELDS = ["kind", "workflows", "termModel", "term", "metrics", "founderTitle"] as const;
+export const REQUIRED_FIELDS = ["kind", "workflows", "metrics", "founderTitle"] as const;
 export type RequiredField = (typeof REQUIRED_FIELDS)[number];
 
 export const interviewAiInput = z.object({
@@ -60,7 +59,6 @@ export const interviewAiInput = z.object({
       kind:             z.enum(KIND_IDS).nullable(),
       variant:          z.string().max(30).nullable(),
       enabledWorkflows: z.array(z.string().max(20)).max(ALL_WORKFLOWS.length),
-      termModel:        z.enum(TERM_MODELS).nullable(),
     })
     .partial(),
   // The clarify loop so far: q = a question we asked, user = the founder.
@@ -87,10 +85,7 @@ export interface ValidatedInterviewResult {
     variant:         string | null;
     customMetrics:   { name: string; unit: string | null }[];
     founderTitle:    string | null;
-    // Concierge-stage picks (null on legacy stages). term is resolved
-    // server-side from the model's termLabel — the model never emits dates.
-    termModel:       TermModel | null;
-    term:            TermSuggestion | null;
+    // Concierge-stage pick (null on legacy stages).
     founderName:     string | null;
   };
   followUp: { question: string; chips: string[] } | null;
@@ -142,13 +137,6 @@ export function validateInterviewResult(
 
   const founderTitle = raw.founderTitle?.trim().slice(0, 60) || null;
 
-  // Concierge picks. termModel is intersected with the registry; term is
-  // resolved SERVER-SIDE from the model's label against suggestTerms() — the
-  // model never emits dates, so a hallucinated label just yields null (the
-  // client then asks the term question deterministically).
-  const termModel: TermModel | null =
-    raw.termModel && isTermModel(raw.termModel) ? raw.termModel : null;
-  const term = resolveTerm(termModel ?? input.answers.termModel ?? null, raw.termLabel);
   // founderName is display-only + overridable by the Google name, so clamp only.
   const founderName = raw.founderName?.trim().slice(0, 120) || null;
 
@@ -168,39 +156,12 @@ export function validateInterviewResult(
 
   return {
     reply: raw.reply.trim().slice(0, 200),
-    picks: { addWorkflows, removeWorkflows, vocab, kind, variant, customMetrics, founderTitle, termModel, term, founderName },
+    picks: { addWorkflows, removeWorkflows, vocab, kind, variant, customMetrics, founderTitle, founderName },
     followUp,
     next,
     done,
     confidence: raw.confidence,
   };
-}
-
-/** Resolve the model's free-text term label to a real suggestion window for
-    the given model. The model never supplies dates, so we match its label
-    against suggestTerms() and take those exact windows. Matching is forgiving —
-    a founder says "the fall term", not "Fall 2026" — so we fall back from an
-    exact label match to a season-word / year match before giving up (null then
-    means the client asks the term question deterministically). Same fuzzy
-    posture as the scripted answerTermText fallback. */
-function resolveTerm(model: TermModel | null, label: string | null | undefined): TermSuggestion | null {
-  const wanted = label?.trim().toLowerCase();
-  if (!model || !wanted) return null;
-  const options = suggestTerms(model);
-  // 1) exact label ("fall 2026").
-  const exact = options.find(t => t.label.toLowerCase() === wanted);
-  if (exact) return exact;
-  // 2) the label's season/year word appears in a suggestion, or vice-versa
-  //    ("fall", "the fall term", "2026" → Fall 2026). First match wins, and
-  //    suggestTerms is ordered by relevance (current period first), so a bare
-  //    "fall" picks the nearest upcoming Fall.
-  const words = wanted.split(/\s+/).filter(w => w.length > 2);
-  return (
-    options.find(t => {
-      const lbl = t.label.toLowerCase();
-      return words.some(w => lbl.includes(w)) || lbl.split(/\s+/).some(w => wanted.includes(w));
-    }) ?? null
-  );
 }
 
 // ─── System prompt ───────────────────────────────────────────────────────────
@@ -224,7 +185,7 @@ const WORKFLOW_DESCRIPTIONS: Record<WorkflowId, string> = {
 // The shared LEGACY_DEFAULTS line forces the concierge-only fields to their
 // null/[]/false defaults so a legacy turn can't accidentally satisfy the schema
 // with completion state or drive the interview forward on its own.
-const LEGACY_DEFAULTS = `Always return "done": false, "nextQuestion": null, "nextChips": [], "termModel": null, "termLabel": null, "founderName": null.`;
+const LEGACY_DEFAULTS = `Always return "done": false, "nextQuestion": null, "nextChips": [], "founderName": null.`;
 
 const STAGE_GOALS: Record<Exclude<InterviewAiInput["stage"], "concierge">, string> = {
   kind: `GOAL: resolve which KIND of organization this is (set "kind"), and — when the text makes it obvious — its variant too (set "variant"). Leave workflows/vocabulary/customMetrics/founderTitle empty. Ask a follow-up ONLY if the text is genuinely ambiguous between two kinds. ${LEGACY_DEFAULTS}`,
@@ -242,13 +203,11 @@ function registryBlock(input: InterviewAiInput): string {
   const variantList = kind && KIND_VARIANTS[kind]?.length
     ? KIND_VARIANTS[kind]!.map(v => `  - ${v.id}: ${v.label}`).join("\n")
     : "  (none for this kind)";
-  const termList = TERM_MODELS.map(m => `  - ${m} (${TERM_MODEL_LABEL[m]})`).join("\n");
   const priors = [
     `org name: ${input.orgName || "(unnamed)"}`,
     `kind: ${kind ?? "(unknown)"}`,
     `variant: ${input.answers.variant ?? "(unknown)"}`,
     `enabled workflows: ${(input.answers.enabledWorkflows ?? []).join(", ") || "(none yet)"}`,
-    `term model: ${input.answers.termModel ?? "(not asked yet)"}`,
   ].join("\n  ");
 
   return `PRIORS (already answered — never re-ask these):
@@ -260,9 +219,6 @@ ${workflowList}
 VALID KIND IDS: ${KIND_IDS.join(", ")}
 VALID VARIANT IDS for the current kind:
 ${variantList}
-
-VALID TERM MODEL IDS — use ONLY these exact ids in "termModel":
-${termList}
 
 VOCABULARY KEYS (optional label overrides) — return "vocabulary" as {key,label} pairs using ONLY these keys:
 ${vocabList}`;
@@ -307,12 +263,11 @@ When STILL NEEDED is empty, you are DONE gathering — do not re-ask or refine a
 
 TOPICS to cover, lightly and only if relevant — weave them into the conversation, don't recite them:
   - what the org actually does → its pages (set addWorkflows/removeWorkflows; fix vocabulary when their words imply it)
-  - how its calendar resets ("termModel") AND which period it's in right now ("termLabel" — accept the founder's natural phrasing like "the fall term" and move on; NEVER interrogate them about the exact label or year, the dates are editable later on the blueprint. Combine the reset + current-period into ONE question.)
   - what they track per member (1–${MAX_CUSTOM_METRICS} "customMetrics", short name + optional unit; never duplicate attendance/GPA/dues/service hours)
   - the org's kind (set "kind", and "variant" when obvious)
   - the founder's own name ("founderName") and title ("founderTitle")
 
-HOW TO REACT ("reply", ≤25 words, no markdown): open by reflecting what they just told you, in THEIR words — concrete, warm but not gushing. NEVER expose internal machinery: don't name a kind/variant/workflow/term id, don't say which template or bucket you picked, and never say you'll "treat it as" or "categorize it as" a type (especially not "other"). For an org that fits no preset, just mirror what they said and what it means for their setup.
+HOW TO REACT ("reply", ≤25 words, no markdown): open by reflecting what they just told you, in THEIR words — concrete, warm but not gushing. NEVER expose internal machinery: don't name a kind/variant/workflow id, don't say which template or bucket you picked, and never say you'll "treat it as" or "categorize it as" a type (especially not "other"). For an org that fits no preset, just mirror what they said and what it means for their setup.
 
 HOW TO ASK THE NEXT QUESTION ("nextQuestion", ≤25 words): pick the most natural next thing given what's STILL NEEDED. Combine two cheap questions into one when it flows. Ask exactly ONE question. Phrase it freshly yourself — never recite a fixed script. Offer 2–${MAX_CHIPS} short tap-answers in "nextChips" covering the likely cases; the founder can always type instead.
 

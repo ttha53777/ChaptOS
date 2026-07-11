@@ -171,10 +171,9 @@ export interface RawInterviewResult {
   // Concierge-stage fields. The four legacy stage prompts leave these at their
   // null/false defaults (they use followUp* + never drive completion); the
   // concierge prompt uses nextQuestion/nextChips/done to lead the conversation
-  // and termModel/termLabel/founderName to resolve fields the old stages never
-  // carried. One json_schema, two prompt contracts (see the route).
-  termModel: string | null;
-  termLabel: string | null;
+  // and founderName to resolve a field the old stages never carried. (The term
+  // is no longer collected here — a fresh org sets it in the workspace via
+  // SemesterGate.) One json_schema, two prompt contracts (see the route).
   founderName: string | null;
   nextQuestion: string | null;
   nextChips: string[];
@@ -247,8 +246,6 @@ export async function interpretInterview(
               followUpChips:    { type: "array", items: { type: "string" } },
               confidence:       { type: "string", enum: ["high", "low"] },
               // Concierge-stage fields (legacy stages return null/[]/false).
-              termModel:        { type: ["string", "null"] },
-              termLabel:        { type: ["string", "null"] },
               founderName:      { type: ["string", "null"] },
               nextQuestion:     { type: ["string", "null"] },
               nextChips:        { type: "array", items: { type: "string" } },
@@ -257,7 +254,7 @@ export async function interpretInterview(
             required: [
               "reply", "addWorkflows", "removeWorkflows", "vocabulary", "kind", "variant",
               "customMetrics", "founderTitle", "followUpQuestion", "followUpChips", "confidence",
-              "termModel", "termLabel", "founderName", "nextQuestion", "nextChips", "done",
+              "founderName", "nextQuestion", "nextChips", "done",
             ],
           },
         },
@@ -300,8 +297,6 @@ export async function interpretInterview(
       followUpQuestion: nullableString(parsed.followUpQuestion),
       followUpChips:    strings(parsed.followUpChips),
       confidence:       parsed.confidence === "low" ? "low" : "high",
-      termModel:        nullableString(parsed.termModel),
-      termLabel:        nullableString(parsed.termLabel),
       founderName:      nullableString(parsed.founderName),
       nextQuestion:     nullableString(parsed.nextQuestion),
       nextChips:        strings(parsed.nextChips),

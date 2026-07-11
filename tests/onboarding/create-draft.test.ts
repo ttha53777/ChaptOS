@@ -35,8 +35,6 @@ function draftFor(kind: (typeof KIND_IDS)[number], variant: string | null = null
     founderName: "Alex Founder",
     interviewDone: true,
     enabledWorkflows: [...template.enabledWorkflows],
-    termModel: "semester",
-    term: { label: "Fall 2026", startDate: "2026-08-24", endDate: "2026-12-18" },
     metrics: { ...defaultMetrics(kind), custom: [{ name: "Chapter Points", unit: "pts" }] },
     seats: seatsFromTemplate(KIND_TO_TYPE[kind]),
   };
@@ -115,21 +113,14 @@ describe("draftToCreateOrgInput", () => {
     expect(blueprint!.roleSeeds!.every(r => r.name.length > 0)).toBe(true);
   });
 
-  it("maps the confirmed term into blueprint.term", () => {
+  it("never sends blueprint.term — the term is set post-creation in the workspace", () => {
+    // Term collection moved out of /create to the SemesterGate first-run prompt,
+    // so the mapper omits blueprint.term entirely; the org is provisioned with no
+    // active Semester and lands on the gate. blueprint.term stays optional
+    // server-side, so the payload still parses.
     const { blueprint } = draftToCreateOrgInput(draftFor("fraternity"));
-    expect(blueprint!.term).toEqual({
-      label: "Fall 2026",
-      startDate: "2026-08-24",
-      endDate: "2026-12-18",
-    });
-  });
-
-  it("omits blueprint.term when the interview never confirmed one (skip path)", () => {
-    const draft = { ...draftFor("fraternity"), termModel: null, term: null };
-    const { blueprint } = draftToCreateOrgInput(draft);
     expect(blueprint!.term).toBeUndefined();
-    // The payload still parses — the term is genuinely optional server-side.
-    expect(createOrgInput.safeParse(draftToCreateOrgInput(draft)).success).toBe(true);
+    expect(createOrgInput.safeParse(draftToCreateOrgInput(draftFor("fraternity"))).success).toBe(true);
   });
 
   it("always sends blueprint.metrics: builtin flags + custom definitions", () => {
@@ -158,7 +149,6 @@ describe("parseDraft", () => {
     expect(parseDraft(JSON.stringify({ ...draftFor("club"), v: 1 }))).toBeNull();
     // Invalid enum members.
     expect(parseDraft(JSON.stringify({ ...draftFor("club"), kind: "dynasty" }))).toBeNull();
-    expect(parseDraft(JSON.stringify({ ...draftFor("club"), termModel: "epoch" }))).toBeNull();
     expect(
       parseDraft(JSON.stringify({ ...draftFor("club"), enabledWorkflows: ["bitcoin"] })),
     ).toBeNull();
@@ -198,9 +188,7 @@ describe("parseDraft", () => {
     expect(parseDraft(JSON.stringify(good))).not.toBeNull();
   });
 
-  it("rejects invalid term shapes and over-long custom metrics", () => {
-    const badDate = { ...draftFor("club"), term: { label: "Fall", startDate: "soon", endDate: "2026-12-18" } };
-    expect(parseDraft(JSON.stringify(badDate))).toBeNull();
+  it("rejects over-long custom metric lists", () => {
     const tooMany = {
       ...draftFor("club"),
       metrics: {

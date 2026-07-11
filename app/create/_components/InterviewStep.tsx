@@ -3,9 +3,10 @@
 /**
  * Step 2 — INTERVIEW. A scripted spine with AI branches.
  *
- * The question skeleton is deterministic (kind → variant → activity → term
- * model → current term → metrics → your name → your title) and every CHIP tap
- * is handled locally with zero AI. Free-text answers route through
+ * The question skeleton is deterministic (kind → variant → activity → metrics →
+ * your name → your title) and every CHIP tap is handled locally with zero AI.
+ * (The current term is set later, in the workspace — see SemesterGate.) Free-text
+ * answers route through
  * POST /api/ai/interview when it's configured (probed once on mount): the
  * model interprets the words into structured picks and — on the activity
  * stage — may ask up to MAX_ACTIVITY_FOLLOWUPS specific clarifying questions
@@ -30,14 +31,6 @@ import {
   type BuiltinMetricId,
   type KindId,
 } from "@/lib/onboarding/kinds";
-import {
-  TERM_MODELS,
-  TERM_MODEL_LABEL,
-  matchTermModel,
-  suggestTerms,
-  type TermModel,
-  type TermSuggestion,
-} from "@/lib/onboarding/terms";
 import { draftVocab, type FlowAction } from "./flow-state";
 import {
   askInterviewAi,
@@ -52,8 +45,6 @@ type Stage =
   | "kind"
   | "variant"
   | "activity"
-  | "termModel"
-  | "term"
   | "metrics"
   | "founderName"
   | "founderTitle"
@@ -76,7 +67,7 @@ const MAX_CONCIERGE_TURNS = 12;
     resume stage when the concierge hands off (mid-conversation fallback or the
     early-exit/loop-cap backstop). First still-missing stage wins. */
 const STAGE_ORDER: Stage[] = [
-  "kind", "variant", "activity", "termModel", "term", "metrics", "founderName", "founderTitle",
+  "kind", "variant", "activity", "metrics", "founderName", "founderTitle",
 ];
 
 /** How long the "typing…" indicator shows before an AI reply lands — scaled to
@@ -111,19 +102,6 @@ const VARIANT_REPLIES: Record<string, ReactNode> = {
   "arts:production":         <>Rehearsals building to a run — <b>Stage Manager</b> and the full production bench.</>,
   "arts:ensemble":           <>Rehearsals and gigs — no stage-manager hierarchy, and a <b>Music Director</b> seat instead.</>,
 };
-
-const TERM_MODEL_REPLIES: Record<TermModel, ReactNode> = {
-  semester:     <><b>Semesters</b> it is — dues and attendance reset each term.</>,
-  quarter:      <><b>Quarters</b> — quick cycles; everything resets four times a year.</>,
-  season:       <><b>Seasons</b> — the roster and records follow your competitive year.</>,
-  "year-round": <><b>Year-round</b> — one long ledger, no mid-year resets.</>,
-};
-
-function fmtRange(t: TermSuggestion): string {
-  const f = (d: string) =>
-    new Date(`${d}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" });
-  return `${f(t.startDate)} – ${f(t.endDate)}`;
-}
 
 function titleCase(text: string): string {
   return text
@@ -228,27 +206,6 @@ export function InterviewStep({
         setChips([{ label: "Looks right — next", pick: () => answerActivitySkip() }]);
         break;
       }
-      case "termModel": {
-        push("q", <>How does your calendar reset?</>);
-        setChips(TERM_MODELS.map(m => ({ label: TERM_MODEL_LABEL[m], pick: () => answerTermModel(m, TERM_MODEL_LABEL[m]) })));
-        break;
-      }
-      case "term": {
-        const model = draftRef.current.termModel ?? "semester";
-        const suggestions = suggestTerms(model);
-        push("q", <>Which {vocab("Period").toLowerCase()} are we in right now?</>);
-        setChips([
-          ...suggestions.map(t => ({
-            label: `${t.label} (${fmtRange(t)})`,
-            pick: () => answerTerm(t, `${t.label} (${fmtRange(t)})`, false),
-          })),
-          {
-            label: "I'll set the dates on the blueprint",
-            pick: () => answerTerm(suggestions[0]!, "I'll set the dates on the blueprint", true),
-          },
-        ]);
-        break;
-      }
       case "metrics": {
         push("q", <>What should I track for each {vocab("Member").toLowerCase()}? Tap everything you want on the sheet — or type your own.</>);
         setChips(null); // metrics chips render live from the draft, below
@@ -312,7 +269,7 @@ export function InterviewStep({
 
   function answerActivitySkip() {
     push("user", "Looks right — next");
-    respond(<>Then the pages stand. Two quick calendar questions.</>, "termModel");
+    respond(<>Then the pages stand. One more thing.</>, "metrics");
   }
 
   /** The activity clarify loop: free-text and follow-up answers both land here. */
@@ -330,8 +287,8 @@ export function InterviewStep({
     if (!result) {
       // Deterministic fallback: no interpretation, no loop — the blueprint's
       // toggles are one step away, so acknowledge and move on.
-      push("bot", <>Noted — you can flip any page on or off when you review the blueprint. Two quick calendar questions.</>);
-      later(() => ask("termModel"), 650);
+      push("bot", <>Noted — you can flip any page on or off when you review the blueprint. One more thing.</>);
+      later(() => ask("metrics"), 650);
       return;
     }
 
@@ -342,7 +299,7 @@ export function InterviewStep({
 
     const followUp = activityFollowUps.current < MAX_ACTIVITY_FOLLOWUPS ? result.followUp : null;
     if (!followUp) {
-      later(() => ask("termModel"), 650);
+      later(() => ask("metrics"), 650);
       return;
     }
     activityFollowUps.current += 1;
@@ -358,38 +315,7 @@ export function InterviewStep({
 
   function answerActivityDone() {
     push("user", "That's everything — next");
-    respond(<>Good — the pages are settled. Two quick calendar questions.</>, "termModel");
-  }
-
-  function answerTermModel(model: TermModel, label: string) {
-    push("user", label);
-    dispatch({ type: "setTermModel", model });
-    onFlash("term");
-    respond(TERM_MODEL_REPLIES[model], "term");
-  }
-
-  function answerTerm(term: TermSuggestion, label: string, deferred: boolean) {
-    push("user", label);
-    dispatch({ type: "setTerm", term });
-    onFlash("term");
-    respond(
-      deferred ? (
-        <>No problem — I&rsquo;ve pencilled in <b>{term.label}</b>; the exact dates are editable on the blueprint.</>
-      ) : (
-        <><b>{term.label}</b> it is — attendance and dues will book against it from day one.</>
-      ),
-      "metrics",
-    );
-  }
-
-  /** Free-text at the term stage: match a suggestion label, else pencil in the first. */
-  function answerTermText(text: string) {
-    const model = draftRef.current.termModel ?? "semester";
-    const suggestions = suggestTerms(model);
-    const lower = text.toLowerCase();
-    const hit = suggestions.find(t => lower.includes(t.label.toLowerCase())) ??
-      suggestions.find(t => t.label.toLowerCase().split(" ").some(w => w.length > 3 && lower.includes(w)));
-    answerTerm(hit ?? suggestions[0]!, text, !hit);
+    respond(<>Good — the pages are settled. One more thing.</>, "metrics");
   }
 
   function toggleMetric(metric: BuiltinMetricId) {
@@ -485,8 +411,6 @@ export function InterviewStep({
     if (p.addWorkflows.length || p.removeWorkflows.length || Object.keys(p.vocab).length) {
       dispatch({ type: "applyAiPicks", picks: { addWorkflows: p.addWorkflows, removeWorkflows: p.removeWorkflows, vocab: p.vocab } });
     }
-    if (p.termModel) dispatch({ type: "setTermModel", model: p.termModel });
-    if (p.term) dispatch({ type: "setTerm", term: p.term });
     // The model re-sends the FULL metric list every turn (it can't see what's
     // already on the sheet), so only add names not already present — otherwise
     // "Chapter points" lands twice. Case-insensitive, matching how a founder
@@ -506,7 +430,6 @@ export function InterviewStep({
     if (p.kind || p.variant) onFlash("seats");
     if (p.addWorkflows.length || p.removeWorkflows.length) onFlash("pages");
     if (Object.keys(p.vocab).length) later(() => onFlash("words"), 450);
-    if (p.termModel || p.term) later(() => onFlash("term"), 300);
     if (p.customMetrics.length) later(() => onFlash("metrics"), 300);
   }
 
@@ -516,9 +439,7 @@ export function InterviewStep({
     const missing = new Set<string>(missingFields(draftRef.current));
     // Map field ids → the scripted stage that collects them.
     if (missing.has("kind")) return "kind";
-    if (missing.has("termModel")) return "termModel";
-    if (missing.has("term")) return "term";
-    // kind/term settled → the only thing the scripted spine still owes is the
+    // kind settled → the only thing the scripted spine still owes is the
     // founder's name + title (metrics are optional and already offered in chat).
     return "founderName";
   }
@@ -643,10 +564,6 @@ export function InterviewStep({
       else answerActivitySkip();
     } else if (s === "activity") {
       void answerActivity(text);
-    } else if (s === "termModel") {
-      answerTermModel(matchTermModel(text), text);
-    } else if (s === "term") {
-      answerTermText(text);
     } else if (s === "metrics") {
       void answerMetricText(text);
     } else if (s === "founderName") {

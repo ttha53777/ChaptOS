@@ -130,22 +130,7 @@ describe("flowReducer: setVariant", () => {
   });
 });
 
-describe("flowReducer: term + metrics + founder title", () => {
-  it("setTermModel writes the Period vocab and invalidates a cross-model term", () => {
-    let draft = flowReducer(emptyDraft(), { type: "setKind", kind: "team" });
-    draft = flowReducer(draft, { type: "setTermModel", model: "season" });
-    draft = flowReducer(draft, {
-      type: "setTerm",
-      term: { label: "Fall 2026", startDate: "2026-08-15", endDate: "2026-12-31" },
-    });
-    expect(draft.vocab.Period).toBe("Season");
-    // Same model → term kept; different model → term cleared.
-    expect(flowReducer(draft, { type: "setTermModel", model: "season" }).term).not.toBeNull();
-    const switched = flowReducer(draft, { type: "setTermModel", model: "semester" });
-    expect(switched.term).toBeNull();
-    expect(switched.vocab.Period).toBe("Semester");
-  });
-
+describe("flowReducer: metrics + founder title", () => {
   it("applyAiPicks toggles workflows and vocab but never drops always-on", () => {
     const base = flowReducer(emptyDraft(), { type: "setKind", kind: "fraternity" });
     const next = flowReducer(base, {

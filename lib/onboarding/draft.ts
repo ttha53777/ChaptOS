@@ -21,10 +21,8 @@ import { ALL_WORKFLOWS, normalizeWorkflows, type WorkflowId } from "@/lib/org-ty
 import { PERMISSIONS, type Permission } from "@/lib/permissions";
 import { sanitizeVocabOverrides } from "@/lib/vocab";
 import { suggestSlug } from "@/lib/slug-rules";
-import { DATE_RE } from "@/lib/dates";
 import type { CreateOrgInput } from "@/lib/validation/org";
 import { BUILTIN_METRIC_DEFAULTS, KIND_IDS, KIND_TO_TYPE, KIND_VOCAB_DELTA, type KindId } from "./kinds";
-import { TERM_MODELS } from "./terms";
 import type { Seat } from "./seats";
 
 export const DRAFT_STORAGE_KEY = "figurints:create-draft:v2";
@@ -68,16 +66,6 @@ export const draftSchema = z.object({
       (singular only). Permissive keys, like blueprintInput — unknown keys are
       dropped when mapping (sanitizeVocabOverrides), and again server-side. */
   vocab: z.record(z.string(), z.string().trim().min(1).max(40)),
-  /** "How does your calendar reset?" — null until asked / when skipped. */
-  termModel: z.enum(TERM_MODELS).nullable(),
-  /** The current term the founder confirmed; becomes the first active Semester. */
-  term: z
-    .object({
-      label:     z.string().trim().min(1).max(40),
-      startDate: z.string().regex(DATE_RE),
-      endDate:   z.string().regex(DATE_RE),
-    })
-    .nullable(),
   /** Per-member tracking: built-in toggles + custom metric definitions. */
   metrics: z.object({
     attendance:   z.boolean(),
@@ -120,8 +108,6 @@ export function emptyDraft(): Draft {
     interviewDone: false,
     enabledWorkflows: [],
     vocab: {},
-    termModel: null,
-    term: null,
     metrics: defaultMetrics(null),
     seats: [],
   };
@@ -194,9 +180,10 @@ export function draftToCreateOrgInput(draft: Draft, fallbackFounderName?: string
       enabledWorkflows: normalizeWorkflows(draft.enabledWorkflows),
       vocabularyOverrides,
       roleSeeds,
-      // Only send a term the founder actually confirmed — absent means "no
-      // active period yet", exactly like the skip-interview path today.
-      ...(draft.term ? { term: draft.term } : {}),
+      // No term is sent from the create flow anymore — a fresh org lands in the
+      // workspace with no active Semester and sets its first term via the
+      // SemesterGate first-run prompt (app/components/SemesterGate.tsx). The
+      // blueprint.term field stays optional server-side for other callers.
       metrics: {
         builtins: {
           attendance:   draft.metrics.attendance,

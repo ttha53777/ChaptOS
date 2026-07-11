@@ -13,7 +13,7 @@ import { DISPLAY_HOST, draftSlug, draftVocab, wfSet } from "./flow-state";
 import { OrgMark } from "./OrgMark";
 
 export type SheetFlash =
-  | { section: "pages" | "words" | "seats" | "name" | "term" | "metrics"; key: number }
+  | { section: "pages" | "words" | "seats" | "name" | "metrics"; key: number }
   | null;
 
 function pageChips(draft: Draft): { k: string; l: string; locked?: boolean }[] {
@@ -36,13 +36,6 @@ function pageChips(draft: Draft): { k: string; l: string; locked?: boolean }[] {
     if (w.has("tasks")) pages.push({ k: "tasks", l: "Tasks" });
   }
   return pages;
-}
-
-/** "Aug 24 – Dec 18" from the draft's YYYY-MM-DD term dates. */
-function termRange(term: NonNullable<Draft["term"]>): string {
-  const f = (d: string) =>
-    new Date(`${d}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" });
-  return `${f(term.startDate)} – ${f(term.endDate)}`;
 }
 
 function Sec({
@@ -121,28 +114,6 @@ export function BlueprintSheet({ draft, flash }: { draft: Draft; flash: SheetFla
           </Sec>
         )}
 
-        {draft.termModel ? (
-          <Sec title="This term" flash={isFlash("term")} key={`term-${flash?.key ?? 0}`}>
-            <div className="sheet-line">
-              <span className="dot" />
-              <span>
-                {draft.term ? (
-                  <>
-                    <b>{draft.term.label}</b> · {termRange(draft.term)}
-                  </>
-                ) : (
-                  <>{draftVocab(draft, "Period", true)} — dates on the blueprint</>
-                )}
-              </span>
-            </div>
-          </Sec>
-        ) : (
-          draft.kind && (
-            <Sec title="This term" pending>
-              <span className="pend">how your calendar resets — coming up</span>
-            </Sec>
-          )
-        )}
 
         {draft.kind && (
           <Sec title="Tracking" flash={isFlash("metrics")} key={`metrics-${flash?.key ?? 0}`}>

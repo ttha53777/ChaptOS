@@ -41,8 +41,6 @@ function raw(over: Partial<RawInterviewResult> = {}): RawInterviewResult {
     followUpQuestion: null,
     followUpChips: [],
     confidence: "high",
-    termModel: null,
-    termLabel: null,
     founderName: null,
     nextQuestion: null,
     nextChips: [],
@@ -153,39 +151,6 @@ describe("validateInterviewResult", () => {
 });
 
 describe("validateInterviewResult — concierge fields", () => {
-  it("validates termModel against TERM_MODELS and resolves term server-side from the label", () => {
-    // A real model + a label that matches one of that model's suggestions.
-    const out = validateInterviewResult(raw({ termModel: "semester", termLabel: "fall 2026" }), INPUT);
-    expect(out.picks.termModel).toBe("semester");
-    expect(out.picks.term).toMatchObject({ label: "Fall 2026", startDate: "2026-08-24", endDate: "2026-12-18" });
-  });
-
-  it("drops a hallucinated termModel and never emits model-supplied dates", () => {
-    const bad = validateInterviewResult(raw({ termModel: "lunar-cycle", termLabel: "Blood Moon" }), INPUT);
-    expect(bad.picks.termModel).toBeNull();
-    // No model + an unmatched label → no term at all (client asks deterministically).
-    expect(bad.picks.term).toBeNull();
-  });
-
-  it("resolves the term against the prior termModel when the model omits one", () => {
-    const out = validateInterviewResult(raw({ termLabel: "Fall 2026" }), {
-      answers: { kind: "fraternity", termModel: "semester" },
-      transcript: INPUT.transcript,
-    });
-    expect(out.picks.term).toMatchObject({ label: "Fall 2026" });
-  });
-
-  it("resolves a bare, yearless term label fuzzily ('the fall term' → Fall 2026)", () => {
-    // Founders say "the fall term", not "Fall 2026" — the exact match would
-    // miss, so the season-word fallback must still land the right window.
-    const out = validateInterviewResult(raw({ termModel: "semester", termLabel: "the fall term" }), INPUT);
-    expect(out.picks.term).toMatchObject({ label: "Fall 2026" });
-
-    // A label with no overlap at all still safely yields null.
-    const none = validateInterviewResult(raw({ termModel: "semester", termLabel: "the wet season" }), INPUT);
-    expect(none.picks.term).toBeNull();
-  });
-
   it("clamps founderName and maps the concierge next-question + done", () => {
     const out = validateInterviewResult(
       raw({ founderName: `  ${"N".repeat(140)}`, nextQuestion: "How does your year reset?", nextChips: ["Semesters", "Semesters", "Year-round"], done: false }),
@@ -207,21 +172,15 @@ describe("validateInterviewResult — concierge fields", () => {
 });
 
 describe("missingFields", () => {
-  it("gates on kind, termModel, and term; ignores optional metrics/name/title", async () => {
+  it("gates only on kind; ignores optional metrics/name/title (term moved to the workspace)", async () => {
     const { missingFields } = await import("@/app/create/_components/interview-ai");
     const { emptyDraft } = await import("@/lib/onboarding/draft");
 
     const empty = emptyDraft();
-    expect(missingFields(empty)).toEqual(["kind", "termModel", "term"]);
+    expect(missingFields(empty)).toEqual(["kind"]);
 
-    const partial = { ...empty, kind: "club" as const, termModel: "semester" as const };
-    expect(missingFields(partial)).toEqual(["term"]);
-
-    const full = {
-      ...partial,
-      term: { label: "Fall 2026", startDate: "2026-08-24", endDate: "2026-12-18" },
-    };
-    expect(missingFields(full)).toEqual([]);
+    const withKind = { ...empty, kind: "club" as const };
+    expect(missingFields(withKind)).toEqual([]);
   });
 });
 
