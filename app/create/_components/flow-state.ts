@@ -128,21 +128,20 @@ function applyVariant(draft: Draft, variantId: string): Draft {
   };
 }
 
-/** Steps past the interview need a kind — backfill the fraternity template
-    (same default the mock used) so deep rail jumps never render empty.
+/** Steps past the interview need a kind — backfill the fraternity template (same
+    default the mock used) so a kindless draft never renders empty.
 
-    This is the one place the template's FULL page set is still the right seed:
-    the founder skipped the interview, so no beat decided anything, and a
-    blueprint holding only a roster would be useless. kindDefaults() seeds the
-    neutral base (pages come from answers); here there are no answers, so the
-    template is the best guess and the founder toggles from it. */
+    The UI no longer reaches this: CreateFlow gates every path to those steps on
+    draft.kind, so the interview's kind beat always runs first. It survives as the
+    last line of defense for a restored or hand-edited draft that somehow arrives
+    kindless, and it deliberately seeds only BASE_WORKFLOWS (via kindDefaults) —
+    pages are owned by the beats, and a fallback that resurrected the template's
+    full guess would reintroduce exactly the preset this flow exists to kill. */
 function ensureKind(draft: Draft): Draft {
   if (draft.kind) return draft;
-  const template = getOrgType(KIND_TO_TYPE["fraternity"])!;
   return {
     ...draft,
     ...kindDefaults(draft, "fraternity"),
-    enabledWorkflows: [...template.enabledWorkflows],
     skipped: !draft.interviewDone,
   };
 }

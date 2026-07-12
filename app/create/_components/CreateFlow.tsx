@@ -22,6 +22,9 @@ import { BlueprintStep } from "./BlueprintStep";
 import { BuildStep } from "./BuildStep";
 import { StepRail } from "./StepRail";
 
+/** Steps whose content is derived from interview answers — see `gated` below. */
+const PAST_INTERVIEW: CreateStep[] = ["roles", "blueprint", "build"];
+
 export function CreateFlow() {
   const [draft, dispatch, restored] = useDraft();
   const searchParams = useSearchParams();
@@ -31,12 +34,24 @@ export function CreateFlow() {
 
   const step = draft.step;
 
+  // Steps past the interview read a page set the interview is supposed to have
+  // decided, so they're gated on the kind beat having been answered — otherwise a
+  // rail jump lands on a blueprint built from a template guess, which is the one
+  // thing the beats exist to prevent. Both the rail and the ←/→ keys route
+  // through here, so this single guard closes every path.
+  const gated = useCallback(
+    (next: CreateStep) => (PAST_INTERVIEW.includes(next) && !draft.kind ? "interview" : null),
+    [draft.kind],
+  );
+
   const goto = useCallback(
     (next: CreateStep) => {
       if (next === "build" && !draft.name.trim()) return void dispatch({ type: "goto", step: "name" });
+      const bounce = gated(next);
+      if (bounce) return void dispatch({ type: "goto", step: bounce });
       dispatch({ type: "goto", step: next });
     },
-    [dispatch, draft.name],
+    [dispatch, draft.name, gated],
   );
 
   // Post-OAuth resume: jump straight to Build and let it auto-fire. Only once
@@ -156,7 +171,7 @@ export function CreateFlow() {
         )}
       </main>
 
-      <StepRail step={step} onGo={goto} />
+      <StepRail step={step} onGo={goto} locked={s => gated(s) !== null} />
     </div>
   );
 }
