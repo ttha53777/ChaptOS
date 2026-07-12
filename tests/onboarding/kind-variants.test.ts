@@ -1,8 +1,11 @@
 /**
- * Integrity tests for KIND_VARIANTS — the activity-profile modifiers the
- * interview's disambiguation question applies on top of the kind's base
- * template — and for how flowReducer applies them (setVariant must be
- * idempotent and recompute from the base, never stack deltas).
+ * Integrity tests for KIND_VARIANTS — the modifiers that refine a kind's SHAPE
+ * (seats, words, metric defaults) — and for how flowReducer applies them.
+ *
+ * A variant no longer decides pages. The interview's activity beats own the page
+ * set ("in a normal month, which of these happen?" — unnamed = off), so these
+ * tests now assert the inverse of what they once did: setVariant must leave
+ * enabledWorkflows ALONE. See the workflow-authority model in lib/org-types.ts.
  */
 
 import { describe, expect, it } from "vitest";
@@ -14,23 +17,35 @@ import {
 } from "@/lib/onboarding/kinds";
 import { emptyDraft, type Draft } from "@/lib/onboarding/draft";
 import { flowReducer } from "@/app/create/_components/flow-state";
-import { ALL_WORKFLOWS, ALWAYS_ON_WORKFLOWS, getOrgType } from "@/lib/org-types";
+import { ALL_WORKFLOWS, ALWAYS_ON_WORKFLOWS, BASE_WORKFLOWS, BEAT_WORKFLOWS, getOrgType } from "@/lib/org-types";
 import { PERMISSIONS } from "@/lib/permissions";
 
-describe("KIND_VARIANTS integrity", () => {
-  it("every modifier references only real workflow ids, never always-on removals", () => {
-    for (const [kind, variants] of Object.entries(KIND_VARIANTS)) {
-      for (const v of variants ?? []) {
-        for (const w of [...(v.addWorkflows ?? []), ...(v.removeWorkflows ?? [])]) {
-          expect(ALL_WORKFLOWS, `${kind}:${v.id} → ${w}`).toContain(w);
-        }
-        for (const w of v.removeWorkflows ?? []) {
-          expect(ALWAYS_ON_WORKFLOWS, `${kind}:${v.id} removes always-on ${w}`).not.toContain(w);
-        }
-      }
-    }
+describe("workflow authority model", () => {
+  it("BASE and BEAT partition ALL_WORKFLOWS, and always-on lives in BASE", () => {
+    const base = new Set<string>(BASE_WORKFLOWS);
+    const beat = new Set<string>(BEAT_WORKFLOWS);
+    // Disjoint: a page is decided by exactly one authority.
+    for (const w of base) expect(beat, `${w} is in both BASE and BEAT`).not.toContain(w);
+    // Exhaustive: no page is left with no owner.
+    expect([...base, ...beat].sort()).toEqual([...ALL_WORKFLOWS].sort());
+    // Always-on can never be a beat's to remove.
+    for (const w of ALWAYS_ON_WORKFLOWS) expect(base, `always-on ${w} must be BASE`).toContain(w);
   });
 
+  it("setKind seeds ONLY the base pages — the kind never guesses an activity page", () => {
+    for (const kind of KIND_IDS) {
+      const draft = flowReducer(emptyDraft(), { type: "setKind", kind });
+      for (const w of draft.enabledWorkflows) {
+        expect(BASE_WORKFLOWS, `setKind(${kind}) seeded beat-owned page "${w}"`).toContain(w);
+      }
+      // A roster and a dashboard are table stakes — the sheet is never empty.
+      expect(draft.enabledWorkflows).toContain("members");
+      expect(draft.enabledWorkflows).toContain("operations");
+    }
+  });
+});
+
+describe("KIND_VARIANTS integrity", () => {
   it("every added seat carries only real permission names", () => {
     for (const [kind, variants] of Object.entries(KIND_VARIANTS)) {
       for (const v of variants ?? []) {
@@ -58,9 +73,8 @@ describe("KIND_VARIANTS integrity", () => {
   it("fraternity/arts keep a true no-delta default variant (the template shape)", () => {
     for (const kind of ["fraternity", "arts"] as const) {
       const first = KIND_VARIANTS[kind]![0]!;
-      expect(first.addWorkflows ?? []).toHaveLength(0);
-      expect(first.removeWorkflows ?? []).toHaveLength(0);
       expect(first.seatRemove ?? []).toHaveLength(0);
+      expect(first.seatAdd ?? []).toHaveLength(0);
     }
   });
 
@@ -74,12 +88,9 @@ describe("flowReducer: setVariant", () => {
     return flowReducer(emptyDraft(), { type: "setKind", kind });
   }
 
-  it("applies the professional-fraternity modifier: workflows, seats, metrics", () => {
+  it("applies the professional-fraternity modifier: seats and metrics", () => {
     const draft = flowReducer(draftWithKind("fraternity"), { type: "setVariant", variant: "professional" });
     expect(draft.variant).toBe("professional");
-    expect(draft.enabledWorkflows).not.toContain("parties");
-    expect(draft.enabledWorkflows).not.toContain("service");
-    expect(draft.enabledWorkflows).toContain("tasks");
     const titles = draft.seats.map(s => s.title);
     expect(titles).not.toContain("Social");
     expect(titles).not.toContain("PR");
@@ -91,19 +102,32 @@ describe("flowReducer: setVariant", () => {
     expect(draft.metrics.gpa).toBe(true);
   });
 
+  it("NEVER touches the page set — pages belong to the activity beats", () => {
+    // The founder said they run socials and hand out tasks; a variant resolved
+    // afterwards (the concierge can do this on a later turn) must not undo it.
+    const base = draftWithKind("fraternity");
+    const answered = flowReducer(base, {
+      type: "applyAiPicks",
+      picks: { addWorkflows: ["parties", "tasks"], removeWorkflows: [], vocab: {} },
+    });
+    const withVariant = flowReducer(answered, { type: "setVariant", variant: "professional" });
+    expect(withVariant.enabledWorkflows).toEqual(answered.enabledWorkflows);
+    expect(withVariant.enabledWorkflows).toContain("parties");
+    expect(withVariant.enabledWorkflows).toContain("tasks");
+  });
+
   it("is idempotent and switch-safe: re-applying or changing variants never stacks", () => {
     const base = draftWithKind("fraternity");
     const once = flowReducer(base, { type: "setVariant", variant: "professional" });
     const twice = flowReducer(once, { type: "setVariant", variant: "professional" });
-    expect(twice.enabledWorkflows).toEqual(once.enabledWorkflows);
     expect(twice.seats).toEqual(once.seats);
     // Switching to another variant, then back, lands on the same state.
     const detour = flowReducer(flowReducer(once, { type: "setVariant", variant: "service" }), {
       type: "setVariant",
       variant: "professional",
     });
-    expect(detour.enabledWorkflows).toEqual(once.enabledWorkflows);
     expect(detour.seats).toEqual(once.seats);
+    expect(detour.metrics).toEqual(once.metrics);
   });
 
   it("the default variant equals the untouched template", () => {

@@ -193,8 +193,11 @@ function buildPost(body: unknown, ip?: string): NextRequest {
   });
 }
 
+// The "activity" stage is gone — the scripted spine asks its own deterministic
+// beats now, so the only stages the route accepts are "concierge" (the AI-led
+// interview) and "metrics" (a typed-measure parse).
 const VALID_BODY = {
-  stage: "activity",
+  stage: "concierge",
   orgName: "Kappa Sigma",
   answers: { kind: "fraternity", variant: "social", enabledWorkflows: ["members"], termModel: null },
   transcript: [

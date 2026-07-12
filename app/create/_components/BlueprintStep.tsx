@@ -15,7 +15,6 @@ import {
   BUILTIN_METRIC_IDS,
   BUILTIN_METRIC_LABEL,
   KIND_LABEL,
-  getVariant,
   type BuiltinMetricId,
 } from "@/lib/onboarding/kinds";
 import { roleSummary } from "@/lib/onboarding/perm-areas";
@@ -152,23 +151,24 @@ export function SlugEditor({
 
 /* ─── Workflow rows ──────────────────────────────────────────────────────── */
 
-/** Toggle rows with their "why it's here" rationale, citing the founder's
-    variant answer where it drove the default. */
+/** Toggle rows with their "why it's here" rationale.
+ *
+ * The rationale is derived from the ANSWERS, never from the kind or a variant.
+ * A page is on because the founder named the activity in the interview, so an
+ * off page reads back the thing they didn't say ("you didn't mention socials")
+ * rather than a template's inference ("you said 'professional', and parties
+ * aren't that shape") — which, now that the beats own the page set, would be a
+ * lie the founder can't act on. */
 function wfRows(draft: Draft): { key: WorkflowId; name: string; why: React.ReactNode }[] {
   const v = (key: VocabKey, plural = false) => draftVocab(draft, key, plural);
-  const variant = getVariant(draft.kind, draft.variant);
-  const variantWord = variant?.label.toLowerCase() ?? null;
-  const isTeam = draft.kind === "team";
-  const partiesOff = !!variant?.removeWorkflows?.includes("parties");
-  const financeOff = !!variant?.removeWorkflows?.includes("finance");
-  const attendanceOff = !!variant?.removeWorkflows?.includes("attendance");
+  const on = new Set(draft.enabledWorkflows);
   return [
     {
       key: "meetings",
       name: v("Meetings"),
-      why: isTeam
-        ? "off by default — flip on if you hold formal meetings with minutes."
-        : `minutes, agendas & records for ${v("Meetings")} — flip off if you don't meet formally.`,
+      why: on.has("meetings")
+        ? `minutes, agendas & records for ${v("Meetings")}.`
+        : "off — you didn't name regular meetings. Flip it on any time.",
     },
     {
       key: "members",
@@ -178,20 +178,16 @@ function wfRows(draft: Draft): { key: WorkflowId; name: string; why: React.React
     {
       key: "finance",
       name: `${v("Dues")} & Treasury`,
-      why: financeOff ? (
-        <>off — you said <q>{variantWord}</q>, so no treasury until you need one.</>
-      ) : (
-        `${v("Dues").toLowerCase()}, budgets and who owes what — one tap away.`
-      ),
+      why: on.has("finance")
+        ? `${v("Dues").toLowerCase()}, budgets and who owes what.`
+        : "off — you said no money changes hands. Flip it on any time.",
     },
     {
       key: "attendance",
       name: "Attendance",
-      why: attendanceOff ? (
-        <>off — <q>{variantWord}</q> means nobody takes roll.</>
-      ) : (
-        `${v("Meetings").toLowerCase()} worth counting.`
-      ),
+      why: on.has("attendance")
+        ? `${v("Meetings").toLowerCase()} worth counting.`
+        : "off — no roll taken. Flip it on any time.",
     },
     {
       key: "events",
@@ -201,27 +197,38 @@ function wfRows(draft: Draft): { key: WorkflowId; name: string; why: React.React
     {
       key: "parties",
       name: "Parties",
-      why: partiesOff ? (
-        <>off — you said <q>{variantWord}</q>, and parties aren&rsquo;t that shape.</>
-      ) : (
-        "socials with a guest list, budget and door — separate from plain events."
-      ),
+      why: on.has("parties")
+        ? "socials with a guest list, budget and door — separate from plain events."
+        : "off — you didn't mention socials in a normal month. Flip it on any time.",
     },
     {
       key: "service",
       name: "Service",
-      why:
-        draft.kind === "service" || draft.variant === "service"
-          ? "service hours are the point — this leads."
-          : "flip it on if you track service hours.",
+      why: on.has("service")
+        ? "service hours, logged per person."
+        : "off — you didn't mention service. Flip it on any time.",
     },
-    { key: "docs", name: "Docs", why: "bylaws, minutes and links — pinned, not lost in the chat." },
+    {
+      key: "docs",
+      name: "Docs",
+      why: on.has("docs")
+        ? "bylaws, handbook and links — pinned, not lost in the chat."
+        : "off — no shared docs to keep. Flip it on any time.",
+    },
     {
       key: "communications",
       name: "Announcements",
-      why: "start light — turn on when the group chat stops scaling.",
+      why: on.has("communications")
+        ? "posts and updates, planned in one place."
+        : "off — turn on when the group chat stops scaling.",
     },
-    { key: "tasks", name: "Tasks", why: "start light — turn on when exec needs assignments." },
+    {
+      key: "tasks",
+      name: "Tasks",
+      why: on.has("tasks")
+        ? "assignments and deadlines, per person."
+        : "off — turn on when exec needs to hand out work.",
+    },
   ];
 }
 

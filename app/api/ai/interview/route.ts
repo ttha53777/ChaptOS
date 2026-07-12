@@ -47,7 +47,13 @@ export const REQUIRED_FIELDS = ["kind", "workflows", "metrics"] as const;
 export type RequiredField = (typeof REQUIRED_FIELDS)[number];
 
 export const interviewAiInput = z.object({
-  stage:   z.enum(["kind", "activity", "metrics", "concierge"]),
+  // "concierge" is the AI-led interview. "metrics" is the one surviving legacy
+  // stage: it PARSES a typed measure ("we track chapter points") into
+  // {name, unit} for the scripted spine — it can't ask a question, drive the
+  // conversation, or change a page, and the client falls back to titleCase()
+  // when it fails. The old "kind"/"activity" stages are gone: the scripted spine
+  // now asks its own deterministic beats and never calls the model to do it.
+  stage:   z.enum(["metrics", "concierge"]),
   orgName: z.string().trim().max(120),
   // Concierge-only: which required fields are still unresolved (client-derived
   // from the draft). Injected into the prompt as "STILL NEEDED" so the model
@@ -188,16 +194,13 @@ const WORKFLOW_DESCRIPTIONS: Record<WorkflowId, string> = {
   operations:     "Always-on — Dashboard and Timeline. Never add or remove it.",
 };
 
-// Legacy per-stage goals (the scripted-spine fallback path). Each drives ONE
-// field and uses followUpQuestion/followUpChips — never the concierge fields.
-// The shared LEGACY_DEFAULTS line forces the concierge-only fields to their
-// null/[]/false defaults so a legacy turn can't accidentally satisfy the schema
-// with completion state or drive the interview forward on its own.
+// The one surviving legacy stage. It does not drive the interview — the scripted
+// spine asks its own beats deterministically — it only PARSES one typed answer.
+// LEGACY_DEFAULTS pins the concierge-only fields to their null/[]/false defaults
+// so a legacy turn can't accidentally emit completion state or a next question.
 const LEGACY_DEFAULTS = `Always return "done": false, "nextQuestion": null, "nextChips": [], "founderName": null.`;
 
 const STAGE_GOALS: Record<Exclude<InterviewAiInput["stage"], "concierge">, string> = {
-  kind: `GOAL: resolve which KIND of organization this is (set "kind"), and — when the text makes it obvious — its variant too (set "variant"). Leave workflows/vocabulary/customMetrics empty. Ask a follow-up ONLY if the text is genuinely ambiguous between two kinds. ${LEGACY_DEFAULTS}`,
-  activity: `GOAL: settle the org's final page set. Compare what the founder says the org DOES against currently enabled workflows; return "addWorkflows" for pages they need and "removeWorkflows" for enabled pages that don't fit. You may also fix vocabulary via "vocabulary" pairs when the founder's words clearly imply it. This is the stage where clarifying follow-ups matter: each follow-up must target ONE concrete unresolved page decision (Is attendance taken and does it matter? Is money collected — regular dues, event-by-event, or none? Formal meetings with minutes, or none? A recruitment/rush season? A public/social-media presence?). Never ask a generic "tell me more". Never re-ask anything the PRIORS or the transcript already answer. STOP asking (followUpQuestion: null) the moment the page set is confidently resolved — most orgs need 1–3 follow-ups, and a clear answer deserves none. ${LEGACY_DEFAULTS}`,
   metrics: `GOAL: turn the founder's "we also track …" answer into 1–${MAX_CUSTOM_METRICS} custom per-member metrics in "customMetrics" — each a short display name (e.g. "Chapter Points") and an optional short unit (e.g. "pts", "hrs", null for a bare number). Do not duplicate the built-ins (attendance, GPA, dues, service hours). Leave other pick fields empty. Ask a follow-up only if you cannot tell WHAT quantity they mean. ${LEGACY_DEFAULTS}`,
 };
 
@@ -290,7 +293,7 @@ THE BEATS — walk them roughly in this order, one question per turn, reacting f
 PROBING RULE (beat 2): if the founder's kind answer is a single generic word ("frat", "a club", "sports team") with nothing else, do NOT resolve "kind" and move on in the same breath. First ask ONE natural follow-up drawn from DISCOVERY ANGLES above — e.g. for "frat": "Nice — more the social scene, or the professional/service kind?" — and bank "kind" (plus "variant" when it falls out) only once you've heard the answer. Skip the follow-up when their own words already answer a discovery angle (e.g. "a chill social frat").
 
 ACTIVITY → PAGE MAPPING — when the founder describes what the org does (the ACTIVITIES checklist reply, or anything they volunteer), translate their words into these exact workflow ids via addWorkflows. This lookup is the source of truth; do not guess other ids:
-  - chapter / regular meetings → "meetings"  (add "attendance" too if they take roll)
+  - chapter / regular meetings → "meetings" AND "attendance"
   - social events or parties → "parties"
   - service events or volunteering → "service"
   - fundraisers or programs → "events" AND "finance"
@@ -300,6 +303,8 @@ ACTIVITY → PAGE MAPPING — when the founder describes what the org does (the 
   - dues / payments (beat 6) → "finance"
   - door money / ticket sales (beat 7) → "parties"
 Use removeWorkflows for a currently-enabled page they clearly say they DON'T do. Never touch "operations" (always on).
+
+THE CHECKLIST IS AUTHORITATIVE. The app already applied the founder's checklist selections before your reaction turn: what they ticked is ON and every other activity page is OFF. So on the turn AFTER the checklist, NEVER add back a page they didn't tick — if they didn't tick service, do not add "service" because the org "sounds like" it does service. The only pages that may still come on are the ones the LATER beats ask about: "docs" (beat 5), "finance" (beat 6) and "parties" (beat 7). Nothing is inferred from the kind: an org gets a page because the founder named the activity, never because a fraternity "usually" has one.
 
 HOW TO REACT ("reply", ≤25 words, no markdown): open by reflecting what they just told you, in THEIR words — concrete, warm but not gushing. NEVER expose internal machinery: don't name a kind/variant/workflow id, don't say which template or bucket you picked, and never say you'll "treat it as" or "categorize it as" a type (especially not "other"). For an org that fits no preset, just mirror what they said and what it means for their setup.
 

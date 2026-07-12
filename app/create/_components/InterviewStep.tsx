@@ -1,22 +1,31 @@
 "use client";
 
 /**
- * Step 2 — INTERVIEW. A scripted spine with AI branches.
+ * Step 2 — INTERVIEW. Two drivers, one set of questions.
  *
- * The question skeleton is deterministic (a warm intro that captures the
- * founder's name → kind → variant → activity → metrics) and every CHIP tap is
- * handled locally with zero AI. (The founder's seat title keeps the kind
- * default, editable on the Roles step; the current term is set later, in the
- * workspace — see SemesterGate.) Free-text answers route through
- * POST /api/ai/interview when it's configured (probed once on mount): the
- * model interprets the words into structured picks and — on the activity
- * stage — may ask up to MAX_ACTIVITY_FOLLOWUPS specific clarifying questions
- * to settle the page set. Any AI failure falls back to the keyword matchers,
- * so the conversation never blocks on the model.
+ * The interview asks what the org ACTUALLY DOES and lets the answers decide the
+ * pages. It never infers a page set from the kind word: "a fraternity" settles
+ * the WORDS (Brother, Chapter) and the seats, but whether there's a Parties page
+ * comes from the founder saying they throw socials. An activity they don't name
+ * leaves its page off (see BEAT_WORKFLOWS in lib/org-types.ts) — otherwise the
+ * template's guess would silently survive an answer that didn't include it, and
+ * the interview would be theatre over a preset.
  *
- * AI picks dispatch the SAME reducer actions the founder's own taps use
- * (applyAiPicks = workflow toggles + vocab chips), and the blueprint review
- * still stands between this chat and anything being built.
+ * The beats, in order:
+ *   name → kind → activities (multi-select) → docs → payments → door* → metrics
+ *   (* door revenue is asked only when the founder named socials/parties.)
+ *
+ * Two drivers ask them:
+ *   - CONCIERGE (mode "ai") — the model phrases each beat itself and reacts to
+ *     the answers. It signals the activities beat with the ACTIVITIES_CHIP
+ *     sentinel; the client renders the same checklist either way.
+ *   - SCRIPTED (mode "scripted") — the deterministic spine, used when AI isn't
+ *     configured, is rate-limited, or fails mid-conversation. It asks the SAME
+ *     beats with zero model calls, so a founder never gets a worse interview
+ *     just because the model is down.
+ *
+ * Both drivers dispatch the SAME reducer actions the founder's own taps use, and
+ * the blueprint review still stands between this chat and anything being built.
  */
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
@@ -24,15 +33,13 @@ import type { Draft } from "@/lib/onboarding/draft";
 import {
   BUILTIN_METRIC_IDS,
   BUILTIN_METRIC_LABEL,
-  KIND_VARIANTS,
-  VARIANT_QUESTION,
   matchKind,
-  matchVariant,
+  matchYesNo,
   type BuiltinMetricId,
   type KindId,
 } from "@/lib/onboarding/kinds";
 import type { WorkflowId } from "@/lib/org-types";
-import { draftVocab, type FlowAction } from "./flow-state";
+import { draftVocab, type AiPicks, type FlowAction } from "./flow-state";
 import {
   askInterviewAi,
   probeInterviewAi,
@@ -44,16 +51,21 @@ import {
 import type { SheetFlash } from "./BlueprintSheet";
 
 /**
- * The "normal month — which of these happen?" checklist (beat 4). Each option
- * pairs the founder-facing label with the workflow id(s) it enables. This table
+ * The "normal month — which of these actually happen?" checklist. Each option
+ * pairs the founder-facing label with the workflow id(s) it turns on. This table
  * MUST mirror the ACTIVITY → PAGE MAPPING block in the concierge prompt
  * (app/api/ai/interview/route.ts) so the tapped-checklist path and the model's
  * free-text path resolve identical pages. Rendered as a multi-select grid (the
- * same accumulate-then-submit pattern the scripted metrics picker uses) because
- * its six options exceed the concierge's 4-chip cap.
+ * same accumulate-then-submit pattern the metrics picker uses) because its six
+ * options exceed the concierge's 4-chip cap.
+ *
+ * Attendance rides the meetings tick rather than earning its own beat: taking
+ * roll IS what a chapter meeting page is for, and a founder who disagrees has a
+ * one-tap toggle on the blueprint. Adding a seventh question to reach the same
+ * place would be worse.
  */
 const ACTIVITY_OPTIONS: { id: string; label: string; workflows: WorkflowId[] }[] = [
-  { id: "meetings",  label: "Chapter meetings",             workflows: ["meetings"] },
+  { id: "meetings",  label: "Chapter meetings",             workflows: ["meetings", "attendance"] },
   { id: "socials",   label: "Social events or parties",     workflows: ["parties"] },
   { id: "service",   label: "Service or volunteering",      workflows: ["service"] },
   { id: "fundraise", label: "Fundraisers or programs",      workflows: ["events", "finance"] },
@@ -61,21 +73,60 @@ const ACTIVITY_OPTIONS: { id: string; label: string; workflows: WorkflowId[] }[]
   { id: "online",    label: "Posting content online",       workflows: ["communications"] },
 ];
 
+/** Every page the checklist can decide — its REMOVAL domain. A page in here that
+    the founder didn't tick gets turned OFF, which is what makes the checklist
+    authoritative instead of merely additive. (docs and finance can come back at
+    the later docs/payments beats; parties at the door beat. Those are strict
+    refinements that run after, so there's no conflict.) */
+const ACTIVITY_OWNED: WorkflowId[] = [
+  ...new Set(ACTIVITY_OPTIONS.flatMap(o => o.workflows)),
+];
+
+/**
+ * Turn a checklist selection into one authoritative pick set: what they ticked
+ * goes on, and every OTHER activity-owned page goes off. Pure + shared by both
+ * drivers (tap, typed, and the concierge's checklist turn) so a page can never
+ * depend on which one asked.
+ */
+function activityPicksToAiPicks(ids: ReadonlySet<string>): AiPicks {
+  const on = new Set<WorkflowId>(
+    ACTIVITY_OPTIONS.filter(o => ids.has(o.id)).flatMap(o => o.workflows),
+  );
+  return {
+    addWorkflows: [...on],
+    removeWorkflows: ACTIVITY_OWNED.filter(w => !on.has(w)),
+    vocab: {},
+  };
+}
+
+/** Keyword-match a typed "normal month" answer onto the checklist options, so a
+    founder who types their answer lands in exactly the same place as one who
+    taps it. Deliberately naive (same posture as matchKind) — the checklist is
+    the primary input. */
+function matchActivities(text: string): Set<string> {
+  const l = text.toLowerCase();
+  const ids = new Set<string>();
+  if (/\bmeet|chapter|assembly|weekly|general body\b/.test(l)) ids.add("meetings");
+  if (/part(y|ies)|social|mixer|formal|tailgate|date night/.test(l)) ids.add("socials");
+  if (/service|volunteer|philanthrop|charity|community/.test(l)) ids.add("service");
+  if (/fundrais|program|workshop|speaker|rush|recruit/.test(l)) ids.add("fundraise");
+  if (/task|deadline|assign|committee|to-?do/.test(l)) ids.add("tasks");
+  if (/instagram|social media|\bpost|announce|newsletter|online/.test(l)) ids.add("online");
+  return ids;
+}
+
 type Stage =
   | "intro"
   | "kind"
-  | "variant"
-  | "activity"
+  | "activities"
+  | "docs"
+  | "payments"
+  | "door"
   | "metrics"
   | "done";
 
 type Msg = { id: number; kind: "bot" | "q" | "user"; body: ReactNode };
 type Chip = { label: string; pick: () => void };
-
-/** Activity-stage clarify loop: at most this many AI follow-up questions
-    (≈6 questions total in the workflow portion, counting the opener). Used by
-    the SCRIPTED fallback path only. */
-const MAX_ACTIVITY_FOLLOWUPS = 5;
 
 /** Concierge (AI-led) loop cap: after this many model-driven turns we stop
     asking the model and drain any still-missing fields through the scripted
@@ -86,7 +137,7 @@ const MAX_CONCIERGE_TURNS = 12;
     resume stage when the concierge hands off (mid-conversation fallback or the
     early-exit/loop-cap backstop). First still-missing stage wins. */
 const STAGE_ORDER: Stage[] = [
-  "intro", "kind", "variant", "activity", "metrics",
+  "intro", "kind", "activities", "docs", "payments", "door", "metrics",
 ];
 
 /** How long the "typing…" indicator shows before an AI reply lands — scaled to
@@ -96,30 +147,22 @@ function typingDelay(text: string): number {
   return Math.min(1400, Math.max(500, 400 + text.length * 12));
 }
 
+/**
+ * The reply to the kind answer. Each one claims ONLY what the kind actually
+ * decides now — the words, the seats, the metric defaults — and hands the pages
+ * to the next beat. Nothing here may promise a page: "the classic shape —
+ * parties, dues, service, the whole chapter machine" was exactly the assumption
+ * this interview no longer makes.
+ */
 const KIND_REPLIES: Record<KindId, ReactNode> = {
-  fraternity: <>A fraternity — so it&rsquo;s <b>Brothers</b>, <b>Chapter</b>, and <b>Semesters</b> from here on. The words are set; what you actually <em>do</em> comes next.</>,
-  sorority:   <>A sorority — <b>Sisters</b>, <b>Chapter</b>, <b>Semesters</b>. The words are set; now let&rsquo;s get the substance right.</>,
-  club:       <>Got it — <b>Members</b> and <b>Meetings</b>, no Greek assumed. Now let&rsquo;s pin down what kind of club.</>,
-  team:       <>A team — <b>Players</b>, <b>Practice</b>, <b>Seasons</b>. One more question tells me how serious it is.</>,
-  service:    <>A service org — <b>service hours</b> lead and the words stay plain. Let&rsquo;s check the pages fit.</>,
-  honor:      <>An honor society — <b>standards</b> and <b>attendance</b> lead; parties stay off. Let&rsquo;s check the pages.</>,
-  arts:       <>A performing-arts group — <b>Rehearsals</b> and a calendar built for performing. One more question.</>,
-  other:      <>Got it — I&rsquo;ll start you neutral: <b>Members</b>, <b>Meetings</b>, and only the pages you turn on.</>,
-};
-
-const VARIANT_REPLIES: Record<string, ReactNode> = {
-  "fraternity:social":       <>The classic shape — <b>parties, dues, service</b>, the whole chapter machine. It&rsquo;s all on the sheet.</>,
-  "fraternity:professional": <>Parties off, <b>pro-dev on</b> — events, dues and attendance lead, with VP Membership and VP Professional Development seats.</>,
-  "fraternity:service":      <><b>Service hours front and center</b>, parties off — a Service Chair seat is on the sheet.</>,
-  "fraternity:honor":        <><b>Standards and attendance</b> lead; parties are off and a Standards Chair holds the line.</>,
-  "club:casual":             <>Kept light — <b>events and comms</b>, no roll call, no treasury until you need them.</>,
-  "club:pre-professional":   <><b>Dues, attendance</b> and a Professional Dev Chair — built for a serious roster.</>,
-  "club:competition":        <><b>Attendance counts</b> and logistics matter — a Logistics Lead seat is ready.</>,
-  "club:cultural":           <><b>Events and announcements</b> lead — festivals and showcases, with a treasury kept for fundraising.</>,
-  "team:competitive":        <>League-ready — <b>attendance mandatory</b>, and a treasury for fees and travel.</>,
-  "team:casual":             <>Loose and easy — <b>no roll call</b>, no coach seat, just the roster and the calendar.</>,
-  "arts:production":         <>Rehearsals building to a run — <b>Stage Manager</b> and the full production bench.</>,
-  "arts:ensemble":           <>Rehearsals and gigs — no stage-manager hierarchy, and a <b>Music Director</b> seat instead.</>,
+  fraternity: <>A fraternity — so it&rsquo;s <b>Brothers</b>, <b>Chapter</b>, and <b>Semesters</b> from here on. The words are set; the <em>pages</em> come from what you actually do.</>,
+  sorority:   <>A sorority — <b>Sisters</b>, <b>Chapter</b>, <b>Semesters</b>. The words are set; now let&rsquo;s build the pages off what you actually run.</>,
+  club:       <>Got it — <b>Members</b> and <b>Meetings</b>, nothing Greek assumed. The pages come from what you actually do.</>,
+  team:       <>A team — <b>Players</b>, <b>Practice</b>, <b>Seasons</b>. Now let&rsquo;s see what a normal month looks like.</>,
+  service:    <>A service org — the words stay plain. Let&rsquo;s build the pages off what you actually run.</>,
+  honor:      <>An honor society — noted. Nothing&rsquo;s assumed about the pages; that&rsquo;s the next question.</>,
+  arts:       <>A performing-arts group — <b>Rehearsals</b> and a calendar built for performing. Now, a normal month.</>,
+  other:      <>Got it — I&rsquo;ll keep the words plain, and you&rsquo;ll get only the pages you turn on.</>,
 };
 
 function titleCase(text: string): string {
@@ -181,11 +224,10 @@ export function InterviewStep({
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const nextId = useRef(0);
 
-  // AI plumbing: availability (probed once), the activity clarify-loop
-  // transcript, and how many follow-ups the model has already spent.
+  // Whether AI is configured at all (probed once on mount). Decides which driver
+  // opens the interview, and gates the one remaining model call in the scripted
+  // path (answerMetricText's metric parse, which has its own local fallback).
   const aiOn = useRef(false);
-  const activityTranscript = useRef<InterviewAiTurn[]>([]);
-  const activityFollowUps = useRef(0);
 
   // Concierge (AI-led) plumbing. `mode` decides which driver owns the
   // conversation: "ai" = the concierge asks its own questions; "scripted" = the
@@ -197,10 +239,12 @@ export function InterviewStep({
   const convoTranscript = useRef<InterviewAiTurn[]>([]);
   const convoTurns = useRef(0);
 
-  // The activities beat (beat 4) renders a multi-select checklist in place of
-  // tap-chips: when non-null, the checklist grid is shown and this Set holds the
-  // founder's in-progress selections (ACTIVITY_OPTIONS ids). Null the rest of
-  // the time. Submitting ("Done →") clears it and resumes the concierge loop.
+  // The activities beat renders a multi-select checklist in place of tap-chips:
+  // when non-null, the grid is shown and this Set holds the founder's in-progress
+  // selections (ACTIVITY_OPTIONS ids). Null the rest of the time. Keyed on the
+  // state rather than on `mode`, so the SAME grid serves both drivers — the
+  // concierge opens it via the ACTIVITIES_CHIP sentinel, the scripted spine via
+  // its "activities" stage. Submitting ("Done →") clears it and moves on.
   const [activityPicks, setActivityPicks] = useState<Set<string> | null>(null);
 
   // Refs mirror the latest draft/stage for use inside timeouts/async handlers.
@@ -224,6 +268,9 @@ export function InterviewStep({
 
   const vocab = (key: Parameters<typeof draftVocab>[1], plural = false) =>
     draftVocab(draftRef.current, key, plural);
+
+  /** The org's name for question copy, with a graceful stand-in when it's blank. */
+  const orgName = () => draftRef.current.name.trim() || "your org";
 
   /* ─── The question script ─────────────────────────────────────────────── */
 
@@ -249,20 +296,41 @@ export function InterviewStep({
         ]);
         break;
       }
-      case "variant": {
-        const kind = draftRef.current.kind;
-        const variants = kind ? KIND_VARIANTS[kind] : undefined;
-        if (!kind || !variants?.length) return ask("activity");
-        push("q", <>{VARIANT_QUESTION[kind]}</>);
-        setChips(variants.map(v => ({ label: v.label, pick: () => answerVariant(v.id, v.label) })));
+      case "activities": {
+        push("q", <>Thinking about a normal month for <em>{orgName()}</em> — which of these actually happen? (Pick as many as apply.)</>);
+        setChips(null);          // the checklist grid renders instead, below
+        setActivityPicks(new Set());
         break;
       }
-      case "activity": {
-        const q = `Look at the Pages list on the sheet — in a sentence or two, what does ${draftRef.current.name.trim() || "your org"} actually do, and did I get anything wrong?`;
-        activityTranscript.current = [{ role: "q", text: q }];
-        activityFollowUps.current = 0;
-        push("q", <>Look at the <b>Pages</b> list on the sheet — in a sentence or two, what does <em>{draftRef.current.name.trim() || "your org"}</em> actually do, and did I get anything wrong?</>);
-        setChips([{ label: "Looks right — next", pick: () => answerActivitySkip() }]);
+      case "docs": {
+        push("q", <>Do you keep shared documents or links {vocab("Member", true).toLowerCase()} need access to — a handbook, drive folder, bylaws?</>);
+        setChips([
+          { label: "Yes", pick: () => answerDocs(true, "Yes") },
+          { label: "Not really", pick: () => answerDocs(false, "Not really") },
+        ]);
+        break;
+      }
+      case "payments": {
+        push("q", <>Does <em>{orgName()}</em> handle any payments — {vocab("Dues").toLowerCase()}, event fees, anything like that?</>);
+        setChips([
+          { label: "Yes — dues", pick: () => answerPayments(true, "Yes — dues") },
+          { label: "Event fees", pick: () => answerPayments(true, "Event fees") },
+          { label: "No money", pick: () => answerPayments(false, "No money") },
+        ]);
+        break;
+      }
+      case "door": {
+        // CONDITIONAL. Only worth asking of an org that actually throws the kind
+        // of event that takes money at the door — i.e. one that just told us it
+        // holds socials. Asking an honor society about door money reads as
+        // broken. Reads the DRAFT (not a local) so it behaves identically when
+        // the concierge hands off mid-interview.
+        if (!draftRef.current.enabledWorkflows.includes("parties")) return ask("metrics");
+        push("q", <>Do parties or events at <em>{orgName()}</em> typically bring in door money or ticket sales?</>);
+        setChips([
+          { label: "Yes", pick: () => answerDoor(true, "Yes") },
+          { label: "No", pick: () => answerDoor(false, "No") },
+        ]);
         break;
       }
       case "metrics": {
@@ -290,76 +358,63 @@ export function InterviewStep({
     }, 850);
   }
 
-  /* ─── Answers (chips = deterministic; free-text may go through AI) ─────── */
+  /* ─── Answers — every beat below is deterministic (no model calls) ─────── */
 
   function answerKind(kind: KindId, label: string) {
     push("user", label);
     dispatch({ type: "setKind", kind });
-    onFlash("pages");
-    respond(KIND_REPLIES[kind], "variant", "words");
+    // The kind sets the WORDS and the seats. It deliberately does not light up
+    // pages — those come from the activities beat next — so flash "words", not
+    // "pages" (the Pages section is genuinely still nearly empty here).
+    respond(KIND_REPLIES[kind], "activities", "words");
   }
 
-  function answerVariant(variantId: string, label: string) {
-    const kind = draftRef.current.kind ?? "other";
+  function answerDocs(yes: boolean, label: string) {
     push("user", label);
-    dispatch({ type: "setVariant", variant: variantId });
-    onFlash("pages");
+    dispatch({
+      type: "applyAiPicks",
+      picks: { addWorkflows: yes ? ["docs"] : [], removeWorkflows: yes ? [] : ["docs"], vocab: {} },
+    });
     respond(
-      VARIANT_REPLIES[`${kind}:${variantId}`] ?? <>Got it — I&rsquo;ve tuned the pages and seats for that.</>,
-      "activity",
-      "seats",
+      yes
+        ? <>Then <b>Docs</b> is on — one place for the handbook and the links, instead of the group chat.</>
+        : <>No Docs page, then. It&rsquo;s one tap away on the blueprint if that changes.</>,
+      "payments",
+      "pages",
     );
   }
 
-  function answerActivitySkip() {
-    push("user", "Looks right — next");
-    respond(<>Then the pages stand. One more thing.</>, "metrics");
+  function answerPayments(yes: boolean, label: string) {
+    push("user", label);
+    dispatch({
+      type: "applyAiPicks",
+      picks: { addWorkflows: yes ? ["finance"] : [], removeWorkflows: yes ? [] : ["finance"], vocab: {} },
+    });
+    respond(
+      yes
+        ? <>Money gets tracked, then — <b>{vocab("Treasury")}</b> is on the sheet.</>
+        : <>No treasury for now — the sheet stays lean.</>,
+      "door",
+      "pages",
+    );
   }
 
-  /** The activity clarify loop: free-text and follow-up answers both land here. */
-  async function answerActivity(text: string) {
-    push("user", text);
-    activityTranscript.current.push({ role: "user", text });
-    setChips(null);
-    setTyping(true);
-
-    const result = aiOn.current
-      ? await askInterviewAi("activity", draftRef.current, activityTranscript.current)
-      : null;
-    setTyping(false);
-
-    if (!result) {
-      // Deterministic fallback: no interpretation, no loop — the blueprint's
-      // toggles are one step away, so acknowledge and move on.
-      push("bot", <>Noted — you can flip any page on or off when you review the blueprint. One more thing.</>);
-      later(() => ask("metrics"), 650);
-      return;
+  function answerDoor(yes: boolean, label: string) {
+    push("user", label);
+    // Parties is already on — this beat only runs when it is (see ask("door")).
+    // So "yes" adds nothing new; it decides what the Parties page is FOR. The
+    // add is kept for idempotence and to mirror the concierge, which can reach
+    // this beat by a path where parties isn't on yet.
+    if (yes) {
+      dispatch({ type: "applyAiPicks", picks: { addWorkflows: ["parties"], removeWorkflows: [], vocab: {} } });
     }
-
-    dispatch({ type: "applyAiPicks", picks: result.picks });
-    if (result.picks.addWorkflows.length || result.picks.removeWorkflows.length) onFlash("pages");
-    if (Object.keys(result.picks.vocab).length) later(() => onFlash("words"), 450);
-    push("bot", <>{result.reply || "Got it — the sheet's updated."}</>);
-
-    const followUp = activityFollowUps.current < MAX_ACTIVITY_FOLLOWUPS ? result.followUp : null;
-    if (!followUp) {
-      later(() => ask("metrics"), 650);
-      return;
-    }
-    activityFollowUps.current += 1;
-    activityTranscript.current.push({ role: "q", text: followUp.question });
-    later(() => {
-      push("q", <>{followUp.question}</>);
-      setChips([
-        ...followUp.chips.map(c => ({ label: c, pick: () => void answerActivity(c) })),
-        { label: "That's everything — next", pick: () => answerActivityDone() },
-      ]);
-    }, 650);
-  }
-
-  function answerActivityDone() {
-    push("user", "That's everything — next");
-    respond(<>Good — the pages are settled. One more thing.</>, "metrics");
+    respond(
+      yes
+        ? <>Then <b>Parties</b> carries a door count and a wrap-up, not just a date.</>
+        : <>Fine — Parties stays for the guest list and the budget, no door column needed.</>,
+      "metrics",
+      "pages",
+    );
   }
 
   function toggleMetric(metric: BuiltinMetricId) {
@@ -571,7 +626,7 @@ export function InterviewStep({
     }, typingDelay(result.reply));
   }
 
-  /* ─── Activities checklist (beat 4) ───────────────────────────────────────── */
+  /* ─── The activities checklist (shared by both drivers) ───────────────────── */
 
   /** Toggle one activities-checklist option in the in-progress selection. */
   function toggleActivity(id: string) {
@@ -583,32 +638,45 @@ export function InterviewStep({
     });
   }
 
-  /** "Done →" on the activities checklist: translate the selected options into
-      one addWorkflows pick, apply it through the SAME concierge path (so the
-      blueprint flashes identically), then feed a plain-language summary back to
-      the model as the founder's answer so it reacts and drives the next beat. */
-  function submitActivities() {
-    const picked = ACTIVITY_OPTIONS.filter(o => activityPicks?.has(o.id));
-    setActivityPicks(null);
-    const workflows = [...new Set(picked.flatMap(o => o.workflows))];
-    if (workflows.length) {
-      applyConciergePicks({
-        addWorkflows: workflows,
-        removeWorkflows: [],
-        vocab: {},
-        kind: null,
-        variant: null,
-        customMetrics: [],
-        founderName: null,
-      });
+  function activitiesReply(picked: typeof ACTIVITY_OPTIONS): ReactNode {
+    if (!picked.length) {
+      return <>Kept lean, then — just the roster and the dashboard. You can add any page you want on the blueprint.</>;
     }
-    // A human-readable summary the model reacts to (or "none of those").
-    // runConcierge pushes it as the user bubble AND into the transcript, so we
-    // don't push it here — that would double it.
+    return <>Good — <b>{picked.map(o => o.label.toLowerCase()).join(", ")}</b>. Those are your pages.</>;
+  }
+
+  /**
+   * Settle the activities beat. THE CHECKLIST IS AUTHORITATIVE: what the founder
+   * ticked goes on and every other activity-owned page goes OFF, so a page the
+   * kind template would have guessed can never survive an answer that didn't
+   * name it. (docs / finance / parties can still return at the later docs,
+   * payments and door beats — those run after and are strict refinements.)
+   *
+   * Shared by both drivers, so tapping and typing land identically: the concierge
+   * hands the summary back to the model to react to; the scripted spine replies
+   * itself and walks on to the next beat.
+   *
+   * `echo` is whether to render the founder's answer as a user bubble. The typed
+   * path already pushed their literal words, and runConcierge pushes its own —
+   * only the tap path needs us to voice the selection.
+   */
+  function submitActivities(ids: ReadonlySet<string>, echo: boolean) {
+    const picked = ACTIVITY_OPTIONS.filter(o => ids.has(o.id));
+    setActivityPicks(null);
+    dispatch({ type: "applyAiPicks", picks: activityPicksToAiPicks(ids) });
+    onFlash("pages");
+
     const summary = picked.length
       ? picked.map(o => o.label.toLowerCase()).join(", ")
       : "none of those, really";
-    void runConcierge(summary);
+
+    if (modeRef.current === "ai") {
+      // runConcierge pushes the user bubble AND the transcript entry itself.
+      void runConcierge(summary);
+      return;
+    }
+    if (echo) push("user", summary);
+    respond(activitiesReply(picked), "docs");
   }
 
   /** Wrap up the interview (from either driver): mark done + reveal the CTA. */
@@ -619,45 +687,30 @@ export function InterviewStep({
     later(() => setShowCta(true), 500);
   }
 
-  /* ─── Free-text routing ───────────────────────────────────────────────── */
+  /* ─── Free-text routing (scripted spine) ──────────────────────────────────
+     Every branch is deterministic. The spine is what runs when the model is
+     unavailable, so it must never itself need the model — the one exception is
+     answerMetricText, which only PARSES a typed metric into {name, unit} and has
+     its own titleCase fallback (it can't ask a question or change a page). */
 
-  async function onFreeText(text: string) {
+  function onFreeText(text: string) {
     const s = stageRef.current;
     if (s === "intro") {
       answerIntro(text, text);
     } else if (s === "kind") {
-      if (aiOn.current) {
-        push("user", text);
-        setChips(null);
-        setTyping(true);
-        const result = await askInterviewAi("kind", draftRef.current, [
-          { role: "q", text: "What kind of organization is it?" },
-          { role: "user", text },
-        ]);
-        setTyping(false);
-        const kind = result?.picks.kind ?? matchKind(text);
-        dispatch({ type: "setKind", kind });
-        onFlash("pages");
-        // The model may have resolved the variant from the same sentence
-        // ("we're a pre-med frat") — apply it and skip the variant question.
-        // Sequential dispatches are fine: the reducer sees setKind's state.
-        const variant = result?.picks.variant ?? null;
-        if (variant) dispatch({ type: "setVariant", variant });
-        respond(
-          result?.reply ? <>{result.reply}</> : KIND_REPLIES[kind],
-          variant ? "activity" : "variant",
-          "words",
-        );
-      } else {
-        answerKind(matchKind(text), text);
-      }
-    } else if (s === "variant") {
-      const kind = draftRef.current.kind ?? "other";
-      const variant = matchVariant(kind, text);
-      if (variant) answerVariant(variant, text);
-      else answerActivitySkip();
-    } else if (s === "activity") {
-      void answerActivity(text);
+      answerKind(matchKind(text), text);
+    } else if (s === "activities") {
+      // Typed instead of tapped — keyword-match the sentence onto the checklist
+      // and run the SAME authoritative submit, so typing and tapping agree. Their
+      // own words are the user bubble, so don't echo a synthesized summary too.
+      push("user", text);
+      submitActivities(matchActivities(text), false);
+    } else if (s === "docs") {
+      answerDocs(matchYesNo(text), text);
+    } else if (s === "payments") {
+      answerPayments(matchYesNo(text), text);
+    } else if (s === "door") {
+      answerDoor(matchYesNo(text), text);
     } else if (s === "metrics") {
       void answerMetricText(text);
     }
@@ -718,8 +771,8 @@ export function InterviewStep({
           ? "Introduce yourself — just your name is plenty…"
           : stage === "metrics"
             ? 'Type another measure — e.g. "chapter points"…'
-            : stage === "activity"
-              ? "Describe it in your own words — a sentence or two…"
+            : stage === "activities"
+              ? "Or just describe a normal month in your own words…"
               : "Type your own answer…";
 
   // A short hint that free-text is genuinely read, not just a fallback box.
@@ -728,10 +781,8 @@ export function InterviewStep({
       ? null
       : mode === "ai"
         ? "Type a reply, or tap an option"
-        : stage === "activity"
-          ? aiOn.current
-            ? "I'll read this and adjust the sheet"
-            : "Or tap an option above"
+        : stage === "activities"
+          ? "Tick everything that applies — or type it"
           : "Prefer to tap? Use the options above";
 
   function submitDraft() {
@@ -787,7 +838,7 @@ export function InterviewStep({
                 {o.label}
               </button>
             ))}
-            <button className="chip go" onClick={submitActivities}>
+            <button className="chip go" onClick={() => submitActivities(activityPicks, true)}>
               Done →
             </button>
           </div>

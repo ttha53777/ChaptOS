@@ -28,7 +28,7 @@ import {
 } from "@/lib/onboarding/kinds";
 import { seatsFromTemplate, type Seat } from "@/lib/onboarding/seats";
 import { PERM_AREAS, togglePerm, toggleArea } from "@/lib/onboarding/perm-areas";
-import { ALWAYS_ON_WORKFLOWS, getOrgType, type WorkflowId } from "@/lib/org-types";
+import { ALWAYS_ON_WORKFLOWS, BASE_WORKFLOWS, getOrgType, type WorkflowId } from "@/lib/org-types";
 import type { Permission } from "@/lib/permissions";
 import { resolveLabel, type VocabKey } from "@/lib/vocab";
 import { ROOT_DOMAIN } from "@/lib/domains";
@@ -62,8 +62,19 @@ export type FlowAction =
   | { type: "toggleSeatPerm"; index: number; perm: Permission }
   | { type: "addSeat"; seat: Seat };
 
-/** Template-backed defaults for a kind. Resets variant and metric flags too —
-    a new kind answer means the old activity profile no longer applies. */
+/**
+ * Template-backed defaults for a kind. Resets variant and metric flags too — a
+ * new kind answer means the old activity profile no longer applies.
+ *
+ * The kind decides the org's WORDS (Brother/Chapter), its SEATS, and its metric
+ * defaults. It deliberately does NOT decide the activity pages: those are owned
+ * by the interview's beats ("in a normal month, which of these happen?"), where
+ * an activity the founder doesn't name leaves its page off. Seeding the
+ * template's full page set here would mean the guess silently survives an answer
+ * that didn't include it — the interview would be theatre over a preset. So we
+ * seed only BASE_WORKFLOWS (see lib/org-types.ts). Filtering the template rather
+ * than spreading BASE_WORKFLOWS keeps this honest if a template ever omits one.
+ */
 function kindDefaults(
   draft: Draft,
   kind: KindId,
@@ -72,7 +83,7 @@ function kindDefaults(
   return {
     kind,
     variant: null,
-    enabledWorkflows: [...template.enabledWorkflows],
+    enabledWorkflows: template.enabledWorkflows.filter(w => BASE_WORKFLOWS.includes(w)),
     seats: seatsFromTemplate(KIND_TO_TYPE[kind]),
     vocab: {},
     metrics: { ...BUILTIN_METRIC_DEFAULTS[kind], custom: draft.metrics.custom },
@@ -80,46 +91,58 @@ function kindDefaults(
 }
 
 /**
- * Recompute the draft for a variant pick: base template first, then the
- * modifier's deltas. Always derived from the base (never incremental) so
- * re-picking a variant — or picking a different one — resets cleanly instead
- * of stacking deltas. Runs at S2, before any AI/manual workflow edits, so the
- * recompute can't clobber later customization.
+ * Recompute the draft for a variant pick: the kind's base template, then the
+ * modifier's deltas. Seats are always derived from the template (never
+ * incremental) so re-picking a variant — or switching to a different one —
+ * resets cleanly instead of stacking deltas.
+ *
+ * A variant does NOT touch enabledWorkflows. Pages are owned by the interview's
+ * activity beats (see kindDefaults), so a variant only re-shapes what it was
+ * ever uniquely good for: SEATS, WORDS, and metric defaults. This also removes a
+ * real clobber hazard — the AI concierge can resolve a variant on a LATER turn
+ * than the activities checklist, and a workflow-resetting applyVariant would
+ * wipe the founder's picks.
  */
 function applyVariant(draft: Draft, variantId: string): Draft {
   if (!draft.kind) return draft;
-  const base = kindDefaults(draft, draft.kind);
   const mod = getVariant(draft.kind, variantId);
-  if (!mod) return { ...draft, ...base };
+  if (!mod) return { ...draft, variant: variantId };
 
-  const workflows = new Set<WorkflowId>(base.enabledWorkflows);
-  for (const w of mod.addWorkflows ?? []) workflows.add(w);
-  for (const w of mod.removeWorkflows ?? []) workflows.delete(w);
-
+  const baseSeats = seatsFromTemplate(KIND_TO_TYPE[draft.kind]);
   const removed = new Set(mod.seatRemove ?? []);
-  const seats: Seat[] = base.seats.filter(s => s.all || !removed.has(s.title));
+  const seats: Seat[] = baseSeats.filter(s => s.all || !removed.has(s.title));
   for (const add of mod.seatAdd ?? []) {
     seats.push({ title: add.title, color: add.color, permissions: [...add.permissions] });
   }
 
   return {
     ...draft,
-    ...base,
     variant: variantId,
-    enabledWorkflows: [...workflows],
     seats,
-    vocab: { ...base.vocab, ...mod.vocabDelta },
-    metrics: { ...base.metrics, ...mod.metricDefaults },
+    vocab: { ...draft.vocab, ...mod.vocabDelta },
+    metrics: {
+      ...BUILTIN_METRIC_DEFAULTS[draft.kind],
+      ...mod.metricDefaults,
+      custom: draft.metrics.custom,
+    },
   };
 }
 
 /** Steps past the interview need a kind — backfill the fraternity template
-    (same default the mock used) so deep rail jumps never render empty. */
+    (same default the mock used) so deep rail jumps never render empty.
+
+    This is the one place the template's FULL page set is still the right seed:
+    the founder skipped the interview, so no beat decided anything, and a
+    blueprint holding only a roster would be useless. kindDefaults() seeds the
+    neutral base (pages come from answers); here there are no answers, so the
+    template is the best guess and the founder toggles from it. */
 function ensureKind(draft: Draft): Draft {
   if (draft.kind) return draft;
+  const template = getOrgType(KIND_TO_TYPE["fraternity"])!;
   return {
     ...draft,
     ...kindDefaults(draft, "fraternity"),
+    enabledWorkflows: [...template.enabledWorkflows],
     skipped: !draft.interviewDone,
   };
 }

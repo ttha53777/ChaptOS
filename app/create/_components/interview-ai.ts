@@ -16,7 +16,11 @@ import type { WorkflowId } from "@/lib/org-types";
 import type { VocabKey } from "@/lib/vocab";
 import type { KindId } from "@/lib/onboarding/kinds";
 
-export type InterviewAiStage = "kind" | "activity" | "metrics" | "concierge";
+/** "concierge" is the AI-led interview. "metrics" only PARSES a typed measure
+    into {name, unit} for the scripted spine (it can't ask a question or change a
+    page, and falls back to titleCase). The old "kind"/"activity" stages are gone
+    — the scripted spine asks its own deterministic beats. */
+export type InterviewAiStage = "metrics" | "concierge";
 
 /** Sentinel chip the concierge emits for the activities beat (beat 4), telling
     the client to render the multi-select checklist instead of tap-chips. MUST
