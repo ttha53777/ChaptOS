@@ -422,10 +422,33 @@ export function InterviewStep({
     onFlash("metrics");
   }
 
+  /**
+   * Add custom metrics, skipping any already on the sheet. Both callers need
+   * this: the concierge re-sends its FULL metric list every turn (it can't see
+   * the sheet), and a founder typing at the metrics stage can repeat themselves.
+   * Without it "Chapter points" lands twice. Case-insensitive, the way a founder
+   * would read a duplicate. Returns what was actually added, for the reply copy.
+   */
+  function addCustomMetrics(metrics: { name: string; unit: string | null }[]) {
+    const existing = new Set(draftRef.current.metrics.custom.map(c => c.name.trim().toLowerCase()));
+    const added: typeof metrics = [];
+    for (const m of metrics) {
+      const key = m.name.trim().toLowerCase();
+      if (!key || existing.has(key)) continue;
+      existing.add(key);
+      added.push(m);
+      dispatch({ type: "addCustomMetric", name: m.name, unit: m.unit });
+    }
+    return added;
+  }
+
   /** Free-text at the metrics stage — an extra thing to track per member. */
   async function answerMetricText(text: string) {
     push("user", text);
     setTyping(true);
+    // The one model call left in the scripted spine: it only PARSES the typed
+    // words into {name, unit} and can't ask a question or change a page — the
+    // titleCase fallback below covers it whenever AI is unavailable.
     const result = aiOn.current
       ? await askInterviewAi("metrics", draftRef.current, [
           { role: "q", text: "What else should be tracked per member?" },
@@ -437,14 +460,16 @@ export function InterviewStep({
     const metrics = result?.picks.customMetrics.length
       ? result.picks.customMetrics
       : [{ name: titleCase(text).slice(0, 40), unit: null }];
-    for (const m of metrics) dispatch({ type: "addCustomMetric", name: m.name, unit: m.unit });
-    onFlash("metrics");
+    const added = addCustomMetrics(metrics);
+    if (added.length) onFlash("metrics");
     push(
       "bot",
-      result?.reply ? (
+      added.length === 0 ? (
+        <>Already on the sheet — every {vocab("Member").toLowerCase()} has that column.</>
+      ) : result?.reply ? (
         <>{result.reply}</>
       ) : (
-        <>Added <b>{metrics.map(m => m.name).join(", ")}</b> — every {vocab("Member").toLowerCase()} gets a column for it.</>
+        <>Added <b>{added.map(m => m.name).join(", ")}</b> — every {vocab("Member").toLowerCase()} gets a column for it.</>
       ),
     );
   }
@@ -497,25 +522,17 @@ export function InterviewStep({
     if (p.addWorkflows.length || p.removeWorkflows.length || Object.keys(p.vocab).length) {
       dispatch({ type: "applyAiPicks", picks: { addWorkflows: p.addWorkflows, removeWorkflows: p.removeWorkflows, vocab: p.vocab } });
     }
-    // The model re-sends the FULL metric list every turn (it can't see what's
-    // already on the sheet), so only add names not already present — otherwise
-    // "Chapter points" lands twice. Case-insensitive, matching how a founder
-    // would read a duplicate.
-    const existing = new Set(draftRef.current.metrics.custom.map(c => c.name.trim().toLowerCase()));
-    for (const m of p.customMetrics) {
-      const key = m.name.trim().toLowerCase();
-      if (key && !existing.has(key)) {
-        existing.add(key);
-        dispatch({ type: "addCustomMetric", name: m.name, unit: m.unit });
-      }
-    }
+    const addedMetrics = addCustomMetrics(p.customMetrics);
     if (p.founderName) dispatch({ type: "setFounderName", name: p.founderName });
 
-    // Flash the sheet sections that changed (kind/variant reshuffle seats).
+    // Flash the sheet sections that actually changed (kind/variant reshuffle
+    // seats). Metrics flash on what was ADDED, not on what the model re-sent —
+    // it repeats its full list every turn, and flashing an unchanged section
+    // would draw the eye to nothing.
     if (p.kind || p.variant) onFlash("seats");
     if (p.addWorkflows.length || p.removeWorkflows.length) onFlash("pages");
     if (Object.keys(p.vocab).length) later(() => onFlash("words"), 450);
-    if (p.customMetrics.length) later(() => onFlash("metrics"), 300);
+    if (addedMetrics.length) later(() => onFlash("metrics"), 300);
   }
 
   /** The first stage still unresolved, in canonical order — where the scripted
