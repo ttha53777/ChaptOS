@@ -126,8 +126,19 @@ export function validateInterviewResult(
 ): ValidatedInterviewResult {
   const known = new Set<string>(ALL_WORKFLOWS);
   const addWorkflows = [...new Set(raw.addWorkflows.filter(w => known.has(w)))] as WorkflowId[];
-  // Never let the model remove an always-on workflow (operations = Dashboard).
-  const removable = new Set<string>(ALL_WORKFLOWS.filter(w => !ALWAYS_ON_WORKFLOWS.includes(w)));
+  // Never let the model remove an always-on workflow (operations = Dashboard), or
+  // "parties". The door-revenue beat asks "any door money?" of an org that ALREADY
+  // has Parties on, so a "no" means they throw parties without charging at the
+  // door — not that they don't throw parties. A model reading that "no" as a page
+  // rejection would strip a page the founder explicitly ticked, and the prompt
+  // alone can't guarantee it won't. Parties is only ever turned OFF by the
+  // activities checklist, which the client applies to the draft directly and never
+  // routes through the model, so nothing legitimate is lost by refusing it here.
+  // (Adding parties stays allowed: free text like "we throw huge socials" should
+  // still light the page up.)
+  const removable = new Set<string>(
+    ALL_WORKFLOWS.filter(w => !ALWAYS_ON_WORKFLOWS.includes(w) && w !== "parties"),
+  );
   const removeWorkflows = [...new Set(raw.removeWorkflows.filter(w => removable.has(w)))] as WorkflowId[];
 
   const vocab: Partial<Record<VocabKey, string>> = {};
@@ -286,7 +297,7 @@ THE BEATS — walk them roughly in this order, one question per turn, reacting f
   4. ACTIVITIES — "thinking about a normal month for this org, which of these actually happen?" This beat uses a special multi-select checklist the app renders itself: set "nextChips": ["${ACTIVITIES_CHIP}"] (that EXACT one string, nothing else) and phrase "nextQuestion" as the normal-month question. Do NOT list the activities yourself and do NOT emit workflow picks on this turn — the founder's checklist selections arrive on the NEXT turn, and you react to those.
   5. DOCS — "do you keep shared documents or links members need — a handbook, drive folder, bylaws?" Yes → addWorkflows ["docs"]; a clear no → removeWorkflows ["docs"]. Chips: ["Yes", "Not really"].
   6. PAYMENTS — "does this org handle any payments — dues, event fees, anything like that?" Any yes → addWorkflows ["finance"]. Chips: ["Yes — dues", "Event fees", "No money"]. (Do NOT re-ask if ACTIVITIES/fundraisers already settled that money is collected.)
-  7. DOOR REVENUE — CONDITIONAL: only ask "do parties or events here usually bring in door money or ticket sales?" when the org plausibly throws paid events — a social fraternity/sorority, or after they mentioned parties/socials. SKIP entirely for honor societies, service orgs, teams, and anyone who said no socials. Yes → addWorkflows ["parties"]. Chips: ["Yes", "No"].
+  7. DOOR REVENUE — CONDITIONAL, and it is NOT a vote on the Parties page. Ask "do parties or events here usually bring in door money or ticket sales?" ONLY when "parties" is ALREADY in the enabled pages above — i.e. the founder named socials at the checklist. Never ask it because a fraternity/sorority "probably" throws parties: if they didn't name socials, SKIP this beat entirely and move on. The page already exists by the time you ask, so this beat only settles what it CARRIES: yes → it tracks a door count; no → it's just the guest list and the budget. Emit NO workflow picks either way — no addWorkflows, and above all no removeWorkflows ["parties"]: a "no" means they throw parties without charging at the door, NOT that they don't throw parties. Chips: ["Yes", "No"].
   8. TRACKING — "anything else you want tracked per member beyond attendance, dues, and service hours — points, certifications, committees?" Turn a yes into 1–${MAX_CUSTOM_METRICS} "customMetrics" (short name + optional unit); never duplicate attendance/GPA/dues/service hours. Chips: ["Chapter points", "Certifications", "Nothing else"].
   9. CLOSE — once the beats are covered and STILL NEEDED is empty, set "done": true, "nextQuestion": null, "nextChips": [], and make "reply" the warm close: invite them to look over the blueprint on the right — "here's what's on and why; anything look off, or anything you don't actually use?"
 
@@ -301,10 +312,9 @@ ACTIVITY → PAGE MAPPING — when the founder describes what the org does (the 
   - posting content online (social media, announcements) → "communications"
   - shared documents or links (beat 5) → "docs"
   - dues / payments (beat 6) → "finance"
-  - door money / ticket sales (beat 7) → "parties"
-Use removeWorkflows for a currently-enabled page they clearly say they DON'T do. Never touch "operations" (always on).
+Door money / ticket sales (beat 7) maps to NOTHING — it refines a Parties page that is already on, so it never adds or removes a workflow. Use removeWorkflows only for a currently-enabled page whose ACTIVITY they clearly say they don't do ("we don't do service"), never because they declined a detail ABOUT a page they do have. Never touch "operations" (always on).
 
-THE CHECKLIST IS AUTHORITATIVE. The app already applied the founder's checklist selections before your reaction turn: what they ticked is ON and every other activity page is OFF. So on the turn AFTER the checklist, NEVER add back a page they didn't tick — if they didn't tick service, do not add "service" because the org "sounds like" it does service. The only pages that may still come on are the ones the LATER beats ask about: "docs" (beat 5), "finance" (beat 6) and "parties" (beat 7). Nothing is inferred from the kind: an org gets a page because the founder named the activity, never because a fraternity "usually" has one.
+THE CHECKLIST IS AUTHORITATIVE. The app already applied the founder's checklist selections before your reaction turn: what they ticked is ON and every other activity page is OFF. So on the turn AFTER the checklist, NEVER add back a page they didn't tick — if they didn't tick service, do not add "service" because the org "sounds like" it does service. The only pages that may still come on are the ones the LATER beats ask about: "docs" (beat 5) and "finance" (beat 6). "parties" is NOT one of them — beat 7 only refines a Parties page the checklist already turned on, so if they didn't tick socials, Parties stays off for the whole rest of the conversation. Nothing is inferred from the kind: an org gets a page because the founder named the activity, never because a fraternity "usually" has one.
 
 HOW TO REACT ("reply", ≤25 words, no markdown): open by reflecting what they just told you, in THEIR words — concrete, warm but not gushing. NEVER expose internal machinery: don't name a kind/variant/workflow id, don't say which template or bucket you picked, and never say you'll "treat it as" or "categorize it as" a type (especially not "other"). For an org that fits no preset, just mirror what they said and what it means for their setup.
 

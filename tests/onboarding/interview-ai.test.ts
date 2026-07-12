@@ -58,12 +58,27 @@ describe("validateInterviewResult", () => {
     const out = validateInterviewResult(
       raw({
         addWorkflows: ["finance", "blockchain", "finance"],
-        removeWorkflows: ["parties", "operations", "not-real"],
+        removeWorkflows: ["service", "operations", "not-real"],
       }),
       INPUT,
     );
     expect(out.picks.addWorkflows).toEqual(["finance"]);
-    expect(out.picks.removeWorkflows).toEqual(["parties"]);
+    expect(out.picks.removeWorkflows).toEqual(["service"]);
+  });
+
+  // The door-revenue beat ("any door money?") is only asked of an org that ALREADY
+  // has Parties on, so a "no" means they don't charge at the door — NOT that they
+  // don't throw parties. A model that reads it as a page rejection would strip a
+  // page the founder explicitly ticked on the activities checklist. Parties is only
+  // ever turned off by that checklist, which the client applies directly, so the
+  // model's removal is always wrong. Adding stays allowed ("we throw huge socials").
+  it("never lets the model remove parties, but still lets it add parties", () => {
+    const out = validateInterviewResult(
+      raw({ addWorkflows: ["parties"], removeWorkflows: ["parties", "service"] }),
+      INPUT,
+    );
+    expect(out.picks.removeWorkflows).toEqual(["service"]);
+    expect(out.picks.addWorkflows).toEqual(["parties"]);
   });
 
   it("keeps only real vocab keys, trimmed and capped at 40 chars", () => {
@@ -218,8 +233,8 @@ describe("POST /api/ai/interview", () => {
   it("returns a validated result on a successful interpretation", async () => {
     mockedInterpret.mockResolvedValue(
       raw({
-        reply: "No parties then.",
-        removeWorkflows: ["parties", "hallucinated-id"],
+        reply: "No service then.",
+        removeWorkflows: ["service", "hallucinated-id"],
         followUpQuestion: "Do you collect dues?",
         followUpChips: ["Yes", "No"],
       }),
@@ -228,7 +243,7 @@ describe("POST /api/ai/interview", () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.enabled).toBe(true);
-    expect(body.result.picks.removeWorkflows).toEqual(["parties"]);
+    expect(body.result.picks.removeWorkflows).toEqual(["service"]);
     expect(body.result.followUp).toEqual({ question: "Do you collect dues?", chips: ["Yes", "No"] });
   });
 
