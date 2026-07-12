@@ -39,7 +39,13 @@ import {
   type KindId,
 } from "@/lib/onboarding/kinds";
 import type { WorkflowId } from "@/lib/org-types";
-import { draftVocab, type AiPicks, type FlowAction } from "./flow-state";
+import {
+  draftVocab,
+  workflowsChanged,
+  workflowsForKind,
+  type AiPicks,
+  type FlowAction,
+} from "./flow-state";
 import {
   askInterviewAi,
   probeInterviewAi,
@@ -528,9 +534,15 @@ export function InterviewStep({
     // Flash the sheet sections that actually changed (kind/variant reshuffle
     // seats). Metrics flash on what was ADDED, not on what the model re-sent —
     // it repeats its full list every turn, and flashing an unchanged section
-    // would draw the eye to nothing.
+    // would draw the eye to nothing. Pages are the same trap and worse: the model
+    // re-sends its whole workflow list every turn, so a non-empty add/remove is
+    // NOT evidence anything moved. Ask what the picks would actually do — and ask
+    // it of the post-setKind draft, since a kind answer resets the set to BASE.
     if (p.kind || p.variant) onFlash("seats");
-    if (p.addWorkflows.length || p.removeWorkflows.length) onFlash("pages");
+    const base = p.kind ? workflowsForKind(draftRef.current, p.kind) : draftRef.current;
+    if (workflowsChanged(base, { addWorkflows: p.addWorkflows, removeWorkflows: p.removeWorkflows, vocab: {} })) {
+      onFlash("pages");
+    }
     if (Object.keys(p.vocab).length) later(() => onFlash("words"), 450);
     if (addedMetrics.length) later(() => onFlash("metrics"), 300);
   }
@@ -680,8 +692,14 @@ export function InterviewStep({
   function submitActivities(ids: ReadonlySet<string>, echo: boolean) {
     const picked = ACTIVITY_OPTIONS.filter(o => ids.has(o.id));
     setActivityPicks(null);
-    dispatch({ type: "applyAiPicks", picks: activityPicksToAiPicks(ids) });
-    onFlash("pages");
+    const picks = activityPicksToAiPicks(ids);
+    // Only pulse the sheet if the ticks actually move a page. The checklist always
+    // declares removals across its whole domain, so an unticked box that was
+    // already off is a no-op — flashing on it is what made the blueprint look like
+    // it was refreshing without ever updating.
+    const moved = workflowsChanged(draftRef.current, picks);
+    dispatch({ type: "applyAiPicks", picks });
+    if (moved) onFlash("pages");
 
     const summary = picked.length
       ? picked.map(o => o.label.toLowerCase()).join(", ")

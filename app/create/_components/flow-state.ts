@@ -151,6 +151,37 @@ function editSeat(draft: Draft, index: number, edit: (seat: Seat) => Seat): Draf
   return { ...draft, seats: draft.seats.map((s, i) => (i === index ? edit(s) : s)) };
 }
 
+/**
+ * The page set a set of picks WOULD produce. The reducer's applyAiPicks case is
+ * the only writer, but the interview also needs to know whether a pick actually
+ * moves anything — a removeWorkflows entry for a page that's already off, or an
+ * add for one that's already on, is declared intent that changes nothing, and
+ * flashing the sheet for it is what makes the blueprint look like it refreshes
+ * without updating. Both callers share this so they can't disagree.
+ */
+export function nextWorkflows(draft: Draft, picks: AiPicks): WorkflowId[] {
+  const workflows = new Set(draft.enabledWorkflows);
+  for (const w of picks.addWorkflows) workflows.add(w);
+  for (const w of picks.removeWorkflows) {
+    if (!ALWAYS_ON_WORKFLOWS.includes(w)) workflows.delete(w);
+  }
+  return [...workflows];
+}
+
+/** Whether `picks` would actually change the draft's page set (order-insensitive). */
+export function workflowsChanged(draft: Draft, picks: AiPicks): boolean {
+  const next = nextWorkflows(draft, picks);
+  if (next.length !== draft.enabledWorkflows.length) return true;
+  const before = new Set(draft.enabledWorkflows);
+  return next.some(w => !before.has(w));
+}
+
+/** The page set a `setKind` resets to — what a concierge turn's picks land on top
+    of when that same turn also answered the kind beat. */
+export function workflowsForKind(draft: Draft, kind: KindId): Draft {
+  return { ...draft, enabledWorkflows: kindDefaults(draft, kind).enabledWorkflows };
+}
+
 export function flowReducer(draft: Draft, action: FlowAction): Draft {
   switch (action.type) {
     case "hydrate":
@@ -181,16 +212,11 @@ export function flowReducer(draft: Draft, action: FlowAction): Draft {
         metrics: { ...draft.metrics, custom: draft.metrics.custom.filter((_, i) => i !== action.index) },
       };
     case "applyAiPicks": {
-      const workflows = new Set(draft.enabledWorkflows);
-      for (const w of action.picks.addWorkflows) workflows.add(w);
-      for (const w of action.picks.removeWorkflows) {
-        if (!ALWAYS_ON_WORKFLOWS.includes(w)) workflows.delete(w);
-      }
       const vocab = { ...draft.vocab };
       for (const [k, v] of Object.entries(action.picks.vocab)) {
         if (v) vocab[k] = v.trim().slice(0, 40);
       }
-      return { ...draft, enabledWorkflows: [...workflows], vocab };
+      return { ...draft, enabledWorkflows: nextWorkflows(draft, action.picks), vocab };
     }
     case "interviewDone":
       return { ...draft, interviewDone: true, skipped: false };
