@@ -64,6 +64,46 @@ export const ALL_WORKFLOWS: readonly WorkflowId[] = [
  */
 export const ALWAYS_ON_WORKFLOWS: readonly WorkflowId[] = ["operations"] as const;
 
+/**
+ * WORKFLOW AUTHORITY — who decides whether a page is on.
+ *
+ * The /create interview asks concrete questions ("in a normal month, which of
+ * these actually happen?") and the answers decide the page set. For that to be
+ * true, an activity the founder does NOT name must leave its page OFF — which
+ * means the org-type template must never pre-seed those pages. Otherwise the
+ * template's guess silently survives an answer that didn't include it, and the
+ * interview is just theatre over a preset.
+ *
+ * So every workflow belongs to exactly one class:
+ *
+ *   BASE — the org gets it no matter what. Never asked, never removed by an
+ *   answer. A roster is table stakes; operations backs Dashboard/Timeline.
+ *
+ *   BEAT — the interview's beats are AUTHORITATIVE over it: named = on,
+ *   unnamed = off. kindDefaults() must not seed these (see flow-state.ts), and
+ *   the activities checklist computes its removals across this domain.
+ *
+ * ensureKind() is the one deliberate exception: a founder who skips the
+ * interview entirely has given no answers, so there the template genuinely IS
+ * the best guess and the full set is seeded.
+ *
+ * Invariant (asserted in tests/onboarding/org-types.test.ts):
+ *   BASE ∪ BEAT === ALL_WORKFLOWS,  ALWAYS_ON ⊆ BASE,  BASE ∩ BEAT === ∅
+ */
+export const BASE_WORKFLOWS: readonly WorkflowId[] = ["members", "operations"] as const;
+
+export const BEAT_WORKFLOWS: readonly WorkflowId[] = [
+  "meetings",
+  "attendance",
+  "parties",
+  "service",
+  "events",
+  "finance",
+  "tasks",
+  "communications",
+  "docs",
+] as const;
+
 export interface RoleSeed {
   name: string;
   color: string;

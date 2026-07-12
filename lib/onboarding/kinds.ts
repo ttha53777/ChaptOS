@@ -6,17 +6,18 @@
  * the one kind without its own template: it shares the fraternity template and
  * differs only in vocabulary (Member: "Sister"), applied via KIND_VOCAB_DELTA.
  *
- * `variant` is the follow-up ("what kind of fraternity?") that keeps the kind
- * word from silently deciding the activity bundle: a VariantModifier layers
- * workflow/seat/metric deltas on top of the base template, so a professional
- * fraternity loses the parties page without needing its own template
- * (docs/onboarding-interview-discovery.md — the "fraternity collapse").
+ * `variant` refines the kind's SHAPE — the seats a professional chapter elects,
+ * the words an ensemble uses, the metrics an honor society tracks. It no longer
+ * decides pages: the interview asks what the org actually does in a normal month
+ * and the answers own the page set (see BEAT_WORKFLOWS in lib/org-types.ts), so
+ * nothing is inferred from the kind word alone. The scripted interview no longer
+ * asks for a variant at all; the AI concierge may still resolve one when the
+ * founder's own words make it obvious ("we're a pre-med frat").
  *
  * Pure data + matchers, no React, no DB — shared by the interview UI and the
  * draft→createOrgInput mapper, and unit-tested directly.
  */
 
-import type { WorkflowId } from "@/lib/org-types";
 import type { Permission } from "@/lib/permissions";
 import type { VocabOverrides } from "@/lib/vocab";
 
@@ -112,13 +113,17 @@ export interface VariantSeatAdd {
  * is a delta: absent fields mean "keep the template's answer". Applied
  * draft-side only (flow-state's setVariant) — the server keeps receiving a
  * fully-resolved blueprint.
+ *
+ * A variant does NOT carry workflow deltas. The interview's activity beats own
+ * the page set ("in a normal month, which of these happen?" — unnamed = off), so
+ * a variant would only be able to contradict an explicit answer. What it IS
+ * uniquely good for is the rest of the shape: the seats a professional chapter
+ * elects, the words an ensemble uses, the metrics an honor society tracks.
  */
 export interface VariantModifier {
   id: string;
   /** Chip label. */
   label: string;
-  addWorkflows?:    readonly WorkflowId[];
-  removeWorkflows?: readonly WorkflowId[];
   /** Written into draft.vocab (wins over template + kind delta). */
   vocabDelta?: VocabOverrides;
   /** Titles of base-template seats to drop (never matches the founder seat). */
@@ -139,11 +144,9 @@ export const KIND_VARIANTS: Partial<Record<KindId, readonly VariantModifier[]>> 
     {
       id: "professional",
       label: "Professional",
-      // No parties, no service-hours centerpiece — pro-dev events, dues, and
-      // committee work instead. Social/PR seats give way to the two VP offices
-      // professional chapters actually elect.
-      removeWorkflows: ["parties", "service"],
-      addWorkflows:    ["tasks"],
+      // Social/PR seats give way to the two VP offices professional chapters
+      // actually elect. (Whether parties/service pages exist is the activity
+      // beats' call, not this modifier's.)
       seatRemove: ["Social", "PR"],
       seatAdd: [
         { title: "VP Professional Development", color: "#8B5CF6", permissions: ["MANAGE_EVENTS", "MANAGE_TASKS"] },
@@ -154,9 +157,7 @@ export const KIND_VARIANTS: Partial<Record<KindId, readonly VariantModifier[]>> 
     {
       id: "service",
       label: "Service",
-      // Service-hours-first, parties off — the service-org shape wearing
-      // Brother/Chapter vocab.
-      removeWorkflows: ["parties"],
+      // Service-hours-first — the service-org shape wearing Brother/Chapter vocab.
       seatRemove: ["Social"],
       seatAdd: [{ title: "Service Chair", color: "#10B981", permissions: ["MANAGE_SERVICE", "MANAGE_EVENTS"] }],
       metricDefaults: { gpa: false },
@@ -164,7 +165,6 @@ export const KIND_VARIANTS: Partial<Record<KindId, readonly VariantModifier[]>> 
     {
       id: "honor",
       label: "Honor / academic",
-      removeWorkflows: ["parties"],
       seatRemove: ["Social"],
       seatAdd: [{ title: "Standards Chair", color: "#8B5CF6", permissions: ["MANAGE_ATTENDANCE", "MANAGE_BROTHERS"] }],
     },
@@ -174,7 +174,6 @@ export const KIND_VARIANTS: Partial<Record<KindId, readonly VariantModifier[]>> 
       id: "casual",
       label: "Casual / interest",
       // A Discord and an occasional event — no roll call, no treasury.
-      removeWorkflows: ["attendance", "finance"],
       metricDefaults: { attendance: false, duesOwed: false },
     },
     {
@@ -200,14 +199,12 @@ export const KIND_VARIANTS: Partial<Record<KindId, readonly VariantModifier[]>> 
     {
       id: "competitive",
       label: "Competitive / club sport",
-      // League fees are real money the template deliberately omits.
-      addWorkflows: ["finance"],
+      // League fees are real money — the dues column earns its place.
       metricDefaults: { duesOwed: true },
     },
     {
       id: "casual",
       label: "Intramural / casual",
-      removeWorkflows: ["attendance", "tasks"],
       seatRemove: ["Coach"],
       metricDefaults: { attendance: false },
     },
@@ -228,15 +225,6 @@ export const KIND_VARIANTS: Partial<Record<KindId, readonly VariantModifier[]>> 
 
 /** Sorority disambiguates exactly like a fraternity. */
 KIND_VARIANTS.sorority = KIND_VARIANTS.fraternity;
-
-/** The variant question's copy per kind (null → skip the question). */
-export const VARIANT_QUESTION: Partial<Record<KindId, string>> = {
-  fraternity: "Got it — what kind of fraternity?",
-  sorority:   "Got it — what kind of sorority?",
-  club:       "What best describes this club?",
-  team:       "Competitive or casual?",
-  arts:       "A production company, or an ensemble?",
-};
 
 export function getVariant(kind: KindId | null, variantId: string | null): VariantModifier | null {
   if (!kind || !variantId) return null;
@@ -310,4 +298,19 @@ export function matchVariant(kind: KindId, text: string): string | null {
 
 export function isKindId(id: string): id is KindId {
   return (KIND_IDS as readonly string[]).includes(id);
+}
+
+/**
+ * Read a typed answer to one of the interview's yes/no beats ("do you keep
+ * shared docs?", "does the org handle payments?").
+ *
+ * Defaults to YES on anything that isn't a recognizable negation: a founder who
+ * bothers to TYPE at a "do you …?" prompt is nearly always elaborating on a yes
+ * ("yeah, a drive folder and the bylaws") rather than negating — the ones who
+ * mean no reach for the "No" chip. Erring toward yes also errs toward the safer
+ * mistake: an extra page they can toggle off on the blueprint, rather than a
+ * missing one they never think to look for.
+ */
+export function matchYesNo(text: string): boolean {
+  return !/\b(no|nope|nah|never|none|nothing|not really|don'?t|doesn'?t|do not|neither)\b/i.test(text);
 }
