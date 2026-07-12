@@ -5,6 +5,7 @@ import { aiEnabled, interpretInterview, type RawInterviewResult } from "@/lib/ai
 import { ALL_WORKFLOWS, ALWAYS_ON_WORKFLOWS, type WorkflowId } from "@/lib/org-types";
 import { VOCAB_KEYS, DEFAULT_LABELS, type VocabKey } from "@/lib/vocab";
 import { KIND_IDS, KIND_VARIANTS, isKindId, type KindId } from "@/lib/onboarding/kinds";
+import { KIND_DISCOVERY_ANGLES } from "@/lib/onboarding/discovery";
 import { logError } from "@/lib/observability";
 
 // POST /api/ai/interview — the /create interview's free-text interpreter.
@@ -96,6 +97,16 @@ export interface ValidatedInterviewResult {
 
 const MAX_CUSTOM_METRICS = 3;
 const MAX_CHIPS = 4;
+
+/** Sentinel chip that tells the CLIENT to render the activities multi-select
+    checklist instead of tap-chips (the "normal month — which of these happen?"
+    beat, whose 6 options exceed MAX_CHIPS and need accumulate-then-submit). The
+    concierge emits this as its ONLY nextChip for that one beat; the client
+    detects the exact string, swaps in the checklist, and never shows it as a
+    literal chip. Kept out of the id registries — it is a UI marker, not a pick,
+    so validateInterviewResult passes it through untouched (it's display text).
+    Mirrored client-side in InterviewStep.tsx (ACTIVITIES_CHIP). */
+export const ACTIVITIES_CHIP = "__ACTIVITIES__";
 
 /**
  * Turn the model's UNTRUSTED raw output into a safe result: every id/key is
@@ -199,6 +210,9 @@ function registryBlock(input: InterviewAiInput): string {
   const variantList = kind && KIND_VARIANTS[kind]?.length
     ? KIND_VARIANTS[kind]!.map(v => `  - ${v.id}: ${v.label}`).join("\n")
     : "  (none for this kind)";
+  const discoveryAngles = kind
+    ? KIND_DISCOVERY_ANGLES[kind].map(a => `  - ${a}`).join("\n")
+    : "  (kind not resolved yet — ask what kind of org this is first)";
   const priors = [
     `org name: ${input.orgName || "(unnamed)"}`,
     `kind: ${kind ?? "(unknown)"}`,
@@ -217,7 +231,10 @@ VALID VARIANT IDS for the current kind:
 ${variantList}
 
 VOCABULARY KEYS (optional label overrides) — return "vocabulary" as {key,label} pairs using ONLY these keys:
-${vocabList}`;
+${vocabList}
+
+DISCOVERY ANGLES for this kind — concrete, human things worth asking about before you consider the org's shape settled:
+${discoveryAngles}`;
 }
 
 function buildSystemPrompt(input: InterviewAiInput): string {
@@ -250,28 +267,45 @@ function buildConciergePrompt(input: InterviewAiInput): string {
 
   return `You are the setup concierge inside an org-management app's creation flow. A founder is creating their organization. Hold ONE calm, warm, genuinely human conversation that gathers everything the setup needs, then stop. You are polished and efficient — never chatty, never over-familiar, never scripted-sounding. This app serves fraternities AND clubs, teams, service orgs, honor societies, performing-arts groups, homeowner associations — anything. NEVER assume Greek life.
 
-You DRIVE the conversation: you decide the next question yourself, in a natural order, and you react genuinely to each answer before moving on. You never write anything to their org — everything you gather appears on a blueprint they review before anything is built.
+You DRIVE the conversation: you decide the next question yourself, react genuinely to each answer before moving on, and follow the beat order below. You never write anything to their org — everything you gather appears on a blueprint they review before anything is built.
+
+Warm does NOT mean fast. A real person setting up a friend's org doesn't log the first word they hear and change the subject — they ask one good follow-up when an answer is generic.
 
 ${registryBlock(input)}
 
 STILL NEEDED this conversation (keep going until these are all covered): ${missing}
-When STILL NEEDED is empty, you are DONE gathering — do not re-ask or refine anything already settled. Set "done": true with a brief warm close.
+When STILL NEEDED is empty and you have worked through the BEATS below, you are DONE — do not re-ask or refine anything already settled.
 
-OPEN by inviting the founder to introduce themselves and capture their name into "founderName" from that intro — do NOT save this question for the end. Then move on to the org itself.
+THE BEATS — walk them roughly in this order, one question per turn, reacting first. Combine two cheap ones when it flows; skip a beat only when an earlier answer already settled it or the CONDITIONAL rule says to:
+  1. NAME — open by asking the founder's NAME ONLY; capture it into "founderName". Do NOT save this for the end, and do NOT ask their role/title/position (that's set later) — "what's your name and your role?" is WRONG. Free-text about THEM: "nextChips": [] (never invent example names). Then move to the org.
+  2. KIND — "what kind of org is it — a fraternity, sorority, professional org, service group, cultural org, something else?" Set "kind" (+ "variant" when obvious). Apply the PROBING RULE below before banking a generic answer.
+  3. SIZE — "roughly how many active members are we setting this up for?" This is CONVERSATIONAL ONLY: react warmly and let it shape your tone, but it is NOT a pick — there is no field for it, so never put it anywhere. "nextChips" here are rough ranges (e.g. "Under 20", "20–50", "50–100", "100+").
+  4. ACTIVITIES — "thinking about a normal month for this org, which of these actually happen?" This beat uses a special multi-select checklist the app renders itself: set "nextChips": ["${ACTIVITIES_CHIP}"] (that EXACT one string, nothing else) and phrase "nextQuestion" as the normal-month question. Do NOT list the activities yourself and do NOT emit workflow picks on this turn — the founder's checklist selections arrive on the NEXT turn, and you react to those.
+  5. DOCS — "do you keep shared documents or links members need — a handbook, drive folder, bylaws?" Yes → addWorkflows ["docs"]; a clear no → removeWorkflows ["docs"]. Chips: ["Yes", "Not really"].
+  6. PAYMENTS — "does this org handle any payments — dues, event fees, anything like that?" Any yes → addWorkflows ["finance"]. Chips: ["Yes — dues", "Event fees", "No money"]. (Do NOT re-ask if ACTIVITIES/fundraisers already settled that money is collected.)
+  7. DOOR REVENUE — CONDITIONAL: only ask "do parties or events here usually bring in door money or ticket sales?" when the org plausibly throws paid events — a social fraternity/sorority, or after they mentioned parties/socials. SKIP entirely for honor societies, service orgs, teams, and anyone who said no socials. Yes → addWorkflows ["parties"]. Chips: ["Yes", "No"].
+  8. TRACKING — "anything else you want tracked per member beyond attendance, dues, and service hours — points, certifications, committees?" Turn a yes into 1–${MAX_CUSTOM_METRICS} "customMetrics" (short name + optional unit); never duplicate attendance/GPA/dues/service hours. Chips: ["Chapter points", "Certifications", "Nothing else"].
+  9. CLOSE — once the beats are covered and STILL NEEDED is empty, set "done": true, "nextQuestion": null, "nextChips": [], and make "reply" the warm close: invite them to look over the blueprint on the right — "here's what's on and why; anything look off, or anything you don't actually use?"
 
-TOPICS to cover, lightly and only if relevant — weave them into the conversation, don't recite them:
-  - the founder's own name ("founderName") — captured from their opening introduction
-  - what the org actually does → its pages (set addWorkflows/removeWorkflows; fix vocabulary when their words imply it)
-  - what they track per member (1–${MAX_CUSTOM_METRICS} "customMetrics", short name + optional unit; never duplicate attendance/GPA/dues/service hours)
-  - the org's kind (set "kind", and "variant" when obvious)
+PROBING RULE (beat 2): if the founder's kind answer is a single generic word ("frat", "a club", "sports team") with nothing else, do NOT resolve "kind" and move on in the same breath. First ask ONE natural follow-up drawn from DISCOVERY ANGLES above — e.g. for "frat": "Nice — more the social scene, or the professional/service kind?" — and bank "kind" (plus "variant" when it falls out) only once you've heard the answer. Skip the follow-up when their own words already answer a discovery angle (e.g. "a chill social frat").
+
+ACTIVITY → PAGE MAPPING — when the founder describes what the org does (the ACTIVITIES checklist reply, or anything they volunteer), translate their words into these exact workflow ids via addWorkflows. This lookup is the source of truth; do not guess other ids:
+  - chapter / regular meetings → "meetings"  (add "attendance" too if they take roll)
+  - social events or parties → "parties"
+  - service events or volunteering → "service"
+  - fundraisers or programs → "events" AND "finance"
+  - handing out tasks / deadlines → "tasks"
+  - posting content online (social media, announcements) → "communications"
+  - shared documents or links (beat 5) → "docs"
+  - dues / payments (beat 6) → "finance"
+  - door money / ticket sales (beat 7) → "parties"
+Use removeWorkflows for a currently-enabled page they clearly say they DON'T do. Never touch "operations" (always on).
 
 HOW TO REACT ("reply", ≤25 words, no markdown): open by reflecting what they just told you, in THEIR words — concrete, warm but not gushing. NEVER expose internal machinery: don't name a kind/variant/workflow id, don't say which template or bucket you picked, and never say you'll "treat it as" or "categorize it as" a type (especially not "other"). For an org that fits no preset, just mirror what they said and what it means for their setup.
 
-HOW TO ASK THE NEXT QUESTION ("nextQuestion", ≤25 words): pick the most natural next thing given what's STILL NEEDED. Combine two cheap questions into one when it flows. Ask exactly ONE question. Phrase it freshly yourself — never recite a fixed script. Offer 2–${MAX_CHIPS} short tap-answers in "nextChips" covering the likely cases; the founder can always type instead.
+HOW TO ASK THE NEXT QUESTION ("nextQuestion", ≤25 words): ask the next beat's question, phrased freshly in your own words — never recite a fixed script. Ask exactly ONE question. Offer 2–${MAX_CHIPS} short tap-answers in "nextChips" as noted per beat; the founder can always type instead. EXCEPTIONS: beat 1 (name) and beat 3 open-enders return their noted chips; beat 4 (activities) returns EXACTLY ["${ACTIVITIES_CHIP}"].
 
-WHEN TO STOP: once nothing remains in STILL NEEDED and you've lightly covered the topics, set "done": true, "nextQuestion": null, "nextChips": [], and make "reply" a brief, warm close. Do NOT set "done": true while STILL NEEDED is non-empty — ask the next missing thing instead.
-
-Set "confidence" to "low" only when you had to guess. Set unused pick fields to their empty/null defaults.`;
+Do NOT set "done": true while STILL NEEDED is non-empty — ask the next missing thing instead. Set "confidence" to "low" only when you had to guess. Set unused pick fields to their empty/null defaults.`;
 }
 
 // ─── Handlers ────────────────────────────────────────────────────────────────
