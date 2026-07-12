@@ -467,9 +467,14 @@ export function InterviewStep({
       machine should pick up when the concierge hands off. */
   function resumeStage(): Stage {
     const missing = new Set<string>(missingFields(draftRef.current));
-    // kind is the only hard gate. If it's missing, resume from the intro — that
-    // beat captures the founder's name and then flows into the kind question.
-    if (missing.has("kind")) return "intro";
+    // kind is the only hard gate. If it's missing we still need the kind
+    // question — but only route through "intro" when the founder's NAME is also
+    // still unknown, because that beat's whole job is asking for it. The
+    // concierge captures the name on its very first turn, so a handoff right
+    // after that would otherwise re-ask it ("what's your name?" twice in a row).
+    if (missing.has("kind")) {
+      return draftRef.current.founderName.trim() ? "kind" : "intro";
+    }
     // kind settled → nothing is strictly owed (name falls back to the Google
     // name, metrics/roles are optional). Land on metrics so the founder gets one
     // last look at per-member tracking before the blueprint.
@@ -479,12 +484,14 @@ export function InterviewStep({
   /** Hand the rest of the interview to the scripted machine. Used by the
       mid-conversation fallback (AI turn failed) and the early-exit/loop-cap
       backstops. The draft already holds every prior pick, so the spine resumes
-      with no re-asking. `bridge` is a short human line easing the transition. */
-  function handoffToScripted(bridge: ReactNode) {
+      with no re-asking. `bridge` is a short human line easing the transition —
+      pass null when there is nothing to bridge FROM (the opening turn failed, so
+      the founder has said nothing yet and the spine simply opens the interview). */
+  function handoffToScripted(bridge: ReactNode | null) {
     setMode("scripted");
     aiOn.current = false; // don't thrash a failing/exhausted model for the rest
     setActivityPicks(null); // close the activities checklist if it was open
-    push("bot", bridge);
+    if (bridge) push("bot", bridge);
     const next = resumeStage();
     later(() => ask(next), 650);
   }
@@ -513,11 +520,13 @@ export function InterviewStep({
     );
 
     if (!result) {
-      // Mid-conversation failure → fall back to the scripted spine at the right
-      // stage. setTyping(false) inside handoff's push path via respond? No —
-      // clear it here since we bypass respond().
+      // AI turn failed → fall back to the scripted spine at the right stage.
+      // (setTyping is cleared here because we bypass respond().) On the OPENING
+      // turn nothing has been said yet, so a "let me confirm a couple of things"
+      // bridge would be nonsense — the scripted spine just opens the interview
+      // itself. Only a mid-conversation failure gets the bridge line.
       setTyping(false);
-      handoffToScripted(<>Let me just confirm a couple of things.</>);
+      handoffToScripted(userText === null ? null : <>Let me just confirm a couple of things.</>);
       return;
     }
 
