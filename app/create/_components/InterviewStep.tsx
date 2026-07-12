@@ -31,15 +31,35 @@ import {
   type BuiltinMetricId,
   type KindId,
 } from "@/lib/onboarding/kinds";
+import type { WorkflowId } from "@/lib/org-types";
 import { draftVocab, type FlowAction } from "./flow-state";
 import {
   askInterviewAi,
   probeInterviewAi,
   missingFields,
+  ACTIVITIES_CHIP,
   type InterviewAiResult,
   type InterviewAiTurn,
 } from "./interview-ai";
 import type { SheetFlash } from "./BlueprintSheet";
+
+/**
+ * The "normal month — which of these happen?" checklist (beat 4). Each option
+ * pairs the founder-facing label with the workflow id(s) it enables. This table
+ * MUST mirror the ACTIVITY → PAGE MAPPING block in the concierge prompt
+ * (app/api/ai/interview/route.ts) so the tapped-checklist path and the model's
+ * free-text path resolve identical pages. Rendered as a multi-select grid (the
+ * same accumulate-then-submit pattern the scripted metrics picker uses) because
+ * its six options exceed the concierge's 4-chip cap.
+ */
+const ACTIVITY_OPTIONS: { id: string; label: string; workflows: WorkflowId[] }[] = [
+  { id: "meetings",  label: "Chapter meetings",             workflows: ["meetings"] },
+  { id: "socials",   label: "Social events or parties",     workflows: ["parties"] },
+  { id: "service",   label: "Service or volunteering",      workflows: ["service"] },
+  { id: "fundraise", label: "Fundraisers or programs",      workflows: ["events", "finance"] },
+  { id: "tasks",     label: "Handing out tasks/deadlines",  workflows: ["tasks"] },
+  { id: "online",    label: "Posting content online",       workflows: ["communications"] },
+];
 
 type Stage =
   | "intro"
@@ -176,6 +196,12 @@ export function InterviewStep({
   modeRef.current = mode;
   const convoTranscript = useRef<InterviewAiTurn[]>([]);
   const convoTurns = useRef(0);
+
+  // The activities beat (beat 4) renders a multi-select checklist in place of
+  // tap-chips: when non-null, the checklist grid is shown and this Set holds the
+  // founder's in-progress selections (ACTIVITY_OPTIONS ids). Null the rest of
+  // the time. Submitting ("Done →") clears it and resumes the concierge loop.
+  const [activityPicks, setActivityPicks] = useState<Set<string> | null>(null);
 
   // Refs mirror the latest draft/stage for use inside timeouts/async handlers.
   const draftRef = useRef(draft);
@@ -457,6 +483,7 @@ export function InterviewStep({
   function handoffToScripted(bridge: ReactNode) {
     setMode("scripted");
     aiOn.current = false; // don't thrash a failing/exhausted model for the rest
+    setActivityPicks(null); // close the activities checklist if it was open
     push("bot", bridge);
     const next = resumeStage();
     later(() => ask(next), 650);
@@ -474,6 +501,7 @@ export function InterviewStep({
       convoTranscript.current.push({ role: "user", text: userText });
     }
     setChips(null);
+    setActivityPicks(null); // close the activities checklist if it was open
     setTyping(true);
     convoTurns.current += 1;
 
@@ -516,13 +544,62 @@ export function InterviewStep({
         return;
       }
 
-      // Normal case: ask the model's own next question with its tap-chips.
+      // Normal case: ask the model's own next question. The activities beat is
+      // special — the model signals it with the ACTIVITIES_CHIP sentinel as its
+      // only chip; render the multi-select checklist instead of tap-chips.
+      const isActivities =
+        result.next.chips.length === 1 && result.next.chips[0] === ACTIVITIES_CHIP;
       convoTranscript.current.push({ role: "q", text: result.next.question });
       later(() => {
         push("q", <>{result.next!.question}</>);
-        setChips(result.next!.chips.map(c => ({ label: c, pick: () => void runConcierge(c) })));
+        if (isActivities) {
+          setChips(null);
+          setActivityPicks(new Set());
+        } else {
+          setChips(result.next!.chips.map(c => ({ label: c, pick: () => void runConcierge(c) })));
+        }
       }, 400);
     }, typingDelay(result.reply));
+  }
+
+  /* ─── Activities checklist (beat 4) ───────────────────────────────────────── */
+
+  /** Toggle one activities-checklist option in the in-progress selection. */
+  function toggleActivity(id: string) {
+    setActivityPicks(prev => {
+      const next = new Set(prev ?? []);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  /** "Done →" on the activities checklist: translate the selected options into
+      one addWorkflows pick, apply it through the SAME concierge path (so the
+      blueprint flashes identically), then feed a plain-language summary back to
+      the model as the founder's answer so it reacts and drives the next beat. */
+  function submitActivities() {
+    const picked = ACTIVITY_OPTIONS.filter(o => activityPicks?.has(o.id));
+    setActivityPicks(null);
+    const workflows = [...new Set(picked.flatMap(o => o.workflows))];
+    if (workflows.length) {
+      applyConciergePicks({
+        addWorkflows: workflows,
+        removeWorkflows: [],
+        vocab: {},
+        kind: null,
+        variant: null,
+        customMetrics: [],
+        founderName: null,
+      });
+    }
+    // A human-readable summary the model reacts to (or "none of those").
+    // runConcierge pushes it as the user bubble AND into the transcript, so we
+    // don't push it here — that would double it.
+    const summary = picked.length
+      ? picked.map(o => o.label.toLowerCase()).join(", ")
+      : "none of those, really";
+    void runConcierge(summary);
   }
 
   /** Wrap up the interview (from either driver): mark done + reveal the CTA. */
@@ -687,6 +764,23 @@ export function InterviewStep({
                 {c.label}
               </button>
             ))}
+          </div>
+        )}
+        {activityPicks !== null && !typing && (
+          <div className="chips chips-multi">
+            {ACTIVITY_OPTIONS.map(o => (
+              <button
+                key={o.id}
+                className={`chip${activityPicks.has(o.id) ? " sel" : ""}`}
+                aria-pressed={activityPicks.has(o.id)}
+                onClick={() => toggleActivity(o.id)}
+              >
+                {o.label}
+              </button>
+            ))}
+            <button className="chip go" onClick={submitActivities}>
+              Done →
+            </button>
           </div>
         )}
         {mode === "scripted" && stage === "metrics" && !typing && (

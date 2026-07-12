@@ -18,6 +18,12 @@ import type { KindId } from "@/lib/onboarding/kinds";
 
 export type InterviewAiStage = "kind" | "activity" | "metrics" | "concierge";
 
+/** Sentinel chip the concierge emits for the activities beat (beat 4), telling
+    the client to render the multi-select checklist instead of tap-chips. MUST
+    stay in sync with ACTIVITIES_CHIP in app/api/ai/interview/route.ts — the
+    server-side prompt instructs the model to emit this exact string. */
+export const ACTIVITIES_CHIP = "__ACTIVITIES__";
+
 /** The required fields the concierge is sent each turn (mirrors REQUIRED_FIELDS
     in the route). metrics/founderName aren't gated — see missingFields(). */
 export type RequiredField = "kind" | "workflows" | "metrics";
