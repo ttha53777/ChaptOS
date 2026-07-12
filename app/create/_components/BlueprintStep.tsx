@@ -192,7 +192,9 @@ function wfRows(draft: Draft): { key: WorkflowId; name: string; why: React.React
     {
       key: "events",
       name: "Events",
-      why: "you meet on a rhythm; socials live here too.",
+      why: on.has("events")
+        ? "fundraisers and programs — dates, sign-ups and who showed."
+        : "off — you didn't mention fundraisers or programs. Flip it on any time.",
     },
     {
       key: "parties",
