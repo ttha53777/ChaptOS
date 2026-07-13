@@ -118,9 +118,10 @@ export async function upsertBrotherMetrics(
     updatedSlugs.push(def.slug);
   }
 
+  const nameByBrotherId = await ctx.db.membership.resolveNames([{ id: brother.id, name: brother.name }]);
   await emit(ctx, "metric_value.updated", { type: "BrotherMetricValue", id: brotherId }, {
     brotherId,
-    brotherName: brother.name,
+    brotherName: nameByBrotherId.get(brother.id) ?? brother.name,
     updatedSlugs,
   });
 

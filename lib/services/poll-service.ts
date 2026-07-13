@@ -74,6 +74,21 @@ function toDTO(row: PollRow, actorId: number): PollDTO {
   };
 }
 
+// Org-local display name (Membership.name) for each assignee, same fallback
+// rule as the roster. Without this, a member who renamed themselves in this
+// org would still show their stale name on poll assignee chips.
+async function withResolvedAssignees(ctx: RequestContext, dtos: PollDTO[]): Promise<PollDTO[]> {
+  const brothers = dtos.flatMap(d => d.assignments.map(a => a.brother)).filter((b): b is NonNullable<PollAssignmentDTO["brother"]> => b != null);
+  if (brothers.length === 0) return dtos;
+  const nameByBrotherId = await ctx.db.membership.resolveNames(brothers);
+  return dtos.map(d => ({
+    ...d,
+    assignments: d.assignments.map(a => a.brother
+      ? { ...a, brother: { ...a.brother, name: nameByBrotherId.get(a.brother.id) ?? a.brother.name } }
+      : a),
+  }));
+}
+
 function loadPolls(ctx: RequestContext, where?: { status?: string; ids?: number[] }): Promise<PollRow[]> {
   return ctx.db.poll.findMany({
     where: {
@@ -135,9 +150,9 @@ async function resolveAssignees(ctx: RequestContext, brotherIds: number[], roleI
  */
 export async function listPolls(ctx: RequestContext, filter?: { mine?: boolean; status?: string }): Promise<PollDTO[]> {
   const rows = await loadPolls(ctx, { status: filter?.status });
-  if (!filter?.mine) return rows.map(r => toDTO(r, ctx.actorId));
+  if (!filter?.mine) return withResolvedAssignees(ctx, rows.map(r => toDTO(r, ctx.actorId)));
   const held = await actorRoleIds(ctx);
-  return rows.filter(p => isAssignee(p, ctx.actorId, held)).map(r => toDTO(r, ctx.actorId));
+  return withResolvedAssignees(ctx, rows.filter(p => isAssignee(p, ctx.actorId, held)).map(r => toDTO(r, ctx.actorId)));
 }
 
 export async function createPoll(ctx: RequestContext, input: CreatePollInput): Promise<PollDTO> {
@@ -180,7 +195,8 @@ export async function createPoll(ctx: RequestContext, input: CreatePollInput): P
   });
 
   const [row] = await loadPolls(ctx, { ids: [created.id] });
-  return toDTO(row, ctx.actorId);
+  const [dto] = await withResolvedAssignees(ctx, [toDTO(row, ctx.actorId)]);
+  return dto;
 }
 
 export async function updatePoll(ctx: RequestContext, id: number, input: UpdatePollInput): Promise<PollDTO> {
@@ -269,7 +285,8 @@ export async function updatePoll(ctx: RequestContext, id: number, input: UpdateP
   await emit(ctx, "poll.updated", { type: "Poll", id }, { question: existing.question, changedFields });
 
   const [row] = await loadPolls(ctx, { ids: [id] });
-  return toDTO(row, ctx.actorId);
+  const [dto] = await withResolvedAssignees(ctx, [toDTO(row, ctx.actorId)]);
+  return dto;
 }
 
 // Manager-only status transitions, exposed as discrete calls so the route stays
@@ -292,7 +309,8 @@ async function setStatus(ctx: RequestContext, id: number, status: string): Promi
   await emit(ctx, closed ? "poll.closed" : "poll.reopened", { type: "Poll", id }, { question: existing.question });
 
   const [row] = await loadPolls(ctx, { ids: [id] });
-  return toDTO(row, ctx.actorId);
+  const [dto] = await withResolvedAssignees(ctx, [toDTO(row, ctx.actorId)]);
+  return dto;
 }
 
 export function closePoll(ctx: RequestContext, id: number) {
@@ -333,7 +351,8 @@ export async function castVote(ctx: RequestContext, pollId: number, optionId: nu
   });
 
   const [row] = await loadPolls(ctx, { ids: [pollId] });
-  return toDTO(row, ctx.actorId);
+  const [dto] = await withResolvedAssignees(ctx, [toDTO(row, ctx.actorId)]);
+  return dto;
 }
 
 export async function deletePoll(ctx: RequestContext, id: number): Promise<void> {
