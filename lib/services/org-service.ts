@@ -327,13 +327,15 @@ export async function provisionOrg(
       // is one identity). The legacy `role` string on a new Brother is set to
       // the founder role's name so existing UI bits that read it (sidebar
       // header, brother table) show something meaningful. The real authority
-      // lives in BrotherRole below. `input.founderName` only applies to a new
-      // Brother — a reused one keeps the name from their first org.
+      // lives in BrotherRole below.
+      //
+      // `input.founderName` sets the account-level Brother.name only for a NEW
+      // account — a reused Brother keeps the name their first org gave them.
+      // Either way it becomes their display name in THIS org via Membership.name
+      // (step 5), which is what the roster and greeting here will show.
       let brotherId: number;
-      let brotherName: string;
       if (existing) {
-        brotherId   = existing.id;
-        brotherName = existing.name;
+        brotherId = existing.id;
       } else {
         const brother = await tx.brother.create({
           data: {
@@ -347,11 +349,15 @@ export async function provisionOrg(
             authUserId,
             email,
           },
-          select: { id: true, name: true },
+          select: { id: true },
         });
-        brotherId   = brother.id;
-        brotherName = brother.name;
+        brotherId = brother.id;
       }
+
+      // What this org knows them as — the interview answer, on both paths. The
+      // "<name> created <org>" event/activity line should read the way this org
+      // reads, not the way some other org they founded first does.
+      const brotherName = input.founderName;
 
       // 4. Backfill createdByBrotherId now that we have the founder id.
       await tx.organization.update({
@@ -362,11 +368,18 @@ export async function provisionOrg(
       // 5. Membership with isOrgAdmin=true — founder bypasses every permission
       // check at the guard layer. For a reused Brother this is their second
       // (or later) Membership, granting admin access to the new org.
+      //
+      // `input.founderName` (what they typed in the /create interview) lands here
+      // on BOTH paths. On the reuse path that's the whole point: a multi-org
+      // founder's answer used to be dropped and they inherited their first org's
+      // Brother.name. Now the new org gets the name they actually gave for it,
+      // while the Brother row — and every other org — is left untouched.
       await tx.membership.create({
         data: {
           brotherId,
           organizationId: org.id,
           isOrgAdmin:     true,
+          name:           input.founderName,
         },
       });
 

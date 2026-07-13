@@ -1175,6 +1175,19 @@ function scopedMembership(orgId: number, run: Run) {
     findFirst: <T extends Prisma.MembershipFindFirstArgs>(args?: Prisma.SelectSubset<T, Prisma.MembershipFindFirstArgs>) =>
       run(p => p.membership.findFirst<T>({ ...(args as object), where: org((args as T | undefined)?.where) } as Prisma.SelectSubset<T, Prisma.MembershipFindFirstArgs>)),
     count: (args?: Prisma.MembershipCountArgs) => run(p => p.membership.count({ ...args, where: org(args?.where) })),
+    /**
+     * Set this brother's display name *in this org*. Deliberately built on
+     * updateMany, not update: a Brother with no Membership in this org (a
+     * roster-only member added by an admin, who has no auth account) must be a
+     * no-op returning { count: 0 } rather than a P2025 throw. Callers use that
+     * count to decide whether to fall back to writing Brother.name — see
+     * updateBrother in lib/services/brother-service.ts.
+     *
+     * organizationId is injected by org(), never taken from the caller, so this
+     * can only ever touch the active org's membership row.
+     */
+    setName: (brotherId: number, name: string | null) =>
+      run(p => p.membership.updateMany({ where: org({ brotherId }), data: { name } })),
   };
 }
 

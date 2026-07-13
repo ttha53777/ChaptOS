@@ -13,6 +13,8 @@ export async function createOrg(name: string, slug: string) {
 export async function createBrother(opts: {
   orgId: number;
   name?: string;
+  /** Per-org display name (Membership.name). Omit to fall back to Brother.name. */
+  membershipName?: string;
   isAdmin?: boolean;
   isOrgAdmin?: boolean;
   serviceHours?: number;
@@ -36,6 +38,7 @@ export async function createBrother(opts: {
       brotherId:      brother.id,
       organizationId: opts.orgId,
       isOrgAdmin:     opts.isOrgAdmin ?? opts.isAdmin ?? false,
+      name:           opts.membershipName ?? null,
     },
   });
   return brother;

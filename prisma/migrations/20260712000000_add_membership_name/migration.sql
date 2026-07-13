@@ -1,0 +1,25 @@
+-- Per-org display name: the same person can be "Rob" in one org, "Robert Chen"
+-- in another.
+--
+-- ── Why this migration exists ────────────────────────────────────────────────
+-- One Google account is one Brother row carrying a single global `name`. But a
+-- name is an org-local identity, not an account-level fact — a multi-org member
+-- had no way to be known differently in each org. Two concrete bugs followed:
+-- the /join form collects and requires a name, then the server discarded it for
+-- anyone who already had an account; and the /create interview's founderName was
+-- ignored when an existing user founded a second org (they inherited their first
+-- org's name).
+--
+-- Membership is the per-org join table, so the org-local name belongs here.
+--
+-- Nullable, no default, no backfill — null means "no org-specific name set" and
+-- every read falls back to Brother.name (still the account-level canonical name).
+-- So existing rows keep behaving exactly as before until someone actually sets a
+-- per-org name. Roster-only members (added by an admin, no auth account) have no
+-- Membership row at all and always fall back.
+--
+-- Idempotent: safe on a dev DB already brought up via `prisma db push`. Adding a
+-- nullable column doesn't change table privileges, so no GRANT/RLS block needed.
+-- Reversible: ALTER TABLE "Membership" DROP COLUMN "name";
+
+ALTER TABLE "Membership" ADD COLUMN IF NOT EXISTS "name" TEXT;

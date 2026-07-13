@@ -19,7 +19,7 @@ import { randomUUID } from "node:crypto";
 import { testPrisma, resetDb } from "../setup/prisma";
 import { createOrg, createBrother } from "../setup/factories";
 import { db } from "@/lib/db";
-import { createBrother as createBrotherSvc, updateBrother, deleteBrother } from "@/lib/services/brother-service";
+import { createBrother as createBrotherSvc, updateBrother, deleteBrother, listVisibleBrothers } from "@/lib/services/brother-service";
 import { ConflictError, NotFoundError } from "@/lib/errors";
 import { PERMISSIONS } from "@/lib/permissions";
 import type { CustomMemberFieldDef } from "@/lib/custom-member-fields";
@@ -193,5 +193,113 @@ describe("custom-field sanitization", () => {
 
     const updated = await updateBrother(selfCtx, member.id, { customFields: { pledge_class: "Beta" } });
     expect((updated.customFields as Record<string, unknown>).pledge_class).toBe("Beta");
+  });
+});
+
+/**
+ * Per-org display names. A person is one Brother (one Google account) but many
+ * Memberships, and a name is an org-local identity — the same human can be "Rob"
+ * in one chapter and "Robert Chen" in another. Membership.name holds the org-local
+ * name; null falls back to the account-level Brother.name.
+ *
+ * The invariant that matters: renaming yourself in one org must never change what
+ * another org calls you, and must never touch the Brother row.
+ */
+describe("brother-service: per-org display names", () => {
+  it("updateBrother writes Membership.name and leaves Brother.name alone", async () => {
+    const { org, adminCtx } = await seedOrg();
+    const member = await createBrother({ orgId: org.id, name: "Robert Chen" });
+
+    await updateBrother(adminCtx, member.id, { name: "Rob" });
+
+    const membership = await testPrisma.membership.findFirst({
+      where: { brotherId: member.id, organizationId: org.id },
+      select: { name: true },
+    });
+    expect(membership?.name).toBe("Rob");
+
+    // The account-level name is untouched — it's not this org's to rewrite.
+    const brother = await testPrisma.brother.findUnique({
+      where: { id: member.id },
+      select: { name: true },
+    });
+    expect(brother?.name).toBe("Robert Chen");
+  });
+
+  it("falls back to writing Brother.name when the target has no Membership", async () => {
+    // A roster-only member: an admin added them, they have no auth account and so
+    // never joined — no Membership row exists. setName is an updateMany, so it
+    // reports count 0 and the write falls back to the Brother row, which is the
+    // same row listVisibleBrothers falls back to reading for them.
+    const { org, adminCtx } = await seedOrg();
+    const rosterOnly = await createBrotherSvc(adminCtx, {
+      name: "Paper Member", role: "Brother", duesOwed: 0, gpa: 0, serviceHours: 0,
+    });
+
+    await updateBrother(adminCtx, rosterOnly.id, { name: "Renamed" });
+
+    const brother = await testPrisma.brother.findUnique({
+      where: { id: rosterOnly.id },
+      select: { name: true },
+    });
+    expect(brother?.name).toBe("Renamed");
+
+    const roster = await listVisibleBrothers(adminCtx);
+    expect(roster.find(b => b.id === rosterOnly.id)?.name).toBe("Renamed");
+  });
+
+  it("listVisibleBrothers prefers Membership.name and falls back on null", async () => {
+    const { org, adminCtx } = await seedOrg();
+    const renamed  = await createBrother({ orgId: org.id, name: "Robert Chen", membershipName: "Rob" });
+    const fallback = await createBrother({ orgId: org.id, name: "Plain Jane" });
+
+    const roster = await listVisibleBrothers(adminCtx);
+    expect(roster.find(b => b.id === renamed.id)?.name).toBe("Rob");
+    expect(roster.find(b => b.id === fallback.id)?.name).toBe("Plain Jane");
+  });
+
+  it("one person, two orgs, two names — each org's roster shows its own", async () => {
+    // The money case. One Brother row, a Membership in each org, a different name
+    // on each. Neither org can see or affect the other's name.
+    const orgA = await createOrg("Org A", "org-a");
+    const orgB = await createOrg("Org B", "org-b");
+
+    const adminA = await createBrother({ orgId: orgA.id, isAdmin: true, isOrgAdmin: true });
+    const adminB = await createBrother({ orgId: orgB.id, isAdmin: true, isOrgAdmin: true });
+
+    // The multi-org member: Brother row lives in org A (their legacy home org),
+    // but they hold a Membership in BOTH.
+    const person = await createBrother({ orgId: orgA.id, name: "Robert Chen", membershipName: "Rob" });
+    await testPrisma.membership.create({
+      data: { brotherId: person.id, organizationId: orgB.id, isOrgAdmin: false, name: "Bobby" },
+    });
+
+    const ctxA = ctxFor(orgA.id, adminA.id, { isOrgAdmin: true, permissions: PERMISSIONS.MANAGE_BROTHERS });
+    const rosterA = await listVisibleBrothers(ctxA);
+    expect(rosterA.find(b => b.id === person.id)?.name).toBe("Rob");
+
+    // Renaming in org B must not disturb org A.
+    const ctxB = ctxFor(orgB.id, adminB.id, { isOrgAdmin: true, permissions: PERMISSIONS.MANAGE_BROTHERS });
+    await updateBrother(ctxB, person.id, { name: "Robert" });
+
+    const membershipB = await testPrisma.membership.findFirst({
+      where: { brotherId: person.id, organizationId: orgB.id },
+      select: { name: true },
+    });
+    expect(membershipB?.name).toBe("Robert");
+
+    const membershipA = await testPrisma.membership.findFirst({
+      where: { brotherId: person.id, organizationId: orgA.id },
+      select: { name: true },
+    });
+    expect(membershipA?.name).toBe("Rob");
+
+    const brother = await testPrisma.brother.findUnique({
+      where: { id: person.id },
+      select: { name: true },
+    });
+    expect(brother?.name).toBe("Robert Chen");
+
+    expect((await listVisibleBrothers(ctxA)).find(b => b.id === person.id)?.name).toBe("Rob");
   });
 });

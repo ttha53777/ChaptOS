@@ -151,8 +151,20 @@ export async function POST(req: NextRequest) {
   // ── 6. Name-match claim ───────────────────────────────────────────────────
   // Search only within the resolved org so a user on org-beta cannot claim
   // a brother from org-alpha.
+  //
+  // Match EITHER name: the account-level Brother.name, or the display name this
+  // org gave them (Membership.name). Names are org-local now, so the roster may
+  // list someone under a name that isn't on their Brother row — matching only the
+  // latter would 404 a legitimate claim. This stays a findMany over Brother, so
+  // someone matching on both arms is still one row: no false "multiple brothers
+  // share that name" 409.
   const matches = await db(orgId).brother.findMany({
-    where: { name: { equals: name, mode: "insensitive" } },
+    where: {
+      OR: [
+        { name: { equals: name, mode: "insensitive" } },
+        { memberships: { some: { organizationId: orgId, name: { equals: name, mode: "insensitive" } } } },
+      ],
+    },
     select: { id: true, authUserId: true },
   });
 

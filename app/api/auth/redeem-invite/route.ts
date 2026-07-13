@@ -87,6 +87,15 @@ export async function POST(req: NextRequest) {
   // A Google account maps to one Brother globally (authUserId @unique). If one
   // already exists, REUSE it and just add a Membership to this org (the
   // multi-org pattern from org-service). Otherwise create a fresh Brother.
+  //
+  // The name is parsed HERE, before the reuse branch — the join form asks every
+  // redeemer for one, and it's the name they want *in this org*. It used to be
+  // read only inside the create branch, so an existing member joining a second
+  // org had what they typed silently discarded. It now always lands on their
+  // Membership for this org (below), which is what makes per-org names work.
+  const name = String(body.name ?? "").trim();
+  if (!name) return Response.json({ error: "Name is required" }, { status: 400 });
+
   const existing = await prisma.brother.findUnique({
     where: { authUserId: user.id },
     select: { id: true },
@@ -99,8 +108,6 @@ export async function POST(req: NextRequest) {
     brotherId = existing.id;
     reused = true;
   } else {
-    const name = String(body.name ?? "").trim();
-    if (!name) return Response.json({ error: "Name is required" }, { status: 400 });
     const { avatarUrl } = parseAvatarFromMetadata(user.user_metadata);
     try {
       const created = await db(orgId).brother.create({
@@ -139,11 +146,15 @@ export async function POST(req: NextRequest) {
   }
 
   // ── 6. Membership (idempotent) — plain member, no admin ───────────────────
+  // `name` lands here, not on the Brother row: it's this person's identity in
+  // THIS org, so a member reusing an existing account keeps whatever their other
+  // orgs call them. Set on update too — re-redeeming with a different name is a
+  // rename, and it must not be a silent no-op the way the old `update: {}` was.
   try {
     await prisma.membership.upsert({
       where:  { brotherId_organizationId: { brotherId, organizationId: orgId } },
-      create: { brotherId, organizationId: orgId, isOrgAdmin: false },
-      update: {},
+      create: { brotherId, organizationId: orgId, isOrgAdmin: false, name },
+      update: { name },
     });
   } catch (e) {
     logError(e, { route: "/api/auth/redeem-invite", method: "POST", userId: user.id, extra: { stage: "membership", orgId } });

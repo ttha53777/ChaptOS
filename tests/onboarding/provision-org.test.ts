@@ -465,3 +465,59 @@ describe("provisionOrg: blueprint.metrics", () => {
     expect(count).toBe(0);
   });
 });
+
+/**
+ * Per-org founder name. The /create interview asks the founder their name, and
+ * that answer is this org's name for them — it lands on the new Membership, not
+ * (necessarily) on the account-level Brother row.
+ *
+ * The case that used to be broken: an existing user founding a SECOND org had
+ * their interview answer thrown away and inherited whatever their first org
+ * called them.
+ */
+describe("provisionOrg: founder name is per-org", () => {
+  it("writes founderName to the new org's Membership", async () => {
+    const out = await provisionOrg(VALID, "auth-user-1", "jordan@example.com");
+
+    const membership = await testPrisma.membership.findFirst({
+      where:  { brotherId: out.brotherId, organizationId: out.organizationId },
+      select: { name: true },
+    });
+    expect(membership?.name).toBe("Jordan Lee");
+  });
+
+  it("a second org honors the new interview answer without touching the first", async () => {
+    const first = await provisionOrg(VALID, "auth-user-1", "jordan@example.com");
+
+    // Same Google account (same authUserId) founds another org, giving a
+    // different name this time.
+    const second = await provisionOrg(
+      { ...VALID, name: "Second Org", slug: "second-org", founderName: "Jordy" },
+      "auth-user-1",
+      "jordan@example.com",
+    );
+
+    // One identity: the Brother row is reused, not duplicated.
+    expect(second.brotherId).toBe(first.brotherId);
+
+    const m2 = await testPrisma.membership.findFirst({
+      where:  { brotherId: second.brotherId, organizationId: second.organizationId },
+      select: { name: true },
+    });
+    expect(m2?.name).toBe("Jordy");
+
+    // The first org still calls them what it always did.
+    const m1 = await testPrisma.membership.findFirst({
+      where:  { brotherId: first.brotherId, organizationId: first.organizationId },
+      select: { name: true },
+    });
+    expect(m1?.name).toBe("Jordan Lee");
+
+    // And the account-level name is untouched by the second org's interview.
+    const brother = await testPrisma.brother.findUnique({
+      where:  { id: first.brotherId },
+      select: { name: true },
+    });
+    expect(brother?.name).toBe("Jordan Lee");
+  });
+});

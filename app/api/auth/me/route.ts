@@ -77,7 +77,10 @@ export async function GET() {
 
     return Response.json({
       id: user.id,
-      name: brother?.name ?? user.email ?? "Unknown",
+      // requireUser() already resolved the ACTIVE ORG's display name (the
+      // Membership.name for this org, falling back to Brother.name), so prefer
+      // it — the raw brother.name below would ignore a per-org name.
+      name: user.name ?? brother?.name ?? user.email ?? "Unknown",
       role: user.role,
       isAdmin: user.isAdmin,
       email: user.email ?? "",

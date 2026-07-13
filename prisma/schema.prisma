@@ -122,6 +122,15 @@ model Membership {
   brotherId      Int
   organizationId Int
   isOrgAdmin     Boolean  @default(false)
+  // This person's display name *in this org*. One Google account is one Brother
+  // but many Memberships, and a name is an org-local identity — the same person
+  // can be "Rob" in one chapter and "Robert Chen" in another. Null means "no
+  // org-specific name set", in which case every read falls back to Brother.name
+  // (still the account-level canonical name). Set from the /create interview's
+  // founderName, the /join redeem form, and the BrotherDrawer name edit.
+  // Roster-only members (added by an admin, no auth account) have no Membership
+  // row at all, so they always fall back.
+  name           String?
   joinedAt       DateTime @default(now())
 
   brother      Brother      @relation(fields: [brotherId], references: [id], onDelete: Cascade)

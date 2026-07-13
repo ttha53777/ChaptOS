@@ -51,6 +51,9 @@ export interface MembershipSummary {
   isOrgAdmin: boolean;
   orgName: string;
   orgSlug: string;
+  /** Display name in THIS org, or null when it falls back to the account name.
+   *  Mirrors MembershipSummary in lib/auth/require-user.ts. */
+  name: string | null;
 }
 
 export interface CurrentUser {

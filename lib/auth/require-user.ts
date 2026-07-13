@@ -24,6 +24,8 @@ export interface MembershipSummary {
   isOrgAdmin:     boolean;
   orgName:        string;
   orgSlug:        string;
+  /** This person's display name in THIS org, or null to fall back to Brother.name. */
+  name:           string | null;
 }
 
 /**
@@ -155,6 +157,10 @@ export async function requireUser(opts?: { orgSlug?: string }) {
           id: true,
           organizationId: true,
           isOrgAdmin: true,
+          // The per-org display name (null → fall back to Brother.name). Selected
+          // here so resolving the session's effective name costs zero extra
+          // queries — this query already loads every membership.
+          name: true,
           organization: { select: { name: true, slug: true } },
         },
       },
@@ -180,6 +186,7 @@ export async function requireUser(opts?: { orgSlug?: string }) {
     isOrgAdmin:     m.isOrgAdmin,
     orgName:        m.organization.name,
     orgSlug:        m.organization.slug,
+    name:           m.name,
   }));
 
   // Slug hint precedence: an explicit opts.orgSlug (passed by /[slug]/layout,
@@ -206,10 +213,18 @@ export async function requireUser(opts?: { orgSlug?: string }) {
     orgSlug,
   });
 
+  // The effective display name for the ACTIVE org. A person is one Brother but
+  // many Memberships, and a name is an org-local identity — so prefer the name
+  // they set for this org and fall back to the account-level Brother.name when
+  // they never set one (or have no membership here, e.g. a platform admin
+  // viewing a foreign org). Every downstream consumer — ctx.actorName, the
+  // /api/auth/me payload, the dashboard greeting — inherits this for free.
+  const activeName = memberships.find(m => m.organizationId === activeOrgId)?.name;
+
   return {
     id: brother.id,
     role: brother.role,
-    name: brother.name,
+    name: activeName ?? brother.name,
     /** @deprecated use isPlatformAdmin. Kept for compatibility during Phase 0→1 migration. */
     isAdmin: brother.isAdmin,
     isPlatformAdmin,
