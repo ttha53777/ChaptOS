@@ -68,17 +68,30 @@ export function Modal({ title, onClose, children, tone = "slate", dismissable = 
   maxWidthClass?: string;
 }) {
   const panelRef = useRef<HTMLDivElement>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
   const dusk = tone === "dusk";
 
-  useEffect(() => {
-    // Save the previously-focused element so we can restore on close.
-    const previouslyFocused = document.activeElement as HTMLElement | null;
+  // Callers pass an inline arrow for onClose, so its identity changes on every
+  // parent render. Read it through a ref: an effect that depended on it would
+  // tear down and re-run on each keystroke in a modal input, and its focus
+  // handling would yank focus out of the field being typed into.
+  const onCloseRef = useRef(onClose);
+  useEffect(() => { onCloseRef.current = onClose; });
 
+  // Remember the trigger so focus can return to it on close. Captured during the
+  // first render — by the time effects run, React has already applied a child's
+  // autoFocus during commit, so activeElement would be that child, not the trigger.
+  const triggerRef = useRef<HTMLElement | null>(null);
+  if (triggerRef.current === null && typeof document !== "undefined") {
+    triggerRef.current = document.activeElement as HTMLElement | null;
+  }
+
+  useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === "Escape" && dismissable) {
         e.stopPropagation();
-        onClose();
+        onCloseRef.current();
         return;
       }
       if (e.key !== "Tab") return;
@@ -103,22 +116,26 @@ export function Modal({ title, onClose, children, tone = "slate", dismissable = 
       }
     };
     document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [dismissable]);
 
-    // Move focus to the first focusable inside the modal on mount.
-    // Fallback to the panel itself (which is tabIndex=-1) so focus is at least
-    // inside the dialog for screen readers.
+  useEffect(() => {
+    // Move focus into the modal. Prefer the first focusable in the body: the ✕
+    // button lives in the header and would otherwise win, since it precedes the
+    // body in DOM order. Fall back to the panel itself (tabIndex=-1) so focus is
+    // at least inside the dialog for screen readers.
     const panel = panelRef.current;
-    if (panel) {
-      const first = panel.querySelector<HTMLElement>(FOCUSABLE);
-      (first ?? panel).focus();
-    }
+    const target = bodyRef.current?.querySelector<HTMLElement>(FOCUSABLE)
+      ?? panel?.querySelector<HTMLElement>(FOCUSABLE)
+      ?? panel;
+    target?.focus();
 
     return () => {
-      document.removeEventListener("keydown", handler);
       // Restore focus to the trigger so keyboard users land where they were.
-      previouslyFocused?.focus?.();
+      const trigger = triggerRef.current;
+      if (trigger?.isConnected) trigger.focus?.();
     };
-  }, [onClose, dismissable]);
+  }, []);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -137,7 +154,7 @@ export function Modal({ title, onClose, children, tone = "slate", dismissable = 
           <div className={`flex items-center justify-between border-b px-6 py-4 ${dusk ? "border-[rgba(236,231,221,0.07)]" : "border-white/[0.07]"}`}>
             <h3 id={titleId} className={`text-[15px] font-semibold ${dusk ? "text-[#ece7dd]" : "text-white"}`}>{title}</h3>
             {dismissable && (
-              <button onClick={onClose} aria-label="Close dialog" className={`flex h-10 w-10 items-center justify-center rounded-lg transition-colors sm:h-7 sm:w-7 ${dusk ? "text-[#958d7c] hover:bg-[rgba(236,231,221,0.08)] hover:text-[#ece7dd]" : "text-slate-500 hover:bg-white/[0.08] hover:text-white"}`}>
+              <button type="button" onClick={onClose} aria-label="Close dialog" className={`flex h-10 w-10 items-center justify-center rounded-lg transition-colors sm:h-7 sm:w-7 ${dusk ? "text-[#958d7c] hover:bg-[rgba(236,231,221,0.08)] hover:text-[#ece7dd]" : "text-slate-500 hover:bg-white/[0.08] hover:text-white"}`}>
                 <svg className="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                 </svg>
@@ -145,7 +162,7 @@ export function Modal({ title, onClose, children, tone = "slate", dismissable = 
             )}
           </div>
         )}
-        <div className="p-6">{children}</div>
+        <div ref={bodyRef} className="p-6">{children}</div>
       </div>
     </div>
   );
