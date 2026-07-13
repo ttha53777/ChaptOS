@@ -1188,6 +1188,24 @@ function scopedMembership(orgId: number, run: Run) {
      */
     setName: (brotherId: number, name: string | null) =>
       run(p => p.membership.updateMany({ where: org({ brotherId }), data: { name } })),
+    /**
+     * Batch-resolve display names for the active org: each brother's
+     * Membership.name here if set, else the account-level Brother.name passed
+     * in as `name`. Companion to setName — same fallback rule, but for the many
+     * read paths (attendance, excuses, roles, tasks, polls, ...) that join a
+     * Brother and show their name without going through listVisibleBrothers.
+     * One query regardless of list size; a caller passing zero brothers (e.g.
+     * an empty attendance bucket) skips the round trip entirely.
+     */
+    resolveNames: async (brothers: { id: number; name: string }[]): Promise<Map<number, string>> => {
+      if (brothers.length === 0) return new Map();
+      const overrides = await run(p => p.membership.findMany({
+        where:  org({ brotherId: { in: brothers.map(b => b.id) }, name: { not: null } }),
+        select: { brotherId: true, name: true },
+      }));
+      const overrideByBrotherId = new Map(overrides.map(m => [m.brotherId, m.name as string]));
+      return new Map(brothers.map(b => [b.id, overrideByBrotherId.get(b.id) ?? b.name]));
+    },
   };
 }
 

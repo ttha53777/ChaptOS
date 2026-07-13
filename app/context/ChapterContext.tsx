@@ -135,6 +135,12 @@ interface ChapterContextValue {
    */
   setDisabledFeaturesLocal: (disabledFeatures: Record<string, string[]>) => void;
   setNavOrderLocal: (navOrder: string[]) => void;
+  /**
+   * Patch the signed-in user's own display name in local state without a refetch.
+   * Call it when a roster edit renames the actor themselves, so the greeting and
+   * sidebar profile follow immediately instead of waiting for a reload.
+   */
+  setSelfNameLocal: (name: string) => void;
   hasLoaded: boolean;
 }
 
@@ -263,6 +269,24 @@ export function ChapterProvider({ children }: { children: React.ReactNode }) {
   // setDisabledFeaturesLocal's targeted setCurrentUser patch.
   const setNavOrderLocal = useCallback((navOrder: string[]) => {
     setCurrentUser(prev => (prev?.org ? { ...prev, org: { ...prev.org, navOrder } } : prev));
+  }, []);
+
+  // Patch the signed-in user's OWN display name in local state only — no network.
+  // Renaming yourself on the roster PATCHes /api/brothers/:id, which updates
+  // brotherList; but the dashboard greeting and the sidebar profile read
+  // currentUser.name, which is only ever populated from /api/auth/me at load. So
+  // without this the app kept greeting you by your old name until a hard reload.
+  // A name is org-local (Membership.name), so the active membership entry — the
+  // one the org switcher renders — is patched alongside it.
+  // Mirrors setNavOrderLocal's targeted setCurrentUser patch.
+  const setSelfNameLocal = useCallback((name: string) => {
+    setCurrentUser(prev => (prev
+      ? {
+          ...prev,
+          name,
+          memberships: prev.memberships.map(m => (m.organizationId === prev.orgId ? { ...m, name } : m)),
+        }
+      : prev));
   }, []);
 
   const refreshChapterData = useCallback(async () => {
@@ -486,6 +510,7 @@ export function ChapterProvider({ children }: { children: React.ReactNode }) {
     refreshChapterData, hasLoaded,
     setDisabledFeaturesLocal,
     setNavOrderLocal,
+    setSelfNameLocal,
   }), [
     currentUser,
     avatarRevision,
@@ -497,6 +522,7 @@ export function ChapterProvider({ children }: { children: React.ReactNode }) {
     refreshChapterData,
     setDisabledFeaturesLocal,
     setNavOrderLocal,
+    setSelfNameLocal,
   ]);
 
   return (

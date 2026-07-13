@@ -958,7 +958,7 @@ export default function Home() {
   const toast = useToast();
 
   // ── Data state ─────────────────────────────────────────────────────────────
-  const { currentUser, brotherList, setBrotherList, taskList, setTaskList, igTaskList, setIgTaskList, partyList, setPartyList, activityFeed, setActivityFeed, treasuryData, setTransactionList, reimbursementList, isLoading, loadError, mutationError, setMutationError, refreshChapterData, setDisabledFeaturesLocal, avatarRevision, can } = useChapter();
+  const { currentUser, brotherList, setBrotherList, taskList, setTaskList, igTaskList, setIgTaskList, partyList, setPartyList, activityFeed, setActivityFeed, treasuryData, setTransactionList, reimbursementList, isLoading, loadError, mutationError, setMutationError, refreshChapterData, setDisabledFeaturesLocal, setSelfNameLocal, avatarRevision, can } = useChapter();
   const isAdmin = currentUser?.isAdmin ?? false;
   // Granular permission gates for new UI checks. Existing `isAdmin` is kept
   // unchanged for prop-chains into QuickActionsMenu / KPIDrawer / Modal title
@@ -1166,6 +1166,11 @@ export default function Home() {
     if (!prev) return;
     setBrotherList(list => list.map(b => b.id === id ? { ...b, ...updates } : b));
     addActivity(`${updates.name || prev.name} profile updated`, "info");
+    // Renaming YOURSELF also has to move the greeting and the sidebar profile,
+    // which read currentUser (loaded once from /api/auth/me) rather than the
+    // roster — otherwise the app keeps using your old name until a reload.
+    const renamingSelf = currentUser?.id === id && !!updates.name && updates.name !== prev.name;
+    if (renamingSelf) setSelfNameLocal(updates.name);
     persistMutation(
       requestJson<Brother>(`/api/brothers/${id}`, {
         method: "PATCH",
@@ -1173,7 +1178,10 @@ export default function Home() {
         body: JSON.stringify(updates),
       }),
       "Brother profile update failed. Local changes were reverted.",
-      () => setBrotherList(list => list.map(b => b.id === id ? prev : b)),
+      () => {
+        setBrotherList(list => list.map(b => b.id === id ? prev : b));
+        if (renamingSelf) setSelfNameLocal(prev.name);
+      },
     );
   }
 

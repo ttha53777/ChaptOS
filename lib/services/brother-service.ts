@@ -158,13 +158,20 @@ export async function updateBrother(
     brother = m.brother;
   }
 
+  // brother.name is the ACCOUNT-level name, which a per-org rename leaves
+  // untouched — returning it raw would hand the client the stale name it just
+  // renamed away from, and report the stale one in the feed even for an edit
+  // that never touched the name (e.g. "Admin updated Thalha's duesOwed" for
+  // someone this org calls "Rob"). Resolve the org-local name instead, so the
+  // PATCH response matches what GET /api/brothers serves for the same row.
+  const nameByBrotherId = await ctx.db.membership.resolveNames([{ id: brother.id, name: brother.name }]);
+  const displayName = nameByBrotherId.get(brother.id) ?? brother.name;
+
   await emit(ctx, "brother.updated", { type: "Brother", id: brother.id }, {
-    // brother.name is the account-level name and may be stale now (a per-org
-    // rename leaves it untouched), so report what the caller actually set.
-    name: input.name ?? brother.name,
+    name: displayName,
     changedFields,
   });
-  return brother;
+  return { ...brother, name: displayName };
 }
 
 export async function deleteBrother(ctx: RequestContext, brotherId: number) {

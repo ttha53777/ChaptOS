@@ -130,7 +130,7 @@ function AddBrotherForm({ onSubmit, onCancel }: {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function BrothersPage() {
-  const { currentUser, brotherList, setBrotherList, isLoading, avatarRevision, can } = useChapter();
+  const { currentUser, brotherList, setBrotherList, isLoading, avatarRevision, can, setSelfNameLocal } = useChapter();
   const v = useVocab();
   const toast = useToast();
   const THRESHOLDS = useThresholds();
@@ -301,15 +301,21 @@ export default function BrothersPage() {
     const prev = brotherList.find(b => b.id === id);
     if (!prev) return;
     setBrotherList(list => list.map(b => b.id === id ? { ...b, ...updates } : b));
+    // Renaming YOURSELF also has to move the greeting and the sidebar profile,
+    // which read currentUser (loaded once from /api/auth/me) rather than the
+    // roster — otherwise the app keeps using your old name until a reload.
+    const renamingSelf = currentUser?.id === id && !!updates.name && updates.name !== prev.name;
+    if (renamingSelf) setSelfNameLocal(updates.name);
     requestJson<Brother>(`/api/brothers/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(updates),
     }).catch(() => {
       setBrotherList(list => list.map(b => b.id === id ? prev : b));
+      if (renamingSelf) setSelfNameLocal(prev.name);
       setPageError("Update failed. Changes were reverted.");
     });
-  }, [brotherList, setBrotherList]);
+  }, [brotherList, setBrotherList, currentUser?.id, setSelfNameLocal]);
 
   // Opens the Record Payment modal pre-filled with the full outstanding balance.
   const payDues = useCallback((b: Brother) => {
