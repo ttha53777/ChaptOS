@@ -32,6 +32,7 @@ import { ALWAYS_ON_WORKFLOWS, BASE_WORKFLOWS, getOrgType, type WorkflowId } from
 import type { Permission } from "@/lib/permissions";
 import { resolveLabel, type VocabKey } from "@/lib/vocab";
 import { ROOT_DOMAIN } from "@/lib/domains";
+import { MAX_SLUG_LEN } from "@/lib/slug-rules";
 
 /** The structured picks an AI interpretation may apply — nothing the founder
     couldn't also do by hand (workflow toggles + vocab chips). */
@@ -321,7 +322,11 @@ export function clearStoredDraft(): void {
 /* ─── Display helpers (ported from the mock) ─────────────────────────────── */
 
 export function slugify(s: string): string {
-  return s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  return s
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, MAX_SLUG_LEN);
 }
 
 /** The slug shown/submitted: an explicit edit wins, else derived from the name. */
