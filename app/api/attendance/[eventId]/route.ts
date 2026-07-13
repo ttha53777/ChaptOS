@@ -34,17 +34,25 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ eve
       }),
     ]);
 
+    // Names shown here are this org's Membership.name where the brother set one,
+    // else the account-level Brother.name — same fallback as the roster. Without
+    // this, a member who renamed themselves in this org would still show their
+    // stale name on the attendance rail / timeline detail popover.
+    const nameByBrotherId = await ctx.db.membership.resolveNames(
+      [...records, ...excuses].map(r => ({ id: r.brotherId, name: r.brother.name })),
+    );
+
     const excusedBrotherIds = new Set(excuses.map(e => e.brotherId));
     // Semester-exempt members drop from every bucket, so the timeline log form
     // (built from attended + unexcused) never lists them.
     const exemptBrotherIds = new Set(exemptions.map(e => e.brotherId));
     const attended = records.filter(r => r.attended && !excusedBrotherIds.has(r.brotherId) && !exemptBrotherIds.has(r.brotherId))
-      .map(r => ({ brotherId: r.brotherId, brotherName: r.brother.name }));
+      .map(r => ({ brotherId: r.brotherId, brotherName: nameByBrotherId.get(r.brotherId) ?? r.brother.name }));
     const unexcused = records.filter(r => !r.attended && !excusedBrotherIds.has(r.brotherId) && !exemptBrotherIds.has(r.brotherId))
-      .map(r => ({ brotherId: r.brotherId, brotherName: r.brother.name }));
+      .map(r => ({ brotherId: r.brotherId, brotherName: nameByBrotherId.get(r.brotherId) ?? r.brother.name }));
     const excused = excuses.map(e => ({
       brotherId: e.brotherId,
-      brotherName: e.brother.name,
+      brotherName: nameByBrotherId.get(e.brotherId) ?? e.brother.name,
       reason: e.reason,
       isRetroactive: e.isRetroactive,
     }));

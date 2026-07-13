@@ -51,10 +51,14 @@ export async function listExcuses(
       calendarEvent: { select: { id: true, title: true, date: true } },
     },
   });
+  // Org-local display name (Membership.name), same fallback rule as the roster.
+  const nameByBrotherId = await ctx.db.membership.resolveNames(
+    excuses.map(e => ({ id: e.brotherId, name: e.brother.name })),
+  );
   return excuses.map(e => ({
     id:              e.id,
     brotherId:       e.brotherId,
-    brotherName:     e.brother.name,
+    brotherName:     nameByBrotherId.get(e.brotherId) ?? e.brother.name,
     calendarEventId: e.calendarEventId,
     eventTitle:     e.calendarEvent.title,
     eventDate:      e.calendarEvent.date,
@@ -233,19 +237,22 @@ export async function decideExcuse(
   });
   if (!updated) throw new NotFoundError("Excuse");
 
+  const nameByBrotherId = await ctx.db.membership.resolveNames([{ id: updated.brotherId, name: updated.brother.name }]);
+  const brotherName = nameByBrotherId.get(updated.brotherId) ?? updated.brother.name;
+
   if (input.action === "approve") {
     await emit(
       ctx,
       "excuse.approved",
       { type: "AttendanceExcuse", id: updated.id },
-      { brotherId: updated.brotherId, brotherName: updated.brother.name, calendarEventId: updated.calendarEventId, semesterId: updated.semesterId, eventTitle: updated.calendarEvent.title },
+      { brotherId: updated.brotherId, brotherName, calendarEventId: updated.calendarEventId, semesterId: updated.semesterId, eventTitle: updated.calendarEvent.title },
     );
   } else {
     await emit(
       ctx,
       "excuse.rejected",
       { type: "AttendanceExcuse", id: updated.id },
-      { brotherId: updated.brotherId, brotherName: updated.brother.name, calendarEventId: updated.calendarEventId, semesterId: updated.semesterId, eventTitle: updated.calendarEvent.title, rejectionNote },
+      { brotherId: updated.brotherId, brotherName, calendarEventId: updated.calendarEventId, semesterId: updated.semesterId, eventTitle: updated.calendarEvent.title, rejectionNote },
     );
   }
 

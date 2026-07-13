@@ -37,10 +37,14 @@ export async function listExemptions(
     orderBy: { createdAt: "asc" },
     include: { brother: { select: { id: true, name: true } } },
   });
+  // Org-local display name (Membership.name), same fallback rule as the roster.
+  const nameByBrotherId = await ctx.db.membership.resolveNames(
+    rows.map(e => ({ id: e.brotherId, name: e.brother.name })),
+  );
   return rows.map(e => ({
     id:          e.id,
     brotherId:   e.brotherId,
-    brotherName: e.brother.name,
+    brotherName: nameByBrotherId.get(e.brotherId) ?? e.brother.name,
     semesterId:  e.semesterId,
     reason:      e.reason,
     note:        e.note,
