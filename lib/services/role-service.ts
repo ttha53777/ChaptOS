@@ -140,9 +140,10 @@ export async function grantRole(ctx: RequestContext, brotherId: number, roleId: 
     throw e;
   }
 
+  const nameByBrotherId = await ctx.db.membership.resolveNames([{ id: brother.id, name: brother.name }]);
   await emit(ctx, "role.granted", { type: "BrotherRole", id: roleId }, {
     roleName:    role.name,
-    brotherName: brother.name,
+    brotherName: nameByBrotherId.get(brother.id) ?? brother.name,
     brotherId,
   });
 
@@ -180,9 +181,10 @@ export async function revokeRole(ctx: RequestContext, brotherId: number, roleId:
     throw e;
   }
 
+  const nameByBrotherId = await ctx.db.membership.resolveNames([{ id: brother.id, name: brother.name }]);
   await emit(ctx, "role.revoked", { type: "BrotherRole", id: roleId }, {
     roleName:    role.name,
-    brotherName: brother.name,
+    brotherName: nameByBrotherId.get(brother.id) ?? brother.name,
     brotherId,
   });
 

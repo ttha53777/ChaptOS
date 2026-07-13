@@ -1,7 +1,16 @@
+import type { Prisma } from "@/app/generated/prisma/client";
 import type { RequestContext } from "@/lib/context";
 import { emit } from "@/lib/events";
 import { NotFoundError } from "@/lib/errors";
 import type { LogMyParticipationInput, LogParticipationInput, UpdateParticipationInput } from "@/lib/validation/service-participation";
+
+// The org-scoped delegate's findMany signature isn't generic over `include`
+// (see lib/db/tenant.ts), so the payload type needs a manual cast.
+const PARTICIPATION_INCLUDE = {
+  brother: { select: { id: true, name: true, avatarUrl: true } },
+} satisfies Prisma.ServiceParticipationInclude;
+
+type ParticipationRow = Prisma.ServiceParticipationGetPayload<{ include: typeof PARTICIPATION_INCLUDE }>;
 
 /** Participation rows for one service event, each with the member's name/avatar
  *  for the per-event roster. Org-scoped via ctx.db. */
@@ -11,11 +20,21 @@ export async function listParticipationForEvent(ctx: RequestContext, serviceEven
   const event = await ctx.db.serviceEvent.findUnique({ where: { id: serviceEventId } });
   if (!event) throw new NotFoundError("Service event");
 
-  return ctx.db.serviceParticipation.findMany({
+  const rows = await ctx.db.serviceParticipation.findMany({
     where: { serviceEventId },
-    include: { brother: { select: { id: true, name: true, avatarUrl: true } } },
+    include: PARTICIPATION_INCLUDE,
     orderBy: { brother: { name: "asc" } },
-  });
+  }) as ParticipationRow[];
+  // Org-local display name (Membership.name), same fallback rule as the roster.
+  // Without this, a member who renamed themselves in this org would still show
+  // their stale name on the service-hours roster.
+  const nameByBrotherId = await ctx.db.membership.resolveNames(
+    rows.map(r => ({ id: r.brother.id, name: r.brother.name })),
+  );
+  return rows.map(r => ({
+    ...r,
+    brother: { ...r.brother, name: nameByBrotherId.get(r.brother.id) ?? r.brother.name },
+  }));
 }
 
 /**

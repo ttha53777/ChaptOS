@@ -23,8 +23,8 @@ const TASK_INCLUDE = {
 
 type TaskRow = Prisma.TaskGetPayload<{ include: typeof TASK_INCLUDE }>;
 
-function loadTasks(ctx: RequestContext, where?: { status?: string; ids?: number[] }): Promise<TaskRow[]> {
-  return ctx.db.task.findMany({
+async function loadTasks(ctx: RequestContext, where?: { status?: string; ids?: number[] }): Promise<TaskRow[]> {
+  const rows = await ctx.db.task.findMany({
     where: {
       ...(where?.status ? { status: where.status } : {}),
       ...(where?.ids ? { id: { in: where.ids } } : {}),
@@ -33,7 +33,24 @@ function loadTasks(ctx: RequestContext, where?: { status?: string; ids?: number[
     // DB-level dueDate sort (with its nulls-handling quirks) buys nothing here.
     orderBy: { id: "asc" },
     include: TASK_INCLUDE,
-  }) as Promise<TaskRow[]>;
+  }) as TaskRow[];
+  return withResolvedAssignees(ctx, rows);
+}
+
+// Org-local display name (Membership.name) for each assignee, same fallback
+// rule as the roster. Without this, a member who renamed themselves in this
+// org would still show their stale name on task assignee chips. loadTasks is
+// the sole read path for TaskRow, so patching it here covers every caller.
+async function withResolvedAssignees(ctx: RequestContext, rows: TaskRow[]): Promise<TaskRow[]> {
+  const brothers = rows.flatMap(r => r.assignments.map(a => a.brother)).filter((b): b is NonNullable<typeof b> => b != null);
+  if (brothers.length === 0) return rows;
+  const nameByBrotherId = await ctx.db.membership.resolveNames(brothers);
+  return rows.map(r => ({
+    ...r,
+    assignments: r.assignments.map(a => a.brother
+      ? { ...a, brother: { ...a.brother, name: nameByBrotherId.get(a.brother.id) ?? a.brother.name } }
+      : a),
+  }));
 }
 
 /** Manager = can create/edit/assign/delete any task. */

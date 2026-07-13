@@ -15,7 +15,10 @@ import { randomUUID } from "node:crypto";
 import { testPrisma, resetDb } from "../setup/prisma";
 import { createOrg, createBrother } from "../setup/factories";
 import { db } from "@/lib/db";
+import { grantRole } from "@/lib/services/role-service";
 import { submitExcuse, decideExcuse, listExcuses } from "@/lib/services/excuse-service";
+import { createTaskInput } from "@/lib/validation/task";
+import { createTask } from "@/lib/services/task-service";
 import type { RequestContext } from "@/lib/context";
 
 beforeEach(async () => {
@@ -63,6 +66,31 @@ describe("org-local display name propagation", () => {
     expect(names.get(untouched.id)).toBe("Sam Lee");
   });
 
+  it("role grant/revoke activity reflects the org-local rename, not the stale Brother.name", async () => {
+    const org = await createOrg("Role Name Org", "role-name-org");
+    const admin = await createBrother({ orgId: org.id, isOrgAdmin: true, name: "Admin" });
+    const member = await createBrother({ orgId: org.id, name: "Robert Chen", membershipName: "Rob" });
+    const role = await testPrisma.role.create({
+      data: { organizationId: org.id, name: "Officer", rank: 1, permissions: 0, isSystem: false },
+    });
+    const ctx = ctxFor(org.id, admin.id);
+
+    await grantRole(ctx, member.id, role.id);
+
+    const event = await testPrisma.operationalEvent.findFirst({
+      where: { organizationId: org.id, action: "role.granted" },
+      orderBy: { id: "desc" },
+    });
+    expect((event?.metadata as { brotherName?: string })?.brotherName).toBe("Rob");
+
+    const log = await testPrisma.activityLog.findFirst({
+      where: { organizationId: org.id },
+      orderBy: { id: "desc" },
+    });
+    expect(log?.message).toContain("Rob");
+    expect(log?.message).not.toContain("Robert Chen");
+  });
+
   it("excuse review queue and decision events show the org-local name", async () => {
     const org = await createOrg("Excuse Name Org", "excuse-name-org");
     const admin = await createBrother({ orgId: org.id, isOrgAdmin: true, name: "Admin" });
@@ -90,5 +118,18 @@ describe("org-local display name propagation", () => {
       orderBy: { id: "desc" },
     });
     expect((approvedEvent?.metadata as { brotherName?: string })?.brotherName).toBe("Rob");
+  });
+
+  it("task assignee chips show the org-local name", async () => {
+    const org = await createOrg("Task Name Org", "task-name-org");
+    const admin = await createBrother({ orgId: org.id, isOrgAdmin: true, name: "Admin" });
+    const member = await createBrother({ orgId: org.id, name: "Robert Chen", membershipName: "Rob" });
+    const ctx = ctxFor(org.id, admin.id);
+
+    const input = createTaskInput.parse({ title: "Book the venue", assigneeBrotherIds: [member.id] });
+    const task = await createTask(ctx, input);
+
+    expect(task.assignments).toHaveLength(1);
+    expect(task.assignments[0].brother?.name).toBe("Rob");
   });
 });
