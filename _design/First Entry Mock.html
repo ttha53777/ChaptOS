@@ -1,0 +1,982 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>First Entry — the founder's arrival into a new org</title>
+
+<!--
+  FIRST ENTRY — what happens after /create.
+
+  The gap: /create is a five-step interview that ends with
+  window.location.assign(`/${slug}?toast=welcome`). The founder lands on a
+  dashboard of zeros, and SemesterGate throws a NON-DISMISSABLE modal over the
+  whole app demanding a semester (provisionOrg seeds none). That is the literal
+  first frame of the product. Scene 0 shows it.
+
+  Scenes 1-3 are the fix. The thesis: SEEDING IS WHAT MAKES THE INVITE SAFE TO
+  SEND. You get one shot at the second user — sixty brothers landing in an empty
+  org is the one unrecoverable failure. So the term, the first meeting and a
+  drafted welcome announcement come from the interview's own answers, and the
+  org is a real place before the link goes in the group chat.
+
+    org exists -> content exists -> roster in -> first meeting run
+
+  Every seeded artifact is a PROPOSAL WITH AN INLINE UNDO. Nothing here is
+  modal, nothing is mandatory, nothing asks a question the interview already
+  answered.
+
+  Palette note: v3's app-world mock used a cold slate (#07090f). The shipped
+  dashboard has since been re-themed to warm dusk, and /create's token block is
+  identical to dashboard-ledger.css's dusk block. So this mock uses ONE palette
+  throughout — that unity is the point.
+-->
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,400;1,9..144,500;1,9..144,600&family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+<style>
+/* ═══ Tokens — the one dusk palette (create-flow.css === dashboard-ledger dusk) */
+:root {
+  --paper:    #0f0d0a;
+  --paper-2:  #14120e;
+  --paper-3:  #1b1813;
+  --card:     #161310;
+  --card-2:   #1b1813;
+  --ink:      #ece7dd;
+  --ink-72:   rgba(236,231,221,.72);
+  --ink-55:   rgba(236,231,221,.55);
+  --ink-40:   rgba(236,231,221,.40);
+  --ink-28:   rgba(236,231,221,.28);
+  --muted:    #958d7c;
+  --faint:    #6b6354;
+  --line:     rgba(236,231,221,.11);
+  --line-soft:rgba(236,231,221,.06);
+  --vio:      #a78bfa;
+  --vio-deep: #7c3aed;
+  --vio-soft: rgba(167,139,250,.12);
+  --vio-line: rgba(167,139,250,.32);
+  --gold:     #ddb36a;
+  --rose:     #d98ba3;
+  --ok:       #7fb08a;
+  --ok-soft:  rgba(127,176,138,.14);
+  --bad:      #d98080;
+  --serif: "Fraunces", Georgia, serif;
+  --sans:  "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --mono:  "Geist Mono", ui-monospace, Menlo, monospace;
+  --ease:  cubic-bezier(.16,1,.3,1);
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0; background: var(--paper); color: var(--ink);
+  font-family: var(--sans); overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+body::before {
+  content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 0;
+  opacity: .5;
+  background-image: radial-gradient(rgba(236,231,221,.025) 1px, transparent 1px);
+  background-size: 4px 4px;
+}
+button { font: inherit; color: inherit; background: none; border: none; cursor: pointer; }
+input, textarea, select { font: inherit; color: inherit; }
+h1,h2,h3,h4,p,ul { margin: 0; padding: 0; }
+ul { list-style: none; }
+::selection { background: var(--vio-deep); color: #fff; }
+
+/* ═══ Scenes ═════════════════════════════════════════════════════════════ */
+.scr { position: fixed; inset: 0; display: none; z-index: 1; }
+.scr.on { display: block; animation: scr-in 560ms var(--ease) both; }
+@keyframes scr-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes msg-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+
+/* ═══ App chrome — sidebar shared by scenes 0/1/3 ════════════════════════ */
+.app-frame { position: relative; height: 100%; display: flex; }
+.app-side {
+  flex: none; width: 214px; border-right: 1px solid var(--line);
+  padding: 18px 12px; display: flex; flex-direction: column;
+  background: var(--paper-2);
+}
+.app-side .org { display: flex; align-items: center; gap: 10px; padding: 0 8px 20px; }
+.mark {
+  height: 28px; width: 28px; border-radius: 8px; flex: none;
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--serif); font-weight: 600; font-size: 12px; color: #fff;
+  background: linear-gradient(140deg, #8b6fd4, #5b3fa8);
+  border: 1px solid rgba(255,255,255,.14);
+}
+.app-side .org b { font-size: 13.5px; letter-spacing: -.01em; }
+.app-side .grp { font-family: var(--mono); font-size: 9px; letter-spacing: .18em; text-transform: uppercase; color: var(--faint); padding: 14px 10px 6px; }
+.app-side li {
+  display: flex; align-items: center; gap: 9px;
+  padding: 7px 10px; border-radius: 8px;
+  font-size: 13px; color: var(--muted);
+}
+.app-side li.on { background: var(--card); color: var(--ink); }
+.app-side li .dot { height: 5px; width: 5px; border-radius: 50%; background: var(--faint); flex: none; }
+.app-side li.on .dot { background: var(--vio); box-shadow: 0 0 8px rgba(167,139,250,.6); }
+.app-side .side-foot { margin-top: auto; padding: 8px 10px; font-size: 12.5px; color: var(--faint); }
+
+/* ═══ Cards ══════════════════════════════════════════════════════════════ */
+.app-card {
+  background: var(--card); border: 1px solid var(--line); border-radius: 13px;
+  padding: 15px 17px;
+}
+.app-card h4 {
+  font-family: var(--mono); font-size: 10px; font-weight: 600; letter-spacing: .18em;
+  text-transform: uppercase; color: var(--faint); margin-bottom: 13px;
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+}
+.app-card h4 .tag {
+  letter-spacing: .03em; color: var(--vio); text-transform: none; font-weight: 500;
+  font-family: var(--sans); font-size: 11.5px; white-space: nowrap;
+}
+.app-card h4 .tag.seeded::before {
+  content: ""; display: inline-block; width: 5px; height: 5px; border-radius: 50%;
+  background: var(--vio); margin-right: 6px; vertical-align: 1px;
+}
+
+/* the inline-undo row that makes every seeded thing adjustable */
+.adj { display: flex; gap: 16px; margin-top: 13px; padding-top: 11px; border-top: 1px solid var(--line-soft); }
+.adj button {
+  font-size: 12px; color: var(--muted);
+  text-decoration: underline; text-underline-offset: 3px;
+  text-decoration-color: var(--line); transition: color 160ms;
+}
+.adj button:hover { color: var(--ink); text-decoration-color: var(--vio); }
+.adj button.pri { color: var(--vio); }
+.adj button.danger:hover { color: var(--bad); }
+
+.big  { font-size: 17.5px; font-weight: 600; letter-spacing: -.01em; }
+.sub  { font-size: 12.5px; color: var(--muted); margin-top: 4px; }
+
+/* inline editors — revealed by the adjust buttons, never a modal */
+.edit { display: none; margin-top: 13px; padding-top: 13px; border-top: 1px solid var(--line-soft); }
+.edit.on { display: block; animation: msg-in 260ms var(--ease) both; }
+.edit .row { display: flex; gap: 9px; }
+.edit label { display: block; font-family: var(--mono); font-size: 9.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--faint); margin-bottom: 5px; }
+.fld {
+  width: 100%; background: var(--paper-2); border: 1px solid var(--line);
+  border-radius: 8px; padding: 8px 10px; font-size: 13px; color: var(--ink);
+  color-scheme: dark;
+}
+.fld:focus { outline: none; border-color: var(--vio-line); }
+.edit .save {
+  margin-top: 11px; background: var(--ink); color: var(--paper);
+  border-radius: 8px; padding: 7px 15px; font-size: 12.5px; font-weight: 600;
+}
+
+/* announcement */
+.ann-body { font-size: 14px; line-height: 1.65; color: var(--ink-72); }
+.ann-body[contenteditable="true"] { outline: none; border-radius: 8px; box-shadow: 0 0 0 1px var(--vio-line); padding: 9px 11px; margin: -9px -11px; background: var(--paper-2); }
+.ann-body .sig { display: block; margin-top: 10px; color: var(--muted); font-style: italic; }
+.posted { display: flex; align-items: center; gap: 7px; margin-top: 13px; padding-top: 11px; border-top: 1px solid var(--line-soft); font-size: 12px; color: var(--ok); }
+
+/* week strip */
+.pv-week { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; margin-top: 10px; }
+.pv-day { text-align: center; padding: 7px 0 8px; border-radius: 8px; border: 1px solid transparent; }
+.pv-day .d { font-family: var(--mono); font-size: 9px; color: var(--faint); }
+.pv-day .n { font-size: 14px; margin-top: 3px; color: var(--muted); }
+.pv-day.mark2 { border-color: var(--vio-line); background: var(--vio-soft); }
+.pv-day.mark2 .n { color: var(--vio); font-weight: 600; }
+
+/* ═══ Scene 1 · Reveal ═══════════════════════════════════════════════════ */
+.rvl-main { flex: 1; min-width: 0; overflow-y: auto; padding: 30px clamp(24px, 3.5vw, 56px) 100px; }
+.rvl-main > * { animation: msg-in 520ms var(--ease) both; }
+.rvl-main > *:nth-child(2) { animation-delay: 90ms; }
+.rvl-cap { font-family: var(--mono); font-size: 10.5px; letter-spacing: .2em; text-transform: uppercase; color: var(--faint); }
+.rvl-hello { font-family: var(--serif); font-weight: 500; font-size: clamp(27px, 2.5vw, 34px); letter-spacing: -.015em; margin-top: 10px; }
+.rvl-hello em { font-style: italic; color: var(--vio); }
+.rvl-sub { margin-top: 8px; font-size: 13.5px; color: var(--muted); line-height: 1.55; max-width: 660px; }
+.rvl-sub b { color: var(--ink-72); font-weight: 500; }
+.rvl-grid { display: grid; grid-template-columns: 1.55fr 1fr; gap: 16px; margin-top: 22px; align-items: start; max-width: 1080px; }
+.rvl-col { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+
+/* checklist */
+.check { position: sticky; top: 0; }
+.check-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 4px; }
+.check-prog { font-family: var(--mono); font-size: 11px; color: var(--vio); font-variant-numeric: tabular-nums; }
+.bar { height: 3px; border-radius: 999px; background: rgba(236,231,221,.08); overflow: hidden; margin-bottom: 4px; }
+.bar i { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--vio-deep), var(--vio)); transition: width .5s var(--ease); }
+.check-item { display: flex; gap: 12px; padding: 11px 0; border-top: 1px solid var(--line-soft); }
+.check-n {
+  flex: none; height: 21px; width: 21px; border-radius: 50%; margin-top: 1px;
+  border: 1px solid var(--vio-line); color: var(--vio);
+  font-family: var(--mono); font-size: 10.5px;
+  display: flex; align-items: center; justify-content: center;
+  transition: all 300ms var(--ease);
+}
+.check-item.done .check-n { background: var(--ok); border-color: var(--ok); color: var(--paper); }
+.check-item.done b { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--faint); }
+.check-item.done p, .check-item.done .go { display: none; }
+.check-item b { display: block; font-size: 13.5px; margin-bottom: 3px; font-weight: 500; }
+.check-item p { font-size: 12px; color: var(--muted); line-height: 1.5; }
+.check-item .go { margin-top: 7px; font-size: 12px; color: var(--vio); }
+.check-item .go:hover { text-decoration: underline; text-underline-offset: 3px; }
+.check-foot { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line-soft); font-size: 11.5px; color: var(--faint); font-style: italic; line-height: 1.5; }
+
+.cta {
+  display: inline-flex; align-items: center; gap: 10px;
+  background: var(--ink); color: var(--paper);
+  border-radius: 999px; padding: 13px 26px;
+  font-size: 14px; font-weight: 600; letter-spacing: -.01em;
+  transition: all 200ms var(--ease);
+}
+.cta:hover { transform: translateY(-1px); box-shadow: 0 10px 30px -12px rgba(236,231,221,.35); }
+.cta.vio { background: var(--vio-deep); color: #fff; }
+.cta.vio:hover { box-shadow: 0 10px 30px -12px rgba(124,58,237,.7); }
+.rvl-cta-row { display: flex; align-items: center; gap: 20px; margin-top: 22px; }
+.ghost { font-size: 13px; color: var(--muted); }
+.ghost:hover { color: var(--ink); }
+
+/* ═══ Scene 2 · Invite ═══════════════════════════════════════════════════ */
+.inv { position: relative; height: 100%; overflow-y: auto; padding: 4vh clamp(28px, 5vw, 80px) 100px; }
+.inv-head { max-width: 700px; margin: 0 auto; text-align: center; }
+.inv-head .kick { font-family: var(--mono); font-size: 10.5px; letter-spacing: .2em; text-transform: uppercase; color: var(--faint); }
+.inv-head h1 { font-family: var(--serif); font-weight: 500; font-size: clamp(27px, 2.8vw, 37px); line-height: 1.14; letter-spacing: -.015em; margin-top: 12px; }
+.inv-head h1 em { font-style: italic; color: var(--vio); }
+.inv-sub { margin-top: 11px; font-size: 13.5px; color: var(--muted); line-height: 1.6; }
+.inv-grid { max-width: 920px; margin: 28px auto 0; display: grid; grid-template-columns: 1.15fr 1fr; gap: 18px; align-items: start; }
+.inv-grid .app-card { animation: msg-in 480ms var(--ease) both; }
+.inv-grid .app-card:nth-child(2) { animation-delay: 90ms; }
+.biglink { display: flex; align-items: center; gap: 12px; border: 1px dashed var(--line); border-radius: 11px; padding: 14px 16px; }
+.biglink code { flex: 1; font-family: var(--mono); font-size: 12.5px; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.copy {
+  flex: none; font-family: var(--mono); font-size: 10px; letter-spacing: .08em;
+  border: 1px solid var(--line); border-radius: 999px; padding: 5px 13px; color: var(--muted);
+  transition: all 180ms var(--ease);
+}
+.copy:hover { border-color: var(--vio-line); color: var(--ink); }
+.copy.ok { border-color: rgba(127,176,138,.5); color: var(--ok); }
+.exp { display: flex; align-items: center; gap: 7px; margin-top: 14px; flex-wrap: wrap; }
+.exp .lbl { font-family: var(--mono); font-size: 9.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--faint); margin-right: 3px; }
+.chip {
+  font-size: 12px; padding: 4px 11px; border-radius: 999px;
+  border: 1px solid var(--line); color: var(--muted); transition: all 160ms;
+}
+.chip:hover { color: var(--ink); }
+.chip.on { border-color: var(--vio-line); background: var(--vio-soft); color: var(--vio); }
+.exp .note { font-size: 11.5px; color: var(--faint); margin-left: 4px; }
+.qr-row { display: flex; gap: 15px; align-items: center; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line-soft); }
+.qr { height: 84px; width: 84px; flex: none; border-radius: 9px; background: #ece7dd; padding: 7px; }
+.inv-note { font-size: 12px; color: var(--muted); line-height: 1.55; }
+.exec-row { display: flex; align-items: center; gap: 11px; padding: 9px 0; border-top: 1px solid var(--line-soft); }
+.exec-row:first-of-type { border-top: 0; padding-top: 0; }
+.exec-row .who { flex: 1; min-width: 0; }
+.exec-row .who b { display: block; font-size: 13px; font-weight: 500; }
+.exec-row .who span { display: block; font-family: var(--mono); font-size: 9.5px; color: var(--faint); margin-top: 2px; }
+.role-tag { flex: none; font-family: var(--mono); font-size: 9px; letter-spacing: .08em; padding: 3px 9px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); }
+.joins { max-width: 920px; margin: 20px auto 0; display: flex; align-items: center; gap: 15px; min-height: 40px; }
+.join-avs { display: flex; }
+.av {
+  height: 32px; width: 32px; border-radius: 50%; flex: none;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 600; color: #fff;
+  border: 2px solid var(--paper); margin-left: -8px;
+  animation: av-in 480ms var(--ease) both;
+}
+.av:first-child { margin-left: 0; }
+@keyframes av-in { from { opacity: 0; transform: scale(.4); } to { opacity: 1; transform: none; } }
+.join-count { font-size: 13.5px; color: var(--muted); }
+.join-count b { color: var(--ink); font-variant-numeric: tabular-nums; }
+.inv-foot { max-width: 920px; margin: 18px auto 0; font-size: 12px; color: var(--faint); font-style: italic; }
+.inv-cta-row { max-width: 920px; margin: 22px auto 0; display: flex; align-items: center; gap: 22px; }
+/* the soft warning — Slack's pattern: warn on skip, never block */
+.warn {
+  max-width: 920px; margin: 18px auto 0; display: none;
+  align-items: flex-start; gap: 10px; padding: 12px 15px;
+  border: 1px solid rgba(221,179,106,.3); background: rgba(221,179,106,.07);
+  border-radius: 10px; font-size: 12.5px; color: var(--ink-72); line-height: 1.55;
+}
+.warn.on { display: flex; animation: msg-in 300ms var(--ease) both; }
+.warn svg { flex: none; margin-top: 1px; color: var(--gold); }
+.warn a { color: var(--gold); cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+
+/* ═══ Scene 3 · The warm dashboard ═══════════════════════════════════════ */
+.dash-main { flex: 1; min-width: 0; overflow-y: auto; padding: 30px clamp(22px, 3vw, 44px) 110px; }
+.brief { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; padding-bottom: 20px; border-bottom: 1px solid var(--line); }
+.brief .term { font-family: var(--mono); font-size: 10.5px; letter-spacing: .18em; text-transform: uppercase; color: var(--vio); }
+.brief h1 { font-family: var(--serif); font-weight: 500; font-size: 27px; letter-spacing: -.015em; margin-top: 9px; }
+.brief .when { font-size: 12.5px; color: var(--muted); margin-top: 5px; }
+.kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; margin-top: 22px; }
+.kpi { background: var(--card); padding: 15px 17px 16px; }
+.kpi .k { font-family: var(--mono); font-size: 9.5px; letter-spacing: .13em; text-transform: uppercase; color: var(--faint); }
+.kpi .v { font-size: 25px; font-weight: 600; margin-top: 7px; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.kpi .v.zero { color: var(--faint); font-weight: 400; }
+/* NN/g: an empty state must communicate STATUS — the zero is expected, not broken */
+.kpi .why { font-size: 11.5px; color: var(--muted); margin-top: 5px; line-height: 1.45; }
+.dash-grid { display: grid; grid-template-columns: 1.5fr 1fr; gap: 18px; margin-top: 18px; align-items: start; }
+.dash-col { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+.pin { border-color: var(--vio-line); background: linear-gradient(180deg, var(--vio-soft), rgba(167,139,250,.02)); }
+.roster-row { display: flex; align-items: center; gap: 11px; padding: 10px 0; border-top: 1px solid var(--line-soft); }
+.roster-row:first-of-type { border-top: 0; }
+.roster-row .who b { display: block; font-size: 13px; font-weight: 500; }
+.roster-row .who span { display: block; font-size: 11px; color: var(--faint); margin-top: 2px; }
+.roster-row .who { flex: 1; }
+.pending { display: flex; align-items: center; gap: 10px; margin-top: 12px; padding: 11px 13px; border: 1px dashed var(--line); border-radius: 10px; font-size: 12.5px; color: var(--muted); }
+.pending b { color: var(--ink); }
+.rail-card { border-color: var(--vio-line); background: linear-gradient(180deg, var(--vio-soft), rgba(167,139,250,.02)); }
+
+/* ═══ Scene 0 · The wall (today) ═════════════════════════════════════════ */
+/* The scrim stays light on purpose — you have to be able to READ the zeros
+   behind it. The zeros are half the indictment; the modal is the other half. */
+.wall { position: absolute; inset: 0; z-index: 20; background: rgba(8,7,5,.52); backdrop-filter: blur(1.5px); display: flex; align-items: center; justify-content: center; }
+.wall-box { width: 430px; background: var(--card); border: 1px solid var(--line); border-radius: 15px; padding: 24px 26px 26px; box-shadow: 0 40px 90px -30px rgba(0,0,0,.9); }
+.wall-box h3 { font-family: var(--serif); font-weight: 500; font-size: 21px; letter-spacing: -.01em; }
+.wall-box h3 em { font-style: italic; color: var(--vio); }
+.wall-box p { font-size: 13px; color: var(--muted); margin-top: 8px; line-height: 1.55; }
+.wall-box .fields { margin-top: 18px; display: flex; flex-direction: column; gap: 12px; }
+.wall-box .btn { margin-top: 18px; width: 100%; background: var(--vio-deep); color: #fff; border-radius: 9px; padding: 11px; font-size: 13.5px; font-weight: 600; }
+.no-esc { margin-top: 13px; text-align: center; font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); }
+.dimmed { filter: saturate(.55); }
+
+/* the red annotation that marks scene 0 as the problem */
+.flag {
+  position: absolute; z-index: 30; display: flex; align-items: center; gap: 7px;
+  font-family: var(--mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase;
+  background: rgba(217,128,128,.13); border: 1px solid rgba(217,128,128,.4);
+  color: #e3a0a0; border-radius: 999px; padding: 5px 12px;
+  animation: msg-in 600ms var(--ease) 500ms both;
+}
+
+/* ═══ Scene rail ═════════════════════════════════════════════════════════ */
+.rail {
+  position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); z-index: 60;
+  display: flex; gap: 2px;
+  background: rgba(15,13,10,.86); border: 1px solid var(--line); border-radius: 999px;
+  padding: 5px; backdrop-filter: blur(14px) saturate(140%);
+  box-shadow: 0 20px 50px -20px rgba(0,0,0,.85);
+}
+.rail button {
+  display: flex; align-items: center; gap: 8px; padding: 7px 15px; border-radius: 999px;
+  font-family: var(--mono); font-size: 10.5px; letter-spacing: .08em; color: var(--ink-40);
+  transition: all 200ms var(--ease); white-space: nowrap;
+}
+.rail button .n { font-size: 9.5px; opacity: .65; }
+.rail button:hover { color: var(--ink); }
+.rail button.on { background: var(--ink); color: var(--paper); }
+.rail button.bad.on { background: #c98080; color: #fff; }
+.rail-cap {
+  position: fixed; left: 50%; bottom: 68px; transform: translateX(-50%); z-index: 60;
+  font-family: var(--serif); font-style: italic; font-size: 13px; color: var(--ink-40);
+  pointer-events: none; text-align: center; width: max-content; max-width: 80vw;
+  padding: 4px 14px; border-radius: 999px; background: rgba(10,9,7,.6); backdrop-filter: blur(8px);
+}
+
+@media (max-width: 1000px) {
+  .rvl-grid, .inv-grid, .dash-grid { grid-template-columns: 1fr; }
+  .kpis { grid-template-columns: repeat(2, 1fr); }
+  .rail button .lbl { display: none; }
+}
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     SCENE 0 · TODAY — the wall
+     What actually ships right now: a dashboard of zeros, and a
+     non-dismissable modal on top of it. Two named anti-patterns at once.
+     ═══════════════════════════════════════════════════════════════════ -->
+<section class="scr" data-scene="0">
+  <div class="app-frame dimmed">
+    <aside class="app-side" id="side0"></aside>
+    <div class="dash-main">
+      <div class="brief">
+        <div>
+          <div class="term" style="color:var(--faint)">No active period</div>
+          <h1>Beta Theta Pi</h1>
+          <div class="when">Monday, August 24</div>
+        </div>
+      </div>
+      <div class="kpis">
+        <div class="kpi"><div class="k">Avg attendance</div><div class="v">0.0%</div></div>
+        <div class="kpi"><div class="k">Dues outstanding</div><div class="v">$0</div></div>
+        <div class="kpi"><div class="k">Chapter GPA</div><div class="v">0.00</div></div>
+        <div class="kpi"><div class="k">Service hours</div><div class="v">0h</div><div class="why" style="color:var(--faint)">0 of 1 on track</div></div>
+      </div>
+      <div class="dash-grid">
+        <div class="dash-col">
+          <div class="app-card"><h4>This week</h4><p class="inv-note">Nothing on the agenda this week.</p></div>
+          <div class="app-card"><h4>Roster</h4><p class="inv-note">No brothers match your filters.</p></div>
+        </div>
+        <div class="dash-col">
+          <div class="app-card"><h4>Needs attention</h4><p class="inv-note">Nothing needs attention — nice work.</p></div>
+          <div class="app-card"><h4>Activity</h4><p class="inv-note">No recent activity.</p></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="flag" style="top:26px; left:236px">Wall of zeros — under-guiding</div>
+  <div class="flag" style="top:26px; right:26px">Blocks the product behind setup</div>
+
+  <div class="wall">
+    <div class="wall-box">
+      <h3>Set your <em>first semester</em> to unlock the app.</h3>
+      <p>The active semester drives the dashboard and every period-scoped number. Dated entries are rejected without one.</p>
+      <div class="fields">
+        <div><label style="display:block;font-family:var(--mono);font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);margin-bottom:5px">Label</label><input class="fld" placeholder="e.g. Fall 2026"></div>
+        <div class="row" style="display:flex;gap:9px">
+          <div style="flex:1"><label style="display:block;font-family:var(--mono);font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);margin-bottom:5px">Start</label><input class="fld" type="date"></div>
+          <div style="flex:1"><label style="display:block;font-family:var(--mono);font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);margin-bottom:5px">End</label><input class="fld" type="date"></div>
+        </div>
+      </div>
+      <button class="btn">Create semester</button>
+      <div class="no-esc">No close button · no escape · no skip</div>
+    </div>
+  </div>
+</section>
+
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     SCENE 1 · REVEAL  →  /beta-theta-pi/onboarding
+     Shows the receipt. Collects nothing. Every seeded thing is a proposal
+     with an inline undo.
+     ═══════════════════════════════════════════════════════════════════ -->
+<section class="scr" data-scene="1">
+  <div class="app-frame">
+    <aside class="app-side" id="side1"></aside>
+    <div class="rvl-main">
+      <div>
+        <div class="rvl-cap">This is your real workspace — you're in Beta Theta Pi now</div>
+        <h1 class="rvl-hello">Welcome to <em>Beta Theta Pi.</em></h1>
+        <p class="rvl-sub">
+          Built from your answers. <b>Fall 2026 is live</b>, <b>Chapter Meeting is on the calendar</b>,
+          and a welcome post is drafted and waiting. Everything here is yours to change.
+        </p>
+      </div>
+
+      <div class="rvl-grid">
+        <!-- LEFT — the seeded artifacts -->
+        <div class="rvl-col">
+
+          <!-- Term -->
+          <div class="app-card" id="cTerm">
+            <h4>Your period <span class="tag seeded">seeded from the interview</span></h4>
+            <div class="big" id="termName">Fall 2026</div>
+            <div class="sub" id="termDates">August 24 — December 11, 2026 · active</div>
+            <div class="adj">
+              <button data-edit="eTerm">Change dates</button>
+            </div>
+            <div class="edit" id="eTerm">
+              <div class="row">
+                <div style="flex:1"><label>Start</label><input class="fld" type="date" id="tStart" value="2026-08-24"></div>
+                <div style="flex:1"><label>End</label><input class="fld" type="date" id="tEnd" value="2026-12-11"></div>
+              </div>
+              <button class="save" data-save="term">Save</button>
+            </div>
+          </div>
+
+          <!-- First meeting -->
+          <div class="app-card" id="cMeet">
+            <h4>Your first meeting <span class="tag seeded">seeded from the interview</span></h4>
+            <div class="big" id="meetName">Chapter Meeting</div>
+            <div class="sub" id="meetWhen">Mondays, 7:00 PM · weekly · 16 dates through the term</div>
+            <div class="pv-week" id="week"></div>
+            <div class="adj">
+              <button data-edit="eMeet">Change day &amp; time</button>
+              <button class="danger" id="rmMeet">Remove it</button>
+            </div>
+            <div class="edit" id="eMeet">
+              <div class="row">
+                <div style="flex:1">
+                  <label>Day</label>
+                  <select class="fld" id="mDay">
+                    <option>Sundays</option><option selected>Mondays</option><option>Tuesdays</option>
+                    <option>Wednesdays</option><option>Thursdays</option><option>Fridays</option><option>Saturdays</option>
+                  </select>
+                </div>
+                <div style="flex:1"><label>Time</label><input class="fld" type="time" id="mTime" value="19:00"></div>
+              </div>
+              <button class="save" data-save="meet">Save</button>
+            </div>
+          </div>
+
+          <!-- Announcement — pre-written copy, NOT a seeded row. Nothing to clean up. -->
+          <div class="app-card" id="cAnn">
+            <h4>Welcome post <span class="tag">drafted for you — edit, post, or delete</span></h4>
+            <div class="ann-body" id="annBody">
+              Brothers — we're moving Beta Theta Pi onto one place. Dues, attendance and the
+              calendar all live here now. First Chapter Meeting is Monday at 7:00 PM — it's
+              already on the calendar. Sign in with the link I'm about to drop in the group chat.
+              <span class="sig">— Marcus, your President</span>
+            </div>
+            <div class="adj" id="annAdj">
+              <button class="pri" id="annPost">Post it</button>
+              <button data-edit-inline="annBody">Edit draft</button>
+              <button class="danger" id="annDel">Delete</button>
+            </div>
+            <div class="posted" id="annDone" style="display:none">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+              Posted — pinned to the dashboard. Your chapter arrives to this.
+            </div>
+          </div>
+        </div>
+
+        <!-- RIGHT — the activation checklist. Opens at 1 of 4 (endowed progress). -->
+        <div class="rvl-col">
+          <div class="app-card check">
+            <h4>
+              <span>Get to your first meeting</span>
+              <span class="check-prog"><span id="cDone">1</span> of 4</span>
+            </h4>
+            <div class="bar"><i id="cBar" style="width:25%"></i></div>
+
+            <div class="check-item done" data-item="0">
+              <span class="check-n"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg></span>
+              <div><b>Build your chapter</b></div>
+            </div>
+
+            <div class="check-item" data-item="1">
+              <span class="check-n">2</span>
+              <div>
+                <b>Post your welcome</b>
+                <p>So your brothers arrive to something, not an empty room.</p>
+                <button class="go" id="goAnn">Post the draft →</button>
+              </div>
+            </div>
+
+            <div class="check-item" data-item="2">
+              <span class="check-n">3</span>
+              <div>
+                <b>Bring in your brothers</b>
+                <p>One link in the group chat. They sign themselves in; you watch the counter.</p>
+                <button class="go" data-go="2">Get the invite link →</button>
+              </div>
+            </div>
+
+            <div class="check-item" data-item="3">
+              <span class="check-n">4</span>
+              <div>
+                <b>Take attendance Monday</b>
+                <p>Thirty seconds instead of a clipboard. This is the whole point.</p>
+                <button class="go" data-go="3">See the dashboard →</button>
+              </div>
+            </div>
+
+            <p class="check-foot">Nothing here blocks you. Skip it all and the chapter still works — this just gets you to the part that pays.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="rvl-cta-row">
+        <button class="cta vio" data-go="2">Bring in your brothers <span>→</span></button>
+        <button class="ghost" data-go="3">Skip to the dashboard</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     SCENE 2 · INVITE
+     Domain auto-join is the industry answer and the WRONG one here — brothers
+     use personal Gmail. The group chat is the distribution channel, so the
+     shareable link is the mechanic. Warn on skip; never block.
+     ═══════════════════════════════════════════════════════════════════ -->
+<section class="scr" data-scene="2">
+  <div class="inv">
+    <div class="inv-head">
+      <div class="kick">Last step — and it isn't really yours</div>
+      <h1>Bring in your <em>brothers.</em></h1>
+      <p class="inv-sub">
+        One link. They sign in, land on a chapter that already has a calendar and a welcome post,
+        and you assign roles in-app. You barely lift a finger.
+      </p>
+    </div>
+
+    <div class="inv-grid">
+      <div class="app-card">
+        <h4>Everyone — brothers</h4>
+        <div class="biglink">
+          <code>chaptos.app/join/x7Kp9mQv2R</code>
+          <button class="copy" id="copyBtn">COPY</button>
+        </div>
+        <div class="exp">
+          <span class="lbl">Expires</span>
+          <button class="chip on">7 days</button>
+          <button class="chip">1 day</button>
+          <button class="chip">Never</button>
+          <span class="note">revocable anytime</span>
+        </div>
+        <div class="qr-row">
+          <div class="qr"><svg id="qr" viewBox="0 0 21 21" shape-rendering="crispEdges"></svg></div>
+          <p class="inv-note">Drop it in the GroupMe, or put the QR on the slide at Monday's meeting. One link, many joins — that's how a chapter actually moves.</p>
+        </div>
+      </div>
+
+      <div class="app-card">
+        <h4>Your exec seats <span class="tag">assign once they join</span></h4>
+        <div id="execList"></div>
+        <p class="inv-note" style="margin-top:12px">
+          Share the same link with all of them — you'll tap each into their role from the roster once they're in.
+        </p>
+      </div>
+    </div>
+
+    <div class="joins">
+      <div class="join-avs" id="joinAvs"></div>
+      <div class="join-count" id="joinCount">Waiting on your first brother. Copy the link above.</div>
+    </div>
+
+    <p class="inv-foot">Onboarding ends at first real value — not at "org created."</p>
+
+    <div class="warn" id="skipWarn">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v4m0 4h.01M10.3 3.9L1.8 18a2 2 0 001.7 3h17a2 2 0 001.7-3L14.7 3.9a2 2 0 00-3.4 0z"/></svg>
+      <div>
+        A chapter of one can't take attendance, can't collect dues, and can't fill a room.
+        You can absolutely do this later — the link lives in Settings → Invitations.
+        <a data-go="3">Go to the dashboard anyway →</a>
+      </div>
+    </div>
+
+    <div class="inv-cta-row">
+      <button class="cta" data-go="3">Go to your dashboard <span>→</span></button>
+      <button class="ghost" id="skipBtn">Skip for now</button>
+    </div>
+  </div>
+</section>
+
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     SCENE 3 · THE WARM DASHBOARD
+     Not zeros. The seeded term + meeting mean the header has a period, the
+     week has content, and every remaining empty state says WHY it's empty.
+     ═══════════════════════════════════════════════════════════════════ -->
+<section class="scr" data-scene="3">
+  <div class="app-frame">
+    <aside class="app-side" id="side3"></aside>
+    <div class="dash-main">
+      <div class="brief">
+        <div>
+          <div class="term">Fall 2026 · Week 1</div>
+          <h1>Good evening, Marcus.</h1>
+          <div class="when">Monday, August 24 · Chapter Meeting tonight at 7:00 PM</div>
+        </div>
+        <button class="cta vio" style="padding:10px 20px;font-size:13px">Take attendance <span>→</span></button>
+      </div>
+
+      <div class="kpis">
+        <div class="kpi">
+          <div class="k">Avg attendance</div>
+          <div class="v zero">—</div>
+          <div class="why">First meeting is tonight.</div>
+        </div>
+        <div class="kpi">
+          <div class="k">Dues outstanding</div>
+          <div class="v zero">—</div>
+          <div class="why">No dues set yet. <span style="color:var(--vio)">Set an amount</span></div>
+        </div>
+        <div class="kpi">
+          <div class="k">Brothers</div>
+          <div class="v">4</div>
+          <div class="why">3 joined from your link.</div>
+        </div>
+        <div class="kpi">
+          <div class="k">Service hours</div>
+          <div class="v zero">—</div>
+          <div class="why">Nothing logged this term yet.</div>
+        </div>
+      </div>
+
+      <div class="dash-grid">
+        <div class="dash-col">
+          <div class="app-card pin">
+            <h4><span>Pinned</span> <span class="tag">posted 2 minutes ago</span></h4>
+            <div class="ann-body">
+              Brothers — we're moving Beta Theta Pi onto one place. Dues, attendance and the
+              calendar all live here now. First Chapter Meeting is Monday at 7:00 PM — it's
+              already on the calendar.
+              <span class="sig">— Marcus, your President</span>
+            </div>
+          </div>
+
+          <div class="app-card">
+            <h4><span>This week</span> <span class="tag">Chapter Meeting · Mon 7:00 PM</span></h4>
+            <div class="pv-week" id="week3"></div>
+            <div style="display:flex;align-items:center;gap:11px;margin-top:14px;padding-top:13px;border-top:1px solid var(--line-soft)">
+              <span style="width:3px;height:32px;border-radius:2px;background:var(--vio);flex:none"></span>
+              <div style="flex:1">
+                <div style="font-size:13.5px;font-weight:500">Chapter Meeting</div>
+                <div style="font-size:11.5px;color:var(--muted);margin-top:2px">Tonight · 7:00 PM · mandatory</div>
+              </div>
+              <button class="chip">Open</button>
+            </div>
+          </div>
+
+          <div class="app-card">
+            <h4><span>Roster</span> <span class="tag">4 of ~24</span></h4>
+            <div class="roster-row"><span class="av" style="background:linear-gradient(140deg,#8b6fd4,#5b3fa8);margin:0;border:0;height:30px;width:30px">MW</span><div class="who"><b>Marcus Webb</b><span>President</span></div><span class="role-tag">You</span></div>
+            <div class="roster-row"><span class="av" style="background:linear-gradient(140deg,#c99b5e,#9c7239);margin:0;border:0;height:30px;width:30px">TR</span><div class="who"><b>Theo Rivas</b><span>No role yet</span></div><button class="chip">Assign</button></div>
+            <div class="roster-row"><span class="av" style="background:linear-gradient(140deg,#7fb08a,#4f7a5b);margin:0;border:0;height:30px;width:30px">JD</span><div class="who"><b>Jonah Diaz</b><span>No role yet</span></div><button class="chip">Assign</button></div>
+            <div class="roster-row"><span class="av" style="background:linear-gradient(140deg,#d98ba3,#a85f78);margin:0;border:0;height:30px;width:30px">AC</span><div class="who"><b>Andre Cole</b><span>No role yet</span></div><button class="chip">Assign</button></div>
+            <div class="pending">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--vio)"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6l4 2"/><circle cx="12" cy="12" r="9"/></svg>
+              <span>Your link is live and unexpired. <b>The rest of the chapter joins itself.</b></span>
+            </div>
+          </div>
+        </div>
+
+        <div class="dash-col">
+          <!-- The activation rail — 3 of 4, and it self-checks. It never nags. -->
+          <div class="app-card rail-card">
+            <h4><span>Get to your first meeting</span> <span class="check-prog">3 of 4</span></h4>
+            <div class="bar"><i style="width:75%"></i></div>
+            <div class="check-item done"><span class="check-n"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg></span><div><b>Build your chapter</b></div></div>
+            <div class="check-item done"><span class="check-n"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg></span><div><b>Post your welcome</b></div></div>
+            <div class="check-item done"><span class="check-n"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg></span><div><b>Bring in your brothers</b></div></div>
+            <div class="check-item">
+              <span class="check-n">4</span>
+              <div>
+                <b>Take attendance tonight</b>
+                <p>The moment it all pays off. Then this card retires itself.</p>
+                <button class="go">Open Chapter Meeting →</button>
+              </div>
+            </div>
+            <p class="check-foot">Dismissible, and it disappears on its own the moment you're done.</p>
+          </div>
+
+          <div class="app-card">
+            <h4>Needs attention</h4>
+            <p class="inv-note">3 brothers have no role assigned. <span style="color:var(--vio);cursor:pointer">Assign from the roster →</span></p>
+          </div>
+
+          <div class="app-card">
+            <h4>Activity</h4>
+            <div style="display:flex;flex-direction:column;gap:9px">
+              <p class="inv-note"><b style="color:var(--ink-72);font-weight:500">Andre Cole</b> joined via invite link · 1m</p>
+              <p class="inv-note"><b style="color:var(--ink-72);font-weight:500">Jonah Diaz</b> joined via invite link · 2m</p>
+              <p class="inv-note"><b style="color:var(--ink-72);font-weight:500">Theo Rivas</b> joined via invite link · 2m</p>
+              <p class="inv-note"><b style="color:var(--ink-72);font-weight:500">Marcus Webb</b> posted a welcome · 2m</p>
+              <p class="inv-note"><b style="color:var(--ink-72);font-weight:500">Marcus Webb</b> created Beta Theta Pi · 4m</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<!-- Scene rail -->
+<div class="rail-cap" id="cap"></div>
+<nav class="rail">
+  <button class="bad" data-go="0"><span class="n">00</span><span class="lbl">Today</span></button>
+  <button data-go="1"><span class="n">01</span><span class="lbl">Reveal</span></button>
+  <button data-go="2"><span class="n">02</span><span class="lbl">Invite</span></button>
+  <button data-go="3"><span class="n">03</span><span class="lbl">Dashboard</span></button>
+</nav>
+
+<script>
+const $  = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+
+/* ── The org, as the interview would have left it ──────────────────────── */
+const ORG = {
+  name: "Beta Theta Pi", mark: "B",
+  founder: "Marcus Webb", founderFirst: "Marcus", founderTitle: "President",
+  // vocab: fraternity kind → Member=Brother, Meetings=Chapter
+  members: "brothers", meeting: "Chapter Meeting",
+  // enabledWorkflows from the interview's activity beats → the sidebar
+  nav: [
+    { grp: "Overview",   items: ["Dashboard", "Timeline"] },
+    { grp: "Members",    items: ["Brotherhood", "Chapter"] },
+    { grp: "Operations", items: ["Docs", "Instagram", "Service", "Parties", "Treasury"] },
+  ],
+  seats: [
+    { title: "Treasurer",     hint: "Dues, budget, reimbursements" },
+    { title: "Social Chair",  hint: "Parties, socials, door" },
+    { title: "Service Chair", hint: "Service events and hours" },
+    { title: "PR Chair",      hint: "Instagram and the calendar" },
+  ],
+};
+
+const CAPTIONS = [
+  "What ships today: a wall of zeros, and a modal you cannot close.",
+  "Show the receipt. Collect nothing. Every seeded thing has an undo.",
+  "Seeding is what makes this link safe to send.",
+  "Not zeros — a period, a meeting tonight, and three brothers already in.",
+];
+
+/* ── Sidebar ───────────────────────────────────────────────────────────── */
+function sidebar(el, active) {
+  el.innerHTML =
+    '<div class="org"><span class="mark">' + ORG.mark + "</span><b>" + ORG.name + "</b></div>" +
+    ORG.nav.map(g =>
+      '<div class="grp">' + g.grp + "</div><ul>" +
+      g.items.map(i =>
+        '<li class="' + (i === active ? "on" : "") + '"><span class="dot"></span>' + i + "</li>"
+      ).join("") + "</ul>"
+    ).join("") +
+    '<div class="side-foot">Settings</div>';
+}
+sidebar($("#side0"), "Dashboard");
+sidebar($("#side1"), "Dashboard");
+sidebar($("#side3"), "Dashboard");
+
+/* ── Week strip. Aug 24 2026 IS a Monday — the term's first day. ────────── */
+function week(el, markIdx) {
+  const days = ["S", "M", "T", "W", "T", "F", "S"];
+  const nums = [23, 24, 25, 26, 27, 28, 29];
+  el.innerHTML = days.map((d, i) =>
+    '<div class="pv-day ' + (i === markIdx ? "mark2" : "") + '"><div class="d">' + d + '</div><div class="n">' + nums[i] + "</div></div>"
+  ).join("");
+}
+let meetDayIdx = 1;
+week($("#week"), meetDayIdx);
+week($("#week3"), 1);
+
+/* ── Exec seats ────────────────────────────────────────────────────────── */
+$("#execList").innerHTML = ORG.seats.map(s =>
+  '<div class="exec-row"><div class="who"><b>' + s.title + "</b><span>" + s.hint +
+  '</span></div><span class="role-tag">Unfilled</span></div>'
+).join("");
+
+/* ── A QR that reads as a QR: real finder patterns + deterministic noise ── */
+(function qr() {
+  const N = 21, svg = $("#qr");
+  let out = '<rect width="21" height="21" fill="#ece7dd"/>';
+  const on = (x, y) => { out += '<rect x="' + x + '" y="' + y + '" width="1" height="1" fill="#0f0d0a"/>'; };
+  const finder = (ox, oy) => {
+    for (let y = 0; y < 7; y++) for (let x = 0; x < 7; x++) {
+      const edge = x === 0 || x === 6 || y === 0 || y === 6;
+      const core = x >= 2 && x <= 4 && y >= 2 && y <= 4;
+      if (edge || core) on(ox + x, oy + y);
+    }
+  };
+  let seed = 1337;
+  const rnd = () => (seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
+  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+    const inFinder =
+      (x < 8 && y < 8) || (x > N - 9 && y < 8) || (x < 8 && y > N - 9);
+    if (!inFinder && rnd() > 0.55) on(x, y);
+  }
+  finder(0, 0); finder(N - 7, 0); finder(0, N - 7);
+  svg.innerHTML = out;
+})();
+
+/* ── Checklist state — derived, never stored. Opens at 1/4. ────────────── */
+const done = [true, false, false, false];
+function paintCheck() {
+  const n = done.filter(Boolean).length;
+  $("#cDone").textContent = n;
+  $("#cBar").style.width = (n / 4) * 100 + "%";
+  $$('[data-item]').forEach(el => el.classList.toggle("done", done[+el.dataset.item]));
+  $$('[data-item].done .check-n').forEach(el => {
+    el.innerHTML = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>';
+  });
+}
+
+/* ── Inline editors — reveal in place. Nothing opens a modal. ──────────── */
+$$("[data-edit]").forEach(b =>
+  b.addEventListener("click", () => $("#" + b.dataset.edit).classList.toggle("on"))
+);
+
+$("[data-save='term']").addEventListener("click", () => {
+  const fmt = v => new Date(v + "T12:00:00").toLocaleDateString("en-US", { month: "long", day: "numeric" });
+  const end = $("#tEnd").value;
+  $("#termDates").textContent =
+    fmt($("#tStart").value) + " — " + fmt(end) + ", " + end.slice(0, 4) + " · active";
+  $("#eTerm").classList.remove("on");
+});
+
+$("[data-save='meet']").addEventListener("click", () => {
+  const day = $("#mDay").value;
+  const [h, m] = $("#mTime").value.split(":").map(Number);
+  const t = ((h % 12) || 12) + ":" + String(m).padStart(2, "0") + " " + (h < 12 ? "AM" : "PM");
+  $("#meetWhen").textContent = day + ", " + t + " · weekly · 16 dates through the term";
+  meetDayIdx = ["Sundays","Mondays","Tuesdays","Wednesdays","Thursdays","Fridays","Saturdays"].indexOf(day);
+  week($("#week"), meetDayIdx);
+  $("#eMeet").classList.remove("on");
+});
+
+// Removing a seeded thing actually removes it. That's the point of principle 2.
+$("#rmMeet").addEventListener("click", () => {
+  const c = $("#cMeet");
+  c.style.transition = "all 300ms var(--ease)";
+  c.style.opacity = 0; c.style.transform = "translateY(-6px)";
+  setTimeout(() => c.remove(), 300);
+});
+
+/* ── Announcement — pre-written copy. Only "Post it" writes a row. ─────── */
+$("[data-edit-inline]").addEventListener("click", e => {
+  const body = $("#annBody");
+  const editing = body.getAttribute("contenteditable") === "true";
+  body.setAttribute("contenteditable", editing ? "false" : "true");
+  e.target.textContent = editing ? "Edit draft" : "Done editing";
+  if (!editing) body.focus();
+});
+function postAnn() {
+  $("#annAdj").style.display = "none";
+  $("#annDone").style.display = "flex";
+  $("#annBody").setAttribute("contenteditable", "false");
+  $("#cAnn").querySelector(".tag").textContent = "live on the dashboard";
+  done[1] = true; paintCheck();
+}
+$("#annPost").addEventListener("click", postAnn);
+$("#goAnn").addEventListener("click", postAnn);
+$("#annDel").addEventListener("click", () => {
+  const c = $("#cAnn");
+  c.style.transition = "all 300ms var(--ease)";
+  c.style.opacity = 0; c.style.transform = "translateY(-6px)";
+  setTimeout(() => c.remove(), 300);
+});
+
+/* ── Invite — copy the link, and the chapter starts arriving ───────────── */
+const JOINERS = [
+  { i: "TR", c: "linear-gradient(140deg,#c99b5e,#9c7239)" },
+  { i: "JD", c: "linear-gradient(140deg,#7fb08a,#4f7a5b)" },
+  { i: "AC", c: "linear-gradient(140deg,#d98ba3,#a85f78)" },
+  { i: "SP", c: "linear-gradient(140deg,#7fb3d9,#4a7fa6)" },
+  { i: "KO", c: "linear-gradient(140deg,#8b6fd4,#5b3fa8)" },
+];
+let joined = 0, joinTimer = null;
+$("#copyBtn").addEventListener("click", e => {
+  e.target.textContent = "COPIED";
+  e.target.classList.add("ok");
+  done[2] = true; paintCheck();
+  $("#skipWarn").classList.remove("on");
+  if (joinTimer) return;
+  // The payoff: the counter moves while you're still looking at it.
+  joinTimer = setInterval(() => {
+    if (joined >= JOINERS.length) return clearInterval(joinTimer);
+    const j = JOINERS[joined++];
+    const av = document.createElement("span");
+    av.className = "av"; av.style.background = j.c; av.textContent = j.i;
+    $("#joinAvs").appendChild(av);
+    $("#joinCount").innerHTML = "<b>" + joined + "</b> of your chapter " +
+      (joined === 1 ? "has" : "have") + " joined. They're landing on a real chapter.";
+  }, 1100);
+});
+
+$$(".chip").forEach(c => c.addEventListener("click", e => {
+  const row = e.target.closest(".exp");
+  if (!row) return;
+  $$(".chip", row).forEach(x => x.classList.remove("on"));
+  e.target.classList.add("on");
+}));
+
+// Warn on skip. Never block. (Slack's pattern.)
+$("#skipBtn").addEventListener("click", () => $("#skipWarn").classList.add("on"));
+
+/* ── Scene rail ────────────────────────────────────────────────────────── */
+function goto(n) {
+  $$(".scr").forEach(s => s.classList.toggle("on", s.dataset.scene === String(n)));
+  $$(".rail button").forEach(b => b.classList.toggle("on", b.dataset.go === String(n)));
+  $("#cap").textContent = CAPTIONS[n];
+  window.scrollTo(0, 0);
+}
+$$("[data-go]").forEach(b => b.addEventListener("click", () => goto(b.dataset.go)));
+addEventListener("keydown", e => {
+  if (e.key >= "0" && e.key <= "3") goto(e.key);
+  if (e.key === "ArrowRight") goto(Math.min(3, +$(".rail button.on").dataset.go + 1));
+  if (e.key === "ArrowLeft")  goto(Math.max(0, +$(".rail button.on").dataset.go - 1));
+});
+
+paintCheck();
+goto(1);
+</script>
+</body>
+</html>
