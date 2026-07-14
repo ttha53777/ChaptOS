@@ -34,7 +34,8 @@ export type SubjectType =
   | "OrgInvite"
   | "OrgMetricDefinition"
   | "BrotherMetricValue"
-  | "Reimbursement";
+  | "Reimbursement"
+  | "DuesPayment";
 
 // Metadata schemas per action. Each key is an Action; each value is the shape
 // passed to emit() and received by handlers. Keep payloads small and stable —
