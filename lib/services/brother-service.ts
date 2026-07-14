@@ -2,7 +2,6 @@ import type { Prisma } from "@/app/generated/prisma/client";
 import type { RequestContext } from "@/lib/context";
 import { emit } from "@/lib/events";
 import { ConflictError, NotFoundError } from "@/lib/errors";
-import { hasPermission } from "@/lib/permissions";
 import type { CreateBrotherInput, UpdateBrotherInput } from "@/lib/validation/brother";
 import {
   sanitizeCustomFields,
@@ -89,14 +88,16 @@ export async function updateBrother(
   brotherId: number,
   input: UpdateBrotherInput,
 ) {
-  // Permission split: full MANAGE_BROTHERS can edit duesOwed too; self-edit
-  // can only touch profile + service hours.
-  // `name` is handled separately below — it lands on Membership.name (the
-  // per-org display name), not on the Brother row.
-  const canManageBrothers = ctx.isPlatformAdmin || hasPermission(ctx.permissions, "MANAGE_BROTHERS");
-  const allowed = canManageBrothers
-    ? ["role", "duesOwed", "gpa", "serviceHours"] as const
-    : ["role", "gpa", "serviceHours"] as const;
+  // `duesOwed` is deliberately absent, for everyone including admins. It is a money
+  // balance mirrored by the Transaction ledger, so it cannot be a field you overwrite:
+  // a raw write moves one book and not the other, which is exactly how the roster came
+  // to say members were square while the ledger said the chapter had collected nothing.
+  // It moves only via lib/services/dues-service.ts — recordDuesPayment (which mints the
+  // matching income row atomically) or adjustDues (a reasoned, audited charge/waiver).
+  //
+  // `name` is handled separately below — it lands on Membership.name (the per-org
+  // display name), not on the Brother row.
+  const allowed = ["role", "gpa", "serviceHours"] as const;
 
   const data: Prisma.BrotherUpdateInput = {};
   const changedFields: string[] = [];

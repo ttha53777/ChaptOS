@@ -116,30 +116,40 @@ describe("deleteBrother last-admin guard", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Dues access split
+// duesOwed is not a field you can write
 // ---------------------------------------------------------------------------
 
-describe("duesOwed access control", () => {
-  it("MANAGE_BROTHERS can edit duesOwed", async () => {
-    const { org, adminCtx } = await seedOrg();
-    const member = await createBrother({ orgId: org.id });
+/**
+ * duesOwed is a money balance mirrored by the Transaction ledger, so updateBrother must
+ * not move it FOR ANYONE — not self-editors, and (the change here) not admins either.
+ * A raw write moves one book and not the other, which is how the roster came to say
+ * members were square while the ledger said the chapter had collected nothing.
+ *
+ * It moves only through lib/services/dues-service.ts, which writes both sides at once.
+ * See tests/treasury/dues-service.test.ts.
+ */
+describe("duesOwed is not writable through updateBrother", () => {
+  it("even full MANAGE_BROTHERS cannot write duesOwed — it is dropped", async () => {
+    const { org } = await seedOrg();
+    const member = await createBrother({ orgId: org.id, duesOwed: 99 });
     const mgr = await createBrother({ orgId: org.id });
     const mgrCtx = ctxFor(org.id, mgr.id, { permissions: PERMISSIONS.MANAGE_BROTHERS });
 
-    const updated = await updateBrother(mgrCtx, member.id, { duesOwed: 150 });
-    expect(updated.duesOwed).toBe(150);
+    // Zod strips the key, so a stray PATCH is a no-op rather than a corruption. Cast past
+    // the input type — the point is to prove the runtime drops it even when a client lies.
+    const updated = await updateBrother(mgrCtx, member.id, { duesOwed: 0, gpa: 3.5 } as never);
+
+    expect(updated.gpa).toBe(3.5);        // allowed field applied
+    expect(updated.duesOwed).toBe(99);    // balance untouched
   });
 
-  it("a self-editing member (no perm) cannot write duesOwed — it is silently dropped", async () => {
+  it("a self-editing member cannot write duesOwed either", async () => {
     const { org } = await seedOrg();
-    const member = await createBrother({ orgId: org.id });
-    // Member starts owing 99; seed it directly since the service won't set it.
-    await testPrisma.brother.update({ where: { id: member.id }, data: { duesOwed: 99 } });
+    const member = await createBrother({ orgId: org.id, duesOwed: 99 });
 
     const selfCtx = ctxFor(org.id, member.id); // no perms, not admin
-    const updated = await updateBrother(selfCtx, member.id, { duesOwed: 0, serviceHours: 12 });
+    const updated = await updateBrother(selfCtx, member.id, { duesOwed: 0, serviceHours: 12 } as never);
 
-    // serviceHours (allowed) is applied; duesOwed (disallowed) is unchanged.
     expect(updated.serviceHours).toBe(12);
     expect(updated.duesOwed).toBe(99);
   });
