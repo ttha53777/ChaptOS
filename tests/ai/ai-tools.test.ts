@@ -53,7 +53,7 @@ const ALL_PROPOSAL_TOOLS = [
   "propose_add_instagram_task",
   "propose_add_calendar_event",
   "propose_log_transaction",
-  "propose_mark_dues_paid",
+  "propose_record_dues_payment",
   "propose_add_programming_event",
 ] as const;
 
@@ -63,7 +63,7 @@ const VALID_ARGS: Record<string, Record<string, unknown>> = {
   propose_add_instagram_task:    { title: "Rush reel", dueDate: "2026-07-01", type: "Reel" },
   propose_add_calendar_event:    { title: "Chapter", date: "2026-07-01", category: "chapter" },
   propose_log_transaction:       { type: "expense", category: "Food", amount: 42.5, date: "2026-07-01", description: "pizza" },
-  propose_mark_dues_paid:        { brother_id: 3, brother_name: "Bryan" },
+  propose_record_dues_payment:   { brother_id: 3, brother_name: "Bryan" },
   propose_add_programming_event: { title: "Mixer", type: "Social" },
 };
 
@@ -148,21 +148,52 @@ describe("argument validation rejects malformed input as {error}", () => {
   });
 });
 
-describe("proposeMarkDuesPaid reads before-state but only proposes", () => {
-  it("reads current duesOwed and surfaces it on the card without writing", async () => {
+/**
+ * This proposal used to point at `PATCH /api/brothers/:id` with `{ duesOwed: 0 }` — a flag
+ * flip that zeroed the roster and wrote no Transaction, so every dollar collected this way
+ * went unrecorded in the ledger. It now points at the dues endpoint, which posts the income
+ * and moves the balance as one atomic operation.
+ */
+describe("proposeRecordDuesPayment — proposes real money movement, never writes", () => {
+  it("targets the dues endpoint with the full outstanding balance", async () => {
     const { scoped, findFirst } = mockScoped(135);
-    const out = await runProposal("propose_mark_dues_paid", { brother_id: 3, brother_name: "Bryan" }, scoped);
+    const out = await runProposal("propose_record_dues_payment", { brother_id: 3, brother_name: "Bryan" }, scoped);
     expect("error" in out).toBe(false);
     const proposal = out as Extract<typeof out, { kind: "proposal" }>;
     expect(findFirst).toHaveBeenCalledOnce();
-    expect(proposal.method).toBe("PATCH");
-    expect(proposal.endpoint).toBe("/api/brothers/3");
-    expect(proposal.payload).toEqual({ duesOwed: 0 });
+    expect(proposal.method).toBe("POST");
+    expect(proposal.endpoint).toBe("/api/dues/payments");
+    expect(proposal.payload).toMatchObject({ brotherId: 3, amount: 135 });
+    expect(proposal.payload).toHaveProperty("date");
+    // The card has to say this posts to the ledger — that's the whole difference.
     expect(proposal.summary).toContain("135");
+    expect(proposal.summary).toContain("ledger");
   });
 
-  it("a read failure degrades to the plain summary, still a proposal (no throw)", async () => {
-    // findFirst throws → enrichment is skipped, proposal still returned.
+  it("an explicit amount proposes a partial payment and names the remainder", async () => {
+    const { scoped } = mockScoped(135);
+    const out = await runProposal("propose_record_dues_payment", { brother_id: 3, brother_name: "Bryan", amount: 35 }, scoped);
+    const proposal = out as Extract<typeof out, { kind: "proposal" }>;
+    expect(proposal.payload).toMatchObject({ brotherId: 3, amount: 35 });
+    expect(proposal.summary).toContain("100.00");   // 135 − 35 still owing
+  });
+
+  it("refuses to propose more than they owe (the service would 409 anyway)", async () => {
+    const { scoped } = mockScoped(50);
+    const out = await runProposal("propose_record_dues_payment", { brother_id: 3, brother_name: "Bryan", amount: 100 }, scoped);
+    expect(out).toHaveProperty("error");
+  });
+
+  it("refuses when they already owe nothing — there is no payment to record", async () => {
+    const { scoped } = mockScoped(0);
+    const out = await runProposal("propose_record_dues_payment", { brother_id: 3, brother_name: "Bryan" }, scoped);
+    expect(out).toHaveProperty("error");
+  });
+
+  it("a read failure BLOCKS the proposal — the balance is now the amount, not decoration", async () => {
+    // Previously this degraded to a plain summary and still proposed { duesOwed: 0 }. It
+    // can't any more: without the balance there is no amount to pay, and guessing one
+    // would put a wrong number in the ledger.
     const findFirst = vi.fn(async () => { throw new Error("db down"); });
     const model = new Proxy({} as Record<string, unknown>, {
       get(_t, prop: string) {
@@ -172,14 +203,13 @@ describe("proposeMarkDuesPaid reads before-state but only proposes", () => {
     });
     const scoped = new Proxy({} as Record<string, unknown>, { get() { return model; } }) as unknown as Scoped;
 
-    const out = await runProposal("propose_mark_dues_paid", { brother_id: 3, brother_name: "Bryan" }, scoped);
-    expect("error" in out).toBe(false);
-    expect((out as Extract<typeof out, { kind: "proposal" }>).payload).toEqual({ duesOwed: 0 });
+    const out = await runProposal("propose_record_dues_payment", { brother_id: 3, brother_name: "Bryan" }, scoped);
+    expect(out).toHaveProperty("error");
   });
 
   it("missing brother_name → error before any read", async () => {
     const { scoped } = mockScoped();
-    const out = await runProposal("propose_mark_dues_paid", { brother_id: 3 }, scoped);
+    const out = await runProposal("propose_record_dues_payment", { brother_id: 3 }, scoped);
     expect(out).toHaveProperty("error");
   });
 });

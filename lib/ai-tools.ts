@@ -12,7 +12,7 @@
  */
 import type OpenAI from "openai";
 import { db } from "@/lib/db";
-import { isoWeekBounds, DATE_RE } from "@/lib/dates";
+import { isoWeekBounds, todayISO, DATE_RE } from "@/lib/dates";
 import { getBrotherStatus, round2, type Brother as BrotherType } from "@/app/data";
 import { resolveThresholds, type Thresholds } from "@/lib/thresholds";
 import { INSTAGRAM_TYPES } from "@/lib/validation/instagram";
@@ -437,14 +437,15 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
   {
     type: "function",
     function: {
-      name: "propose_mark_dues_paid",
+      name: "propose_record_dues_payment",
       description:
-        "Propose marking a brother's dues as paid (sets duesOwed to 0). Returns a confirm card; the brother record is NOT changed until confirmed. Only admins (or the brother themselves) can successfully confirm.",
+        "Propose recording a dues payment from a brother. On confirm this posts income to the treasury ledger AND reduces what the brother owes, as one atomic operation — it is real money movement, not a flag. Returns a confirm card; nothing is changed until confirmed. Defaults to paying off their full outstanding balance; pass amount for a partial payment. Requires treasury or roster authority to confirm. Do NOT use this to waive or correct a balance where no money changed hands.",
       parameters: {
         type: "object",
         properties: {
           brother_id:   { type: "integer", description: "Brother id. Use list_brothers or get_brother first to find it." },
           brother_name: { type: "string", description: "Provide the name too for the confirm card preview." },
+          amount:       { type: "number",  description: "Optional. Dollars paid. Omit to pay off the full outstanding balance." },
         },
         required: ["brother_id", "brother_name"],
       },
@@ -1406,39 +1407,61 @@ function proposeLogTransaction(args: ToolArgs): Proposal | { error: string } {
   };
 }
 
-// Async so it can read the brother's CURRENT duesOwed (org-scoped) and surface it
-// on the confirm card — "currently owes $135" gives the officer the before-state so
-// they can sanity-check the change before clicking. Still VALIDATE-ONLY: it never
-// writes; the read is purely to enrich the card. A read failure degrades to the
-// plain summary rather than blocking the proposal.
-async function proposeMarkDuesPaid(args: ToolArgs, scoped: Scoped): Promise<Proposal | { error: string }> {
+// Recording a dues payment is money movement: on confirm it posts an income row to the
+// ledger AND decrements the balance, atomically (see lib/services/dues-service.ts). This
+// used to propose `PATCH /api/brothers/:id { duesOwed: 0 }` — a flag flip that zeroed the
+// roster and told the treasury nothing, so every dollar the chapter collected this way
+// went unrecorded.
+//
+// The balance read is therefore no longer decorative. It used to be best-effort
+// enrichment that degraded to a plain summary on failure; now it determines the amount
+// to be paid, so a failed read has to block the proposal rather than guess. Still
+// VALIDATE-ONLY: it never writes.
+async function proposeRecordDuesPayment(args: ToolArgs, scoped: Scoped): Promise<Proposal | { error: string }> {
   const id = typeof args.brother_id === "number" ? args.brother_id : Number(args.brother_id);
   const name = typeof args.brother_name === "string" ? args.brother_name.trim() : "";
   if (!Number.isFinite(id) || id <= 0) return badProposal("brother_id required.");
   if (!name) return badProposal("brother_name required for the confirm card.");
 
-  let currentOwed: number | null = null;
+  let currentOwed: number;
   try {
     const b = await scoped.brother.findFirst({
       where: { id, isGhost: false },
       select: { duesOwed: true },
     });
-    if (b) currentOwed = r2(b.duesOwed);
-  } catch { /* read-only enrichment — fall back to the plain summary */ }
+    if (!b) return badProposal(`No brother with id ${id} in this chapter.`);
+    currentOwed = r2(b.duesOwed);
+  } catch {
+    return badProposal(`Could not read ${name}'s dues balance, so there is no amount to record.`);
+  }
 
-  const owedNote = currentOwed === null
-    ? ""
-    : currentOwed > 0
-      ? ` (currently owes $${currentOwed.toFixed(2)})`
-      : " (already paid up — owes $0)";
+  // An explicit amount wins; otherwise pay the balance off in full.
+  const requested = typeof args.amount === "number" ? args.amount : Number(args.amount);
+  const explicit  = Number.isFinite(requested) && requested > 0 ? r2(requested) : null;
+  const amount    = explicit ?? currentOwed;
+
+  if (amount <= 0)          return badProposal(`${name} is already paid up — they owe $0.00.`);
+  // The service refuses this too (the balance check is in the UPDATE's WHERE clause), but
+  // catching it here means the officer gets told before they click, not after.
+  if (amount > currentOwed) {
+    return badProposal(
+      `${name} owes $${currentOwed.toFixed(2)}, so a $${amount.toFixed(2)} payment cannot be recorded.`,
+    );
+  }
+
+  const remaining = r2(currentOwed - amount);
+  const tail = remaining > 0
+    ? `$${remaining.toFixed(2)} would remain owing.`
+    : "That clears their balance.";
 
   return {
     kind: "proposal",
-    action: "propose_mark_dues_paid",
-    endpoint: `/api/brothers/${id}`,
-    method: "PATCH",
-    payload: { duesOwed: 0 },
-    summary: `Mark ${name}'s dues as paid (set duesOwed = 0)${owedNote}. Admin or self required.`,
+    action: "propose_record_dues_payment",
+    endpoint: "/api/dues/payments",
+    method: "POST",
+    payload: { brotherId: id, amount, date: todayISO() },
+    summary: `Record a $${amount.toFixed(2)} dues payment from ${name} (currently owes `
+      + `$${currentOwed.toFixed(2)}). Posts income to the ledger and reduces their balance. ${tail}`,
   };
 }
 
@@ -1477,7 +1500,7 @@ const PROPOSAL_HANDLERS: Record<string, ProposalHandler> = {
   propose_add_instagram_task:     proposeAddInstagram,
   propose_add_calendar_event:     proposeAddCalendarEvent,
   propose_log_transaction:        proposeLogTransaction,
-  propose_mark_dues_paid:         proposeMarkDuesPaid,
+  propose_record_dues_payment:    proposeRecordDuesPayment,
   propose_add_programming_event:  proposeAddProgrammingEvent,
 };
 

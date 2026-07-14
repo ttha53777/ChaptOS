@@ -83,7 +83,7 @@ const TOOL_PHRASE: Record<string, string> = {
   propose_add_instagram_task:  "drafting a post",
   propose_add_calendar_event:  "drafting a calendar event",
   propose_log_transaction:     "drafting a ledger entry",
-  propose_mark_dues_paid:      "drafting a dues update",
+  propose_record_dues_payment: "drafting a dues payment",
   propose_add_programming_event: "drafting a programming event",
 };
 
