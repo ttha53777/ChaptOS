@@ -23,7 +23,7 @@ import "./treasury-ledger.css";
 import { useChapter } from "../../context/ChapterContext";
 import { useVocab } from "../../hooks/useVocab";
 import {
-  Transaction, PartyEvent, Brother, Reimbursement,
+  Transaction, PartyEvent, Brother, Reimbursement, DuesPayment,
   INCOME_CATEGORIES, EXPENSE_CATEGORIES,
   fmt$, fmtDate, round2,
 } from "../../data";
@@ -52,7 +52,7 @@ type PartyModal =
 
 type TxTab = "all" | "income" | "expense";
 
-import { requestJson } from "../../lib/api";
+import { apiErrorMessage, requestJson } from "../../lib/api";
 import { todayStr } from "../../lib/dates";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -383,6 +383,110 @@ function ReimbursementsView({
   );
 }
 
+// ─── Pending Dues Payments ─────────────────────────────────────────────────────
+//
+// A submitted dues payment is a claim, not yet money moved — see submitDuesPayment
+// in dues-service.ts. Approving here is the one action that mints the ledger row
+// and decrements the member's balance, atomically, so it gets the same
+// confirm-before-posting treatment reimbursement approval does (reusing the same
+// tr-reimb-reject-row / tr-reimb-approve-row styles). Rejecting needs no such
+// confirm: nothing was written to either book, so there is nothing to undo.
+function PendingDuesQueue({
+  duesPayments,
+  canTreasury,
+  brotherList,
+  onAction,
+}: {
+  duesPayments: DuesPayment[];
+  canTreasury: boolean;
+  brotherList: Brother[];
+  onAction: (id: number, status: "approved" | "rejected", note?: string) => void;
+}) {
+  const [rejectingId, setRejectingId] = useState<number | null>(null);
+  const [rejectNote,  setRejectNote]  = useState("");
+  const [approvingId, setApprovingId] = useState<number | null>(null);
+
+  const pending = duesPayments.filter(p => p.status === "pending");
+  if (pending.length === 0) return null;
+
+  function confirmReject(id: number) {
+    onAction(id, "rejected", rejectNote.trim() || undefined);
+    setRejectingId(null);
+    setRejectNote("");
+  }
+
+  function confirmApprove(id: number) {
+    onAction(id, "approved");
+    setApprovingId(null);
+  }
+
+  return (
+    <div className="tr-dues-pending">
+      <div className="tr-dues-pending-h">
+        <h3>Pending Approval</h3>
+        <span className="sub">{pending.length} awaiting review</span>
+      </div>
+      {pending.map(p => {
+        const isRejecting = rejectingId === p.id;
+        const isApproving = approvingId === p.id;
+        const owed = brotherList.find(b => b.id === p.brotherId)?.duesOwed ?? 0;
+        return (
+          <div key={p.id} className="tr-dues-row">
+            <div className="tr-row-main">
+              <div className="who">
+                <p className="nm">{p.brother.name}</p>
+                <p className="rl">submitted {relativeAge(p.createdAt)}</p>
+              </div>
+              <span className="owe">{fmt$(p.amount)}</span>
+              {canTreasury && !isRejecting && !isApproving && (
+                <div className="acts">
+                  <button className="tr-mini-btn" onClick={() => { setRejectingId(null); setApprovingId(p.id); }}>Approve</button>
+                  <button className="tr-mini-btn ghost" onClick={() => { setApprovingId(null); setRejectingId(p.id); setRejectNote(""); }}>Reject</button>
+                </div>
+              )}
+            </div>
+
+            {isRejecting && (
+              <div className="tr-reimb-reject-row">
+                <input
+                  type="text"
+                  value={rejectNote}
+                  onChange={e => setRejectNote(e.target.value)}
+                  placeholder="Reason for rejecting (optional)"
+                  className={inputDuskCls}
+                  autoFocus
+                />
+                <div className="tr-reimb-reject-actions">
+                  <button className={btnDuskGhostCls} onClick={() => setRejectingId(null)}>Cancel</button>
+                  <button className="tr-reimb-btn-confirm-reject" onClick={() => confirmReject(p.id)}>Confirm reject</button>
+                </div>
+              </div>
+            )}
+
+            {isApproving && (
+              <div className="tr-reimb-approve-row">
+                <p className="tr-reimb-approve-lede">
+                  Posts a <strong>{fmt$(p.amount)}</strong> income row to the ledger
+                </p>
+                <div className="tr-reimb-approve-fields">
+                  <div className="tr-reimb-approve-balance" style={{ marginLeft: "auto" }}>
+                    <span>{p.brother.name}&rsquo;s balance</span>
+                    <strong>{fmt$(owed)} → {fmt$(Math.max(0, owed - p.amount))}</strong>
+                  </div>
+                </div>
+                <div className="tr-reimb-reject-actions">
+                  <button className={btnDuskGhostCls} onClick={() => setApprovingId(null)}>Cancel</button>
+                  <button className="tr-reimb-btn-confirm-approve" onClick={() => confirmApprove(p.id)}>Approve &amp; post</button>
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 // ─── Reimbursement Form ───────────────────────────────────────────────────────
 
 function ReimbursementForm({
@@ -590,7 +694,7 @@ const ICON_PARTY  = "M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function TreasuryPage() {
-  const { currentUser, treasuryData, transactionList, setTransactionList, partyList, setPartyList, brotherList, setBrotherList, reimbursementList: reimbursements, setReimbursementList: setReimbursements, isLoading, avatarRevision, can } = useChapter();
+  const { currentUser, treasuryData, transactionList, setTransactionList, partyList, setPartyList, brotherList, setBrotherList, reimbursementList: reimbursements, setReimbursementList: setReimbursements, duesPaymentList, setDuesPaymentList, isLoading, avatarRevision, can } = useChapter();
   const v = useVocab();
   const selfId = currentUser?.id ?? null;
   const canTreasury = can("MANAGE_TREASURY");
@@ -892,25 +996,81 @@ export default function TreasuryPage() {
     window.location.href = url;
   }
 
-  function submitDuesAction() {
+  // Recording a payment and charging dues are different things and hit different
+  // endpoints. Charging dues is a receivable — it moves the balance and writes no
+  // ledger row, because no money moved, so it still applies immediately. Recording a
+  // payment only STAGES a request now: nothing moves until a treasurer approves it in
+  // the Pending Approval queue below (see updateDuesPayment in dues-service.ts), which
+  // is the one place that mints the ledger row and decrements the balance together.
+  async function submitDuesAction() {
     if (!duesTarget) return;
     const amount = Math.max(0, parseFloat(duesAmountStr) || 0);
     if (amount === 0) return;
-    const newOwed = duesAction === "assign"
-      ? duesTarget.duesOwed + amount
-      : Math.max(0, duesTarget.duesOwed - amount);
     const b = duesTarget;
     setDuesTarget(null);
     setDuesAmountStr("");
-    setBrotherList(prev => prev.map(x => x.id === b.id ? { ...x, duesOwed: newOwed } : x));
-    requestJson<Brother>(`/api/brothers/${b.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ duesOwed: newOwed }),
-    }).catch(() => {
-      setBrotherList(prev => prev.map(x => x.id === b.id ? b : x));
-    });
+    setMutErr(null);
+
+    try {
+      if (duesAction === "deduct") {
+        const res = await requestJson<DuesPayment>("/api/dues/payments", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ brotherId: b.id, amount, date: todayStr() }),
+        });
+        // Nothing moved yet — the request just joins the Pending Approval queue.
+        setDuesPaymentList(prev => [res, ...prev]);
+      } else {
+        const res = await requestJson<{ duesOwed: number }>("/api/dues/adjustments", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ brotherId: b.id, delta: amount, reason: "Dues assigned" }),
+        });
+        setBrotherList(prev => prev.map(x => x.id === b.id ? { ...x, duesOwed: res.duesOwed } : x));
+      }
+    } catch (e) {
+      // Surface it. The old code swallowed every failure into a silent optimistic
+      // revert — which is how a permission mismatch went unnoticed: the treasurer's
+      // 403 looked exactly like nothing happening. Overpayment and lost races arrive
+      // here as a 409 whose message names the real balance.
+      setMutErr(apiErrorMessage(e, "Failed to update dues. Please try again."));
+    }
   }
+
+  // Approving mints the ledger row and decrements duesOwed together, server-side;
+  // rejecting touches neither, since nothing was written at submission time. Either
+  // way the request's own state (duesPaymentList) is updated optimistically first,
+  // same shape as handleReimbursementAction below.
+  const handleDuesPaymentAction = useCallback(async (id: number, status: "approved" | "rejected", rejectionNote?: string) => {
+    const prev = duesPaymentList.find(p => p.id === id);
+    setDuesPaymentList(list => list.map(p => p.id === id ? { ...p, status, rejectionNote: rejectionNote ?? null } : p));
+    try {
+      const saved = await requestJson<DuesPayment>(`/api/dues/payments/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status, rejectionNote: rejectionNote ?? null }),
+      });
+      setDuesPaymentList(list => list.map(p => p.id === id ? saved : p));
+
+      // Approving moves both books server-side — pull them back in, the same way
+      // handleReimbursementAction refreshes the ledger after an approval.
+      if (saved.status === "approved") {
+        try {
+          const [freshTxns, freshBrothers] = await Promise.all([
+            requestJson<Transaction[]>("/api/transactions"),
+            requestJson<Brother[]>("/api/brothers"),
+          ]);
+          setTransactionList(freshTxns);
+          setBrotherList(freshBrothers);
+        } catch {
+          setMutErr("Dues payment approved, but the books didn't refresh — reload to see the new balance.");
+        }
+      }
+    } catch (e) {
+      if (prev) setDuesPaymentList(list => list.map(p => p.id === id ? prev : p));
+      setMutErr(apiErrorMessage(e, "Failed to update dues payment. Please try again."));
+    }
+  }, [duesPaymentList, setDuesPaymentList, setTransactionList, setBrotherList]);
 
 
   const handleSubmitReimbursement = useCallback(async (data: { date: string; amount: number; description: string; category: string; file: File | null }) => {
@@ -1236,6 +1396,12 @@ export default function TreasuryPage() {
                   <h2>Brothers with Dues</h2>
                   <span className="sub">{owingCount} owing · {fmt$(duesTotal)}</span>
                 </div>
+                <PendingDuesQueue
+                  duesPayments={duesPaymentList}
+                  canTreasury={canTreasury}
+                  brotherList={brotherList}
+                  onAction={handleDuesPaymentAction}
+                />
                 {brothersOwing.length === 0 ? (
                   <div className="tr-empty-stack"><p>No brothers yet</p></div>
                 ) : (
@@ -1621,15 +1787,19 @@ export default function TreasuryPage() {
               {(() => {
                 const amt = parseFloat(duesAmountStr) || 0;
                 if (amt <= 0) return null;
-                const newOwed = duesAction === "assign"
-                  ? duesTarget.duesOwed + amt
-                  : Math.max(0, duesTarget.duesOwed - amt);
+                if (duesAction === "deduct") {
+                  return (
+                    <p className="mt-1.5 text-[11px] text-[#958d7c]">
+                      Goes to the Pending Approval queue below — the balance and ledger
+                      don&rsquo;t change until a treasurer approves it.
+                    </p>
+                  );
+                }
+                const newOwed = duesTarget.duesOwed + amt;
                 return (
                   <p className="mt-1.5 text-[11px] text-[#958d7c]">
                     New balance:{" "}
-                    <span className={newOwed === 0 ? "text-[#a78bfa] font-semibold" : "text-[#c9c2b4]"}>
-                      {fmt$(newOwed)}
-                    </span>
+                    <span className="text-[#c9c2b4]">{fmt$(newOwed)}</span>
                   </p>
                 );
               })()}
@@ -1643,7 +1813,7 @@ export default function TreasuryPage() {
                 disabled={!(parseFloat(duesAmountStr) > 0)}
                 className={btnDuskActionCls}
               >
-                {duesAction === "deduct" ? "Record Payment" : "Assign Dues"}
+                {duesAction === "deduct" ? "Submit for Approval" : "Assign Dues"}
               </button>
             </div>
           </div>

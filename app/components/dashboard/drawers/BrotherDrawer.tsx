@@ -46,7 +46,12 @@ export function BrotherDrawer({
   brotherId: number | null;
   brotherList: Brother[];
   onClose: () => void;
-  onSave: (id: number, updates: Omit<Brother, "id">) => void;
+  // duesOwed is excluded on purpose: a money balance mirrored by the Transaction ledger
+  // must not ride along on a profile save, or that write moves the roster without moving
+  // the books. Dues move via "Record payment" (onPayDues → POST /api/dues/payments, which
+  // only stages a request now — a treasurer must approve it on the Treasury page before
+  // it posts income or changes this balance) or the treasury's assign/waive controls.
+  onSave: (id: number, updates: Omit<Brother, "id" | "duesOwed">) => void;
   onPayDues: (b: Brother) => void;
   /** Opens the "Log service hours" modal for this member (event + hours form). */
   onLogServiceHours: (b: Brother) => void;
@@ -260,7 +265,6 @@ export function BrotherDrawer({
       name:         name.trim()  || brother.name,
       role:         role.trim()  || brother.role,
       gpa:          Math.min(4.0, Math.max(0, parseFloat(gpa)      || brother.gpa)),
-      duesOwed:     Math.max(0,              parseFloat(duesOwed)   || 0),
       serviceHours: Math.max(0,              parseFloat(serviceHours) || 0),
       attendance:   brother.attendance,
       customFields,
@@ -548,7 +552,7 @@ export function BrotherDrawer({
                       </p>
                       {brother.duesOwed > 0 && canManageDues && (
                         <button onClick={handleQuickPayDues} className="dd-tile-act">
-                          Mark Paid
+                          Record Payment
                         </button>
                       )}
                     </div>
@@ -664,17 +668,15 @@ export function BrotherDrawer({
                           <label className="dd-field-label">Committees / Notes</label>
                           <input className={inputCls} value={role} onChange={e => { setRole(e.target.value); setDirty(true); }} placeholder="Rush · Banquet · …" />
                         </div>
-                        <div className={`grid grid-cols-1 gap-3 ${canManageDues ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}>
+                        {/* No dues input here any more. The balance is one half of a
+                            two-sided fact — the other half is an income row in the ledger
+                            — so it can't be a box you type over. Use the dues tile's
+                            "Record payment" above, which writes both sides at once. */}
+                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                           <div>
                             <label className="dd-field-label">GPA</label>
                             <input type="number" min="0" max="4" step="0.01" className={inputCls} value={gpa} onChange={e => { setGpa(e.target.value); setDirty(true); }} />
                           </div>
-                          {canManageDues && (
-                            <div>
-                              <label className="dd-field-label">{v("Dues")} ($)</label>
-                              <input type="number" min="0" className={inputCls} value={duesOwed} onChange={e => { setDuesOwed(e.target.value); setDirty(true); }} />
-                            </div>
-                          )}
                           <div>
                             <label className="dd-field-label">Service (h)</label>
                             <input type="number" min="0" className={inputCls} value={serviceHours} onChange={e => { setServiceHours(e.target.value); setDirty(true); }} />

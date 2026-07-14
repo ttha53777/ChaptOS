@@ -54,7 +54,8 @@ import { InstagramRail } from "../components/dashboard/ledger/InstagramRail";
 import { ActivityRail } from "../components/dashboard/ledger/ActivityRail";
 import { DashHideButton } from "../components/dashboard/ledger/DashHideButton";
 import { SetupChecklist, useSetupChecklist } from "../components/dashboard/SetupChecklist";
-import { orgFetch, requestJson } from "../lib/api";
+import { apiErrorMessage, orgFetch, requestJson } from "../lib/api";
+import { todayStr } from "../lib/dates";
 import type { MetricSnapshot } from "@/lib/metrics";
 
 // ─── Activity ID counter (module-level, reset-safe) ───────────────────────────
@@ -1161,7 +1162,7 @@ export default function Home() {
   }
 
   // ── Brother profile save ───────────────────────────────────────────────────
-  function updateBrother(id: number, updates: Omit<Brother, "id">) {
+  function updateBrother(id: number, updates: Omit<Brother, "id" | "duesOwed">) {
     const prev = brotherList.find(b => b.id === id);
     if (!prev) return;
     setBrotherList(list => list.map(b => b.id === id ? { ...b, ...updates } : b));
@@ -1625,29 +1626,27 @@ export default function Home() {
     setPayAmountStr(String(b.duesOwed));
   }
 
-  function submitPayDues() {
+  // Only STAGES the payment now — see submitDuesPayment in dues-service.ts. Nothing
+  // posts to the ledger or moves duesOwed until a treasurer approves the request from
+  // the Treasury page's Pending Approval queue, so there is no balance to write here,
+  // optimistically or otherwise.
+  async function submitPayDues() {
     if (!payTarget) return;
     const amount = Math.max(0, parseFloat(payAmountStr) || 0);
-    const newOwed = Math.max(0, payTarget.duesOwed - amount);
+    if (amount === 0) return;
     const b = payTarget;
     setPayTarget(null);
     setPayAmountStr("");
-    setBrotherList(prev => prev.map(x => x.id === b.id ? { ...x, duesOwed: newOwed } : x));
-    addActivity(
-      newOwed === 0
-        ? `${b.name} dues fully paid`
-        : `${b.name} paid ${fmt$(amount)} — ${fmt$(newOwed)} remaining`,
-      "success",
-    );
-    persistMutation(
-      requestJson<Brother>(`/api/brothers/${b.id}`, {
-        method: "PATCH",
+    try {
+      await requestJson<{ id: number }>("/api/dues/payments", {
+        method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ duesOwed: newOwed }),
-      }),
-      "Dues update failed. Local changes were reverted.",
-      () => setBrotherList(prev => prev.map(x => x.id === b.id ? b : x)),
-    );
+        body: JSON.stringify({ brotherId: b.id, amount, date: todayStr() }),
+      });
+      addActivity(`${b.name} — ${fmt$(amount)} dues payment recorded, awaiting treasury approval`, "info");
+    } catch (e) {
+      addActivity(apiErrorMessage(e, "Dues payment failed. Nothing was recorded."), "warning");
+    }
   }
 
   function addServiceHour(b: Brother, hours = 1) {
@@ -2135,15 +2134,12 @@ export default function Home() {
                 autoFocus
                 onKeyDown={e => { if (e.key === "Enter") submitPayDues(); }}
               />
-              {(() => {
-                const amt = parseFloat(payAmountStr) || 0;
-                const remaining = Math.max(0, payTarget.duesOwed - amt);
-                return amt > 0 ? (
-                  <p className="mt-1.5 text-[11px] text-[#6b6354]">
-                    Remaining after payment: <span className={remaining === 0 ? "text-[#7fb08a] font-semibold" : "text-[#c9c2b4]"}>{fmt$(remaining)}</span>
-                  </p>
-                ) : null;
-              })()}
+              {parseFloat(payAmountStr) > 0 && (
+                <p className="mt-1.5 text-[11px] text-[#6b6354]">
+                  Goes to the Treasury page&rsquo;s Pending Approval queue — the balance
+                  doesn&rsquo;t change until a treasurer approves it.
+                </p>
+              )}
             </div>
             <div className="flex justify-end gap-2">
               <button
@@ -2157,7 +2153,7 @@ export default function Home() {
                 disabled={!(parseFloat(payAmountStr) > 0)}
                 className={btnDuskActionCls}
               >
-                Record Payment
+                Submit for Approval
               </button>
             </div>
           </div>

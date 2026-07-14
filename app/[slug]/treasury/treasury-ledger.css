@@ -193,6 +193,22 @@ header.dash-toolbar .tr-crumb {
 .dash .tr-empty-stack button { margin-top: 10px; font-family: var(--mono); font-size: 10px; letter-spacing: .08em; text-transform: uppercase;
   color: var(--vio); background: none; border: 0; cursor: pointer; }
 
+/* ── Pending dues payments (staged, awaiting treasury approval) ─────────────── */
+.dash .tr-dues-pending { border-bottom: 1px solid var(--line); background: var(--card-2); }
+.dash .tr-dues-pending-h { display: flex; align-items: baseline; justify-content: space-between; padding: 9px 18px; }
+.dash .tr-dues-pending-h h3 { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+.dash .tr-dues-pending-h .sub { font-size: 10.5px; color: var(--faint); }
+.dash .tr-dues-row { padding: 11px 18px; border-bottom: 1px solid var(--line-soft); }
+.dash .tr-dues-row:last-child { border-bottom: 0; }
+.dash .tr-dues-row .tr-row-main { display: flex; align-items: center; gap: 12px; }
+.dash .tr-dues-row .tr-row-main .who { flex: 1; min-width: 0; }
+.dash .tr-dues-row .tr-row-main .who .nm { font-size: 13px; font-weight: 550; color: var(--ink); }
+.dash .tr-dues-row .tr-row-main .who .rl { font-family: var(--mono); font-size: 9px; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); margin-top: 1px; }
+.dash .tr-dues-row .tr-row-main .owe { font-family: var(--mono); font-size: 13.5px; font-weight: 500; color: var(--gold); font-variant-numeric: tabular-nums; }
+.dash .tr-dues-row .tr-row-main .acts { display: flex; gap: 5px; flex-shrink: 0; }
+.dash .tr-dues-row .tr-reimb-reject-row,
+.dash .tr-dues-row .tr-reimb-approve-row { margin-top: 10px; }
+
 .dash .tr-ev-row { display: flex; align-items: center; gap: 12px; padding: 11px 18px; border-bottom: 1px solid var(--line-soft); }
 .dash .tr-ev-row:last-child { border-bottom: 0; }
 .dash .tr-ev-row:hover { background: var(--card-2); }

@@ -35,6 +35,21 @@ export interface Reimbursement {
   updatedAt: string;
 }
 
+export interface DuesPayment {
+  id: number;
+  brotherId: number;
+  brother: { id: number; name: string; avatarUrl: string | null };
+  amount: number;
+  date: string;
+  paymentMethod?: string | null;
+  status: "pending" | "approved" | "rejected";
+  rejectionNote?: string | null;
+  // The ledger row approval minted. Null until approved.
+  transactionId?: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface Transaction {
   id: number;
   type: "income" | "expense";

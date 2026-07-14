@@ -53,6 +53,22 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * The server's own `error` string, fit to show a user.
+ *
+ * ApiError.message is diagnostic ("/api/dues/payments returned 409: ..."), which is the
+ * wrong thing to put in front of someone. Domain errors (lib/errors) already carry a
+ * written-for-humans message — "Payment of $100.00 exceeds Noah Kim's outstanding
+ * balance of $75.00" — so prefer that, and fall back when there isn't one.
+ */
+export function apiErrorMessage(err: unknown, fallback: string): string {
+  if (err instanceof ApiError) {
+    const msg = (err.body as { error?: unknown } | null)?.error;
+    if (typeof msg === "string" && msg.trim()) return msg;
+  }
+  return fallback;
+}
+
 /** Pull `details.code` out of an ApiError body, if present. */
 export function apiErrorCode(err: unknown): string | null {
   if (!(err instanceof ApiError)) return null;

@@ -19,7 +19,8 @@ import {
   fmt$,
   fmtDate,
 } from "../../data";
-import { requestJson } from "../../lib/api";
+import { apiErrorMessage, requestJson } from "../../lib/api";
+import { todayStr } from "../../lib/dates";
 import "../../components/dashboard/dashboard-ledger.css";
 import "../../components/dashboard/brotherhood-ledger.css";
 
@@ -297,7 +298,7 @@ export default function BrothersPage() {
     }
   }, [setBrotherList]);
 
-  const updateBrother = useCallback((id: number, updates: Omit<Brother, "id">) => {
+  const updateBrother = useCallback((id: number, updates: Omit<Brother, "id" | "duesOwed">) => {
     const prev = brotherList.find(b => b.id === id);
     if (!prev) return;
     setBrotherList(list => list.map(b => b.id === id ? { ...b, ...updates } : b));
@@ -323,24 +324,29 @@ export default function BrothersPage() {
     setPayAmountStr(b.duesOwed > 0 ? String(b.duesOwed) : "");
   }, []);
 
-  const submitPayment = useCallback(() => {
+  // Recording a payment only STAGES it now — see submitDuesPayment in dues-service.ts.
+  // Nothing posts to the ledger and duesOwed doesn't move until a treasurer approves
+  // the request from the Treasury page's Pending Approval queue, so this no longer
+  // updates brotherList at all; it just confirms the request was submitted.
+  const submitPayment = useCallback(async () => {
     if (!payTarget) return;
     const amount = Math.max(0, parseFloat(payAmountStr) || 0);
     if (amount === 0) return;
     const b = payTarget;
-    const newOwed = Math.max(0, b.duesOwed - amount);
     setPayTarget(null);
     setPayAmountStr("");
-    setBrotherList(prev => prev.map(x => x.id === b.id ? { ...x, duesOwed: newOwed } : x));
-    requestJson<Brother>(`/api/brothers/${b.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ duesOwed: newOwed }),
-    }).catch(() => {
-      setBrotherList(prev => prev.map(x => x.id === b.id ? b : x));
-      setPageError("Dues update failed. Changes were reverted.");
-    });
-  }, [payTarget, payAmountStr, setBrotherList]);
+    setPageError(null);
+    try {
+      await requestJson<{ id: number }>("/api/dues/payments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ brotherId: b.id, amount, date: todayStr() }),
+      });
+      toast.success(`Recorded ${fmt$(amount)} from ${b.name} — awaiting treasury approval.`);
+    } catch (e) {
+      setPageError(apiErrorMessage(e, "Dues payment failed. Nothing was recorded."));
+    }
+  }, [payTarget, payAmountStr, toast]);
 
   const deleteBrother = useCallback(async (b: Brother) => {
     setBrotherList(prev => prev.filter(x => x.id !== b.id));
@@ -795,19 +801,12 @@ export default function BrothersPage() {
                 autoFocus
                 onKeyDown={e => { if (e.key === "Enter") submitPayment(); }}
               />
-              {(() => {
-                const amt = parseFloat(payAmountStr) || 0;
-                if (amt <= 0) return null;
-                const newOwed = Math.max(0, payTarget.duesOwed - amt);
-                return (
-                  <p className="mt-1.5 text-[11px] text-[#958d7c]">
-                    New balance:{" "}
-                    <span className={newOwed === 0 ? "text-[#a78bfa] font-semibold" : "text-[#c9c2b4]"}>
-                      {fmt$(newOwed)}
-                    </span>
-                  </p>
-                );
-              })()}
+              {parseFloat(payAmountStr) > 0 && (
+                <p className="mt-1.5 text-[11px] text-[#958d7c]">
+                  Goes to the Treasury page&rsquo;s Pending Approval queue — the balance
+                  doesn&rsquo;t change until a treasurer approves it.
+                </p>
+              )}
             </div>
             <div className="flex justify-end gap-2">
               <button onClick={() => setPayTarget(null)} className={btnDuskGhostCls}>
@@ -818,7 +817,7 @@ export default function BrothersPage() {
                 disabled={!(parseFloat(payAmountStr) > 0)}
                 className={btnDuskActionCls}
               >
-                Record Payment
+                Submit for Approval
               </button>
             </div>
           </div>
