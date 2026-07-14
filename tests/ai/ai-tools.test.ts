@@ -151,10 +151,11 @@ describe("argument validation rejects malformed input as {error}", () => {
 /**
  * This proposal used to point at `PATCH /api/brothers/:id` with `{ duesOwed: 0 }` — a flag
  * flip that zeroed the roster and wrote no Transaction, so every dollar collected this way
- * went unrecorded in the ledger. It now points at the dues endpoint, which posts the income
- * and moves the balance as one atomic operation.
+ * went unrecorded in the ledger. It now points at the dues endpoint, which only stages a
+ * pending DuesPayment request — a treasurer must separately approve it before the income
+ * row is minted and the balance moves, atomically, at that later moment.
  */
-describe("proposeRecordDuesPayment — proposes real money movement, never writes", () => {
+describe("proposeRecordDuesPayment — proposes a staged request, never writes", () => {
   it("targets the dues endpoint with the full outstanding balance", async () => {
     const { scoped, findFirst } = mockScoped(135);
     const out = await runProposal("propose_record_dues_payment", { brother_id: 3, brother_name: "Bryan" }, scoped);
@@ -165,7 +166,7 @@ describe("proposeRecordDuesPayment — proposes real money movement, never write
     expect(proposal.endpoint).toBe("/api/dues/payments");
     expect(proposal.payload).toMatchObject({ brotherId: 3, amount: 135 });
     expect(proposal.payload).toHaveProperty("date");
-    // The card has to say this posts to the ledger — that's the whole difference.
+    // The card has to say this only stages a request — nothing posts to the ledger yet.
     expect(proposal.summary).toContain("135");
     expect(proposal.summary).toContain("ledger");
   });

@@ -439,7 +439,7 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
     function: {
       name: "propose_record_dues_payment",
       description:
-        "Propose recording a dues payment from a brother. On confirm this posts income to the treasury ledger AND reduces what the brother owes, as one atomic operation — it is real money movement, not a flag. Returns a confirm card; nothing is changed until confirmed. Defaults to paying off their full outstanding balance; pass amount for a partial payment. Requires treasury or roster authority to confirm. Do NOT use this to waive or correct a balance where no money changed hands.",
+        "Propose recording a dues payment from a brother. On confirm this only STAGES the payment as a pending request — it does not post to the treasury ledger or change what the brother owes. A treasurer must separately approve the request (on the Treasury page) before either book moves; that approval is the one atomic operation, not this confirm. Returns a confirm card; nothing is changed until confirmed, and nothing posts until approved after that. Defaults to paying off their full outstanding balance; pass amount for a partial payment. Requires treasury authority to confirm. Do NOT use this to waive or correct a balance where no money changed hands.",
       parameters: {
         type: "object",
         properties: {
@@ -1407,15 +1407,19 @@ function proposeLogTransaction(args: ToolArgs): Proposal | { error: string } {
   };
 }
 
-// Recording a dues payment is money movement: on confirm it posts an income row to the
-// ledger AND decrements the balance, atomically (see lib/services/dues-service.ts). This
-// used to propose `PATCH /api/brothers/:id { duesOwed: 0 }` — a flag flip that zeroed the
-// roster and told the treasury nothing, so every dollar the chapter collected this way
-// went unrecorded.
+// Recording a dues payment only STAGES a request now — confirming this proposal posts
+// to /api/dues/payments, which creates a pending DuesPayment and touches neither the
+// ledger nor the balance. A treasurer must separately approve it (see updateDuesPayment
+// in lib/services/dues-service.ts) before the income row is minted and the balance
+// decremented, atomically, at that later moment. This used to propose
+// `PATCH /api/brothers/:id { duesOwed: 0 }` — a flag flip that zeroed the roster and
+// told the treasury nothing, so every dollar the chapter collected this way went
+// unrecorded; the two-phase submit/approve flow closes that gap without letting a chat
+// confirm move money unreviewed.
 //
 // The balance read is therefore no longer decorative. It used to be best-effort
 // enrichment that degraded to a plain summary on failure; now it determines the amount
-// to be paid, so a failed read has to block the proposal rather than guess. Still
+// to be staged, so a failed read has to block the proposal rather than guess. Still
 // VALIDATE-ONLY: it never writes.
 async function proposeRecordDuesPayment(args: ToolArgs, scoped: Scoped): Promise<Proposal | { error: string }> {
   const id = typeof args.brother_id === "number" ? args.brother_id : Number(args.brother_id);
@@ -1460,8 +1464,9 @@ async function proposeRecordDuesPayment(args: ToolArgs, scoped: Scoped): Promise
     endpoint: "/api/dues/payments",
     method: "POST",
     payload: { brotherId: id, amount, date: todayISO() },
-    summary: `Record a $${amount.toFixed(2)} dues payment from ${name} (currently owes `
-      + `$${currentOwed.toFixed(2)}). Posts income to the ledger and reduces their balance. ${tail}`,
+    summary: `Stage a $${amount.toFixed(2)} dues payment from ${name} (currently owes `
+      + `$${currentOwed.toFixed(2)}) for treasury approval. Nothing posts to the ledger or `
+      + `changes their balance until a treasurer approves it. ${tail}`,
   };
 }
 
