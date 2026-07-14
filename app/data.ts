@@ -26,8 +26,11 @@ export interface Reimbursement {
   amount: number;
   date: string;
   description: string;
+  category?: string | null;
   status: "pending" | "approved" | "rejected";
   rejectionNote?: string | null;
+  // The ledger row approval minted. Null until approved; null again if reversed.
+  transactionId?: number | null;
   createdAt: string;
   updatedAt: string;
 }

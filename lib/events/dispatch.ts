@@ -110,6 +110,16 @@ export function formatActivityMessage(ctx: RequestContext, action: Action, m: an
       return `${who} deleted transaction: ${m.description} ($${Number(m.amount).toFixed(2)})`;
     case "budget.upserted":
       return `${who} updated the ${m.semester} budget`;
+    case "reimbursement.created":
+      return `${who} requested a $${Number(m.amount).toFixed(2)} reimbursement: ${m.description}`;
+    case "reimbursement.approved":
+      return m.selfApproved
+        ? `${who} approved their own $${Number(m.amount).toFixed(2)} reimbursement — posted to ${m.category}`
+        : `${who} approved a $${Number(m.amount).toFixed(2)} reimbursement — posted to ${m.category}`;
+    case "reimbursement.updated":
+      if (m.status === "rejected") return `${who} declined a reimbursement request`;
+      if (m.voidedTransactionId)   return `${who} reversed an approved reimbursement — its ledger entry was voided`;
+      return `${who} updated a reimbursement request`;
     case "role.created":
       return `${who} created role "${m.name}" (rank ${m.rank})`;
     case "role.updated":

@@ -135,7 +135,11 @@ export interface EventMetadata {
 
   // Reimbursements
   "reimbursement.created": { brotherId: number; amount: number; description: string };
-  "reimbursement.updated": { status: string; brotherId: number };
+  "reimbursement.updated": { status: string; brotherId: number; voidedTransactionId?: number };
+  // Approval is money movement: it mints the ledger row identified by transactionId.
+  // selfApproved records a treasurer approving their own request — permitted (they
+  // are often the one who fronted the cash) but worth surfacing in the audit trail.
+  "reimbursement.approved": { brotherId: number; amount: number; category: string; transactionId: number; selfApproved: boolean };
 }
 
 export type Action = keyof EventMetadata;
@@ -161,7 +165,7 @@ const KNOWN_ACTIONS = new Set<Action>([
   "invite.created", "invite.revoked", "invite.redeemed",
   "metric_definition.created", "metric_definition.updated", "metric_definition.deleted",
   "metric_value.updated",
-  "reimbursement.created", "reimbursement.updated",
+  "reimbursement.created", "reimbursement.updated", "reimbursement.approved",
 ]);
 
 export function isKnownAction(action: string): action is Action {

@@ -792,6 +792,7 @@ model Transaction {
   organization    Organization              @relation(fields: [organizationId], references: [id])
   semesterRef     Semester?                 @relation(fields: [semesterId], references: [id], onDelete: SetNull)
   calendarEvents  TransactionCalendarEvent[]
+  reimbursement   Reimbursement?
 
   @@index([organizationId, deletedAt])
   @@index([semesterId])
@@ -816,13 +817,19 @@ model Reimbursement {
   amountCents    BigInt?
   date           String
   description    String
+  category       String?
   status         String   @default("pending")
   rejectionNote  String?
+  // Set when the request is approved: the expense row it minted in the ledger.
+  // Nothing else links the two books, so every balance in the app is blind to an
+  // approved payout until this exists.
+  transactionId  Int?     @unique
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   brother      Brother      @relation(fields: [brotherId], references: [id], onDelete: Cascade)
+  transaction  Transaction? @relation(fields: [transactionId], references: [id], onDelete: SetNull)
 
   @@index([organizationId])
   @@index([brotherId])
