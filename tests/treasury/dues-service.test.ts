@@ -1,16 +1,20 @@
 /**
  * Dues service tests.
  *
- * The invariant under test: a dues payment moves BOTH books or neither. Brother.duesOwed
- * and the Transaction ledger used to be maintained independently — the roster could say
- * every member was square while the ledger said the chapter had collected nothing, and
- * both numbers were shown to users as fact. Every test here is ultimately checking that
- * the two can no longer disagree.
+ * The invariant under test: a dues payment moves BOTH books or neither — and now,
+ * neither book moves until a treasurer approves. Brother.duesOwed and the Transaction
+ * ledger used to be maintained independently — the roster could say every member was
+ * square while the ledger said the chapter had collected nothing, and both numbers
+ * were shown to users as fact. Then recordDuesPayment made the two atomic, but atomic
+ * also meant instantaneous: anyone who could call the endpoint moved real money the
+ * moment they did. submitDuesPayment/updateDuesPayment split that into a staged claim
+ * and a separate approval — every test here is ultimately checking that (a) the two
+ * books can no longer disagree, and (b) nothing moves before approval.
  *
- * The concurrency test is the load-bearing one: a bare `{ decrement }` would fix the lost
- * update but still let two racing payments book double the income against a negative
- * balance. The balance predicate lives in the UPDATE's WHERE clause precisely so that
- * cannot happen.
+ * The concurrency test is the load-bearing one: a bare `{ decrement }` would fix the
+ * lost update but still let two racing approvals book double the income against a
+ * negative balance. The balance predicate lives in the UPDATE's WHERE clause precisely
+ * so that cannot happen — same as before, just triggered at approval instead of submit.
  */
 
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
@@ -19,7 +23,9 @@ import { testPrisma, resetDb } from "../setup/prisma";
 import { createOrg, createBrother, createSemester } from "../setup/factories";
 import { db } from "@/lib/db";
 import {
-  recordDuesPayment,
+  submitDuesPayment,
+  updateDuesPayment,
+  listDuesPayments,
   adjustDues,
   attributeDuesPayment,
   getDuesReconciliation,
@@ -65,16 +71,56 @@ async function chapterWithDebtor(owed = 75) {
 const duesRows = (orgId: number) =>
   testPrisma.transaction.findMany({ where: { organizationId: orgId, category: "Dues", deletedAt: null } });
 
-describe("recordDuesPayment — both books move, or neither", () => {
+/** Submit then immediately approve — the two-call equivalent of the old one-shot recordDuesPayment. */
+async function payAndApprove(ctx: RequestContext, input: { brotherId: number; amount: number; date: string }) {
+  const submitted = await submitDuesPayment(ctx, input);
+  return updateDuesPayment(ctx, submitted.id, { status: "approved" });
+}
+
+describe("submitDuesPayment — stages a claim, moves nothing", () => {
+  it("creates a pending request with no ledger row and no balance change", async () => {
+    const { org, member, ctx } = await chapterWithDebtor(75);
+
+    const row = await submitDuesPayment(ctx, { brotherId: member.id, amount: 75, date: "2026-07-14" });
+
+    expect(row.status).toBe("pending");
+    expect(row.transactionId).toBeNull();
+    expect(row.brother.name).toBe("Noah Kim");
+
+    const after = await testPrisma.brother.findUnique({ where: { id: member.id } });
+    expect(after?.duesOwed).toBe(75);
+    expect(await duesRows(org.id)).toHaveLength(0);
+  });
+
+  it("two pending requests can coexist against the same balance", async () => {
+    const { member, ctx } = await chapterWithDebtor(75);
+
+    await submitDuesPayment(ctx, { brotherId: member.id, amount: 75, date: "2026-07-14" });
+    await submitDuesPayment(ctx, { brotherId: member.id, amount: 75, date: "2026-07-14" });
+
+    const rows = await listDuesPayments(ctx);
+    expect(rows).toHaveLength(2);
+    expect(rows.every(r => r.status === "pending")).toBe(true);
+  });
+
+  it("persists exact amountCents but never returns a raw BigInt (Response.json would throw)", async () => {
+    const { member, ctx } = await chapterWithDebtor(210);
+    const row = await submitDuesPayment(ctx, { brotherId: member.id, amount: 210, date: "2026-07-14" });
+    expect(() => JSON.stringify(row)).not.toThrow();
+  });
+});
+
+describe("updateDuesPayment(approve) — the moment a claim becomes money movement", () => {
   it("mints the ledger row AND decrements the balance", async () => {
     const { org, member, ctx } = await chapterWithDebtor(75);
 
-    const res = await recordDuesPayment(ctx, { brotherId: member.id, amount: 75, date: "2026-07-14" });
+    const res = await payAndApprove(ctx, { brotherId: member.id, amount: 75, date: "2026-07-14" });
+    expect(res.status).toBe("approved");
+    expect(res.transactionId).not.toBeNull();
 
     // Roster side.
     const after = await testPrisma.brother.findUnique({ where: { id: member.id } });
     expect(after?.duesOwed).toBe(0);
-    expect(res.duesOwed).toBe(0);
 
     // Ledger side — the half that never used to happen.
     const rows = await duesRows(org.id);
@@ -84,11 +130,12 @@ describe("recordDuesPayment — both books move, or neither", () => {
     expect(rows[0].brotherId).toBe(member.id);   // attributable — reconciliation depends on it
     expect(rows[0].status).toBe("posted");
     expect(rows[0].date).toBe("2026-07-14");
+    expect(rows[0].id).toBe(res.transactionId);
   });
 
   it("stamps the semester LABEL and id, so budget spend can see the row", async () => {
     const { org, member, ctx } = await chapterWithDebtor();
-    await recordDuesPayment(ctx, { brotherId: member.id, amount: 75, date: "2026-07-14" });
+    await payAndApprove(ctx, { brotherId: member.id, amount: 75, date: "2026-07-14" });
 
     const [row] = await duesRows(org.id);
     // Budget matches on the label, not semesterId — a row missing it is invisible there.
@@ -103,25 +150,15 @@ describe("recordDuesPayment — both books move, or neither", () => {
     });
     const ctx = ctxFor(org.id, member.id);
 
-    await recordDuesPayment(ctx, { brotherId: member.id, amount: 50, date: "2026-07-14" });
+    await payAndApprove(ctx, { brotherId: member.id, amount: 50, date: "2026-07-14" });
     const [row] = await duesRows(org.id);
     expect(row.description).toBe("Dues payment — Chapter Name");
   });
 
-  it("persists exact amountCents but never returns a raw BigInt (Response.json would throw)", async () => {
-    const { org, member, ctx } = await chapterWithDebtor(210);
-    const res = await recordDuesPayment(ctx, { brotherId: member.id, amount: 210, date: "2026-07-14" });
-
-    const [row] = await duesRows(org.id);
-    expect(row.amountCents).toBe(BigInt(21000));
-    expect(() => JSON.stringify(res)).not.toThrow();
-  });
-
   it("a partial payment leaves the remainder owing", async () => {
     const { org, member, ctx } = await chapterWithDebtor(75);
-    const res = await recordDuesPayment(ctx, { brotherId: member.id, amount: 25, date: "2026-07-14" });
+    await payAndApprove(ctx, { brotherId: member.id, amount: 25, date: "2026-07-14" });
 
-    expect(res.duesOwed).toBe(50);
     const after = await testPrisma.brother.findUnique({ where: { id: member.id } });
     expect(after?.duesOwed).toBe(50);
 
@@ -129,33 +166,37 @@ describe("recordDuesPayment — both books move, or neither", () => {
     expect(rows).toHaveLength(1);
     expect(rows[0].amount).toBe(25);
   });
-});
 
-describe("recordDuesPayment — the balance predicate in the WHERE clause", () => {
-  it("refuses overpayment, and writes NO ledger row when it does", async () => {
+  it("refuses overpayment, and writes NO ledger row when it does — the request stays pending", async () => {
     const { org, member, ctx } = await chapterWithDebtor(75);
+    const submitted = await submitDuesPayment(ctx, { brotherId: member.id, amount: 100, date: "2026-07-14" });
 
     await expect(
-      recordDuesPayment(ctx, { brotherId: member.id, amount: 100, date: "2026-07-14" }),
+      updateDuesPayment(ctx, submitted.id, { status: "approved" }),
     ).rejects.toBeInstanceOf(ConflictError);
 
-    // The refusal must be total: no income booked, no balance moved.
+    // The refusal must be total: no income booked, no balance moved, and the request
+    // itself is NOT stuck half-approved — both writes share one transaction.
     expect(await duesRows(org.id)).toHaveLength(0);
     const after = await testPrisma.brother.findUnique({ where: { id: member.id } });
     expect(after?.duesOwed).toBe(75);
+    const stillPending = await testPrisma.duesPayment.findUnique({ where: { id: submitted.id } });
+    expect(stillPending?.status).toBe("pending");
   });
 
-  it("two concurrent full payments: exactly one lands, one 409s, no double-booking", async () => {
+  it("two concurrent approvals of DIFFERENT requests against one balance: one lands, one 409s", async () => {
     const { org, member, ctx } = await chapterWithDebtor(75);
 
-    // Both treasurers click "Pay $75" on a $75 balance. Without the balance check in the
-    // WHERE clause, both would decrement and both would mint a row: $150 of income
-    // against −$75 owed — the books agreeing with each other and both being wrong.
+    // Two treasurers each staged a $75 claim against the same $75 balance, then both
+    // hit approve. Without the balance check in the WHERE clause, both would decrement
+    // and both would mint a row: $150 of income against −$75 owed.
+    const a = await submitDuesPayment(ctx, { brotherId: member.id, amount: 75, date: "2026-07-14" });
+    const b = await submitDuesPayment(ctx, { brotherId: member.id, amount: 75, date: "2026-07-14" });
+
     const results = await Promise.allSettled([
-      recordDuesPayment(ctxFor(org.id, member.id), { brotherId: member.id, amount: 75, date: "2026-07-14" }),
-      recordDuesPayment(ctxFor(org.id, member.id), { brotherId: member.id, amount: 75, date: "2026-07-14" }),
+      updateDuesPayment(ctxFor(org.id, member.id), a.id, { status: "approved" }),
+      updateDuesPayment(ctxFor(org.id, member.id), b.id, { status: "approved" }),
     ]);
-    void ctx;
 
     const ok = results.filter(r => r.status === "fulfilled");
     const no = results.filter(r => r.status === "rejected");
@@ -166,6 +207,42 @@ describe("recordDuesPayment — the balance predicate in the WHERE clause", () =
     expect(await duesRows(org.id)).toHaveLength(1);
     const after = await testPrisma.brother.findUnique({ where: { id: member.id } });
     expect(after?.duesOwed).toBe(0);
+  });
+
+  it("approving twice (sequentially) is refused, not treated as a no-op", async () => {
+    const { member, ctx } = await chapterWithDebtor(75);
+    const submitted = await submitDuesPayment(ctx, { brotherId: member.id, amount: 75, date: "2026-07-14" });
+
+    await updateDuesPayment(ctx, submitted.id, { status: "approved" });
+    await expect(
+      updateDuesPayment(ctx, submitted.id, { status: "approved" }),
+    ).rejects.toBeInstanceOf(ConflictError);
+  });
+});
+
+describe("updateDuesPayment(reject) — touches neither book", () => {
+  it("rejecting leaves duesOwed and the ledger untouched", async () => {
+    const { org, member, ctx } = await chapterWithDebtor(75);
+    const submitted = await submitDuesPayment(ctx, { brotherId: member.id, amount: 75, date: "2026-07-14" });
+
+    const res = await updateDuesPayment(ctx, submitted.id, { status: "rejected", rejectionNote: "Wrong amount" });
+    expect(res.status).toBe("rejected");
+    expect(res.rejectionNote).toBe("Wrong amount");
+    expect(res.transactionId).toBeNull();
+
+    const after = await testPrisma.brother.findUnique({ where: { id: member.id } });
+    expect(after?.duesOwed).toBe(75);
+    expect(await duesRows(org.id)).toHaveLength(0);
+  });
+
+  it("a rejected request cannot later be approved", async () => {
+    const { member, ctx } = await chapterWithDebtor(75);
+    const submitted = await submitDuesPayment(ctx, { brotherId: member.id, amount: 75, date: "2026-07-14" });
+
+    await updateDuesPayment(ctx, submitted.id, { status: "rejected" });
+    await expect(
+      updateDuesPayment(ctx, submitted.id, { status: "approved" }),
+    ).rejects.toBeInstanceOf(ConflictError);
   });
 });
 
@@ -199,12 +276,20 @@ describe("adjustDues — a receivable, not cash", () => {
     const after = await testPrisma.brother.findUnique({ where: { id: member.id } });
     expect(after?.duesOwed).toBe(50);
   });
+
+  it("MANAGE_BROTHERS alone is still enough for an assessment/waiver", async () => {
+    const { member, org } = await chapterWithDebtor(0);
+    const rosterAdmin = ctxFor(org.id, member.id, { permissions: PERMISSIONS.MANAGE_BROTHERS });
+
+    const res = await adjustDues(rosterAdmin, { brotherId: member.id, delta: 50, reason: "Spring dues" });
+    expect(res.duesOwed).toBe(50);
+  });
 });
 
 describe("the back doors in transaction-service", () => {
   it("voiding a dues payment gives the member their balance back", async () => {
     const { org, member, ctx } = await chapterWithDebtor(75);
-    await recordDuesPayment(ctx, { brotherId: member.id, amount: 75, date: "2026-07-14" });
+    await payAndApprove(ctx, { brotherId: member.id, amount: 75, date: "2026-07-14" });
     const [row] = await duesRows(org.id);
 
     // Deleting the income without restoring the debt is the original bug, reachable
@@ -218,7 +303,7 @@ describe("the back doors in transaction-service", () => {
 
   it("refuses to re-price or re-bucket a dues payment", async () => {
     const { org, member, ctx } = await chapterWithDebtor(75);
-    await recordDuesPayment(ctx, { brotherId: member.id, amount: 75, date: "2026-07-14" });
+    await payAndApprove(ctx, { brotherId: member.id, amount: 75, date: "2026-07-14" });
     const [row] = await duesRows(org.id);
 
     // Changing the amount would leave the roster and the ledger disagreeing by the
@@ -252,7 +337,7 @@ describe("the back doors in transaction-service", () => {
 describe("reconciliation", () => {
   it("reports roster-owed against ledger-collected", async () => {
     const { org, member, ctx } = await chapterWithDebtor(100);
-    await recordDuesPayment(ctx, { brotherId: member.id, amount: 40, date: "2026-07-14" });
+    await payAndApprove(ctx, { brotherId: member.id, amount: 40, date: "2026-07-14" });
 
     const rec = await getDuesReconciliation(ctx);
     expect(rec.rosterOutstanding).toBe(60);
@@ -295,33 +380,41 @@ describe("reconciliation", () => {
 });
 
 describe("authorization + tenancy", () => {
-  it("a member with neither treasury nor roster authority cannot record a payment", async () => {
+  it("a member with no authority cannot submit a payment", async () => {
     const { member, org } = await chapterWithDebtor(75);
     const powerless = ctxFor(org.id, member.id, { permissions: 0 });
 
     await expect(
-      recordDuesPayment(powerless, { brotherId: member.id, amount: 75, date: "2026-07-14" }),
+      submitDuesPayment(powerless, { brotherId: member.id, amount: 75, date: "2026-07-14" }),
     ).rejects.toBeInstanceOf(ForbiddenError);
   });
 
-  it("MANAGE_BROTHERS alone is enough — the roster admin is not locked out", async () => {
+  it("MANAGE_BROTHERS alone is NOT enough to submit or approve a payment", async () => {
+    // Unlike adjustDues, submitting/approving a payment is money movement — it requires
+    // treasury authority specifically. Roster management alone doesn't grant it.
     const { member, org } = await chapterWithDebtor(75);
-    // The old code gated the endpoint on MANAGE_BROTHERS while the treasury UI gated its
-    // button on MANAGE_TREASURY. Both must work now.
     const rosterAdmin = ctxFor(org.id, member.id, { permissions: PERMISSIONS.MANAGE_BROTHERS });
 
-    const res = await recordDuesPayment(rosterAdmin, { brotherId: member.id, amount: 75, date: "2026-07-14" });
-    expect(res.duesOwed).toBe(0);
+    await expect(
+      submitDuesPayment(rosterAdmin, { brotherId: member.id, amount: 75, date: "2026-07-14" }),
+    ).rejects.toBeInstanceOf(ForbiddenError);
+
+    const treasurer = ctxFor(org.id, member.id, { permissions: PERMISSIONS.MANAGE_TREASURY });
+    const submitted = await submitDuesPayment(treasurer, { brotherId: member.id, amount: 75, date: "2026-07-14" });
+
+    await expect(
+      updateDuesPayment(rosterAdmin, submitted.id, { status: "approved" }),
+    ).rejects.toBeInstanceOf(ForbiddenError);
   });
 
-  it("cannot pay dues for a brother in another org", async () => {
+  it("cannot submit a payment for a brother in another org", async () => {
     const alpha = await createOrg("Alpha", "alpha");
     const beta  = await createOrg("Beta", "beta");
     const outsider = await createBrother({ orgId: beta.id, name: "Outsider", duesOwed: 75 });
     const ctx = ctxFor(alpha.id, 1);
 
     await expect(
-      recordDuesPayment(ctx, { brotherId: outsider.id, amount: 75, date: "2026-07-14" }),
+      submitDuesPayment(ctx, { brotherId: outsider.id, amount: 75, date: "2026-07-14" }),
     ).rejects.toBeInstanceOf(NotFoundError);
 
     // And their balance is untouched.
@@ -329,5 +422,19 @@ describe("authorization + tenancy", () => {
     expect(after?.duesOwed).toBe(75);
     expect(await duesRows(alpha.id)).toHaveLength(0);
     expect(await duesRows(beta.id)).toHaveLength(0);
+  });
+
+  it("cannot approve another org's pending request", async () => {
+    const alpha = await createOrg("Alpha", "alpha");
+    const beta  = await createOrg("Beta", "beta");
+    const member = await createBrother({ orgId: beta.id, name: "Betan", duesOwed: 75 });
+    const betaCtx  = ctxFor(beta.id, member.id);
+    const alphaCtx = ctxFor(alpha.id, 1);
+
+    const submitted = await submitDuesPayment(betaCtx, { brotherId: member.id, amount: 75, date: "2026-07-14" });
+
+    await expect(
+      updateDuesPayment(alphaCtx, submitted.id, { status: "approved" }),
+    ).rejects.toBeInstanceOf(NotFoundError);
   });
 });
