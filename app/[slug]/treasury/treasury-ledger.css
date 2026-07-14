@@ -406,6 +406,21 @@ header.dash-toolbar .tr-crumb {
   color: var(--rose); font-size: 12px; font-weight: 600; padding: 6px 14px; cursor: pointer; transition: background .14s, color .14s; }
 .dash .tr-reimb-btn-confirm-reject:hover { background: var(--rose); color: var(--paper); }
 
+/* Approve confirmation — the last stop before money is posted to the ledger. */
+.dash .tr-reimb-approve-row { flex: 1; display: flex; flex-direction: column; gap: 10px; }
+.dash .tr-reimb-approve-lede { font-size: 12.5px; color: var(--muted); }
+.dash .tr-reimb-approve-lede strong { color: var(--ink); font-weight: 600; }
+.dash .tr-reimb-approve-self { color: var(--gold); }
+.dash .tr-reimb-approve-fields { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; }
+.dash .tr-reimb-approve-cat { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 160px; }
+.dash .tr-reimb-approve-cat > span { font-size: 10.5px; letter-spacing: .04em; text-transform: uppercase; color: var(--faint); }
+.dash .tr-reimb-approve-balance { display: flex; flex-direction: column; gap: 4px; text-align: right; }
+.dash .tr-reimb-approve-balance > span { font-size: 10.5px; letter-spacing: .04em; text-transform: uppercase; color: var(--faint); }
+.dash .tr-reimb-approve-balance > strong { font-size: 13px; font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
+.dash .tr-reimb-btn-confirm-approve { border-radius: 8px; background: var(--ok-bg); border: 1px solid var(--ok);
+  color: var(--ok); font-size: 12px; font-weight: 600; padding: 6px 14px; cursor: pointer; transition: background .14s, color .14s; }
+.dash .tr-reimb-btn-confirm-approve:hover { background: var(--ok); color: var(--paper); }
+
 .dash .tr-reimb-empty { display: flex; flex-direction: column; align-items: center; gap: 12px;
   padding: 48px 18px; text-align: center; font-size: 12.5px; color: var(--faint);
   border: 1px dashed var(--line-soft); border-radius: 12px; }

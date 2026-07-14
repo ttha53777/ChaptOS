@@ -179,6 +179,7 @@ function ReimbursementsView({
   reimbursements,
   canTreasury,
   selfId,
+  balance,
   showArchived,
   onToggleArchived,
   onAction,
@@ -186,12 +187,17 @@ function ReimbursementsView({
   reimbursements: Reimbursement[];
   canTreasury: boolean;
   selfId: number | null;
+  balance: number;
   showArchived: boolean;
   onToggleArchived: () => void;
-  onAction: (id: number, status: "approved" | "rejected", note?: string) => void;
+  onAction: (id: number, status: "approved" | "rejected", note?: string, category?: string) => void;
 }) {
   const [rejectingId,   setRejectingId]   = useState<number | null>(null);
   const [rejectNote,    setRejectNote]    = useState("");
+  // Approving posts real money to the ledger, so it confirms first — same inline
+  // two-step shape as declining, and the last chance to fix the budget bucket.
+  const [approvingId,   setApprovingId]   = useState<number | null>(null);
+  const [approveCat,    setApproveCat]    = useState("");
 
   const pending  = reimbursements.filter(r => r.status === "pending");
   const archived = reimbursements.filter(r => r.status !== "pending");
@@ -203,13 +209,25 @@ function ReimbursementsView({
     setRejectNote("");
   }
 
+  function startApprove(r: Reimbursement) {
+    setRejectingId(null);
+    setApprovingId(r.id);
+    setApproveCat(r.category || EXPENSE_CATEGORIES[0]);
+  }
+
+  function confirmApprove(id: number) {
+    onAction(id, "approved", undefined, approveCat);
+    setApprovingId(null);
+  }
+
   function renderCard(r: Reimbursement, isArchived = false) {
     const isRejecting = rejectingId === r.id;
+    const isApproving = approvingId === r.id;
     const isMine = selfId != null && r.brotherId === selfId;
     // A reimbursement reads like a receipt stub: the request + amount up top, a torn
     // perforated edge, then a foot that changes with status — pending shows the
     // approve/decline decision, resolved tickets show the outcome.
-    const showActions = !isArchived && canTreasury && !isRejecting;
+    const showActions = !isArchived && canTreasury && !isRejecting && !isApproving;
     return (
       <div key={r.id} className={`tr-reimb-card tr-reimb-${r.status}${isArchived ? " tr-reimb-archived" : ""}`}>
         <div className="tr-reimb-body">
@@ -248,7 +266,7 @@ function ReimbursementsView({
             <>
               <button
                 className="tr-reimb-act tr-reimb-act-approve"
-                onClick={() => onAction(r.id, "approved")}
+                onClick={() => startApprove(r)}
               >
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><path d={ICON_CHECK} /></svg>
                 Approve
@@ -280,14 +298,41 @@ function ReimbursementsView({
             </div>
           )}
 
-          {!showActions && !isRejecting && r.status === "approved" && (
+          {/* Approving is the moment the money leaves the books — spell out exactly
+              what is about to be posted before it is. */}
+          {isApproving && (
+            <div className="tr-reimb-approve-row">
+              <p className="tr-reimb-approve-lede">
+                Posts a <strong>{fmtReimb(r.amount)}</strong> expense to the ledger
+                {isMine && <span className="tr-reimb-approve-self"> — this is your own request</span>}
+              </p>
+              <div className="tr-reimb-approve-fields">
+                <label className="tr-reimb-approve-cat">
+                  <span>Budget category</span>
+                  <select value={approveCat} onChange={e => setApproveCat(e.target.value)} className={inputDuskCls}>
+                    {EXPENSE_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </label>
+                <div className="tr-reimb-approve-balance">
+                  <span>Balance after</span>
+                  <strong>{fmt$(Math.round(balance))} → {fmt$(Math.round(balance - r.amount))}</strong>
+                </div>
+              </div>
+              <div className="tr-reimb-reject-actions">
+                <button className={btnDuskGhostCls} onClick={() => setApprovingId(null)}>Cancel</button>
+                <button className="tr-reimb-btn-confirm-approve" onClick={() => confirmApprove(r.id)}>Approve &amp; post</button>
+              </div>
+            </div>
+          )}
+
+          {!showActions && !isRejecting && !isApproving && r.status === "approved" && (
             <span className="tr-reimb-outcome">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><path d={ICON_CHECK} /></svg>
-              Reimbursed
+              Reimbursed{r.category ? ` — posted to ${r.category}` : ""}
             </span>
           )}
 
-          {!showActions && !isRejecting && r.status === "rejected" && (
+          {!showActions && !isRejecting && !isApproving && r.status === "rejected" && (
             <div className="tr-reimb-rejnote">
               <span className="tr-reimb-rejnote-k">Note</span>
               <p>{r.rejectionNote || "Declined."}</p>
@@ -344,18 +389,22 @@ function ReimbursementForm({
   onSubmit,
   onCancel,
 }: {
-  onSubmit: (data: { date: string; amount: number; description: string; file: File | null }) => void;
+  onSubmit: (data: { date: string; amount: number; description: string; category: string; file: File | null }) => void;
   onCancel: () => void;
 }) {
   const [date,        setDate]        = useState(todayStr());
   const [amount,      setAmount]      = useState("");
   const [description, setDescription] = useState("");
+  // Approving this mints an expense in the ledger, and the budget page groups spend
+  // by category — so the bucket is chosen here, at the point someone knows what the
+  // money was for. Same list the transaction form uses, so the two books line up.
+  const [category,    setCategory]    = useState<string>(EXPENSE_CATEGORIES[0]);
   const [file,        setFile]        = useState<File | null>(null);
   const fileRef = React.useRef<HTMLInputElement>(null);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    onSubmit({ date, amount: Number(amount), description, file });
+    onSubmit({ date, amount: Number(amount), description, category, file });
   }
 
   return (
@@ -373,6 +422,12 @@ function ReimbursementForm({
       <div>
         <FieldLabel tone="dusk">What for</FieldLabel>
         <input type="text" value={description} onChange={e => setDescription(e.target.value)} required placeholder="e.g. Decorations for spring formal" className={inputDuskCls} />
+      </div>
+      <div>
+        <FieldLabel tone="dusk">Budget category</FieldLabel>
+        <select value={category} onChange={e => setCategory(e.target.value)} required className={inputDuskCls}>
+          {EXPENSE_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+        </select>
       </div>
       <div>
         <FieldLabel tone="dusk">Attach Receipt <span style={{ color: "#6b6354", fontWeight: 400 }}>(optional)</span></FieldLabel>
@@ -858,33 +913,50 @@ export default function TreasuryPage() {
   }
 
 
-  const handleSubmitReimbursement = useCallback(async (data: { date: string; amount: number; description: string; file: File | null }) => {
+  const handleSubmitReimbursement = useCallback(async (data: { date: string; amount: number; description: string; category: string; file: File | null }) => {
     if (!selfId) return;
     setReimbModal(false);
     const res = await fetch("/api/reimbursements", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ brotherId: selfId, amount: data.amount, date: data.date, description: data.description }),
+      body: JSON.stringify({ brotherId: selfId, amount: data.amount, date: data.date, description: data.description, category: data.category }),
     });
     if (res.ok) {
       const created: Reimbursement = await res.json();
       setReimbursements(prev => [created, ...prev]);
     }
-  }, [selfId]);
+  }, [selfId, setReimbursements]);
 
-  const handleReimbursementAction = useCallback(async (id: number, status: "approved" | "rejected", rejectionNote?: string) => {
+  const handleReimbursementAction = useCallback(async (id: number, status: "approved" | "rejected", rejectionNote?: string, category?: string) => {
     const prev = reimbursements.find(r => r.id === id);
-    setReimbursements(list => list.map(r => r.id === id ? { ...r, status, rejectionNote: rejectionNote ?? null } : r));
+    setReimbursements(list => list.map(r => r.id === id
+      ? { ...r, status, rejectionNote: rejectionNote ?? null, ...(category ? { category } : {}) }
+      : r));
     const res = await fetch(`/api/reimbursements/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status, rejectionNote: rejectionNote ?? null }),
+      body: JSON.stringify({ status, rejectionNote: rejectionNote ?? null, ...(category ? { category } : {}) }),
     });
-    if (!res.ok && prev) {
-      setReimbursements(list => list.map(r => r.id === id ? prev : r));
+    if (!res.ok) {
+      if (prev) setReimbursements(list => list.map(r => r.id === id ? prev : r));
       setMutErr("Failed to update reimbursement");
+      return;
     }
-  }, [reimbursements]);
+    const saved: Reimbursement = await res.json();
+    setReimbursements(list => list.map(r => r.id === id ? saved : r));
+
+    // Approving mints an expense in the ledger server-side. Every balance on this
+    // page is summed from transactionList, so without pulling it back in the money
+    // would look like it never moved — indistinguishable from the bug this fixes.
+    if (saved.transactionId != null || prev?.transactionId != null) {
+      try {
+        const fresh = await requestJson<Transaction[]>("/api/transactions");
+        setTransactionList(fresh);
+      } catch {
+        setMutErr("Reimbursement saved, but the ledger didn't refresh — reload to see the new balance.");
+      }
+    }
+  }, [reimbursements, setReimbursements, setTransactionList]);
 
   // ─── Render ───────────────────────────────────────────────────────────────
 
@@ -1451,6 +1523,7 @@ export default function TreasuryPage() {
                 reimbursements={reimbursements}
                 canTreasury={canTreasury}
                 selfId={selfId}
+                balance={balance}
                 showArchived={reimbArchived}
                 onToggleArchived={() => setReimbArchived(v => !v)}
                 onAction={handleReimbursementAction}
