@@ -55,6 +55,7 @@ model Organization {
   programmingChecklistItems ProgrammingChecklistItem[]
   transactions              Transaction[]
   reimbursements            Reimbursement[]
+  duesPayments              DuesPayment[]
   budgets                   Budget[]
   activityLogs              ActivityLog[]
   announcements             ChapterAnnouncement[]
@@ -179,6 +180,10 @@ model Brother {
   metricValues          BrotherMetricValue[]
   serviceParticipations ServiceParticipation[]
   reimbursements        Reimbursement[]
+  duesPayments          DuesPayment[]
+  // Ledger rows attributed to this member — dues payments. Without this link,
+  // "does the roster agree with the ledger?" is a question the DB cannot answer.
+  transactions          Transaction[]
   taskAssignments       TaskAssignment[]
   pollAssignments       PollAssignment[]
   pollVotes             PollVote[]
@@ -785,17 +790,24 @@ model Transaction {
   semester       String?
   semesterId     Int?
   status         String    @default("posted")
+  // The member this row is attributable to. Only dues payments carry it today —
+  // most spend (a Costco run) belongs to no one member. SetNull on delete: removing
+  // someone from the roster must not erase the record that they paid.
+  brotherId      Int?
   deletedAt      DateTime?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
   organization    Organization              @relation(fields: [organizationId], references: [id])
   semesterRef     Semester?                 @relation(fields: [semesterId], references: [id], onDelete: SetNull)
+  brother         Brother?                  @relation(fields: [brotherId], references: [id], onDelete: SetNull)
   calendarEvents  TransactionCalendarEvent[]
   reimbursement   Reimbursement?
+  duesPayment     DuesPayment?
 
   @@index([organizationId, deletedAt])
   @@index([semesterId])
+  @@index([organizationId, brotherId])
 }
 
 model TransactionCalendarEvent {
@@ -823,6 +835,34 @@ model Reimbursement {
   // Set when the request is approved: the expense row it minted in the ledger.
   // Nothing else links the two books, so every balance in the app is blind to an
   // approved payout until this exists.
+  transactionId  Int?     @unique
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  brother      Brother      @relation(fields: [brotherId], references: [id], onDelete: Cascade)
+  transaction  Transaction? @relation(fields: [transactionId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([brotherId])
+  @@index([organizationId, status])
+}
+
+// A submitted dues payment awaiting treasury sign-off. Nothing moves on either book —
+// not Brother.duesOwed, not the Transaction ledger — until this flips to "approved":
+// see updateDuesPayment in lib/services/dues-service.ts, which mints the transaction
+// and decrements duesOwed atomically at that moment, not at submission.
+model DuesPayment {
+  id             Int      @id @default(autoincrement())
+  organizationId Int
+  brotherId      Int
+  amount         Float
+  amountCents    BigInt?
+  date           String
+  paymentMethod  String?
+  status         String   @default("pending")
+  rejectionNote  String?
+  // Set when approved: the income row it minted in the ledger.
   transactionId  Int?     @unique
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt

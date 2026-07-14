@@ -1048,6 +1048,34 @@ function scopedReimbursement(orgId: number, run: Run) {
   };
 }
 
+function scopedDuesPayment(orgId: number, run: Run) {
+  type W = Prisma.DuesPaymentWhereInput;
+  const org = (w?: W): W => ({ ...w, organizationId: orgId });
+
+  async function verify(where: Prisma.DuesPaymentWhereUniqueInput): Promise<number> {
+    const row = await run(p => p.duesPayment.findFirst({ where: org(where as W), select: { id: true } }));
+    if (!row) notInOrg();
+    return row.id;
+  }
+
+  return {
+    findMany:   (args?: Prisma.DuesPaymentFindManyArgs)  => run(p => p.duesPayment.findMany({ ...args, where: org(args?.where) })),
+    findFirst:  (args?: Prisma.DuesPaymentFindFirstArgs) => run(p => p.duesPayment.findFirst({ ...args, where: org(args?.where) })),
+    findUnique: (args: Prisma.DuesPaymentFindUniqueArgs) => run(p => p.duesPayment.findFirst({ ...args, where: org(args.where as W) })),
+    create:     (args: Omit<Prisma.DuesPaymentCreateArgs, "data"> & { data: Omit<Prisma.DuesPaymentUncheckedCreateInput, "organizationId"> }) =>
+      run(p => p.duesPayment.create({ ...args, data: { ...args.data, organizationId: orgId } })),
+    update:     async (args: Prisma.DuesPaymentUpdateArgs) => {
+      const id = await verify(args.where);
+      return run(p => p.duesPayment.update({ ...args, where: { id } }));
+    },
+    delete:     async (args: Prisma.DuesPaymentDeleteArgs) => {
+      const id = await verify(args.where);
+      return run(p => p.duesPayment.delete({ where: { id } }));
+    },
+    count:      (args?: Prisma.DuesPaymentCountArgs)     => run(p => p.duesPayment.count({ ...args, where: org(args?.where) })),
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Relation-scoped delegates for org-column-less join tables
 // ---------------------------------------------------------------------------
@@ -1272,6 +1300,7 @@ export function db(orgId: number) {
     programmingChecklistItem: scopedProgrammingChecklistItem(orgId, run),
     transaction:         scopedTransaction(orgId, run),
     reimbursement:       scopedReimbursement(orgId, run),
+    duesPayment:         scopedDuesPayment(orgId, run),
     budget:              scopedBudget(orgId, run),
     activityLog:         scopedActivityLog(orgId, run),
     chapterAnnouncement: scopedChapterAnnouncement(orgId, run),
@@ -1369,6 +1398,7 @@ export function _dbWithClient(orgId: number, client: P) {
     programmingChecklistItem: scopedProgrammingChecklistItem(orgId, run),
     transaction:         scopedTransaction(orgId, run),
     reimbursement:       scopedReimbursement(orgId, run),
+    duesPayment:         scopedDuesPayment(orgId, run),
     budget:              scopedBudget(orgId, run),
     activityLog:         scopedActivityLog(orgId, run),
     chapterAnnouncement: scopedChapterAnnouncement(orgId, run),

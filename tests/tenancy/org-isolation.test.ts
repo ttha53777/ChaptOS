@@ -984,6 +984,39 @@ describe("tenancy: Reimbursement", () => {
 });
 
 // ---------------------------------------------------------------------------
+// DuesPayment (has organizationId)
+// ---------------------------------------------------------------------------
+describe("tenancy: DuesPayment", () => {
+  it("findMany only returns the active org's requests", async () => {
+    const orgA = await createOrg("Alpha", "alpha");
+    const orgB = await createOrg("Beta", "beta");
+    const aBro = await createBrother({ orgId: orgA.id });
+    const bBro = await createBrother({ orgId: orgB.id });
+    await testPrisma.duesPayment.create({
+      data: { organizationId: orgA.id, brotherId: aBro.id, amount: 25, date: "2026-05-01" },
+    });
+    await testPrisma.duesPayment.create({
+      data: { organizationId: orgB.id, brotherId: bBro.id, amount: 40, date: "2026-05-01" },
+    });
+
+    const fromA = await db(orgA.id).duesPayment.findMany();
+    expect(fromA.map(r => r.amount)).toEqual([25]);
+  });
+
+  it("findUnique on another org's request returns null", async () => {
+    const orgA = await createOrg("Alpha", "alpha");
+    const orgB = await createOrg("Beta", "beta");
+    const bBro = await createBrother({ orgId: orgB.id });
+    const bRequest = await testPrisma.duesPayment.create({
+      data: { organizationId: orgB.id, brotherId: bBro.id, amount: 40, date: "2026-05-01" },
+    });
+
+    const leak = await db(orgA.id).duesPayment.findUnique({ where: { id: bRequest.id } });
+    expect(leak).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
 // ProgrammingEvent (has organizationId)
 // ---------------------------------------------------------------------------
 describe("tenancy: ProgrammingEvent", () => {

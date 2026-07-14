@@ -120,6 +120,26 @@ export function formatActivityMessage(ctx: RequestContext, action: Action, m: an
       if (m.status === "rejected") return `${who} declined a reimbursement request`;
       if (m.voidedTransactionId)   return `${who} reversed an approved reimbursement — its ledger entry was voided`;
       return `${who} updated a reimbursement request`;
+    case "dues.paid":
+      return Number(m.remainingOwed) > 0
+        ? `${who} approved a $${Number(m.amount).toFixed(2)} dues payment — $${Number(m.remainingOwed).toFixed(2)} still owed`
+        : `${who} approved a $${Number(m.amount).toFixed(2)} dues payment — paid in full`;
+    case "dues.adjusted": {
+      const delta  = Number(m.delta);
+      const verb   = delta > 0 ? "charged" : "waived";
+      const reason = m.reason ? ` — ${m.reason}` : "";
+      return `${who} ${verb} $${Math.abs(delta).toFixed(2)} in dues${reason}`;
+    }
+    case "dues.payment_voided":
+      return `${who} voided a $${Number(m.amount).toFixed(2)} dues payment — the balance was restored`;
+    case "dues.payment_attributed":
+      return `${who} attributed a dues payment to brother #${m.brotherId}`;
+    case "dues_payment.submitted":
+      return `${who} recorded a $${Number(m.amount).toFixed(2)} dues payment — pending approval`;
+    case "dues_payment.rejected":
+      return m.rejectionNote
+        ? `${who} rejected a $${Number(m.amount).toFixed(2)} dues payment — ${m.rejectionNote}`
+        : `${who} rejected a $${Number(m.amount).toFixed(2)} dues payment`;
     case "role.created":
       return `${who} created role "${m.name}" (rank ${m.rank})`;
     case "role.updated":

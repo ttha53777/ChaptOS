@@ -2,6 +2,7 @@ import type { Prisma } from "@/app/generated/prisma/client";
 import type { RequestContext } from "@/lib/context";
 import { emit } from "@/lib/events";
 import { ConflictError, ForbiddenError, NotFoundError } from "@/lib/errors";
+import { resolveMemberName } from "@/lib/member-names";
 import { hasPermission } from "@/lib/permissions";
 import { ReimbursementStatus, TransactionStatus, TransactionType } from "@/lib/state";
 import type { CreateReimbursementInput, UpdateReimbursementInput } from "@/lib/validation/reimbursement";
@@ -39,18 +40,6 @@ async function withResolvedBrother(ctx: RequestContext, rows: ReimbursementRow[]
   return rows.map(r => r.brother
     ? { ...r, brother: { ...r.brother, name: nameByBrotherId.get(r.brother.id) ?? r.brother.name } }
     : r);
-}
-
-// Same org-local name rule as withResolvedBrother, for the one place we need a
-// single name and have no row to resolve against: the ledger description.
-async function resolvePayeeName(ctx: RequestContext, brotherId: number): Promise<string | null> {
-  const brother = await ctx.db.brother.findUnique({
-    where:  { id: brotherId },
-    select: { id: true, name: true },
-  });
-  if (!brother) return null;
-  const nameByBrotherId = await ctx.db.membership.resolveNames([brother]);
-  return nameByBrotherId.get(brother.id) ?? brother.name;
 }
 
 export async function listReimbursements(ctx: RequestContext) {
@@ -134,7 +123,7 @@ export async function updateReimbursement(ctx: RequestContext, id: number, input
   // Who the money went to, by the name they go by in THIS org (Membership.name),
   // not their account-level Brother.name — the ledger is read by chapter officers,
   // so it should say what the roster says.
-  const payee = approving ? await resolvePayeeName(ctx, existing.brotherId) : null;
+  const payee = approving ? await resolveMemberName(ctx.db, existing.brotherId) : null;
 
   const category = input.category ?? existing.category ?? UNCATEGORIZED;
 

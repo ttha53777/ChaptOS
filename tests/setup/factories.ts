@@ -18,6 +18,8 @@ export async function createBrother(opts: {
   isAdmin?: boolean;
   isOrgAdmin?: boolean;
   serviceHours?: number;
+  /** Opening dues balance. Seeded raw — the service layer no longer lets you set this. */
+  duesOwed?: number;
   isGhost?: boolean;
 }) {
   const brother = await testPrisma.brother.create({
@@ -26,7 +28,7 @@ export async function createBrother(opts: {
       name:           opts.name ?? `Tester ${Math.random().toString(36).slice(2, 7)}`,
       role:           "Brother",
       attendance:     0,
-      duesOwed:       0,
+      duesOwed:       opts.duesOwed ?? 0,
       gpa:            0,
       serviceHours:   opts.serviceHours ?? 0,
       isAdmin:        opts.isAdmin ?? false,

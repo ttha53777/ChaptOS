@@ -13,6 +13,7 @@
 export * from "./excuse-status";
 export * from "./exemption-reason";
 export * from "./reimbursement-status";
+export * from "./dues-payment-status";
 export * from "./transaction-type";
 export * from "./transaction-status";
 export * from "./party-type";

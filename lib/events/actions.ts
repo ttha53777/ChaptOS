@@ -140,6 +140,25 @@ export interface EventMetadata {
   // selfApproved records a treasurer approving their own request — permitted (they
   // are often the one who fronted the cash) but worth surfacing in the audit trail.
   "reimbursement.approved": { brotherId: number; amount: number; category: string; transactionId: number; selfApproved: boolean };
+
+  // Dues. A payment is money movement: it mints the income row identified by
+  // transactionId and decrements the balance in the same DB transaction, so these two
+  // facts are never separable. remainingOwed is the post-write balance, from the row
+  // itself — not a client's arithmetic. dues.paid now fires at APPROVAL time (see
+  // dues_payment.submitted below for the staging step) — same action, same shape,
+  // still means "money moved."
+  "dues.paid":                { brotherId: number; amount: number; transactionId: number; remainingOwed: number };
+  // An adjustment is a *receivable* change — a charge, a waiver, a correction — and
+  // moves no cash, so it writes no ledger row. The reason is the audit trail that a
+  // raw field overwrite never had.
+  "dues.adjusted":            { brotherId: number; delta: number; reason: string | null; newOwed: number };
+  "dues.payment_voided":      { brotherId: number; amount: number; transactionId: number; restoredOwed: number };
+  "dues.payment_attributed":  { brotherId: number; transactionId: number };
+
+  // A dues payment is staged here, not moved yet — see updateDuesPayment for the
+  // approval that actually mints the ledger row (dues.paid, above).
+  "dues_payment.submitted": { brotherId: number; amount: number; date: string };
+  "dues_payment.rejected":  { brotherId: number; amount: number; rejectionNote: string | null };
 }
 
 export type Action = keyof EventMetadata;
@@ -166,6 +185,8 @@ const KNOWN_ACTIONS = new Set<Action>([
   "metric_definition.created", "metric_definition.updated", "metric_definition.deleted",
   "metric_value.updated",
   "reimbursement.created", "reimbursement.updated", "reimbursement.approved",
+  "dues.paid", "dues.adjusted", "dues.payment_voided", "dues.payment_attributed",
+  "dues_payment.submitted", "dues_payment.rejected",
 ]);
 
 export function isKnownAction(action: string): action is Action {
