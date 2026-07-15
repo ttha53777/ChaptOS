@@ -9,7 +9,7 @@ import { useVocab } from "../../hooks/useVocab";
 
 const CURRENT_SEMESTER = "SPR26";
 
-export type TxFormSubmit = (data: Omit<Transaction, "id" | "createdAt" | "updatedAt" | "deletedAt" | "calendarEvents"> & { calendarEventIds: number[] }) => void;
+export type TxFormSubmit = (data: Omit<Transaction, "id" | "createdAt" | "updatedAt" | "deletedAt" | "calendarEvents"> & { calendarEventIds: number[]; brotherId?: number }) => void;
 
 export interface TxFormEvent {
   id: number;
@@ -30,6 +30,7 @@ export function TxForm({
   tone = "slate",
   events,
   lockEventIds,
+  duesFor,
 }: {
   initial?: Partial<Transaction>;
   onSubmit: TxFormSubmit;
@@ -42,12 +43,20 @@ export function TxForm({
   events?: TxFormEvent[];
   /** When set, these event ids are pre-linked and cannot be removed (logged from the event panel). */
   lockEventIds?: number[];
+  /**
+   * Recording a dues payment for this member. Locks type=income and category="Dues",
+   * shows the member read-only, hides Period (the server sets it from the active term),
+   * and carries brotherId in the submit payload so the transaction decrements the balance.
+   */
+  duesFor?: { id: number; name: string };
 }) {
   const dusk = tone === "dusk";
   const inCls = dusk ? inputDuskCls : inputCls;
+  // A dues payment is always an income row in the stored "Dues" category; both are locked.
+  const lockTypeResolved = duesFor ? "income" as const : lockType;
 
-  const [type,          setType]          = useState<"income" | "expense">(lockType ?? initial?.type ?? "expense");
-  const [category,      setCategory]      = useState(initial?.category ?? "");
+  const [type,          setType]          = useState<"income" | "expense">(lockTypeResolved ?? initial?.type ?? "expense");
+  const [category,      setCategory]      = useState(duesFor ? "Dues" : (initial?.category ?? ""));
   const [amount,        setAmount]        = useState(String(initial?.amount ?? ""));
   const [date,          setDate]          = useState(initial?.date ?? todayStr());
   const [description,   setDescription]   = useState(initial?.description ?? "");
@@ -95,29 +104,43 @@ export function TxForm({
       semester:      semester || undefined,
       status,
       calendarEventIds: selectedEventIds,
+      ...(duesFor ? { brotherId: duesFor.id } : {}),
     });
   }
 
   return (
     <form onSubmit={handleSubmit} className="space-y-3">
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        {!lockType && (
+      {duesFor ? (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div>
-            <FieldLabel tone={tone}>Type</FieldLabel>
-            <select value={type} onChange={e => { setType(e.target.value as "income" | "expense"); setCategory(""); }} className={inCls}>
-              <option value="income">Income</option>
-              <option value="expense">Expense</option>
+            <FieldLabel tone={tone}>Member</FieldLabel>
+            <div className={`${inCls} flex items-center truncate`} aria-readonly="true">{duesFor.name}</div>
+          </div>
+          <div>
+            <FieldLabel tone={tone}>Category</FieldLabel>
+            <div className={`${inCls} flex items-center`} aria-readonly="true">Dues</div>
+          </div>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          {!lockTypeResolved && (
+            <div>
+              <FieldLabel tone={tone}>Type</FieldLabel>
+              <select value={type} onChange={e => { setType(e.target.value as "income" | "expense"); setCategory(""); }} className={inCls}>
+                <option value="income">Income</option>
+                <option value="expense">Expense</option>
+              </select>
+            </div>
+          )}
+          <div className={lockTypeResolved ? "sm:col-span-2" : undefined}>
+            <FieldLabel tone={tone}>Category</FieldLabel>
+            <select value={category} onChange={e => setCategory(e.target.value)} required className={inCls}>
+              <option value="">Select…</option>
+              {categories.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
           </div>
-        )}
-        <div className={lockType ? "sm:col-span-2" : undefined}>
-          <FieldLabel tone={tone}>Category</FieldLabel>
-          <select value={category} onChange={e => setCategory(e.target.value)} required className={inCls}>
-            <option value="">Select…</option>
-            {categories.map(c => <option key={c} value={c}>{c}</option>)}
-          </select>
         </div>
-      </div>
+      )}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div>
           <FieldLabel tone={tone}>Amount ($)</FieldLabel>
@@ -155,7 +178,7 @@ export function TxForm({
         <FieldLabel tone={tone}>Description</FieldLabel>
         <input type="text" value={description} onChange={e => setDescription(e.target.value)} placeholder="e.g. Asia Night door cut" className={inCls} />
       </div>
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <div className={`grid grid-cols-1 gap-3 ${duesFor ? "" : "sm:grid-cols-2"}`}>
         <div>
           <FieldLabel tone={tone}>Payment Method</FieldLabel>
           <select value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)} className={inCls}>
@@ -163,10 +186,12 @@ export function TxForm({
             {PAYMENT_METHODS.map(m => <option key={m} value={m}>{m.charAt(0).toUpperCase() + m.slice(1)}</option>)}
           </select>
         </div>
-        <div>
-          <FieldLabel tone={tone}>{v("Period")}</FieldLabel>
-          <input type="text" value={semester} onChange={e => setSemester(e.target.value)} placeholder="SPR26" className={inCls} />
-        </div>
+        {!duesFor && (
+          <div>
+            <FieldLabel tone={tone}>{v("Period")}</FieldLabel>
+            <input type="text" value={semester} onChange={e => setSemester(e.target.value)} placeholder="SPR26" className={inCls} />
+          </div>
+        )}
       </div>
 
       {/* ── Event linking ───────────────────────────────────────────────────── */}
@@ -232,7 +257,7 @@ export function TxForm({
       <div className="flex justify-end gap-2 pt-1">
         <button type="button" onClick={onCancel} className={dusk ? btnDuskGhostCls : "rounded-lg border border-white/[0.08] px-4 py-1.5 text-[13px] text-slate-400 hover:border-white/[0.16] hover:text-white transition-colors"}>Cancel</button>
         <button type="submit" className={dusk ? btnDuskActionCls : "rounded-lg bg-indigo-600 px-4 py-1.5 text-[13px] font-semibold text-white hover:bg-indigo-500 transition-colors"}>
-          {initial?.id ? "Save Changes" : (lockType === "expense" ? "Log Expense" : lockType === "income" ? "Log Revenue" : "Add Transaction")}
+          {duesFor ? "Record Payment" : initial?.id ? "Save Changes" : (lockType === "expense" ? "Log Expense" : lockType === "income" ? "Log Revenue" : "Add Transaction")}
         </button>
       </div>
     </form>

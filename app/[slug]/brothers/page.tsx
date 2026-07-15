@@ -6,6 +6,7 @@ import { BrotherAvatar } from "../../components/BrotherAvatar";
 import { Modal, FieldLabel } from "../../components/dashboard/primitives";
 import { inputDuskCls, btnDuskGhostCls, btnDuskActionCls } from "../../components/dashboard/styles";
 import { BrotherDrawer } from "../../components/dashboard/drawers/BrotherDrawer";
+import { TxForm } from "../../components/treasury/TxForm";
 import { useToast } from "../../components/dashboard/Toast";
 import { useChapter } from "../../context/ChapterContext";
 import { useVocab } from "../../hooks/useVocab";
@@ -13,6 +14,7 @@ import { useThresholds } from "../../hooks/useThresholds";
 import {
   Brother,
   BrotherStatus,
+  Transaction,
   getBrotherStatus,
   roleTitle,
   avg,
@@ -136,6 +138,7 @@ export default function BrothersPage() {
   const toast = useToast();
   const THRESHOLDS = useThresholds();
   const canBrothers = can("MANAGE_BROTHERS");
+  const canTreasury = can("MANAGE_TREASURY");
   // Distinct from MANAGE_BROTHERS — gates the pending-excuse chip + drawer review.
   const canAttendance = can("MANAGE_ATTENDANCE");
   const customFieldDefs = useMemo(
@@ -156,6 +159,7 @@ export default function BrothersPage() {
   // from their outstanding dues.
   const [payTarget,        setPayTarget]        = useState<Brother | null>(null);
   const [payAmountStr,     setPayAmountStr]     = useState("");
+  const [duesTx,           setDuesTx]           = useState<{ brother: Brother; amount: number } | null>(null);
   // Pending-excuse counts keyed by brotherId — drives the roster review chip.
   // Loaded once for MANAGE_ATTENDANCE holders; missing key = 0 (no chip).
   const [pendingCounts,    setPendingCounts]    = useState<Record<number, number>>({});
@@ -324,29 +328,39 @@ export default function BrothersPage() {
     setPayAmountStr(b.duesOwed > 0 ? String(b.duesOwed) : "");
   }, []);
 
-  // Recording a payment only STAGES it now — see submitDuesPayment in dues-service.ts.
-  // Nothing posts to the ledger and duesOwed doesn't move until a treasurer approves
-  // the request from the Treasury page's Pending Approval queue, so this no longer
-  // updates brotherList at all; it just confirms the request was submitted.
-  const submitPayment = useCallback(async () => {
+  // "Record Payment" now hands off to the pre-filled transaction form — the treasurer
+  // confirms the ledger entry and posts it there. It is posting that transaction (below)
+  // which mints the income row and decrements the balance together (createTransaction).
+  const submitPayment = useCallback(() => {
     if (!payTarget) return;
     const amount = Math.max(0, parseFloat(payAmountStr) || 0);
     if (amount === 0) return;
-    const b = payTarget;
+    setDuesTx({ brother: payTarget, amount });
     setPayTarget(null);
     setPayAmountStr("");
+  }, [payTarget, payAmountStr]);
+
+  // Post the dues payment through the ordinary transaction endpoint. The server moves
+  // both books in one DB transaction, so on success we refetch brothers to show the
+  // lowered balance; overpayment/a lost race arrives as a 409 whose message names the
+  // real balance.
+  const recordDuesTx = useCallback(async (
+    data: Omit<Transaction, "id" | "createdAt" | "updatedAt" | "deletedAt" | "calendarEvents"> & { calendarEventIds: number[]; brotherId?: number },
+  ) => {
+    const b = duesTx?.brother;
+    setDuesTx(null);
     setPageError(null);
     try {
-      await requestJson<{ id: number }>("/api/dues/payments", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ brotherId: b.id, amount, date: todayStr() }),
+      await requestJson<Transaction>("/api/transactions", {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data),
       });
-      toast.success(`Recorded ${fmt$(amount)} from ${b.name} — awaiting treasury approval.`);
+      const fresh = await requestJson<Brother[]>("/api/brothers");
+      setBrotherList(fresh);
+      if (b) toast.success(`Recorded ${fmt$(data.amount)} from ${b.name}.`);
     } catch (e) {
       setPageError(apiErrorMessage(e, "Dues payment failed. Nothing was recorded."));
     }
-  }, [payTarget, payAmountStr, toast]);
+  }, [duesTx, setBrotherList, toast]);
 
   const deleteBrother = useCallback(async (b: Brother) => {
     setBrotherList(prev => prev.filter(x => x.id !== b.id));
@@ -663,7 +677,7 @@ export default function BrothersPage() {
                               {b.duesOwed > 0 ? (
                                 <>
                                   <span className="mono gold">{fmt$(b.duesOwed)}</span>
-                                  {canBrothers && (
+                                  {canTreasury && (
                                     <button type="button" className="row-act pay-act" onClick={e => { e.stopPropagation(); payDues(b); }}>Pay</button>
                                   )}
                                 </>
@@ -714,6 +728,7 @@ export default function BrothersPage() {
         onLogServiceHours={openLogServiceHours}
         onDelete={deleteBrother}
         isAdmin={canBrothers}
+        canTreasury={canTreasury}
         canManageExcuses={canAttendance}
         onExcuseDecided={handleExcuseDecided}
         onExemptionChanged={handleExemptionChanged}
@@ -803,8 +818,8 @@ export default function BrothersPage() {
               />
               {parseFloat(payAmountStr) > 0 && (
                 <p className="mt-1.5 text-[11px] text-[#958d7c]">
-                  Goes to the Treasury page&rsquo;s Pending Approval queue — the balance
-                  doesn&rsquo;t change until a treasurer approves it.
+                  Opens the transaction form pre-filled — review and post it to record
+                  the payment.
                 </p>
               )}
             </div>
@@ -817,10 +832,29 @@ export default function BrothersPage() {
                 disabled={!(parseFloat(payAmountStr) > 0)}
                 className={btnDuskActionCls}
               >
-                Submit for Approval
+                Continue
               </button>
             </div>
           </div>
+        </Modal>
+      )}
+
+      {/* ── Record Dues Payment (pre-filled transaction form) ── */}
+      {duesTx && (
+        <Modal title="Record Dues Payment" tone="dusk" onClose={() => setDuesTx(null)}>
+          <TxForm
+            tone="dusk"
+            duesFor={{ id: duesTx.brother.id, name: duesTx.brother.name }}
+            initial={{
+              type:        "income",
+              category:    "Dues",
+              amount:      duesTx.amount,
+              date:        todayStr(),
+              description: `Dues payment — ${duesTx.brother.name}`,
+            }}
+            onSubmit={recordDuesTx}
+            onCancel={() => setDuesTx(null)}
+          />
         </Modal>
       )}
     </div>

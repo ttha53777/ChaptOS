@@ -38,6 +38,7 @@ export function BrotherDrawer({
   onLogServiceHours,
   onDelete,
   isAdmin = true,
+  canTreasury = false,
   canManageExcuses = false,
   onExcuseDecided,
   onExemptionChanged,
@@ -48,9 +49,9 @@ export function BrotherDrawer({
   onClose: () => void;
   // duesOwed is excluded on purpose: a money balance mirrored by the Transaction ledger
   // must not ride along on a profile save, or that write moves the roster without moving
-  // the books. Dues move via "Record payment" (onPayDues → POST /api/dues/payments, which
-  // only stages a request now — a treasurer must approve it on the Treasury page before
-  // it posts income or changes this balance) or the treasury's assign/waive controls.
+  // the books. Dues move via "Record payment" (onPayDues opens the pre-filled transaction
+  // form; posting it mints the income row and decrements this balance together) or the
+  // treasury's assign/waive controls.
   onSave: (id: number, updates: Omit<Brother, "id" | "duesOwed">) => void;
   onPayDues: (b: Brother) => void;
   /** Opens the "Log service hours" modal for this member (event + hours form). */
@@ -58,6 +59,9 @@ export function BrotherDrawer({
   onDelete?: (b: Brother) => void;
   /** When false, restrict to "view + self-edit" mode. Defaults true for back-compat. */
   isAdmin?: boolean;
+  /** Holder of MANAGE_TREASURY. Gates the "Record Payment" dues tile — dues are
+   *  treasury-only, distinct from isAdmin (MANAGE_BROTHERS). Defaults false. */
+  canTreasury?: boolean;
   /** Holder of MANAGE_ATTENDANCE — distinct from isAdmin (MANAGE_BROTHERS). Gates the
    *  inline approve/reject controls on pending excuses. Defaults false. */
   canManageExcuses?: boolean;
@@ -78,7 +82,7 @@ export function BrotherDrawer({
   const canManageService = can("MANAGE_SERVICE"); // "Log hours" opens the participation modal
   const isSelf = brotherId !== null && selfId === brotherId;
   const canEditProfile = isAdmin || isSelf;        // name, role, gpa, serviceHours
-  const canManageDues  = isAdmin;                  // duesOwed field + "Mark Paid"
+  const canManageDues  = canTreasury;              // "Record Payment" tile (treasury-only)
   const canDelete      = isAdmin;
   const isOpen = brotherId !== null;
   const brother = brotherId !== null ? brotherList.find(b => b.id === brotherId) ?? null : null;

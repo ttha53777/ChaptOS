@@ -91,6 +91,7 @@ function KPIDetailDrawer({
   liveBalance, liveProjected, liveTrend,
   onOpenModal, onOpenAttendance,
   isAdmin = true,
+  canTreasury = false,
 }: {
   activeKey: KPIDrawerKey | null;
   onClose: () => void;
@@ -112,6 +113,7 @@ function KPIDetailDrawer({
   onOpenModal: (key: "deadline" | "revenue" | "ig") => void;
   onOpenAttendance: () => void;
   isAdmin?: boolean;
+  canTreasury?: boolean;
 }) {
   const THRESHOLDS = useThresholds();
   const v = useVocab();
@@ -198,7 +200,7 @@ function KPIDetailDrawer({
                       </div>
                       <div className="amt">
                         <span className="m">{fmt$(b.duesOwed)}</span>
-                        {isAdmin && (
+                        {canTreasury && (
                           <button onClick={() => openPayDues(b)} className="dd-row-act ok">Pay</button>
                         )}
                       </div>
@@ -945,6 +947,7 @@ export default function Home() {
   const [confirmDelete, setConfirmDelete] = useState<{ kind: "deadline" | "ig"; id: number; label: string } | null>(null);
   const [payTarget,    setPayTarget]    = useState<Brother | null>(null);
   const [payAmountStr, setPayAmountStr] = useState("");
+  const [duesTx,       setDuesTx]       = useState<{ brother: Brother; amount: number } | null>(null);
   // "Log service hours" modal (opened from the Brother drawer's + control).
   // Logs hours for the drawer's member against a chosen service event, mirroring
   // the service page's self-service flow but on the member's behalf.
@@ -1626,24 +1629,32 @@ export default function Home() {
     setPayAmountStr(String(b.duesOwed));
   }
 
-  // Only STAGES the payment now — see submitDuesPayment in dues-service.ts. Nothing
-  // posts to the ledger or moves duesOwed until a treasurer approves the request from
-  // the Treasury page's Pending Approval queue, so there is no balance to write here,
-  // optimistically or otherwise.
-  async function submitPayDues() {
+  // "Record Payment" hands off to the pre-filled transaction form — the treasurer
+  // confirms the ledger entry and posts it there (recordDuesTx). Posting is what mints
+  // the income row and decrements the balance together (createTransaction).
+  function submitPayDues() {
     if (!payTarget) return;
     const amount = Math.max(0, parseFloat(payAmountStr) || 0);
     if (amount === 0) return;
-    const b = payTarget;
+    setDuesTx({ brother: payTarget, amount });
     setPayTarget(null);
     setPayAmountStr("");
+  }
+
+  // Post the dues payment through the ordinary transaction endpoint; the server moves
+  // both books in one DB transaction, so refresh chapter data to show the lowered
+  // balance. Overpayment/a lost race arrives as a 409 whose message names the balance.
+  async function recordDuesTx(
+    data: Omit<Transaction, "id" | "createdAt" | "updatedAt" | "deletedAt" | "calendarEvents"> & { calendarEventIds: number[]; brotherId?: number },
+  ) {
+    const b = duesTx?.brother;
+    setDuesTx(null);
     try {
-      await requestJson<{ id: number }>("/api/dues/payments", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ brotherId: b.id, amount, date: todayStr() }),
+      await requestJson<Transaction>("/api/transactions", {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data),
       });
-      addActivity(`${b.name} — ${fmt$(amount)} dues payment recorded, awaiting treasury approval`, "info");
+      await refreshChapterData();
+      addActivity(`${b?.name ?? "Member"} — ${fmt$(data.amount)} dues payment recorded`, "success");
     } catch (e) {
       addActivity(apiErrorMessage(e, "Dues payment failed. Nothing was recorded."), "warning");
     }
@@ -2136,8 +2147,8 @@ export default function Home() {
               />
               {parseFloat(payAmountStr) > 0 && (
                 <p className="mt-1.5 text-[11px] text-[#6b6354]">
-                  Goes to the Treasury page&rsquo;s Pending Approval queue — the balance
-                  doesn&rsquo;t change until a treasurer approves it.
+                  Opens the transaction form pre-filled — review and post it to record
+                  the payment.
                 </p>
               )}
             </div>
@@ -2153,10 +2164,29 @@ export default function Home() {
                 disabled={!(parseFloat(payAmountStr) > 0)}
                 className={btnDuskActionCls}
               >
-                Submit for Approval
+                Continue
               </button>
             </div>
           </div>
+        </Modal>
+      )}
+
+      {/* ── Record Dues Payment (pre-filled transaction form) ──────────────────── */}
+      {duesTx && (
+        <Modal title="Record Dues Payment" tone="dusk" onClose={() => setDuesTx(null)}>
+          <TxForm
+            tone="dusk"
+            duesFor={{ id: duesTx.brother.id, name: duesTx.brother.name }}
+            initial={{
+              type:        "income",
+              category:    "Dues",
+              amount:      duesTx.amount,
+              date:        todayStr(),
+              description: `Dues payment — ${duesTx.brother.name}`,
+            }}
+            onSubmit={recordDuesTx}
+            onCancel={() => setDuesTx(null)}
+          />
         </Modal>
       )}
 
@@ -2267,6 +2297,7 @@ export default function Home() {
         onPayDues={openPayDues}
         onLogServiceHours={openLogServiceHours}
         isAdmin={isAdmin}
+        canTreasury={canTreasury}
         selfId={selfId}
       />
 
@@ -2307,6 +2338,7 @@ export default function Home() {
         onOpenModal={setActiveModal}
         onOpenAttendance={openAttendanceLog}
         isAdmin={isAdmin}
+        canTreasury={canTreasury}
       />
       <CustomMetricDetailDrawer
         snap={customMetricSnapshots.find(s => s.definitionId === activeCustomMetricId) ?? null}
