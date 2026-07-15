@@ -2,7 +2,7 @@ import type { RequestContext } from "@/lib/context";
 import { DUES_CATEGORY } from "@/lib/dues";
 import { emit } from "@/lib/events";
 import { ConflictError, NotFoundError } from "@/lib/errors";
-import { TransactionType } from "@/lib/state";
+import { TransactionStatus, TransactionType } from "@/lib/state";
 import type { CreateTransactionInput, UpdateTransactionInput } from "@/lib/validation/transaction";
 
 export interface TxFilter {
@@ -38,10 +38,10 @@ function mapTx(raw: RawWithEvents) {
  * Is this row a dues payment that a member's balance is counting on?
  *
  * These rows are half of an invariant: Brother.duesOwed was decremented in the same DB
- * transaction that minted them (see dues-service.recordDuesPayment). The generic
- * transaction routes are therefore a back door into the exact drift this whole change
- * closes — editing or deleting one of these rows here, without touching the balance,
- * puts the two books right back out of step. So this predicate gates both.
+ * transaction that minted them (see recordDuesPayment below). Editing or deleting one of
+ * these rows without also touching the balance puts the two books right back out of step,
+ * which is the exact drift this whole design closes. So this predicate gates all three:
+ * the dues-aware create, the update guard, and the void restore.
  */
 function isDuesPayment(row: { brotherId: number | null; category: string; type: string }): boolean {
   return row.brotherId !== null
@@ -75,9 +75,25 @@ export async function listTransactions(ctx: RequestContext, filter: TxFilter = {
   return rows.map(r => mapTx(r as unknown as RawWithEvents));
 }
 
+/** Two decimal places. Float dollars drift under repeated arithmetic; money reads shouldn't. */
+function money(n: number): number {
+  return Math.round(n * 100) / 100;
+}
+
 export async function createTransaction(ctx: RequestContext, input: CreateTransactionInput) {
   const ids = input.calendarEventIds ?? [];
   await validateEventIds(ctx, ids);
+
+  const brotherId = input.brotherId ?? null;
+
+  // A dues payment is the one transaction that also moves a member's balance. Mint the
+  // income row and decrement Brother.duesOwed in ONE DB transaction — the exact mirror of
+  // softDeleteTransaction, which re-increments it when a dues row is voided. Any other
+  // transaction (including an *unattributed* "Dues" income row, brotherId null) takes the
+  // plain path below and touches no balance.
+  if (isDuesPayment({ brotherId, category: input.category, type: input.type })) {
+    return recordDuesPayment(ctx, input, brotherId!, ids);
+  }
 
   const raw = await ctx.db.transaction.create({
     data: {
@@ -103,6 +119,96 @@ export async function createTransaction(ctx: RequestContext, input: CreateTransa
     category:    raw.category,
     amount:      raw.amount,
     description: raw.description,
+  });
+  return tx;
+}
+
+/**
+ * Record a dues payment: mint the income row and decrement the member's balance in one
+ * DB transaction, refusing overpayment. This is the single place a dues payment moves
+ * both books — the same guarantee recordDuesPayment made before the short-lived
+ * submit/approve split, now reached straight from createTransaction so a treasurer posts
+ * it through the ordinary transaction form (pre-filled) instead of an approval queue.
+ */
+async function recordDuesPayment(
+  ctx: RequestContext,
+  input: CreateTransactionInput,
+  brotherId: number,
+  eventIds: number[],
+) {
+  // Org-scoped read: the tenancy guard for brotherId (a cross-tenant id resolves to null
+  // through the wrapper) AND the current balance the decrement is checked against. The
+  // raw tx client used inside $transaction below is NOT org-scoped and can do neither.
+  const brother = await ctx.db.brother.findUnique({
+    where:  { id: brotherId },
+    select: { id: true, name: true, duesOwed: true },
+  });
+  if (!brother) throw new NotFoundError("Brother");
+
+  // Budget spend matches expenses on the semester *label*, not semesterId, so carry both
+  // — a row without a label is invisible to the budget page even with the right category.
+  const semester = await ctx.db.semester.findFirst({
+    where:  { isActive: true },
+    select: { id: true, label: true },
+  });
+
+  const { amount } = input;
+  const orgId = ctx.orgId;
+
+  const { raw, remainingOwed } = await ctx.db.$transaction(async (tx) => {
+    // Compare-and-set: atomic decrement, refusal of overpayment, and safety against a
+    // concurrent second payment against the same balance, all in the WHERE clause — the
+    // loser matches zero rows and 409s, rolling back the (as-yet-unwritten) income row.
+    const claimed = await tx.brother.updateMany({
+      where: { id: brotherId, organizationId: orgId, duesOwed: { gte: amount } },
+      data:  { duesOwed: { decrement: amount } },
+    });
+    if (claimed.count === 0) {
+      throw new ConflictError(
+        `Payment of $${money(amount).toFixed(2)} exceeds ${brother.name}'s outstanding `
+        + `balance of $${money(brother.duesOwed).toFixed(2)}.`,
+      );
+    }
+
+    // The tx client is raw and NOT org-scoped, so this write carries organizationId
+    // explicitly (the house pattern — see reimbursement-service.ts / dues-service.ts).
+    const raw = await tx.transaction.create({
+      data: {
+        organizationId: orgId,
+        type:          TransactionType.Income,
+        category:      DUES_CATEGORY,   // the STORED category — never the vocab label
+        brotherId,
+        amount,
+        amountCents:   BigInt(Math.round(amount * 100)),
+        date:          input.date,
+        description:   input.description,
+        paymentMethod: input.paymentMethod ?? null,
+        status:        TransactionStatus.Posted,
+        semester:      semester?.label ?? null,
+        semesterId:    semester?.id    ?? null,
+        calendarEvents: eventIds.length > 0
+          ? { create: eventIds.map(id => ({ calendarEventId: id })) }
+          : undefined,
+      },
+      include: EVENT_INCLUDE,
+    });
+
+    // Read back inside the tx: the row we just decremented is the authority.
+    const updated = await tx.brother.findUnique({
+      where:  { id: brotherId },
+      select: { duesOwed: true },
+    });
+    return { raw, remainingOwed: money(updated?.duesOwed ?? 0) };
+  });
+
+  const tx = mapTx(raw as unknown as RawWithEvents);
+  // Emit after commit, same action and shape the approval step used to emit — it still
+  // means "money moved", just triggered by posting the transaction directly.
+  await emit(ctx, "dues.paid", { type: "Transaction", id: raw.id }, {
+    brotherId,
+    amount:        raw.amount,
+    transactionId: raw.id,
+    remainingOwed,
   });
   return tx;
 }

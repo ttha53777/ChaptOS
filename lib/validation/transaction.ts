@@ -18,6 +18,11 @@ export const createTransactionInput = z.object({
   semester:         z.string().optional().nullable(),
   status:           txStatus().optional().default(TransactionStatus.Posted),
   calendarEventIds: z.array(z.number().int().positive()).optional().default([]),
+  // Set only when recording a dues payment: an income row in category "Dues" with a
+  // brotherId is the one transaction that also decrements Brother.duesOwed (see
+  // createTransaction). Absent for every other transaction, and stripped by the schema
+  // if it were sent — so it must be declared here for attribution to survive.
+  brotherId:        z.number().int().positive().optional().nullable(),
 });
 export type CreateTransactionInput = z.infer<typeof createTransactionInput>;
 

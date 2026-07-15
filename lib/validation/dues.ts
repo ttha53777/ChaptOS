@@ -1,33 +1,11 @@
 import { z } from "zod";
 import { DATE_RE } from "@/lib/dates";
-import { DUES_PAYMENT_STATUSES } from "@/lib/state";
 
 const MAX_AMOUNT = 1_000_000_000;
 
-// A payment is `positive`, not `nonnegative`: submitting a $0 payment would mint a
-// meaningless ledger row and move no balance. `.finite()` guards the
-// BigInt(Math.round(x * 100)) conversion downstream.
-const paymentAmount = z.coerce.number().finite().positive().max(MAX_AMOUNT);
-
-// Submitting a payment only stages it — see submitDuesPayment in
-// lib/services/dues-service.ts. Nothing here moves duesOwed or mints a ledger row;
-// that happens only when the request is later approved via updateDuesPaymentInput.
-export const submitDuesPaymentInput = z.object({
-  brotherId:     z.number().int().positive(),
-  amount:        paymentAmount,
-  date:          z.string().regex(DATE_RE, "date must use YYYY-MM-DD format"),
-  paymentMethod: z.string().max(100).optional().nullable(),
-});
-export type SubmitDuesPaymentInput = z.infer<typeof submitDuesPaymentInput>;
-
-// Approving or rejecting a pending request. Approval is the only path that mints a
-// ledger row and decrements duesOwed; rejection is a pure status flip (see
-// updateDuesPayment).
-export const updateDuesPaymentInput = z.object({
-  status:        z.enum(DUES_PAYMENT_STATUSES as readonly [string, ...string[]]),
-  rejectionNote: z.string().max(500).optional().nullable(),
-});
-export type UpdateDuesPaymentInput = z.infer<typeof updateDuesPaymentInput>;
+// A dues payment is recorded by posting an income transaction (see createTransaction),
+// so its shape lives in lib/validation/transaction.ts (a "Dues" income row with a
+// brotherId). This module now owns only the balance-adjustment inputs below.
 
 // A signed delta, not an absolute balance. Setting the balance directly is the
 // very thing that let the roster and the ledger drift apart — an overwrite says

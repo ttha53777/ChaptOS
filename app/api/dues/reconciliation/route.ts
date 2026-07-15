@@ -22,7 +22,7 @@ export async function GET() {
 // Attach a pre-migration dues row to the member who actually paid it. Attribution
 // only — it must not move any balance (adjustDues is for that).
 export async function POST(req: NextRequest) {
-  const { ctx, error } = await buildContext();
+  const { ctx, error } = await buildContext({ requirePerm: "MANAGE_TREASURY" });
   if (error) return error;
   try {
     const body  = await req.json().catch(() => ({}));

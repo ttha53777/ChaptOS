@@ -8,7 +8,7 @@ import { adjustDuesInput } from "@/lib/validation/dues";
 // Changes what a member OWES. No money moves, so no ledger row is written — see
 // adjustDues. This is the endpoint that replaced writing duesOwed as a raw field.
 export async function POST(req: NextRequest) {
-  const { ctx, error } = await buildContext();
+  const { ctx, error } = await buildContext({ requirePerm: "MANAGE_TREASURY" });
   if (error) return error;
   try {
     const body   = await req.json().catch(() => ({}));
