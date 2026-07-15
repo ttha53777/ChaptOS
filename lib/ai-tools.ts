@@ -1407,15 +1407,14 @@ function proposeLogTransaction(args: ToolArgs): Proposal | { error: string } {
   };
 }
 
-// Recording a dues payment only STAGES a request now — confirming this proposal posts
-// to /api/dues/payments, which creates a pending DuesPayment and touches neither the
-// ledger nor the balance. A treasurer must separately approve it (see updateDuesPayment
-// in lib/services/dues-service.ts) before the income row is minted and the balance
-// decremented, atomically, at that later moment. This used to propose
-// `PATCH /api/brothers/:id { duesOwed: 0 }` — a flag flip that zeroed the roster and
-// told the treasury nothing, so every dollar the chapter collected this way went
-// unrecorded; the two-phase submit/approve flow closes that gap without letting a chat
-// confirm move money unreviewed.
+// Recording a dues payment posts a real income transaction — confirming this proposal
+// POSTs to /api/transactions with the member attributed, which mints the "Dues" income
+// row and decrements the balance together in one DB transaction (see createTransaction
+// in lib/services/transaction-service.ts). The Ratify card is the review-before-write
+// step. This used to propose `PATCH /api/brothers/:id { duesOwed: 0 }` — a flag flip that
+// zeroed the roster and told the treasury nothing, so every dollar the chapter collected
+// this way went unrecorded; posting the transaction closes that gap while keeping the
+// treasurer's confirm in the loop.
 //
 // The balance read is therefore no longer decorative. It used to be best-effort
 // enrichment that degraded to a plain summary on failure; now it determines the amount
@@ -1445,8 +1444,8 @@ async function proposeRecordDuesPayment(args: ToolArgs, scoped: Scoped): Promise
   const amount    = explicit ?? currentOwed;
 
   if (amount <= 0)          return badProposal(`${name} is already paid up — they owe $0.00.`);
-  // The service refuses this too (the balance check is in the UPDATE's WHERE clause), but
-  // catching it here means the officer gets told before they click, not after.
+  // createTransaction refuses this too (the balance check is in the decrement's WHERE
+  // clause), but catching it here means the officer gets told before they click, not after.
   if (amount > currentOwed) {
     return badProposal(
       `${name} owes $${currentOwed.toFixed(2)}, so a $${amount.toFixed(2)} payment cannot be recorded.`,
@@ -1461,12 +1460,19 @@ async function proposeRecordDuesPayment(args: ToolArgs, scoped: Scoped): Promise
   return {
     kind: "proposal",
     action: "propose_record_dues_payment",
-    endpoint: "/api/dues/payments",
+    endpoint: "/api/transactions",
     method: "POST",
-    payload: { brotherId: id, amount, date: todayISO() },
-    summary: `Stage a $${amount.toFixed(2)} dues payment from ${name} (currently owes `
-      + `$${currentOwed.toFixed(2)}) for treasury approval. Nothing posts to the ledger or `
-      + `changes their balance until a treasurer approves it. ${tail}`,
+    payload: {
+      type: "income",
+      category: "Dues",
+      brotherId: id,
+      amount,
+      date: todayISO(),
+      description: `Dues payment — ${name}`,
+    },
+    summary: `Record a $${amount.toFixed(2)} dues payment from ${name} (currently owes `
+      + `$${currentOwed.toFixed(2)}). This posts an income transaction and lowers their `
+      + `balance. ${tail}`,
   };
 }
 
