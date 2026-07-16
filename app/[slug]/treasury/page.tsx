@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo, useCallback, useEffect } from "react";
 import dynamic from "next/dynamic";
-import { catColor } from "../../components/treasury/TreasuryCharts";
+import { catColor } from "../../components/treasury/chart-colors";
 import { Sidebar } from "../../components/Sidebar";
 import { BrotherAvatar } from "../../components/BrotherAvatar";
 

@@ -1,11 +1,21 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
+import dynamic from "next/dynamic";
 import { EXPENSE_CATEGORIES, Transaction, fmt$ } from "../../data";
 import { Modal, FieldLabel } from "../dashboard/primitives";
 import { inputDuskCls, btnDuskGhostCls, btnDuskActionCls } from "../dashboard/styles";
 import { requestJson } from "../../lib/api";
-import { catColor, TreasuryDonutChart } from "./TreasuryCharts";
+import { catColor } from "./chart-colors";
+
+// Lazy-loaded so recharts stays out of the treasury route's initial chunk. The
+// route's other charts are already dynamic()-split; a static import of the donut
+// here (BudgetView is statically imported by the page) would have re-pulled
+// recharts into first paint and defeated that split.
+const TreasuryDonutChart = dynamic(
+  () => import("./TreasuryCharts").then(m => m.TreasuryDonutChart),
+  { ssr: false, loading: () => <div className="tr-skel h-[220px] rounded-full mx-auto max-w-[220px]" /> },
+);
 
 type BudgetData = {
   semester: string;

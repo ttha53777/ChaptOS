@@ -17,10 +17,15 @@
 // this from drifting as routes are added. (The old third check — the
 // /[slug]/onboarding wizard — is gone with the wizard itself: setup now
 // happens pre-creation on /create.)
+import dynamic from "next/dynamic";
 import { usePathname } from "next/navigation";
 import { useChapter } from "../context/ChapterContext";
 import { isDashboardRoute } from "../lib/routes";
-import { ChatWidget } from "./ChatWidget";
+
+// Lazy-loaded so its ~600-line bundle stays out of the shared first-paint chunk on
+// every route. The gate already renders it client-only (below), so ssr:false is a
+// no-op behaviorally — it only defers the download to when a dashboard route mounts.
+const ChatWidget = dynamic(() => import("./ChatWidget").then(m => m.ChatWidget), { ssr: false });
 
 export function ChatWidgetGate() {
   const pathname = usePathname();

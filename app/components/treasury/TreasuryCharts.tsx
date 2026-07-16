@@ -5,18 +5,7 @@ import {
   XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer,
 } from "recharts";
 import { fmt$ } from "../../data";
-
-// ─── Colors ───────────────────────────────────────────────────────────────────
-
-// Dusk ledger ramp — violet lead, then gold / rose / sage semantics, then muted tints.
-const DONUT_COLORS = [
-  "#a78bfa", "#ddb36a", "#d98ba3", "#7fb08a",
-  "#7c3aed", "#c9a24a", "#b86b85", "#5f8a6a",
-];
-
-export function catColor(name: string, index: number): string {
-  return DONUT_COLORS[index % DONUT_COLORS.length];
-}
+import { catColor } from "./chart-colors";
 
 // ─── Tooltips ─────────────────────────────────────────────────────────────────
 
