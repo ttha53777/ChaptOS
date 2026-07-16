@@ -71,12 +71,14 @@ export async function listInvites(ctx: RequestContext): Promise<InviteDto[]> {
   // The invite ids were just fetched org-scoped above, so grouping redemptions
   // by them is equivalent. An invite with no redemptions is absent from the
   // map, so `?? 0` reproduces the previous per-invite count of zero exactly.
-  const countByInvite = await ctx.db.orgInvite.redemptionCountByInvite(invites.map(i => i.id));
-
+  // Both derive only from the fetched `invites`, so fetch them together.
   const creatorIds = [...new Set(invites.map(i => i.createdByBrotherId).filter((id): id is number => id !== null))];
-  const creators = creatorIds.length > 0
-    ? await ctx.db.brother.findMany({ where: { id: { in: creatorIds } }, select: { id: true, name: true } })
-    : [];
+  const [countByInvite, creators] = await Promise.all([
+    ctx.db.orgInvite.redemptionCountByInvite(invites.map(i => i.id)),
+    creatorIds.length > 0
+      ? ctx.db.brother.findMany({ where: { id: { in: creatorIds } }, select: { id: true, name: true } })
+      : Promise.resolve([]),
+  ]);
   const nameById = new Map(creators.map(b => [b.id, b.name]));
 
   return invites.map(invite => toDto(

@@ -95,15 +95,18 @@ export async function upsertBrotherMetrics(
     throw new ValidationError("Metric definition ids must be integers");
   }
 
-  const activeDefs = await ctx.db.orgMetricDefinition.findMany({
-    where: { id: { in: requestedIds }, deletedAt: null },
-  });
+  // Both guard reads are independent — fetch together. Check `activeDefs` first so
+  // the defs-not-found error still wins over member-not-found (unchanged precedence).
+  const [activeDefs, brother] = await Promise.all([
+    ctx.db.orgMetricDefinition.findMany({
+      where: { id: { in: requestedIds }, deletedAt: null },
+    }),
+    ctx.db.brother.findFirst({ where: { id: brotherId } }),
+  ]);
   if (activeDefs.length !== requestedIds.length) {
     throw new NotFoundError("One or more metric definitions not found or have been removed");
   }
-
   // Brother must belong to this org
-  const brother = await ctx.db.brother.findFirst({ where: { id: brotherId } });
   if (!brother) throw new NotFoundError("Member not found");
 
   // Upsert each value
@@ -139,13 +142,12 @@ export async function getMetricSnapshot(ctx: RequestContext): Promise<MetricSnap
   const defDTOs = defs.map(toDefDTO);
   const defIds  = defs.map(d => d.id);
 
-  // One batched groupBy for avg + sum + total count per definition
-  const aggMap = await ctx.db.brotherMetricValue.aggregateByDefinition(defIds);
-
-  // Per-definition count of members meeting goal (one count per def — ≤20 queries)
-  const onTrackMap = await ctx.db.brotherMetricValue.countOnTrack(
-    defs.map(d => ({ id: d.id, goal: d.goal })),
-  );
+  // Both derive only from `defs` — run together. One batched groupBy for avg + sum
+  // + total count per definition; and a per-definition count of members meeting goal.
+  const [aggMap, onTrackMap] = await Promise.all([
+    ctx.db.brotherMetricValue.aggregateByDefinition(defIds),
+    ctx.db.brotherMetricValue.countOnTrack(defs.map(d => ({ id: d.id, goal: d.goal }))),
+  ]);
 
   return defDTOs.map(def => {
     const agg        = aggMap.get(def.id);
