@@ -624,6 +624,8 @@ model CalendarEvent {
   organization Organization @relation(fields: [organizationId], references: [id])
 
   @@index([organizationId, category, date])
+  // Covers the frequent `where: { mandatory: true }` (+ org) attendance/upcoming queries.
+  @@index([organizationId, mandatory, date])
 }
 
 model ProgrammingEvent {
@@ -808,6 +810,8 @@ model Transaction {
   @@index([organizationId, deletedAt])
   @@index([semesterId])
   @@index([organizationId, brotherId])
+  // Makes the `orderBy: { date: "desc" }` on the org+deletedAt filter index-ordered.
+  @@index([organizationId, deletedAt, date])
 }
 
 model TransactionCalendarEvent {
