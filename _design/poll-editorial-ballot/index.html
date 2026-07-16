@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dusk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Figurints — Tasks, with Editorial Ballot Polls</title>
+<!--
+  ════════════════════════════════════════════════════════════════════════════
+  FIGURINTS · ChaptOS — Editorial Ballot, implemented
+
+  SCOPE: this is direction B ("Editorial Ballot") from _design/poll-directions/,
+  no longer a comparison — mocked as if it actually shipped. Everything outside
+  the poll row + card is the REAL app, verbatim:
+    · Sidebar — copied from app/components/Sidebar.tsx (w-56/60/64, #14120e,
+      violet active-pill indicator, ΛΦΕ logo badge).
+    · Briefing / glance strip / controls / task rows — copied from
+      app/[slug]/tasks/tasks-ledger.css (.tk-*), UNCHANGED. This exploration
+      only touches polls; tasks stay exactly as shipped.
+    · The poll card now opens in the REAL <Modal tone="dusk"> chrome (backdrop
+      blur, card-premium-elevated panel, ✕ header) copied from
+      app/components/dashboard/primitives.tsx, instead of the inline
+      side-by-side layout used for comparing directions.
+
+  THE MECHANIC: a poll is a blind ballot. Tap the row → vote → the moment you
+  cast, results phase in live (violet pulse, bars animate 0→width) — sealed
+  until YOU vote, not until the poll closes. A manager can still close the
+  poll separately, which finalizes standings (gold "Elected" tag, no more
+  live dot). This refines the request from the 3-direction round: "show it
+  phasing into live results once vote is cast."
+
+  Only the first poll row ("Bid Day theme") is wired interactive — the other
+  two rows are static context, same scope as the comparison mock.
+  ════════════════════════════════════════════════════════════════════════════
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,400..500&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --serif: "Fraunces", Georgia, serif;
+    --sans:  "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --mono:  "Geist Mono", ui-monospace, Menlo, monospace;
+
+    --paper:    #0f0d0a;
+    --paper-2:  #14120e;
+    --card:     #161310;
+    --card-2:   #1b1813;
+    --ink:      #ece7dd;
+    --ink-soft: #c9c2b4;
+    --muted:    #958d7c;
+    --faint:    #6b6354;
+    --line:     rgba(236,231,221,.09);
+    --line-soft:rgba(236,231,221,.05);
+    --vio:      #a78bfa;
+    --vio-deep: #7c3aed;
+    --vio-bg:   rgba(167,139,250,.10);
+    --gold:     #ddb36a;
+    --gold-bg:  rgba(221,179,106,.10);
+    --rose:     #d98ba3;
+    --rose-bg:  rgba(217,139,163,.10);
+    --ok:       #7fb08a;
+    --ok-bg:    rgba(127,176,138,.10);
+    --shadow:   0 1px 0 rgba(0,0,0,.4), 0 16px 40px -24px rgba(0,0,0,.7);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; height: 100%; }
+  body {
+    background: var(--paper); color: var(--ink); font-family: var(--sans);
+    -webkit-font-smoothing: antialiased; font-variant-numeric: tabular-nums;
+  }
+  a { color: inherit; }
+  button { font: inherit; }
+  ::selection { background: var(--vio-bg); color: var(--ink); }
+
+  .app { display: flex; height: 100vh; overflow: hidden; }
+
+  /* ── Sidebar — copied from Sidebar.tsx ────────────────────────────────────── */
+  .side {
+    width: 224px; flex-shrink: 0; display: flex; flex-direction: column;
+    border-right: 1px solid var(--line); background: var(--paper-2);
+  }
+  @media (min-width: 1280px) { .side { width: 240px; } }
+  @media (min-width: 1536px) { .side { width: 256px; } }
+  .side-org {
+    display: flex; align-items: center; gap: 10px; padding: 16px 16px 14px;
+    border-bottom: 1px solid var(--line);
+  }
+  .side-logo {
+    width: 32px; height: 32px; border-radius: 8px; flex-shrink: 0; display: grid; place-items: center;
+    background: linear-gradient(to bottom right, var(--vio), var(--vio-deep));
+    color: #fff; font-family: var(--mono); font-size: 11px; font-weight: 700;
+    box-shadow: 0 2px 8px rgba(167,139,250,.3);
+  }
+  .side-org-name { font-size: 13px; font-weight: 600; color: var(--ink); line-height: 1.25; }
+  .side-org-sub { font-size: 10.5px; color: var(--muted); margin-top: 1px; }
+  .side-nav { flex: 1; overflow-y: auto; padding: 10px 10px; display: flex; flex-direction: column; gap: 1px; }
+  .side-link {
+    position: relative; display: flex; align-items: center; gap: 10px; padding: 8px 10px 8px 14px;
+    border-radius: 8px; font-size: 13px; color: var(--muted); transition: background .12s, color .12s;
+  }
+  .side-link:hover { background: rgba(236,231,221,.04); color: var(--ink-soft); }
+  .side-link svg { width: 17px; height: 17px; flex-shrink: 0; }
+  .side-link.on { background: var(--card-2); color: var(--ink); font-weight: 500; }
+  .side-link.on::before {
+    content: ""; position: absolute; left: 0; top: 50%; transform: translateY(-50%);
+    width: 3px; height: 14px; border-radius: 0 3px 3px 0; background: var(--vio);
+  }
+  .side-foot { border-top: 1px solid var(--line); padding: 12px 14px; display: flex; align-items: center; gap: 9px; }
+  .side-av {
+    width: 28px; height: 28px; border-radius: 50%; background: var(--vio-bg); color: var(--vio);
+    display: grid; place-items: center; font-family: var(--mono); font-size: 10px; font-weight: 700; flex-shrink: 0;
+  }
+  .side-who { min-width: 0; }
+  .side-who-name { font-size: 12.5px; font-weight: 500; color: var(--ink-soft); }
+  .side-who-role { font-size: 10.5px; color: var(--faint); }
+
+  /* ── Main column ───────────────────────────────────────────────────────── */
+  .main { flex: 1; min-width: 0; overflow-y: auto; }
+
+  /* ════════════════════════════════════════════════════════════════════════
+     Everything below this line — .dash.dash-tasks and its .tk-* children —
+     is copied verbatim from app/[slug]/tasks/tasks-ledger.css. Not part of
+     this exploration; only here so the polls sit in their real habitat.
+     ════════════════════════════════════════════════════════════════════════ */
+  .dash.dash-tasks {
+    max-width: 1230px; margin: 0 auto; padding: 30px clamp(18px,3vw,38px) 80px; color: var(--ink);
+  }
+  .dash.dash-tasks .tk-briefing { display: flex; align-items: flex-start; justify-content: space-between; gap: 36px; }
+  .dash.dash-tasks .tk-kicker { font-family: var(--mono); font-size: 10.5px; letter-spacing: .18em; text-transform: uppercase; color: var(--muted); }
+  .dash.dash-tasks .tk-kicker .today { color: var(--vio); }
+  .dash.dash-tasks .tk-title { font-family: var(--serif); font-weight: 400; font-size: 33px; letter-spacing: -.01em; margin-top: 8px; color: var(--ink); }
+  .dash.dash-tasks .tk-title em { font-style: italic; color: var(--vio); }
+  .dash.dash-tasks .tk-digest { margin-top: 12px; display: flex; gap: 9px; align-items: baseline; max-width: 560px; }
+  .dash.dash-tasks .tk-digest-chip {
+    flex-shrink: 0; font-family: var(--mono); font-size: 8.5px; font-weight: 600; letter-spacing: .14em; color: var(--vio);
+    border: 1px solid var(--vio-bg); background: var(--vio-bg); border-radius: 4px; padding: 2px 5px; transform: translateY(-1px);
+  }
+  .dash.dash-tasks .tk-digest p { font-size: 13.5px; color: var(--ink-soft); font-style: italic; font-family: var(--serif); font-weight: 350; line-height: 1.5; }
+  .dash.dash-tasks .tk-digest p b { font-weight: 500; font-style: normal; color: var(--ink); }
+  .dash.dash-tasks .tk-add {
+    flex-shrink: 0; display: inline-flex; align-items: center; gap: 7px; font-family: var(--mono); font-size: 10px;
+    letter-spacing: .1em; text-transform: uppercase; color: var(--vio); background: var(--vio-bg); border: 1px solid var(--vio-bg);
+    border-radius: 8px; padding: 9px 15px; transition: border-color .15s;
+  }
+  .dash.dash-tasks .tk-add:hover { border-color: var(--vio); }
+  .dash.dash-tasks .tk-add svg { width: 13px; height: 13px; }
+  .dash.dash-tasks .tk-add.ghost { color: var(--ink-soft); background: transparent; border-color: var(--line); }
+  .dash.dash-tasks .tk-add.ghost:hover { border-color: var(--vio); color: var(--vio); }
+  .dash.dash-tasks .tk-briefing-acts { flex-shrink: 0; display: inline-flex; align-items: center; gap: 8px; }
+
+  .dash.dash-tasks .tk-glance {
+    margin-top: 22px; display: grid; grid-template-columns: repeat(4,1fr); border: 1px solid var(--line);
+    border-radius: 12px; background: var(--card); box-shadow: var(--shadow); overflow: hidden;
+  }
+  .dash.dash-tasks .tk-measure { padding: 15px 18px 14px; border-right: 1px solid var(--line-soft); }
+  .dash.dash-tasks .tk-measure:last-child { border-right: none; }
+  .dash.dash-tasks .tk-measure .k { font-family: var(--mono); font-size: 9px; letter-spacing: .16em; text-transform: uppercase; color: var(--muted); }
+  .dash.dash-tasks .tk-measure .v { font-family: var(--serif); font-size: 30px; font-weight: 400; letter-spacing: -.02em; color: var(--ink); margin-top: 6px; line-height: 1; }
+  .dash.dash-tasks .tk-measure .v.rose { color: var(--rose); }
+  .dash.dash-tasks .tk-measure .v.gold { color: var(--gold); }
+  .dash.dash-tasks .tk-measure .v.sage { color: var(--ok); }
+  .dash.dash-tasks .tk-measure .note { font-size: 11px; color: var(--faint); margin-top: 6px; }
+  .dash.dash-tasks .tk-measure .note.bad { color: var(--rose); }
+  .dash.dash-tasks .tk-measure .note.warn { color: var(--gold); }
+
+  .dash.dash-tasks .tk-controls { margin-top: 22px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .dash.dash-tasks .tk-seg { display: inline-flex; border: 1px solid var(--line); border-radius: 9px; overflow: hidden; }
+  .dash.dash-tasks .tk-seg button { font-family: var(--mono); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; padding: 8px 14px; color: var(--muted); transition: color .12s, background .12s; }
+  .dash.dash-tasks .tk-seg button.on { color: var(--ink); background: var(--card-2); }
+  .dash.dash-tasks .tk-seg button:hover:not(.on) { color: var(--ink-soft); }
+  .dash.dash-tasks .tk-check { display: inline-flex; align-items: center; gap: 7px; font-family: var(--mono); font-size: 10px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); cursor: pointer; user-select: none; }
+  .dash.dash-tasks .tk-check .box { width: 15px; height: 15px; border: 1px solid var(--line); border-radius: 5px; display: grid; place-items: center; }
+  .dash.dash-tasks .tk-check .box svg { width: 11px; height: 11px; stroke: transparent; }
+  .dash.dash-tasks .tk-check.on { color: var(--ink-soft); }
+  .dash.dash-tasks .tk-check.on .box { background: var(--vio-bg); border-color: var(--vio); }
+  .dash.dash-tasks .tk-check.on .box svg { stroke: var(--vio); }
+
+  .dash.dash-tasks .tk-groups { margin-top: 20px; display: flex; flex-direction: column; gap: 26px; }
+  .dash.dash-tasks .tk-group-label { display: flex; align-items: center; gap: 8px; font-family: var(--mono); font-size: 10px; font-weight: 500; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); margin-bottom: 10px; }
+  .dash.dash-tasks .tk-group-label .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--muted); }
+  .dash.dash-tasks .tk-group-label.rose { color: var(--rose); } .dash.dash-tasks .tk-group-label.rose .dot { background: var(--rose); }
+  .dash.dash-tasks .tk-group-label.gold { color: var(--gold); } .dash.dash-tasks .tk-group-label.gold .dot { background: var(--gold); }
+  .dash.dash-tasks .tk-group-label .ct { color: var(--faint); letter-spacing: .08em; }
+
+  .dash.dash-tasks .tk-list { display: flex; flex-direction: column; gap: 7px; }
+  .dash.dash-tasks .tk-row {
+    display: flex; align-items: flex-start; gap: 13px; background: var(--card); border: 1px solid var(--line);
+    border-radius: 11px; padding: 13px 15px 13px 0; position: relative; overflow: hidden; transition: border-color .14s, transform .14s;
+  }
+  .dash.dash-tasks .tk-row::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: transparent; }
+  .dash.dash-tasks .tk-row.s-overdue::before { background: var(--rose); }
+  .dash.dash-tasks .tk-row.s-urgent::before { background: var(--rose); opacity: .7; }
+  .dash.dash-tasks .tk-row.s-due-soon::before { background: var(--gold); }
+  .dash.dash-tasks .tk-row:hover { border-color: rgba(236,231,221,.2); transform: translateX(1px); }
+  .dash.dash-tasks .tk-circle {
+    margin-left: 15px; margin-top: 1px; flex-shrink: 0; width: 19px; height: 19px; border-radius: 50%;
+    border: 1.6px solid var(--faint); display: grid; place-items: center; transition: border-color .14s, background .14s;
+  }
+  .dash.dash-tasks .tk-circle svg { width: 11px; height: 11px; stroke: transparent; stroke-width: 3; }
+  .dash.dash-tasks .tk-circle:hover { border-color: var(--ok); background: var(--ok-bg); }
+  .dash.dash-tasks .tk-circle:hover svg { stroke: var(--ok); }
+  .dash.dash-tasks .tk-row-main { flex: 1; min-width: 0; }
+  .dash.dash-tasks .tk-row-title { font-size: 14px; font-weight: 500; color: var(--ink); letter-spacing: -.005em; }
+  .dash.dash-tasks .tk-row-meta { margin-top: 6px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .dash.dash-tasks .tk-when { font-family: var(--mono); font-size: 10.5px; letter-spacing: .03em; color: var(--muted); display: inline-flex; align-items: center; gap: 5px; }
+  .dash.dash-tasks .tk-when.late { color: var(--rose); }
+  .dash.dash-tasks .tk-when.soon { color: var(--gold); }
+  .dash.dash-tasks .tk-when svg { width: 12px; height: 12px; }
+  .dash.dash-tasks .tk-sep { color: var(--faint); }
+  .dash.dash-tasks .tk-chips { display: inline-flex; align-items: center; gap: 5px; flex-wrap: wrap; }
+  .dash.dash-tasks .tk-chip {
+    display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 500; color: var(--ink-soft);
+    background: var(--card-2); border: 1px solid var(--line); border-radius: 999px; padding: 3px 9px 3px 7px; line-height: 1;
+  }
+  .dash.dash-tasks .tk-chip .av { width: 15px; height: 15px; border-radius: 50%; background: var(--vio-bg); color: var(--vio); display: grid; place-items: center; font-family: var(--mono); font-size: 7.5px; font-weight: 600; flex-shrink: 0; }
+  .dash.dash-tasks .tk-chip.role { border-color: color-mix(in srgb, var(--rc, var(--vio)) 38%, transparent); background: color-mix(in srgb, var(--rc, var(--vio)) 12%, transparent); color: var(--ink); }
+  .dash.dash-tasks .tk-chip.role .pip { width: 7px; height: 7px; border-radius: 2px; background: var(--rc, var(--vio)); flex-shrink: 0; }
+
+  /* ════════════════════════════════════════════════════════════════════════
+     Polls — Editorial Ballot (this exploration). Same dusk tokens as above,
+     different information philosophy: a blind ballot that unseals to the
+     voter the moment THEY vote, and finalizes when a manager closes it.
+     ════════════════════════════════════════════════════════════════════════ */
+  .db-row {
+    display: flex; align-items: center; gap: 14px; background: var(--card); border: 1px solid var(--line-soft);
+    border-bottom: 1px solid var(--line); border-radius: 10px; padding: 15px 16px; transition: border-color .14s, transform .14s;
+    cursor: pointer; width: 100%; text-align: left; color: inherit;
+  }
+  .db-row:hover { border-color: rgba(236,231,221,.2); transform: translateX(1px); }
+  .db-glyph { flex-shrink: 0; width: 22px; height: 22px; color: var(--faint); display: grid; place-items: center; }
+  .db-row.awaits .db-glyph { color: var(--vio); }
+  .db-main { flex: 1; min-width: 0; }
+  .db-title { font-family: var(--serif); font-style: italic; font-size: 16px; font-weight: 400; color: var(--ink-soft); }
+  .db-row.awaits .db-title { color: var(--ink); }
+  .db-meta { margin-top: 7px; display: flex; align-items: center; gap: 9px; flex-wrap: wrap; font-size: 11px; color: var(--muted); font-family: var(--mono); letter-spacing: .02em; }
+  .db-right { flex-shrink: 0; display: flex; align-items: center; gap: 12px; }
+  .db-hint { font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+  .db-row.awaits .db-hint { color: var(--vio); }
+
+  .db-question { font-family: var(--serif); font-style: italic; font-size: 21px; line-height: 1.3; color: var(--ink); margin-bottom: 4px; }
+  .db-sub { font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); margin-bottom: 20px; display: flex; align-items: center; }
+  .db-sub.reveal { color: var(--gold); }
+  .db-sub.live { color: var(--vio); }
+  .db-live-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--vio); margin-right: 7px; flex-shrink: 0; animation: db-pulse 1.6s ease-in-out infinite; }
+  @keyframes db-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .3; } }
+  .db-ballot { display: flex; flex-direction: column; }
+  .db-ballot.reveal-in { opacity: 0; transform: translateY(6px); transition: opacity .35s ease, transform .35s ease; }
+  .db-ballot.reveal-in.show { opacity: 1; transform: translateY(0); }
+  .db-line {
+    display: flex; align-items: center; gap: 13px; padding: 13px 2px; border-bottom: 1px solid var(--line-soft);
+    cursor: pointer; background: none; border-left: none; border-right: none; border-top: none; width: 100%; text-align: left; color: inherit;
+  }
+  .db-line:last-child { border-bottom: none; }
+  .db-radio { flex-shrink: 0; width: 17px; height: 17px; border-radius: 50%; border: 1.5px solid var(--faint); display: grid; place-items: center; transition: border-color .14s; }
+  .db-line:hover .db-radio { border-color: var(--vio); }
+  .db-radio-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--vio); transform: scale(0); transition: transform .16s; }
+  .db-line.picked .db-radio { border-color: var(--vio); }
+  .db-line.picked .db-radio-dot { transform: scale(1); }
+  .db-line-label { flex: 1; font-size: 14.5px; color: var(--ink-soft); }
+  .db-line.picked .db-line-label { color: var(--ink); }
+  .db-submit {
+    margin-top: 18px; width: 100%; font-family: var(--mono); font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase;
+    padding: 11px; border-radius: 8px; border: 1px solid var(--vio-bg); background: var(--vio-bg); color: var(--vio);
+    cursor: not-allowed; opacity: .5; transition: opacity .15s;
+  }
+  .db-submit.ready { cursor: pointer; opacity: 1; }
+  .db-submit.ready:hover { border-color: var(--vio); }
+  .db-result-line { display: flex; align-items: baseline; justify-content: space-between; padding: 12px 2px; border-bottom: 1px solid var(--line-soft); gap: 14px; }
+  .db-result-line:last-child { border-bottom: none; }
+  .db-rl-left { flex: 1; min-width: 0; }
+  .db-rl-label { font-size: 14.5px; color: var(--ink-soft); display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+  .db-result-line.win .db-rl-label { color: var(--ink); font-weight: 500; }
+  .db-elected { font-family: var(--mono); font-size: 8px; letter-spacing: .1em; text-transform: uppercase; color: var(--gold); background: var(--gold-bg); border: 1px solid var(--gold-bg); border-radius: 3px; padding: 2px 6px; }
+  .db-you-tag { font-family: var(--mono); font-size: 8px; letter-spacing: .1em; text-transform: uppercase; color: var(--vio); background: var(--vio-bg); border: 1px solid var(--vio-bg); border-radius: 3px; padding: 2px 6px; }
+  .db-rl-bar { margin-top: 7px; height: 2px; background: var(--line); border-radius: 2px; overflow: hidden; }
+  .db-rl-bar span { display: block; height: 100%; background: var(--faint); transition: width .5s cubic-bezier(.4,0,.2,1); }
+  .db-result-line.win .db-rl-bar span { background: var(--gold); }
+  .db-rl-pct { font-family: var(--serif); font-size: 17px; color: var(--muted); flex-shrink: 0; }
+  .db-result-line.win .db-rl-pct { color: var(--gold); }
+  .db-foot { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line-soft); font-family: var(--mono); font-size: 10.5px; color: var(--faint); display: flex; justify-content: space-between; }
+  .db-manage { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-top: 16px; padding-top: 13px; border-top: 1px solid var(--line-soft); }
+  .reset-link { font-family: var(--mono); font-size: 9.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--faint); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; background: none; border: none; }
+  .reset-link:hover { color: var(--ink-soft); }
+  .manage-btn { font-family: var(--mono); font-size: 9.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); background: transparent; border: 1px solid var(--line); border-radius: 7px; padding: 7px 12px; cursor: pointer; transition: border-color .14s, color .14s; }
+  .manage-btn:hover { border-color: var(--vio); color: var(--ink-soft); }
+  .manage-btn.danger { color: var(--rose); border-color: var(--rose-bg); }
+  .manage-btn.danger:hover { border-color: var(--rose); color: var(--rose); }
+  .db-manage.confirming { animation: db-confirm-in .18s ease; }
+  .db-confirm-q { flex: 1; font-family: var(--mono); font-size: 10px; letter-spacing: .01em; color: var(--ink-soft); line-height: 1.35; }
+  @keyframes db-confirm-in { from { opacity: 0; transform: translateY(-3px); } to { opacity: 1; transform: translateY(0); } }
+
+  /* ── Modal — copied from primitives.tsx <Modal tone="dusk"> ──────────────── */
+  .modal-backdrop { position: fixed; inset: 0; z-index: 60; display: none; align-items: center; justify-content: center; padding: 16px; }
+  .modal-backdrop.open { display: flex; }
+  .modal-scrim { position: absolute; inset: 0; background: rgba(0,0,0,.7); backdrop-filter: blur(8px); }
+  .modal-panel {
+    position: relative; width: 100%; max-width: 32rem; max-height: calc(100vh - 32px); overflow-y: auto;
+    border-radius: 16px; border: 1px solid rgba(236,231,221,.1); background: var(--paper);
+    box-shadow: 0 24px 70px -20px rgba(0,0,0,.85), var(--shadow);
+  }
+  .modal-body { padding: 24px; }
+
+  .toast {
+    position: fixed; left: 50%; bottom: 26px; transform: translate(-50%, 10px); opacity: 0;
+    background: var(--card-2); border: 1px solid var(--line); color: var(--ink); font-size: 12.5px;
+    padding: 10px 18px; border-radius: 999px; box-shadow: var(--shadow); z-index: 80;
+    transition: opacity .22s, transform .22s; pointer-events: none; white-space: nowrap; font-family: var(--sans);
+  }
+  .toast.show { opacity: 1; transform: translate(-50%, 0); }
+  .toast .dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--vio); margin-right: 8px; }
+
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition-duration: .01ms !important; animation-duration: .01ms !important; } }
+
+  @media (max-width: 860px) {
+    .side { display: none; }
+    .dash.dash-tasks .tk-glance { grid-template-columns: repeat(2,1fr); }
+    .dash.dash-tasks .tk-measure:nth-child(-n+2) { border-bottom: 1px solid var(--line-soft); }
+    .dash.dash-tasks .tk-briefing { flex-direction: column; gap: 16px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <aside class="side">
+    <div class="side-org">
+      <div class="side-logo">ΛΦΕ</div>
+      <div>
+        <div class="side-org-name">Lambda Phi Epsilon</div>
+        <div class="side-org-sub">Spring '26</div>
+      </div>
+    </div>
+    <nav class="side-nav">
+      <a class="side-link" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>Dashboard</a>
+      <a class="side-link" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z M9 17h6M9 13h6"/></svg>Timeline</a>
+      <a class="side-link" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>Brothers</a>
+      <a class="side-link on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>Tasks</a>
+      <a class="side-link" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>Treasury</a>
+      <a class="side-link" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>Docs</a>
+      <a class="side-link" href="#" style="margin-top:auto;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>Settings</a>
+    </nav>
+    <div class="side-foot">
+      <div class="side-av">TT</div>
+      <div class="side-who">
+        <div class="side-who-name">Thalha Thabish</div>
+        <div class="side-who-role">President</div>
+      </div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="dash dash-tasks">
+      <header class="tk-briefing">
+        <div>
+          <div class="tk-kicker">Tasks · <span class="today">Today Wed, Jul 15</span></div>
+          <h1 class="tk-title">Things to get <em>done</em>.</h1>
+          <div class="tk-digest">
+            <span class="tk-digest-chip">CHAPTER</span>
+            <p><b>1 task is overdue</b> and 2 are due this week — across 4 owners.</p>
+          </div>
+          <div class="tk-digest">
+            <span class="tk-digest-chip">POLLS</span>
+            <p id="digest-polls"><b>2 open polls</b> — 1 is waiting on your vote.</p>
+          </div>
+        </div>
+        <div class="tk-briefing-acts">
+          <button class="tk-add ghost"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path stroke-linecap="round" stroke-linejoin="round" d="M12 5v14M5 12h14"/></svg>New poll</button>
+          <button class="tk-add"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path stroke-linecap="round" stroke-linejoin="round" d="M12 5v14M5 12h14"/></svg>New task</button>
+        </div>
+      </header>
+
+      <div class="tk-glance">
+        <div class="tk-measure"><div class="k">Overdue</div><div class="v rose">1</div><div class="note bad">2d late</div></div>
+        <div class="tk-measure"><div class="k">Due soon</div><div class="v gold">2</div><div class="note warn">within 7 days</div></div>
+        <div class="tk-measure"><div class="k">Open</div><div class="v">5</div><div class="note">across 4 owners</div></div>
+        <div class="tk-measure"><div class="k">Done</div><div class="v sage">11</div><div class="note">this semester</div></div>
+      </div>
+
+      <div class="tk-controls">
+        <div class="tk-seg"><button class="on">All tasks</button><button>Assigned to me</button></div>
+        <button type="button" class="tk-check"><span class="box"><svg viewBox="0 0 24 24" fill="none" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg></span>Show done</button>
+      </div>
+
+      <div class="tk-groups">
+        <section>
+          <p class="tk-group-label gold"><span class="dot"></span>Polls <span class="ct">(3)</span></p>
+          <div class="tk-list">
+            <button type="button" class="db-row awaits" id="db-row1" onclick="openPollModal()">
+              <div class="db-glyph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="8" width="18" height="12" rx="2"/><path stroke-linecap="round" stroke-linejoin="round" d="M8 8l4-4 4 4"/></svg></div>
+              <div class="db-main">
+                <p class="db-title">What's the theme for Bid Day?</p>
+                <div class="db-meta" id="db-r1-meta">OPEN · CLOSES 3D · 18 SEALED</div>
+              </div>
+              <div class="db-right"><span class="db-hint" id="db-r1-hint">Vote →</span></div>
+            </button>
+            <div class="db-row">
+              <div class="db-glyph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="8" width="18" height="12" rx="2"/><path stroke-linecap="round" stroke-linejoin="round" d="M8 8l4-4 4 4"/></svg></div>
+              <div class="db-main">
+                <p class="db-title">Which weekend works for the fall retreat?</p>
+                <div class="db-meta">OPEN · CLOSES 6D · 27 SEALED</div>
+              </div>
+              <div class="db-right"><span class="db-hint">View →</span></div>
+            </div>
+            <div class="db-row">
+              <div class="db-glyph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="8" width="18" height="12" rx="2"/><path stroke-linecap="round" stroke-linejoin="round" d="M8 8l4-4 4 4"/></svg></div>
+              <div class="db-main">
+                <p class="db-title">Where should we host Spring Formal?</p>
+                <div class="db-meta">CLOSED JUL 13 · 47 CAST</div>
+              </div>
+              <div class="db-right"><span class="db-hint">Results →</span></div>
+            </div>
+          </div>
+        </section>
+
+        <section>
+          <p class="tk-group-label rose"><span class="dot"></span>Overdue <span class="ct">(1)</span></p>
+          <div class="tk-list">
+            <div class="tk-row s-overdue">
+              <button class="tk-circle" title="Mark done"><svg viewBox="0 0 24 24" fill="none"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg></button>
+              <div class="tk-row-main">
+                <p class="tk-row-title">Order Bid Day supplies</p>
+                <div class="tk-row-meta">
+                  <span class="tk-when late"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path stroke-linecap="round" stroke-linejoin="round" d="M12 7.5V12l3 2"/></svg>2d late</span>
+                  <span class="tk-sep">·</span>
+                  <span class="tk-chips"><span class="tk-chip role" style="--rc:#ddb36a"><span class="pip"></span>Recruitment Chair</span></span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section>
+          <p class="tk-group-label gold"><span class="dot"></span>Due soon <span class="ct">(2)</span></p>
+          <div class="tk-list">
+            <div class="tk-row s-due-soon">
+              <button class="tk-circle" title="Mark done"><svg viewBox="0 0 24 24" fill="none"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg></button>
+              <div class="tk-row-main">
+                <p class="tk-row-title">Submit Spring Formal deposit</p>
+                <div class="tk-row-meta">
+                  <span class="tk-when soon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path stroke-linecap="round" stroke-linejoin="round" d="M12 7.5V12l3 2"/></svg>Due tomorrow</span>
+                  <span class="tk-sep">·</span>
+                  <span class="tk-chips"><span class="tk-chip"><span class="av">TT</span>Thalha Thabish</span></span>
+                </div>
+              </div>
+            </div>
+            <div class="tk-row s-due-soon">
+              <button class="tk-circle" title="Mark done"><svg viewBox="0 0 24 24" fill="none"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg></button>
+              <div class="tk-row-main">
+                <p class="tk-row-title">Confirm DJ contract</p>
+                <div class="tk-row-meta">
+                  <span class="tk-when soon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path stroke-linecap="round" stroke-linejoin="round" d="M12 7.5V12l3 2"/></svg>Due in 4d</span>
+                  <span class="tk-sep">·</span>
+                  <span class="tk-chips"><span class="tk-chip role" style="--rc:#a78bfa"><span class="pip"></span>Social Chair</span></span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section>
+          <p class="tk-group-label"><span class="dot"></span>Upcoming <span class="ct">(2)</span></p>
+          <div class="tk-list">
+            <div class="tk-row">
+              <button class="tk-circle" title="Mark done"><svg viewBox="0 0 24 24" fill="none"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg></button>
+              <div class="tk-row-main">
+                <p class="tk-row-title">Reserve venue for Founders' Day</p>
+                <div class="tk-row-meta">
+                  <span class="tk-when"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path stroke-linecap="round" stroke-linejoin="round" d="M12 7.5V12l3 2"/></svg>Due Aug 3</span>
+                  <span class="tk-sep">·</span>
+                  <span class="tk-chips"><span class="tk-chip"><span class="av">DK</span>Dariel Milfort</span></span>
+                </div>
+              </div>
+            </div>
+            <div class="tk-row">
+              <button class="tk-circle" title="Mark done"><svg viewBox="0 0 24 24" fill="none"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg></button>
+              <div class="tk-row-main">
+                <p class="tk-row-title">Order new chapter letters banner</p>
+                <div class="tk-row-meta">
+                  <span class="tk-when"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path stroke-linecap="round" stroke-linejoin="round" d="M12 7.5V12l3 2"/></svg>Due Aug 12</span>
+                  <span class="tk-sep">·</span>
+                  <span class="tk-chips"><span class="tk-chip role" style="--rc:#7fb08a"><span class="pip"></span>Treasurer</span></span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+  </main>
+</div>
+
+<div class="modal-backdrop" id="modal">
+  <div class="modal-scrim" onclick="closePollModal()"></div>
+  <div class="modal-panel" role="dialog" aria-modal="true" aria-label="Poll">
+    <div class="modal-body" id="db-card1"></div>
+  </div>
+</div>
+
+<script>
+  function toast(msg) {
+    var t = document.createElement('div');
+    t.className = 'toast';
+    t.innerHTML = '<span class="dot"></span>' + msg;
+    document.body.appendChild(t);
+    requestAnimationFrame(function(){ t.classList.add('show'); });
+    setTimeout(function(){ t.classList.remove('show'); setTimeout(function(){ t.remove(); }, 250); }, 2300);
+  }
+  function pctOf(v, total) { return total > 0 ? Math.round((v / total) * 100) : 0; }
+  function totalOf(options) { return options.reduce(function(s,o){ return s + o.votes; }, 0); }
+  function leaderId(options) { var best = options[0]; options.forEach(function(o){ if (o.votes > best.votes) best = o; }); return best.id; }
+
+  var INITIAL = {
+    options: [
+      { id: 1, label: 'Retro Arcade',  votes: 7 },
+      { id: 2, label: 'Tropical Luau', votes: 6 },
+      { id: 3, label: 'Western Rodeo', votes: 3 },
+      { id: 4, label: 'Space Odyssey', votes: 2 },
+    ],
+    assigned: 40,
+  };
+  function freshOptions() { return INITIAL.options.map(function(o){ return { id: o.id, label: o.label, votes: o.votes }; }); }
+
+  var dbState = { status: 'open', pendingPick: null, myVote: null, cast: false, confirmingClose: false, options: freshOptions() };
+
+  // ── Modal open/close ──────────────────────────────────────────────────────
+  function openPollModal() {
+    document.getElementById('modal').classList.add('open');
+    document.body.style.overflow = 'hidden';
+    dbRenderCard();
+  }
+  function closePollModal() {
+    document.getElementById('modal').classList.remove('open');
+    document.body.style.overflow = '';
+  }
+  document.addEventListener('keydown', function(e){
+    if (e.key === 'Escape' && document.getElementById('modal').classList.contains('open')) closePollModal();
+  });
+
+  function dbPick(id) {
+    if (dbState.cast || dbState.status === 'closed') return;
+    dbState.pendingPick = id;
+    dbRenderCard();
+  }
+  function dbCast() {
+    if (dbState.pendingPick == null || dbState.cast) return;
+    dbState.options.forEach(function(o){ if (o.id === dbState.pendingPick) o.votes += 1; });
+    dbState.myVote = dbState.pendingPick;
+    dbState.cast = true;
+    dbState.confirmingClose = false;
+    dbRenderAll();
+    toast("Your vote is in — here's how the room is leaning so far.");
+  }
+  function dbToggleClose() {
+    dbState.status = dbState.status === 'open' ? 'closed' : 'open';
+    dbState.confirmingClose = false;
+    dbRenderAll();
+    toast(dbState.status === 'closed' ? 'Poll closed — final results are in.' : 'Poll reopened.');
+  }
+  function dbReset() {
+    dbState = { status: 'open', pendingPick: null, myVote: null, cast: false, confirmingClose: false, options: freshOptions() };
+    dbRenderAll();
+    toast('Demo reset.');
+  }
+  // ── Close-poll confirmation guard ─────────────────────────────────────────
+  function dbRequestClose() { dbState.confirmingClose = true; dbRenderCard(); }
+  function dbCancelClose() { dbState.confirmingClose = false; dbRenderCard(); }
+  function dbConfirmClose() { dbState.confirmingClose = false; dbToggleClose(); }
+  function dbManageHtml() {
+    if (dbState.status === 'closed') {
+      return '<div class="db-manage"><button class="reset-link" onclick="dbReset()">Reset demo</button>' +
+        '<button class="manage-btn" onclick="dbToggleClose()">Reopen poll</button></div>';
+    }
+    if (dbState.confirmingClose) {
+      return '<div class="db-manage confirming">' +
+        '<span class="db-confirm-q">Close early? Voting ends for everyone and results are final.</span>' +
+        '<button class="manage-btn" onclick="dbCancelClose()">Cancel</button>' +
+        '<button class="manage-btn danger" onclick="dbConfirmClose()">Yes, close</button></div>';
+    }
+    return '<div class="db-manage"><button class="reset-link" onclick="dbReset()">Reset demo</button>' +
+      '<button class="manage-btn" onclick="dbRequestClose()">Close poll</button></div>';
+  }
+  function dbRenderAll() {
+    var total = totalOf(dbState.options);
+    var closed = dbState.status === 'closed';
+    var row = document.getElementById('db-row1');
+    row.classList.toggle('awaits', !closed && !dbState.cast);
+    document.getElementById('db-r1-meta').textContent = closed
+      ? 'CLOSED · ' + total + ' CAST'
+      : (dbState.cast ? 'OPEN · CLOSES 3D · ' + total + ' VOTES · LIVE' : 'OPEN · CLOSES 3D · ' + total + ' SEALED');
+    document.getElementById('db-r1-hint').textContent = closed ? 'Results →' : (dbState.cast ? 'Live →' : 'Vote →');
+    var open = dbState.options.filter(function(){ return true; }); // no-op, keeps shape obvious
+    document.getElementById('digest-polls').innerHTML = closed
+      ? '<b>1 open poll</b> — you\'re all caught up.'
+      : (dbState.cast ? '<b>2 open polls</b> — you\'re all caught up.' : '<b>2 open polls</b> — 1 is waiting on your vote.');
+    dbRenderCard();
+  }
+  function dbResultsHtml(final) {
+    var lead = leaderId(dbState.options);
+    return dbState.options.map(function(o) {
+      var pct = pctOf(o.votes, totalOf(dbState.options));
+      var win = final && o.id === lead;
+      var mine = o.id === dbState.myVote;
+      return '<div class="db-result-line' + (win ? ' win' : '') + '"><div class="db-rl-left"><p class="db-rl-label">' + o.label +
+        (win ? '<span class="db-elected">Elected</span>' : '') + (mine ? '<span class="db-you-tag">Your vote</span>' : '') + '</p>' +
+        '<div class="db-rl-bar"><span data-pct="' + pct + '" style="width:0%"></span></div></div><span class="db-rl-pct">' + pct + '%</span></div>';
+    }).join('');
+  }
+  function dbAnimateReveal() {
+    var ballot = document.getElementById('db-ballot');
+    if (ballot) requestAnimationFrame(function(){ requestAnimationFrame(function(){ ballot.classList.add('show'); }); });
+    requestAnimationFrame(function(){ requestAnimationFrame(function(){
+      document.querySelectorAll('#db-card1 .db-rl-bar span[data-pct]').forEach(function(el){ el.style.width = el.getAttribute('data-pct') + '%'; });
+    }); });
+  }
+  function dbRenderCard() {
+    var total = totalOf(dbState.options);
+    var closed = dbState.status === 'closed';
+    var card = document.getElementById('db-card1');
+    if (!closed && !dbState.cast) {
+      var linesHtml = dbState.options.map(function(o) {
+        var picked = dbState.pendingPick === o.id;
+        return '<button type="button" class="db-line' + (picked ? ' picked' : '') + '" data-id="' + o.id + '">' +
+          '<span class="db-radio"><span class="db-radio-dot"></span></span><span class="db-line-label">' + o.label + '</span></button>';
+      }).join('');
+      card.innerHTML =
+        '<p class="db-question">What\'s the theme for Bid Day?</p>' +
+        '<p class="db-sub">Vote to see how the room is leaning</p>' +
+        '<div class="db-ballot" id="db-ballot">' + linesHtml + '</div>' +
+        '<button type="button" class="db-submit' + (dbState.pendingPick != null ? ' ready' : '') + '" id="db-submit-btn">Cast your vote</button>' +
+        dbManageHtml();
+      document.getElementById('db-ballot').addEventListener('click', function(e) {
+        var btn = e.target.closest('.db-line'); if (!btn) return; dbPick(Number(btn.getAttribute('data-id')));
+      });
+      document.getElementById('db-submit-btn').addEventListener('click', dbCast);
+    } else if (!closed) {
+      card.innerHTML =
+        '<p class="db-question">What\'s the theme for Bid Day?</p>' +
+        '<p class="db-sub live"><span class="db-live-dot"></span>Live · ' + total + ' votes so far, still open</p>' +
+        '<div class="db-ballot reveal-in" id="db-ballot">' + dbResultsHtml(false) + '</div>' +
+        '<div class="db-foot"><span>' + total + ' of ' + INITIAL.assigned + ' voted</span><span>Closes in 3 days</span></div>' +
+        dbManageHtml();
+      dbAnimateReveal();
+    } else {
+      card.innerHTML =
+        '<p class="db-question">What\'s the theme for Bid Day?</p>' +
+        '<p class="db-sub reveal">Closed just now · ' + total + ' votes cast</p>' +
+        '<div class="db-ballot reveal-in" id="db-ballot">' + dbResultsHtml(true) + '</div>' +
+        '<div class="db-foot"><span>' + total + ' of ' + INITIAL.assigned + ' voted</span><span>All members</span></div>' +
+        dbManageHtml();
+      dbAnimateReveal();
+    }
+  }
+
+  dbRenderAll();
+</script>
+</body>
+</html>
