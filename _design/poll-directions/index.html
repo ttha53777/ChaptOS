@@ -1,0 +1,898 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dusk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Figurints — Poll UI, Three Directions (Dusk Ledger)</title>
+<!--
+  ════════════════════════════════════════════════════════════════════════════
+  FIGURINTS · ChaptOS — Poll UI exploration
+
+  SCOPE: Polls already ship inside app/[slug]/tasks/page.tsx — a pinned row
+  (.pl-row) above the task list that opens a vote/results card (.pl-card) in a
+  centered modal, backed by app/components/dashboard/PollForm.tsx and the real
+  Poll / PollOption / PollVote / PollAssignment Prisma models. This file does
+  NOT propose a new page — it explores three ways to redesign that existing
+  row + card, in place.
+
+  HARD CONSTRAINT honored: dusk Chapter Ledger only. Every CSS var below is
+  copied VERBATIM from app/[slug]/tasks/tasks-ledger.css. No new accent
+  colors — only layout, typography, and information philosophy vary between
+  the three directions:
+    A. LEDGER REFINED    — polishes what's shipped; live tallies stay visible
+                            the whole time voting is open; voter avatars.
+    B. EDITORIAL BALLOT  — a blind ballot; counts are sealed until the poll
+                            closes, then reveal as typeset results.
+    C. LEDGER DATA       — dense, tabular, Treasury-style; built for chapters
+                            running several polls at once.
+
+  Content is illustrative but grounded in the real poll shape (question,
+  2-10 options, closeDate, brother/role assignments, open|closed status).
+
+  Each direction's card is fully interactive: click an option to vote, watch
+  the pinned row above react, then "Close poll" to see results land.
+
+  TWEAKS  ·  1 / 2 / 3 = Direction A / B / C
+  ════════════════════════════════════════════════════════════════════════════
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,400..500&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  /* ── Tokens copied verbatim from tasks-ledger.css (dusk) ─────────────────── */
+  :root {
+    --serif: "Fraunces", Georgia, serif;
+    --sans:  "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --mono:  "Geist Mono", ui-monospace, Menlo, monospace;
+
+    --paper:    #0f0d0a;
+    --paper-2:  #14120e;
+    --card:     #161310;
+    --card-2:   #1b1813;
+    --ink:      #ece7dd;
+    --ink-soft: #c9c2b4;
+    --muted:    #958d7c;
+    --faint:    #6b6354;
+    --line:     rgba(236,231,221,.09);
+    --line-soft:rgba(236,231,221,.05);
+    --vio:      #a78bfa;
+    --vio-deep: #7c3aed;
+    --vio-bg:   rgba(167,139,250,.10);
+    --gold:     #ddb36a;
+    --gold-bg:  rgba(221,179,106,.10);
+    --rose:     #d98ba3;
+    --rose-bg:  rgba(217,139,163,.10);
+    --ok:       #7fb08a;
+    --ok-bg:    rgba(127,176,138,.10);
+    --shadow:   0 1px 0 rgba(0,0,0,.4), 0 16px 40px -24px rgba(0,0,0,.7);
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--sans);
+    -webkit-font-smoothing: antialiased;
+    padding: 0 0 90px;
+  }
+  a { color: inherit; }
+  ::selection { background: var(--vio-bg); color: var(--ink); }
+  button { font: inherit; }
+
+  .stage { max-width: 1180px; margin: 0 auto; padding: 44px clamp(16px,4vw,40px) 0; }
+
+  /* ── Hero / eyebrow ─────────────────────────────────────────────────────── */
+  .eyebrow {
+    font-family: var(--mono); font-size: 10.5px; letter-spacing: .18em; text-transform: uppercase;
+    color: var(--vio); margin: 0 0 12px;
+  }
+  h1 {
+    font-family: var(--serif); font-weight: 400; font-size: clamp(26px,3.6vw,38px);
+    letter-spacing: -.01em; margin: 0 0 14px; color: var(--ink);
+  }
+  h1 em { font-style: italic; color: var(--vio); }
+  .lede { font-size: 14px; line-height: 1.6; color: var(--ink-soft); max-width: 66ch; margin: 0 0 30px; }
+  .lede b { color: var(--ink); font-weight: 600; }
+
+  /* ── Direction switcher ────────────────────────────────────────────────── */
+  .switch {
+    display: grid; grid-template-columns: repeat(3,1fr); gap: 10px;
+    border-bottom: 1px solid var(--line); padding-bottom: 22px; margin-bottom: 30px;
+  }
+  .switch button {
+    text-align: left; background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+    padding: 14px 16px; cursor: pointer; transition: border-color .15s, background .15s;
+    display: flex; flex-direction: column; gap: 5px;
+  }
+  .switch button:hover { border-color: rgba(236,231,221,.22); }
+  .switch button.on { border-color: var(--vio); background: var(--vio-bg); }
+  .tab-row { display: flex; align-items: center; gap: 8px; }
+  .tab-id {
+    font-family: var(--mono); font-size: 10px; font-weight: 700; color: var(--paper);
+    background: var(--muted); width: 18px; height: 18px; border-radius: 5px;
+    display: inline-grid; place-items: center; flex-shrink: 0;
+  }
+  .switch button.on .tab-id { background: var(--vio); }
+  .tab-name { font-size: 13.5px; font-weight: 600; color: var(--ink); }
+  .tab-tag { font-size: 11.5px; color: var(--muted); line-height: 1.45; }
+  .switch button.on .tab-tag { color: var(--ink-soft); }
+
+  /* ── Panel / page-context frame ─────────────────────────────────────────── */
+  .panel { display: flex; flex-direction: column; gap: 28px; }
+  .panel[hidden] { display: none; } /* [hidden] and .panel share specificity — this must win explicitly */
+  .frame {
+    background: var(--paper-2); border: 1px solid var(--line); border-radius: 16px;
+    padding: 26px clamp(16px,3vw,30px) 30px; box-shadow: var(--shadow);
+  }
+  .frame-note {
+    font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--faint); margin: 0 0 18px; display: flex; align-items: center; gap: 7px;
+  }
+  .frame-note svg { width: 11px; height: 11px; }
+  .ctx-kicker { font-family: var(--mono); font-size: 10px; letter-spacing: .16em; text-transform: uppercase; color: var(--muted); }
+  .ctx-kicker span { color: var(--vio); }
+  .ctx-title { font-family: var(--serif); font-weight: 400; font-size: 25px; margin: 6px 0 12px; color: var(--ink); }
+  .ctx-title em { font-style: italic; color: var(--vio); }
+  .ctx-digest { display: flex; gap: 8px; align-items: baseline; margin-bottom: 6px; }
+  .ctx-digest .chip {
+    font-family: var(--mono); font-size: 8.5px; font-weight: 600; letter-spacing: .12em; color: var(--vio);
+    border: 1px solid var(--vio-bg); background: var(--vio-bg); border-radius: 4px; padding: 2px 5px; flex-shrink: 0;
+  }
+  .ctx-digest p { font-size: 13px; font-style: italic; font-family: var(--serif); color: var(--ink-soft); }
+  .ctx-digest p b { font-weight: 600; font-style: normal; color: var(--ink); }
+  .ctx-philosophy { font-size: 12px; color: var(--faint); font-style: italic; margin: 2px 0 22px; }
+
+  .group-label {
+    display: flex; align-items: center; gap: 8px; font-family: var(--mono); font-size: 10px; font-weight: 500;
+    letter-spacing: .14em; text-transform: uppercase; color: var(--muted); margin-bottom: 10px;
+  }
+  .group-label .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--gold); }
+  .group-label .ct { color: var(--faint); }
+
+  .rows { display: flex; flex-direction: column; gap: 7px; margin-bottom: 26px; }
+
+  .card-sec-label {
+    font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--vio); margin: 0 0 4px; padding-top: 18px; border-top: 1px dashed var(--line);
+  }
+  .card-sec-sub { font-size: 11.5px; color: var(--faint); margin: 0 0 14px; }
+  .live-card-wrap { max-width: 460px; }
+
+  svg.icon { width: 13px; height: 13px; }
+
+  /* ── Shared manage controls (appear under every live card) ───────────────── */
+  .manage-row {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 16px;
+    padding-top: 13px; border-top: 1px solid var(--line-soft); flex-wrap: wrap;
+  }
+  .manage-note { font-size: 11px; color: var(--faint); }
+  .manage-acts { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+  .reset-link {
+    font-family: var(--mono); font-size: 9.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--faint);
+    text-decoration: underline; text-underline-offset: 3px; cursor: pointer; background: none; border: none;
+  }
+  .reset-link:hover { color: var(--ink-soft); }
+  .manage-btn {
+    font-family: var(--mono); font-size: 9.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted);
+    background: transparent; border: 1px solid var(--line); border-radius: 7px; padding: 7px 12px; cursor: pointer;
+    transition: border-color .14s, color .14s;
+  }
+  .manage-btn:hover { border-color: var(--vio); color: var(--ink-soft); }
+
+  /* ── Toast ─────────────────────────────────────────────────────────────── */
+  .toast {
+    position: fixed; left: 50%; bottom: 26px; transform: translate(-50%, 10px); opacity: 0;
+    background: var(--card-2); border: 1px solid var(--line); color: var(--ink); font-size: 12.5px;
+    padding: 10px 18px; border-radius: 999px; box-shadow: var(--shadow); z-index: 80;
+    transition: opacity .22s, transform .22s; pointer-events: none; white-space: nowrap;
+    font-family: var(--sans);
+  }
+  .toast.show { opacity: 1; transform: translate(-50%, 0); }
+  .toast .dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--vio); margin-right: 8px; }
+
+  /* ════════════════════════════════════════════════════════════════════════
+     DIRECTION A — Ledger Refined
+     ════════════════════════════════════════════════════════════════════════ */
+  .da-row {
+    display: flex; align-items: flex-start; gap: 13px; background: var(--card); border: 1px solid var(--line);
+    border-radius: 11px; padding: 13px 15px; position: relative; overflow: hidden;
+    transition: border-color .14s, transform .14s;
+  }
+  .da-row::before { content:""; position:absolute; left:0; top:0; bottom:0; width:3px; background: var(--gold); opacity:.55; }
+  .da-row.awaits::before { background: var(--vio); opacity: 1; }
+  .da-row.closed::before { background: var(--faint); opacity: .5; }
+  .da-row:hover { border-color: rgba(236,231,221,.2); transform: translateX(1px); }
+  .da-glyph {
+    flex-shrink: 0; margin-top: 1px; width: 20px; height: 20px; border-radius: 6px;
+    background: var(--vio-bg); color: var(--vio); display: grid; place-items: center;
+  }
+  .da-row.closed .da-glyph { background: var(--line-soft); color: var(--faint); }
+  .da-main { flex: 1; min-width: 0; }
+  .da-title { font-size: 14px; font-weight: 500; color: var(--ink); letter-spacing: -.005em; }
+  .da-row.closed .da-title { color: var(--ink-soft); }
+  .da-meta { margin-top: 6px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 11px; }
+  .pill { font-family: var(--mono); font-size: 8.5px; letter-spacing: .08em; text-transform: uppercase; padding: 3px 8px; border-radius: 999px; }
+  .pill.open { color: var(--ok); background: var(--ok-bg); }
+  .pill.closed { color: var(--muted); background: var(--line-soft); }
+  .da-when { font-family: var(--mono); font-size: 10.5px; color: var(--muted); display: inline-flex; align-items: center; gap: 5px; }
+  .da-when.soon { color: var(--gold); }
+  .sep { color: var(--faint); }
+  .da-votes { font-family: var(--mono); font-size: 10.5px; color: var(--muted); }
+  .da-right { flex-shrink: 0; display: flex; align-items: center; gap: 10px; align-self: center; }
+  .avstack { display: flex; }
+  .av {
+    width: 18px; height: 18px; border-radius: 50%; background: var(--card-2); border: 1.5px solid var(--paper-2);
+    display: grid; place-items: center; font-family: var(--mono); font-size: 7px; font-weight: 700; color: var(--ink-soft);
+    margin-left: -6px;
+  }
+  .av:first-child { margin-left: 0; }
+  .av.you { border-color: var(--vio); box-shadow: 0 0 0 1px var(--vio); color: var(--vio); }
+  .da-hint { display: inline-flex; align-items: center; gap: 3px; font-family: var(--mono); font-size: 9.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+  .da-hint.on { color: var(--vio); }
+  .da-hint svg { width: 12px; height: 12px; }
+
+  .da-card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 18px 20px; box-shadow: var(--shadow); }
+  .da-card.is-closed { opacity: .9; }
+  .da-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; margin-bottom: 16px; }
+  .da-question { font-family: var(--serif); font-size: 17px; color: var(--ink); line-height: 1.3; }
+  .da-bars { display: flex; flex-direction: column; gap: 8px; }
+  .da-bar {
+    position: relative; display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 11px 13px; border: 1px solid var(--line); border-radius: 9px; overflow: hidden; cursor: pointer;
+    transition: border-color .12s; text-align: left; background: none; color: inherit;
+  }
+  .da-bar:hover:not(:disabled) { border-color: var(--vio); }
+  .da-bar:disabled { cursor: default; }
+  .da-bar.mine { border-color: var(--vio); }
+  .da-bar.leader { border-left: 3px solid var(--gold); }
+  .da-fill { position: absolute; inset: 0 auto 0 0; background: var(--vio-bg); transition: width .4s cubic-bezier(.4,0,.2,1); }
+  .da-bar.mine .da-fill { background: rgba(167,139,250,.20); }
+  .da-bar.leader.is-closed-leader .da-fill { background: var(--gold-bg); }
+  .da-label { position: relative; display: inline-flex; align-items: center; gap: 7px; font-size: 13px; color: var(--ink-soft); }
+  .da-bar.mine .da-label, .da-bar.leader .da-label { color: var(--ink); }
+  .da-check { width: 13px; height: 13px; color: var(--vio); flex-shrink: 0; }
+  .da-count { position: relative; flex-shrink: 0; font-family: var(--mono); font-size: 10.5px; color: var(--muted); }
+  .da-foot { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 15px; font-size: 11.5px; color: var(--muted); }
+  .da-avnote { display: flex; align-items: center; gap: 8px; margin-top: 12px; }
+  .da-avnote span { font-size: 11px; color: var(--faint); }
+
+  /* ════════════════════════════════════════════════════════════════════════
+     DIRECTION B — Editorial Ballot
+     ════════════════════════════════════════════════════════════════════════ */
+  .db-row {
+    display: flex; align-items: center; gap: 14px; background: var(--card); border: 1px solid var(--line-soft);
+    border-bottom: 1px solid var(--line); padding: 15px 4px; transition: border-color .14s;
+  }
+  .db-row:hover { border-bottom-color: rgba(236,231,221,.24); }
+  .db-glyph { flex-shrink: 0; width: 22px; height: 22px; color: var(--faint); display: grid; place-items: center; }
+  .db-row.awaits .db-glyph { color: var(--vio); }
+  .db-main { flex: 1; min-width: 0; }
+  .db-title { font-family: var(--serif); font-style: italic; font-size: 16px; font-weight: 400; color: var(--ink-soft); }
+  .db-row.awaits .db-title { color: var(--ink); }
+  .db-meta { margin-top: 7px; display: flex; align-items: center; gap: 9px; flex-wrap: wrap; font-size: 11px; color: var(--muted); font-family: var(--mono); letter-spacing: .02em; }
+  .db-right { flex-shrink: 0; display: flex; align-items: center; gap: 12px; }
+  .db-hint { font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+  .db-row.awaits .db-hint { color: var(--vio); }
+
+  .db-card { background: var(--card); border: 1px solid var(--line); border-radius: 4px; padding: 26px 26px 22px; box-shadow: var(--shadow); position: relative; }
+  .db-card::before { content:""; position:absolute; left:16px; right:16px; top:8px; height:1px; background: var(--line); }
+  .db-card::after { content:""; position:absolute; left:16px; right:16px; bottom:8px; height:1px; background: var(--line); }
+  .db-question { font-family: var(--serif); font-style: italic; font-size: 21px; line-height: 1.3; color: var(--ink); margin-bottom: 4px; }
+  .db-sub { font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); margin-bottom: 20px; display: flex; align-items: center; }
+  .db-sub.reveal { color: var(--gold); }
+  .db-sub.sealed { color: var(--vio); }
+  .db-sub.live { color: var(--vio); }
+  .db-live-dot {
+    display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--vio);
+    margin-right: 7px; flex-shrink: 0; animation: db-pulse 1.6s ease-in-out infinite;
+  }
+  @keyframes db-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .3; } }
+  .db-ballot { display: flex; flex-direction: column; }
+  .db-ballot.reveal-in { opacity: 0; transform: translateY(6px); transition: opacity .35s ease, transform .35s ease; }
+  .db-ballot.reveal-in.show { opacity: 1; transform: translateY(0); }
+  .db-line {
+    display: flex; align-items: center; gap: 13px; padding: 13px 2px; border-bottom: 1px solid var(--line-soft);
+    cursor: pointer; background: none; border-left: none; border-right: none; border-top: none; width: 100%; text-align: left; color: inherit;
+  }
+  .db-line:last-child { border-bottom: none; }
+  .db-line:disabled { cursor: default; opacity: .6; }
+  .db-radio { flex-shrink: 0; width: 17px; height: 17px; border-radius: 50%; border: 1.5px solid var(--faint); display: grid; place-items: center; transition: border-color .14s; }
+  .db-line:hover:not(:disabled) .db-radio { border-color: var(--vio); }
+  .db-radio-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--vio); transform: scale(0); transition: transform .16s; }
+  .db-line.picked .db-radio { border-color: var(--vio); }
+  .db-line.picked .db-radio-dot { transform: scale(1); }
+  .db-line-label { flex: 1; font-size: 14.5px; color: var(--ink-soft); }
+  .db-line.picked .db-line-label { color: var(--ink); }
+  .db-submit {
+    margin-top: 18px; width: 100%; font-family: var(--mono); font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase;
+    padding: 11px; border-radius: 3px; border: 1px solid var(--vio-bg); background: var(--vio-bg); color: var(--vio);
+    cursor: not-allowed; opacity: .5; transition: opacity .15s;
+  }
+  .db-submit.ready { cursor: pointer; opacity: 1; }
+  .db-submit.ready:hover { border-color: var(--vio); }
+  .db-submit.cast { cursor: default; opacity: 1; border-color: var(--ok-bg); background: var(--ok-bg); color: var(--ok); }
+
+  .db-result-line { display: flex; align-items: baseline; justify-content: space-between; padding: 12px 2px; border-bottom: 1px solid var(--line-soft); gap: 14px; }
+  .db-result-line:last-child { border-bottom: none; }
+  .db-rl-left { flex: 1; min-width: 0; }
+  .db-rl-label { font-size: 14.5px; color: var(--ink-soft); display: flex; align-items: center; gap: 7px; }
+  .db-result-line.win .db-rl-label { color: var(--ink); font-weight: 500; }
+  .db-elected { font-family: var(--mono); font-size: 8px; letter-spacing: .1em; text-transform: uppercase; color: var(--gold); background: var(--gold-bg); border: 1px solid var(--gold-bg); border-radius: 3px; padding: 2px 6px; }
+  .db-you-tag { font-family: var(--mono); font-size: 8px; letter-spacing: .1em; text-transform: uppercase; color: var(--vio); background: var(--vio-bg); border: 1px solid var(--vio-bg); border-radius: 3px; padding: 2px 6px; }
+  .db-rl-bar { margin-top: 7px; height: 2px; background: var(--line); border-radius: 2px; overflow: hidden; }
+  .db-rl-bar span { display: block; height: 100%; background: var(--faint); transition: width .5s cubic-bezier(.4,0,.2,1); }
+  .db-result-line.win .db-rl-bar span { background: var(--gold); }
+  .db-rl-pct { font-family: var(--serif); font-size: 20px; color: var(--muted); flex-shrink: 0; }
+  .db-result-line.win .db-rl-pct { color: var(--gold); }
+  .db-foot { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line-soft); font-family: var(--mono); font-size: 10.5px; color: var(--faint); display: flex; justify-content: space-between; }
+
+  /* ════════════════════════════════════════════════════════════════════════
+     DIRECTION C — Ledger Data
+     ════════════════════════════════════════════════════════════════════════ */
+  .dc-row {
+    display: flex; align-items: center; gap: 12px; background: var(--card); border: 1px solid var(--line);
+    border-left: 2px solid var(--line); border-radius: 6px; padding: 10px 13px; font-variant-numeric: tabular-nums;
+    transition: border-color .12s;
+  }
+  .dc-row.awaits { border-left-color: var(--vio); }
+  .dc-row.closed { border-left-color: var(--faint); opacity: .82; }
+  .dc-row:hover { border-color: rgba(236,231,221,.2); }
+  .dc-title { flex: 1; min-width: 0; font-size: 13px; color: var(--ink); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .dc-cell { flex-shrink: 0; font-family: var(--mono); font-size: 10.5px; color: var(--muted); text-align: right; min-width: 58px; }
+  .dc-cell.status { min-width: 44px; text-align: left; }
+  .dc-cell.status .pill { padding: 2px 6px; }
+  .dc-spark { flex-shrink: 0; width: 46px; height: 14px; display: flex; align-items: flex-end; gap: 2px; }
+  .dc-spark i { flex: 1; background: var(--line); border-radius: 1px; display: block; }
+  .dc-row.awaits .dc-spark i.hi, .dc-row.closed .dc-spark i.hi { background: var(--vio); }
+  .dc-hint { flex-shrink: 0; font-family: var(--mono); font-size: 9px; letter-spacing: .08em; text-transform: uppercase; color: var(--faint); width: 42px; text-align: right; }
+  .dc-row.awaits .dc-hint { color: var(--vio); }
+
+  .dc-card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px; box-shadow: var(--shadow); }
+  .dc-question { font-family: var(--serif); font-size: 15.5px; color: var(--ink); margin-bottom: 3px; }
+  .dc-meta-line { font-family: var(--mono); font-size: 10px; color: var(--faint); margin-bottom: 14px; }
+  .dc-table-head { display: grid; grid-template-columns: 1fr 54px 40px 50px; gap: 10px; font-family: var(--mono); font-size: 8.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); padding: 0 4px 8px; border-bottom: 1px solid var(--line); }
+  .dc-table-head span:not(:first-child) { text-align: right; }
+  .dc-trow {
+    display: grid; grid-template-columns: 1fr 54px 40px 50px; gap: 10px; align-items: center; padding: 9px 4px;
+    border-bottom: 1px solid var(--line-soft); cursor: pointer; border-radius: 5px; font-variant-numeric: tabular-nums;
+    width: 100%; background: none; border-left: none; border-right: none; border-top: none; text-align: left; color: inherit;
+  }
+  .dc-trow:last-child { border-bottom: none; }
+  .dc-trow:hover:not(:disabled) { background: var(--line-soft); }
+  .dc-trow:disabled { cursor: default; }
+  .dc-trow.picked { background: var(--vio-bg); }
+  .dc-t-label { font-size: 12.5px; color: var(--ink-soft); display: flex; align-items: center; gap: 6px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .dc-trow.picked .dc-t-label { color: var(--ink); }
+  .dc-t-you { flex-shrink: 0; font-family: var(--mono); font-size: 7px; letter-spacing: .06em; color: var(--vio); background: var(--vio-bg); border-radius: 3px; padding: 1px 4px; }
+  .dc-t-bar-cell { display: flex; align-items: center; justify-content: flex-end; }
+  .dc-t-bar { width: 100%; max-width: 44px; height: 5px; background: var(--line); border-radius: 2px; overflow: hidden; }
+  .dc-t-bar span { display: block; height: 100%; background: var(--vio); transition: width .4s cubic-bezier(.4,0,.2,1); }
+  .dc-trow.win .dc-t-bar span { background: var(--gold); }
+  .dc-t-count { text-align: right; font-family: var(--mono); font-size: 11px; color: var(--muted); }
+  .dc-t-pct { text-align: right; font-family: var(--mono); font-size: 11px; font-weight: 600; color: var(--ink-soft); }
+  .dc-trow.win .dc-t-pct { color: var(--gold); }
+  .dc-foot-bar { display: flex; justify-content: space-between; margin-top: 12px; padding-top: 11px; border-top: 1px solid var(--line); font-family: var(--mono); font-size: 10px; color: var(--faint); }
+  .dc-foot-bar b { color: var(--ink-soft); font-weight: 600; }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { transition-duration: .01ms !important; animation-duration: .01ms !important; }
+  }
+  @media (max-width: 560px) {
+    .switch { grid-template-columns: 1fr; }
+    .dc-cell, .dc-hint, .dc-spark { display: none; }
+    .dc-table-head, .dc-trow { grid-template-columns: 1fr 44px; }
+    .dc-table-head span:nth-child(2), .dc-table-head span:nth-child(3) { display:none; }
+    .dc-t-bar-cell, .dc-t-count { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="stage">
+  <p class="eyebrow">Poll UI · extending the Tasks ledger</p>
+  <h1>Three ways to hold the same <em>vote</em>.</h1>
+  <p class="lede">
+    Polls already live inside Tasks — a pinned row that opens into a vote/results card, built with the
+    same dusk tokens as the rest of the app. Switch directions below, then actually <b>vote on the poll</b> —
+    the row and card update together, and you can close the poll to see results land.
+  </p>
+
+  <nav class="switch">
+    <button class="on" data-go="a">
+      <span class="tab-row"><span class="tab-id">1</span><span class="tab-name">Ledger Refined</span></span>
+      <span class="tab-tag">Polishes what's shipped — live tallies stay visible the whole time, tighter rhythm, voter avatars.</span>
+    </button>
+    <button data-go="b">
+      <span class="tab-row"><span class="tab-id">2</span><span class="tab-name">Editorial Ballot</span></span>
+      <span class="tab-tag">A blind ballot — no counts while open. Results are typeset and reveal only on close.</span>
+    </button>
+    <button data-go="c">
+      <span class="tab-row"><span class="tab-id">3</span><span class="tab-name">Ledger Data</span></span>
+      <span class="tab-tag">Dense and tabular, like Treasury — built for chapters running several polls at once.</span>
+    </button>
+  </nav>
+
+  <!-- ═══════════════════════════ DIRECTION A ═══════════════════════════ -->
+  <section class="panel" id="panel-a">
+    <div class="frame">
+      <p class="frame-note"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/></svg>Sits inside Tasks, above the task list</p>
+      <p class="ctx-kicker">TASKS · TODAY <span>WED, JUL 15</span></p>
+      <h2 class="ctx-title">Things to get <em>done</em>.</h2>
+      <div class="ctx-digest"><span class="chip">POLLS</span><p><b>2 open polls</b> — 1 is waiting on your vote.</p></div>
+      <p class="ctx-philosophy">Standings stay visible the moment voting opens — everyone sees where the room stands.</p>
+
+      <p class="group-label"><span class="dot"></span>Polls <span class="ct">(3)</span></p>
+      <div class="rows">
+        <div class="da-row awaits" id="da-row1">
+          <div class="da-glyph"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M9 17V9m4 8V5m4 12v-6"/></svg></div>
+          <div class="da-main">
+            <p class="da-title">What's the theme for Bid Day?</p>
+            <div class="da-meta">
+              <span class="pill open" id="da-r1-pill">Open</span><span class="sep">·</span>
+              <span class="da-when soon" id="da-r1-when"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path stroke-linecap="round" stroke-linejoin="round" d="M12 7.5V12l3 2"/></svg>Closes in 3d</span><span class="sep">·</span>
+              <span class="da-votes" id="da-r1-votes">18 votes</span>
+            </div>
+          </div>
+          <div class="da-right">
+            <div class="avstack" id="da-r1-avstack"><div class="av">JM</div><div class="av">DK</div><div class="av">RS</div></div>
+            <span class="da-hint on" id="da-r1-hint">Vote<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 6l6 6-6 6"/></svg></span>
+          </div>
+        </div>
+        <div class="da-row">
+          <div class="da-glyph"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M9 17V9m4 8V5m4 12v-6"/></svg></div>
+          <div class="da-main">
+            <p class="da-title">Which weekend works for the fall retreat?</p>
+            <div class="da-meta">
+              <span class="pill open">Open</span><span class="sep">·</span>
+              <span class="da-when"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path stroke-linecap="round" stroke-linejoin="round" d="M12 7.5V12l3 2"/></svg>Closes in 6d</span><span class="sep">·</span>
+              <span class="da-votes">27 votes</span>
+            </div>
+          </div>
+          <div class="da-right">
+            <div class="avstack"><div class="av">TA</div><div class="av">CW</div></div>
+            <span class="da-hint">View<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 6l6 6-6 6"/></svg></span>
+          </div>
+        </div>
+        <div class="da-row closed">
+          <div class="da-glyph"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M9 17V9m4 8V5m4 12v-6"/></svg></div>
+          <div class="da-main">
+            <p class="da-title">Where should we host Spring Formal?</p>
+            <div class="da-meta">
+              <span class="pill closed">Closed</span><span class="sep">·</span>
+              <span class="da-when">Closed · Jul 13</span><span class="sep">·</span>
+              <span class="da-votes">47 votes</span>
+            </div>
+          </div>
+          <div class="da-right">
+            <div class="avstack"><div class="av">RS</div><div class="av">JM</div><div class="av">+45</div></div>
+            <span class="da-hint">Results<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 6l6 6-6 6"/></svg></span>
+          </div>
+        </div>
+      </div>
+
+      <p class="card-sec-label">Live — click an option to vote</p>
+      <p class="card-sec-sub">This is the same card that opens when you tap the row above (shown inline here so it's easy to try).</p>
+      <div class="live-card-wrap">
+        <div class="da-card" id="da-card1">
+          <div class="da-card-head">
+            <p class="da-question">What's the theme for Bid Day?</p>
+            <span class="pill open" id="da-c1-pill">Open</span>
+          </div>
+          <div class="da-bars" id="da-c1-bars"></div>
+          <div class="da-avnote"><div class="avstack" id="da-c1-avstack"><div class="av">JM</div><div class="av">DK</div><div class="av">RS</div><div class="av">TA</div></div><span id="da-c1-avnote">18 of 40 members have voted</span></div>
+          <div class="da-foot"><span class="da-when soon" id="da-c1-when"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path stroke-linecap="round" stroke-linejoin="round" d="M12 7.5V12l3 2"/></svg>Closes in 3 days</span><span class="sep">·</span><span>All members</span></div>
+          <div class="manage-row">
+            <span class="manage-note" id="da-c1-note">You haven't voted yet — pick an option above.</span>
+            <span class="manage-acts">
+              <button class="reset-link" onclick="daReset()">Reset demo</button>
+              <button class="manage-btn" id="da-close-btn" onclick="daToggleClose()">Close poll</button>
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════ DIRECTION B ═══════════════════════════ -->
+  <section class="panel" id="panel-b" hidden>
+    <div class="frame">
+      <p class="frame-note"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/></svg>Sits inside Tasks, above the task list</p>
+      <p class="ctx-kicker">TASKS · TODAY <span>WED, JUL 15</span></p>
+      <h2 class="ctx-title">Things to get <em>done</em>.</h2>
+      <div class="ctx-digest"><span class="chip">POLLS</span><p><b>2 open polls</b> — 1 is waiting on your vote.</p></div>
+      <p class="ctx-philosophy">Vote first, then watch it live — results stay sealed until you've had your say.</p>
+
+      <p class="group-label"><span class="dot"></span>Polls <span class="ct">(3)</span></p>
+      <div class="rows">
+        <div class="db-row awaits" id="db-row1">
+          <div class="db-glyph"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="8" width="18" height="12" rx="2"/><path stroke-linecap="round" stroke-linejoin="round" d="M8 8l4-4 4 4"/></svg></div>
+          <div class="db-main">
+            <p class="db-title">What's the theme for Bid Day?</p>
+            <div class="db-meta" id="db-r1-meta">OPEN · CLOSES 3D · 18 SEALED</div>
+          </div>
+          <div class="db-right"><span class="db-hint" id="db-r1-hint">Vote →</span></div>
+        </div>
+        <div class="db-row">
+          <div class="db-glyph"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="8" width="18" height="12" rx="2"/><path stroke-linecap="round" stroke-linejoin="round" d="M8 8l4-4 4 4"/></svg></div>
+          <div class="db-main">
+            <p class="db-title">Which weekend works for the fall retreat?</p>
+            <div class="db-meta">OPEN · CLOSES 6D · 27 SEALED</div>
+          </div>
+          <div class="db-right"><span class="db-hint">View →</span></div>
+        </div>
+        <div class="db-row">
+          <div class="db-glyph"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="8" width="18" height="12" rx="2"/><path stroke-linecap="round" stroke-linejoin="round" d="M8 8l4-4 4 4"/></svg></div>
+          <div class="db-main">
+            <p class="db-title">Where should we host Spring Formal?</p>
+            <div class="db-meta">CLOSED JUL 13 · 47 CAST</div>
+          </div>
+          <div class="db-right"><span class="db-hint">Results →</span></div>
+        </div>
+      </div>
+
+      <p class="card-sec-label">Live — select an option, then cast your vote</p>
+      <p class="card-sec-sub">This is the same card that opens when you tap the row above (shown inline here so it's easy to try).</p>
+      <div class="live-card-wrap">
+        <div class="db-card" id="db-card1"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════ DIRECTION C ═══════════════════════════ -->
+  <section class="panel" id="panel-c" hidden>
+    <div class="frame">
+      <p class="frame-note"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/></svg>Sits inside Tasks, above the task list</p>
+      <p class="ctx-kicker">TASKS · TODAY <span>WED, JUL 15</span></p>
+      <h2 class="ctx-title">Things to get <em>done</em>.</h2>
+      <div class="ctx-digest"><span class="chip">POLLS</span><p><b>2 open polls</b> — 1 is waiting on your vote.</p></div>
+      <p class="ctx-philosophy">Every number, every time — scans fast across a whole semester of polls.</p>
+
+      <div class="dc-table-head" style="margin-bottom:8px;">
+        <span>Poll</span><span>Votes</span><span>Closes</span><span></span>
+      </div>
+      <div class="rows">
+        <div class="dc-row awaits" id="dc-row1">
+          <span class="dc-cell status" id="dc-r1-pillwrap"><span class="pill open">Open</span></span>
+          <span class="dc-title">What's the theme for Bid Day?</span>
+          <span class="dc-spark" id="dc-r1-spark"><i style="height:60%" class="hi"></i><i style="height:50%"></i><i style="height:25%"></i><i style="height:15%"></i></span>
+          <span class="dc-cell" id="dc-r1-votes">18/40</span>
+          <span class="dc-cell" id="dc-r1-closes">3d</span>
+          <span class="dc-hint" id="dc-r1-hint">Vote</span>
+        </div>
+        <div class="dc-row">
+          <span class="dc-cell status"><span class="pill open">Open</span></span>
+          <span class="dc-title">Which weekend works for the fall retreat?</span>
+          <span class="dc-spark"><i style="height:70%"></i><i style="height:40%"></i></span>
+          <span class="dc-cell">27/52</span>
+          <span class="dc-cell">6d</span>
+          <span class="dc-hint">View</span>
+        </div>
+        <div class="dc-row closed">
+          <span class="dc-cell status"><span class="pill closed">Closed</span></span>
+          <span class="dc-title">Where should we host Spring Formal?</span>
+          <span class="dc-spark"><i style="height:90%" class="hi"></i><i style="height:60%"></i><i style="height:34%"></i><i style="height:18%"></i></span>
+          <span class="dc-cell">47/52</span>
+          <span class="dc-cell">—</span>
+          <span class="dc-hint">Results</span>
+        </div>
+      </div>
+
+      <p class="card-sec-label">Live — click a row to vote</p>
+      <p class="card-sec-sub">This is the same card that opens when you tap the row above (shown inline here so it's easy to try).</p>
+      <div class="live-card-wrap">
+        <div class="dc-card" id="dc-card1">
+          <p class="dc-question">What's the theme for Bid Day?</p>
+          <p class="dc-meta-line" id="dc-c1-meta">OPEN · CLOSES IN 3D · ALL MEMBERS</p>
+          <div class="dc-table-head"><span>Option</span><span>Share</span><span>You</span><span>Votes</span></div>
+          <div id="dc-c1-rows"></div>
+          <div class="dc-foot-bar" id="dc-c1-foot"><span><b>18</b> of 40 voted</span><span>updates live</span></div>
+          <div class="manage-row">
+            <span></span>
+            <span class="manage-acts">
+              <button class="reset-link" onclick="dcReset()">Reset demo</button>
+              <button class="manage-btn" id="dc-close-btn" onclick="dcToggleClose()">Close poll</button>
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script>
+  // ── Direction switcher ────────────────────────────────────────────────────
+  function showDir(id) {
+    ['a','b','c'].forEach(function(k){ document.getElementById('panel-' + k).hidden = k !== id; });
+    document.querySelectorAll('.switch button[data-go]').forEach(function(t){ t.classList.toggle('on', t.getAttribute('data-go') === id); });
+  }
+  document.querySelectorAll('.switch button[data-go]').forEach(function(btn){
+    btn.addEventListener('click', function(){ showDir(btn.getAttribute('data-go')); });
+  });
+  document.addEventListener('keydown', function(e){
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+    if (e.key === '1') showDir('a');
+    if (e.key === '2') showDir('b');
+    if (e.key === '3') showDir('c');
+  });
+
+  function toast(msg) {
+    var t = document.createElement('div');
+    t.className = 'toast';
+    t.innerHTML = '<span class="dot"></span>' + msg;
+    document.body.appendChild(t);
+    requestAnimationFrame(function(){ t.classList.add('show'); });
+    setTimeout(function(){
+      t.classList.remove('show');
+      setTimeout(function(){ t.remove(); }, 250);
+    }, 2300);
+  }
+
+  function pctOf(v, total) { return total > 0 ? Math.round((v / total) * 100) : 0; }
+  function totalOf(options) { return options.reduce(function(s,o){ return s + o.votes; }, 0); }
+  function leaderId(options) {
+    var best = options[0];
+    options.forEach(function(o){ if (o.votes > best.votes) best = o; });
+    return best.id;
+  }
+
+  var INITIAL = {
+    options: [
+      { id: 1, label: 'Retro Arcade',    votes: 7 },
+      { id: 2, label: 'Tropical Luau',   votes: 6 },
+      { id: 3, label: 'Western Rodeo',   votes: 3 },
+      { id: 4, label: 'Space Odyssey',   votes: 2 },
+    ],
+    assigned: 40,
+  };
+  function freshOptions() { return INITIAL.options.map(function(o){ return { id: o.id, label: o.label, votes: o.votes }; }); }
+
+  /* ══════════════════════ DIRECTION A ══════════════════════ */
+  var daState = { status: 'open', myVote: null, options: freshOptions() };
+
+  function daVote(id) {
+    if (daState.status === 'closed') return;
+    if (daState.myVote === id) return;
+    var opts = daState.options;
+    if (daState.myVote != null) opts.forEach(function(o){ if (o.id === daState.myVote) o.votes = Math.max(0, o.votes - 1); });
+    opts.forEach(function(o){ if (o.id === id) o.votes += 1; });
+    daState.myVote = id;
+    daRenderAll();
+    var picked = opts.find(function(o){ return o.id === id; });
+    toast('Vote recorded — you picked "' + picked.label + '."');
+  }
+  function daToggleClose() {
+    daState.status = daState.status === 'open' ? 'closed' : 'open';
+    daRenderAll();
+    toast(daState.status === 'closed' ? 'Poll closed — final results are in.' : 'Poll reopened.');
+  }
+  function daReset() {
+    daState = { status: 'open', myVote: null, options: freshOptions() };
+    daRenderAll();
+    toast('Demo reset.');
+  }
+  function daRenderAll() {
+    var total = totalOf(daState.options);
+    var lead = leaderId(daState.options);
+    var closed = daState.status === 'closed';
+
+    // Row 1
+    var row = document.getElementById('da-row1');
+    row.classList.toggle('awaits', !closed && daState.myVote == null);
+    row.classList.toggle('closed', closed);
+    document.getElementById('da-r1-pill').textContent = closed ? 'Closed' : 'Open';
+    document.getElementById('da-r1-pill').className = 'pill ' + (closed ? 'closed' : 'open');
+    document.getElementById('da-r1-when').lastChild.textContent = closed ? 'Closed just now' : 'Closes in 3d';
+    document.getElementById('da-r1-votes').textContent = total + ' votes';
+    var hint = document.getElementById('da-r1-hint');
+    hint.classList.toggle('on', !closed && daState.myVote == null);
+    hint.firstChild.textContent = closed ? 'Results' : (daState.myVote != null ? 'View' : 'Vote');
+    var avstack = document.getElementById('da-r1-avstack');
+    var youAv = avstack.querySelector('.av.you');
+    if (daState.myVote != null && !youAv) { var el = document.createElement('div'); el.className = 'av you'; el.textContent = 'YOU'; avstack.appendChild(el); }
+    if (daState.myVote == null && youAv) youAv.remove();
+
+    // Card
+    document.getElementById('da-c1-pill').textContent = closed ? 'Closed' : 'Open';
+    document.getElementById('da-c1-pill').className = 'pill ' + (closed ? 'closed' : 'open');
+    document.getElementById('da-card1').classList.toggle('is-closed', closed);
+    var barsHtml = daState.options.map(function(o) {
+      var pct = pctOf(o.votes, total);
+      var mine = o.id === daState.myVote;
+      var isLead = o.id === lead;
+      var cls = 'da-bar' + (mine ? ' mine' : '') + (isLead ? ' leader' : '') + (isLead && closed ? ' is-closed-leader' : '');
+      var check = mine ? '<svg class="da-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>' : '';
+      return '<button type="button" class="' + cls + '" data-id="' + o.id + '"' + (closed ? ' disabled' : '') + '>' +
+        '<span class="da-fill" style="width:' + pct + '%"></span>' +
+        '<span class="da-label">' + check + o.label + '</span>' +
+        '<span class="da-count">' + o.votes + ' · ' + pct + '%</span></button>';
+    }).join('');
+    document.getElementById('da-c1-bars').innerHTML = barsHtml;
+    document.getElementById('da-c1-avnote').textContent = total + ' of ' + INITIAL.assigned + ' members have voted';
+    document.getElementById('da-c1-when').lastChild.textContent = closed ? 'Closed just now' : 'Closes in 3 days';
+    document.getElementById('da-close-btn').textContent = closed ? 'Reopen poll' : 'Close poll';
+    document.getElementById('da-c1-note').textContent = closed
+      ? (daState.myVote != null ? 'Final results — thanks for voting.' : 'Final results — you did not vote.')
+      : (daState.myVote != null ? 'Your vote is counted. Tap another option to change it.' : "You haven't voted yet — pick an option above.");
+  }
+  document.getElementById('da-c1-bars').addEventListener('click', function(e) {
+    var btn = e.target.closest('.da-bar');
+    if (!btn || btn.disabled) return;
+    daVote(Number(btn.getAttribute('data-id')));
+  });
+
+  /* ══════════════════════ DIRECTION B ══════════════════════ */
+  var dbState = { status: 'open', pendingPick: null, myVote: null, cast: false, options: freshOptions() };
+
+  function dbPick(id) {
+    if (dbState.cast || dbState.status === 'closed') return;
+    dbState.pendingPick = id;
+    dbRenderCard();
+  }
+  function dbCast() {
+    if (dbState.pendingPick == null || dbState.cast) return;
+    dbState.options.forEach(function(o){ if (o.id === dbState.pendingPick) o.votes += 1; });
+    dbState.myVote = dbState.pendingPick;
+    dbState.cast = true;
+    dbRenderAll();
+    toast("Your vote is in — here's how the room is leaning so far.");
+  }
+  function dbToggleClose() {
+    dbState.status = dbState.status === 'open' ? 'closed' : 'open';
+    dbRenderAll();
+    toast(dbState.status === 'closed' ? 'Poll closed — final results are in.' : 'Poll reopened.');
+  }
+  function dbReset() {
+    dbState = { status: 'open', pendingPick: null, myVote: null, cast: false, options: freshOptions() };
+    dbRenderAll();
+    toast('Demo reset.');
+  }
+  function dbRenderAll() {
+    var total = totalOf(dbState.options);
+    var closed = dbState.status === 'closed';
+    var row = document.getElementById('db-row1');
+    row.classList.toggle('awaits', !closed && !dbState.cast);
+    document.getElementById('db-r1-meta').textContent = closed
+      ? 'CLOSED · ' + total + ' CAST'
+      : (dbState.cast ? 'OPEN · CLOSES 3D · ' + total + ' VOTES · LIVE' : 'OPEN · CLOSES 3D · ' + total + ' SEALED');
+    document.getElementById('db-r1-hint').textContent = closed ? 'Results →' : (dbState.cast ? 'Live →' : 'Vote →');
+    dbRenderCard();
+  }
+  // Shared by the live (still open, just cast) and final (closed) results views —
+  // "final" only controls the Elected tag and whether standings can still move.
+  function dbResultsHtml(final) {
+    var lead = leaderId(dbState.options);
+    return dbState.options.map(function(o) {
+      var pct = pctOf(o.votes, totalOf(dbState.options));
+      var win = final && o.id === lead;
+      var mine = o.id === dbState.myVote;
+      return '<div class="db-result-line' + (win ? ' win' : '') + '"><div class="db-rl-left"><p class="db-rl-label">' + o.label +
+        (win ? '<span class="db-elected">Elected</span>' : '') + (mine ? '<span class="db-you-tag">Your vote</span>' : '') + '</p>' +
+        '<div class="db-rl-bar"><span data-pct="' + pct + '" style="width:0%"></span></div></div><span class="db-rl-pct">' + pct + '%</span></div>';
+    }).join('');
+  }
+  // Phases the bar fills in from 0 → their real width once the results markup is
+  // in the DOM, so casting (or closing) reads as results "arriving," not a jump-cut.
+  function dbAnimateReveal() {
+    var ballot = document.getElementById('db-ballot');
+    if (ballot) requestAnimationFrame(function(){ requestAnimationFrame(function(){ ballot.classList.add('show'); }); });
+    requestAnimationFrame(function(){ requestAnimationFrame(function(){
+      document.querySelectorAll('#db-card1 .db-rl-bar span[data-pct]').forEach(function(el){
+        el.style.width = el.getAttribute('data-pct') + '%';
+      });
+    }); });
+  }
+  function dbRenderCard() {
+    var total = totalOf(dbState.options);
+    var closed = dbState.status === 'closed';
+    var card = document.getElementById('db-card1');
+    if (!closed && !dbState.cast) {
+      var linesHtml = dbState.options.map(function(o) {
+        var picked = dbState.pendingPick === o.id;
+        return '<button type="button" class="db-line' + (picked ? ' picked' : '') + '" data-id="' + o.id + '">' +
+          '<span class="db-radio"><span class="db-radio-dot"></span></span><span class="db-line-label">' + o.label + '</span></button>';
+      }).join('');
+      card.innerHTML =
+        '<p class="db-question">What\'s the theme for Bid Day?</p>' +
+        '<p class="db-sub">Vote to see how the room is leaning</p>' +
+        '<div class="db-ballot" id="db-ballot">' + linesHtml + '</div>' +
+        '<button type="button" class="db-submit' + (dbState.pendingPick != null ? ' ready' : '') + '" id="db-submit-btn">Cast your vote</button>' +
+        '<div class="manage-row"><span></span><span class="manage-acts">' +
+        '<button class="reset-link" onclick="dbReset()">Reset demo</button>' +
+        '<button class="manage-btn" onclick="dbToggleClose()">Close poll</button></span></div>';
+      document.getElementById('db-ballot').addEventListener('click', function(e) {
+        var btn = e.target.closest('.db-line');
+        if (!btn) return;
+        dbPick(Number(btn.getAttribute('data-id')));
+      });
+      document.getElementById('db-submit-btn').addEventListener('click', dbCast);
+    } else if (!closed) {
+      // Cast, poll still open: results have phased in but standings can still move.
+      card.innerHTML =
+        '<p class="db-question">What\'s the theme for Bid Day?</p>' +
+        '<p class="db-sub live"><span class="db-live-dot"></span>Live · ' + total + ' votes so far, still open</p>' +
+        '<div class="db-ballot reveal-in" id="db-ballot">' + dbResultsHtml(false) + '</div>' +
+        '<div class="db-foot"><span>' + total + ' of ' + INITIAL.assigned + ' voted</span><span>Closes in 3 days</span></div>' +
+        '<div class="manage-row"><span></span><span class="manage-acts">' +
+        '<button class="reset-link" onclick="dbReset()">Reset demo</button>' +
+        '<button class="manage-btn" onclick="dbToggleClose()">Close poll</button></span></div>';
+      dbAnimateReveal();
+    } else {
+      card.innerHTML =
+        '<p class="db-question">What\'s the theme for Bid Day?</p>' +
+        '<p class="db-sub reveal">Closed just now · ' + total + ' votes cast</p>' +
+        '<div class="db-ballot reveal-in" id="db-ballot">' + dbResultsHtml(true) + '</div>' +
+        '<div class="db-foot"><span>' + total + ' of ' + INITIAL.assigned + ' voted</span><span>All members</span></div>' +
+        '<div class="manage-row"><span></span><span class="manage-acts">' +
+        '<button class="reset-link" onclick="dbReset()">Reset demo</button>' +
+        '<button class="manage-btn" onclick="dbToggleClose()">Reopen poll</button></span></div>';
+      dbAnimateReveal();
+    }
+  }
+
+  /* ══════════════════════ DIRECTION C ══════════════════════ */
+  var dcState = { status: 'open', myVote: null, options: freshOptions() };
+
+  function dcVote(id) {
+    if (dcState.status === 'closed') return;
+    if (dcState.myVote === id) return;
+    var opts = dcState.options;
+    if (dcState.myVote != null) opts.forEach(function(o){ if (o.id === dcState.myVote) o.votes = Math.max(0, o.votes - 1); });
+    opts.forEach(function(o){ if (o.id === id) o.votes += 1; });
+    dcState.myVote = id;
+    dcRenderAll();
+    var picked = opts.find(function(o){ return o.id === id; });
+    toast('Vote recorded — you picked "' + picked.label + '."');
+  }
+  function dcToggleClose() {
+    dcState.status = dcState.status === 'open' ? 'closed' : 'open';
+    dcRenderAll();
+    toast(dcState.status === 'closed' ? 'Poll closed — final results are in.' : 'Poll reopened.');
+  }
+  function dcReset() {
+    dcState = { status: 'open', myVote: null, options: freshOptions() };
+    dcRenderAll();
+    toast('Demo reset.');
+  }
+  function dcRenderAll() {
+    var total = totalOf(dcState.options);
+    var lead = leaderId(dcState.options);
+    var closed = dcState.status === 'closed';
+
+    var row = document.getElementById('dc-row1');
+    row.classList.toggle('awaits', !closed && dcState.myVote == null);
+    row.classList.toggle('closed', closed);
+    document.getElementById('dc-r1-pillwrap').innerHTML = '<span class="pill ' + (closed ? 'closed' : 'open') + '">' + (closed ? 'Closed' : 'Open') + '</span>';
+    document.getElementById('dc-r1-votes').textContent = total + '/' + INITIAL.assigned;
+    document.getElementById('dc-r1-closes').textContent = closed ? '—' : '3d';
+    document.getElementById('dc-r1-hint').textContent = closed ? 'Results' : (dcState.myVote != null ? 'View' : 'Vote');
+
+    document.getElementById('dc-c1-meta').textContent = closed ? 'CLOSED JUST NOW · ALL MEMBERS' : 'OPEN · CLOSES IN 3D · ALL MEMBERS';
+    var rowsHtml = dcState.options.map(function(o) {
+      var pct = pctOf(o.votes, total);
+      var mine = o.id === dcState.myVote;
+      var win = closed && o.id === lead;
+      var cls = 'dc-trow' + (mine ? ' picked' : '') + (win ? ' win' : '') + (closed ? ' closed-view' : '');
+      var you = mine ? '<span class="dc-t-you">YOU</span>' : '';
+      return '<button type="button" class="' + cls + '" data-id="' + o.id + '"' + (closed ? ' disabled' : '') + '>' +
+        '<span class="dc-t-label">' + o.label + you + '</span>' +
+        '<span class="dc-t-bar-cell"><span class="dc-t-bar"><span style="width:' + pct + '%"></span></span></span>' +
+        '<span></span><span class="dc-t-count">' + o.votes + ' · ' + pct + '%</span></button>';
+    }).join('');
+    document.getElementById('dc-c1-rows').innerHTML = rowsHtml;
+    document.getElementById('dc-c1-foot').innerHTML = '<span><b>' + total + '</b> of ' + INITIAL.assigned + ' voted</span><span>' + (closed ? 'final' : 'updates live') + '</span>';
+    document.getElementById('dc-close-btn').textContent = closed ? 'Reopen poll' : 'Close poll';
+  }
+  document.getElementById('dc-c1-rows').addEventListener('click', function(e) {
+    var btn = e.target.closest('.dc-trow');
+    if (!btn || btn.disabled) return;
+    dcVote(Number(btn.getAttribute('data-id')));
+  });
+
+  // Initial paint
+  daRenderAll();
+  dbRenderAll();
+  dcRenderAll();
+</script>
+</body>
+</html>
