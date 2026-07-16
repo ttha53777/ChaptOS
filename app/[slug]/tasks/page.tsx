@@ -298,22 +298,11 @@ export default function TasksPage() {
   }
 
   async function vote(poll: Poll, optionId: number) {
+    // No optimistic tally: a sealed voter genuinely doesn't know the counts until
+    // the server unseals them on their vote. We don't flip to fake 0% bars — the
+    // card shows a "casting" state (see PollCard) and the real counts phase in from
+    // this response, so the reveal animation plays once, on true data.
     const firstVote = poll.myVoteOptionId == null;
-    // Optimistic: record this voter's own pick and unseal the ballot so the modal
-    // phases into the live results. Per-option counts are sealed (null) until the
-    // server responds — the reveal animation masks that round-trip — so we don't
-    // fabricate a tally here; we only bump the total on a first-time vote.
-    const previous = pollList;
-    setPollList(prev => prev.map(p => {
-      if (p.id !== poll.id) return p;
-      if (p.myVoteOptionId === optionId) return p; // no-op re-click
-      return {
-        ...p,
-        myVoteOptionId: optionId,
-        sealed: false,
-        totalVotes: firstVote ? p.totalVotes + 1 : p.totalVotes,
-      };
-    }));
     try {
       const saved = await requestJson<Poll>(`/api/polls/${poll.id}/vote`, {
         method: "POST",
@@ -323,8 +312,8 @@ export default function TasksPage() {
       setPollList(prev => prev.map(p => p.id === saved.id ? saved : p));
       if (firstVote) toast.success("Your vote is in — here's how the room is leaning so far.");
     } catch {
-      setPollList(previous);
       setError("Could not record your vote.");
+      throw new Error("vote failed");
     }
   }
 
@@ -566,12 +555,13 @@ export default function TasksPage() {
       )}
 
       {pollModal && (
-        <Modal title={pollModal.kind === "edit" ? "Edit poll" : "New poll"} tone="dusk" onClose={() => setPollModal(null)}>
+        <Modal tone="dusk" hideHeader maxWidthClass="max-w-lg" onClose={() => setPollModal(null)}>
           <PollForm
             brothers={brotherList}
             roles={roles}
             minDate={activeSemester?.startDate}
             maxDate={activeSemester?.endDate}
+            kicker={pollModal.kind === "edit" ? "Editing ballot" : "New ballot"}
             submitLabel={pollModal.kind === "edit" ? "Save changes" : "Create poll"}
             error={pollFormError}
             optionsLocked={pollModal.kind === "edit" && pollModal.poll.totalVotes > 0}
@@ -598,7 +588,7 @@ export default function TasksPage() {
       )}
 
       {pollView && (
-        <Modal title="Poll" tone="dusk" maxWidthClass="max-w-lg" onClose={() => setPollViewId(null)}>
+        <Modal tone="dusk" hideHeader maxWidthClass="max-w-lg" onClose={() => setPollViewId(null)}>
           <PollCard poll={pollView} today={today} canManage={canManagePolls} canVote={canVote(pollView)}
             onVote={(optionId) => vote(pollView, optionId)}
             onClose={() => setPollStatus(pollView, "closed")} onReopen={() => setPollStatus(pollView, "open")}
@@ -738,7 +728,7 @@ function PollCard({ poll, today, canManage, canVote, onVote, onClose, onReopen, 
   today: Date;
   canManage: boolean;
   canVote: boolean;
-  onVote: (optionId: number) => void;
+  onVote: (optionId: number) => Promise<void>;
   onClose: () => void;
   onReopen: () => void;
   onEdit: () => void;
@@ -748,16 +738,35 @@ function PollCard({ poll, today, canManage, canVote, onVote, onClose, onReopen, 
   const voted = poll.myVoteOptionId != null;
   const total = poll.totalVotes;
 
-  // Blind ballot (radio + cast) for a sealed viewer who may vote; results (bars)
-  // once you've voted, whenever you can manage (never sealed), or when closed; a
-  // bare sealed note for a non-assignee non-manager on an open poll.
-  const showBallot = poll.sealed && !closed && canVote;
+  const [pendingPick, setPendingPick] = useState<number | null>(null);
+  const [confirmingClose, setConfirmingClose] = useState(false);
+  const [casting, setCasting] = useState(false);
+  // Managers can vote too, so they get the blind ballot first — like the mock's
+  // President — instead of skipping straight to the tally. "Peek" lets a manager
+  // jump to the live results without voting (their monitoring power; the server
+  // never seals counts from them), and they can step back to the ballot to cast.
+  const [peeking, setPeeking] = useState(false);
+
+  // Blind ballot (radio + cast) for anyone who can vote and hasn't yet; results
+  // (bars) once you've voted, when a manager peeks or can only watch, or when
+  // closed; a bare sealed note for a non-assignee non-manager on an open poll.
+  const showBallot = !closed && canVote && !voted && !peeking;
   const showResults = !showBallot && (voted || canManage || closed);
   // Cast / change your own vote from the results view while the poll is open.
   const canVoteNow = canVote && !closed;
+  // A manager viewing results without having voted got here by peeking (or isn't
+  // an assignee); only the former can step back to a ballot they can still cast.
+  const canReturnToBallot = peeking && canVote && !voted && !closed;
 
-  const [pendingPick, setPendingPick] = useState<number | null>(null);
-  const [confirmingClose, setConfirmingClose] = useState(false);
+  // Cast the ballot: hold on the ballot with a "casting" button until the server
+  // returns the now-unsealed poll, then the results phase in on real counts. A
+  // sealed voter can't be shown a truthful tally any sooner.
+  async function castBallot() {
+    if (pendingPick == null || casting) return;
+    setCasting(true);
+    try { await onVote(pendingPick); } catch { /* parent surfaces the error */ }
+    setCasting(false);
+  }
 
   // Reveal: fade the ballot in and grow the bars 0→width on entering results.
   const [revealed, setRevealed] = useState(false);
@@ -808,10 +817,15 @@ function PollCard({ poll, today, canManage, canVote, onVote, onClose, onReopen, 
               </button>
             ))}
           </div>
-          <button type="button" className={`db-submit${pendingPick != null ? " ready" : ""}`}
-            disabled={pendingPick == null} onClick={() => pendingPick != null && onVote(pendingPick)}>
-            Cast your vote
+          <button type="button" className={`db-submit${pendingPick != null && !casting ? " ready" : ""}`}
+            disabled={pendingPick == null || casting} onClick={castBallot}>
+            {casting ? "Casting…" : "Cast your vote"}
           </button>
+          {canManage && (
+            <button type="button" className="db-peek" onClick={() => setPeeking(true)}>
+              Peek results without voting →
+            </button>
+          )}
         </>
       )}
 
@@ -840,7 +854,7 @@ function PollCard({ poll, today, canManage, canVote, onVote, onClose, onReopen, 
                 <button key={o.id} type="button"
                   className={`db-result-line votable${win ? " win" : ""}${mine ? " mine" : ""}`}
                   title={mine ? "Your vote" : "Change your vote to this"}
-                  onClick={() => onVote(o.id)}>
+                  onClick={() => { void onVote(o.id).catch(() => {}); }}>
                   {inner}
                 </button>
               ) : (
@@ -854,6 +868,11 @@ function PollCard({ poll, today, canManage, canVote, onVote, onClose, onReopen, 
             <span>{total} of {poll.assigneeCount} voted</span>
             <span>{closesFoot}</span>
           </div>
+          {canReturnToBallot && (
+            <button type="button" className="db-peek" onClick={() => setPeeking(false)}>
+              ← Back to your ballot
+            </button>
+          )}
         </>
       )}
 
@@ -861,7 +880,7 @@ function PollCard({ poll, today, canManage, canVote, onVote, onClose, onReopen, 
         <p className="db-sealed-note">You're not assigned to this poll — results are sealed until it closes.</p>
       )}
 
-      {canManage && poll.pendingVoters && poll.pendingVoters.length > 0 && (
+      {canManage && showResults && poll.pendingVoters && poll.pendingVoters.length > 0 && (
         <div className="db-pending">
           <p className="db-pending-label">Not yet voted · {poll.pendingVoters.length}</p>
           <div className="tk-chips">

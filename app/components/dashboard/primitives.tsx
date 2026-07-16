@@ -48,7 +48,7 @@ export function Card({ children, className = "", id, onClick, style }: {
 /** Selector matching every focusable element inside the modal. */
 const FOCUSABLE = 'a[href], area[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), iframe, [tabindex]:not([tabindex="-1"])';
 
-export function Modal({ title, onClose, children, tone = "slate", dismissable = true, maxWidthClass = "max-w-md" }: {
+export function Modal({ title, onClose, children, tone = "slate", dismissable = true, maxWidthClass = "max-w-md", hideHeader = false }: {
   /** Header text. When omitted/empty the header bar is dropped entirely (body-only
    *  modal) — but the ✕ button rides along in the header, so a dismissable modal
    *  with no title still gets a minimal header bar carrying just the close button. */
@@ -66,6 +66,10 @@ export function Modal({ title, onClose, children, tone = "slate", dismissable = 
   /** Tailwind max-width class for the panel. Defaults to "max-w-md" (28rem); pass
    *  e.g. "max-w-lg" for a slightly roomier dialog. */
   maxWidthClass?: string;
+  /** Drop the header bar entirely so the body sits flush at the top; a dismissable
+   *  modal keeps a subtle ✕ floating in the top-right corner. Use when the body
+   *  owns its own title treatment (e.g. the poll ballot's serif question). */
+  hideHeader?: boolean;
 }) {
   const panelRef = useRef<HTMLDivElement>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
@@ -150,7 +154,7 @@ export function Modal({ title, onClose, children, tone = "slate", dismissable = 
           dusk ? "border-[rgba(236,231,221,0.1)] bg-[#0f0d0a]" : "border-white/[0.08] bg-[#10121a]"
         }`}
       >
-        {(title || dismissable) && (
+        {!hideHeader && (title || dismissable) && (
           <div className={`flex items-center justify-between border-b px-6 py-4 ${dusk ? "border-[rgba(236,231,221,0.07)]" : "border-white/[0.07]"}`}>
             <h3 id={titleId} className={`text-[15px] font-semibold ${dusk ? "text-[#ece7dd]" : "text-white"}`}>{title}</h3>
             {dismissable && (
@@ -161,6 +165,13 @@ export function Modal({ title, onClose, children, tone = "slate", dismissable = 
               </button>
             )}
           </div>
+        )}
+        {hideHeader && dismissable && (
+          <button type="button" onClick={onClose} aria-label="Close dialog" className={`absolute right-3 top-3 z-10 flex h-8 w-8 items-center justify-center rounded-lg transition-colors ${dusk ? "text-[#958d7c] hover:bg-[rgba(236,231,221,0.08)] hover:text-[#ece7dd]" : "text-slate-500 hover:bg-white/[0.08] hover:text-white"}`}>
+            <svg className="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
         )}
         <div ref={bodyRef} className="p-6">{children}</div>
       </div>

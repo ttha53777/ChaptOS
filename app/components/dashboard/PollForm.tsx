@@ -2,8 +2,6 @@
 
 import React, { useMemo, useState } from "react";
 import type { Brother } from "../../data";
-import { FieldLabel } from "./primitives";
-import { inputDuskCls, btnDuskPrimaryCls } from "./styles";
 import type { RoleOption } from "./TaskForm";
 
 // What the caller receives on submit — the parent owns the POST/PATCH + optimistic
@@ -41,17 +39,25 @@ function toggleId(list: number[], id: number): number[] {
 }
 
 /**
- * Shared create/edit poll form. Mirrors TaskForm's assignee UX (Individuals /
- * Roles / Everyone) but swaps notes for a question + a dynamic 2-10 options list.
- * When `optionsLocked` is set (the poll already has votes), the options list is
- * read-only — changing options would orphan votes (enforced server-side too).
+ * Shared create/edit poll form — the compositional twin of the ballot voters see.
+ * It borrows the editorial-ballot grammar from `.db-poll` (tasks-ledger.css): the
+ * question is drafted in the same serif it's read in, options are laid out as
+ * ballot lines with a radio marker, and micro-labels are mono uppercase. Mirrors
+ * TaskForm's assignee UX (Individuals / Roles / Everyone). When `optionsLocked`
+ * is set (the poll already has votes), the options list is read-only — changing
+ * options would orphan votes (enforced server-side too).
+ *
+ * Rendered inside a `<Modal tone="dusk" hideHeader>` so the composer owns its own
+ * head (a mono kicker + the serif question), matching the poll view modal.
  */
 export function PollForm({
-  brothers, roles, initial, submitLabel, minDate, maxDate, error, optionsLocked, onSubmit,
+  brothers, roles, initial, kicker = "New ballot", submitLabel, minDate, maxDate, error, optionsLocked, onSubmit,
 }: {
   brothers: Brother[];
   roles: RoleOption[];
   initial?: PollFormInitial;
+  /** Mono uppercase eyebrow above the question (e.g. "New ballot" / "Editing ballot"). */
+  kicker?: string;
   submitLabel: string;
   minDate?: string;
   maxDate?: string;
@@ -107,26 +113,32 @@ export function PollForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="tk-form">
-      <div>
-        <FieldLabel htmlFor="pl-question" tone="dusk">Question</FieldLabel>
-        <input id="pl-question" className={inputDuskCls} value={question} autoFocus
-          onChange={e => setQuestion(e.target.value)} placeholder="What are you asking?" />
+    <form onSubmit={handleSubmit} className="pc">
+      {/* Head — mono kicker + the question drafted in the ballot's serif. */}
+      <p className="pc-kicker">{kicker}</p>
+      <div className="pc-qwrap">
+        <input id="pl-question" className="pc-question" value={question} autoFocus spellCheck={false}
+          onChange={e => setQuestion(e.target.value)} placeholder="What are you asking?"
+          aria-label="Poll question" />
       </div>
 
-      <div>
-        <FieldLabel tone="dusk">
-          Options{" "}
-          <span className="tk-opt">(2–{MAX_OPTIONS}{optionsLocked ? " · locked, voting has started" : ""})</span>
-        </FieldLabel>
-        <div className="pl-options">
+      {/* Options — ballot lines: radio marker + label + hairline. */}
+      <div className="pc-section">
+        <p className="pc-label">
+          The options
+          <span className={`pc-hint${optionsLocked ? " lock" : ""}`}>
+            {optionsLocked ? "locked · voting has started" : `2–${MAX_OPTIONS}`}
+          </span>
+        </p>
+        <div className="pc-options">
           {options.map((opt, i) => (
-            <div key={i} className="pl-option-row">
-              <input className={inputDuskCls} value={opt} disabled={optionsLocked}
+            <div key={i} className="pc-opt">
+              <span className="pc-marker" aria-hidden><span className="pc-radio" /></span>
+              <input className="pc-opt-input" value={opt} disabled={optionsLocked}
                 placeholder={`Option ${i + 1}`}
                 onChange={e => setOption(i, e.target.value)} />
               {!optionsLocked && options.length > 2 && (
-                <button type="button" className="pl-option-del" title="Remove option"
+                <button type="button" className="pc-opt-del" title="Remove option"
                   aria-label="Remove option" onClick={() => removeOption(i)}>
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
                 </button>
@@ -135,31 +147,26 @@ export function PollForm({
           ))}
         </div>
         {!optionsLocked && options.length < MAX_OPTIONS && (
-          <button type="button" className="pl-option-add" onClick={addOption}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 5v14M5 12h14" /></svg>
-            Add option
+          <button type="button" className="pc-add" onClick={addOption}>
+            <span className="pc-marker" aria-hidden>
+              <span className="pc-add-glyph">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4}><path strokeLinecap="round" strokeLinejoin="round" d="M12 5v14M5 12h14" /></svg>
+              </span>
+            </span>
+            <span className="pc-add-lbl">Add an option</span>
           </button>
         )}
       </div>
 
-      <div>
-        <FieldLabel htmlFor="pl-close" tone="dusk">Close date <span className="tk-opt">(optional — a dated poll shows on the timeline)</span></FieldLabel>
-        <input id="pl-close" type="date" className={inputDuskCls} value={closeDate} min={minDate} max={maxDate}
-          onChange={e => setCloseDate(e.target.value)} />
-      </div>
-
-      <div>
-        <FieldLabel tone="dusk">Ask</FieldLabel>
-        <div className="inline-flex overflow-hidden rounded-lg border border-[rgba(236,231,221,0.12)]">
+      {/* Who votes — segmented mode toggle + chip picker (mirrors TaskForm). */}
+      <div className="pc-section">
+        <p className="pc-label">Who votes</p>
+        <div className="pc-seg">
           {MODES.map(m => (
             <button key={m.key} type="button"
               aria-pressed={mode === m.key}
-              onClick={() => { setMode(m.key); setLocalError(null); }}
-              className={`px-3.5 py-2 text-[11px] font-medium tracking-wide transition-colors ${
-                mode === m.key
-                  ? "bg-[#a78bfa] text-[#0f0d0a]"
-                  : "text-[#958d7c] hover:text-[#ece7dd] hover:bg-[rgba(236,231,221,0.06)]"
-              }`}>
+              className={mode === m.key ? "on" : ""}
+              onClick={() => { setMode(m.key); setLocalError(null); }}>
               {m.label}
             </button>
           ))}
@@ -191,12 +198,12 @@ export function PollForm({
                 </button>
               ))}
             </div>
-            <p className="tk-opt" style={{ marginTop: 6 }}>Roles expand to their current holders.</p>
+            <p className="pc-note">Roles expand to their current holders.</p>
           </>
         )}
 
         {mode === "everyone" && (
-          <p className="tk-opt" style={{ marginTop: 8 }}>
+          <p className="pc-note">
             {everyoneCount > 0
               ? `All ${everyoneCount} ${everyoneCount === 1 ? "member" : "members"} can vote.`
               : "There are no members to assign yet."}
@@ -204,9 +211,17 @@ export function PollForm({
         )}
       </div>
 
-      {shownError && <p className="tk-form-error">{shownError}</p>}
+      {/* Closes — optional; a dated poll rides the timeline. */}
+      <div className="pc-section">
+        <p className="pc-label">Closes <span className="pc-hint">optional</span></p>
+        <input id="pl-close" type="date" className="pc-date" value={closeDate} min={minDate} max={maxDate}
+          onChange={e => setCloseDate(e.target.value)} aria-label="Close date" />
+        <p className="pc-note">A dated poll appears on the timeline.</p>
+      </div>
 
-      <button type="submit" className={btnDuskPrimaryCls}>{submitLabel}</button>
+      {shownError && <p className="pc-error">{shownError}</p>}
+
+      <button type="submit" className="pc-submit">{submitLabel}</button>
     </form>
   );
 }

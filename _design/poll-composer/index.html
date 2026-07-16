@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dusk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Figurints — New Poll, as an Editorial Composer</title>
+<!--
+  ════════════════════════════════════════════════════════════════════════════
+  FIGURINTS · ChaptOS — "New poll" form redesign (composer)
+
+  THESIS: the vote/results modal (.db-poll) already reads as an editorial ballot
+  — serif italic question, mono uppercase micro-labels, hairline ballot rows with
+  radio markers, gold "Elected". But the CREATE form is a generic boxed dusk form
+  (see _screenshots/poll-createform.png). It doesn't feel like you're drafting a
+  ballot.
+
+  This mock makes the composer the compositional TWIN of the ballot: you write the
+  question in the same serif it will be read in, you lay out options as ballot
+  lines, you pick who votes, you optionally set a close date. What you draft is
+  what voters see. Tokens + grammar are lifted verbatim from tasks-ledger.css
+  (.db-poll) — nothing invented.
+
+  Two variants of the ONE open decision (the option-row marker) are shown side by
+  side so the choice is concrete:
+    A · Ballot markers  — decorative radio circle, echoes the vote radios (preview)
+    B · Lettered        — A / B / C index chips, quieter, less "clickable"
+  Everything else is identical between the two.
+  ════════════════════════════════════════════════════════════════════════════
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,400..500&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --serif: "Fraunces", Georgia, serif;
+    --sans:  "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --mono:  "Geist Mono", ui-monospace, Menlo, monospace;
+
+    --paper:    #0f0d0a;
+    --card:     #161310;
+    --card-2:   #1b1813;
+    --ink:      #ece7dd;
+    --ink-soft: #c9c2b4;
+    --muted:    #958d7c;
+    --faint:    #6b6354;
+    --line:     rgba(236,231,221,.09);
+    --line-soft:rgba(236,231,221,.05);
+    --vio:      #a78bfa;
+    --vio-deep: #7c3aed;
+    --vio-bg:   rgba(167,139,250,.10);
+    --gold:     #ddb36a;
+    --rose:     #d98ba3;
+    --rose-bg:  rgba(217,139,163,.10);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background:
+      radial-gradient(1200px 600px at 50% -10%, rgba(167,139,250,.06), transparent 60%),
+      var(--paper);
+    color: var(--ink); font-family: var(--sans);
+    -webkit-font-smoothing: antialiased; font-variant-numeric: tabular-nums;
+    min-height: 100vh; padding: 56px 40px 80px;
+  }
+  button, input { font: inherit; color: inherit; }
+  ::selection { background: var(--vio-bg); color: var(--ink); }
+
+  .head { max-width: 1040px; margin: 0 auto 40px; }
+  .head .kick { font-family: var(--mono); font-size: 10px; letter-spacing: .18em; text-transform: uppercase; color: var(--faint); }
+  .head h1 { font-family: var(--serif); font-weight: 400; font-size: 26px; margin: 10px 0 6px; color: var(--ink); }
+  .head p { font-size: 13.5px; line-height: 1.6; color: var(--muted); max-width: 60ch; margin: 0; }
+
+  .stage { display: flex; gap: 48px; justify-content: center; align-items: flex-start; flex-wrap: wrap; }
+  .col { display: flex; flex-direction: column; align-items: center; gap: 14px; }
+  .col-tag { font-family: var(--mono); font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+  .col-tag b { color: var(--vio); font-weight: 500; }
+
+  /* ── Modal chrome — copied from primitives.tsx (dusk, hideHeader, max-w-lg) ── */
+  .panel {
+    position: relative; width: 512px; border-radius: 16px;
+    border: 1px solid rgba(236,231,221,.1); background: #0f0d0a;
+    box-shadow: 0 1px 0 rgba(0,0,0,.4), 0 40px 80px -32px rgba(0,0,0,.85);
+  }
+  .panel-x {
+    position: absolute; right: 12px; top: 12px; z-index: 10;
+    width: 32px; height: 32px; border-radius: 8px; border: none; background: none;
+    color: var(--muted); display: grid; place-items: center; cursor: pointer;
+    transition: background .12s, color .12s;
+  }
+  .panel-x:hover { background: rgba(236,231,221,.08); color: var(--ink); }
+  .panel-x svg { width: 16px; height: 16px; }
+  .pc { padding: 26px 26px 24px; }
+
+  /* ════════════════════════════════════════════════════════════════════════
+     THE COMPOSER (.pc-*) — grammar echoes .db-poll from tasks-ledger.css
+     ════════════════════════════════════════════════════════════════════════ */
+
+  /* Head: mono kicker + serif question field (mirrors .db-sub + .db-question) */
+  .pc-kicker { font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); margin: 0; }
+  .pc-qwrap { margin-top: 12px; border-bottom: 1px solid var(--line); transition: border-color .16s; }
+  .pc-qwrap:focus-within { border-color: var(--vio); }
+  .pc-question {
+    width: 100%; border: none; outline: none; background: none;
+    font-family: var(--serif); font-style: italic; font-weight: 400;
+    font-size: 22px; line-height: 1.3; color: var(--ink);
+    padding: 0 0 12px;
+  }
+  .pc-question::placeholder { color: var(--faint); font-style: italic; }
+
+  /* Section label — mono uppercase micro (mirrors .db-sub) */
+  .pc-section { margin-top: 26px; }
+  .pc-label {
+    font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--muted); margin: 0 0 12px; display: flex; align-items: baseline; gap: 8px;
+  }
+  .pc-hint { color: var(--faint); letter-spacing: .08em; }
+  .pc-hint.lock { color: var(--gold); }
+
+  /* Options — ballot lines (mirrors .db-line: marker + label + hairline) */
+  .pc-options { display: flex; flex-direction: column; }
+  .pc-opt {
+    display: flex; align-items: center; gap: 13px;
+    padding: 11px 2px; border-bottom: 1px solid var(--line-soft);
+  }
+  .pc-marker { flex-shrink: 0; width: 20px; display: grid; place-items: center; }
+  /* Variant A · radio marker (echoes .db-radio) */
+  .pc-radio { width: 17px; height: 17px; border-radius: 50%; border: 1.5px solid var(--faint); transition: border-color .14s; }
+  .pc-opt:focus-within .pc-radio { border-color: var(--vio); }
+  /* Variant B · lettered index chip */
+  .pc-letter {
+    width: 20px; height: 20px; border-radius: 5px; border: 1px solid var(--line);
+    display: grid; place-items: center; font-family: var(--mono); font-size: 10px; font-weight: 500;
+    color: var(--muted); transition: border-color .14s, color .14s;
+  }
+  .pc-opt:focus-within .pc-letter { border-color: var(--vio); color: var(--vio); }
+
+  .pc-opt-input {
+    flex: 1; min-width: 0; border: none; outline: none; background: none;
+    font-size: 14.5px; color: var(--ink-soft); padding: 2px 0;
+  }
+  .pc-opt-input:focus { color: var(--ink); }
+  .pc-opt-input::placeholder { color: var(--faint); }
+  .pc-opt-del {
+    flex-shrink: 0; width: 26px; height: 26px; border-radius: 7px; border: none; background: none;
+    color: var(--faint); display: grid; place-items: center; cursor: pointer; opacity: 0;
+    transition: opacity .12s, color .12s, background .12s;
+  }
+  .pc-opt:hover .pc-opt-del { opacity: 1; }
+  .pc-opt-del:hover { color: var(--rose); background: var(--rose-bg); }
+  .pc-opt-del svg { width: 14px; height: 14px; }
+
+  /* Add — reads as the next empty ballot line */
+  .pc-add {
+    display: flex; align-items: center; gap: 13px; width: 100%; text-align: left;
+    padding: 12px 2px 2px; border: none; background: none; cursor: pointer;
+    color: var(--vio); font-size: 13px;
+  }
+  .pc-add .pc-marker { color: var(--vio); }
+  .pc-add-glyph { width: 17px; height: 17px; border-radius: 50%; border: 1px dashed rgba(167,139,250,.45); display: grid; place-items: center; }
+  .pc-add-glyph svg { width: 11px; height: 11px; }
+  .pc-add span.lbl { transition: color .12s; }
+  .pc-add:hover span.lbl { color: #c4b0fc; }
+
+  /* Who votes — segmented toggle + chips (mirrors TaskForm/PollForm picker) */
+  .pc-seg { display: inline-flex; overflow: hidden; border-radius: 9px; border: 1px solid var(--line); }
+  .pc-seg button {
+    padding: 7px 14px; font-family: var(--mono); font-size: 10px; letter-spacing: .06em; text-transform: uppercase;
+    font-weight: 500; color: var(--muted); background: none; border: none; cursor: pointer;
+    transition: background .12s, color .12s;
+  }
+  .pc-seg button:hover:not(.on) { color: var(--ink-soft); background: rgba(236,231,221,.05); }
+  .pc-seg button.on { background: var(--vio); color: #0f0d0a; }
+
+  .pc-picker { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+  .pc-chip {
+    border: 1px solid rgba(236,231,221,.14); border-radius: 999px; padding: 5px 12px;
+    font-size: 12px; color: #c9c2b4; background: none; cursor: pointer;
+    transition: background .12s, border-color .12s, color .12s;
+  }
+  .pc-chip:hover { border-color: rgba(236,231,221,.28); }
+  .pc-chip.on { background: rgba(167,139,250,.16); border-color: rgba(167,139,250,.5); color: var(--ink); }
+
+  /* Closes — date */
+  .pc-date {
+    width: 100%; border-radius: 9px; border: 1px solid var(--line); background: #14120e;
+    padding: 9px 12px; font-size: 13px; color: var(--ink-soft);
+    color-scheme: dark;
+  }
+  .pc-date:focus { outline: none; border-color: rgba(167,139,250,.5); }
+  .pc-note { font-size: 11.5px; color: var(--faint); margin: 8px 0 0; font-style: italic; font-family: var(--serif); }
+
+  /* Submit — mono uppercase, echoes .db-submit but solid primary */
+  .pc-submit {
+    margin-top: 28px; width: 100%; padding: 12px; border-radius: 9px; border: none; cursor: pointer;
+    font-family: var(--mono); font-size: 11px; letter-spacing: .14em; text-transform: uppercase; font-weight: 500;
+    background: var(--vio); color: #0f0d0a; transition: background .14s;
+  }
+  .pc-submit:hover { background: #bda6fc; }
+
+  .foot { max-width: 1040px; margin: 44px auto 0; font-size: 12px; color: var(--faint); font-family: var(--mono); letter-spacing: .04em; text-align: center; }
+</style>
+</head>
+<body>
+  <div class="head">
+    <p class="kick">Figurints · ChaptOS — poll composer redesign</p>
+    <h1>Drafting a poll should feel like drafting the ballot.</h1>
+    <p>The vote &amp; results modal already reads as an editorial ballot. This makes the “New poll” form its twin — you write the question in the serif it’ll be read in, lay options out as ballot lines, then choose who votes. Same tokens, same grammar. One open choice below: how the option rows are marked.</p>
+  </div>
+
+  <div class="stage">
+    <!-- ─────────────── Variant A · Ballot markers ─────────────── -->
+    <div class="col">
+      <div class="col-tag"><b>A</b> · Ballot markers <span style="color:var(--faint)">(echoes the vote radios)</span></div>
+      <div class="panel">
+        <button class="panel-x" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" d="M6 18L18 6M6 6l12 12"/></svg></button>
+        <div class="pc">
+          <p class="pc-kicker">New ballot</p>
+          <div class="pc-qwrap">
+            <input class="pc-question" value="What's the theme for Bid Day?" spellcheck="false">
+          </div>
+
+          <div class="pc-section">
+            <p class="pc-label">The options <span class="pc-hint">2–10</span></p>
+            <div class="pc-options" data-marker="radio">
+              <div class="pc-opt"><span class="pc-marker"><span class="pc-radio"></span></span><input class="pc-opt-input" value="Retro Arcade"><button class="pc-opt-del" aria-label="Remove"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" d="M6 18L18 6M6 6l12 12"/></svg></button></div>
+              <div class="pc-opt"><span class="pc-marker"><span class="pc-radio"></span></span><input class="pc-opt-input" value="Tropical Luau"><button class="pc-opt-del" aria-label="Remove"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" d="M6 18L18 6M6 6l12 12"/></svg></button></div>
+              <div class="pc-opt"><span class="pc-marker"><span class="pc-radio"></span></span><input class="pc-opt-input" value="Western Rodeo"><button class="pc-opt-del" aria-label="Remove"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" d="M6 18L18 6M6 6l12 12"/></svg></button></div>
+              <div class="pc-opt"><span class="pc-marker"><span class="pc-radio"></span></span><input class="pc-opt-input" placeholder="Add another…"></div>
+            </div>
+            <button class="pc-add"><span class="pc-marker"><span class="pc-add-glyph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path stroke-linecap="round" d="M12 5v14M5 12h14"/></svg></span></span><span class="lbl">Add an option</span></button>
+          </div>
+
+          <div class="pc-section">
+            <p class="pc-label">Who votes</p>
+            <div class="pc-seg">
+              <button class="on">Individuals</button><button>Roles</button><button>Everyone</button>
+            </div>
+            <div class="pc-picker">
+              <button class="pc-chip on">Marcus Lee</button><button class="pc-chip on">Devon Ray</button>
+              <button class="pc-chip">Aaron Diaz</button><button class="pc-chip">Sam Okafor</button>
+              <button class="pc-chip">Elias Wolf</button><button class="pc-chip">Theo Vance</button>
+            </div>
+          </div>
+
+          <div class="pc-section">
+            <p class="pc-label">Closes <span class="pc-hint">optional</span></p>
+            <input type="date" class="pc-date" value="2026-08-14">
+            <p class="pc-note">A dated poll appears on the timeline.</p>
+          </div>
+
+          <button class="pc-submit">Create poll</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─────────────── Variant B · Lettered ─────────────── -->
+    <div class="col">
+      <div class="col-tag"><b>B</b> · Lettered <span style="color:var(--faint)">(quieter, less “clickable”)</span></div>
+      <div class="panel">
+        <button class="panel-x" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" d="M6 18L18 6M6 6l12 12"/></svg></button>
+        <div class="pc">
+          <p class="pc-kicker">New ballot</p>
+          <div class="pc-qwrap">
+            <input class="pc-question" value="Where should the spring retreat be?" spellcheck="false">
+          </div>
+
+          <div class="pc-section">
+            <p class="pc-label">The options <span class="pc-hint">2–10</span></p>
+            <div class="pc-options" data-marker="letter">
+              <div class="pc-opt"><span class="pc-marker"><span class="pc-letter">A</span></span><input class="pc-opt-input" value="Lake cabin"><button class="pc-opt-del" aria-label="Remove"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" d="M6 18L18 6M6 6l12 12"/></svg></button></div>
+              <div class="pc-opt"><span class="pc-marker"><span class="pc-letter">B</span></span><input class="pc-opt-input" value="Mountain lodge"><button class="pc-opt-del" aria-label="Remove"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" d="M6 18L18 6M6 6l12 12"/></svg></button></div>
+              <div class="pc-opt"><span class="pc-marker"><span class="pc-letter">C</span></span><input class="pc-opt-input" value="Beach house"><button class="pc-opt-del" aria-label="Remove"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" d="M6 18L18 6M6 6l12 12"/></svg></button></div>
+              <div class="pc-opt"><span class="pc-marker"><span class="pc-letter" style="color:var(--faint);border-style:dashed">D</span></span><input class="pc-opt-input" placeholder="Add another…"></div>
+            </div>
+            <button class="pc-add"><span class="pc-marker"><span class="pc-add-glyph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path stroke-linecap="round" d="M12 5v14M5 12h14"/></svg></span></span><span class="lbl">Add an option</span></button>
+          </div>
+
+          <div class="pc-section">
+            <p class="pc-label">Who votes</p>
+            <div class="pc-seg">
+              <button>Individuals</button><button class="on">Roles</button><button>Everyone</button>
+            </div>
+            <div class="pc-picker">
+              <button class="pc-chip on">Exec Board</button><button class="pc-chip">Social Chair</button>
+              <button class="pc-chip">New Members</button><button class="pc-chip">Alumni Liaison</button>
+            </div>
+          </div>
+
+          <div class="pc-section">
+            <p class="pc-label">Closes <span class="pc-hint">optional</span></p>
+            <input type="date" class="pc-date">
+            <p class="pc-note">A dated poll appears on the timeline.</p>
+          </div>
+
+          <button class="pc-submit">Create poll</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <p class="foot">Tokens &amp; grammar lifted verbatim from .db-poll · nothing invented · functionality unchanged (question, 2–10 options, who-votes, optional close date)</p>
+</body>
+</html>

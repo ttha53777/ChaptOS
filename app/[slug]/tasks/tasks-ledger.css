@@ -413,9 +413,14 @@
 /* ── Modal form (unchanged grammar, kept for the create/edit dialog) ────────── */
 .dash.dash-tasks .tk-form,
 .tk-form { display: flex; flex-direction: column; gap: 14px; }
-.tk-form .tk-opt { font-weight: 400; color: var(--faint, #6b6354); font-size: 11.5px; }
+/* The member/role picker is shared by TaskForm (.tk-form) and the poll composer
+   (.pc) — both mount inside the dusk modal, so keep one chip grammar for both. */
+.tk-form .tk-opt,
+.pc .tk-opt { font-weight: 400; color: var(--faint, #6b6354); font-size: 11.5px; }
 .tk-form .tk-picker { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
-.tk-form .tk-pick-chip {
+.pc .tk-picker { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+.tk-form .tk-pick-chip,
+.pc .tk-pick-chip {
   border: 1px solid rgba(236,231,221,.14);
   border-radius: 999px;
   padding: 5px 11px;
@@ -423,13 +428,16 @@
   color: #c9c2b4;
   transition: background .12s, border-color .12s, color .12s;
 }
-.tk-form .tk-pick-chip:hover { border-color: rgba(236,231,221,.28); }
-.tk-form .tk-pick-chip.on {
+.tk-form .tk-pick-chip:hover,
+.pc .tk-pick-chip:hover { border-color: rgba(236,231,221,.28); }
+.tk-form .tk-pick-chip.on,
+.pc .tk-pick-chip.on {
   background: rgba(167,139,250,.16);
   border-color: rgba(167,139,250,.5);
   color: #ece7dd;
 }
-.tk-form .tk-pick-chip.role.on {
+.tk-form .tk-pick-chip.role.on,
+.pc .tk-pick-chip.role.on {
   background: color-mix(in srgb, var(--chip, #a78bfa) 18%, transparent);
   border-color: color-mix(in srgb, var(--chip, #a78bfa) 55%, transparent);
 }
@@ -523,6 +531,9 @@
 .db-poll .db-submit { margin-top: 18px; width: 100%; font-family: var(--mono); font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; padding: 11px; border-radius: 8px; border: 1px solid var(--vio-bg); background: var(--vio-bg); color: var(--vio); cursor: not-allowed; opacity: .5; transition: opacity .15s; }
 .db-poll .db-submit.ready { cursor: pointer; opacity: 1; }
 .db-poll .db-submit.ready:hover { border-color: var(--vio); }
+/* Manager-only affordance: peek at the tally without voting, or step back to vote. */
+.db-poll .db-peek { display: block; margin: 12px auto 0; font-family: var(--mono); font-size: 9.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--faint); background: none; border: none; cursor: pointer; transition: color .14s; }
+.db-poll .db-peek:hover { color: var(--vio); }
 
 /* Results — bars that grow 0→width on reveal; gold "Elected" on the final leader. */
 .db-poll .db-result-line { display: flex; align-items: baseline; justify-content: space-between; gap: 14px; width: 100%; padding: 12px 2px; border-bottom: 1px solid var(--line-soft); text-align: left; }
@@ -569,30 +580,101 @@
   .db-poll .db-manage.confirming { animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }
 
-/* PollForm option rows (rendered inside the dusk modal, not under .dash). */
-.pl-options { display: flex; flex-direction: column; gap: 8px; }
-.pl-option-row { display: flex; align-items: center; gap: 8px; }
-.pl-option-row input { flex: 1; }
-.pl-option-del {
-  flex-shrink: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
-  color: #958d7c;
-  transition: color .12s, background .12s;
+/* ── Poll composer (.pc) — the create/edit form, drawn as a twin of the ballot ──
+   Renders inside <Modal tone="dusk" hideHeader> OUTSIDE .dash, so (like .db-poll)
+   it defines its own tokens. Grammar mirrors .db-poll: mono kicker, serif question,
+   ballot-line options with a radio marker, mono uppercase micro-labels. */
+.pc {
+  --serif: var(--font-fraunces), Georgia, serif;
+  --mono:  var(--font-geist-mono), ui-monospace, Menlo, monospace;
+  --ink:      #ece7dd;
+  --ink-soft: #c9c2b4;
+  --muted:    #958d7c;
+  --faint:    #6b6354;
+  --line:     rgba(236,231,221,.09);
+  --line-soft:rgba(236,231,221,.05);
+  --vio:      #a78bfa;
+  --gold:     #ddb36a;
+  --rose:     #d98ba3;
+  --rose-bg:  rgba(217,139,163,.10);
 }
-.pl-option-del:hover { color: #d98ba3; background: rgba(217,139,163,.10); }
-.pl-option-del svg { width: 15px; height: 15px; }
-.pl-option-add {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  margin-top: 8px;
-  font-size: 12px;
-  color: #a78bfa;
+
+/* Head — mono kicker + serif question (mirrors .db-sub + .db-question). */
+.pc-kicker { font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); margin: 0; }
+.pc-qwrap { margin-top: 12px; border-bottom: 1px solid var(--line); transition: border-color .16s; }
+.pc-qwrap:focus-within { border-color: var(--vio); }
+.pc-question {
+  width: 100%; border: none; outline: none; background: none;
+  font-family: var(--serif); font-style: italic; font-weight: 400;
+  font-size: 22px; line-height: 1.3; color: var(--ink); padding: 0 0 12px;
 }
-.pl-option-add svg { width: 14px; height: 14px; }
-.pl-option-add:hover { color: #c4b0fc; }
+.pc-question::placeholder { color: var(--faint); font-style: italic; }
+
+/* Section + mono uppercase micro-label. */
+.pc-section { margin-top: 26px; }
+.pc-label {
+  font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--muted); margin: 0 0 12px; display: flex; align-items: baseline; gap: 8px;
+}
+.pc-hint { color: var(--faint); letter-spacing: .08em; }
+.pc-hint.lock { color: var(--gold); }
+
+/* Options — ballot lines: radio marker + label + hairline (mirrors .db-line). */
+.pc-options { display: flex; flex-direction: column; }
+.pc-opt { display: flex; align-items: center; gap: 13px; padding: 11px 2px; border-bottom: 1px solid var(--line-soft); }
+.pc-marker { flex-shrink: 0; width: 20px; display: grid; place-items: center; color: var(--vio); }
+.pc-radio { width: 17px; height: 17px; border-radius: 50%; border: 1.5px solid var(--faint); transition: border-color .14s; }
+.pc-opt:focus-within .pc-radio { border-color: var(--vio); }
+.pc-opt-input { flex: 1; min-width: 0; border: none; outline: none; background: none; font-size: 14.5px; color: var(--ink-soft); padding: 2px 0; }
+.pc-opt-input:focus { color: var(--ink); }
+.pc-opt-input::placeholder { color: var(--faint); }
+.pc-opt-input:disabled { color: var(--muted); }
+.pc-opt-del {
+  flex-shrink: 0; width: 26px; height: 26px; border-radius: 7px; border: none; background: none;
+  color: var(--faint); display: grid; place-items: center; cursor: pointer; opacity: 0;
+  transition: opacity .12s, color .12s, background .12s;
+}
+.pc-opt:hover .pc-opt-del,
+.pc-opt:focus-within .pc-opt-del { opacity: 1; }
+.pc-opt-del:hover { color: var(--rose); background: var(--rose-bg); }
+.pc-opt-del svg { width: 14px; height: 14px; }
+/* Touch: no hover to reveal the delete, so keep it visible. */
+@media (hover: none) { .pc-opt-del { opacity: .55; } }
+
+/* Add — reads as the next empty ballot line. */
+.pc-add {
+  display: flex; align-items: center; gap: 13px; width: 100%; text-align: left;
+  padding: 12px 2px 2px; border: none; background: none; cursor: pointer; color: var(--vio); font-size: 13px;
+}
+.pc-add-glyph { width: 17px; height: 17px; border-radius: 50%; border: 1px dashed rgba(167,139,250,.45); display: grid; place-items: center; }
+.pc-add-glyph svg { width: 11px; height: 11px; }
+.pc-add-lbl { transition: color .12s; }
+.pc-add:hover .pc-add-lbl { color: #c4b0fc; }
+
+/* Who votes — segmented mode toggle (mono uppercase, echoes the ballot buttons). */
+.pc-seg { display: inline-flex; overflow: hidden; border-radius: 9px; border: 1px solid var(--line); }
+.pc-seg button {
+  padding: 7px 14px; font-family: var(--mono); font-size: 10px; letter-spacing: .06em; text-transform: uppercase;
+  font-weight: 500; color: var(--muted); background: none; border: none; cursor: pointer; transition: background .12s, color .12s;
+}
+.pc-seg button:hover:not(.on) { color: var(--ink-soft); background: rgba(236,231,221,.05); }
+.pc-seg button.on { background: var(--vio); color: #0f0d0a; }
+
+/* Closes — date field + serif footnote. */
+.pc-date {
+  width: 100%; border-radius: 9px; border: 1px solid var(--line); background: #14120e;
+  padding: 9px 12px; font-size: 13px; color: var(--ink-soft); color-scheme: dark;
+}
+.pc-date:focus { outline: none; border-color: rgba(167,139,250,.5); }
+.pc-note { font-family: var(--serif); font-style: italic; font-size: 13px; line-height: 1.5; color: var(--muted); margin: 10px 0 0; }
+
+.pc-error { color: var(--rose); font-size: 12.5px; margin: 18px 0 0; }
+
+/* Submit — mono uppercase primary (echoes .db-submit, but solid). */
+.pc-submit {
+  margin-top: 28px; width: 100%; padding: 12px; border-radius: 9px; border: none; cursor: pointer;
+  font-family: var(--mono); font-size: 11px; letter-spacing: .14em; text-transform: uppercase; font-weight: 500;
+  background: var(--vio); color: #0f0d0a; transition: background .14s;
+}
+.pc-submit:hover { background: #bda6fc; }
+.pc-submit:disabled { opacity: .5; cursor: not-allowed; }
