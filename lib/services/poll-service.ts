@@ -28,10 +28,13 @@ const POLL_INCLUDE = {
 type PollRow = Prisma.PollGetPayload<{ include: typeof POLL_INCLUDE }>;
 
 // ── Client DTO ────────────────────────────────────────────────────────────────
-// We flatten the include into a dumb client shape: per-option voteCount, the
-// caller's own pick (myVoteOptionId), and the total. The raw per-voter list is
-// NOT shipped — results are public-but-aggregate, not itemized.
-export interface PollOptionDTO { id: number; label: string; position: number; voteCount: number; }
+// We flatten the include into a dumb client shape. The Editorial Ballot is a
+// BLIND ballot: per-option `voteCount` is withheld (null) until the viewer is
+// entitled to the tally. `totalVotes` (how many have voted) is always shipped —
+// it's the "N SEALED" count on the row — and `myVoteOptionId` (the caller's own
+// pick) is never secret. The raw per-voter list is never shipped; managers get a
+// derived `pendingVoters` roster (who hasn't voted) instead.
+export interface PollOptionDTO { id: number; label: string; position: number; voteCount: number | null; }
 export interface PollAssignmentDTO {
   id: number;
   brotherId: number | null;
@@ -39,6 +42,7 @@ export interface PollAssignmentDTO {
   brother: { id: number; name: string; avatarUrl: string | null } | null;
   role: { id: number; name: string; color: string | null } | null;
 }
+export interface PollPendingVoterDTO { brotherId: number; name: string; avatarUrl: string | null; }
 export interface PollDTO {
   id: number;
   question: string;
@@ -51,27 +55,13 @@ export interface PollDTO {
   options: PollOptionDTO[];
   assignments: PollAssignmentDTO[];
   totalVotes: number;
+  /** Number of members who can vote (direct assignees ∪ current role holders). */
+  assigneeCount: number;
   myVoteOptionId: number | null;
-}
-
-function toDTO(row: PollRow, actorId: number): PollDTO {
-  const myVote = row.votes.find(v => v.brotherId === actorId);
-  return {
-    id:          row.id,
-    question:    row.question,
-    closeDate:   row.closeDate,
-    status:      row.status,
-    createdById: row.createdById,
-    closedById:  row.closedById,
-    closedAt:    row.closedAt ? row.closedAt.toISOString() : null,
-    createdAt:   row.createdAt.toISOString(),
-    options: row.options.map(o => ({ id: o.id, label: o.label, position: o.position, voteCount: o._count.votes })),
-    assignments: row.assignments.map(a => ({
-      id: a.id, brotherId: a.brotherId, roleId: a.roleId, brother: a.brother, role: a.role,
-    })),
-    totalVotes:     row.votes.length,
-    myVoteOptionId: myVote ? myVote.optionId : null,
-  };
+  /** True when per-option counts are withheld from this viewer (blind ballot). */
+  sealed: boolean;
+  /** Manager-only (MANAGE_POLLS): assignees who have not voted yet. Undefined otherwise. */
+  pendingVoters?: PollPendingVoterDTO[];
 }
 
 // Org-local display name (Membership.name) for each assignee, same fallback
@@ -87,6 +77,104 @@ async function withResolvedAssignees(ctx: RequestContext, dtos: PollDTO[]): Prom
       ? { ...a, brother: { ...a.brother, name: nameByBrotherId.get(a.brother.id) ?? a.brother.name } }
       : a),
   }));
+}
+
+/**
+ * Build client DTOs, enforcing the blind-ballot seal per viewer.
+ *
+ * A viewer sees per-option counts only when the poll is closed, they've voted,
+ * or they can manage polls. Managers (MANAGE_POLLS) additionally get the
+ * `pendingVoters` roster — the assignees, with roles expanded to their current
+ * holders, who have not voted yet — on EVERY poll, even ones they didn't assign.
+ * All name/holder lookups are batched across the whole `rows` set to avoid N+1.
+ */
+async function buildDTOs(ctx: RequestContext, rows: PollRow[]): Promise<PollDTO[]> {
+  const iManage = canManage(ctx);
+
+  // Expand every assigned role to its current holders in one query (role targets
+  // resolve to holders at read time, mirroring isAssignee), then reuse per poll.
+  const allRoleIds = [...new Set(rows.flatMap(r =>
+    r.assignments.map(a => a.roleId).filter((x): x is number => x != null)))];
+  const holdersByRole = new Map<number, number[]>();
+  if (allRoleIds.length) {
+    const holders = await ctx.db.brotherRole.findMany({
+      where: { roleId: { in: allRoleIds } },
+      select: { roleId: true, brotherId: true },
+    });
+    for (const h of holders) {
+      const list = holdersByRole.get(h.roleId);
+      if (list) list.push(h.brotherId);
+      else holdersByRole.set(h.roleId, [h.brotherId]);
+    }
+  }
+
+  // The concrete set of members who can vote on a poll.
+  const assigneeIdsOf = (row: PollRow): Set<number> => {
+    const ids = new Set<number>();
+    for (const a of row.assignments) {
+      if (a.brotherId != null) ids.add(a.brotherId);
+      if (a.roleId != null) for (const b of holdersByRole.get(a.roleId) ?? []) ids.add(b);
+    }
+    return ids;
+  };
+
+  // Manager-only: gather every non-voter id across all polls, then resolve their
+  // names/avatars in one batch.
+  const pendingIdsByPoll = new Map<number, number[]>();
+  let brotherById = new Map<number, { id: number; name: string; avatarUrl: string | null }>();
+  let nameById = new Map<number, string>();
+  if (iManage) {
+    const allPendingIds = new Set<number>();
+    for (const row of rows) {
+      const voters = new Set(row.votes.map(v => v.brotherId));
+      const pending = [...assigneeIdsOf(row)].filter(id => !voters.has(id));
+      pendingIdsByPoll.set(row.id, pending);
+      for (const id of pending) allPendingIds.add(id);
+    }
+    if (allPendingIds.size) {
+      const brothers = await ctx.db.brother.findMany({
+        where: { id: { in: [...allPendingIds] }, isGhost: false },
+        select: { id: true, name: true, avatarUrl: true },
+      });
+      brotherById = new Map(brothers.map(b => [b.id, b]));
+      nameById = await ctx.db.membership.resolveNames(brothers.map(b => ({ id: b.id, name: b.name })));
+    }
+  }
+
+  const dtos: PollDTO[] = rows.map(row => {
+    const closed = row.status === PollStatus.Closed;
+    const myVote = row.votes.find(v => v.brotherId === ctx.actorId);
+    const revealed = closed || myVote != null || iManage;
+    return {
+      id:          row.id,
+      question:    row.question,
+      closeDate:   row.closeDate,
+      status:      row.status,
+      createdById: row.createdById,
+      closedById:  row.closedById,
+      closedAt:    row.closedAt ? row.closedAt.toISOString() : null,
+      createdAt:   row.createdAt.toISOString(),
+      options: row.options.map(o => ({
+        id: o.id, label: o.label, position: o.position,
+        voteCount: revealed ? o._count.votes : null,
+      })),
+      assignments: row.assignments.map(a => ({
+        id: a.id, brotherId: a.brotherId, roleId: a.roleId, brother: a.brother, role: a.role,
+      })),
+      totalVotes:     row.votes.length,
+      assigneeCount:  assigneeIdsOf(row).size,
+      myVoteOptionId: myVote ? myVote.optionId : null,
+      sealed:         !revealed,
+      pendingVoters:  iManage
+        ? (pendingIdsByPoll.get(row.id) ?? [])
+            .map(id => brotherById.get(id))
+            .filter((b): b is NonNullable<typeof b> => b != null)
+            .map(b => ({ brotherId: b.id, name: nameById.get(b.id) ?? b.name, avatarUrl: b.avatarUrl }))
+        : undefined,
+    };
+  });
+
+  return withResolvedAssignees(ctx, dtos);
 }
 
 function loadPolls(ctx: RequestContext, where?: { status?: string; ids?: number[] }): Promise<PollRow[]> {
@@ -150,9 +238,9 @@ async function resolveAssignees(ctx: RequestContext, brotherIds: number[], roleI
  */
 export async function listPolls(ctx: RequestContext, filter?: { mine?: boolean; status?: string }): Promise<PollDTO[]> {
   const rows = await loadPolls(ctx, { status: filter?.status });
-  if (!filter?.mine) return withResolvedAssignees(ctx, rows.map(r => toDTO(r, ctx.actorId)));
+  if (!filter?.mine) return buildDTOs(ctx, rows);
   const held = await actorRoleIds(ctx);
-  return withResolvedAssignees(ctx, rows.filter(p => isAssignee(p, ctx.actorId, held)).map(r => toDTO(r, ctx.actorId)));
+  return buildDTOs(ctx, rows.filter(p => isAssignee(p, ctx.actorId, held)));
 }
 
 export async function createPoll(ctx: RequestContext, input: CreatePollInput): Promise<PollDTO> {
@@ -195,7 +283,7 @@ export async function createPoll(ctx: RequestContext, input: CreatePollInput): P
   });
 
   const [row] = await loadPolls(ctx, { ids: [created.id] });
-  const [dto] = await withResolvedAssignees(ctx, [toDTO(row, ctx.actorId)]);
+  const [dto] = await buildDTOs(ctx, [row]);
   return dto;
 }
 
@@ -285,7 +373,7 @@ export async function updatePoll(ctx: RequestContext, id: number, input: UpdateP
   await emit(ctx, "poll.updated", { type: "Poll", id }, { question: existing.question, changedFields });
 
   const [row] = await loadPolls(ctx, { ids: [id] });
-  const [dto] = await withResolvedAssignees(ctx, [toDTO(row, ctx.actorId)]);
+  const [dto] = await buildDTOs(ctx, [row]);
   return dto;
 }
 
@@ -309,7 +397,7 @@ async function setStatus(ctx: RequestContext, id: number, status: string): Promi
   await emit(ctx, closed ? "poll.closed" : "poll.reopened", { type: "Poll", id }, { question: existing.question });
 
   const [row] = await loadPolls(ctx, { ids: [id] });
-  const [dto] = await withResolvedAssignees(ctx, [toDTO(row, ctx.actorId)]);
+  const [dto] = await buildDTOs(ctx, [row]);
   return dto;
 }
 
@@ -351,7 +439,7 @@ export async function castVote(ctx: RequestContext, pollId: number, optionId: nu
   });
 
   const [row] = await loadPolls(ctx, { ids: [pollId] });
-  const [dto] = await withResolvedAssignees(ctx, [toDTO(row, ctx.actorId)]);
+  const [dto] = await buildDTOs(ctx, [row]);
   return dto;
 }
 
