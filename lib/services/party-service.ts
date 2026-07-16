@@ -220,17 +220,27 @@ async function recordPartyRoll(ctx: RequestContext, calendarEventId: number, sem
   ]);
   const excused = new Set(excuses.map(e => e.brotherId));
   const eligible = brothers.filter(b => !excused.has(b.id));
+  const eligibleIds = eligible.map(b => b.id);
   const attended = new Set(attendedIds);
 
-  // The tenant $transaction wrapper takes a callback (it SET LOCALs the org id),
-  // so run the upserts inside it rather than passing an operation array.
+  // Set-based writes: two statements regardless of roster size. A per-member upsert
+  // loop here 500s (P2024 transaction timeout) once a chapter passes ~60 members —
+  // same fix attendance-service.recordAttendance already applies. The tenant
+  // $transaction wrapper takes a callback (it SET LOCALs the org id). Excused
+  // members are absent from eligibleIds, so their pre-existing rows are left intact.
   await ctx.db.$transaction(async tx => {
-    for (const b of eligible) {
-      await tx.attendanceRecord.upsert({
-        where:  { calendarEventId_brotherId: { calendarEventId, brotherId: b.id } },
-        update: { attended: attended.has(b.id) },
-        create: { calendarEventId, brotherId: b.id, semesterId, attended: attended.has(b.id) },
+    await tx.attendanceRecord.deleteMany({
+      where: { calendarEventId, brotherId: { in: eligibleIds } },
+    });
+    if (eligibleIds.length > 0) {
+      await tx.attendanceRecord.createMany({
+        data: eligible.map(b => ({
+          calendarEventId,
+          brotherId:  b.id,
+          semesterId,
+          attended:   attended.has(b.id),
+        })),
       });
     }
-  });
+  }, { timeout: 15_000 });
 }
