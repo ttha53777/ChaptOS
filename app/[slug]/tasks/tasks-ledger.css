@@ -442,168 +442,121 @@
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   Polls — same ledger language as the tasks list. A poll reads as a compact row
-   (.pl-row) pinned above the tasks; clicking it opens the .pl-card vote modal,
-   which carries the question, live result bars, status pill, and assignee chips.
+   Polls — the Editorial Ballot. A poll reads as a serif row (.db-row) pinned
+   above the tasks; clicking it opens the .db-poll BLIND ballot modal, which
+   unseals to live results the moment you vote and finalizes ("Elected") on close.
+   The .db-poll block is self-contained (defines its own tokens) because the modal
+   renders OUTSIDE .dash.dash-tasks, so it can't inherit the page-scoped tokens.
    ───────────────────────────────────────────────────────────────────────────── */
 
-/* Poll row — mirrors .tk-row, but the whole body is a button that opens the modal. */
-.dash.dash-tasks .tk-row.pl-row { padding-right: 8px; }
-.dash.dash-tasks .tk-row.pl-row::before { background: var(--gold); opacity: .55; }
-.dash.dash-tasks .tk-row.pl-row.awaits::before { background: var(--vio); opacity: 1; }
-.dash.dash-tasks .tk-row.pl-row.done::before { background: var(--faint); opacity: .5; }
-.dash.dash-tasks .pl-row-open {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  align-items: flex-start;
-  gap: 13px;
-  padding: 0 0 0 18px;
-  text-align: left;
+/* Poll row — one button opening the vote/results modal. */
+.dash.dash-tasks .db-row {
+  display: flex; align-items: center; gap: 14px;
+  background: var(--card); border: 1px solid var(--line-soft); border-bottom: 1px solid var(--line);
+  border-radius: 10px; padding: 15px 16px; width: 100%; text-align: left; color: inherit;
+  cursor: pointer; transition: border-color .14s, transform .14s;
 }
-.dash.dash-tasks .pl-row-glyph {
-  flex-shrink: 0;
-  margin-top: 1px;
-  width: 19px; height: 19px;
-  border-radius: 6px;
-  background: var(--vio-bg);
-  color: var(--vio);
-  display: grid;
-  place-items: center;
-}
-.dash.dash-tasks .pl-row-glyph svg { width: 12px; height: 12px; }
-.dash.dash-tasks .pl-row .tk-row-meta { gap: 8px; }
-.dash.dash-tasks .pl-row .pl-status { padding: 3px 8px; font-size: 8.5px; }
-.dash.dash-tasks .pl-row-hint {
-  flex-shrink: 0;
-  align-self: center;
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  font-family: var(--mono);
-  font-size: 9.5px;
-  letter-spacing: .08em;
-  text-transform: uppercase;
-  color: var(--muted);
-  transition: color .14s;
-}
-.dash.dash-tasks .pl-row-hint.on { color: var(--vio); }
-.dash.dash-tasks .pl-row-hint svg { width: 13px; height: 13px; }
-.dash.dash-tasks .pl-row:hover .pl-row-hint { color: var(--ink-soft); }
-.dash.dash-tasks .pl-row:hover .pl-row-hint.on { color: var(--vio); }
+.dash.dash-tasks .db-row:hover { border-color: rgba(236,231,221,.2); transform: translateX(1px); }
+.dash.dash-tasks .db-glyph { flex-shrink: 0; width: 22px; height: 22px; color: var(--faint); display: grid; place-items: center; }
+.dash.dash-tasks .db-glyph svg { width: 20px; height: 20px; }
+.dash.dash-tasks .db-row.awaits .db-glyph { color: var(--vio); }
+.dash.dash-tasks .db-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.dash.dash-tasks .db-title { font-family: var(--serif); font-style: italic; font-size: 16px; font-weight: 400; color: var(--ink-soft); }
+.dash.dash-tasks .db-row.awaits .db-title { color: var(--ink); }
+.dash.dash-tasks .db-meta { margin-top: 7px; display: flex; align-items: center; gap: 9px; flex-wrap: wrap; font-size: 11px; color: var(--muted); font-family: var(--mono); letter-spacing: .02em; }
+.dash.dash-tasks .db-right { flex-shrink: 0; display: flex; align-items: center; gap: 12px; }
+.dash.dash-tasks .db-hint { font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); transition: color .14s; }
+.dash.dash-tasks .db-row.awaits .db-hint { color: var(--vio); }
+.dash.dash-tasks .db-row:hover .db-hint { color: var(--ink-soft); }
+.dash.dash-tasks .db-row.awaits:hover .db-hint { color: var(--vio); }
 
-.dash.dash-tasks .pl-list {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
+/* ── Vote/results modal (.db-poll) — self-contained; renders outside .dash ───── */
+.db-poll {
+  --serif: var(--font-fraunces), Georgia, serif;
+  --mono:  var(--font-geist-mono), ui-monospace, Menlo, monospace;
+  --card:     #161310;
+  --card-2:   #1b1813;
+  --ink:      #ece7dd;
+  --ink-soft: #c9c2b4;
+  --muted:    #958d7c;
+  --faint:    #6b6354;
+  --line:     rgba(236,231,221,.09);
+  --line-soft:rgba(236,231,221,.05);
+  --vio:      #a78bfa;
+  --vio-bg:   rgba(167,139,250,.10);
+  --gold:     #ddb36a;
+  --gold-bg:  rgba(221,179,106,.10);
+  --rose:     #d98ba3;
+  --rose-bg:  rgba(217,139,163,.10);
 }
+.db-poll .db-question { font-family: var(--serif); font-style: italic; font-size: 21px; line-height: 1.3; color: var(--ink); margin: 0 0 4px; }
+.db-poll .db-sub { font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); margin: 0 0 20px; display: flex; align-items: center; }
+.db-poll .db-sub.reveal { color: var(--gold); }
+.db-poll .db-sub.live { color: var(--vio); }
+.db-poll .db-live-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--vio); margin-right: 7px; flex-shrink: 0; animation: db-pulse 1.6s ease-in-out infinite; }
+@keyframes db-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .3; } }
 
-.dash.dash-tasks .pl-card {
-  background: var(--card);
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  padding: 16px 18px;
-  box-shadow: var(--shadow);
-}
-.dash.dash-tasks .pl-card.closed { opacity: .82; }
+.db-poll .db-ballot { display: flex; flex-direction: column; }
+.db-poll .db-ballot.reveal-in { opacity: 0; transform: translateY(6px); transition: opacity .35s ease, transform .35s ease; }
+.db-poll .db-ballot.reveal-in.show { opacity: 1; transform: translateY(0); }
 
-.dash.dash-tasks .pl-card-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 14px;
-  margin-bottom: 14px;
-}
-.dash.dash-tasks .pl-card-title {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--ink);
-}
-.dash.dash-tasks .pl-card-question {
-  font-family: var(--serif);
-  font-size: 16px;
-  color: var(--ink-soft);
-  margin-top: 3px;
-}
-.dash.dash-tasks .pl-status {
-  flex-shrink: 0;
-  font-family: var(--mono);
-  font-size: 9px;
-  letter-spacing: .1em;
-  text-transform: uppercase;
-  padding: 4px 9px;
-  border-radius: 999px;
-}
-.dash.dash-tasks .pl-status.open   { color: var(--ok);   background: var(--ok-bg); }
-.dash.dash-tasks .pl-status.closed { color: var(--muted); background: var(--line-soft); }
+/* Blind ballot — radio option rows + cast button. */
+.db-poll .db-line { display: flex; align-items: center; gap: 13px; padding: 13px 2px; border: none; border-bottom: 1px solid var(--line-soft); background: none; width: 100%; text-align: left; color: inherit; cursor: pointer; }
+.db-poll .db-line:last-child { border-bottom: none; }
+.db-poll .db-radio { flex-shrink: 0; width: 17px; height: 17px; border-radius: 50%; border: 1.5px solid var(--faint); display: grid; place-items: center; transition: border-color .14s; }
+.db-poll .db-line:hover .db-radio { border-color: var(--vio); }
+.db-poll .db-radio-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--vio); transform: scale(0); transition: transform .16s; }
+.db-poll .db-line.picked .db-radio { border-color: var(--vio); }
+.db-poll .db-line.picked .db-radio-dot { transform: scale(1); }
+.db-poll .db-line-label { flex: 1; font-size: 14.5px; color: var(--ink-soft); }
+.db-poll .db-line.picked .db-line-label { color: var(--ink); }
+.db-poll .db-submit { margin-top: 18px; width: 100%; font-family: var(--mono); font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; padding: 11px; border-radius: 8px; border: 1px solid var(--vio-bg); background: var(--vio-bg); color: var(--vio); cursor: not-allowed; opacity: .5; transition: opacity .15s; }
+.db-poll .db-submit.ready { cursor: pointer; opacity: 1; }
+.db-poll .db-submit.ready:hover { border-color: var(--vio); }
 
-.dash.dash-tasks .pl-bars {
-  display: flex;
-  flex-direction: column;
-  gap: 7px;
-}
-.dash.dash-tasks .pl-bar {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  width: 100%;
-  padding: 10px 12px;
-  border: 1px solid var(--line);
-  border-radius: 9px;
-  overflow: hidden;
-  text-align: left;
-  color: var(--ink-soft);
-  transition: border-color .12s, color .12s;
-}
-.dash.dash-tasks .pl-bar.votable { cursor: pointer; }
-.dash.dash-tasks .pl-bar.votable:hover { border-color: var(--vio); color: var(--ink); }
-.dash.dash-tasks .pl-bar:disabled { cursor: default; }
-.dash.dash-tasks .pl-bar.mine { border-color: var(--vio); color: var(--ink); }
-.dash.dash-tasks .pl-bar-fill {
-  position: absolute;
-  inset: 0 auto 0 0;
-  background: var(--vio-bg);
-  transition: width .35s cubic-bezier(.4,0,.2,1);
-  pointer-events: none;
-}
-.dash.dash-tasks .pl-bar.mine .pl-bar-fill { background: rgba(167,139,250,.20); }
-.dash.dash-tasks .pl-bar-label {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  font-size: 13px;
-  min-width: 0;
-}
-.dash.dash-tasks .pl-bar-check { width: 14px; height: 14px; color: var(--vio); flex-shrink: 0; }
-.dash.dash-tasks .pl-bar-count {
-  position: relative;
-  flex-shrink: 0;
-  font-family: var(--mono);
-  font-size: 10px;
-  letter-spacing: .04em;
-  color: var(--muted);
-}
+/* Results — bars that grow 0→width on reveal; gold "Elected" on the final leader. */
+.db-poll .db-result-line { display: flex; align-items: baseline; justify-content: space-between; gap: 14px; width: 100%; padding: 12px 2px; border-bottom: 1px solid var(--line-soft); text-align: left; }
+.db-poll .db-result-line:last-child { border-bottom: none; }
+.db-poll button.db-result-line { background: none; border: none; border-bottom: 1px solid var(--line-soft); color: inherit; font: inherit; cursor: pointer; }
+.db-poll button.db-result-line:last-child { border-bottom: none; }
+.db-poll .db-result-line.votable:hover .db-rl-label { color: var(--ink); }
+.db-poll .db-rl-left { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.db-poll .db-rl-label { font-size: 14.5px; color: var(--ink-soft); display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+.db-poll .db-result-line.win .db-rl-label { color: var(--ink); font-weight: 500; }
+.db-poll .db-result-line.mine .db-rl-label { color: var(--ink); }
+.db-poll .db-elected { font-family: var(--mono); font-size: 8px; letter-spacing: .1em; text-transform: uppercase; color: var(--gold); background: var(--gold-bg); border: 1px solid var(--gold-bg); border-radius: 3px; padding: 2px 6px; }
+.db-poll .db-you-tag { font-family: var(--mono); font-size: 8px; letter-spacing: .1em; text-transform: uppercase; color: var(--vio); background: var(--vio-bg); border: 1px solid var(--vio-bg); border-radius: 3px; padding: 2px 6px; }
+.db-poll .db-rl-bar { display: block; margin-top: 7px; height: 2px; background: var(--line); border-radius: 2px; overflow: hidden; }
+.db-poll .db-rl-bar span { display: block; height: 100%; background: var(--faint); transition: width .5s cubic-bezier(.4,0,.2,1); }
+.db-poll .db-result-line.mine .db-rl-bar span { background: var(--vio); }
+.db-poll .db-result-line.win .db-rl-bar span { background: var(--gold); }
+.db-poll .db-rl-pct { font-family: var(--serif); font-size: 17px; color: var(--muted); flex-shrink: 0; }
+.db-poll .db-result-line.win .db-rl-pct { color: var(--gold); }
+.db-poll .db-foot { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line-soft); font-family: var(--mono); font-size: 10.5px; color: var(--faint); display: flex; justify-content: space-between; }
+.db-poll .db-sealed-note { font-family: var(--serif); font-style: italic; font-size: 14px; line-height: 1.5; color: var(--muted); margin: 0; }
 
-.dash.dash-tasks .pl-card-meta {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 7px;
-  margin-top: 13px;
-  font-size: 12px;
-  color: var(--muted);
-}
-.dash.dash-tasks .pl-votes { font-family: var(--mono); font-size: 11px; }
+/* Manager-only "not yet voted" roster. */
+.db-poll .db-pending { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line-soft); }
+.db-poll .db-pending-label { font-family: var(--mono); font-size: 9px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin: 0 0 10px; }
+.db-poll .tk-chips { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
+.db-poll .tk-chip { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 500; color: var(--ink-soft); background: var(--card-2); border: 1px solid var(--line); border-radius: 999px; padding: 3px 9px 3px 7px; line-height: 1; }
+.db-poll .tk-chip .av { width: 15px; height: 15px; border-radius: 50%; background: var(--vio-bg); color: var(--vio); display: grid; place-items: center; font-family: var(--mono); font-size: 7.5px; font-weight: 600; flex-shrink: 0; }
 
-.dash.dash-tasks .pl-card-acts {
-  display: flex;
-  gap: 6px;
-  margin-top: 13px;
-  padding-top: 12px;
-  border-top: 1px solid var(--line-soft);
+/* Manage bar — Edit · Close/Reopen · Delete, with a close-early confirm guard. */
+.db-poll .db-manage { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-top: 16px; padding-top: 13px; border-top: 1px solid var(--line-soft); }
+.db-poll .db-manage.confirming { animation: db-confirm-in .18s ease; }
+.db-poll .db-confirm-q { flex: 1; font-family: var(--mono); font-size: 10px; letter-spacing: .01em; color: var(--ink-soft); line-height: 1.35; }
+@keyframes db-confirm-in { from { opacity: 0; transform: translateY(-3px); } to { opacity: 1; transform: translateY(0); } }
+.db-poll .manage-btn { font-family: var(--mono); font-size: 9.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); background: transparent; border: 1px solid var(--line); border-radius: 7px; padding: 7px 12px; cursor: pointer; transition: border-color .14s, color .14s; }
+.db-poll .manage-btn:hover { border-color: var(--vio); color: var(--ink-soft); }
+.db-poll .manage-btn.danger { color: var(--rose); border-color: var(--rose-bg); }
+.db-poll .manage-btn.danger:hover { border-color: var(--rose); color: var(--rose); }
+
+@media (prefers-reduced-motion: reduce) {
+  .db-poll .db-live-dot,
+  .db-poll .db-ballot.reveal-in,
+  .db-poll .db-rl-bar span,
+  .db-poll .db-manage.confirming { animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }
 
 /* PollForm option rows (rendered inside the dusk modal, not under .dash). */

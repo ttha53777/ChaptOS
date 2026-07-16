@@ -128,10 +128,11 @@ export interface Task {
 }
 
 // A poll is task-shaped (members/roles + optional date) with a question and 2-10
-// options that attached members vote on. Single-choice; results are live. The
-// server flattens the vote rows into per-option voteCount + the caller's own
-// pick (myVoteOptionId) — see poll-service toDTO.
-export interface PollOption { id: number; label: string; position: number; voteCount: number }
+// options that attached members vote on. Single-choice. It's a BLIND ballot: the
+// server withholds per-option `voteCount` (null) until the viewer has voted, the
+// poll closes, or the viewer can manage polls — see poll-service buildDTOs. When
+// sealed, `voteCount` is null but `totalVotes` (the "N sealed" count) still ships.
+export interface PollOption { id: number; label: string; position: number; voteCount: number | null }
 export interface PollAssignment {
   id: number;
   brotherId: number | null;
@@ -139,6 +140,7 @@ export interface PollAssignment {
   brother: TaskAssigneeBrother | null;
   role: TaskAssigneeRole | null;
 }
+export interface PollPendingVoter { brotherId: number; name: string; avatarUrl: string | null }
 export interface Poll {
   id: number;
   question: string;
@@ -151,7 +153,13 @@ export interface Poll {
   options: PollOption[];
   assignments: PollAssignment[];
   totalVotes: number;
+  // Members who can vote (direct assignees ∪ current role holders).
+  assigneeCount: number;
   myVoteOptionId: number | null;
+  // True when per-option counts are withheld from this viewer (blind ballot).
+  sealed: boolean;
+  // Manager-only (MANAGE_POLLS): assignees who have not voted yet. Undefined otherwise.
+  pendingVoters?: PollPendingVoter[];
 }
 
 export interface InstagramTask {

@@ -4,6 +4,7 @@ import React, { useState, useMemo, useEffect, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import { Sidebar } from "../../components/Sidebar";
 import { Modal, ConfirmDialog } from "../../components/dashboard/primitives";
+import { useToast } from "../../components/dashboard/Toast";
 import { TaskForm, type RoleOption, type TaskFormValue } from "../../components/dashboard/TaskForm";
 import { PollForm, type PollFormValue } from "../../components/dashboard/PollForm";
 import { useChapter } from "../../context/ChapterContext";
@@ -53,10 +54,21 @@ function initials(name: string): string {
   const parts = name.trim().split(/\s+/);
   return ((parts[0]?.[0] ?? "") + (parts[1]?.[0] ?? "")).toUpperCase() || "?";
 }
+/** Uppercase "CLOSES …" fragment for an open poll's meta line (mono). */
+function pollClosesLabel(closeDate: string | null, today: Date): string | null {
+  if (!closeDate) return null;
+  const n = daysUntil(closeDate, today);
+  if (n < 0) return "PAST CLOSE";
+  if (n === 0) return "CLOSES TODAY";
+  if (n === 1) return "CLOSES TOMORROW";
+  if (n <= 14) return `CLOSES ${n}D`;
+  return `CLOSES ${fmtDate(closeDate).toUpperCase()}`;
+}
 
 export default function TasksPage() {
   const { taskList, setTaskList, pollList, setPollList, brotherList, currentUser, can } = useChapter();
   const params = useSearchParams();
+  const toast = useToast();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const canManage = can("MANAGE_TASKS");
@@ -319,18 +331,21 @@ export default function TasksPage() {
   }
 
   async function vote(poll: Poll, optionId: number) {
-    // Optimistic: move this voter's pick, adjusting per-option counts + total.
+    const firstVote = poll.myVoteOptionId == null;
+    // Optimistic: record this voter's own pick and unseal the ballot so the modal
+    // phases into the live results. Per-option counts are sealed (null) until the
+    // server responds — the reveal animation masks that round-trip — so we don't
+    // fabricate a tally here; we only bump the total on a first-time vote.
     const previous = pollList;
     setPollList(prev => prev.map(p => {
       if (p.id !== poll.id) return p;
-      const had = p.myVoteOptionId;
-      if (had === optionId) return p; // no-op re-click
-      const options = p.options.map(o => {
-        if (o.id === optionId) return { ...o, voteCount: o.voteCount + 1 };
-        if (o.id === had)      return { ...o, voteCount: Math.max(0, o.voteCount - 1) };
-        return o;
-      });
-      return { ...p, options, myVoteOptionId: optionId, totalVotes: had == null ? p.totalVotes + 1 : p.totalVotes };
+      if (p.myVoteOptionId === optionId) return p; // no-op re-click
+      return {
+        ...p,
+        myVoteOptionId: optionId,
+        sealed: false,
+        totalVotes: firstVote ? p.totalVotes + 1 : p.totalVotes,
+      };
     }));
     try {
       const saved = await requestJson<Poll>(`/api/polls/${poll.id}/vote`, {
@@ -339,6 +354,7 @@ export default function TasksPage() {
         body: JSON.stringify({ optionId }),
       });
       setPollList(prev => prev.map(p => p.id === saved.id ? saved : p));
+      if (firstVote) toast.success("Your vote is in — here's how the room is leaning so far.");
     } catch {
       setPollList(previous);
       setError("Could not record your vote.");
@@ -503,11 +519,8 @@ export default function TasksPage() {
                     <p className="tk-group-label gold"><span className="dot" />Polls <span className="ct">({pinnedPolls.length})</span></p>
                     <div className="tk-list">
                       {pinnedPolls.map(p => (
-                        <PollRow key={p.id} poll={p} today={today} canManage={canManagePolls} canVote={canVote(p)}
-                          onOpen={() => openPollView(p)}
-                          onEdit={() => openEditPoll(p)}
-                          onClose={() => setPollStatus(p, "closed")} onReopen={() => setPollStatus(p, "open")}
-                          onDelete={() => setConfirmDeletePoll({ id: p.id, title: p.question })} />
+                        <PollRow key={p.id} poll={p} today={today} canVote={canVote(p)}
+                          onOpen={() => openPollView(p)} />
                       ))}
                     </div>
                   </section>
@@ -714,91 +727,54 @@ function TaskRow({ task, today, spine, canManage, canComplete, onComplete, onReo
   );
 }
 
-function PollRow({ poll, today, canManage, canVote, onOpen, onEdit, onClose, onReopen, onDelete }: {
+// Editorial-ballot poll row (mock .db-row): a serif question + a mono status
+// line that reads OPEN · CLOSES · N SEALED|VOTES until the ballot unseals. The
+// whole row is one button opening the vote/results modal; management actions
+// live inside that modal now, not on the row.
+function PollRow({ poll, today, canVote, onOpen }: {
   poll: Poll;
   today: Date;
-  canManage: boolean;
   canVote: boolean;
   onOpen: () => void;
-  onEdit: () => void;
-  onClose: () => void;
-  onReopen: () => void;
-  onDelete: () => void;
 }) {
   const closed = poll.status === "closed";
+  const voted = poll.myVoteOptionId != null;
   const total = poll.totalVotes;
-  const dateLabel = closed
-    ? (poll.closeDate ? `Closed · ${fmtDate(poll.closeDate)}` : "Closed")
-    : relWhen(poll.closeDate, today).txt;
-  const dateCls = closed ? "" : relWhen(poll.closeDate, today).cls;
-  const awaitsMine = !closed && canVote && poll.myVoteOptionId == null;
-  // Right-edge hint: open polls awaiting your vote say "Vote", everything else "View".
-  const hint = awaitsMine ? "Vote" : closed ? "Results" : "View";
+  // "Awaits" (violet) = this poll is open and waiting on YOUR vote.
+  const awaitsMine = !closed && canVote && !voted;
+
+  const closes = pollClosesLabel(poll.closeDate, today);
+  const meta = closed
+    ? `CLOSED${poll.closeDate ? ` ${fmtDate(poll.closeDate).toUpperCase()}` : ""} · ${total} CAST`
+    : [
+        "OPEN",
+        closes,
+        poll.sealed ? `${total} SEALED` : `${total} ${total === 1 ? "VOTE" : "VOTES"}${voted ? " · LIVE" : ""}`,
+      ].filter(Boolean).join(" · ");
+  const hint = closed ? "Results" : awaitsMine ? "Vote" : voted ? "Live" : "View";
 
   return (
-    <div className={`tk-row pl-row${closed ? " done" : ""}${awaitsMine ? " awaits" : ""}`}>
-      <button className="pl-row-open" onClick={onOpen} aria-label={`Open poll: ${poll.question}`}>
-        <span className="pl-row-glyph" aria-hidden>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M9 17V9m4 8V5m4 12v-6" /></svg>
-        </span>
-        <span className="tk-row-main">
-          <span className="tk-row-title">{poll.question}</span>
-          <span className="tk-row-meta">
-            <span className={`pl-status ${closed ? "closed" : "open"}`}>{closed ? "Closed" : "Open"}</span>
-            <span className="tk-sep">·</span>
-            <span className={`tk-when ${dateCls}`}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}><circle cx="12" cy="12" r="9" /><path strokeLinecap="round" strokeLinejoin="round" d="M12 7.5V12l3 2" /></svg>
-              {dateLabel}
-            </span>
-            <span className="tk-sep">·</span>
-            <span className="pl-votes">{total} {total === 1 ? "vote" : "votes"}</span>
-            {poll.assignments.length > 0 && (
-              <>
-                <span className="tk-sep">·</span>
-                <span className="tk-chips">
-                  {poll.assignments.map(a => a.role ? (
-                    <span key={`r${a.id}`} className="tk-chip role" style={a.role.color ? { ["--rc" as string]: a.role.color } : undefined}>
-                      <span className="pip" />{a.role.name}
-                    </span>
-                  ) : a.brother ? (
-                    <span key={`b${a.id}`} className="tk-chip">
-                      <span className="av">{initials(a.brother.name)}</span>{a.brother.name}
-                    </span>
-                  ) : null)}
-                </span>
-              </>
-            )}
-          </span>
-        </span>
-        <span className={`pl-row-hint${awaitsMine ? " on" : ""}`}>
-          {hint}
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 6l6 6-6 6" /></svg>
-        </span>
-      </button>
-
-      {canManage && (
-        <div className="tk-row-acts">
-          <button className="tk-act" title="Edit" onClick={onEdit}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M15.2 5.2l3.6 3.6M16.7 3.7a2.5 2.5 0 113.6 3.6L7 20.5l-4 1 1-4z" /></svg>
-          </button>
-          {closed ? (
-            <button className="tk-act" title="Reopen" onClick={onReopen}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M4 4v6h6M20 20v-6h-6M20 9A8 8 0 006 5.3M4 15a8 8 0 0014 3.7" /></svg>
-            </button>
-          ) : (
-            <button className="tk-act" title="Close poll" onClick={onClose}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}><rect x="5" y="11" width="14" height="9" rx="2" /><path strokeLinecap="round" strokeLinejoin="round" d="M8 11V7a4 4 0 018 0v4" /></svg>
-            </button>
-          )}
-          <button className="tk-act danger" title="Delete" onClick={onDelete}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M5 7h14M9 7V5a1 1 0 011-1h4a1 1 0 011 1v2m1 0l-.7 12.1A2 2 0 0114.4 21H9.6a2 2 0 01-2-1.9L7 7" /></svg>
-          </button>
-        </div>
-      )}
-    </div>
+    <button type="button" className={`db-row${awaitsMine ? " awaits" : ""}`} onClick={onOpen}
+      aria-label={`Open poll: ${poll.question}`}>
+      <span className="db-glyph" aria-hidden>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7}><rect x="3" y="8" width="18" height="12" rx="2" /><path strokeLinecap="round" strokeLinejoin="round" d="M8 8l4-4 4 4" /></svg>
+      </span>
+      <span className="db-main">
+        <span className="db-title">{poll.question}</span>
+        <span className="db-meta">{meta}</span>
+      </span>
+      <span className="db-right">
+        <span className="db-hint">{hint} →</span>
+      </span>
+    </button>
   );
 }
 
+// Editorial-ballot vote/results card (mock .db-card). A BLIND ballot: a sealed
+// voter picks a radio option and casts, then the card phases into live results
+// (bars grow 0→width); a closed poll finalizes with a gold "Elected" tag. Poll
+// managers are never sealed — they always see the tally plus a "not yet voted"
+// roster — and may cast/change their own vote straight from the results view.
 function PollCard({ poll, today, canManage, canVote, onVote, onClose, onReopen, onEdit, onDelete }: {
   poll: Poll;
   today: Date;
@@ -811,95 +787,148 @@ function PollCard({ poll, today, canManage, canVote, onVote, onClose, onReopen, 
   onDelete: () => void;
 }) {
   const closed = poll.status === "closed";
+  const voted = poll.myVoteOptionId != null;
   const total = poll.totalVotes;
-  // Close-date label: closed polls show a neutral past note; open ones a relative due.
-  const dateLabel = closed
-    ? (poll.closeDate ? `Closed · ${fmtDate(poll.closeDate)}` : "Closed")
-    : relWhen(poll.closeDate, today).txt;
-  const dateCls = closed ? "" : relWhen(poll.closeDate, today).cls;
-  const votable = canVote && !closed;
+
+  // Blind ballot (radio + cast) for a sealed viewer who may vote; results (bars)
+  // once you've voted, whenever you can manage (never sealed), or when closed; a
+  // bare sealed note for a non-assignee non-manager on an open poll.
+  const showBallot = poll.sealed && !closed && canVote;
+  const showResults = !showBallot && (voted || canManage || closed);
+  // Cast / change your own vote from the results view while the poll is open.
+  const canVoteNow = canVote && !closed;
+
+  const [pendingPick, setPendingPick] = useState<number | null>(null);
+  const [confirmingClose, setConfirmingClose] = useState(false);
+
+  // Reveal: fade the ballot in and grow the bars 0→width on entering results.
+  const [revealed, setRevealed] = useState(false);
+  useEffect(() => {
+    if (!showResults) { setRevealed(false); return; }
+    let raf2 = 0;
+    const raf1 = requestAnimationFrame(() => { raf2 = requestAnimationFrame(() => setRevealed(true)); });
+    return () => { cancelAnimationFrame(raf1); cancelAnimationFrame(raf2); };
+  }, [showResults]);
+
+  const leaderId = useMemo(() => {
+    let best: number | null = null, bestN = -1;
+    for (const o of poll.options) { const n = o.voteCount ?? 0; if (n > bestN) { bestN = n; best = o.id; } }
+    return best;
+  }, [poll.options]);
+
+  const closesFoot = closed ? "Final results" : (() => {
+    if (!poll.closeDate) return "No close date";
+    const n = daysUntil(poll.closeDate, today);
+    if (n < 0) return "Past close date";
+    if (n === 0) return "Closes today";
+    if (n === 1) return "Closes tomorrow";
+    if (n <= 14) return `Closes in ${n} days`;
+    return `Closes ${fmtDate(poll.closeDate)}`;
+  })();
 
   return (
-    <div className={`pl-card${closed ? " closed" : ""}`}>
-      <div className="pl-card-head">
-        <div className="pl-card-titles">
-          <p className="pl-card-question">{poll.question}</p>
-        </div>
-        <span className={`pl-status ${closed ? "closed" : "open"}`}>{closed ? "Closed" : "Open"}</span>
-      </div>
+    <div className="db-poll">
+      <p className="db-question">{poll.question}</p>
+      {closed ? (
+        <p className="db-sub reveal">Closed{poll.closeDate ? ` · ${fmtDate(poll.closeDate)}` : ""} · {total} {total === 1 ? "vote" : "votes"} cast</p>
+      ) : showResults ? (
+        <p className="db-sub live"><span className="db-live-dot" />Live · {total} {total === 1 ? "vote" : "votes"} so far, still open</p>
+      ) : showBallot ? (
+        <p className="db-sub">Vote to see how the room is leaning</p>
+      ) : (
+        <p className="db-sub">Sealed ballot</p>
+      )}
 
-      <div className="pl-bars">
-        {poll.options.map(o => {
-          const pct = total > 0 ? Math.round((o.voteCount / total) * 100) : 0;
-          const mine = poll.myVoteOptionId === o.id;
-          return (
-            <button
-              key={o.id}
-              type="button"
-              className={`pl-bar${mine ? " mine" : ""}${votable ? " votable" : ""}`}
-              disabled={!votable}
-              aria-pressed={mine}
-              title={votable ? (mine ? "Your vote" : "Vote for this") : undefined}
-              onClick={() => votable && onVote(o.id)}
-            >
-              <span className="pl-bar-fill" style={{ width: `${pct}%` }} />
-              <span className="pl-bar-label">
-                {mine && (
-                  <svg className="pl-bar-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
-                )}
-                {o.label}
-              </span>
-              <span className="pl-bar-count">{o.voteCount} · {pct}%</span>
-            </button>
-          );
-        })}
-      </div>
-
-      <div className="pl-card-meta">
-        <span className={`tk-when ${dateCls}`}>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}><circle cx="12" cy="12" r="9" /><path strokeLinecap="round" strokeLinejoin="round" d="M12 7.5V12l3 2" /></svg>
-          {dateLabel}
-        </span>
-        <span className="tk-sep">·</span>
-        <span className="pl-votes">{total} {total === 1 ? "vote" : "votes"}</span>
-        {poll.assignments.length > 0 && (
-          <>
-            <span className="tk-sep">·</span>
-            <span className="tk-chips">
-              {poll.assignments.map(a => a.role ? (
-                <span key={`r${a.id}`} className="tk-chip role" style={a.role.color ? { ["--rc" as string]: a.role.color } : undefined}>
-                  <span className="pip" />{a.role.name}
-                </span>
-              ) : a.brother ? (
-                <span key={`b${a.id}`} className="tk-chip">
-                  <span className="av">{initials(a.brother.name)}</span>{a.brother.name}
-                </span>
-              ) : null)}
-            </span>
-          </>
-        )}
-        {!canVote && !closed && <><span className="tk-sep">·</span><span className="tk-opt">Not assigned to you</span></>}
-      </div>
-
-      {canManage && (
-        <div className="pl-card-acts">
-          <button className="tk-act" title="Edit" onClick={onEdit}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M15.2 5.2l3.6 3.6M16.7 3.7a2.5 2.5 0 113.6 3.6L7 20.5l-4 1 1-4z" /></svg>
+      {showBallot && (
+        <>
+          <div className="db-ballot">
+            {poll.options.map(o => (
+              <button key={o.id} type="button" className={`db-line${pendingPick === o.id ? " picked" : ""}`}
+                onClick={() => setPendingPick(o.id)}>
+                <span className="db-radio"><span className="db-radio-dot" /></span>
+                <span className="db-line-label">{o.label}</span>
+              </button>
+            ))}
+          </div>
+          <button type="button" className={`db-submit${pendingPick != null ? " ready" : ""}`}
+            disabled={pendingPick == null} onClick={() => pendingPick != null && onVote(pendingPick)}>
+            Cast your vote
           </button>
-          {closed ? (
-            <button className="tk-act" title="Reopen" onClick={onReopen}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M4 4v6h6M20 20v-6h-6M20 9A8 8 0 006 5.3M4 15a8 8 0 0014 3.7" /></svg>
-            </button>
-          ) : (
-            <button className="tk-act" title="Close poll" onClick={onClose}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}><rect x="5" y="11" width="14" height="9" rx="2" /><path strokeLinecap="round" strokeLinejoin="round" d="M8 11V7a4 4 0 018 0v4" /></svg>
-            </button>
-          )}
-          <button className="tk-act danger" title="Delete" onClick={onDelete}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M5 7h14M9 7V5a1 1 0 011-1h4a1 1 0 011 1v2m1 0l-.7 12.1A2 2 0 0114.4 21H9.6a2 2 0 01-2-1.9L7 7" /></svg>
-          </button>
+        </>
+      )}
+
+      {showResults && (
+        <>
+          <div className={`db-ballot reveal-in${revealed ? " show" : ""}`}>
+            {poll.options.map(o => {
+              const count = o.voteCount ?? 0;
+              const pct = total > 0 ? Math.round((count / total) * 100) : 0;
+              const win = closed && total > 0 && o.id === leaderId;
+              const mine = poll.myVoteOptionId === o.id;
+              const inner = (
+                <>
+                  <span className="db-rl-left">
+                    <span className="db-rl-label">
+                      {o.label}
+                      {win && <span className="db-elected">Elected</span>}
+                      {mine && <span className="db-you-tag">Your vote</span>}
+                    </span>
+                    <span className="db-rl-bar"><span style={{ width: revealed ? `${pct}%` : "0%" }} /></span>
+                  </span>
+                  <span className="db-rl-pct">{pct}%</span>
+                </>
+              );
+              return canVoteNow ? (
+                <button key={o.id} type="button"
+                  className={`db-result-line votable${win ? " win" : ""}${mine ? " mine" : ""}`}
+                  title={mine ? "Your vote" : "Change your vote to this"}
+                  onClick={() => onVote(o.id)}>
+                  {inner}
+                </button>
+              ) : (
+                <div key={o.id} className={`db-result-line${win ? " win" : ""}${mine ? " mine" : ""}`}>
+                  {inner}
+                </div>
+              );
+            })}
+          </div>
+          <div className="db-foot">
+            <span>{total} of {poll.assigneeCount} voted</span>
+            <span>{closesFoot}</span>
+          </div>
+        </>
+      )}
+
+      {!showBallot && !showResults && (
+        <p className="db-sealed-note">You're not assigned to this poll — results are sealed until it closes.</p>
+      )}
+
+      {canManage && poll.pendingVoters && poll.pendingVoters.length > 0 && (
+        <div className="db-pending">
+          <p className="db-pending-label">Not yet voted · {poll.pendingVoters.length}</p>
+          <div className="tk-chips">
+            {poll.pendingVoters.map(v => (
+              <span key={v.brotherId} className="tk-chip"><span className="av">{initials(v.name)}</span>{v.name}</span>
+            ))}
+          </div>
         </div>
       )}
+
+      {canManage && (confirmingClose ? (
+        <div className="db-manage confirming">
+          <span className="db-confirm-q">Close early? Voting ends for everyone and results are final.</span>
+          <button type="button" className="manage-btn" onClick={() => setConfirmingClose(false)}>Cancel</button>
+          <button type="button" className="manage-btn danger" onClick={() => { setConfirmingClose(false); onClose(); }}>Yes, close</button>
+        </div>
+      ) : (
+        <div className="db-manage">
+          <button type="button" className="manage-btn" onClick={onEdit}>Edit</button>
+          {closed
+            ? <button type="button" className="manage-btn" onClick={onReopen}>Reopen poll</button>
+            : <button type="button" className="manage-btn" onClick={() => setConfirmingClose(true)}>Close poll</button>}
+          <button type="button" className="manage-btn danger" onClick={onDelete}>Delete</button>
+        </div>
+      ))}
     </div>
   );
 }
