@@ -638,6 +638,12 @@ async function listBrothers(args: ToolArgs, scoped: Scoped, orgId: number): Prom
     scoped.brother.findMany({
       where: { isGhost: false },
       orderBy: { [orderByField]: orderDir },
+      // Only the fields the mapped output + getBrotherStatus + aggregates read —
+      // skips the customFields JSON blob, email, and authUserId on every chat turn.
+      select: {
+        id: true, name: true, role: true, attendance: true,
+        gpa: true, duesOwed: true, serviceHours: true, isAdmin: true,
+      },
     }),
     orgThresholds(scoped, orgId),
   ]);
