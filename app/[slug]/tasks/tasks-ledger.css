@@ -73,6 +73,16 @@
   color: var(--ink);
 }
 .dash.dash-tasks .tk-title em { font-style: italic; color: var(--vio); }
+.dash.dash-tasks .tk-lede {
+  margin-top: 12px;
+  max-width: 560px;
+  font-size: 13.5px;
+  color: var(--ink-soft);
+  font-style: italic;
+  font-family: var(--serif);
+  font-weight: 350;
+  line-height: 1.5;
+}
 .dash.dash-tasks .tk-digest {
   margin-top: 12px;
   display: flex;

@@ -179,39 +179,6 @@ export default function TasksPage() {
     return { overdue: overdueTasks.length, dueSoon, open: open.length, done: taskList.length - open.length, oldestLate, owners: owners.size };
   }, [taskList, today]);
 
-  // Honest, computed digest (not an AI call) — names the most pressing reality.
-  const digest = useMemo(() => {
-    if (counts.open === 0) {
-      return counts.done > 0
-        ? <>Nothing open right now — <b>{counts.done} done</b> this semester. The worklist is clear.</>
-        : <>No tasks on the board yet. Hand the first one out to get the chapter moving.</>;
-    }
-    const parts: React.ReactNode[] = [];
-    if (counts.overdue > 0) parts.push(<><b>{counts.overdue} {counts.overdue === 1 ? "task is" : "tasks are"} overdue</b></>);
-    if (counts.dueSoon > 0) parts.push(<>{counts.overdue > 0 ? "and " : ""}{counts.dueSoon} {counts.dueSoon === 1 ? "is" : "are"} due this week</>);
-    if (parts.length === 0) parts.push(<><b>{counts.open} open</b>, nothing overdue or due this week</>);
-    return <>{parts.map((p, i) => <React.Fragment key={i}>{i > 0 ? " " : ""}{p}</React.Fragment>)} — across {counts.owners} {counts.owners === 1 ? "owner" : "owners"}.</>;
-  }, [counts]);
-
-  // Computed poll digest — open polls, total votes, and how many you still owe.
-  const pollDigest = useMemo(() => {
-    if (pollList.length === 0) {
-      return <>No polls yet. Ask the chapter a question to get a read on the room.</>;
-    }
-    const open = pollList.filter(p => p.status === "open");
-    const awaitingMine = open.filter(p => canVote(p) && p.myVoteOptionId == null).length;
-    const totalVotes = pollList.reduce((n, p) => n + p.totalVotes, 0);
-    if (open.length === 0) {
-      return <>All polls are <b>closed</b> — {totalVotes} {totalVotes === 1 ? "vote" : "votes"} cast in total.</>;
-    }
-    return (
-      <>
-        <b>{open.length} open {open.length === 1 ? "poll" : "polls"}</b>
-        {awaitingMine > 0 ? <> — {awaitingMine} {awaitingMine === 1 ? "is" : "are"} waiting on your vote</> : <> — you're all caught up</>}.
-      </>
-    );
-  }, [pollList, canVote]);
-
   // Polls pinned above the task list. Filters mirror the task filters: "mine"
   // keeps polls you can vote on; "Show done" reveals closed polls. Sort puts
   // polls awaiting your vote first, then other open polls by close date, then
@@ -427,16 +394,7 @@ export default function TasksPage() {
               <div>
                 <div className="tk-kicker">Tasks · <span className="today">Today {todayLabel}</span></div>
                 <h1 className="tk-title">Things to get <em>done</em>.</h1>
-                <div className="tk-digest">
-                  <span className="tk-digest-chip">CHAPTER</span>
-                  <p>{digest}</p>
-                </div>
-                {pollList.length > 0 && (
-                  <div className="tk-digest">
-                    <span className="tk-digest-chip">POLLS</span>
-                    <p>{pollDigest}</p>
-                  </div>
-                )}
+                <p className="tk-lede">Hand out assignments and deadlines, and put questions to the chapter with polls.</p>
               </div>
               {(canManage || canManagePolls) && (
                 <div className="tk-briefing-acts">
