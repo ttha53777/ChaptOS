@@ -23,4 +23,3 @@ export type UpdateRoleInput = z.infer<typeof updateRoleInput>;
 export const grantRoleInput = z.object({
   roleId: z.number().int().positive(),
 });
-export type GrantRoleInput = z.infer<typeof grantRoleInput>;

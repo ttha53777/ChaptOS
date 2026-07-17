@@ -36,13 +36,11 @@ export type RenameFolderInput = z.infer<typeof renameFolderInput>;
 export const moveDocInput = z.object({
   folderId,
 });
-export type MoveDocInput = z.infer<typeof moveDocInput>;
 
 // Pin / unpin a doc or folder. pinned true floats it to the top of the library.
 export const pinInput = z.object({
   pinned: z.boolean(),
 });
-export type PinInput = z.infer<typeof pinInput>;
 
 // A drag-reorder: the complete ordered id list for the section being reordered.
 // The service writes dense 0..n-1 positions from this order (one sequential
@@ -57,11 +55,9 @@ export const reorderDocsInput = z.object({
   folderId,
   orderedIds,
 });
-export type ReorderDocsInput = z.infer<typeof reorderDocsInput>;
 
 // Reorder the (unpinned) folder sections. orderedIds is every folder, in the
 // new order; pinned folders still float ahead regardless of position.
 export const reorderFoldersInput = z.object({
   orderedIds,
 });
-export type ReorderFoldersInput = z.infer<typeof reorderFoldersInput>;

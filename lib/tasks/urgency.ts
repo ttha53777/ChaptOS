@@ -46,10 +46,5 @@ export function taskUrgency(dueDate: string | null | undefined, today: Date = ne
   return "upcoming";
 }
 
-/** True when a dated task is incomplete and strictly past due. */
-export function isOverdue(dueDate: string | null | undefined, status: string, today: Date = new Date()): boolean {
-  return status !== "done" && taskUrgency(dueDate, today) === "overdue";
-}
-
 // Sort order for grouping open tasks in the UI (most pressing first).
 export const URGENCY_ORDER: readonly TaskUrgency[] = ["overdue", "urgent", "due-soon", "upcoming", "none"];

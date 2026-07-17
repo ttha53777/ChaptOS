@@ -43,4 +43,3 @@ export type UpdatePollInput = z.infer<typeof updatePollInput>;
 export const castVoteInput = z.object({
   optionId: z.number().int().positive(),
 });
-export type CastVoteInput = z.infer<typeof castVoteInput>;

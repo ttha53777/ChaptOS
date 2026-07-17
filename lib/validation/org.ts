@@ -86,8 +86,6 @@ const blueprintInput = z.object({
     .optional(),
 });
 
-export type BlueprintInput = z.infer<typeof blueprintInput>;
-
 // Input for POST /api/orgs (self-serve org creation).
 //
 // Format-only checks here. Two checks still happen server-side after parsing:
@@ -148,8 +146,6 @@ export const customMemberFieldsInput = z
   .array(customMemberFieldDefSchema)
   .max(MAX_FIELDS, `Cannot define more than ${MAX_FIELDS} custom fields`);
 
-export type CustomMemberFieldDefInput = z.infer<typeof customMemberFieldDefSchema>;
-
 // ─── Org config update ────────────────────────────────────────────────────────
 
 export const updateOrgConfigInput = z.object({
@@ -201,8 +197,6 @@ export const updateOrgConfigInput = z.object({
   completeOnboarding: z.literal(true).optional(),
 });
 
-export type UpdateOrgConfigInput = z.infer<typeof updateOrgConfigInput>;
-
 // Input for DELETE /api/orgs — permanent org deletion. The client sends the
 // org's slug as a confirmation token; the service re-checks it against the
 // active org so a malformed/replayed request can't delete the wrong org. The
@@ -212,8 +206,6 @@ export const deleteOrgInput = z.object({
   confirmSlug: z.string().trim().min(1, "Confirmation is required"),
 });
 
-export type DeleteOrgInput = z.infer<typeof deleteOrgInput>;
-
 // Input for POST /api/orgs/leave — a member leaving the active org. Same
 // confirm-slug posture as deletion: the client sends the org's slug, the service
 // re-checks it against the active org so a malformed request can't drop the wrong
@@ -222,4 +214,3 @@ export const leaveOrgInput = z.object({
   confirmSlug: z.string().trim().min(1, "Confirmation is required"),
 });
 
-export type LeaveOrgInput = z.infer<typeof leaveOrgInput>;

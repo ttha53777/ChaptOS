@@ -24,7 +24,3 @@ export const STAGE_PILL: Record<ProgrammingStage, { dot: string; text: string }>
 export function stageRequiresCalendar(stage: ProgrammingStage): boolean {
   return stage !== "idea";
 }
-
-export function stageRequiresDate(stage: ProgrammingStage): boolean {
-  return stage !== "idea";
-}

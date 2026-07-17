@@ -1,5 +1,4 @@
 import type { ProgrammingChecklistItem, TaskStatus } from "@/app/data";
-import { fmtDate } from "@/app/data";
 import type { RoomStatus } from "@/lib/state/programming-prep";
 import type { ProgrammingStage } from "@/lib/state/programming-stage";
 
@@ -42,13 +41,6 @@ export function categoryToTypeLabel(category: string): ProgrammingTypeLabel {
 /** Stored title suffix when a programming event has a collab org (legacy rows). */
 const COLLAB_TITLE_RE = /^(.+?) × \((.+)\)$/;
 
-export function formatProgrammingTitle(title: string, collab?: string | null): string {
-  const base = title.trim();
-  const org = collab?.trim();
-  if (!org) return base;
-  return `${base} × (${org})`;
-}
-
 export function parseProgrammingTitle(stored: string): { title: string; collab: string | null } {
   const match = stored.match(COLLAB_TITLE_RE);
   if (!match) return { title: stored, collab: null };
@@ -62,18 +54,6 @@ export function resolveProgrammingDisplay(row: { title: string; collabOrg?: stri
     ? row.title.trim()
     : parseProgrammingTitle(row.title).title;
   return { title, collab: collab || null };
-}
-
-/** Meta line shown on programming cards (type · location · time · date). */
-export function programmingTaskMeta(task: {
-  type?: string;
-  location: string;
-  time?: string | null;
-  dueDate: string | null;
-}): string {
-  return [task.type, task.location, task.time, task.dueDate ? fmtDate(task.dueDate) : null]
-    .filter(Boolean)
-    .join(" · ");
 }
 
 /** A ProgrammingEvent row (now the owning record) as selected by the service. */

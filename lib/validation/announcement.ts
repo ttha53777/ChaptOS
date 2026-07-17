@@ -13,4 +13,3 @@ export const upsertAnnouncementInput = z.object({
   d => (d.ctaLabel && d.ctaUrl) || (!d.ctaLabel && !d.ctaUrl),
   { message: "ctaLabel and ctaUrl must be provided together", path: ["ctaLabel"] },
 );
-export type UpsertAnnouncementInput = z.infer<typeof upsertAnnouncementInput>;
