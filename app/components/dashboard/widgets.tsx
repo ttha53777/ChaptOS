@@ -1,4 +1,3 @@
-import React from "react";
 import dynamic from "next/dynamic";
 
 const SparkLine = dynamic(() => import("./SparkLine"), {
@@ -147,26 +146,6 @@ export function KPICard({ label, value, trend, iconKey, sparkData, accent = "tex
   return (
     <Card style={gradientStyle} className="!rounded-xl flex flex-col p-4 transition-all duration-200 hover:border-white/[0.12] cursor-default">
       {inner}
-    </Card>
-  );
-}
-
-export function ChartWidget({ title, stat, caption, accentColor, children }: {
-  title: string; stat: string; caption: string; accentColor?: string; children: React.ReactNode;
-}) {
-  const gradientStyle = accentColor
-    ? { background: `linear-gradient(to bottom, ${accentColor}0d 0%, #10121a 55%)` }
-    : undefined;
-  return (
-    <Card style={gradientStyle} className="overflow-hidden">
-      <div className="flex items-start justify-between px-4 pt-4 pb-1">
-        <div>
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-[#958d7c]">{title}</p>
-          <p className="mt-0.5 text-[17px] font-bold tracking-tight text-[#ece7dd]">{stat}</p>
-        </div>
-        <p className="mt-1 text-[10px] text-[#958d7c]">{caption}</p>
-      </div>
-      <div className="h-[96px] px-1 pb-3">{children}</div>
     </Card>
   );
 }
