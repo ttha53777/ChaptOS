@@ -5,13 +5,13 @@ import { useSearchParams } from "next/navigation";
 import { Sidebar } from "../../components/Sidebar";
 import { Modal, ConfirmDialog } from "../../components/dashboard/primitives";
 import { inputDuskCls, btnDuskPrimaryCls } from "../../components/dashboard/styles";
-import { CalendarEventForm, type CalendarDraft } from "../../components/timeline/CalendarEventForm";
+import { CalendarEventForm, type CalendarDraft, type CategoryOption } from "../../components/timeline/CalendarEventForm";
 import { ProgrammingBoard } from "../../components/programming/ProgrammingBoard";
 import { ProgrammingCalendarView } from "../../components/programming/ProgrammingCalendarView";
 import { ProgrammingInspector } from "../../components/programming/ProgrammingInspector";
 import { ProgrammingTable } from "../../components/programming/ProgrammingTable";
 import { LedgerStrip, Measure } from "../../components/dashboard/ledger/LedgerStrip";
-import type { ProgrammingTask, TaskStatus, CalEventCategory } from "../../data";
+import type { ProgrammingTask, TaskStatus } from "../../data";
 import { fmt$, fmtDate } from "../../data";
 import type { Doc } from "../docs/lib";
 import { useChapter } from "../../context/ChapterContext";
@@ -47,7 +47,15 @@ type FormInput = {
   description: string | null;
 };
 
-const PROGRAMMING_FORM_CATEGORIES: CalEventCategory[] = ["program", "social", "fundy", "service"];
+// The Programming page keeps its own fixed category subset (see the timeline
+// event-types scope note). Colors are omitted so the chips fall back to the CSS
+// var `--c-<slug>` for these built-in slugs.
+const PROGRAMMING_FORM_OPTIONS: CategoryOption[] = [
+  { slug: "program", label: "Program" },
+  { slug: "social",  label: "Social" },
+  { slug: "fundy",   label: "Fundraiser" },
+  { slug: "service", label: "Community Service" },
+];
 
 /** Map the shared CalendarEventForm draft to the programming API input shape. */
 function draftToFormInput(draft: CalendarDraft): FormInput {
@@ -568,7 +576,7 @@ export default function ProgrammingPage() {
           <CalendarEventForm
             submitLabel="Add Event"
             onSubmit={handleAdd}
-            allowedCategories={PROGRAMMING_FORM_CATEGORIES}
+            categoryOptions={PROGRAMMING_FORM_OPTIONS}
             defaultCategory="program"
             showCollab
             minDate={activeSemester?.startDate}
@@ -593,7 +601,7 @@ export default function ProgrammingPage() {
             }}
             initialCollab={editTarget.collab}
             onSubmit={handleEdit}
-            allowedCategories={PROGRAMMING_FORM_CATEGORIES}
+            categoryOptions={PROGRAMMING_FORM_OPTIONS}
             defaultCategory="program"
             showCollab
             minDate={activeSemester?.startDate}

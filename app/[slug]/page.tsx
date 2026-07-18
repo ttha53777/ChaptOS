@@ -8,7 +8,7 @@ const DrawerTrendChart = dynamic(() => import("../components/dashboard/DrawerTre
   loading: () => <div className="h-[110px] w-full rounded-lg bg-white/[0.04] animate-pulse" />,
 });
 import {
-  Brother, CalendarEvent, InstagramStatus, InstagramType, ActivityEntry, PartyEvent, Task, InstagramTask, Transaction,
+  Brother, CalendarEvent, CalEventType, InstagramStatus, InstagramType, ActivityEntry, PartyEvent, Task, InstagramTask, Transaction,
   taskAssigneeLabel,
   treasuryTrend, TREASURY_BALANCE, TREASURY_PROJECTED,
   KPI_SPARKLINES,
@@ -31,7 +31,8 @@ import { AddIGTaskForm, AddRevenueForm, LogAttendanceForm, ExcuseForm } from "..
 import { TaskForm, type RoleOption, type TaskFormValue } from "../components/dashboard/TaskForm";
 import type { QuickActionKey } from "../components/dashboard/QuickActionsMenu";
 import { TxForm } from "../components/treasury/TxForm";
-import { CalendarEventForm, type CalendarDraft } from "../components/timeline/CalendarEventForm";
+import { CalendarEventForm, type CalendarDraft, type CategoryOption } from "../components/timeline/CalendarEventForm";
+import { isEventTypeVisibleInPicker } from "../../lib/event-types";
 import { BrotherDrawer } from "../components/dashboard/drawers/BrotherDrawer";
 import { Card, Modal, ConfirmDialog, FieldLabel } from "../components/dashboard/primitives";
 import { KPI_ICONS, SECTION_IDS, inputDuskCls, btnDuskGhostCls, btnDuskActionCls } from "../components/dashboard/styles";
@@ -931,6 +932,7 @@ export default function Home() {
   const [activeModal,    setActiveModal]    = useState<"deadline" | "revenue" | "ig" | "attendance" | "pick-event" | "edit-deadline" | "edit-ig" | "expense" | "excuse" | "event" | "pick-event-for-excuse" | null>(null);
   const [selectedEventForAttendance, setSelectedEventForAttendance] = useState<CalendarEvent | null>(null);
   const [calendarList,   setCalendarList]   = useState<CalendarEvent[]>([]);
+  const [eventTypes,     setEventTypes]     = useState<CalEventType[]>([]);
   // Org roles for the "New task" modal's assignee picker (mirrors the tasks page).
   const [roles,          setRoles]          = useState<RoleOption[]>([]);
   const [editingIgId,       setEditingIgId]       = useState<number | null>(null);
@@ -1033,6 +1035,14 @@ export default function Home() {
   // is visible, the form offers to log the deadline as an Instagram post instead.
   const igEnabled      = isNavVisible("Instagram", currentUser?.org?.enabledWorkflows ?? []);
   const partiesEnabled = isNavVisible("Parties",   currentUser?.org?.enabledWorkflows ?? []);
+  // "New Event" picker options — creatable, workflow-enabled, non-hidden types.
+  const eventCategoryOptions = useMemo<CategoryOption[]>(
+    () => eventTypes
+      .filter(t => isEventTypeVisibleInPicker(t, currentUser?.org?.enabledWorkflows ?? []))
+      .sort((a, b) => a.displayOrder - b.displayOrder)
+      .map(t => ({ slug: t.slug, label: t.label, color: t.colorDark ?? t.color, mandatoryDefault: t.mandatoryDefault })),
+    [eventTypes, currentUser?.org?.enabledWorkflows],
+  );
   useEffect(() => {
     if (welcomeToastShownRef.current || !orgName) return;
     const params = new URLSearchParams(window.location.search);
@@ -1204,6 +1214,13 @@ export default function Home() {
       .then((data: CalendarEvent[] | null) => { if (data) setCalendarList(data); })
       .catch(err => { if (err.name !== "AbortError") console.error("Failed to load calendar", err); });
     return () => controller.abort();
+  }, []);
+
+  // Per-org event types feed the "New Event" picker (labels/colors/workflow gating).
+  useEffect(() => {
+    requestJson<CalEventType[]>("/api/calendar/event-types")
+      .then(setEventTypes)
+      .catch(() => {});
   }, []);
 
   // Roles power the "New task" modal's assignee picker. Only managers can open
@@ -2029,7 +2046,7 @@ export default function Home() {
       )}
       {activeModal === "event" && (
         <Modal title="New Event" tone="dusk" onClose={closeModal}>
-          <CalendarEventForm submitLabel="Add Event" onSubmit={handleAddCalendarEvent} minDate={activeSemester?.startDate} maxDate={activeSemester?.endDate} />
+          <CalendarEventForm submitLabel="Add Event" onSubmit={handleAddCalendarEvent} categoryOptions={eventCategoryOptions} minDate={activeSemester?.startDate} maxDate={activeSemester?.endDate} />
         </Modal>
       )}
       {activeModal === "deadline" && canTasks && (
