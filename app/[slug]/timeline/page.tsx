@@ -1,9 +1,10 @@
 "use client";
 
-import React, { useState, useMemo, useEffect, useLayoutEffect, useRef } from "react";
+import React, { useState, useMemo, useEffect, useLayoutEffect, useRef, useContext } from "react";
 import { Sidebar } from "../../components/Sidebar";
 import { BrotherAvatar } from "../../components/BrotherAvatar";
-import { CalendarEvent, CalEventCategory, CalLayer, Task, InstagramTask, fmtDate, fmtRange, isoWeekBounds, taskAssigneeLabel } from "../../data";
+import { CalendarEvent, CalEventType, CalLayer, Task, InstagramTask, fmtDate, fmtRange, isoWeekBounds, taskAssigneeLabel } from "../../data";
+import { isEventTypeVisibleInPicker } from "../../../lib/event-types";
 import { useChapter } from "../../context/ChapterContext";
 import { Modal, ConfirmDialog } from "../../components/dashboard/primitives";
 import { inputCls } from "../../components/dashboard/styles";
@@ -11,7 +12,7 @@ import { requestJson, orgFetch } from "../../lib/api";
 import { pad, toDateStr, daysFromToday } from "../../lib/dates";
 import { useRouter } from "next/navigation";
 import { useOrgPath } from "../../hooks/useOrgPath";
-import { CalendarEventForm, type CalendarDraft } from "../../components/timeline/CalendarEventForm";
+import { CalendarEventForm, type CalendarDraft, type CategoryOption } from "../../components/timeline/CalendarEventForm";
 import { useActiveSemester } from "../../hooks/useActiveSemester";
 import { useSemesterErrorHandler } from "../../hooks/useSemesterErrorHandler";
 import { isNavVisible } from "../../components/Sidebar";
@@ -73,24 +74,28 @@ const LAYERS: { id: CalLayer; label: string }[] = [
   { id: "service",   label: "Service" },
 ];
 
-// Category → display label. Color comes from the CSS var `--c-<category>`
-// (timeline-ledger.css), set per-row via catStyle() — no Tailwind color map.
-const CATEGORY_LABEL: Record<CalEventCategory, string> = {
-  chapter:  "Chapter",
-  social:   "Social",
-  fundy:    "Fundraiser",
-  program:  "Program",
-  party:    "Party",
-  deadline: "Deadline",
-  service:  "Service",
-};
+// Event types (labels + colors) are per-org now, fetched from
+// /api/calendar/event-types and shared to the sub-components via this context so
+// each row/rail can resolve its category without prop-threading. The app renders
+// the "dusk" (dark) theme, so the visible color is `colorDark` (falling back to
+// `color`). Unknown slugs get a neutral grey — legacy/edge safety.
+const EventTypesContext = React.createContext<Map<string, CalEventType>>(new Map());
+function useEventTypes() { return useContext(EventTypesContext); }
 
-// Legend order — mirrors the mock; pairs a category with its label.
-const LEGEND: CalEventCategory[] = ["chapter", "deadline", "social", "party", "fundy", "service", "program"];
+const FALLBACK_CAT_COLOR = "#8a8f98";
+
+function catColorOf(types: Map<string, CalEventType>, category: string): string {
+  const t = types.get(category);
+  return t ? (t.colorDark ?? t.color) : FALLBACK_CAT_COLOR;
+}
 
 /** Per-row color: drive the `--catc` custom property the spine/rail read. */
-function catStyle(category: CalEventCategory): React.CSSProperties {
-  return { ["--catc" as string]: `var(--c-${category})` } as React.CSSProperties;
+function catStyleOf(types: Map<string, CalEventType>, category: string): React.CSSProperties {
+  return { ["--catc" as string]: catColorOf(types, category) } as React.CSSProperties;
+}
+
+function catLabelOf(types: Map<string, CalEventType>, category: string): string {
+  return types.get(category)?.label ?? category;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -183,6 +188,7 @@ function TimelineRow({
   onSelect: (e: CalendarEvent) => void;
   rowRef?: (el: HTMLDivElement | null) => void;
 }) {
+  const types = useEventTypes();
   const [, , d] = event.date.split("-").map(Number);
   const stateCls = isToday ? "today" : isPast ? "past" : "future";
 
@@ -190,7 +196,7 @@ function TimelineRow({
     <div
       ref={rowRef}
       className={`tl-row ${stateCls}${selected ? " selected" : ""}`}
-      style={catStyle(event.category)}
+      style={catStyleOf(types, event.category)}
       role="button"
       tabIndex={0}
       onClick={() => onSelect(event)}
@@ -206,7 +212,7 @@ function TimelineRow({
           <div className="grow">
             <div className="t">{event.title}</div>
             <div className="m">
-              <span className="cat">{CATEGORY_LABEL[event.category]}</span>
+              <span className="cat">{catLabelOf(types, event.category)}</span>
               {event.mandatory && <span className="req">Required</span>}
               {event.time && <span>{event.time}</span>}
               {event.location && <span>{event.location}</span>}
@@ -274,6 +280,7 @@ function EventDetail({
   const todayStr   = toDateStr(TODAY.year, TODAY.month, TODAY.day);
   const isPast     = event.date < todayStr;
   const [, mo, d]  = event.date.split("-").map(Number);
+  const types      = useEventTypes();
 
   const [attDetail,     setAttDetail]     = useState<AttendanceDetail | null>(null);
   const [attLoading,    setAttLoading]    = useState(false);
@@ -377,7 +384,7 @@ function EventDetail({
   }
 
   return (
-    <div className="ev" style={catStyle(event.category)}>
+    <div className="ev" style={catStyleOf(types, event.category)}>
       {/* Back + edit/delete */}
       <div className="ev-top">
         <button className="ev-back" onClick={onClose}>
@@ -407,7 +414,7 @@ function EventDetail({
       {/* Hero */}
       <div className="ev-hero">
         <div className="tags">
-          <span className="cat">{CATEGORY_LABEL[event.category]}</span>
+          <span className="cat">{catLabelOf(types, event.category)}</span>
           {event.mandatory && <span className="req">Required</span>}
           {isComplete && <span className="done">Done</span>}
         </div>
@@ -628,6 +635,7 @@ function GlanceDetail({
   onClose: () => void;
   onSelectEvent: (e: CalendarEvent) => void;
 }) {
+  const types = useEventTypes();
   const blurb: Record<GlanceMetric, string> = {
     week:      `Events scheduled for ${fmtRange(weekStart, weekEnd)}.`,
     required:  "Mandatory events this month — attendance is taken.",
@@ -660,11 +668,11 @@ function GlanceDetail({
       ) : (
         <div className="then-card">
           {events.map(ev => (
-            <button key={ev.id} className="then-row" style={catStyle(ev.category)} onClick={() => onSelectEvent(ev)}>
+            <button key={ev.id} className="then-row" style={catStyleOf(types, ev.category)} onClick={() => onSelectEvent(ev)}>
               <span className="when">{fmtDow(ev.date)}<br />{fmtDate(ev.date)}</span>
               <div className="what">
                 <p className="t">{ev.title}</p>
-                <p className="s">{CATEGORY_LABEL[ev.category]}{ev.mandatory ? " · Required" : ev.time ? ` · ${ev.time}` : ""}</p>
+                <p className="s">{catLabelOf(types, ev.category)}{ev.mandatory ? " · Required" : ev.time ? ` · ${ev.time}` : ""}</p>
               </div>
             </button>
           ))}
@@ -765,6 +773,7 @@ export default function TimelinePage() {
   const [selectedEvent,   setSelectedEvent]   = useState<CalendarEvent | null>(null);
   const [glanceFocus,     setGlanceFocus]     = useState<GlanceMetric | null>(null);
   const [apiEvents,       setApiEvents]       = useState<CalendarEvent[]>([]);
+  const [eventTypes,      setEventTypes]      = useState<CalEventType[]>([]);
   const [collapsedMonths, setCollapsedMonths] = useState<Set<string>>(new Set());
   const [activeModal,     setActiveModal]     = useState<"create" | "edit" | null>(null);
   const [calendarLoading,      setCalendarLoading]      = useState(true);
@@ -799,6 +808,41 @@ export default function TimelinePage() {
       .catch(error => { console.error(error); setCalendarError("Could not load calendar events from the database."); })
       .finally(() => setCalendarLoading(false));
   }, []);
+
+  // Per-org event types drive the timeline's labels/colors/legend + the picker.
+  useEffect(() => {
+    requestJson<CalEventType[]>("/api/calendar/event-types")
+      .then(setEventTypes)
+      .catch(() => {});
+  }, []);
+
+  const enabledWorkflows = currentUser?.org?.enabledWorkflows ?? [];
+  const typeMap = useMemo(() => new Map(eventTypes.map(t => [t.slug, t])), [eventTypes]);
+  // Types shown in the legend: not hidden and (no workflow or its workflow is on).
+  // Includes non-creatable types (party/deadline) since those still appear on the spine.
+  const legendTypes = useMemo(
+    () => eventTypes
+      .filter(t => !t.hidden && (t.workflowId == null || enabledWorkflows.includes(t.workflowId)))
+      .sort((a, b) => a.displayOrder - b.displayOrder),
+    [eventTypes, enabledWorkflows],
+  );
+  // The add-event picker: only creatable, workflow-enabled, non-hidden types.
+  const categoryOptions = useMemo<CategoryOption[]>(
+    () => eventTypes
+      .filter(t => isEventTypeVisibleInPicker(t, enabledWorkflows))
+      .sort((a, b) => a.displayOrder - b.displayOrder)
+      .map(t => ({ slug: t.slug, label: t.label, color: t.colorDark ?? t.color, mandatoryDefault: t.mandatoryDefault })),
+    [eventTypes, enabledWorkflows],
+  );
+  // When editing, keep the event's own category selectable even if it's now
+  // hidden or its workflow was turned off (so its chip still shows).
+  const editCategoryOptions = useMemo<CategoryOption[]>(() => {
+    if (!selectedEvent || categoryOptions.some(o => o.slug === selectedEvent.category)) return categoryOptions;
+    const t = typeMap.get(selectedEvent.category);
+    return t
+      ? [...categoryOptions, { slug: t.slug, label: t.label, color: t.colorDark ?? t.color, mandatoryDefault: t.mandatoryDefault }]
+      : categoryOptions;
+  }, [categoryOptions, selectedEvent, typeMap]);
 
   // Admin-only: load pending excuses for the review banner.
   useEffect(() => {
@@ -888,7 +932,7 @@ export default function TimelinePage() {
           id:          DEADLINE_ID_BASE + d.id,
           title:       d.title,
           date:        d.dueDate as string,
-          category:    "deadline" as CalEventCategory,
+          category:    "deadline",
           mandatory:   false,
           description: `${taskAssigneeLabel(d)} · ${d.status === "done" ? "Done" : "Open"}`,
         })),
@@ -896,7 +940,7 @@ export default function TimelinePage() {
         id:          20000 + p.id,
         title:       p.name,
         date:        p.date,
-        category:    "party" as CalEventCategory,
+        category:    "party",
         mandatory:   false,
         description: p.notes,
       })),
@@ -906,7 +950,7 @@ export default function TimelinePage() {
         id:          IG_ID_BASE + t.id,
         title:       t.title,
         date:        t.dueDate,
-        category:    "deadline" as CalEventCategory,
+        category:    "deadline",
         mandatory:   false,
         description: `Instagram ${t.type} · Status: ${t.status}`,
       })),
@@ -1006,7 +1050,7 @@ export default function TimelinePage() {
         id:          DEADLINE_ID_BASE + d.id,
         title:       d.title,
         date:        d.dueDate as string,
-        category:    "deadline" as CalEventCategory,
+        category:    "deadline",
         mandatory:   false,
         description: `${taskAssigneeLabel(d)} · Open`,
       })),
@@ -1185,6 +1229,7 @@ export default function TimelinePage() {
   const dateShort = _now.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 
   return (
+    <EventTypesContext.Provider value={typeMap}>
     <div className="flex h-screen overflow-hidden bg-[#07090f]">
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} activeSection="Timeline" onNavClick={() => {}} />
 
@@ -1354,10 +1399,10 @@ export default function TimelinePage() {
                     <button type="button" className="tl-legend-scrim" aria-hidden tabIndex={-1} onClick={() => setLegendOpen(false)} />
                     <div className="tl-legend-pop" role="dialog" aria-label="Category legend">
                       <div className="grid2">
-                        {LEGEND.map(cat => (
-                          <div key={cat} className="li">
-                            <span className="d" style={{ background: `var(--c-${cat})` }} />
-                            <span>{CATEGORY_LABEL[cat]}</span>
+                        {legendTypes.map(t => (
+                          <div key={t.slug} className="li">
+                            <span className="d" style={{ background: t.colorDark ?? t.color }} />
+                            <span>{t.label}</span>
                           </div>
                         ))}
                         <div className="li"><span className="req-key">REQ</span><span>Attendance taken</span></div>
@@ -1577,10 +1622,10 @@ export default function TimelinePage() {
                     {upNext && (
                       <div>
                         <p className="lbl">Up next</p>
-                        <div className="upnext" style={catStyle(upNext.category)} onClick={() => setSelectedEvent(upNext)} role="button" tabIndex={0}
+                        <div className="upnext" style={catStyleOf(typeMap, upNext.category)} onClick={() => setSelectedEvent(upNext)} role="button" tabIndex={0}
                           onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setSelectedEvent(upNext); } }}>
                           <div className="row1">
-                            <span className="cat">{CATEGORY_LABEL[upNext.category]}</span>
+                            <span className="cat">{catLabelOf(typeMap, upNext.category)}</span>
                             <span className="soon">{relWhen(upNext.date)}</span>
                           </div>
                           <h3>{upNext.title}</h3>
@@ -1597,11 +1642,11 @@ export default function TimelinePage() {
                         <p className="lbl">Then</p>
                         <div className="then-card">
                           {thenList.map(ev => (
-                            <button key={ev.id} className="then-row" style={catStyle(ev.category)} onClick={() => setSelectedEvent(ev)}>
+                            <button key={ev.id} className="then-row" style={catStyleOf(typeMap, ev.category)} onClick={() => setSelectedEvent(ev)}>
                               <span className="when">{fmtDow(ev.date)}<br />{fmtDate(ev.date)}</span>
                               <div className="what">
                                 <p className="t">{ev.title}</p>
-                                <p className="s">{CATEGORY_LABEL[ev.category]}{ev.mandatory ? " · Required" : ev.time ? ` · ${ev.time}` : ""}</p>
+                                <p className="s">{catLabelOf(typeMap, ev.category)}{ev.mandatory ? " · Required" : ev.time ? ` · ${ev.time}` : ""}</p>
                               </div>
                             </button>
                           ))}
@@ -1624,12 +1669,12 @@ export default function TimelinePage() {
 
       {activeModal === "create" && (
         <Modal title="Add Calendar Event" tone="dusk" onClose={() => setActiveModal(null)}>
-          <CalendarEventForm submitLabel="Add Event" onSubmit={handleCreateEvent} minDate={activeSemester?.startDate} maxDate={activeSemester?.endDate} />
+          <CalendarEventForm submitLabel="Add Event" onSubmit={handleCreateEvent} categoryOptions={categoryOptions} minDate={activeSemester?.startDate} maxDate={activeSemester?.endDate} />
         </Modal>
       )}
       {activeModal === "edit" && selectedEvent && selectedEventCanEdit && (
         <Modal title="Edit Calendar Event" tone="dusk" onClose={() => setActiveModal(null)}>
-          <CalendarEventForm initialEvent={selectedEvent} submitLabel="Save Event" onSubmit={handleUpdateEvent} minDate={activeSemester?.startDate} maxDate={activeSemester?.endDate} />
+          <CalendarEventForm initialEvent={selectedEvent} submitLabel="Save Event" onSubmit={handleUpdateEvent} categoryOptions={editCategoryOptions} minDate={activeSemester?.startDate} maxDate={activeSemester?.endDate} />
         </Modal>
       )}
       {confirmDeleteEvent && (
@@ -1642,5 +1687,6 @@ export default function TimelinePage() {
         />
       )}
     </div>
+    </EventTypesContext.Provider>
   );
 }
