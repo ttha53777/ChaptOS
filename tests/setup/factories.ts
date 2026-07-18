@@ -5,9 +5,28 @@
  */
 
 import { testPrisma } from "./prisma";
+import { BUILTIN_EVENT_TYPES } from "@/lib/event-types";
 
 export async function createOrg(name: string, slug: string) {
-  return testPrisma.organization.create({ data: { name, slug } });
+  const org = await testPrisma.organization.create({ data: { name, slug } });
+  // Seed the built-in event types, mirroring provisionOrg, so service-layer
+  // category validation (calendar-service) resolves like it does for a real org.
+  await testPrisma.calendarEventType.createMany({
+    data: BUILTIN_EVENT_TYPES.map((t, i) => ({
+      organizationId:   org.id,
+      slug:             t.slug,
+      label:            t.label,
+      color:            t.color,
+      colorDark:        t.colorDark,
+      workflowId:       t.workflowId,
+      builtin:          true,
+      creatable:        t.creatable,
+      hidden:           false,
+      mandatoryDefault: t.mandatoryDefault,
+      displayOrder:     i,
+    })),
+  });
+  return org;
 }
 
 export async function createBrother(opts: {

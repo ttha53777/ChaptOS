@@ -9,6 +9,7 @@ import { brothers, tasks, instagramTasks, partyEvents, calendarEvents, seedActiv
 import { recalcBrotherAttendance } from "../lib/attendance";
 import { db } from "../lib/db";
 import { seedSystemRoles, assignSystemRolesByTitle } from "../lib/seed-roles";
+import { BUILTIN_EVENT_TYPES } from "../lib/event-types";
 
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! });
 const prisma = new PrismaClient({ adapter });
@@ -49,6 +50,26 @@ async function main() {
     where: { id: ORG_ID },
     update: {},
     create: { id: ORG_ID, name: "Lambda Phi Epsilon", slug: "lpe" },
+  });
+
+  // Built-in timeline event types (provisionOrg seeds these for real orgs; the
+  // seed org is created directly, so mirror it here). skipDuplicates keeps it
+  // idempotent against the (organizationId, slug) unique.
+  await prisma.calendarEventType.createMany({
+    skipDuplicates: true,
+    data: BUILTIN_EVENT_TYPES.map((t, i) => ({
+      organizationId:   ORG_ID,
+      slug:             t.slug,
+      label:            t.label,
+      color:            t.color,
+      colorDark:        t.colorDark,
+      workflowId:       t.workflowId,
+      builtin:          true,
+      creatable:        t.creatable,
+      hidden:           false,
+      mandatoryDefault: t.mandatoryDefault,
+      displayOrder:     i,
+    })),
   });
 
   // Strip `id` so Prisma autoincrement generates its own IDs — avoids sequence conflicts

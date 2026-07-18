@@ -32,6 +32,7 @@ import { logError } from "@/lib/observability";
 import { emit } from "@/lib/events";
 import { validateSlugFormat } from "@/lib/slug-rules";
 import { getOrgType, normalizeWorkflows, type RoleSeed } from "@/lib/org-types";
+import { BUILTIN_EVENT_TYPES } from "@/lib/event-types";
 import { normalizeDisabledFeatures, type DisabledFeatures } from "@/lib/workflow-features";
 import { sanitizeVocabOverrides } from "@/lib/vocab";
 import { PERMISSIONS, ALL_PERMISSIONS, type Permission } from "@/lib/permissions";
@@ -320,6 +321,26 @@ export async function provisionOrg(
           },
         });
       }
+
+      // 2d. Built-in timeline event types. Every org gets all 7 (lib/event-types.ts);
+      // the timeline derives which appear in the picker from enabledWorkflows, so a
+      // type whose workflow is off is simply not offered — its row still exists so
+      // existing events keep their color/label. Admins can add custom types later.
+      await tx.calendarEventType.createMany({
+        data: BUILTIN_EVENT_TYPES.map((t, i) => ({
+          organizationId:   org.id,
+          slug:             t.slug,
+          label:            t.label,
+          color:            t.color,
+          colorDark:        t.colorDark,
+          workflowId:       t.workflowId,
+          builtin:          true,
+          creatable:        t.creatable,
+          hidden:           false,
+          mandatoryDefault: t.mandatoryDefault,
+          displayOrder:     i,
+        })),
+      });
 
       // 3. Founder Brother. For a brand-new account we create the Brother row;
       // for an already-linked account founding an additional org we REUSE their
