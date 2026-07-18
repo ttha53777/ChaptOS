@@ -64,6 +64,7 @@ model Organization {
   config                    OrganizationConfig?
   invites                   OrgInvite[]
   metricDefinitions         OrgMetricDefinition[]
+  calendarEventTypes        CalendarEventType[]
 }
 
 // Per-org configuration extracted from Organization to keep the hot row small.
@@ -626,6 +627,47 @@ model CalendarEvent {
   @@index([organizationId, category, date])
   // Covers the frequent `where: { mandatory: true }` (+ org) attendance/upcoming queries.
   @@index([organizationId, mandatory, date])
+}
+
+// Per-org, admin-editable timeline event type (a.k.a. "category"). Defines the
+// set of valid CalendarEvent.category slugs for an org and the label/color the
+// timeline renders. Every org is seeded with the 7 built-ins (lib/event-types.ts)
+// at creation; admins may add custom types or rename/recolor/reorder any type.
+//
+// `slug` is the natural key and matches CalendarEvent.category. It is IMMUTABLE
+// after creation for built-ins — behavior branches and client synthesis hardcode
+// the built-in slugs (chapter/party/deadline/service), so renaming one would
+// break them and orphan existing events.
+//
+// Visibility in the add-event picker is DERIVED at read time, not stored:
+//   !hidden && creatable && (workflowId == null || org.enabledWorkflows.includes(workflowId))
+// The row always exists, so existing events resolve their color/label even when
+// the associated workflow is turned off (their events keep rendering).
+//
+// There is intentionally NO FK from CalendarEvent.category to this table —
+// integrity is enforced in the service layer (matching OrgMetricDefinition's
+// app-layer-tenancy posture); a composite FK breaks the test factories and
+// diverges between prod (NO FORCE RLS) and the test harness (FORCE RLS).
+model CalendarEventType {
+  id               Int      @id @default(autoincrement())
+  organizationId   Int
+  slug             String // matches CalendarEvent.category; immutable after create
+  label            String // display label shown on the timeline + form
+  color            String // hex used for the node dot / spine (light "ivory" theme)
+  colorDark        String? // optional dark "dusk" theme override; falls back to color
+  workflowId       String? // WorkflowId gating picker visibility; null = always available
+  builtin          Boolean  @default(false)
+  creatable        Boolean  @default(true) // false = managed elsewhere (party, deadline)
+  hidden           Boolean  @default(false) // manual archive; can't hide an active built-in
+  mandatoryDefault Boolean  @default(false) // UI hint: pre-check "required attendance"
+  displayOrder     Int      @default(0)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, slug])
+  @@index([organizationId])
 }
 
 model ProgrammingEvent {

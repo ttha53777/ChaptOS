@@ -856,6 +856,34 @@ function scopedOrgMetricDefinition(orgId: number, run: Run) {
   };
 }
 
+function scopedCalendarEventType(orgId: number, run: Run) {
+  type W = Prisma.CalendarEventTypeWhereInput;
+  const org = (w?: W): W => ({ ...w, organizationId: orgId });
+
+  async function verify(where: Prisma.CalendarEventTypeWhereUniqueInput): Promise<number> {
+    const row = await run(p => p.calendarEventType.findFirst({ where: org(where as W), select: { id: true } }));
+    if (!row) notInOrg();
+    return row.id;
+  }
+
+  return {
+    findMany:   (args?: Prisma.CalendarEventTypeFindManyArgs)  => run(p => p.calendarEventType.findMany({ ...args, where: org(args?.where) })),
+    findFirst:  (args?: Prisma.CalendarEventTypeFindFirstArgs) => run(p => p.calendarEventType.findFirst({ ...args, where: org(args?.where) })),
+    findUnique: (args: Prisma.CalendarEventTypeFindUniqueArgs) => run(p => p.calendarEventType.findFirst({ ...args, where: org(args.where as W) })),
+    create:     (args: Omit<Prisma.CalendarEventTypeCreateArgs, "data"> & { data: Omit<Prisma.CalendarEventTypeUncheckedCreateInput, "organizationId"> }) =>
+      run(p => p.calendarEventType.create({ ...args, data: { ...args.data, organizationId: orgId } })),
+    update:     async (args: Prisma.CalendarEventTypeUpdateArgs) => {
+      const id = await verify(args.where);
+      return run(p => p.calendarEventType.update({ ...args, where: { id } }));
+    },
+    delete:     async (args: Prisma.CalendarEventTypeDeleteArgs) => {
+      const id = await verify(args.where);
+      return run(p => p.calendarEventType.delete({ where: { id } }));
+    },
+    count:      (args?: Prisma.CalendarEventTypeCountArgs) => run(p => p.calendarEventType.count({ ...args, where: org(args?.where) })),
+  };
+}
+
 function scopedBrotherMetricValue(orgId: number, run: Run) {
   type W = Prisma.BrotherMetricValueWhereInput;
   const org = (w?: W): W => ({ ...w, organizationId: orgId });
@@ -1310,6 +1338,7 @@ export function db(orgId: number) {
     organizationConfig:   scopedOrganizationConfig(orgId, run),
     orgMetricDefinition:  scopedOrgMetricDefinition(orgId, run),
     brotherMetricValue:   scopedBrotherMetricValue(orgId, run),
+    calendarEventType:    scopedCalendarEventType(orgId, run),
 
     // Org-column-less join tables: scoped via a required relation to an org-bound
     // parent (CalendarEvent / Brother / Budget / OrgInvite). Membership and the
@@ -1407,6 +1436,7 @@ export function _dbWithClient(orgId: number, client: P) {
     organizationConfig:   scopedOrganizationConfig(orgId, run),
     orgMetricDefinition:  scopedOrgMetricDefinition(orgId, run),
     brotherMetricValue:   scopedBrotherMetricValue(orgId, run),
+    calendarEventType:    scopedCalendarEventType(orgId, run),
     attendanceRecord:    scopedAttendanceRecord(orgId, run),
     attendanceExcuse:    scopedAttendanceExcuse(orgId, run),
     attendanceExemption: scopedAttendanceExemption(orgId, run),

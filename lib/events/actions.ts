@@ -19,6 +19,7 @@ export type SubjectType =
   | "BrotherRole"
   | "Brother"
   | "CalendarEvent"
+  | "CalendarEventType"
   | "ProgrammingEvent"
   | "ServiceEvent"
   | "ServiceParticipation"
@@ -71,6 +72,10 @@ export interface EventMetadata {
   "calendar.created":  { title: string; date: string; category: string };
   "calendar.updated":  { title: string; changedFields: string[] };
   "calendar.deleted":  { title: string };
+  "calendar_event_type.created": { slug: string; label: string };
+  "calendar_event_type.updated": { slug: string; label: string; changedFields: string[] };
+  "calendar_event_type.hidden":  { slug: string; label: string; hidden: boolean };
+  "calendar_event_type.deleted": { slug: string; label: string };
   "programming.created": { title: string; stage: string };
   "programming.deleted": { title: string };
   "service_event.created": { title: string; date: string; calendarEventId: number };
@@ -170,6 +175,7 @@ const KNOWN_ACTIONS = new Set<Action>([
   "role.created", "role.updated", "role.deleted", "role.granted", "role.revoked",
   "brother.claimed", "brother.added", "brother.updated", "brother.removed", "brother.admin_changed", "brother.account_unlinked",
   "calendar.created", "calendar.updated", "calendar.deleted",
+  "calendar_event_type.created", "calendar_event_type.updated", "calendar_event_type.hidden", "calendar_event_type.deleted",
   "programming.created", "programming.deleted",
   "service_event.created", "service_event.updated", "service_event.deleted",
   "service_participation.logged", "service_participation.removed",
