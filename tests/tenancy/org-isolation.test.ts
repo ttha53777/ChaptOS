@@ -923,6 +923,38 @@ describe("tenancy: OrgMetricDefinition", () => {
 });
 
 // ---------------------------------------------------------------------------
+// CalendarEventType (has organizationId)
+// ---------------------------------------------------------------------------
+describe("tenancy: CalendarEventType", () => {
+  it("findMany only returns the active org's event types", async () => {
+    // createOrg seeds the 7 built-ins per org; add one custom type to each.
+    const orgA = await createOrg("Alpha", "alpha");
+    const orgB = await createOrg("Beta", "beta");
+    await testPrisma.calendarEventType.create({
+      data: { organizationId: orgA.id, slug: "rush", label: "Rush A", color: "#3f6ea3" },
+    });
+    await testPrisma.calendarEventType.create({
+      data: { organizationId: orgB.id, slug: "rush", label: "Rush B", color: "#3f6ea3" },
+    });
+
+    const fromA = await db(orgA.id).calendarEventType.findMany();
+    // No cross-org leakage: every row is orgA's, and its "rush" is the A one.
+    expect(fromA.every(t => t.organizationId === orgA.id)).toBe(true);
+    expect(fromA.filter(t => t.slug === "rush")).toEqual([
+      expect.objectContaining({ organizationId: orgA.id, label: "Rush A" }),
+    ]);
+  });
+
+  it("create injects organizationId", async () => {
+    const org = await createOrg("Alpha", "alpha");
+    const t = await db(org.id).calendarEventType.create({
+      data: { slug: "mixer", label: "Mixer", color: "#ddb36a" },
+    });
+    expect(t.organizationId).toBe(org.id);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // BrotherMetricValue (denormalized organizationId)
 // ---------------------------------------------------------------------------
 describe("tenancy: BrotherMetricValue", () => {
