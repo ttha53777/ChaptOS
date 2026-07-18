@@ -1,0 +1,749 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dusk">
+<!--
+  ChaptOS · Timeline First-Entry Mock — "What do you usually run?"
+  ────────────────────────────────────────────────────────────────
+  ASSUMPTIONS / REASONING
+  · Companion to _design/First Entry Mock.html and _design/Timeline Redesign.html.
+    When a founder finishes /create and first opens Timeline, today's frame is a
+    grey skeleton reading "No events scheduled yet." behind SemesterGate's
+    non-dismissable wall — a wall of zeros with no guidance. Meanwhile the product
+    has exactly SEVEN hardcoded, global event categories
+    (chapter · social · fundy · program · party · deadline · service —
+    lib/state/calendar-category.ts) that a new org can neither see nor shape.
+  · This mock reimagines that first Timeline entry as a short interview:
+    "What kinds of events does your org usually run?" Two ideas drive it:
+      1. CUSTOM EVENT TYPES. An org can name + color its own types (Rush, Formal,
+         Big/Little Reveal…) beyond the fixed 7 — the customizability the product
+         is missing today. Greenfield: no per-org event types exist yet.
+      2. PRELOADED TYPES FOLLOW YOUR PAGES. Turn on Parties and a "Party" type is
+         already there; Chapter → Chapter Meeting, Service → Community Service,
+         Programming → Program/Social/Fundraiser. (Deadlines stay on the Tasks page —
+         they fold into the timeline as rows, not a type you pick here.) The screen must
+         make orgs UNDERSTAND these are automatic — tied to the page, not something
+         they build — while still inviting them to add their own. Mapping derived
+         from NAV_WORKFLOW_MAP (app/components/Sidebar.tsx), PROGRAMMING_CATEGORIES
+         (lib/programming.ts) and ACTIVITY_OPTIONS (app/create/_components/
+         InterviewStep.tsx).
+  · Direction: the "Chapter Ledger" language shared with the dashboard/timeline
+    redesigns — Fraunces serif, warm dusk paper, Geist Mono micro-labels, violet
+    accent, the muted 7-hue category palette used only as small dots. Dusk/Ivory
+    toggle (press T). Persona: Beta Theta Pi, founder Marcus Webb · President.
+  · Three scenes, First Entry's scene-rail (0/1/2): 0 = today's empty timeline
+    (the problem), 1 = the event-type setup (the core), 2 = the reimagined first
+    Timeline, color-coded and org-shaped (the payoff). Choices in scene 1 carry
+    into scene 2's legend + scaffold rows from one in-memory `types` array.
+  · This is a DESIGN MOCK ONLY — vanilla one-file HTML/CSS/JS, double-click to open,
+    fonts from Google, fully clickable. Nothing here is wired to the app.
+  · Screenshot hooks: window.__mock = { goto, setTheme, seedCustom }.
+-->
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ChaptOS — Timeline First-Entry · What do you usually run?</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..700;1,9..144,300..700&family=Geist:wght@300..700&family=Geist+Mono:wght@300..600&display=swap" rel="stylesheet">
+<style>
+/* ═══ 0 · Tokens ═════════════════════════════════════════════════════════ */
+:root {
+  --serif: "Fraunces", Georgia, serif;
+  --sans:  "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --mono:  "Geist Mono", ui-monospace, Menlo, monospace;
+  --ease:  cubic-bezier(.16,1,.3,1);
+}
+[data-theme="dusk"] {
+  --paper:    #0f0d0a;
+  --paper-2:  #14120e;
+  --paper-3:  #1b1813;
+  --card:     #161310;
+  --card-2:   #1b1813;
+  --ink:      #ece7dd;
+  --ink-soft: #c9c2b4;
+  --ink-72:   rgba(236,231,221,.72);
+  --ink-55:   rgba(236,231,221,.55);
+  --ink-40:   rgba(236,231,221,.40);
+  --muted:    #958d7c;
+  --faint:    #6b6354;
+  --line:     rgba(236,231,221,.11);
+  --line-soft:rgba(236,231,221,.06);
+  --vio:      #a78bfa;
+  --vio-deep: #7c3aed;
+  --vio-bg:   rgba(167,139,250,.10);
+  --vio-soft: rgba(167,139,250,.12);
+  --vio-line: rgba(167,139,250,.32);
+  --gold:     #ddb36a;
+  --gold-bg:  rgba(221,179,106,.10);
+  --rose:     #d98ba3;
+  --rose-bg:  rgba(217,139,163,.10);
+  --ok:       #7fb08a;
+  --ok-bg:    rgba(127,176,138,.12);
+  --bad:      #d98080;
+  --bad-bg:   rgba(217,128,128,.12);
+  --shadow:   0 1px 0 rgba(0,0,0,.4), 0 16px 40px -24px rgba(0,0,0,.7);
+  /* restrained, muted category hues — used only as small dots + swatches */
+  --c-chapter:  #8fb0d6;
+  --c-social:   #ddb36a;
+  --c-fundy:    #86b988;
+  --c-program:  #a78bfa;
+  --c-party:    #d98ba3;
+  --c-deadline: #e0796b;
+  --c-service:  #5fbdb0;
+}
+[data-theme="ivory"] {
+  --paper:    #f2ede3;
+  --paper-2:  #ece6d9;
+  --paper-3:  #e4ddcd;
+  --card:     #faf7f0;
+  --card-2:   #f4f0e6;
+  --ink:      #171410;
+  --ink-soft: #3d382f;
+  --ink-72:   rgba(23,20,16,.72);
+  --ink-55:   rgba(23,20,16,.55);
+  --ink-40:   rgba(23,20,16,.40);
+  --muted:    #6f675a;
+  --faint:    #9a917f;
+  --line:     rgba(23,20,16,.13);
+  --line-soft:rgba(23,20,16,.07);
+  --vio:      #6d28d9;
+  --vio-deep: #5b21b6;
+  --vio-bg:   rgba(109,40,217,.08);
+  --vio-soft: rgba(109,40,217,.10);
+  --vio-line: rgba(109,40,217,.30);
+  --gold:     #9a7224;
+  --gold-bg:  rgba(154,114,36,.10);
+  --rose:     #b34f72;
+  --rose-bg:  rgba(179,79,114,.09);
+  --ok:       #3f7a50;
+  --ok-bg:    rgba(63,122,80,.10);
+  --bad:      #b34747;
+  --bad-bg:   rgba(179,71,71,.09);
+  --shadow:   0 1px 2px rgba(23,20,16,.05), 0 14px 34px -26px rgba(23,20,16,.35);
+  --c-chapter:  #3f6ea3;
+  --c-social:   #9a7224;
+  --c-fundy:    #4a7d4c;
+  --c-program:  #6d28d9;
+  --c-party:    #b34f72;
+  --c-deadline: #c14a37;
+  --c-service:  #2f8579;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  background: var(--paper); color: var(--ink); font-family: var(--sans);
+  font-size: 13.5px; line-height: 1.45; overflow: hidden;
+  -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;
+}
+button { font: inherit; color: inherit; background: none; border: none; cursor: pointer; }
+input, textarea, select { font: inherit; color: inherit; }
+h1,h2,h3,h4,p,ul { margin: 0; padding: 0; }
+ul { list-style: none; }
+::selection { background: var(--vio-bg); }
+
+/* ═══ 1 · Scenes ═════════════════════════════════════════════════════════ */
+.scr { position: fixed; inset: 0; display: none; z-index: 1; }
+.scr.on { display: block; animation: scr-in 520ms var(--ease) both; }
+@keyframes scr-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes in-up { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+
+/* ═══ 2 · App chrome — the shared sidebar ════════════════════════════════ */
+.app-frame { position: relative; height: 100%; display: flex; }
+.app-side {
+  flex: none; width: 214px; border-right: 1px solid var(--line);
+  padding: 18px 12px; display: flex; flex-direction: column;
+  background: var(--paper-2);
+}
+.app-side .org { display: flex; align-items: center; gap: 10px; padding: 0 8px 20px; }
+.mark {
+  height: 28px; width: 28px; border-radius: 8px; flex: none;
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--serif); font-weight: 600; font-size: 12px; color: #fff;
+  background: linear-gradient(140deg, #8b6fd4, #5b3fa8);
+  border: 1px solid rgba(255,255,255,.14);
+}
+.app-side .org b { font-size: 13.5px; letter-spacing: -.01em; }
+.app-side .grp { font-family: var(--mono); font-size: 9px; letter-spacing: .18em; text-transform: uppercase; color: var(--faint); padding: 14px 10px 6px; }
+.app-side li {
+  display: flex; align-items: center; gap: 9px;
+  padding: 7px 10px; border-radius: 8px;
+  font-size: 13px; color: var(--muted);
+}
+.app-side li.on { background: var(--card); color: var(--ink); }
+.app-side li .dot { height: 5px; width: 5px; border-radius: 50%; background: var(--faint); flex: none; }
+.app-side li.on .dot { background: var(--vio); box-shadow: 0 0 8px rgba(167,139,250,.6); }
+.app-side .side-foot { margin-top: auto; padding: 8px 10px; font-size: 12.5px; color: var(--faint); }
+
+/* ═══ 3 · Timeline chrome (scenes 0 + 2) ════════════════════════════════ */
+.tl-main { flex: 1; min-width: 0; overflow-y: auto; padding: 30px clamp(24px,3.4vw,48px) 90px; }
+
+.briefing { display: flex; justify-content: space-between; gap: 30px; align-items: flex-start; padding-right: 92px; }
+.kicker { font-family: var(--mono); font-size: 10.5px; letter-spacing: .18em; text-transform: uppercase; color: var(--muted); }
+.kicker .hot { color: var(--vio); }
+h1.greeting { font-family: var(--serif); font-weight: 400; font-size: 32px; letter-spacing: -.01em; margin-top: 8px; color: var(--ink); }
+h1.greeting em { font-style: italic; color: var(--vio); }
+.digest { margin-top: 12px; display: flex; gap: 9px; align-items: baseline; max-width: 620px; }
+.ai-chip { flex-shrink: 0; font-family: var(--mono); font-size: 8.5px; font-weight: 600; letter-spacing: .14em;
+  color: var(--vio); border: 1px solid var(--vio-bg); background: var(--vio-bg); border-radius: 4px; padding: 2px 5px; transform: translateY(-1px); }
+.digest p { font-size: 13.5px; color: var(--ink-soft); font-style: italic; font-family: var(--serif); font-weight: 350; }
+.add-btn { flex-shrink: 0; display: inline-flex; align-items: center; gap: 7px;
+  font-family: var(--mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--vio); background: var(--vio-bg); border: 1px solid var(--vio-bg); border-radius: 8px;
+  padding: 8px 14px; cursor: pointer; white-space: nowrap; }
+.add-btn:hover { border-color: var(--vio); }
+.add-btn svg { stroke: var(--vio); }
+
+.glance { margin-top: 22px; display: grid; grid-template-columns: repeat(4, 1fr);
+  border: 1px solid var(--line); border-radius: 12px; background: var(--card); box-shadow: var(--shadow); overflow: hidden; }
+.measure { padding: 15px 18px 14px; border-right: 1px solid var(--line-soft); }
+.measure:last-child { border-right: none; }
+.measure .k { font-family: var(--mono); font-size: 9px; letter-spacing: .16em; text-transform: uppercase; color: var(--muted); }
+.measure .v { font-family: var(--mono); font-size: 23px; font-weight: 500; letter-spacing: -.02em; color: var(--ink); margin-top: 7px; font-variant-numeric: tabular-nums; }
+.measure .v.zero { color: var(--faint); font-weight: 400; }
+.measure .note { font-size: 11px; color: var(--faint); margin-top: 3px; }
+
+/* the spine */
+.tl-month { display: flex; align-items: baseline; gap: 14px; margin: 26px 0 14px; }
+.tl-month h2 { font-family: var(--serif); font-weight: 400; font-size: 24px; letter-spacing: -.01em; color: var(--ink); white-space: nowrap; }
+.tl-month h2 .yr { color: var(--faint); font-style: italic; font-size: 16px; margin-left: 6px; }
+.tl-month .rule { flex: 1; height: 1px; background: var(--line); }
+.tl-month .cnt { font-family: var(--mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--vio); white-space: nowrap; }
+
+.layout { margin-top: 18px; display: grid; grid-template-columns: 1fr 300px; gap: 30px; align-items: start; }
+.spine { position: relative; }
+.spine::before { content: ""; position: absolute; left: 65px; top: 4px; bottom: 16px; width: 1px; background: var(--line); }
+
+.tl-row { display: flex; align-items: stretch; text-decoration: none; }
+.tl-date { width: 54px; flex-shrink: 0; text-align: right; padding-right: 14px; padding-top: 1px; }
+.tl-date .dow { font-family: var(--mono); font-size: 8.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--faint); }
+.tl-date .dnum { font-family: var(--serif); font-size: 22px; font-weight: 400; line-height: 1; color: var(--ink-soft); margin-top: 2px; }
+.tl-node { width: 22px; flex-shrink: 0; position: relative; }
+.tl-node .dot { position: absolute; left: 50%; top: 5px; transform: translateX(-50%);
+  width: 11px; height: 11px; border-radius: 50%; background: var(--paper); box-shadow: 0 0 0 1px var(--line); }
+.tl-node .dot i { position: absolute; inset: 2.5px; border-radius: 50%; background: var(--dot); }
+.tl-body { flex: 1; min-width: 0; padding: 0 0 16px 16px; }
+.tl-card { border: 1px solid var(--line); border-radius: 10px; background: var(--card); box-shadow: var(--shadow);
+  padding: 11px 14px; display: flex; align-items: center; gap: 12px; }
+.tl-card .t { font-size: 13.5px; font-weight: 550; color: var(--ink); }
+.tl-card .m { font-size: 11.5px; color: var(--faint); margin-top: 2px; display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center; }
+.tl-card .m .cat { color: var(--dot); font-family: var(--mono); font-size: 9px; letter-spacing: .1em; text-transform: uppercase; }
+.tl-card .grow { flex: 1; min-width: 0; }
+.tl-card .when { font-family: var(--mono); font-size: 10px; letter-spacing: .06em; color: var(--faint); flex-shrink: 0; white-space: nowrap; }
+
+/* the "add your first…" scaffold rows */
+.tl-scaf .tl-card { background: transparent; border-style: dashed; cursor: pointer; transition: all 160ms var(--ease); }
+.tl-scaf .tl-card:hover { border-color: var(--vio-line); background: var(--vio-soft); }
+.tl-scaf .tl-node .dot { background: var(--paper); }
+.tl-scaf .tl-node .dot i { opacity: .5; }
+.tl-scaf .plus { flex: none; color: var(--vio); font-family: var(--mono); font-size: 15px; line-height: 1; }
+.tl-scaf .t { color: var(--ink-72); font-weight: 500; }
+
+.tl-empty { padding: 60px 0; text-align: center; }
+.tl-empty .sk { max-width: 520px; margin: 0 auto 26px; display: flex; flex-direction: column; gap: 10px; }
+.tl-empty .sk span { height: 46px; border-radius: 10px; background: var(--card-2); border: 1px solid var(--line-soft); opacity: .5; }
+.tl-empty .sk span:nth-child(2) { opacity: .32; }
+.tl-empty .sk span:nth-child(3) { opacity: .2; }
+.tl-empty p { font-size: 13.5px; color: var(--faint); font-style: italic; font-family: var(--serif); }
+
+/* right rail (scene 2) */
+.rail-col { position: sticky; top: 30px; display: flex; flex-direction: column; gap: 16px; }
+.rail-col .lbl { font-family: var(--mono); font-size: 9.5px; letter-spacing: .16em; text-transform: uppercase; color: var(--faint); margin-bottom: 10px; }
+.legend { border: 1px solid var(--line); border-radius: 12px; background: var(--card); box-shadow: var(--shadow); padding: 15px 18px 16px; }
+.legend .lg-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 12px; }
+.legend .lg-head b { font-size: 13px; font-weight: 550; }
+.legend .lg-head span { font-family: var(--mono); font-size: 9px; letter-spacing: .1em; color: var(--vio); }
+.legend .li { display: flex; align-items: center; gap: 9px; padding: 6px 0; }
+.legend .li .d { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; background: var(--dot); }
+.legend .li .nm { font-size: 12.5px; color: var(--ink-soft); flex: 1; }
+.legend .li .src { font-family: var(--mono); font-size: 8px; letter-spacing: .08em; text-transform: uppercase; color: var(--faint); }
+.legend .li .src.you { color: var(--vio); }
+.rail-note { font-size: 11.5px; color: var(--muted); font-style: italic; font-family: var(--serif); line-height: 1.55; padding: 0 2px; }
+
+/* ═══ 4 · Setup screen (scene 1) ════════════════════════════════════════ */
+.setup { height: 100%; overflow-y: auto; padding: 4.5vh clamp(24px,6vw,90px) 120px; }
+.setup-inner { max-width: 940px; margin: 0 auto; }
+.setup > * , .setup-inner > * { animation: in-up 500ms var(--ease) both; }
+.setup-head .kick { font-family: var(--mono); font-size: 10.5px; letter-spacing: .2em; text-transform: uppercase; color: var(--faint); }
+.setup-head h1 { font-family: var(--serif); font-weight: 500; font-size: clamp(28px,3vw,38px); line-height: 1.12; letter-spacing: -.015em; margin-top: 12px; }
+.setup-head h1 em { font-style: italic; color: var(--vio); }
+.setup-head .sub { margin-top: 12px; font-size: 14px; color: var(--muted); line-height: 1.6; max-width: 640px; }
+.setup-head .sub b { color: var(--ink-72); font-weight: 500; }
+
+.sec { margin-top: 34px; }
+.sec-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 14px; }
+.sec-head h3 { font-family: var(--serif); font-weight: 500; font-size: 18px; letter-spacing: -.01em; }
+.sec-head .ct { font-family: var(--mono); font-size: 10px; letter-spacing: .1em; color: var(--faint); }
+.sec-head .rule { flex: 1; height: 1px; background: var(--line-soft); align-self: center; }
+
+/* type chips — the whole screen is three rows of these */
+.chips { display: flex; flex-wrap: wrap; gap: 9px; }
+.chip { display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; padding: 8px 14px; border-radius: 999px;
+  border: 1px solid var(--line); color: var(--ink-soft); background: var(--card); transition: all 160ms var(--ease); }
+.chip .cd { width: 8px; height: 8px; border-radius: 50%; background: var(--dot); flex: none; }
+.chip .pl { font-family: var(--mono); font-size: 13px; color: var(--faint); line-height: 1; margin-left: -2px; }
+.chip:hover { border-color: var(--vio-line); color: var(--ink); }
+.chip.on { border-color: var(--vio-line); background: var(--vio-soft); color: var(--vio); }
+.chip.on .pl { color: var(--vio); transform: rotate(45deg); }
+
+/* preloaded (locked to a page) — settled, not tappable */
+.chip.lock { cursor: default; background: var(--card-2); color: var(--ink-soft); }
+.chip.lock:hover { border-color: var(--line); color: var(--ink-soft); }
+.chip.lock .lk { color: var(--vio); opacity: .85; margin-right: -1px; flex: none; }
+
+/* custom — carries its own color, removable */
+.chip.custom { border-color: color-mix(in srgb, var(--dot) 55%, transparent);
+  background: color-mix(in srgb, var(--dot) 12%, transparent); color: var(--ink); }
+.chip.custom:hover { border-color: var(--dot); color: var(--ink); }
+.chip.custom .pl { color: var(--muted); transform: rotate(45deg); }
+
+/* the "+ New type" adder */
+.chip.add { border-style: dashed; color: var(--muted); }
+.chip.add:hover { border-color: var(--vio-line); color: var(--ink); border-style: solid; }
+.chip.add .pl { color: var(--vio); font-size: 15px; transform: none; margin-left: 0; }
+
+.hint { font-size: 12px; color: var(--faint); margin-top: 11px; }
+
+/* custom editor */
+.editor { display: none; margin-top: 14px; padding: 18px; border: 1px solid var(--vio-line); border-radius: 13px; background: var(--card); }
+.editor.on { display: block; animation: in-up 260ms var(--ease) both; }
+.ed-row { display: flex; gap: 16px; align-items: flex-end; flex-wrap: wrap; }
+.ed-field { display: flex; flex-direction: column; gap: 6px; }
+.ed-field.grow { flex: 1; min-width: 200px; }
+.ed-field label { font-family: var(--mono); font-size: 9.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--faint); }
+.fld { background: var(--paper-2); border: 1px solid var(--line); border-radius: 8px; padding: 9px 11px; font-size: 13.5px; color: var(--ink); color-scheme: dark; }
+.fld:focus { outline: none; border-color: var(--vio-line); }
+[data-theme="ivory"] .fld { color-scheme: light; }
+.swatches { display: flex; gap: 7px; }
+.sw { width: 24px; height: 24px; border-radius: 50%; background: var(--dot); cursor: pointer; border: 2px solid transparent; transition: transform 120ms var(--ease); }
+.sw:hover { transform: scale(1.12); }
+.sw.on { border-color: var(--ink); box-shadow: 0 0 0 2px var(--paper), 0 0 0 3px var(--dot); }
+.ed-foot { display: flex; align-items: center; gap: 16px; margin-top: 16px; }
+.ed-add { background: var(--vio-deep); color: #fff; border-radius: 9px; padding: 9px 20px; font-size: 13px; font-weight: 600; }
+.ed-add:hover { box-shadow: 0 8px 22px -10px var(--vio-deep); }
+.ed-cancel { font-size: 12.5px; color: var(--muted); }
+.ed-cancel:hover { color: var(--ink); }
+
+/* setup footer / counter + CTA */
+.setup-foot { margin-top: 40px; padding-top: 20px; border-top: 1px solid var(--line); display: flex; align-items: center; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
+.counter { font-size: 13px; color: var(--muted); }
+.counter b { color: var(--ink); font-variant-numeric: tabular-nums; }
+.cta { display: inline-flex; align-items: center; gap: 10px; background: var(--ink); color: var(--paper);
+  border-radius: 999px; padding: 13px 26px; font-size: 14px; font-weight: 600; letter-spacing: -.01em; transition: all 200ms var(--ease); }
+.cta:hover { transform: translateY(-1px); box-shadow: 0 12px 30px -14px color-mix(in srgb, var(--ink) 50%, transparent); }
+
+/* ═══ 5 · Red problem flags (scene 0) ═══════════════════════════════════ */
+.flag { position: absolute; z-index: 30; display: flex; align-items: center; gap: 7px;
+  font-family: var(--mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase;
+  background: var(--bad-bg); border: 1px solid color-mix(in srgb, var(--bad) 45%, transparent);
+  color: var(--bad); border-radius: 999px; padding: 5px 12px;
+  animation: in-up 500ms var(--ease) 400ms both; }
+
+/* ═══ 6 · Scene rail + theme toggle ═════════════════════════════════════ */
+.theme-toggle { position: fixed; top: 18px; right: 20px; z-index: 60;
+  font-family: var(--mono); font-size: 10px; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--muted); background: var(--card); border: 1px solid var(--line); border-radius: 999px;
+  padding: 6px 14px; cursor: pointer; }
+.theme-toggle:hover { color: var(--ink); border-color: var(--vio); }
+
+.rail-cap { position: fixed; left: 50%; bottom: 66px; transform: translateX(-50%); z-index: 60;
+  font-family: var(--serif); font-style: italic; font-size: 13px; color: var(--ink-40);
+  pointer-events: none; text-align: center; width: max-content; max-width: 80vw;
+  padding: 4px 14px; border-radius: 999px; background: color-mix(in srgb, var(--paper) 60%, transparent); backdrop-filter: blur(8px); }
+.rail { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 60;
+  display: flex; gap: 2px; background: color-mix(in srgb, var(--paper) 86%, transparent);
+  border: 1px solid var(--line); border-radius: 999px; padding: 5px;
+  backdrop-filter: blur(14px) saturate(140%); box-shadow: var(--shadow); }
+.rail button { display: flex; align-items: center; gap: 8px; padding: 7px 15px; border-radius: 999px;
+  font-family: var(--mono); font-size: 10.5px; letter-spacing: .08em; color: var(--ink-40); transition: all 200ms var(--ease); white-space: nowrap; }
+.rail button .n { font-size: 9.5px; opacity: .65; }
+.rail button:hover { color: var(--ink); }
+.rail button.on { background: var(--ink); color: var(--paper); }
+.rail button.bad.on { background: var(--bad); color: #fff; }
+
+@media (max-width: 1000px) {
+  .layout { grid-template-columns: 1fr; }
+  .glance { grid-template-columns: repeat(2, 1fr); }
+  .rail button .lbl { display: none; }
+}
+</style>
+</head>
+<body>
+
+<button class="theme-toggle" id="toggle" title="Press T">◐&nbsp; Ivory</button>
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     SCENE 0 · TODAY — the empty timeline
+     What ships now: the spine as a grey skeleton reading "No events scheduled
+     yet." No guidance, and the 7 event types are fixed & invisible.
+     ═══════════════════════════════════════════════════════════════════ -->
+<section class="scr" data-scene="0">
+  <div class="app-frame">
+    <aside class="app-side" id="side0"></aside>
+    <div class="tl-main">
+      <div class="briefing">
+        <div>
+          <p class="kicker"><span class="hot">Monday, August 24, 2026</span>&ensp;·&ensp;Fall Semester</p>
+          <h1 class="greeting">The weeks <em>ahead</em>.</h1>
+          <div class="digest">
+            <span class="ai-chip">AI</span>
+            <p>No events scheduled yet.</p>
+          </div>
+        </div>
+        <button class="add-btn">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+          Add event
+        </button>
+      </div>
+
+      <section class="glance">
+        <div class="measure"><p class="k">This week</p><p class="v zero">0</p><p class="note">all clear</p></div>
+        <div class="measure"><p class="k">Required</p><p class="v zero">0</p><p class="note">nothing set</p></div>
+        <div class="measure"><p class="k">Deadlines</p><p class="v zero">0</p><p class="note">none upcoming</p></div>
+        <div class="measure"><p class="k">Overdue</p><p class="v zero">0</p><p class="note">all clear</p></div>
+      </section>
+
+      <div class="tl-empty">
+        <div class="sk"><span></span><span></span><span></span></div>
+        <p>No events scheduled yet.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="flag" style="top:372px; left:284px">Empty spine — no guidance</div>
+  <div class="flag" style="top:372px; right:70px">7 event types, fixed &amp; hidden</div>
+</section>
+
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     SCENE 1 · THE EVENT-TYPE SETUP — the core
+     "What does your org usually run?" Preloaded types follow your pages;
+     suggested types are one tap; custom types are yours to name + color.
+     ═══════════════════════════════════════════════════════════════════ -->
+<section class="scr" data-scene="1">
+  <div class="setup">
+    <div class="setup-inner">
+      <div class="setup-head">
+        <p class="kick">One-time setup</p>
+        <h1>What does <em>Beta Theta&nbsp;Pi</em> run?</h1>
+        <p class="sub">Pick the kinds of events you put on the calendar. Change anything later.</p>
+      </div>
+
+      <!-- 1 · Already set up — from your pages -->
+      <div class="sec">
+        <div class="sec-head">
+          <h3>Already set up</h3>
+          <span class="ct">from the pages you turned on</span>
+          <span class="rule"></span>
+        </div>
+        <div class="chips" id="preChips"></div>
+        <p class="hint">Locked to a page — remove one by turning its page off in Settings.</p>
+      </div>
+
+      <!-- 2 · Everything else — common presets + your own, one row -->
+      <div class="sec">
+        <div class="sec-head">
+          <h3>What else do you run?</h3>
+          <span class="ct">tap a common one, or make your own</span>
+          <span class="rule"></span>
+        </div>
+        <div class="chips" id="addRow"></div>
+
+        <div class="editor" id="editor">
+          <div class="ed-row">
+            <div class="ed-field grow">
+              <label>Name</label>
+              <input class="fld" id="edName" placeholder="e.g. Rush, Formal, Retreat">
+            </div>
+            <div class="ed-field">
+              <label>Color</label>
+              <div class="swatches" id="swatches"></div>
+            </div>
+          </div>
+          <div class="ed-foot">
+            <button class="ed-add" id="addCustom">Add</button>
+            <button class="ed-cancel" id="cancelCustom">Cancel</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="setup-foot">
+        <p class="counter" id="counter"></p>
+        <button class="cta" data-go="2">Done <span>→</span></button>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     SCENE 2 · THE REIMAGINED TIMELINE — the payoff
+     Not "No events scheduled yet." A color-coded, org-shaped calendar: your
+     types are the legend, and each attendance type gets an "add your first…"
+     scaffold row inviting the real first entry.
+     ═══════════════════════════════════════════════════════════════════ -->
+<section class="scr" data-scene="2">
+  <div class="app-frame">
+    <aside class="app-side" id="side2"></aside>
+    <div class="tl-main">
+      <div class="briefing">
+        <div>
+          <p class="kicker"><span class="hot">Monday, August 24, 2026</span>&ensp;·&ensp;Fall Semester · Week 1</p>
+          <h1 class="greeting">Your calendar, <em>ready</em>.</h1>
+          <div class="digest">
+            <span class="ai-chip">AI</span>
+            <p id="dPayoff">Your types are set. Add your first Chapter Meeting and it lands here, on the line, in its color.</p>
+          </div>
+        </div>
+        <button class="add-btn">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+          Add event
+        </button>
+      </div>
+
+      <div class="layout">
+        <!-- LEFT — the spine, seeded with scaffold rows -->
+        <div>
+          <div class="tl-month">
+            <h2>August<span class="yr">2026</span></h2>
+            <span class="rule"></span>
+            <span class="cnt" id="monthCnt">your types are live</span>
+          </div>
+          <div class="spine" id="scaffold"></div>
+        </div>
+
+        <!-- RIGHT — the legend, built from your choices -->
+        <aside class="rail-col">
+          <div>
+            <p class="lbl">Your event types</p>
+            <div class="legend">
+              <div class="lg-head"><b>Legend</b><span id="legendCt"></span></div>
+              <div id="legend"></div>
+            </div>
+          </div>
+          <p class="rail-note">Every type you picked is a filter, a color and a one-tap "add." Change them anytime in Settings → Event types.</p>
+        </aside>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<!-- Scene rail -->
+<div class="rail-cap" id="cap"></div>
+<nav class="rail">
+  <button class="bad" data-go="0"><span class="n">00</span><span class="lbl">Today</span></button>
+  <button data-go="1"><span class="n">01</span><span class="lbl">Set up</span></button>
+  <button data-go="2"><span class="n">02</span><span class="lbl">Timeline</span></button>
+</nav>
+
+<script>
+const $  = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+
+/* ═══ Theme ═══════════════════════════════════════════════════════════ */
+const root = document.documentElement;
+const tbtn = $("#toggle");
+function setTheme(t) {
+  root.dataset.theme = t;
+  tbtn.innerHTML = t === "dusk" ? "◐&nbsp; Ivory" : "◑&nbsp; Dusk";
+  try { localStorage.setItem("chaptos-mock-theme", t); } catch {}
+}
+tbtn.addEventListener("click", () => setTheme(root.dataset.theme === "dusk" ? "ivory" : "dusk"));
+try { if (localStorage.getItem("chaptos-mock-theme") === "ivory") setTheme("ivory"); } catch {}
+
+/* ═══ Org, as the interview would have left it ════════════════════════ */
+const ORG = {
+  name: "Beta Theta Pi", mark: "B",
+  nav: [
+    { grp: "Overview",   items: ["Dashboard", "Timeline"] },
+    { grp: "Members",    items: ["Brotherhood", "Chapter"] },
+    { grp: "Operations", items: ["Programming", "Parties", "Service", "Instagram", "Tasks", "Treasury"] },
+  ],
+};
+function sidebar(el, active) {
+  el.innerHTML =
+    '<div class="org"><span class="mark">' + ORG.mark + '</span><b>' + ORG.name + '</b></div>' +
+    ORG.nav.map(g =>
+      '<div class="grp">' + g.grp + '</div><ul>' +
+      g.items.map(i => '<li class="' + (i === active ? "on" : "") + '"><span class="dot"></span>' + i + '</li>').join("") +
+      '</ul>'
+    ).join("") +
+    '<div class="side-foot">Settings</div>';
+}
+sidebar($("#side0"), "Timeline");
+sidebar($("#side2"), "Timeline");
+
+/* ═══ Types — the one in-memory model both scenes read ════════════════ */
+/* source: 'page' (preloaded, tied to a workflow) · 'suggested' · 'custom' */
+let uid = 100;
+const types = [
+  // ── preloaded, from the org's enabled pages ──
+  { id: 1, label: "Chapter Meeting", var: "--c-chapter",  source: "page", page: "Chapter",     att: true,  why: "Mandatory meeting", on: true },
+  { id: 2, label: "Party",           var: "--c-party",    source: "page", page: "Parties",     att: false, why: "Door list, guests & headcount",          on: true },
+  { id: 3, label: "Community Service",var:"--c-service",  source: "page", page: "Service",     att: false, why: "Volunteering & logged hours",            on: true },
+  { id: 4, label: "Program",         var: "--c-program",  source: "page", page: "Programming", att: false, why: "Retreats, workshops, speakers",          on: true },
+  { id: 5, label: "Social",          var: "--c-social",   source: "page", page: "Programming", att: false, why: "Brotherhood socials & dinners",          on: true },
+  { id: 6, label: "Fundraiser",      var: "--c-fundy",    source: "page", page: "Programming", att: false, why: "Fundraisers & income drives",            on: true },
+  // (Deadlines live on the Tasks page — they fold into the timeline as rows, not a type you pick here)
+  // ── one custom type, pre-added, so the flow reads at a glance ──
+  { id: 8, label: "Big/Little Reveal", color: "#c9a0e0",  source: "custom", page: "Timeline",  att: false, why: "Your own type · lives on the Timeline",  on: true },
+];
+
+// suggested types — off until tapped; each borrows a base hue
+const SUGGESTED = [
+  { id: 20, label: "Rush Event",  var: "--c-program", page: "Programming", att: false, why: "Recruitment events",        on: false },
+  { id: 21, label: "Formal",      var: "--c-party",   page: "Parties",     att: false, why: "Formals & date parties",    on: false },
+  { id: 22, label: "Mixer",       var: "--c-party",   page: "Parties",     att: false, why: "Mixers with other orgs",    on: false },
+  { id: 23, label: "Philanthropy",var: "--c-service", page: "Service",     att: false, why: "Philanthropy & charity",    on: false },
+  { id: 24, label: "Study Hours", var: "--c-chapter", page: "Chapter",     att: true,  why: "Required study tables",      on: false },
+  { id: 25, label: "Alumni Event",var: "--c-social",  page: "Timeline",    att: false, why: "Alumni mixers & giving",    on: false },
+];
+SUGGESTED.forEach(s => { s.source = "suggested"; types.push(s); });
+
+const dotOf = t => t.color ? t.color : "var(" + t.var + ")";
+
+/* ═══ Custom editor color swatches ════════════════════════════════════ */
+const SWATCHES = ["#a78bfa","#8fb0d6","#86b988","#ddb36a","#d98ba3","#e0796b","#5fbdb0","#c9a0e0"];
+let edColor = SWATCHES[0];
+$("#swatches").innerHTML = SWATCHES.map((c,i) =>
+  '<span class="sw' + (i === 0 ? " on" : "") + '" data-c="' + c + '" style="--dot:' + c + '"></span>'
+).join("");
+$$("#swatches .sw").forEach(sw => sw.addEventListener("click", () => {
+  $$("#swatches .sw").forEach(x => x.classList.remove("on"));
+  sw.classList.add("on"); edColor = sw.dataset.c;
+}));
+
+/* ═══ Render — three chip rows + one counter ══════════════════════════ */
+const lockSvg = '<svg class="lk" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><rect x="5" y="11" width="14" height="9" rx="1.6"/><path d="M8 11V8a4 4 0 018 0v3"/></svg>';
+
+function render() {
+  const pre    = types.filter(t => t.source === "page");
+  const custom = types.filter(t => t.source === "custom");
+
+  // preloaded — locked chips; the per-page detail rides in the tooltip
+  $("#preChips").innerHTML = pre.map(t =>
+    '<span class="chip lock" style="--dot:' + dotOf(t) + '" title="From your ' + t.page + ' page">' +
+      lockSvg + '<span class="cd"></span>' + t.label + '</span>'
+  ).join("");
+
+  // everything else — common presets (tap on/off) + your own (removable) + the adder
+  $("#addRow").innerHTML =
+    types.filter(t => t.source === "suggested").map(t =>
+      '<button class="chip' + (t.on ? " on" : "") + '" data-chip="' + t.id + '" style="--dot:var(' + t.var + ')">' +
+        '<span class="cd"></span>' + t.label + '<span class="pl">+</span></button>'
+    ).join("") +
+    custom.map(t =>
+      '<button class="chip custom" data-rm="' + t.id + '" style="--dot:' + dotOf(t) + '">' +
+        '<span class="cd"></span>' + t.label + '<span class="pl">+</span></button>'
+    ).join("") +
+    '<button class="chip add" data-newtype><span class="pl">+</span> New type</button>';
+
+  // counter
+  const total = types.filter(t => t.on).length;
+  $("#counter").innerHTML = '<b>' + total + '</b> event types · <b>' + pre.length +
+    '</b> from your pages, <b>' + (total - pre.length) + '</b> added';
+
+  wireCards();
+  renderTimeline();
+}
+
+/* ═══ Chip interactions ═══════════════════════════════════════════════ */
+function wireCards() {
+  $$("[data-chip]").forEach(b => b.addEventListener("click", () => {
+    const t = types.find(x => x.id == b.dataset.chip); t.on = !t.on; render();
+  }));
+  $$("[data-rm]").forEach(b => b.addEventListener("click", () => {
+    const t = types.find(x => x.id == b.dataset.rm); types.splice(types.indexOf(t), 1); render();
+  }));
+  const nt = $("[data-newtype]");
+  if (nt) nt.addEventListener("click", () => {
+    $("#editor").classList.toggle("on");
+    if ($("#editor").classList.contains("on")) $("#edName").focus();
+  });
+}
+
+/* ═══ Custom editor — name + color (+ attendance), that's it ══════════ */
+function closeEditor() {
+  $("#editor").classList.remove("on");
+  $("#edName").value = "";
+  $$("#swatches .sw").forEach((x, i) => x.classList.toggle("on", i === 0)); edColor = SWATCHES[0];
+}
+$("#cancelCustom").addEventListener("click", closeEditor);
+function addCustom() {
+  const name = $("#edName").value.trim() || "New type";
+  types.push({ id: ++uid, label: name, color: edColor, source: "custom", page: "Timeline",
+    att: false, why: "Your own type", on: true });
+  closeEditor(); render();
+}
+$("#addCustom").addEventListener("click", addCustom);
+$("#edName").addEventListener("keydown", e => { if (e.key === "Enter") addCustom(); });
+
+/* ═══ Scene 2 — legend + scaffold rows from the same array ════════════ */
+function renderTimeline() {
+  const on = types.filter(t => t.on);
+
+  // legend
+  $("#legend").innerHTML = on.map(t => {
+    const src = t.source === "page"
+      ? '<span class="src">' + t.page + '</span>'
+      : '<span class="src you">You</span>';
+    return '<div class="li" style="--dot:' + dotOf(t) + '"><span class="d"></span>' +
+      '<span class="nm">' + t.label + '</span>' + src + '</div>';
+  }).join("");
+  $("#legendCt").textContent = on.length + " types";
+
+  // scaffold — invite the first entry for the load-bearing types
+  const scaf = on.filter(t => t.att || ["Party","Program","Community Service"].includes(t.label)).slice(0, 4);
+  const dates = [["Mon","24"],["Wed","26"],["Fri","28"],["Sat","29"]];
+  $("#scaffold").innerHTML = scaf.map((t, i) =>
+    '<div class="tl-row tl-scaf" style="--dot:' + dotOf(t) + '">' +
+      '<div class="tl-date"><div class="dow">' + dates[i][0] + '</div><div class="dnum">' + dates[i][1] + '</div></div>' +
+      '<div class="tl-node"><span class="dot"><i></i></span></div>' +
+      '<div class="tl-body"><div class="tl-card">' +
+        '<span class="plus">+</span>' +
+        '<div class="grow"><div class="t">Add your first ' + t.label + '</div>' +
+          '<div class="m"><span class="cat">' + t.label + '</span>' + (t.att ? '<span>attendance</span>' : '<span>' + t.page + '</span>') + '</div></div>' +
+        '<span class="when">this week</span>' +
+      '</div></div>' +
+    '</div>'
+  ).join("");
+  $("#monthCnt").textContent = on.length + " types ready · 0 events";
+}
+
+/* ═══ Scene rail ══════════════════════════════════════════════════════ */
+const CAPTIONS = [
+  "What ships today: a grey skeleton and seven fixed, hidden event types.",
+  "First entry becomes a question — the types tied to your pages are already here.",
+  "Not “no events yet” — a color-coded calendar shaped like your chapter.",
+];
+function goto(n) {
+  n = String(n);
+  $$(".scr").forEach(s => s.classList.toggle("on", s.dataset.scene === n));
+  $$(".rail button").forEach(b => b.classList.toggle("on", b.dataset.go === n));
+  $("#cap").textContent = CAPTIONS[+n];
+  const main = $('.scr[data-scene="' + n + '"] .tl-main, .scr[data-scene="' + n + '"] .setup');
+  if (main) main.scrollTop = 0;
+}
+$$("[data-go]").forEach(b => b.addEventListener("click", () => goto(b.dataset.go)));
+addEventListener("keydown", e => {
+  const tag = (e.target.tagName || "").toUpperCase();
+  if (tag === "INPUT" || tag === "SELECT" || e.target.isContentEditable) return;
+  if (e.key.toLowerCase() === "t" && !e.metaKey && !e.ctrlKey) return tbtn.click();
+  if (e.key >= "0" && e.key <= "2") goto(e.key);
+  const cur = +$(".rail button.on").dataset.go;
+  if (e.key === "ArrowRight") goto(Math.min(2, cur + 1));
+  if (e.key === "ArrowLeft")  goto(Math.max(0, cur - 1));
+});
+
+/* ═══ Screenshot hooks + boot ═════════════════════════════════════════ */
+window.__mock = {
+  goto, setTheme,
+  seedCustom(label = "Retreat", color = "#5fbdb0") {
+    types.push({ id: ++uid, label, color, source: "custom", page: "Timeline", att: false, why: "Your own type", on: true });
+    render();
+  },
+};
+render();
+goto(1);
+</script>
+</body>
+</html>
