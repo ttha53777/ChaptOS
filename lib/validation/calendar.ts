@@ -1,11 +1,15 @@
 import { z } from "zod";
-import { CALENDAR_CATEGORIES } from "@/lib/state";
 import { DATE_RE } from "@/lib/dates";
+
+// Category is now a per-org CalendarEventType slug, not a fixed enum. Zod only
+// checks the shape (kebab-case, bounded); the calendar service validates the slug
+// against the org's CalendarEventType rows and returns a friendly error.
+const CATEGORY_SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 export const createCalendarInput = z.object({
   title:       z.string().trim().min(1).max(200),
   date:        z.string().regex(DATE_RE),
-  category:    z.enum(CALENDAR_CATEGORIES as readonly [string, ...string[]]),
+  category:    z.string().trim().min(1).max(50).regex(CATEGORY_SLUG_RE),
   mandatory:   z.boolean(),
   time:        z.string().nullable().optional(),
   description: z.string().max(50000).nullable().optional(),
@@ -22,7 +26,7 @@ export const updateCalendarInput = z.object({
   title:       z.string().nullable().optional(),
   date:        z.string().regex(DATE_RE).nullable().optional(),
   time:        z.string().nullable().optional(),
-  category:    z.enum(CALENDAR_CATEGORIES as readonly [string, ...string[]]).optional(),
+  category:    z.string().trim().min(1).max(50).regex(CATEGORY_SLUG_RE).optional(),
   mandatory:   z.boolean().optional(),
   description: z.string().max(50000).nullable().optional(),
   location:    z.string().nullable().optional(),

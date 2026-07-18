@@ -1,16 +1,30 @@
 import type { Prisma } from "@/app/generated/prisma/client";
 import type { RequestContext } from "@/lib/context";
 import { emit } from "@/lib/events";
-import { NotFoundError } from "@/lib/errors";
-import { CALENDAR_CATEGORIES } from "@/lib/state";
+import { NotFoundError, ValidationError } from "@/lib/errors";
 import { assertWithinActiveSemester } from "./semester-bounds";
 import type { CreateCalendarInput, UpdateCalendarInput } from "@/lib/validation/calendar";
 
+/**
+ * Validate an event's category against the org's CalendarEventType rows — the
+ * per-org replacement for the old fixed-enum CHECK. On create the type must be
+ * creatable-from-the-timeline and not hidden (party/deadline are managed
+ * elsewhere; hidden types are retired). Workflow-gating is a client/picker
+ * concern, not enforced here. On update we only require the type to exist, so a
+ * legacy event keeps an editable category even after its type was hidden.
+ */
+async function assertCategoryUsable(ctx: RequestContext, slug: string, mode: "create" | "update") {
+  const type = await ctx.db.calendarEventType.findFirst({ where: { slug } });
+  if (!type) throw new ValidationError(`Unknown event type "${slug}"`);
+  if (mode === "create" && (!type.creatable || type.hidden)) {
+    throw new ValidationError(`The "${type.label}" event type isn't available for new events`);
+  }
+}
+
 export async function listCalendar(ctx: RequestContext, opts: { category?: string | null } = {}) {
-  const where: Prisma.CalendarEventWhereInput =
-    opts.category && (CALENDAR_CATEGORIES as readonly string[]).includes(opts.category)
-      ? { category: opts.category }
-      : {};
+  // Trust the category string as a plain WHERE filter — valid values are now
+  // per-org CalendarEventType slugs, so custom categories must pass through.
+  const where: Prisma.CalendarEventWhereInput = opts.category ? { category: opts.category } : {};
   // The scoped wrapper's return type doesn't carry the `include` through, so type the
   // payload explicitly. The runtime select matches this shape.
   type CalendarRowWithProgramming = Prisma.CalendarEventGetPayload<{
@@ -31,6 +45,7 @@ export async function listCalendar(ctx: RequestContext, opts: { category?: strin
 }
 
 export async function createCalendar(ctx: RequestContext, input: CreateCalendarInput) {
+  await assertCategoryUsable(ctx, input.category, "create");
   await assertWithinActiveSemester(ctx, input.date);
   const event = await ctx.db.calendarEvent.create({
     data: {
@@ -50,6 +65,7 @@ export async function createCalendar(ctx: RequestContext, input: CreateCalendarI
 }
 
 export async function updateCalendar(ctx: RequestContext, id: number, input: UpdateCalendarInput) {
+  if (input.category != null) await assertCategoryUsable(ctx, input.category, "update");
   // Only re-validate when the date is actually being moved to a concrete value;
   // clearing it (null) or leaving it untouched (undefined) skips the bound check
   // so harmless edits to legacy out-of-range events aren't blocked.

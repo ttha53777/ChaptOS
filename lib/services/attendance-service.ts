@@ -1,7 +1,7 @@
 import type { RequestContext } from "@/lib/context";
 import { emit } from "@/lib/events";
 import { NotFoundError, ValidationError } from "@/lib/errors";
-import { ExcuseStatus, CALENDAR_CATEGORIES } from "@/lib/state";
+import { ExcuseStatus } from "@/lib/state";
 import { getActiveSemester } from "@/lib/attendance";
 import type { RecordAttendanceInput } from "@/lib/validation/attendance";
 
@@ -29,10 +29,9 @@ export async function summarizeAttendance(
   ctx: RequestContext,
   opts: { category?: string | null } = {},
 ): Promise<AttendanceSummaryRow[]> {
-  const category =
-    opts.category && (CALENDAR_CATEGORIES as readonly string[]).includes(opts.category)
-      ? opts.category
-      : undefined;
+  // Trust the category string as a plain WHERE filter — valid values are now
+  // per-org CalendarEventType slugs, so custom categories must pass through.
+  const category = opts.category || undefined;
 
   const [events, semester] = await Promise.all([
     ctx.db.calendarEvent.findMany({
