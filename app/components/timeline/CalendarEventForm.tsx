@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import type { CalendarEvent, CalEventCategory } from "../../data";
+import type { CalendarEvent } from "../../data";
 import { toDateStr } from "../../lib/dates";
 import "./calendar-event-form.css";
 
@@ -9,15 +9,14 @@ import "./calendar-event-form.css";
 // optional on the draft and populated solely when the form is rendered with `showCollab`.
 export type CalendarDraft = Omit<CalendarEvent, "id"> & { collab?: string };
 
-export const CATEGORY_OPTIONS: { id: CalEventCategory; label: string }[] = [
-  { id: "chapter", label: "Chapter" },
-  { id: "social", label: "Social" },
-  { id: "fundy", label: "Fundraiser" },
-  { id: "program", label: "Program" },
-  { id: "party", label: "Party" },
-  { id: "deadline", label: "Deadline" },
-  { id: "service", label: "Community Service" },
-];
+/** A selectable category chip. `color` is optional — when absent the chip falls
+ *  back to the CSS var `--c-<slug>` (used by the Programming page's built-in set). */
+export interface CategoryOption {
+  slug: string;
+  label: string;
+  color?: string;
+  mandatoryDefault?: boolean;
+}
 
 function optionalValue(value: string): string | undefined {
   const trimmed = value.trim();
@@ -32,8 +31,8 @@ export function CalendarEventForm({
   initialCollab,
   submitLabel,
   onSubmit,
-  allowedCategories,
-  defaultCategory = "chapter",
+  categoryOptions,
+  defaultCategory,
   showCollab = false,
   minDate,
   maxDate,
@@ -43,9 +42,10 @@ export function CalendarEventForm({
   initialCollab?: string | null;
   submitLabel: string;
   onSubmit: (draft: CalendarDraft) => void;
-  /** When set, only these categories appear in the dropdown (e.g. programming page). */
-  allowedCategories?: CalEventCategory[];
-  defaultCategory?: CalEventCategory;
+  /** The selectable category chips — per-org event types, already filtered by the caller. */
+  categoryOptions: CategoryOption[];
+  /** Slug to preselect for a new event; defaults to the first option. */
+  defaultCategory?: string;
   /** Render the optional "Collab" field in the details block (programming page). */
   showCollab?: boolean;
   /** Active-semester bounds (YYYY-MM-DD) that constrain the date picker. */
@@ -59,16 +59,21 @@ export function CalendarEventForm({
   const [title, setTitle] = useState(initialEvent?.title ?? "");
   const [date, setDate] = useState(initialEvent?.date ?? defaultDate);
   const [time, setTime] = useState(initialEvent?.time ?? "");
-  const [category, setCategory] = useState<CalEventCategory>(initialEvent?.category ?? defaultCategory);
-  const [mandatory, setMandatory] = useState(initialEvent?.mandatory ?? false);
+  const initialCategory = initialEvent?.category ?? defaultCategory ?? categoryOptions[0]?.slug ?? "";
+  const [category, setCategory] = useState<string>(initialCategory);
+  const [mandatory, setMandatory] = useState(
+    initialEvent?.mandatory ?? categoryOptions.find(o => o.slug === initialCategory)?.mandatoryDefault ?? false,
+  );
   const [collab, setCollab] = useState(initialCollab ?? "");
   const [location, setLocation] = useState(initialEvent?.location ?? "");
   const [description, setDescription] = useState(initialEvent?.description ?? "");
-  const categoryOptions = allowedCategories
-    ? CATEGORY_OPTIONS.filter(o => allowedCategories.includes(o.id))
-    : CATEGORY_OPTIONS.filter(option =>
-        option.id !== "deadline" && option.id !== "party" || option.id === initialEvent?.category
-      );
+
+  // Picking a type that defaults to required (e.g. Chapter) auto-checks the box;
+  // picking a non-required type never *unchecks* a box the user set on purpose.
+  function selectCategory(option: CategoryOption) {
+    setCategory(option.slug);
+    if (option.mandatoryDefault) setMandatory(true);
+  }
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -121,16 +126,16 @@ export function CalendarEventForm({
           <span className="cef-label">Category</span>
           <div className="cef-chips" role="radiogroup" aria-label="Category">
             {categoryOptions.map(option => {
-              const selected = category === option.id;
+              const selected = category === option.slug;
               return (
                 <button
-                  key={option.id}
+                  key={option.slug}
                   type="button"
                   role="radio"
                   aria-checked={selected}
-                  onClick={() => setCategory(option.id)}
+                  onClick={() => selectCategory(option)}
                   className={`cef-chip${selected ? " on" : ""}`}
-                  style={{ ["--cdot" as string]: `var(--c-${option.id})` }}
+                  style={{ ["--cdot" as string]: option.color ?? `var(--c-${option.slug})` }}
                 >
                   <span className="dot" />
                   {option.label}

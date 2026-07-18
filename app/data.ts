@@ -8,8 +8,29 @@ export type InstagramType = "Story" | "Reel" | "Carousel";
 // Binary IG post status — mirrors Task's open|done. Urgency is computed from
 // dueDate, never stored. (TaskStatus above is retained for Programming tasks.)
 export type InstagramStatus = "open" | "posted";
+// Built-in category slugs. Event categories are now per-org, admin-editable
+// CalendarEventType rows (see lib/event-types.ts + the CalEventType DTO below),
+// so CalendarEvent.category is a free `string`. This union is retained only where
+// code still branches on the built-in slugs (e.g. the Programming page's fixed
+// subset) — it is NOT the exhaustive set of an org's categories.
 export type CalEventCategory = "chapter" | "social" | "fundy" | "program" | "party" | "deadline" | "service";
 export type CalLayer = "all" | "mandatory" | "deadlines" | "parties" | "service";
+
+// Per-org timeline event type — the client view of a CalendarEventType row.
+// Drives the timeline's labels/colors/legend and the add-event picker.
+export interface CalEventType {
+  id: number;
+  slug: string;
+  label: string;
+  color: string;              // light ("ivory") hex
+  colorDark: string | null;   // dark ("dusk") hex; falls back to color
+  workflowId: string | null;  // gates picker visibility; null = always available
+  builtin: boolean;
+  creatable: boolean;         // false = managed elsewhere (party, deadline)
+  hidden: boolean;
+  mandatoryDefault: boolean;
+  displayOrder: number;
+}
 
 export type IncomeCategory = "Door" | "Dues" | "Fines" | "Fundraiser" | "Event" | "Alumni donation" | "External / misc";
 export type ExpenseCategory = "Party Supplies" | "Operations" | "Brotherhood" | "Events" | "House" | "Travel" | "Misc";
@@ -227,7 +248,7 @@ export interface CalendarEvent {
   title: string;
   date: string;
   time?: string;
-  category: CalEventCategory;
+  category: string; // a CalEventType slug (per-org); see CalEventType above
   mandatory: boolean;
   description?: string;
   location?: string;
