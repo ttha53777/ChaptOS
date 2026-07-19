@@ -53,7 +53,7 @@ export function NameStep({
       </h1>
       <input
         className="name-input"
-        placeholder="Kappa Sigma"
+        placeholder="Oozma Kappa"
         autoComplete="off"
         spellCheck={false}
         value={draft.name}
