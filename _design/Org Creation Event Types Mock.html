@@ -1,0 +1,992 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ChaptOS — Org Creation · Event Types Step Mock</title>
+<!--
+  ChaptOS org-creation pipeline — EVENT TYPES STEP (concept mock)
+  ────────────────────────────────────────────────────────────────────────────
+  ASSUMPTIONS / REASONING
+  · Companion to "Org Creation Flow Mock v3.html" (the shipped /create look) and
+    "Timeline First-Entry Mock.html" (which explored event-type setup as a
+    post-creation Timeline interview). This mock moves that idea INTO the
+    creation flow as its own step and folds the result into the blueprint —
+    per the ask, no other step changes. The reimagined order:
+      1 Name → 2 Interview → 3 Roles → [4 TIMELINE · NEW] → 5 Blueprint
+      → 6 Build → 7 Reveal → 8 Invite
+    Only steps 4 and 5 are live here; the rail dims the unchanged ones and
+    points at the v3 mock.
+  · Data model mirrors lib/event-types.ts: 7 built-in types, each gated by a
+    workflow (chapter←meetings, social/fundy/program←events, party←parties,
+    deadline←tasks, service←service). Built-ins can be RENAMED and RECOLORED,
+    never removed — their slugs are load-bearing. Custom types are add/remove.
+    party + deadline are creatable:false (booked from their own pages) — noted
+    in their fine print, not surfaced as UI complexity.
+  · Persona: Kappa Sigma (v3 default) — fraternity template, dues pain, Sunday
+    chapter. Fraternity defaults have TASKS OFF, so the Deadline type shows as
+    a ghost row: the cheapest possible way to teach "types follow your pages."
+    Flipping Tasks ON from the blueprint's Pages card makes Deadline arrive —
+    the cross-effect is wired live.
+  · The right pane of the new step is a LIVE September preview: one sample
+    event per preloaded type. Rename "Social" → "Mixer" and the ledger + legend
+    follow; add "Rush" and a dashed scaffold row appears. Cause and effect,
+    no explanation needed.
+  · SCROLL SYSTEM: one language for every surface. The editor column (.ask),
+    the preview spine and the blueprint are each their own scroll region with
+    a quiet thin scrollbar and edge-fade masks that appear only when there is
+    more content in that direction; a fixed fade band above the rail lets
+    content slip under it instead of hard-clipping. Edits follow themselves:
+    adding a type scrolls both columns to it, opening a color strip or
+    deep-linking from a blueprint chip pulls that row into view (container
+    scrollTo — never scrollIntoView).
+  · Same delivery contract as every _design mock: one file, vanilla JS/CSS,
+    double-click to open, fonts from Google. Creation-world dark paper only
+    (the /create flow has no theme toggle).
+  · Screenshot hooks: window.__mock = { goto, addType, renameType, colorType }.
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,400;1,9..144,500;1,9..144,600&family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ═══ 0 · Tokens — verbatim from Org Creation Flow Mock v3 ═══════════════ */
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body { margin: 0; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+h1, h2, h3, h4, h6, p, ul { margin: 0; padding: 0; }
+button { font: inherit; color: inherit; background: none; border: none; cursor: pointer; }
+input { font: inherit; }
+
+:root {
+  --paper: #0f0d0a;
+  --paper-2: #14120e;
+  --paper-3: #1b1813;
+  --card: #161310;
+  --ink: #ece7dd;
+  --ink-72: rgba(236,231,221,.72);
+  --ink-55: rgba(236,231,221,.55);
+  --ink-40: rgba(236,231,221,.4);
+  --ink-28: rgba(236,231,221,.28);
+  --line: rgba(236,231,221,.13);
+  --line-soft: rgba(236,231,221,.07);
+  --vio: #a78bfa;
+  --vio-deep: #7c3aed;
+  --vio-soft: rgba(167,139,250,.12);
+  --vio-line: rgba(167,139,250,.32);
+  --gold: #ddb36a;
+  --ok: #7fb08a;
+  --ok-soft: rgba(127,176,138,.14);
+  --serif: "Fraunces", Georgia, serif;
+  --sans: "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --mono: "Geist Mono", ui-monospace, Menlo, monospace;
+  --ease: cubic-bezier(.16,1,.3,1);
+}
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--sans);
+  overflow: hidden;
+}
+body::before {
+  content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 0;
+  opacity: .55;
+  background-image: radial-gradient(rgba(236,231,221,.025) 1px, transparent 1px);
+  background-size: 4px 4px;
+}
+::selection { background: var(--vio-deep); color: #fff; }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--vio); outline-offset: 3px; border-radius: 4px; }
+
+/* ═══ 1 · Stage & chrome ═════════════════════════════════════════════════ */
+.stage { position: relative; z-index: 1; height: 100vh; height: 100dvh; display: flex; flex-direction: column; }
+.chrome { display: flex; align-items: center; justify-content: space-between; height: 60px; padding: 0 28px; flex: none; }
+.wm { display: flex; align-items: center; gap: 10px; }
+.glyph {
+  height: 26px; width: 26px; border-radius: 7px;
+  background: var(--ink); color: var(--paper);
+  font-family: var(--serif); font-weight: 600; font-size: 15px;
+  display: flex; align-items: center; justify-content: center;
+}
+.wm-txt { font-size: 12px; font-weight: 600; letter-spacing: .14em; }
+.chrome-tag { font-family: var(--mono); font-size: 10.5px; letter-spacing: .16em; color: var(--ink-28); }
+
+#screens { flex: 1; min-height: 0; position: relative; }
+.scr { position: absolute; inset: 0; display: none; animation: scr-in 560ms var(--ease) both; }
+.scr.active { display: block; }
+@keyframes scr-in {
+  from { opacity: 0; transform: translateY(12px) scale(.995); filter: blur(3px); }
+  to   { opacity: 1; transform: none; filter: blur(0); }
+}
+@keyframes row-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .scr, .et-row, .bp-card, .tl-row, .pg { animation: none !important; transition: none !important; }
+}
+
+.split {
+  height: 100%; display: grid;
+  grid-template-columns: minmax(460px, 47%) 1fr;
+  gap: clamp(24px, 4vw, 64px);
+  padding: 0 clamp(28px, 4.5vw, 72px) 84px;
+  align-items: center;
+}
+
+/* ── Scroll system — one language for every surface ──────────────────────
+   Each scrollable region (.ask, .spine, .bp) scrolls with NO visible
+   scrollbar — the edge-fade masks are the affordance (classes toggled from
+   JS, only when there is actually more content in that direction). A fixed
+   fade band above the rail lets scrolling content slip under it instead of
+   hard-clipping, and a document-level wheel handler routes scrolling from
+   anywhere on the page to the surface it visually belongs to. */
+.ask, .spine, .bp { scrollbar-width: none; }
+.ask::-webkit-scrollbar, .spine::-webkit-scrollbar, .bp::-webkit-scrollbar { display: none; }
+.fade-scroll {
+  --ft: 0px; --fb: 0px;
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 var(--ft), #000 calc(100% - var(--fb)), transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0, #000 var(--ft), #000 calc(100% - var(--fb)), transparent 100%);
+}
+.fade-scroll.scroll-top { --ft: 34px; }
+.fade-scroll.scroll-bot { --fb: 34px; }
+.stage::after {
+  content: ""; position: fixed; left: 0; right: 0; bottom: 0; height: 64px;
+  z-index: 40; pointer-events: none;
+  background: linear-gradient(to top, var(--paper) 8%, transparent);
+}
+.kicker { font-family: var(--mono); font-size: 11px; letter-spacing: .22em; text-transform: uppercase; color: var(--ink-40); margin-bottom: 16px; }
+.q-serif { font-family: var(--serif); font-weight: 500; font-size: clamp(30px, 3.4vw, 44px); line-height: 1.12; letter-spacing: -.01em; }
+.q-serif em { font-style: italic; color: var(--vio); }
+
+.cta {
+  display: inline-flex; align-items: center; gap: 10px;
+  margin-top: 22px; padding: 13px 26px; border-radius: 999px;
+  background: var(--ink); color: var(--paper);
+  font-size: 14.5px; font-weight: 600;
+  transition: transform 200ms var(--ease), box-shadow 200ms var(--ease);
+}
+.cta:hover { transform: translateY(-1px); box-shadow: 0 10px 30px -12px rgba(236,231,221,.35); }
+.cta.big { font-size: 15.5px; padding: 15px 34px; margin-top: 0; }
+.fine { margin-top: 10px; font-size: 12.5px; color: var(--ink-40); }
+
+/* ═══ 2 · Step 4 — the NEW event-types editor ════════════════════════════ */
+.ask {
+  max-width: 560px;
+  /* Centers like a static column while it fits; becomes its own scroll
+     region the moment rows, strips or the adder outgrow the viewport. */
+  max-height: calc(100dvh - 148px);
+  overflow-y: auto;
+  padding: 10px 14px 14px 4px;
+}
+.ask .sub { margin-top: 10px; font-size: 14px; color: var(--ink-55); line-height: 1.6; max-width: 480px; }
+.ask .sub b { color: var(--ink-72); font-weight: 500; }
+
+.et-list { margin-top: 18px; }
+.et-row {
+  display: grid; grid-template-columns: 24px 1fr auto; align-items: center; gap: 12px;
+  padding: 8px 0; border-top: 1px solid var(--line-soft);
+  animation: row-in 420ms var(--ease) both;
+}
+.et-row:first-child { border-top: 0; }
+.et-dot {
+  height: 15px; width: 15px; border-radius: 50%; justify-self: center;
+  background: var(--tc); cursor: pointer; position: relative;
+  transition: transform 160ms var(--ease), box-shadow 160ms var(--ease);
+}
+.et-dot:hover { transform: scale(1.2); box-shadow: 0 0 0 4px color-mix(in srgb, var(--tc) 22%, transparent); }
+.et-row.open .et-dot { box-shadow: 0 0 0 4px color-mix(in srgb, var(--tc) 22%, transparent); }
+.et-name { font-size: 15px; font-weight: 600; display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+.et-name .nm {
+  cursor: text; border-bottom: 1px dashed transparent; transition: border-color 180ms;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.et-name .nm:hover { border-color: var(--vio-line); }
+.et-name input {
+  background: transparent; border: none; outline: none; color: var(--ink);
+  font-size: 15px; font-weight: 600; padding: 0; width: 180px;
+  border-bottom: 1px dashed var(--vio-line);
+}
+.et-src { font-family: var(--mono); font-size: 8.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-28); white-space: nowrap; }
+.et-src.you { color: var(--vio); }
+.et-x {
+  margin-left: 4px; height: 20px; width: 20px; border-radius: 50%; line-height: 1;
+  color: var(--ink-28); font-size: 14px; opacity: 0; transition: all 160ms var(--ease);
+}
+.et-row:hover .et-x { opacity: 1; }
+.et-x:hover { color: var(--ink); background: var(--paper-3); }
+.et-row .et-side { display: flex; align-items: center; }
+
+/* expanded strip: swatches + fine print (spans the grid) */
+.et-more { grid-column: 1 / -1; overflow: hidden; max-height: 0; opacity: 0; transition: max-height 320ms var(--ease), opacity 260ms var(--ease); }
+.et-row.open .et-more { max-height: 90px; opacity: 1; }
+.et-more-in { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding: 8px 0 6px 36px; }
+.sws { display: flex; gap: 7px; }
+.sw {
+  height: 20px; width: 20px; border-radius: 50%; background: var(--sc);
+  border: 2px solid transparent; transition: transform 140ms var(--ease);
+}
+.sw:hover { transform: scale(1.18); }
+.sw.on { border-color: var(--paper); box-shadow: 0 0 0 2px var(--sc); }
+.et-note { font-size: 11.5px; color: var(--ink-40); font-style: italic; font-family: var(--serif); }
+.et-note button { color: var(--ink-55); text-decoration: underline; text-underline-offset: 2px; font-size: 11.5px; font-style: italic; font-family: var(--serif); padding: 0; }
+.et-note button:hover { color: var(--ink); }
+
+/* the Deadline ghost — a type that hasn't arrived because its page is off */
+.et-row.ghost { opacity: .55; }
+.et-row.ghost .et-dot { background: transparent; border: 1.5px dashed var(--ink-28); cursor: default; }
+.et-row.ghost .et-dot:hover { transform: none; box-shadow: none; }
+.et-row.ghost .et-name .nm { color: var(--ink-40); font-weight: 500; cursor: default; border-color: transparent; }
+.et-row.ghost .et-ghost-note { font-size: 12px; color: var(--ink-28); font-style: italic; }
+
+/* adder */
+.et-add { margin-top: 4px; padding: 10px 0 0; border-top: 1px solid var(--line-soft); }
+.et-add-btn { font-size: 13.5px; color: var(--ink-40); transition: color 180ms; padding: 4px 0; }
+.et-add-btn:hover { color: var(--ink); }
+.et-add-btn b { color: var(--ink-55); font-weight: 500; }
+.et-add-btn .plus { color: var(--vio); margin-right: 8px; }
+.et-editor { display: none; margin-top: 10px; padding: 16px 18px; border: 1px solid var(--vio-line); border-radius: 13px; background: var(--card); }
+.et-editor.on { display: block; animation: row-in 260ms var(--ease) both; }
+.et-editor .lab { font-family: var(--mono); font-size: 9px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-40); margin-bottom: 7px; }
+.et-editor input.newname {
+  width: 100%; background: transparent; border: none; outline: none; color: var(--ink);
+  border-bottom: 1px solid var(--line); font-family: var(--serif); font-size: 19px; font-weight: 500;
+  padding: 2px 1px 8px; caret-color: var(--vio); transition: border-color 200ms;
+}
+.et-editor input.newname::placeholder { color: var(--ink-28); font-style: italic; }
+.et-editor input.newname:focus { border-color: var(--vio-line); }
+.sugg { display: flex; gap: 7px; flex-wrap: wrap; margin: 10px 0 14px; }
+.sugg button {
+  font-size: 12px; color: var(--ink-55); border: 1px solid var(--line); border-radius: 999px;
+  padding: 4px 12px; transition: all 160ms var(--ease);
+}
+.sugg button:hover { border-color: var(--vio-line); color: var(--ink); background: var(--vio-soft); }
+.et-ed-foot { display: flex; align-items: center; gap: 16px; margin-top: 12px; }
+.et-ed-add { background: var(--vio-deep); color: #fff; border-radius: 999px; padding: 8px 20px; font-size: 13px; font-weight: 600; transition: box-shadow 180ms; }
+.et-ed-add:disabled { opacity: .4; cursor: default; }
+.et-ed-add:not(:disabled):hover { box-shadow: 0 8px 22px -10px var(--vio-deep); }
+.et-ed-cancel { font-size: 12.5px; color: var(--ink-40); }
+.et-ed-cancel:hover { color: var(--ink); }
+
+/* ═══ 3 · Step 4 right pane — live September preview ═════════════════════ */
+.sheet-slot { height: min(76vh, 680px); display: flex; align-items: center; }
+.sheet-wrap { width: 100%; max-height: 100%; position: relative; }
+.sheet-wrap::before {
+  content: ""; position: absolute; inset: -8% -6%;
+  background:
+    radial-gradient(42% 46% at 22% 24%, rgba(167,139,250,.12), transparent 70%),
+    radial-gradient(38% 42% at 82% 78%, rgba(217,179,106,.07), transparent 70%);
+  filter: blur(6px); pointer-events: none;
+}
+.sheet-cap { position: absolute; top: -28px; left: 2px; font-family: var(--mono); font-size: 10px; letter-spacing: .18em; color: var(--ink-28); text-transform: uppercase; }
+.sheet {
+  position: relative; width: 100%;
+  /* the slot's own cap — a % here resolves against an indefinite height and
+     would let the card grow instead of the spine scrolling */
+  max-height: min(76vh, 680px);
+  background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+  box-shadow: 0 2px 4px rgba(0,0,0,.5), 0 32px 80px -24px rgba(0,0,0,.7);
+  overflow: hidden; display: flex; flex-direction: column;
+  padding: 20px 22px 16px;
+}
+.tl-month { display: flex; align-items: baseline; gap: 12px; padding-bottom: 12px; }
+.tl-month h2 { font-family: var(--serif); font-weight: 400; font-size: 22px; letter-spacing: -.01em; white-space: nowrap; }
+.tl-month h2 .yr { color: var(--ink-28); font-style: italic; font-size: 15px; margin-left: 5px; }
+.tl-month .rule { flex: 1; height: 1px; background: var(--line-soft); align-self: center; }
+.tl-month .cnt { font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--vio); white-space: nowrap; }
+
+.spine { position: relative; overflow-y: auto; min-height: 0; }
+.spine::before { content: ""; position: absolute; left: 52px; top: 6px; bottom: 10px; width: 1px; background: var(--line-soft); }
+.tl-row { display: flex; align-items: stretch; animation: row-in 380ms var(--ease) both; }
+.tl-date { width: 42px; flex: none; text-align: right; padding-right: 12px; padding-top: 2px; }
+.tl-date .dow { font-family: var(--mono); font-size: 8px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-28); }
+.tl-date .dnum { font-family: var(--serif); font-size: 19px; line-height: 1.1; color: var(--ink-72); margin-top: 1px; }
+.tl-node { width: 20px; flex: none; position: relative; }
+.tl-node .dot {
+  position: absolute; left: 50%; top: 7px; transform: translateX(-50%);
+  width: 11px; height: 11px; border-radius: 50%; background: var(--card); box-shadow: 0 0 0 1px var(--line);
+}
+.tl-node .dot i { position: absolute; inset: 2.5px; border-radius: 50%; background: var(--tc); display: block; }
+.tl-body { flex: 1; min-width: 0; padding: 0 0 11px 12px; }
+.tl-card {
+  border: 1px solid var(--line-soft); border-radius: 10px; background: var(--paper-2);
+  padding: 9px 13px; display: flex; align-items: center; gap: 12px;
+  transition: border-color 200ms var(--ease);
+}
+.tl-card .grow { flex: 1; min-width: 0; }
+.tl-card .t { font-size: 13px; font-weight: 600; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tl-card .cat { font-family: var(--mono); font-size: 8.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--tc); margin-top: 3px; }
+.tl-card .when { font-family: var(--mono); font-size: 9.5px; letter-spacing: .06em; color: var(--ink-28); flex: none; white-space: nowrap; }
+.tl-row.scaf .tl-card { background: transparent; border-style: dashed; }
+.tl-row.scaf .t { color: var(--ink-55); font-weight: 500; }
+.tl-row.scaf .plus { flex: none; color: var(--tc); font-family: var(--mono); font-size: 14px; line-height: 1; }
+.tl-row.flash .tl-card { animation: card-flash 900ms var(--ease); }
+@keyframes card-flash {
+  0% { border-color: var(--vio-line); background: var(--vio-soft); }
+  100% { border-color: var(--line-soft); }
+}
+
+.sheet-legend { flex: none; border-top: 1px solid var(--line-soft); margin-top: 6px; padding-top: 12px; }
+.sheet-legend h6 { font-family: var(--mono); font-size: 9px; font-weight: 600; letter-spacing: .2em; text-transform: uppercase; color: var(--ink-40); margin-bottom: 9px; }
+.lgd { display: flex; flex-wrap: wrap; gap: 5px 16px; }
+.lgd .li { display: inline-flex; align-items: center; gap: 7px; }
+.lgd .li .d { height: 8px; width: 8px; border-radius: 50%; background: var(--tc); }
+.lgd .li .nm { font-size: 11.5px; color: var(--ink-72); }
+.lgd .li .src { font-family: var(--mono); font-size: 7.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-28); }
+.lgd .li .src.you { color: var(--vio); }
+
+/* ═══ 4 · Step 5 — blueprint (v3 classes, + the new Timeline card) ═══════ */
+.bp { height: 100%; overflow-y: auto; padding: 12px clamp(28px, 5vw, 80px) 110px; }
+.bp-head { max-width: 760px; margin: 0 auto 8px; text-align: center; padding-top: 2vh; }
+.bp-head .q-serif { margin-bottom: 12px; }
+.bp-sub { font-size: 14.5px; color: var(--ink-55); }
+.bp-grid { max-width: 1010px; margin: 30px auto 0; display: grid; grid-template-columns: 1.15fr 1fr; gap: 18px; align-items: start; }
+.bp-card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 20px 22px; animation: row-in 480ms var(--ease) both; }
+.bp-col { display: flex; flex-direction: column; gap: 18px; }
+.bp-card h3 { font-family: var(--mono); font-size: 11px; font-weight: 600; letter-spacing: .2em; text-transform: uppercase; color: var(--ink-40); margin-bottom: 16px; }
+.bp-card h3 .why { float: right; letter-spacing: .04em; text-transform: none; color: var(--ink-28); font-weight: 400; }
+.newtag {
+  font-family: var(--mono); font-size: 8.5px; letter-spacing: .14em; color: var(--vio);
+  border: 1px solid var(--vio-line); background: var(--vio-soft); border-radius: 4px;
+  padding: 2px 6px; margin-left: 8px; vertical-align: 1px;
+}
+.bp-card.tl-types { border-color: var(--vio-line); background: radial-gradient(120% 110% at 0% 0%, var(--vio-soft), transparent 55%), var(--card); }
+.bp-card.tl-types.flash { animation: card-flash 900ms var(--ease); }
+
+.wf-row { display: flex; align-items: baseline; gap: 12px; padding: 9px 0; border-top: 1px solid var(--line-soft); }
+.wf-row:first-of-type { border-top: 0; }
+.wf-name { font-size: 14.5px; font-weight: 600; flex: none; width: 128px; }
+.wf-row.off .wf-name { color: var(--ink-40); font-weight: 500; }
+.wf-why { flex: 1; font-size: 12.5px; color: var(--ink-55); font-style: italic; }
+.wf-why q { quotes: "\201C" "\201D"; color: var(--ink-72); }
+.wf-row.off .wf-why { color: var(--ink-28); }
+.wf-tgl {
+  flex: none; font-family: var(--mono); font-size: 10px; letter-spacing: .1em;
+  padding: 4px 12px; border-radius: 999px;
+  border: 1px solid rgba(127,176,138,.4); color: var(--ok); background: var(--ok-soft);
+  transition: all 180ms var(--ease); min-width: 46px;
+}
+.wf-row.off .wf-tgl { border-color: var(--line); color: var(--ink-40); background: transparent; }
+.wf-tgl:hover { transform: scale(1.05); }
+.wf-tgl.locked { border-color: var(--line); color: var(--ink-28); background: transparent; cursor: default; }
+.wf-tgl.locked:hover { transform: none; }
+
+.pg-chips { display: flex; flex-wrap: wrap; gap: 7px; }
+.pg {
+  display: inline-flex; align-items: center; gap: 7px;
+  font-size: 12px; color: var(--ink-72);
+  border: 1px solid var(--line); border-radius: 999px; padding: 4px 12px;
+  animation: row-in 420ms var(--ease) both;
+  transition: all 160ms var(--ease);
+}
+.pg .dot { height: 7px; width: 7px; border-radius: 50%; background: var(--tc, var(--ink-40)); }
+.pg .yo { font-family: var(--mono); font-size: 7.5px; letter-spacing: .1em; color: var(--vio); }
+.pg.click { cursor: pointer; }
+.pg.click:hover { border-color: var(--vio-line); color: var(--ink); background: var(--vio-soft); transform: translateY(-1px); }
+.pg.edit { border-style: dashed; color: var(--ink-40); }
+.pg.edit:hover { border-color: var(--vio-line); color: var(--ink); border-style: solid; }
+.tl-types-note { margin-top: 14px; font-size: 12px; color: var(--ink-55); font-style: italic; line-height: 1.55; }
+.tl-types-note b { color: var(--ink-72); }
+
+.vocab-row { display: flex; flex-wrap: wrap; gap: 10px; }
+.vocab-chip { display: inline-flex; align-items: baseline; gap: 8px; border: 1px solid var(--line); border-radius: 10px; padding: 9px 14px; }
+.vocab-chip .vl { font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-40); }
+.vocab-chip .vv { font-family: var(--serif); font-size: 16px; color: var(--ink); }
+.vocab-chip .vv .vv-plural { color: var(--ink-40); font-size: 13px; }
+.vocab-note { margin-top: 14px; font-size: 12.5px; color: var(--ink-55); font-style: italic; }
+.vocab-note b { color: var(--ink-72); }
+
+.seat { display: grid; grid-template-columns: 9px 108px 1fr auto; align-items: center; gap: 11px; padding: 10px 0; border-top: 1px solid var(--line-soft); }
+.seat:first-of-type { border-top: 0; }
+.seat-dot { height: 9px; width: 9px; border-radius: 50%; }
+.seat-title { font-size: 14px; font-weight: 600; }
+.seat-able { font-size: 12px; color: var(--ink-55); font-style: italic; }
+.seat-you { font-family: var(--mono); font-size: 10px; letter-spacing: .12em; color: var(--paper); background: var(--ink); border-radius: 999px; padding: 3px 10px; justify-self: end; }
+
+.term-line { font-family: var(--serif); font-size: 21px; margin-bottom: 8px; }
+.term-meta { font-size: 13px; color: var(--ink-55); line-height: 1.7; }
+.term-meta .dot { display: inline-block; height: 5px; width: 5px; border-radius: 50%; background: var(--vio); margin: 0 4px 2px 0; }
+
+.bp-cta-row { max-width: 1010px; margin: 30px auto 0; display: flex; align-items: center; justify-content: center; gap: 22px; }
+.bp-foot { text-align: center; margin-top: 14px; font-size: 12px; color: var(--ink-28); }
+.bp-foot code { font-family: var(--mono); font-size: 11px; }
+
+/* ═══ 5 · Step rail ══════════════════════════════════════════════════════ */
+.rail-cap {
+  position: fixed; left: 50%; bottom: 66px; transform: translateX(-50%); z-index: 60;
+  font-family: var(--serif); font-style: italic; font-size: 13px; color: var(--ink-40);
+  pointer-events: none; text-align: center; width: max-content; max-width: 80vw;
+  padding: 4px 14px; border-radius: 999px; background: color-mix(in srgb, var(--paper) 60%, transparent); backdrop-filter: blur(8px);
+}
+.rail {
+  position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 60;
+  display: flex; gap: 2px; background: color-mix(in srgb, var(--paper) 86%, transparent);
+  border: 1px solid var(--line); border-radius: 999px; padding: 5px;
+  backdrop-filter: blur(14px) saturate(140%); box-shadow: 0 2px 4px rgba(0,0,0,.5), 0 20px 50px -20px rgba(0,0,0,.7);
+}
+.rail button {
+  display: flex; align-items: center; gap: 8px; padding: 7px 14px; border-radius: 999px;
+  font-family: var(--mono); font-size: 10.5px; letter-spacing: .08em; color: var(--ink-40);
+  transition: all 200ms var(--ease); white-space: nowrap;
+}
+.rail button .n { font-size: 9.5px; opacity: .7; }
+.rail button:hover { color: var(--ink); }
+.rail button.on { background: var(--ink); color: var(--paper); }
+.rail button.dim { color: var(--ink-28); cursor: default; }
+.rail button.dim:hover { color: var(--ink-28); }
+.rail button .nb {
+  font-family: var(--mono); font-size: 7.5px; letter-spacing: .12em; color: var(--vio);
+  border: 1px solid var(--vio-line); border-radius: 3px; padding: 1px 4px; margin-left: 2px;
+}
+.rail button.on .nb { color: var(--vio-deep); border-color: rgba(124,58,237,.4); }
+
+@media (max-width: 1180px) {
+  .rail button .lbl { display: none; }
+  .split { grid-template-columns: 1fr; align-items: start; overflow-y: auto; padding-top: 8px; }
+  /* stacked: the page flows as one scroll — the column stops being its own region */
+  .ask { max-height: none; overflow: visible; -webkit-mask-image: none; mask-image: none; }
+  .sheet-slot { height: auto; }
+  .spine { max-height: 52vh; }
+  .bp-grid { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+<div class="stage">
+  <header class="chrome">
+    <div class="wm"><span class="glyph">C</span><span class="wm-txt">CHAPTOS</span></div>
+    <div class="chrome-tag">ORG CREATION · EVENT TYPES STEP · CONCEPT</div>
+  </header>
+
+  <main id="screens">
+
+    <!-- ── STEP 4 · TIMELINE (the new page) ──────────────────────────── -->
+    <section class="scr" data-step="4">
+      <div class="split">
+        <div class="ask fade-scroll" id="askCol">
+          <p class="kicker">Step 4 · Straight from your pages</p>
+          <h1 class="q-serif">What lands on your <em>timeline</em>?</h1>
+          <p class="sub">The pages you turned on already stocked it — <b>rename or recolor</b> anything. Then add the ones only Kappa&nbsp;Sigma runs.</p>
+          <div class="et-list" id="etList"></div>
+          <div class="et-add">
+            <button class="et-add-btn" id="etAddBtn"><span class="plus">+</span>Add your own — <b>Rush, Formal, Big/Little Reveal…</b></button>
+            <div class="et-editor" id="etEditor">
+              <input class="newname" id="etNewName" placeholder="Name it — Rush Week…" autocomplete="off" spellcheck="false" aria-label="New event type name">
+              <div class="sugg" id="etSugg"></div>
+              <div class="lab">Its color on the timeline</div>
+              <div class="sws" id="etNewSws"></div>
+              <div class="et-ed-foot">
+                <button class="et-ed-add" id="etEdAdd" disabled>Add to timeline<span>&nbsp;&rarr;</span></button>
+                <button class="et-ed-cancel" id="etEdCancel">Cancel</button>
+              </div>
+            </div>
+          </div>
+          <button class="cta" data-go="5">Looks right — review the blueprint<span>→</span></button>
+          <p class="fine" id="etFine"></p>
+        </div>
+        <div class="sheet-slot">
+          <div class="sheet-wrap">
+            <div class="sheet-cap">Live preview · how September reads</div>
+            <div class="sheet">
+              <div class="tl-month">
+                <h2>September<span class="yr">&rsquo;26</span></h2>
+                <span class="rule"></span>
+                <span class="cnt" id="tlCnt"></span>
+              </div>
+              <div class="spine fade-scroll" id="tlSpine"></div>
+              <div class="sheet-legend">
+                <h6>Your palette</h6>
+                <div class="lgd" id="tlLegend"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── STEP 5 · BLUEPRINT (v3 + the new Timeline card) ───────────── -->
+    <section class="scr" data-step="5">
+      <div class="bp fade-scroll" id="bpScroll">
+        <div class="bp-head">
+          <p class="kicker">Your blueprint — the sheet you watched assemble</p>
+          <h1 class="q-serif">Here&rsquo;s the workspace I&rsquo;d build for <em>Kappa&nbsp;Sigma</em>.</h1>
+          <p class="bp-sub">Everything below came from your answers. Tap anything to change it — nothing is locked in.</p>
+        </div>
+        <div class="bp-grid">
+          <div class="bp-col">
+            <div class="bp-card">
+              <h3>Pages <span class="why">why it&rsquo;s here</span></h3>
+              <div id="wfList"></div>
+            </div>
+            <div class="bp-card">
+              <h3>Your words</h3>
+              <div class="vocab-row">
+                <span class="vocab-chip"><span class="vl">member</span><span class="vv">Brother<span class="vv-plural"> / Brothers</span></span></span>
+                <span class="vocab-chip"><span class="vl">meetings</span><span class="vv">Chapter</span></span>
+                <span class="vocab-chip"><span class="vl">period</span><span class="vv">Semester</span></span>
+              </div>
+              <p class="vocab-note">You said a fraternity — so I&rsquo;ll use <b>your</b> words everywhere. Click any to change it; the plural is figured out for you.</p>
+            </div>
+          </div>
+          <div class="bp-col">
+            <!-- THE NEW CARD — the event-types step folded into the blueprint -->
+            <div class="bp-card tl-types" id="tlTypesCard">
+              <h3>Timeline event types<span class="newtag">NEW</span> <span class="why">tap a chip to edit</span></h3>
+              <div class="pg-chips" id="bpTypeChips"></div>
+              <p class="tl-types-note" id="bpTypeNote"></p>
+            </div>
+            <div class="bp-card">
+              <h3>Leadership <span class="why">titles &amp; abilities are yours to change</span></h3>
+              <div class="seat"><span class="seat-dot" style="background:#a78bfa"></span><span class="seat-title">President</span><span class="seat-able">everything — that&rsquo;s you</span><span class="seat-you">YOU</span></div>
+              <div class="seat"><span class="seat-dot" style="background:#7fb08a"></span><span class="seat-title">Treasurer</span><span class="seat-able">logs dues &amp; payments</span><span></span></div>
+              <div class="seat"><span class="seat-dot" style="background:#d98ba3"></span><span class="seat-title">Social</span><span class="seat-able">plans events &amp; parties</span><span></span></div>
+              <div class="seat"><span class="seat-dot" style="background:#7fb3d9"></span><span class="seat-title">PR</span><span class="seat-able">runs posts &amp; announcements</span><span></span></div>
+            </div>
+            <div class="bp-card">
+              <h3>This semester</h3>
+              <div class="term-line">Fall 2026</div>
+              <div class="term-meta">Aug 24 – Dec 18 &nbsp;·&nbsp; dues on<br><span class="dot"></span>Chapter · 7:00 PM · repeats weekly — already placed</div>
+            </div>
+          </div>
+        </div>
+        <div class="bp-cta-row">
+          <button class="cta big" id="buildBtn">Looks right — build it<span>→</span></button>
+        </div>
+        <p class="bp-foot" id="bpFoot">This exact sheet is what gets created — one atomic <code>provisionOrg</code> call, <b>now including your event types</b>. Open the console to see the payload. Build → Reveal → Invite are unchanged from v3.</p>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<div class="rail-cap" id="railCap"></div>
+<nav class="rail" id="rail" aria-label="Steps">
+  <button class="dim" title="Unchanged — see Org Creation Flow Mock v3"><span class="n">1</span><span class="lbl">NAME</span></button>
+  <button class="dim" title="Unchanged — see Org Creation Flow Mock v3"><span class="n">2</span><span class="lbl">INTERVIEW</span></button>
+  <button class="dim" title="Unchanged — see Org Creation Flow Mock v3"><span class="n">3</span><span class="lbl">ROLES</span></button>
+  <button data-go="4"><span class="n">4</span><span class="lbl">TIMELINE</span><span class="nb">NEW</span></button>
+  <button data-go="5"><span class="n">5</span><span class="lbl">BLUEPRINT</span></button>
+  <button class="dim" title="Unchanged — see Org Creation Flow Mock v3"><span class="n">6</span><span class="lbl">BUILD</span></button>
+  <button class="dim" title="Unchanged — see Org Creation Flow Mock v3"><span class="n">7</span><span class="lbl">REVEAL</span></button>
+  <button class="dim" title="Unchanged — see Org Creation Flow Mock v3"><span class="n">8</span><span class="lbl">INVITE</span></button>
+</nav>
+
+<script>
+/* ═══ State ═════════════════════════════════════════════════════════════
+   Mirrors lib/event-types.ts BUILTIN_EVENT_TYPES (dusk color values — the
+   creation world is dark paper). Fraternity DEFAULT_WF from the v3 mock:
+   tasks + communications are OFF, so Deadline hasn't arrived. */
+const S = {
+  step: "4",
+  wf: { meetings: 1, members: 1, finance: 1, attendance: 1, events: 1, parties: 1, service: 1, docs: 1, tasks: 0, communications: 0 },
+  types: [
+    { slug: "chapter",  label: "Chapter",           color: "#8fb0d6", wfKey: "meetings", src: "CHAPTER", builtin: true,
+      note: "Came with your Chapter page &middot; attendance required by default &mdash; both editable in Settings." },
+    { slug: "social",   label: "Social",            color: "#ddb36a", wfKey: "events",   src: "EVENTS",  builtin: true,
+      note: "Came with your Events page &mdash; rename or recolor it; turn the page off to shelve it." },
+    { slug: "fundy",    label: "Fundraiser",        color: "#86b988", wfKey: "events",   src: "EVENTS",  builtin: true,
+      note: "Came with your Events page &mdash; rename or recolor it; turn the page off to shelve it." },
+    { slug: "program",  label: "Program",           color: "#a78bfa", wfKey: "events",   src: "EVENTS",  builtin: true,
+      note: "Came with your Events page &mdash; rename or recolor it; turn the page off to shelve it." },
+    { slug: "party",    label: "Party",             color: "#d98ba3", wfKey: "parties",  src: "PARTIES", builtin: true,
+      note: "Booked from the Parties page &mdash; every party lands on the timeline in this color." },
+    { slug: "service",  label: "Community Service", color: "#5fbdb0", wfKey: "service",  src: "SERVICE", builtin: true,
+      note: "Came with your Service page &mdash; service events land here in this color." },
+    { slug: "deadline", label: "Deadline",          color: "#e0796b", wfKey: "tasks",    src: "TASKS",   builtin: true,
+      note: "Set on the Tasks page &mdash; due dates land on the timeline in this color." },
+  ],
+  custom: [],       // { slug, label, color }
+  open: null,       // slug of the row with its color strip expanded
+  flash: null,      // slug to flash in the preview after an edit
+};
+
+const SWATCHES = ["#8fb0d6", "#7fb3d9", "#a78bfa", "#d98ba3", "#e0796b", "#d9a05b", "#ddb36a", "#86b988", "#5fbdb0", "#c98bd9"];
+const SUGGESTIONS = ["Rush", "Formal", "Big/Little Reveal", "Alumni Mixer", "Intramurals"];
+
+/* One honest sample event per built-in — the preview is the argument. */
+const SAMPLE = [
+  { slug: "chapter", d: "6",  dow: "SUN", title: null,                    when: "7:00 PM · WEEKLY" }, // title follows the live label
+  { slug: "social",  d: "11", dow: "FRI", title: "Mixer with Tri Delt",   when: "9:00 PM" },
+  { slug: "fundy",   d: "19", dow: "SAT", title: "Car Wash Fundraiser",   when: "10:00 AM" },
+  { slug: "service", d: "21", dow: "MON", title: "Adopt-a-Highway",       when: "9:00 AM" },
+  { slug: "program", d: "24", dow: "THU", title: "Résumé Workshop", when: "6:30 PM" },
+  { slug: "party",   d: "26", dow: "SAT", title: "Fall Formal",           when: "10:00 PM" },
+  { slug: "deadline",d: "30", dow: "WED", title: "Dues due",              when: "11:59 PM" },
+];
+
+const $  = (sel, root) => (root || document).querySelector(sel);
+const $$ = (sel, root) => [...(root || document).querySelectorAll(sel)];
+const esc = s => s.replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const slugify = s => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+
+/* ═══ Scroll system ═════════════════════════════════════════════════════
+   Every scrollable surface shares one behavior: edge fades appear only in
+   the direction that actually has more content, and edits pull the thing
+   they changed into view (container scrollTo — never scrollIntoView). */
+const SCROLLERS = ["#askCol", "#tlSpine", "#bpScroll"];
+function paintHints(el) {
+  const canScroll = el.scrollHeight > el.clientHeight + 2;
+  el.classList.toggle("scroll-top", canScroll && el.scrollTop > 6);
+  el.classList.toggle("scroll-bot", canScroll && el.scrollTop < el.scrollHeight - el.clientHeight - 6);
+}
+function paintAllHints() { SCROLLERS.forEach(s => paintHints($(s))); }
+SCROLLERS.forEach(s => $(s).addEventListener("scroll", () => paintHints($(s)), { passive: true }));
+window.addEventListener("resize", paintAllHints);
+
+function ensureVisible(container, el, pad = 24) {
+  if (!container || !el) return;
+  const cr = container.getBoundingClientRect(), er = el.getBoundingClientRect();
+  if (er.top < cr.top + pad) {
+    container.scrollTo({ top: container.scrollTop + (er.top - cr.top) - pad, behavior: "smooth" });
+  } else if (er.bottom > cr.bottom - pad) {
+    container.scrollTo({ top: container.scrollTop + (er.bottom - cr.bottom) + pad, behavior: "smooth" });
+  }
+}
+function scrollToEnd(container) {
+  container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
+}
+
+/* Scroll from anywhere: wheel deltas over non-scrolling chrome (the split's
+   gaps, the preview card's header/legend, the rail) are routed to the surface
+   they visually belong to. Over a scroller itself, the browser handles it. */
+document.addEventListener("wheel", ev => {
+  if (ev.target.closest("#askCol, #tlSpine, #bpScroll")) return;
+  const el = S.step === "5" ? $("#bpScroll")
+           : ev.target.closest(".sheet-slot") ? $("#tlSpine")
+           : $("#askCol");
+  if (el) el.scrollTop += ev.deltaMode === 1 ? ev.deltaY * 16 : ev.deltaY;
+}, { passive: true });
+
+function activeBuiltins() { return S.types.filter(t => S.wf[t.wfKey]); }
+function ghostBuiltins()  { return S.types.filter(t => !S.wf[t.wfKey]); }
+function allActive()      { return [...activeBuiltins(), ...S.custom]; }
+function findType(slug)   { return allActive().find(t => t.slug === slug); }
+function nextColor() {
+  const used = new Set(allActive().map(t => t.color));
+  return SWATCHES.find(c => !used.has(c)) || SWATCHES[(S.custom.length + 3) % SWATCHES.length];
+}
+
+/* ═══ Step 4 · the editor list ══════════════════════════════════════════ */
+function swatchStrip(current, onPick) {
+  const wrap = document.createElement("div");
+  wrap.className = "sws";
+  SWATCHES.forEach(c => {
+    const b = document.createElement("button");
+    b.className = "sw" + (c === current ? " on" : "");
+    b.style.setProperty("--sc", c);
+    b.title = c;
+    b.setAttribute("aria-label", "Use " + c);
+    b.addEventListener("click", () => onPick(c));
+    wrap.appendChild(b);
+  });
+  return wrap;
+}
+
+function renderList() {
+  const list = $("#etList");
+  list.innerHTML = "";
+  const rows = [
+    ...activeBuiltins().map(t => ({ t, kind: "builtin" })),
+    ...S.custom.map(t => ({ t, kind: "custom" })),
+    ...ghostBuiltins().map(t => ({ t, kind: "ghost" })),
+  ];
+  rows.forEach(({ t, kind }, i) => {
+    const row = document.createElement("div");
+    row.className = "et-row" + (kind === "ghost" ? " ghost" : "") + (S.open === t.slug ? " open" : "");
+    row.style.setProperty("--tc", t.color);
+    row.style.animationDelay = (i * 40) + "ms";
+
+    const dot = document.createElement("button");
+    dot.className = "et-dot";
+    dot.title = kind === "ghost" ? "" : "Change color";
+    dot.setAttribute("aria-label", (kind === "ghost" ? "" : "Change color of ") + t.label);
+    const name = document.createElement("div");
+    name.className = "et-name";
+    const nm = document.createElement("span");
+    nm.className = "nm";
+    nm.textContent = t.label;
+    if (kind !== "ghost") nm.title = "Click to rename";
+    name.appendChild(nm);
+    if (kind === "ghost") {
+      const gn = document.createElement("span");
+      gn.className = "et-ghost-note";
+      gn.textContent = "arrives when you turn the Tasks page on";
+      name.appendChild(gn);
+    }
+
+    const side = document.createElement("div");
+    side.className = "et-side";
+    const src = document.createElement("span");
+    src.className = "et-src" + (kind === "custom" ? " you" : "");
+    src.textContent = kind === "custom" ? "YOURS" : t.src + " PAGE";
+    side.appendChild(src);
+    if (kind === "custom") {
+      const x = document.createElement("button");
+      x.className = "et-x";
+      x.textContent = "×";
+      x.title = "Remove " + t.label;
+      x.setAttribute("aria-label", "Remove " + t.label);
+      x.addEventListener("click", ev => { ev.stopPropagation(); removeCustom(t.slug); });
+      side.appendChild(x);
+    }
+
+    row.append(dot, name, side);
+
+    if (kind !== "ghost") {
+      const more = document.createElement("div");
+      more.className = "et-more";
+      const inner = document.createElement("div");
+      inner.className = "et-more-in";
+      inner.appendChild(swatchStrip(t.color, c => { t.color = c; S.flash = t.slug; renderAll(); }));
+      const note = document.createElement("p");
+      note.className = "et-note";
+      note.innerHTML = kind === "custom" ? "Yours &mdash; shows in the add-event picker like any built-in." : t.note;
+      inner.appendChild(note);
+      more.appendChild(inner);
+      row.appendChild(more);
+
+      dot.addEventListener("click", () => { S.open = S.open === t.slug ? null : t.slug; renderList(); revealOpenRow(); });
+      nm.addEventListener("click", () => beginRename(nm, t));
+    }
+    list.appendChild(row);
+  });
+
+  $("#etFine").innerHTML = activeBuiltins().length + " from your pages" +
+    (S.custom.length ? " &middot; " + S.custom.length + " yours" : "") +
+    " &mdash; built-ins stay; your own come and go. Room for 40.";
+  paintHints($("#askCol"));
+}
+
+/* After a color strip expands/collapses (320ms max-height transition), pull
+   the open row fully into view and refresh the edge fades. */
+function revealOpenRow() {
+  setTimeout(() => {
+    const row = $("#etList .et-row.open");
+    if (row) ensureVisible($("#askCol"), row);
+    paintHints($("#askCol"));
+  }, 340);
+}
+
+function beginRename(nm, t) {
+  if (nm.parentElement.querySelector("input")) return;
+  const inp = document.createElement("input");
+  inp.value = t.label;
+  inp.setAttribute("aria-label", "Rename " + t.label);
+  nm.replaceWith(inp);
+  inp.focus(); inp.select();
+  const save = () => {
+    const v = inp.value.trim();
+    if (v) { t.label = v; S.flash = t.slug; }
+    renderAll();
+  };
+  inp.addEventListener("blur", save);
+  inp.addEventListener("keydown", ev => { if (ev.key === "Enter" || ev.key === "Escape") inp.blur(); });
+}
+
+function removeCustom(slug) {
+  S.custom = S.custom.filter(t => t.slug !== slug);
+  if (S.open === slug) S.open = null;
+  renderAll();
+}
+
+function addCustom(label, color) {
+  let slug = slugify(label) || "type";
+  while (findType(slug) || S.types.some(t => t.slug === slug)) slug += "-2";
+  S.custom.push({ slug, label, color });
+  S.flash = slug;
+  renderAll();
+  // follow the new type on both sides — the row on the left, its scaffold on the right
+  requestAnimationFrame(() => { scrollToEnd($("#askCol")); scrollToEnd($("#tlSpine")); });
+}
+
+/* adder editor */
+let newColor = null;
+function openEditor() {
+  newColor = nextColor();
+  $("#etAddBtn").style.display = "none";
+  const ed = $("#etEditor");
+  ed.classList.add("on");
+  const sugg = $("#etSugg");
+  sugg.innerHTML = "";
+  SUGGESTIONS.filter(sg => !allActive().some(t => t.label === sg)).forEach(sg => {
+    const b = document.createElement("button");
+    b.textContent = sg;
+    b.addEventListener("click", () => { $("#etNewName").value = sg; paintAddState(); $("#etNewName").focus(); });
+    sugg.appendChild(b);
+  });
+  paintNewSwatches();
+  paintAddState();
+  $("#etNewName").focus();
+  requestAnimationFrame(() => { scrollToEnd($("#askCol")); paintHints($("#askCol")); });
+}
+function paintNewSwatches() {
+  // swatchStrip returns a .sws wrapper; #etNewSws is already the .sws element,
+  // so lift the buttons out of the wrapper.
+  const holder = $("#etNewSws");
+  holder.innerHTML = "";
+  const strip = swatchStrip(newColor, c => { newColor = c; paintNewSwatches(); });
+  while (strip.firstChild) holder.appendChild(strip.firstChild);
+}
+function closeEditor() {
+  $("#etEditor").classList.remove("on");
+  $("#etAddBtn").style.display = "";
+  $("#etNewName").value = "";
+}
+function paintAddState() { $("#etEdAdd").disabled = !$("#etNewName").value.trim(); }
+
+/* ═══ Step 4 · the live preview ═════════════════════════════════════════ */
+function renderPreview() {
+  const spine = $("#tlSpine");
+  spine.innerHTML = "";
+  let count = 0;
+  SAMPLE.forEach(ev => {
+    const t = findType(ev.slug); // findType only sees active types — gating included
+    if (!t) return;
+    count++;
+    spine.appendChild(tlRow({
+      d: ev.d, dow: ev.dow, color: t.color, cat: t.label,
+      title: ev.title || t.label, when: ev.when, flash: S.flash === t.slug,
+    }));
+  });
+  S.custom.forEach(t => {
+    count++;
+    spine.appendChild(tlRow({
+      d: "—", dow: "", color: t.color, cat: t.label,
+      title: "First " + t.label + " — add it after the build", when: "", scaf: true, flash: S.flash === t.slug,
+    }));
+  });
+  $("#tlCnt").textContent = count + " events";
+
+  const lgd = $("#tlLegend");
+  lgd.innerHTML = allActive().map(t =>
+    '<span class="li" style="--tc:' + t.color + '"><span class="d"></span><span class="nm">' + esc(t.label) + "</span>" +
+    '<span class="src' + (t.builtin ? "" : " you") + '">' + (t.builtin ? "" : "YOU") + "</span></span>"
+  ).join("");
+  // the preview follows whichever type was just edited
+  const hot = spine.querySelector(".tl-row.flash");
+  if (hot) requestAnimationFrame(() => ensureVisible($("#tlSpine"), hot));
+  paintHints($("#tlSpine"));
+  S.flash = null;
+}
+
+function tlRow(o) {
+  const row = document.createElement("div");
+  row.className = "tl-row" + (o.scaf ? " scaf" : "") + (o.flash ? " flash" : "");
+  row.style.setProperty("--tc", o.color);
+  row.innerHTML =
+    '<div class="tl-date"><div class="dow">' + o.dow + '</div><div class="dnum">' + o.d + "</div></div>" +
+    '<div class="tl-node"><span class="dot"><i></i></span></div>' +
+    '<div class="tl-body"><div class="tl-card">' +
+      (o.scaf ? '<span class="plus">+</span>' : "") +
+      '<div class="grow"><div class="t">' + esc(o.title) + '</div><div class="cat">' + esc(o.cat) + "</div></div>" +
+      (o.when ? '<span class="when">' + o.when + "</span>" : "") +
+    "</div></div>";
+  return row;
+}
+
+/* ═══ Step 5 · blueprint — Pages card + the new Timeline card ═══════════ */
+const WF_ROWS = [
+  { key: "meetings",       name: "Chapter",         why: "minutes, agendas &amp; records for Chapter &mdash; flip off if you don&rsquo;t meet formally." },
+  { key: "members",        name: "Brothers",        why: "your roster &mdash; brother profiles, attendance, and dues, all in one place." },
+  { key: "finance",        name: "Dues & Treasury", why: "because you said <q>chasing dues</q> eats your time." },
+  { key: "attendance",     name: "Attendance",      why: "because Chapter repeats weekly &mdash; worth counting." },
+  { key: "events",         name: "Events",          why: "you meet on a rhythm; socials live here too." },
+  { key: "parties",        name: "Parties",         why: "socials with a guest list, budget and door &mdash; separate from plain events." },
+  { key: "service",        name: "Service",         why: "flip it on if you track service hours." },
+  { key: "docs",           name: "Docs",            why: "bylaws, minutes and links &mdash; pinned, not lost in the chat." },
+  { key: "communications", name: "Announcements",   why: "start light &mdash; turn on when the group chat stops scaling." },
+  { key: "tasks",          name: "Tasks",           why: "start light &mdash; turn on when exec needs assignments. <b>Brings the Deadline event type with it.</b>" },
+];
+const TYPE_WF = new Set(S.types.map(t => t.wfKey));
+
+function renderBlueprint() {
+  $("#wfList").innerHTML =
+    '<div class="wf-row"><span class="wf-name">Core</span><span class="wf-why">Dashboard &amp; Timeline &mdash; every org gets these, so you always have a home.</span><button class="wf-tgl locked" disabled>ALWAYS</button></div>' +
+    WF_ROWS.map(m => {
+      const on = !!S.wf[m.key];
+      return '<div class="wf-row' + (on ? "" : " off") + '" data-wf="' + m.key + '">' +
+        '<span class="wf-name">' + m.name + "</span>" +
+        '<span class="wf-why">' + m.why + "</span>" +
+        '<button class="wf-tgl">' + (on ? "ON" : "OFF") + "</button></div>";
+    }).join("");
+  $$("#wfList .wf-row[data-wf]").forEach(row => row.querySelector(".wf-tgl").addEventListener("click", () => {
+    const key = row.dataset.wf;
+    S.wf[key] = S.wf[key] ? 0 : 1;
+    renderBlueprint();
+    if (TYPE_WF.has(key)) {
+      const card = $("#tlTypesCard");
+      card.classList.remove("flash"); void card.offsetWidth; card.classList.add("flash");
+    }
+  }));
+
+  $("#bpTypeChips").innerHTML =
+    allActive().map((t, i) =>
+      '<button class="pg click" data-type="' + t.slug + '" style="--tc:' + t.color + ";animation-delay:" + i * 40 + 'ms" title="Edit on the Timeline step">' +
+      '<span class="dot"></span>' + esc(t.label) + (t.builtin ? "" : ' <span class="yo">YOU</span>') + "</button>"
+    ).join("") +
+    '<button class="pg edit" data-go="4">+ add or edit &rarr;</button>';
+  $$("#bpTypeChips .pg").forEach(chip => chip.addEventListener("click", () => {
+    if (chip.dataset.type) S.open = chip.dataset.type;
+    goto("4");
+  }));
+
+  const off = ghostBuiltins();
+  $("#bpTypeNote").innerHTML =
+    "Stocked by the pages you turned on" +
+    (off.length ? " &mdash; Tasks is off, so no <b>" + esc(off.map(t => t.label).join(", ")) + "</b> type" : "") +
+    ". Renames, colors and your own types are <b>built with the org</b> and drive the Timeline&rsquo;s dots, legend and add-event picker.";
+
+  try { console.log("[ChaptOS] provisionOrg payload · eventTypes:", payloadTypes()); } catch (_) {}
+  paintHints($("#bpScroll"));
+}
+
+function payloadTypes() {
+  return [
+    ...S.types.map((t, i) => ({ slug: t.slug, label: t.label, color: t.color, builtin: true, workflowId: t.wfKey, displayOrder: i })),
+    ...S.custom.map((t, i) => ({ slug: t.slug, label: t.label, color: t.color, builtin: false, workflowId: null, displayOrder: S.types.length + i })),
+  ];
+}
+
+/* ═══ Navigation ════════════════════════════════════════════════════════ */
+const CAPS = {
+  "4": "New step &mdash; your pages stocked the timeline; make it read like your chapter.",
+  "5": "Same blueprint, one new line &mdash; your event types are built with the org.",
+};
+function goto(step) {
+  S.step = step;
+  $$(".scr").forEach(s => s.classList.toggle("active", s.dataset.step === step));
+  $$("#rail button[data-go]").forEach(b => b.classList.toggle("on", b.dataset.go === step));
+  $("#railCap").innerHTML = CAPS[step];
+  if (step === "4") {
+    renderAll();
+    if (S.open) revealOpenRow(); // a blueprint chip deep-links to its row
+  } else {
+    renderBlueprint();
+  }
+}
+
+function renderAll() { renderList(); renderPreview(); }
+
+/* ═══ Wiring ════════════════════════════════════════════════════════════ */
+$$("[data-go]").forEach(b => b.addEventListener("click", () => goto(b.dataset.go)));
+$("#etAddBtn").addEventListener("click", openEditor);
+$("#etEdCancel").addEventListener("click", closeEditor);
+$("#etNewName").addEventListener("input", paintAddState);
+$("#etNewName").addEventListener("keydown", ev => { if (ev.key === "Enter" && $("#etNewName").value.trim()) commitAdd(); });
+$("#etEdAdd").addEventListener("click", commitAdd);
+function commitAdd() {
+  addCustom($("#etNewName").value.trim(), newColor);
+  closeEditor();
+}
+$("#buildBtn").addEventListener("click", () => {
+  console.log("[ChaptOS] provisionOrg payload · eventTypes:", payloadTypes());
+  const foot = $("#bpFoot");
+  foot.innerHTML = "Payload logged to the console &mdash; <code>eventTypes</code> rides along in the same atomic <code>provisionOrg</code> call. Build &rarr; Reveal &rarr; Invite are unchanged from v3.";
+});
+
+goto("4");
+window.__mock = {
+  goto,
+  addType: (label, color) => addCustom(label, color || nextColor()),
+  renameType: (slug, label) => { const t = findType(slug); if (t) { t.label = label; S.flash = slug; renderAll(); } },
+  colorType: (slug, color) => { const t = findType(slug); if (t) { t.color = color; S.flash = slug; renderAll(); } },
+};
+</script>
+</body>
+</html>
