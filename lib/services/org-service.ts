@@ -322,7 +322,7 @@ export async function provisionOrg(
         });
       }
 
-      // 2d. Built-in timeline event types. Every org gets all 7 (lib/event-types.ts);
+      // 2d. Built-in timeline event types. Every org gets the registry set (lib/event-types.ts);
       // the timeline derives which appear in the picker from enabledWorkflows, so a
       // type whose workflow is off is simply not offered — its row still exists so
       // existing events keep their color/label. Admins can add custom types later.

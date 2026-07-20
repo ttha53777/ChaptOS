@@ -1,5 +1,5 @@
 /**
- * Built-in timeline event-type registry. The source of truth for the 7 types
+ * Built-in timeline event-type registry. The source of truth for the types
  * every org is seeded with, plus the shared predicate that decides which types
  * appear in the add-event picker.
  *
@@ -11,9 +11,7 @@
  * and client synthesis hardcode them (see `lib/state/calendar-category.ts`).
  *
  * Consumed by:
- *   - provisionOrg + prisma/seed.ts: seed the 7 rows per org.
- *   - The add_calendar_event_types migration: backfills existing orgs (the SQL
- *     duplicates these values — keep the two in sync).
+ *   - provisionOrg + prisma/seed.ts: seed the built-in rows per org.
  *   - The event-type service + timeline client: `isEventTypeVisibleInPicker`.
  *
  * Colors mirror the two-theme palette in
@@ -40,15 +38,20 @@ export interface BuiltinEventType {
 }
 
 /**
- * The 7 built-ins, in canonical display order. `displayOrder` is derived from
- * this array's index at seed time. Keep in sync with the VALUES list in
- * `prisma/migrations/20260718000000_add_calendar_event_types/migration.sql`.
+ * The 4 built-ins, in canonical display order. `displayOrder` is derived from
+ * this array's index at seed time.
+ *
+ * Social/Fundraiser/Program were demoted from this list (they were `events`-
+ * gated built-ins seeded to every org): they are LPE vocabulary, not platform
+ * vocabulary, and live on as *custom* types (builtin=false, workflowId=null) on
+ * the orgs that use them — see
+ * `prisma/migrations/20260719000000_demote_programming_event_types/migration.sql`.
+ * The Programming page derives its category set per-org from CalendarEventType
+ * rows (`isProgrammingManagedType` in lib/programming.ts), so no built-in is
+ * `events`-gated anymore.
  */
 export const BUILTIN_EVENT_TYPES: readonly BuiltinEventType[] = [
   { slug: "chapter",  label: "Chapter",           color: "#3f6ea3", colorDark: "#8fb0d6", workflowId: "meetings", mandatoryDefault: true,  creatable: true  },
-  { slug: "social",   label: "Social",            color: "#9a7224", colorDark: "#ddb36a", workflowId: "events",   mandatoryDefault: false, creatable: true  },
-  { slug: "fundy",    label: "Fundraiser",        color: "#4a7d4c", colorDark: "#86b988", workflowId: "events",   mandatoryDefault: false, creatable: true  },
-  { slug: "program",  label: "Program",           color: "#6d28d9", colorDark: "#a78bfa", workflowId: "events",   mandatoryDefault: false, creatable: true  },
   { slug: "party",    label: "Party",             color: "#b34f72", colorDark: "#d98ba3", workflowId: "parties",  mandatoryDefault: false, creatable: false },
   { slug: "deadline", label: "Deadline",          color: "#c14a37", colorDark: "#e0796b", workflowId: "tasks",    mandatoryDefault: false, creatable: false },
   { slug: "service",  label: "Community Service", color: "#2f8579", colorDark: "#5fbdb0", workflowId: "service",  mandatoryDefault: false, creatable: true  },

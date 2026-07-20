@@ -72,6 +72,31 @@ async function main() {
     })),
   });
 
+  // LPE's own vocabulary: social/fundy/program are CUSTOM types here (they were
+  // demoted from the built-in registry — LPE words, not platform words). The
+  // seeded programming/calendar events below reference these slugs.
+  const LPE_CUSTOM_EVENT_TYPES = [
+    { slug: "social",  label: "Social",     color: "#9a7224", colorDark: "#ddb36a" },
+    { slug: "fundy",   label: "Fundraiser", color: "#4a7d4c", colorDark: "#86b988" },
+    { slug: "program", label: "Program",    color: "#6d28d9", colorDark: "#a78bfa" },
+  ];
+  await prisma.calendarEventType.createMany({
+    skipDuplicates: true,
+    data: LPE_CUSTOM_EVENT_TYPES.map((t, i) => ({
+      organizationId:   ORG_ID,
+      slug:             t.slug,
+      label:            t.label,
+      color:            t.color,
+      colorDark:        t.colorDark,
+      workflowId:       null,
+      builtin:          false,
+      creatable:        true,
+      hidden:           false,
+      mandatoryDefault: false,
+      displayOrder:     BUILTIN_EVENT_TYPES.length + i,
+    })),
+  });
+
   // Strip `id` so Prisma autoincrement generates its own IDs — avoids sequence conflicts
 
   const brotherData = brothers.map(({ id: _id, ...rest }) => ({ ...rest, organizationId: ORG_ID }));
