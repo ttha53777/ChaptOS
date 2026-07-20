@@ -31,7 +31,7 @@ import { AlreadyLinkedError, ConflictError, ForbiddenError, NotFoundError, Valid
 import { logError } from "@/lib/observability";
 import { emit } from "@/lib/events";
 import { validateSlugFormat } from "@/lib/slug-rules";
-import { getOrgType, normalizeWorkflows, type RoleSeed } from "@/lib/org-types";
+import { DEFAULT_EVENT_TYPE_SEEDS, getOrgType, normalizeWorkflows, type RoleSeed } from "@/lib/org-types";
 import { BUILTIN_EVENT_TYPES } from "@/lib/event-types";
 import { normalizeDisabledFeatures, type DisabledFeatures } from "@/lib/workflow-features";
 import { sanitizeVocabOverrides } from "@/lib/vocab";
@@ -339,6 +339,32 @@ export async function provisionOrg(
           hidden:           false,
           mandatoryDefault: t.mandatoryDefault,
           displayOrder:     i,
+        })),
+      });
+
+      // 2d-bis. Starter Programming categories tailored to the org type. Unlike
+      // the built-ins these are editable customs (builtin:false, creatable:true)
+      // — the founder can rename/recolor/reorder/delete any of them later. They
+      // replace the demoted Social/Fundraiser/Program built-ins with a per-type
+      // suggestion instead of one org's vocabulary imposed on everyone. Gated by
+      // the "events" workflow so they appear exactly when the Programming page
+      // does; seeded unconditionally (inert until events is enabled), mirroring
+      // how the built-ins above are always seeded. displayOrder continues past
+      // the built-ins.
+      const eventTypeSeeds = template.eventTypeSeeds ?? DEFAULT_EVENT_TYPE_SEEDS;
+      await tx.calendarEventType.createMany({
+        data: eventTypeSeeds.map((t, i) => ({
+          organizationId:   org.id,
+          slug:             t.slug,
+          label:            t.label,
+          color:            t.color,
+          colorDark:        t.colorDark,
+          workflowId:       "events",
+          builtin:          false,
+          creatable:        true,
+          hidden:           false,
+          mandatoryDefault: false,
+          displayOrder:     BUILTIN_EVENT_TYPES.length + i,
         })),
       });
 

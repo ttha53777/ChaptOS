@@ -129,6 +129,53 @@ export function normalizeWorkflows(ids: readonly string[]): WorkflowId[] {
   return ALL_WORKFLOWS.filter(w => requested.has(w));
 }
 
+/**
+ * A starter Programming event category seeded per org type. Copied into editable
+ * CalendarEventType rows at provisionOrg as `builtin:false, creatable:true,
+ * hidden:false, mandatoryDefault:false, workflowId:"events"` — so admins can
+ * rename/recolor/reorder/delete any of them from the Programming page or
+ * Settings. This is the replacement for the demoted Social/Fundraiser/Program
+ * built-ins: a *tailored* per-type suggestion instead of one org's vocabulary
+ * imposed on everyone.
+ *
+ * `slug` is kebab-case, unique within its template, and MUST NOT collide with a
+ * built-in slug (chapter/party/deadline/service) — the org-type invariant test
+ * guards this. Colors follow the two-theme ivory/dusk palette used by
+ * `BUILTIN_EVENT_TYPES` (lib/event-types.ts).
+ */
+export interface EventTypeSeed {
+  slug: string;
+  label: string;
+  /** Light-theme hex (ivory). */
+  color: string;
+  /** Dark-theme hex (dusk). */
+  colorDark: string;
+}
+
+// Shared ivory/dusk palette for the starter categories below, mirroring the
+// built-in event-type colors so the timeline stays visually coherent. A concept
+// keeps the same color across templates (social = gold, fundraiser = green, …).
+const EVT = {
+  gold:   { color: "#9a7224", colorDark: "#ddb36a" },
+  green:  { color: "#4a7d4c", colorDark: "#86b988" },
+  purple: { color: "#6d28d9", colorDark: "#a78bfa" },
+  blue:   { color: "#3f6ea3", colorDark: "#8fb0d6" },
+  rose:   { color: "#b34f72", colorDark: "#d98ba3" },
+  clay:   { color: "#c14a37", colorDark: "#e0796b" },
+} as const;
+
+const evt = (slug: string, label: string, c: { color: string; colorDark: string }): EventTypeSeed =>
+  ({ slug, label, color: c.color, colorDark: c.colorDark });
+
+/**
+ * Fallback starter set for a template that declares no `eventTypeSeeds` of its
+ * own (and the generic-org default). Intentionally minimal.
+ */
+export const DEFAULT_EVENT_TYPE_SEEDS: readonly EventTypeSeed[] = [
+  evt("social", "Social", EVT.gold),
+  evt("fundraiser", "Fundraiser", EVT.green),
+] as const;
+
 export interface OrgTypeTemplate {
   /** Registry key. Stored on Organization.orgType. */
   id: string;
@@ -146,6 +193,12 @@ export interface OrgTypeTemplate {
    * UI components that respect canonical aliases read this.
    */
   vocabularyOverrides: Readonly<Record<string, string>>;
+  /**
+   * Starter Programming event categories seeded as editable custom
+   * CalendarEventType rows at creation. Omit to fall back to
+   * DEFAULT_EVENT_TYPE_SEEDS.
+   */
+  eventTypeSeeds?: readonly EventTypeSeed[];
 }
 
 // ---------------------------------------------------------------------------
@@ -184,6 +237,11 @@ const FRATERNITY: OrgTypeTemplate = {
     Member:   "Brother",
     Meetings: "Chapter",
   },
+  eventTypeSeeds: [
+    evt("social",      "Social",      EVT.gold),
+    evt("fundraiser",  "Fundraiser",  EVT.green),
+    evt("programming", "Programming", EVT.purple),
+  ],
 };
 
 const GENERIC_CLUB: OrgTypeTemplate = {
@@ -211,6 +269,11 @@ const GENERIC_CLUB: OrgTypeTemplate = {
   vocabularyOverrides: {
     // Canonical defaults already match a generic club; nothing to override.
   },
+  eventTypeSeeds: [
+    evt("social",     "Social",     EVT.gold),
+    evt("fundraiser", "Fundraiser", EVT.green),
+    evt("workshop",   "Workshop",   EVT.blue),
+  ],
 };
 
 const SPORTS_TEAM: OrgTypeTemplate = {
@@ -242,6 +305,11 @@ const SPORTS_TEAM: OrgTypeTemplate = {
     Event:    "Practice",
     Period:   "Season",
   },
+  eventTypeSeeds: [
+    evt("game",       "Game",       EVT.clay),
+    evt("practice",   "Practice",   EVT.blue),
+    evt("tournament", "Tournament", EVT.purple),
+  ],
 };
 
 const SERVICE_ORG: OrgTypeTemplate = {
@@ -272,6 +340,13 @@ const SERVICE_ORG: OrgTypeTemplate = {
   vocabularyOverrides: {
     Meetings: "Service events",
   },
+  // "service-project" avoids colliding with the built-in "service" slug
+  // (Community Service).
+  eventTypeSeeds: [
+    evt("service-project", "Service Project", EVT.blue),
+    evt("fundraiser",      "Fundraiser",      EVT.green),
+    evt("outreach",        "Outreach",        EVT.gold),
+  ],
 };
 
 const HONOR_SOCIETY: OrgTypeTemplate = {
@@ -299,6 +374,11 @@ const HONOR_SOCIETY: OrgTypeTemplate = {
     { name: "Secretary",     color: "#3B82F6", rank: 50, permissions: ["MANAGE_ANNOUNCEMENTS", "MANAGE_DOCS"] },
   ],
   vocabularyOverrides: {},
+  eventTypeSeeds: [
+    evt("induction",  "Induction",  EVT.purple),
+    evt("fundraiser", "Fundraiser", EVT.green),
+    evt("workshop",   "Workshop",   EVT.blue),
+  ],
 };
 
 const PERFORMING_ARTS: OrgTypeTemplate = {
@@ -330,6 +410,11 @@ const PERFORMING_ARTS: OrgTypeTemplate = {
     Meetings: "Rehearsal",
     Event:    "Rehearsal",
   },
+  eventTypeSeeds: [
+    evt("performance", "Performance", EVT.rose),
+    evt("auditions",   "Auditions",   EVT.blue),
+    evt("social",      "Social",      EVT.gold),
+  ],
 };
 
 const GENERIC_ORG: OrgTypeTemplate = {

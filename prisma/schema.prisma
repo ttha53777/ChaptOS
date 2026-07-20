@@ -631,8 +631,10 @@ model CalendarEvent {
 
 // Per-org, admin-editable timeline event type (a.k.a. "category"). Defines the
 // set of valid CalendarEvent.category slugs for an org and the label/color the
-// timeline renders. Every org is seeded with the 7 built-ins (lib/event-types.ts)
-// at creation; admins may add custom types or rename/recolor/reorder any type.
+// timeline renders. Every org is seeded at creation with the 4 built-ins
+// (lib/event-types.ts) plus a per-org-type starter set of editable custom
+// categories (OrgTypeTemplate.eventTypeSeeds in lib/org-types.ts); admins may
+// add more custom types or rename/recolor/reorder/delete any non-built-in type.
 //
 // `slug` is the natural key and matches CalendarEvent.category. It is IMMUTABLE
 // after creation for built-ins — behavior branches and client synthesis hardcode

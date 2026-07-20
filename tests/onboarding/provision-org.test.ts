@@ -10,7 +10,9 @@ import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { testPrisma, resetDb } from "../setup/prisma";
 import { provisionOrg } from "@/lib/services/org-service";
 import { ConflictError, ValidationError } from "@/lib/errors";
-import { getOrgType } from "@/lib/org-types";
+import { DEFAULT_EVENT_TYPE_SEEDS, getOrgType } from "@/lib/org-types";
+import { BUILTIN_EVENT_TYPES, isEventTypeVisibleInPicker } from "@/lib/event-types";
+import { isProgrammingManagedType } from "@/lib/programming";
 import { ALL_PERMISSIONS, PERMISSIONS } from "@/lib/permissions";
 
 beforeEach(async () => {
@@ -102,6 +104,83 @@ describe("provisionOrg: happy path", () => {
     expect(fratRoles.length).toBe(getOrgType("fraternity")!.roleSeeds.length);
     expect(genRoles.length).toBe(getOrgType("generic-org")!.roleSeeds.length);
     expect(fratRoles.length).toBeGreaterThan(genRoles.length);
+  });
+});
+
+describe("provisionOrg: starter event types", () => {
+  it("seeds the built-ins plus the org type's editable starter categories", async () => {
+    const out = await provisionOrg(VALID, "u-evt-frat", null);
+    const template = getOrgType("fraternity")!;
+
+    const types = await testPrisma.calendarEventType.findMany({
+      where: { organizationId: out.organizationId },
+      orderBy: { displayOrder: "asc" },
+    });
+
+    // Built-ins seeded as before.
+    const builtins = types.filter(t => t.builtin);
+    expect(builtins.map(t => t.slug)).toEqual(BUILTIN_EVENT_TYPES.map(t => t.slug));
+
+    // Starter customs match the template, and are editable/deletable
+    // (builtin:false, creatable:true) and gated by the events workflow.
+    const customs = types.filter(t => !t.builtin);
+    expect(customs.map(t => t.slug)).toEqual(template.eventTypeSeeds!.map(s => s.slug));
+    for (const c of customs) {
+      expect(c.builtin).toBe(false);
+      expect(c.creatable).toBe(true);
+      expect(c.hidden).toBe(false);
+      expect(c.workflowId).toBe("events");
+    }
+
+    // displayOrder continues past the built-ins, in template order.
+    expect(customs.map(t => t.displayOrder)).toEqual(
+      template.eventTypeSeeds!.map((_, i) => BUILTIN_EVENT_TYPES.length + i),
+    );
+  });
+
+  it("makes the starter categories show as managed Programming categories (events on)", async () => {
+    const out = await provisionOrg(VALID, "u-evt-managed", null);
+    const template = getOrgType("fraternity")!;
+    const types = await testPrisma.calendarEventType.findMany({
+      where: { organizationId: out.organizationId },
+    });
+    const managed = types.filter(
+      t => isProgrammingManagedType(t) && isEventTypeVisibleInPicker(t, ["events"]),
+    );
+    for (const s of template.eventTypeSeeds!) {
+      expect(
+        managed.some(m => m.slug === s.slug),
+        `${s.slug} should be a managed programming category`,
+      ).toBe(true);
+    }
+  });
+
+  it("tailors the starter set to the org type", async () => {
+    const out = await provisionOrg(
+      { ...VALID, slug: "sports", orgType: "sports-team" },
+      "u-evt-sports",
+      null,
+    );
+    const customs = await testPrisma.calendarEventType.findMany({
+      where: { organizationId: out.organizationId, builtin: false },
+      orderBy: { displayOrder: "asc" },
+    });
+    expect(customs.map(t => t.slug)).toEqual(["game", "practice", "tournament"]);
+  });
+
+  it("falls back to DEFAULT_EVENT_TYPE_SEEDS for a template without its own set", async () => {
+    // generic-org declares no eventTypeSeeds → the shared default is used.
+    expect(getOrgType("generic-org")!.eventTypeSeeds).toBeUndefined();
+    const out = await provisionOrg(
+      { ...VALID, slug: "gen-evt", orgType: "generic-org" },
+      "u-evt-gen",
+      null,
+    );
+    const customs = await testPrisma.calendarEventType.findMany({
+      where: { organizationId: out.organizationId, builtin: false },
+      orderBy: { displayOrder: "asc" },
+    });
+    expect(customs.map(t => t.slug)).toEqual(DEFAULT_EVENT_TYPE_SEEDS.map(s => s.slug));
   });
 });
 
