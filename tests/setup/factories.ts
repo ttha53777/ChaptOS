@@ -83,6 +83,33 @@ export async function createSemester(opts: {
   });
 }
 
+/** A custom (non-builtin) event type — e.g. the demoted social/fundy/program. */
+export async function createEventType(opts: {
+  orgId: number;
+  slug: string;
+  label?: string;
+  color?: string;
+  creatable?: boolean;
+  hidden?: boolean;
+  displayOrder?: number;
+}) {
+  return testPrisma.calendarEventType.create({
+    data: {
+      organizationId:   opts.orgId,
+      slug:             opts.slug,
+      label:            opts.label ?? opts.slug,
+      color:            opts.color ?? "#888888",
+      colorDark:        null,
+      workflowId:       null,
+      builtin:          false,
+      creatable:        opts.creatable ?? true,
+      hidden:           opts.hidden ?? false,
+      mandatoryDefault: false,
+      displayOrder:     opts.displayOrder ?? 100,
+    },
+  });
+}
+
 export async function createCalendarEvent(opts: {
   orgId: number;
   title?: string;

@@ -2,40 +2,30 @@ import type { ProgrammingChecklistItem, TaskStatus } from "@/app/data";
 import type { RoomStatus } from "@/lib/state/programming-prep";
 import type { ProgrammingStage } from "@/lib/state/programming-stage";
 
-/** Calendar categories managed by the Programming (events) workflow page. */
-export const PROGRAMMING_CATEGORIES = ["program", "social", "fundy", "service"] as const;
-export type ProgrammingCategory = (typeof PROGRAMMING_CATEGORIES)[number];
-
-export const PROGRAMMING_TYPE_LABELS = ["Program", "Social", "Fundraiser", "Community Service"] as const;
-export type ProgrammingTypeLabel = (typeof PROGRAMMING_TYPE_LABELS)[number];
-
-const TYPE_TO_CATEGORY: Record<ProgrammingTypeLabel, ProgrammingCategory> = {
-  Program:            "program",
-  Social:             "social",
-  Fundraiser:         "fundy",
-  "Community Service": "service",
-};
-
-const CATEGORY_TO_TYPE: Record<ProgrammingCategory, ProgrammingTypeLabel> = {
-  program: "Program",
-  social:  "Social",
-  fundy:   "Fundraiser",
-  service: "Community Service",
-};
-
-export function isProgrammingCategory(category: string): category is ProgrammingCategory {
-  return (PROGRAMMING_CATEGORIES as readonly string[]).includes(category);
+/**
+ * Which of an org's CalendarEventType rows the Programming (events) page
+ * manages. No fixed category list anymore — programming runs on the org's own
+ * event types: everything creatable from the timeline except Chapter (owned by
+ * the meetings workflow). Party/deadline fall out via `creatable: false`
+ * (they're synthesized from their own pages). Covers built-ins (service) and
+ * customs alike, so an org's added types flow through the pipeline.
+ *
+ * `hidden` types stay managed: a retired type's existing events must keep
+ * listing on the board — creation-time gating is the service's job.
+ */
+export interface ProgrammingTypeLike {
+  slug: string;
+  creatable: boolean;
 }
 
-export function typeLabelToCategory(type: string): ProgrammingCategory {
-  const cat = TYPE_TO_CATEGORY[type as ProgrammingTypeLabel];
-  if (!cat) throw new Error(`Unknown programming type: ${type}`);
-  return cat;
+export function isProgrammingManagedType(type: ProgrammingTypeLike): boolean {
+  return type.creatable && type.slug !== "chapter";
 }
 
-export function categoryToTypeLabel(category: string): ProgrammingTypeLabel {
-  if (!isProgrammingCategory(category)) throw new Error(`Not a programming category: ${category}`);
-  return CATEGORY_TO_TYPE[category];
+/** slug → display label lookup, with the slug itself as the fallback. */
+export function makeLabelResolver(types: readonly { slug: string; label: string }[]): (slug: string) => string {
+  const bySlug = new Map(types.map(t => [t.slug, t.label]));
+  return slug => bySlug.get(slug) ?? slug;
 }
 
 /** Stored title suffix when a programming event has a collab org (legacy rows). */
@@ -92,6 +82,9 @@ export interface ProgrammingTaskDto {
   location: string;
   time: string | null;
   status: TaskStatus;
+  /** The CalendarEventType slug — the stable identifier the API speaks. */
+  category: string;
+  /** Display label resolved from the org's event types (falls back to the slug). */
   type: string;
   stage: ProgrammingStage;
   mandatory: boolean;
@@ -112,7 +105,7 @@ export interface ProgrammingTaskDto {
 }
 
 /** Map a ProgrammingEvent row to the task shape the Programming page expects. */
-export function toProgrammingTask(row: ProgrammingTaskRow): ProgrammingTaskDto {
+export function toProgrammingTask(row: ProgrammingTaskRow, labelFor: (slug: string) => string): ProgrammingTaskDto {
   const { title, collab } = resolveProgrammingDisplay({
     title: row.title,
     collabOrg: row.collabOrg,
@@ -124,7 +117,8 @@ export function toProgrammingTask(row: ProgrammingTaskRow): ProgrammingTaskDto {
     location:        row.location ?? "",
     time:            row.time ?? null,
     status:          (row.status ?? "Upcoming") as TaskStatus,
-    type:            categoryToTypeLabel(row.category),
+    category:        row.category,
+    type:            labelFor(row.category),
     stage:           row.stage as ProgrammingStage,
     mandatory:       row.mandatory ?? false,
     collab,
@@ -154,7 +148,8 @@ export interface ProgrammingTaskInput {
   collab?:  string | null;
   owner?:   string;
   status?:  string;
-  type:     string;
+  /** CalendarEventType slug — validated against the org's rows in the service. */
+  category: string;
   mandatory?: boolean;
 }
 
@@ -171,7 +166,7 @@ export function fromProgrammingInput(input: ProgrammingTaskInput) {
     location:  input.location?.trim() || null,
     time:      optionalTime(input.time),
     status:    input.status ?? "Upcoming",
-    category:  typeLabelToCategory(input.type),
+    category:  input.category,
     stage:     "idea",
     mandatory: input.mandatory ?? false,
     owner:     input.owner?.trim() ?? "",

@@ -2,9 +2,14 @@ import { z } from "zod";
 import { DATE_RE } from "@/lib/dates";
 import { ROOM_STATUSES } from "@/lib/state/programming-prep";
 import { STAGES } from "@/lib/state/programming-stage";
+import { CATEGORY_SLUG_RE } from "./calendar";
 import { httpsUrl } from "./shared";
 
 const optionalHttpsUrl = httpsUrl("URL must be valid http(s)").nullable().optional();
+
+// `category` is a CalendarEventType slug; whether the org actually has that
+// type (and it's programming-managed) is checked in the service, per-org.
+const categorySlug = z.string().trim().min(1).max(50).regex(CATEGORY_SLUG_RE);
 
 // New events start in the Idea stage, where most fields are optional —
 // they only become required when promoting to Planning+ (handled in setStage).
@@ -16,7 +21,7 @@ export const createProgrammingTaskInput = z.object({
   collab:   z.string().trim().max(200).nullable().optional(),
   owner:    z.string().trim().max(200).optional(),
   status:   z.string().min(1).optional(),
-  type:     z.string().min(1),
+  category: categorySlug,
   mandatory: z.boolean().optional(),
 });
 export type CreateProgrammingTaskInput = z.infer<typeof createProgrammingTaskInput>;
@@ -29,7 +34,7 @@ export const updateProgrammingTaskInput = z.object({
   collab:          z.string().trim().max(200).nullable().optional(),
   owner:           z.string().trim().max(200).optional(),
   status:          z.string().min(1).optional(),
-  type:            z.string().min(1).optional(),
+  category:        categorySlug.optional(),
   mandatory:       z.boolean().optional(),
   description:     z.string().max(5000).nullable().optional(),
   itineraryUrl:    optionalHttpsUrl, // deprecated — use attachmentUrl

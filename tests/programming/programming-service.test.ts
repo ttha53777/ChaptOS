@@ -6,7 +6,7 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { randomUUID } from "node:crypto";
 import { testPrisma, resetDb } from "../setup/prisma";
-import { createOrg, createBrother, createCalendarEvent, createSemester } from "../setup/factories";
+import { createOrg, createBrother, createCalendarEvent, createEventType, createSemester } from "../setup/factories";
 import { db } from "@/lib/db";
 import {
   addChecklistItem,
@@ -54,6 +54,11 @@ async function seedOrg() {
   // Dated items now require an active semester that contains their date; these
   // tests use dates across all of 2026, so seed a year-wide active semester.
   await createSemester({ orgId: org.id, startDate: "2026-01-01", endDate: "2026-12-31" });
+  // program/social/fundy are org-owned CUSTOM types now (only chapter/party/
+  // deadline/service are built-ins) — give this org the LPE-style vocabulary.
+  await createEventType({ orgId: org.id, slug: "program", label: "Program" });
+  await createEventType({ orgId: org.id, slug: "social",  label: "Social" });
+  await createEventType({ orgId: org.id, slug: "fundy",   label: "Fundraiser" });
   return { org, admin };
 }
 
@@ -68,7 +73,7 @@ describe("createProgrammingTask", () => {
     const { org, admin } = await seedOrg();
     const ctx = ctxFor(org.id, admin.id);
 
-    const task = await createProgrammingTask(ctx, { title: "Speaker Series", type: "Program" });
+    const task = await createProgrammingTask(ctx, { title: "Speaker Series", category: "program" });
 
     expect(task.stage).toBe("idea");
     expect(task.type).toBe("Program");
@@ -84,7 +89,7 @@ describe("createProgrammingTask", () => {
     const { org, admin } = await seedOrg();
     const ctx = ctxFor(org.id, admin.id);
 
-    const task = await createProgrammingTask(ctx, { title: "Brotherhood Social", collab: "KDF", type: "Social" });
+    const task = await createProgrammingTask(ctx, { title: "Brotherhood Social", collab: "KDF", category: "social" });
     expect(task.title).toBe("Brotherhood Social");
     expect(task.collab).toBe("KDF");
 
@@ -98,10 +103,10 @@ describe("listProgrammingTasks", () => {
     const { org, admin } = await seedOrg();
     const ctx = ctxFor(org.id, admin.id);
 
-    await createProgrammingTask(ctx, { title: "Program Night", type: "Program" });
-    await createProgrammingTask(ctx, { title: "Mixer", type: "Social" });
-    await createProgrammingTask(ctx, { title: "Philanthropy", type: "Fundraiser" });
-    await createProgrammingTask(ctx, { title: "Park Cleanup", type: "Community Service" });
+    await createProgrammingTask(ctx, { title: "Program Night", category: "program" });
+    await createProgrammingTask(ctx, { title: "Mixer", category: "social" });
+    await createProgrammingTask(ctx, { title: "Philanthropy", category: "fundy" });
+    await createProgrammingTask(ctx, { title: "Park Cleanup", category: "service" });
     // A non-programming calendar row should not surface as a task.
     await createCalendarEvent({ orgId: org.id, title: "Chapter Mtg", category: "chapter" });
 
@@ -116,7 +121,7 @@ describe("setStage", () => {
   it("requires a date to promote out of Idea", async () => {
     const { org, admin } = await seedOrg();
     const ctx = ctxFor(org.id, admin.id);
-    const task = await createProgrammingTask(ctx, { title: "Undated", type: "Program" });
+    const task = await createProgrammingTask(ctx, { title: "Undated", category: "program" });
 
     await expect(setStage(ctx, task.id, { stage: "planning" })).rejects.toThrow(ValidationError);
   });
@@ -125,7 +130,7 @@ describe("setStage", () => {
     const { org, admin } = await seedOrg();
     const ctx = ctxFor(org.id, admin.id);
     const task = await createProgrammingTask(ctx, {
-      title: "Speaker Series", dueDate: "2026-09-15", location: "EMU", time: "7:00 PM", type: "Program",
+      title: "Speaker Series", dueDate: "2026-09-15", location: "EMU", time: "7:00 PM", category: "program",
     });
 
     const promoted = await setStage(ctx, task.id, { stage: "planning" });
@@ -143,7 +148,7 @@ describe("setStage", () => {
     const { org, admin } = await seedOrg();
     const ctx = ctxFor(org.id, admin.id);
     const task = await createProgrammingTask(ctx, {
-      title: "Park Cleanup", dueDate: "2026-09-18", location: "City Park", type: "Community Service",
+      title: "Park Cleanup", dueDate: "2026-09-18", location: "City Park", category: "service",
     });
 
     const promoted = await setStage(ctx, task.id, { stage: "confirmed" });
@@ -157,7 +162,7 @@ describe("setStage", () => {
     const { org, admin } = await seedOrg();
     const ctx = ctxFor(org.id, admin.id);
     const confirmed = await createConfirmed(ctx, {
-      title: "Park Cleanup", dueDate: "2026-09-18", location: "City Park", type: "Community Service",
+      title: "Park Cleanup", dueDate: "2026-09-18", location: "City Park", category: "service",
     });
     const calId = (await testPrisma.programmingEvent.findUnique({ where: { id: confirmed.id } }))!.calendarEventId!;
 
@@ -174,7 +179,7 @@ describe("setStage", () => {
   it("re-promoting after demotion recreates a CalendarEvent", async () => {
     const { org, admin } = await seedOrg();
     const ctx = ctxFor(org.id, admin.id);
-    const confirmed = await createConfirmed(ctx, { title: "Mixer", dueDate: "2026-09-01", type: "Social" });
+    const confirmed = await createConfirmed(ctx, { title: "Mixer", dueDate: "2026-09-01", category: "social" });
     await setStage(ctx, confirmed.id, { stage: "idea" });
 
     const re = await setStage(ctx, confirmed.id, { stage: "confirmed" });
@@ -197,11 +202,11 @@ describe("updateProgrammingTask / deleteProgrammingTask", () => {
     const { org, admin } = await seedOrg();
     const ctx = ctxFor(org.id, admin.id);
     const confirmed = await createConfirmed(ctx, {
-      title: "Tabling", dueDate: "2026-10-01", location: "Main Quad", type: "Social",
+      title: "Tabling", dueDate: "2026-10-01", location: "Main Quad", category: "social",
     });
 
     const updated = await updateProgrammingTask(ctx, confirmed.id, {
-      status: "Complete", type: "Fundraiser", location: "Parking Lot B", time: "11:00 AM", collab: "DSP",
+      status: "Complete", category: "fundy", location: "Parking Lot B", time: "11:00 AM", collab: "DSP",
     });
     expect(updated.type).toBe("Fundraiser");
     expect(updated.location).toBe("Parking Lot B");
@@ -218,7 +223,7 @@ describe("updateProgrammingTask / deleteProgrammingTask", () => {
   it("rejects clearing the date on a promoted event", async () => {
     const { org, admin } = await seedOrg();
     const ctx = ctxFor(org.id, admin.id);
-    const confirmed = await createConfirmed(ctx, { title: "Mixer", dueDate: "2026-09-01", type: "Social" });
+    const confirmed = await createConfirmed(ctx, { title: "Mixer", dueDate: "2026-09-01", category: "social" });
 
     await expect(updateProgrammingTask(ctx, confirmed.id, { dueDate: null })).rejects.toThrow(ValidationError);
   });
@@ -226,7 +231,7 @@ describe("updateProgrammingTask / deleteProgrammingTask", () => {
   it("allows clearing the date on an Idea event", async () => {
     const { org, admin } = await seedOrg();
     const ctx = ctxFor(org.id, admin.id);
-    const task = await createProgrammingTask(ctx, { title: "Idea", dueDate: "2026-09-01", type: "Social" });
+    const task = await createProgrammingTask(ctx, { title: "Idea", dueDate: "2026-09-01", category: "social" });
 
     const updated = await updateProgrammingTask(ctx, task.id, { dueDate: null });
     expect(updated.dueDate).toBeNull();
@@ -235,7 +240,7 @@ describe("updateProgrammingTask / deleteProgrammingTask", () => {
   it("updates ops fields", async () => {
     const { org, admin } = await seedOrg();
     const ctx = ctxFor(org.id, admin.id);
-    const task = await createProgrammingTask(ctx, { title: "Block Party", type: "Social" });
+    const task = await createProgrammingTask(ctx, { title: "Block Party", category: "social" });
 
     const updated = await updateProgrammingTask(ctx, task.id, {
       roomStatus: "confirmed", itineraryUrl: "https://docs.google.com/document/d/test",
@@ -251,11 +256,11 @@ describe("updateProgrammingTask / deleteProgrammingTask", () => {
     const { org, admin } = await seedOrg();
     const ctx = ctxFor(org.id, admin.id);
     const confirmed = await createConfirmed(ctx, {
-      title: "Park Cleanup", dueDate: "2026-09-18", location: "City Park", type: "Community Service",
+      title: "Park Cleanup", dueDate: "2026-09-18", location: "City Park", category: "service",
     });
     const calId = (await testPrisma.programmingEvent.findUnique({ where: { id: confirmed.id } }))!.calendarEventId!;
 
-    await updateProgrammingTask(ctx, confirmed.id, { type: "Program" });
+    await updateProgrammingTask(ctx, confirmed.id, { category: "program" });
     expect(await testPrisma.serviceEvent.findUnique({ where: { calendarEventId: calId } })).toBeNull();
   });
 
@@ -263,7 +268,7 @@ describe("updateProgrammingTask / deleteProgrammingTask", () => {
     const { org, admin } = await seedOrg();
     const ctx = ctxFor(org.id, admin.id);
     const confirmed = await createConfirmed(ctx, {
-      title: "Park Cleanup", dueDate: "2026-09-18", location: "City Park", type: "Community Service",
+      title: "Park Cleanup", dueDate: "2026-09-18", location: "City Park", category: "service",
     });
     const calId = (await testPrisma.programmingEvent.findUnique({ where: { id: confirmed.id } }))!.calendarEventId!;
 
@@ -279,7 +284,7 @@ describe("checklist", () => {
   it("adds, lists, toggles, and deletes items", async () => {
     const { org, admin } = await seedOrg();
     const ctx = ctxFor(org.id, admin.id);
-    const task = await createProgrammingTask(ctx, { title: "Mixer", type: "Social" });
+    const task = await createProgrammingTask(ctx, { title: "Mixer", category: "social" });
 
     const a = await addChecklistItem(ctx, task.id, { label: "Book room" });
     const b = await addChecklistItem(ctx, task.id, { label: "Design flyer" });
@@ -305,7 +310,7 @@ describe("attachment", () => {
   it("stores and patches attachmentUrl", async () => {
     const { org, admin } = await seedOrg();
     const ctx = ctxFor(org.id, admin.id);
-    const task = await createProgrammingTask(ctx, { title: "Block Party", type: "Social" });
+    const task = await createProgrammingTask(ctx, { title: "Block Party", category: "social" });
 
     const updated = await updateProgrammingTask(ctx, task.id, {
       attachmentUrl: "https://docs.google.com/document/d/runofshow",
@@ -320,7 +325,7 @@ describe("attachment", () => {
     const doc = await testPrisma.doc.create({
       data: { organizationId: org.id, title: "Bylaws", url: "https://example.com/bylaws" },
     });
-    const task = await createProgrammingTask(ctx, { title: "Chapter Night", type: "Program" });
+    const task = await createProgrammingTask(ctx, { title: "Chapter Night", category: "program" });
 
     const updated = await updateProgrammingTask(ctx, task.id, { attachmentDocId: doc.id });
     expect(updated.attachmentDocId).toBe(doc.id);
@@ -330,7 +335,7 @@ describe("attachment", () => {
   it("clears attachment when both set to null", async () => {
     const { org, admin } = await seedOrg();
     const ctx = ctxFor(org.id, admin.id);
-    const task = await createProgrammingTask(ctx, { title: "Mixer", type: "Social" });
+    const task = await createProgrammingTask(ctx, { title: "Mixer", category: "social" });
     await updateProgrammingTask(ctx, task.id, { attachmentUrl: "https://example.com/link" });
 
     const cleared = await updateProgrammingTask(ctx, task.id, { attachmentUrl: null });

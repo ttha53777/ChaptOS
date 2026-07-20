@@ -10,7 +10,7 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { randomUUID } from "node:crypto";
 import { testPrisma, resetDb } from "../setup/prisma";
-import { createOrg, createBrother, createSemester } from "../setup/factories";
+import { createOrg, createBrother, createEventType, createSemester } from "../setup/factories";
 import { db } from "@/lib/db";
 import { createCalendar, updateCalendar } from "@/lib/services/calendar-service";
 import { createTask, updateTask } from "@/lib/services/task-service";
@@ -52,6 +52,8 @@ async function seedWithSemester() {
   const org = await createOrg("Bounds Org", "bounds-org");
   const admin = await createBrother({ orgId: org.id, isOrgAdmin: true });
   await createSemester({ orgId: org.id, startDate: START, endDate: END });
+  // "program" is an org-owned custom type now, not a built-in.
+  await createEventType({ orgId: org.id, slug: "program", label: "Program" });
   return { ctx: ctxFor(org.id, admin.id), org, admin };
 }
 
@@ -59,6 +61,7 @@ async function seedWithSemester() {
 async function seedWithoutSemester() {
   const org = await createOrg("No-Sem Org", "no-sem-org");
   const admin = await createBrother({ orgId: org.id, isOrgAdmin: true });
+  await createEventType({ orgId: org.id, slug: "program", label: "Program" });
   return { ctx: ctxFor(org.id, admin.id), org, admin };
 }
 
@@ -159,20 +162,20 @@ describe("service events", () => {
 describe("programming tasks", () => {
   it("blocks a dateless Idea when no semester is active", async () => {
     const { ctx } = await seedWithoutSemester();
-    const p = createProgrammingTask(ctx, { title: "Idea", type: "Program" });
+    const p = createProgrammingTask(ctx, { title: "Idea", category: "program" });
     await expect(p.catch(e => codeOf(e))).resolves.toBe("NO_ACTIVE_SEMESTER");
   });
 
   it("allows a dateless Idea when a semester is active", async () => {
     const { ctx } = await seedWithSemester();
-    const task = await createProgrammingTask(ctx, { title: "Idea", type: "Program" });
+    const task = await createProgrammingTask(ctx, { title: "Idea", category: "program" });
     expect(task.stage).toBe("idea");
     expect(task.dueDate).toBeNull();
   });
 
   it("rejects an Idea created with an out-of-range dueDate", async () => {
     const { ctx } = await seedWithSemester();
-    await expect(createProgrammingTask(ctx, { title: "Idea", type: "Program", dueDate: "2026-09-01" })).rejects.toThrow(ValidationError);
+    await expect(createProgrammingTask(ctx, { title: "Idea", category: "program", dueDate: "2026-09-01" })).rejects.toThrow(ValidationError);
   });
 
   it("rejects promotion when the date is out of range, leaving no CalendarEvent", async () => {
@@ -191,7 +194,7 @@ describe("programming tasks", () => {
 
   it("allows clearing an Idea's date to null", async () => {
     const { ctx } = await seedWithSemester();
-    const task = await createProgrammingTask(ctx, { title: "Idea", type: "Program", dueDate: "2026-03-01" });
+    const task = await createProgrammingTask(ctx, { title: "Idea", category: "program", dueDate: "2026-03-01" });
     const updated = await updateProgrammingTask(ctx, task.id, { dueDate: null });
     expect(updated.dueDate).toBeNull();
   });

@@ -371,7 +371,7 @@ export function ProgrammingDetailPanel({
                   id: event.calendarEventId,
                   title: event.title,
                   date: event.dueDate ?? todayStr(),
-                  category: event.type,
+                  category: event.category,
                 }] : []}
                 initial={{ date: event.dueDate ?? todayStr() }}
                 onCancel={() => setShowTxForm(false)}

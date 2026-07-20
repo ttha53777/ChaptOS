@@ -209,6 +209,9 @@ export interface ProgrammingTask {
   location: string;
   time?: string | null;
   status: TaskStatus;
+  /** CalendarEventType slug — the stable identifier the API speaks. */
+  category: string;
+  /** Display label resolved server-side from the org's event types. */
   type: string;
   stage: "idea" | "planning" | "confirmed" | "done";
   mandatory: boolean;

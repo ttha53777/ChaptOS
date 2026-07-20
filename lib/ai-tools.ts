@@ -15,6 +15,7 @@ import { db } from "@/lib/db";
 import { isoWeekBounds, todayISO, DATE_RE } from "@/lib/dates";
 import { getBrotherStatus, round2, type Brother as BrotherType } from "@/app/data";
 import { resolveThresholds, type Thresholds } from "@/lib/thresholds";
+import { isProgrammingManagedType } from "@/lib/programming";
 import { INSTAGRAM_TYPES } from "@/lib/validation/instagram";
 
 /**
@@ -65,10 +66,29 @@ export interface Proposal {
 }
 
 const IG_TYPES = INSTAGRAM_TYPES;
-const CAL_CATEGORIES = ["chapter", "social", "fundy", "program", "party", "deadline", "service"] as const;
 const TX_TYPES = ["income", "expense"] as const;
-const PROGRAMMING_TYPES = ["Program", "Social", "Fundraiser", "Community Service"] as const;
 const PROGRAMMING_STAGES = ["idea", "planning", "confirmed", "done"] as const;
+
+// Event types are per-org rows (CalendarEventType) — no fixed enum anymore.
+// Tool schemas take a free-form type/category and handlers resolve it against
+// the org's rows (matching either the slug or the display label).
+type OrgEventType = { slug: string; label: string; creatable: boolean; hidden: boolean };
+
+async function orgEventTypes(scoped: Scoped): Promise<OrgEventType[]> {
+  return await scoped.calendarEventType.findMany({
+    select: { slug: true, label: true, creatable: true, hidden: true },
+  }) as OrgEventType[];
+}
+
+/** Resolve a user/model-supplied type string to a row by slug or label. */
+function resolveEventType(types: OrgEventType[], raw: string): OrgEventType | undefined {
+  const needle = raw.trim().toLowerCase();
+  return types.find(t => t.slug === needle) ?? types.find(t => t.label.toLowerCase() === needle);
+}
+
+function describeTypes(types: OrgEventType[]): string {
+  return types.map(t => t.slug).join(", ");
+}
 
 export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
   {
@@ -404,7 +424,7 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
           title:       { type: "string" },
           date:        { type: "string", description: "YYYY-MM-DD." },
           time:        { type: "string", description: "Optional, e.g. '7:00 PM'. Only include if the user mentions a time." },
-          category:    { type: "string", enum: [...CAL_CATEGORIES] },
+          category:    { type: "string", description: "Event-type slug or name. Types are per-chapter; 'chapter' and 'service' are built-ins, and many chapters have their own (e.g. 'social', 'fundy', 'program'). An unknown type is rejected with the valid list." },
           mandatory:   { type: "boolean", description: "Optional. Defaults to true for 'chapter' category, false otherwise. Only set if the user explicitly says mandatory/optional." },
           location:    { type: "string", description: "Optional. Only include if the user mentions a location." },
           description: { type: "string", description: "Optional. Only include if the user provides one." },
@@ -471,7 +491,7 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
           start:    { type: "string", description: "Inclusive YYYY-MM-DD start (filters by date)." },
           end:      { type: "string", description: "Inclusive YYYY-MM-DD end." },
           stage:    { type: "string", enum: [...PROGRAMMING_STAGES], description: "Filter by stage." },
-          type:     { type: "string", enum: [...PROGRAMMING_TYPES], description: "Filter by event type." },
+          type:     { type: "string", description: "Filter by event type — a slug or display name from the chapter's event types (e.g. 'Community Service', 'social')." },
           order_by: { type: "string", enum: ["date", "title", "stage"], description: "Sort field (default date)." },
           order:    { type: "string", enum: ["asc", "desc"], description: "Default asc." },
           limit:    { type: "integer", minimum: 1, maximum: 100, description: "Default 100; use ~5 for 'next' or 'top'." },
@@ -490,7 +510,7 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
         type: "object",
         properties: {
           title: { type: "string", description: "Short descriptive title." },
-          type:  { type: "string", enum: [...PROGRAMMING_TYPES], description: "Event type." },
+          type:  { type: "string", description: "Event type — a slug or display name from the chapter's event types (e.g. 'social', 'Fundraiser', 'Community Service'). An unknown type is rejected with the valid list." },
           date:  { type: "string", description: "Optional YYYY-MM-DD. Only include if the user mentions a date." },
           owner: { type: "string", description: "Optional brother name responsible. Only include if the user mentions one." },
         },
@@ -1257,14 +1277,11 @@ async function listProgrammingEvents(args: ToolArgs, scoped: Scoped): Promise<To
     ? args.order_by as "date" | "title" | "stage" : "date";
   const orderDir = args.order === "desc" ? "desc" : "asc";
 
-  // category↔type mapping mirrors lib/programming.ts
-  const TYPE_TO_CATEGORY: Record<string, string> = {
-    "Program": "program", "Social": "social", "Fundraiser": "fundy", "Community Service": "service",
-  };
-  const CATEGORY_TO_TYPE: Record<string, string> = {
-    "program": "Program", "social": "Social", "fundy": "Fundraiser", "service": "Community Service",
-  };
-  const categoryFilter = typeFilter ? TYPE_TO_CATEGORY[typeFilter] : undefined;
+  // Programming manages the org's own event types (creatable minus chapter);
+  // the type filter accepts a slug or a display label.
+  const managed = (await orgEventTypes(scoped)).filter(isProgrammingManagedType);
+  const labelBySlug = new Map(managed.map(t => [t.slug, t.label]));
+  const categoryFilter = typeFilter ? resolveEventType(managed, typeFilter)?.slug : undefined;
 
   const daySuffix = dayOfMonthSuffix(args.day_of_month);
 
@@ -1281,7 +1298,7 @@ async function listProgrammingEvents(args: ToolArgs, scoped: Scoped): Promise<To
 
   const rows = await scoped.programmingEvent.findMany({
     where: {
-      category: { in: ["program", "social", "fundy", "service"] },
+      category: { in: managed.map(t => t.slug) },
       ...(categoryFilter ? { category: categoryFilter } : {}),
       ...(stageFilter    ? { stage: stageFilter }        : {}),
       ...(title ? { title: { contains: title, mode: "insensitive" } } : {}),
@@ -1299,7 +1316,7 @@ async function listProgrammingEvents(args: ToolArgs, scoped: Scoped): Promise<To
     .map(e => ({
       id:       e.id,
       title:    e.title,
-      type:     CATEGORY_TO_TYPE[e.category] ?? e.category,
+      type:     labelBySlug.get(e.category) ?? e.category,
       stage:    e.stage,
       date:     e.date ?? null,
       owner:    e.owner,
@@ -1368,13 +1385,19 @@ function proposeAddInstagram(args: ToolArgs): Proposal | { error: string } {
   };
 }
 
-function proposeAddCalendarEvent(args: ToolArgs): Proposal | { error: string } {
+async function proposeAddCalendarEvent(args: ToolArgs, scoped: Scoped): Promise<Proposal | { error: string }> {
   const title = String(args.title ?? "").trim();
   const date = String(args.date ?? "").trim();
-  const category = String(args.category ?? "").trim();
-  if (!title || !date || !category) return badProposal("Missing required fields.");
+  const rawCategory = String(args.category ?? "").trim();
+  if (!title || !date || !rawCategory) return badProposal("Missing required fields.");
   if (!DATE_RE.test(date)) return badProposal("date must be YYYY-MM-DD.");
-  if (!(CAL_CATEGORIES as readonly string[]).includes(category)) return badProposal(`category must be one of ${CAL_CATEGORIES.join(", ")}.`);
+  // Categories are the org's CalendarEventType rows; mirror assertCategoryUsable
+  // (create mode): the type must exist, be timeline-creatable, and not hidden.
+  const types = await orgEventTypes(scoped);
+  const type = resolveEventType(types, rawCategory);
+  if (!type) return badProposal(`Unknown event type "${rawCategory}" — this chapter's types are: ${describeTypes(types)}.`);
+  if (!type.creatable || type.hidden) return badProposal(`The "${type.label}" event type isn't available for new events.`);
+  const category = type.slug;
   // mandatory is optional: default true for chapter (which must be mandatory anyway), false otherwise.
   const mandatory = typeof args.mandatory === "boolean" ? args.mandatory : category === "chapter";
   if (category === "chapter" && !mandatory) return badProposal("Chapter events must be mandatory.");
@@ -1482,17 +1505,18 @@ async function proposeRecordDuesPayment(args: ToolArgs, scoped: Scoped): Promise
   };
 }
 
-function proposeAddProgrammingEvent(args: ToolArgs): Proposal | { error: string } {
-  const title = String(args.title ?? "").trim();
-  const type  = String(args.type  ?? "").trim();
-  if (!title || !type) return badProposal("Missing required fields.");
-  if (!(PROGRAMMING_TYPES as readonly string[]).includes(type)) {
-    return badProposal(`type must be one of ${PROGRAMMING_TYPES.join(", ")}.`);
-  }
+async function proposeAddProgrammingEvent(args: ToolArgs, scoped: Scoped): Promise<Proposal | { error: string }> {
+  const title   = String(args.title ?? "").trim();
+  const rawType = String(args.type  ?? "").trim();
+  if (!title || !rawType) return badProposal("Missing required fields.");
+  // Programming manages the org's own event types (creatable minus chapter).
+  const managed = (await orgEventTypes(scoped)).filter(t => isProgrammingManagedType(t) && !t.hidden);
+  const type = resolveEventType(managed, rawType);
+  if (!type) return badProposal(`Unknown event type "${rawType}" — this chapter's programming types are: ${describeTypes(managed)}.`);
   if (title.length > 200) return badProposal("Title too long.");
   const date  = typeof args.date  === "string" && DATE_RE.test(args.date)  ? args.date  : undefined;
   const owner = typeof args.owner === "string" && args.owner.trim() ? args.owner.trim() : undefined;
-  const payload: Record<string, unknown> = { title, type };
+  const payload: Record<string, unknown> = { title, category: type.slug };
   if (date)  payload.dueDate = date;
   if (owner) payload.owner = owner;
   return {
@@ -1501,7 +1525,7 @@ function proposeAddProgrammingEvent(args: ToolArgs): Proposal | { error: string 
     endpoint: "/api/programming",
     method: "POST",
     payload,
-    summary: `Add ${type} "${title}"${date ? ` on ${date}` : ""}${owner ? `, owner ${owner}` : ""} to Programming board.`,
+    summary: `Add ${type.label} "${title}"${date ? ` on ${date}` : ""}${owner ? `, owner ${owner}` : ""} to Programming board.`,
   };
 }
 

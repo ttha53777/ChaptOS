@@ -11,7 +11,7 @@ import { ProgrammingCalendarView } from "../../components/programming/Programmin
 import { ProgrammingInspector } from "../../components/programming/ProgrammingInspector";
 import { ProgrammingTable } from "../../components/programming/ProgrammingTable";
 import { LedgerStrip, Measure } from "../../components/dashboard/ledger/LedgerStrip";
-import type { ProgrammingTask, TaskStatus } from "../../data";
+import type { CalEventType, ProgrammingTask, TaskStatus } from "../../data";
 import { fmt$, fmtDate } from "../../data";
 import type { Doc } from "../docs/lib";
 import { useChapter } from "../../context/ChapterContext";
@@ -19,43 +19,28 @@ import { requestJson } from "../../lib/api";
 import { useActiveSemester } from "../../hooks/useActiveSemester";
 import { useSemesterErrorHandler } from "../../hooks/useSemesterErrorHandler";
 import { todayStr } from "../../lib/dates";
+import { isEventTypeVisibleInPicker } from "@/lib/event-types";
 import {
-  categoryToTypeLabel,
   eventsNeedingAttention,
   eventsTermStats,
+  isProgrammingManagedType,
   nextOnDeckEvent,
   programmingPrepChecks,
-  typeLabelToCategory,
   type AttentionEntry,
 } from "@/lib/programming";
 import type { ProgrammingStage } from "@/lib/state/programming-stage";
 import "./events-ledger.css";
 import "../../components/dashboard/dashboard-ledger.css";
 
-const TYPE_FILTERS = ["All", "Program", "Social", "Fundraiser", "Community Service"] as const;
-type TypeFilter = (typeof TYPE_FILTERS)[number];
-const FILTER_LABEL: Record<TypeFilter, string> = {
-  All: "All", Program: "Program", Social: "Social", Fundraiser: "Fundraiser", "Community Service": "Service",
-};
 type View = "board" | "calendar" | "table";
 
 type ApiPatch = Record<string, unknown>;
 
 type FormInput = {
   title: string; dueDate: string | null; location: string | null; time?: string | null;
-  collab?: string | null; type: string; status: TaskStatus; mandatory: boolean;
+  collab?: string | null; category: string; status: TaskStatus; mandatory: boolean;
   description: string | null;
 };
-
-// The Programming page keeps its own fixed category subset (see the timeline
-// event-types scope note). Colors are omitted so the chips fall back to the CSS
-// var `--c-<slug>` for these built-in slugs.
-const PROGRAMMING_FORM_OPTIONS: CategoryOption[] = [
-  { slug: "program", label: "Program" },
-  { slug: "social",  label: "Social" },
-  { slug: "fundy",   label: "Fundraiser" },
-  { slug: "service", label: "Community Service" },
-];
 
 /** Map the shared CalendarEventForm draft to the programming API input shape. */
 function draftToFormInput(draft: CalendarDraft): FormInput {
@@ -65,7 +50,7 @@ function draftToFormInput(draft: CalendarDraft): FormInput {
     location:  draft.location ?? null,
     time:      draft.time ?? null,
     collab:    draft.collab?.trim() || null,
-    type:      categoryToTypeLabel(draft.category),
+    category:  draft.category,
     status:    "Upcoming",
     mandatory: draft.mandatory,
     description: draft.description ?? null,
@@ -92,7 +77,9 @@ export default function ProgrammingPage() {
   }, []);
   const [view, setView] = useState<View>("board");
   const [search, setSearch] = useState("");
-  const [typeFilter, setTypeFilter] = useState<TypeFilter>("All");
+  // Category-slug filter; "All" is the sentinel. Chips are derived per-org below.
+  const [typeFilter, setTypeFilter] = useState<string>("All");
+  const [eventTypes, setEventTypes] = useState<CalEventType[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [isClosingDrawer, setIsClosingDrawer] = useState(false);
   const [modal, setModal] = useState<"add" | "edit" | null>(null);
@@ -153,6 +140,44 @@ export default function ProgrammingPage() {
   useEffect(() => {
     requestJson<Doc[]>("/api/docs").then(setDocs).catch(() => setDocs([]));
   }, []);
+
+  // The org's event types drive the form's category options and the filter
+  // chips — no fixed subset anymore (social/fundy/program are LPE customs).
+  useEffect(() => {
+    requestJson<CalEventType[]>("/api/calendar/event-types")
+      .then(setEventTypes)
+      .catch(() => {});
+  }, []);
+
+  const enabledWorkflows = useMemo(
+    () => currentUser?.org?.enabledWorkflows ?? [],
+    [currentUser?.org?.enabledWorkflows],
+  );
+  // Programming-managed types (creatable minus chapter) the org can pick when
+  // creating: also workflow-gated + non-hidden, mirroring the timeline picker.
+  const programmingFormOptions = useMemo<CategoryOption[]>(
+    () => eventTypes
+      .filter(t => isProgrammingManagedType(t) && isEventTypeVisibleInPicker(t, enabledWorkflows))
+      .sort((a, b) => a.displayOrder - b.displayOrder)
+      .map(t => ({ slug: t.slug, label: t.label, color: t.colorDark ?? t.color, mandatoryDefault: t.mandatoryDefault })),
+    [eventTypes, enabledWorkflows],
+  );
+  // Filter chips include workflow-off types too — their events still list.
+  const typeFilters = useMemo(
+    () => eventTypes
+      .filter(t => isProgrammingManagedType(t) && !t.hidden)
+      .sort((a, b) => a.displayOrder - b.displayOrder),
+    [eventTypes],
+  );
+  // When editing, keep the event's own category selectable even if its type is
+  // now hidden or workflow-off (so its chip still shows).
+  const editCategoryOptions = useMemo<CategoryOption[]>(() => {
+    if (!editTarget || programmingFormOptions.some(o => o.slug === editTarget.category)) return programmingFormOptions;
+    const t = eventTypes.find(t => t.slug === editTarget.category);
+    return t
+      ? [...programmingFormOptions, { slug: t.slug, label: t.label, color: t.colorDark ?? t.color, mandatoryDefault: t.mandatoryDefault }]
+      : programmingFormOptions;
+  }, [programmingFormOptions, editTarget, eventTypes]);
 
   const syncEvents = useCallback((updater: (prev: ProgrammingTask[]) => ProgrammingTask[]) => {
     const next = updater(eventsRef.current);
@@ -224,7 +249,7 @@ export default function ProgrammingPage() {
         (e.collab ?? "").toLowerCase().includes(q),
       );
     }
-    if (typeFilter !== "All") list = list.filter(e => e.type === typeFilter);
+    if (typeFilter !== "All") list = list.filter(e => e.category === typeFilter);
     return list;
   }, [events, search, typeFilter]);
 
@@ -276,7 +301,7 @@ export default function ProgrammingPage() {
       location: input.location,
       time: input.time,
       collab: input.collab,
-      type: input.type,
+      category: input.category,
       mandatory: input.mandatory,
       description: input.description,
     });
@@ -440,9 +465,12 @@ export default function ProgrammingPage() {
                     </div>
 
                     <div className="ev-filters">
-                      {TYPE_FILTERS.map(f => (
-                        <button key={f} className={`chip${typeFilter === f ? " on" : ""}`} onClick={() => setTypeFilter(f)}>
-                          {FILTER_LABEL[f]}
+                      <button className={`chip${typeFilter === "All" ? " on" : ""}`} onClick={() => setTypeFilter("All")}>
+                        All
+                      </button>
+                      {typeFilters.map(t => (
+                        <button key={t.slug} className={`chip${typeFilter === t.slug ? " on" : ""}`} onClick={() => setTypeFilter(t.slug)}>
+                          {t.label}
                         </button>
                       ))}
                       <span className="grow" />
@@ -576,8 +604,7 @@ export default function ProgrammingPage() {
           <CalendarEventForm
             submitLabel="Add Event"
             onSubmit={handleAdd}
-            categoryOptions={PROGRAMMING_FORM_OPTIONS}
-            defaultCategory="program"
+            categoryOptions={programmingFormOptions}
             showCollab
             minDate={activeSemester?.startDate}
             maxDate={activeSemester?.endDate}
@@ -594,15 +621,14 @@ export default function ProgrammingPage() {
               title: editTarget.title,
               date: editTarget.dueDate ?? "",
               time: editTarget.time ?? undefined,
-              category: typeLabelToCategory(editTarget.type),
+              category: editTarget.category,
               mandatory: editTarget.mandatory,
               location: editTarget.location || undefined,
               description: editTarget.description ?? undefined,
             }}
             initialCollab={editTarget.collab}
             onSubmit={handleEdit}
-            categoryOptions={PROGRAMMING_FORM_OPTIONS}
-            defaultCategory="program"
+            categoryOptions={editCategoryOptions}
             showCollab
             minDate={activeSemester?.startDate}
             maxDate={activeSemester?.endDate}

@@ -24,18 +24,29 @@ import type { db } from "@/lib/db";
 type Scoped = ReturnType<typeof db>;
 
 /**
- * A Scoped stand-in that allows the single read the builders may perform
- * (brother.findFirst) and throws on ANY mutation method, so a stray write fails
- * the test loudly instead of silently. `duesBefore` controls the read result.
+ * A Scoped stand-in that allows the reads the builders may perform
+ * (brother.findFirst for dues; calendarEventType.findMany for per-org event
+ * types) and throws on ANY mutation method, so a stray write fails the test
+ * loudly instead of silently. `duesBefore` controls the dues read result.
  */
+const MOCK_EVENT_TYPES = [
+  { slug: "chapter", label: "Chapter",           creatable: true,  hidden: false },
+  { slug: "party",   label: "Party",             creatable: false, hidden: false },
+  { slug: "service", label: "Community Service", creatable: true,  hidden: false },
+  // LPE-style customs (social/fundy/program are no longer built-ins).
+  { slug: "social",  label: "Social",            creatable: true,  hidden: false },
+  { slug: "fundy",   label: "Fundraiser",        creatable: true,  hidden: false },
+];
 function mockScoped(duesBefore: number | null = 135): { scoped: Scoped; findFirst: ReturnType<typeof vi.fn> } {
   const findFirst = vi.fn(async () => (duesBefore === null ? null : { duesOwed: duesBefore }));
+  const findMany = vi.fn(async () => MOCK_EVENT_TYPES);
   const explode = (op: string) => () => { throw new Error(`unexpected DB write: ${op}`); };
-  // A Proxy so any model.method access resolves: reads return findFirst where
-  // expected; every mutating verb throws.
+  // A Proxy so any model.method access resolves: reads return findFirst/findMany
+  // where expected; every mutating verb throws.
   const model = new Proxy({} as Record<string, unknown>, {
     get(_t, prop: string) {
-      if (prop === "findFirst" || prop === "findUnique" || prop === "findMany") return findFirst;
+      if (prop === "findFirst" || prop === "findUnique") return findFirst;
+      if (prop === "findMany") return findMany;
       if (["create", "update", "delete", "upsert", "updateMany", "deleteMany", "createMany"].includes(prop)) {
         return explode(prop);
       }

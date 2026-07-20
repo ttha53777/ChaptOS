@@ -5,12 +5,11 @@ import { NotFoundError, ValidationError } from "@/lib/errors";
 import { scrapeMetadata } from "@/lib/og-metadata";
 import {
   fromProgrammingInput,
-  isProgrammingCategory,
-  PROGRAMMING_CATEGORIES,
+  isProgrammingManagedType,
+  makeLabelResolver,
   resolveProgrammingDisplay,
   toCalendarFields,
   toProgrammingTask,
-  typeLabelToCategory,
 } from "@/lib/programming";
 import { isProgrammingStage, stageRequiresCalendar } from "@/lib/state/programming-stage";
 import { programmingPrepScore } from "@/lib/programming";
@@ -62,6 +61,33 @@ function isServiceCategory(category: string) {
   return category === "service";
 }
 
+/**
+ * The org's programming-managed event types (see isProgrammingManagedType):
+ * everything creatable except chapter — built-ins and customs alike. Fetched
+ * once per service call; used for the board's category filter, input
+ * validation, and slug→label resolution on the DTO.
+ */
+async function managedTypes(ctx: RequestContext) {
+  const rows = await ctx.db.calendarEventType.findMany({
+    select: { slug: true, label: true, creatable: true, hidden: true },
+  }) as { slug: string; label: string; creatable: boolean; hidden: boolean }[];
+  return rows.filter(isProgrammingManagedType);
+}
+
+/**
+ * Resolve + validate an input category against the org's managed types.
+ * `hidden` types are retired: their existing events keep working, but new
+ * events (and recategorizations) can't target them.
+ */
+function requireManagedCategory(
+  types: { slug: string; hidden: boolean }[],
+  slug: string,
+) {
+  const type = types.find(t => t.slug === slug);
+  if (!type) throw new ValidationError(`Unknown event type "${slug}"`);
+  if (type.hidden) throw new ValidationError(`The "${slug}" event type isn't available for new events`);
+}
+
 async function syncServiceEvent(
   tx: Prisma.TransactionClient,
   orgId: number,
@@ -92,35 +118,45 @@ async function removeServiceEvent(tx: Prisma.TransactionClient, calendarEventId:
   if (linked) await tx.serviceEvent.delete({ where: { id: linked.id } });
 }
 
-async function requireProgrammingEvent(ctx: RequestContext, id: number): Promise<ProgrammingRow> {
+type ManagedType = { slug: string; label: string; creatable: boolean; hidden: boolean };
+
+async function requireProgrammingEvent(
+  ctx: RequestContext,
+  id: number,
+): Promise<{ row: ProgrammingRow; types: ManagedType[] }> {
   // The scoped findUnique wrapper isn't select-narrowed in its return type; the
   // runtime select matches ROW_SELECT, so cast to the known payload.
   const row = await ctx.db.programmingEvent.findUnique({ where: { id }, select: ROW_SELECT }) as ProgrammingRow | null;
-  if (!row || !isProgrammingCategory(row.category)) {
+  const types = await managedTypes(ctx);
+  if (!row || !types.some(t => t.slug === row.category)) {
     throw new NotFoundError("Programming event");
   }
-  return row;
+  return { row, types };
 }
 
-async function loadTask(ctx: RequestContext, id: number) {
+async function loadTask(ctx: RequestContext, id: number, labelFor?: (slug: string) => string) {
   const row = await ctx.db.programmingEvent.findUnique({ where: { id }, select: ROW_SELECT }) as ProgrammingRow | null;
   // Reload after a committed mutation — the row normally exists, but guard the
   // race where it's deleted in between so we return a clean 404 instead of a
   // raw TypeError 500. Mirrors requireProgrammingEvent above.
   if (!row) throw new NotFoundError("Programming event");
-  return toProgrammingTask(row);
+  return toProgrammingTask(row, labelFor ?? makeLabelResolver(await managedTypes(ctx)));
 }
 
 export async function listProgrammingTasks(ctx: RequestContext) {
+  const types = await managedTypes(ctx);
   const rows = await ctx.db.programmingEvent.findMany({
-    where:   { category: { in: [...PROGRAMMING_CATEGORIES] } },
+    where:   { category: { in: types.map(t => t.slug) } },
     orderBy: [{ date: "asc" }, { id: "asc" }],
     select:  ROW_SELECT,
   });
-  return rows.map(toProgrammingTask);
+  const labelFor = makeLabelResolver(types);
+  return rows.map(row => toProgrammingTask(row, labelFor));
 }
 
 export async function createProgrammingTask(ctx: RequestContext, input: CreateProgrammingTaskInput) {
+  const types = await managedTypes(ctx);
+  requireManagedCategory(types, input.category);
   // Requires an active semester even for a dateless Idea; when a dueDate is set
   // it must fall within the semester (it lands on the calendar on promotion).
   await assertWithinActiveSemester(ctx, input.dueDate);
@@ -133,11 +169,11 @@ export async function createProgrammingTask(ctx: RequestContext, input: CreatePr
   await emit(ctx, "programming.created", { type: "ProgrammingEvent", id: created.id }, {
     title: created.title, stage: created.stage,
   });
-  return toProgrammingTask(created);
+  return toProgrammingTask(created, makeLabelResolver(types));
 }
 
 export async function updateProgrammingTask(ctx: RequestContext, id: number, input: UpdateProgrammingTaskInput) {
-  const existing = await requireProgrammingEvent(ctx, id);
+  const { row: existing, types } = await requireProgrammingEvent(ctx, id);
 
   const data: Prisma.ProgrammingEventUncheckedUpdateInput = {};
   const changedFields: string[] = [];
@@ -171,7 +207,7 @@ export async function updateProgrammingTask(ctx: RequestContext, id: number, inp
   if (input.spendingCents !== undefined) { data.spendingCents = input.spendingCents; changedFields.push("spendingCents"); }
   if (input.successRating !== undefined) { data.successRating = input.successRating; changedFields.push("successRating"); }
   if (input.wrapUpNotes !== undefined)  { data.wrapUpNotes = input.wrapUpNotes; changedFields.push("wrapUpNotes"); }
-  if (input.type !== undefined)         { data.category = typeLabelToCategory(input.type); changedFields.push("category"); }
+  if (input.category !== undefined)     { requireManagedCategory(types, input.category); data.category = input.category; changedFields.push("category"); }
 
   const nextCategory = (data.category as string | undefined) ?? existing.category;
   const wasService   = isServiceCategory(existing.category);
@@ -199,7 +235,7 @@ export async function updateProgrammingTask(ctx: RequestContext, id: number, inp
     }
   });
 
-  const full = await loadTask(ctx, id);
+  const full = await loadTask(ctx, id, makeLabelResolver(types));
   if (existing.calendarEventId != null) {
     await emit(ctx, "calendar.updated", { type: "CalendarEvent", id: existing.calendarEventId }, {
       title: full.title, changedFields,
@@ -216,8 +252,9 @@ export async function updateProgrammingTask(ctx: RequestContext, id: number, inp
 export async function setStage(ctx: RequestContext, id: number, input: SetStageInput) {
   const next = input.stage;
   if (!isProgrammingStage(next)) throw new ValidationError("Unknown stage");
-  const pe = await requireProgrammingEvent(ctx, id);
-  if (pe.stage === next) return toProgrammingTask(pe);
+  const { row: pe, types } = await requireProgrammingEvent(ctx, id);
+  const labelFor = makeLabelResolver(types);
+  if (pe.stage === next) return toProgrammingTask(pe, labelFor);
 
   const promoting = stageRequiresCalendar(next) && pe.calendarEventId == null;
   const demoting  = !stageRequiresCalendar(next) && pe.calendarEventId != null;
@@ -273,11 +310,11 @@ export async function setStage(ctx: RequestContext, id: number, input: SetStageI
   if (deletedCalendarId != null) {
     await emit(ctx, "calendar.deleted", { type: "CalendarEvent", id: deletedCalendarId }, { title: pe.title });
   }
-  return loadTask(ctx, id);
+  return loadTask(ctx, id, labelFor);
 }
 
 export async function deleteProgrammingTask(ctx: RequestContext, id: number) {
-  const target = await requireProgrammingEvent(ctx, id);
+  const { row: target } = await requireProgrammingEvent(ctx, id);
 
   await ctx.db.$transaction(async (tx) => {
     if (target.calendarEventId != null) {
