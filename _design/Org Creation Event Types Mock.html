@@ -17,9 +17,12 @@
       → 6 Build → 7 Reveal → 8 Invite
     Only steps 4 and 5 are live here; the rail dims the unchanged ones and
     points at the v3 mock.
-  · Data model mirrors lib/event-types.ts: 7 built-in types, each gated by a
-    workflow (chapter←meetings, social/fundy/program←events, party←parties,
-    deadline←tasks, service←service). Built-ins can be RENAMED and RECOLORED,
+  · Data model mirrors lib/event-types.ts AFTER the 2026-07-19 demotion: only
+    4 built-in types, each gated by a workflow (chapter←meetings, party←parties,
+    deadline←tasks, service←service). Social/Fundraiser/Program are NOT
+    built-ins anymore — they're LPE's own custom types, so a new org like
+    Kappa Sigma starts leaner and ADDS its own vocabulary here (the adder's
+    suggestions lead with those three). Built-ins can be RENAMED and RECOLORED,
     never removed — their slugs are load-bearing. Custom types are add/remove.
     party + deadline are creatable:false (booked from their own pages) — noted
     in their fine print, not surfaced as UI complexity.
@@ -29,8 +32,8 @@
     Flipping Tasks ON from the blueprint's Pages card makes Deadline arrive —
     the cross-effect is wired live.
   · The right pane of the new step is a LIVE September preview: one sample
-    event per preloaded type. Rename "Social" → "Mixer" and the ledger + legend
-    follow; add "Rush" and a dashed scaffold row appears. Cause and effect,
+    event per preloaded type. Rename "Chapter" and the ledger + legend follow;
+    add "Social" and a dashed scaffold row appears. Cause and effect,
     no explanation needed.
   · SCROLL SYSTEM: one language for every surface. The editor column (.ask),
     the preview spine and the blueprint are each their own scroll region with
@@ -462,12 +465,12 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--vio); outli
         <div class="ask fade-scroll" id="askCol">
           <p class="kicker">Step 4 · Straight from your pages</p>
           <h1 class="q-serif">What lands on your <em>timeline</em>?</h1>
-          <p class="sub">The pages you turned on already stocked it — <b>rename or recolor</b> anything. Then add the ones only Kappa&nbsp;Sigma runs.</p>
+          <p class="sub">The pages you turned on stocked the basics — <b>rename or recolor</b> anything. Then add Kappa&nbsp;Sigma&rsquo;s own: socials, fundraisers, rush.</p>
           <div class="et-list" id="etList"></div>
           <div class="et-add">
-            <button class="et-add-btn" id="etAddBtn"><span class="plus">+</span>Add your own — <b>Rush, Formal, Big/Little Reveal…</b></button>
+            <button class="et-add-btn" id="etAddBtn"><span class="plus">+</span>Add your own — <b>Social, Fundraiser, Rush Week…</b></button>
             <div class="et-editor" id="etEditor">
-              <input class="newname" id="etNewName" placeholder="Name it — Rush Week…" autocomplete="off" spellcheck="false" aria-label="New event type name">
+              <input class="newname" id="etNewName" placeholder="Name it — Social, Rush Week…" autocomplete="off" spellcheck="false" aria-label="New event type name">
               <div class="sugg" id="etSugg"></div>
               <div class="lab">Its color on the timeline</div>
               <div class="sws" id="etNewSws"></div>
@@ -578,12 +581,6 @@ const S = {
   types: [
     { slug: "chapter",  label: "Chapter",           color: "#8fb0d6", wfKey: "meetings", src: "CHAPTER", builtin: true,
       note: "Came with your Chapter page &middot; attendance required by default &mdash; both editable in Settings." },
-    { slug: "social",   label: "Social",            color: "#ddb36a", wfKey: "events",   src: "EVENTS",  builtin: true,
-      note: "Came with your Events page &mdash; rename or recolor it; turn the page off to shelve it." },
-    { slug: "fundy",    label: "Fundraiser",        color: "#86b988", wfKey: "events",   src: "EVENTS",  builtin: true,
-      note: "Came with your Events page &mdash; rename or recolor it; turn the page off to shelve it." },
-    { slug: "program",  label: "Program",           color: "#a78bfa", wfKey: "events",   src: "EVENTS",  builtin: true,
-      note: "Came with your Events page &mdash; rename or recolor it; turn the page off to shelve it." },
     { slug: "party",    label: "Party",             color: "#d98ba3", wfKey: "parties",  src: "PARTIES", builtin: true,
       note: "Booked from the Parties page &mdash; every party lands on the timeline in this color." },
     { slug: "service",  label: "Community Service", color: "#5fbdb0", wfKey: "service",  src: "SERVICE", builtin: true,
@@ -597,17 +594,16 @@ const S = {
 };
 
 const SWATCHES = ["#8fb0d6", "#7fb3d9", "#a78bfa", "#d98ba3", "#e0796b", "#d9a05b", "#ddb36a", "#86b988", "#5fbdb0", "#c98bd9"];
-const SUGGESTIONS = ["Rush", "Formal", "Big/Little Reveal", "Alumni Mixer", "Intramurals"];
+/* Social/Fundraiser/Program lead — they're org vocabulary now, not built-ins,
+   so a fraternity's most likely adds come first in the adder. */
+const SUGGESTIONS = ["Social", "Fundraiser", "Program", "Rush", "Formal", "Big/Little Reveal"];
 
 /* One honest sample event per built-in — the preview is the argument. */
 const SAMPLE = [
-  { slug: "chapter", d: "6",  dow: "SUN", title: null,                    when: "7:00 PM · WEEKLY" }, // title follows the live label
-  { slug: "social",  d: "11", dow: "FRI", title: "Mixer with Tri Delt",   when: "9:00 PM" },
-  { slug: "fundy",   d: "19", dow: "SAT", title: "Car Wash Fundraiser",   when: "10:00 AM" },
-  { slug: "service", d: "21", dow: "MON", title: "Adopt-a-Highway",       when: "9:00 AM" },
-  { slug: "program", d: "24", dow: "THU", title: "Résumé Workshop", when: "6:30 PM" },
-  { slug: "party",   d: "26", dow: "SAT", title: "Fall Formal",           when: "10:00 PM" },
-  { slug: "deadline",d: "30", dow: "WED", title: "Dues due",              when: "11:59 PM" },
+  { slug: "chapter", d: "6",  dow: "SUN", title: null,              when: "7:00 PM · WEEKLY" }, // title follows the live label
+  { slug: "service", d: "21", dow: "MON", title: "Adopt-a-Highway", when: "9:00 AM" },
+  { slug: "party",   d: "26", dow: "SAT", title: "Fall Formal",     when: "10:00 PM" },
+  { slug: "deadline",d: "30", dow: "WED", title: "Dues due",        when: "11:59 PM" },
 ];
 
 const $  = (sel, root) => (root || document).querySelector(sel);
