@@ -387,16 +387,21 @@ function EventTypesCard({ draft, onEditTypes }: { draft: Draft; onEditTypes: (sl
           + add or edit →
         </button>
       </div>
+      {/* Explicit {" "} around the bold runs: this flow's compiler drops the
+          literal space after an expression often enough that it isn't safe to
+          rely on (see the "organd" bug this replaced). */}
       <p className="vocab-note">
         Stocked by the pages you turned on
         {waiting.length > 0 && (
           <>
-            {" — no "}
-            <b>{waiting.map(r => r.label).join(", ")}</b> type until those pages are on
+            {" — "}
+            <b>{waiting.map(r => r.label).join(", ")}</b>
+            {waiting.length === 1 ? " arrives when its page does" : " arrive when their pages do"}
           </>
         )}
-        . Everything here is <b>built with the org</b> and drives the timeline&rsquo;s dots, legend and
-        add-event picker.
+        . Everything here is{" "}
+        <b>built with the org</b>{" "}
+        and drives the timeline&rsquo;s dots, legend and add-event picker.
       </p>
     </div>
   );

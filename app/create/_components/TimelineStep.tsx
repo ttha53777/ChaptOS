@@ -26,7 +26,7 @@ import {
   nextEventTypeColor,
   type DraftEventTypeRow,
 } from "@/lib/onboarding/event-types";
-import { EVENT_TYPE_PALETTE, getBuiltinEventType } from "@/lib/event-types";
+import { EVENT_TYPE_PALETTE, getBuiltinEventType, type EventTypeColor } from "@/lib/event-types";
 import { draftEventTypes, draftVocab, type FlowAction } from "./flow-state";
 
 /* ─── Sample month ───────────────────────────────────────────────────────── */
@@ -269,7 +269,7 @@ export function TimelineStep({
   const [open, setOpen] = useState<string | null>(openSlug ?? null);
   const [adding, setAdding] = useState(false);
   const [newLabel, setNewLabel] = useState("");
-  const [newColor, setNewColor] = useState(() => nextEventTypeColor(rows));
+  const [newColor, setNewColor] = useState<EventTypeColor>(() => nextEventTypeColor(rows));
   const listEnd = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
