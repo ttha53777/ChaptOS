@@ -726,13 +726,31 @@
 .crf .metric-add:focus { border-color: var(--vio-line); }
 
 /* ═══ Step 4 — Your timeline (event types) ═══
-   Ported from _design/Org Creation Event Types Mock.html. The mock's bespoke
-   edge-fade / wheel-routing scroll system is deliberately NOT ported: both
-   regions here scroll like every other surface in this flow (thin scrollbar),
-   so the step doesn't invent a scroll language of its own. */
+   Ported from _design/Org Creation Event Types Mock.html, including its scroll
+   system: each region scrolls with NO visible scrollbar, and an edge-fade mask
+   is the affordance — shown only in the direction that actually has more
+   content (classes toggled from useFadeScroll in TimelineStep.tsx). */
 .crf .scr[data-step="timeline"] .split { grid-template-columns: minmax(460px, 47%) 1fr; }
 
-.crf .et-ask { max-width: 560px; max-height: calc(100dvh - 148px); overflow-y: auto; scrollbar-width: thin; padding-right: 8px; }
+/* A fixed band above the rail so scrolling content slips UNDER it rather than
+   hard-clipping at the viewport edge. */
+.crf .scr[data-step="timeline"]::after {
+  content: ""; position: fixed; left: 0; right: 0; bottom: 0; height: 64px;
+  z-index: 40; pointer-events: none;
+  background: linear-gradient(to top, var(--paper) 8%, transparent);
+}
+
+.crf .fade-scroll {
+  --ft: 0px; --fb: 0px;
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 var(--ft), #000 calc(100% - var(--fb)), transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0, #000 var(--ft), #000 calc(100% - var(--fb)), transparent 100%);
+}
+.crf .fade-scroll.scroll-top { --ft: 34px; }
+.crf .fade-scroll.scroll-bot { --fb: 34px; }
+.crf .et-ask, .crf .tlp-spine { scrollbar-width: none; }
+.crf .et-ask::-webkit-scrollbar, .crf .tlp-spine::-webkit-scrollbar { display: none; }
+
+.crf .et-ask { max-width: 560px; max-height: calc(100dvh - 148px); overflow-y: auto; padding: 10px 14px 14px 4px; }
 .crf .et-ask .q-serif { margin-bottom: 0; }
 .crf .et-ask .sub { margin-top: 12px; font-size: 14px; color: var(--ink-55); line-height: 1.6; max-width: 480px; }
 .crf .et-ask .sub.lead { font-size: 14.5px; color: var(--ink-72); line-height: 1.66; max-width: 504px; }
@@ -839,7 +857,7 @@
 .crf .tlp-month .rule { flex: 1; height: 1px; background: var(--line-soft); align-self: center; }
 .crf .tlp-month .cnt { font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--vio); white-space: nowrap; }
 
-.crf .tlp-spine { position: relative; overflow-y: auto; min-height: 0; scrollbar-width: thin; }
+.crf .tlp-spine { position: relative; overflow-y: auto; min-height: 0; }
 .crf .tlp-spine::before { content: ""; position: absolute; left: 52px; top: 6px; bottom: 10px; width: 1px; background: var(--line-soft); }
 .crf .tlp-row { display: flex; align-items: stretch; animation: crf-msg-in 380ms var(--ease) both; }
 .crf .tlp-date { width: 42px; flex: none; text-align: right; padding-right: 12px; padding-top: 2px; }

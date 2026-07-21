@@ -18,7 +18,7 @@
  * promise something provisioning won't build.
  */
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { Draft } from "@/lib/onboarding/draft";
 import {
   EVENT_TYPE_SUGGESTIONS,
@@ -28,6 +28,70 @@ import {
 } from "@/lib/onboarding/event-types";
 import { EVENT_TYPE_PALETTE, getBuiltinEventType, type EventTypeColor } from "@/lib/event-types";
 import { draftEventTypes, draftVocab, type FlowAction } from "./flow-state";
+
+/* ─── Scroll system ──────────────────────────────────────────────────────────
+   Ported from the mock: every scrollable surface on this step shares one
+   language. No visible scrollbar — an edge-fade mask is the affordance, and it
+   appears only in the direction that actually HAS more content, so a fade always
+   means "there's more that way". Content slips under a fixed band above the rail
+   instead of hard-clipping (see .crf .scr[data-step="timeline"]::after).
+
+   Edits follow themselves: adding a type or opening a color strip pulls that row
+   into view with a container scrollTo — never scrollIntoView, which would also
+   scroll the page behind it. */
+
+/** Toggle the edge-fade classes for one scroller against its current position. */
+function paintFades(el: HTMLElement | null) {
+  if (!el) return;
+  const canScroll = el.scrollHeight > el.clientHeight + 2;
+  el.classList.toggle("scroll-top", canScroll && el.scrollTop > 6);
+  el.classList.toggle("scroll-bot", canScroll && el.scrollTop < el.scrollHeight - el.clientHeight - 6);
+}
+
+/**
+ * Wire a scroll region: repaints its fades on scroll, on resize, and whenever
+ * `deps` change (a row added, a strip opened — anything that resizes content).
+ */
+function useFadeScroll(deps: unknown[]) {
+  const ref = useRef<HTMLDivElement | null>(null);
+  const repaint = useCallback(() => paintFades(ref.current), []);
+
+  useLayoutEffect(repaint);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.addEventListener("scroll", repaint, { passive: true });
+    window.addEventListener("resize", repaint);
+    // Rows animate in and color strips expand via CSS transitions, which resize
+    // the content WITHOUT a React render — so a render-time repaint alone leaves
+    // a stale fade behind (a "there's more below" edge over content that already
+    // fits). Observing the box catches those.
+    const ro = new ResizeObserver(repaint);
+    ro.observe(el);
+    for (const child of el.children) ro.observe(child);
+    return () => {
+      el.removeEventListener("scroll", repaint);
+      window.removeEventListener("resize", repaint);
+      ro.disconnect();
+    };
+  }, [repaint, ...deps]); // eslint-disable-line react-hooks/exhaustive-deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(repaint, deps);
+
+  return { ref, repaint };
+}
+
+/** Scroll `el` fully into view WITHIN `container` (never the page). */
+function ensureVisible(container: HTMLElement | null, el: HTMLElement | null, pad = 24) {
+  if (!container || !el) return;
+  const cr = container.getBoundingClientRect();
+  const er = el.getBoundingClientRect();
+  if (er.top < cr.top + pad) {
+    container.scrollTo({ top: container.scrollTop + (er.top - cr.top) - pad, behavior: "smooth" });
+  } else if (er.bottom > cr.bottom - pad) {
+    container.scrollTo({ top: container.scrollTop + (er.bottom - cr.bottom) + pad, behavior: "smooth" });
+  }
+}
 
 /* ─── Sample month ───────────────────────────────────────────────────────── */
 
@@ -294,9 +358,40 @@ export function TimelineStep({
   const [newColor, setNewColor] = useState<EventTypeColor>(() => nextEventTypeColor(rows));
   const listEnd = useRef<HTMLDivElement | null>(null);
 
+  // Both scroll regions repaint their fades whenever the content that fills them
+  // changes — a type added or removed, a strip opened, the adder unfolding.
+  const askCol = useFadeScroll([rows.length, open, adding]);
+  const spine = useFadeScroll([rows.length, open]);
+
   useEffect(() => {
     if (openSlug) setOpen(openSlug);
   }, [openSlug]);
+
+  // A deep-linked row (or one whose strip just expanded) is pulled into view
+  // after the 320ms max-height transition, so it's never half off-screen.
+  useEffect(() => {
+    if (!open) return;
+    const t = setTimeout(() => {
+      ensureVisible(askCol.ref.current, askCol.ref.current?.querySelector(".et-row.open") ?? null);
+      askCol.repaint();
+    }, 340);
+    return () => clearTimeout(t);
+  }, [open, askCol]);
+
+  // Wheel deltas over the step's non-scrolling chrome (the split's gaps, the
+  // preview card's header and legend) are routed to the surface they visually
+  // belong to, so the page never feels dead under the cursor.
+  useEffect(() => {
+    const onWheel = (ev: WheelEvent) => {
+      const target = ev.target as HTMLElement | null;
+      if (!target?.closest('.scr[data-step="timeline"]')) return;
+      if (target.closest(".et-ask, .tlp-spine")) return; // the browser has it
+      const el = target.closest(".sheet-slot") ? spine.ref.current : askCol.ref.current;
+      if (el) el.scrollTop += ev.deltaMode === 1 ? ev.deltaY * 16 : ev.deltaY;
+    };
+    document.addEventListener("wheel", onWheel, { passive: true });
+    return () => document.removeEventListener("wheel", onWheel);
+  }, [askCol.ref, spine.ref]);
 
   const meetingsLabel = draftVocab(draft, "Meetings");
   const active = rows.filter(r => r.active);
@@ -311,7 +406,12 @@ export function TimelineStep({
     dispatch({ type: "addEventType", label, color: newColor.color, colorDark: newColor.colorDark });
     setNewLabel("");
     setAdding(false);
-    requestAnimationFrame(() => listEnd.current?.scrollIntoView({ behavior: "smooth", block: "nearest" }));
+    // Follow the new type on BOTH sides — its row on the left, its scaffold on
+    // the right — so the cause and its effect are visible in one gesture.
+    requestAnimationFrame(() => {
+      ensureVisible(askCol.ref.current, listEnd.current);
+      spine.ref.current?.scrollTo({ top: spine.ref.current.scrollHeight, behavior: "smooth" });
+    });
   }
 
   function openAdder() {
@@ -325,7 +425,7 @@ export function TimelineStep({
 
   return (
     <div className="split">
-      <div className="ask et-ask">
+      <div className="ask et-ask fade-scroll" ref={askCol.ref}>
         <p className="kicker">Step 4 · Your timeline</p>
         <h1 className="q-serif">
           What lands on your <em>timeline</em>?
@@ -425,7 +525,7 @@ export function TimelineStep({
               <span className="rule" />
               <span className="cnt">{active.length} categories</span>
             </div>
-            <div className="tlp-spine">
+            <div className="tlp-spine fade-scroll" ref={spine.ref}>
               {preview.length === 0 && (
                 // Reachable: a founder who turned every activity page off has no
                 // active type yet. Say so plainly instead of rendering a blank
