@@ -56,13 +56,35 @@ function sampleMonth() {
   return { year: date.getFullYear(), month: date.getMonth(), lastDay: new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate() };
 }
 
-/** One honest sample per built-in slug — enough to show the color doing work. */
+/**
+ * One honest sample per slug — enough to show the color doing work. Covers the
+ * 4 built-ins plus every org-type-seeded starter custom (lib/org-types.ts
+ * `eventTypeSeeds`): the platform can vouch for a plausible example of either,
+ * since both come from its own vocabulary. A founder-typed custom has no entry
+ * here on purpose — nobody can guess what someone's own "Rush Week" means, so
+ * it keeps the honest scaffold in previewRows() below.
+ */
 const SAMPLES: Record<string, { title: string | null; when: string; day: (m: ReturnType<typeof sampleMonth>) => number }> = {
   // null title = follow the type's live label, so renaming Chapter renames this row.
   chapter:  { title: null,               when: "7:00 PM · weekly", day: m => nthWeekday(m.year, m.month, 0, 1) },
   service:  { title: "Volunteer morning", when: "9:00 AM",         day: m => nthWeekday(m.year, m.month, 6, 2) },
   party:    { title: "Formal",            when: "10:00 PM",        day: m => nthWeekday(m.year, m.month, 5, 4) },
   deadline: { title: "Dues due",          when: "11:59 PM",        day: m => m.lastDay },
+
+  // Org-type starter customs (lib/org-types.ts eventTypeSeeds) — shared slugs
+  // (social/fundraiser/workshop) cover every template that reuses them.
+  social:          { title: "Mixer",                when: "9:00 PM",         day: m => nthWeekday(m.year, m.month, 5, 2) },
+  fundraiser:      { title: "Fundraiser night",      when: "6:00 PM",        day: m => nthWeekday(m.year, m.month, 3, 3) },
+  programming:     { title: "Speaker night",         when: "7:00 PM",        day: m => nthWeekday(m.year, m.month, 2, 2) },
+  workshop:        { title: "Resume workshop",       when: "6:00 PM",        day: m => nthWeekday(m.year, m.month, 4, 3) },
+  game:            { title: "Home game",             when: "1:00 PM",        day: m => nthWeekday(m.year, m.month, 6, 2) },
+  practice:        { title: "Practice",              when: "5:30 PM · weekly", day: m => nthWeekday(m.year, m.month, 2, 1) },
+  tournament:      { title: "Tournament",            when: "9:00 AM",        day: m => nthWeekday(m.year, m.month, 6, 3) },
+  "service-project": { title: "Beach cleanup",       when: "9:00 AM",        day: m => nthWeekday(m.year, m.month, 6, 3) },
+  outreach:        { title: "Community outreach",    when: "2:00 PM",        day: m => nthWeekday(m.year, m.month, 3, 2) },
+  induction:       { title: "Induction ceremony",    when: "6:00 PM",        day: m => nthWeekday(m.year, m.month, 4, 1) },
+  performance:     { title: "Performance",           when: "7:30 PM",        day: m => nthWeekday(m.year, m.month, 6, 4) },
+  auditions:       { title: "Auditions",             when: "4:00 PM",        day: m => nthWeekday(m.year, m.month, 6, 1) },
 };
 
 interface PreviewRow {
