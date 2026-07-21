@@ -44,8 +44,18 @@ export function CreateFlow() {
   // thing the beats exist to prevent. Both the rail and the ←/→ keys route
   // through here, so this single guard closes every path.
   const gated = useCallback(
-    (next: CreateStep) => (PAST_INTERVIEW.includes(next) && !draft.kind ? "interview" : null),
-    [draft.kind],
+    (next: CreateStep) => {
+      if (!PAST_INTERVIEW.includes(next)) return null;
+      if (!draft.kind) return "interview";
+      // The Timeline step is a stricter case than the rest: every row it renders
+      // is gated by the PAGE SET, which the interview's activity beat decides —
+      // several beats after the kind beat. Reached on `kind` alone it shows seven
+      // ghosted types over an empty preview, which reads as broken rather than as
+      // "your types follow your pages". So it waits for the interview to finish.
+      if (next === "timeline" && !draft.interviewDone) return "interview";
+      return null;
+    },
+    [draft.kind, draft.interviewDone],
   );
 
   const goto = useCallback(

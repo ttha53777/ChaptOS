@@ -38,7 +38,7 @@ import {
   type BuiltinMetricId,
   type KindId,
 } from "@/lib/onboarding/kinds";
-import type { WorkflowId } from "@/lib/org-types";
+import { BASE_WORKFLOWS, type WorkflowId } from "@/lib/org-types";
 import {
   draftVocab,
   workflowsChanged,
@@ -559,9 +559,23 @@ export function InterviewStep({
     if (missing.has("kind")) {
       return draftRef.current.founderName.trim() ? "kind" : "intro";
     }
-    // kind settled → nothing is strictly owed (name falls back to the Google
-    // name, metrics/roles are optional). Land on metrics so the founder gets one
-    // last look at per-member tracking before the blueprint.
+    // The activities beat is owed whenever the page set is still untouched.
+    // It is the ONLY authority for which pages an org gets (see the WORKFLOW
+    // AUTHORITY block in lib/org-types.ts): setKind resets enabledWorkflows to
+    // BASE_WORKFLOWS, and nothing else adds to it. So a handoff that skipped it
+    // — the concierge resolving `kind` and then failing, hitting the turn cap, or
+    // signalling done early — would provision an org with no meetings, parties,
+    // service or events page, and leave the Timeline step with no active type to
+    // show over an empty preview. "Nothing is strictly owed once kind is known"
+    // was true only while the org-type template still seeded pages.
+    const decidedPages = draftRef.current.enabledWorkflows.some(
+      w => !BASE_WORKFLOWS.includes(w),
+    );
+    if (!decidedPages) return "activities";
+
+    // Pages settled → nothing else is strictly owed (name falls back to the
+    // Google name, metrics/roles are optional). Land on metrics so the founder
+    // gets one last look at per-member tracking before the blueprint.
     return "metrics";
   }
 
