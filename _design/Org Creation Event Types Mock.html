@@ -35,6 +35,11 @@
     event per preloaded type. Rename "Chapter" and the ledger + legend follow;
     add "Social" and a dashed scaffold row appears. Cause and effect,
     no explanation needed.
+  · COPY: the left column opens by SAYING what it's for — one plain-language
+    lead line reframes event types as "the categories your org runs" and notes
+    that everything added to the timeline gets tagged with one, so it stays
+    filterable. Kept deliberately light — a single paragraph; the live preview
+    carries the rest of the teaching.
   · SCROLL SYSTEM: one language for every surface. The editor column (.ask),
     the preview spine and the blueprint are each their own scroll region with
     a quiet thin scrollbar and edge-fade masks that appear only when there is
@@ -180,6 +185,10 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--vio); outli
 }
 .ask .sub { margin-top: 10px; font-size: 14px; color: var(--ink-55); line-height: 1.6; max-width: 480px; }
 .ask .sub b { color: var(--ink-72); font-weight: 500; }
+/* Descriptive intro — a plain-language lead line that reframes event types as
+   "the categories your org runs" before the editor rows appear. */
+.ask .sub.lead { font-size: 14.5px; color: var(--ink-72); line-height: 1.66; max-width: 504px; }
+.ask .sub.lead b { color: var(--ink); font-weight: 600; }
 
 .et-list { margin-top: 18px; }
 .et-row {
@@ -463,9 +472,9 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--vio); outli
     <section class="scr" data-step="4">
       <div class="split">
         <div class="ask fade-scroll" id="askCol">
-          <p class="kicker">Step 4 · Straight from your pages</p>
+          <p class="kicker">Step 4 · Your timeline</p>
           <h1 class="q-serif">What lands on your <em>timeline</em>?</h1>
-          <p class="sub">The pages you turned on stocked the basics — <b>rename or recolor</b> anything. Then add Kappa&nbsp;Sigma&rsquo;s own: socials, fundraisers, rush.</p>
+          <p class="sub lead">These are just the categories your org runs — meetings, service, fundraisers, socials, whatever fits. Tag each timeline entry with one so it&rsquo;s easy to sort later.</p>
           <div class="et-list" id="etList"></div>
           <div class="et-add">
             <button class="et-add-btn" id="etAddBtn"><span class="plus">+</span>Add your own — <b>Social, Fundraiser, Rush Week…</b></button>
