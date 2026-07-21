@@ -17,12 +17,13 @@
  */
 
 import { z } from "zod";
-import { ALL_WORKFLOWS, normalizeWorkflows, type WorkflowId } from "@/lib/org-types";
+import { ALL_WORKFLOWS, getOrgType, normalizeWorkflows, type WorkflowId } from "@/lib/org-types";
 import { PERMISSIONS, type Permission } from "@/lib/permissions";
-import { sanitizeVocabOverrides } from "@/lib/vocab";
+import { resolveLabel, sanitizeVocabOverrides } from "@/lib/vocab";
 import { suggestSlug } from "@/lib/slug-rules";
 import type { CreateOrgInput } from "@/lib/validation/org";
 import { BUILTIN_METRIC_DEFAULTS, KIND_IDS, KIND_TO_TYPE, KIND_VOCAB_DELTA, type KindId } from "./kinds";
+import { MAX_DRAFT_EVENT_TYPES, resolveEventTypeRows } from "./event-types";
 import type { Seat } from "./seats";
 
 export const DRAFT_STORAGE_KEY = "figurints:create-draft:v2";
@@ -36,7 +37,7 @@ export const DRAFT_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 /** 2 MB of image ≈ 2.8 MB of data-URL; anything bigger was never a valid logo. */
 const MAX_LOGO_DATA_URL_CHARS = 3_000_000;
 
-export const CREATE_STEPS = ["name", "interview", "roles", "blueprint", "build"] as const;
+export const CREATE_STEPS = ["name", "interview", "roles", "timeline", "blueprint", "build"] as const;
 export type CreateStep = (typeof CREATE_STEPS)[number];
 
 const permissionEnum = z.enum(Object.keys(PERMISSIONS) as [Permission, ...Permission[]]);
@@ -82,11 +83,52 @@ export const draftSchema = z.object({
       .max(5),
   }),
   seats: z.array(seatSchema).max(16),
+  /**
+   * The Timeline step's answer — the categories the org's timeline will use.
+   * Sparse on purpose (see lib/onboarding/event-types.ts): `builtins` holds only
+   * label/color overrides, and `customs` stays null until the founder edits the
+   * list, null meaning "seed whatever the org type seeds". An empty ARRAY is a
+   * real answer ("no custom categories") and is not the same thing.
+   *
+   * `.default()` rather than a schema-version bump: the field is additive, so a
+   * draft written before this step shipped (one mid-OAuth across the deploy)
+   * still parses and simply reads as "never visited the step".
+   */
+  eventTypes: z
+    .object({
+      builtins: z.record(
+        z.string(),
+        z.object({
+          label:     z.string().trim().min(1).max(40).optional(),
+          color:     z.string().max(9).optional(),
+          colorDark: z.string().max(9).optional(),
+        }),
+      ),
+      customs: z
+        .array(
+          z.object({
+            slug:       z.string().min(1).max(50),
+            label:      z.string().trim().min(1).max(40),
+            color:      z.string().max(9),
+            colorDark:  z.string().max(9),
+            workflowId: z.literal("events").nullable(),
+          }),
+        )
+        .max(MAX_DRAFT_EVENT_TYPES)
+        .nullable(),
+    })
+    .default({ builtins: {}, customs: null }),
   logoDataUrl: z.string().startsWith("data:image/").max(MAX_LOGO_DATA_URL_CHARS).optional(),
 });
 
 export type Draft = z.infer<typeof draftSchema>;
 export type DraftMetrics = Draft["metrics"];
+export type DraftEventTypes = Draft["eventTypes"];
+
+/** A never-edited event-type answer — what a fresh draft and a kind reset hold. */
+export function defaultEventTypes(): DraftEventTypes {
+  return { builtins: {}, customs: null };
+}
 
 /** The four built-in flags for a kind, as a fresh metrics object (custom empty). */
 export function defaultMetrics(kind: KindId | null): DraftMetrics {
@@ -110,6 +152,7 @@ export function emptyDraft(): Draft {
     vocab: {},
     metrics: defaultMetrics(null),
     seats: [],
+    eventTypes: defaultEventTypes(),
   };
 }
 
@@ -140,6 +183,54 @@ export function parseDraft(raw: string | null | undefined): Draft | null {
  */
 function seedRank(index: number, all: boolean | undefined): number {
   return all ? 99 : Math.max(40, 60 - index * 5);
+}
+
+/**
+ * The org's word for meetings, resolved the way the sheet resolves it:
+ * template overrides → kind delta → founder edits. Used to default the
+ * `chapter` event type's label, so an org that says "General Body" gets a
+ * timeline type that says it too.
+ */
+function meetingsLabel(draft: Draft, kind: KindId): string {
+  const template = getOrgType(KIND_TO_TYPE[kind]);
+  return resolveLabel("Meetings", {
+    ...template?.vocabularyOverrides,
+    ...KIND_VOCAB_DELTA[kind],
+    ...draft.vocab,
+  });
+}
+
+/**
+ * The event-type block of the payload, or undefined when there is nothing to
+ * say. `builtins` is always the full resolved four (no diffing — this is how
+ * the vocab-derived chapter label reaches the server); `customs` is sent only
+ * once the founder has actually edited the list, so a draft that never reached
+ * the Timeline step still gets the org type's starters seeded server-side.
+ */
+function eventTypesInput(draft: Draft, kind: KindId) {
+  const rows = resolveEventTypeRows({
+    builtins:         draft.eventTypes.builtins,
+    customs:          draft.eventTypes.customs,
+    kind,
+    meetingsLabel:    meetingsLabel(draft, kind),
+    enabledWorkflows: draft.enabledWorkflows,
+  });
+  return {
+    builtins: rows
+      .filter(r => r.builtin)
+      .map(({ slug, label, color, colorDark }) => ({ slug, label, color, colorDark })),
+    ...(draft.eventTypes.customs === null
+      ? {}
+      : {
+          customs: draft.eventTypes.customs.map(({ slug, label, color, colorDark, workflowId }) => ({
+            slug,
+            label,
+            color,
+            colorDark,
+            workflowId,
+          })),
+        }),
+  };
 }
 
 /**
@@ -193,6 +284,7 @@ export function draftToCreateOrgInput(draft: Draft, fallbackFounderName?: string
         },
         custom: draft.metrics.custom.map(m => ({ name: m.name, unit: m.unit })),
       },
+      eventTypes: eventTypesInput(draft, kind),
     },
   };
 }
