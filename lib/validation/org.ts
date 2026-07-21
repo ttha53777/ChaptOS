@@ -6,6 +6,8 @@ import { PERMISSIONS, type Permission } from "@/lib/permissions";
 import { featureExists } from "@/lib/workflow-features";
 import { isValidFieldId, MAX_FIELDS, MAX_LABEL } from "@/lib/custom-member-fields";
 import { NAV_LABELS } from "@/lib/nav-order";
+import { BUILTIN_EVENT_TYPES, BUILTIN_EVENT_TYPE_SLUGS } from "@/lib/event-types";
+import { HEX_RE, SLUG_RE } from "@/lib/validation/event-types";
 
 // A single known WorkflowId. Shared by the blueprint's enabledWorkflows and the
 // config PATCH so both surfaces reject unknown ids with the identical message
@@ -19,6 +21,11 @@ const workflowIdSchema = z
 // The rank reserved for the founder/admin role. Non-founder blueprint roles must
 // stay strictly below it so nothing can tie or outrank the founder.
 const FOUNDER_RANK = 100;
+
+// Cap on custom event types a blueprint may carry. Leaves headroom under the
+// event-type service's MAX_EVENT_TYPES_PER_ORG (40) so a founder who maxes out
+// the create step can still add more from Settings afterwards.
+const MAX_BLUEPRINT_EVENT_TYPES = 20;
 
 // One founder-authored role in the create blueprint. Permissions are the bare
 // MANAGE_* names (matching how org-type templates store RoleSeed.permissions);
@@ -82,6 +89,77 @@ const blueprintInput = z.object({
           }),
         )
         .max(5, "Too many custom metrics"),
+    })
+    .optional(),
+  // The Timeline step's answer — the categories the new org's timeline runs on.
+  //
+  // Deliberately NARROWER than createEventTypeInput: `creatable`, `hidden`,
+  // `mandatoryDefault` and the BUILT-INS' `workflowId` are never accepted from a
+  // client. Those are behavior, not presentation — provisionOrg reads them from
+  // the registry, so a hand-rolled payload can't make `party` creatable or
+  // un-gate `deadline`. What a founder may set is what the step actually edits:
+  // a built-in's label/color, and the full custom list.
+  //
+  // Absent `customs` (or an absent block entirely) means "seed the org type's
+  // starters", which is the pre-existing behavior every non-flow caller relies
+  // on. An empty array is a real answer and seeds none.
+  eventTypes: z
+    .object({
+      builtins: z
+        .array(
+          z.object({
+            slug:      z.enum(BUILTIN_EVENT_TYPE_SLUGS),
+            label:     z.string().trim().min(1, "Event type label is required").max(40, "Label must be at most 40 characters"),
+            color:     z.string().trim().regex(HEX_RE, "Color must be a 6-digit hex like #3f6ea3"),
+            colorDark: z.string().trim().regex(HEX_RE, "colorDark must be a 6-digit hex"),
+          }),
+        )
+        .max(BUILTIN_EVENT_TYPES.length, "Too many built-in event types")
+        .optional(),
+      customs: z
+        .array(
+          z.object({
+            slug:       z.string().trim().min(1).max(50).regex(SLUG_RE, "Slug must be lowercase kebab-case (e.g. rush-week)"),
+            label:      z.string().trim().min(1, "Event type label is required").max(40, "Label must be at most 40 characters"),
+            color:      z.string().trim().regex(HEX_RE, "Color must be a 6-digit hex like #3f6ea3"),
+            colorDark:  z.string().trim().regex(HEX_RE, "colorDark must be a 6-digit hex"),
+            workflowId: workflowIdSchema.nullable().optional(),
+          }),
+        )
+        .max(MAX_BLUEPRINT_EVENT_TYPES, "Too many event types")
+        .optional(),
+    })
+    .superRefine((value, ctx) => {
+      const seenBuiltin = new Set<string>();
+      for (const [i, t] of (value.builtins ?? []).entries()) {
+        if (seenBuiltin.has(t.slug)) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: `Duplicate event type "${t.slug}"`,
+            path: ["builtins", i, "slug"],
+          });
+        }
+        seenBuiltin.add(t.slug);
+      }
+      const builtinSlugs = new Set<string>(BUILTIN_EVENT_TYPE_SLUGS);
+      const seenCustom = new Set<string>();
+      for (const [i, t] of (value.customs ?? []).entries()) {
+        if (builtinSlugs.has(t.slug)) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: `"${t.slug}" is a built-in event type — pick a different slug`,
+            path: ["customs", i, "slug"],
+          });
+        }
+        if (seenCustom.has(t.slug)) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: `Duplicate event type "${t.slug}"`,
+            path: ["customs", i, "slug"],
+          });
+        }
+        seenCustom.add(t.slug);
+      }
     })
     .optional(),
 });
