@@ -696,7 +696,10 @@
   transition: all 200ms var(--ease); white-space: nowrap;
 }
 .crf .rail button .n { font-size: 9.5px; opacity: .7; }
-.crf .rail button:hover:not(:disabled) { color: var(--ink); }
+/* :not(.on) matters — `:hover:not(:disabled)` outranks `.on` on specificity, so
+   without it hovering the CURRENT step repaints its label ink-on-ink and the
+   active pill reads as blank. */
+.crf .rail button:hover:not(:disabled):not(.on) { color: var(--ink); }
 .crf .rail button.on { background: var(--ink); color: var(--paper); }
 .crf .rail button:disabled { opacity: .4; cursor: default; }
 /* ═══ Interview: multi-select metric chips ═══ */
