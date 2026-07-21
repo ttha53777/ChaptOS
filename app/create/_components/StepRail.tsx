@@ -14,8 +14,9 @@ const RAIL: { step: CreateStep; n: string; label: string }[] = [
   { step: "name", n: "1", label: "NAME" },
   { step: "interview", n: "2", label: "INTERVIEW" },
   { step: "roles", n: "3", label: "ROLES" },
-  { step: "blueprint", n: "4", label: "BLUEPRINT" },
-  { step: "build", n: "5", label: "BUILD" },
+  { step: "timeline", n: "4", label: "TIMELINE" },
+  { step: "blueprint", n: "5", label: "BLUEPRINT" },
+  { step: "build", n: "6", label: "BUILD" },
 ];
 
 export function StepRail({

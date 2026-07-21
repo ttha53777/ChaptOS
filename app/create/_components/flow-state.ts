@@ -12,12 +12,21 @@ import { useSearchParams } from "next/navigation";
 import {
   DRAFT_STORAGE_KEY,
   LEGACY_DRAFT_STORAGE_KEY,
+  defaultEventTypes,
   defaultMetrics,
   emptyDraft,
   parseDraft,
   type CreateStep,
   type Draft,
 } from "@/lib/onboarding/draft";
+import {
+  MAX_DRAFT_EVENT_TYPES,
+  nextCustomTypeSlug,
+  resolveEventTypeRows,
+  starterEventTypes,
+  type DraftCustomEventType,
+  type DraftEventTypeRow,
+} from "@/lib/onboarding/event-types";
 import {
   BUILTIN_METRIC_DEFAULTS,
   KIND_TO_TYPE,
@@ -29,6 +38,7 @@ import {
 import { seatsFromTemplate, type Seat } from "@/lib/onboarding/seats";
 import { PERM_AREAS, togglePerm, toggleArea } from "@/lib/onboarding/perm-areas";
 import { ALWAYS_ON_WORKFLOWS, BASE_WORKFLOWS, getOrgType, type WorkflowId } from "@/lib/org-types";
+import { getBuiltinEventType } from "@/lib/event-types";
 import type { Permission } from "@/lib/permissions";
 import { resolveLabel, type VocabKey } from "@/lib/vocab";
 import { ROOT_DOMAIN } from "@/lib/domains";
@@ -61,7 +71,11 @@ export type FlowAction =
   | { type: "renameSeat"; index: number; title: string }
   | { type: "toggleSeatArea"; index: number; areaId: string }
   | { type: "toggleSeatPerm"; index: number; perm: Permission }
-  | { type: "addSeat"; seat: Seat };
+  | { type: "addSeat"; seat: Seat }
+  | { type: "renameEventType"; slug: string; label: string }
+  | { type: "recolorEventType"; slug: string; color: string; colorDark: string }
+  | { type: "addEventType"; label: string; color: string; colorDark: string }
+  | { type: "removeEventType"; slug: string };
 
 /**
  * Template-backed defaults for a kind. Resets variant and metric flags too — a
@@ -79,7 +93,7 @@ export type FlowAction =
 function kindDefaults(
   draft: Draft,
   kind: KindId,
-): Pick<Draft, "kind" | "variant" | "enabledWorkflows" | "seats" | "vocab" | "metrics"> {
+): Pick<Draft, "kind" | "variant" | "enabledWorkflows" | "seats" | "vocab" | "metrics" | "eventTypes"> {
   const template = getOrgType(KIND_TO_TYPE[kind])!;
   return {
     kind,
@@ -88,6 +102,11 @@ function kindDefaults(
     seats: seatsFromTemplate(KIND_TO_TYPE[kind]),
     vocab: {},
     metrics: { ...BUILTIN_METRIC_DEFAULTS[kind], custom: draft.metrics.custom },
+    // A different kind means a different starter category set (and a different
+    // word for meetings, which the chapter type's label follows) — so the
+    // Timeline step's answer resets to "not asked yet" rather than carrying the
+    // old template's Social/Fundraiser/Programming into a sports team.
+    eventTypes: defaultEventTypes(),
   };
 }
 
@@ -253,7 +272,96 @@ export function flowReducer(draft: Draft, action: FlowAction): Draft {
       );
     case "addSeat":
       return { ...draft, seats: [...draft.seats, action.seat] };
+    case "renameEventType": {
+      const label = action.label.trim().slice(0, 40);
+      if (!label) return draft;
+      return editEventType(draft, action.slug, {
+        builtin: over => ({ ...over, label }),
+        custom:  type => ({ ...type, label }),
+      });
+    }
+    case "recolorEventType":
+      return editEventType(draft, action.slug, {
+        builtin: over => ({ ...over, color: action.color, colorDark: action.colorDark }),
+        custom:  type => ({ ...type, color: action.color, colorDark: action.colorDark }),
+      });
+    case "addEventType": {
+      const label = action.label.trim().slice(0, 40);
+      const customs = materializeCustoms(draft);
+      if (!label || customs.length >= MAX_DRAFT_EVENT_TYPES) return draft;
+      const taken = [
+        ...resolveEventTypeRows(eventTypeArgs(draft)).map(r => r.slug),
+        ...customs.map(c => c.slug),
+      ];
+      return {
+        ...draft,
+        eventTypes: {
+          ...draft.eventTypes,
+          customs: [
+            ...customs,
+            {
+              slug:  nextCustomTypeSlug(label, taken),
+              label,
+              color: action.color,
+              colorDark: action.colorDark,
+              // Ungated: a category the founder typed by hand shouldn't vanish
+              // because a page is off. Starters keep their "events" gating.
+              workflowId: null,
+            },
+          ],
+        },
+      };
+    }
+    case "removeEventType":
+      return {
+        ...draft,
+        eventTypes: {
+          ...draft.eventTypes,
+          customs: materializeCustoms(draft).filter(c => c.slug !== action.slug),
+        },
+      };
   }
+}
+
+/**
+ * The custom list as a concrete array. `customs: null` means "whatever the org
+ * type seeds", so the FIRST edit of any kind materializes the starters into the
+ * draft — after that the founder's list is the answer, and removing every entry
+ * genuinely means "no custom categories" rather than reverting to the template.
+ */
+function materializeCustoms(draft: Draft): DraftCustomEventType[] {
+  return draft.eventTypes.customs ?? starterEventTypes(draft.kind);
+}
+
+/**
+ * Apply an edit to one event type, routing by whether the slug is a built-in.
+ * Built-ins are edited as sparse overrides (the row itself comes from the
+ * registry); customs are edited in the materialized list.
+ */
+function editEventType(
+  draft: Draft,
+  slug: string,
+  edit: {
+    builtin: (over: NonNullable<Draft["eventTypes"]["builtins"][string]>) => Draft["eventTypes"]["builtins"][string];
+    custom:  (type: DraftCustomEventType) => DraftCustomEventType;
+  },
+): Draft {
+  if (getBuiltinEventType(slug)) {
+    return {
+      ...draft,
+      eventTypes: {
+        ...draft.eventTypes,
+        builtins: { ...draft.eventTypes.builtins, [slug]: edit.builtin(draft.eventTypes.builtins[slug] ?? {}) },
+      },
+    };
+  }
+  return {
+    ...draft,
+    eventTypes: {
+      ...draft.eventTypes,
+      customs: materializeCustoms(draft).map(c => (c.slug === slug ? edit.custom(c) : c)),
+    },
+  };
 }
 
 /**
@@ -373,4 +481,26 @@ export function draftVocab(draft: Draft, key: VocabKey, plural = false): string 
     ...draft.vocab,
   };
   return resolveLabel(key, overrides, plural);
+}
+
+/** The arguments resolveEventTypeRows needs, read off the draft. */
+function eventTypeArgs(draft: Draft) {
+  return {
+    builtins:         draft.eventTypes.builtins,
+    customs:          draft.eventTypes.customs,
+    kind:             draft.kind,
+    meetingsLabel:    draftVocab(draft, "Meetings"),
+    enabledWorkflows: draft.enabledWorkflows,
+  };
+}
+
+/**
+ * The org's timeline event types as the draft would create them: built-ins in
+ * registry order, then customs, each marked `active` by whether its gating page
+ * is on. The Timeline step, its preview and the Blueprint step's chips all read
+ * this — and so does the payload mapper (draftToCreateOrgInput), which is what
+ * keeps the preview honest.
+ */
+export function draftEventTypes(draft: Draft): DraftEventTypeRow[] {
+  return resolveEventTypeRows(eventTypeArgs(draft));
 }

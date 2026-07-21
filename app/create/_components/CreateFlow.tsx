@@ -18,12 +18,13 @@ import { BlueprintSheet, type SheetFlash } from "./BlueprintSheet";
 import { NameStep } from "./NameStep";
 import { InterviewStep } from "./InterviewStep";
 import { RolesStep } from "./RolesStep";
+import { TimelineStep } from "./TimelineStep";
 import { BlueprintStep } from "./BlueprintStep";
 import { BuildStep } from "./BuildStep";
 import { StepRail } from "./StepRail";
 
 /** Steps whose content is derived from interview answers — see `gated` below. */
-const PAST_INTERVIEW: CreateStep[] = ["roles", "blueprint", "build"];
+const PAST_INTERVIEW: CreateStep[] = ["roles", "timeline", "blueprint", "build"];
 
 export function CreateFlow() {
   const [draft, dispatch, restored] = useDraft();
@@ -31,6 +32,9 @@ export function CreateFlow() {
   const [flash, setFlash] = useState<SheetFlash>(null);
   const [slugNotice, setSlugNotice] = useState<string | null>(null);
   const [resume, setResume] = useState(false);
+  // The event type a blueprint chip deep-linked to — the Timeline step opens
+  // its color strip so the founder lands on the row they tapped.
+  const [focusType, setFocusType] = useState<string | null>(null);
 
   const step = draft.step;
 
@@ -76,7 +80,7 @@ export function CreateFlow() {
 
   // ←/→ step the rail, like the mock — never while typing.
   useEffect(() => {
-    const ORDER: CreateStep[] = ["name", "interview", "roles", "blueprint", "build"];
+    const ORDER: CreateStep[] = ["name", "interview", "roles", "timeline", "blueprint", "build"];
     const onKey = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement | null)?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA") return;
@@ -132,7 +136,21 @@ export function CreateFlow() {
 
         {step === "roles" && (
           <section className="scr" data-step="roles" key="roles">
-            <RolesStep draft={draft} dispatch={dispatch} onContinue={() => goto("blueprint")} />
+            <RolesStep draft={draft} dispatch={dispatch} onContinue={() => goto("timeline")} />
+          </section>
+        )}
+
+        {step === "timeline" && (
+          <section className="scr" data-step="timeline" key="timeline">
+            <TimelineStep
+              draft={draft}
+              dispatch={dispatch}
+              openSlug={focusType}
+              onContinue={() => {
+                setFocusType(null);
+                goto("blueprint");
+              }}
+            />
           </section>
         )}
 
@@ -143,6 +161,10 @@ export function CreateFlow() {
               dispatch={dispatch}
               slugNotice={slugNotice}
               onBackToRoles={() => goto("roles")}
+              onEditTypes={slug => {
+                setFocusType(slug ?? null);
+                goto("timeline");
+              }}
               onBuild={() => {
                 setSlugNotice(null);
                 goto("build");

@@ -22,6 +22,7 @@ import type { WorkflowId } from "@/lib/org-types";
 import type { VocabKey } from "@/lib/vocab";
 import {
   DISPLAY_HOST,
+  draftEventTypes,
   draftSlug,
   draftVocab,
   slugify,
@@ -349,6 +350,58 @@ function TrackingCard({ draft, dispatch }: { draft: Draft; dispatch: React.Dispa
   );
 }
 
+/* ─── Timeline event types ───────────────────────────────────────────────── */
+
+/**
+ * A read-only echo of the Timeline step, so the blueprint reviews every answer
+ * the flow collected. Chips deep-link back to their row rather than editing
+ * here — one editor, one place, no second implementation of the same rules.
+ *
+ * Types held back by an off page are named rather than hidden: the founder
+ * toggling Tasks in the Pages card above should see Deadline arrive.
+ */
+function EventTypesCard({ draft, onEditTypes }: { draft: Draft; onEditTypes: (slug?: string) => void }) {
+  const rows = draftEventTypes(draft);
+  const active = rows.filter(r => r.active);
+  const waiting = rows.filter(r => !r.active);
+  return (
+    <div className="bp-card">
+      <h3>
+        Timeline event types <span className="why">tap a chip to edit</span>
+      </h3>
+      <div className="pg-chips">
+        {active.map(row => (
+          <button
+            key={row.slug}
+            className="pg type click"
+            style={{ ["--tc" as string]: row.colorDark }}
+            title="Edit on the Timeline step"
+            onClick={() => onEditTypes(row.slug)}
+          >
+            <span className="dot" />
+            {row.label}
+            {!row.builtin && <span className="yo">YOU</span>}
+          </button>
+        ))}
+        <button className="pg edit" onClick={() => onEditTypes()}>
+          + add or edit →
+        </button>
+      </div>
+      <p className="vocab-note">
+        Stocked by the pages you turned on
+        {waiting.length > 0 && (
+          <>
+            {" — no "}
+            <b>{waiting.map(r => r.label).join(", ")}</b> type until those pages are on
+          </>
+        )}
+        . Everything here is <b>built with the org</b> and drives the timeline&rsquo;s dots, legend and
+        add-event picker.
+      </p>
+    </div>
+  );
+}
+
 /* ─── The step ───────────────────────────────────────────────────────────── */
 
 export function BlueprintStep({
@@ -356,12 +409,15 @@ export function BlueprintStep({
   dispatch,
   slugNotice,
   onBackToRoles,
+  onEditTypes,
   onBuild,
 }: {
   draft: Draft;
   dispatch: React.Dispatch<FlowAction>;
   slugNotice?: string | null;
   onBackToRoles: () => void;
+  /** Jump back to the Timeline step, optionally opening one type's row. */
+  onEditTypes: (slug?: string) => void;
   onBuild: () => void;
 }) {
   const enabled = wfSet(draft);
@@ -429,6 +485,7 @@ export function BlueprintStep({
           </div>
         </div>
         <div className="bp-col">
+          <EventTypesCard draft={draft} onEditTypes={onEditTypes} />
           <TrackingCard draft={draft} dispatch={dispatch} />
           <div className="bp-card">
             <h3>
