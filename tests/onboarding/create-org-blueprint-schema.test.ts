@@ -78,6 +78,100 @@ describe("createOrgInput: blueprint", () => {
   });
 });
 
+describe("createOrgInput: blueprint.eventTypes", () => {
+  const withTypes = (eventTypes: unknown) =>
+    createOrgInput.safeParse({ ...BASE, blueprint: { eventTypes } });
+
+  it("accepts a well-formed block", () => {
+    const r = withTypes({
+      builtins: [{ slug: "chapter", label: "General Body", color: "#6d28d9", colorDark: "#a78bfa" }],
+      customs: [
+        { slug: "rush-week", label: "Rush Week", color: "#9a7224", colorDark: "#ddb36a", workflowId: null },
+        { slug: "social", label: "Social", color: "#4a7d4c", colorDark: "#86b988", workflowId: "events" },
+      ],
+    });
+    expect(r.success).toBe(true);
+  });
+
+  it("accepts an empty customs array (a real 'no custom categories' answer)", () => {
+    expect(withTypes({ customs: [] }).success).toBe(true);
+  });
+
+  it("rejects a built-in slug that isn't in the registry", () => {
+    const r = withTypes({ builtins: [{ slug: "social", label: "Social", color: "#9a7224", colorDark: "#ddb36a" }] });
+    expect(r.success).toBe(false);
+  });
+
+  it("rejects a custom slug that shadows a built-in", () => {
+    // Would collide on the (organizationId, slug) unique index and blow up the
+    // whole provisioning transaction.
+    const r = withTypes({
+      customs: [{ slug: "chapter", label: "Chapter Two", color: "#9a7224", colorDark: "#ddb36a" }],
+    });
+    expect(r.success).toBe(false);
+    expect(r.error!.issues[0]!.message).toMatch(/built-in/i);
+  });
+
+  it("rejects duplicate slugs within a list", () => {
+    const dup = (slug: string) => ({ slug, label: "X", color: "#9a7224", colorDark: "#ddb36a" });
+    expect(withTypes({ customs: [dup("social"), dup("social")] }).success).toBe(false);
+    expect(
+      withTypes({
+        builtins: [
+          { slug: "chapter", label: "A", color: "#9a7224", colorDark: "#ddb36a" },
+          { slug: "chapter", label: "B", color: "#9a7224", colorDark: "#ddb36a" },
+        ],
+      }).success,
+    ).toBe(false);
+  });
+
+  it("rejects a non-kebab custom slug", () => {
+    for (const slug of ["Rush Week", "rush_week", "-rush", "rush-"]) {
+      expect(withTypes({ customs: [{ slug, label: "Rush", color: "#9a7224", colorDark: "#ddb36a" }] }).success, slug).toBe(false);
+    }
+  });
+
+  it("rejects a non-hex color on either half of the pair", () => {
+    expect(withTypes({ customs: [{ slug: "x", label: "X", color: "gold", colorDark: "#ddb36a" }] }).success).toBe(false);
+    expect(withTypes({ customs: [{ slug: "x", label: "X", color: "#9a7224", colorDark: "#fff" }] }).success).toBe(false);
+  });
+
+  it("rejects an unknown workflow id on a custom", () => {
+    const r = withTypes({
+      customs: [{ slug: "x", label: "X", color: "#9a7224", colorDark: "#ddb36a", workflowId: "not-a-workflow" }],
+    });
+    expect(r.success).toBe(false);
+  });
+
+  it("rejects an over-long label and an over-cap list", () => {
+    expect(withTypes({ customs: [{ slug: "x", label: "y".repeat(41), color: "#9a7224", colorDark: "#ddb36a" }] }).success).toBe(false);
+    const many = Array.from({ length: 21 }, (_, i) => ({
+      slug: `t-${i}`, label: `T${i}`, color: "#9a7224", colorDark: "#ddb36a",
+    }));
+    expect(withTypes({ customs: many }).success).toBe(false);
+  });
+
+  it("does NOT accept behavior fields from the client", () => {
+    // creatable / hidden / mandatoryDefault are provisioning's business — an
+    // extra key is stripped rather than honored, so a hand-rolled payload can't
+    // make `party` creatable or un-hide something.
+    const parsed = createOrgInput.parse({
+      ...BASE,
+      blueprint: {
+        eventTypes: {
+          customs: [{
+            slug: "x", label: "X", color: "#9a7224", colorDark: "#ddb36a",
+            creatable: false, hidden: true, mandatoryDefault: true, builtin: true,
+          }],
+        },
+      },
+    });
+    expect(parsed.blueprint!.eventTypes!.customs![0]).toEqual({
+      slug: "x", label: "X", color: "#9a7224", colorDark: "#ddb36a",
+    });
+  });
+});
+
 describe("createOrgInput: blueprint.term", () => {
   const TERM = { label: "Fall 2026", startDate: "2026-08-24", endDate: "2026-12-18" };
 

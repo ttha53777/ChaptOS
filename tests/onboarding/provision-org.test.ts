@@ -184,6 +184,160 @@ describe("provisionOrg: starter event types", () => {
   });
 });
 
+describe("provisionOrg: event types from the blueprint", () => {
+  /** Every CalendarEventType row for an org, in creation order. */
+  async function typesFor(organizationId: number) {
+    return testPrisma.calendarEventType.findMany({
+      where: { organizationId },
+      orderBy: { displayOrder: "asc" },
+    });
+  }
+
+  it("applies the founder's built-in renames and recolors", async () => {
+    const out = await provisionOrg(
+      {
+        ...VALID,
+        blueprint: {
+          eventTypes: {
+            builtins: [
+              { slug: "chapter", label: "General Body", color: "#6d28d9", colorDark: "#a78bfa" },
+            ],
+          },
+        },
+      },
+      "u-evt-rename",
+      null,
+    );
+    const types = await typesFor(out.organizationId);
+    const chapter = types.find(t => t.slug === "chapter")!;
+    expect(chapter.label).toBe("General Body");
+    expect(chapter.color).toBe("#6d28d9");
+    expect(chapter.colorDark).toBe("#a78bfa");
+
+    // Built-ins the blueprint didn't mention keep their registry values.
+    const party = types.find(t => t.slug === "party")!;
+    const registryParty = BUILTIN_EVENT_TYPES.find(t => t.slug === "party")!;
+    expect(party.label).toBe(registryParty.label);
+    expect(party.color).toBe(registryParty.color);
+  });
+
+  it("never takes behavior fields for a built-in from the payload", async () => {
+    // The trust boundary: a founder owns how a type LOOKS, provisioning owns how
+    // it BEHAVES. Renaming `party` must not make it creatable from the timeline,
+    // and nothing may un-gate `deadline`.
+    const out = await provisionOrg(
+      {
+        ...VALID,
+        blueprint: {
+          eventTypes: {
+            builtins: [
+              { slug: "party",    label: "Mixer",   color: "#9a7224", colorDark: "#ddb36a" },
+              { slug: "deadline", label: "Due",     color: "#9a7224", colorDark: "#ddb36a" },
+              { slug: "chapter",  label: "Meeting", color: "#9a7224", colorDark: "#ddb36a" },
+            ],
+          },
+        },
+      },
+      "u-evt-behavior",
+      null,
+    );
+    const types = await typesFor(out.organizationId);
+    for (const registry of BUILTIN_EVENT_TYPES) {
+      const row = types.find(t => t.slug === registry.slug)!;
+      expect(row.builtin, registry.slug).toBe(true);
+      expect(row.creatable, registry.slug).toBe(registry.creatable);
+      expect(row.mandatoryDefault, registry.slug).toBe(registry.mandatoryDefault);
+      expect(row.workflowId, registry.slug).toBe(registry.workflowId);
+      expect(row.hidden, registry.slug).toBe(false);
+    }
+  });
+
+  it("an explicit custom list replaces the org type's starters", async () => {
+    const out = await provisionOrg(
+      {
+        ...VALID,
+        blueprint: {
+          eventTypes: {
+            customs: [
+              { slug: "social",    label: "Social",    color: "#9a7224", colorDark: "#ddb36a", workflowId: "events" },
+              { slug: "rush-week", label: "Rush Week", color: "#3f6ea3", colorDark: "#8fb0d6", workflowId: null },
+            ],
+          },
+        },
+      },
+      "u-evt-customs",
+      null,
+    );
+    const customs = (await typesFor(out.organizationId)).filter(t => !t.builtin);
+    // Fundraiser + Programming were dropped by the founder; they aren't seeded.
+    expect(customs.map(t => t.slug)).toEqual(["social", "rush-week"]);
+    for (const c of customs) {
+      expect(c.builtin).toBe(false);
+      expect(c.creatable).toBe(true);
+      expect(c.hidden).toBe(false);
+      expect(c.mandatoryDefault).toBe(false);
+    }
+    // A starter keeps its Events gating; a hand-added type is ungated so it can
+    // never silently vanish behind a page toggle.
+    expect(customs.find(t => t.slug === "social")!.workflowId).toBe("events");
+    expect(customs.find(t => t.slug === "rush-week")!.workflowId).toBeNull();
+
+    // displayOrder stays contiguous across built-ins then customs.
+    const all = await typesFor(out.organizationId);
+    expect(all.map(t => t.displayOrder)).toEqual(all.map((_, i) => i));
+  });
+
+  it("an empty custom list seeds no customs at all", async () => {
+    const out = await provisionOrg(
+      { ...VALID, blueprint: { eventTypes: { customs: [] } } },
+      "u-evt-empty",
+      null,
+    );
+    const types = await typesFor(out.organizationId);
+    expect(types.filter(t => !t.builtin)).toEqual([]);
+    expect(types.map(t => t.slug)).toEqual(BUILTIN_EVENT_TYPES.map(t => t.slug));
+  });
+
+  it("an absent eventTypes block still seeds the org type's starters", async () => {
+    // The regression guard for every non-flow caller (the bare 4-field create,
+    // the recovery path): omitting the block must behave exactly as before.
+    const out = await provisionOrg(
+      { ...VALID, blueprint: { enabledWorkflows: ["members", "events"] } },
+      "u-evt-absent",
+      null,
+    );
+    const customs = (await typesFor(out.organizationId)).filter(t => !t.builtin);
+    expect(customs.map(t => t.slug)).toEqual(
+      getOrgType("fraternity")!.eventTypeSeeds!.map(s => s.slug),
+    );
+  });
+
+  it("drops a custom whose slug shadows a built-in", async () => {
+    // Defense in depth behind the schema — a duplicate slug would violate the
+    // (organizationId, slug) unique index and fail the whole transaction.
+    const out = await provisionOrg(
+      {
+        ...VALID,
+        blueprint: {
+          eventTypes: {
+            customs: [
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              { slug: "chapter", label: "Shadow", color: "#9a7224", colorDark: "#ddb36a" } as any,
+              { slug: "social", label: "Social", color: "#9a7224", colorDark: "#ddb36a" },
+            ],
+          },
+        },
+      },
+      "u-evt-shadow",
+      null,
+    );
+    const types = await typesFor(out.organizationId);
+    expect(types.filter(t => t.slug === "chapter")).toHaveLength(1);
+    expect(types.find(t => t.slug === "chapter")!.builtin).toBe(true);
+    expect(types.filter(t => !t.builtin).map(t => t.slug)).toEqual(["social"]);
+  });
+});
+
 describe("provisionOrg: rejection paths", () => {
   it("rejects a reserved slug as a ValidationError", async () => {
     await expect(

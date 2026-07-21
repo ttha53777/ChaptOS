@@ -22,6 +22,7 @@ import { matchTermModel } from "@/lib/onboarding/terms";
 import { seatsFromTemplate } from "@/lib/onboarding/seats";
 import { createOrgInput } from "@/lib/validation/org";
 import { getOrgType } from "@/lib/org-types";
+import { BUILTIN_EVENT_TYPES } from "@/lib/event-types";
 
 /** A completed draft for a kind, as the flow would hold it entering Build. */
 function draftFor(kind: (typeof KIND_IDS)[number], variant: string | null = null): Draft {
@@ -130,6 +131,89 @@ describe("draftToCreateOrgInput", () => {
       builtins: { attendance: true, gpa: false, duesOwed: false, serviceHours: false },
       custom: [{ name: "Chapter Points", unit: "pts" }],
     });
+  });
+});
+
+describe("draftToCreateOrgInput: event types", () => {
+  it("always sends the full built-in set, in registry order", () => {
+    const { blueprint } = draftToCreateOrgInput(draftFor("fraternity"));
+    expect(blueprint!.eventTypes!.builtins!.map(t => t.slug)).toEqual(
+      BUILTIN_EVENT_TYPES.map(t => t.slug),
+    );
+    for (const t of blueprint!.eventTypes!.builtins!) {
+      expect(t.color).toMatch(/^#[0-9a-f]{6}$/i);
+      expect(t.colorDark).toMatch(/^#[0-9a-f]{6}$/i);
+    }
+  });
+
+  it("labels the chapter type with the org's word for meetings", () => {
+    // A fraternity says "Chapter"; a club says "Meetings"; an explicit vocab
+    // edit wins over both. This is the whole reason `builtins` is always sent.
+    const label = (kind: Parameters<typeof draftFor>[0], vocab: Record<string, string> = {}) =>
+      draftToCreateOrgInput({ ...draftFor(kind), vocab }).blueprint!.eventTypes!.builtins!
+        .find(t => t.slug === "chapter")!.label;
+
+    expect(label("fraternity")).toBe("Chapter");
+    expect(label("club")).toBe("Meetings");
+    expect(label("club", { Meetings: "General Body" })).toBe("General Body");
+  });
+
+  it("an explicit rename pins the chapter label against later vocab edits", () => {
+    const draft: Draft = {
+      ...draftFor("fraternity"),
+      vocab: { Meetings: "General Body" },
+      eventTypes: { builtins: { chapter: { label: "Ritual" } }, customs: null },
+    };
+    const chapter = draftToCreateOrgInput(draft).blueprint!.eventTypes!.builtins!
+      .find(t => t.slug === "chapter")!;
+    expect(chapter.label).toBe("Ritual");
+  });
+
+  it("omits customs until the founder edits them, so the template still seeds", () => {
+    // The three-state that matters: null = 'use the org type's starters'. Sending
+    // an empty array instead would silently strip every starter for anyone who
+    // walked past the step.
+    const { blueprint } = draftToCreateOrgInput(draftFor("fraternity"));
+    expect(blueprint!.eventTypes!.customs).toBeUndefined();
+  });
+
+  it("sends an explicit custom list once edited — including an empty one", () => {
+    const cleared: Draft = {
+      ...draftFor("fraternity"),
+      eventTypes: { builtins: {}, customs: [] },
+    };
+    expect(draftToCreateOrgInput(cleared).blueprint!.eventTypes!.customs).toEqual([]);
+
+    const edited: Draft = {
+      ...draftFor("fraternity"),
+      eventTypes: {
+        builtins: {},
+        customs: [
+          { slug: "social", label: "Social", color: "#9a7224", colorDark: "#ddb36a", workflowId: "events" },
+          { slug: "rush-week", label: "Rush Week", color: "#3f6ea3", colorDark: "#8fb0d6", workflowId: null },
+        ],
+      },
+    };
+    const customs = draftToCreateOrgInput(edited).blueprint!.eventTypes!.customs!;
+    expect(customs.map(t => t.slug)).toEqual(["social", "rush-week"]);
+    // Starters follow the Events page; a hand-added type is ungated.
+    expect(customs.find(t => t.slug === "social")!.workflowId).toBe("events");
+    expect(customs.find(t => t.slug === "rush-week")!.workflowId).toBeNull();
+  });
+
+  it("a recolored built-in carries both halves of the palette pair", () => {
+    const draft: Draft = {
+      ...draftFor("fraternity"),
+      eventTypes: {
+        builtins: { service: { color: "#6d28d9", colorDark: "#a78bfa" } },
+        customs: null,
+      },
+    };
+    const service = draftToCreateOrgInput(draft).blueprint!.eventTypes!.builtins!
+      .find(t => t.slug === "service")!;
+    expect(service).toMatchObject({ color: "#6d28d9", colorDark: "#a78bfa" });
+    // The label is untouched by a recolor.
+    expect(service.label).toBe("Community Service");
   });
 });
 
