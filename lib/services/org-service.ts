@@ -62,6 +62,20 @@ interface SeededMetric {
   unit: string | null;
 }
 
+/** One CalendarEventType row to seed, fully resolved (no org id yet). */
+interface SeededEventType {
+  slug:             string;
+  label:            string;
+  color:            string;
+  colorDark:        string;
+  workflowId:       string | null;
+  builtin:          boolean;
+  creatable:        boolean;
+  hidden:           boolean;
+  mandatoryDefault: boolean;
+  displayOrder:     number;
+}
+
 /**
  * Built-in metric toggle → the operations KPI widget it shows. An un-tracked
  * built-in hides its widget via OrganizationConfig.disabledFeatures (opt-out
@@ -114,6 +128,77 @@ function resolveMetrics(metrics: NonNullable<CreateOrgInput["blueprint"]>["metri
   }));
 
   return { disabledFeatures, customMetrics };
+}
+
+/**
+ * Resolve the org's timeline event types from the Timeline step's answer,
+ * falling back to the registry + org-type template for anything the blueprint
+ * omits. Pure — no DB. The client mirror is `resolveEventTypeRows` in
+ * lib/onboarding/event-types.ts; the two must agree on ordering and fallbacks.
+ *
+ * The trust boundary lives here. A built-in's `label`/`color`/`colorDark` are
+ * presentation and the founder owns them, but its `workflowId`, `creatable` and
+ * `mandatoryDefault` are BEHAVIOR — behavior branches and client synthesis key
+ * off the built-in slugs — so those always come from BUILTIN_EVENT_TYPES no
+ * matter what the payload said. Customs are always `creatable`, never built-in,
+ * and may only carry a gating workflow.
+ */
+function resolveEventTypes(
+  template: NonNullable<ReturnType<typeof getOrgType>>,
+  input: NonNullable<CreateOrgInput["blueprint"]>["eventTypes"],
+): SeededEventType[] {
+  const overrides = new Map((input?.builtins ?? []).map(t => [t.slug, t]));
+
+  const rows: SeededEventType[] = BUILTIN_EVENT_TYPES.map((t, i) => {
+    const over = overrides.get(t.slug);
+    return {
+      slug:             t.slug,
+      label:            over?.label ?? t.label,
+      color:            over?.color ?? t.color,
+      colorDark:        over?.colorDark ?? t.colorDark,
+      workflowId:       t.workflowId,
+      builtin:          true,
+      creatable:        t.creatable,
+      hidden:           false,
+      mandatoryDefault: t.mandatoryDefault,
+      displayOrder:     i,
+    };
+  });
+
+  // No custom list in the blueprint → the org type's starter categories, exactly
+  // as every org has been seeded since they landed (workflow-gated on "events").
+  const customs =
+    input?.customs ??
+    (template.eventTypeSeeds ?? DEFAULT_EVENT_TYPE_SEEDS).map(s => ({
+      slug:       s.slug,
+      label:      s.label,
+      color:      s.color,
+      colorDark:  s.colorDark,
+      workflowId: "events" as string | null,
+    }));
+
+  // Defense in depth — the schema already rejects both cases, but a slug that
+  // shadowed a built-in would violate the (organizationId, slug) unique index
+  // and fail the whole provisioning transaction.
+  const taken = new Set(rows.map(r => r.slug));
+  for (const c of customs) {
+    if (taken.has(c.slug)) continue;
+    taken.add(c.slug);
+    rows.push({
+      slug:             c.slug,
+      label:            c.label,
+      color:            c.color,
+      colorDark:        c.colorDark,
+      workflowId:       c.workflowId ?? null,
+      builtin:          false,
+      creatable:        true,
+      hidden:           false,
+      mandatoryDefault: false,
+      displayOrder:     rows.length,
+    });
+  }
+
+  return rows;
 }
 
 /**
@@ -191,6 +276,7 @@ function resolveBlueprint(
  *   2. Insert OrganizationConfig row from the template.
  *      2b. Insert the first ACTIVE Semester when the blueprint carries a term.
  *      2c. Seed custom OrgMetricDefinition rows from the metrics answer.
+ *      2d. Seed CalendarEventType rows from the event-types answer.
  *   3. Insert Brother for the founder with authUserId set.
  *   4. Backfill Organization.createdByBrotherId now that we have the id.
  *   5. Insert Membership(isOrgAdmin=true).
@@ -246,6 +332,7 @@ export async function provisionOrg(
   // when the founder renamed it in the blueprint.
   const resolved = resolveBlueprint(template, founderRoleSpec, input.blueprint);
   const metrics = resolveMetrics(input.blueprint?.metrics);
+  const eventTypes = resolveEventTypes(template, input.blueprint?.eventTypes);
   const founderRole = resolved.roles.find(r => r.seed.all);
   if (!founderRole) {
     // Impossible: resolveBlueprint always emits exactly one all-perms role.
@@ -322,50 +409,15 @@ export async function provisionOrg(
         });
       }
 
-      // 2d. Built-in timeline event types. Every org gets the registry set (lib/event-types.ts);
-      // the timeline derives which appear in the picker from enabledWorkflows, so a
-      // type whose workflow is off is simply not offered — its row still exists so
-      // existing events keep their color/label. Admins can add custom types later.
+      // 2d. Timeline event types — the 4 registry built-ins plus the org's custom
+      // categories, resolved above from the Timeline step's answer (or the org
+      // type's starter set when the blueprint carried none). Every row is seeded
+      // unconditionally, including types whose gating workflow is off: the
+      // timeline derives picker visibility from enabledWorkflows at read time, so
+      // an off page simply means the type isn't offered while its row still
+      // resolves the color/label of any event that references it.
       await tx.calendarEventType.createMany({
-        data: BUILTIN_EVENT_TYPES.map((t, i) => ({
-          organizationId:   org.id,
-          slug:             t.slug,
-          label:            t.label,
-          color:            t.color,
-          colorDark:        t.colorDark,
-          workflowId:       t.workflowId,
-          builtin:          true,
-          creatable:        t.creatable,
-          hidden:           false,
-          mandatoryDefault: t.mandatoryDefault,
-          displayOrder:     i,
-        })),
-      });
-
-      // 2d-bis. Starter Programming categories tailored to the org type. Unlike
-      // the built-ins these are editable customs (builtin:false, creatable:true)
-      // — the founder can rename/recolor/reorder/delete any of them later. They
-      // replace the demoted Social/Fundraiser/Program built-ins with a per-type
-      // suggestion instead of one org's vocabulary imposed on everyone. Gated by
-      // the "events" workflow so they appear exactly when the Programming page
-      // does; seeded unconditionally (inert until events is enabled), mirroring
-      // how the built-ins above are always seeded. displayOrder continues past
-      // the built-ins.
-      const eventTypeSeeds = template.eventTypeSeeds ?? DEFAULT_EVENT_TYPE_SEEDS;
-      await tx.calendarEventType.createMany({
-        data: eventTypeSeeds.map((t, i) => ({
-          organizationId:   org.id,
-          slug:             t.slug,
-          label:            t.label,
-          color:            t.color,
-          colorDark:        t.colorDark,
-          workflowId:       "events",
-          builtin:          false,
-          creatable:        true,
-          hidden:           false,
-          mandatoryDefault: false,
-          displayOrder:     BUILTIN_EVENT_TYPES.length + i,
-        })),
+        data: eventTypes.map(t => ({ ...t, organizationId: org.id })),
       });
 
       // 3. Founder Brother. For a brand-new account we create the Brother row;
