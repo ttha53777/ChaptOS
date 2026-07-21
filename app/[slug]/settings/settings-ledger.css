@@ -496,6 +496,22 @@ header.dash-toolbar .set-crumb svg { color: var(--tb-faint, #6b6354); }
   .dash .set-section .sc-stack-tight { gap: 14px; }
 }
 
+/* ── Event types ──────────────────────────────────────────────────────────
+   The color dot leading each row, its inline tags, and the palette picker.
+   Swatches show the DUSK hex (settings renders on dark paper); each pick
+   carries its ivory partner too, so a type stays one coherent pair. */
+/* .sc-row-lead isn't a flex container on its own, so the dot needs one. */
+.dash .set-section .et-lead { display: flex; align-items: flex-start; gap: 10px; }
+.dash .set-section .et-dot { height: 10px; width: 10px; border-radius: 50%; flex: none; margin-top: 5px; }
+.dash .set-section .sc-row-key .et-tag { margin-left: 8px; vertical-align: 1px; }
+.dash .set-section .et-swatches { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+.dash .set-section .et-swatch {
+  height: 22px; width: 22px; border-radius: 50%; padding: 0;
+  border: 2px solid transparent; cursor: pointer; transition: transform 140ms ease;
+}
+.dash .set-section .et-swatch:hover { transform: scale(1.15); }
+.dash .set-section .et-swatch.on { border-color: var(--paper, #0f0d0a); box-shadow: 0 0 0 2px var(--sc); }
+
 @media (prefers-reduced-motion: reduce) {
   .dash.dash-settings * { transition: none !important; animation: none !important; }
 }

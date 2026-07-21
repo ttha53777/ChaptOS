@@ -15,6 +15,7 @@ import { WorkflowsSection } from "./sections/WorkflowsSection";
 import { VocabSection } from "./sections/VocabSection";
 import { MemberFieldsSection } from "./sections/MemberFieldsSection";
 import { CustomMetricsSection } from "./sections/CustomMetricsSection";
+import { EventTypesSection } from "./sections/EventTypesSection";
 import { useChapter } from "../../context/ChapterContext";
 import "../../components/dashboard/dashboard-ledger.css";
 import "./settings-ledger.css";
@@ -28,7 +29,7 @@ type SectionId =
   | "index"
   | "general" | "vocabulary"
   | "accounts" | "invitations" | "roles" | "member-fields"
-  | "thresholds" | "semesters" | "custom-metrics" | "workflows"
+  | "thresholds" | "semesters" | "custom-metrics" | "event-types" | "workflows"
   | "activity-log";
 
 type Intent = "Identity" | "Membership" | "Operations" | "System";
@@ -100,6 +101,12 @@ const NAV_ITEMS: NavItem[] = [
     blurb: "Track org-specific metrics beyond the built-ins.",
     lede: "Define your own tracked numbers when the built-in metrics don't cover what your chapter measures.",
     icon: "M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z",
+  },
+  {
+    id: "event-types", label: "Event types", group: "Operations", tint: "t-sage",
+    blurb: "Rename, recolor and add timeline categories.",
+    lede: "The categories your timeline runs on — every event is tagged with one, which sets its color and where it shows up. Built-ins can be renamed and recolored; your own can be added or removed.",
+    icon: "M7 7h.01M7 3h5a1.99 1.99 0 011.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.99 1.99 0 013 12V7a4 4 0 014-4z",
   },
   {
     id: "workflows", label: "Workflows", group: "Operations", tint: "t-gold",
@@ -193,6 +200,7 @@ export default function SettingsPage() {
     if (id === "thresholds")     return canManageSettings;
     if (id === "member-fields")  return canManageSettings;
     if (id === "custom-metrics") return canManageSettings;
+    if (id === "event-types")    return canManageSettings;
     return true;
   }, [canManageRoles, canManageSettings]);
 
@@ -303,6 +311,7 @@ export default function SettingsPage() {
       case "vocabulary":     return <VocabSection {...props} />;
       case "member-fields":  return <MemberFieldsSection {...props} />;
       case "custom-metrics": return <CustomMetricsSection {...props} />;
+      case "event-types":    return <EventTypesSection {...props} />;
       case "roles":          return <RolesSection {...props} />;
       case "activity-log":   return <ActivityLogSection {...props} />;
     }
