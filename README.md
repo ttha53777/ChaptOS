@@ -1,6 +1,6 @@
 # ChaptOS
 
-Chapter operations platform — a single place to run any chapter-based organization. It covers the whole operational surface — members, attendance, dues, GPA, service hours, deadlines, treasury and budgets, parties, programming events with prep checklists, Instagram content, community-service participation, meeting notes, and a foldered docs library — tied together by a live activity log, a pinned announcement, and a weekly digest of what's on deck. Members join by claiming a pre-seeded roster row or by redeeming an org invite link.
+Chapter operations platform — a single place to run any chapter-based organization. It covers the whole operational surface — members, attendance, dues, GPA, service hours, tasks and polls handed out to members or roles, treasury and budgets with dues/reimbursement approvals, parties, programming events with prep checklists, Instagram content, community-service participation, meeting notes, and a foldered docs library — tied together by a live activity log, a pinned announcement, and a weekly digest of what's on deck. Members join by claiming a pre-seeded roster row or by redeeming an org invite link.
 
 Each org shapes the platform to itself: a founder builds their org through a short pre-auth `/create` flow that tailors the enabled pages, vocabulary, officer roles, **custom per-member fields**, and **custom org-defined metrics** to the kind of organization being set up — a sports team, a marching band, a volunteer group, or a fraternity each get a starting setup that fits, rather than a chapter-only default.
 
@@ -36,10 +36,13 @@ The design decisions that do the most work:
 - **Three-tier auth: PlatformAdmin → OrgAdmin → Member.** `buildContext()` in `lib/context` resolves all three tiers per request, emits a typed `RequestContext`, and optionally gates on a specific permission or rate-limits the caller. Route handlers open with `buildContext()`, parse with Zod, call a service, and map errors with `toResponse()` — no `prisma.*` calls in `app/api/**`.
 - **Side effects through events, never service-to-service calls.** Services call `emit(ctx, action, subject, metadata)` from `lib/events`. Reactions (recalcs, notifications, projections) live as `on(action, handler)` registrations in `lib/events/handlers/`. The event writer also dual-writes an `ActivityLog` row so the existing feed keeps working.
 - **Tool-calling AI assistant with self-correcting validation.** Sixteen read tools + six write-proposal tools in one file ([lib/ai-tools.ts](lib/ai-tools.ts)) so schema and dispatcher can't drift. `validateArgs` walks the schema before dispatch — a wrong enum returns a structured error the model self-corrects on the next iteration.
-- **Pre-auth org creation that survives OAuth.** A founder builds their org through a five-step `/create` flow (name → interview → roles → blueprint → build) while signed out — Google sign-in happens *last*, at the Build step. The in-progress answers live in a `localStorage` draft ([lib/onboarding/draft.ts](lib/onboarding/draft.ts)) so the whole flow round-trips through the OAuth redirect and resumes at `/create?resume=1`. The draft is untrusted on the way back in: `parseDraft()` Zod-validates and expires it, and `draftToCreateOrgInput()` is the single mapping to the real `POST /api/orgs` payload. `provisionOrg` applies the resulting blueprint atomically and stamps `onboardingCompletedAt` at creation — there is no separate post-creation setup step.
+- **Pre-auth org creation that survives OAuth.** A founder builds their org through a six-step `/create` flow (name → interview → roles → timeline → blueprint → build) while signed out — Google sign-in happens *last*, at the Build step. The in-progress answers live in a `localStorage` draft ([lib/onboarding/draft.ts](lib/onboarding/draft.ts)) so the whole flow round-trips through the OAuth redirect and resumes at `/create?resume=1`. The draft is untrusted on the way back in: `parseDraft()` Zod-validates and expires it, and `draftToCreateOrgInput()` is the single mapping to the real `POST /api/orgs` payload. `provisionOrg` applies the resulting blueprint atomically and stamps `onboardingCompletedAt` at creation — there is no separate post-creation setup step.
 - **Org-defined custom fields and metrics.** Admins can add per-member fields (stored sparsely on `Brother.customFields`) and define their own KPIs (`OrgMetricDefinition` + `BrotherMetricValue`) with goal / watch / at-risk bands and an aggregation (`avg` / `sum` / `count_on_track`) — so a team can track "Jersey #" and a band can track "Section" without schema changes. Pure status/headline math lives in [lib/metrics.ts](lib/metrics.ts) and [lib/custom-member-fields.ts](lib/custom-member-fields.ts), importable from both server and client.
 - **Offline eval harness.** Hand-written cases at [evals/ask-the-chapter/cases.jsonl](evals/ask-the-chapter/cases.jsonl) drive the same loop as the production route in-process, graded on tool selection, args, and final-answer substrings. Lets prompt and model changes be measured instead of vibes-checked.
-- **Discord-style role system with permission bitfields.** Twelve named permissions ([lib/permissions.ts](lib/permissions.ts)) packed into a 32-bit int on each `Role`. A member's effective bits are the bitwise OR of every role they hold. Role hierarchy ranks prevent privilege escalation — a caller can only grant/edit roles strictly below their own highest rank.
+- **Per-org timeline vocabulary.** The categories every timeline entry is tagged with are `CalendarEventType` rows the org owns, not a hardcoded enum. Four built-ins ([lib/event-types.ts](lib/event-types.ts)) seed at creation with immutable slugs — behavior branches on them — but any org can rename, recolor, reorder, hide, or add its own from the `/create` Timeline step or **Settings → Event types**. Each type carries a light/dark hex pair and an optional gating `workflowId`, so a type whose page is off stays seeded but drops out of the picker.
+- **Tasks and polls target roles, not just people.** A `Task` (dated = a "deadline", undated = a to-do) or `Poll` attaches to any mix of members and roles. Role targets resolve to *current* holders at read time rather than being snapshotted, so granting someone a role hands them that role's open tasks and voting rights automatically.
+- **Money moves only on approval.** `DuesPayment` and `Reimbursement` rows are requests: nothing touches `Brother.duesOwed` or the `Transaction` ledger until a treasurer approves, at which point the service mints the matching ledger row and adjusts the balance atomically in one transaction. The `transactionId` link is the only thread between the two books.
+- **Discord-style role system with permission bitfields.** Fourteen named permissions ([lib/permissions.ts](lib/permissions.ts)) packed into a 32-bit int on each `Role`. A member's effective bits are the bitwise OR of every role they hold. Role hierarchy ranks prevent privilege escalation — a caller can only grant/edit roles strictly below their own highest rank.
 - **Write proposals, never silent writes.** The AI's `propose_*` tools validate inputs server-side but never touch the database. The client renders a confirm card; only on user confirmation does it POST to the real `/api/*` route where `buildContext()` guards decide whether the write actually happens.
 - **Structured server-side observability.** One JSON-per-line error log ([lib/observability.ts](lib/observability.ts)) with request IDs, route tags, and optional Sentry forwarding via a lazy dynamic import — no dependency cost until enabled.
 - **Two ways into an org.** Admins can pre-seed roster rows that members claim by name, or share an `OrgInvite` link ([app/join/[token]/](app/join/%5Btoken%5D/)). Invites come in two modes: `open` mints a fresh `Brother` + `Membership` on redemption, `claim` routes the user into the existing name-match claim flow. Every redemption is recorded in `InviteRedemption`.
@@ -122,19 +125,20 @@ Every write must go through `ctx.db.<model>` (org-scoped) or carry an explicit `
 
 Founders build a new org through a self-contained, **pre-auth** flow at [app/create/](app/create/) — the whole interview runs signed out, and Google sign-in happens *last*, at the Build step. This keeps the door to the platform open to anyone with a Google account: no invite, no pre-seeded row, no admin required to start.
 
-**The five steps** ([CreateFlow.tsx](app/create/_components/CreateFlow.tsx)):
+**The six steps** ([CreateFlow.tsx](app/create/_components/CreateFlow.tsx)):
 
 1. **Name** — org name, live slug preview, and an optional logo/crest upload.
 2. **Interview** — a **scripted spine with AI branches** (~8 questions: kind → activity variant → pages deep-dive → term model → current term → per-member metrics → the founder's name → their title). Chip taps are fully deterministic; free-text routes through the pre-auth, IP-rate-limited interpreter at [app/api/ai/interview/route.ts](app/api/ai/interview/route.ts), which turns the words into structured picks and — on the pages stage — may ask a few *specific* clarifying follow-ups (bounded client-side) to settle the workflow set. Any AI failure degrades to keyword matchers ([lib/onboarding/kinds.ts](lib/onboarding/kinds.ts), [lib/onboarding/terms.ts](lib/onboarding/terms.ts)), so the flow works with `OPENAI_API_KEY` unset and never blocks on a model. The kind answer sets *vocabulary only*; the variant follow-up ("what kind of fraternity?") layers workflow/seat/metric deltas via `KIND_VARIANTS` — fixing the "fraternity collapse" documented in [docs/onboarding-interview-discovery.md](docs/onboarding-interview-discovery.md). Every answer flashes the live blueprint sheet.
 3. **Roles** — stacked seat cards with renameable titles, workflow-gated ability pills (whole-area grants) and an Advanced disclosure of the individual `MANAGE_*` flags. Seats describe *authority*, not people — no holder names, no invite step here.
-4. **Blueprint** — a full review sheet: editable chapter URL with a live slug check, workflow toggles with rationale, the high-signal vocab words with derived plurals, the "This term" card (term model + editable first-term dates), the "Tracking" card (built-in metric toggles + custom per-member metrics), and the leadership seat list.
-5. **Build** — Google sign-in (for a signed-out founder), then the real `POST /api/orgs` fires and provisioning animates.
+4. **Timeline** — the categories every timeline entry gets tagged with, edited against a live sample month so a rename or recolor shows its consequence immediately. Built-ins can be renamed and recolored but never removed (their slugs are load-bearing); the org type's starter set and anything the founder adds are removable. A type whose gating page is off renders as a *ghost* row rather than vanishing — it still gets seeded, so the row tells the truth about what provisioning will build. Gated behind the interview: unreachable until the activity questions are answered.
+5. **Blueprint** — a full review sheet: editable chapter URL with a live slug check, workflow toggles with rationale, the high-signal vocab words with derived plurals, the "This term" card (term model + editable first-term dates), the "Tracking" card (built-in metric toggles + custom per-member metrics), and the leadership seat list.
+6. **Build** — Google sign-in (for a signed-out founder), then the real `POST /api/orgs` fires and provisioning animates.
 
 **How it holds together:**
 
 - **The draft survives OAuth.** All answers live in a `localStorage` draft ([lib/onboarding/draft.ts](lib/onboarding/draft.ts)) keyed `figurints:create-draft:v2` (v1, the pain-question era, is discarded on sight rather than migrated). The founder signs in at the Build step; the OAuth callback lands back at `/create?resume=1`, the draft is restored, and Build auto-fires provisioning. Drafts older than 7 days are discarded on restore.
 - **The draft is untrusted on the way back in.** It round-trips through the browser, so `parseDraft()` Zod-validates and expires it rather than trusting our own writes — a draft that fails to parse is discarded and the founder restarts, never crashes. `draftToCreateOrgInput()` is the single mapping from draft to the `POST /api/orgs` payload, and `tests/onboarding/create-draft.test.ts` asserts its output parses under `createOrgInput` for every org kind × variant.
-- **`provisionOrg` applies the blueprint atomically.** [lib/services/org-service.ts](lib/services/org-service.ts) resolves the founder's blueprint against the org-type template (filling any omitted field), then runs the whole org + config + roles + founder-membership provisioning in a single `$transaction`, stamping `OrganizationConfig.onboardingCompletedAt` at creation. The interview's term answer becomes the org's **first active `Semester`** (so attendance/dues book against it on day one), custom metrics seed **`OrgMetricDefinition`** rows, and un-tracked built-ins hide their dashboard KPI widgets via `disabledFeatures`. The founder role is forced to rank 100 + full bitfield so the founder can never lock themselves out. Bootstrap provisioning runs as `prismaPrivileged` (BYPASSRLS) since no org context exists yet.
+- **`provisionOrg` applies the blueprint atomically.** [lib/services/org-service.ts](lib/services/org-service.ts) resolves the founder's blueprint against the org-type template (filling any omitted field), then runs the whole org + config + roles + founder-membership provisioning in a single `$transaction`, stamping `OrganizationConfig.onboardingCompletedAt` at creation. The interview's term answer becomes the org's **first active `Semester`** (so attendance/dues book against it on day one), custom metrics seed **`OrgMetricDefinition`** rows, the Timeline answer seeds **`CalendarEventType`** rows, and un-tracked built-ins hide their dashboard KPI widgets via `disabledFeatures`. The founder role is forced to rank 100 + full bitfield so the founder can never lock themselves out. Bootstrap provisioning runs as `prismaPrivileged` (BYPASSRLS) since no org context exists yet.
 - **Org-type priors as a fallback.** [lib/org-types.ts](lib/org-types.ts) seeds a sensible preset per org type, so provisioning still yields a coherent setup for any field the blueprint leaves unset.
 
 > The old post-creation `/[slug]/onboarding` wizard is **retired** — setup now happens entirely pre-creation, and that route redirects straight into the live workspace.
@@ -214,15 +218,15 @@ Access is controlled by three independent mechanisms: auth tiers, identity flags
 
 ### Permission flags ([lib/permissions.ts](lib/permissions.ts))
 
-Twelve named permissions packed into a 32-bit bitfield on each `Role`:
+Fourteen named permissions packed into a 32-bit bitfield on each `Role`:
 
 ```
 MANAGE_BROTHERS  MANAGE_TREASURY  MANAGE_EVENTS       MANAGE_PARTIES   MANAGE_INSTAGRAM
 MANAGE_SERVICE   MANAGE_ATTENDANCE  MANAGE_SEMESTERS  MANAGE_ROLES     MANAGE_DOCS
-MANAGE_ANNOUNCEMENTS  MANAGE_SETTINGS
+MANAGE_ANNOUNCEMENTS  MANAGE_SETTINGS  MANAGE_TASKS   MANAGE_POLLS
 ```
 
-`MANAGE_SETTINGS` covers org config + invite links, kept distinct from `MANAGE_BROTHERS` (roster CRUD) so settings authority isn't bundled with roster editing.
+`MANAGE_SETTINGS` covers org config + invite links, kept distinct from `MANAGE_BROTHERS` (roster CRUD) so settings authority isn't bundled with roster editing. `MANAGE_TASKS` / `MANAGE_POLLS` gate *authoring* — anyone assigned to a task can mark it done, and anyone assigned to a poll can vote, without either bit.
 
 A member's *effective* bitfield is the bitwise OR of every role they hold. UI surfaces and API routes both check the same `hasPermission(bits, "MANAGE_X")` helper.
 
@@ -244,13 +248,13 @@ figurints/
 │   │   ├── page.tsx              # the Operations Dashboard (desktop + mobile)
 │   │   ├── onboarding/           # retired — redirects into the live workspace
 │   │   ├── brothers/  chapter/  docs/  events/  instagram/
-│   │   ├── parties/  service/  settings/  timeline/  treasury/
+│   │   ├── parties/  service/  settings/  tasks/  timeline/  treasury/
 │   │   └── AccessDenied.tsx · ActiveOrgSync.tsx
-│   ├── create/                   # pre-auth org-creation flow (name→interview→roles→blueprint→build)
+│   ├── create/                   # pre-auth org-creation flow (name→interview→roles→timeline→blueprint→build)
 │   │   ├── page.tsx · create-flow.css
 │   │   └── _components/          # CreateFlow + step components, flow-state (useDraft)
 │   ├── api/                      # JSON API routes (thin controllers)
-│   │   ├── ai/                   # chat (SSE), digest, summarize-meeting
+│   │   ├── ai/                   # chat (SSE), digest, summarize-meeting, interview (pre-auth)
 │   │   ├── metrics/              # custom metric definitions + dashboard snapshot
 │   │   │                         #   (per-member values live under brothers/[id]/metrics)
 │   │   ├── activity/             # activity log (+ /full)
@@ -260,19 +264,23 @@ figurints/
 │   │   ├── auth/                 # claim, me, signout, avatar, accounts, unlink-self
 │   │   ├── brothers/             # roster CRUD (+ /[id]/attendance, /[id]/roles, /[id]/metrics)
 │   │   ├── budget/               # semester budget + allocations
-│   │   ├── calendar/             # chapter events
-│   │   ├── deadlines/
+│   │   ├── calendar/             # chapter events (+ /event-types — per-org timeline categories)
 │   │   ├── docs/                 # pinned chapter links + folders + /refresh-metadata
+│   │   ├── dues/                 # dues adjustments + reconciliation
 │   │   ├── excuses/              # attendance excuses
+│   │   ├── exemptions/           # per-semester attendance exemptions
 │   │   ├── instagram/            # content calendar
 │   │   ├── invites/              # org invite links (open / claim modes)
 │   │   ├── orgs/                 # config, logo, manage, leave, setup-apply, slug-check
 │   │   ├── parties/              # party events + revenue
+│   │   ├── polls/                # member/role-assigned polls + voting
 │   │   ├── programming/          # programming events + prep checklist + docs
+│   │   ├── reimbursements/       # reimbursement requests + approval
 │   │   ├── roles/                # role CRUD + permission bitfield editor
 │   │   ├── semesters/
 │   │   ├── service-events/       # community service log
 │   │   ├── service-participation/ # per-member service-event attendance
+│   │   ├── tasks/                # tasks + deadlines assigned to members/roles
 │   │   ├── transactions/         # treasury entries (+ /export CSV)
 │   │   └── treasury/             # balance/trend rollup
 │   ├── auth/callback/            # OAuth redirect handler
@@ -321,12 +329,15 @@ figurints/
 │   ├── ai.ts                     # OpenAI client + shared narrate() helper
 │   ├── ai-prompt.ts              # buildSystemPrompt
 │   ├── ai-tools.ts               # tool schemas + dispatcher + validateArgs
-│   ├── onboarding/               # /create draft model (draft, kinds, seats, perm-areas)
+│   ├── onboarding/               # /create draft model (draft, kinds, seats, perm-areas, event-types)
 │   ├── org-types.ts              # org-type presets + workflow registry (onboarding priors)
+│   ├── event-types.ts            # built-in timeline event types + shared color palette
+│   ├── workflow-features.ts      # per-workflow toggleable features + disabledFeatures
 │   ├── metrics.ts                # custom-metric status/headline math (pure)
 │   ├── custom-member-fields.ts   # custom member-field types + helpers (pure)
+│   ├── tasks/                    # urgency.ts — task urgency computed from dueDate (pure)
 │   ├── auth/                     # require-user, require-permission, require-admin
-│   ├── permissions.ts            # 12-bit permission flags + helpers
+│   ├── permissions.ts            # 14-bit permission flags + helpers
 │   ├── seed-roles.ts             # system role seeding (idempotent)
 │   ├── og-metadata.ts            # Doc URL probe (OG tags, favicon, embed-OK check)
 │   ├── supabase/                 # client.ts, server.ts, admin.ts
@@ -438,8 +449,22 @@ Org-defined custom KPIs. `OrgMetricDefinition` carries a `slug` (immutable after
 ### OperationalEvent
 Structured audit log. Every meaningful state change emitted by a service lands here (`action`, `subjectType`, `subjectId`, `actorId`, `orgId`, `metadata` JSON). Drives reactions via the event handler registry and dual-writes to `ActivityLog` for the UI feed.
 
-### CalendarEvent
+### CalendarEvent / CalendarEventType
 Chapter events: `title`, `date`, optional `time`, `category`, `mandatory`, `description` (doubles as meeting notes), `location`, plus `notesSummary` + `notesSummaryAt` for AI-generated summaries.
+
+`CalendarEventType` is the per-org registry `CalendarEvent.category` points at — `slug` (immutable after create, unique per org), `label`, a `color` / `colorDark` hex pair for the light and dark timeline themes, an optional `workflowId` that gates picker visibility, and `builtin` / `creatable` / `hidden` / `mandatoryDefault` / `displayOrder`. Every org is seeded with the four built-ins from [lib/event-types.ts](lib/event-types.ts) — `chapter`, `party`, `deadline`, `service` — as editable copies; `party` and `deadline` are `creatable: false` because those rows are minted by their own features rather than the event form.
+
+### Task / TaskAssignment
+A `Task` is a unit of work handed to members and/or roles. A task *with* a `dueDate` is what the UI calls a deadline and folds into the timeline; without one it's a loose to-do. Stored `status` is only `open` / `done` — urgency (overdue / urgent / due soon / upcoming) is computed from `dueDate` at render time by [lib/tasks/urgency.ts](lib/tasks/urgency.ts), never persisted. `TaskAssignment` targets exactly one of `brotherId` / `roleId` (CHECK constraint); role targets resolve to current holders at read time, so adding someone to a role auto-assigns them its open tasks. Anyone assigned can flip the shared status to done; only `MANAGE_TASKS` can edit or reassign. Replaces the legacy `Deadline` model.
+
+### Poll / PollOption / PollAssignment / PollVote
+Task-shaped voting: a `Poll` attaches members and roles the same way a task does, plus a question with 2–10 `PollOption`s and an optional `closeDate`. Single-choice — `PollVote` is unique on `(pollId, brotherId)`, so re-voting upserts. Votes key to the poll rather than the assignment, so a vote survives its voter later being un-assigned. Closing locks voting but keeps results visible.
+
+### DuesPayment / Reimbursement
+Two request queues that gate the ledger. Both hold `amount`, `date`, a `status`, an optional `rejectionNote`, and a unique `transactionId` that is null until approval. Nothing moves on either book — not `Brother.duesOwed`, not `Transaction` — until a treasurer approves, at which point the service mints the ledger row and adjusts the balance atomically ([lib/services/dues-service.ts](lib/services/dues-service.ts), [lib/services/reimbursement-service.ts](lib/services/reimbursement-service.ts)). That `transactionId` is the only link between the two books, so a balance is blind to an approved payout until it exists.
+
+### AttendanceExemption
+Excuses a member from attendance math for a whole `Semester` (e.g. studying abroad, inactive status) rather than event-by-event. Unique on `(semesterId, brotherId)`.
 
 ### ProgrammingEvent / ProgrammingChecklistItem / ProgrammingEventDoc
 The events/programming planner. A `ProgrammingEvent` starts life as an idea (`stage = "idea"`) holding its own planning fields, and is linked one-to-one to a `CalendarEvent` (`calendarEventId`) only once it leaves the idea stage. Carries prep/ops fields — `owner`, `collabOrg`, `roomStatus`, `flyerPosted`, `socialsMeeting`, `spendingCents` — plus post-event `successRating` and `wrapUpNotes`. `ProgrammingChecklistItem` rows are the ordered prep checklist; `ProgrammingEventDoc` links attached docs.
@@ -456,8 +481,8 @@ Org invite links. `OrgInvite` carries a unique `token`, a `mode` (`open` mints a
 ### Semester
 `label` (unique per org, e.g. `SPR26`), `startDate`, `endDate`, `isActive` (one active at a time per org).
 
-### Transaction
-Treasury entries with `type` (`income`/`expense`), `category`, `amount`, `paymentMethod`. Soft-deleted via `deletedAt`.
+### Transaction / TransactionCalendarEvent
+Treasury entries with `type` (`income`/`expense`), `category`, `amount`, `paymentMethod`. Soft-deleted via `deletedAt`. `TransactionCalendarEvent` is a many-to-many join attributing spend to the events it paid for.
 
 ### Budget / BudgetAllocation
 Per-semester budget (`carryoverBalance`, `reserveAmount`) with line-item `allocations`.
@@ -465,7 +490,7 @@ Per-semester budget (`carryoverBalance`, `reserveAmount`) with line-item `alloca
 ### Doc / DocFolder
 `Doc` is a pinned chapter link with cached OG metadata (`title`, favicon, `embedOk`) and an optional `folderId`. `DocFolder` is a flat, one-level folder for grouping docs on the `/docs` page. Deleting a folder releases its docs back to the library root (sets `folderId = null`) rather than cascading them away.
 
-### PartyEvent / ServiceEvent / InstagramTask / Deadline / ChapterAnnouncement / ActivityLog
+### PartyEvent / ServiceEvent / InstagramTask / ChapterAnnouncement / ActivityLog
 See [prisma/schema.prisma](prisma/schema.prisma) for full field lists. All carry `organizationId`.
 
 ---
