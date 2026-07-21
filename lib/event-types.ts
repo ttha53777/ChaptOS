@@ -57,9 +57,68 @@ export const BUILTIN_EVENT_TYPES: readonly BuiltinEventType[] = [
   { slug: "service",  label: "Community Service", color: "#2f8579", colorDark: "#5fbdb0", workflowId: "service",  mandatoryDefault: false, creatable: true  },
 ] as const;
 
+/** The built-in slugs, as a tuple Zod can turn into an enum. */
+export const BUILTIN_EVENT_TYPE_SLUGS = BUILTIN_EVENT_TYPES.map(t => t.slug) as [string, ...string[]];
+
 /** Lookup by slug (built-ins only). */
 export function getBuiltinEventType(slug: string): BuiltinEventType | undefined {
   return BUILTIN_EVENT_TYPES.find(t => t.slug === slug);
+}
+
+/** One pickable color, as an ivory/dusk pair. */
+export interface EventTypeColor {
+  /** Stable id — what a picker keys its swatches on. */
+  id: string;
+  label: string;
+  /** Light-theme hex (ivory). */
+  color: string;
+  /** Dark-theme hex (dusk). */
+  colorDark: string;
+}
+
+/**
+ * The palette every event-type color picker offers, and the one the org-type
+ * starter seeds draw from (`lib/org-types.ts`). One list so the /create step's
+ * swatch strip, the Settings editor and the seeded defaults can't drift into
+ * three different sets of hexes.
+ *
+ * The first four entries are the built-ins' own colors verbatim — recoloring a
+ * built-in back to its default is a palette pick like any other. Values mirror
+ * the two-theme ledger palette in
+ * `app/components/dashboard/timeline-ledger.css`.
+ */
+export const EVENT_TYPE_PALETTE = [
+  { id: "blue",   label: "Blue",   color: "#3f6ea3", colorDark: "#8fb0d6" },
+  { id: "rose",   label: "Rose",   color: "#b34f72", colorDark: "#d98ba3" },
+  { id: "clay",   label: "Clay",   color: "#c14a37", colorDark: "#e0796b" },
+  { id: "teal",   label: "Teal",   color: "#2f8579", colorDark: "#5fbdb0" },
+  { id: "gold",   label: "Gold",   color: "#9a7224", colorDark: "#ddb36a" },
+  { id: "green",  label: "Green",  color: "#4a7d4c", colorDark: "#86b988" },
+  { id: "purple", label: "Purple", color: "#6d28d9", colorDark: "#a78bfa" },
+  { id: "sky",    label: "Sky",    color: "#2f5d7c", colorDark: "#7fb3d9" },
+  { id: "orchid", label: "Orchid", color: "#8b3fa3", colorDark: "#c98bd9" },
+] as const satisfies readonly EventTypeColor[];
+
+/** Palette ids as a literal union — keeps `EVT.gold` a compile-time check. */
+export type EventTypeColorId = (typeof EVENT_TYPE_PALETTE)[number]["id"];
+
+/** Palette lookup by the LIGHT hex — how a stored row resolves back to a swatch. */
+export function paletteEntryForColor(color: string): EventTypeColor | undefined {
+  const hex = color.toLowerCase();
+  return EVENT_TYPE_PALETTE.find(c => c.color.toLowerCase() === hex);
+}
+
+/**
+ * The first palette color not already used by `taken` (matched on the light
+ * hex), falling back to cycling once every entry is spoken for. What an "add a
+ * type" affordance pre-selects so two new types never land the same color.
+ */
+export function nextPaletteColor(taken: readonly string[]): EventTypeColor {
+  const used = new Set(taken.map(c => c.toLowerCase()));
+  return (
+    EVENT_TYPE_PALETTE.find(c => !used.has(c.color.toLowerCase())) ??
+    EVENT_TYPE_PALETTE[taken.length % EVENT_TYPE_PALETTE.length]!
+  );
 }
 
 /** The minimal shape the visibility predicate needs — satisfied by a DB row or DTO. */

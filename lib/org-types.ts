@@ -20,6 +20,7 @@
  */
 
 import type { Permission } from "@/lib/permissions";
+import { EVENT_TYPE_PALETTE, type EventTypeColorId } from "@/lib/event-types";
 
 export type WorkflowId =
   | "members"
@@ -152,17 +153,13 @@ export interface EventTypeSeed {
   colorDark: string;
 }
 
-// Shared ivory/dusk palette for the starter categories below, mirroring the
-// built-in event-type colors so the timeline stays visually coherent. A concept
-// keeps the same color across templates (social = gold, fundraiser = green, …).
-const EVT = {
-  gold:   { color: "#9a7224", colorDark: "#ddb36a" },
-  green:  { color: "#4a7d4c", colorDark: "#86b988" },
-  purple: { color: "#6d28d9", colorDark: "#a78bfa" },
-  blue:   { color: "#3f6ea3", colorDark: "#8fb0d6" },
-  rose:   { color: "#b34f72", colorDark: "#d98ba3" },
-  clay:   { color: "#c14a37", colorDark: "#e0796b" },
-} as const;
+// The starter categories below draw from EVENT_TYPE_PALETTE (lib/event-types.ts)
+// — the same list the /create step's swatch strip and the Settings editor offer,
+// so a seeded color is always one the founder could have picked. A concept keeps
+// the same color across templates (social = gold, fundraiser = green, …).
+const EVT = Object.fromEntries(
+  EVENT_TYPE_PALETTE.map(c => [c.id, { color: c.color, colorDark: c.colorDark }]),
+) as Record<EventTypeColorId, { color: string; colorDark: string }>;
 
 const evt = (slug: string, label: string, c: { color: string; colorDark: string }): EventTypeSeed =>
   ({ slug, label, color: c.color, colorDark: c.colorDark });

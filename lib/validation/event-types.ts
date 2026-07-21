@@ -1,8 +1,11 @@
 import { z } from "zod";
 import { ALL_WORKFLOWS, type WorkflowId } from "@/lib/org-types";
 
-const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
-const HEX_RE = /^#[0-9a-fA-F]{6}$/;
+// Exported so the create-org blueprint's event-type block (lib/validation/org.ts)
+// validates slugs and colors with the identical rules instead of a second copy
+// that could drift.
+export const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+export const HEX_RE = /^#[0-9a-fA-F]{6}$/;
 
 const workflowIdSchema = z
   .string()
