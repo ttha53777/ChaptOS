@@ -28,7 +28,7 @@ function normalizeCurrentUser(me: CurrentUser): CurrentUser {
     // Defensive: an older/cached /me payload may omit enabledWorkflows. Default
     // to an empty array so the sidebar filter never reads `.includes` of
     // undefined — the Sidebar treats the always-on surfaces as visible regardless.
-    org: me.org ? { ...me.org, logoUrl: me.org.logoUrl ?? null, enabledWorkflows: me.org.enabledWorkflows ?? [], vocabularyOverrides: me.org.vocabularyOverrides ?? {}, thresholds: me.org.thresholds ?? DEFAULT_THRESHOLDS, disabledFeatures: me.org.disabledFeatures ?? {}, customMemberFields: me.org.customMemberFields ?? [], navOrder: me.org.navOrder ?? [], metricDefinitionCount: me.org.metricDefinitionCount ?? 0, onboardingComplete: me.org.onboardingComplete ?? true } : null,
+    org: me.org ? { ...me.org, logoUrl: me.org.logoUrl ?? null, enabledWorkflows: me.org.enabledWorkflows ?? [], vocabularyOverrides: me.org.vocabularyOverrides ?? {}, thresholds: me.org.thresholds ?? DEFAULT_THRESHOLDS, disabledFeatures: me.org.disabledFeatures ?? {}, customMemberFields: me.org.customMemberFields ?? [], navOrder: me.org.navOrder ?? [], metricDefinitionCount: me.org.metricDefinitionCount ?? 0, pendingReimbursementCount: me.org.pendingReimbursementCount ?? 0, onboardingComplete: me.org.onboardingComplete ?? true } : null,
   };
 }
 
@@ -83,7 +83,7 @@ export interface CurrentUser {
    *  read via useThresholds() rather than directly.
    *  `disabledFeatures` is the OPT-OUT map of hidden page sections (workflow id →
    *  feature ids) — read via useFeature() rather than directly. */
-  org: { name: string; slug: string; orgType: string | null; logoUrl: string | null; enabledWorkflows: string[]; vocabularyOverrides: Record<string, string>; thresholds: Thresholds; disabledFeatures: Record<string, string[]>; customMemberFields: CustomMemberFieldDef[]; navOrder: string[]; metricDefinitionCount: number; onboardingComplete: boolean } | null;
+  org: { name: string; slug: string; orgType: string | null; logoUrl: string | null; enabledWorkflows: string[]; vocabularyOverrides: Record<string, string>; thresholds: Thresholds; disabledFeatures: Record<string, string[]>; customMemberFields: CustomMemberFieldDef[]; navOrder: string[]; metricDefinitionCount: number; pendingReimbursementCount: number; onboardingComplete: boolean } | null;
   orgId: number;
   /** All orgs this user belongs to. UI renders a switcher when length > 1. */
   memberships: MembershipSummary[];

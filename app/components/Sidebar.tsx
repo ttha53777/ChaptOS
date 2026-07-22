@@ -138,11 +138,20 @@ export function Sidebar({ open, onClose, activeSection, onNavClick }: {
   const pathname = usePathname();
   const router   = useRouter();
   const orgPath  = useOrgPath();
-  const { currentUser, reimbursementList, can, setNavOrderLocal } = useChapter();
+  const { currentUser, reimbursementList, loadedSections, can, setNavOrderLocal } = useChapter();
   const v = useVocab();
 
   // Pending reimbursement tickets drive the red count badge next to Treasury.
-  const pendingReimbursements = reimbursementList.filter(r => r.status === "pending").length;
+  // The Sidebar renders on every page, so deriving this from reimbursementList
+  // forced the whole reimbursement fetch into every page load just to compute a
+  // number — /api/auth/me now carries the count instead.
+  //
+  // Where the list IS loaded (the treasury page), keep deriving from it: those
+  // pages mutate tickets optimistically without a refetch, and the badge has
+  // always followed along instantly. The /me count would lag behind them.
+  const pendingReimbursements = loadedSections.has("reimbursements")
+    ? reimbursementList.filter(r => r.status === "pending").length
+    : currentUser?.org?.pendingReimbursementCount ?? 0;
 
   // Pending excuses drive a review badge on Timeline (where the review queue lives).
   // Only MANAGE_ATTENDANCE holders can read the endpoint (members get 403), so gate

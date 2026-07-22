@@ -4,6 +4,7 @@ import { resolvePermissions } from "@/lib/auth/require-permission";
 import { parseAvatarFromMetadata } from "@/lib/avatar";
 import { db } from "@/lib/db"; // lint-modules:ignore (auth bootstrap; runs before buildContext is viable)
 import { ALL_WORKFLOWS } from "@/lib/org-types";
+import { ReimbursementStatus } from "@/lib/state";
 import { resolveThresholds } from "@/lib/thresholds";
 import { sanitizeFieldDefs, type CustomMemberFieldDef } from "@/lib/custom-member-fields";
 import { toResponse } from "@/lib/errors";
@@ -14,7 +15,7 @@ export async function GET() {
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   try {
-    const [brother, org, perms, metricDefinitionCount] = await Promise.all([
+    const [brother, org, perms, metricDefinitionCount, pendingReimbursementCount] = await Promise.all([
       db(user.orgId).brother.findUnique({
         where: { id: user.id },
         select: { name: true, email: true, avatarUrl: true },
@@ -38,6 +39,12 @@ export async function GET() {
       }),
       resolvePermissions(user),
       db(user.orgId).orgMetricDefinition.count({ where: { deletedAt: null } }),
+      // The Sidebar's Treasury badge is a COUNT of pending reimbursement tickets.
+      // It used to derive that from the full reimbursementList, which forced
+      // /api/reimbursements into the bootstrap fan-out on every page even though
+      // only the treasury page reads the list itself. One count in this
+      // already-parallel batch is far cheaper than a whole extra request.
+      db(user.orgId).reimbursement.count({ where: { status: ReimbursementStatus.Pending } }),
     ]);
 
     // requireUser() already verified the session with Supabase and surfaced the
@@ -116,6 +123,9 @@ export async function GET() {
             // Count of active metric definitions — used by BrotherDrawer to decide
             // whether to show the "metrics" tab (avoids a separate API call).
             metricDefinitionCount,
+            // Pending reimbursement tickets — drives the Sidebar's Treasury count
+            // badge without pulling the whole list into every page load.
+            pendingReimbursementCount,
             // Whether the founder has finished the setup wizard. Drives the
             // dashboard "finish setting up" checklist (shown only once setup is
             // complete) and is the same signal the server onboarding guard gates
