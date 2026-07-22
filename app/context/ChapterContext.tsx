@@ -1,6 +1,7 @@
 "use client";
 
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { usePathname } from "next/navigation";
 import {
   Brother, Task, Poll, InstagramTask, ProgrammingTask, PartyEvent, ActivityEntry, Transaction, Reimbursement,
 } from "../data";
@@ -125,6 +126,13 @@ interface ChapterContextValue {
    * Empty set when everything loaded. Key = the endpoint slug below.
    */
   sectionErrors: ReadonlySet<ChapterSection>;
+  /**
+   * Sections that have actually been fetched for this session. Only the data a
+   * route needs is loaded (see SECTIONS_BY_PAGE), so an empty list here can mean
+   * "not loaded yet" rather than "genuinely empty" — consult this before treating
+   * one as authoritative.
+   */
+  loadedSections: ReadonlySet<DataSection>;
   mutationError: string | null;
   setMutationError: React.Dispatch<React.SetStateAction<string | null>>;
   refreshChapterData: () => Promise<void>;
@@ -144,18 +152,89 @@ interface ChapterContextValue {
   hasLoaded: boolean;
 }
 
+/**
+ * Sections the bootstrap fan-out can load. Note there is deliberately no
+ * "programming" entry: `programmingTaskList` has no readers anywhere — the
+ * events page both fetches /api/programming itself and is its only writer — so
+ * bootstrapping it was a wasted request on every single page load (and the
+ * slowest one in the fan-out). The state stays in the context because the
+ * events page writes through `setProgrammingTaskList`.
+ */
 type ChapterSection =
   | "me"
   | "brothers"
   | "deadlines"
   | "instagram"
-  | "programming"
   | "parties"
   | "activity"
   | "treasury"
   | "transactions"
   | "reimbursements"
   | "polls";
+
+/** The sections that are actually fetched. "me" is handled separately (it always loads). */
+type DataSection = Exclude<ChapterSection, "me">;
+
+const ALL_DATA_SECTIONS: readonly DataSection[] = [
+  "brothers", "deadlines", "instagram", "parties",
+  "activity", "treasury", "transactions", "reimbursements", "polls",
+];
+
+/**
+ * Sections loaded on EVERY dashboard route, regardless of the manifest below.
+ *
+ * `brothers` is here deliberately. It's the one list read from shared chrome
+ * rather than from a single page (SetupChecklist, and the roster lookups several
+ * pages do on mount), and it is cheap relative to the risk of a page rendering an
+ * empty roster. Keeping it always-on is the conservative choice.
+ */
+const ALWAYS_SECTIONS: readonly DataSection[] = ["brothers"];
+
+/**
+ * Which sections each dashboard page actually READS from this context, keyed by
+ * the path segment after the org slug ("" = the dashboard index).
+ *
+ * Derived by auditing every `useChapter()` destructuring under app/ — note it is
+ * *reads* that matter: a page that only takes a setter (e.g. /events takes
+ * `setProgrammingTaskList`, the dashboard takes `setTransactionList`) fetches
+ * that data itself and does not need it bootstrapped.
+ *
+ * Before this existed, every page loaded all nine sections, so opening /docs
+ * fetched the roster, tasks, polls, parties, activity, treasury, transactions and
+ * reimbursements to render a page that reads none of them.
+ *
+ * A segment that is NOT listed here falls back to loading everything — a new page
+ * added later is slow until it's added below, never blank.
+ */
+const SECTIONS_BY_PAGE: Record<string, readonly DataSection[]> = {
+  "":         ["deadlines", "instagram", "parties", "activity", "treasury", "reimbursements"],
+  brothers:   [],
+  chapter:    [],
+  service:    [],
+  docs:       [],
+  events:     [],
+  onboarding: [],
+  instagram:  ["instagram"],
+  parties:    ["parties"],
+  tasks:      ["deadlines", "polls"],
+  // GeneralSection reads igTaskList alongside the page's own brothers/tasks/parties.
+  settings:   ["deadlines", "parties", "instagram"],
+  timeline:   ["deadlines", "parties", "instagram"],
+  treasury:   ["parties", "transactions", "treasury", "reimbursements"],
+};
+
+/**
+ * Sections needed to render `pathname`. Empty on non-dashboard routes (/login,
+ * /welcome, /create, …) — there's no org in the URL there, so these org-scoped
+ * reads would resolve against a non-membership context and 403.
+ */
+function sectionsForPath(pathname: string | null): readonly DataSection[] {
+  if (!pathname || !isDashboardRoute(pathname)) return [];
+  const segment = pathname.split("/")[2] ?? "";
+  const page = SECTIONS_BY_PAGE[segment];
+  if (!page) return ALL_DATA_SECTIONS;
+  return [...new Set([...ALWAYS_SECTIONS, ...page])];
+}
 
 const ChapterContext = createContext<ChapterContextValue | null>(null);
 
@@ -206,6 +285,7 @@ async function fetchJson<T>(url: string): Promise<T | null> {
 }
 
 export function ChapterProvider({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
   const [brotherList,      setBrotherList]      = useState<Brother[]>([]);
   const [taskList,         setTaskList]         = useState<Task[]>([]);
   const [pollList,         setPollList]         = useState<Poll[]>([]);
@@ -223,6 +303,12 @@ export function ChapterProvider({ children }: { children: React.ReactNode }) {
   const [sectionErrors, setSectionErrors] = useState<ReadonlySet<ChapterSection>>(() => new Set());
   const [mutationError, setMutationError] = useState<string | null>(null);
   const [hasLoaded, setHasLoaded] = useState(false);
+
+  // Which sections have data. Kept in a ref as well as state because the
+  // route-change effect below has to read the CURRENT set synchronously — a state
+  // snapshot captured in a closure would re-request sections already in flight.
+  const loadedSectionsRef = useRef<ReadonlySet<DataSection>>(new Set());
+  const [loadedSections, setLoadedSections] = useState<ReadonlySet<DataSection>>(loadedSectionsRef.current);
 
   // Race guard: only the most recently *started* refresh is allowed to write state.
   // Older in-flight refreshes that resolve later are ignored, preventing stale overwrites.
@@ -289,117 +375,33 @@ export function ChapterProvider({ children }: { children: React.ReactNode }) {
       : prev));
   }, []);
 
-  const refreshChapterData = useCallback(async () => {
-    const myId = ++refreshIdRef.current;
-    const isLatest = () => refreshIdRef.current === myId;
-
-    setIsLoading(true);
-    setLoadError(null);
-    setSectionErrors(new Set());
-
-    // The org-scoped fan-out below only makes sense inside an org dashboard
-    // (/[slug]/…). On platform/auth routes (/welcome, /create, /login,
-    // /pending-access, …) there's no org slug in the URL, so these reads would
-    // resolve to a non-membership org context and 403. A signed-in but
-    // already-onboarded user can legitimately sit on /create (founding
-    // another org), so we skip the section fetches there rather than firing a
-    // wall of doomed 403s. The route check only needs the URL, so it happens
-    // up front — letting the fan-out start in PARALLEL with /api/auth/me
-    // instead of waterfalling behind it (saves a full round-trip per load).
-    const onDashboard = typeof window !== "undefined" && isDashboardRoute(window.location.pathname);
-
-    // Each endpoint loads independently. A failure in one section (e.g. treasury)
-    // marks that section as errored but lets the rest of the dashboard render.
-    // Auth failure is the one exception — if /api/auth/me fails, we abort the
-    // whole refresh (section results are discarded) because the rest of the
-    // data is meaningless without a user.
-    const mePromise = fetchJson<CurrentUser>("/api/auth/me")
-      .then(value => ({ ok: true as const, value }))
-      .catch((error: unknown) => ({ ok: false as const, error }));
-
-    // Fan out alongside /me. allSettled so one slow/broken endpoint doesn't
-    // blank the dashboard — see audit finding D4 / backend E3.
-    const sectionsPromise = onDashboard
-      ? Promise.allSettled([
-          fetchJson<Brother[]>("/api/brothers"),
-          fetchJson<Task[]>("/api/tasks"),
-          fetchJson<InstagramTask[]>("/api/instagram"),
-          fetchJson<ProgrammingTask[]>("/api/programming"),
-          fetchJson<PartyEvent[]>("/api/parties"),
-          fetchJson<ActivityEntry[]>("/api/activity"),
-          fetchJson<TreasuryData>("/api/treasury"),
-          fetchJson<Transaction[]>("/api/transactions"),
-          fetchJson<Reimbursement[]>("/api/reimbursements"),
-          fetchJson<Poll[]>("/api/polls"),
-        ])
-      : null;
-
-    const meResult = await mePromise;
-
-    if (!isLatest()) return;
-
-    // null = 401 (no session) — silent no-op, not an error.
-    if (meResult.ok && meResult.value === null) {
-      setIsLoading(false);
-      setHasLoaded(true);
-      return;
-    }
-
-    if (!meResult.ok) {
-      console.error("[ChapterContext] /api/auth/me failed:", meResult.error);
-      setLoadError("Could not load your account. Please refresh.");
-      setIsLoading(false);
-      setHasLoaded(true);
-      return;
-    }
-
-    const me = normalizeCurrentUser(meResult.value as CurrentUser);
-    setCurrentUser(me);
-    setAvatarRevision(r => r + 1);
-
-    if (!sectionsPromise) {
-      setIsLoading(false);
-      setHasLoaded(true);
-      return;
-    }
-
-    const [brothers, deadlines, instagram, programming, parties, activity, treasury, transactions, reimbursements, polls] = await sectionsPromise;
-
-    if (!isLatest()) return;
-
-    const failed = new Set<ChapterSection>();
-    const trackFailure = (section: ChapterSection, result: PromiseSettledResult<unknown>) => {
-      if (result.status === "rejected") {
-        failed.add(section);
-        // A transient abort/timeout (slow first compile, HMR, brief network drop)
-        // recovers on the next refresh — warn rather than error so it doesn't trip
-        // the dev error overlay or read as a code regression. Real failures still
-        // log at console.error.
-        if (isTransientFetchError(result.reason)) {
-          console.warn(`[ChapterContext] ${section} fetch timed out (transient):`, result.reason);
-        } else {
-          console.error(`[ChapterContext] ${section} fetch failed:`, result.reason);
-        }
-      }
-    };
-
-    if (brothers.status === "fulfilled")     setBrotherList(brothers.value ?? []);
-    else                                     trackFailure("brothers", brothers);
-
-    if (deadlines.status === "fulfilled")    setTaskList(deadlines.value ?? []);
-    else                                     trackFailure("deadlines", deadlines);
-
-    if (polls.status === "fulfilled")        setPollList(polls.value ?? []);
-    else                                     trackFailure("polls", polls);
-
-    if (instagram.status === "fulfilled")    setIgTaskList(instagram.value ?? []);
-    else                                     trackFailure("instagram", instagram);
-
-    if (programming.status === "fulfilled")  setProgrammingTaskList(programming.value ?? []);
-    else                                     trackFailure("programming", programming);
-
-    if (parties.status === "fulfilled") {
-      setPartyList((parties.value ?? []).map(p => ({
+  /**
+   * One fetch+apply pair per section. Each loader resolves to a `commit` thunk so
+   * the network work can all start in parallel and the state writes still happen
+   * together, after the race guard has confirmed this refresh is still the latest.
+   *
+   * `useState` setters are stable, so this map never needs to be rebuilt.
+   */
+  const sectionLoaders = useMemo<Record<DataSection, () => Promise<() => void>>>(() => ({
+    brothers: async () => {
+      const v = await fetchJson<Brother[]>("/api/brothers");
+      return () => setBrotherList(v ?? []);
+    },
+    deadlines: async () => {
+      const v = await fetchJson<Task[]>("/api/tasks");
+      return () => setTaskList(v ?? []);
+    },
+    polls: async () => {
+      const v = await fetchJson<Poll[]>("/api/polls");
+      return () => setPollList(v ?? []);
+    },
+    instagram: async () => {
+      const v = await fetchJson<InstagramTask[]>("/api/instagram");
+      return () => setIgTaskList(v ?? []);
+    },
+    parties: async () => {
+      const v = await fetchJson<PartyEvent[]>("/api/parties");
+      return () => setPartyList((v ?? []).map(p => ({
         ...p,
         partyType:   (p.partyType   ?? "Open") as "Open" | "Closed",
         theme:       p.theme        ?? "",
@@ -411,26 +413,136 @@ export function ChapterProvider({ children }: { children: React.ReactNode }) {
         completed:   p.completed    ?? false,
         completedAt: p.completedAt  ?? null,
       })));
-    } else {
-      trackFailure("parties", parties);
+    },
+    activity: async () => {
+      const v = await fetchJson<ActivityEntry[]>("/api/activity");
+      return () => setActivityFeed(v ?? []);
+    },
+    treasury: async () => {
+      const v = await fetchJson<TreasuryData>("/api/treasury");
+      return () => setTreasuryData(v);
+    },
+    transactions: async () => {
+      const v = await fetchJson<Transaction[]>("/api/transactions");
+      return () => setTransactionList(v ?? []);
+    },
+    reimbursements: async () => {
+      const v = await fetchJson<Reimbursement[]>("/api/reimbursements");
+      return () => setReimbursementList(v ?? []);
+    },
+  }), []);
+
+  /**
+   * Load `wanted` sections (and optionally /api/auth/me).
+   *
+   * Each section loads independently: a failure in one (e.g. treasury) marks that
+   * section as errored but lets the rest of the dashboard render. Auth failure is
+   * the one exception — if /api/auth/me fails we abort the whole refresh, because
+   * the rest of the data is meaningless without a user.
+   */
+  const loadSections = useCallback(async (
+    wanted: readonly DataSection[],
+    opts: { includeMe: boolean },
+  ) => {
+    const myId = ++refreshIdRef.current;
+    const isLatest = () => refreshIdRef.current === myId;
+
+    setIsLoading(true);
+    if (opts.includeMe) setLoadError(null);
+
+    // Sections fan out FIRST so they're in flight in parallel with /api/auth/me
+    // rather than waterfalling behind it (saves a full round-trip per load).
+    const sectionsPromise = wanted.length > 0
+      ? Promise.allSettled(wanted.map(s => sectionLoaders[s]()))
+      : null;
+
+    if (opts.includeMe) {
+      const meResult = await fetchJson<CurrentUser>("/api/auth/me")
+        .then(value => ({ ok: true as const, value }))
+        .catch((error: unknown) => ({ ok: false as const, error }));
+
+      if (!isLatest()) return;
+
+      // null = 401 (no session) — silent no-op, not an error.
+      if (meResult.ok && meResult.value === null) {
+        setIsLoading(false);
+        setHasLoaded(true);
+        return;
+      }
+
+      if (!meResult.ok) {
+        console.error("[ChapterContext] /api/auth/me failed:", meResult.error);
+        setLoadError("Could not load your account. Please refresh.");
+        setIsLoading(false);
+        setHasLoaded(true);
+        return;
+      }
+
+      setCurrentUser(normalizeCurrentUser(meResult.value as CurrentUser));
+      setAvatarRevision(r => r + 1);
     }
 
-    if (activity.status === "fulfilled")     setActivityFeed(activity.value ?? []);
-    else                                     trackFailure("activity", activity);
+    if (!sectionsPromise) {
+      setIsLoading(false);
+      setHasLoaded(true);
+      return;
+    }
 
-    if (treasury.status === "fulfilled")     setTreasuryData(treasury.value);
-    else                                     trackFailure("treasury", treasury);
+    const results = await sectionsPromise;
 
-    if (transactions.status === "fulfilled") setTransactionList(transactions.value ?? []);
-    else                                     trackFailure("transactions", transactions);
+    if (!isLatest()) return;
 
-    if (reimbursements.status === "fulfilled") setReimbursementList(reimbursements.value ?? []);
-    else                                       trackFailure("reimbursements", reimbursements);
+    const failed = new Set<DataSection>();
+    const loaded = new Set<DataSection>();
 
-    setSectionErrors(failed);
+    results.forEach((result, i) => {
+      const section = wanted[i];
+      if (result.status === "fulfilled") {
+        result.value();
+        loaded.add(section);
+        return;
+      }
+      failed.add(section);
+      // A transient abort/timeout (slow first compile, HMR, brief network drop)
+      // recovers on the next refresh — warn rather than error so it doesn't trip
+      // the dev error overlay or read as a code regression. Real failures still
+      // log at console.error.
+      if (isTransientFetchError(result.reason)) {
+        console.warn(`[ChapterContext] ${section} fetch timed out (transient):`, result.reason);
+      } else {
+        console.error(`[ChapterContext] ${section} fetch failed:`, result.reason);
+      }
+    });
+
+    // Only sections whose data actually landed count as loaded — a failed one
+    // must stay eligible for a retry on the next navigation or refresh.
+    loadedSectionsRef.current = new Set([...loadedSectionsRef.current, ...loaded]);
+    setLoadedSections(loadedSectionsRef.current);
+
+    // Merge rather than replace: a partial load must not clear the error state of
+    // sections it didn't touch. Sections in `wanted` get a clean slate first, so a
+    // recovered section drops out of the set.
+    setSectionErrors(prev => {
+      const next = new Set(prev);
+      for (const s of wanted) next.delete(s);
+      for (const s of failed) next.add(s);
+      return next;
+    });
     setIsLoading(false);
     setHasLoaded(true);
-  }, []);
+  }, [sectionLoaders]);
+
+  /**
+   * Refetch everything currently loaded, plus whatever the current route needs.
+   * This is the public "something changed, resync" entry point — its contract is
+   * unchanged, so every existing caller (mutations, SemesterGate, settings forms)
+   * behaves as before.
+   */
+  const refreshChapterData = useCallback(async () => {
+    const path = typeof window !== "undefined" ? window.location.pathname : null;
+    const wanted = [...new Set([...loadedSectionsRef.current, ...sectionsForPath(path)])];
+    await loadSections(wanted, { includeMe: true });
+  }, [loadSections]);
 
   useEffect(() => {
     // Dev-only screenshot bypass: there's no client-side Supabase session, so
@@ -457,6 +569,18 @@ export function ChapterProvider({ children }: { children: React.ReactNode }) {
       }
     });
   }, [refreshChapterData]);
+
+  // Top up on navigation. The initial bootstrap only loads what the landing route
+  // needs, so moving to a page with a bigger appetite (say /docs → /treasury)
+  // fetches the difference here. Sections already loaded are NOT refetched, which
+  // is what makes navigating back instant — and means data never disappears out
+  // from under a page that is still mounted.
+  useEffect(() => {
+    if (!hasLoaded || !currentUser) return;
+    const missing = sectionsForPath(pathname).filter(s => !loadedSectionsRef.current.has(s));
+    if (missing.length === 0) return;
+    loadSections(missing, { includeMe: false }).catch(() => undefined);
+  }, [pathname, hasLoaded, currentUser, loadSections]);
 
   // Keep avatar in sync with Supabase session (covers stale /api/auth/me and cross-page nav).
   // IMPORTANT: never let session metadata clobber a custom avatar. Supabase re-syncs
@@ -513,7 +637,7 @@ export function ChapterProvider({ children }: { children: React.ReactNode }) {
     treasuryData, setTreasuryData,
     transactionList, setTransactionList,
     reimbursementList, setReimbursementList,
-    isLoading, loadError, sectionErrors,
+    isLoading, loadError, sectionErrors, loadedSections,
     mutationError, setMutationError,
     refreshChapterData, hasLoaded,
     setDisabledFeaturesLocal,
@@ -526,7 +650,7 @@ export function ChapterProvider({ children }: { children: React.ReactNode }) {
     can,
     brotherList, taskList, pollList, igTaskList, programmingTaskList, partyList,
     activityFeed, treasuryData, transactionList, reimbursementList,
-    isLoading, loadError, sectionErrors, mutationError, hasLoaded,
+    isLoading, loadError, sectionErrors, loadedSections, mutationError, hasLoaded,
     refreshChapterData,
     setDisabledFeaturesLocal,
     setNavOrderLocal,
