@@ -434,15 +434,23 @@ export function ChapterProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     // Dev-only screenshot bypass: there's no client-side Supabase session, so
-    // getUser() would return null and skip the load. The impersonation cookie
-    // stands in for the session — load directly. (Inert in prod; the cookie is
-    // only ever set by the local screenshot tool. See lib/auth/dev-bypass.ts.)
+    // the session check below would come back empty and skip the load. The
+    // impersonation cookie stands in for the session — load directly. (Inert in
+    // prod; the cookie is only ever set by the local screenshot tool. See
+    // lib/auth/dev-bypass.ts.)
     if (hasDevImpersonationCookie()) {
       refreshChapterData().catch(() => undefined);
       return;
     }
-    createClient().auth.getUser().then(({ data }) => {
-      if (data.user) {
+    // getSession() reads the stored session LOCALLY; getUser() posts to the
+    // Supabase auth server. Since this gate sits in front of the entire bootstrap
+    // fan-out, getUser() added a full network round-trip to the head of every
+    // page load — and bought nothing: the client session is never trusted for
+    // authorization. Every endpoint below re-verifies server-side, and a stale or
+    // expired local session just yields 401 from /api/auth/me, which
+    // refreshChapterData already treats as a silent no-op.
+    createClient().auth.getSession().then(({ data }) => {
+      if (data.session) {
         refreshChapterData().catch(() => undefined);
       } else {
         setIsLoading(false);
