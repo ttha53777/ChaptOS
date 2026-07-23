@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<!--
+  ChaptOS · Ask Chapt Redesign v3 — the Apple pass
+  ═══════════════════════════════════════════════════════════════════════
+  WHAT CHANGED FROM v2
+
+  v2 was a dark, editorial "dusk" theme — Fraunces serif, violet/gold/rose
+  accents, mono uppercase kickers, a left-border selection indicator. It
+  read as considered but not warm, and not Apple. This pass is a full
+  re-skin against Apple's own real system: same scenes, same real lpe
+  figures, same interactions — new visual language entirely.
+
+  · Palette is Apple's actual documented values, not invented ones:
+    #f5f5f7 page gray, #1d1d1f ink, #6e6e73 secondary label, #0071e3
+    system blue (their marketing-site blue), #34c759/#ff3b30/#ff9500
+    system green/red/orange. Dark mode uses their real dark-mode
+    equivalents (#0a84ff, #30d158, #ff453a, #ff9f0a) — not a re-tinted
+    guess.
+  · Type is the real SF Pro stack (-apple-system/BlinkMacSystemFont)
+    throughout — no serif display face, no mono uppercase kickers.
+    One deliberate exception: the "you asked" line sits in ui-serif/
+    New York italic — the same serif Apple reaches for in Journal and
+    Notes when a moment is personal rather than systemic. Everywhere
+    else stays sans.
+  · Selection lost its left violet border-accent (flagged in the design
+    system's own anti-slop list as a stale 2020-era pattern) in favor
+    of a full soft blue tint — how macOS/Spotlight actually indicates
+    a selected row.
+  · The scrim is warm frosted vibrancy (blur+saturate over a light
+    wash), not a dark opacity wash — the window behind should still
+    read as "daytime," not "modal darkened the world."
+  · Corners opened up (14–22px) and shadows softened to a diffuse,
+    low-contrast Apple sheet shadow instead of a hard dark vignette.
+  · Added a real light/dark toggle (top rail) so both of Apple's actual
+    system palettes can be screenshotted — this wasn't a v2 concern
+    since v2 committed to one dark palette throughout.
+
+  Content, data, and interaction model are unchanged from v2 — this is
+  a skin and layout-language pass, not a content or IA pass.
+
+  DATA IS REAL — pulled from the seeded lpe dev database on 2026-07-22.
+  16 members · $125 outstanding across Arijit Das ($118) and Nathaniel Baccaray
+  ($7) · $1,875 collected · $7,992 treasury balance · 85.2% attendance · 3.42
+  chapter GPA · two overdue tasks · Fall Rush Info Night Aug 25. No invented stats.
+
+  DESIGN MOCK ONLY — vanilla one-file HTML/CSS/JS. Nothing is wired to the app.
+  Screenshot hooks: window.__mock = { goto, open, close, ratify, decline, theme }.
+  Live keys: ⌘K toggle · ↑↓ move selection (when composer isn't focused) ·
+  ⏎ ratify / ⌫ decline a proposal · Esc close.
+-->
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ChaptOS — Ask Chapt Redesign v3 · Apple pass</title>
+<style>
+/* ═══ 0 · Tokens — Apple's real documented system values ═══════════════ */
+:root {
+  --sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Segoe UI", Helvetica, Arial, sans-serif;
+  --serif: ui-serif, "New York", "Iowan Old Style", Georgia, serif;
+  --mono:  ui-monospace, "SF Mono", "Menlo", monospace;
+  --ease:  cubic-bezier(.16,1,.3,1);
+  --spring: cubic-bezier(.34,1.4,.4,1);
+
+  --paper:    #f5f5f7;
+  --paper-2:  #fbfbfc;
+  --card:     #ffffff;
+  --card-2:   #f5f5f7;
+  --ink:      #1d1d1f;
+  --ink-soft: #48484a;
+  --muted:    #6e6e73;
+  --faint:    #86868b;
+  --line:     rgba(0,0,0,.08);
+  --line-soft:rgba(0,0,0,.045);
+
+  --blue:     #0071e3;
+  --blue-bg:  rgba(0,113,227,.09);
+  --orange:   #ff9500;
+  --orange-bg:rgba(255,149,0,.12);
+  --red:      #ff3b30;
+  --red-bg:   rgba(255,59,48,.10);
+  --green:    #248a3d;
+  --green-bg: rgba(52,199,89,.14);
+
+  --scrim:    rgba(238,238,240,.55);
+  --shadow:   0 30px 70px -25px rgba(0,0,0,.28), 0 0 0 1px rgba(0,0,0,.04);
+}
+:root[data-theme="dark"] {
+  --paper:    #1c1c1e;
+  --paper-2:  #232325;
+  --card:     #2c2c2e;
+  --card-2:   #38383a;
+  --ink:      #f5f5f7;
+  --ink-soft: #d1d1d6;
+  --muted:    #98989d;
+  --faint:    #6e6e73;
+  --line:     rgba(255,255,255,.09);
+  --line-soft:rgba(255,255,255,.055);
+
+  --blue:     #0a84ff;
+  --blue-bg:  rgba(10,132,255,.17);
+  --orange:   #ff9f0a;
+  --orange-bg:rgba(255,159,10,.16);
+  --red:      #ff453a;
+  --red-bg:   rgba(255,69,58,.15);
+  --green:    #30d158;
+  --green-bg: rgba(48,209,88,.16);
+
+  --scrim:    rgba(10,10,11,.55);
+  --shadow:   0 30px 80px -20px rgba(0,0,0,.6), 0 0 0 1px rgba(0,0,0,.5);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+body {
+  background: var(--paper); color: var(--ink);
+  font-family: var(--sans); font-size: 14px; line-height: 1.5;
+  -webkit-font-smoothing: antialiased; overflow: hidden;
+  transition: background .25s var(--ease), color .25s var(--ease);
+}
+::selection { background: var(--blue-bg); }
+button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; text-align: left; }
+.num { font-variant-numeric: tabular-nums; }
+.cap { font-size: 11.5px; color: var(--muted); }
+
+/* ═══ 1 · Backdrop dashboard — inert scenery, real lpe figures ═══════════ */
+.app { display: flex; height: 100vh; pointer-events: none; user-select: none; }
+.nav { width: 236px; flex-shrink: 0; border-right: 1px solid var(--line); background: var(--paper-2); padding: 20px 14px; display: flex; flex-direction: column; gap: 24px; }
+.nav .crest { display: flex; align-items: center; gap: 10px; padding: 0 6px; }
+.nav .crest .mark { width: 32px; height: 32px; border-radius: 9px; flex-shrink: 0; background: linear-gradient(160deg, #2e7dff, #0040a8); display: grid; place-items: center; font-family: var(--sans); font-weight: 700; font-size: 14px; color: #fff; }
+.nav .crest b { font-weight: 600; font-size: 13.5px; letter-spacing: -.01em; display: block; }
+.nav .crest span { display: block; font-size: 11px; color: var(--faint); }
+.nav-sec { display: flex; flex-direction: column; gap: 1px; }
+.nav-sec .cap { margin: 0 0 6px 10px; }
+.nav a { display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: 8px; font-size: 13px; color: var(--ink-soft); text-decoration: none; }
+.nav a.on { background: var(--blue-bg); color: var(--blue); font-weight: 600; }
+.nav a .dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; opacity: .55; }
+
+.page { flex: 1; overflow: hidden; padding: 34px 38px; }
+.page-in { max-width: 820px; }
+.hello { font-family: var(--sans); font-size: 32px; font-weight: 700; letter-spacing: -.024em; line-height: 1.15; margin: 8px 0 22px; }
+.hello em { font-style: normal; color: var(--blue); }
+.tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 20px; }
+.tile { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 16px 18px; }
+.tile .v { font-size: 25px; font-weight: 700; letter-spacing: -.02em; margin-top: 8px; }
+.tile .n { font-size: 12px; color: var(--faint); margin-top: 3px; }
+.card-b { border: 1px solid var(--line); border-radius: 16px; background: var(--card); overflow: hidden; }
+.card-b h3 { font-weight: 600; font-size: 14.5px; padding: 14px 18px; border-bottom: 1px solid var(--line-soft); }
+.row-b { display: flex; align-items: center; gap: 12px; padding: 12px 18px; border-bottom: 1px solid var(--line-soft); font-size: 13px; }
+.row-b:last-child { border-bottom: 0; }
+.row-b .dotf { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.dotf.od { background: var(--red); }
+.dotf.du { background: var(--orange); }
+.row-b .sub { color: var(--faint); font-size: 12px; margin-top: 2px; }
+
+/* ═══ 2 · Scrim — warm frosted vibrancy, not a dark wash ═════════════════ */
+.scrim { position: fixed; inset: 0; z-index: 20; background: var(--scrim); backdrop-filter: blur(24px) saturate(160%); -webkit-backdrop-filter: blur(24px) saturate(160%);
+  opacity: 0; pointer-events: none; transition: opacity .22s var(--ease); }
+body.open .scrim { opacity: 1; pointer-events: auto; }
+
+/* ═══ 3 · The spotlight ═══════════════════════════════════════════════════
+   Centered, floated from the top, capped at 76vh and shrink-to-fit. ═══════ */
+.spot {
+  position: fixed; z-index: 30; top: 10vh; left: 50%; transform: translateX(-50%);
+  width: min(720px, calc(100vw - 56px)); max-height: 74vh;
+  display: flex; flex-direction: column; overflow: hidden;
+  background: var(--card);
+  border: 1px solid var(--line); border-radius: 22px;
+  box-shadow: var(--shadow);
+  opacity: 0; pointer-events: none;
+  transition: opacity .22s var(--ease), transform .3s var(--spring), background .25s var(--ease);
+}
+body.open .spot { opacity: 1; pointer-events: auto; transform: translateX(-50%) translateY(0) scale(1); }
+.spot { transform: translateX(-50%) translateY(-6px) scale(.985); }
+
+/* ── Header — the mark and a way out. Nothing else. ──────────────────────── */
+.shead { display: flex; align-items: center; padding: 0 14px 0 20px; height: 54px; flex-shrink: 0; border-bottom: 1px solid var(--line-soft); }
+.shead .spark { color: var(--blue); flex-shrink: 0; }
+.shead .xclose { margin-left: auto; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; color: var(--faint); flex-shrink: 0; background: var(--card-2); transition: all .12s; }
+.shead .xclose:hover { color: var(--ink); background: var(--line); }
+
+/* ── Body ──────────────────────────────────────────────────────────────── */
+.sbody { flex: 1; min-height: 0; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--line) transparent; }
+.sbody::-webkit-scrollbar { width: 8px; }
+.sbody::-webkit-scrollbar-thumb { background: var(--line); border-radius: 4px; border: 2px solid transparent; background-clip: content-box; }
+
+/* ═══ 4 · "You asked" — a personal moment, so it borrows Apple's own
+       warm serif (New York) rather than the system sans everywhere else. ═ */
+.asked { padding: 20px 20px 4px; }
+.asked p { font-family: var(--serif); font-style: italic; font-size: 16.5px; line-height: 1.4; color: var(--muted); letter-spacing: -.006em; }
+
+/* ═══ 5 · Verdict — one sentence carrying the judgment AND the number. ══ */
+.verdict { padding: 16px 20px 8px; font-size: 19px; font-weight: 600; line-height: 1.5; letter-spacing: -.014em; color: var(--ink); }
+.verdict em { font-style: normal; color: var(--blue); }
+
+/* ═══ 6 · Result rows — Apple list-row grammar: full-tint selection,
+       no left border accent. ═══════════════════════════════════════════ */
+.res {
+  display: flex; align-items: center; gap: 14px; width: 100%; padding: 11px 16px;
+  margin: 0 8px; border-radius: 12px; width: calc(100% - 16px);
+  transition: background .1s;
+}
+.res:hover { background: var(--card-2); }
+.res.sel { background: var(--blue-bg); }
+.res .av { width: 34px; height: 34px; border-radius: 50%; flex-shrink: 0; display: grid; place-items: center;
+  font-family: var(--sans); font-size: 12.5px; font-weight: 600; }
+.res .glyph { width: 34px; height: 34px; border-radius: 10px; flex-shrink: 0; display: grid; place-items: center;
+  background: var(--card-2); color: var(--muted); }
+.res.sel .glyph { background: rgba(0,113,227,.14); color: var(--blue); }
+.res .body { min-width: 0; flex: 1; }
+.res .t { display: block; font-size: 14.5px; color: var(--ink); letter-spacing: -.005em; font-weight: 500; }
+.res .s { display: block; font-size: 12px; color: var(--faint); margin-top: 2px; }
+.res .val { font-size: 13.5px; font-variant-numeric: tabular-nums; font-weight: 600; color: var(--ink-soft); flex-shrink: 0; }
+.res .val.rose { color: var(--red); }
+.res .val.mute { color: var(--muted); font-weight: 400; }
+.res .val.q { color: var(--faint); font-size: 11.5px; font-weight: 400; }
+.res .chev { color: transparent; flex-shrink: 0; transition: color .1s; }
+.res.sel .chev { color: var(--blue); }
+.res:hover .chev { color: var(--faint); }
+
+/* ═══ 7 · Action pill — Apple's tinted button style. ═══════════════════ */
+.pill { display: inline-flex; align-items: center; margin: 8px 20px 20px; padding: 10px 18px;
+  border-radius: 999px; font-size: 13px; font-weight: 600; color: var(--blue);
+  background: var(--blue-bg); transition: all .12s; }
+.pill:hover { background: rgba(0,113,227,.16); }
+
+/* ═══ 8 · Proposal — an iOS confirmation-sheet grammar. ═══════════════ */
+.writ { margin: 16px 20px 20px; border: 1px solid var(--line); border-radius: 16px; background: var(--card-2); overflow: hidden; }
+.writ .wh { display: flex; align-items: center; gap: 10px; padding: 13px 16px; border-bottom: 1px solid var(--line-soft); }
+.writ .wh .chip-tag { font-size: 11px; font-weight: 700; letter-spacing: .01em; color: var(--blue); background: var(--blue-bg); border-radius: 999px; padding: 3px 9px; flex-shrink: 0; }
+.writ .wh .what { font-size: 15px; font-weight: 600; letter-spacing: -.01em; }
+.writ .wb { padding: 6px 16px 12px; }
+.wrow { display: flex; align-items: baseline; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--line-soft); }
+.wrow:last-child { border-bottom: 0; }
+.wrow .wk { font-size: 12.5px; color: var(--faint); width: 82px; flex-shrink: 0; }
+.wrow .wv { font-size: 13px; color: var(--ink); font-variant-numeric: tabular-nums; }
+.wrow .wv.em { color: var(--ink); font-weight: 700; }
+.wfoot { display: flex; gap: 9px; padding: 13px 16px 15px; border-top: 1px solid var(--line-soft); }
+.wbtn { flex: 1; text-align: center; padding: 11px; border-radius: 12px; font-size: 13.5px; font-weight: 600; color: var(--ink-soft); background: var(--card); border: 1px solid var(--line); transition: all .12s; }
+.wbtn.primary { background: var(--blue); border-color: var(--blue); color: #fff; }
+.wbtn.primary:hover { background: #0077ed; }
+.wbtn.quiet:hover { background: var(--line); }
+.settled { display: flex; align-items: center; gap: 9px; padding: 12px 16px; border-top: 1px solid var(--line-soft); background: var(--green-bg); }
+.settled.declined { background: var(--card); }
+.settled .tick { color: var(--green); flex-shrink: 0; }
+.settled.declined .tick { color: var(--muted); }
+.settled .txt { font-size: 13.5px; color: var(--ink); font-weight: 500; }
+.settled .stamp { margin-left: auto; font-size: 11.5px; color: var(--faint); white-space: nowrap; }
+
+/* ═══ 9 · Thinking ═══════════════════════════════════════════════════════ */
+.think { display: flex; align-items: center; gap: 12px; padding: 24px 20px; }
+.think .dots { display: inline-flex; gap: 4px; }
+.think .dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--blue); opacity: .3; animation: wave 1.3s ease-in-out infinite; }
+.think .dots i:nth-child(2) { animation-delay: .16s; } .think .dots i:nth-child(3) { animation-delay: .32s; }
+@keyframes wave { 0%,80%,100% { opacity: .3; transform: translateY(0); } 40% { opacity: 1; transform: translateY(-3px); } }
+.think .lbl { font-family: var(--serif); font-style: italic; font-size: 14.5px; color: var(--muted); }
+
+/* ═══ 10 · Composer — the bottom edge. Always present. ══════════════════ */
+.composer { flex-shrink: 0; padding: 14px 16px 16px; border-top: 1px solid var(--line-soft); background: var(--paper-2); }
+.field { display: flex; align-items: center; gap: 10px; border-radius: 999px;
+  background: var(--card); border: 1px solid var(--line); padding: 5px 6px 5px 16px; transition: box-shadow .14s, border-color .14s; }
+.field:focus-within { border-color: var(--blue); box-shadow: 0 0 0 4px var(--blue-bg); }
+.field .spark { color: var(--blue); flex-shrink: 0; }
+.field input { flex: 1; min-width: 0; background: none; border: 0; outline: none;
+  font-family: var(--sans); font-size: 14.5px; letter-spacing: -.005em; color: var(--ink); padding: 9px 0; }
+.field input::placeholder { color: var(--faint); }
+.field .send { width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0; display: grid; place-items: center;
+  color: var(--faint); background: var(--card-2); transition: all .14s; }
+.field .send.active { color: #fff; background: var(--blue); }
+
+/* ═══ 11 · Launcher ═══════════════════════════════════════════════════════ */
+.launch { position: fixed; bottom: 22px; right: 22px; z-index: 15; display: inline-flex; align-items: center; gap: 9px;
+  padding: 11px 16px 11px 13px; border-radius: 999px; background: var(--card); border: 1px solid var(--line);
+  font-size: 14px; font-weight: 600; letter-spacing: -.01em; color: var(--ink);
+  box-shadow: 0 18px 40px -22px rgba(0,0,0,.3); transition: all .18s var(--ease); }
+.launch:hover { transform: translateY(-1px); box-shadow: 0 22px 46px -20px rgba(0,0,0,.32), 0 0 0 4px var(--blue-bg); }
+.launch .spark { color: var(--blue); }
+.launch kbd { font-family: var(--sans); font-size: 11px; color: var(--faint); background: var(--card-2); border-radius: 5px; padding: 2px 6px; }
+.launch .badge { width: 6px; height: 6px; border-radius: 50%; background: var(--orange); box-shadow: 0 0 0 3px var(--orange-bg); }
+body.open .launch { opacity: 0; pointer-events: none; }
+
+/* ═══ 12 · Control rail — Apple segmented-control grammar. ═══════════════ */
+.rail { position: fixed; bottom: 14px; left: 14px; z-index: 60; display: flex; align-items: center; gap: 8px; }
+.seg { display: flex; align-items: center; gap: 2px; padding: 3px; border-radius: 11px; background: var(--card-2); border: 1px solid var(--line); }
+.seg b { font-size: 10.5px; color: var(--faint); padding: 0 8px 0 6px; font-weight: 600; }
+.seg button { font-size: 11.5px; color: var(--muted); padding: 6px 11px; border-radius: 8px; font-weight: 500; transition: all .13s; }
+.seg button:hover { color: var(--ink); }
+.seg button.on { color: var(--ink); background: var(--card); box-shadow: 0 1px 3px rgba(0,0,0,.12); }
+.themebtn { width: 30px; height: 30px; border-radius: 10px; display: grid; place-items: center; background: var(--card-2); border: 1px solid var(--line); color: var(--muted); }
+.themebtn:hover { color: var(--ink); }
+
+.in { animation: rise .34s var(--spring) both; }
+@keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+.in-1 { animation-delay: .03s; } .in-2 { animation-delay: .08s; } .in-3 { animation-delay: .13s; }
+
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+</head>
+<body class="open">
+
+<!-- ─── Backdrop: the page the spotlight floats over (inert scenery) ─────── -->
+<div class="app">
+  <aside class="nav">
+    <div class="crest"><div class="mark">Λ</div><div><b>Lambda Phi Epsilon</b><span>Chapter</span></div></div>
+    <div class="nav-sec"><div class="cap">Overview</div><a href="#" class="on"><i class="dot"></i>Dashboard</a><a href="#"><i class="dot"></i>Timeline</a></div>
+    <div class="nav-sec"><div class="cap">Members</div><a href="#"><i class="dot"></i>Brothers</a><a href="#"><i class="dot"></i>Tasks</a><a href="#"><i class="dot"></i>Meetings</a></div>
+    <div class="nav-sec"><div class="cap">Operations</div><a href="#"><i class="dot"></i>Docs</a><a href="#"><i class="dot"></i>Instagram</a><a href="#"><i class="dot"></i>Treasury</a></div>
+  </aside>
+  <main class="page">
+    <div class="page-in">
+      <div class="cap">Wednesday, July 22, 2026 · Week 37</div>
+      <h1 class="hello">Good afternoon, <em>Rob</em>.</h1>
+      <div class="tiles">
+        <div class="tile"><div class="cap">Attendance</div><div class="v num">85.2%</div><div class="n">2 below 80%</div></div>
+        <div class="tile"><div class="cap">Dues outstanding</div><div class="v num">$125</div><div class="n">2 brothers owe</div></div>
+        <div class="tile"><div class="cap">Chapter GPA</div><div class="v num">3.42</div><div class="n">1 below 3.0</div></div>
+      </div>
+      <div class="card-b">
+        <h3>Needs attention</h3>
+        <div class="row-b"><span class="dotf od"></span><div><div>Spring Roster Update</div><div class="sub">Due May 25 · Unassigned · 58 days late</div></div></div>
+        <div class="row-b"><span class="dotf od"></span><div><div>Submit IFC chapter report</div><div class="sub">Due Jun 22 · President · 30 days late</div></div></div>
+        <div class="row-b"><span class="dotf du"></span><div><div>$125 outstanding across 2 brothers</div><div class="sub">Arijit $118 · Nathaniel $7</div></div></div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<button class="launch" id="launch">
+  <svg class="spark" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6L12 3z"/><path d="M19 14l.8 2.2L22 17l-2.2.8L19 20l-.8-2.2L16 17l2.2-.8L19 14z"/></svg>
+  <span>Ask Chapt</span><i class="badge"></i><kbd>⌘K</kbd>
+</button>
+
+<div class="scrim" id="scrim"></div>
+
+<!-- ─── The spotlight ───────────────────────────────────────────────────── -->
+<div class="spot" id="spot" role="dialog" aria-label="Ask Chapt">
+  <div class="shead">
+    <svg class="spark" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6L12 3z"/><path d="M19 14l.8 2.2L22 17l-2.2.8L19 20l-.8-2.2L16 17l2.2-.8L19 14z"/></svg>
+    <button class="xclose" id="xclose" aria-label="Close">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+    </button>
+  </div>
+  <div class="sbody" id="sbody"></div>
+  <div class="composer">
+    <div class="field">
+      <svg class="spark" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6L12 3z"/><path d="M19 14l.8 2.2L22 17l-2.2.8L19 20l-.8-2.2L16 17l2.2-.8L19 14z"/></svg>
+      <input id="cinput" placeholder="Ask the chapter…" autofocus>
+      <button class="send" id="sendBtn" aria-label="Ask">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+      </button>
+    </div>
+  </div>
+</div>
+
+<nav class="rail">
+  <div class="seg">
+    <b>Scene</b>
+    <button data-go="closed">Closed</button>
+    <button data-go="empty">Briefing</button>
+    <button data-go="think">Thinking</button>
+    <button data-go="answer" class="on">Answer</button>
+    <button data-go="writ">Proposal</button>
+    <button data-go="threads">Threads</button>
+  </div>
+  <button class="themebtn" id="themeBtn" aria-label="Toggle theme"><span id="themeIcon"></span></button>
+</nav>
+
+<script>
+/* ══ Content — every figure pulled from the seeded lpe dev DB, 2026-07-22. ══ */
+const DUES = [
+  { n: "Arijit Das",         i: "AD", bg: "rgba(0,113,227,.14)",  fg: "#0071e3", r: "VP External · 80% attendance", a: "$118" },
+  { n: "Nathaniel Baccaray", i: "NB", bg: "rgba(88,86,214,.14)",  fg: "#5856d6", r: "Stroll · Rush · 73% attendance", a: "$7" },
+];
+
+const ic = {
+  chev:  '<svg class="chev" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>',
+  tick:  '<svg class="tick" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg>',
+  xmark: '<svg class="tick" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg>',
+  coin:  '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><path d="M12 8v8M9.5 10.2h3.2a1.8 1.8 0 010 3.6H9.5"/></svg>',
+  warn:  '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8v5M12 16.5h.01"/><circle cx="12" cy="12" r="8.5"/></svg>',
+  cal:   '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/></svg>',
+  clock: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>',
+  sun:   '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4.5"/><path d="M12 2.5v2.5M12 19v2.5M4.2 4.2l1.8 1.8M18 18l1.8 1.8M2.5 12H5M19 12h2.5M4.2 19.8L6 18M18 6l1.8-1.8"/></svg>',
+  moon:  '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.4A9 9 0 1111.6 3a7 7 0 009.4 9.4z"/></svg>',
+};
+
+const row = (o) => `
+  <button class="res${o.sel ? " sel" : ""}">
+    ${o.av ? `<span class="av" style="background:${o.bg};color:${o.fg}">${o.av}</span>` : `<span class="glyph">${o.glyph}</span>`}
+    <span class="body"><span class="t">${o.t}</span>${o.s ? `<span class="s">${o.s}</span>` : ""}</span>
+    ${o.val ? `<span class="val${o.q ? " q" : ""}${o.tone ? " " + o.tone : ""}">${o.val}</span>` : ""}
+    ${ic.chev}
+  </button>`;
+
+const asked = (q) => `<div class="asked in"><p>${q}</p></div>`;
+
+/* ══ Scenes — each returns { asked, body, ph } ═══════════════════════════ */
+const SCENES = {};
+
+/* 1 · Briefing. One flat list — suggestions ARE results, so the empty
+      state teaches the same row grammar the answers use. */
+SCENES.empty = () => ({
+  asked: null,
+  body: `
+    <div class="in in-1" style="padding-top:8px">
+      ${row({ sel: 1, glyph: ic.coin,  t: "Who still owes dues?",      s: "2 brothers · 14 of 16 settled",   val: "$125" })}
+      ${row({ glyph: ic.warn,  t: "What's slipping?",            s: "Tasks overdue · oldest 58 days", val: "2",   tone: "rose" })}
+      ${row({ glyph: ic.cal,   t: "Are we ready for Fall Rush?", s: "Rush Info Night · Aug 25",      val: "34d", tone: "mute" })}
+      ${row({ glyph: ic.clock, t: "What's our treasury balance?", s: "Ledger",        val: "Read", q: 1 })}
+    </div>`,
+  ph: "Ask the chapter…",
+});
+
+/* 2 · Thinking */
+SCENES.think = () => ({
+  asked: "How are we doing on dues?",
+  body: `<div class="think"><span class="dots"><i></i><i></i><i></i></span><span class="lbl">Reading the dues ledger…</span></div>`,
+  ph: "Ask a follow-up…",
+});
+
+/* 3 · Answer — verdict (carrying the number), records as rows, and one
+      visible action. */
+SCENES.answer = () => ({
+  asked: "How are we doing on dues?",
+  body: `
+    <p class="verdict in in-1">Nearly settled — $125 left, and <em>one brother is almost all of it</em>.</p>
+    <div class="in in-2">
+      ${DUES.map((p, i) => row({ sel: i === 0, av: p.i, bg: p.bg, fg: p.fg, t: p.n, s: p.r, val: p.a })).join("")}
+    </div>
+    <button class="pill in in-3" id="payBtn">Record a payment</button>`,
+  ph: "Ask a follow-up…",
+});
+
+/* 4 · Proposal — ends in real Ratify / Decline buttons. */
+SCENES.writ = () => ({
+  asked: "Nathaniel paid his $7 in cash today — log it.",
+  body: `
+    <p class="verdict in in-1">Drafted. Ratify and the ledger closes at <em>$118 outstanding</em>.</p>
+    <div class="writ in in-2" id="writCard">
+      <div class="wh"><span class="chip-tag">Proposal</span><span class="what">Record a dues payment</span></div>
+      <div class="wb">
+        <div class="wrow"><span class="wk">Brother</span><span class="wv">Nathaniel Baccaray</span></div>
+        <div class="wrow"><span class="wk">Amount</span><span class="wv em num">$7.00</span></div>
+        <div class="wrow"><span class="wk">Method</span><span class="wv">Cash</span></div>
+        <div class="wrow"><span class="wk">Date</span><span class="wv num">2026-07-22</span></div>
+      </div>
+      <div class="wfoot" id="wfoot">
+        <button class="wbtn primary" id="ratifyBtn">Ratify</button>
+        <button class="wbtn quiet" id="declineBtn">Decline</button>
+      </div>
+    </div>`,
+  ph: "Ask a follow-up…",
+});
+
+/* 5 · Threads — flat, no day-grouping; each row already carries its own
+      timestamp so the grouping was redundant. */
+SCENES.threads = () => ({
+  asked: null,
+  body: `
+    <div class="in in-1" style="padding-top:8px">
+      ${row({ sel: 1, glyph: ic.coin, t: "How are we doing on dues?", s: "$125 · 2 brothers", val: "2:44 PM", q: 1 })}
+      ${row({ glyph: ic.tick, t: "Nathaniel paid his $7 in cash today — log it.", s: "Ratified", val: "2:41 PM", q: 1 })}
+      ${row({ glyph: ic.coin,  t: "What did we spend on Events this term?", s: "$2,900 · 18 entries", val: "6:12 PM · Jul 21", q: 1 })}
+      ${row({ glyph: ic.clock, t: "Who's below 80% attendance?", s: "2 members", val: "11:30 AM · Jul 21", q: 1 })}
+      ${row({ glyph: ic.coin, t: "What's our treasury balance?", s: "$7,992", val: "Jul 15", q: 1 })}
+      ${row({ glyph: ic.warn, t: "Add a deadline for the IFC report", s: "Declined", val: "Jul 14", q: 1 })}
+    </div>`,
+  ph: "Search threads…",
+});
+
+/* ══ Wiring ═══════════════════════════════════════════════════════════════ */
+const sbody  = document.getElementById("sbody");
+const cinput = document.getElementById("cinput");
+const sendBtn= document.getElementById("sendBtn");
+let scene = "answer";
+
+function goto(id) {
+  scene = id;
+  document.querySelectorAll(".seg button").forEach(b => b.classList.toggle("on", b.dataset.go === id));
+  if (id === "closed") { document.body.classList.remove("open"); return; }
+  document.body.classList.add("open");
+  const s = (SCENES[id] || SCENES.empty)();
+  sbody.innerHTML = (s.asked ? asked(s.asked) : "") + s.body;
+  cinput.placeholder = s.ph;
+  cinput.value = "";
+  sendBtn.classList.remove("active");
+  sbody.scrollTop = 0;
+  sbody.querySelectorAll(".res").forEach(r => r.onclick = () => select(r));
+  const pay = document.getElementById("payBtn");
+  if (pay) pay.onclick = () => goto("writ");
+  const rb = document.getElementById("ratifyBtn");
+  if (rb) rb.onclick = ratify;
+  const db = document.getElementById("declineBtn");
+  if (db) db.onclick = decline;
+}
+
+function select(el) {
+  sbody.querySelectorAll(".res.sel").forEach(r => r.classList.remove("sel"));
+  el.classList.add("sel");
+  el.scrollIntoView({ block: "nearest" });
+}
+
+function move(step) {
+  const rows = [...sbody.querySelectorAll(".res")];
+  if (!rows.length) return;
+  const i = rows.findIndex(r => r.classList.contains("sel"));
+  select(rows[Math.max(0, Math.min(rows.length - 1, (i < 0 ? 0 : i + step)))]);
+}
+
+/* Ratify / decline a proposal — reachable by clicking the visible buttons,
+   or by ⏎ / ⌫. */
+function closeCard(kind) {
+  const card = document.getElementById("writCard");
+  if (!card || card.dataset.done) return;
+  card.dataset.done = "1";
+  document.getElementById("wfoot")?.remove();
+  const ratified = kind === "ratified";
+  const s = document.createElement("div");
+  s.className = "settled" + (ratified ? "" : " declined");
+  s.innerHTML = `${ratified ? ic.tick : ic.xmark}<span class="txt">${ratified ? "Ratified — $7 posted to the ledger." : "Declined — no changes made."}</span><span class="stamp">2:47 PM · Rob S.</span>`;
+  card.appendChild(s);
+  document.querySelector(".verdict").innerHTML = ratified
+    ? "Done — the ledger now reads <em>$118 outstanding</em> across one brother."
+    : "Declined — the ledger still reads <em>$125 outstanding</em>.";
+}
+function ratify()  { closeCard("ratified"); }
+function decline() { closeCard("declined"); }
+
+function toggleSend() { sendBtn.classList.toggle("active", cinput.value.trim().length > 0); }
+
+/* Typing a question and hitting ⏎ plays the ask through to an answer. */
+function submit() {
+  const val = cinput.value.trim();
+  if (!val) return;
+  if (scene === "empty" || scene === "answer" || scene === "think") {
+    goto("think");
+    setTimeout(() => goto("answer"), 900);
+  }
+}
+
+document.querySelectorAll(".seg button[data-go]").forEach(b => b.onclick = () => goto(b.dataset.go));
+document.getElementById("launch").onclick = () => goto("empty");
+document.getElementById("scrim").onclick  = () => goto("closed");
+document.getElementById("xclose").onclick = () => goto("closed");
+cinput.addEventListener("input", toggleSend);
+cinput.addEventListener("keydown", e => {
+  if (e.key !== "Enter") return;
+  e.preventDefault();
+  if (cinput.value.trim()) submit();
+  else if (scene === "writ") ratify();
+});
+sendBtn.addEventListener("click", submit);
+
+document.addEventListener("keydown", e => {
+  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") { e.preventDefault(); goto(scene === "closed" ? "empty" : "closed"); return; }
+  if (!document.body.classList.contains("open")) return;
+  if (e.key === "Escape") { goto("closed"); return; }
+  const typing = document.activeElement === cinput;
+  if (!typing && e.key === "ArrowDown") { e.preventDefault(); move(1); }
+  if (!typing && e.key === "ArrowUp")   { e.preventDefault(); move(-1); }
+  if (!typing && scene === "writ" && e.key === "Enter")     { e.preventDefault(); ratify(); }
+  if (!typing && scene === "writ" && e.key === "Backspace") { e.preventDefault(); decline(); }
+});
+
+/* Theme toggle — defaults to the system preference, switchable by hand
+   so both of Apple's real light/dark palettes can be checked. */
+const themeIcon = document.getElementById("themeIcon");
+function setTheme(t) {
+  document.documentElement.dataset.theme = t;
+  themeIcon.innerHTML = t === "dark" ? ic.moon : ic.sun;
+}
+document.getElementById("themeBtn").onclick = () => setTheme(document.documentElement.dataset.theme === "dark" ? "light" : "dark");
+setTheme(window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+
+window.__mock = { goto, open: () => goto("empty"), close: () => goto("closed"), ratify, decline, theme: setTheme };
+goto("answer");
+</script>
+</body>
+</html>
