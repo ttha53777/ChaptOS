@@ -1,0 +1,1106 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dusk">
+<!--
+  ChaptOS · Ask Chapt — "Spotlight" v3
+  ══════════════════════════════════════════════════════════════════════════
+  An evolution of "Ask Chapt Spotlight v2.html". Same warm editorial language —
+  Fraunces serif counsel voice, ONE violet accent, Dusk + Ivory paper themes,
+  ZERO gradients. v3's whole focus: the THINKING STATE, rebuilt.
+
+  What's new versus v2 — the REASONING LEDGER:
+    · The deliberation now reads like a ledger being posted. A vertical
+      margin-rule with checkable nodes; each step the agent takes is a ruled
+      line, and when it settles it POSTS A FINDING to the margin (mono/tabular,
+      the "amount"): "34 members" → "28 of 34 paid" → "6 owe · $1,150".
+    · The PLAN is visible — steps ahead render as faint pending nodes, so you
+      see scope and progress ("2 / 4"), not just the current line.
+    · FINDINGS ACCRUE — you learn the answer's crux before the verdict; one
+      number ticks up as it's counted (real computation, not a fake spinner).
+    · SOURCES light up as touched — a quiet "Consulted [Roster] [Treasury·dues]"
+      strip fills using the SAME chip component as the answer's Sources row.
+    · Craft: SANS for the thought (kills the debug-log feel of v2's mono trail),
+      MONO only for numbers; violet for live/done nodes + the completed rail; a
+      soft violet glow halo — no shimmer gradient (zero-gradients honored).
+    · The reasoning PERSISTS — on resolve it collapses into a tappable "trace"
+      line above the verdict, so the deliberation stays auditable (rhymes with
+      the proposal audit-stamp motif).
+
+  Carried over from v2:
+    · Answers are HYBRID: a serif "verdict" sentence carrying the headline
+      number, then tappable result rows, sources, follow-ups, feedback.
+    · Streaming has a real STOP control.
+    · A full propose-then-commit PROPOSAL card (Ratify / Decline) with an audit
+      stamp — the human-in-the-loop moment, side effects only after approval.
+    · A dedicated APPROVALS inbox: a queue of pending proposals with a four-eyes
+      authority split — "Needs your ratification" (raised by others, you can
+      sign) vs "Awaiting the Treasurer" (financial, or raised by you — you can't
+      self-approve). Settled items keep an audit trail.
+
+  Driven through 8 SCENES by a director's rail at the bottom. Still fully live:
+  in Briefing, type or click a starter and it runs the real thinking → answer
+  flow; ratify a proposal and watch the ledger line rewrite. Press T to toggle
+  Dusk / Ivory. Tokens/fonts mirror the live widget (app/components/chat-ledger).
+
+  Data is the Spotlight canon: Iota Chapter · Spring '26 · viewer is Marcus,
+  Vice President. Internally consistent — the backdrop tiles, the answers, and
+  the approvals queue all agree.
+
+  DESIGN MOCK ONLY — vanilla one-file HTML/CSS/JS, nothing wired to the app.
+  Screenshot hooks: window.__mock = { goto, open, close, ratify, decline, theme }.
+-->
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ChaptOS — Ask Chapt · Spotlight v3</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..600;1,9..144,300..600&family=Geist:wght@300..600&family=Geist+Mono:wght@300..500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --serif: "Fraunces", Georgia, serif;
+    --sans:  "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --mono:  "Geist Mono", ui-monospace, Menlo, monospace;
+    --ease:  cubic-bezier(.16,1,.3,1);
+    --spring: cubic-bezier(.34,1.4,.4,1);
+  }
+  [data-theme="dusk"] {
+    --paper: #0f0d0a; --paper-2: #14120e; --card: #17130f; --card-2: #1c1813;
+    --ink: #ece7dd; --ink-soft: #cbc4b6; --muted: #948c7b; --faint: #6a6253;
+    --line: rgba(236,231,221,.09); --line-soft: rgba(236,231,221,.05); --line-med: rgba(236,231,221,.14);
+    --vio: #a78bfa; --vio-deep: #7c3aed; --vio-bg: rgba(167,139,250,.10); --vio-line: rgba(167,139,250,.30); --vio-glow: rgba(167,139,250,.16);
+    --ok: #7fb08a; --ok-bg: rgba(127,176,138,.13); --scrim: rgba(5,4,2,.62);
+    --card-shadow: 0 1px 0 rgba(0,0,0,.5), 0 40px 80px -34px rgba(0,0,0,.9), inset 0 1px 0 rgba(236,231,221,.04);
+    --rail-bg: rgba(20,18,14,.86);
+  }
+  [data-theme="ivory"] {
+    --paper: #f2ede3; --paper-2: #ece6d9; --card: #fbf9f3; --card-2: #f3efe5;
+    --ink: #171410; --ink-soft: #3d382f; --muted: #6f675a; --faint: #9a917f;
+    --line: rgba(23,20,16,.12); --line-soft: rgba(23,20,16,.06); --line-med: rgba(23,20,16,.18);
+    --vio: #6d28d9; --vio-deep: #5b21b6; --vio-bg: rgba(109,40,217,.07); --vio-line: rgba(109,40,217,.24); --vio-glow: rgba(109,40,217,.12);
+    --ok: #3f7a50; --ok-bg: rgba(63,122,80,.11); --scrim: rgba(60,52,40,.32);
+    --card-shadow: 0 1px 2px rgba(23,20,16,.06), 0 40px 80px -36px rgba(23,20,16,.42), inset 0 1px 0 rgba(255,255,255,.6);
+    --rail-bg: rgba(251,249,243,.88);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    background: var(--paper); color: var(--ink); font-family: var(--sans); font-size: 14px; line-height: 1.5;
+    -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;
+    font-feature-settings: "cv11","ss01"; font-variant-numeric: tabular-nums; overflow: hidden;
+    transition: background .25s var(--ease), color .25s var(--ease);
+  }
+  ::selection { background: var(--vio-bg); }
+  button { font: inherit; color: inherit; }
+
+  /* ── Backdrop app (inert scenery) ────────────────────────────────────────── */
+  .app { position: fixed; inset: 0; display: grid; grid-template-columns: 224px 1fr; transition: filter .3s, opacity .3s; }
+  .app.dim { filter: saturate(.8) brightness(.75); }
+  .app-side { border-right: 1px solid var(--line); background: var(--paper-2); padding: 24px 0; display: flex; flex-direction: column; gap: 22px; }
+  .app-side .wm { padding: 0 22px; font-family: var(--serif); font-style: italic; font-weight: 600; font-size: 18px; }
+  .app-side .wm small { display: block; margin-top: 9px; padding-top: 9px; border-top: 1px solid var(--line-soft);
+    font-family: var(--mono); font-style: normal; font-weight: 400; font-size: 9.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+  .app-nav { display: flex; flex-direction: column; gap: 1px; padding: 0 12px; }
+  .app-nav span { padding: 8px 12px; border-radius: 7px; font-family: var(--mono); font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+  .app-nav span.on { color: var(--ink); background: var(--card-2); }
+  .app-main { padding: 44px 48px; }
+  .app-main h1 { font-family: var(--serif); font-weight: 500; font-size: 30px; letter-spacing: -.02em; }
+  .app-main .sub { color: var(--muted); margin-top: 8px; font-size: 13px; }
+  .app-grid { margin-top: 30px; display: grid; grid-template-columns: repeat(3,1fr); gap: 16px; max-width: 760px; }
+  .app-cell { border: 1px solid var(--line); border-radius: 14px; background: var(--card); height: 120px; padding: 18px; }
+  .app-cell .k { font-family: var(--mono); font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--faint); }
+  .app-cell .v { margin-top: 14px; font-family: var(--serif); font-size: 26px; }
+
+  /* Launcher — only visible in the Closed scene. */
+  .launcher { position: fixed; z-index: 30; bottom: 92px; right: 30px; display: none; align-items: center; gap: 9px; cursor: pointer;
+    font-family: var(--serif); font-size: 14px; letter-spacing: -.01em; color: var(--ink-soft);
+    background: var(--card); border: 1px solid var(--line); border-radius: 999px; padding: 10px 15px 10px 13px;
+    box-shadow: 0 1px 0 rgba(0,0,0,.35), 0 18px 44px -24px rgba(0,0,0,.8); transition: border-color .16s, color .16s, transform .16s; }
+  body[data-scene="closed"] .launcher { display: inline-flex; }
+  .launcher:hover { color: var(--ink); border-color: var(--vio-line); transform: translateY(-1px); }
+  .launcher .spark { color: var(--vio); display: inline-flex; }
+  .launcher .kbd { font-family: var(--mono); font-size: 9px; letter-spacing: .08em; color: var(--faint); border: 1px solid var(--line); border-radius: 5px; padding: 2px 5px; }
+  .launcher .badge { width: 6px; height: 6px; border-radius: 50%; background: var(--vio); box-shadow: 0 0 0 3px var(--vio-bg); }
+
+  /* ── Overlay + centered spotlight ────────────────────────────────────────── */
+  .overlay { position: fixed; inset: 0; z-index: 40; display: grid; place-items: center; padding: 40px 24px 104px;
+    background: var(--scrim); backdrop-filter: blur(6px) saturate(115%); -webkit-backdrop-filter: blur(6px) saturate(115%); }
+  body[data-scene="closed"] .overlay { display: none; }
+
+  .spot { width: min(732px, 100%); max-height: min(640px, 82vh); min-height: 340px; display: flex; flex-direction: column;
+    background: var(--card); border: 1px solid var(--line-med); border-radius: 20px; box-shadow: var(--card-shadow);
+    overflow: hidden; animation: spot-in .26s var(--ease) both; }
+  @keyframes spot-in { from { opacity: 0; transform: translateY(-8px) scale(.985); } to { opacity: 1; transform: none; } }
+
+  /* Header bar — anchor + a way into Approvals. */
+  .bar { display: flex; align-items: center; gap: 10px; padding: 13px 16px; border-bottom: 1px solid var(--line-soft); flex-shrink: 0; }
+  .bar .tick { width: 6px; height: 6px; border-radius: 50%; background: var(--vio); flex-shrink: 0; }
+  .bar .title { font-family: var(--serif); font-style: italic; font-weight: 500; font-size: 14px; }
+  .bar .spacer { margin-left: auto; }
+  .apprchip { display: inline-flex; align-items: center; gap: 7px; cursor: pointer; background: transparent; border: 1px solid var(--line);
+    border-radius: 999px; padding: 5px 8px 5px 11px; font-family: var(--mono); font-size: 9.5px; letter-spacing: .08em; text-transform: uppercase;
+    color: var(--muted); transition: border-color .15s, color .15s; }
+  .apprchip:hover { border-color: var(--vio-line); color: var(--ink); }
+  .apprchip .cnt { display: inline-grid; place-items: center; min-width: 16px; height: 16px; padding: 0 5px; border-radius: 999px;
+    background: var(--vio-bg); color: var(--vio); font-size: 9.5px; letter-spacing: 0; }
+  body[data-scene="approvals"] .apprchip { border-color: var(--vio-line); color: var(--ink); }
+  .newq { display: none; align-items: center; gap: 6px; cursor: pointer; background: transparent; border: 1px solid var(--line); border-radius: 7px;
+    padding: 5px 10px; font-family: var(--mono); font-size: 9.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); transition: border-color .15s, color .15s; }
+  .newq:hover { border-color: var(--vio-line); color: var(--ink); }
+  body[data-scene="convo"] .newq, body[data-scene="proposal"] .newq, body[data-scene="answer"] .newq,
+  body[data-scene="nomatch"] .newq, body[data-scene="approvals"] .newq, body[data-scene="live"] .newq { display: inline-flex; }
+
+  /* ── Body regions ────────────────────────────────────────────────────────── */
+  .body { flex: 1; min-height: 0; display: flex; }
+
+  /* Briefing — a capability map: the empty state teaches the row grammar. */
+  /* Briefing — a calm, centered invitation. Type is the hero; no icon-in-a-circle
+     empty-state cliché. Three quiet starters, and the composer does the rest. */
+  .welcome { display: none; flex: 1; min-height: 0; flex-direction: column; align-items: center; justify-content: center; text-align: center; overflow-y: auto; padding: 24px 30px 14px; }
+  body[data-scene="briefing"] .welcome { display: flex; }
+  body[data-scene="briefing"] .bar { border-bottom-color: transparent; }
+  body[data-scene="briefing"] .bar .tick, body[data-scene="briefing"] .bar .title { display: none; }
+  .wl { display: flex; flex-direction: column; align-items: center; gap: 15px; }
+  .wl h2 { font-family: var(--serif); font-weight: 400; font-size: clamp(26px, 4.6vw, 33px); letter-spacing: -.028em; line-height: 1.1; font-optical-sizing: auto; text-wrap: balance; }
+  .wl h2 em { font-style: italic; color: var(--vio); }
+  .wl p { color: var(--muted); font-size: 13px; line-height: 1.65; max-width: 38ch; }
+  .starters { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 5px; }
+  .starter { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; background: transparent; border: 1px solid var(--line);
+    border-radius: 999px; padding: 8px 15px; font-family: var(--sans); font-size: 13px; color: var(--ink-soft);
+    transition: border-color .16s, color .16s, background .16s, transform .18s var(--spring); }
+  .starter:hover { border-color: var(--vio-line); color: var(--ink); background: var(--vio-bg); transform: translateY(-1px); }
+  .starter i { display: inline-flex; color: var(--muted); transition: color .16s; }
+  .starter:hover i { color: var(--vio); }
+  .starter i svg { width: 14px; height: 14px; }
+
+  .thread { display: none; flex: 1; min-height: 0; flex-direction: column; gap: 16px; overflow-y: auto; padding: 20px; }
+  body[data-scene="thinking"] .thread, body[data-scene="convo"] .thread, body[data-scene="proposal"] .thread,
+  body[data-scene="answer"] .thread, body[data-scene="nomatch"] .thread, body[data-scene="live"] .thread { display: flex; }
+  .thread::-webkit-scrollbar, .welcome::-webkit-scrollbar, .inbox::-webkit-scrollbar { width: 7px; }
+  .thread::-webkit-scrollbar-thumb, .welcome::-webkit-scrollbar-thumb, .inbox::-webkit-scrollbar-thumb { background: var(--line); border-radius: 4px; }
+
+  .inbox { display: none; flex: 1; min-height: 0; flex-direction: column; overflow-y: auto; padding: 16px 16px 8px; gap: 8px; }
+  body[data-scene="approvals"] .inbox { display: flex; }
+
+  /* Messages */
+  .msg.user { align-self: flex-end; max-width: 84%; background: var(--vio-bg); border: 1px solid var(--vio-line); color: var(--ink);
+    border-radius: 14px 14px 4px 14px; padding: 9px 13px; font-size: 13.5px; }
+  .msg.ai .who { font-family: var(--mono); font-size: 9px; letter-spacing: .12em; text-transform: uppercase; color: var(--vio);
+    margin-bottom: 10px; display: inline-flex; align-items: center; gap: 7px; }
+  .msg.ai .who i { width: 5px; height: 5px; border-radius: 50%; background: var(--vio); display: inline-block; }
+
+  /* Verdict — one serif sentence carrying the judgment AND the number. */
+  .verdict { font-family: var(--serif); font-size: 18.5px; line-height: 1.5; letter-spacing: -.01em; color: var(--ink); }
+  .verdict em { font-style: italic; color: var(--vio); }
+
+  /* Result rows — shared grammar across briefing starters, answers, and inbox. */
+  .reslist { margin-top: 14px; display: flex; flex-direction: column; gap: 1px; }
+  .res { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; cursor: pointer; background: transparent; border: 0;
+    padding: 9px 10px; border-radius: 11px; transition: background .12s; }
+  .res:hover { background: var(--card-2); }
+  .res.sel { background: var(--vio-bg); box-shadow: inset 0 0 0 1px var(--vio-line); }
+  .res .av { width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0; display: grid; place-items: center;
+    background: var(--vio-bg); color: var(--vio); font-family: var(--mono); font-size: 11px; font-weight: 500; }
+  .res .glyph { width: 32px; height: 32px; border-radius: 9px; flex-shrink: 0; display: grid; place-items: center; background: var(--card-2); color: var(--muted); }
+  .res.sel .glyph { background: var(--vio-bg); color: var(--vio); }
+  .res .rb { min-width: 0; flex: 1; }
+  .res .t { display: block; font-size: 14px; color: var(--ink); letter-spacing: -.005em; }
+  .res .s { display: block; font-size: 11.5px; color: var(--faint); margin-top: 2px; }
+  .res .val { font-family: var(--mono); font-size: 12px; color: var(--ink-soft); flex-shrink: 0; }
+  .res .val.q { color: var(--faint); font-size: 10.5px; letter-spacing: .04em; text-transform: uppercase; }
+  .res .chev { color: transparent; flex-shrink: 0; transition: color .1s; }
+  .res:hover .chev { color: var(--faint); } .res.sel .chev { color: var(--vio); }
+
+  /* Sources */
+  .sources { margin-top: 15px; display: flex; flex-wrap: wrap; align-items: center; gap: 7px; }
+  .sources .lbl { font-family: var(--mono); font-size: 9px; letter-spacing: .12em; text-transform: uppercase; color: var(--faint); }
+  .src { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; font-family: var(--mono); font-size: 10px; color: var(--ink-soft);
+    border: 1px solid var(--line); border-radius: 7px; padding: 3px 8px; transition: border-color .14s, color .14s; }
+  .src:hover { border-color: var(--vio-line); color: var(--ink); }
+  .src i { width: 4px; height: 4px; border-radius: 50%; background: var(--vio); display: inline-block; }
+
+  /* Follow-up chips + feedback */
+  .follows { margin-top: 14px; display: flex; flex-wrap: wrap; gap: 7px; }
+  .chip { display: inline-flex; align-items: center; gap: 7px; cursor: pointer; background: transparent; border: 1px solid var(--line);
+    border-radius: 999px; padding: 6px 13px; font-family: var(--sans); font-size: 12.5px; color: var(--ink-soft); transition: border-color .14s, color .14s, background .14s; }
+  .chip:hover { border-color: var(--vio-line); color: var(--ink); background: var(--vio-bg); }
+  .chip i { color: var(--muted); display: inline-flex; transition: color .14s; } .chip:hover i { color: var(--vio); }
+  .meta-row { margin-top: 15px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .meta-row .sources { margin-top: 0; flex: 1 1 auto; }
+  .meta-row .feedback { margin-top: 0; padding-top: 0; border-top: 0; margin-left: auto; }
+  .feedback { margin-top: 16px; padding-top: 13px; border-top: 1px solid var(--line-soft); display: flex; align-items: center; gap: 10px; }
+  .feedback .fl { font-family: var(--mono); font-size: 9px; letter-spacing: .12em; text-transform: uppercase; color: var(--faint); }
+  .fbtn { width: 26px; height: 26px; border-radius: 7px; display: grid; place-items: center; cursor: pointer; background: transparent; border: 1px solid var(--line); color: var(--muted); transition: all .14s; }
+  .fbtn:hover { border-color: var(--vio-line); color: var(--vio); }
+  .fbtn.on { border-color: var(--vio-line); color: var(--vio); background: var(--vio-bg); }
+
+  .note { font-family: var(--serif); font-size: 16px; line-height: 1.6; color: var(--ink-soft); }
+  .note em { font-style: italic; color: var(--vio); }
+
+  /* ── Reasoning ledger — the thinking made legible ──────────────────────────
+     The deliberation reads like a ledger being posted: each step is a ruled
+     line on a margin-rule, and when it settles it posts a concrete finding to
+     the margin (mono/tabular — the "amount"). SANS for the thought, MONO only
+     for numbers. One violet accent carries live/done; zero gradients. */
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .reason { padding: 2px 0; }
+  .reason-intent { display: flex; align-items: center; gap: 11px; }
+  .reason-intent .pulse { position: relative; width: 7px; height: 7px; flex-shrink: 0; }
+  .reason-intent .pulse i { position: absolute; inset: 0; border-radius: 50%; background: var(--vio); }
+  .reason-intent .pulse::after { content: ''; position: absolute; inset: 0; border-radius: 50%; background: var(--vio); animation: halo 1.7s var(--ease) infinite; }
+  @keyframes halo { 0% { transform: scale(1); opacity: .5; } 100% { transform: scale(3.6); opacity: 0; } }
+  .reason-intent .lbl { font-family: var(--serif); font-style: italic; font-size: 15.5px; letter-spacing: -.01em; color: var(--ink-soft); }
+  .reason-intent .count { margin-left: auto; font-family: var(--mono); font-size: 9px; letter-spacing: .14em; text-transform: uppercase; color: var(--faint); }
+
+  /* The ledger + its ruled margin */
+  .ledger { margin-top: 15px; position: relative; display: flex; flex-direction: column; }
+  .ledger::before { content: ''; position: absolute; left: 7px; top: 13px; bottom: 15px; width: 1px; background: var(--line); }
+  .lstep { position: relative; display: flex; align-items: flex-start; gap: 13px; padding: 5px 0; }
+  .lstep .node { position: relative; z-index: 1; width: 15px; height: 15px; flex-shrink: 0; margin-top: 1px; display: grid; place-items: center; }
+  .lstep .node .dot  { width: 7px; height: 7px; border-radius: 50%; border: 1.5px solid var(--faint); background: var(--paper); box-sizing: border-box; }
+  .lstep .node .arc  { width: 15px; height: 15px; border: 1.5px solid var(--vio-line); border-top-color: var(--vio); border-radius: 50%; animation: spin .7s linear infinite; box-shadow: 0 0 0 4px var(--vio-glow); }
+  .lstep .node .disc { width: 15px; height: 15px; border-radius: 50%; background: var(--vio-bg); border: 1.5px solid var(--vio-line); color: var(--vio); display: grid; place-items: center; }
+  .lstep .node .disc svg { width: 9px; height: 9px; }
+
+  .lstep .lmain { flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 12px; }
+  .lstep .lverb { font-family: var(--sans); font-size: 13.5px; letter-spacing: -.005em; color: var(--muted); transition: color .25s var(--ease); }
+  .lstep.active  .lverb { color: var(--ink); }
+  .lstep.done    .lverb { color: var(--ink-soft); }
+  .lstep.pending .lverb { color: var(--faint); }
+  .lstep .lfind { margin-left: auto; font-family: var(--mono); font-size: 11.5px; color: var(--ink-soft); white-space: nowrap; flex-shrink: 0; font-variant-numeric: tabular-nums; }
+  .lstep .lfind em { color: var(--vio); font-style: normal; }
+  .lstep.active .lfind { color: var(--vio); }
+
+  /* Consulted — the sources touched, in the SAME chip as the answer's Sources. */
+  .consulted { margin-top: 15px; display: flex; flex-wrap: wrap; align-items: center; gap: 7px; }
+  .consulted[hidden] { display: none; }
+  .consulted .lbl { font-family: var(--mono); font-size: 9px; letter-spacing: .12em; text-transform: uppercase; color: var(--faint); }
+
+  /* Live micro-motions */
+  .lstep-in { animation: lstep-in .32s var(--ease) both; }
+  @keyframes lstep-in { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: none; } }
+  .lfind.fin-in { animation: fin-in .34s var(--ease) both; }
+  @keyframes fin-in { from { opacity: 0; transform: translateX(7px); } to { opacity: 1; transform: none; } }
+  .src.chip-in { animation: chip-pop .34s var(--spring) both; }
+  @keyframes chip-pop { from { opacity: 0; transform: scale(.82); } to { opacity: 1; transform: none; } }
+
+  /* ── Trace — the reasoning persists, collapsed, above the answer. ────────── */
+  .trace { margin-bottom: 15px; }
+  .trace-toggle { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; background: transparent; border: 0; padding: 3px 0; max-width: 100%;
+    font-family: var(--mono); font-size: 10px; letter-spacing: .03em; color: var(--faint); transition: color .15s; text-align: left; }
+  .trace-toggle:hover { color: var(--muted); }
+  .trace-toggle .tk { color: var(--ok); display: inline-flex; flex-shrink: 0; }
+  .trace-toggle .cv { display: inline-flex; flex-shrink: 0; transition: transform .2s var(--ease); }
+  .trace.open .trace-toggle .cv { transform: rotate(90deg); }
+  .trace-body { display: none; margin: 11px 0 2px; padding: 13px 14px; border: 1px solid var(--line-soft); border-radius: 12px; background: var(--card-2); }
+  .trace.open .trace-body { display: block; animation: fin-in .28s var(--ease) both; }
+  .trace-body .ledger { margin-top: 0; }
+
+  /* ── Proposal card — propose-then-commit, the human-in-the-loop moment. ──── */
+  .writ { margin-top: 14px; border: 1px solid var(--line-med); border-radius: 15px; background: var(--card-2); overflow: hidden; }
+  .writ .wh { display: flex; align-items: center; gap: 10px; padding: 12px 15px; border-bottom: 1px solid var(--line-soft); }
+  .writ .chip-tag { font-family: var(--mono); font-size: 9px; font-weight: 500; letter-spacing: .12em; text-transform: uppercase; color: var(--vio);
+    background: var(--vio-bg); border: 1px solid var(--vio-line); border-radius: 999px; padding: 3px 9px; flex-shrink: 0; }
+  .writ .what { font-size: 14px; font-weight: 500; letter-spacing: -.005em; }
+  .writ .wb { padding: 4px 15px 8px; }
+  .wrow { display: flex; align-items: baseline; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--line-soft); }
+  .wrow:last-child { border-bottom: 0; }
+  .wrow .wk { font-family: var(--mono); font-size: 10px; letter-spacing: .06em; text-transform: uppercase; color: var(--faint); width: 84px; flex-shrink: 0; }
+  .wrow .wv { font-size: 13px; color: var(--ink); font-family: var(--mono); }
+  .wrow .wv.em { font-weight: 500; }
+  .wfoot { display: flex; gap: 9px; padding: 12px 15px 14px; border-top: 1px solid var(--line-soft); }
+  .wbtn { flex: 1; text-align: center; padding: 10px; border-radius: 10px; font-size: 13px; font-weight: 500; cursor: pointer;
+    color: var(--ink-soft); background: var(--card); border: 1px solid var(--line); transition: all .13s; }
+  .wbtn.primary { background: var(--vio-deep); border-color: var(--vio-deep); color: #fff; }
+  .wbtn.primary:hover { background: color-mix(in srgb, var(--vio-deep) 84%, #000); }
+  .wbtn.quiet:hover { background: var(--card-2); border-color: var(--line-med); }
+  .wbtn:disabled { opacity: .45; cursor: not-allowed; }
+
+  /* Gate + settle states */
+  .gate { display: flex; align-items: flex-start; gap: 9px; padding: 12px 15px; border-top: 1px solid var(--line-soft); }
+  .gate .lk { color: var(--muted); flex-shrink: 0; margin-top: 1px; }
+  .gate .gt { font-size: 12.5px; color: var(--ink-soft); line-height: 1.5; }
+  .gate .gt b { color: var(--ink); font-weight: 500; }
+  .settled { display: flex; align-items: center; gap: 9px; padding: 12px 15px; border-top: 1px solid var(--line-soft); background: var(--ok-bg); }
+  .settled.declined, .settled.routed { background: var(--card); }
+  .settled .tk { color: var(--ok); flex-shrink: 0; display: inline-flex; }
+  .settled.declined .tk, .settled.routed .tk { color: var(--muted); }
+  .settled .txt { font-size: 12.5px; color: var(--ink); font-weight: 500; }
+  .settled .stamp { margin-left: auto; font-family: var(--mono); font-size: 9.5px; letter-spacing: .04em; color: var(--faint); white-space: nowrap; }
+
+  /* ── Approvals inbox ─────────────────────────────────────────────────────── */
+  .inbox-hd { display: flex; align-items: baseline; gap: 10px; padding: 6px 6px 4px; }
+  .inbox-hd h3 { font-family: var(--serif); font-weight: 500; font-size: 19px; letter-spacing: -.01em; }
+  .inbox-hd .meta { font-family: var(--mono); font-size: 10px; letter-spacing: .04em; color: var(--faint); }
+  .inbox-sec { margin-top: 10px; }
+  .inbox-sec > .lbl { display: flex; align-items: center; gap: 8px; font-family: var(--mono); font-size: 9px; letter-spacing: .14em; text-transform: uppercase; color: var(--faint); padding: 0 6px 8px; }
+  .inbox-sec > .lbl .c { color: var(--vio); }
+  .appr { border: 1px solid var(--line); border-radius: 13px; background: var(--card); margin-bottom: 8px; overflow: hidden; transition: border-color .15s; }
+  .appr:hover { border-color: var(--line-med); }
+  .appr.open { border-color: var(--vio-line); }
+  .appr-row { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; cursor: pointer; background: transparent; border: 0; padding: 12px 14px; }
+  .appr-row .glyph { width: 34px; height: 34px; border-radius: 10px; flex-shrink: 0; display: grid; place-items: center; background: var(--card-2); color: var(--muted); }
+  .appr-row .rb { min-width: 0; flex: 1; }
+  .appr-row .t { display: block; font-size: 14px; color: var(--ink); letter-spacing: -.005em; }
+  .appr-row .s { display: block; font-size: 11.5px; color: var(--faint); margin-top: 3px; }
+  .appr-row .s b { color: var(--muted); font-weight: 400; }
+  .stpill { font-family: var(--mono); font-size: 9px; letter-spacing: .08em; text-transform: uppercase; padding: 3px 8px; border-radius: 999px; flex-shrink: 0; border: 1px solid transparent; }
+  .stpill.pending { color: var(--vio); background: var(--vio-bg); border-color: var(--vio-line); }
+  .stpill.waiting { color: var(--muted); background: var(--card-2); }
+  .stpill.ratified { color: var(--ok); background: var(--ok-bg); }
+  .stpill.declined { color: var(--faint); background: var(--card-2); }
+  .appr-detail { display: none; padding: 0 14px 14px; }
+  .appr.open .appr-detail { display: block; }
+  .appr-detail .writ { margin-top: 4px; }
+  .inbox-empty { text-align: center; padding: 30px 20px; }
+  .inbox-empty .note { font-size: 15px; }
+
+  /* ── Dock / composer ─────────────────────────────────────────────────────── */
+  .dock { padding: 0 16px 16px; flex-shrink: 0; }
+  .composer { display: flex; align-items: flex-end; gap: 8px; border: 1px solid var(--line-med); border-radius: 14px; background: var(--paper-2); padding: 7px 7px 7px 15px; transition: border-color .18s, box-shadow .18s; }
+  .composer:focus-within { border-color: var(--vio-line); box-shadow: 0 0 0 3px var(--vio-bg); }
+  .composer textarea { flex: 1; min-width: 0; border: 0; outline: none; resize: none; background: transparent; color: var(--ink);
+    font-family: var(--sans); font-size: 14.5px; line-height: 1.5; padding: 7px 0; max-height: 120px; caret-color: var(--vio); }
+  .composer textarea::placeholder { color: var(--faint); }
+  .send { flex: 0 0 auto; width: 36px; height: 36px; border-radius: 10px; border: 0; cursor: pointer; background: var(--vio-deep); color: #fff;
+    display: inline-flex; align-items: center; justify-content: center; transition: background .16s, transform .12s; }
+  .send:hover:not(:disabled) { background: color-mix(in srgb, var(--vio-deep) 82%, #000); }
+  .send:active:not(:disabled) { transform: scale(.93); }
+  .send:disabled { background: var(--card-2); color: var(--faint); cursor: default; }
+  .send.stop { background: var(--card); color: var(--ink-soft); border: 1px solid var(--line-med); }
+  .send.stop:hover { border-color: var(--vio-line); color: var(--ink); }
+
+  /* ── Director's rail — the 8-scene switcher ──────────────────────────────── */
+  .rail { position: fixed; z-index: 60; bottom: 22px; left: 50%; transform: translateX(-50%);
+    display: flex; align-items: center; gap: 5px; padding: 6px; border: 1px solid var(--line-med); border-radius: 999px;
+    background: var(--rail-bg); backdrop-filter: blur(14px) saturate(140%); -webkit-backdrop-filter: blur(14px) saturate(140%);
+    box-shadow: 0 1px 0 rgba(0,0,0,.3), 0 22px 50px -24px rgba(0,0,0,.7); }
+  .rail .lead { font-family: var(--mono); font-size: 9px; letter-spacing: .16em; text-transform: uppercase; color: var(--faint); padding: 0 6px 0 8px; }
+  .rail button { cursor: pointer; background: transparent; border: 0; border-radius: 999px; padding: 7px 11px;
+    font-family: var(--mono); font-size: 10px; letter-spacing: .04em; color: var(--muted); transition: color .15s, background .15s; white-space: nowrap; }
+  .rail button:hover { color: var(--ink); }
+  .rail button.on { color: var(--ink); background: var(--card-2); box-shadow: inset 0 0 0 1px var(--line); }
+  .rail button.on .num { color: var(--vio); }
+  .rail .num { font-size: 9px; margin-right: 5px; color: var(--faint); }
+  .rail .sep { width: 1px; height: 20px; background: var(--line); margin: 0 2px; }
+  .rail .theme { width: 30px; height: 30px; padding: 0; display: grid; place-items: center; color: var(--muted); }
+  .rail .theme:hover { color: var(--ink); }
+
+  .in { animation: rise .34s var(--spring) both; }
+  @keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  .in-1 { animation-delay: .02s; } .in-2 { animation-delay: .07s; } .in-3 { animation-delay: .12s; } .in-4 { animation-delay: .17s; }
+
+  /* ── First-ask choreography: Briefing → Thinking → Answer ────────────────── */
+  /* A · Commit — the hero recedes. Composed elements leave in order (the serif
+     headline, the emotional anchor, goes last); all lift up + back together. */
+  .welcome.leaving { pointer-events: none; }
+  .welcome.leaving .wl > * { animation: wl-out .2s var(--ease) both; }
+  .welcome.leaving .starters { animation-delay: 0s; }
+  .welcome.leaving p         { animation-delay: .02s; }
+  .welcome.leaving h2        { animation-delay: .04s; }
+  @keyframes wl-out { to { opacity: 0; transform: translateY(-10px) scale(.985); } }
+
+  /* B · Send — your question lifts into place, as if sent up from the composer. */
+  .msg.user.send-in { animation: send-up .44s var(--spring) both; }
+  @keyframes send-up { from { opacity: 0; transform: translateY(18px) scale(.96); } to { opacity: 1; transform: none; } }
+
+  /* C · Wake — the assistant answers a beat later (call, then response). */
+  .msg.ai.think-in { animation: rise .42s var(--spring) both; animation-delay: .14s; }
+
+  /* E · Resolve — the deliberation lifts away, handing off to the answer. */
+  .reason.resolve-out { animation: resolve-out .18s var(--ease) both; }
+  @keyframes resolve-out { to { opacity: 0; transform: translateY(-6px); } }
+
+  @media (max-width: 760px) { .app { grid-template-columns: 1fr; } .app-side { display: none; }
+    .rail { flex-wrap: wrap; max-width: 94vw; justify-content: center; } .rail .lead, .rail .sep { display: none; } }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+</head>
+<body data-scene="answer">
+
+  <!-- Backdrop app -->
+  <div class="app" id="app">
+    <aside class="app-side">
+      <div class="wm">ChaptOS<small>Iota Chapter · Spring '26</small></div>
+      <nav class="app-nav">
+        <span class="on">Dashboard</span><span>Timeline</span><span>Treasury</span>
+        <span>Roster</span><span>Events</span><span>Docs</span>
+      </nav>
+    </aside>
+    <main class="app-main">
+      <h1>Good evening, Marcus.</h1>
+      <div class="sub">Here's where the chapter stands tonight.</div>
+      <div class="app-grid">
+        <div class="app-cell"><div class="k">Treasury</div><div class="v">$4,820</div></div>
+        <div class="app-cell"><div class="k">Dues Owed</div><div class="v">$1,150</div></div>
+        <div class="app-cell"><div class="k">Attendance</div><div class="v">86%</div></div>
+        <div class="app-cell"><div class="k">Members</div><div class="v">34</div></div>
+        <div class="app-cell"><div class="k">Open Tasks</div><div class="v">7</div></div>
+        <div class="app-cell"><div class="k">Next Event</div><div class="v" style="font-size:16px;line-height:1.4">Chapter Mtg</div></div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Launcher (Closed scene) -->
+  <button class="launcher" id="launcher">
+    <span class="spark"><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M12 3l1.5 5L18 9.5 13.5 11 12 16l-1.5-5L6 9.5 10.5 8 12 3z" fill="currentColor"/></svg></span>
+    Ask Chapt <i class="badge"></i><span class="kbd">⌘K</span>
+  </button>
+
+  <!-- Overlay + spotlight -->
+  <div class="overlay" id="overlay">
+    <div class="spot" id="spot" role="dialog" aria-label="Ask Chapt">
+      <div class="bar">
+        <span class="tick"></span><span class="title">Ask Chapt</span>
+        <span class="spacer"></span>
+        <button class="apprchip" id="apprchip">Approvals <span class="cnt" id="apprcnt">2</span></button>
+        <button class="newq" id="newq">← New</button>
+      </div>
+
+      <div class="body">
+        <!-- Briefing: capability map -->
+        <div class="welcome" id="welcome"></div>
+        <!-- Chat thread -->
+        <div class="thread" id="thread" aria-live="polite"></div>
+        <!-- Approvals inbox -->
+        <div class="inbox" id="inbox"></div>
+      </div>
+
+      <div class="dock">
+        <div class="composer">
+          <textarea id="input" rows="1" placeholder="Ask the chapter anything…"></textarea>
+          <button class="send" id="send" aria-label="Ask" disabled>
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none"><path d="M12 19V5M12 5l-6 6M12 5l6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Director's rail -->
+  <nav class="rail" id="rail">
+    <span class="lead">Scene</span>
+    <button data-go="closed"><span class="num">1</span>Closed</button>
+    <button data-go="briefing"><span class="num">2</span>Briefing</button>
+    <button data-go="thinking"><span class="num">3</span>Thinking</button>
+    <button data-go="answer" class="on"><span class="num">4</span>Answer</button>
+    <button data-go="convo"><span class="num">5</span>Conversation</button>
+    <button data-go="proposal"><span class="num">6</span>Proposal</button>
+    <button data-go="approvals"><span class="num">7</span>Approvals</button>
+    <button data-go="nomatch"><span class="num">8</span>No&nbsp;match</button>
+    <span class="sep"></span>
+    <button class="theme" id="themeBtn" aria-label="Toggle theme">
+      <svg id="themeIcon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.4A9 9 0 1111.6 3a7 7 0 009.4 9.4z"/></svg>
+    </button>
+  </nav>
+
+<script>
+  const app     = document.getElementById('app');
+  const spot    = document.getElementById('spot');
+  const thread  = document.getElementById('thread');
+  const welcome = document.getElementById('welcome');
+  const inbox   = document.getElementById('inbox');
+  const input   = document.getElementById('input');
+  const send    = document.getElementById('send');
+  const apprcnt = document.getElementById('apprcnt');
+
+  /* ── Icon set — outlined, heroicons-style, matching the app. ─────────────── */
+  const ic = {
+    chev:  '<svg class="chev" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>',
+    tick:  '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg>',
+    coin:  '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><path d="M12 8v8M9.5 10.2h3.2a1.8 1.8 0 010 3.6H9.5"/></svg>',
+    users: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M16 20v-1.5a3.5 3.5 0 00-3.5-3.5h-5A3.5 3.5 0 004 18.5V20M9.5 11a3.5 3.5 0 100-7 3.5 3.5 0 000 7zM20 20v-1.5a3.5 3.5 0 00-2.6-3.4M15 4.2a3.5 3.5 0 010 6.6"/></svg>',
+    cal:   '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/></svg>',
+    clock: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>',
+    warn:  '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8v5M12 16.5h.01"/><circle cx="12" cy="12" r="8.5"/></svg>',
+    flag:  '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M5 21V4M5 4h11l-2 4 2 4H5"/></svg>',
+    lock:  '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 018 0v3"/></svg>',
+    up:    '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 11v9M7 11l4-8a2 2 0 012 1.4l-.8 4.6H19a2 2 0 012 2.3l-1.2 6A2 2 0 0117.8 20H7"/></svg>',
+    down:  '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 13V4M17 13l-4 8a2 2 0 01-2-1.4l.8-4.6H5a2 2 0 01-2-2.3l1.2-6A2 2 0 016.2 4H17"/></svg>',
+    stop:  '<svg width="15" height="15" viewBox="0 0 24 24" fill="none"><rect x="6" y="6" width="12" height="12" rx="2.5" fill="currentColor"/></svg>',
+    ask:   '<svg width="17" height="17" viewBox="0 0 24 24" fill="none"><path d="M12 19V5M12 5l-6 6M12 5l6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+    sun:   '<path d="M12 2.5v2.5M12 19v2.5M4.2 4.2l1.8 1.8M18 18l1.8 1.8M2.5 12H5M19 12h2.5M4.2 19.8L6 18M18 6l1.8-1.8"/><circle cx="12" cy="12" r="4.5"/>',
+    moon:  '<path d="M21 12.4A9 9 0 1111.6 3a7 7 0 009.4 9.4z"/>',
+  };
+
+  /* ── Fragment builders ───────────────────────────────────────────────────── */
+  const USER = (cls = '') => `<div class="msg user${cls ? ' ' + cls : ''}"></div>`;
+  const AI   = (inner, cls = '') => `<div class="msg ai${cls ? ' ' + cls : ''}"><div class="who"><i></i> Ask Chapt</div>${inner}</div>`;
+
+  const resRow = (o) => `
+    <button class="res${o.sel ? ' sel' : ''}"${o.q ? ` data-q="${o.q}"` : ''}${o.act ? ` data-act="${o.act}"` : ''}>
+      ${o.av ? `<span class="av">${o.av}</span>` : `<span class="glyph">${o.glyph}</span>`}
+      <span class="rb"><span class="t">${o.t}</span>${o.s ? `<span class="s">${o.s}</span>` : ''}</span>
+      ${o.val ? `<span class="val${o.qv ? ' q' : ''}">${o.val}</span>` : ''}
+      ${ic.chev}
+    </button>`;
+
+  const sources = (arr) => `<div class="sources"><span class="lbl">Sources</span>${arr.map(x => `<span class="src"><i></i>${x}</span>`).join('')}</div>`;
+  const follows = (arr) => `<div class="follows">${arr.map(f => `<button class="chip"${f.q ? ` data-q="${f.q}"` : ''}${f.act ? ` data-act="${f.act}"` : ''}><i>${f.i || ''}</i>${f.t}</button>`).join('')}</div>`;
+  const feedback = () => `<div class="feedback"><span class="fl">Helpful?</span><button class="fbtn" data-fb="up" aria-label="Helpful">${ic.up}</button><button class="fbtn" data-fb="down" aria-label="Not helpful">${ic.down}</button></div>`;
+
+  const wrows = (arr) => arr.map(r => `<div class="wrow"><span class="wk">${r.k}</span><span class="wv${r.em ? ' em' : ''}">${r.v}</span></div>`).join('');
+
+  /* ── Answer content — Spotlight canon (Iota · Spring '26). ───────────────── */
+  function answerFor(q) {
+    const s = q.toLowerCase();
+    if (s.includes('due') || s.includes('owe') || s.includes('paid')) return {
+      verdict: `Six owe — <em>$1,150</em> for Spring '26, and three balances are most of it.`,
+      rows: [
+        { av: 'AW', t: 'Andre Whitfield', s: 'New member · 78% attendance', val: '$250', sel: 1, q: "Show Andre's balance" },
+        { av: 'TB', t: 'Terrence Boyd',   s: 'Secretary · on a payment plan', val: '$225', q: "Show Terrence's balance" },
+        { av: 'KA', t: 'Kofi Adjei',      s: 'Service chair · 91% attendance', val: '$200', q: "Show Kofi's balance" },
+        { glyph: ic.users, t: '3 more brothers', s: 'Balances $75–$150', val: '$475', qv: 1, q: 'List the remaining balances' },
+      ],
+      src: ['Treasury · dues', 'Roster'],
+      follows: [
+        { t: 'Draft a reminder', q: 'Draft a dues reminder to the six.' },
+        { t: "Who's on a plan?", q: 'Who is on a payment plan?' },
+        { t: "Log Kofi's payment", act: 'pay', i: ic.coin },
+      ],
+    };
+    if (s.includes('miss') || s.includes('meeting') || s.includes('attend')) return {
+      verdict: `Attendance holds at <em>86%</em> — four brothers slipped the last two meetings.`,
+      rows: [
+        { av: 'DR', t: 'Devon Reyes',   s: 'Missed Jul 10 · Jul 17', val: '2', sel: 1 },
+        { av: 'MS', t: 'Malik Sène',    s: 'Missed Jul 10 · Jul 17', val: '2' },
+        { av: 'JP', t: 'Jordan Pryce',  s: 'Missed Jul 10 · Jul 17', val: '2' },
+        { av: 'IT', t: 'Isaiah Turner', s: 'Missed Jul 10 · Jul 17', val: '2' },
+      ],
+      src: ['Attendance', 'Timeline'],
+      follows: [
+        { t: 'Excuse a brother', q: 'Excuse Devon for Jul 17.' },
+        { t: 'Who is below 80%?', q: 'Who is below 80% attendance?' },
+      ],
+    };
+    if (s.includes('week') || s.includes('happening') || s.includes('event') || s.includes('agenda')) return {
+      verdict: `Three things this week — a <em>meeting</em>, a service block, and dues reminders.`,
+      rows: [
+        { glyph: ic.cal,   t: 'Chapter Meeting', s: 'Thursday · 7:00 PM · Rm 214', val: 'Thu', qv: 1, sel: 1 },
+        { glyph: ic.flag,  t: 'Park Cleanup',    s: 'Saturday · 10 AM · 9 signed up', val: 'Sat', qv: 1 },
+        { glyph: ic.clock, t: 'Dues reminders',  s: 'Auto-send · scheduled', val: 'Fri', qv: 1 },
+      ],
+      src: ['Timeline', 'Events'],
+      follows: [
+        { t: 'Add to my calendar', q: 'Add the chapter meeting to my calendar.' },
+        { t: 'Who signed up?', q: 'Who signed up for the park cleanup?' },
+      ],
+    };
+    if (s.includes('treasury') || s.includes('balance') || s.includes('money')) return {
+      verdict: `The treasury sits at <em>$4,820</em> — net positive $640 this semester.`,
+      rows: [
+        { glyph: ic.coin, t: 'Formal deposit',  s: 'Jun 28 · outflow', val: '$1,200', sel: 1 },
+        { glyph: ic.coin, t: 'National dues',    s: 'Jun 15 · outflow', val: '$900' },
+        { glyph: ic.coin, t: 'Service supplies', s: 'Jul 02 · outflow', val: '$310' },
+      ],
+      src: ['Treasury · ledger', 'Budget'],
+      follows: [
+        { t: 'This term vs last', q: 'How does spending compare to last term?' },
+        { t: "Log Kofi's payment", act: 'pay', i: ic.coin },
+      ],
+    };
+    return { note: `<div class="note">I don't have anything on that yet — I can see <em>dues, attendance, events, tasks, and the treasury.</em> Try one of those, or add it in Docs and I'll pick it up.</div>` };
+  }
+
+  function renderAnswer(a, plan) {
+    if (a.note) return a.note;
+    const trace = plan ? traceBlock(plan) : '';
+    return trace
+      + `<p class="verdict in in-2">${a.verdict}</p>`
+      + `<div class="reslist in in-3">${a.rows.map(resRow).join('')}</div>`
+      + `<div class="in in-4"><div class="meta-row">${sources(a.src)}${feedback()}</div>${follows(a.follows)}</div>`;
+  }
+
+  /* ── Reasoning ledger — plan, findings, and sources touched. ──────────────── */
+  // Each plan is the deliberation behind one answer branch: an intent line, an
+  // ordered list of steps (verb = the thought, find = the posted finding, src =
+  // the record consulted), and a one-line trace kept above the resolved answer.
+  function planFor(q) {
+    const s = q.toLowerCase();
+    if (s.includes('due') || s.includes('owe') || s.includes('paid')) return {
+      intent: "Reading the chapter's dues…",
+      steps: [
+        { verb: 'Reading the roster',    find: '34 members',     src: 'Roster' },
+        { verb: 'Checking payments',     find: '28 of 34 paid',  src: 'Treasury · dues', tick: { to: 28, fmt: v => `${v} of 34 paid` } },
+        { verb: 'Reconciling balances',  find: '6 owe · <em>$1,150</em>', liveFind: 1 },
+        { verb: 'Composing the answer',  compose: 1 },
+      ],
+      trace: 'Read the roster · dues ledger — reconciled 6 balances',
+    };
+    if (s.includes('miss') || s.includes('meeting') || s.includes('attend')) return {
+      intent: "Checking who's been absent…",
+      steps: [
+        { verb: 'Pulling the last two meetings', find: 'Jul 10 · Jul 17', src: 'Attendance' },
+        { verb: 'Cross-checking the roster',     find: '34 members',      src: 'Roster', tick: { to: 34, fmt: v => `${v} members` } },
+        { verb: 'Flagging repeat absences',      find: '<em>4</em> missed both', liveFind: 1 },
+        { verb: 'Composing the answer',          compose: 1 },
+      ],
+      trace: 'Cross-checked attendance against the roster — 4 flagged',
+    };
+    if (s.includes('week') || s.includes('happening') || s.includes('event') || s.includes('agenda')) return {
+      intent: 'Looking at the week ahead…',
+      steps: [
+        { verb: 'Scanning the timeline',      find: 'Next 7 days',        src: 'Timeline' },
+        { verb: 'Gathering events',           find: '3 on the calendar',  src: 'Events', tick: { to: 3, fmt: v => `${v} on the calendar` } },
+        { verb: 'Checking sign-ups & tasks',  find: '1 auto-send queued', liveFind: 1 },
+        { verb: 'Composing the answer',       compose: 1 },
+      ],
+      trace: 'Scanned the timeline · events — 3 things this week',
+    };
+    if (s.includes('treasury') || s.includes('balance') || s.includes('money')) return {
+      intent: 'Reading the treasury…',
+      steps: [
+        { verb: 'Opening the ledger',          find: '12 entries',        src: 'Treasury · ledger' },
+        { verb: "Summing this term's flows",   find: 'net <em>+$640</em>', src: 'Budget', tick: { to: 640, fmt: v => `net +$${v}` } },
+        { verb: 'Checking the balance',        find: '$4,820 on hand',    liveFind: 1 },
+        { verb: 'Composing the answer',        compose: 1 },
+      ],
+      trace: 'Summed the ledger — $4,820 on hand, net +$640',
+    };
+    // No-match: an honest search that posts nothing.
+    return {
+      intent: 'Searching the records…',
+      steps: [
+        { verb: 'Searching every record', src: 'All records' },
+        { verb: 'Weighing what I found' },
+        { verb: 'Composing the answer', compose: 1 },
+      ],
+      trace: null,
+    };
+  }
+
+  const NODE = {
+    active:  '<span class="arc"></span>',
+    done:    `<span class="disc">${ic.tick}</span>`,
+    pending: '<span class="dot"></span>',
+  };
+
+  // A frozen render of a plan at a given progress — used by the static Thinking
+  // scene and (all-done) by the trace. done = #settled, active = index spinning.
+  function reasonScaffold(plan, o) {
+    o = o || {};
+    const total = plan.steps.length;
+    const done = o.done != null ? o.done : total;
+    const active = o.active != null ? o.active : -1;
+    const consulted = [];
+    const rows = plan.steps.map((st, i) => {
+      const state = i < done ? 'done' : (i === active ? 'active' : 'pending');
+      if ((state === 'done' || state === 'active') && st.src && !consulted.includes(st.src)) consulted.push(st.src);
+      const showFind = st.find && (state === 'done' || (state === 'active' && st.liveFind));
+      const find = showFind ? `<span class="lfind">${st.find}</span>` : '';
+      return `<div class="lstep ${state}"><span class="node">${NODE[state]}</span><span class="lmain"><span class="lverb">${st.verb}</span>${find}</span></div>`;
+    }).join('');
+    const intent = o.intent
+      ? `<div class="reason-intent"><span class="pulse"><i></i></span><span class="lbl">${plan.intent}</span>${o.count ? `<span class="count">${Math.min(active + 1, total)} / ${total}</span>` : ''}</div>`
+      : '';
+    const chips = consulted.length
+      ? `<div class="consulted"><span class="lbl">Consulted</span>${consulted.map(x => `<span class="src"><i></i>${x}</span>`).join('')}</div>`
+      : '';
+    return `<div class="reason">${intent}<div class="ledger">${rows}</div>${chips}</div>`;
+  }
+
+  function traceBlock(plan) {
+    if (!plan || !plan.trace) return '';
+    return `<div class="trace in in-1"><button class="trace-toggle" aria-expanded="false"><span class="tk">${ic.tick}</span>${plan.trace}<span class="cv">${ic.chev}</span></button>`
+      + `<div class="trace-body">${reasonScaffold(plan, { done: plan.steps.length })}</div></div>`;
+  }
+
+  /* ── Proposal card builder — reused inline and in the inbox. ─────────────── */
+  function writCard(o) {
+    // o: { tag, what, rows, foot: 'actions'|'gate'|'settled', gate?, settled? }
+    let foot = '';
+    if (o.foot === 'actions') foot = `<div class="wfoot"><button class="wbtn primary" data-w="ratify">Ratify</button><button class="wbtn quiet" data-w="decline">Decline</button></div>`;
+    if (o.foot === 'gate') foot = `<div class="gate"><span class="lk">${ic.lock}</span><span class="gt">${o.gate}</span></div>`
+      + `<div class="wfoot"><button class="wbtn primary" disabled>Ratify</button><button class="wbtn quiet" data-w="decline">Withdraw</button></div>`;
+    if (o.foot === 'settled') { const k = o.settled.kind; foot = `<div class="settled ${k}"><span class="tk">${k === 'ratified' ? ic.tick : '—'}</span><span class="txt">${o.settled.txt}</span><span class="stamp">${o.settled.stamp}</span></div>`; }
+    return `<div class="writ" data-writ>
+      <div class="wh"><span class="chip-tag">${o.tag || 'Proposal'}</span><span class="what">${o.what}</span></div>
+      <div class="wb">${wrows(o.rows)}</div>
+      ${foot}
+    </div>`;
+  }
+
+  /* ── Scenes ──────────────────────────────────────────────────────────────── */
+  // Briefing starters — a curated three, not a directory. Each maps to a real
+  // answer branch, so a click plays the full thinking → answer flow.
+  const STARTERS = [
+    { i: ic.coin,  t: 'Outstanding dues',  q: 'How are we doing on dues?' },
+    { i: ic.users, t: 'Attendance gaps',   q: 'Who missed the last two meetings?' },
+    { i: ic.cal,   t: 'This week',         q: "Summarize what's happening this week." },
+  ];
+
+  const SCENES = {
+    closed:   () => {},
+    briefing: () => {
+      welcome.innerHTML =
+        `<div class="wl">
+          <h2 class="in in-1">What do you want to <em>know?</em></h2>
+          <p class="in in-2">Dues, attendance, events, the treasury — ask, and I'll read the chapter's records and answer.</p>
+          <div class="starters in in-3">${STARTERS.map(s => `<button class="starter" data-q="${s.q}"><i>${s.i}</i>${s.t}</button>`).join('')}</div>
+        </div>`;
+      bindRows(welcome);
+      setTimeout(() => input.focus(), 60);
+    },
+    thinking: () => {
+      // Frozen mid-deliberation: two steps settled (findings posted, sources
+      // consulted), one reconciling live, one still pending — all node states.
+      const plan = planFor('How are we doing on dues?');
+      thread.innerHTML = USER() + AI(reasonScaffold(plan, { done: 2, active: 2, intent: 1, count: 1 }));
+      thread.querySelector('.msg.user').textContent = 'How are we doing on dues?';
+    },
+    answer: () => {
+      thread.innerHTML = USER() + AI(renderAnswer(answerFor('dues'), planFor('How are we doing on dues?')));
+      thread.querySelector('.msg.user').textContent = 'How are we doing on dues?';
+      bindRows(thread);
+    },
+    convo: () => {
+      thread.innerHTML =
+        USER() + AI(`<p class="verdict">Nearly there — <em>$1,150</em> left across six, three balances are most of it.</p>`)
+        + USER() + AI(`<p class="verdict in in-1">Drafted below — Kofi's $200 in cash. Ratify and his balance clears.</p>`
+            + writCard({ what: 'Record a dues payment', rows: [
+                { k: 'Brother', v: 'Kofi Adjei' }, { k: 'Amount', v: '$200.00', em: 1 }, { k: 'Method', v: 'Cash' }, { k: 'Date', v: '2026-07-23' },
+              ], foot: 'gate', gate: `A dues payment posts to the ledger, so it needs the <b>Treasurer</b>. As VP you can raise it — Ratify sends it to <b>Jordan P.</b> for sign-off.` }));
+      const bubbles = thread.querySelectorAll('.msg.user');
+      bubbles[0].textContent = 'How are we doing on dues?';
+      bubbles[1].textContent = 'Kofi just paid his $200 in cash — log it.';
+      bindWrit(thread, 'convo');
+    },
+    proposal: () => {
+      // Happy path: a non-financial deadline Marcus (VP) fully owns → clean Ratify.
+      thread.innerHTML = USER() + AI(`<p class="verdict in in-1">Drafted. Ratify and it lands on the timeline for <em>Fri, Jul 25</em>.</p>`
+        + writCard({ what: 'Add a deadline', rows: [
+            { k: 'Title', v: 'Send dues reminders' }, { k: 'Owner', v: 'Treasurer' }, { k: 'Due', v: '2026-07-25', em: 1 }, { k: 'Category', v: 'Finance ops' },
+          ], foot: 'actions' }));
+      thread.querySelector('.msg.user').textContent = 'Add a deadline: dues reminders go out Friday.';
+      bindWrit(thread, 'proposal');
+    },
+    approvals: renderInbox,
+    nomatch: () => {
+      thread.innerHTML = USER() + AI(answerFor('wifi password').note);
+      thread.querySelector('.msg.user').textContent = "What's the wifi password for the house?";
+    },
+  };
+
+  /* ── Approvals inbox ─────────────────────────────────────────────────────── */
+  // Four-eyes: whoever raises a proposal can't be the one who ratifies it, and
+  // financial postings need the Treasurer. Viewer is Marcus, VP.
+  const APPROVALS = [
+    { id: 'a1', group: 'you', glyph: ic.cal, t: 'Add deadline · Submit IFC chapter report',
+      who: 'raised by <b>Terrence B.</b> (Secretary)', when: '12m ago', status: 'pending', canSign: true,
+      what: 'Add a deadline', rows: [{ k: 'Title', v: 'Submit IFC report' }, { k: 'Owner', v: 'President' }, { k: 'Due', v: '2026-08-25', em: 1 }] },
+    { id: 'a2', group: 'you', glyph: ic.flag, t: 'Add event · Alumni Mixer',
+      who: 'raised by <b>Malik S.</b> (Social)', when: '1h ago', status: 'pending', canSign: true,
+      what: 'Add a calendar event', rows: [{ k: 'Title', v: 'Alumni Mixer' }, { k: 'Date', v: '2026-08-09', em: 1 }, { k: 'Location', v: 'The Standard' }] },
+    { id: 'a3', group: 'others', glyph: ic.coin, t: 'Record $200 dues · Kofi Adjei',
+      who: 'raised by <b>you</b> · awaiting the Treasurer', when: '4m ago', status: 'waiting', canSign: false,
+      what: 'Record a dues payment', rows: [{ k: 'Brother', v: 'Kofi Adjei' }, { k: 'Amount', v: '$200.00', em: 1 }, { k: 'Method', v: 'Cash' }],
+      gate: `Financial postings need the <b>Treasurer</b>. You raised this, so it's waiting on <b>Jordan P.</b> — you can withdraw it.` },
+  ];
+  const SETTLED = [
+    { glyph: ic.coin, t: 'Record $7 dues · Nathaniel B.', who: 'Ratified by Jordan P. (Treasurer)', when: '2:47 PM', status: 'ratified' },
+    { glyph: ic.flag, t: 'Add event · Rooftop Kickback', who: 'Declined by you', when: 'Jul 21', status: 'declined' },
+  ];
+
+  function apprRow(a) {
+    return `<div class="appr" data-appr="${a.id}">
+      <button class="appr-row">
+        <span class="glyph">${a.glyph}</span>
+        <span class="rb"><span class="t">${a.t}</span><span class="s">${a.who} · ${a.when}</span></span>
+        <span class="stpill ${a.status}">${a.status === 'pending' ? 'Needs you' : 'Awaiting'}</span>
+      </button>
+      <div class="appr-detail"></div>
+    </div>`;
+  }
+  function settledRow(a) {
+    return `<div class="appr"><button class="appr-row" style="cursor:default">
+        <span class="glyph">${a.glyph}</span>
+        <span class="rb"><span class="t">${a.t}</span><span class="s">${a.who} · ${a.when}</span></span>
+        <span class="stpill ${a.status}">${a.status}</span>
+      </button></div>`;
+  }
+
+  function renderInbox() {
+    const needsYou = APPROVALS.filter(a => a.group === 'you' && a.status === 'pending');
+    const awaiting = APPROVALS.filter(a => a.group === 'others');
+    let html = `<div class="inbox-hd"><h3>Approvals</h3><span class="meta">${needsYou.length} need you · ${awaiting.length} awaiting others</span></div>`;
+    if (needsYou.length) html += `<div class="inbox-sec"><div class="lbl">Needs your ratification <span class="c">${needsYou.length}</span></div>${needsYou.map(apprRow).join('')}</div>`;
+    if (awaiting.length) html += `<div class="inbox-sec"><div class="lbl">Awaiting the Treasurer</div>${awaiting.map(apprRow).join('')}</div>`;
+    if (!needsYou.length && !awaiting.length) html += `<div class="inbox-empty"><p class="note">Nothing waiting on you — <em>the queue's clear.</em></p></div>`;
+    html += `<div class="inbox-sec"><div class="lbl">Settled today</div>${SETTLED.map(settledRow).join('')}</div>`;
+    inbox.innerHTML = html;
+    inbox.querySelectorAll('.appr[data-appr]').forEach(el => {
+      const a = APPROVALS.find(x => x.id === el.dataset.appr);
+      el.querySelector('.appr-row').onclick = () => toggleAppr(el, a);
+    });
+  }
+
+  function toggleAppr(el, a) {
+    const open = el.classList.toggle('open');
+    const detail = el.querySelector('.appr-detail');
+    if (!open) { detail.innerHTML = ''; return; }
+    inbox.querySelectorAll('.appr.open').forEach(o => { if (o !== el) { o.classList.remove('open'); o.querySelector('.appr-detail').innerHTML = ''; } });
+    detail.innerHTML = writCard({ what: a.what, rows: a.rows, foot: a.canSign ? 'actions' : 'gate', gate: a.gate });
+    bindWrit(detail, 'inbox', a, el);
+    setTimeout(() => el.scrollIntoView({ block: 'nearest' }), 20);
+  }
+
+  /* ── Ratify / decline plumbing (shared) ──────────────────────────────────── */
+  function bindWrit(root, ctx, a, apprEl) {
+    const card = root.querySelector('[data-writ]');
+    if (!card) return;
+    const rat = card.querySelector('[data-w="ratify"]');
+    const dec = card.querySelector('[data-w="decline"]');
+    if (rat) rat.onclick = () => settle(card, 'ratified', ctx, a, apprEl);
+    if (dec) dec.onclick = () => settle(card, 'declined', ctx, a, apprEl);
+  }
+
+  function settle(card, kind, ctx, a, apprEl) {
+    card.querySelector('.wfoot')?.remove();
+    card.querySelector('.gate')?.remove();
+    const who = 'Marcus S.';
+    const stamp = kind === 'ratified' ? `6:12 PM · ${who}` : `6:12 PM · ${who}`;
+    const txt = kind === 'ratified'
+      ? (ctx === 'proposal' ? 'Ratified — added to the timeline.' : 'Ratified — posted to the ledger.')
+      : (ctx === 'inbox' && a && !a.canSign ? 'Withdrawn — sign-off request cancelled.' : 'Declined — no changes made.');
+    const s = document.createElement('div');
+    s.className = 'settled ' + (kind === 'ratified' ? 'ratified' : (ctx === 'inbox' && a && !a.canSign ? 'routed' : 'declined'));
+    s.innerHTML = `<span class="tk">${kind === 'ratified' ? ic.tick : '—'}</span><span class="txt">${txt}</span><span class="stamp">${stamp}</span>`;
+    card.appendChild(s);
+
+    // Rewrite the verdict line when settling inline in a conversation/proposal.
+    if (ctx === 'proposal') {
+      const v = card.closest('.msg.ai')?.querySelector('.verdict');
+      if (v) v.innerHTML = kind === 'ratified' ? `Done — it's on the timeline for <em>Fri, Jul 25</em>.` : `Declined — nothing was added.`;
+    }
+    // In the inbox: drop it out of the pending set and re-badge.
+    if (ctx === 'inbox' && a) {
+      a.status = kind === 'ratified' ? 'ratified' : 'declined';
+      SETTLED.unshift({ glyph: a.glyph, t: a.t, who: kind === 'ratified' ? `Ratified by you` : `Withdrawn by you`, when: 'just now', status: a.status });
+      const idx = APPROVALS.indexOf(a); if (idx > -1) APPROVALS.splice(idx, 1);
+      refreshBadge();
+      setTimeout(renderInbox, 650);
+    }
+  }
+
+  function refreshBadge() {
+    const n = APPROVALS.filter(a => a.group === 'you' && a.status === 'pending').length;
+    apprcnt.textContent = n; apprcnt.style.display = n ? '' : 'none';
+  }
+
+  /* ── Live ask flow (Briefing → Thinking → Answer) ────────────────────────── */
+  // A handful of choreographed beats run per ask; track them all so a scene
+  // change (director's rail, Esc, Stop) can cancel the whole sequence cleanly.
+  let liveTimers = [];
+  const later = (fn, ms) => { const t = setTimeout(fn, ms); liveTimers.push(t); return t; };
+  const clearLive = () => { liveTimers.forEach(clearTimeout); liveTimers = []; };
+
+  function bindRows(root) {
+    root.querySelectorAll('.res[data-q]').forEach(b => b.onclick = () => ask(b.dataset.q));
+    root.querySelectorAll('.starter[data-q]').forEach(b => b.onclick = () => ask(b.dataset.q));
+    root.querySelectorAll('.chip[data-q]').forEach(b => b.onclick = () => ask(b.dataset.q));
+    root.querySelectorAll('[data-act="pay"]').forEach(b => b.onclick = askPayment);
+    root.querySelectorAll('.fbtn').forEach(b => b.onclick = () => { b.parentElement.querySelectorAll('.fbtn').forEach(x => x.classList.remove('on')); b.classList.add('on'); });
+    root.querySelectorAll('.src').forEach(b => b.onclick = () => b.animate([{ transform: 'scale(.94)' }, { transform: 'none' }], 140));
+    root.querySelectorAll('.trace-toggle').forEach(b => b.onclick = () => {
+      const t = b.closest('.trace'); const open = t.classList.toggle('open');
+      b.setAttribute('aria-expanded', open);
+    });
+  }
+
+  function setStreaming(on) {
+    if (on) { send.classList.add('stop'); send.disabled = false; send.innerHTML = ic.stop; send.setAttribute('aria-label', 'Stop'); }
+    else { send.classList.remove('stop'); send.innerHTML = ic.ask; send.setAttribute('aria-label', 'Ask'); send.disabled = !input.value.trim(); }
+  }
+
+  function ask(q) {
+    if (!q || !q.trim()) return;
+    clearLive();
+    input.value = ''; autosize(input);
+    // A · Commit — from the Briefing, let the hero recede before the thread
+    // arrives. The scene flips only once the hero has all but faded, so the
+    // display swap is invisible and the motion reads as one gesture.
+    if (document.body.dataset.scene === 'briefing') {
+      welcome.classList.add('leaving');
+      later(() => runThink(q, true), 210);
+    } else {
+      runThink(q, false);
+    }
+  }
+
+  function runThink(q, fromBriefing) {
+    goLive();                                   // scene → live: thread shows, welcome hides
+    if (fromBriefing) welcome.classList.remove('leaving');  // safe now — welcome is display:none
+    const plan = planFor(q);
+    // B/C · the question lifts in (send-in), the assistant wakes a beat later (think-in).
+    thread.innerHTML = USER('send-in') + AI(
+      `<div class="reason">
+         <div class="reason-intent"><span class="pulse"><i></i></span><span class="lbl">${plan.intent}</span><span class="count">1 / ${plan.steps.length}</span></div>
+         <div class="ledger"></div>
+         <div class="consulted" hidden><span class="lbl">Consulted</span></div>
+       </div>`, 'think-in');
+    thread.querySelector('.msg.user').textContent = q;
+    const ai = thread.querySelector('.msg.ai');
+    setStreaming(true);
+    thread.scrollTop = 0;
+
+    // D · Deliberate — settle the prior step, open the next, post its finding.
+    driveStep(ai, plan, q, 0);
+  }
+
+  // Advance the ledger one step: mark the previous active row done (posting its
+  // finding), then append the new active row, light its source, and — if the
+  // step counts something — tick the number up live.
+  function driveStep(ai, plan, q, i) {
+    const ledger = ai.querySelector('.ledger');
+    const prev = ledger.querySelector('.lstep.active');
+    if (prev) {
+      prev.classList.replace('active', 'done');
+      prev.querySelector('.node').innerHTML = NODE.done;
+      const pst = plan.steps[i - 1];
+      if (pst && pst.find && !prev.querySelector('.lfind')) {
+        const f = document.createElement('span');
+        f.className = 'lfind fin-in'; f.innerHTML = pst.find;
+        prev.querySelector('.lmain').appendChild(f);
+      }
+    }
+    const st = plan.steps[i];
+    ai.querySelector('.reason-intent .count').textContent = st.compose ? 'composing…' : `${i + 1} / ${plan.steps.length}`;
+
+    const row = document.createElement('div');
+    row.className = 'lstep active lstep-in';
+    row.innerHTML = `<span class="node">${NODE.active}</span><span class="lmain"><span class="lverb">${st.verb}</span></span>`;
+    ledger.appendChild(row);
+    if (st.src) lightConsulted(ai, st.src);
+    if (st.tick) {
+      const f = document.createElement('span'); f.className = 'lfind'; row.querySelector('.lmain').appendChild(f);
+      tickUp(f, st.tick);
+    }
+    thread.scrollTop = 0;
+
+    const dwell = st.compose ? 380 : (st.tick ? 680 : 400);
+    later(() => {
+      if (i === plan.steps.length - 1) resolveToAnswer(ai, plan, q);
+      else driveStep(ai, plan, q, i + 1);
+    }, dwell);
+  }
+
+  function lightConsulted(ai, src) {
+    const c = ai.querySelector('.consulted');
+    if (!c || [...c.querySelectorAll('.src')].some(s => s.dataset.src === src)) return;
+    c.hidden = false;
+    const chip = document.createElement('span');
+    chip.className = 'src chip-in'; chip.dataset.src = src; chip.innerHTML = `<i></i>${src}`;
+    c.appendChild(chip);
+  }
+
+  // Count a number up with an ease-out, so a step that "computes" looks alive.
+  function tickUp(el, spec) {
+    const dur = spec.ms || 540, t0 = performance.now();
+    el.innerHTML = spec.fmt(0);
+    const frame = (t) => {
+      if (!el.isConnected) return;
+      const p = Math.min(1, (t - t0) / dur);
+      el.innerHTML = spec.fmt(Math.round(spec.to * (1 - Math.pow(1 - p, 3))));
+      if (p < 1) requestAnimationFrame(frame);
+    };
+    requestAnimationFrame(frame);
+  }
+
+  function resolveToAnswer(ai, plan, q) {
+    ai.querySelector('.reason')?.classList.add('resolve-out');
+    later(() => {
+      const a = answerFor(q);
+      ai.innerHTML = `<div class="who"><i></i> Ask Chapt</div>` + renderAnswer(a, plan);
+      bindRows(thread);
+      setStreaming(false);
+      thread.scrollTop = 0;
+    }, 180);
+  }
+
+  // Follow-up "log a payment" → the gated financial proposal (four-eyes story).
+  function askPayment() {
+    clearLive();
+    goLive();
+    thread.innerHTML = USER('send-in') + AI(`<p class="verdict in in-1">Drafted below — Kofi's $200 in cash. As VP you can raise it; the <em>Treasurer</em> signs off.</p>`
+      + writCard({ what: 'Record a dues payment', rows: [
+          { k: 'Brother', v: 'Kofi Adjei' }, { k: 'Amount', v: '$200.00', em: 1 }, { k: 'Method', v: 'Cash' }, { k: 'Date', v: '2026-07-23' },
+        ], foot: 'gate', gate: `A dues payment posts to the ledger, so it needs the <b>Treasurer</b>. Ratify sends it to <b>Jordan P.</b> for sign-off, and it lands in Approvals.` }));
+    thread.querySelector('.msg.user').textContent = "Kofi just paid his $200 in cash — log it.";
+    bindWrit(thread, 'convo');
+  }
+
+  function goLive() {
+    document.body.dataset.scene = 'live';
+    document.querySelectorAll('.rail [data-go]').forEach(b => b.classList.remove('on'));
+    app.classList.add('dim');
+  }
+  function autosize(el) { el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 120) + 'px'; }
+
+  /* ── Navigation ──────────────────────────────────────────────────────────── */
+  function goto(id) {
+    clearLive();
+    welcome.classList.remove('leaving');
+    setStreaming(false);
+    document.body.dataset.scene = id;
+    document.querySelectorAll('.rail [data-go]').forEach(b => b.classList.toggle('on', b.dataset.go === id));
+    app.classList.toggle('dim', id !== 'closed');
+    input.placeholder = id === 'approvals' ? 'Ask about a proposal…' : (id === 'briefing' ? 'Ask the chapter anything…' : 'Ask a follow-up…');
+    (SCENES[id] || SCENES.briefing)();
+    // Multi-turn scenes open at the latest turn, where the card's actions live.
+    if (id === 'convo' || id === 'proposal' || id === 'thinking') thread.scrollTop = thread.scrollHeight;
+    refreshBadge();
+  }
+
+  /* ── Wiring ──────────────────────────────────────────────────────────────── */
+  input.addEventListener('input', () => { autosize(input); if (!send.classList.contains('stop')) send.disabled = !input.value.trim(); });
+  input.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); ask(input.value); } });
+  send.addEventListener('click', () => { if (send.classList.contains('stop')) { clearLive(); setStreaming(false); goto('briefing'); } else ask(input.value); });
+  document.getElementById('newq').addEventListener('click', () => goto('briefing'));
+  document.getElementById('launcher').addEventListener('click', () => goto('briefing'));
+  document.getElementById('apprchip').addEventListener('click', () => goto('approvals'));
+  document.querySelectorAll('.rail [data-go]').forEach(b => b.addEventListener('click', () => goto(b.dataset.go)));
+
+  // Keyboard row selection (↑↓) in the answer / briefing.
+  function moveSel(step) {
+    const host = document.body.dataset.scene === 'briefing' ? welcome : thread;
+    const rows = [...host.querySelectorAll('.res')];
+    if (!rows.length) return;
+    let i = rows.findIndex(r => r.classList.contains('sel'));
+    rows.forEach(r => r.classList.remove('sel'));
+    i = Math.max(0, Math.min(rows.length - 1, i < 0 ? 0 : i + step));
+    rows[i].classList.add('sel'); rows[i].scrollIntoView({ block: 'nearest' });
+  }
+
+  document.addEventListener('keydown', e => {
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); goto(document.body.dataset.scene === 'closed' ? 'briefing' : 'closed'); return; }
+    if (e.key === 'Escape') { goto('closed'); return; }
+    const typing = document.activeElement === input;
+    if (e.key.toLowerCase() === 't' && !typing) { toggleTheme(); return; }
+    if (!typing && e.key === 'ArrowDown') { e.preventDefault(); moveSel(1); }
+    if (!typing && e.key === 'ArrowUp')   { e.preventDefault(); moveSel(-1); }
+    // ⏎ ratify / ⌫ decline the visible proposal.
+    const card = document.querySelector('.spot [data-writ] .wfoot');
+    if (!typing && card) {
+      if (e.key === 'Enter') { e.preventDefault(); card.querySelector('[data-w="ratify"]')?.click(); }
+      if (e.key === 'Backspace') { e.preventDefault(); card.querySelector('[data-w="decline"]')?.click(); }
+    }
+  });
+
+  /* ── Theme ───────────────────────────────────────────────────────────────── */
+  function setTheme(t) {
+    document.documentElement.setAttribute('data-theme', t);
+    document.getElementById('themeIcon').innerHTML = t === 'dusk' ? ic.moon : ic.sun;
+  }
+  function toggleTheme() { setTheme(document.documentElement.getAttribute('data-theme') === 'dusk' ? 'ivory' : 'dusk'); }
+  document.getElementById('themeBtn').addEventListener('click', toggleTheme);
+
+  window.__mock = { goto, open: () => goto('briefing'), close: () => goto('closed'), theme: setTheme,
+    ratify: () => document.querySelector('.spot [data-w="ratify"]')?.click(),
+    decline: () => document.querySelector('.spot [data-w="decline"]')?.click() };
+
+  setTheme('dusk');
+  goto('answer');
+</script>
+</body>
+</html>
