@@ -31,10 +31,11 @@
     · Streaming has a real STOP control.
     · A full propose-then-commit PROPOSAL card (Ratify / Decline) with an audit
       stamp — the human-in-the-loop moment, side effects only after approval.
-    · A dedicated APPROVALS inbox: a queue of pending proposals with a four-eyes
-      authority split — "Needs your ratification" (raised by others, you can
-      sign) vs "Awaiting the Treasurer" (financial, or raised by you — you can't
-      self-approve). Settled items keep an audit trail.
+    · A dedicated APPROVALS page: the full audit trail — every proposal the
+      chapter has settled, newest first, grouped by day. Each line shows the
+      four-eyes split in the record (who raised it, who signed it off), a
+      ledger summary (ratified / declined / withdrawn), and status filters.
+      Tap any row to reopen the original proposal with its audit stamp.
 
   Driven through 8 SCENES by a director's rail at the bottom. Still fully live:
   in Briefing, type or click a starter and it runs the real thinking → answer
@@ -323,9 +324,9 @@
   .gate .gt { font-size: 12.5px; color: var(--ink-soft); line-height: 1.5; }
   .gate .gt b { color: var(--ink); font-weight: 500; }
   .settled { display: flex; align-items: center; gap: 9px; padding: 12px 15px; border-top: 1px solid var(--line-soft); background: var(--ok-bg); }
-  .settled.declined, .settled.routed { background: var(--card); }
+  .settled.declined, .settled.routed, .settled.withdrawn { background: var(--card); }
   .settled .tk { color: var(--ok); flex-shrink: 0; display: inline-flex; }
-  .settled.declined .tk, .settled.routed .tk { color: var(--muted); }
+  .settled.declined .tk, .settled.routed .tk, .settled.withdrawn .tk { color: var(--muted); }
   .settled .txt { font-size: 12.5px; color: var(--ink); font-weight: 500; }
   .settled .stamp { margin-left: auto; font-family: var(--mono); font-size: 9.5px; letter-spacing: .04em; color: var(--faint); white-space: nowrap; }
 
@@ -349,12 +350,25 @@
   .stpill.pending { color: var(--vio); background: var(--vio-bg); border-color: var(--vio-line); }
   .stpill.waiting { color: var(--muted); background: var(--card-2); }
   .stpill.ratified { color: var(--ok); background: var(--ok-bg); }
-  .stpill.declined { color: var(--faint); background: var(--card-2); }
+  .stpill.declined, .stpill.withdrawn { color: var(--faint); background: var(--card-2); }
   .appr-detail { display: none; padding: 0 14px 14px; }
   .appr.open .appr-detail { display: block; }
   .appr-detail .writ { margin-top: 4px; }
   .inbox-empty { text-align: center; padding: 30px 20px; }
   .inbox-empty .note { font-size: 15px; }
+
+  /* Audit-log header: a ledger summary + filter chips over the full history. */
+  .audit-sum { display: flex; gap: 8px; padding: 4px 6px 2px; }
+  .audit-sum .st { flex: 1; border: 1px solid var(--line); border-radius: 12px; background: var(--card); padding: 11px 13px; }
+  .audit-sum .st .n { font-family: var(--mono); font-size: 20px; letter-spacing: -.01em; color: var(--ink); line-height: 1; }
+  .audit-sum .st .k { display: block; font-family: var(--mono); font-size: 8.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--faint); margin-top: 6px; }
+  .audit-sum .st.rat .n { color: var(--ok); }
+  .audit-filters { display: flex; align-items: center; gap: 6px; padding: 12px 6px 2px; flex-wrap: wrap; }
+  .fchip { font-family: var(--mono); font-size: 9.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); background: transparent;
+    border: 1px solid var(--line); border-radius: 999px; padding: 5px 11px; cursor: pointer; transition: border-color .15s, color .15s, background .15s; }
+  .fchip:hover { border-color: var(--line-med); color: var(--ink); }
+  .fchip.on { color: var(--ink); border-color: var(--vio-line); background: var(--vio-bg); }
+  .inbox-sec > .lbl .date { margin-left: auto; letter-spacing: .06em; color: var(--faint); text-transform: none; }
 
   /* ── Dock / composer ─────────────────────────────────────────────────────── */
   .dock { padding: 0 16px 16px; flex-shrink: 0; }
@@ -454,7 +468,7 @@
       <div class="bar">
         <span class="tick"></span><span class="title">Ask Chapt</span>
         <span class="spacer"></span>
-        <button class="apprchip" id="apprchip">Approvals <span class="cnt" id="apprcnt">2</span></button>
+        <button class="apprchip" id="apprchip">Approvals</button>
         <button class="newq" id="newq">← New</button>
       </div>
 
@@ -503,7 +517,6 @@
   const inbox   = document.getElementById('inbox');
   const input   = document.getElementById('input');
   const send    = document.getElementById('send');
-  const apprcnt = document.getElementById('apprcnt');
 
   /* ── Icon set — outlined, heroicons-style, matching the app. ─────────────── */
   const ic = {
@@ -782,55 +795,100 @@
     },
   };
 
-  /* ── Approvals inbox ─────────────────────────────────────────────────────── */
-  // Four-eyes: whoever raises a proposal can't be the one who ratifies it, and
-  // financial postings need the Treasurer. Viewer is Marcus, VP.
-  const APPROVALS = [
-    { id: 'a1', group: 'you', glyph: ic.cal, t: 'Add deadline · Submit IFC chapter report',
-      who: 'raised by <b>Terrence B.</b> (Secretary)', when: '12m ago', status: 'pending', canSign: true,
-      what: 'Add a deadline', rows: [{ k: 'Title', v: 'Submit IFC report' }, { k: 'Owner', v: 'President' }, { k: 'Due', v: '2026-08-25', em: 1 }] },
-    { id: 'a2', group: 'you', glyph: ic.flag, t: 'Add event · Alumni Mixer',
-      who: 'raised by <b>Malik S.</b> (Social)', when: '1h ago', status: 'pending', canSign: true,
-      what: 'Add a calendar event', rows: [{ k: 'Title', v: 'Alumni Mixer' }, { k: 'Date', v: '2026-08-09', em: 1 }, { k: 'Location', v: 'The Standard' }] },
-    { id: 'a3', group: 'others', glyph: ic.coin, t: 'Record $200 dues · Kofi Adjei',
-      who: 'raised by <b>you</b> · awaiting the Treasurer', when: '4m ago', status: 'waiting', canSign: false,
-      what: 'Record a dues payment', rows: [{ k: 'Brother', v: 'Kofi Adjei' }, { k: 'Amount', v: '$200.00', em: 1 }, { k: 'Method', v: 'Cash' }],
-      gate: `Financial postings need the <b>Treasurer</b>. You raised this, so it's waiting on <b>Jordan P.</b> — you can withdraw it.` },
+  /* ── Approvals — the audit trail ─────────────────────────────────────────── */
+  // Every proposal the chapter has settled, newest first, grouped by day. The
+  // four-eyes rule is legible in the record: who raised it, who signed it off.
+  // A financial posting is signed by the Treasurer (Jordan P.); a non-financial
+  // one by an officer other than the raiser. Viewer is Marcus, VP.
+  const HISTORY = [
+    { group: 'Today', date: 'Jul 23', items: [
+      { id: 'h1', glyph: ic.coin, t: 'Record $200 dues · Kofi Adjei', raised: 'you', actor: 'Jordan P. (Treasurer)',
+        status: 'ratified', stamp: '6:12 PM', note: 'Ratified — posted to the ledger.',
+        what: 'Record a dues payment', rows: [{ k: 'Brother', v: 'Kofi Adjei' }, { k: 'Amount', v: '$200.00', em: 1 }, { k: 'Method', v: 'Cash' }, { k: 'Date', v: '2026-07-23' }] },
+      { id: 'h2', glyph: ic.cal, t: 'Add deadline · Submit IFC chapter report', raised: 'Terrence B. (Secretary)', actor: 'you',
+        status: 'ratified', stamp: '5:40 PM', note: 'Ratified — added to the timeline.',
+        what: 'Add a deadline', rows: [{ k: 'Title', v: 'Submit IFC report' }, { k: 'Owner', v: 'President' }, { k: 'Due', v: '2026-08-25', em: 1 }] },
+      { id: 'h3', glyph: ic.flag, t: 'Add event · Alumni Mixer', raised: 'Malik S. (Social)', actor: 'you',
+        status: 'declined', stamp: '3:18 PM', note: 'Declined — no changes made.',
+        what: 'Add a calendar event', rows: [{ k: 'Title', v: 'Alumni Mixer' }, { k: 'Date', v: '2026-08-09', em: 1 }, { k: 'Location', v: 'The Standard' }] },
+    ]},
+    { group: 'Yesterday', date: 'Jul 22', items: [
+      { id: 'h4', glyph: ic.coin, t: 'Record $7 dues · Nathaniel B.', raised: 'you', actor: 'Jordan P. (Treasurer)',
+        status: 'ratified', stamp: '2:47 PM', note: 'Ratified — posted to the ledger.',
+        what: 'Record a dues payment', rows: [{ k: 'Brother', v: 'Nathaniel B.' }, { k: 'Amount', v: '$7.00', em: 1 }, { k: 'Method', v: 'Venmo' }, { k: 'Date', v: '2026-07-22' }] },
+      { id: 'h5', glyph: ic.users, t: 'Update roster · Devin O. → inactive', raised: 'Terrence B. (Secretary)', actor: 'you',
+        status: 'ratified', stamp: '11:05 AM', note: 'Ratified — roster updated.',
+        what: 'Change a member status', rows: [{ k: 'Brother', v: 'Devin O.' }, { k: 'From', v: 'Active' }, { k: 'To', v: 'Inactive', em: 1 }, { k: 'Reason', v: 'Study abroad' }] },
+    ]},
+    { group: 'Jul 21', date: 'Mon', items: [
+      { id: 'h6', glyph: ic.coin, t: 'Record $150 dues · Andre W.', raised: 'you', actor: 'Jordan P. (Treasurer)',
+        status: 'ratified', stamp: '7:30 PM', note: 'Ratified — posted to the ledger.',
+        what: 'Record a dues payment', rows: [{ k: 'Brother', v: 'Andre W.' }, { k: 'Amount', v: '$150.00', em: 1 }, { k: 'Method', v: 'Cash' }, { k: 'Date', v: '2026-07-21' }] },
+      { id: 'h7', glyph: ic.flag, t: 'Add event · Rooftop Kickback', raised: 'Malik S. (Social)', actor: 'you',
+        status: 'declined', stamp: '1:02 PM', note: 'Declined — no changes made.',
+        what: 'Add a calendar event', rows: [{ k: 'Title', v: 'Rooftop Kickback' }, { k: 'Date', v: '2026-07-26', em: 1 }, { k: 'Location', v: 'The Deck' }] },
+    ]},
+    { group: 'Jul 19', date: 'Sat', items: [
+      { id: 'h8', glyph: ic.cal, t: 'Add deadline · Chapter dues deadline', raised: 'Jordan P. (Treasurer)', actor: 'you',
+        status: 'ratified', stamp: '4:15 PM', note: 'Ratified — added to the timeline.',
+        what: 'Add a deadline', rows: [{ k: 'Title', v: 'Spring dues due' }, { k: 'Owner', v: 'Treasurer' }, { k: 'Due', v: '2026-08-01', em: 1 }] },
+      { id: 'h9', glyph: ic.flag, t: 'Add event · Brotherhood Retreat', raised: 'Malik S. (Social)', actor: 'Malik S. (Social)',
+        status: 'withdrawn', stamp: '10:41 AM', note: 'Withdrawn — no changes made.',
+        what: 'Add a calendar event', rows: [{ k: 'Title', v: 'Brotherhood Retreat' }, { k: 'Date', v: '2026-09-13', em: 1 }, { k: 'Location', v: 'Lake Cabin' }] },
+    ]},
+    { group: 'Jul 17', date: 'Thu', items: [
+      { id: 'h10', glyph: ic.coin, t: 'Record $200 dues · Elijah T.', raised: 'you', actor: 'Jordan P. (Treasurer)',
+        status: 'ratified', stamp: '6:58 PM', note: 'Ratified — posted to the ledger.',
+        what: 'Record a dues payment', rows: [{ k: 'Brother', v: 'Elijah T.' }, { k: 'Amount', v: '$200.00', em: 1 }, { k: 'Method', v: 'Zelle' }, { k: 'Date', v: '2026-07-17' }] },
+    ]},
   ];
-  const SETTLED = [
-    { glyph: ic.coin, t: 'Record $7 dues · Nathaniel B.', who: 'Ratified by Jordan P. (Treasurer)', when: '2:47 PM', status: 'ratified' },
-    { glyph: ic.flag, t: 'Add event · Rooftop Kickback', who: 'Declined by you', when: 'Jul 21', status: 'declined' },
-  ];
+  const ALL_ITEMS = HISTORY.flatMap(g => g.items);
+  let auditFilter = 'all';
 
-  function apprRow(a) {
+  function auditSub(a) {
+    const R = `Raised by <b>${a.raised}</b>`;
+    if (a.status === 'ratified') return `${R} · Ratified by <b>${a.actor}</b>`;
+    if (a.status === 'declined') return `${R} · Declined by <b>${a.actor}</b>`;
+    return `${R} · Withdrawn`;
+  }
+  function auditRow(a) {
     return `<div class="appr" data-appr="${a.id}">
       <button class="appr-row">
         <span class="glyph">${a.glyph}</span>
-        <span class="rb"><span class="t">${a.t}</span><span class="s">${a.who} · ${a.when}</span></span>
-        <span class="stpill ${a.status}">${a.status === 'pending' ? 'Needs you' : 'Awaiting'}</span>
+        <span class="rb"><span class="t">${a.t}</span><span class="s">${auditSub(a)} · ${a.stamp}</span></span>
+        <span class="stpill ${a.status}">${a.status}</span>
       </button>
       <div class="appr-detail"></div>
     </div>`;
   }
-  function settledRow(a) {
-    return `<div class="appr"><button class="appr-row" style="cursor:default">
-        <span class="glyph">${a.glyph}</span>
-        <span class="rb"><span class="t">${a.t}</span><span class="s">${a.who} · ${a.when}</span></span>
-        <span class="stpill ${a.status}">${a.status}</span>
-      </button></div>`;
-  }
+
+  const FILTERS = [['all', 'All'], ['ratified', 'Ratified'], ['declined', 'Declined'], ['withdrawn', 'Withdrawn']];
 
   function renderInbox() {
-    const needsYou = APPROVALS.filter(a => a.group === 'you' && a.status === 'pending');
-    const awaiting = APPROVALS.filter(a => a.group === 'others');
-    let html = `<div class="inbox-hd"><h3>Approvals</h3><span class="meta">${needsYou.length} need you · ${awaiting.length} awaiting others</span></div>`;
-    if (needsYou.length) html += `<div class="inbox-sec"><div class="lbl">Needs your ratification <span class="c">${needsYou.length}</span></div>${needsYou.map(apprRow).join('')}</div>`;
-    if (awaiting.length) html += `<div class="inbox-sec"><div class="lbl">Awaiting the Treasurer</div>${awaiting.map(apprRow).join('')}</div>`;
-    if (!needsYou.length && !awaiting.length) html += `<div class="inbox-empty"><p class="note">Nothing waiting on you — <em>the queue's clear.</em></p></div>`;
-    html += `<div class="inbox-sec"><div class="lbl">Settled today</div>${SETTLED.map(settledRow).join('')}</div>`;
+    const total = ALL_ITEMS.length;
+    const n = s => ALL_ITEMS.filter(i => i.status === s).length;
+    let html = `<div class="inbox-hd"><h3>Approvals</h3><span class="meta">The chapter's audit trail — every proposal, settled.</span></div>`;
+    html += `<div class="audit-sum">
+        <div class="st rat"><span class="n">${n('ratified')}</span><span class="k">Ratified</span></div>
+        <div class="st"><span class="n">${n('declined')}</span><span class="k">Declined</span></div>
+        <div class="st"><span class="n">${n('withdrawn')}</span><span class="k">Withdrawn</span></div>
+      </div>`;
+    html += `<div class="audit-filters">${FILTERS.map(([k, l]) =>
+        `<button class="fchip ${auditFilter === k ? 'on' : ''}" data-filter="${k}">${l}${k === 'all' ? ` · ${total}` : ''}</button>`).join('')}</div>`;
+
+    let shown = 0;
+    HISTORY.forEach(g => {
+      const items = g.items.filter(i => auditFilter === 'all' || i.status === auditFilter);
+      if (!items.length) return;
+      shown += items.length;
+      html += `<div class="inbox-sec"><div class="lbl">${g.group} <span class="date">${g.date}</span></div>${items.map(auditRow).join('')}</div>`;
+    });
+    if (!shown) html += `<div class="inbox-empty"><p class="note">No <em>${auditFilter}</em> approvals on record.</p></div>`;
+
     inbox.innerHTML = html;
+    inbox.querySelectorAll('.fchip[data-filter]').forEach(b => b.onclick = () => { auditFilter = b.dataset.filter; renderInbox(); });
     inbox.querySelectorAll('.appr[data-appr]').forEach(el => {
-      const a = APPROVALS.find(x => x.id === el.dataset.appr);
+      const a = ALL_ITEMS.find(x => x.id === el.dataset.appr);
       el.querySelector('.appr-row').onclick = () => toggleAppr(el, a);
     });
   }
@@ -840,52 +898,39 @@
     const detail = el.querySelector('.appr-detail');
     if (!open) { detail.innerHTML = ''; return; }
     inbox.querySelectorAll('.appr.open').forEach(o => { if (o !== el) { o.classList.remove('open'); o.querySelector('.appr-detail').innerHTML = ''; } });
-    detail.innerHTML = writCard({ what: a.what, rows: a.rows, foot: a.canSign ? 'actions' : 'gate', gate: a.gate });
-    bindWrit(detail, 'inbox', a, el);
+    detail.innerHTML = writCard({ what: a.what, rows: a.rows, foot: 'settled',
+      settled: { kind: a.status, txt: a.note, stamp: `${a.stamp} · ${a.actor}` } });
     setTimeout(() => el.scrollIntoView({ block: 'nearest' }), 20);
   }
 
-  /* ── Ratify / decline plumbing (shared) ──────────────────────────────────── */
-  function bindWrit(root, ctx, a, apprEl) {
+  /* ── Ratify / decline plumbing (inline conversation proposals) ───────────── */
+  function bindWrit(root, ctx) {
     const card = root.querySelector('[data-writ]');
     if (!card) return;
     const rat = card.querySelector('[data-w="ratify"]');
     const dec = card.querySelector('[data-w="decline"]');
-    if (rat) rat.onclick = () => settle(card, 'ratified', ctx, a, apprEl);
-    if (dec) dec.onclick = () => settle(card, 'declined', ctx, a, apprEl);
+    if (rat) rat.onclick = () => settle(card, 'ratified', ctx);
+    if (dec) dec.onclick = () => settle(card, 'declined', ctx);
   }
 
-  function settle(card, kind, ctx, a, apprEl) {
+  function settle(card, kind, ctx) {
+    const withdraw = card.querySelector('.gate') && kind === 'declined';
     card.querySelector('.wfoot')?.remove();
     card.querySelector('.gate')?.remove();
-    const who = 'Marcus S.';
-    const stamp = kind === 'ratified' ? `6:12 PM · ${who}` : `6:12 PM · ${who}`;
+    const stamp = '6:12 PM · Marcus S.';
     const txt = kind === 'ratified'
-      ? (ctx === 'proposal' ? 'Ratified — added to the timeline.' : 'Ratified — posted to the ledger.')
-      : (ctx === 'inbox' && a && !a.canSign ? 'Withdrawn — sign-off request cancelled.' : 'Declined — no changes made.');
+      ? (ctx === 'proposal' ? 'Ratified — added to the timeline.' : 'Ratified — sent to the Treasurer for sign-off.')
+      : (withdraw ? 'Withdrawn — sign-off request cancelled.' : 'Declined — no changes made.');
     const s = document.createElement('div');
-    s.className = 'settled ' + (kind === 'ratified' ? 'ratified' : (ctx === 'inbox' && a && !a.canSign ? 'routed' : 'declined'));
+    s.className = 'settled ' + (kind === 'ratified' ? 'ratified' : (withdraw ? 'withdrawn' : 'declined'));
     s.innerHTML = `<span class="tk">${kind === 'ratified' ? ic.tick : '—'}</span><span class="txt">${txt}</span><span class="stamp">${stamp}</span>`;
     card.appendChild(s);
 
-    // Rewrite the verdict line when settling inline in a conversation/proposal.
+    // Rewrite the verdict line when settling inline in a proposal.
     if (ctx === 'proposal') {
       const v = card.closest('.msg.ai')?.querySelector('.verdict');
       if (v) v.innerHTML = kind === 'ratified' ? `Done — it's on the timeline for <em>Fri, Jul 25</em>.` : `Declined — nothing was added.`;
     }
-    // In the inbox: drop it out of the pending set and re-badge.
-    if (ctx === 'inbox' && a) {
-      a.status = kind === 'ratified' ? 'ratified' : 'declined';
-      SETTLED.unshift({ glyph: a.glyph, t: a.t, who: kind === 'ratified' ? `Ratified by you` : `Withdrawn by you`, when: 'just now', status: a.status });
-      const idx = APPROVALS.indexOf(a); if (idx > -1) APPROVALS.splice(idx, 1);
-      refreshBadge();
-      setTimeout(renderInbox, 650);
-    }
-  }
-
-  function refreshBadge() {
-    const n = APPROVALS.filter(a => a.group === 'you' && a.status === 'pending').length;
-    apprcnt.textContent = n; apprcnt.style.display = n ? '' : 'none';
   }
 
   /* ── Live ask flow (Briefing → Thinking → Answer) ────────────────────────── */
@@ -1049,7 +1094,6 @@
     (SCENES[id] || SCENES.briefing)();
     // Multi-turn scenes open at the latest turn, where the card's actions live.
     if (id === 'convo' || id === 'proposal' || id === 'thinking') thread.scrollTop = thread.scrollHeight;
-    refreshBadge();
   }
 
   /* ── Wiring ──────────────────────────────────────────────────────────────── */
