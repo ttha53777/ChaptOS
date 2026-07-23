@@ -1,0 +1,856 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dusk">
+<!--
+  ChaptOS · Ask Chapt Redesign — "The chapter answers in its own records"
+  ═══════════════════════════════════════════════════════════════════════
+  ASSUMPTIONS / REASONING
+  · Redesign of app/components/ChatWidget.tsx + app/components/chat-ledger.css
+    (the floating "Ask Chapt" AI assistant, mounted app-wide via layout.tsx and
+    gated to /[slug]/* by ChatWidgetGate).
+
+  · WHAT'S WRONG TODAY (observed live against the lpe dev org, 2026-07-22):
+      1. STRUCTURED DATA IS RETYPED AS PROSE. Asked "How are we doing on dues?"
+         the panel returned: "$125 total outstanding dues, across 2 brothers
+         (brothers w/ dues owed summary). Who owes: • Arijit Das — $118 (brother
+         duesOwed; role: VP External) …". The tools returned clean structured
+         records; the model flattened them into a sentence and leaked the raw
+         field name `duesOwed` on the way out.
+      2. ~700px OF DEAD COLUMN. A four-line answer in a 432×900 panel.
+      3. PROVENANCE EVAPORATES. The tool trail ("consulting the ledger") is
+         transient — once the answer lands there is nothing left to audit.
+      4. DEAD END. The answer names two people who owe money and offers no way
+         to act on it — no payment, no reminder, no link to their record.
+      5. STATIC STARTERS. The same six prompts forever, unrelated to what is
+         actually happening in the chapter this week.
+      6. DESTRUCTIVE HISTORY. "Clear" is the only history affordance.
+
+  · THE MOVE: the panel stops being a chat transcript and becomes a READING
+    SURFACE. The assistant emits blocks (figure · roll · split · trail · rail)
+    and the panel composes them in the chapter's own dusk typography. Prose is
+    demoted to one line of counsel above the evidence.
+
+  · Direction: the warm dusk "Chapter Ledger" language already shipped in
+    chat-ledger.css / the Dashboard / Timeline redesigns — Fraunces serif for
+    the counsel voice, Geist Mono for kickers and figures, #0f0d0a paper,
+    violet #a78bfa accent, gold + rose for money and risk. Nothing new invented.
+
+  · DATA IS REAL. Every figure, name, role and date below was pulled from the
+    seeded lpe dev database on 2026-07-22 — 16 members, $125 outstanding across
+    Arijit Das ($118) and Nathaniel Baccaray ($7), $7,992 treasury balance
+    ($20,987 in / $12,995 out), 85.2% attendance, 3.42 chapter GPA, two overdue
+    tasks, Fall Rush Info Night on Aug 25. No invented stats.
+
+  · Seven scenes on the rail: 0 closed (new launcher) · 1 empty (the briefing) ·
+    2 thinking · 3 answer · 4 proposal + ratified · 5 threads · 6 compare
+    (three answer-rendering directions side by side — the real design fork).
+
+  · DESIGN MOCK ONLY — vanilla one-file HTML/CSS/JS, double-click to open.
+    Nothing here is wired to the app.
+  · Screenshot hooks: window.__mock = { goto, setDir, open, close }.
+-->
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ChaptOS — Ask Chapt Redesign</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..700;1,9..144,300..700&family=Geist:wght@300..700&family=Geist+Mono:wght@300..600&display=swap" rel="stylesheet">
+<style>
+/* ═══ 0 · Tokens — lifted verbatim from app/components/chat-ledger.css ═════ */
+:root {
+  --serif: "Fraunces", Georgia, serif;
+  --sans:  "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --mono:  "Geist Mono", ui-monospace, Menlo, monospace;
+  --ease:  cubic-bezier(.16,1,.3,1);
+
+  --paper:    #0f0d0a;
+  --paper-2:  #14120e;
+  --card:     #161310;
+  --card-2:   #1b1813;
+  --ink:      #ece7dd;
+  --ink-soft: #c9c2b4;
+  --muted:    #958d7c;
+  --faint:    #6b6354;
+  --line:     rgba(236,231,221,.09);
+  --line-soft:rgba(236,231,221,.05);
+  --vio:      #a78bfa;
+  --vio-bg:   rgba(167,139,250,.10);
+  --gold:     #ddb36a;
+  --gold-bg:  rgba(221,179,106,.10);
+  --rose:     #d98ba3;
+  --rose-bg:  rgba(217,139,163,.10);
+  --ok:       #7fb08a;
+  --ok-bg:    rgba(127,176,138,.10);
+
+  --panel-w: 520px;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+body {
+  background: var(--paper); color: var(--ink);
+  font-family: var(--sans); font-size: 13.5px; line-height: 1.5;
+  -webkit-font-smoothing: antialiased; overflow: hidden;
+}
+::selection { background: var(--vio-bg); }
+button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+.k { font-family: var(--mono); font-size: 8.5px; letter-spacing: .16em; text-transform: uppercase; color: var(--faint); }
+.num { font-variant-numeric: tabular-nums; }
+
+/* ═══ 1 · Backdrop dashboard — faithful-but-inert, so the panel is judged in
+       context. Real lpe figures. Pointer-events off; it is scenery. ════════ */
+.app { display: flex; height: 100vh; }
+.nav {
+  width: 240px; flex-shrink: 0; border-right: 1px solid var(--line);
+  background: var(--paper-2); padding: 18px 14px; display: flex; flex-direction: column; gap: 22px;
+}
+.nav .crest { display: flex; align-items: center; gap: 10px; }
+.nav .crest .mark {
+  width: 30px; height: 30px; border-radius: 8px; flex-shrink: 0;
+  background: linear-gradient(150deg, #2a2419, #171310); border: 1px solid var(--line);
+  display: grid; place-items: center; font-family: var(--serif); font-size: 13px; color: var(--gold);
+}
+.nav .crest b { font-family: var(--serif); font-weight: 500; font-size: 13.5px; letter-spacing: -.01em; }
+.nav .crest span { display: block; font-family: var(--mono); font-size: 8px; letter-spacing: .14em; text-transform: uppercase; color: var(--faint); }
+.nav-sec { display: flex; flex-direction: column; gap: 1px; }
+.nav-sec .k { margin: 0 0 7px 9px; }
+.nav a {
+  display: flex; align-items: center; gap: 10px; padding: 7px 9px; border-radius: 8px;
+  font-size: 12.5px; color: var(--muted); text-decoration: none;
+}
+.nav a.on { background: var(--card); color: var(--ink); }
+.nav a .dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; opacity: .5; }
+
+.page { flex: 1; overflow: hidden; padding: 32px 36px; transition: padding-right .34s var(--ease); }
+body.docked .page { padding-right: calc(var(--panel-w) + 36px); }
+.page-in { max-width: 780px; }
+.hello { font-family: var(--serif); font-size: 34px; font-weight: 400; letter-spacing: -.02em; line-height: 1.1; margin: 10px 0 22px; }
+.hello em { font-style: italic; color: var(--vio); }
+.tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--line-soft); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; margin-bottom: 20px; }
+.tile { background: var(--paper-2); padding: 15px 17px; }
+.tile .v { font-family: var(--serif); font-size: 26px; font-weight: 400; letter-spacing: -.02em; margin-top: 6px; }
+.tile .n { font-size: 11px; color: var(--faint); margin-top: 3px; }
+.card-b { border: 1px solid var(--line); border-radius: 12px; background: var(--paper-2); overflow: hidden; }
+.card-b h3 { font-family: var(--serif); font-weight: 500; font-size: 15px; padding: 13px 17px; border-bottom: 1px solid var(--line-soft); }
+.row-b { display: flex; align-items: center; gap: 12px; padding: 11px 17px; border-bottom: 1px solid var(--line-soft); font-size: 12.5px; }
+.row-b:last-child { border-bottom: 0; }
+.row-b .flag { font-family: var(--mono); font-size: 8px; letter-spacing: .12em; text-transform: uppercase; padding: 3px 6px; border-radius: 4px; }
+.flag.od { color: var(--rose); background: var(--rose-bg); }
+.flag.du { color: var(--gold); background: var(--gold-bg); }
+.row-b .sub { color: var(--faint); font-size: 11px; }
+.app::after {
+  content: ""; position: fixed; inset: 0; pointer-events: none;
+  background: rgba(0,0,0,0); transition: background .34s var(--ease); z-index: 5;
+}
+body.dim .app::after { background: rgba(0,0,0,.34); }
+.app { pointer-events: none; user-select: none; }
+
+/* ═══ 2 · The panel ═══════════════════════════════════════════════════════
+   Docked, not draped: on wide screens the page insets by the panel width so
+   the dashboard is never covered. Rounded on the inboard edge so it reads as
+   a leaf laid on the desk rather than a browser drawer. ═════════════════ */
+.panel {
+  position: fixed; top: 10px; right: 10px; bottom: 10px; width: var(--panel-w); z-index: 30;
+  display: flex; flex-direction: column; overflow: hidden;
+  border: 1px solid var(--line); border-radius: 16px;
+  background:
+    radial-gradient(ellipse 78% 30% at 88% 0%, rgba(167,139,250,.13) 0%, transparent 70%),
+    linear-gradient(to bottom, var(--paper-2) 0%, var(--paper) 26%);
+  box-shadow: 0 2px 0 rgba(0,0,0,.3), -30px 0 80px -40px rgba(0,0,0,.95), inset 0 1px 0 rgba(236,231,221,.05);
+  transition: transform .38s var(--ease), opacity .28s var(--ease);
+}
+.panel.closed { transform: translateX(calc(100% + 24px)); opacity: 0; pointer-events: none; }
+
+/* Header — names the SCOPE, not the storage. What it can see is the useful fact. */
+.ph { display: flex; align-items: center; justify-content: space-between; padding: 13px 15px 13px 14px; border-bottom: 1px solid var(--line); flex-shrink: 0; }
+.ph .id { display: flex; align-items: center; gap: 11px; min-width: 0; }
+.ph .seal {
+  width: 32px; height: 32px; border-radius: 9px; flex-shrink: 0; display: grid; place-items: center;
+  color: var(--vio); background: var(--vio-bg); border: 1px solid rgba(167,139,250,.18);
+}
+.ph .ttl { font-family: var(--serif); font-weight: 500; font-size: 16px; letter-spacing: -.01em; line-height: 1.1; }
+.ph .scope { font-family: var(--mono); font-size: 8px; letter-spacing: .13em; text-transform: uppercase; color: var(--faint); margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ph .scope b { color: var(--muted); font-weight: 400; }
+.ph .tools { display: flex; align-items: center; gap: 2px; flex-shrink: 0; }
+.ic { width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; color: var(--muted); transition: color .12s, background .12s; }
+.ic:hover { color: var(--ink); background: var(--card); }
+.ic.on { color: var(--vio); background: var(--vio-bg); }
+
+/* Scroll region + a fade so content dissolves under the composer instead of
+   being guillotined by a hard border. */
+.pbody { flex: 1; position: relative; min-height: 0; }
+.pscroll { position: absolute; inset: 0; overflow-y: auto; padding: 20px 18px 26px; scrollbar-width: thin; scrollbar-color: var(--line) transparent; }
+.pscroll::-webkit-scrollbar { width: 8px; }
+.pscroll::-webkit-scrollbar-thumb { background: var(--line); border-radius: 4px; border: 2px solid transparent; background-clip: content-box; }
+.pbody::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 34px; pointer-events: none; background: linear-gradient(to bottom, transparent, var(--paper)); }
+
+/* ═══ 3 · Empty state — a BRIEFING, not a menu ════════════════════════════
+   The three lead cards are generated from live chapter state, so opening the
+   panel with no question is still worth doing. That is the return hook. */
+.lede { font-family: var(--serif); font-weight: 400; font-size: 22px; line-height: 1.32; letter-spacing: -.015em; margin-bottom: 7px; }
+.lede em { font-style: italic; color: var(--vio); }
+.blurb { font-size: 12.5px; color: var(--muted); max-width: 42ch; margin-bottom: 24px; }
+
+.sec-k { display: flex; align-items: center; gap: 9px; margin-bottom: 10px; }
+.sec-k .k { flex-shrink: 0; }
+.sec-k::after { content: ""; flex: 1; height: 1px; background: var(--line-soft); }
+
+.brief { display: flex; flex-direction: column; gap: 7px; margin-bottom: 24px; }
+.bcard {
+  display: flex; align-items: center; gap: 13px; width: 100%; text-align: left;
+  padding: 12px 14px; border-radius: 11px; border: 1px solid var(--line); background: var(--card);
+  transition: border-color .16s, background .16s, transform .16s var(--ease);
+}
+.bcard:hover { border-color: rgba(167,139,250,.4); background: var(--card-2); transform: translateX(3px); }
+.bcard .fig {
+  font-family: var(--serif); font-size: 20px; font-weight: 500; letter-spacing: -.02em; line-height: 1;
+  min-width: 62px; flex-shrink: 0; font-variant-numeric: tabular-nums; font-variation-settings: "opsz" 40;
+}
+.bcard .fig.gold { color: var(--gold); } .bcard .fig.rose { color: var(--rose); } .bcard .fig.vio { color: var(--vio); }
+.bcard .txt { min-width: 0; }
+/* These live inside a <span> wrapper, so they must be told to stack. */
+.bcard .q { display: block; font-size: 13px; color: var(--ink); letter-spacing: -.005em; }
+.bcard .ctx { display: block; font-family: var(--mono); font-size: 9px; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); margin-top: 4px; }
+.bcard .go { margin-left: auto; color: var(--faint); flex-shrink: 0; transition: color .16s, transform .16s var(--ease); }
+.bcard:hover .go { color: var(--vio); transform: translateX(2px); }
+
+/* The briefing is short by nature. Rather than let it stop abruptly and leave a
+   void above the composer, the evergreen prompts sink to the foot of the column
+   so the whitespace between reads as composition, not an unfinished screen. */
+.ewrap { display: flex; flex-direction: column; min-height: 100%; }
+.ewrap .sink { margin-top: auto; padding-top: 30px; }
+.pills { display: flex; flex-wrap: wrap; gap: 6px; }
+.pill {
+  font-size: 12px; color: var(--muted); padding: 6px 12px; border-radius: 999px;
+  border: 1px solid var(--line); background: transparent; transition: color .14s, border-color .14s, background .14s;
+}
+.pill:hover { color: var(--ink); border-color: var(--vio); background: var(--vio-bg); }
+
+/* ═══ 4 · Turns ═══════════════════════════════════════════════════════════ */
+.stream { display: flex; flex-direction: column; gap: 22px; }
+.ask { align-self: flex-end; max-width: 84%; padding: 9px 14px; border-radius: 14px 14px 5px 14px;
+  background: var(--vio-bg); border: 1px solid rgba(167,139,250,.2); font-size: 13px; color: var(--ink); }
+
+/* Counsel — the judgment, in the chapter's voice. Exactly one sentence; the
+   evidence below carries the detail, so the prose never has to list. */
+.counsel { font-family: var(--serif); font-size: 15.5px; line-height: 1.5; letter-spacing: -.01em; color: var(--ink); }
+.counsel em { font-style: italic; color: var(--vio); }
+.counsel .caret { display: inline-block; width: 2px; height: .95em; margin-left: 2px; background: var(--vio); vertical-align: text-bottom; animation: blink 1s steps(2) infinite; }
+@keyframes blink { 50% { opacity: 0; } }
+
+/* Figure block — the answer's lede number, set like a ledger total. */
+.figure { margin-top: 15px; display: flex; align-items: flex-end; gap: 20px; }
+/* Weight 400 at opsz 72, NOT 300 at opsz 120 — Fraunces' display optical size
+   thins the hairlines so far that a gold figure on dusk paper reads as a smudge.
+   The number is the answer; it has to carry. */
+.figure .big {
+  font-family: var(--serif); font-size: 46px; font-weight: 400; letter-spacing: -.035em; line-height: .92;
+  font-variant-numeric: tabular-nums; font-variation-settings: "opsz" 72;
+}
+.figure .big.gold { color: var(--gold); }
+.figure .side { padding-bottom: 5px; }
+.figure .side .v { font-family: var(--mono); font-size: 12.5px; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+.figure .side .k { margin-top: 4px; }
+.meter { margin-top: 13px; height: 3px; border-radius: 2px; background: var(--line); overflow: hidden; }
+.meter i { display: block; height: 100%; border-radius: 2px; background: var(--gold); width: 0; transition: width 1.1s var(--ease) .25s; }
+.meter-k { display: flex; justify-content: space-between; margin-top: 7px; }
+
+/* Roll block — the people behind the number. Every row is a live record. */
+.roll { margin-top: 18px; border-top: 1px solid var(--line-soft); }
+.rrow {
+  display: flex; align-items: center; gap: 12px; width: 100%; text-align: left;
+  padding: 11px 8px 11px 2px; border-bottom: 1px solid var(--line-soft); border-radius: 8px;
+  transition: background .14s, padding-left .16s var(--ease);
+}
+.rrow:hover { background: var(--card); padding-left: 8px; }
+.av {
+  width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0; display: grid; place-items: center;
+  font-family: var(--mono); font-size: 9.5px; letter-spacing: .04em; color: var(--paper); font-weight: 600;
+}
+.rrow .nm { display: block; font-size: 13px; color: var(--ink); letter-spacing: -.005em; }
+.rrow .rl { display: block; font-family: var(--mono); font-size: 8.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); margin-top: 3px; }
+.rrow .amt { margin-left: auto; font-family: var(--mono); font-size: 13px; color: var(--gold); font-variant-numeric: tabular-nums; }
+.rrow .chev { color: var(--faint); flex-shrink: 0; transition: color .14s, transform .16s var(--ease); }
+.rrow:hover .chev { color: var(--vio); transform: translateX(2px); }
+
+/* Split block — a two-sided ledger reading (direction B/C answers use it). */
+.split { margin-top: 16px; display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--line-soft); border: 1px solid var(--line); border-radius: 11px; overflow: hidden; }
+.split > div { background: var(--card); padding: 13px 15px; }
+.split .v { font-family: var(--serif); font-size: 21px; letter-spacing: -.025em; font-variant-numeric: tabular-nums; margin-top: 6px; }
+.split .v.ok { color: var(--ok); } .split .v.rose { color: var(--rose); }
+
+/* Source trail — provenance that PERSISTS. Collapsed to one honest line;
+   expandable into what each tool actually returned. This is the trust surface
+   the current widget throws away the moment the answer lands. */
+.trail { margin-top: 18px; }
+.trail summary { display: flex; align-items: center; gap: 8px; list-style: none; cursor: pointer;
+  font-family: var(--mono); font-size: 9px; letter-spacing: .12em; text-transform: uppercase; color: var(--faint);
+  padding: 7px 0; transition: color .14s; }
+.trail summary::-webkit-details-marker { display: none; }
+.trail summary:hover { color: var(--muted); }
+/* A stack-of-records mark, not a spinner ring — the trail persists after the
+   answer lands, so it must not read as still-loading. */
+.trail summary .arc { width: 11px; height: 9px; flex-shrink: 0; display: flex; flex-direction: column; justify-content: space-between; }
+.trail summary .arc i { display: block; height: 1.5px; border-radius: 1px; background: var(--vio); opacity: .8; }
+.trail summary .arc i:nth-child(2) { width: 75%; opacity: .55; }
+.trail summary .arc i:nth-child(3) { width: 50%; opacity: .35; }
+.trail summary .cv { margin-left: auto; transition: transform .2s var(--ease); }
+.trail[open] summary .cv { transform: rotate(90deg); }
+.trail .tbody { border-left: 1px solid var(--line); margin-left: 5px; padding: 4px 0 4px 14px; display: flex; flex-direction: column; gap: 8px; }
+.tline { display: flex; align-items: baseline; gap: 10px; font-size: 11.5px; }
+.tline .what { font-family: var(--serif); font-style: italic; color: var(--muted); }
+.tline .got { margin-left: auto; font-family: var(--mono); font-size: 9.5px; letter-spacing: .06em; color: var(--faint); white-space: nowrap; }
+
+/* Action rail — an answer that names two debtors must offer to do something
+   about them. Primary = the write proposal; the rest are deep links. */
+.rail-a { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 17px; }
+.act {
+  display: inline-flex; align-items: center; gap: 7px; padding: 8px 13px; border-radius: 9px;
+  font-size: 12px; color: var(--muted); border: 1px solid var(--line); background: transparent;
+  transition: color .14s, border-color .14s, background .14s;
+}
+.act:hover { color: var(--ink); border-color: var(--muted); }
+.act.pri { color: var(--vio); background: var(--vio-bg); border-color: rgba(167,139,250,.22); font-family: var(--mono); font-size: 10.5px; letter-spacing: .09em; text-transform: uppercase; }
+.act.pri:hover { color: var(--ink); border-color: var(--vio); background: rgba(167,139,250,.17); }
+
+/* Follow-ups — the "keep pulling" thread. Fills the column with something that
+   earns its place instead of dead air. */
+.fups { margin-top: 26px; padding-top: 15px; border-top: 1px solid var(--line-soft); }
+.fup {
+  display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; padding: 9px 2px;
+  font-family: var(--serif); font-style: italic; font-size: 13.5px; color: var(--muted);
+  transition: color .14s, padding-left .16s var(--ease);
+}
+.fup:hover { color: var(--ink); padding-left: 6px; }
+.fup .pl { color: var(--faint); font-family: var(--mono); font-style: normal; font-size: 11px; }
+
+/* Thinking — phase-named, with a settling wave. */
+.think { display: flex; align-items: center; gap: 11px; }
+.think .dots { display: inline-flex; gap: 4px; }
+.think .dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--vio); opacity: .3; animation: wave 1.3s ease-in-out infinite; }
+.think .dots i:nth-child(2) { animation-delay: .16s; } .think .dots i:nth-child(3) { animation-delay: .32s; }
+@keyframes wave { 0%,80%,100% { opacity: .3; transform: translateY(0); } 40% { opacity: 1; transform: translateY(-3px); } }
+.think .lbl { font-family: var(--serif); font-style: italic; font-size: 13.5px; color: var(--faint); }
+.consult { display: inline-flex; align-items: center; gap: 9px; margin-top: 12px; padding: 6px 14px 6px 11px;
+  border: 1px solid var(--line); background: var(--card); border-radius: 999px;
+  font-family: var(--serif); font-style: italic; font-size: 12.5px; color: var(--muted);
+  animation: rise .3s var(--ease) both; }
+.consult .orb { width: 6px; height: 6px; border-radius: 50%; background: var(--vio); animation: orb 1.1s ease-in-out infinite; }
+@keyframes orb { 0%,100% { opacity: .35; transform: scale(.8); } 50% { opacity: 1; transform: scale(1.1); } }
+@keyframes rise { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+
+/* ═══ 5 · Proposal — "the writ" ═══════════════════════════════════════════
+   A write the member ratifies. Styled as a filed instrument: mono seal, serif
+   summary, tabular key/value rows. On ratify it does NOT vanish — it settles
+   into a record line, because that is what the ledger metaphor promises. */
+.writ { margin-top: 17px; border: 1px solid rgba(167,139,250,.22); border-radius: 13px; background: var(--card); overflow: hidden;
+  box-shadow: 0 1px 0 rgba(0,0,0,.4), 0 18px 40px -30px rgba(0,0,0,.9); }
+.writ .wh { display: flex; align-items: center; gap: 10px; padding: 11px 14px; background: var(--vio-bg); border-bottom: 1px solid var(--line-soft); }
+.writ .wh .chip { font-family: var(--mono); font-size: 8px; font-weight: 600; letter-spacing: .17em; text-transform: uppercase;
+  color: var(--vio); border: 1px solid rgba(167,139,250,.3); border-radius: 5px; padding: 3px 7px; flex-shrink: 0; }
+.writ .wh .what { font-family: var(--serif); font-size: 14px; letter-spacing: -.01em; }
+.writ .wb { padding: 13px 14px; }
+/* Once ratified the action row is gone; close the gap it leaves behind. */
+.writ .wb.done { padding-bottom: 7px; }
+.wrow { display: flex; align-items: baseline; gap: 12px; padding: 5px 0; }
+.wrow .wk { font-family: var(--mono); font-size: 8.5px; letter-spacing: .13em; text-transform: uppercase; color: var(--faint); width: 84px; flex-shrink: 0; }
+.wrow .wv { font-family: var(--mono); font-size: 12px; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+.wrow .wv.em { color: var(--gold); }
+.wacts { display: flex; gap: 8px; margin-top: 14px; }
+.ratify { flex: 1.4; font-family: var(--mono); font-size: 10.5px; font-weight: 600; letter-spacing: .11em; text-transform: uppercase;
+  color: var(--vio); background: var(--vio-bg); border: 1px solid rgba(167,139,250,.28); border-radius: 9px; padding: 11px;
+  transition: color .14s, background .14s, border-color .14s; }
+.ratify:hover { color: var(--ink); border-color: var(--vio); background: rgba(167,139,250,.18); }
+.decline { flex: 1; font-family: var(--mono); font-size: 10.5px; letter-spacing: .09em; text-transform: uppercase;
+  color: var(--muted); border: 1px solid var(--line); border-radius: 9px; padding: 11px; transition: color .14s, border-color .14s; }
+.decline:hover { color: var(--ink-soft); border-color: var(--muted); }
+.settled { display: flex; align-items: center; gap: 9px; padding: 11px 14px; border-top: 1px solid var(--line-soft); background: var(--ok-bg); }
+.settled .tick { color: var(--ok); flex-shrink: 0; }
+.settled .txt { font-family: var(--serif); font-size: 13px; color: var(--ink-soft); }
+.settled .stamp { margin-left: auto; font-family: var(--mono); font-size: 8.5px; letter-spacing: .11em; text-transform: uppercase; color: var(--faint); white-space: nowrap; }
+
+/* ═══ 6 · Threads — history as a drawer, not a Clear button ═══════════════ */
+.threads { position: absolute; inset: 0; z-index: 4; background: var(--paper); padding: 18px; overflow-y: auto;
+  animation: slideup .26s var(--ease) both; }
+@keyframes slideup { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+.tgroup { margin-bottom: 20px; }
+.thread { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; padding: 11px 10px; border-radius: 10px;
+  transition: background .14s; border-bottom: 1px solid var(--line-soft); }
+.thread:hover { background: var(--card); }
+.thread .q { display: block; font-size: 13px; color: var(--ink-soft); }
+.thread .m { display: block; font-family: var(--mono); font-size: 9px; letter-spacing: .09em; text-transform: uppercase; color: var(--faint); margin-top: 4px; }
+.thread .when { margin-left: auto; font-family: var(--mono); font-size: 9px; color: var(--faint); white-space: nowrap; }
+
+/* ═══ 7 · Composer ════════════════════════════════════════════════════════ */
+.comp { flex-shrink: 0; padding: 0 14px 13px; }
+.cwrap { display: flex; align-items: flex-end; gap: 8px; border: 1px solid var(--line); background: var(--card); border-radius: 14px;
+  transition: border-color .16s, box-shadow .16s; }
+.cwrap:focus-within { border-color: rgba(167,139,250,.5); box-shadow: 0 0 0 3px var(--vio-bg); }
+.cwrap .sp { color: var(--faint); padding: 13px 0 13px 14px; flex-shrink: 0; }
+.cwrap textarea { flex: 1; resize: none; background: none; border: 0; outline: none; font-family: var(--sans); font-size: 13.5px;
+  color: var(--ink); line-height: 1.5; padding: 12px 4px 12px 10px; min-height: 46px; max-height: 150px; }
+.cwrap textarea::placeholder { color: var(--faint); }
+.send { margin: 7px; width: 34px; height: 34px; border-radius: 9px; display: grid; place-items: center; flex-shrink: 0;
+  color: var(--vio); background: var(--vio-bg); border: 1px solid rgba(167,139,250,.2); transition: all .14s; }
+.send:hover { color: var(--ink); border-color: var(--vio); background: rgba(167,139,250,.2); }
+.cfoot { display: flex; justify-content: space-between; margin-top: 9px; padding: 0 3px; }
+.cfoot kbd { font-family: var(--mono); font-size: 8.5px; letter-spacing: .1em; color: var(--faint); }
+
+/* ═══ 8 · Launcher — pinned clear of content, keyed to ⌘K ════════════════ */
+.launch { position: fixed; bottom: 22px; right: 22px; z-index: 20; display: inline-flex; align-items: center; gap: 10px;
+  padding: 10px 15px 10px 13px; border-radius: 999px; border: 1px solid var(--line); background: var(--card);
+  font-family: var(--serif); font-size: 14px; letter-spacing: -.01em; color: var(--ink-soft);
+  box-shadow: 0 1px 0 rgba(0,0,0,.4), 0 20px 46px -24px rgba(0,0,0,.85), inset 0 1px 0 rgba(236,231,221,.04);
+  transition: all .18s var(--ease); }
+.launch:hover { color: var(--ink); border-color: rgba(167,139,250,.5); transform: translateY(-1px); box-shadow: 0 1px 0 rgba(0,0,0,.4), 0 24px 52px -22px rgba(0,0,0,.85), 0 0 0 4px var(--vio-bg); }
+.launch .spark { color: var(--vio); }
+.launch kbd { font-family: var(--mono); font-size: 9px; letter-spacing: .1em; color: var(--faint); border: 1px solid var(--line); border-radius: 5px; padding: 2px 5px; }
+.launch .badge { width: 5px; height: 5px; border-radius: 50%; background: var(--gold); box-shadow: 0 0 0 3px var(--gold-bg); }
+.launch.hidden { opacity: 0; transform: translateY(8px) scale(.96); pointer-events: none; }
+
+/* ═══ 9 · Compare scene — the three answer-rendering directions ═══════════ */
+.compare { position: fixed; inset: 0; z-index: 40; background: var(--paper); overflow-y: auto; padding: 34px 40px 60px; display: none; }
+body.cmp .compare { display: block; }
+.cmp-h { max-width: 1180px; margin: 0 auto 26px; }
+.cmp-h h2 { font-family: var(--serif); font-weight: 400; font-size: 27px; letter-spacing: -.02em; }
+.cmp-h p { color: var(--muted); font-size: 13px; max-width: 62ch; margin-top: 8px; }
+.cmp-grid { max-width: 1180px; margin: 0 auto; display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; align-items: start; }
+.cmp-col > .hd { margin-bottom: 11px; }
+.cmp-col .hd .nm { font-family: var(--serif); font-size: 16px; }
+.cmp-col .hd .nm b { color: var(--vio); font-weight: 400; }
+.cmp-col .hd .why { font-size: 11.5px; color: var(--faint); margin-top: 5px; line-height: 1.45; }
+.cmp-card { border: 1px solid var(--line); border-radius: 14px; background: linear-gradient(to bottom, var(--paper-2), var(--paper) 30%); padding: 18px; }
+
+/* Direction C — editorial: no cards at all, figures set inline in the serif flow. */
+.cflow { font-family: var(--serif); font-size: 15px; line-height: 1.62; color: var(--ink-soft); }
+.cflow .big { font-size: 30px; letter-spacing: -.03em; color: var(--gold); font-variant-numeric: tabular-nums; }
+.cflow strong { color: var(--ink); font-weight: 500; }
+/* Standalone — `.cflow .fn` would demand a descendant, and the footnote carries
+   both classes on the same element. */
+.fn { display: block; margin-top: 18px; padding-top: 13px; border-top: 1px solid var(--line-soft); font-family: var(--mono); font-style: normal; font-size: 9px; letter-spacing: .11em; text-transform: uppercase; color: var(--faint); line-height: 1.6; }
+.cnames { margin-top: 16px; display: flex; flex-direction: column; gap: 11px; }
+.cname { display: flex; align-items: baseline; gap: 10px; font-family: var(--serif); font-size: 14px; color: var(--ink-soft); }
+.cname .d { flex: 1; border-bottom: 1px dotted rgba(236,231,221,.2); position: relative; top: -3px; }
+.cname .a { font-family: var(--mono); font-size: 12px; color: var(--gold); font-variant-numeric: tabular-nums; }
+
+/* ═══ 10 · Scene rail ═════════════════════════════════════════════════════ */
+.rail { position: fixed; bottom: 14px; left: 14px; z-index: 60; display: flex; align-items: center; gap: 5px;
+  padding: 6px; border-radius: 12px; border: 1px solid var(--line); background: rgba(22,19,16,.94);
+  backdrop-filter: blur(10px); box-shadow: 0 14px 34px -20px rgba(0,0,0,.9); }
+.rail b { font-family: var(--mono); font-size: 8px; letter-spacing: .15em; text-transform: uppercase; color: var(--faint); padding: 0 8px 0 6px; font-weight: 400; }
+.rail button { font-family: var(--mono); font-size: 9.5px; letter-spacing: .09em; text-transform: uppercase; color: var(--muted);
+  padding: 7px 11px; border-radius: 8px; transition: all .13s; }
+.rail button:hover { color: var(--ink); background: var(--card-2); }
+.rail button.on { color: var(--vio); background: var(--vio-bg); }
+.rail .sep { width: 1px; height: 18px; background: var(--line); margin: 0 4px; }
+
+/* Orchestrated answer entrance — ONE composed reveal, not scattered micro-fx. */
+.in { animation: rise .42s var(--ease) both; }
+.in-1 { animation-delay: .05s; } .in-2 { animation-delay: .13s; } .in-3 { animation-delay: .21s; }
+.in-4 { animation-delay: .29s; } .in-5 { animation-delay: .37s; } .in-6 { animation-delay: .45s; }
+
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+</head>
+<body class="docked dim">
+
+<!-- ─── Backdrop: the dashboard the panel docks beside (inert scenery) ───── -->
+<div class="app">
+  <aside class="nav">
+    <div class="crest">
+      <div class="mark">Λ</div>
+      <div><b>Lambda Phi Epsilon</b><span>Chapter</span></div>
+    </div>
+    <div class="nav-sec">
+      <div class="k">Overview</div>
+      <a href="#" class="on"><i class="dot"></i>Dashboard</a>
+      <a href="#"><i class="dot"></i>Timeline</a>
+    </div>
+    <div class="nav-sec">
+      <div class="k">Members</div>
+      <a href="#"><i class="dot"></i>Brothers</a>
+      <a href="#"><i class="dot"></i>Tasks</a>
+      <a href="#"><i class="dot"></i>Meetings</a>
+    </div>
+    <div class="nav-sec">
+      <div class="k">Operations</div>
+      <a href="#"><i class="dot"></i>Docs</a>
+      <a href="#"><i class="dot"></i>Instagram</a>
+      <a href="#"><i class="dot"></i>Treasury</a>
+    </div>
+  </aside>
+  <main class="page">
+    <div class="page-in">
+      <div class="k">Wednesday, July 22, 2026 · Week 37</div>
+      <h1 class="hello">Good afternoon, <em>Rob</em>.</h1>
+      <div class="tiles">
+        <div class="tile"><div class="k">Attendance</div><div class="v num">85.2%</div><div class="n">2 below 80%</div></div>
+        <div class="tile"><div class="k">Dues outstanding</div><div class="v num">$125</div><div class="n">2 brothers owe</div></div>
+        <div class="tile"><div class="k">Chapter GPA</div><div class="v num">3.42</div><div class="n">1 below 3.0</div></div>
+      </div>
+      <div class="card-b">
+        <h3>Needs attention</h3>
+        <div class="row-b"><span class="flag od">Overdue</span><div><div>Spring Roster Update</div><div class="sub">Due May 25 · Unassigned · 58 days late</div></div></div>
+        <div class="row-b"><span class="flag od">Overdue</span><div><div>Submit IFC chapter report</div><div class="sub">Due Jun 22 · President · 30 days late</div></div></div>
+        <div class="row-b"><span class="flag du">Dues</span><div><div>$125 outstanding across 2 brothers</div><div class="sub">Arijit $118 · Nathaniel $7</div></div></div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- ─── Launcher ─────────────────────────────────────────────────────────── -->
+<button class="launch hidden" id="launch">
+  <svg class="spark" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6L12 3z"/><path d="M19 14l.8 2.2L22 17l-2.2.8L19 20l-.8-2.2L16 17l2.2-.8L19 14z"/></svg>
+  <span>Ask Chapt</span>
+  <i class="badge" title="New this week"></i>
+  <kbd>⌘K</kbd>
+</button>
+
+<!-- ─── The panel ────────────────────────────────────────────────────────── -->
+<div class="panel" id="panel">
+  <header class="ph">
+    <div class="id">
+      <div class="seal">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6L12 3z"/><path d="M19 14l.8 2.2L22 17l-2.2.8L19 20l-.8-2.2L16 17l2.2-.8L19 14z"/></svg>
+      </div>
+      <div>
+        <div class="ttl">Ask Chapt</div>
+        <!-- Scope, not storage: what it can see is the useful fact. -->
+        <div class="scope">Lambda Phi Epsilon · <b>Summer '26</b> · 16 members</div>
+      </div>
+    </div>
+    <div class="tools">
+      <button class="ic" id="threadsBtn" title="Threads">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8v4l3 2"/><circle cx="12" cy="12" r="9"/></svg>
+      </button>
+      <button class="ic" id="closeBtn" title="Close">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M6 6l12 12M6 18L18 6"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <div class="pbody">
+    <div class="pscroll" id="scroll"></div>
+  </div>
+
+  <form class="comp" onsubmit="return false">
+    <div class="cwrap">
+      <span class="sp"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6L12 3z"/></svg></span>
+      <textarea rows="1" placeholder="Ask the chapter…"></textarea>
+      <button class="send" title="Send"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
+    </div>
+    <div class="cfoot"><kbd>⏎ SEND · ⇧⏎ NEW LINE</kbd><kbd>ESC TO CLOSE</kbd></div>
+  </form>
+</div>
+
+<!-- ─── Compare scene ───────────────────────────────────────────────────── -->
+<div class="compare" id="compare"></div>
+
+<!-- ─── Scene rail ──────────────────────────────────────────────────────── -->
+<nav class="rail">
+  <b>Scene</b>
+  <button data-go="closed">0 Closed</button>
+  <button data-go="empty">1 Briefing</button>
+  <button data-go="think">2 Thinking</button>
+  <button data-go="answer" class="on">3 Answer</button>
+  <button data-go="writ">4 Proposal</button>
+  <button data-go="threads">5 Threads</button>
+  <span class="sep"></span>
+  <button data-go="compare">Compare</button>
+</nav>
+
+<script>
+/* ══════════════════════════════════════════════════════════════════════════
+   Content. Every figure here came out of the seeded lpe dev database on
+   2026-07-22 — nothing is invented. Keeping it in one object makes it obvious
+   which parts of the design are data-driven and which are chrome.
+   ══════════════════════════════════════════════════════════════════════════ */
+const DATA = {
+  dues: {
+    total: 125, settled: 14, of: 16,
+    people: [
+      { n: "Arijit Das",         i: "AD", c: "#8b6f9e", r: "VP External",  a: 118 },
+      { n: "Nathaniel Baccaray", i: "NB", c: "#6f8b9e", r: "Stroll · Rush", a: 7 },
+    ],
+  },
+  trail: [
+    { what: "reviewed the roster",  got: "16 records" },
+    { what: "read the dues ledger", got: "2 outstanding" },
+  ],
+};
+
+const svg = {
+  chev: '<svg class="chev" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>',
+  go:   '<svg class="go" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h13M12 6l6 6-6 6"/></svg>',
+  cv:   '<svg class="cv" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>',
+  tick: '<svg class="tick" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg>',
+};
+
+/* ── Blocks ─────────────────────────────────────────────────────────────── */
+const figureBlock = () => `
+  <div class="figure in in-2">
+    <div class="big gold num">$125</div>
+    <div class="side">
+      <div class="v num">14 <span style="color:var(--faint)">of</span> 16</div>
+      <div class="k">Settled</div>
+    </div>
+  </div>
+  <div class="meter in in-2"><i style="width:87.5%"></i></div>
+  <div class="meter-k in in-2"><span class="k">Collected $1,875</span><span class="k">$125 open</span></div>`;
+
+const rollBlock = () => `
+  <div class="roll in in-3">
+    ${DATA.dues.people.map(p => `
+      <button class="rrow">
+        <span class="av" style="background:${p.c}">${p.i}</span>
+        <span><span class="nm">${p.n}</span><span class="rl" style="display:block">${p.r}</span></span>
+        <span class="amt num">$${p.a}</span>
+        ${svg.chev}
+      </button>`).join("")}
+  </div>`;
+
+const trailBlock = () => `
+  <details class="trail in in-4">
+    <summary><span class="arc"><i></i><i></i><i></i></span><span>Consulted 2 records · 0.9s</span>${svg.cv}</summary>
+    <div class="tbody">
+      ${DATA.trail.map(t => `<div class="tline"><span class="what">${t.what}</span><span class="got">${t.got}</span></div>`).join("")}
+    </div>
+  </details>`;
+
+const railBlock = () => `
+  <div class="rail-a in in-5">
+    <button class="act pri">Record a payment</button>
+    <button class="act">Open Treasury${svg.go}</button>
+    <button class="act">Nudge both</button>
+  </div>`;
+
+const fupBlock = () => `
+  <div class="fups in in-6">
+    <div class="sec-k"><span class="k">Keep pulling</span></div>
+    <button class="fup"><span class="pl">→</span>Has Arijit paid anything this term?</button>
+    <button class="fup"><span class="pl">→</span>What did we spend on Events this month?</button>
+    <button class="fup"><span class="pl">→</span>Who's closest to falling under 80% attendance?</button>
+  </div>`;
+
+/* ── Scenes ─────────────────────────────────────────────────────────────── */
+const SCENES = {};
+
+/* 1 · Briefing. The empty state is generated from live chapter state, so there
+      is a reason to open the panel even with no question in mind. */
+SCENES.empty = () => `
+ <div class="ewrap">
+  <p class="lede in in-1">Ask anything about <em>the chapter</em>.</p>
+  <p class="blurb in in-1">Members, dues, the ledger, this week's agenda — Chapt reads the chapter's own records and answers from them. It can draft actions for you to ratify.</p>
+
+  <div class="sec-k in in-2"><span class="k">On the chapter's mind</span></div>
+  <div class="brief">
+    <button class="bcard in in-2"><span class="fig gold num">$125</span><span class="txt"><span class="q">Who still owes dues?</span><span class="ctx">2 brothers · 14 of 16 settled</span></span>${svg.go}</button>
+    <button class="bcard in in-3"><span class="fig rose num">2</span><span class="txt"><span class="q">What's slipping?</span><span class="ctx">Tasks overdue · oldest 58 days</span></span>${svg.go}</button>
+    <button class="bcard in in-4"><span class="fig vio num">34</span><span class="txt"><span class="q">Are we ready for Fall Rush?</span><span class="ctx">Days until Rush Info Night · Aug 25</span></span>${svg.go}</button>
+  </div>
+
+  <div class="sink in in-5">
+    <div class="sec-k"><span class="k">Or ask about</span></div>
+    <div class="pills">
+      <button class="pill">Treasury balance</button>
+      <button class="pill">Attendance by member</button>
+      <button class="pill">This week's agenda</button>
+      <button class="pill">Service hours</button>
+      <button class="pill">Add a deadline</button>
+    </div>
+  </div>
+ </div>`;
+
+/* 2 · Thinking. Names the phase, and shows the consult as it happens. */
+SCENES.think = () => `
+  <div class="stream">
+    <div class="ask">How are we doing on dues?</div>
+    <div>
+      <div class="think"><span class="dots"><i></i><i></i><i></i></span><span class="lbl">Deciding what to check…</span></div>
+      <div class="consult"><i class="orb"></i><span>Now reading the dues ledger…</span></div>
+    </div>
+  </div>`;
+
+/* 3 · Answer. One line of counsel, then the evidence — composed, not retyped. */
+SCENES.answer = () => `
+  <div class="stream">
+    <div class="ask">How are we doing on dues?</div>
+    <div>
+      <p class="counsel in in-1">Nearly settled — and <em>one brother is almost all of it</em>.</p>
+      ${figureBlock()}
+      ${rollBlock()}
+      ${trailBlock()}
+      ${railBlock()}
+      ${fupBlock()}
+    </div>
+  </div>`;
+
+/* 4 · Proposal. The write the member ratifies, and what it leaves behind. */
+SCENES.writ = () => `
+  <div class="stream">
+    <div class="ask">Nathaniel paid his $7 in cash today — log it.</div>
+    <div>
+      <p class="counsel in in-1">Drafted. Ratify it and the ledger closes at <em>$118 outstanding</em>.</p>
+      <div class="writ in in-2">
+        <div class="wh"><span class="chip">Proposal</span><span class="what">Record a dues payment</span></div>
+        <div class="wb">
+          <div class="wrow"><span class="wk">Brother</span><span class="wv">Nathaniel Baccaray</span></div>
+          <div class="wrow"><span class="wk">Amount</span><span class="wv em num">$7.00</span></div>
+          <div class="wrow"><span class="wk">Method</span><span class="wv">Cash</span></div>
+          <div class="wrow"><span class="wk">Date</span><span class="wv num">2026-07-22</span></div>
+          <div class="wacts">
+            <button class="ratify" id="ratifyBtn">Ratify</button>
+            <button class="decline">Decline</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="sec-k in in-4" style="margin-top:26px"><span class="k">Already ratified today</span></div>
+      <div class="writ in in-4" style="border-color:var(--line)">
+        <div class="wh" style="background:transparent"><span class="chip" style="color:var(--muted);border-color:var(--line)">Proposal</span><span class="what" style="color:var(--muted)">Add deadline · Fall Rush budget draft</span></div>
+        <div class="settled">${svg.tick}<span class="txt">Ratified — filed to Tasks.</span><span class="stamp">2:41 PM · Rob S.</span></div>
+      </div>
+    </div>
+  </div>`;
+
+/* 5 · Threads. History you can return to, replacing the destructive Clear. */
+SCENES.threads = () => `
+  <div class="threads">
+    <div class="sec-k"><span class="k">Today</span></div>
+    <div class="tgroup">
+      <button class="thread"><span><span class="q">How are we doing on dues?</span><span class="m">$125 · 2 brothers</span></span><span class="when">2:44 PM</span></button>
+      <button class="thread"><span><span class="q">Nathaniel paid his $7 in cash today — log it.</span><span class="m">Ratified</span></span><span class="when">2:41 PM</span></button>
+    </div>
+    <div class="sec-k"><span class="k">Yesterday</span></div>
+    <div class="tgroup">
+      <button class="thread"><span><span class="q">What did we spend on Events this term?</span><span class="m">$2,900 · 18 entries</span></span><span class="when">6:12 PM</span></button>
+      <button class="thread"><span><span class="q">Who's below 80% attendance?</span><span class="m">2 members</span></span><span class="when">11:30 AM</span></button>
+    </div>
+    <div class="sec-k"><span class="k">Last week</span></div>
+    <div class="tgroup">
+      <button class="thread"><span><span class="q">What's our treasury balance?</span><span class="m">$7,992</span></span><span class="when">Jul 15</span></button>
+      <button class="thread"><span><span class="q">Add a deadline for the IFC report</span><span class="m">Declined</span></span><span class="when">Jul 14</span></button>
+    </div>
+  </div>`;
+
+/* 6 · Compare — the actual design fork: how does an answer get rendered? */
+function renderCompare() {
+  document.getElementById("compare").innerHTML = `
+  <div class="cmp-h">
+    <h2>Three ways to render the same answer</h2>
+    <p>All three read the same two records. The fork is how much structure the panel imposes on what comes back — the current widget imposes none, which is why a ledger question comes out as a paragraph.</p>
+  </div>
+  <div class="cmp-grid">
+
+    <div class="cmp-col">
+      <div class="hd">
+        <div class="nm"><b>A ·</b> Ledger</div>
+        <div class="why">Counsel line, then the evidence as ledger blocks. Numbers get the serif display treatment; people become live rows. Recommended — it looks like the chapter's own books answering.</div>
+      </div>
+      <div class="cmp-card">
+        <p class="counsel">Nearly settled — and <em>one brother is almost all of it</em>.</p>
+        ${figureBlock().replace(/ in in-\d/g, "")}
+        ${rollBlock().replace(/ in in-\d/g, "")}
+        ${trailBlock().replace(/ in in-\d/g, "")}
+      </div>
+    </div>
+
+    <div class="cmp-col">
+      <div class="hd">
+        <div class="nm"><b>B ·</b> Brief</div>
+        <div class="why">Every turn is one filed card — counsel, figures, roll and sources sealed together. The transcript reads as a stack of briefs. More formal; costs vertical room and repeats chrome each turn.</div>
+      </div>
+      <div class="cmp-card" style="padding:0;overflow:hidden">
+        <div style="padding:13px 16px;border-bottom:1px solid var(--line-soft);display:flex;align-items:center;gap:9px">
+          <span class="k" style="color:var(--vio)">Dues · Summer '26</span>
+          <span class="k" style="margin-left:auto">2:44 PM</span>
+        </div>
+        <div style="padding:16px">
+          <p class="counsel" style="font-size:14.5px">Nearly settled — one brother is almost all of it.</p>
+          <div class="split">
+            <div><div class="k">Collected</div><div class="v ok num">$1,875</div></div>
+            <div><div class="k">Outstanding</div><div class="v rose num">$125</div></div>
+          </div>
+          ${rollBlock().replace(/ in in-\d/g, "")}
+        </div>
+        <div style="padding:11px 16px;border-top:1px solid var(--line-soft);background:var(--card)">
+          <span class="k">Roster · Dues ledger · 0.9s</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="cmp-col">
+      <div class="hd">
+        <div class="nm"><b>C ·</b> Editorial</div>
+        <div class="why">No containers at all. The figure is set inline in the serif sentence, names run as a dotted ledger list, sources drop to a footnote. Quietest and most distinctive — but weak once an answer needs a table or a chart.</div>
+      </div>
+      <div class="cmp-card">
+        <p class="cflow">Dues are <span class="big num">$125</span> short of settled — <strong>14 of 16</strong> brothers are square, and the gap is almost entirely one person.</p>
+        <div class="cnames">
+          <div class="cname"><span>Arijit Das</span><i class="d"></i><span class="a num">$118</span></div>
+          <div class="cname"><span>Nathaniel Baccaray</span><i class="d"></i><span class="a num">$7</span></div>
+        </div>
+        <span class="cflow fn" style="display:block">Read from the roster and the dues ledger · 0.9s</span>
+      </div>
+    </div>
+
+  </div>`;
+}
+
+/* ── Wiring ─────────────────────────────────────────────────────────────── */
+const scroll = document.getElementById("scroll");
+const panel  = document.getElementById("panel");
+const launch = document.getElementById("launch");
+let scene = "answer";
+
+function goto(id) {
+  scene = id;
+  document.querySelectorAll(".rail button").forEach(b => b.classList.toggle("on", b.dataset.go === id));
+  document.body.classList.toggle("cmp", id === "compare");
+  if (id === "compare") { renderCompare(); return; }
+
+  const closed = id === "closed";
+  panel.classList.toggle("closed", closed);
+  launch.classList.toggle("hidden", !closed);
+  document.body.classList.toggle("docked", !closed);
+  document.body.classList.toggle("dim", !closed);
+  document.getElementById("threadsBtn").classList.toggle("on", id === "threads");
+
+  if (!closed) {
+    scroll.innerHTML = (SCENES[id] || SCENES.empty)();
+    scroll.scrollTop = 0;
+    // The meter animates from 0 on entry; force a reflow so re-entering a scene replays it.
+    const m = scroll.querySelector(".meter i");
+    if (m) { const w = m.style.width; m.style.width = "0"; void m.offsetWidth; m.style.width = w; }
+    wire();
+  }
+}
+
+function wire() {
+  const r = document.getElementById("ratifyBtn");
+  if (r) r.onclick = () => {
+    const body = r.closest(".wb"), card = r.closest(".writ");
+    body.querySelector(".wacts").remove();
+    body.classList.add("done");
+    const s = document.createElement("div");
+    s.className = "settled";
+    s.innerHTML = `${svg.tick}<span class="txt">Ratified — $7 posted to the ledger.</span><span class="stamp">2:47 PM · Rob S.</span>`;
+    card.appendChild(s);
+    card.previousElementSibling.innerHTML = "Done — the ledger now reads <em>$118 outstanding</em> across one brother.";
+  };
+}
+
+document.querySelectorAll(".rail button").forEach(b => b.onclick = () => goto(b.dataset.go));
+document.getElementById("closeBtn").onclick = () => goto("closed");
+launch.onclick = () => goto("empty");
+document.getElementById("threadsBtn").onclick = () => goto(scene === "threads" ? "answer" : "threads");
+document.addEventListener("keydown", e => {
+  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") { e.preventDefault(); goto(scene === "closed" ? "empty" : "closed"); }
+  if (e.key === "Escape") goto("closed");
+});
+
+window.__mock = { goto, open: () => goto("empty"), close: () => goto("closed") };
+goto("answer");
+</script>
+</body>
+</html>
