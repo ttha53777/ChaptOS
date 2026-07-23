@@ -29,13 +29,18 @@
     · Answers are HYBRID: a serif "verdict" sentence carrying the headline
       number, then tappable result rows, sources, follow-ups, feedback.
     · Streaming has a real STOP control.
-    · A full propose-then-commit PROPOSAL card (Ratify / Decline) with an audit
+    · A full propose-then-commit PROPOSAL card (Approve / Discard) with an audit
       stamp — the human-in-the-loop moment, side effects only after approval.
-    · A dedicated APPROVALS page: the full audit trail — every proposal the
-      chapter has settled, newest first, grouped by day. Each line shows the
-      four-eyes split in the record (who raised it, who signed it off), a
-      ledger summary (ratified / declined / withdrawn), and status filters.
-      Tap any row to reopen the original proposal with its audit stamp.
+    · PERMISSION MODEL: a permission gates BOTH proposing an action and approving
+      it. A holder self-approves (e.g. the VP owns "Manage timeline", so Marcus
+      drafts AND approves a deadline). A non-holder can't commit it at all — the
+      draft is BLOCKED, not routed to someone else (Marcus can't post dues; the
+      AI points him to the Treasurer).
+    · A dedicated APPROVALS page: purely the HISTORY OF APPROVALS — actions that
+      were approved, by whom, under what authority (the required permission),
+      newest first, grouped by day. Not a queue, and not proposals that never
+      landed. A ledger summary + kind filters (Dues / Events / Roster / Timeline);
+      tap any row to reopen the approved action with its stamp.
 
   Driven through 8 SCENES by a director's rail at the bottom. Still fully live:
   in Briefing, type or click a starter and it runs the real thinking → answer
@@ -351,6 +356,13 @@
   .stpill.waiting { color: var(--muted); background: var(--card-2); }
   .stpill.ratified { color: var(--ok); background: var(--ok-bg); }
   .stpill.declined, .stpill.withdrawn { color: var(--faint); background: var(--card-2); }
+  /* Permission chip — the authority an approval was made under (audit log). */
+  .permpill { display: inline-flex; align-items: center; gap: 5px; font-family: var(--mono); font-size: 9px; letter-spacing: .06em;
+    text-transform: uppercase; color: var(--muted); background: var(--card-2); border: 1px solid var(--line); border-radius: 999px; padding: 3px 9px; flex-shrink: 0; white-space: nowrap; }
+  .permpill .lk { display: inline-flex; color: var(--faint); }
+  .permpill .lk svg { width: 11px; height: 11px; }
+  .writ .permline { display: flex; align-items: center; gap: 8px; padding: 10px 15px 0; font-family: var(--mono); font-size: 10px; letter-spacing: .03em; color: var(--faint); }
+  .writ .permline b { color: var(--muted); font-weight: 400; }
   .appr-detail { display: none; padding: 0 14px 14px; }
   .appr.open .appr-detail { display: block; }
   .appr-detail .writ { margin-top: 4px; }
@@ -720,16 +732,22 @@
   }
 
   /* ── Proposal card builder — reused inline and in the inbox. ─────────────── */
+  // Permission-based model: the permission to do an action is the permission to
+  // both propose it AND approve it. A holder self-approves (foot 'actions'); a
+  // non-holder can't commit it at all (foot 'gate' — blocked, not routed).
   function writCard(o) {
-    // o: { tag, what, rows, foot: 'actions'|'gate'|'settled', gate?, settled? }
+    // o: { tag, what, rows, perm?, foot: 'actions'|'gate'|'settled', gate?, settled? }
     let foot = '';
-    if (o.foot === 'actions') foot = `<div class="wfoot"><button class="wbtn primary" data-w="ratify">Ratify</button><button class="wbtn quiet" data-w="decline">Decline</button></div>`;
+    if (o.foot === 'actions') foot = `<div class="wfoot"><button class="wbtn primary" data-w="ratify">Approve</button><button class="wbtn quiet" data-w="decline">Discard</button></div>`;
     if (o.foot === 'gate') foot = `<div class="gate"><span class="lk">${ic.lock}</span><span class="gt">${o.gate}</span></div>`
-      + `<div class="wfoot"><button class="wbtn primary" disabled>Ratify</button><button class="wbtn quiet" data-w="decline">Withdraw</button></div>`;
+      + `<div class="wfoot"><button class="wbtn primary" disabled>Approve</button><button class="wbtn quiet" data-w="decline">Dismiss</button></div>`;
     if (o.foot === 'settled') { const k = o.settled.kind; foot = `<div class="settled ${k}"><span class="tk">${k === 'ratified' ? ic.tick : '—'}</span><span class="txt">${o.settled.txt}</span><span class="stamp">${o.settled.stamp}</span></div>`; }
+    // The gate already spells out the permission, so only caption it otherwise.
+    const permline = (o.perm && o.foot !== 'gate') ? `<div class="permline"><span class="lk">${ic.lock}</span>Requires <b>${o.perm}</b></div>` : '';
     return `<div class="writ" data-writ>
       <div class="wh"><span class="chip-tag">${o.tag || 'Proposal'}</span><span class="what">${o.what}</span></div>
       <div class="wb">${wrows(o.rows)}</div>
+      ${permline}
       ${foot}
     </div>`;
   }
@@ -768,21 +786,24 @@
       bindRows(thread);
     },
     convo: () => {
+      // Permission gate: recording dues needs "Manage dues", which the VP lacks,
+      // so the draft is blocked — not routed. Only the Treasurer can approve it.
       thread.innerHTML =
         USER() + AI(`<p class="verdict">Nearly there — <em>$1,150</em> left across six, three balances are most of it.</p>`)
-        + USER() + AI(`<p class="verdict in in-1">Drafted below — Kofi's $200 in cash. Ratify and his balance clears.</p>`
-            + writCard({ what: 'Record a dues payment', rows: [
+        + USER() + AI(`<p class="verdict in in-1">I drafted it below — but recording a payment isn't yours to approve. That's the <em>Treasurer's</em>.</p>`
+            + writCard({ what: 'Record a dues payment', perm: 'Manage dues', rows: [
                 { k: 'Brother', v: 'Kofi Adjei' }, { k: 'Amount', v: '$200.00', em: 1 }, { k: 'Method', v: 'Cash' }, { k: 'Date', v: '2026-07-23' },
-              ], foot: 'gate', gate: `A dues payment posts to the ledger, so it needs the <b>Treasurer</b>. As VP you can raise it — Ratify sends it to <b>Jordan P.</b> for sign-off.` }));
+              ], foot: 'gate', gate: `Recording a payment requires the <b>Manage dues</b> permission — held by the <b>Treasurer</b>. As VP you don't have it, so this can't post. Ask <b>Jordan P.</b> to record it.` }));
       const bubbles = thread.querySelectorAll('.msg.user');
       bubbles[0].textContent = 'How are we doing on dues?';
       bubbles[1].textContent = 'Kofi just paid his $200 in cash — log it.';
       bindWrit(thread, 'convo');
     },
     proposal: () => {
-      // Happy path: a non-financial deadline Marcus (VP) fully owns → clean Ratify.
-      thread.innerHTML = USER() + AI(`<p class="verdict in in-1">Drafted. Ratify and it lands on the timeline for <em>Fri, Jul 25</em>.</p>`
-        + writCard({ what: 'Add a deadline', rows: [
+      // Happy path: a deadline needs "Manage timeline", which the VP holds — so
+      // Marcus both drafts and approves it himself. No second signer.
+      thread.innerHTML = USER() + AI(`<p class="verdict in in-1">Drafted — and this is yours to approve. Approve and it lands on the timeline for <em>Fri, Jul 25</em>.</p>`
+        + writCard({ what: 'Add a deadline', perm: 'Manage timeline', rows: [
             { k: 'Title', v: 'Send dues reminders' }, { k: 'Owner', v: 'Treasurer' }, { k: 'Due', v: '2026-07-25', em: 1 }, { k: 'Category', v: 'Finance ops' },
           ], foot: 'actions' }));
       thread.querySelector('.msg.user').textContent = 'Add a deadline: dues reminders go out Friday.';
@@ -795,50 +816,52 @@
     },
   };
 
-  /* ── Approvals — the audit trail ─────────────────────────────────────────── */
-  // Every proposal the chapter has settled, newest first, grouped by day. The
-  // four-eyes rule is legible in the record: who raised it, who signed it off.
-  // A financial posting is signed by the Treasurer (Jordan P.); a non-financial
-  // one by an officer other than the raiser. Viewer is Marcus, VP.
+  /* ── Approvals — the approval record ─────────────────────────────────────── */
+  // A permission gates BOTH proposing an action and approving it: only holders
+  // of "Manage dues" can record and approve a dues payment, and so on. This tab
+  // is purely the HISTORY OF APPROVALS — actions that were approved, by whom,
+  // under what authority — not a queue, and not proposals that never landed.
+  // Approvers: Jordan P. (Treasurer) · dues; you/Marcus (VP) · roster + timeline;
+  // Malik S. (Social) · events.
   const HISTORY = [
     { group: 'Today', date: 'Jul 23', items: [
-      { id: 'h1', glyph: ic.coin, t: 'Record $200 dues · Kofi Adjei', raised: 'you', actor: 'Jordan P. (Treasurer)',
-        status: 'ratified', stamp: '6:12 PM', note: 'Ratified — posted to the ledger.',
+      { id: 'h1', glyph: ic.coin, t: 'Record $200 dues · Kofi Adjei', by: 'Jordan P.', role: 'Treasurer', perm: 'Manage dues',
+        cat: 'dues', stamp: '6:12 PM', note: 'Approved — posted to the ledger.',
         what: 'Record a dues payment', rows: [{ k: 'Brother', v: 'Kofi Adjei' }, { k: 'Amount', v: '$200.00', em: 1 }, { k: 'Method', v: 'Cash' }, { k: 'Date', v: '2026-07-23' }] },
-      { id: 'h2', glyph: ic.cal, t: 'Add deadline · Submit IFC chapter report', raised: 'Terrence B. (Secretary)', actor: 'you',
-        status: 'ratified', stamp: '5:40 PM', note: 'Ratified — added to the timeline.',
+      { id: 'h2', glyph: ic.cal, t: 'Add deadline · Submit IFC chapter report', by: 'you', role: 'Vice President', perm: 'Manage timeline',
+        cat: 'timeline', stamp: '5:40 PM', note: 'Approved — added to the timeline.',
         what: 'Add a deadline', rows: [{ k: 'Title', v: 'Submit IFC report' }, { k: 'Owner', v: 'President' }, { k: 'Due', v: '2026-08-25', em: 1 }] },
-      { id: 'h3', glyph: ic.flag, t: 'Add event · Alumni Mixer', raised: 'Malik S. (Social)', actor: 'you',
-        status: 'declined', stamp: '3:18 PM', note: 'Declined — no changes made.',
+      { id: 'h3', glyph: ic.flag, t: 'Add event · Alumni Mixer', by: 'Malik S.', role: 'Social', perm: 'Manage events',
+        cat: 'events', stamp: '3:18 PM', note: 'Approved — added to the calendar.',
         what: 'Add a calendar event', rows: [{ k: 'Title', v: 'Alumni Mixer' }, { k: 'Date', v: '2026-08-09', em: 1 }, { k: 'Location', v: 'The Standard' }] },
     ]},
     { group: 'Yesterday', date: 'Jul 22', items: [
-      { id: 'h4', glyph: ic.coin, t: 'Record $7 dues · Nathaniel B.', raised: 'you', actor: 'Jordan P. (Treasurer)',
-        status: 'ratified', stamp: '2:47 PM', note: 'Ratified — posted to the ledger.',
+      { id: 'h4', glyph: ic.coin, t: 'Record $7 dues · Nathaniel B.', by: 'Jordan P.', role: 'Treasurer', perm: 'Manage dues',
+        cat: 'dues', stamp: '2:47 PM', note: 'Approved — posted to the ledger.',
         what: 'Record a dues payment', rows: [{ k: 'Brother', v: 'Nathaniel B.' }, { k: 'Amount', v: '$7.00', em: 1 }, { k: 'Method', v: 'Venmo' }, { k: 'Date', v: '2026-07-22' }] },
-      { id: 'h5', glyph: ic.users, t: 'Update roster · Devin O. → inactive', raised: 'Terrence B. (Secretary)', actor: 'you',
-        status: 'ratified', stamp: '11:05 AM', note: 'Ratified — roster updated.',
+      { id: 'h5', glyph: ic.users, t: 'Update roster · Devin O. → inactive', by: 'you', role: 'Vice President', perm: 'Manage roster',
+        cat: 'roster', stamp: '11:05 AM', note: 'Approved — roster updated.',
         what: 'Change a member status', rows: [{ k: 'Brother', v: 'Devin O.' }, { k: 'From', v: 'Active' }, { k: 'To', v: 'Inactive', em: 1 }, { k: 'Reason', v: 'Study abroad' }] },
     ]},
     { group: 'Jul 21', date: 'Mon', items: [
-      { id: 'h6', glyph: ic.coin, t: 'Record $150 dues · Andre W.', raised: 'you', actor: 'Jordan P. (Treasurer)',
-        status: 'ratified', stamp: '7:30 PM', note: 'Ratified — posted to the ledger.',
+      { id: 'h6', glyph: ic.coin, t: 'Record $150 dues · Andre W.', by: 'Jordan P.', role: 'Treasurer', perm: 'Manage dues',
+        cat: 'dues', stamp: '7:30 PM', note: 'Approved — posted to the ledger.',
         what: 'Record a dues payment', rows: [{ k: 'Brother', v: 'Andre W.' }, { k: 'Amount', v: '$150.00', em: 1 }, { k: 'Method', v: 'Cash' }, { k: 'Date', v: '2026-07-21' }] },
-      { id: 'h7', glyph: ic.flag, t: 'Add event · Rooftop Kickback', raised: 'Malik S. (Social)', actor: 'you',
-        status: 'declined', stamp: '1:02 PM', note: 'Declined — no changes made.',
+      { id: 'h7', glyph: ic.flag, t: 'Add event · Rooftop Kickback', by: 'Malik S.', role: 'Social', perm: 'Manage events',
+        cat: 'events', stamp: '1:02 PM', note: 'Approved — added to the calendar.',
         what: 'Add a calendar event', rows: [{ k: 'Title', v: 'Rooftop Kickback' }, { k: 'Date', v: '2026-07-26', em: 1 }, { k: 'Location', v: 'The Deck' }] },
     ]},
     { group: 'Jul 19', date: 'Sat', items: [
-      { id: 'h8', glyph: ic.cal, t: 'Add deadline · Chapter dues deadline', raised: 'Jordan P. (Treasurer)', actor: 'you',
-        status: 'ratified', stamp: '4:15 PM', note: 'Ratified — added to the timeline.',
+      { id: 'h8', glyph: ic.cal, t: 'Add deadline · Spring dues due', by: 'you', role: 'Vice President', perm: 'Manage timeline',
+        cat: 'timeline', stamp: '4:15 PM', note: 'Approved — added to the timeline.',
         what: 'Add a deadline', rows: [{ k: 'Title', v: 'Spring dues due' }, { k: 'Owner', v: 'Treasurer' }, { k: 'Due', v: '2026-08-01', em: 1 }] },
-      { id: 'h9', glyph: ic.flag, t: 'Add event · Brotherhood Retreat', raised: 'Malik S. (Social)', actor: 'Malik S. (Social)',
-        status: 'withdrawn', stamp: '10:41 AM', note: 'Withdrawn — no changes made.',
+      { id: 'h9', glyph: ic.flag, t: 'Add event · Brotherhood Retreat', by: 'Malik S.', role: 'Social', perm: 'Manage events',
+        cat: 'events', stamp: '10:41 AM', note: 'Approved — added to the calendar.',
         what: 'Add a calendar event', rows: [{ k: 'Title', v: 'Brotherhood Retreat' }, { k: 'Date', v: '2026-09-13', em: 1 }, { k: 'Location', v: 'Lake Cabin' }] },
     ]},
     { group: 'Jul 17', date: 'Thu', items: [
-      { id: 'h10', glyph: ic.coin, t: 'Record $200 dues · Elijah T.', raised: 'you', actor: 'Jordan P. (Treasurer)',
-        status: 'ratified', stamp: '6:58 PM', note: 'Ratified — posted to the ledger.',
+      { id: 'h10', glyph: ic.coin, t: 'Record $200 dues · Elijah T.', by: 'Jordan P.', role: 'Treasurer', perm: 'Manage dues',
+        cat: 'dues', stamp: '6:58 PM', note: 'Approved — posted to the ledger.',
         what: 'Record a dues payment', rows: [{ k: 'Brother', v: 'Elijah T.' }, { k: 'Amount', v: '$200.00', em: 1 }, { k: 'Method', v: 'Zelle' }, { k: 'Date', v: '2026-07-17' }] },
     ]},
   ];
@@ -846,39 +869,38 @@
   let auditFilter = 'all';
 
   function auditSub(a) {
-    const R = `Raised by <b>${a.raised}</b>`;
-    if (a.status === 'ratified') return `${R} · Ratified by <b>${a.actor}</b>`;
-    if (a.status === 'declined') return `${R} · Declined by <b>${a.actor}</b>`;
-    return `${R} · Withdrawn`;
+    return `Approved by <b>${a.by}</b> · ${a.role} · ${a.stamp}`;
   }
   function auditRow(a) {
     return `<div class="appr" data-appr="${a.id}">
       <button class="appr-row">
         <span class="glyph">${a.glyph}</span>
-        <span class="rb"><span class="t">${a.t}</span><span class="s">${auditSub(a)} · ${a.stamp}</span></span>
-        <span class="stpill ${a.status}">${a.status}</span>
+        <span class="rb"><span class="t">${a.t}</span><span class="s">${auditSub(a)}</span></span>
+        <span class="permpill"><span class="lk">${ic.lock}</span>${a.perm}</span>
       </button>
       <div class="appr-detail"></div>
     </div>`;
   }
 
-  const FILTERS = [['all', 'All'], ['ratified', 'Ratified'], ['declined', 'Declined'], ['withdrawn', 'Withdrawn']];
+  // Filter the approval record by the action's kind (which maps to a permission).
+  const FILTERS = [['all', 'All'], ['dues', 'Dues'], ['events', 'Events'], ['roster', 'Roster'], ['timeline', 'Timeline']];
 
   function renderInbox() {
     const total = ALL_ITEMS.length;
-    const n = s => ALL_ITEMS.filter(i => i.status === s).length;
-    let html = `<div class="inbox-hd"><h3>Approvals</h3><span class="meta">The chapter's audit trail — every proposal, settled.</span></div>`;
+    const byYou = ALL_ITEMS.filter(i => i.by === 'you').length;
+    let html = `<div class="inbox-hd"><h3>Approvals</h3><span class="meta">The approval record — every action approved, and under whose authority.</span></div>`;
     html += `<div class="audit-sum">
-        <div class="st rat"><span class="n">${n('ratified')}</span><span class="k">Ratified</span></div>
-        <div class="st"><span class="n">${n('declined')}</span><span class="k">Declined</span></div>
-        <div class="st"><span class="n">${n('withdrawn')}</span><span class="k">Withdrawn</span></div>
+        <div class="st"><span class="n">${total}</span><span class="k">Approvals · Spring '26</span></div>
+        <div class="st"><span class="n">${byYou}</span><span class="k">Approved by you</span></div>
       </div>`;
-    html += `<div class="audit-filters">${FILTERS.map(([k, l]) =>
-        `<button class="fchip ${auditFilter === k ? 'on' : ''}" data-filter="${k}">${l}${k === 'all' ? ` · ${total}` : ''}</button>`).join('')}</div>`;
+    html += `<div class="audit-filters">${FILTERS.map(([k, l]) => {
+        const c = k === 'all' ? total : ALL_ITEMS.filter(i => i.cat === k).length;
+        return `<button class="fchip ${auditFilter === k ? 'on' : ''}" data-filter="${k}">${l} · ${c}</button>`;
+      }).join('')}</div>`;
 
     let shown = 0;
     HISTORY.forEach(g => {
-      const items = g.items.filter(i => auditFilter === 'all' || i.status === auditFilter);
+      const items = g.items.filter(i => auditFilter === 'all' || i.cat === auditFilter);
       if (!items.length) return;
       shown += items.length;
       html += `<div class="inbox-sec"><div class="lbl">${g.group} <span class="date">${g.date}</span></div>${items.map(auditRow).join('')}</div>`;
@@ -898,12 +920,12 @@
     const detail = el.querySelector('.appr-detail');
     if (!open) { detail.innerHTML = ''; return; }
     inbox.querySelectorAll('.appr.open').forEach(o => { if (o !== el) { o.classList.remove('open'); o.querySelector('.appr-detail').innerHTML = ''; } });
-    detail.innerHTML = writCard({ what: a.what, rows: a.rows, foot: 'settled',
-      settled: { kind: a.status, txt: a.note, stamp: `${a.stamp} · ${a.actor}` } });
+    detail.innerHTML = writCard({ what: a.what, rows: a.rows, perm: a.perm, foot: 'settled',
+      settled: { kind: 'ratified', txt: a.note, stamp: `${a.stamp} · ${a.by} (${a.role})` } });
     setTimeout(() => el.scrollIntoView({ block: 'nearest' }), 20);
   }
 
-  /* ── Ratify / decline plumbing (inline conversation proposals) ───────────── */
+  /* ── Approve / discard plumbing (inline conversation proposals) ──────────── */
   function bindWrit(root, ctx) {
     const card = root.querySelector('[data-writ]');
     if (!card) return;
@@ -914,22 +936,24 @@
   }
 
   function settle(card, kind, ctx) {
-    const withdraw = card.querySelector('.gate') && kind === 'declined';
+    // A blocked draft (permission gate) can't be approved — only dismissed.
+    const blocked = !!card.querySelector('.gate');
     card.querySelector('.wfoot')?.remove();
+    card.querySelector('.permline')?.remove();
     card.querySelector('.gate')?.remove();
     const stamp = '6:12 PM · Marcus S.';
     const txt = kind === 'ratified'
-      ? (ctx === 'proposal' ? 'Ratified — added to the timeline.' : 'Ratified — sent to the Treasurer for sign-off.')
-      : (withdraw ? 'Withdrawn — sign-off request cancelled.' : 'Declined — no changes made.');
+      ? 'Approved — added to the timeline.'
+      : (blocked ? 'Dismissed — you can’t approve this.' : 'Discarded — no changes made.');
     const s = document.createElement('div');
-    s.className = 'settled ' + (kind === 'ratified' ? 'ratified' : (withdraw ? 'withdrawn' : 'declined'));
+    s.className = 'settled ' + (kind === 'ratified' ? 'ratified' : 'declined');
     s.innerHTML = `<span class="tk">${kind === 'ratified' ? ic.tick : '—'}</span><span class="txt">${txt}</span><span class="stamp">${stamp}</span>`;
     card.appendChild(s);
 
     // Rewrite the verdict line when settling inline in a proposal.
     if (ctx === 'proposal') {
       const v = card.closest('.msg.ai')?.querySelector('.verdict');
-      if (v) v.innerHTML = kind === 'ratified' ? `Done — it's on the timeline for <em>Fri, Jul 25</em>.` : `Declined — nothing was added.`;
+      if (v) v.innerHTML = kind === 'ratified' ? `Done — it's on the timeline for <em>Fri, Jul 25</em>.` : `Discarded — nothing was added.`;
     }
   }
 
@@ -1063,14 +1087,15 @@
     }, 180);
   }
 
-  // Follow-up "log a payment" → the gated financial proposal (four-eyes story).
+  // Follow-up "log a payment" → the blocked draft (permission-gate story): the
+  // VP can't approve a dues posting, so the AI drafts it but can't commit it.
   function askPayment() {
     clearLive();
     goLive();
-    thread.innerHTML = USER('send-in') + AI(`<p class="verdict in in-1">Drafted below — Kofi's $200 in cash. As VP you can raise it; the <em>Treasurer</em> signs off.</p>`
-      + writCard({ what: 'Record a dues payment', rows: [
+    thread.innerHTML = USER('send-in') + AI(`<p class="verdict in in-1">I drafted it below — but recording a payment isn't yours to approve. That's the <em>Treasurer's</em>.</p>`
+      + writCard({ what: 'Record a dues payment', perm: 'Manage dues', rows: [
           { k: 'Brother', v: 'Kofi Adjei' }, { k: 'Amount', v: '$200.00', em: 1 }, { k: 'Method', v: 'Cash' }, { k: 'Date', v: '2026-07-23' },
-        ], foot: 'gate', gate: `A dues payment posts to the ledger, so it needs the <b>Treasurer</b>. Ratify sends it to <b>Jordan P.</b> for sign-off, and it lands in Approvals.` }));
+        ], foot: 'gate', gate: `Recording a payment requires the <b>Manage dues</b> permission — held by the <b>Treasurer</b>. As VP you don't have it, so this can't post. Ask <b>Jordan P.</b> to record it.` }));
     thread.querySelector('.msg.user').textContent = "Kofi just paid his $200 in cash — log it.";
     bindWrit(thread, 'convo');
   }
