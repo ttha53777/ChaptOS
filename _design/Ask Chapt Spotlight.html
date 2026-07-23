@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dusk">
+<!--
+  ChaptOS · Ask the Chapter — "Spotlight" v3
+  ──────────────────────────────────────────
+  One centered ⌘K spotlight over a dimmed app, driven through 6 SCENES by a
+  director's rail at the bottom (structure borrowed from the v3 redesign's scene
+  switcher — none of its UI). Each scene is a real state of the feature:
+
+    1 Closed        · just the app + launcher, spotlight dismissed
+    2 Briefing      · centered welcome + 3 pills along the bottom bar
+    3 Thinking      · question sent (welcome gone), answer composing
+    4 Answer        · a single answer with its sources
+    5 Conversation  · a multi-turn follow-up thread
+    6 No match      · a graceful "I don't have that yet"
+
+  Still fully live: in Briefing, type or click a pill and it runs the real
+  thinking → answer flow. No gradients, one violet accent, Dusk + Ivory (press T).
+  Tokens/fonts mirror the live widget (app/components/chat-ledger.css).
+-->
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ChaptOS — Ask the Chapter · Spotlight v3</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..600;1,9..144,300..600&family=Geist:wght@300..600&family=Geist+Mono:wght@300..500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --serif: "Fraunces", Georgia, serif;
+    --sans:  "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --mono:  "Geist Mono", ui-monospace, Menlo, monospace;
+  }
+  [data-theme="dusk"] {
+    --paper: #0f0d0a; --paper-2: #14120e; --card: #17130f; --card-2: #1c1813;
+    --ink: #ece7dd; --ink-soft: #cbc4b6; --muted: #948c7b; --faint: #6a6253;
+    --line: rgba(236,231,221,.09); --line-soft: rgba(236,231,221,.05); --line-med: rgba(236,231,221,.14);
+    --vio: #a78bfa; --vio-deep: #7c3aed; --vio-bg: rgba(167,139,250,.10); --vio-line: rgba(167,139,250,.30);
+    --ok: #7fb08a; --scrim: rgba(5,4,2,.62);
+    --card-shadow: 0 1px 0 rgba(0,0,0,.5), 0 40px 80px -34px rgba(0,0,0,.9), inset 0 1px 0 rgba(236,231,221,.04);
+    --rail-bg: rgba(20,18,14,.86);
+  }
+  [data-theme="ivory"] {
+    --paper: #f2ede3; --paper-2: #ece6d9; --card: #fbf9f3; --card-2: #f3efe5;
+    --ink: #171410; --ink-soft: #3d382f; --muted: #6f675a; --faint: #9a917f;
+    --line: rgba(23,20,16,.12); --line-soft: rgba(23,20,16,.06); --line-med: rgba(23,20,16,.18);
+    --vio: #6d28d9; --vio-deep: #5b21b6; --vio-bg: rgba(109,40,217,.07); --vio-line: rgba(109,40,217,.24);
+    --ok: #3f7a50; --scrim: rgba(60,52,40,.32);
+    --card-shadow: 0 1px 2px rgba(23,20,16,.06), 0 40px 80px -36px rgba(23,20,16,.42), inset 0 1px 0 rgba(255,255,255,.6);
+    --rail-bg: rgba(251,249,243,.88);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    background: var(--paper); color: var(--ink); font-family: var(--sans); font-size: 14px; line-height: 1.5;
+    -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;
+    font-feature-settings: "cv11","ss01"; font-variant-numeric: tabular-nums; overflow: hidden;
+  }
+  ::selection { background: var(--vio-bg); }
+
+  /* ── Backdrop app (inert scenery) ────────────────────────────────────────── */
+  .app { position: fixed; inset: 0; display: grid; grid-template-columns: 224px 1fr;
+    transition: filter .3s, opacity .3s; }
+  .app.dim { filter: saturate(.8) brightness(.75); }
+  .app-side { border-right: 1px solid var(--line); background: var(--paper-2); padding: 24px 0;
+    display: flex; flex-direction: column; gap: 22px; }
+  .app-side .wm { padding: 0 22px; font-family: var(--serif); font-style: italic; font-weight: 600; font-size: 18px; }
+  .app-side .wm small { display: block; margin-top: 9px; padding-top: 9px; border-top: 1px solid var(--line-soft);
+    font-family: var(--mono); font-style: normal; font-weight: 400; font-size: 9.5px; letter-spacing: .14em;
+    text-transform: uppercase; color: var(--muted); }
+  .app-nav { display: flex; flex-direction: column; gap: 1px; padding: 0 12px; }
+  .app-nav span { padding: 8px 12px; border-radius: 7px; font-family: var(--mono); font-size: 10.5px;
+    letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+  .app-nav span.on { color: var(--ink); background: var(--card-2); }
+  .app-main { padding: 44px 48px; }
+  .app-main h1 { font-family: var(--serif); font-weight: 500; font-size: 30px; letter-spacing: -.02em; }
+  .app-main .sub { color: var(--muted); margin-top: 8px; font-size: 13px; }
+  .app-grid { margin-top: 30px; display: grid; grid-template-columns: repeat(3,1fr); gap: 16px; max-width: 760px; }
+  .app-cell { border: 1px solid var(--line); border-radius: 14px; background: var(--card); height: 120px; padding: 18px; }
+  .app-cell .k { font-family: var(--mono); font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--faint); }
+  .app-cell .v { margin-top: 14px; font-family: var(--serif); font-size: 26px; }
+
+  /* Launcher — only visible in the Closed scene. */
+  .launcher { position: fixed; z-index: 30; bottom: 92px; right: 30px; display: none; align-items: center; gap: 9px;
+    cursor: pointer; font-family: var(--serif); font-size: 14px; letter-spacing: -.01em; color: var(--ink-soft);
+    background: var(--card); border: 1px solid var(--line); border-radius: 999px; padding: 10px 15px 10px 13px;
+    box-shadow: 0 1px 0 rgba(0,0,0,.35), 0 18px 44px -24px rgba(0,0,0,.8); transition: border-color .16s, color .16s, transform .16s; }
+  body[data-scene="closed"] .launcher { display: inline-flex; }
+  .launcher:hover { color: var(--ink); border-color: var(--vio-line); transform: translateY(-1px); }
+  .launcher .spark { color: var(--vio); display: inline-flex; }
+  .launcher .kbd { font-family: var(--mono); font-size: 9px; letter-spacing: .08em; color: var(--faint);
+    border: 1px solid var(--line); border-radius: 5px; padding: 2px 5px; }
+
+  /* ── Overlay + centered spotlight ────────────────────────────────────────── */
+  .overlay { position: fixed; inset: 0; z-index: 40; display: grid; place-items: center; padding: 40px 24px 104px;
+    background: var(--scrim); backdrop-filter: blur(6px) saturate(115%); -webkit-backdrop-filter: blur(6px) saturate(115%); }
+  body[data-scene="closed"] .overlay { display: none; }
+
+  .spot { width: min(680px, 100%); height: 480px; display: flex; flex-direction: column;
+    background: var(--card); border: 1px solid var(--line-med); border-radius: 20px; box-shadow: var(--card-shadow);
+    overflow: hidden; animation: spot-in .26s cubic-bezier(.16,1,.3,1) both; }
+  @keyframes spot-in { from { opacity: 0; transform: translateY(-8px) scale(.985); } to { opacity: 1; transform: none; } }
+
+  .bar { display: none; align-items: center; gap: 10px; padding: 14px 18px; border-bottom: 1px solid var(--line-soft); }
+  .spot.chat .bar { display: flex; }
+  .bar .tick { width: 6px; height: 6px; border-radius: 50%; background: var(--vio); }
+  .bar .title { font-family: var(--serif); font-style: italic; font-weight: 500; font-size: 14px; }
+  .bar .live { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; font-family: var(--mono);
+    font-size: 9px; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); }
+  .bar .live i { width: 5px; height: 5px; border-radius: 50%; background: var(--ok); }
+  .bar .newq { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; background: transparent;
+    border: 1px solid var(--line); border-radius: 7px; padding: 5px 10px; font-family: var(--mono); font-size: 9.5px;
+    letter-spacing: .08em; text-transform: uppercase; color: var(--muted); transition: border-color .15s, color .15s; }
+  .bar .newq:hover { border-color: var(--vio-line); color: var(--ink); }
+
+  .body { flex: 1; min-height: 0; display: flex; }
+  .welcome { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    text-align: center; padding: 24px 32px; gap: 12px; }
+  .spot.chat .welcome { display: none; }
+  .welcome h2 { font-family: var(--serif); font-weight: 400; font-size: 25px; letter-spacing: -.02em; line-height: 1.2; }
+  .welcome h2 em { font-style: italic; color: var(--vio); }
+  .welcome p { color: var(--muted); font-size: 13px; max-width: 34ch; }
+
+  .thread { display: none; flex: 1; min-height: 0; flex-direction: column; gap: 16px; overflow-y: auto; padding: 20px; }
+  .spot.chat .thread { display: flex; }
+  .thread::-webkit-scrollbar { width: 7px; } .thread::-webkit-scrollbar-thumb { background: var(--line); border-radius: 4px; }
+
+  .msg.user { align-self: flex-end; max-width: 84%; background: var(--vio-bg); border: 1px solid var(--vio-line);
+    color: var(--ink); border-radius: 14px 14px 4px 14px; padding: 9px 13px; font-size: 13.5px; }
+  .msg.ai .who { font-family: var(--mono); font-size: 9px; letter-spacing: .12em; text-transform: uppercase; color: var(--vio);
+    margin-bottom: 9px; display: inline-flex; align-items: center; gap: 7px; }
+  .msg.ai .who i { width: 5px; height: 5px; border-radius: 50%; background: var(--vio); display: inline-block; }
+  .msg.ai .prose { font-family: var(--serif); font-size: 16.5px; line-height: 1.6; letter-spacing: -.005em; color: var(--ink); }
+  .msg.ai .prose strong { font-weight: 600; } .msg.ai .prose p + p { margin-top: 12px; }
+  .sources { margin-top: 14px; display: flex; flex-wrap: wrap; align-items: center; gap: 7px; }
+  .sources .lbl { font-family: var(--mono); font-size: 9px; letter-spacing: .12em; text-transform: uppercase; color: var(--faint); }
+  .src { display: inline-flex; align-items: center; gap: 6px; font-family: var(--mono); font-size: 10px; color: var(--ink-soft);
+    border: 1px solid var(--line); border-radius: 7px; padding: 3px 8px; cursor: pointer; transition: border-color .14s, color .14s; }
+  .src:hover { border-color: var(--vio-line); color: var(--ink); }
+  .src i { width: 4px; height: 4px; border-radius: 50%; background: var(--vio); display: inline-block; }
+  .note { font-family: var(--serif); font-size: 16px; line-height: 1.6; color: var(--ink-soft); }
+  .note em { font-style: italic; color: var(--vio); }
+
+  .dots { display: inline-flex; gap: 5px; align-items: center; height: 16px; }
+  .dots span { width: 6px; height: 6px; border-radius: 50%; background: var(--muted); animation: blink 1.2s ease-in-out infinite; }
+  .dots span:nth-child(2) { animation-delay: .18s; } .dots span:nth-child(3) { animation-delay: .36s; }
+  @keyframes blink { 0%,80%,100% { opacity: .25; } 40% { opacity: 1; } }
+
+  .dock { padding: 0 16px 16px; }
+  .pills { display: flex; flex-wrap: wrap; justify-content: center; gap: 7px; padding: 0 2px 10px; }
+  .spot.chat .pills { display: none; }
+  .pill { display: inline-flex; align-items: center; gap: 7px; cursor: pointer; background: transparent;
+    border: 1px solid var(--line); border-radius: 999px; padding: 6px 13px; font-family: var(--sans); font-size: 12.5px;
+    color: var(--ink-soft); transition: border-color .14s, color .14s, background .14s; }
+  .pill:hover { border-color: var(--vio-line); color: var(--ink); background: var(--vio-bg); }
+  .pill i { color: var(--muted); display: inline-flex; transition: color .14s; } .pill:hover i { color: var(--vio); }
+
+  .composer { display: flex; align-items: flex-end; gap: 8px; border: 1px solid var(--line-med); border-radius: 14px;
+    background: var(--paper-2); padding: 7px 7px 7px 15px; transition: border-color .18s, box-shadow .18s; }
+  .composer:focus-within { border-color: var(--vio-line); box-shadow: 0 0 0 3px var(--vio-bg); }
+  .composer textarea { flex: 1; min-width: 0; border: 0; outline: none; resize: none; background: transparent; color: var(--ink);
+    font-family: var(--sans); font-size: 14.5px; line-height: 1.5; padding: 7px 0; max-height: 120px; caret-color: var(--vio); }
+  .composer textarea::placeholder { color: var(--faint); }
+  .send { flex: 0 0 auto; width: 36px; height: 36px; border-radius: 10px; border: 0; cursor: pointer; background: var(--vio-deep);
+    color: #fff; display: inline-flex; align-items: center; justify-content: center; transition: background .16s, transform .12s; }
+  .send:hover:not(:disabled) { background: color-mix(in srgb, var(--vio-deep) 82%, #000); }
+  .send:active:not(:disabled) { transform: scale(.93); }
+
+  /* ── Director's rail — the 6-scene switcher ──────────────────────────────── */
+  .rail { position: fixed; z-index: 60; bottom: 22px; left: 50%; transform: translateX(-50%);
+    display: flex; align-items: center; gap: 6px; padding: 6px; border: 1px solid var(--line-med); border-radius: 999px;
+    background: var(--rail-bg); backdrop-filter: blur(14px) saturate(140%); -webkit-backdrop-filter: blur(14px) saturate(140%);
+    box-shadow: 0 1px 0 rgba(0,0,0,.3), 0 22px 50px -24px rgba(0,0,0,.7); }
+  .rail .lead { font-family: var(--mono); font-size: 9px; letter-spacing: .16em; text-transform: uppercase; color: var(--faint);
+    padding: 0 8px 0 10px; }
+  .rail button { cursor: pointer; background: transparent; border: 0; border-radius: 999px; padding: 7px 13px;
+    font-family: var(--mono); font-size: 10.5px; letter-spacing: .06em; color: var(--muted);
+    transition: color .15s, background .15s; white-space: nowrap; }
+  .rail button:hover { color: var(--ink); }
+  .rail button.on { color: var(--ink); background: var(--card-2); box-shadow: inset 0 0 0 1px var(--line); }
+  .rail button.on .num { color: var(--vio); }
+  .rail .num { font-size: 9px; margin-right: 5px; color: var(--faint); }
+  .rail .sep { width: 1px; height: 20px; background: var(--line); margin: 0 2px; }
+  .rail .theme { width: 30px; height: 30px; padding: 0; display: grid; place-items: center; color: var(--muted); }
+  .rail .theme:hover { color: var(--ink); }
+
+  @media (max-width: 720px) { .app { grid-template-columns: 1fr; } .app-side { display: none; }
+    .rail { flex-wrap: wrap; max-width: 94vw; justify-content: center; } .rail .lead, .rail .sep { display: none; } }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+</head>
+<body data-scene="briefing">
+
+  <!-- Backdrop app -->
+  <div class="app" id="app">
+    <aside class="app-side">
+      <div class="wm">ChaptOS<small>Iota Chapter · Spring '26</small></div>
+      <nav class="app-nav">
+        <span class="on">Dashboard</span><span>Timeline</span><span>Treasury</span>
+        <span>Roster</span><span>Events</span><span>Docs</span>
+      </nav>
+    </aside>
+    <main class="app-main">
+      <h1>Good evening, Marcus.</h1>
+      <div class="sub">Here's where the chapter stands tonight.</div>
+      <div class="app-grid">
+        <div class="app-cell"><div class="k">Treasury</div><div class="v">$4,820</div></div>
+        <div class="app-cell"><div class="k">Dues Owed</div><div class="v">$1,150</div></div>
+        <div class="app-cell"><div class="k">Attendance</div><div class="v">86%</div></div>
+        <div class="app-cell"><div class="k">Members</div><div class="v">34</div></div>
+        <div class="app-cell"><div class="k">Open Tasks</div><div class="v">7</div></div>
+        <div class="app-cell"><div class="k">Next Event</div><div class="v" style="font-size:16px;line-height:1.4">Chapter Mtg</div></div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Launcher (Closed scene) -->
+  <button class="launcher" id="launcher">
+    <span class="spark"><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M12 3l1.5 5L18 9.5 13.5 11 12 16l-1.5-5L6 9.5 10.5 8 12 3z" fill="currentColor"/></svg></span>
+    Ask the Chapter <span class="kbd">⌘K</span>
+  </button>
+
+  <!-- Overlay + spotlight -->
+  <div class="overlay" id="overlay">
+    <div class="spot" id="spot">
+      <div class="bar">
+        <span class="tick"></span><span class="title">Ask the Chapter</span>
+        <button class="newq" id="newq">← New</button><span class="live"><i></i> Live</span>
+      </div>
+      <div class="body">
+        <div class="welcome">
+          <h2>What do you want to <em>know?</em></h2>
+          <p>Ask about dues, attendance, events, tasks, or the treasury.</p>
+        </div>
+        <div class="thread" id="thread"></div>
+      </div>
+      <div class="dock">
+        <div class="pills">
+          <button class="pill" data-q="Who still owes dues this semester?"><i><svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></i>Outstanding dues</button>
+          <button class="pill" data-q="Who missed the last two chapter meetings?"><i><svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></i>Attendance gaps</button>
+          <button class="pill" data-q="Summarize what's happening this week."><i><svg width="13" height="13" viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="17" rx="2" stroke="currentColor" stroke-width="1.8"/><path d="M3 9h18M8 2v4M16 2v4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></i>This week</button>
+        </div>
+        <div class="composer">
+          <textarea id="input" rows="1" placeholder="Ask the chapter anything…"></textarea>
+          <button class="send" id="send" aria-label="Ask"><svg width="17" height="17" viewBox="0 0 24 24" fill="none"><path d="M12 19V5M12 5l-6 6M12 5l6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Director's rail -->
+  <nav class="rail" id="rail">
+    <span class="lead">Scene</span>
+    <button data-go="closed"><span class="num">1</span>Closed</button>
+    <button data-go="briefing" class="on"><span class="num">2</span>Briefing</button>
+    <button data-go="thinking"><span class="num">3</span>Thinking</button>
+    <button data-go="answer"><span class="num">4</span>Answer</button>
+    <button data-go="convo"><span class="num">5</span>Conversation</button>
+    <button data-go="nomatch"><span class="num">6</span>No match</button>
+    <span class="sep"></span>
+    <button class="theme" id="themeBtn" aria-label="Toggle theme">
+      <svg id="themeIcon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.4A9 9 0 1111.6 3a7 7 0 009.4 9.4z"/></svg>
+    </button>
+  </nav>
+
+<script>
+  const app = document.getElementById('app');
+  const spot = document.getElementById('spot');
+  const thread = document.getElementById('thread');
+  const input = document.getElementById('input');
+
+  const AI = (inner) => `<div class="msg ai"><div class="who"><i></i> Ask the Chapter</div>${inner}</div>`;
+  const USER = (q) => `<div class="msg user">${q}</div>`;
+  const SRC = (arr) => `<div class="sources"><span class="lbl">Sources</span>${arr.map(x=>`<span class="src"><i></i>${x}</span>`).join('')}</div>`;
+
+  // Canned answers for the live flow (Briefing → Thinking → Answer)
+  function answerFor(q) {
+    const s = q.toLowerCase();
+    if (s.includes('due')) return { html:`<div class="prose"><p><strong>Six members</strong> still owe dues for Spring '26 — <strong>$1,150</strong> outstanding.</p><p>Largest balances: <strong>Andre W.</strong> ($250), <strong>Terrence B.</strong> ($225), <strong>Kofi A.</strong> ($200). Three have a payment plan on file.</p></div>`+SRC(['Treasury · dues','Roster']) };
+    if (s.includes('miss')||s.includes('meeting')||s.includes('attend')) return { html:`<div class="prose"><p>Four members were absent from both of the last two meetings: <strong>Devon R., Malik S., Jordan P., Isaiah T.</strong> Chapter attendance held at <strong>86%</strong>.</p></div>`+SRC(['Attendance','Timeline']) };
+    if (s.includes('week')||s.includes('happening')||s.includes('event')) return { html:`<div class="prose"><p>Three things this week: <strong>Chapter Meeting</strong> (Thu 7 PM), <strong>Park Cleanup</strong> (Sat 10 AM, 9 signed up), and <strong>dues reminders</strong> go out Friday.</p></div>`+SRC(['Timeline','Events']) };
+    if (s.includes('treasury')||s.includes('balance')||s.includes('money')) return { html:`<div class="prose"><p>The treasury sits at <strong>$4,820</strong> — net positive $640 this semester. Biggest line items: <strong>Formal deposit</strong> ($1,200), <strong>National dues</strong> ($900), <strong>Service supplies</strong> ($310).</p></div>`+SRC(['Treasury · ledger','Budget']) };
+    return { note:`<div class="note">I don't have anything on that yet — I can see <em>dues, attendance, events, tasks, and the treasury.</em> Try one of those, or add it in Docs and I'll pick it up.</div>` };
+  }
+
+  // ── Scenes ────────────────────────────────────────────────────────────────
+  const SCENES = {
+    closed:  () => { spot.classList.remove('chat'); thread.innerHTML=''; },
+    briefing:() => { spot.classList.remove('chat'); thread.innerHTML=''; setTimeout(()=>input.focus(),60); },
+    thinking:() => { spot.classList.add('chat'); thread.innerHTML = USER('Who still owes dues this semester?') + AI('<div class="dots"><span></span><span></span><span></span></div>'); },
+    answer:  () => { spot.classList.add('chat'); const a = answerFor('dues'); thread.innerHTML = USER('Who still owes dues this semester?') + AI(a.html); },
+    convo:   () => { spot.classList.add('chat'); thread.innerHTML =
+        USER('Who still owes dues this semester?') +
+        AI('<div class="prose"><p><strong>Six members</strong> — $1,150 outstanding for Spring \'26.</p></div>') +
+        USER('Draft a reminder to them.') +
+        AI('<div class="prose"><p>Here\'s a draft: <em>"Hi — a friendly reminder your Spring \'26 dues balance is outstanding. Pay in the Treasury tab or set up a plan. Thanks!"</em> Want me to send it to all six?</p></div>');
+        thread.scrollTop = thread.scrollHeight; },
+    nomatch: () => { spot.classList.add('chat'); const a = answerFor('wifi password'); thread.innerHTML = USER('What\'s the wifi password for the house?') + AI(a.note); },
+  };
+
+  function goto(id) {
+    document.body.dataset.scene = id;
+    document.querySelectorAll('.rail [data-go]').forEach(b => b.classList.toggle('on', b.dataset.go === id));
+    if (id !== 'closed') app.classList.add('dim'); else app.classList.remove('dim');
+    (SCENES[id] || SCENES.briefing)();
+  }
+
+  // ── Live flow inside the spotlight ─────────────────────────────────────────
+  function ask(q) {
+    if (!q.trim()) return;
+    goto('__live'); // mark off-rail
+    document.querySelectorAll('.rail [data-go]').forEach(b => b.classList.remove('on'));
+    document.body.dataset.scene = 'live';
+    app.classList.add('dim');
+    spot.classList.add('chat');
+    input.value=''; autosize(input);
+    thread.insertAdjacentHTML('beforeend', USER('')); thread.lastElementChild.textContent = q;
+    thread.insertAdjacentHTML('beforeend', AI('<div class="dots"><span></span><span></span><span></span></div>'));
+    const ai = thread.lastElementChild; thread.scrollTop = thread.scrollHeight;
+    setTimeout(() => {
+      const a = answerFor(q);
+      ai.innerHTML = `<div class="who"><i></i> Ask the Chapter</div>` + (a.note || a.html);
+      thread.scrollTop = thread.scrollHeight;
+    }, 850);
+  }
+  function autosize(el){ el.style.height='auto'; el.style.height=Math.min(el.scrollHeight,120)+'px'; }
+
+  input.addEventListener('input', () => autosize(input));
+  input.addEventListener('keydown', e => { if (e.key==='Enter' && !e.shiftKey) { e.preventDefault(); ask(input.value); } });
+  document.getElementById('send').addEventListener('click', () => ask(input.value));
+  document.getElementById('newq').addEventListener('click', () => goto('briefing'));
+  document.getElementById('launcher').addEventListener('click', () => goto('briefing'));
+  document.querySelectorAll('#spot .pill').forEach(b => b.addEventListener('click', () => ask(b.dataset.q)));
+  document.querySelectorAll('.rail [data-go]').forEach(b => b.addEventListener('click', () => goto(b.dataset.go)));
+
+  // Theme
+  const sun = '<path d="M12 2.5v2.5M12 19v2.5M4.2 4.2l1.8 1.8M18 18l1.8 1.8M2.5 12H5M19 12h2.5M4.2 19.8L6 18M18 6l1.8-1.8"/><circle cx="12" cy="12" r="4.5"/>';
+  const moon = '<path d="M21 12.4A9 9 0 1111.6 3a7 7 0 009.4 9.4z"/>';
+  function toggleTheme(){ const h=document.documentElement; const n=h.getAttribute('data-theme')==='dusk'?'ivory':'dusk';
+    h.setAttribute('data-theme',n); document.getElementById('themeIcon').innerHTML = n==='dusk'?moon:sun; }
+  document.getElementById('themeBtn').addEventListener('click', toggleTheme);
+
+  document.addEventListener('keydown', e => {
+    if ((e.metaKey||e.ctrlKey) && e.key.toLowerCase()==='k') { e.preventDefault(); goto(document.body.dataset.scene==='closed'?'briefing':'closed'); }
+    if (e.key==='Escape') goto('closed');
+    if (e.key.toLowerCase()==='t' && document.activeElement.tagName!=='TEXTAREA') toggleTheme();
+  });
+
+  goto('briefing');
+</script>
+</body>
+</html>
