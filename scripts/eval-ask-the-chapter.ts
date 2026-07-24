@@ -27,8 +27,13 @@ import {
   isReadTool,
   runProposal,
   isProposalTool,
+  isAnswerTool,
+  parseComposeAnswer,
   type Proposal,
+  type ProposalCtx,
+  type AnswerPayload,
 } from "../lib/ai-tools";
+import { ALL_PERMISSIONS } from "../lib/permissions";
 import { buildSystemPrompt } from "../lib/ai-prompt";
 import { db } from "../lib/db";
 
@@ -59,12 +64,19 @@ interface EvalCase {
   /** Required for proposal cases: the `action` field on the emitted proposal. */
   expectedProposalAction?: string;
   /**
-   * data    — model called read tools and wrote a normal answer
+   * data    — model called read tools and answered (structured, via compose_answer)
    * proposal — model emitted at least one proposal (and we surface a confirm card)
    * refuse  — model declined / said it can't help
    * clarify — model asked the user a question instead of answering
    */
   expectAnswerType: "data" | "proposal" | "refuse" | "clarify";
+  /**
+   * data cases only: don't require compose_answer. For questions whose correct
+   * answer is legitimately "nothing to do here" prose (e.g. "mark X's dues as
+   * paid" when X owes $0) — the tool contract tells the model to skip
+   * compose_answer when there's no data to show.
+   */
+  allowProse?: boolean;
 }
 
 interface ToolCallRecord {
@@ -78,10 +90,24 @@ interface TurnResult {
   pass: boolean;
   reasons: string[];
   finalText: string;
+  /** Set when the model finished via compose_answer (the structured path). */
+  answer: AnswerPayload | null;
   toolCalls: ToolCallRecord[];
   proposals: Proposal[];
   iters: number;
   ms: number;
+}
+
+/**
+ * Flatten a structured answer into searchable text so mustInclude /
+ * mustNotInclude assertions apply to everything the user would see.
+ */
+function answerToText(a: AnswerPayload): string {
+  return [
+    a.verdict,
+    ...a.rows.map(r => [r.title, r.subtitle, r.value].filter(Boolean).join(" — ")),
+    ...a.follows.map(f => f.label),
+  ].join("\n");
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -131,13 +157,14 @@ async function createWithRetry(
   throw lastErr;
 }
 
-async function runCase(c: EvalCase, openai: OpenAI, systemPrompt: string, orgId: number, now: Date): Promise<TurnResult> {
+async function runCase(c: EvalCase, openai: OpenAI, systemPrompt: string, orgId: number, now: Date, pctx: ProposalCtx): Promise<TurnResult> {
   // Same org-scoped accessor the chat route threads into the tools.
   const scoped = db(orgId);
   const t0 = Date.now();
   const toolCalls: ToolCallRecord[] = [];
   const proposals: Proposal[] = [];
   let finalText = "";
+  let answer: AnswerPayload | null = null;
   let iters = 0;
 
   const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
@@ -191,7 +218,13 @@ async function runCase(c: EvalCase, openai: OpenAI, systemPrompt: string, orgId:
       })),
     });
 
-    const results = await Promise.all(calls.map(async tc => {
+    // compose_answer is terminal — the call IS the answer (matches the route).
+    // It's excluded from toolCalls so tool assertions (incl. toolMatch "exact")
+    // keep grading data reads, not the answer-format artifact.
+    const answerCall = calls.find(tc => isAnswerTool(tc.function.name));
+    const execCalls = calls.filter(tc => !isAnswerTool(tc.function.name));
+
+    const results = await Promise.all(execCalls.map(async tc => {
       let args: Record<string, unknown> = {};
       try { args = tc.function.arguments ? JSON.parse(tc.function.arguments) : {}; }
       catch { args = { _parse_error: tc.function.arguments }; }
@@ -203,7 +236,7 @@ async function runCase(c: EvalCase, openai: OpenAI, systemPrompt: string, orgId:
         // with the pinned system prompt instead of using the real today.
         payload = await runTool(tc.function.name, args, scoped, orgId, now);
       } else if (isProposalTool(tc.function.name)) {
-        const p = await runProposal(tc.function.name, args, scoped);
+        const p = await runProposal(tc.function.name, args, scoped, pctx);
         if ("error" in p) {
           payload = p;
         } else {
@@ -223,9 +256,24 @@ async function runCase(c: EvalCase, openai: OpenAI, systemPrompt: string, orgId:
     for (const r of results) {
       messages.push({ role: "tool", tool_call_id: r.id, content: JSON.stringify(r.payload) });
     }
+
+    if (answerCall) {
+      let args: Record<string, unknown> = {};
+      try { args = answerCall.function.arguments ? JSON.parse(answerCall.function.arguments) : {}; }
+      catch { args = { _parse_error: answerCall.function.arguments }; }
+      const parsed = parseComposeAnswer(args);
+      if ("error" in parsed) {
+        // Malformed — feed it back so the model retries, same as the route.
+        messages.push({ role: "tool", tool_call_id: answerCall.id, content: JSON.stringify(parsed) });
+      } else {
+        answer = parsed;
+        finalText = answerToText(parsed);
+        break;
+      }
+    }
   }
 
-  const grade = grade_case(c, { toolCalls, proposals, finalText });
+  const grade = grade_case(c, { toolCalls, proposals, finalText, answer });
 
   return {
     caseId: c.id,
@@ -233,6 +281,7 @@ async function runCase(c: EvalCase, openai: OpenAI, systemPrompt: string, orgId:
     pass: grade.pass,
     reasons: grade.reasons,
     finalText,
+    answer,
     toolCalls,
     proposals,
     iters,
@@ -263,7 +312,7 @@ const CLARIFY_HINTS = ["which one", "could you clarify", "do you mean", "?"];
 
 function grade_case(
   c: EvalCase,
-  obs: { toolCalls: ToolCallRecord[]; proposals: Proposal[]; finalText: string },
+  obs: { toolCalls: ToolCallRecord[]; proposals: Proposal[]; finalText: string; answer: AnswerPayload | null },
 ): { pass: boolean; reasons: string[] } {
   const reasons: string[] = [];
   const text = (obs.finalText || "").toLowerCase();
@@ -326,13 +375,18 @@ function grade_case(
       }
       break;
     case "refuse":
+      if (obs.answer) reasons.push("refusal case answered via compose_answer — refusals must be plain text");
       if (!REFUSAL_HINTS.some(h => text.includes(h))) reasons.push("expected refusal language not found");
       break;
     case "clarify":
+      if (obs.answer) reasons.push("clarify case answered via compose_answer — clarifications must be plain text");
       if (!CLARIFY_HINTS.some(h => text.includes(h))) reasons.push("expected a clarifying question");
       break;
     case "data":
-      // Data answers just need to be non-empty and not refuse.
+      // Data answers must land as the structured verdict+rows payload — that's
+      // what the Spotlight UI renders. Prose here means the model skipped
+      // compose_answer and the user would get the fallback note style.
+      if (!obs.answer && !c.allowProse) reasons.push("expected compose_answer (structured verdict+rows), got prose");
       if (!obs.finalText.trim() && obs.proposals.length === 0) reasons.push("empty answer");
       if (REFUSAL_HINTS.some(h => text.includes(h))) reasons.push("model refused on a data case");
       break;
@@ -393,6 +447,16 @@ async function main() {
   };
   const systemPrompt = await buildSystemPrompt(db(EVAL_ORG_ID), EVAL_ORG_ID, EVAL_CALLER, PINNED_DATE);
 
+  // The eval caller can approve anything — the suite grades tool selection and
+  // answers, not the permission gate (tests/ai cover canApprove branching).
+  const pctx: ProposalCtx = {
+    orgId: EVAL_ORG_ID,
+    actorId: EVAL_CALLER.id,
+    permissions: ALL_PERMISSIONS,
+    isOrgAdmin: true,
+    isPlatformAdmin: false,
+  };
+
   console.log(`Model: ${CHAT_MODEL}`);
   console.log(`Cases: ${cases.length}`);
   console.log(`Pinned date: ${PINNED_DATE.toISOString().slice(0, 10)}`);
@@ -408,7 +472,7 @@ async function main() {
     while (cursor < cases.length) {
       const i = cursor++;
       try {
-        const r = await runCase(cases[i], openai, systemPrompt, EVAL_ORG_ID, PINNED_DATE);
+        const r = await runCase(cases[i], openai, systemPrompt, EVAL_ORG_ID, PINNED_DATE, pctx);
         results[i] = r;
         const mark = r.pass ? "PASS" : "FAIL";
         process.stdout.write(`[${mark}] ${cases[i].id} (${r.ms}ms, ${r.iters} iter)\n`);
@@ -429,6 +493,7 @@ async function main() {
           pass: false,
           reasons: [`runtime error: ${(e as Error).message}`],
           finalText: "",
+          answer: null,
           toolCalls: [],
           proposals: [],
           iters: 0,
@@ -447,6 +512,13 @@ async function main() {
   console.log("");
   console.log("──────────────────────────────────");
   console.log(`Score: ${passed}/${total}  (${pct}%)`);
+  // compose_answer adoption across data cases — the UI-fidelity metric: prose on
+  // a data case renders as the fallback note, not the verdict+rows answer.
+  const dataCases = results.filter((_, i) => cases[i].expectAnswerType === "data");
+  const structured = dataCases.filter(r => r.answer !== null).length;
+  if (dataCases.length > 0) {
+    console.log(`Structured answers: ${structured}/${dataCases.length} data cases via compose_answer`);
+  }
   console.log("──────────────────────────────────");
 
   // Latency + iteration aggregates. The dominant cost is the LLM round-trips

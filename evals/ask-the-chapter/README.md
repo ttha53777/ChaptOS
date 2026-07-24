@@ -6,10 +6,15 @@ Offline pass/fail harness for the `/api/ai/chat` feature. Drives the same tool-c
 
 For every case in [cases.jsonl](./cases.jsonl):
 
-- **Tool selection** — did the model call the expected tool(s)?
+- **Tool selection** — did the model call the expected tool(s)? (`compose_answer`, the terminal
+  structured-answer tool, is excluded from tool assertions — it's the answer format, not a read.)
 - **Tool arguments** — did it pass the right `order_by` / `status` / filter args? (subset match)
-- **Final-answer content** — does the answer mention the right brother/number/date?
-- **Answer type** — `data` answer, `proposal` confirm card, `refuse`, or `clarify` (matching expectation)
+- **Final-answer content** — does the answer mention the right brother/number/date? For structured
+  answers, `mustInclude`/`mustNotInclude` run over the flattened verdict + rows + follow-ups.
+- **Answer type** — `data` answer, `proposal` confirm card, `refuse`, or `clarify` (matching
+  expectation). A `data` case must finish via `compose_answer` (that's what the Spotlight UI
+  renders — prose on a data case means the user got the fallback note style); `refuse`/`clarify`
+  must stay plain text. The summary reports structured-answer adoption across data cases.
 
 A case passes only when every assertion holds.
 
@@ -52,7 +57,7 @@ Exit code: `0` if every case passes, `1` if any case fails.
 ## Notes on determinism
 
 - The system clock the model sees is pinned to **2026-05-23** (see `PINNED_DATE` in the runner) so cases referencing "this week" stay reproducible across days. The DB itself is whatever `prisma db seed` produced.
-- The model is sampled at `temperature: 0.3` (matching production), so a small amount of run-to-run variance is expected — typically 1–2 cases on the margin. Re-run before declaring a regression.
+- The model runs with `reasoning_effort` and default temperature (matching production — gpt-5.2 rejects a non-default temperature once `reasoning_effort` is set), so a small amount of run-to-run variance is expected — typically 1–2 cases on the margin. Re-run before declaring a regression.
 - Cases run concurrently (default 4, see `EVAL_CONCURRENCY`) to keep wall-clock down; this is bounded to stay friendly with OpenAI rate limits and the DB pool. Transient OpenAI 429/5xx are retried with exponential backoff so a tight token budget doesn't fail cases spuriously.
 - **Assertions are seed-coupled.** `mustInclude` values (brother names, dollar amounts) are derived from the seeded dev DB. If the seed changes, re-derive them — a failing data case may mean a stale assertion, not a model regression.
 

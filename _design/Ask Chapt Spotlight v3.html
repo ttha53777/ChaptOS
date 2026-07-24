@@ -369,13 +369,8 @@
   .inbox-empty { text-align: center; padding: 30px 20px; }
   .inbox-empty .note { font-size: 15px; }
 
-  /* Audit-log header: a ledger summary + filter chips over the full history. */
-  .audit-sum { display: flex; gap: 8px; padding: 4px 6px 2px; }
-  .audit-sum .st { flex: 1; border: 1px solid var(--line); border-radius: 12px; background: var(--card); padding: 11px 13px; }
-  .audit-sum .st .n { font-family: var(--mono); font-size: 20px; letter-spacing: -.01em; color: var(--ink); line-height: 1; }
-  .audit-sum .st .k { display: block; font-family: var(--mono); font-size: 8.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--faint); margin-top: 6px; }
-  .audit-sum .st.rat .n { color: var(--ok); }
-  .audit-filters { display: flex; align-items: center; gap: 6px; padding: 12px 6px 2px; flex-wrap: wrap; }
+  /* Audit-log header: filter chips over the full approval history. */
+  .audit-filters { display: flex; align-items: center; gap: 6px; padding: 4px 6px 2px; flex-wrap: wrap; }
   .fchip { font-family: var(--mono); font-size: 9.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); background: transparent;
     border: 1px solid var(--line); border-radius: 999px; padding: 5px 11px; cursor: pointer; transition: border-color .15s, color .15s, background .15s; }
   .fchip:hover { border-color: var(--line-med); color: var(--ink); }
@@ -887,12 +882,7 @@
 
   function renderInbox() {
     const total = ALL_ITEMS.length;
-    const byYou = ALL_ITEMS.filter(i => i.by === 'you').length;
     let html = `<div class="inbox-hd"><h3>Approvals</h3><span class="meta">The approval record — every action approved, and under whose authority.</span></div>`;
-    html += `<div class="audit-sum">
-        <div class="st"><span class="n">${total}</span><span class="k">Approvals · Spring '26</span></div>
-        <div class="st"><span class="n">${byYou}</span><span class="k">Approved by you</span></div>
-      </div>`;
     html += `<div class="audit-filters">${FILTERS.map(([k, l]) => {
         const c = k === 'all' ? total : ALL_ITEMS.filter(i => i.cat === k).length;
         return `<button class="fchip ${auditFilter === k ? 'on' : ''}" data-filter="${k}">${l} · ${c}</button>`;
