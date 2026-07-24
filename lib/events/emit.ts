@@ -33,6 +33,13 @@ export interface EmitOptions {
    * actions.ts → defaultActivityType().
    */
   activityType?: "success" | "warning" | "info";
+  /**
+   * Pass false to skip the ActivityLog dual-write entirely — for telemetry-grade
+   * actions (assistant feedback, audit-mirror events) whose feed story is
+   * already told by the underlying domain event, or that members should never
+   * see in the feed. The OperationalEvent row is always written.
+   */
+  activity?: boolean;
 }
 
 export async function emit<A extends Action>(
@@ -72,8 +79,8 @@ export async function emit<A extends Action>(
     // Don't throw — losing telemetry shouldn't fail business writes.
   }
 
-  // 2) Dual-write ActivityLog (UI feed backward-compat).
-  try {
+  // 2) Dual-write ActivityLog (UI feed backward-compat) — unless suppressed.
+  if (options.activity !== false) try {
     const type = options.activityType ?? defaultActivityType(action);
     const message = options.activityMessage ?? formatActivityMessage(ctx, action, metadata);
     await prisma.activityLog.create({

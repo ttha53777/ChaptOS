@@ -56,6 +56,7 @@ model Organization {
   transactions              Transaction[]
   reimbursements            Reimbursement[]
   duesPayments              DuesPayment[]
+  chatApprovals             ChatApproval[]
   budgets                   Budget[]
   activityLogs              ActivityLog[]
   announcements             ChapterAnnouncement[]
@@ -182,6 +183,7 @@ model Brother {
   serviceParticipations ServiceParticipation[]
   reimbursements        Reimbursement[]
   duesPayments          DuesPayment[]
+  chatApprovals         ChatApproval[]
   // Ledger rows attributed to this member — dues payments. Without this link,
   // "does the roster agree with the ledger?" is a question the DB cannot answer.
   transactions          Transaction[]
@@ -922,6 +924,39 @@ model DuesPayment {
   @@index([organizationId])
   @@index([brotherId])
   @@index([organizationId, status])
+}
+
+// ChatApproval: the durable record behind the Ask Chapt "Approvals" view — one
+// row per chat proposal a member APPROVED (drafts, discards, and blocked drafts
+// leave no record; proposals themselves are ephemeral). Written at confirm time
+// from the HMAC-signed proposal blob (lib/ai-approval-sig.ts), so the card
+// contents here are server-attested, not client-authored. Name/role are
+// snapshots: the record must keep reading correctly after roles change hands.
+model ChatApproval {
+  id             Int      @id @default(autoincrement())
+  organizationId Int
+  // ApprovalKind (lib/state/approval-kind.ts) — CHECK-constrained in the DB.
+  kind           String
+  action         String   // the propose_* tool name
+  title          String   // writ-card title — "Record a dues payment"
+  summary        String   // list-row label — "Record a dues payment · $200.00"
+  rows           Json     // [{k, v, em?}] — the writ card's key/value lines
+  permission     String   // MANAGE_* permission name the approval ran under
+  permLabel      String   // its human label — "Manage dues"
+  approvedById   Int
+  approvedByName String
+  approvedByRole String
+  // Best-effort link to the row the approved POST created (e.g. Transaction).
+  subjectType    String?
+  subjectId      Int?
+  requestId      String?
+  approvedAt     DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  approvedBy   Brother      @relation(fields: [approvedById], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, approvedAt(sort: Desc)])
+  @@index([approvedById])
 }
 
 model Budget {

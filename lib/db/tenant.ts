@@ -1076,6 +1076,30 @@ function scopedReimbursement(orgId: number, run: Run) {
   };
 }
 
+function scopedChatApproval(orgId: number, run: Run) {
+  type W = Prisma.ChatApprovalWhereInput;
+  const org = (w?: W): W => ({ ...w, organizationId: orgId });
+
+  async function verify(where: Prisma.ChatApprovalWhereUniqueInput): Promise<number> {
+    const row = await run(p => p.chatApproval.findFirst({ where: org(where as W), select: { id: true } }));
+    if (!row) notInOrg();
+    return row.id;
+  }
+
+  return {
+    findMany:   (args?: Prisma.ChatApprovalFindManyArgs)  => run(p => p.chatApproval.findMany({ ...args, where: org(args?.where) })),
+    findFirst:  (args?: Prisma.ChatApprovalFindFirstArgs) => run(p => p.chatApproval.findFirst({ ...args, where: org(args?.where) })),
+    findUnique: (args: Prisma.ChatApprovalFindUniqueArgs) => run(p => p.chatApproval.findFirst({ ...args, where: org(args.where as W) })),
+    create:     (args: Omit<Prisma.ChatApprovalCreateArgs, "data"> & { data: Omit<Prisma.ChatApprovalUncheckedCreateInput, "organizationId"> }) =>
+      run(p => p.chatApproval.create({ ...args, data: { ...args.data, organizationId: orgId } })),
+    delete:     async (args: Prisma.ChatApprovalDeleteArgs) => {
+      const id = await verify(args.where);
+      return run(p => p.chatApproval.delete({ where: { id } }));
+    },
+    count:      (args?: Prisma.ChatApprovalCountArgs)     => run(p => p.chatApproval.count({ ...args, where: org(args?.where) })),
+  };
+}
+
 function scopedDuesPayment(orgId: number, run: Run) {
   type W = Prisma.DuesPaymentWhereInput;
   const org = (w?: W): W => ({ ...w, organizationId: orgId });
@@ -1329,6 +1353,7 @@ export function db(orgId: number) {
     transaction:         scopedTransaction(orgId, run),
     reimbursement:       scopedReimbursement(orgId, run),
     duesPayment:         scopedDuesPayment(orgId, run),
+    chatApproval:        scopedChatApproval(orgId, run),
     budget:              scopedBudget(orgId, run),
     activityLog:         scopedActivityLog(orgId, run),
     chapterAnnouncement: scopedChapterAnnouncement(orgId, run),
@@ -1428,6 +1453,7 @@ export function _dbWithClient(orgId: number, client: P) {
     transaction:         scopedTransaction(orgId, run),
     reimbursement:       scopedReimbursement(orgId, run),
     duesPayment:         scopedDuesPayment(orgId, run),
+    chatApproval:        scopedChatApproval(orgId, run),
     budget:              scopedBudget(orgId, run),
     activityLog:         scopedActivityLog(orgId, run),
     chapterAnnouncement: scopedChapterAnnouncement(orgId, run),

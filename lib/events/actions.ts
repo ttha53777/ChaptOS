@@ -36,7 +36,8 @@ export type SubjectType =
   | "OrgMetricDefinition"
   | "BrotherMetricValue"
   | "Reimbursement"
-  | "DuesPayment";
+  | "DuesPayment"
+  | "ChatApproval";
 
 // Metadata schemas per action. Each key is an Action; each value is the shape
 // passed to emit() and received by handlers. Keep payloads small and stable —
@@ -165,6 +166,13 @@ export interface EventMetadata {
   // approval that actually mints the ledger row (dues.paid, above).
   "dues_payment.submitted": { brotherId: number; amount: number; date: string };
   "dues_payment.rejected":  { brotherId: number; amount: number; rejectionNote: string | null };
+
+  // Ask Chapt (the AI assistant). Both are emitted with { activity: false }:
+  // proposal approval's feed story is already told by the underlying domain
+  // event (transaction.created, task.created, …), and feedback is telemetry
+  // members should never see in the feed.
+  "assistant.proposal_approved": { action: string; kind: string; permission: string; subjectType: string | null; subjectId: number | null };
+  "assistant.feedback":          { helpful: boolean; question: string; answerKind: string };
 }
 
 export type Action = keyof EventMetadata;
@@ -194,6 +202,7 @@ const KNOWN_ACTIONS = new Set<Action>([
   "reimbursement.created", "reimbursement.updated", "reimbursement.approved",
   "dues.paid", "dues.adjusted", "dues.payment_voided", "dues.payment_attributed",
   "dues_payment.submitted", "dues_payment.rejected",
+  "assistant.proposal_approved", "assistant.feedback",
 ]);
 
 export function isKnownAction(action: string): action is Action {

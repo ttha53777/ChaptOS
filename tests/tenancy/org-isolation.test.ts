@@ -1066,3 +1066,52 @@ describe("tenancy: ProgrammingEvent", () => {
     expect(fromA.map(e => e.title)).toEqual(["A retreat"]);
   });
 });
+
+// ---------------------------------------------------------------------------
+// ChatApproval (has organizationId)
+// ---------------------------------------------------------------------------
+describe("tenancy: ChatApproval", () => {
+  const approvalData = (brotherId: number) => ({
+    kind: "dues",
+    action: "propose_record_dues_payment",
+    title: "Record a dues payment",
+    summary: "Record a dues payment · Kofi Adjei",
+    rows: [{ k: "Amount", v: "$200.00", em: true }],
+    permission: "MANAGE_TREASURY",
+    permLabel: "Manage dues",
+    approvedById: brotherId,
+    approvedByName: "Test Approver",
+    approvedByRole: "Treasurer",
+  });
+
+  it("findMany only returns the active org's approvals", async () => {
+    const orgA = await createOrg("Alpha", "alpha");
+    const orgB = await createOrg("Beta", "beta");
+    const aBro = await createBrother({ orgId: orgA.id });
+    const bBro = await createBrother({ orgId: orgB.id });
+    await testPrisma.chatApproval.create({ data: { organizationId: orgA.id, ...approvalData(aBro.id) } });
+    await testPrisma.chatApproval.create({
+      data: { organizationId: orgB.id, ...approvalData(bBro.id), summary: "Record a dues payment · Other Org" },
+    });
+
+    const fromA = await db(orgA.id).chatApproval.findMany();
+    expect(fromA.map(r => r.summary)).toEqual(["Record a dues payment · Kofi Adjei"]);
+  });
+
+  it("create injects the active org id", async () => {
+    const org = await createOrg("Alpha", "alpha");
+    const bro = await createBrother({ orgId: org.id });
+    const created = await db(org.id).chatApproval.create({ data: approvalData(bro.id) });
+    expect(created.organizationId).toBe(org.id);
+  });
+
+  it("findUnique on another org's approval returns null", async () => {
+    const orgA = await createOrg("Alpha", "alpha");
+    const orgB = await createOrg("Beta", "beta");
+    const bBro = await createBrother({ orgId: orgB.id });
+    const bRow = await testPrisma.chatApproval.create({ data: { organizationId: orgB.id, ...approvalData(bBro.id) } });
+
+    const leak = await db(orgA.id).chatApproval.findUnique({ where: { id: bRow.id } });
+    expect(leak).toBeNull();
+  });
+});
