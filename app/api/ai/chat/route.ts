@@ -3,7 +3,7 @@ import OpenAI from "openai";
 import { buildContext } from "@/lib/context";
 import { checkMutationRate } from "@/lib/rate-limit";
 import { aiEnabled, getOpenAI, CHAT_MODEL, MAX_COMPLETION_TOKENS, CHAT_REASONING_EFFORT } from "@/lib/ai";
-import { TOOLS, runTool, isReadTool, runProposal, isProposalTool } from "@/lib/ai-tools";
+import { TOOLS, TOOL_UI, runTool, isReadTool, runProposal, isProposalTool, isAnswerTool, parseComposeAnswer, type Proposal } from "@/lib/ai-tools";
 import { buildSystemPrompt } from "@/lib/ai-prompt";
 import { tryFastPath } from "@/lib/ai-fastpath";
 import { withIdleTimeout, StreamIdleTimeoutError, STREAM_IDLE_MS } from "@/lib/ai-stream";
@@ -21,6 +21,18 @@ interface ClientMessage {
   role: "user" | "assistant" | "system";
   content: string;
 }
+
+// ── SSE protocol ─────────────────────────────────────────────────────────────
+// open      {}                              — flushed immediately (paint "thinking")
+// step      { id, verb, source? }           — one per tool call, when its batch starts
+// step_done { id, finding? }                — same step settling; finding derived from the REAL result
+// proposal  Proposal                        — writ card (see lib/ai-tools.ts)
+// answer    { verdict, rows, follows, sources } — structured final answer; sources are
+//                                             server-derived from the read tools actually run
+// text      { delta }                       — plain-prose fallback (refusals, how-to, fast-path, errors)
+// done      {}
+// The client renders steps as the reasoning ledger and keeps a standing
+// "Composing the answer" line that settles when `answer` (or first `text`) lands.
 
 function sseEvent(event: string, data: unknown): string {
   return `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
@@ -72,7 +84,16 @@ export async function POST(req: NextRequest) {
   const encoder = new TextEncoder();
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
-      const send = (event: string, data: unknown) => controller.enqueue(encoder.encode(sseEvent(event, data)));
+      // enqueue throws once the client disconnects (controller closed) — and a
+      // disconnect can land mid-loop, between tool results, or inside the catch
+      // block itself. Swallow it: the work is already done or abandoned either
+      // way, and throwing from here just turns a hangup into a logged error.
+      let closed = false;
+      const send = (event: string, data: unknown) => {
+        if (closed) return;
+        try { controller.enqueue(encoder.encode(sseEvent(event, data))); }
+        catch { closed = true; }
+      };
 
       // ── Latency telemetry ──────────────────────────────────────────────
       // The dominant cost here is the LLM round-trips (one call per loop
@@ -85,6 +106,10 @@ export async function POST(req: NextRequest) {
       let ttftMs: number | null = null; // first visible token/tool-call across the request
       let totalIters = 0;
       let fastPathPattern: string | null = null;
+      let answeredStructured = false;
+      // Sources actually consulted this request (TOOL_UI labels, ordered dedup) —
+      // attached to the structured answer server-side, never model-claimed.
+      const consulted: string[] = [];
 
       try {
         // Flush a tiny event before awaiting the system prompt. buildSystemPrompt
@@ -103,6 +128,12 @@ export async function POST(req: NextRequest) {
         if (fast) {
           fastPathPattern = fast.pattern;
           ttftMs = performance.now() - reqStart;
+          // One-step ledger so the thinking state never looks dead, then the text.
+          const ui = TOOL_UI[fast.tool];
+          if (ui) {
+            send("step", { id: "fast:0", verb: ui.verb, ...(ui.source ? { source: ui.source } : {}) });
+            send("step_done", { id: "fast:0" });
+          }
           send("text", { delta: fast.text });
           send("done", {});
           return; // finally{} still runs: emits the timing line + closes the stream
@@ -206,55 +237,106 @@ export async function POST(req: NextRequest) {
             })),
           });
 
+          // Every non-terminal call in this batch becomes a ledger step NOW —
+          // the batch renders at once (steps ahead visible as pending on the
+          // client) and each settles as its result lands. compose_answer gets
+          // no step: the call IS the final answer (handled below); the client
+          // shows its own standing "Composing the answer" line.
+          const prepared = toolCalls.map((tc, i) => {
+            const stepId = `${iter}:${i}`;
+            const ui = TOOL_UI[tc.name];
+            if (!isAnswerTool(tc.name)) {
+              send("step", { id: stepId, verb: ui?.verb ?? tc.name, ...(ui?.source ? { source: ui.source } : {}) });
+            }
+            let argsObj: Record<string, unknown> = {};
+            try { argsObj = tc.argsBuf ? JSON.parse(tc.argsBuf) : {}; }
+            catch { argsObj = { _parse_error: tc.argsBuf }; }
+            return { tc, argsObj, stepId };
+          });
+
+          const answerCall = prepared.find(p => isAnswerTool(p.tc.name));
+          const execCalls = prepared.filter(p => !isAnswerTool(p.tc.name));
+
           // Run tool calls CONCURRENTLY when the model emitted more than one in
           // this turn. Sequential awaits would add ~1 DB round trip per extra
           // tool; Promise.all collapses them. Tool messages must still appear
           // back in the SAME order as the tool_calls array, so we map → await all.
-          const prepared = toolCalls.map(tc => {
-            send("tool_call", { name: tc.name, status: "running" });
-            let argsObj: Record<string, unknown> = {};
-            try { argsObj = tc.argsBuf ? JSON.parse(tc.argsBuf) : {}; }
-            catch { argsObj = { _parse_error: tc.argsBuf }; }
-            return { tc, argsObj };
-          });
-
-          const results = await Promise.all(prepared.map(async ({ tc, argsObj }) => {
+          const results = await Promise.all(execCalls.map(async ({ tc, argsObj, stepId }) => {
             const toolStart = performance.now();
             let resultPayload: unknown;
-            let proposalEvent: { send: true; proposal: Awaited<ReturnType<typeof runProposal>> } | null = null;
+            let proposalEvent: Proposal | null = null;
             if (isReadTool(tc.name)) {
               resultPayload = await runTool(tc.name, argsObj, ctx.db, ctx.orgId);
             } else if (isProposalTool(tc.name)) {
-              const proposal = await runProposal(tc.name, argsObj, ctx.db);
+              const proposal = await runProposal(tc.name, argsObj, ctx.db, {
+                orgId: ctx.orgId,
+                actorId: ctx.actorId,
+                permissions: ctx.permissions,
+                isOrgAdmin: ctx.isOrgAdmin,
+                isPlatformAdmin: ctx.isPlatformAdmin,
+              });
               if ("error" in proposal) {
                 resultPayload = proposal;
               } else {
-                proposalEvent = { send: true, proposal };
-                resultPayload = {
-                  status: "awaiting_user_confirmation",
-                  summary: proposal.summary,
-                  note: "A confirm card has been shown to the user. Do not claim the action is complete. Reply briefly (≤1 short sentence) acknowledging the proposal.",
-                };
+                proposalEvent = proposal;
+                // The permission gates BOTH proposing and approving: a holder's
+                // draft awaits their confirm; a non-holder's draft is BLOCKED
+                // (not routed) and the model must say who does hold it.
+                resultPayload = proposal.perm.canApprove
+                  ? {
+                      status: "awaiting_user_confirmation",
+                      summary: proposal.summary,
+                      note: "A confirm card has been shown to the user. Do not claim the action is complete. Reply briefly (≤1 short sentence) acknowledging the proposal.",
+                    }
+                  : {
+                      status: "blocked_missing_permission",
+                      summary: proposal.summary,
+                      requiredPermission: proposal.perm.label,
+                      heldBy: proposal.perm.holders ?? null,
+                      note: "The user does NOT hold the permission this action requires, so the draft is blocked — they cannot approve it, and it will not be routed to anyone. A blocked card is shown. In ≤2 short sentences, tell them which permission it needs and who holds it. Do not claim anything was done.",
+                    };
               }
             } else {
               resultPayload = { error: `Unknown tool: ${tc.name}` };
             }
             // Sum by tool name — the same tool can be called twice in one batch.
             toolMs[tc.name] = (toolMs[tc.name] ?? 0) + Math.round(performance.now() - toolStart);
-            return { tc, resultPayload, proposalEvent };
+            return { tc, argsObj, stepId, resultPayload, proposalEvent };
           }));
 
-          // Emit results in tool_calls order so client status events stay aligned.
-          for (const { tc, resultPayload, proposalEvent } of results) {
-            if (proposalEvent && proposalEvent.send && !("error" in proposalEvent.proposal)) {
-              send("proposal", proposalEvent.proposal);
+          // Emit results in tool_calls order so client step states stay aligned.
+          for (const { tc, argsObj, stepId, resultPayload, proposalEvent } of results) {
+            if (proposalEvent) send("proposal", proposalEvent);
+            // The step settles posting a finding derived from the REAL result.
+            let finding: string | null = null;
+            try { finding = TOOL_UI[tc.name]?.finding?.(resultPayload, argsObj) ?? null; }
+            catch { finding = null; }
+            send("step_done", { id: stepId, ...(finding ? { finding } : {}) });
+            if (isReadTool(tc.name)) {
+              const src = TOOL_UI[tc.name]?.source;
+              if (src && !consulted.includes(src)) consulted.push(src);
             }
-            send("tool_call", { name: tc.name, status: "done" });
             messages.push({
               role: "tool",
               tool_call_id: tc.id,
               content: JSON.stringify(resultPayload),
             });
+          }
+
+          // Terminal structured answer: the compose_answer call IS the final
+          // answer — emit it with the server-derived sources and stop, no extra
+          // model round trip. A malformed call is fed back as its tool result so
+          // the model retries next iteration; the abandoned message history is
+          // fine on success because no further completion is requested.
+          if (answerCall) {
+            const parsed = parseComposeAnswer(answerCall.argsObj);
+            if ("error" in parsed) {
+              messages.push({ role: "tool", tool_call_id: answerCall.tc.id, content: JSON.stringify(parsed) });
+            } else {
+              send("answer", { ...parsed, sources: consulted });
+              answeredStructured = true;
+              break;
+            }
           }
           // Loop back: the model now sees the tool results and writes its answer.
         }
@@ -284,6 +366,8 @@ export async function POST(req: NextRequest) {
             // On a fast-path hit there are no LLM iterations; the pattern name
             // tells us which deterministic answer served it.
             fastPath: fastPathPattern,
+            // How the request resolved: structured compose_answer, fast-path, or prose.
+            answered: answeredStructured ? "structured" : fastPathPattern ? "fastpath" : "text",
             iters: totalIters,
             perIterMs,
             toolMs,
@@ -291,7 +375,7 @@ export async function POST(req: NextRequest) {
             totalMs: Math.round(performance.now() - reqStart),
           },
         });
-        controller.close();
+        try { controller.close(); } catch { /* already closed by a disconnect */ }
       }
     },
   });
