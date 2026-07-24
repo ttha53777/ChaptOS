@@ -1,0 +1,369 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+   Ask Chapt — "Spotlight" (from _design/Ask Chapt Spotlight v3.html)
+   Centered spotlight modal over a blurred scrim, warm dusk paper, Fraunces
+   serif counsel voice, ONE violet accent, ZERO gradients. The widget mounts at
+   the document root (app/layout.tsx) outside any page `.dash` wrapper, so
+   `.chat-root` declares its own tokens; every selector lives under it so
+   nothing leaks into globals.
+
+   Fonts come from next/font variables on <html> (--font-fraunces /
+   -geist-sans / -geist-mono). Do NOT add a Google Fonts link.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+.chat-root {
+  --serif: var(--font-fraunces), Georgia, serif;
+  --sans:  var(--font-geist-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --mono:  var(--font-geist-mono), ui-monospace, Menlo, monospace;
+  --ease:  cubic-bezier(.16,1,.3,1);
+  --spring: cubic-bezier(.34,1.4,.4,1);
+  --paper: #0f0d0a; --paper-2: #14120e; --card: #17130f; --card-2: #1c1813;
+  --ink: #ece7dd; --ink-soft: #cbc4b6; --muted: #948c7b; --faint: #6a6253;
+  --line: rgba(236,231,221,.09); --line-soft: rgba(236,231,221,.05); --line-med: rgba(236,231,221,.14);
+  --vio: #a78bfa; --vio-deep: #7c3aed; --vio-bg: rgba(167,139,250,.10);
+  --vio-line: rgba(167,139,250,.30); --vio-glow: rgba(167,139,250,.16);
+  --ok: #7fb08a; --ok-bg: rgba(127,176,138,.13); --scrim: rgba(5,4,2,.62);
+  --card-shadow: 0 1px 0 rgba(0,0,0,.5), 0 40px 80px -34px rgba(0,0,0,.9), inset 0 1px 0 rgba(236,231,221,.04);
+  font-family: var(--sans); font-size: 14px; line-height: 1.5; color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.chat-root ::selection { background: var(--vio-bg); }
+.chat-root button { font: inherit; color: inherit; }
+
+/* ── Launcher — only when closed ─────────────────────────────────────────── */
+.cs-launcher {
+  position: fixed; z-index: 40;
+  bottom: max(1.5rem, env(safe-area-inset-bottom));
+  right:  max(1.5rem, env(safe-area-inset-right));
+  display: inline-flex; align-items: center; gap: 9px; cursor: pointer;
+  font-family: var(--serif); font-size: 14px; letter-spacing: -.01em; color: var(--ink-soft);
+  background: var(--card); border: 1px solid var(--line); border-radius: 999px;
+  padding: 10px 15px 10px 13px;
+  box-shadow: 0 1px 0 rgba(0,0,0,.35), 0 18px 44px -24px rgba(0,0,0,.8);
+  transition: border-color .16s, color .16s, transform .16s;
+}
+.cs-launcher:hover { color: var(--ink); border-color: var(--vio-line); transform: translateY(-1px); }
+.cs-launcher:focus-visible { outline: 2px solid var(--vio); outline-offset: 3px; }
+.cs-launcher .spark { color: var(--vio); display: inline-flex; }
+.cs-launcher .kbd {
+  font-family: var(--mono); font-size: 9px; letter-spacing: .08em; color: var(--faint);
+  border: 1px solid var(--line); border-radius: 5px; padding: 2px 5px;
+}
+.cs-launcher .badge { width: 6px; height: 6px; border-radius: 50%; background: var(--vio); box-shadow: 0 0 0 3px var(--vio-bg); }
+.cs-launcher.pulse .badge { animation: cs-halo 1.7s var(--ease) infinite; }
+
+/* ── Overlay + centered spotlight ────────────────────────────────────────── */
+.cs-overlay {
+  position: fixed; inset: 0; z-index: 50; display: grid; place-items: center;
+  padding: 40px 24px 48px; background: var(--scrim);
+  backdrop-filter: blur(6px) saturate(115%); -webkit-backdrop-filter: blur(6px) saturate(115%);
+}
+.cs-spot {
+  width: min(732px, 100%); max-height: min(640px, 84vh); min-height: 340px;
+  display: flex; flex-direction: column;
+  background: var(--card); border: 1px solid var(--line-med); border-radius: 20px;
+  box-shadow: var(--card-shadow); overflow: hidden;
+  animation: cs-spot-in .26s var(--ease) both;
+}
+@keyframes cs-spot-in { from { opacity: 0; transform: translateY(-8px) scale(.985); } to { opacity: 1; transform: none; } }
+
+/* Header bar — anchor + a way into Approvals. */
+.cs-bar { display: flex; align-items: center; gap: 10px; padding: 13px 16px; border-bottom: 1px solid var(--line-soft); flex-shrink: 0; }
+.cs-bar .tick { width: 6px; height: 6px; border-radius: 50%; background: var(--vio); flex-shrink: 0; }
+.cs-bar .title { font-family: var(--serif); font-style: italic; font-weight: 500; font-size: 14px; }
+.cs-bar .spacer { margin-left: auto; }
+.chat-root[data-scene="briefing"] .cs-bar { border-bottom-color: transparent; }
+.chat-root[data-scene="briefing"] .cs-bar .tick,
+.chat-root[data-scene="briefing"] .cs-bar .title { visibility: hidden; }
+.cs-bar .apprchip {
+  display: inline-flex; align-items: center; gap: 7px; cursor: pointer; background: transparent;
+  border: 1px solid var(--line); border-radius: 999px; padding: 5px 11px;
+  font-family: var(--mono); font-size: 9.5px; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--muted); transition: border-color .15s, color .15s;
+}
+.cs-bar .apprchip:hover { border-color: var(--vio-line); color: var(--ink); }
+.chat-root[data-scene="approvals"] .cs-bar .apprchip { border-color: var(--vio-line); color: var(--ink); }
+.cs-bar .newq {
+  display: inline-flex; align-items: center; gap: 6px; cursor: pointer; background: transparent;
+  border: 1px solid var(--line); border-radius: 7px; padding: 5px 10px;
+  font-family: var(--mono); font-size: 9.5px; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--muted); transition: border-color .15s, color .15s;
+}
+.cs-bar .newq:hover { border-color: var(--vio-line); color: var(--ink); }
+
+/* ── Body regions ────────────────────────────────────────────────────────── */
+.cs-body { flex: 1; min-height: 0; display: flex; }
+.cs-welcome, .cs-thread, .cs-inbox { scrollbar-width: thin; scrollbar-color: var(--line) transparent; }
+.cs-welcome::-webkit-scrollbar, .cs-thread::-webkit-scrollbar, .cs-inbox::-webkit-scrollbar { width: 7px; }
+.cs-welcome::-webkit-scrollbar-thumb, .cs-thread::-webkit-scrollbar-thumb, .cs-inbox::-webkit-scrollbar-thumb { background: var(--line); border-radius: 4px; }
+
+/* Briefing — a calm, centered invitation. Type is the hero. */
+.cs-welcome { flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; overflow-y: auto; padding: 24px 30px 14px; }
+.cs-welcome .wl { display: flex; flex-direction: column; align-items: center; gap: 15px; }
+.cs-welcome h2 { font-family: var(--serif); font-weight: 400; font-size: clamp(26px, 4.6vw, 33px); letter-spacing: -.028em; line-height: 1.1; font-optical-sizing: auto; text-wrap: balance; margin: 0; }
+.cs-welcome h2 em { font-style: italic; color: var(--vio); }
+.cs-welcome p { color: var(--muted); font-size: 13px; line-height: 1.65; max-width: 38ch; margin: 0; }
+.cs-welcome .starters { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 5px; }
+.cs-welcome .starter {
+  display: inline-flex; align-items: center; gap: 8px; cursor: pointer; background: transparent;
+  border: 1px solid var(--line); border-radius: 999px; padding: 8px 15px;
+  font-family: var(--sans); font-size: 13px; color: var(--ink-soft);
+  transition: border-color .16s, color .16s, background .16s, transform .18s var(--spring);
+}
+.cs-welcome .starter:hover { border-color: var(--vio-line); color: var(--ink); background: var(--vio-bg); transform: translateY(-1px); }
+.cs-welcome .starter i { display: inline-flex; color: var(--muted); transition: color .16s; }
+.cs-welcome .starter:hover i { color: var(--vio); }
+
+/* Thread */
+.cs-thread { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 16px; overflow-y: auto; padding: 20px; }
+.cs-inbox  { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow-y: auto; padding: 16px 16px 8px; gap: 8px; }
+
+/* Messages */
+.chat-root .msg.user {
+  align-self: flex-end; max-width: 84%; background: var(--vio-bg); border: 1px solid var(--vio-line);
+  color: var(--ink); border-radius: 14px 14px 4px 14px; padding: 9px 13px; font-size: 13.5px;
+  white-space: pre-wrap; overflow-wrap: anywhere;
+}
+.chat-root .msg.ai { max-width: 100%; }
+.chat-root .msg.ai .who {
+  font-family: var(--mono); font-size: 9px; letter-spacing: .12em; text-transform: uppercase; color: var(--vio);
+  margin-bottom: 10px; display: inline-flex; align-items: center; gap: 7px;
+}
+.chat-root .msg.ai .who i { width: 5px; height: 5px; border-radius: 50%; background: var(--vio); display: inline-block; }
+
+/* Verdict — one serif sentence carrying the judgment AND the number. */
+.chat-root .verdict { font-family: var(--serif); font-size: 18.5px; line-height: 1.5; letter-spacing: -.01em; color: var(--ink); margin: 0; }
+.chat-root .verdict em { font-style: italic; color: var(--vio); }
+
+/* Note — serif fallback prose (refusals, how-to, fast-path). */
+.chat-root .note { font-family: var(--serif); font-size: 16px; line-height: 1.6; color: var(--ink-soft); }
+.chat-root .note em { font-style: italic; color: var(--vio); }
+.chat-root .note p, .chat-root .note ul, .chat-root .note ol { margin: 0 0 .55em; }
+.chat-root .note :last-child { margin-bottom: 0; }
+.chat-root .note ul, .chat-root .note ol { padding-left: 1.2em; }
+.chat-root .note li { margin: .2em 0; }
+.chat-root .note h1, .chat-root .note h2, .chat-root .note h3 { font-size: 1em; font-weight: 600; margin: .6em 0 .3em; }
+.chat-root .note code { font-family: var(--mono); font-size: .85em; background: var(--card-2); border: 1px solid var(--line-soft); border-radius: 5px; padding: .1em .35em; }
+.chat-root .note strong { color: var(--ink); }
+.cs-caret { display: inline-block; width: 7px; height: 1em; vertical-align: text-bottom; background: var(--vio); margin-left: 2px; animation: cs-caret-blink 1s steps(1) infinite; }
+@keyframes cs-caret-blink { 50% { opacity: 0; } }
+
+/* Result rows — shared grammar across answers and briefing. */
+.chat-root .reslist { margin-top: 14px; display: flex; flex-direction: column; gap: 1px; }
+.chat-root .res {
+  display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; cursor: pointer;
+  background: transparent; border: 0; padding: 9px 10px; border-radius: 11px; transition: background .12s;
+}
+.chat-root .res:disabled { cursor: default; }
+.chat-root .res:hover:not(:disabled) { background: var(--card-2); }
+.chat-root .res.sel { background: var(--vio-bg); box-shadow: inset 0 0 0 1px var(--vio-line); }
+.chat-root .res .av {
+  width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0; display: grid; place-items: center;
+  background: var(--vio-bg); color: var(--vio); font-family: var(--mono); font-size: 11px; font-weight: 500;
+}
+.chat-root .res .glyph { width: 32px; height: 32px; border-radius: 9px; flex-shrink: 0; display: grid; place-items: center; background: var(--card-2); color: var(--muted); }
+.chat-root .res.sel .glyph { background: var(--vio-bg); color: var(--vio); }
+.chat-root .res .rb { min-width: 0; flex: 1; }
+.chat-root .res .t { display: block; font-size: 14px; color: var(--ink); letter-spacing: -.005em; }
+.chat-root .res .s { display: block; font-size: 11.5px; color: var(--faint); margin-top: 2px; }
+.chat-root .res .val { font-family: var(--mono); font-size: 12px; color: var(--ink-soft); flex-shrink: 0; }
+.chat-root .res .chev { color: transparent; flex-shrink: 0; display: inline-flex; transition: color .1s; }
+.chat-root .res:hover:not(:disabled) .chev { color: var(--faint); }
+.chat-root .res.sel .chev { color: var(--vio); }
+
+/* Sources / Consulted chips (the SAME chip component). */
+.chat-root .sources, .chat-root .consulted { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; }
+.chat-root .consulted { margin-top: 15px; }
+.chat-root .sources .lbl, .chat-root .consulted .lbl { font-family: var(--mono); font-size: 9px; letter-spacing: .12em; text-transform: uppercase; color: var(--faint); }
+.chat-root .src {
+  display: inline-flex; align-items: center; gap: 6px; font-family: var(--mono); font-size: 10px; color: var(--ink-soft);
+  border: 1px solid var(--line); border-radius: 7px; padding: 3px 8px;
+}
+.chat-root .src i { width: 4px; height: 4px; border-radius: 50%; background: var(--vio); display: inline-block; }
+.chat-root .src.chip-in { animation: cs-chip-pop .34s var(--spring) both; }
+@keyframes cs-chip-pop { from { opacity: 0; transform: scale(.82); } to { opacity: 1; transform: none; } }
+
+/* Follow-up chips + feedback */
+.chat-root .follows { margin-top: 14px; display: flex; flex-wrap: wrap; gap: 7px; }
+.chat-root .chip {
+  display: inline-flex; align-items: center; gap: 7px; cursor: pointer; background: transparent;
+  border: 1px solid var(--line); border-radius: 999px; padding: 6px 13px;
+  font-family: var(--sans); font-size: 12.5px; color: var(--ink-soft);
+  transition: border-color .14s, color .14s, background .14s;
+}
+.chat-root .chip:hover { border-color: var(--vio-line); color: var(--ink); background: var(--vio-bg); }
+.chat-root .meta-row { margin-top: 15px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.chat-root .meta-row .sources { flex: 1 1 auto; }
+.chat-root .feedback { display: flex; align-items: center; gap: 10px; margin-left: auto; }
+.chat-root .feedback .fl { font-family: var(--mono); font-size: 9px; letter-spacing: .12em; text-transform: uppercase; color: var(--faint); }
+.chat-root .fbtn {
+  width: 26px; height: 26px; border-radius: 7px; display: grid; place-items: center; cursor: pointer;
+  background: transparent; border: 1px solid var(--line); color: var(--muted); transition: all .14s;
+}
+.chat-root .fbtn:hover { border-color: var(--vio-line); color: var(--vio); }
+.chat-root .fbtn.on { border-color: var(--vio-line); color: var(--vio); background: var(--vio-bg); }
+
+/* ── Reasoning ledger — the thinking made legible ────────────────────────── */
+@keyframes cs-spin { to { transform: rotate(360deg); } }
+@keyframes cs-halo { 0% { transform: scale(1); opacity: .5; } 100% { transform: scale(3.6); opacity: 0; } }
+
+.chat-root .reason { padding: 2px 0; }
+.chat-root .reason-intent { display: flex; align-items: center; gap: 11px; }
+.chat-root .reason-intent .pulse { position: relative; width: 7px; height: 7px; flex-shrink: 0; }
+.chat-root .reason-intent .pulse i { position: absolute; inset: 0; border-radius: 50%; background: var(--vio); }
+.chat-root .reason-intent .pulse::after { content: ''; position: absolute; inset: 0; border-radius: 50%; background: var(--vio); animation: cs-halo 1.7s var(--ease) infinite; }
+.chat-root .reason-intent .lbl { font-family: var(--serif); font-style: italic; font-size: 15.5px; letter-spacing: -.01em; color: var(--ink-soft); }
+.chat-root .reason-intent .count { margin-left: auto; font-family: var(--mono); font-size: 9px; letter-spacing: .14em; text-transform: uppercase; color: var(--faint); }
+
+.chat-root .ledger { margin-top: 15px; position: relative; display: flex; flex-direction: column; }
+.chat-root .ledger::before { content: ''; position: absolute; left: 7px; top: 13px; bottom: 15px; width: 1px; background: var(--line); }
+.chat-root .lstep { position: relative; display: flex; align-items: flex-start; gap: 13px; padding: 5px 0; }
+.chat-root .lstep .node { position: relative; z-index: 1; width: 15px; height: 15px; flex-shrink: 0; margin-top: 1px; display: grid; place-items: center; }
+.chat-root .lstep .node .dot  { width: 7px; height: 7px; border-radius: 50%; border: 1.5px solid var(--faint); background: var(--paper); box-sizing: border-box; }
+.chat-root .lstep .node .arc  { width: 15px; height: 15px; border: 1.5px solid var(--vio-line); border-top-color: var(--vio); border-radius: 50%; animation: cs-spin .7s linear infinite; box-shadow: 0 0 0 4px var(--vio-glow); }
+.chat-root .lstep .node .disc { width: 15px; height: 15px; border-radius: 50%; background: var(--vio-bg); border: 1.5px solid var(--vio-line); color: var(--vio); display: grid; place-items: center; }
+.chat-root .arc.sm { width: 12px; height: 12px; border: 1.5px solid var(--vio-line); border-top-color: var(--vio); border-radius: 50%; animation: cs-spin .7s linear infinite; display: inline-block; }
+
+.chat-root .lstep .lmain { flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 12px; }
+.chat-root .lstep .lverb { font-family: var(--sans); font-size: 13.5px; letter-spacing: -.005em; color: var(--muted); transition: color .25s var(--ease); }
+.chat-root .lstep.active  .lverb { color: var(--ink); }
+.chat-root .lstep.done    .lverb { color: var(--ink-soft); }
+.chat-root .lstep.pending .lverb { color: var(--faint); }
+.chat-root .lstep .lfind { margin-left: auto; font-family: var(--mono); font-size: 11.5px; color: var(--ink-soft); white-space: nowrap; flex-shrink: 0; font-variant-numeric: tabular-nums; }
+.chat-root .lstep .lfind em { color: var(--vio); font-style: normal; }
+.chat-root .lstep.active .lfind { color: var(--vio); }
+
+.chat-root .lstep-in { animation: cs-lstep-in .32s var(--ease) both; }
+@keyframes cs-lstep-in { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: none; } }
+.chat-root .lfind.fin-in { animation: cs-fin-in .34s var(--ease) both; }
+@keyframes cs-fin-in { from { opacity: 0; transform: translateX(7px); } to { opacity: 1; transform: none; } }
+
+/* ── Trace — the reasoning persists, collapsed, above the answer ─────────── */
+.chat-root .trace { margin-bottom: 15px; }
+.chat-root .trace-toggle {
+  display: inline-flex; align-items: center; gap: 8px; cursor: pointer; background: transparent; border: 0;
+  padding: 3px 0; max-width: 100%; font-family: var(--mono); font-size: 10px; letter-spacing: .03em;
+  color: var(--faint); transition: color .15s; text-align: left;
+}
+.chat-root .trace-toggle:hover { color: var(--muted); }
+.chat-root .trace-toggle .tk { color: var(--ok); display: inline-flex; flex-shrink: 0; }
+.chat-root .trace-toggle .cv { display: inline-flex; flex-shrink: 0; transition: transform .2s var(--ease); }
+.chat-root .trace.open .trace-toggle .cv { transform: rotate(90deg); }
+.chat-root .trace-body { margin: 11px 0 2px; padding: 13px 14px; border: 1px solid var(--line-soft); border-radius: 12px; background: var(--card-2); animation: cs-fin-in .28s var(--ease) both; }
+.chat-root .trace-body .ledger { margin-top: 0; }
+
+/* ── Writ card — propose-then-commit ─────────────────────────────────────── */
+.chat-root .writ { margin-top: 14px; border: 1px solid var(--line-med); border-radius: 15px; background: var(--card-2); overflow: hidden; }
+.chat-root .writ .wh { display: flex; align-items: center; gap: 10px; padding: 12px 15px; border-bottom: 1px solid var(--line-soft); }
+.chat-root .writ .chip-tag {
+  font-family: var(--mono); font-size: 9px; font-weight: 500; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--vio); background: var(--vio-bg); border: 1px solid var(--vio-line); border-radius: 999px; padding: 3px 9px; flex-shrink: 0;
+}
+.chat-root .writ .what { font-size: 14px; font-weight: 500; letter-spacing: -.005em; }
+.chat-root .writ .wb { padding: 4px 15px 8px; }
+.chat-root .wrow { display: flex; align-items: baseline; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--line-soft); }
+.chat-root .wrow:last-child { border-bottom: 0; }
+.chat-root .wrow .wk { font-family: var(--mono); font-size: 10px; letter-spacing: .06em; text-transform: uppercase; color: var(--faint); width: 84px; flex-shrink: 0; }
+.chat-root .wrow .wv { font-size: 13px; color: var(--ink); font-family: var(--mono); overflow-wrap: anywhere; }
+.chat-root .wrow .wv.em { font-weight: 500; }
+.chat-root .writ .permline { display: flex; align-items: center; gap: 8px; padding: 10px 15px 0; font-family: var(--mono); font-size: 10px; letter-spacing: .03em; color: var(--faint); }
+.chat-root .writ .permline b { color: var(--muted); font-weight: 400; }
+.chat-root .writ .permline .lk { display: inline-flex; color: var(--faint); }
+.chat-root .wfoot { display: flex; gap: 9px; padding: 12px 15px 14px; border-top: 1px solid var(--line-soft); margin-top: 12px; }
+.chat-root .writ .gate + .wfoot, .chat-root .writ .wb + .wfoot { margin-top: 0; }
+.chat-root .wbtn {
+  flex: 1; text-align: center; padding: 10px; border-radius: 10px; font-size: 13px; font-weight: 500; cursor: pointer;
+  color: var(--ink-soft); background: var(--card); border: 1px solid var(--line); transition: all .13s;
+}
+.chat-root .wbtn.primary { background: var(--vio-deep); border-color: var(--vio-deep); color: #fff; }
+.chat-root .wbtn.primary:hover:not(:disabled) { background: color-mix(in srgb, var(--vio-deep) 84%, #000); }
+.chat-root .wbtn.quiet:hover { background: var(--card-2); border-color: var(--line-med); }
+.chat-root .wbtn:disabled { opacity: .45; cursor: not-allowed; }
+.chat-root .wbusy { display: inline-flex; align-items: center; gap: 8px; padding: 6px 0; font-size: 12.5px; color: var(--muted); }
+
+/* Gate + settle states */
+.chat-root .gate { display: flex; align-items: flex-start; gap: 9px; padding: 12px 15px; border-top: 1px solid var(--line-soft); margin-top: 12px; }
+.chat-root .gate .lk { color: var(--muted); flex-shrink: 0; margin-top: 1px; display: inline-flex; }
+.chat-root .gate .gt { font-size: 12.5px; color: var(--ink-soft); line-height: 1.5; }
+.chat-root .gate .gt b { color: var(--ink); font-weight: 500; }
+.chat-root .settled { display: flex; align-items: center; gap: 9px; padding: 12px 15px; border-top: 1px solid var(--line-soft); background: var(--ok-bg); margin-top: 12px; }
+.chat-root .wb + .settled, .chat-root .permline + .settled { margin-top: 12px; }
+.chat-root .settled.declined { background: var(--card); }
+.chat-root .settled .tk { color: var(--ok); flex-shrink: 0; display: inline-flex; }
+.chat-root .settled.declined .tk { color: var(--muted); }
+.chat-root .settled .txt { font-size: 12.5px; color: var(--ink); font-weight: 500; }
+.chat-root .settled .stamp { margin-left: auto; font-family: var(--mono); font-size: 9.5px; letter-spacing: .04em; color: var(--faint); white-space: nowrap; }
+
+/* ── Approvals record ────────────────────────────────────────────────────── */
+.chat-root .inbox-hd { display: flex; align-items: baseline; gap: 10px; padding: 6px 6px 4px; flex-wrap: wrap; }
+.chat-root .inbox-hd h3 { font-family: var(--serif); font-weight: 500; font-size: 19px; letter-spacing: -.01em; margin: 0; }
+.chat-root .inbox-hd .meta { font-family: var(--mono); font-size: 10px; letter-spacing: .04em; color: var(--faint); }
+.chat-root .audit-filters { display: flex; align-items: center; gap: 6px; padding: 4px 6px 2px; flex-wrap: wrap; }
+.chat-root .fchip {
+  font-family: var(--mono); font-size: 9.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted);
+  background: transparent; border: 1px solid var(--line); border-radius: 999px; padding: 5px 11px; cursor: pointer;
+  transition: border-color .15s, color .15s, background .15s;
+}
+.chat-root .fchip:hover { border-color: var(--line-med); color: var(--ink); }
+.chat-root .fchip.on { color: var(--ink); border-color: var(--vio-line); background: var(--vio-bg); }
+.chat-root .inbox-sec { margin-top: 10px; }
+.chat-root .inbox-sec > .lbl { display: flex; align-items: center; gap: 8px; font-family: var(--mono); font-size: 9px; letter-spacing: .14em; text-transform: uppercase; color: var(--faint); padding: 0 6px 8px; }
+.chat-root .inbox-sec > .lbl .date { margin-left: auto; letter-spacing: .06em; color: var(--faint); text-transform: none; }
+.chat-root .appr { border: 1px solid var(--line); border-radius: 13px; background: var(--card); margin-bottom: 8px; overflow: hidden; transition: border-color .15s; }
+.chat-root .appr:hover { border-color: var(--line-med); }
+.chat-root .appr.open { border-color: var(--vio-line); }
+.chat-root .appr-row { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; cursor: pointer; background: transparent; border: 0; padding: 12px 14px; }
+.chat-root .appr-row .glyph { width: 34px; height: 34px; border-radius: 10px; flex-shrink: 0; display: grid; place-items: center; background: var(--card-2); color: var(--muted); }
+.chat-root .appr-row .rb { min-width: 0; flex: 1; }
+.chat-root .appr-row .t { display: block; font-size: 14px; color: var(--ink); letter-spacing: -.005em; }
+.chat-root .appr-row .s { display: block; font-size: 11.5px; color: var(--faint); margin-top: 3px; }
+.chat-root .appr-row .s b { color: var(--muted); font-weight: 400; }
+.chat-root .permpill {
+  display: inline-flex; align-items: center; gap: 5px; font-family: var(--mono); font-size: 9px; letter-spacing: .06em;
+  text-transform: uppercase; color: var(--muted); background: var(--card-2); border: 1px solid var(--line);
+  border-radius: 999px; padding: 3px 9px; flex-shrink: 0; white-space: nowrap;
+}
+.chat-root .permpill .lk { display: inline-flex; color: var(--faint); }
+.chat-root .appr-detail { padding: 0 14px 14px; }
+.chat-root .appr-detail .writ { margin-top: 4px; }
+.chat-root .inbox-empty { text-align: center; padding: 30px 20px; }
+.chat-root .inbox-empty .note { font-size: 15px; }
+
+/* ── Dock / composer ─────────────────────────────────────────────────────── */
+.cs-dock { padding: 0 16px 16px; flex-shrink: 0; }
+.cs-dock .composer {
+  display: flex; align-items: flex-end; gap: 8px; border: 1px solid var(--line-med); border-radius: 14px;
+  background: var(--paper-2); padding: 7px 7px 7px 15px; transition: border-color .18s, box-shadow .18s;
+}
+.cs-dock .composer:focus-within { border-color: var(--vio-line); box-shadow: 0 0 0 3px var(--vio-bg); }
+.cs-dock textarea {
+  flex: 1; min-width: 0; border: 0; outline: none; resize: none; background: transparent; color: var(--ink);
+  font-family: var(--sans); font-size: 14.5px; line-height: 1.5; padding: 7px 0; max-height: 120px; caret-color: var(--vio);
+}
+.cs-dock textarea::placeholder { color: var(--faint); }
+.cs-dock .send {
+  flex: 0 0 auto; width: 36px; height: 36px; border-radius: 10px; border: 0; cursor: pointer;
+  background: var(--vio-deep); color: #fff; display: inline-flex; align-items: center; justify-content: center;
+  transition: background .16s, transform .12s;
+}
+.cs-dock .send:hover:not(:disabled) { background: color-mix(in srgb, var(--vio-deep) 82%, #000); }
+.cs-dock .send:active:not(:disabled) { transform: scale(.93); }
+.cs-dock .send:disabled { background: var(--card-2); color: var(--faint); cursor: default; }
+.cs-dock .send.stop { background: var(--card); color: var(--ink-soft); border: 1px solid var(--line-med); }
+.cs-dock .send.stop:hover { border-color: var(--vio-line); color: var(--ink); }
+
+/* ── Entrance choreography ───────────────────────────────────────────────── */
+.chat-root .in { animation: cs-rise .34s var(--spring) both; }
+@keyframes cs-rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.chat-root .in-1 { animation-delay: .02s; } .chat-root .in-2 { animation-delay: .07s; }
+.chat-root .in-3 { animation-delay: .12s; } .chat-root .in-4 { animation-delay: .17s; }
+.chat-root .msg.user.send-in { animation: cs-send-up .44s var(--spring) both; }
+@keyframes cs-send-up { from { opacity: 0; transform: translateY(18px) scale(.96); } to { opacity: 1; transform: none; } }
+.chat-root .msg.ai.think-in { animation: cs-rise .42s var(--spring) both; animation-delay: .14s; }
+
+@media (max-width: 760px) {
+  .cs-overlay { padding: 16px 10px 20px; }
+  .cs-spot { max-height: 92vh; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .chat-root *, .chat-root *::before, .chat-root *::after { animation: none !important; transition: none !important; }
+}
