@@ -18,7 +18,8 @@
  */
 
 import { describe, it, expect, vi } from "vitest";
-import { runProposal, isProposalTool, validateArgs } from "@/lib/ai-tools";
+import { runProposal, isProposalTool, validateArgs, type ProposalCtx } from "@/lib/ai-tools";
+import { ALL_PERMISSIONS } from "@/lib/permissions";
 import type { db } from "@/lib/db";
 
 type Scoped = ReturnType<typeof db>;
@@ -38,7 +39,9 @@ const MOCK_EVENT_TYPES = [
   { slug: "fundy",   label: "Fundraiser",        creatable: true,  hidden: false },
 ];
 function mockScoped(duesBefore: number | null = 135): { scoped: Scoped; findFirst: ReturnType<typeof vi.fn> } {
-  const findFirst = vi.fn(async () => (duesBefore === null ? null : { duesOwed: duesBefore }));
+  // `name` serves proposeAddDeadline's assignee resolution (a missing name now
+  // BLOCKS the draft); `duesOwed` serves proposeRecordDuesPayment's balance read.
+  const findFirst = vi.fn(async () => (duesBefore === null ? null : { duesOwed: duesBefore, name: "Mock Owner" }));
   const findMany = vi.fn(async () => MOCK_EVENT_TYPES);
   const explode = (op: string) => () => { throw new Error(`unexpected DB write: ${op}`); };
   // A Proxy so any model.method access resolves: reads return findFirst/findMany
@@ -58,6 +61,10 @@ function mockScoped(duesBefore: number | null = 135): { scoped: Scoped; findFirs
   }) as unknown as Scoped;
   return { scoped, findFirst };
 }
+
+/** All-permissions caller: canApprove is true, so no holder lookup fires.
+ *  The gate branch (canApprove false → holders) is covered in tool-ui.test.ts. */
+const PCTX: ProposalCtx = { orgId: 1, actorId: 3, permissions: ALL_PERMISSIONS, isOrgAdmin: false, isPlatformAdmin: false };
 
 const ALL_PROPOSAL_TOOLS = [
   "propose_add_deadline",
@@ -90,7 +97,7 @@ describe("every builder proposes and never writes", () => {
   for (const tool of ALL_PROPOSAL_TOOLS) {
     it(`${tool}: valid args → proposal, no DB write`, async () => {
       const { scoped } = mockScoped();
-      const out = await runProposal(tool, VALID_ARGS[tool], scoped);
+      const out = await runProposal(tool, VALID_ARGS[tool], scoped, PCTX);
       expect("error" in out).toBe(false);
       const proposal = out as Extract<typeof out, { kind: "proposal" }>;
       expect(proposal.kind).toBe("proposal");
@@ -99,12 +106,18 @@ describe("every builder proposes and never writes", () => {
       expect(typeof proposal.endpoint).toBe("string");
       expect(proposal.endpoint.startsWith("/api/")).toBe(true);
       expect(typeof proposal.summary).toBe("string");
+      // Spotlight additions: server-built card content + resolved authority.
+      expect(typeof proposal.display.title).toBe("string");
+      expect(proposal.display.rows.length).toBeGreaterThan(0);
+      expect(proposal.perm.canApprove).toBe(true);
+      expect(typeof proposal.perm.label).toBe("string");
+      expect(typeof proposal.iat).toBe("number");
     });
   }
 
   it("unknown proposal name returns an error, not a throw", async () => {
     const { scoped } = mockScoped();
-    const out = await runProposal("propose_nothing", {}, scoped);
+    const out = await runProposal("propose_nothing", {}, scoped, PCTX);
     expect(out).toEqual({ error: expect.stringContaining("Unknown proposal") });
   });
 });
@@ -113,48 +126,48 @@ describe("argument validation rejects malformed input as {error}", () => {
   it("missing required fields → error (not a partial proposal)", async () => {
     const { scoped } = mockScoped();
     // deadline requires title + dueDate
-    expect(await runProposal("propose_add_deadline", { title: "x" }, scoped)).toHaveProperty("error");
+    expect(await runProposal("propose_add_deadline", { title: "x" }, scoped, PCTX)).toHaveProperty("error");
     // instagram requires title + dueDate + type
-    expect(await runProposal("propose_add_instagram_task", { title: "x", dueDate: "2026-07-01" }, scoped)).toHaveProperty("error");
+    expect(await runProposal("propose_add_instagram_task", { title: "x", dueDate: "2026-07-01" }, scoped, PCTX)).toHaveProperty("error");
   });
 
   it("invalid enum value → error", async () => {
     const { scoped } = mockScoped();
-    const igBadType = await runProposal("propose_add_instagram_task", { title: "x", dueDate: "2026-07-01", type: "Tweet" }, scoped);
+    const igBadType = await runProposal("propose_add_instagram_task", { title: "x", dueDate: "2026-07-01", type: "Tweet" }, scoped, PCTX);
     expect(igBadType).toHaveProperty("error");
-    const txBadType = await runProposal("propose_log_transaction", { type: "refund", category: "x", amount: 1, date: "2026-07-01", description: "d" }, scoped);
+    const txBadType = await runProposal("propose_log_transaction", { type: "refund", category: "x", amount: 1, date: "2026-07-01", description: "d" }, scoped, PCTX);
     expect(txBadType).toHaveProperty("error");
   });
 
   it("malformed date → error", async () => {
     const { scoped } = mockScoped();
-    expect(await runProposal("propose_add_deadline", { title: "x", dueDate: "07/01/2026", assigneeBrotherId: 1 }, scoped)).toHaveProperty("error");
-    expect(await runProposal("propose_add_calendar_event", { title: "x", date: "nope", category: "social" }, scoped)).toHaveProperty("error");
+    expect(await runProposal("propose_add_deadline", { title: "x", dueDate: "07/01/2026", assigneeBrotherId: 1 }, scoped, PCTX)).toHaveProperty("error");
+    expect(await runProposal("propose_add_calendar_event", { title: "x", date: "nope", category: "social" }, scoped, PCTX)).toHaveProperty("error");
   });
 
   it("a deadline with no assignee → error (a task must have an owner)", async () => {
     const { scoped } = mockScoped();
-    const out = await runProposal("propose_add_deadline", { title: "x", dueDate: "2026-07-01" }, scoped);
+    const out = await runProposal("propose_add_deadline", { title: "x", dueDate: "2026-07-01" }, scoped, PCTX);
     expect(out).toHaveProperty("error");
   });
 
   it("over-length title / notes → error", async () => {
     const { scoped } = mockScoped();
     const longTitle = "x".repeat(201);
-    expect(await runProposal("propose_add_deadline", { title: longTitle, dueDate: "2026-07-01", assigneeBrotherId: 1 }, scoped)).toHaveProperty("error");
+    expect(await runProposal("propose_add_deadline", { title: longTitle, dueDate: "2026-07-01", assigneeBrotherId: 1 }, scoped, PCTX)).toHaveProperty("error");
     const longNotes = "y".repeat(2001);
-    expect(await runProposal("propose_add_deadline", { title: "ok", dueDate: "2026-07-01", assigneeBrotherId: 1, notes: longNotes }, scoped)).toHaveProperty("error");
+    expect(await runProposal("propose_add_deadline", { title: "ok", dueDate: "2026-07-01", assigneeBrotherId: 1, notes: longNotes }, scoped, PCTX)).toHaveProperty("error");
   });
 
   it("negative transaction amount → error", async () => {
     const { scoped } = mockScoped();
-    const out = await runProposal("propose_log_transaction", { type: "income", category: "Dues", amount: -5, date: "2026-07-01", description: "d" }, scoped);
+    const out = await runProposal("propose_log_transaction", { type: "income", category: "Dues", amount: -5, date: "2026-07-01", description: "d" }, scoped, PCTX);
     expect(out).toHaveProperty("error");
   });
 
   it("chapter calendar event cannot be non-mandatory", async () => {
     const { scoped } = mockScoped();
-    const out = await runProposal("propose_add_calendar_event", { title: "x", date: "2026-07-01", category: "chapter", mandatory: false }, scoped);
+    const out = await runProposal("propose_add_calendar_event", { title: "x", date: "2026-07-01", category: "chapter", mandatory: false }, scoped, PCTX);
     expect(out).toHaveProperty("error");
   });
 });
@@ -169,7 +182,7 @@ describe("argument validation rejects malformed input as {error}", () => {
 describe("proposeRecordDuesPayment — proposes a dues transaction, never writes", () => {
   it("targets the transactions endpoint with the full outstanding balance", async () => {
     const { scoped, findFirst } = mockScoped(135);
-    const out = await runProposal("propose_record_dues_payment", { brother_id: 3, brother_name: "Bryan" }, scoped);
+    const out = await runProposal("propose_record_dues_payment", { brother_id: 3, brother_name: "Bryan" }, scoped, PCTX);
     expect("error" in out).toBe(false);
     const proposal = out as Extract<typeof out, { kind: "proposal" }>;
     expect(findFirst).toHaveBeenCalledOnce();
@@ -185,7 +198,7 @@ describe("proposeRecordDuesPayment — proposes a dues transaction, never writes
 
   it("an explicit amount proposes a partial payment and names the remainder", async () => {
     const { scoped } = mockScoped(135);
-    const out = await runProposal("propose_record_dues_payment", { brother_id: 3, brother_name: "Bryan", amount: 35 }, scoped);
+    const out = await runProposal("propose_record_dues_payment", { brother_id: 3, brother_name: "Bryan", amount: 35 }, scoped, PCTX);
     const proposal = out as Extract<typeof out, { kind: "proposal" }>;
     expect(proposal.payload).toMatchObject({ brotherId: 3, amount: 35 });
     expect(proposal.summary).toContain("100.00");   // 135 − 35 still owing
@@ -193,13 +206,13 @@ describe("proposeRecordDuesPayment — proposes a dues transaction, never writes
 
   it("refuses to propose more than they owe (createTransaction would 409 anyway)", async () => {
     const { scoped } = mockScoped(50);
-    const out = await runProposal("propose_record_dues_payment", { brother_id: 3, brother_name: "Bryan", amount: 100 }, scoped);
+    const out = await runProposal("propose_record_dues_payment", { brother_id: 3, brother_name: "Bryan", amount: 100 }, scoped, PCTX);
     expect(out).toHaveProperty("error");
   });
 
   it("refuses when they already owe nothing — there is no payment to record", async () => {
     const { scoped } = mockScoped(0);
-    const out = await runProposal("propose_record_dues_payment", { brother_id: 3, brother_name: "Bryan" }, scoped);
+    const out = await runProposal("propose_record_dues_payment", { brother_id: 3, brother_name: "Bryan" }, scoped, PCTX);
     expect(out).toHaveProperty("error");
   });
 
@@ -216,13 +229,13 @@ describe("proposeRecordDuesPayment — proposes a dues transaction, never writes
     });
     const scoped = new Proxy({} as Record<string, unknown>, { get() { return model; } }) as unknown as Scoped;
 
-    const out = await runProposal("propose_record_dues_payment", { brother_id: 3, brother_name: "Bryan" }, scoped);
+    const out = await runProposal("propose_record_dues_payment", { brother_id: 3, brother_name: "Bryan" }, scoped, PCTX);
     expect(out).toHaveProperty("error");
   });
 
   it("missing brother_name → error before any read", async () => {
     const { scoped } = mockScoped();
-    const out = await runProposal("propose_record_dues_payment", { brother_id: 3 }, scoped);
+    const out = await runProposal("propose_record_dues_payment", { brother_id: 3 }, scoped, PCTX);
     expect(out).toHaveProperty("error");
   });
 });

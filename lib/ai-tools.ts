@@ -17,6 +17,9 @@ import { getBrotherStatus, round2, type Brother as BrotherType } from "@/app/dat
 import { resolveThresholds, type Thresholds } from "@/lib/thresholds";
 import { isProgrammingManagedType } from "@/lib/programming";
 import { INSTAGRAM_TYPES } from "@/lib/validation/instagram";
+import { hasPermission, type Permission } from "@/lib/permissions";
+import { signProposalBlob } from "@/lib/ai-approval-sig";
+import { findPermHolders, type PermHolders } from "@/lib/permission-holders";
 
 /**
  * Org-scoped data accessor (the same shape as ctx.db). Every tool handler reads
@@ -55,6 +58,33 @@ async function orgThresholds(scoped: Scoped, orgId: number): Promise<Thresholds>
 // Tool schemas (OpenAI Chat Completions tool format)
 // ────────────────────────────────────────────────────────────────────────────
 
+/** The chapter surface a proposal writes to — drives approvals filters + card glyphs. */
+export const PROPOSAL_KINDS = ["timeline", "instagram", "events", "treasury", "dues", "programming"] as const;
+export type ProposalKind = (typeof PROPOSAL_KINDS)[number];
+
+/** One key/value line on the writ card (and, verbatim, in the approval record). */
+export interface DisplayRow { k: string; v: string; em?: boolean }
+
+/** Server-built card content — what the writ card shows and the audit row stores. */
+export interface ProposalDisplay {
+  kind: ProposalKind;
+  title: string;        // "Record a dues payment"
+  rows: DisplayRow[];
+}
+
+/**
+ * The authority a proposal runs under, resolved against the calling member.
+ * The permission gates BOTH proposing and approving: a holder self-approves;
+ * a non-holder's draft is blocked (not routed), with `holders` naming who in
+ * this org does hold it so the model/UI can point them the right way.
+ */
+export interface ProposalPerm {
+  name: Permission;
+  label: string;        // human label, e.g. "Manage dues"
+  canApprove: boolean;
+  holders?: PermHolders;
+}
+
 // Shapes the proposal payload sent over SSE to the client.
 export interface Proposal {
   kind: "proposal";
@@ -63,7 +93,46 @@ export interface Proposal {
   method: "POST" | "PATCH";
   payload: Record<string, unknown>;
   summary: string;      // human-readable one-liner for the confirm card
+  display: ProposalDisplay;
+  perm: ProposalPerm;
+  /**
+   * HMAC over {action,endpoint,method,payload,display,perm,orgId,actorId,iat}
+   * (see lib/ai-approval-sig.ts). The client echoes blob+sig back when the
+   * approved action is recorded, so the audit row can't be client-forged.
+   * Null when no signing key is configured — the card still works; only the
+   * approval record is skipped.
+   */
+  sig: string | null;
+  iat: number;
 }
+
+/** What a proposal handler returns: everything above except the authority/signature, which runProposal resolves. */
+type ProposalDraft = Omit<Proposal, "display" | "perm" | "sig" | "iat"> & { rows: DisplayRow[] };
+
+/** The slice of RequestContext runProposal needs — the eval harness fabricates one. */
+export interface ProposalCtx {
+  orgId: number;
+  actorId: number;
+  permissions: number;
+  isOrgAdmin: boolean;
+  isPlatformAdmin: boolean;
+}
+
+/**
+ * Per-proposal authority + card identity. `perm` mirrors the requirePerm of the
+ * endpoint the payload targets (verified against each app/api route) — if a
+ * route's gate changes, change it here too. `label` is the human name the writ
+ * card and gate copy use; two tools may share a bit but read differently
+ * ("Manage dues" vs "Manage treasury" are both MANAGE_TREASURY).
+ */
+export const PROPOSAL_META: Record<string, { perm: Permission; label: string; kind: ProposalKind; title: string }> = {
+  propose_add_deadline:          { perm: "MANAGE_TASKS",     label: "Manage timeline",  kind: "timeline",    title: "Add a deadline" },
+  propose_add_instagram_task:    { perm: "MANAGE_INSTAGRAM", label: "Manage Instagram", kind: "instagram",   title: "Add an Instagram task" },
+  propose_add_calendar_event:    { perm: "MANAGE_EVENTS",    label: "Manage events",    kind: "events",      title: "Add a calendar event" },
+  propose_log_transaction:       { perm: "MANAGE_TREASURY",  label: "Manage treasury",  kind: "treasury",    title: "Log a transaction" },
+  propose_record_dues_payment:   { perm: "MANAGE_TREASURY",  label: "Manage dues",      kind: "dues",        title: "Record a dues payment" },
+  propose_add_programming_event: { perm: "MANAGE_EVENTS",    label: "Manage events",    kind: "programming", title: "Add a programming event" },
+};
 
 const IG_TYPES = INSTAGRAM_TYPES;
 const TX_TYPES = ["income", "expense"] as const;
@@ -518,13 +587,139 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
       },
     },
   },
+  // ── Structured final answer (terminal — the call IS the answer) ──
+  {
+    type: "function",
+    function: {
+      name: "compose_answer",
+      description:
+        "Present your FINAL answer to a data question as a structured verdict plus result rows. Call this exactly once, ALONE in its own turn " +
+        "(never alongside read tools — finish your reads first), INSTEAD of writing a prose answer. " +
+        "verdict: ONE short sentence carrying the judgment AND the headline number, with the single most important figure or phrase wrapped in *asterisks*. " +
+        "rows: up to 6 records backing the verdict (the people/events/transactions the question is about) — put each row's figure in value, and give each row an `ask` " +
+        "(the natural follow-up question tapping it should send). follows: up to 3 short follow-up suggestions. " +
+        "Do NOT use this for refusals, clarifying questions, product how-to, or when there's no data to show — answer those in plain text.",
+      parameters: {
+        type: "object",
+        properties: {
+          verdict: { type: "string", description: "One sentence, ≤160 chars, exactly one *emphasis*." },
+          rows: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                kind:     { type: "string", enum: ["person", "money", "event", "task", "generic"], description: "Row glyph: person = a member (avatar from title initials)." },
+                title:    { type: "string", description: "Primary label — a name or event title." },
+                subtitle: { type: "string", description: "One quiet detail line, e.g. 'Secretary · on a payment plan'." },
+                value:    { type: "string", description: "Right-aligned figure, e.g. '$250' or '2' or 'Thu'." },
+                ask:      { type: "string", description: "Follow-up question to send if the user taps this row." },
+              },
+              required: ["kind", "title"],
+            },
+          },
+          follows: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                label: { type: "string", description: "Chip label, ≤30 chars." },
+                ask:   { type: "string", description: "The question the chip sends." },
+              },
+              required: ["label", "ask"],
+            },
+          },
+        },
+        required: ["verdict"],
+      },
+    },
+  },
 ];
+
+// ────────────────────────────────────────────────────────────────────────────
+// compose_answer — parse + sanitize
+// ────────────────────────────────────────────────────────────────────────────
+
+export const ANSWER_TOOL = "compose_answer";
+
+/** True when the tool name is the terminal structured-answer tool. */
+export function isAnswerTool(name: string): boolean {
+  return name === ANSWER_TOOL;
+}
+
+export interface AnswerRow {
+  kind: "person" | "money" | "event" | "task" | "generic";
+  title: string;
+  subtitle?: string;
+  value?: string;
+  ask?: string;
+}
+
+export interface AnswerPayload {
+  verdict: string;   // may contain ONE *emphasis* span; client renders it, escaping everything else
+  rows: AnswerRow[];
+  follows: Array<{ label: string; ask: string }>;
+}
+
+const ANSWER_ROW_KINDS = new Set(["person", "money", "event", "task", "generic"]);
+
+/**
+ * Sanitize compose_answer args into the payload the `answer` SSE event carries.
+ * Deep-validates what validateArgs (top-level only) can't: row/follow shapes,
+ * caps (6 rows, 3 follows), and length limits. Malformed entries are dropped,
+ * not fatal; a missing verdict is the only hard error (fed back to the model
+ * so it retries).
+ */
+export function parseComposeAnswer(args: ToolArgs): AnswerPayload | { error: string } {
+  const verdict = typeof args.verdict === "string" ? args.verdict.trim() : "";
+  if (!verdict) return { error: "compose_answer: verdict (one sentence) is required." };
+
+  const rows: AnswerRow[] = [];
+  if (Array.isArray(args.rows)) {
+    for (const raw of args.rows.slice(0, 6)) {
+      if (typeof raw !== "object" || raw === null) continue;
+      const r = raw as Record<string, unknown>;
+      const title = typeof r.title === "string" ? r.title.trim() : "";
+      if (!title) continue;
+      const kind = typeof r.kind === "string" && ANSWER_ROW_KINDS.has(r.kind)
+        ? (r.kind as AnswerRow["kind"])
+        : "generic";
+      rows.push({
+        kind,
+        title: title.slice(0, 80),
+        ...(typeof r.subtitle === "string" && r.subtitle.trim() ? { subtitle: r.subtitle.trim().slice(0, 120) } : {}),
+        ...(typeof r.value === "string" && r.value.trim() ? { value: r.value.trim().slice(0, 24) } : {}),
+        ...(typeof r.ask === "string" && r.ask.trim() ? { ask: r.ask.trim().slice(0, 200) } : {}),
+      });
+    }
+  }
+
+  const follows: Array<{ label: string; ask: string }> = [];
+  if (Array.isArray(args.follows)) {
+    for (const raw of args.follows.slice(0, 3)) {
+      if (typeof raw !== "object" || raw === null) continue;
+      const f = raw as Record<string, unknown>;
+      const label = typeof f.label === "string" ? f.label.trim() : "";
+      const ask = typeof f.ask === "string" ? f.ask.trim() : "";
+      if (label && ask) follows.push({ label: label.slice(0, 40), ask: ask.slice(0, 200) });
+    }
+  }
+
+  return { verdict: verdict.slice(0, 240), rows, follows };
+}
 
 // ────────────────────────────────────────────────────────────────────────────
 // Helpers
 // ────────────────────────────────────────────────────────────────────────────
 
 const r2 = round2;
+
+// Whole dollars when round, else two decimals — matches how officers read it.
+function fmtUsd(n: number): string {
+  const v = r2(n);
+  return Number.isInteger(v)
+    ? `$${v.toLocaleString("en-US")}`
+    : `$${v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
 
 function clampLimit(n: unknown, def = 100, max = 100): number {
   const v = typeof n === "number" ? Math.floor(n) : def;
@@ -1237,6 +1432,9 @@ async function listRoles(args: ToolArgs, scoped: Scoped): Promise<ToolResult> {
 
   const mapped = roles
     .map(r => ({
+      // id is what propose_add_deadline's assigneeRoleId needs — without it the
+      // model cannot resolve a role assignee and resorts to guessing ids.
+      id: r.id,
       role: r.name,
       rank: r.rank,
       holders: r.brothers
@@ -1337,7 +1535,7 @@ async function listProgrammingEvents(args: ToolArgs, scoped: Scoped): Promise<To
 
 function badProposal(reason: string): { error: string } { return { error: reason }; }
 
-function proposeAddDeadline(args: ToolArgs): Proposal | { error: string } {
+async function proposeAddDeadline(args: ToolArgs, scoped: Scoped): Promise<ProposalDraft | { error: string }> {
   const title = String(args.title ?? "").trim();
   const dueDate = String(args.dueDate ?? "").trim();
   const assigneeBrotherId = typeof args.assigneeBrotherId === "number" ? args.assigneeBrotherId : undefined;
@@ -1351,6 +1549,20 @@ function proposeAddDeadline(args: ToolArgs): Proposal | { error: string } {
   if (!assigneeBrotherId && !assigneeRoleId) {
     return badProposal("A deadline needs an assignee. Resolve the owner with list_brothers or list_roles, then pass assigneeBrotherId or assigneeRoleId.");
   }
+  // Resolve the assignee's display name for the card (validate-only read).
+  // A miss means the id isn't in this org — the model guessed instead of
+  // resolving via list_brothers/list_roles. Reject NOW so it self-corrects,
+  // rather than emitting a card whose Approve is destined to 400.
+  let owner = "";
+  try {
+    if (assigneeBrotherId) {
+      owner = (await scoped.brother.findFirst({ where: { id: assigneeBrotherId }, select: { name: true } }))?.name ?? "";
+      if (!owner) return badProposal(`No member with id ${assigneeBrotherId} in this chapter — resolve the owner with list_brothers first.`);
+    } else if (assigneeRoleId) {
+      owner = (await scoped.role.findFirst({ where: { id: assigneeRoleId }, select: { name: true } }))?.name ?? "";
+      if (!owner) return badProposal(`No role with id ${assigneeRoleId} in this chapter — resolve the role with list_roles first.`);
+    }
+  } catch { /* DB blip — card degrades to no Owner row rather than blocking the draft */ }
   return {
     kind: "proposal",
     action: "propose_add_deadline",
@@ -1364,10 +1576,16 @@ function proposeAddDeadline(args: ToolArgs): Proposal | { error: string } {
       assigneeRoleIds:    assigneeRoleId ? [assigneeRoleId] : [],
     },
     summary: `Add deadline "${title}" — due ${dueDate}.`,
+    rows: [
+      { k: "Title", v: title },
+      ...(owner ? [{ k: "Owner", v: owner }] : []),
+      { k: "Due", v: dueDate, em: true },
+      ...(notes ? [{ k: "Notes", v: notes.length > 80 ? `${notes.slice(0, 77)}…` : notes }] : []),
+    ],
   };
 }
 
-function proposeAddInstagram(args: ToolArgs): Proposal | { error: string } {
+function proposeAddInstagram(args: ToolArgs): ProposalDraft | { error: string } {
   const title = String(args.title ?? "").trim();
   const dueDate = String(args.dueDate ?? "").trim();
   const type = String(args.type ?? "").trim();
@@ -1382,10 +1600,15 @@ function proposeAddInstagram(args: ToolArgs): Proposal | { error: string } {
     method: "POST",
     payload: { title, dueDate, type },
     summary: `Add IG ${type}: "${title}" — due ${dueDate}.`,
+    rows: [
+      { k: "Title", v: title },
+      { k: "Type", v: type },
+      { k: "Due", v: dueDate, em: true },
+    ],
   };
 }
 
-async function proposeAddCalendarEvent(args: ToolArgs, scoped: Scoped): Promise<Proposal | { error: string }> {
+async function proposeAddCalendarEvent(args: ToolArgs, scoped: Scoped): Promise<ProposalDraft | { error: string }> {
   const title = String(args.title ?? "").trim();
   const date = String(args.date ?? "").trim();
   const rawCategory = String(args.category ?? "").trim();
@@ -1412,10 +1635,18 @@ async function proposeAddCalendarEvent(args: ToolArgs, scoped: Scoped): Promise<
     method: "POST",
     payload,
     summary: `Schedule ${category} event "${title}" on ${date}${mandatory ? " (mandatory)" : ""}.`,
+    rows: [
+      { k: "Title", v: title },
+      { k: "Date", v: date, em: true },
+      { k: "Category", v: type.label },
+      ...(typeof payload.time === "string" ? [{ k: "Time", v: payload.time }] : []),
+      ...(typeof payload.location === "string" ? [{ k: "Location", v: payload.location }] : []),
+      ...(mandatory ? [{ k: "Mandatory", v: "Yes" }] : []),
+    ],
   };
 }
 
-function proposeLogTransaction(args: ToolArgs): Proposal | { error: string } {
+function proposeLogTransaction(args: ToolArgs): ProposalDraft | { error: string } {
   const type = String(args.type ?? "").trim();
   const category = String(args.category ?? "").trim();
   const date = String(args.date ?? "").trim();
@@ -1433,6 +1664,14 @@ function proposeLogTransaction(args: ToolArgs): Proposal | { error: string } {
     method: "POST",
     payload,
     summary: `Log $${r2(amount).toFixed(2)} ${type} (${category}) on ${date}: ${description}. Admin-only.`,
+    rows: [
+      { k: "Type", v: type === "income" ? "Income" : "Expense" },
+      { k: "Category", v: category },
+      { k: "Amount", v: fmtUsd(amount), em: true },
+      { k: "Date", v: date },
+      { k: "For", v: description.length > 60 ? `${description.slice(0, 57)}…` : description },
+      ...(typeof payload.paymentMethod === "string" ? [{ k: "Method", v: payload.paymentMethod }] : []),
+    ],
   };
 }
 
@@ -1449,7 +1688,7 @@ function proposeLogTransaction(args: ToolArgs): Proposal | { error: string } {
 // enrichment that degraded to a plain summary on failure; now it determines the amount
 // to be staged, so a failed read has to block the proposal rather than guess. Still
 // VALIDATE-ONLY: it never writes.
-async function proposeRecordDuesPayment(args: ToolArgs, scoped: Scoped): Promise<Proposal | { error: string }> {
+async function proposeRecordDuesPayment(args: ToolArgs, scoped: Scoped): Promise<ProposalDraft | { error: string }> {
   const id = typeof args.brother_id === "number" ? args.brother_id : Number(args.brother_id);
   const name = typeof args.brother_name === "string" ? args.brother_name.trim() : "";
   if (!Number.isFinite(id) || id <= 0) return badProposal("brother_id required.");
@@ -1502,10 +1741,16 @@ async function proposeRecordDuesPayment(args: ToolArgs, scoped: Scoped): Promise
     summary: `Record a $${amount.toFixed(2)} dues payment from ${name} (currently owes `
       + `$${currentOwed.toFixed(2)}). This posts an income transaction and lowers their `
       + `balance. ${tail}`,
+    rows: [
+      { k: "Brother", v: name },
+      { k: "Amount", v: fmtUsd(amount), em: true },
+      { k: "Date", v: todayISO() },
+      { k: "Balance after", v: fmtUsd(remaining) },
+    ],
   };
 }
 
-async function proposeAddProgrammingEvent(args: ToolArgs, scoped: Scoped): Promise<Proposal | { error: string }> {
+async function proposeAddProgrammingEvent(args: ToolArgs, scoped: Scoped): Promise<ProposalDraft | { error: string }> {
   const title   = String(args.title ?? "").trim();
   const rawType = String(args.type  ?? "").trim();
   if (!title || !rawType) return badProposal("Missing required fields.");
@@ -1526,6 +1771,12 @@ async function proposeAddProgrammingEvent(args: ToolArgs, scoped: Scoped): Promi
     method: "POST",
     payload,
     summary: `Add ${type.label} "${title}"${date ? ` on ${date}` : ""}${owner ? `, owner ${owner}` : ""} to Programming board.`,
+    rows: [
+      { k: "Title", v: title },
+      { k: "Type", v: type.label },
+      ...(date ? [{ k: "Date", v: date, em: true }] : []),
+      ...(owner ? [{ k: "Owner", v: owner }] : []),
+    ],
   };
 }
 
@@ -1533,8 +1784,8 @@ async function proposeAddProgrammingEvent(args: ToolArgs, scoped: Scoped): Promi
 // lets a handler read current state to enrich the card (validate-only — never a
 // write). Sync handlers simply ignore the second arg.
 type ProposalHandler = (args: ToolArgs, scoped: Scoped) =>
-  | (Proposal | { error: string })
-  | Promise<Proposal | { error: string }>;
+  | (ProposalDraft | { error: string })
+  | Promise<ProposalDraft | { error: string }>;
 
 const PROPOSAL_HANDLERS: Record<string, ProposalHandler> = {
   propose_add_deadline:           proposeAddDeadline,
@@ -1550,14 +1801,48 @@ export function isProposalTool(name: string): boolean {
   return name in PROPOSAL_HANDLERS;
 }
 
-/** Run a proposal tool. Validate-only — never writes. Never throws. */
-export async function runProposal(name: string, args: ToolArgs, scoped: Scoped): Promise<Proposal | { error: string }> {
+/**
+ * Run a proposal tool. Validate-only — never writes. Never throws.
+ *
+ * On a valid draft, resolves the caller's authority (the permission gates both
+ * proposing and approving — see ProposalPerm), looks up who does hold it when
+ * the caller can't approve, and signs the blob so a later approval record can
+ * trust it. `pctx` is the slice of RequestContext this needs; the eval harness
+ * fabricates an all-permissions one.
+ */
+export async function runProposal(name: string, args: ToolArgs, scoped: Scoped, pctx: ProposalCtx): Promise<Proposal | { error: string }> {
   const handler = PROPOSAL_HANDLERS[name];
-  if (!handler) return { error: `Unknown proposal: ${name}` };
+  const meta = PROPOSAL_META[name];
+  if (!handler || !meta) return { error: `Unknown proposal: ${name}` };
   const v = validateArgs(name, args);
   if (!v.ok) return { error: v.error };
-  try { return await handler(args, scoped); }
-  catch (e) { return { error: e instanceof Error ? e.message : "Proposal failed" }; }
+  try {
+    const draft = await handler(args, scoped);
+    if ("error" in draft) return draft;
+    const { rows, ...core } = draft;
+    const display: ProposalDisplay = { kind: meta.kind, title: meta.title, rows };
+    const canApprove = pctx.isPlatformAdmin || pctx.isOrgAdmin || hasPermission(pctx.permissions, meta.perm);
+    const holders = canApprove ? undefined : await findPermHolders(scoped, pctx.orgId, meta.perm);
+    const iat = Date.now();
+    const sig = signProposalBlob({
+      action: core.action,
+      endpoint: core.endpoint,
+      method: core.method,
+      payload: core.payload,
+      display,
+      perm: meta.perm,
+      orgId: pctx.orgId,
+      actorId: pctx.actorId,
+      iat,
+    });
+    return {
+      ...core,
+      display,
+      perm: { name: meta.perm, label: meta.label, canApprove, ...(holders ? { holders } : {}) },
+      sig,
+      iat,
+    };
+  } catch (e) { return { error: e instanceof Error ? e.message : "Proposal failed" }; }
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -1608,3 +1893,147 @@ export async function runTool(name: string, args: ToolArgs, scoped: Scoped, orgI
 export function isReadTool(name: string): boolean {
   return name in READ_HANDLERS;
 }
+
+// ────────────────────────────────────────────────────────────────────────────
+// Per-tool UI metadata — feeds the client's reasoning ledger.
+//
+// Each tool call the model makes renders as one ledger step: `verb` is the
+// step's line ("Checking payments"), `source` the Consulted/Sources chip label
+// ("Treasury · dues"), and `finding` derives the short mono figure the step
+// posts to the margin ("28 of 34 paid") from the ACTUAL tool result — never
+// from anything the model claimed. Findings are plain text (no markup); the
+// client highlights the numeric part. Colocated with TOOLS so a new tool
+// can't ship without its ledger presence (tests/ai/tool-ui.test.ts enforces).
+// ────────────────────────────────────────────────────────────────────────────
+
+export interface ToolUiMeta {
+  verb: string;
+  source?: string;
+  finding?: (result: unknown, args: ToolArgs) => string | null;
+}
+
+// Result-shape helpers. List tools return an array, or listResult()'s empty
+// envelope; anything with `error` posts no finding.
+function isErr(r: unknown): boolean {
+  return typeof r === "object" && r !== null && "error" in r;
+}
+function rowsOf(r: unknown): unknown[] | null {
+  if (Array.isArray(r)) return r;
+  if (typeof r === "object" && r !== null && Array.isArray((r as { items?: unknown[] }).items)) {
+    return (r as { items: unknown[] }).items;
+  }
+  return null;
+}
+function countFinding(noun: string, plural = `${noun}s`) {
+  return (r: unknown): string | null => {
+    if (isErr(r)) return null;
+    const rows = rowsOf(r);
+    if (!rows) return null;
+    if (rows.length === 0) return "none found";
+    return `${rows.length} ${rows.length === 1 ? noun : plural}`;
+  };
+}
+
+export const TOOL_UI: Record<string, ToolUiMeta> = {
+  list_brothers: {
+    verb: "Reading the roster",
+    source: "Roster",
+    finding: (r, args) => {
+      if (isErr(r)) return null;
+      if (rowsOf(r)?.length === 0) return "none found";
+      const s = (r as { summary?: { count: number; owingCount: number; totalDuesOwed: number } }).summary;
+      if (!s) return null;
+      if (args.owes_dues_only === true) return `${s.owingCount} owe · ${fmtUsd(s.totalDuesOwed)}`;
+      return `${s.count} member${s.count === 1 ? "" : "s"}`;
+    },
+  },
+  get_brother: {
+    verb: "Looking up a member",
+    source: "Roster",
+    finding: r => {
+      if (isErr(r)) return null;
+      const o = r as { name?: string; matches?: number };
+      if (typeof o.matches === "number") return `${o.matches} matches`;
+      return typeof o.name === "string" ? o.name : null;
+    },
+  },
+  list_deadlines: { verb: "Checking deadlines", source: "Timeline", finding: countFinding("deadline") },
+  list_instagram_tasks: { verb: "Checking Instagram tasks", source: "Instagram", finding: countFinding("task") },
+  list_calendar_events: { verb: "Scanning the calendar", source: "Events", finding: countFinding("event") },
+  list_parties: { verb: "Reviewing parties", source: "Parties", finding: countFinding("party", "parties") },
+  sum_transactions: {
+    verb: "Summing the ledger",
+    source: "Treasury · ledger",
+    finding: r => {
+      if (isErr(r)) return null;
+      const t = (r as { totals?: { net: number; count: number } }).totals;
+      if (!t) return null;
+      if (t.count === 0) return "no transactions";
+      return `net ${t.net < 0 ? "−" : "+"}${fmtUsd(Math.abs(t.net))}`;
+    },
+  },
+  get_treasury: {
+    verb: "Reading the treasury",
+    source: "Treasury",
+    finding: r => {
+      if (isErr(r)) return null;
+      const b = (r as { balance?: number }).balance;
+      return typeof b === "number" ? `${fmtUsd(b)} on hand` : null;
+    },
+  },
+  get_budget: {
+    verb: "Opening the budget",
+    source: "Budget",
+    finding: r => {
+      if (isErr(r)) return null;
+      const pool = (r as { spendablePool?: number }).spendablePool;
+      return typeof pool === "number" ? `${fmtUsd(pool)} pool` : null;
+    },
+  },
+  recent_activity: { verb: "Skimming recent activity", source: "Activity", finding: countFinding("entry", "entries") },
+  weekly_digest: {
+    verb: "Gathering the week",
+    source: "Timeline",
+    finding: r => {
+      if (isErr(r)) return null;
+      const d = r as { deadlinesDue?: unknown[]; igDue?: unknown[]; events?: unknown[]; parties?: unknown[] };
+      const n = (d.deadlinesDue?.length ?? 0) + (d.igDue?.length ?? 0) + (d.events?.length ?? 0) + (d.parties?.length ?? 0);
+      return `${n} this week`;
+    },
+  },
+  get_event_attendance: {
+    verb: "Pulling attendance",
+    source: "Attendance",
+    finding: r => {
+      if (isErr(r)) return null;
+      const c = (r as { counts?: { attended: number; absent: number } }).counts;
+      if (!c) return null;
+      const total = c.attended + c.absent;
+      return total === 0 ? "not logged yet" : `${c.attended} of ${total} attended`;
+    },
+  },
+  get_brother_attendance: {
+    verb: "Checking attendance",
+    source: "Attendance",
+    finding: r => {
+      if (isErr(r)) return null;
+      const c = (r as { counts?: { missed: number; total: number } }).counts;
+      if (!c) return null;
+      return `${c.missed} of ${c.total} missed`;
+    },
+  },
+  list_roles: { verb: "Checking officer roles", source: "Roles", finding: countFinding("role") },
+  list_service_events: { verb: "Scanning service events", source: "Service", finding: countFinding("event") },
+  list_programming_events: { verb: "Scanning the programming board", source: "Programming", finding: countFinding("event") },
+  // Proposal drafts: no source chip (their reads are incidental) and no posted
+  // finding — the writ card that follows IS the result.
+  propose_add_deadline:          { verb: "Drafting a deadline" },
+  propose_add_instagram_task:    { verb: "Drafting an Instagram task" },
+  propose_add_calendar_event:    { verb: "Drafting an event" },
+  propose_log_transaction:       { verb: "Drafting a transaction" },
+  propose_record_dues_payment:   { verb: "Drafting a payment record" },
+  propose_add_programming_event: { verb: "Drafting a programming event" },
+  // Terminal answer tool — the client renders its own standing "Composing the
+  // answer" step, but keep the verb here so nothing falls back to a raw name.
+  compose_answer: { verb: "Composing the answer" },
+};

@@ -26,6 +26,8 @@ export interface FastPathResult {
   text: string;
   /** Which pattern matched — for timing/telemetry. */
   pattern: string;
+  /** The read tool that served it — the route renders its TOOL_UI verb/source as a one-step ledger. */
+  tool: string;
 }
 
 // A tool result is either the "happy" shape or, when a list tool matched nothing,
@@ -248,7 +250,7 @@ export async function tryFastPath(question: string, scoped: ReturnType<typeof db
     if (isErrorResult(result)) return null; // tool failed → let the model retry
     const text = intent.format(result);
     if (text == null || text.trim() === "") return null; // formatter abstained
-    return { text, pattern: intent.pattern };
+    return { text, pattern: intent.pattern, tool: matched.tool };
   } catch {
     return null; // any throw → fall through to the LLM path
   }
