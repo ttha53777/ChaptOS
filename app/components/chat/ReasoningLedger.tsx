@@ -11,7 +11,7 @@
 
 import { useState } from "react";
 import { IcChev, IcTick } from "./icons";
-import type { LedgerStep } from "./types";
+import type { LedgerStep, StepStatus } from "./types";
 
 const COMPOSE_VERB = "Composing the answer";
 
@@ -27,7 +27,7 @@ function FindingText({ text }: { text: string }) {
   );
 }
 
-function StepNode({ status }: { status: "active" | "done" | "pending" }) {
+function StepNode({ status }: { status: StepStatus }) {
   if (status === "active") return <span className="node"><span className="arc" /></span>;
   if (status === "done") return <span className="node"><span className="disc"><IcTick size={9} /></span></span>;
   return <span className="node"><span className="dot" /></span>;
@@ -35,7 +35,7 @@ function StepNode({ status }: { status: "active" | "done" | "pending" }) {
 
 function StepRow({ verb, status, finding, animate }: {
   verb: string;
-  status: "active" | "done" | "pending";
+  status: StepStatus;
   finding?: string;
   animate?: boolean;
 }) {
@@ -63,20 +63,31 @@ function ConsultedChips({ steps, label }: { steps: LedgerStep[]; label: string }
 }
 
 /**
- * Live variant — rendered while the request streams. `composing` flips the
- * standing final line active once every real step has settled (the model is
- * writing) and the counter to "composing…".
+ * Live variant — rendered while the request streams. The standing final line
+ * goes active when the server says the model is writing (`composing`), falling
+ * back to "every known step has settled" when no such signal arrived.
  */
-export function ReasoningLedger({ steps, intent }: { steps: LedgerStep[]; intent: string }) {
+export function ReasoningLedger({ steps, intent, composing: composingSignal }: {
+  steps: LedgerStep[];
+  intent: string;
+  composing?: boolean;
+}) {
   const done = steps.filter(s => s.status === "done").length;
-  const composing = steps.length > 0 && done === steps.length;
-  const count = composing ? "composing…" : `${Math.min(done + 1, steps.length + 1)} / ${steps.length + 1}`;
+  const composing = composingSignal || (steps.length > 0 && done === steps.length);
+  // No steps means no plan yet — the model is still deciding. Showing a count
+  // here used to render "1 / 1" through the longest wait of the request, i.e.
+  // claiming the work was finished before any of it had started.
+  const count = steps.length === 0
+    ? null
+    : composing
+      ? "composing…"
+      : `${Math.min(done + 1, steps.length + 1)} / ${steps.length + 1}`;
   return (
     <div className="reason">
       <div className="reason-intent">
         <span className="pulse"><i /></span>
         <span className="lbl">{intent}</span>
-        <span className="count">{count}</span>
+        {count && <span className="count">{count}</span>}
       </div>
       <div className="ledger">
         {steps.map(s => <StepRow key={s.id} verb={s.verb} status={s.status} finding={s.finding} animate />)}

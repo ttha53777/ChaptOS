@@ -7,6 +7,7 @@ import { TOOLS, TOOL_UI, runTool, isReadTool, runProposal, isProposalTool, isAns
 import { buildSystemPrompt } from "@/lib/ai-prompt";
 import { tryFastPath } from "@/lib/ai-fastpath";
 import { withIdleTimeout, StreamIdleTimeoutError, STREAM_IDLE_MS } from "@/lib/ai-stream";
+import { assembleToolCalls, stepId, stepNameSettled } from "@/lib/ai-ledger";
 import { logError, logTiming } from "@/lib/observability";
 
 // Force the Node runtime — Edge would buffer SSE differently and we want full
@@ -23,16 +24,27 @@ interface ClientMessage {
 }
 
 // ── SSE protocol ─────────────────────────────────────────────────────────────
-// open      {}                              — flushed immediately (paint "thinking")
-// step      { id, verb, source? }           — one per tool call, when its batch starts
-// step_done { id, finding? }                — same step settling; finding derived from the REAL result
-// proposal  Proposal                        — writ card (see lib/ai-tools.ts)
-// answer    { verdict, rows, follows, sources } — structured final answer; sources are
+// open       {}                             — flushed immediately (paint "thinking")
+// step       { id, verb, source? }          — a tool call the model has NAMED; renders PENDING.
+//                                             Emitted mid-stream, the moment the name is final
+//                                             (see the delta loop) — not when the batch dispatches.
+// step_start { id }                         — that step is now executing; renders ACTIVE
+// step_done  { id, finding? }               — that step settled; finding derived from the REAL
+//                                             result, sent as each tool resolves (not per batch)
+// step_drop  { ids }                        — named steps that will never run (truncated turn);
+//                                             the client removes them rather than spinning forever
+// composing  {}                             — the model is writing the answer, not calling tools
+// proposal   Proposal                       — writ card (see lib/ai-tools.ts)
+// answer     { verdict, rows, follows, sources } — structured final answer; sources are
 //                                             server-derived from the read tools actually run
-// text      { delta }                       — plain-prose fallback (refusals, how-to, fast-path, errors)
-// done      {}
-// The client renders steps as the reasoning ledger and keeps a standing
-// "Composing the answer" line that settles when `answer` (or first `text`) lands.
+// text       { delta }                      — plain-prose fallback (refusals, how-to, fast-path, errors)
+// done       {}
+// The client renders steps as the reasoning ledger (pending → active → done on a
+// ruled margin) and keeps a standing "Composing the answer" line.
+//
+// Step ids are `${iter}:${rawDeltaIndex}` — the RAW tool_calls delta index, never
+// a position in a filtered array. A compacted index would drift the instant any
+// index streamed without a usable name, and every later step_done would miss.
 
 function sseEvent(event: string, data: unknown): string {
   return `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
@@ -152,7 +164,16 @@ export async function POST(req: NextRequest) {
           const assistantContent: string[] = [];
           // OpenAI tool_calls stream as separate deltas keyed by index → assemble them.
           const toolCallsByIndex = new Map<number, { id: string; name: string; argsBuf: string }>();
+          // Raw delta indices we've already announced to the client as pending steps,
+          // so the batch-dispatch pass below doesn't announce them twice and the
+          // truncated-turn path knows exactly what to retract.
+          const sentSteps = new Set<number>();
+          let composingSent = false;
           let finishReason: string | null = null;
+
+          // The model has results from the previous round and is now writing —
+          // truthful the moment we ask for iteration 2+, before a token lands.
+          if (iter > 0) { send("composing", {}); composingSent = true; }
 
           const completion = await openai.chat.completions.create({
             model: CHAT_MODEL,
@@ -208,6 +229,22 @@ export async function POST(req: NextRequest) {
                 if (tc.id) slot.id = tc.id;
                 if (tc.function?.name) slot.name = tc.function.name;
                 if (tc.function?.arguments) slot.argsBuf += tc.function.arguments;
+
+                // Announce the step the moment the NAME is final, mid-turn —
+                // ahead of the batch dispatching, and staggered by real timing
+                // because each name lands after the previous call's arguments.
+                // See lib/ai-ledger for why "final" needs more than a non-empty
+                // name. Anything failing the gate falls through to dispatch.
+                if (!sentSteps.has(idx) && stepNameSettled(slot, TOOL_UI)) {
+                  if (isAnswerTool(slot.name)) {
+                    // compose_answer never gets a step — the call IS the answer.
+                    if (!composingSent) { send("composing", {}); composingSent = true; }
+                  } else {
+                    const ui = TOOL_UI[slot.name];
+                    send("step", { id: stepId(iter, idx), verb: ui.verb, ...(ui.source ? { source: ui.source } : {}) });
+                    sentSteps.add(idx);
+                  }
+                }
               }
             }
             if (choice.finish_reason) finishReason = choice.finish_reason;
@@ -216,13 +253,16 @@ export async function POST(req: NextRequest) {
           perIterMs.push(Math.round(performance.now() - iterStart));
 
           const fullText = assistantContent.join("");
-          const toolCalls = Array.from(toolCallsByIndex.entries())
-            .sort(([a], [b]) => a - b)
-            .map(([, v]) => v)
-            .filter(v => v.name);
+          const toolCalls = assembleToolCalls(toolCallsByIndex);
 
           if (finishReason !== "tool_calls" || toolCalls.length === 0) {
-            // Done — model returned a final assistant message.
+            // Done — model returned a final assistant message. Any step already
+            // announced mid-stream will never run (a turn truncated by
+            // max_completion_tokens can strand a half-streamed call), so retract
+            // it rather than leave the client spinning on it forever.
+            if (sentSteps.size > 0) {
+              send("step_drop", { ids: [...sentSteps].map(i => stepId(iter, i)) });
+            }
             break;
           }
 
@@ -237,21 +277,26 @@ export async function POST(req: NextRequest) {
             })),
           });
 
-          // Every non-terminal call in this batch becomes a ledger step NOW —
-          // the batch renders at once (steps ahead visible as pending on the
-          // client) and each settles as its result lands. compose_answer gets
-          // no step: the call IS the final answer (handled below); the client
-          // shows its own standing "Composing the answer" line.
-          const prepared = toolCalls.map((tc, i) => {
-            const stepId = `${iter}:${i}`;
+          // Each non-terminal call in this batch flips to ACTIVE as it dispatches.
+          // Most were already announced pending from the delta loop above; the
+          // fallback `step` covers anything that missed that gate (unknown tool
+          // name, or a name that never got arguments). compose_answer gets no
+          // step: the call IS the final answer (handled below); the client shows
+          // its own standing "Composing the answer" line.
+          const prepared = toolCalls.map(tc => {
+            const id = stepId(iter, tc.idx);
             const ui = TOOL_UI[tc.name];
             if (!isAnswerTool(tc.name)) {
-              send("step", { id: stepId, verb: ui?.verb ?? tc.name, ...(ui?.source ? { source: ui.source } : {}) });
+              if (!sentSteps.has(tc.idx)) {
+                send("step", { id, verb: ui?.verb ?? tc.name, ...(ui?.source ? { source: ui.source } : {}) });
+                sentSteps.add(tc.idx);
+              }
+              send("step_start", { id });
             }
             let argsObj: Record<string, unknown> = {};
             try { argsObj = tc.argsBuf ? JSON.parse(tc.argsBuf) : {}; }
             catch { argsObj = { _parse_error: tc.argsBuf }; }
-            return { tc, argsObj, stepId };
+            return { tc, argsObj, stepId: id };
           });
 
           const answerCall = prepared.find(p => isAnswerTool(p.tc.name));
@@ -301,17 +346,22 @@ export async function POST(req: NextRequest) {
             }
             // Sum by tool name — the same tool can be called twice in one batch.
             toolMs[tc.name] = (toolMs[tc.name] ?? 0) + Math.round(performance.now() - toolStart);
-            return { tc, argsObj, stepId, resultPayload, proposalEvent };
-          }));
-
-          // Emit results in tool_calls order so client step states stay aligned.
-          for (const { tc, argsObj, stepId, resultPayload, proposalEvent } of results) {
-            if (proposalEvent) send("proposal", proposalEvent);
-            // The step settles posting a finding derived from the REAL result.
+            // Settle THIS step the moment ITS OWN result lands, rather than
+            // waiting on the slowest tool in the batch — a batch that settled
+            // all at once read as one pop instead of a ledger being posted.
+            // Only the step event moves: tool results, consulted[] order and
+            // proposals all stay in tool_calls order in the loop below.
+            // The finding fn is pure and already error-boxed, so it's safe here.
             let finding: string | null = null;
             try { finding = TOOL_UI[tc.name]?.finding?.(resultPayload, argsObj) ?? null; }
             catch { finding = null; }
             send("step_done", { id: stepId, ...(finding ? { finding } : {}) });
+            return { tc, argsObj, stepId, resultPayload, proposalEvent };
+          }));
+
+          // Emit results in tool_calls order so client step states stay aligned.
+          for (const { tc, resultPayload, proposalEvent } of results) {
+            if (proposalEvent) send("proposal", proposalEvent);
             if (isReadTool(tc.name)) {
               const src = TOOL_UI[tc.name]?.source;
               if (src && !consulted.includes(src)) consulted.push(src);

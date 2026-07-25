@@ -2,11 +2,13 @@
 // protocol documented in app/api/ai/chat/route.ts — the server is the source
 // of truth; everything here is defensive-parsed off the wire.
 
+export type StepStatus = "pending" | "active" | "done";
+
 export interface LedgerStep {
   id: string;
   verb: string;
   source?: string;
-  status: "active" | "done";
+  status: StepStatus;
   finding?: string;
 }
 
@@ -63,6 +65,8 @@ export interface ChatMessage {
   content: string;
   /** The reasoning ledger: live while streaming, then frozen as the trace. */
   steps?: LedgerStep[];
+  /** The model is writing the answer rather than calling tools (server-signalled). */
+  composing?: boolean;
   /** Structured verdict+rows answer (compose_answer path). */
   answer?: AnswerData | null;
   proposals?: ProposalCard[];
