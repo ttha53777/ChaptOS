@@ -1,0 +1,1493 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ChaptOS — Landing v4 "Paper" Mock</title>
+<!--
+  ChaptOS marketing landing — v4 "PAPER" MOCK (design exploration, not wired)
+  ───────────────────────────────────────────────────────────────────────────
+  A deliberate reset, not a v3 revision. v2/v3 were dark editorial (#0f0d0a
+  paper, aurora, 320vh pinned acts). Correct craft, wrong buyer: that language
+  sells infrastructure to a CTO. The buyer here is a 20-year-old treasurer who
+  is losing his Sunday nights to a Venmo feed.
+
+  Reference: Notion's marketing site. What was actually borrowed —
+    · warm off-white paper, near-black ink, one accent used sparingly
+    · plain tight sans headlines; no gradient text, no glow
+    · the product UI *is* the art direction — every section shows real chrome
+    · a big tabbed feature switcher as the page's centerpiece
+    · generous whitespace, hairline borders, soft low-contrast shadows
+    · black solid CTA, quiet ghost secondary
+    · long page, calm rhythm, fat footer
+
+  Emotional target: relief, not aspiration. "oh thank god" over "wow."
+  Gut-check applied per section: would a chapter president screenshot this and
+  send it to the e-board chat saying "we need this"? Sections that only a
+  design friend would like got cut (the aurora, the pinned acts, the ticker).
+
+  Motion budget — intentionally small after v3's excess:
+    · one reveal primitive (fade + 10px rise) on IntersectionObserver
+    · the tab switcher (the only "interactive" thing on the page)
+    · hero dashboard settles in on load
+    · everything gated behind prefers-reduced-motion
+
+  NOTE: all names, chapters, quotes and figures are placeholder comp copy.
+  Nothing here is a real person or a real customer.
+
+  Self-contained. Double-click to open. No build, no network beyond fonts.
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&family=Fraunces:opsz,wght@9..144,400;9..144,500&display=swap" rel="stylesheet">
+<style>
+/* ═══════════════════════════════════════════════════════════ TOKENS ═══ */
+:root{
+  /* Paper, not screen. Everything is a warm neutral pulled off #fdfcfa. */
+  --paper:#fdfcfa;
+  --wash:#f6f4ef;          /* section band */
+  --wash-2:#efece4;        /* deeper band / artifact fill */
+  --card:#ffffff;
+  --ink:#191714;
+  --ink-2:#55504a;
+  --ink-3:#8b847a;
+  --ink-4:#a9a299;
+  --line:rgba(25,23,20,.085);
+  --line-2:rgba(25,23,20,.14);
+  --line-3:rgba(25,23,20,.22);
+
+  /* One accent, warmed off the app's violet. Used for links + one state. */
+  --vio:#6338c9;
+  --vio-soft:rgba(99,56,201,.08);
+  --vio-line:rgba(99,56,201,.22);
+
+  /* Supporting hues — flat, desaturated, never gradients. */
+  --amber:#b8802c;   --amber-soft:#fbf1de;
+  --sage:#4f8462;    --sage-soft:#e8f2ea;
+  --clay:#b85c3f;    --clay-soft:#fbeae3;
+  --sky:#3f74ab;     --sky-soft:#e6eef8;
+
+  --sans:"Geist",-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,sans-serif;
+  --mono:"Geist Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+  --serif:"Fraunces",Georgia,serif;
+
+  --sh-1:0 1px 2px rgba(25,23,20,.04);
+  --sh-2:0 1px 2px rgba(25,23,20,.04), 0 6px 16px -6px rgba(25,23,20,.10);
+  --sh-3:0 2px 4px rgba(25,23,20,.03), 0 18px 40px -12px rgba(25,23,20,.16);
+  --sh-4:0 2px 6px rgba(25,23,20,.04), 0 34px 70px -20px rgba(25,23,20,.22);
+
+  --ease:cubic-bezier(.2,.8,.2,1);
+  --ease-out:cubic-bezier(.16,1,.3,1);
+  --gut:24px;
+}
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;scroll-behavior:smooth;scroll-padding-top:88px}
+body{
+  margin:0;background:var(--paper);color:var(--ink);
+  font-family:var(--sans);font-size:16px;line-height:1.6;
+  font-weight:400;letter-spacing:-.005em;
+  -webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;
+  overflow-x:hidden;
+}
+img{max-width:100%;display:block}
+a{color:inherit;text-decoration:none}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+::selection{background:rgba(99,56,201,.16)}
+
+.wrap{width:100%;max-width:1140px;margin:0 auto;padding:0 var(--gut)}
+.wrap-narrow{width:100%;max-width:760px;margin:0 auto;padding:0 var(--gut)}
+
+/* ═════════════════════════════════════════════════════════ TYPE SCALE ═══ */
+h1,h2,h3,h4{margin:0;font-weight:600;letter-spacing:-.032em;line-height:1.08}
+h1{font-size:clamp(38px,5.6vw,66px);letter-spacing:-.042em;line-height:1.02}
+h2{font-size:clamp(29px,3.7vw,45px);letter-spacing:-.036em;line-height:1.06}
+h3{font-size:clamp(19px,2vw,23px);letter-spacing:-.025em;line-height:1.22}
+p{margin:0}
+
+.eyebrow{
+  font-size:12px;font-weight:500;letter-spacing:.10em;text-transform:uppercase;
+  color:var(--ink-3);margin-bottom:18px;
+}
+.lede{font-size:clamp(16.5px,1.55vw,19.5px);line-height:1.62;color:var(--ink-2);letter-spacing:-.012em}
+.sub{font-size:16px;line-height:1.65;color:var(--ink-2)}
+.small{font-size:13.5px;line-height:1.55;color:var(--ink-3)}
+.mono{font-family:var(--mono);font-size:12.5px;letter-spacing:-.01em;font-variant-numeric:tabular-nums}
+
+/* ═══════════════════════════════════════════════════════════ BUTTONS ═══ */
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:8px;
+  height:44px;padding:0 20px;border-radius:9px;
+  font-size:15px;font-weight:500;letter-spacing:-.012em;white-space:nowrap;
+  transition:background .16s ease,border-color .16s ease,transform .16s ease,box-shadow .16s ease;
+}
+.btn-primary{background:var(--ink);color:#fdfcfa;box-shadow:var(--sh-1)}
+.btn-primary:hover{background:#312c26;transform:translateY(-1px);box-shadow:var(--sh-2)}
+.btn-ghost{background:var(--card);color:var(--ink);border:1px solid var(--line-2);box-shadow:var(--sh-1)}
+.btn-ghost:hover{border-color:var(--line-3);transform:translateY(-1px);box-shadow:var(--sh-2)}
+.btn-sm{height:36px;padding:0 15px;font-size:14px;border-radius:8px}
+.btn-lg{height:50px;padding:0 26px;font-size:16px;border-radius:10px}
+
+/* ══════════════════════════════════════════════════════════════ NAV ═══ */
+.nav{
+  position:sticky;top:0;z-index:80;
+  background:rgba(253,252,250,.82);backdrop-filter:blur(14px) saturate(1.4);
+  -webkit-backdrop-filter:blur(14px) saturate(1.4);
+  border-bottom:1px solid transparent;transition:border-color .22s ease,background .22s ease;
+}
+.nav.stuck{border-bottom-color:var(--line);background:rgba(253,252,250,.94)}
+.nav-in{display:flex;align-items:center;gap:34px;height:64px}
+.brand{display:flex;align-items:center;gap:9px;font-weight:600;font-size:16.5px;letter-spacing:-.03em}
+.brand-mark{
+  width:25px;height:25px;border-radius:7px;background:var(--ink);color:#fdfcfa;
+  display:grid;place-items:center;font-size:13px;font-weight:600;letter-spacing:-.04em;
+  box-shadow:inset 0 -1px 0 rgba(255,255,255,.16);
+}
+.nav-links{display:flex;align-items:center;gap:26px;margin-left:6px}
+.nav-links a{font-size:14.5px;color:var(--ink-2);letter-spacing:-.012em;transition:color .15s ease}
+.nav-links a:hover{color:var(--ink)}
+.nav-right{margin-left:auto;display:flex;align-items:center;gap:14px}
+.nav-right .login{font-size:14.5px;color:var(--ink-2);transition:color .15s}
+.nav-right .login:hover{color:var(--ink)}
+
+/* ═════════════════════════════════════════════════════════════ HERO ═══ */
+.hero{padding:78px 0 0;text-align:center;position:relative}
+.hero h1{max-width:15ch;margin:0 auto 22px}
+.hero .lede{max-width:60ch;margin:0 auto}
+.hero-cta{display:flex;gap:11px;justify-content:center;margin:34px 0 13px;flex-wrap:wrap}
+.hero-note{font-size:13.5px;color:var(--ink-3);letter-spacing:-.008em}
+.hero-note b{font-weight:500;color:var(--ink-2)}
+
+/* The product shot. Notion's move: the UI is the hero image, framed like a
+   window sitting on the page, bleeding slightly past the text column. */
+.shot-wrap{margin-top:52px;padding-bottom:20px;position:relative}
+.shot-wrap::after{ /* soft floor shadow so the frame reads as an object */
+  content:"";position:absolute;left:9%;right:9%;bottom:2px;height:36px;
+  background:radial-gradient(50% 100% at 50% 0%,rgba(25,23,20,.12),transparent 70%);
+  filter:blur(6px);pointer-events:none;
+}
+.shot{
+  max-width:1080px;margin:0 auto;background:var(--card);
+  border:1px solid var(--line-2);border-radius:15px;overflow:hidden;
+  box-shadow:var(--sh-4);position:relative;
+}
+
+/* ══════════════════════════════════════════════════════ APP CHROME ═══ */
+/* Shared faux-product primitives, reused by the hero and every tab panel. */
+.app{display:grid;grid-template-columns:198px 1fr;min-height:520px;background:var(--card)}
+.app-side{background:var(--wash);border-right:1px solid var(--line);padding:14px 11px;display:flex;flex-direction:column}
+.side-org{display:flex;align-items:center;gap:9px;padding:6px 7px 14px}
+.side-crest{
+  width:27px;height:27px;border-radius:8px;background:linear-gradient(160deg,#2f2a24,#191714);
+  color:#f2ede3;display:grid;place-items:center;font-size:11px;letter-spacing:.02em;flex:none;
+}
+.side-org-name{font-size:13.5px;font-weight:600;letter-spacing:-.02em;line-height:1.2}
+.side-org-sub{font-size:11px;color:var(--ink-3);letter-spacing:-.005em;white-space:nowrap}
+.side-sec{font-size:10.5px;font-weight:500;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-4);padding:12px 8px 5px}
+.side-item{
+  display:flex;align-items:center;gap:9px;padding:6px 8px;border-radius:7px;
+  font-size:13.5px;color:var(--ink-2);letter-spacing:-.015em;
+}
+.side-item .ico{width:15px;height:15px;flex:none;opacity:.62}
+.side-item.on{background:rgba(25,23,20,.065);color:var(--ink);font-weight:500}
+.side-item.on .ico{opacity:.92}
+.side-item .badge{
+  margin-left:auto;font-family:var(--mono);font-size:10.5px;
+  background:var(--clay);color:#fff;border-radius:20px;padding:1px 6px;line-height:1.5;
+}
+.app-main{display:flex;flex-direction:column;min-width:0}
+.app-top{
+  display:flex;align-items:center;gap:12px;padding:13px 20px;
+  border-bottom:1px solid var(--line);
+}
+.app-title{font-size:15px;font-weight:600;letter-spacing:-.025em}
+.term-chip{
+  font-size:11.5px;color:var(--ink-2);border:1px solid var(--line-2);
+  border-radius:20px;padding:2px 10px;letter-spacing:-.01em;
+}
+.app-top-right{margin-left:auto;display:flex;align-items:center;gap:8px}
+.avatar{
+  width:25px;height:25px;border-radius:50%;display:grid;place-items:center;
+  font-size:10.5px;font-weight:600;color:#fff;letter-spacing:-.02em;flex:none;
+}
+.app-body{padding:18px 20px 22px;display:flex;flex-direction:column;gap:14px;flex:1;min-width:0}
+
+/* Widgets */
+.w-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.w{
+  border:1px solid var(--line);border-radius:11px;padding:13px 14px;background:var(--card);
+  display:flex;flex-direction:column;gap:9px;min-width:0;
+}
+.w-head{display:flex;align-items:center;gap:7px}
+.w-title{font-size:12px;font-weight:500;color:var(--ink-2);letter-spacing:-.01em}
+.w-num{font-family:var(--mono);font-size:25px;font-weight:500;letter-spacing:-.05em;line-height:1}
+.w-sub{font-size:11.5px;color:var(--ink-3);letter-spacing:-.008em}
+.bar{height:5px;border-radius:4px;background:var(--wash-2);overflow:hidden}
+.bar i{display:block;height:100%;border-radius:4px}
+.pill{
+  display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:500;
+  border-radius:20px;padding:2px 8px;letter-spacing:-.005em;line-height:1.55;
+}
+.pill.ok{background:var(--sage-soft);color:var(--sage)}
+.pill.warn{background:var(--amber-soft);color:var(--amber)}
+.pill.due{background:var(--clay-soft);color:var(--clay)}
+.pill.neutral{background:var(--wash-2);color:var(--ink-2)}
+.pill.info{background:var(--sky-soft);color:var(--sky)}
+.dot{width:5px;height:5px;border-radius:50%;background:currentColor;flex:none}
+
+/* The ask bar — the app's signature surface */
+.askbar{
+  display:flex;align-items:center;gap:10px;border:1px solid var(--vio-line);
+  background:var(--vio-soft);border-radius:10px;padding:10px 13px;
+}
+.askbar .sparkle{width:15px;height:15px;color:var(--vio);flex:none}
+.askbar .q{font-size:13px;color:var(--ink-2);letter-spacing:-.012em;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.askbar .kbd{
+  margin-left:auto;font-family:var(--mono);font-size:10.5px;color:var(--ink-3);
+  border:1px solid var(--line-2);border-radius:5px;padding:1px 6px;background:var(--card);flex:none;
+}
+
+/* Tables */
+.tbl{width:100%;border-collapse:collapse;font-size:13px}
+.tbl th{
+  text-align:left;font-size:10.5px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--ink-4);padding:0 10px 7px;border-bottom:1px solid var(--line);white-space:nowrap;
+}
+.tbl td{padding:8.5px 10px;border-bottom:1px solid var(--line);letter-spacing:-.012em;vertical-align:middle}
+.tbl tr:last-child td{border-bottom:0}
+.tbl .num{font-family:var(--mono);font-size:12.5px;font-variant-numeric:tabular-nums}
+.who{display:flex;align-items:center;gap:8px;white-space:nowrap}
+
+/* Activity feed */
+.feed{display:flex;flex-direction:column;gap:0}
+.feed-row{display:flex;align-items:flex-start;gap:9px;padding:8px 0;border-bottom:1px solid var(--line)}
+.feed-row:last-child{border-bottom:0}
+.feed-txt{font-size:12.5px;color:var(--ink-2);letter-spacing:-.012em;line-height:1.45}
+.feed-txt b{color:var(--ink);font-weight:500}
+.feed-time{margin-left:auto;font-family:var(--mono);font-size:10.5px;color:var(--ink-4);white-space:nowrap;padding-top:1px}
+
+/* ═══════════════════════════════════════════════════════════ PROOF ═══ */
+.proof{padding:44px 0 8px}
+.proof-label{text-align:center;font-size:13px;color:var(--ink-3);letter-spacing:-.008em;margin-bottom:20px}
+.proof-row{
+  display:flex;align-items:center;justify-content:center;gap:38px;flex-wrap:wrap;
+  opacity:.72;
+}
+.greek{
+  font-family:var(--serif);font-size:23px;color:var(--ink-2);letter-spacing:.06em;
+  display:flex;align-items:baseline;gap:9px;
+}
+.greek span{font-family:var(--sans);font-size:11.5px;letter-spacing:-.005em;color:var(--ink-4)}
+
+/* ════════════════════════════════════════════════════════ SECTIONS ═══ */
+section{position:relative}
+.band{background:var(--wash);border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.sec{padding:96px 0}
+.sec-head{max-width:640px;margin-bottom:44px}
+.sec-head.center{margin-left:auto;margin-right:auto;text-align:center}
+.sec-head h2{margin-bottom:18px}
+
+/* ════════════════════════════════════════════════ THE MESS SECTION ═══ */
+/* The most "screenshot it into the group chat" moment on the page: their
+   actual current stack, drawn honestly. No mockery, just recognition. */
+.mess{display:grid;grid-template-columns:repeat(12,1fr);gap:14px;align-items:start}
+.artifact{
+  background:var(--card);border:1px solid var(--line-2);border-radius:12px;
+  box-shadow:var(--sh-2);overflow:hidden;
+}
+.artifact-cap{
+  font-size:11.5px;color:var(--ink-3);letter-spacing:-.005em;
+  padding:9px 13px;border-top:1px solid var(--line);background:var(--wash);
+}
+.a-chat{grid-column:span 5}
+.a-sheet{grid-column:span 7}
+.a-notes{grid-column:span 4}
+.a-slip{grid-column:span 4}
+.a-drive{grid-column:span 4}
+
+/* group chat */
+.gm{padding:13px;display:flex;flex-direction:column;gap:8px;background:var(--card)}
+.gm-hd{display:flex;align-items:center;gap:8px;padding-bottom:9px;border-bottom:1px solid var(--line);margin-bottom:2px}
+.gm-hd .nm{font-size:12.5px;font-weight:600;letter-spacing:-.02em}
+.gm-hd .ct{margin-left:auto;font-family:var(--mono);font-size:10px;color:#fff;background:var(--clay);border-radius:20px;padding:1px 6px}
+.msg{display:flex;gap:7px;align-items:flex-end}
+/* max-width lives on the WRAPPER, not the bubble: a percentage max-width on a
+   flex item's child makes intrinsic sizing circular, and short bubbles collapse
+   to min-content ("check the / sheet"). */
+.msg>div{max-width:88%}
+.msg .bub{
+  background:var(--wash-2);border-radius:12px 12px 12px 4px;padding:7px 10px;
+  font-size:12.5px;letter-spacing:-.012em;line-height:1.4;color:var(--ink-2);
+  width:fit-content;
+}
+.msg.me{flex-direction:row-reverse}
+.msg.me .bub{background:#dfe8f4;border-radius:12px 12px 4px 12px;color:#243a52;margin-left:auto}
+.msg .nm{font-size:10px;color:var(--ink-4);margin-bottom:3px;letter-spacing:-.005em}
+
+/* spreadsheet */
+.sheet{background:var(--card);font-family:var(--mono);font-size:11.5px}
+.sheet-tabs{display:flex;gap:0;border-bottom:1px solid var(--line);background:var(--wash);overflow:hidden}
+.sheet-tab{
+  padding:7px 12px;font-size:11px;color:var(--ink-3);border-right:1px solid var(--line);
+  white-space:nowrap;letter-spacing:-.01em;font-family:var(--sans);
+}
+.sheet-tab.on{background:var(--card);color:var(--ink);font-weight:500}
+.sheet-grid{display:grid;grid-template-columns:26px 1.4fr 1fr 1fr 1.1fr}
+.sheet-grid>div{
+  padding:6px 8px;border-right:1px solid var(--line);border-bottom:1px solid var(--line);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--ink-2);
+}
+.sheet-grid .hd{background:var(--wash);color:var(--ink-4);font-size:10.5px;text-align:center}
+.sheet-grid .rn{background:var(--wash);color:var(--ink-4);text-align:center;font-size:10px}
+.sheet-grid .warn{background:#fdf3e3;color:var(--amber)}
+.sheet-grid .bad{background:#fbe9e3;color:var(--clay)}
+
+/* notes app */
+.notes{padding:14px;background:#fffdf4;min-height:150px}
+.notes-t{font-size:12.5px;font-weight:600;margin-bottom:8px;letter-spacing:-.02em}
+.notes-l{font-family:var(--mono);font-size:11.5px;color:var(--ink-2);line-height:1.85;letter-spacing:-.012em}
+.notes-l s{color:var(--ink-4)}
+
+/* paper slip */
+.slip{
+  background:repeating-linear-gradient(0deg,#fffdf6,#fffdf6 21px,#f0ece0 21px,#f0ece0 22px);
+  padding:14px;min-height:150px;font-family:var(--serif);
+}
+.slip-t{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);font-family:var(--sans);margin-bottom:10px}
+.slip-l{font-size:13.5px;color:#3a3630;line-height:22px}
+.slip-l em{font-style:italic;color:var(--ink-3)}
+
+/* drive folder */
+.drive{padding:14px;background:var(--card);min-height:150px;display:flex;flex-direction:column;gap:9px}
+.drive-row{display:flex;align-items:center;gap:9px;font-size:12px;color:var(--ink-2);letter-spacing:-.012em}
+.drive-row .fi{width:14px;height:14px;flex:none;opacity:.55}
+.drive-row .ow{margin-left:auto;font-size:10.5px;color:var(--ink-4);white-space:nowrap}
+
+.mess-kicker{
+  margin-top:40px;padding-top:28px;border-top:1px solid var(--line-2);
+  max-width:720px;
+}
+.mess-kicker p{font-size:clamp(19px,2.3vw,25px);line-height:1.42;letter-spacing:-.028em;font-weight:500}
+.mess-kicker .small{margin-top:12px}
+
+/* ══════════════════════════════════════════════════════════ TABS ═══ */
+.tabs-bar{
+  display:flex;gap:5px;border:1px solid var(--line-2);background:var(--card);
+  border-radius:11px;padding:5px;box-shadow:var(--sh-1);
+  width:max-content;max-width:100%;margin:0 auto 34px;overflow-x:auto;scrollbar-width:none;
+}
+.tabs-bar::-webkit-scrollbar{display:none}
+.tab{
+  display:flex;align-items:center;gap:8px;padding:9px 16px;border-radius:8px;
+  font-size:14.5px;font-weight:500;letter-spacing:-.018em;color:var(--ink-2);
+  white-space:nowrap;transition:background .16s ease,color .16s ease;
+}
+.tab:hover{color:var(--ink);background:rgba(25,23,20,.035)}
+.tab.on{background:var(--ink);color:#fdfcfa}
+.tab.on:hover{background:var(--ink)}
+.tab .ti{width:15px;height:15px;opacity:.75}
+.tab.on .ti{opacity:1}
+
+.panel{display:none}
+.panel.on{display:grid}
+.panel{grid-template-columns:minmax(0,352px) minmax(0,1fr);gap:52px;align-items:center}
+.panel-copy h3{margin-bottom:14px}
+.panel-copy .sub{margin-bottom:22px}
+.plist{display:flex;flex-direction:column;gap:11px;margin-bottom:24px}
+.plist li{display:flex;gap:10px;font-size:14.5px;color:var(--ink-2);letter-spacing:-.014em;line-height:1.5;align-items:flex-start}
+.plist{list-style:none;padding:0;margin-top:0}
+.check{width:16px;height:16px;flex:none;margin-top:3px;color:var(--sage)}
+.panel-link{font-size:14.5px;font-weight:500;color:var(--vio);display:inline-flex;align-items:center;gap:6px;letter-spacing:-.015em}
+.panel-link:hover{text-decoration:underline;text-underline-offset:3px}
+
+.panel-shot{
+  background:var(--card);border:1px solid var(--line-2);border-radius:13px;
+  box-shadow:var(--sh-3);overflow:hidden;min-width:0;
+}
+.shot-hd{
+  display:flex;align-items:center;gap:9px;padding:11px 15px;border-bottom:1px solid var(--line);
+  background:var(--wash);
+}
+.shot-hd .t{font-size:13px;font-weight:600;letter-spacing:-.022em}
+.shot-hd .r{margin-left:auto;display:flex;gap:7px;align-items:center}
+.shot-bd{padding:15px}
+.panel.on{animation:panelIn .34s var(--ease-out) both}
+@keyframes panelIn{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
+
+/* attendance grid */
+.att{display:grid;grid-template-columns:repeat(2,1fr);gap:7px}
+.att-row{
+  display:flex;align-items:center;gap:9px;padding:7px 9px;border:1px solid var(--line);
+  border-radius:8px;font-size:12.5px;letter-spacing:-.014em;
+}
+.att-row.here{background:var(--sage-soft);border-color:rgba(79,132,98,.22)}
+.att-row.exc{background:var(--amber-soft);border-color:rgba(184,128,44,.2)}
+.att-row.miss{background:var(--card);color:var(--ink-3)}
+.att-row .st{margin-left:auto;font-size:10.5px;font-weight:500}
+.att-meta{display:flex;align-items:center;gap:10px;margin-top:13px;padding-top:12px;border-top:1px solid var(--line)}
+
+/* service slips */
+.slips{display:flex;flex-direction:column;gap:9px}
+.slip-card{
+  display:flex;align-items:center;gap:11px;padding:10px;border:1px solid var(--line);
+  border-radius:10px;
+}
+.slip-thumb{
+  width:42px;height:42px;border-radius:7px;flex:none;
+  background:linear-gradient(140deg,#e8e2d4,#d8d0be);position:relative;overflow:hidden;
+}
+.slip-thumb::after{
+  content:"";position:absolute;inset:7px 6px;border-radius:2px;background:#fffdf6;
+  box-shadow:0 1px 2px rgba(0,0,0,.12);
+}
+.slip-info{min-width:0;flex:1}
+.slip-nm{font-size:13px;font-weight:500;letter-spacing:-.02em}
+.slip-dt{font-size:11.5px;color:var(--ink-3);letter-spacing:-.008em}
+.slip-act{display:flex;gap:6px;flex:none}
+.mini{
+  height:27px;padding:0 10px;border-radius:7px;font-size:12px;font-weight:500;
+  border:1px solid var(--line-2);background:var(--card);color:var(--ink-2);
+  display:inline-flex;align-items:center;gap:5px;
+}
+.mini.approve{background:var(--ink);color:#fdfcfa;border-color:var(--ink)}
+
+/* ask panel */
+.ask-thread{display:flex;flex-direction:column;gap:13px}
+.ask-q{
+  align-self:flex-end;max-width:82%;background:var(--wash-2);border-radius:13px 13px 4px 13px;
+  padding:9px 13px;font-size:13.5px;letter-spacing:-.015em;line-height:1.45;
+}
+.ask-a{display:flex;flex-direction:column;gap:11px}
+.ask-consulted{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.consult-chip{
+  display:inline-flex;align-items:center;gap:5px;font-family:var(--mono);font-size:10.5px;
+  color:var(--ink-3);border:1px solid var(--line);border-radius:20px;padding:2px 8px;background:var(--card);
+}
+.ask-verdict{font-size:14px;line-height:1.55;letter-spacing:-.016em;color:var(--ink)}
+.ask-verdict b{font-weight:600}
+.ask-rows{border:1px solid var(--line);border-radius:9px;overflow:hidden}
+.ask-rows .r{
+  display:flex;align-items:center;gap:9px;padding:8px 11px;border-bottom:1px solid var(--line);
+  font-size:12.5px;letter-spacing:-.014em;
+}
+.ask-rows .r:last-child{border-bottom:0}
+.ask-rows .r .amt{margin-left:auto;font-family:var(--mono);font-size:12px;color:var(--ink-2)}
+.ask-foot{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+
+/* ══════════════════════════════════════════════════════ SPLIT ROWS ═══ */
+.split{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:64px;align-items:center}
+.split.flip .split-visual{order:-1}
+.split + .split{margin-top:104px}
+.split-copy h2{margin-bottom:18px;font-size:clamp(26px,3vw,36px)}
+.split-copy .sub{margin-bottom:20px}
+
+.handoff{
+  background:var(--card);border:1px solid var(--line-2);border-radius:13px;
+  box-shadow:var(--sh-3);padding:20px;
+}
+.ho-hd{display:flex;align-items:center;gap:9px;margin-bottom:16px}
+.ho-hd .t{font-size:13.5px;font-weight:600;letter-spacing:-.022em}
+.ho-swap{display:flex;align-items:center;gap:13px;padding:14px;background:var(--wash);border-radius:10px;margin-bottom:14px}
+.ho-p{display:flex;align-items:center;gap:9px;min-width:0}
+.ho-p .nm{font-size:12.5px;font-weight:500;letter-spacing:-.018em;line-height:1.25}
+.ho-p .rl{font-size:10.5px;color:var(--ink-3)}
+.ho-arrow{color:var(--ink-4);flex:none}
+.ho-list{display:flex;flex-direction:column;gap:0}
+.ho-item{display:flex;align-items:center;gap:9px;padding:8px 0;border-bottom:1px solid var(--line);font-size:12.5px;color:var(--ink-2);letter-spacing:-.012em}
+.ho-item:last-child{border-bottom:0}
+.ho-item .n{margin-left:auto;font-family:var(--mono);font-size:11.5px;color:var(--ink-3)}
+
+/* permissions visual */
+.perms{display:flex;flex-direction:column;gap:11px}
+.perm-card{
+  background:var(--card);border:1px solid var(--line-2);border-radius:12px;padding:15px 17px;
+  box-shadow:var(--sh-2);
+}
+.perm-hd{display:flex;align-items:center;gap:10px;margin-bottom:11px}
+.perm-role{font-size:13.5px;font-weight:600;letter-spacing:-.022em}
+.perm-who{font-size:11.5px;color:var(--ink-3);margin-left:auto}
+.perm-tags{display:flex;flex-wrap:wrap;gap:6px}
+.tag{
+  font-size:11.5px;border:1px solid var(--line);border-radius:6px;padding:2.5px 8px;
+  color:var(--ink-2);background:var(--wash);letter-spacing:-.008em;
+}
+.tag.off{color:var(--ink-4);text-decoration:line-through;text-decoration-color:var(--line-3)}
+.tag.on{background:var(--sage-soft);border-color:rgba(79,132,98,.2);color:var(--sage)}
+
+/* ══════════════════════════════════════════════════════════ QUOTE ═══ */
+.quote{padding:104px 0}
+.quote blockquote{
+  margin:0;font-family:var(--serif);font-weight:400;
+  font-size:clamp(24px,3.3vw,38px);line-height:1.34;letter-spacing:-.018em;
+  color:var(--ink);
+}
+.quote-attr{display:flex;align-items:center;gap:12px;margin-top:30px}
+.quote-attr .nm{font-size:14.5px;font-weight:500;letter-spacing:-.018em}
+.quote-attr .rl{font-size:13.5px;color:var(--ink-3);letter-spacing:-.008em}
+
+/* ══════════════════════════════════════════════════════════ GRID ═══ */
+.mini-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:2px;background:var(--line);border:1px solid var(--line);border-radius:13px;overflow:hidden}
+.mini-cell{background:var(--paper);padding:26px 24px}
+.mini-cell .mi{width:22px;height:22px;margin-bottom:14px}
+.mini-cell h4{font-size:15.5px;letter-spacing:-.024em;margin-bottom:7px;font-weight:600}
+.mini-cell p{font-size:13.5px;color:var(--ink-2);line-height:1.55;letter-spacing:-.01em}
+
+/* ═══════════════════════════════════════════════════════ PRICING ═══ */
+.price-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:16px;max-width:760px;margin:0 auto}
+.price{
+  background:var(--card);border:1px solid var(--line-2);border-radius:14px;padding:26px;
+  box-shadow:var(--sh-2);display:flex;flex-direction:column;
+}
+.price.feature{border-color:var(--ink);box-shadow:var(--sh-3)}
+.price-nm{font-size:14px;font-weight:600;letter-spacing:-.02em;margin-bottom:6px}
+.price-amt{font-size:38px;font-weight:600;letter-spacing:-.042em;line-height:1;margin-bottom:5px;font-family:var(--sans)}
+.price-amt span{font-size:14px;font-weight:400;color:var(--ink-3);letter-spacing:-.01em}
+.price-for{font-size:13px;color:var(--ink-3);margin-bottom:18px;letter-spacing:-.008em}
+.price ul{list-style:none;padding:0;margin:0 0 22px;display:flex;flex-direction:column;gap:9px}
+.price li{font-size:13.5px;color:var(--ink-2);display:flex;gap:9px;letter-spacing:-.012em;line-height:1.45}
+.price .btn{margin-top:auto}
+.price-note{text-align:center;margin-top:22px;font-size:13.5px;color:var(--ink-3)}
+
+/* ═════════════════════════════════════════════════════════ FINAL ═══ */
+.final{padding:110px 0;text-align:center}
+.final h2{max-width:17ch;margin:0 auto 20px}
+.final .lede{max-width:52ch;margin:0 auto 32px}
+.final-cta{display:flex;gap:11px;justify-content:center;flex-wrap:wrap}
+
+/* ════════════════════════════════════════════════════════ FOOTER ═══ */
+.foot{border-top:1px solid var(--line);padding:56px 0 40px;background:var(--wash)}
+.foot-grid{display:grid;grid-template-columns:1.6fr repeat(4,1fr);gap:32px}
+.foot-brand .brand{margin-bottom:12px}
+.foot-brand p{font-size:13px;color:var(--ink-3);max-width:30ch;line-height:1.6}
+.foot-col h5{font-size:12px;font-weight:500;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-4);margin:0 0 13px}
+.foot-col a{display:block;font-size:13.5px;color:var(--ink-2);margin-bottom:9px;letter-spacing:-.012em}
+.foot-col a:hover{color:var(--ink)}
+.foot-bot{
+  display:flex;align-items:center;gap:16px;margin-top:46px;padding-top:22px;
+  border-top:1px solid var(--line-2);font-size:12.5px;color:var(--ink-4);flex-wrap:wrap;
+}
+.foot-bot .sp{margin-left:auto}
+
+/* ════════════════════════════════════════════════════════ REVEAL ═══ */
+.rv{opacity:0;transform:translateY(10px);transition:opacity .6s var(--ease-out),transform .6s var(--ease-out)}
+.rv.in{opacity:1;transform:none}
+.rv-2{transition-delay:.07s}
+.rv-3{transition-delay:.14s}
+.rv-4{transition-delay:.21s}
+.rv-5{transition-delay:.28s}
+
+/* hero shot settles on load */
+@keyframes shotIn{from{opacity:0;transform:translateY(20px) scale(.985)}to{opacity:1;transform:none}}
+.shot{animation:shotIn .9s var(--ease-out) .1s both}
+
+/* ════════════════════════════════════════════════════ RESPONSIVE ═══ */
+@media (max-width:1000px){
+  .panel.on{grid-template-columns:1fr;gap:32px}
+  .split{grid-template-columns:1fr;gap:34px}
+  .split.flip .split-visual{order:0}
+  .split + .split{margin-top:72px}
+  .foot-grid{grid-template-columns:1fr 1fr 1fr;gap:28px}
+  .foot-brand{grid-column:1/-1}
+}
+@media (max-width:860px){
+  .nav-links{display:none}
+  .app{grid-template-columns:1fr}
+  .app-side{display:none}
+  .w-grid{grid-template-columns:1fr}
+  .mini-grid{grid-template-columns:1fr}
+  .a-chat,.a-sheet,.a-notes,.a-slip,.a-drive{grid-column:1/-1}
+  .mess{grid-template-columns:1fr}
+  .price-grid{grid-template-columns:1fr}
+  .sec{padding:68px 0}
+  .quote{padding:72px 0}
+  .final{padding:78px 0}
+  .hero{padding:52px 0 0}
+}
+@media (max-width:560px){
+  :root{--gut:18px}
+  .tabs-bar{width:100%;justify-content:flex-start}
+  .att{grid-template-columns:1fr}
+  .foot-grid{grid-template-columns:1fr 1fr}
+  .hero-cta .btn{width:100%}
+  .tbl .hide-sm{display:none}
+}
+@media (prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
+  *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
+  .rv{opacity:1;transform:none}
+}
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════════════ NAV ═══ -->
+<nav class="nav" id="nav">
+  <div class="wrap nav-in">
+    <a class="brand" href="#top">
+      <span class="brand-mark">C</span>
+      ChaptOS
+    </a>
+    <div class="nav-links">
+      <a href="#what">What it does</a>
+      <a href="#handoff">Turnover</a>
+      <a href="#pricing">Pricing</a>
+      <a href="#">Docs</a>
+    </div>
+    <div class="nav-right">
+      <a class="login" href="#">Log in</a>
+      <a class="btn btn-primary btn-sm" href="#pricing">Start your chapter</a>
+    </div>
+  </div>
+</nav>
+
+<!-- ══════════════════════════════════════════════════════════ HERO ═══ -->
+<header class="hero" id="top">
+  <div class="wrap">
+    <h1>Run the chapter, not the spreadsheet.</h1>
+    <p class="lede">
+      Dues, attendance, service hours, and the forty things nobody wrote down —
+      in one place your whole e-board can actually see. Set it up on a Sunday.
+      Hand it off in May.
+    </p>
+    <div class="hero-cta">
+      <a class="btn btn-primary btn-lg" href="#pricing">Start your chapter — free</a>
+      <a class="btn btn-ghost btn-lg" href="#what">See a real dashboard</a>
+    </div>
+    <p class="hero-note">Free under 40 members. <b>No card, no demo call, no sales email.</b></p>
+  </div>
+
+  <!-- the product shot: the whole art direction of the page -->
+  <div class="shot-wrap">
+    <div class="wrap">
+      <div class="shot">
+        <div class="app">
+
+          <aside class="app-side">
+            <div class="side-org">
+              <div class="side-crest">ΔΣΦ</div>
+              <div>
+                <div class="side-org-name">Delta Sigma Phi</div>
+                <div class="side-org-sub">Beta Kappa · 58</div>
+              </div>
+            </div>
+            <div class="side-sec">Chapter</div>
+            <div class="side-item on">
+              <svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/></svg>
+              Dashboard
+            </div>
+            <div class="side-item">
+              <svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 3v10M3 8h10"/></svg>
+              Timeline
+            </div>
+            <div class="side-item">
+              <svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="6" cy="6" r="2.4"/><path d="M2 13c0-2.2 1.8-3.6 4-3.6s4 1.4 4 3.6"/><path d="M11 5.6a2 2 0 010 3.8M12.4 12.8c0-1.4-.5-2.4-1.4-3"/></svg>
+              Roster
+            </div>
+            <div class="side-item">
+              <svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 2.5v11M10.6 5H6.8a1.8 1.8 0 100 3.6h2.4a1.8 1.8 0 110 3.6H5.2"/></svg>
+              Treasury
+              <span class="badge">11</span>
+            </div>
+            <div class="side-item">
+              <svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2.5" y="3" width="11" height="10.5" rx="1.6"/><path d="M2.5 6.2h11M5.5 1.8v2M10.5 1.8v2"/></svg>
+              Attendance
+            </div>
+            <div class="side-item">
+              <svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 2.6l1.7 3.5 3.8.5-2.8 2.7.7 3.8L8 11.3l-3.4 1.8.7-3.8-2.8-2.7 3.8-.5z"/></svg>
+              Service hours
+              <span class="badge">23</span>
+            </div>
+            <div class="side-sec">Workspace</div>
+            <div class="side-item">
+              <svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 2.5h5.5L12.5 6v7.5H4z"/><path d="M9.4 2.6V6h3"/></svg>
+              Docs
+            </div>
+            <div class="side-item">
+              <svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 4.5h10M3 8h10M3 11.5h6"/></svg>
+              Tasks
+            </div>
+          </aside>
+
+          <div class="app-main">
+            <div class="app-top">
+              <div class="app-title">Dashboard</div>
+              <span class="term-chip">Spring 2026</span>
+              <div class="app-top-right">
+                <span class="pill neutral"><span class="dot" style="background:var(--sage)"></span>Week 9</span>
+                <div class="avatar" style="background:#6a5f52">DP</div>
+              </div>
+            </div>
+
+            <div class="app-body">
+              <div class="askbar">
+                <svg class="sparkle" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1.4l1.25 3.6 3.6 1.25-3.6 1.25L8 11.1 6.75 7.5 3.15 6.25l3.6-1.25zM12.8 10.2l.6 1.7 1.7.6-1.7.6-.6 1.7-.6-1.7-1.7-.6 1.7-.6z"/></svg>
+                <span class="q">Who still owes dues and has missed two or more meetings?</span>
+                <span class="kbd">⌘K</span>
+              </div>
+
+              <div class="w-grid">
+                <div class="w">
+                  <div class="w-head"><span class="w-title">Dues collected</span><span class="pill warn" style="margin-left:auto">11 out</span></div>
+                  <div class="w-num">$14,200</div>
+                  <div class="bar"><i style="width:82%;background:var(--sage)"></i></div>
+                  <div class="w-sub">82% of $17,250 · 47 of 58 paid</div>
+                </div>
+                <div class="w">
+                  <div class="w-head"><span class="w-title">Chapter meeting</span><span class="pill info" style="margin-left:auto">Tue 7:00p</span></div>
+                  <div class="w-num">52<span style="font-size:15px;color:var(--ink-3);letter-spacing:-.02em">/58</span></div>
+                  <div class="bar"><i style="width:90%;background:var(--sky)"></i></div>
+                  <div class="w-sub">Last week · 4 excused, 2 unexcused</div>
+                </div>
+                <div class="w">
+                  <div class="w-head"><span class="w-title">Service hours</span><span class="pill due" style="margin-left:auto">23 to verify</span></div>
+                  <div class="w-num">612</div>
+                  <div class="bar"><i style="width:70%;background:var(--amber)"></i></div>
+                  <div class="w-sub">of 870 required · 9 members behind</div>
+                </div>
+              </div>
+
+              <div class="w" style="gap:4px">
+                <div class="w-head" style="margin-bottom:5px">
+                  <span class="w-title">Recent activity</span>
+                  <span class="w-sub" style="margin-left:auto">Today</span>
+                </div>
+                <div class="feed">
+                  <div class="feed-row">
+                    <div class="avatar" style="background:#4f8462;width:21px;height:21px;font-size:9px">MB</div>
+                    <div class="feed-txt"><b>Marcus Bell</b> paid <b>$325</b> — matched to Venmo note “spring dues”</div>
+                    <div class="feed-time">2h</div>
+                  </div>
+                  <div class="feed-row">
+                    <div class="avatar" style="background:#b8802c;width:21px;height:21px;font-size:9px">JR</div>
+                    <div class="feed-txt"><b>Jordan Reyes</b> submitted <b>4 service hours</b> — Riverside food bank</div>
+                    <div class="feed-time">5h</div>
+                  </div>
+                  <div class="feed-row">
+                    <div class="avatar" style="background:#3f74ab;width:21px;height:21px;font-size:9px">AK</div>
+                    <div class="feed-txt"><b>Amir Khan</b> marked <b>excused</b> for Tuesday — “organic chem exam”</div>
+                    <div class="feed-time">1d</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- ═════════════════════════════════════════════════════════ PROOF ═══ -->
+<section class="proof">
+  <div class="wrap rv">
+    <p class="proof-label">Keeping the books for chapters at</p>
+    <div class="proof-row">
+      <span class="greek">ΔΣΦ <span>Beta Kappa</span></span>
+      <span class="greek">ΚΑΘ <span>Gamma</span></span>
+      <span class="greek">ΣΝ <span>Epsilon Rho</span></span>
+      <span class="greek">ΑΦΑ <span>Delta Chi</span></span>
+      <span class="greek">ΧΩ <span>Iota</span></span>
+      <span class="greek">ΒΘΠ <span>Theta</span></span>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════ MESS ═══ -->
+<section class="sec">
+  <div class="wrap">
+    <div class="sec-head rv">
+      <p class="eyebrow">The current system</p>
+      <h2>Right now your chapter’s memory lives in six places.</h2>
+      <p class="lede">
+        A group chat that buries it, a spreadsheet three people can edit, a Venmo
+        feed, somebody’s Notes app, a Drive folder nobody can find, and one senior
+        who just knows.
+      </p>
+    </div>
+
+    <div class="mess">
+      <!-- group chat -->
+      <div class="artifact a-chat rv">
+        <div class="gm">
+          <div class="gm-hd">
+            <div class="avatar" style="background:#6a5f52;width:22px;height:22px;font-size:9px">EB</div>
+            <span class="nm">ΔΣΦ E-Board</span>
+            <span class="ct">47</span>
+          </div>
+          <div class="msg"><div><div class="nm">Tyler</div><div class="bub">did i pay dues already or am i thinking of last sem</div></div></div>
+          <div class="msg"><div><div class="nm">Dev (treasurer)</div><div class="bub">check the sheet</div></div></div>
+          <div class="msg"><div><div class="nm">Tyler</div><div class="bub">which sheet</div></div></div>
+          <div class="msg me"><div><div class="bub">@everyone SERVICE HOURS DUE FRIDAY 🙏 send me your slips</div></div></div>
+          <div class="msg"><div><div class="nm">Nate</div><div class="bub">what slips</div></div></div>
+        </div>
+        <div class="artifact-cap">Asked and answered four times this semester.</div>
+      </div>
+
+      <!-- spreadsheet -->
+      <div class="artifact a-sheet rv rv-2">
+        <div class="sheet">
+          <div class="sheet-tabs">
+            <div class="sheet-tab on">Dues_Spring26_FINAL_v3(2)</div>
+            <div class="sheet-tab">Sheet1</div>
+            <div class="sheet-tab">Copy of Sheet1</div>
+            <div class="sheet-tab">don't touch</div>
+          </div>
+          <div class="sheet-grid">
+            <div class="rn hd"></div><div class="hd">A · Name</div><div class="hd">B · Paid?</div><div class="hd">C · Amt</div><div class="hd">D · Notes</div>
+            <div class="rn">1</div><div>Bell, Marcus</div><div>yes</div><div>325</div><div>venmo 2/14</div>
+            <div class="rn">2</div><div>Reyes, Jordan</div><div class="warn">partial?</div><div class="warn">150</div><div class="warn">said he'd send rest</div>
+            <div class="rn">3</div><div>Khan, Amir</div><div>yes</div><div>325</div><div>cash at chapter</div>
+            <div class="rn">4</div><div>Okafor, Sam</div><div class="bad">???</div><div class="bad">—</div><div class="bad">paid thru tyler??</div>
+            <div class="rn">5</div><div>Nguyen, Bao</div><div>yes</div><div>325</div><div>zelle</div>
+            <div class="rn">6</div><div>Silva, Nate</div><div class="warn">no</div><div class="warn">—</div><div class="warn">asked 3x</div>
+            <div class="rn">7</div><div>Lund, Tyler</div><div class="bad">?</div><div class="bad">—</div><div class="bad">says he paid?</div>
+            <div class="rn">8</div><div>Cruz, Lena</div><div>yes</div><div>325</div><div>venmo 1/31</div>
+            <div class="rn">9</div><div>Park, Ellis</div><div class="warn">waived</div><div class="warn">0</div><div class="warn">exec? ask dev</div>
+          </div>
+        </div>
+        <div class="artifact-cap">Last edited by someone who graduated. Column D is the only real record.</div>
+      </div>
+
+      <!-- notes app -->
+      <div class="artifact a-notes rv">
+        <div class="notes">
+          <div class="notes-t">venmo — who actually paid</div>
+          <div class="notes-l">
+            marcus 325 ✓<br>
+            jordan 150 (rest??)<br>
+            <s>sam — ask tyler</s><br>
+            bao ✓ zelle not venmo<br>
+            nate no<br>
+            + 2 randos i don't recognize
+          </div>
+        </div>
+        <div class="artifact-cap">The actual source of truth, on one person’s phone.</div>
+      </div>
+
+      <!-- paper slip -->
+      <div class="artifact a-slip rv rv-2">
+        <div class="slip">
+          <div class="slip-t">Service verification</div>
+          <div class="slip-l">
+            Name: <em>J. Reyes</em><br>
+            Hours: <em>4</em><br>
+            Site: <em>Riverside food bank</em><br>
+            Signed: <em>(illegible)</em>
+          </div>
+        </div>
+        <div class="artifact-cap">One of 23 in a shoebox under the service chair’s bed.</div>
+      </div>
+
+      <!-- drive -->
+      <div class="artifact a-drive rv rv-3">
+        <div class="drive">
+          <div class="drive-row"><svg class="fi" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M1.8 4.2h4.4l1.3 1.6h6.7v6.6H1.8z"/></svg> Chapter Stuff (OLD) <span class="ow">2023</span></div>
+          <div class="drive-row"><svg class="fi" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 2h5l3 3.4V14H4z"/></svg> bylaws_v2_edited_FINAL.docx <span class="ow">grad’d</span></div>
+          <div class="drive-row"><svg class="fi" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 2h5l3 3.4V14H4z"/></svg> formal budget REAL ONE <span class="ow">grad’d</span></div>
+          <div class="drive-row"><svg class="fi" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="5.6"/><path d="M8 5.2v3.2l2 1.2"/></svg> “request access” pending <span class="ow">3 wks</span></div>
+        </div>
+        <div class="artifact-cap">Owned by an account that stopped existing in May.</div>
+      </div>
+    </div>
+
+    <div class="mess-kicker rv">
+      <p>None of these talk to each other. That’s the actual problem — not that you need “a better system.”</p>
+      <p class="small">You don’t need to change how your chapter works. You need the six places to be one place.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════ TABS ═══ -->
+<section class="sec band" id="what">
+  <div class="wrap">
+    <div class="sec-head center rv">
+      <p class="eyebrow">One place instead</p>
+      <h2>The boring parts, handled.</h2>
+      <p class="lede">
+        Not a reinvention of how your chapter runs. The same four things you already
+        do every week — in one place that remembers what happened last week.
+      </p>
+    </div>
+
+    <div class="tabs-bar rv" role="tablist">
+      <button class="tab on" role="tab" data-tab="dues">
+        <svg class="ti" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M8 2.5v11M10.6 5H6.8a1.8 1.8 0 100 3.6h2.4a1.8 1.8 0 110 3.6H5.2"/></svg>
+        Dues
+      </button>
+      <button class="tab" role="tab" data-tab="att">
+        <svg class="ti" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="2.5" y="3" width="11" height="10.5" rx="1.6"/><path d="M2.5 6.2h11M5.6 9.6l1.6 1.6 3-3.2"/></svg>
+        Attendance
+      </button>
+      <button class="tab" role="tab" data-tab="svc">
+        <svg class="ti" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M8 2.6l1.7 3.5 3.8.5-2.8 2.7.7 3.8L8 11.3l-3.4 1.8.7-3.8-2.8-2.7 3.8-.5z"/></svg>
+        Service hours
+      </button>
+      <button class="tab" role="tab" data-tab="ask">
+        <svg class="ti" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1.4l1.25 3.6 3.6 1.25-3.6 1.25L8 11.1 6.75 7.5 3.15 6.25l3.6-1.25z"/></svg>
+        Ask the chapter
+      </button>
+    </div>
+
+    <!-- ─────────────────────────────────────────────── panel: dues ─── -->
+    <div class="panel on" data-panel="dues">
+      <div class="panel-copy">
+        <h3>Stop reconciling Venmo at midnight.</h3>
+        <p class="sub">
+          Every payment lands in one ledger — Venmo, Zelle, cash at chapter, the
+          guy who paid his roommate back. Mark it once and the roster, the
+          reminders and the treasurer’s report all update themselves.
+        </p>
+        <ul class="plist">
+          <li><svg class="check" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 8.4l3.2 3.2L13 4.8"/></svg> Venmo notes matched to the right member automatically</li>
+          <li><svg class="check" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 8.4l3.2 3.2L13 4.8"/></svg> <span>Reminders go to the 11 people who owe — not <span class="mono" style="font-size:13px">@everyone</span></span></li>
+          <li><svg class="check" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 8.4l3.2 3.2L13 4.8"/></svg> Payment plans, partial payments and waivers without a side sheet</li>
+          <li><svg class="check" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 8.4l3.2 3.2L13 4.8"/></svg> A balance sheet your chapter advisor will actually accept</li>
+        </ul>
+        <a class="panel-link" href="#">See how the ledger works →</a>
+      </div>
+      <div class="panel-shot">
+        <div class="shot-hd">
+          <span class="t">Treasury · Spring 2026</span>
+          <div class="r">
+            <span class="pill ok"><span class="dot"></span>$14,200 in</span>
+            <span class="pill due"><span class="dot"></span>11 outstanding</span>
+          </div>
+        </div>
+        <div class="shot-bd">
+          <table class="tbl">
+            <thead><tr><th>Member</th><th>Status</th><th class="hide-sm">Method</th><th style="text-align:right">Balance</th></tr></thead>
+            <tbody>
+              <tr>
+                <td><span class="who"><span class="avatar" style="background:#4f8462;width:22px;height:22px;font-size:9px">MB</span> Marcus Bell</span></td>
+                <td><span class="pill ok"><span class="dot"></span>Paid</span></td>
+                <td class="hide-sm"><span class="mono">Venmo · 2/14</span></td>
+                <td class="num" style="text-align:right">$0.00</td>
+              </tr>
+              <tr>
+                <td><span class="who"><span class="avatar" style="background:#b8802c;width:22px;height:22px;font-size:9px">JR</span> Jordan Reyes</span></td>
+                <td><span class="pill warn"><span class="dot"></span>Plan · 2 of 3</span></td>
+                <td class="hide-sm"><span class="mono">Venmo · 2/09</span></td>
+                <td class="num" style="text-align:right">$175.00</td>
+              </tr>
+              <tr>
+                <td><span class="who"><span class="avatar" style="background:#3f74ab;width:22px;height:22px;font-size:9px">AK</span> Amir Khan</span></td>
+                <td><span class="pill ok"><span class="dot"></span>Paid</span></td>
+                <td class="hide-sm"><span class="mono">Cash · 1/28</span></td>
+                <td class="num" style="text-align:right">$0.00</td>
+              </tr>
+              <tr>
+                <td><span class="who"><span class="avatar" style="background:#b85c3f;width:22px;height:22px;font-size:9px">SO</span> Sam Okafor</span></td>
+                <td><span class="pill due"><span class="dot"></span>Overdue · 21d</span></td>
+                <td class="hide-sm"><span class="mono">—</span></td>
+                <td class="num" style="text-align:right">$325.00</td>
+              </tr>
+              <tr>
+                <td><span class="who"><span class="avatar" style="background:#6a5f52;width:22px;height:22px;font-size:9px">BN</span> Bao Nguyen</span></td>
+                <td><span class="pill ok"><span class="dot"></span>Paid</span></td>
+                <td class="hide-sm"><span class="mono">Zelle · 2/02</span></td>
+                <td class="num" style="text-align:right">$0.00</td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="att-meta">
+            <span class="pill info"><span class="dot"></span>3 unmatched Venmo notes</span>
+            <button class="mini" style="margin-left:auto">Export for advisor</button>
+            <button class="mini approve">Remind the 11</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ───────────────────────────────────────── panel: attendance ─── -->
+    <div class="panel" data-panel="att">
+      <div class="panel-copy">
+        <h3>Take attendance in the ninety seconds before chapter starts.</h3>
+        <p class="sub">
+          Tap down the roster, or throw a QR code on the projector and let people
+          check themselves in. Excused absences keep their reason attached — so
+          when someone contests a fine in April, you have the record instead of
+          a memory.
+        </p>
+        <ul class="plist">
+          <li><svg class="check" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 8.4l3.2 3.2L13 4.8"/></svg> Excuse requests come in before the meeting, not after the fine</li>
+          <li><svg class="check" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 8.4l3.2 3.2L13 4.8"/></svg> Attendance rules you set once — fines calculate themselves</li>
+          <li><svg class="check" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 8.4l3.2 3.2L13 4.8"/></svg> Works for chapter, philanthropy, rush, practice — anything on the calendar</li>
+        </ul>
+        <a class="panel-link" href="#">See the attendance record →</a>
+      </div>
+      <div class="panel-shot">
+        <div class="shot-hd">
+          <span class="t">Chapter meeting · Tue Mar 3</span>
+          <div class="r"><span class="pill ok"><span class="dot"></span>52 of 58</span></div>
+        </div>
+        <div class="shot-bd">
+          <div class="att">
+            <div class="att-row here"><span class="avatar" style="background:#4f8462;width:20px;height:20px;font-size:9px">MB</span> Marcus Bell <span class="st">Here</span></div>
+            <div class="att-row here"><span class="avatar" style="background:#3f74ab;width:20px;height:20px;font-size:9px">BN</span> Bao Nguyen <span class="st">Here</span></div>
+            <div class="att-row exc"><span class="avatar" style="background:#b8802c;width:20px;height:20px;font-size:9px">AK</span> Amir Khan <span class="st">Excused</span></div>
+            <div class="att-row here"><span class="avatar" style="background:#6a5f52;width:20px;height:20px;font-size:9px">TL</span> Tyler Lund <span class="st">Here</span></div>
+            <div class="att-row miss"><span class="avatar" style="background:#b85c3f;width:20px;height:20px;font-size:9px">SO</span> Sam Okafor <span class="st">Absent</span></div>
+            <div class="att-row here"><span class="avatar" style="background:#4f8462;width:20px;height:20px;font-size:9px">JR</span> Jordan Reyes <span class="st">Here</span></div>
+          </div>
+          <div style="margin-top:12px;padding:10px 12px;background:var(--amber-soft);border-radius:9px;font-size:12.5px;color:#7a5518;letter-spacing:-.012em;line-height:1.45">
+            <b style="font-weight:600">Amir Khan · excused</b> — “organic chem exam, 7–9pm” · submitted Mon 4:12pm · approved by Dev P.
+          </div>
+          <div class="att-meta">
+            <span class="pill neutral">QR check-in open</span>
+            <span class="pill due" style="margin-left:auto"><span class="dot"></span>2 unexcused → $25 fine each</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ──────────────────────────────────────────── panel: service ─── -->
+    <div class="panel" data-panel="svc">
+      <div class="panel-copy">
+        <h3>The shoebox of service slips, gone.</h3>
+        <p class="sub">
+          Members submit hours with a photo from their phone on the drive home.
+          You approve or bounce them in one tap. Everyone can see their own total
+          against the requirement — so nobody is surprised in week 14.
+        </p>
+        <ul class="plist">
+          <li><svg class="check" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 8.4l3.2 3.2L13 4.8"/></svg> Photo proof attached to every submission, kept for the semester</li>
+          <li><svg class="check" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 8.4l3.2 3.2L13 4.8"/></svg> Members see their own gap without asking the service chair</li>
+          <li><svg class="check" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 8.4l3.2 3.2L13 4.8"/></svg> One export when nationals asks for chapter totals</li>
+        </ul>
+        <a class="panel-link" href="#">See the service log →</a>
+      </div>
+      <div class="panel-shot">
+        <div class="shot-hd">
+          <span class="t">Service · waiting on you</span>
+          <div class="r"><span class="pill due"><span class="dot"></span>23 to verify</span></div>
+        </div>
+        <div class="shot-bd">
+          <div class="slips">
+            <div class="slip-card">
+              <div class="slip-thumb"></div>
+              <div class="slip-info">
+                <div class="slip-nm">Jordan Reyes · 4.0 hrs</div>
+                <div class="slip-dt">Riverside food bank · Sat Mar 1 · photo attached</div>
+              </div>
+              <div class="slip-act">
+                <button class="mini">Bounce</button>
+                <button class="mini approve">Approve</button>
+              </div>
+            </div>
+            <div class="slip-card">
+              <div class="slip-thumb"></div>
+              <div class="slip-info">
+                <div class="slip-nm">Tyler Lund · 6.5 hrs</div>
+                <div class="slip-dt">Habitat build day · Sun Mar 2 · photo attached</div>
+              </div>
+              <div class="slip-act">
+                <button class="mini">Bounce</button>
+                <button class="mini approve">Approve</button>
+              </div>
+            </div>
+            <div class="slip-card">
+              <div class="slip-thumb"></div>
+              <div class="slip-info">
+                <div class="slip-nm">Bao Nguyen · 3.0 hrs</div>
+                <div class="slip-dt">Campus cleanup · Fri Feb 28 · <span style="color:var(--clay)">no photo</span></div>
+              </div>
+              <div class="slip-act">
+                <button class="mini">Bounce</button>
+                <button class="mini approve">Approve</button>
+              </div>
+            </div>
+          </div>
+          <div class="att-meta">
+            <span class="w-sub">Chapter total <b class="mono" style="color:var(--ink)">612</b> of 870 required</span>
+            <span class="pill warn" style="margin-left:auto"><span class="dot"></span>9 members behind pace</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ──────────────────────────────────────────────── panel: ask ─── -->
+    <div class="panel" data-panel="ask">
+      <div class="panel-copy">
+        <h3>Ask a question the way you’d ask a person.</h3>
+        <p class="sub">
+          It reads your actual roster, ledger and attendance record — not a generic
+          answer. It shows you the exact rows it used, so you can check its work
+          before you send anything to anybody.
+        </p>
+        <ul class="plist">
+          <li><svg class="check" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 8.4l3.2 3.2L13 4.8"/></svg> Every answer shows its sources — click a row, see the record</li>
+          <li><svg class="check" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 8.4l3.2 3.2L13 4.8"/></svg> It drafts the reminder text; you decide whether it goes out</li>
+          <li><svg class="check" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 8.4l3.2 3.2L13 4.8"/></svg> It can only see what your role can see</li>
+        </ul>
+        <a class="panel-link" href="#">See how it answers →</a>
+      </div>
+      <div class="panel-shot">
+        <div class="shot-hd">
+          <span class="t">Ask the chapter</span>
+          <div class="r"><span class="mono" style="color:var(--ink-4)">⌘K</span></div>
+        </div>
+        <div class="shot-bd">
+          <div class="ask-thread">
+            <div class="ask-q">Who still owes dues and has missed two or more meetings?</div>
+            <div class="ask-a">
+              <div class="ask-consulted">
+                <span class="consult-chip"><span class="dot" style="background:var(--sage)"></span>roster · 58</span>
+                <span class="consult-chip"><span class="dot" style="background:var(--sage)"></span>ledger · spring 2026</span>
+                <span class="consult-chip"><span class="dot" style="background:var(--sage)"></span>attendance · 9 wks</span>
+              </div>
+              <p class="ask-verdict">
+                <b>Three people</b> are both behind on dues and have missed two or more
+                chapter meetings this semester. Sam Okafor is the outlier — 21 days
+                overdue and four absences.
+              </p>
+              <div class="ask-rows">
+                <div class="r"><span class="avatar" style="background:#b85c3f;width:20px;height:20px;font-size:9px">SO</span> Sam Okafor <span class="pill due" style="margin-left:8px"><span class="dot"></span>4 missed</span> <span class="amt">$325.00</span></div>
+                <div class="r"><span class="avatar" style="background:#6a5f52;width:20px;height:20px;font-size:9px">NS</span> Nate Silva <span class="pill warn" style="margin-left:8px"><span class="dot"></span>3 missed</span> <span class="amt">$325.00</span></div>
+                <div class="r"><span class="avatar" style="background:#b8802c;width:20px;height:20px;font-size:9px">JR</span> Jordan Reyes <span class="pill warn" style="margin-left:8px"><span class="dot"></span>2 missed</span> <span class="amt">$175.00</span></div>
+              </div>
+              <div class="ask-foot">
+                <button class="mini">Show the math</button>
+                <button class="mini">Draft a message to these 3</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ═════════════════════════════════════════════════════ SPLIT ROWS ═══ -->
+<section class="sec" id="handoff">
+  <div class="wrap">
+
+    <div class="split rv">
+      <div class="split-copy">
+        <p class="eyebrow">May</p>
+        <h2>It survives the handoff.</h2>
+        <p class="sub">
+          The real disaster in a chapter isn’t a bad semester — it’s the
+          transition. New treasurer, new laptop, no password, no context, and the
+          last guy stopped answering texts in June.
+        </p>
+        <p class="sub">
+          Here the next e-board just logs in. Last semester’s books, who was
+          excused and why, the doc explaining how formal gets budgeted — it’s all
+          already sitting there, in the same place it always was.
+        </p>
+      </div>
+      <div class="split-visual">
+        <div class="handoff">
+          <div class="ho-hd">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="var(--ink-3)" stroke-width="1.5"><path d="M2 8h12M10 4l4 4-4 4"/></svg>
+            <span class="t">Officer transition · Treasurer</span>
+            <span class="pill ok" style="margin-left:auto"><span class="dot"></span>Complete</span>
+          </div>
+          <div class="ho-swap">
+            <div class="ho-p">
+              <div class="avatar" style="background:#4f8462">MB</div>
+              <div><div class="nm">Marcus Bell</div><div class="rl">Treasurer · ’24–’26</div></div>
+            </div>
+            <svg class="ho-arrow" width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 8h12M10 4l4 4-4 4"/></svg>
+            <div class="ho-p">
+              <div class="avatar" style="background:#3f74ab">DP</div>
+              <div><div class="nm">Dev Patel</div><div class="rl">Treasurer · ’26–</div></div>
+            </div>
+          </div>
+          <div class="ho-list">
+            <div class="ho-item"><span class="dot" style="background:var(--sage)"></span> Semesters of books carried over <span class="n">4</span></div>
+            <div class="ho-item"><span class="dot" style="background:var(--sage)"></span> Payment plans still running <span class="n">6</span></div>
+            <div class="ho-item"><span class="dot" style="background:var(--sage)"></span> Docs, budgets &amp; bylaws <span class="n">31</span></div>
+            <div class="ho-item"><span class="dot" style="background:var(--sage)"></span> Passwords Dev had to ask for <span class="n">0</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="split flip rv">
+      <div class="split-copy">
+        <p class="eyebrow">Who sees what</p>
+        <h2>Your treasurer sees the money. Everyone else sees their own balance.</h2>
+        <p class="sub">
+          Roles come preset the way chapters are actually organized — President,
+          Treasurer, Service Chair, Scribe — and you can change any of them in a
+          minute. Members get a clean view of just their own stuff.
+        </p>
+        <p class="sub">
+          Nobody accidentally opens the standards notes. Nobody has to be trusted
+          with the whole spreadsheet just to check whether they paid.
+        </p>
+      </div>
+      <div class="split-visual">
+        <div class="perms">
+          <div class="perm-card">
+            <div class="perm-hd">
+              <div class="avatar" style="background:#3f74ab;width:26px;height:26px;font-size:10px">DP</div>
+              <span class="perm-role">Treasurer</span>
+              <span class="perm-who">Dev Patel</span>
+            </div>
+            <div class="perm-tags">
+              <span class="tag on">Ledger &amp; dues</span>
+              <span class="tag on">Payment plans</span>
+              <span class="tag on">Export books</span>
+              <span class="tag on">Roster</span>
+              <span class="tag off">Standards notes</span>
+            </div>
+          </div>
+          <div class="perm-card">
+            <div class="perm-hd">
+              <div class="avatar" style="background:#b8802c;width:26px;height:26px;font-size:10px">LC</div>
+              <span class="perm-role">Service Chair</span>
+              <span class="perm-who">Lena Cruz</span>
+            </div>
+            <div class="perm-tags">
+              <span class="tag on">Verify hours</span>
+              <span class="tag on">Service events</span>
+              <span class="tag on">Roster</span>
+              <span class="tag off">Ledger &amp; dues</span>
+              <span class="tag off">Standards notes</span>
+            </div>
+          </div>
+          <div class="perm-card">
+            <div class="perm-hd">
+              <div class="avatar" style="background:#6a5f52;width:26px;height:26px;font-size:10px">TL</div>
+              <span class="perm-role">Member</span>
+              <span class="perm-who">Tyler Lund</span>
+            </div>
+            <div class="perm-tags">
+              <span class="tag on">My balance</span>
+              <span class="tag on">My hours</span>
+              <span class="tag on">My attendance</span>
+              <span class="tag off">Everyone’s balance</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ═════════════════════════════════════════════════════════ QUOTE ═══ -->
+<section class="quote band">
+  <div class="wrap-narrow rv">
+    <blockquote>
+      “I stopped doing the Sunday night thing where I sit with three tabs open
+      trying to figure out who actually paid.”
+    </blockquote>
+    <div class="quote-attr">
+      <div class="avatar" style="background:#3f74ab;width:38px;height:38px;font-size:13px">DP</div>
+      <div>
+        <div class="nm">Dev Patel</div>
+        <div class="rl">Treasurer · Delta Sigma Phi, Beta Kappa</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════ SMALL STUFF ═══ -->
+<section class="sec">
+  <div class="wrap">
+    <div class="sec-head rv">
+      <p class="eyebrow">The rest of it</p>
+      <h2>And the twenty smaller things.</h2>
+      <p class="lede">
+        Nothing here will change your life. Together they’re most of what an
+        e-board actually spends its week doing.
+      </p>
+    </div>
+    <div class="mini-grid rv">
+      <div class="mini-cell">
+        <svg class="mi" viewBox="0 0 24 24" fill="none" stroke="var(--sky)" stroke-width="1.6"><rect x="3" y="4.5" width="18" height="16" rx="2.5"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4"/></svg>
+        <h4>One calendar</h4>
+        <p>Chapter, rush, philanthropy, formal. Everyone sees the same dates, including the ones that moved.</p>
+      </div>
+      <div class="mini-cell">
+        <svg class="mi" viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="1.6"><path d="M6 3h8l5 5v13H6z"/><path d="M13.8 3.2V8.4H19"/><path d="M9 13h6M9 17h4"/></svg>
+        <h4>Docs that stay put</h4>
+        <p>Bylaws, budgets, risk plans. Owned by the chapter, not by whoever made the file.</p>
+      </div>
+      <div class="mini-cell">
+        <svg class="mi" viewBox="0 0 24 24" fill="none" stroke="var(--sage)" stroke-width="1.6"><path d="M4 18V9M10 18V4M16 18v-6M22 18h-2"/><path d="M2 21h20"/></svg>
+        <h4>Reports for nationals</h4>
+        <p>Headcount, GPA standing, service totals. Export the shape they ask for instead of rebuilding it.</p>
+      </div>
+      <div class="mini-cell">
+        <svg class="mi" viewBox="0 0 24 24" fill="none" stroke="var(--clay)" stroke-width="1.6"><path d="M12 3l8 4v5c0 4.4-3.2 7.9-8 9-4.8-1.1-8-4.6-8-9V7z"/><path d="M9 12l2 2 4-4"/></svg>
+        <h4>Standards, quietly</h4>
+        <p>Fines, probation, notes. Visible to the people who need them and nobody else.</p>
+      </div>
+      <div class="mini-cell">
+        <svg class="mi" viewBox="0 0 24 24" fill="none" stroke="var(--vio)" stroke-width="1.6"><path d="M4 6h16M4 12h16M4 18h10"/><circle cx="19" cy="18" r="2.4"/></svg>
+        <h4>Tasks with owners</h4>
+        <p>“Someone should book the venue” becomes a name and a date, or it doesn’t get made.</p>
+      </div>
+      <div class="mini-cell">
+        <svg class="mi" viewBox="0 0 24 24" fill="none" stroke="var(--sky)" stroke-width="1.6"><path d="M4 5.5h16v13H4z"/><path d="M4 5.5L12 13l8-7.5"/></svg>
+        <h4>Announcements that land</h4>
+        <p>Send to the 11 who owe, the 9 behind on hours, or everyone. It knows who’s who.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════ PRICING ═══ -->
+<section class="sec band" id="pricing">
+  <div class="wrap">
+    <div class="sec-head center rv">
+      <p class="eyebrow">What it costs</p>
+      <h2>Free until it’s obviously worth paying for.</h2>
+      <p class="lede">
+        You’re replacing a spreadsheet that costs nothing. We know. Start free,
+        and decide in April.
+      </p>
+    </div>
+    <div class="price-grid rv">
+      <div class="price">
+        <div class="price-nm">Free</div>
+        <div class="price-amt">$0</div>
+        <div class="price-for">Chapters under 40 members</div>
+        <ul>
+          <li><svg class="check" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" style="width:15px;height:15px;margin-top:2px"><path d="M3 8.4l3.2 3.2L13 4.8"/></svg> Everything — dues, attendance, hours, docs</li>
+          <li><svg class="check" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" style="width:15px;height:15px;margin-top:2px"><path d="M3 8.4l3.2 3.2L13 4.8"/></svg> Unlimited officers and roles</li>
+          <li><svg class="check" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" style="width:15px;height:15px;margin-top:2px"><path d="M3 8.4l3.2 3.2L13 4.8"/></svg> Import from your existing sheet</li>
+        </ul>
+        <a class="btn btn-ghost" href="#">Start free</a>
+      </div>
+      <div class="price feature">
+        <div class="price-nm">Chapter</div>
+        <div class="price-amt">$29 <span>/ month</span></div>
+        <div class="price-for">40+ members · billed to the chapter, not to you</div>
+        <ul>
+          <li><svg class="check" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" style="width:15px;height:15px;margin-top:2px"><path d="M3 8.4l3.2 3.2L13 4.8"/></svg> Everything in Free, no member cap</li>
+          <li><svg class="check" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" style="width:15px;height:15px;margin-top:2px"><path d="M3 8.4l3.2 3.2L13 4.8"/></svg> Ask the chapter, unlimited</li>
+          <li><svg class="check" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" style="width:15px;height:15px;margin-top:2px"><path d="M3 8.4l3.2 3.2L13 4.8"/></svg> Nationals-ready exports &amp; archives</li>
+        </ul>
+        <a class="btn btn-primary" href="#">Start your chapter</a>
+      </div>
+    </div>
+    <p class="price-note">
+      Cancel from the settings page in two clicks. No annual contract for the next
+      treasurer to inherit.
+    </p>
+  </div>
+</section>
+
+<!-- ═════════════════════════════════════════════════════════ FINAL ═══ -->
+<section class="final">
+  <div class="wrap rv">
+    <h2>Set it up before Sunday’s meeting.</h2>
+    <p class="lede">
+      Twenty minutes and the roster you already have. Paste in the spreadsheet,
+      pick which pages your chapter needs, invite the e-board. That’s the setup.
+    </p>
+    <div class="final-cta">
+      <a class="btn btn-primary btn-lg" href="#">Start your chapter — free</a>
+      <a class="btn btn-ghost btn-lg" href="#what">Look around first</a>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════════════════════ FOOTER ═══ -->
+<footer class="foot">
+  <div class="wrap">
+    <div class="foot-grid">
+      <div class="foot-brand">
+        <a class="brand" href="#top"><span class="brand-mark">C</span> ChaptOS</a>
+        <p>One calm place for everything a chapter runs on. Built by people who did the treasurer job.</p>
+      </div>
+      <div class="foot-col">
+        <h5>Product</h5>
+        <a href="#what">Dues</a><a href="#what">Attendance</a><a href="#what">Service hours</a><a href="#what">Ask the chapter</a>
+      </div>
+      <div class="foot-col">
+        <h5>For</h5>
+        <a href="#">Fraternities &amp; sororities</a><a href="#">Club sports</a><a href="#">Honor societies</a><a href="#">Student orgs</a>
+      </div>
+      <div class="foot-col">
+        <h5>Company</h5>
+        <a href="#">About</a><a href="#pricing">Pricing</a><a href="#">Changelog</a><a href="#">Contact</a>
+      </div>
+      <div class="foot-col">
+        <h5>Legal</h5>
+        <a href="#">Privacy</a><a href="#">Terms</a><a href="#">Security</a><a href="#">Your data</a>
+      </div>
+    </div>
+    <div class="foot-bot">
+      <span>© 2026 ChaptOS</span>
+      <span class="sp">Design mock — placeholder chapters, people and figures.</span>
+    </div>
+  </div>
+</footer>
+
+<script>
+(function(){
+  "use strict";
+  var reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  /* ── nav hairline on scroll ─────────────────────────────────────────── */
+  var nav = document.getElementById("nav"), ticking = false;
+  function onScroll(){
+    if(ticking) return;
+    ticking = true;
+    requestAnimationFrame(function(){
+      nav.classList.toggle("stuck", window.scrollY > 8);
+      ticking = false;
+    });
+  }
+  window.addEventListener("scroll", onScroll, {passive:true});
+  onScroll();
+
+  /* ── reveal: one primitive, used everywhere ─────────────────────────── */
+  var rvs = document.querySelectorAll(".rv");
+  if(reduce || !("IntersectionObserver" in window)){
+    rvs.forEach(function(el){ el.classList.add("in"); });
+  } else {
+    var io = new IntersectionObserver(function(entries){
+      entries.forEach(function(e){
+        if(e.isIntersecting){ e.target.classList.add("in"); io.unobserve(e.target); }
+      });
+    }, {rootMargin:"0px 0px -12% 0px", threshold:.08});
+    rvs.forEach(function(el){ io.observe(el); });
+  }
+
+  /* ── tabs: the page's only interactive surface ──────────────────────── */
+  var tabs = document.querySelectorAll(".tab");
+  var panels = document.querySelectorAll(".panel");
+  var bar = document.querySelector(".tabs-bar");
+
+  /* On narrow screens the bar scrolls horizontally, so the tab you just picked
+     can sit off-screen. Nudge the BAR's own scrollLeft — scrollIntoView would
+     drag the whole page vertically too. */
+  function ensureVisible(el){
+    var b = bar.getBoundingClientRect(), r = el.getBoundingClientRect();
+    if(r.left < b.left) bar.scrollLeft -= (b.left - r.left) + 8;
+    else if(r.right > b.right) bar.scrollLeft += (r.right - b.right) + 8;
+  }
+  function select(name){
+    tabs.forEach(function(t){
+      var on = t.dataset.tab === name;
+      t.classList.toggle("on", on);
+      if(on) ensureVisible(t);
+    });
+    panels.forEach(function(p){ p.classList.toggle("on", p.dataset.panel === name); });
+  }
+  tabs.forEach(function(t){
+    t.addEventListener("click", function(){ select(t.dataset.tab); });
+  });
+
+  /* keyboard: arrows move between tabs, like a real tablist */
+  var order = Array.prototype.map.call(tabs, function(t){ return t.dataset.tab; });
+  document.querySelector(".tabs-bar").addEventListener("keydown", function(e){
+    if(e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
+    var cur = order.indexOf(document.querySelector(".tab.on").dataset.tab);
+    var next = (cur + (e.key === "ArrowRight" ? 1 : order.length - 1)) % order.length;
+    select(order[next]);
+    tabs[next].focus();
+    e.preventDefault();
+  });
+})();
+</script>
+</body>
+</html>
