@@ -29,27 +29,40 @@
 .chat-root ::selection { background: var(--vio-bg); }
 .chat-root button { font: inherit; color: inherit; }
 
-/* ── Launcher — only when closed ─────────────────────────────────────────── */
-.cs-launcher {
-  position: fixed; z-index: 40;
+/* ── Floating launcher — only when closed ────────────────────────────────────
+   A warm paper pill, not the old indigo glass. The serif label reads as an
+   invitation; the mono ⌘K hint mirrors the toolbar search affordance. */
+.chat-launcher {
+  position: fixed;
+  z-index: 40;
   bottom: max(1.5rem, env(safe-area-inset-bottom));
   right:  max(1.5rem, env(safe-area-inset-right));
-  display: inline-flex; align-items: center; gap: 9px; cursor: pointer;
+  display: inline-flex; align-items: center; gap: 9px;
   font-family: var(--serif); font-size: 14px; letter-spacing: -.01em; color: var(--ink-soft);
   background: var(--card); border: 1px solid var(--line); border-radius: 999px;
-  padding: 10px 15px 10px 13px;
-  box-shadow: 0 1px 0 rgba(0,0,0,.35), 0 18px 44px -24px rgba(0,0,0,.8);
-  transition: border-color .16s, color .16s, transform .16s;
+  padding: 10px 16px 10px 13px; cursor: pointer;
+  box-shadow: 0 1px 0 rgba(0,0,0,.4), 0 18px 44px -22px rgba(0,0,0,.8), inset 0 1px 0 rgba(236,231,221,.04);
+  transition: border-color .15s, color .15s, transform .15s, box-shadow .15s;
 }
-.cs-launcher:hover { color: var(--ink); border-color: var(--vio-line); transform: translateY(-1px); }
-.cs-launcher:focus-visible { outline: 2px solid var(--vio); outline-offset: 3px; }
-.cs-launcher .spark { color: var(--vio); display: inline-flex; }
-.cs-launcher .kbd {
-  font-family: var(--mono); font-size: 9px; letter-spacing: .08em; color: var(--faint);
-  border: 1px solid var(--line); border-radius: 5px; padding: 2px 5px;
+.chat-launcher:hover { color: var(--ink); border-color: var(--vio); transform: translateY(-1px);
+  box-shadow: 0 1px 0 rgba(0,0,0,.4), 0 22px 48px -20px rgba(0,0,0,.8), 0 0 0 4px var(--vio-bg); }
+.chat-launcher:focus-visible { outline: 2px solid var(--vio); outline-offset: 3px; }
+.chat-launcher .spark { color: var(--vio); flex-shrink: 0; }
+.chat-launcher .hint {
+  font-family: var(--mono); font-size: 9px; letter-spacing: .1em; color: var(--faint);
+  border: 1px solid var(--line); border-radius: 5px; padding: 2px 5px; margin-left: 2px;
 }
-.cs-launcher .badge { width: 6px; height: 6px; border-radius: 50%; background: var(--vio); box-shadow: 0 0 0 3px var(--vio-bg); }
-.cs-launcher.pulse .badge { animation: cs-halo 1.7s var(--ease) infinite; }
+/* First-run pulse — a single soft ring to draw the eye, then it settles. */
+.chat-launcher.pulse::after {
+  content: ""; position: absolute; inset: -2px; border-radius: 999px;
+  border: 1.5px solid var(--vio); opacity: 0; animation: chat-pulse 2.4s ease-out 2;
+  pointer-events: none;
+}
+@keyframes chat-pulse {
+  0%   { opacity: .55; transform: scale(1); }
+  70%  { opacity: 0;   transform: scale(1.18); }
+  100% { opacity: 0;   transform: scale(1.18); }
+}
 
 /* ── Overlay + centered spotlight ────────────────────────────────────────── */
 .cs-overlay {

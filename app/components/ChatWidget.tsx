@@ -18,7 +18,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type
 import { orgFetch } from "../lib/api";
 import { iterSSE } from "../lib/sse";
 import { useChapter } from "../context/ChapterContext";
-import { IcCal, IcCoin, IcSend, IcSpark, IcStop, IcUsers } from "./chat/icons";
+import { IcCal, IcCoin, IcSend, IcStop, IcUsers } from "./chat/icons";
 import { MarkdownLite } from "./chat/MarkdownLite";
 import { LedgerHandoff, ReasoningLedger, TraceBlock } from "./chat/ReasoningLedger";
 import { AnswerBlock } from "./chat/AnswerBlock";
@@ -111,6 +111,18 @@ function saveHistory(msgs: ChatMessage[]) {
     );
     localStorage.setItem(STORAGE_KEY, JSON.stringify(trimmed));
   } catch { /* localStorage full — silently drop */ }
+}
+
+// Launcher sparkle — outlined, matches the app's heroicons-style SVG language.
+// Deliberately not the solid `IcSpark` the spotlight panel's chrome uses.
+function SparkleIcon({ className = "" }: { className?: string }) {
+  return (
+    <svg className={className} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M12 3l1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6L12 3z" />
+      <path d="M19 14l.8 2.2L22 17l-2.2.8L19 20l-.8-2.2L16 17l2.2-.8L19 14z" />
+      <path d="M5 15l.6 1.6L7.2 17l-1.6.6L5 19l-.6-1.6L2.8 17l1.6-.4L5 15z" />
+    </svg>
+  );
 }
 
 export function ChatWidget() {
@@ -589,11 +601,10 @@ export function ChatWidget() {
     <div className="chat-root" data-scene={open ? scene : "closed"}>
       {/* Launcher — visible only when the spotlight is closed */}
       {!open && (
-        <button onClick={openSpotlight} aria-label="Ask Chapt" className={`cs-launcher${pulse ? " pulse" : ""}`}>
-          <span className="spark"><IcSpark /></span>
-          Ask Chapt
-          <i className="badge" aria-hidden />
-          <kbd className="kbd">{shortcut}</kbd>
+        <button onClick={openSpotlight} aria-label="Ask Chapt" className={`chat-launcher${pulse ? " pulse" : ""}`}>
+          <SparkleIcon className="spark" />
+          <span>Ask Chapt</span>
+          <kbd className="hint">{shortcut}</kbd>
         </button>
       )}
 
