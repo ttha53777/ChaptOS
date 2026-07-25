@@ -119,6 +119,49 @@ describe("parseComposeAnswer", () => {
     const a = out as Exclude<typeof out, { error: string }>;
     expect(a.rows[0].kind).toBe("generic");
   });
+
+  // A verdict that counts its own list can contradict the list the user is
+  // looking at — "3 next-event ideas" over four rows. Rejected so the model
+  // retries; the ordinary headline figure must survive untouched.
+  describe("verdict miscounts its own rows", () => {
+    const rowsOf = (n: number) =>
+      Array.from({ length: n }, (_, i) => ({ kind: "event", title: `E${i}` }));
+
+    it("rejects a self-count that disagrees with rows", () => {
+      expect(parseComposeAnswer({
+        verdict: "Based on what you've hosted, here are 3 next-event ideas.",
+        rows: rowsOf(4),
+      })).toHaveProperty("error");
+      expect(parseComposeAnswer({
+        verdict: "Three ideas that match your track record.",
+        rows: rowsOf(4),
+      })).toHaveProperty("error");
+      // Over-claiming past the 6-row cap is just as visible.
+      expect(parseComposeAnswer({
+        verdict: "*8* options worth running.",
+        rows: rowsOf(8),
+      })).toHaveProperty("error");
+    });
+
+    it("accepts a self-count that matches", () => {
+      expect(parseComposeAnswer({
+        verdict: "Here are *3* ideas that fit your track record.",
+        rows: rowsOf(3),
+      })).not.toHaveProperty("error");
+    });
+
+    it("leaves an ordinary headline figure alone", () => {
+      // Rows are a truncated sample of a bigger set — not a count of the list.
+      expect(parseComposeAnswer({
+        verdict: "*12* brothers are behind on dues.",
+        rows: rowsOf(6),
+      })).not.toHaveProperty("error");
+      expect(parseComposeAnswer({
+        verdict: "You've spent *$4,200* across 21 events.",
+        rows: rowsOf(5),
+      })).not.toHaveProperty("error");
+    });
+  });
 });
 
 // ── Permission gate ──────────────────────────────────────────────────────────

@@ -4,6 +4,7 @@ import { buildContext } from "@/lib/context";
 import { checkMutationRate } from "@/lib/rate-limit";
 import { aiEnabled, getOpenAI, CHAT_MODEL, MAX_COMPLETION_TOKENS, CHAT_REASONING_EFFORT } from "@/lib/ai";
 import { TOOLS, TOOL_UI, runTool, isReadTool, runProposal, isProposalTool, isAnswerTool, parseComposeAnswer, type Proposal } from "@/lib/ai-tools";
+import { createRefIndex, attachRefs } from "@/lib/ai-refs";
 import { buildSystemPrompt } from "@/lib/ai-prompt";
 import { tryFastPath } from "@/lib/ai-fastpath";
 import { withIdleTimeout, StreamIdleTimeoutError, STREAM_IDLE_MS } from "@/lib/ai-stream";
@@ -122,6 +123,9 @@ export async function POST(req: NextRequest) {
       // Sources actually consulted this request (TOOL_UI labels, ordered dedup) —
       // attached to the structured answer server-side, never model-claimed.
       const consulted: string[] = [];
+      // Records seen in this turn's tool results, so answer rows can carry the id
+      // of what they stand for and open a peek instead of asking a follow-up.
+      const refIndex = createRefIndex();
 
       try {
         // Flush a tiny event before awaiting the system prompt. buildSystemPrompt
@@ -365,6 +369,9 @@ export async function POST(req: NextRequest) {
             if (isReadTool(tc.name)) {
               const src = TOOL_UI[tc.name]?.source;
               if (src && !consulted.includes(src)) consulted.push(src);
+              // Fold this payload's ids in while it's already in hand. In-memory
+              // only — no query, nothing added to the wait before the answer.
+              refIndex.add(tc.name, resultPayload);
             }
             messages.push({
               role: "tool",
@@ -383,7 +390,7 @@ export async function POST(req: NextRequest) {
             if ("error" in parsed) {
               messages.push({ role: "tool", tool_call_id: answerCall.tc.id, content: JSON.stringify(parsed) });
             } else {
-              send("answer", { ...parsed, sources: consulted });
+              send("answer", { ...parsed, rows: attachRefs(parsed.rows, refIndex), sources: consulted });
               answeredStructured = true;
               break;
             }

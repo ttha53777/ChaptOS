@@ -42,9 +42,11 @@
       landed. A ledger summary + kind filters (Dues / Events / Roster / Timeline);
       tap any row to reopen the approved action with its stamp.
 
-  Driven through 8 SCENES by a director's rail at the bottom. Still fully live:
+  Driven through 9 SCENES by a director's rail at the bottom. Still fully live:
   in Briefing, type or click a starter and it runs the real thinking → answer
-  flow; ratify a proposal and watch the ledger line rewrite. Press T to toggle
+  flow; tap a result row to open its PEEK (the record behind the row — a plain
+  DB read, no model turn); ratify a proposal and watch the ledger line rewrite.
+  Press T to toggle
   Dusk / Ivory. Tokens/fonts mirror the live widget (app/components/chat-ledger).
 
   Data is the Spotlight canon: Iota Chapter · Spring '26 · viewer is Marcus,
@@ -75,6 +77,8 @@
     --line: rgba(236,231,221,.09); --line-soft: rgba(236,231,221,.05); --line-med: rgba(236,231,221,.14);
     --vio: #a78bfa; --vio-deep: #7c3aed; --vio-bg: rgba(167,139,250,.10); --vio-line: rgba(167,139,250,.30); --vio-glow: rgba(167,139,250,.16);
     --ok: #7fb08a; --ok-bg: rgba(127,176,138,.13); --scrim: rgba(5,4,2,.62);
+    /* Peek tones — warm siblings of --ok, never the cold dashboard reds. */
+    --warn: #d3a04e; --warn-bg: rgba(211,160,78,.13); --risk: #cf8272; --risk-bg: rgba(207,130,114,.13);
     --card-shadow: 0 1px 0 rgba(0,0,0,.5), 0 40px 80px -34px rgba(0,0,0,.9), inset 0 1px 0 rgba(236,231,221,.04);
     --rail-bg: rgba(20,18,14,.86);
   }
@@ -84,6 +88,7 @@
     --line: rgba(23,20,16,.12); --line-soft: rgba(23,20,16,.06); --line-med: rgba(23,20,16,.18);
     --vio: #6d28d9; --vio-deep: #5b21b6; --vio-bg: rgba(109,40,217,.07); --vio-line: rgba(109,40,217,.24); --vio-glow: rgba(109,40,217,.12);
     --ok: #3f7a50; --ok-bg: rgba(63,122,80,.11); --scrim: rgba(60,52,40,.32);
+    --warn: #9a6b18; --warn-bg: rgba(154,107,24,.10); --risk: #a34e3c; --risk-bg: rgba(163,78,60,.10);
     --card-shadow: 0 1px 2px rgba(23,20,16,.06), 0 40px 80px -36px rgba(23,20,16,.42), inset 0 1px 0 rgba(255,255,255,.6);
     --rail-bg: rgba(251,249,243,.88);
   }
@@ -154,10 +159,12 @@
     padding: 5px 10px; font-family: var(--mono); font-size: 9.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); transition: border-color .15s, color .15s; }
   .newq:hover { border-color: var(--vio-line); color: var(--ink); }
   body[data-scene="convo"] .newq, body[data-scene="proposal"] .newq, body[data-scene="answer"] .newq,
-  body[data-scene="nomatch"] .newq, body[data-scene="approvals"] .newq, body[data-scene="live"] .newq { display: inline-flex; }
+  body[data-scene="nomatch"] .newq, body[data-scene="approvals"] .newq, body[data-scene="live"] .newq,
+  body[data-scene="peek"] .newq { display: inline-flex; }
 
   /* ── Body regions ────────────────────────────────────────────────────────── */
-  .body { flex: 1; min-height: 0; display: flex; }
+  /* Positioned so the peek can layer over the thread without unmounting it. */
+  .body { flex: 1; min-height: 0; display: flex; position: relative; }
 
   /* Briefing — a capability map: the empty state teaches the row grammar. */
   /* Briefing — a calm, centered invitation. Type is the hero; no icon-in-a-circle
@@ -181,12 +188,76 @@
 
   .thread { display: none; flex: 1; min-height: 0; flex-direction: column; gap: 16px; overflow-y: auto; padding: 20px; }
   body[data-scene="thinking"] .thread, body[data-scene="convo"] .thread, body[data-scene="proposal"] .thread,
-  body[data-scene="answer"] .thread, body[data-scene="nomatch"] .thread, body[data-scene="live"] .thread { display: flex; }
+  body[data-scene="answer"] .thread, body[data-scene="nomatch"] .thread, body[data-scene="live"] .thread,
+  /* The peek layers OVER the thread — the thread stays laid out underneath. */
+  body[data-scene="peek"] .thread { display: flex; }
   .thread::-webkit-scrollbar, .welcome::-webkit-scrollbar, .inbox::-webkit-scrollbar { width: 7px; }
   .thread::-webkit-scrollbar-thumb, .welcome::-webkit-scrollbar-thumb, .inbox::-webkit-scrollbar-thumb { background: var(--line); border-radius: 4px; }
 
   .inbox { display: none; flex: 1; min-height: 0; flex-direction: column; overflow-y: auto; padding: 16px 16px 8px; gap: 8px; }
   body[data-scene="approvals"] .inbox { display: flex; }
+
+  /* ── Peek — the record behind a tapped result row ──────────────────────────
+     Rides OVER the body: the thread stays mounted underneath at its scroll
+     position, so Back is a return, not a re-render. Rises from below to read as
+     a drill-DOWN into the row (the spotlight itself drops in from above). */
+  .peek { position: absolute; inset: 0; z-index: 2; display: none; flex-direction: column; background: var(--card);
+    animation: peek-in .26s var(--ease) both; }
+  body[data-scene="peek"] .peek { display: flex; }
+  @keyframes peek-in { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+
+  .peek-hd { flex-shrink: 0; padding: 11px 16px; border-bottom: 1px solid var(--line-soft); }
+  .peek-back { display: inline-flex; align-items: center; gap: 7px; cursor: pointer; background: transparent;
+    border: 1px solid var(--line); border-radius: 7px; padding: 5px 11px 5px 8px;
+    font-family: var(--mono); font-size: 9.5px; letter-spacing: .08em; text-transform: uppercase;
+    color: var(--muted); transition: border-color .15s, color .15s; }
+  .peek-back:hover { border-color: var(--vio-line); color: var(--ink); }
+  .peek-back svg { transform: rotate(180deg); }
+
+  .peek-body { flex: 1; min-height: 0; overflow-y: auto; padding: 20px; }
+  .peek-body::-webkit-scrollbar { width: 7px; }
+  .peek-body::-webkit-scrollbar-thumb { background: var(--line); border-radius: 4px; }
+
+  .peek-id { display: flex; align-items: center; gap: 12px; }
+  .peek-id .av { width: 38px; height: 38px; border-radius: 11px; flex-shrink: 0; display: grid; place-items: center;
+    background: var(--vio-bg); color: var(--vio); font-family: var(--mono); font-size: 12px; letter-spacing: .04em; }
+  .peek-id .glyph { width: 38px; height: 38px; border-radius: 11px; flex-shrink: 0; display: grid; place-items: center;
+    background: var(--card-2); color: var(--muted); }
+  .peek-name { min-width: 0; flex: 1; }
+  .peek-name .t { display: block; font-family: var(--serif); font-size: 19px; letter-spacing: -.015em; color: var(--ink); }
+  .peek-name .s { display: block; font-size: 12px; color: var(--muted); margin-top: 3px; }
+  .peek-badge { flex-shrink: 0; font-family: var(--mono); font-size: 9px; letter-spacing: .1em; text-transform: uppercase;
+    border: 1px solid var(--line); border-radius: 999px; padding: 4px 9px; color: var(--muted); }
+  .peek-badge.t-good { color: var(--ok);   border-color: var(--ok-bg);   background: var(--ok-bg); }
+  .peek-badge.t-warn { color: var(--warn); border-color: var(--warn-bg); background: var(--warn-bg); }
+  .peek-badge.t-risk { color: var(--risk); border-color: var(--risk-bg); background: var(--risk-bg); }
+
+  /* The numbers, two columns so the eye scans down rather than across. */
+  .peek-facts { margin-top: 18px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px;
+    background: var(--line-soft); border: 1px solid var(--line-soft); border-radius: 11px; overflow: hidden; }
+  .peek-facts .fact { background: var(--card); padding: 11px 13px; display: flex; flex-direction: column; gap: 4px; }
+  .peek-facts .k { font-family: var(--mono); font-size: 9px; letter-spacing: .11em; text-transform: uppercase; color: var(--faint); }
+  .peek-facts .v { font-size: 14.5px; color: var(--ink); }
+  .peek-facts .v.mono { font-family: var(--mono); font-size: 13.5px; }
+  .peek-facts .v.t-good { color: var(--ok); } .peek-facts .v.t-warn { color: var(--warn); }
+  .peek-facts .v.t-risk { color: var(--risk); } .peek-facts .v.t-muted { color: var(--muted); }
+
+  .peek-sec { margin-top: 20px; }
+  .peek-sec .sec-lbl { font-family: var(--mono); font-size: 9px; letter-spacing: .12em; text-transform: uppercase; color: var(--faint); margin-bottom: 9px; }
+  .peek-sec .sec-empty { font-family: var(--serif); font-size: 14px; font-style: italic; color: var(--muted); }
+  .peek-sec .sec-rows { display: flex; flex-direction: column; gap: 1px; }
+  .peek-sec .sec-row { display: flex; align-items: center; gap: 12px; padding: 9px 11px; border-radius: 9px; background: var(--card-2); }
+  .peek-sec .rb { min-width: 0; flex: 1; }
+  .peek-sec .rb .t { display: block; font-size: 13.5px; color: var(--ink-soft); }
+  .peek-sec .rb .s { display: block; font-size: 11px; color: var(--faint); margin-top: 2px; }
+  .peek-sec .val { font-family: var(--mono); font-size: 11.5px; color: var(--muted); flex-shrink: 0; }
+  .peek-sec .val.t-good { color: var(--ok); } .peek-sec .val.t-risk { color: var(--risk); }
+
+  .peek-ft { flex-shrink: 0; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 12px 16px; border-top: 1px solid var(--line-soft); }
+  .peek-link { font-family: var(--mono); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted);
+    text-decoration: none; cursor: pointer; border-bottom: 1px solid transparent; transition: color .15s, border-color .15s; }
+  .peek-link:hover { color: var(--vio); border-bottom-color: var(--vio-line); }
+  .peek-ft .chip { margin-left: auto; }
 
   /* Messages */
   .msg.user { align-self: flex-end; max-width: 84%; background: var(--vio-bg); border: 1px solid var(--vio-line); color: var(--ink);
@@ -486,6 +557,8 @@
         <div class="thread" id="thread" aria-live="polite"></div>
         <!-- Approvals inbox -->
         <div class="inbox" id="inbox"></div>
+        <!-- Peek: the record behind a tapped result row, layered over the thread -->
+        <div class="peek" id="peek"></div>
       </div>
 
       <div class="dock">
@@ -506,10 +579,11 @@
     <button data-go="briefing"><span class="num">2</span>Briefing</button>
     <button data-go="thinking"><span class="num">3</span>Thinking</button>
     <button data-go="answer" class="on"><span class="num">4</span>Answer</button>
-    <button data-go="convo"><span class="num">5</span>Conversation</button>
-    <button data-go="proposal"><span class="num">6</span>Proposal</button>
-    <button data-go="approvals"><span class="num">7</span>Approvals</button>
-    <button data-go="nomatch"><span class="num">8</span>No&nbsp;match</button>
+    <button data-go="peek"><span class="num">5</span>Peek</button>
+    <button data-go="convo"><span class="num">6</span>Conversation</button>
+    <button data-go="proposal"><span class="num">7</span>Proposal</button>
+    <button data-go="approvals"><span class="num">8</span>Approvals</button>
+    <button data-go="nomatch"><span class="num">9</span>No&nbsp;match</button>
     <span class="sep"></span>
     <button class="theme" id="themeBtn" aria-label="Toggle theme">
       <svg id="themeIcon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.4A9 9 0 1111.6 3a7 7 0 009.4 9.4z"/></svg>
@@ -522,6 +596,7 @@
   const thread  = document.getElementById('thread');
   const welcome = document.getElementById('welcome');
   const inbox   = document.getElementById('inbox');
+  const peek    = document.getElementById('peek');
   const input   = document.getElementById('input');
   const send    = document.getElementById('send');
 
@@ -561,6 +636,77 @@
   const feedback = () => `<div class="feedback"><span class="fl">Helpful?</span><button class="fbtn" data-fb="up" aria-label="Helpful">${ic.up}</button><button class="fbtn" data-fb="down" aria-label="Not helpful">${ic.down}</button></div>`;
 
   const wrows = (arr) => arr.map(r => `<div class="wrow"><span class="wk">${r.k}</span><span class="wv${r.em ? ' em' : ''}">${r.v}</span></div>`).join('');
+
+  /* ── Peek — the record behind a tapped row ────────────────────────────────
+     Shipped shape: the server hands back {title, subtitle, badge, facts,
+     sections} from a plain DB read (no model), and the row's own text seeds the
+     header so the sheet opens with content instead of a spinner. */
+  const peekCard = (c) => `
+    <div class="peek-hd"><button class="peek-back" id="peekBack">${ic.chev} Back</button></div>
+    <div class="peek-body">
+      <div class="peek-id">
+        ${c.av ? `<span class="av">${c.av}</span>` : `<span class="glyph">${c.glyph}</span>`}
+        <span class="peek-name"><span class="t">${c.t}</span>${c.s ? `<span class="s">${c.s}</span>` : ''}</span>
+        ${c.badge ? `<span class="peek-badge t-${c.badge.tone}">${c.badge.label}</span>` : ''}
+      </div>
+      <div class="peek-facts in in-2">
+        ${c.facts.map(f => `<div class="fact"><span class="k">${f.k}</span><span class="v${f.mono ? ' mono' : ''}${f.tone ? ' t-' + f.tone : ''}">${f.v}</span></div>`).join('')}
+      </div>
+      ${(c.sections || []).map(sec => `
+        <div class="peek-sec in in-3">
+          <div class="sec-lbl">${sec.label}</div>
+          ${sec.rows.length === 0
+            ? `<div class="sec-empty">${sec.empty || 'Nothing here.'}</div>`
+            : `<div class="sec-rows">${sec.rows.map(r => `
+                <div class="sec-row">
+                  <span class="rb"><span class="t">${r.t}</span>${r.s ? `<span class="s">${r.s}</span>` : ''}</span>
+                  ${r.val ? `<span class="val${r.tone ? ' t-' + r.tone : ''}">${r.val}</span>` : ''}
+                </div>`).join('')}</div>`}
+        </div>`).join('')}
+    </div>
+    <div class="peek-ft">
+      <a class="peek-link">${c.link} ↗</a>
+      ${c.ask ? `<button class="chip" data-q="${c.ask}">Ask about this</button>` : ''}
+    </div>`;
+
+  // Canon peek cards, keyed by the row title that opens them.
+  const PEEKS = {
+    'Andre Whitfield': {
+      av: 'AW', t: 'Andre Whitfield', s: 'New member', badge: { label: 'Watch', tone: 'warn' },
+      link: 'Open in Roster', ask: "What's Andre's dues history?",
+      facts: [
+        { k: 'Dues owed', v: '$250', mono: 1, tone: 'warn' },
+        { k: 'Attendance', v: '78%', mono: 1 },
+        { k: 'GPA', v: '3.10', mono: 1 },
+        { k: 'Service hours', v: '6', mono: 1 },
+      ],
+      sections: [{ label: 'Recent attendance', rows: [
+        { t: 'Chapter Meeting', s: 'Jul 17, 2026', val: 'Absent',  tone: 'risk' },
+        { t: 'Chapter Meeting', s: 'Jul 10, 2026', val: 'Present', tone: 'good' },
+        { t: 'Service Day',     s: 'Jul 05, 2026', val: 'Present', tone: 'good' },
+      ] }],
+    },
+    'Chapter Meeting': {
+      glyph: ic.flag, t: 'Chapter Meeting', s: 'Jul 17, 2026', badge: { label: 'Mandatory', tone: 'warn' },
+      link: 'Open in Events', ask: 'Who missed the Jul 17 meeting?',
+      facts: [
+        { k: 'Time', v: '7:00 PM', mono: 1 },
+        { k: 'Location', v: 'Student Union 204' },
+        { k: 'Category', v: 'chapter' },
+        { k: 'Attendance required', v: 'Yes', tone: 'warn' },
+      ],
+      sections: [
+        { label: 'Attendance', rows: [
+          { t: 'Present', val: '34', tone: 'good' },
+          { t: 'Absent',  val: '4',  tone: 'risk' },
+          { t: 'Excused', val: '2' },
+        ] },
+        { label: 'Missed it', rows: [
+          { t: 'Devon Reyes' }, { t: 'Malik Sène' }, { t: 'Jordan Pryce' }, { t: 'Isaiah Turner' },
+        ] },
+      ],
+    },
+  };
 
   /* ── Answer content — Spotlight canon (Iota · Spring '26). ───────────────── */
   function answerFor(q) {
@@ -780,6 +926,12 @@
       thread.querySelector('.msg.user').textContent = 'How are we doing on dues?';
       bindRows(thread);
     },
+    peek: () => {
+      // The answer, with its top row's record open over it. Tapping a row no
+      // longer asks a question — it opens what the row IS.
+      SCENES.answer();
+      openPeek(PEEKS['Andre Whitfield']);
+    },
     convo: () => {
       // Permission gate: recording dues needs "Manage dues", which the VP lacks,
       // so the draft is blocked — not routed. Only the Treasurer can approve it.
@@ -955,7 +1107,15 @@
   const clearLive = () => { liveTimers.forEach(clearTimeout); liveTimers = []; };
 
   function bindRows(root) {
-    root.querySelectorAll('.res[data-q]').forEach(b => b.onclick = () => ask(b.dataset.q));
+    // A row the server could identify opens its RECORD; one it couldn't falls
+    // back to the follow-up question. Here the PEEKS table stands in for the
+    // {type, id} ref the real answer rows carry.
+    root.querySelectorAll('.res').forEach(b => {
+      const title = b.querySelector('.rb .t')?.textContent?.trim();
+      const card = title && PEEKS[title];
+      if (card) b.onclick = () => openPeek(card);
+      else if (b.dataset.q) b.onclick = () => ask(b.dataset.q);
+    });
     root.querySelectorAll('.starter[data-q]').forEach(b => b.onclick = () => ask(b.dataset.q));
     root.querySelectorAll('.chip[data-q]').forEach(b => b.onclick = () => ask(b.dataset.q));
     root.querySelectorAll('[data-act="pay"]').forEach(b => b.onclick = askPayment);
@@ -965,6 +1125,23 @@
       const t = b.closest('.trace'); const open = t.classList.toggle('open');
       b.setAttribute('aria-expanded', open);
     });
+  }
+
+  // Open/close the peek. The thread is never torn down, so Back is a return.
+  function railSync(id) {
+    document.querySelectorAll('.rail [data-go]').forEach(b => b.classList.toggle('on', b.dataset.go === id));
+  }
+  function openPeek(card) {
+    peek.innerHTML = peekCard(card);
+    document.body.dataset.scene = 'peek';
+    railSync('peek');
+    peek.querySelector('#peekBack').onclick = closePeek;
+    peek.querySelectorAll('.chip[data-q]').forEach(b => b.onclick = () => { closePeek(); ask(b.dataset.q); });
+  }
+  function closePeek() {
+    peek.innerHTML = '';
+    document.body.dataset.scene = 'answer';
+    railSync('answer');
   }
 
   function setStreaming(on) {

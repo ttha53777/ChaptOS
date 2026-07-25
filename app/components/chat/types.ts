@@ -17,12 +17,21 @@ export interface LedgerStep {
   provisional?: boolean;
 }
 
+export type RefType = "member" | "event" | "task";
+
+export interface EntityRef {
+  type: RefType;
+  id: number;
+}
+
 export interface AnswerRow {
   kind: "person" | "money" | "event" | "task" | "generic";
   title: string;
   subtitle?: string;
   value?: string;
   ask?: string;
+  /** Server-attached record id — present when the row can open a peek. */
+  ref?: EntityRef;
 }
 
 export interface AnswerData {

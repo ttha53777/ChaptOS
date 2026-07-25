@@ -22,6 +22,7 @@ import { IcCal, IcCoin, IcSend, IcStop, IcUsers } from "./chat/icons";
 import { MarkdownLite } from "./chat/MarkdownLite";
 import { LedgerHandoff, ReasoningLedger, TraceBlock } from "./chat/ReasoningLedger";
 import { AnswerBlock } from "./chat/AnswerBlock";
+import { PeekSheet, type PeekSeed } from "./chat/PeekSheet";
 import { WritCard } from "./chat/WritCard";
 import { ApprovalsView } from "./chat/ApprovalsView";
 import { dropProvisional, intentFor, planFor, reconcileStep, settleLedger } from "./chat/intent";
@@ -29,7 +30,9 @@ import {
   newId,
   timeStamp,
   type AnswerData,
+  type AnswerRow,
   type ChatMessage,
+  type EntityRef,
   type LedgerStep,
   type ProposalCard,
 } from "./chat/types";
@@ -135,6 +138,9 @@ export function ChatWidget() {
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
   const [selRow, setSelRow] = useState(-1); // keyboard-selected result row on the last answer
+  // The open peek, if any — a tapped answer row's record. Layered OVER the
+  // thread, which keeps its scroll position underneath.
+  const [peek, setPeek] = useState<{ refr: EntityRef; seed: PeekSeed } | null>(null);
   // Mirror of `messages` for synchronous reads in sendMessage — building the
   // request body inside a setMessages updater isn't reliable under React 18
   // batching (could read stale/empty state and POST {messages: []} → 400).
@@ -181,9 +187,20 @@ export function ChatWidget() {
     if (abortRef.current) { abortRef.current.abort(); abortRef.current = null; }
   }, []);
 
+  const openPeek = useCallback((row: AnswerRow) => {
+    if (!row.ref) return;
+    setPeek({
+      refr: row.ref,
+      // The row's own text carries the sheet until the fetch lands.
+      seed: { title: row.title, subtitle: row.subtitle, kind: row.kind, ask: row.ask },
+    });
+  }, []);
+
   // ⌘K / Ctrl-K toggles; Esc closes. This is the app's one global Cmd+K owner.
   useEffect(() => {
     const onKey = (e: globalThis.KeyboardEvent) => {
+      // Esc unwinds one layer at a time — the peek before the spotlight itself.
+      if (e.key === "Escape" && open && peek) { setPeek(null); return; }
       if (e.key === "Escape" && open) { closeSpotlight(); return; }
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
@@ -192,7 +209,7 @@ export function ChatWidget() {
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [open, openSpotlight, closeSpotlight]);
+  }, [open, peek, openSpotlight, closeSpotlight]);
 
   // On open: dismiss the pulse for good; focus the composer.
   useEffect(() => {
@@ -270,6 +287,8 @@ export function ChatWidget() {
     const trimmed = text.trim();
     if (!trimmed || streaming) return;
 
+    // A new turn supersedes whatever record was open.
+    setPeek(null);
     // Any mutation still queued belongs to the turn we're replacing.
     flushStage();
     stageRef.current.q.length = 0;
@@ -537,12 +556,17 @@ export function ChatWidget() {
       const typing = document.activeElement === textareaRef.current;
       if (typing || scene !== "thread") return;
       const rows = lastAnswer?.answer?.rows ?? [];
+      // Row navigation belongs to the thread; the open peek owns the keyboard.
+      if (peek) return;
       if (e.key === "ArrowDown" && rows.length > 0) {
         e.preventDefault();
         setSelRow(i => Math.min(rows.length - 1, i < 0 ? 0 : i + 1));
       } else if (e.key === "ArrowUp" && rows.length > 0) {
         e.preventDefault();
         setSelRow(i => Math.max(0, i < 0 ? 0 : i - 1));
+      } else if (e.key === "Enter" && selRow >= 0 && rows[selRow]?.ref) {
+        e.preventDefault();
+        openPeek(rows[selRow]);
       } else if (e.key === "Enter" && selRow >= 0 && rows[selRow]?.ask) {
         e.preventDefault();
         void sendMessage(rows[selRow].ask!);
@@ -557,7 +581,7 @@ export function ChatWidget() {
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, scene, lastAnswer, pendingWrit, selRow, sendMessage]);
+  }, [open, scene, peek, lastAnswer, pendingWrit, selRow, sendMessage, openPeek]);
 
   // ── Composer plumbing ──────────────────────────────────────────────────────
 
@@ -584,6 +608,7 @@ export function ChatWidget() {
     setMessages([]);
     setInput("");
     setSelRow(-1);
+    setPeek(null);
     setScene("briefing");
     textareaRef.current?.focus();
   }
@@ -619,7 +644,10 @@ export function ChatWidget() {
               <button
                 type="button"
                 className="apprchip"
-                onClick={() => setScene(s => (s === "approvals" ? (messages.length ? "thread" : "briefing") : "approvals"))}
+                onClick={() => {
+                  setPeek(null);
+                  setScene(s => (s === "approvals" ? (messages.length ? "thread" : "briefing") : "approvals"));
+                }}
               >
                 Approvals
               </button>
@@ -680,6 +708,7 @@ export function ChatWidget() {
                                   selectedRow={m === lastAnswer ? selRow : -1}
                                   feedback={m.feedback}
                                   onAsk={q => void sendMessage(q)}
+                                  onPeek={openPeek}
                                   onFeedback={v => giveFeedback(m, v)}
                                 />
                               )}
@@ -718,6 +747,19 @@ export function ChatWidget() {
 
               {/* Approvals — the approval record */}
               {scene === "approvals" && <ApprovalsView />}
+
+              {/* The peek rides OVER the body: the thread it came from stays
+                  mounted underneath, scroll position and all, so Back is a
+                  return rather than a re-render of the conversation. */}
+              {peek && (
+                <PeekSheet
+                  refr={peek.refr}
+                  seed={peek.seed}
+                  slug={currentUser?.org?.slug}
+                  onBack={() => setPeek(null)}
+                  onAsk={q => void sendMessage(q)}
+                />
+              )}
             </div>
 
             {/* Dock / composer */}

@@ -595,7 +595,7 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
       description:
         "Present your FINAL answer to a data question as a structured verdict plus result rows. Call this exactly once, ALONE in its own turn " +
         "(never alongside read tools — finish your reads first), INSTEAD of writing a prose answer. " +
-        "verdict: ONE short sentence carrying the judgment AND the headline number, with the single most important figure or phrase wrapped in *asterisks*. " +
+        "verdict: ONE short sentence carrying the judgment AND the headline number, with the single most important figure or phrase wrapped in *asterisks* — never a count of the rows below ('here are 3 ideas'). " +
         "rows: up to 6 records backing the verdict (the people/events/transactions the question is about) — put each row's figure in value, and give each row an `ask` " +
         "(the natural follow-up question tapping it should send). follows: up to 3 short follow-up suggestions. " +
         "Do NOT use this for refusals, clarifying questions, product how-to, or when there's no data to show — answer those in plain text.",
@@ -652,6 +652,13 @@ export interface AnswerRow {
   subtitle?: string;
   value?: string;
   ask?: string;
+  /**
+   * The record this row stands for, so tapping it can open the peek instead of
+   * asking a follow-up question. Never model-supplied — attached server-side in
+   * the chat route by matching the title against ids seen in this turn's tool
+   * results. See lib/ai-refs.
+   */
+  ref?: { type: "member" | "event" | "task"; id: number };
 }
 
 export interface AnswerPayload {
@@ -662,12 +669,36 @@ export interface AnswerPayload {
 
 const ANSWER_ROW_KINDS = new Set(["person", "money", "event", "task", "generic"]);
 
+const NUM_WORDS: Record<string, number> = {
+  one: 1, two: 2, three: 3, four: 4, five: 5,
+  six: 6, seven: 7, eight: 8, nine: 9, ten: 10,
+};
+
+/**
+ * A verdict that announces the length of its own list — "here are 3 next-event
+ * ideas", "four options worth running". Deliberately narrow: it only matches a
+ * count bound to a list noun (idea/option/suggestion/pick/recommendation), so
+ * the ordinary headline figure is left alone. "*12* brothers owe dues" over six
+ * rows is a truncated sample and correct; "3 ideas" over four rows is a
+ * contradiction the user can see on screen.
+ */
+const SELF_COUNT =
+  /\b(\d{1,2}|one|two|three|four|five|six|seven|eight|nine|ten)\s+(?:[\w-]+\s+){0,2}(?:ideas?|options?|suggestions?|picks?|recommendations?)\b/i;
+
+/** The count a verdict claims for its own rows, or null if it doesn't claim one. */
+function claimedRowCount(verdict: string): number | null {
+  const m = SELF_COUNT.exec(verdict.replace(/\*/g, ""));
+  if (!m) return null;
+  const raw = m[1].toLowerCase();
+  return NUM_WORDS[raw] ?? Number(raw);
+}
+
 /**
  * Sanitize compose_answer args into the payload the `answer` SSE event carries.
  * Deep-validates what validateArgs (top-level only) can't: row/follow shapes,
  * caps (6 rows, 3 follows), and length limits. Malformed entries are dropped,
- * not fatal; a missing verdict is the only hard error (fed back to the model
- * so it retries).
+ * not fatal; a missing verdict and a verdict that miscounts its own rows are
+ * the hard errors (fed back to the model so it retries).
  */
 export function parseComposeAnswer(args: ToolArgs): AnswerPayload | { error: string } {
   const verdict = typeof args.verdict === "string" ? args.verdict.trim() : "";
@@ -702,6 +733,16 @@ export function parseComposeAnswer(args: ToolArgs): AnswerPayload | { error: str
       const ask = typeof f.ask === "string" ? f.ask.trim() : "";
       if (label && ask) follows.push({ label: label.slice(0, 40), ask: ask.slice(0, 200) });
     }
+  }
+
+  const claimed = claimedRowCount(verdict);
+  if (claimed !== null && claimed !== rows.length) {
+    return {
+      error:
+        `compose_answer: your verdict says ${claimed} but you sent ${rows.length} rows, and the user sees both. ` +
+        `Don't count the rows in the verdict — the list is right there. Re-send with a verdict that leads on what the data shows, ` +
+        `and make sure every row is the same kind of thing you're claiming.`,
+    };
   }
 
   return { verdict: verdict.slice(0, 240), rows, follows };

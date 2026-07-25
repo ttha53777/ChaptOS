@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { APPROVAL_KINDS } from "@/lib/state";
+import { PEEK_TYPES } from "@/lib/services/peek-service";
 
 // The writ card's key/value lines, echoed back from the signed proposal blob.
 const displayRow = z.object({
@@ -34,6 +35,12 @@ export type RecordApprovalInput = z.infer<typeof recordApprovalInput>;
 /** GET /api/ai/approvals?kind= — filter the record by surface. */
 export const listApprovalsQuery = z.object({
   kind: z.enum(APPROVAL_KINDS as readonly [string, ...string[]]).optional(),
+});
+
+/** GET /api/ai/peek?type=&id= — the detail behind a tapped answer row. */
+export const peekQuery = z.object({
+  type: z.enum(PEEK_TYPES as readonly [string, ...string[]]),
+  id:   z.coerce.number().int().positive(),
 });
 
 /** POST /api/ai/feedback — Helpful? thumbs on an answer. Telemetry only. */

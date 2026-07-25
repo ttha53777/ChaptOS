@@ -22,14 +22,24 @@ function Verdict({ text }: { text: string }) {
   );
 }
 
-function ResultRow({ row, selected, onAsk }: { row: AnswerRow; selected: boolean; onAsk: (q: string) => void }) {
-  const tappable = Boolean(row.ask);
+function ResultRow({ row, selected, onAsk, onPeek }: {
+  row: AnswerRow;
+  selected: boolean;
+  onAsk: (q: string) => void;
+  onPeek: (row: AnswerRow) => void;
+}) {
+  // A row the server could identify opens its record; one it couldn't falls back
+  // to the model's follow-up question, exactly as before.
+  const tappable = Boolean(row.ref || row.ask);
   return (
     <button
       type="button"
       className={`res${selected ? " sel" : ""}`}
       disabled={!tappable}
-      onClick={() => row.ask && onAsk(row.ask)}
+      onClick={() => {
+        if (row.ref) onPeek(row);
+        else if (row.ask) onAsk(row.ask);
+      }}
     >
       {row.kind === "person"
         ? <span className="av">{initialsOf(row.title)}</span>
@@ -71,13 +81,14 @@ export function FeedbackRow({ value, onFeedback }: {
   );
 }
 
-export function AnswerBlock({ answer, steps, selectedRow, feedback, onAsk, onFeedback }: {
+export function AnswerBlock({ answer, steps, selectedRow, feedback, onAsk, onPeek, onFeedback }: {
   answer: AnswerData;
   steps: LedgerStep[];
   /** Index of the keyboard-selected row, or -1. */
   selectedRow: number;
   feedback?: "up" | "down";
   onAsk: (q: string) => void;
+  onPeek: (row: AnswerRow) => void;
   onFeedback: (v: "up" | "down") => void;
 }) {
   return (
@@ -87,7 +98,7 @@ export function AnswerBlock({ answer, steps, selectedRow, feedback, onAsk, onFee
       {answer.rows.length > 0 && (
         <div className="reslist in in-3">
           {answer.rows.map((r, i) => (
-            <ResultRow key={`${r.title}-${i}`} row={r} selected={i === selectedRow} onAsk={onAsk} />
+            <ResultRow key={`${r.title}-${i}`} row={r} selected={i === selectedRow} onAsk={onAsk} onPeek={onPeek} />
           ))}
         </div>
       )}
