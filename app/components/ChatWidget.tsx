@@ -24,6 +24,7 @@ import { ReasoningLedger, TraceBlock } from "./chat/ReasoningLedger";
 import { AnswerBlock } from "./chat/AnswerBlock";
 import { WritCard } from "./chat/WritCard";
 import { ApprovalsView } from "./chat/ApprovalsView";
+import { dropProvisional, intentFor, planFor, reconcileStep, settleLedger } from "./chat/intent";
 import {
   newId,
   timeStamp,
@@ -86,8 +87,15 @@ function loadHistory(): ChatMessage[] {
     const parsed = JSON.parse(raw) as ChatMessage[];
     if (!Array.isArray(parsed)) return [];
     // An in-flight confirm that lost its page can't resolve — surface as error.
+    // Likewise a turn interrupted mid-ledger: settle its steps so reopening the
+    // trace shows a record rather than a spinner that will never resolve, and
+    // drop any guessed step the model never got round to corroborating.
     return parsed.slice(-MAX_HISTORY).map(m => ({
       ...m,
+      steps: m.steps
+        ?.filter(s => !s.provisional)
+        .map(s => (s.status === "done" ? s : { ...s, status: "done" as const })),
+      composing: undefined,
       proposals: m.proposals?.map(p =>
         p.state === "confirming" ? { ...p, state: "error" as const, resultMessage: "Interrupted — not approved." } : p,
       ),
@@ -196,7 +204,16 @@ export function ChatWidget() {
     if (!trimmed || streaming) return;
 
     const userMsg: ChatMessage = { id: newId(), role: "user", content: trimmed };
-    const assistantMsg: ChatMessage = { id: newId(), role: "assistant", content: "", steps: [] };
+    // Seed the ledger with what the question is plainly about, so the wait while
+    // the model decides isn't a blank panel. These rows are pending-only guesses
+    // (see chat/intent.ts) — the real steps replace or evict them.
+    const assistantMsg: ChatMessage = {
+      id: newId(),
+      role: "assistant",
+      content: "",
+      steps: planFor(trimmed),
+      intent: intentFor(trimmed),
+    };
     const payloadHistory = [...messagesRef.current, userMsg]
       .map(m => ({ role: m.role, content: messageText(m) }))
       .filter(m => m.content.trim().length > 0)
@@ -232,8 +249,24 @@ export function ChatWidget() {
         if (event === "step") {
           const s = parsed as { id?: string; verb?: string; source?: string };
           if (s.id && s.verb) {
-            const step: LedgerStep = { id: s.id, verb: s.verb, ...(s.source ? { source: s.source } : {}), status: "active" };
-            patchMessage(aid, m => ({ ...m, steps: [...(m.steps ?? []), step] }));
+            // Named, not yet running — a pending node on the margin.
+            const step: LedgerStep = { id: s.id, verb: s.verb, ...(s.source ? { source: s.source } : {}), status: "pending" };
+            patchMessage(aid, m => ({
+              ...m,
+              steps: reconcileStep(m.steps ?? [], step),
+              composing: false,
+            }));
+          }
+        } else if (event === "step_start") {
+          const s = parsed as { id?: string };
+          if (s.id) {
+            patchMessage(aid, m => ({
+              ...m,
+              // The batch is known now, so any guess it didn't corroborate goes.
+              steps: dropProvisional(m.steps ?? []).map(st =>
+                st.id === s.id ? { ...st, status: "active" as const } : st,
+              ),
+            }));
           }
         } else if (event === "step_done") {
           const s = parsed as { id?: string; finding?: string };
@@ -245,6 +278,24 @@ export function ChatWidget() {
                 : st),
             }));
           }
+        } else if (event === "step_drop") {
+          const s = parsed as { ids?: string[] };
+          const ids = new Set(Array.isArray(s.ids) ? s.ids : []);
+          if (ids.size > 0) {
+            patchMessage(aid, m => ({
+              ...m,
+              steps: (m.steps ?? []).filter(st => !ids.has(st.id)),
+            }));
+          }
+        } else if (event === "composing") {
+          // The model is writing, so anything we guessed it would read is
+          // settled as wrong — drop it now rather than let it sit there pending
+          // until the answer lands.
+          patchMessage(aid, m => ({
+            ...m,
+            steps: dropProvisional(m.steps ?? []),
+            composing: true,
+          }));
         } else if (event === "answer") {
           const a = parsed as Partial<AnswerData>;
           if (typeof a.verdict === "string") {
@@ -254,11 +305,11 @@ export function ChatWidget() {
               follows: Array.isArray(a.follows) ? a.follows : [],
               sources: Array.isArray(a.sources) ? a.sources : [],
             };
-            patchMessage(aid, { answer });
+            patchMessage(aid, m => ({ ...m, answer, steps: settleLedger(m.steps) }));
           }
         } else if (event === "text") {
           const delta = (parsed as { delta?: string }).delta ?? "";
-          patchMessage(aid, m => ({ ...m, content: m.content + delta }));
+          patchMessage(aid, m => ({ ...m, content: m.content + delta, steps: settleLedger(m.steps) }));
         } else if (event === "proposal") {
           const p = parsed as Omit<ProposalCard, "id" | "state"> & Record<string, unknown>;
           if (p.action && p.endpoint && p.method && p.payload && p.display && p.perm) {
@@ -278,16 +329,17 @@ export function ChatWidget() {
             patchMessage(aid, m => ({ ...m, proposals: [...(m.proposals ?? []), card] }));
           }
         } else if (event === "done") {
+          patchMessage(aid, m => ({ ...m, steps: settleLedger(m.steps), composing: false }));
           break;
         }
       }
     } catch (e) {
       if ((e as { name?: string })?.name === "AbortError") {
         // Stopped by the user — keep whatever arrived, mark the turn stopped.
-        patchMessage(aid, m => ({ ...m, stopped: true }));
+        patchMessage(aid, m => ({ ...m, stopped: true, steps: settleLedger(m.steps), composing: false }));
       } else {
         console.error("chat stream failed:", e);
-        patchMessage(aid, m => ({ ...m, content: m.content || "(network error)" }));
+        patchMessage(aid, m => ({ ...m, content: m.content || "(network error)", steps: settleLedger(m.steps), composing: false }));
       }
     } finally {
       setStreaming(false);
@@ -532,7 +584,11 @@ export function ChatWidget() {
                       <div key={m.id} className="msg ai think-in">
                         <div className="who"><i />Ask Chapt</div>
                         {showLedgerLive && (
-                          <ReasoningLedger steps={m.steps ?? []} intent="Consulting the records…" />
+                          <ReasoningLedger
+                            steps={m.steps ?? []}
+                            intent={m.intent ?? "Consulting the records…"}
+                            composing={m.composing}
+                          />
                         )}
                         {m.answer && (
                           <AnswerBlock

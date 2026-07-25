@@ -10,6 +10,11 @@ export interface LedgerStep {
   source?: string;
   status: StepStatus;
   finding?: string;
+  /**
+   * A guessed step shown while the model is still deciding — never persisted to
+   * the trace, and dropped the moment the real batch is known. See intent.ts.
+   */
+  provisional?: boolean;
 }
 
 export interface AnswerRow {
@@ -65,6 +70,8 @@ export interface ChatMessage {
   content: string;
   /** The reasoning ledger: live while streaming, then frozen as the trace. */
   steps?: LedgerStep[];
+  /** Serif intent line for the live ledger, derived from the question client-side. */
+  intent?: string;
   /** The model is writing the answer rather than calling tools (server-signalled). */
   composing?: boolean;
   /** Structured verdict+rows answer (compose_answer path). */

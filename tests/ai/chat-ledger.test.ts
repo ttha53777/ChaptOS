@@ -1,14 +1,26 @@
 /**
- * Turning streamed tool_call deltas into reasoning-ledger steps (lib/ai-ledger):
- * when a streamed tool_call name may be announced as a step, and which raw
- * index that step is keyed to. Getting either wrong is silent — a mis-keyed
- * step never settles, and a half-streamed name posts the wrong verb against
- * the wrong record.
+ * The reasoning ledger's two halves.
+ *
+ * Server (lib/ai-ledger): when a streamed tool_call name may be announced as a
+ * step, and which raw index that step is keyed to. Both exist because getting
+ * them wrong is silent — a mis-keyed step never settles, and a half-streamed
+ * name posts the wrong verb against the wrong record.
+ *
+ * Client (app/components/chat/intent): the guessed rows shown while the model
+ * decides, and the rules that stop them outliving the guess.
  */
 
 import { describe, it, expect } from "vitest";
 import { assembleToolCalls, stepId, stepNameSettled, type ToolCallSlot } from "@/lib/ai-ledger";
 import { TOOL_UI } from "@/lib/ai-tools";
+import {
+  dropProvisional,
+  intentFor,
+  planFor,
+  reconcileStep,
+  settleLedger,
+} from "@/app/components/chat/intent";
+import type { LedgerStep } from "@/app/components/chat/types";
 
 const slot = (over: Partial<ToolCallSlot> = {}): ToolCallSlot => ({ id: "call_1", name: "", argsBuf: "", ...over });
 
@@ -103,5 +115,79 @@ describe("the announce gate, replayed over a real delta sequence", () => {
       { index: 0, args: "{}" },
     ]);
     expect(steps).toEqual(["0:0 Checking attendance"]);
+  });
+});
+
+// ── Client: the guessed plan ────────────────────────────────────────────────
+
+describe("planFor / intentFor", () => {
+  it("guesses the record a plain question is about", () => {
+    expect(planFor("How are we doing on dues?").map(s => s.source)).toEqual(["Roster"]);
+    expect(intentFor("How are we doing on dues?")).toBe("Reading the chapter's dues…");
+  });
+
+  it("guesses nothing, and says nothing specific, when it cannot tell", () => {
+    expect(planFor("what should we do about the thing")).toEqual([]);
+    expect(intentFor("what should we do about the thing")).toBe("Searching the records…");
+  });
+
+  it("only ever guesses pending rows, never a finding", () => {
+    const guessed = planFor("Who missed the last two meetings?");
+    expect(guessed.length).toBeGreaterThan(0);
+    for (const s of guessed) {
+      expect(s.status).toBe("pending");
+      expect(s.provisional).toBe(true);
+      expect(s.finding).toBeUndefined();
+    }
+  });
+});
+
+describe("reconcileStep", () => {
+  const real = (id: string, source: string): LedgerStep =>
+    ({ id, verb: "Reading the roster", source, status: "pending" });
+
+  it("replaces a guess about the same record in place", () => {
+    const steps = planFor("How are we doing on dues?"); // [Roster]
+    const next = reconcileStep(steps, real("0:0", "Roster"));
+    expect(next).toHaveLength(1);
+    expect(next[0].id).toBe("0:0");
+    expect(next[0].provisional).toBeUndefined();
+  });
+
+  it("appends a step about a record nobody guessed", () => {
+    const steps = planFor("How are we doing on dues?");
+    const next = reconcileStep(steps, real("0:0", "Budget"));
+    expect(next.map(s => s.source)).toEqual(["Roster", "Budget"]);
+  });
+});
+
+describe("settleLedger", () => {
+  it("drops guesses and never-run steps, and settles what was still spinning", () => {
+    const steps: LedgerStep[] = [
+      { id: "guess:0", verb: "Reading the roster", source: "Roster", status: "pending", provisional: true },
+      { id: "0:0", verb: "Reading the roster", source: "Roster", status: "done", finding: "34 members" },
+      { id: "0:1", verb: "Reading the treasury", source: "Treasury", status: "active" },
+      { id: "0:2", verb: "Opening the budget", source: "Budget", status: "pending" },
+    ];
+    const settled = settleLedger(steps);
+    expect(settled.map(s => s.id)).toEqual(["0:0", "0:1"]);
+    expect(settled.every(s => s.status === "done")).toBe(true);
+  });
+
+  it("returns the same array when there is nothing to settle", () => {
+    // Runs on every streamed prose delta — a fresh array each time would
+    // rerender the whole thread per token.
+    const steps: LedgerStep[] = [{ id: "0:0", verb: "Reading the roster", status: "done" }];
+    expect(settleLedger(steps)).toBe(steps);
+  });
+});
+
+describe("dropProvisional", () => {
+  it("keeps only what the model actually called", () => {
+    const steps: LedgerStep[] = [
+      { id: "0:0", verb: "Reading the roster", status: "active" },
+      { id: "guess:1", verb: "Opening the budget", status: "pending", provisional: true },
+    ];
+    expect(dropProvisional(steps).map(s => s.id)).toEqual(["0:0"]);
   });
 });

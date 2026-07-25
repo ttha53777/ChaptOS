@@ -52,7 +52,13 @@ function StepRow({ verb, status, finding, animate }: {
 
 function ConsultedChips({ steps, label }: { steps: LedgerStep[]; label: string }) {
   const sources: string[] = [];
-  for (const s of steps) if (s.source && !sources.includes(s.source)) sources.push(s.source);
+  // A guessed row has not consulted anything — only records the model actually
+  // reached for may light a chip, or the strip would vouch for reading we
+  // haven't done. Same rule as the answer's Sources row, which is server-derived.
+  for (const s of steps) {
+    if (s.provisional || !s.source) continue;
+    if (!sources.includes(s.source)) sources.push(s.source);
+  }
   if (sources.length === 0) return null;
   return (
     <div className="consulted">
