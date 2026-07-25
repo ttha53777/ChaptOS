@@ -23,7 +23,7 @@ type WeekItem = {
  * ISO week (already filtered by the page's weeklyDigest), merged and
  * date-sorted. Mandatory events are tagged as such in the meta line rather than
  * being the only ones shown.
- * Read-only; the header All/Add link to the existing deadline drawer/modal so
+ * Read-only; the header All link to the existing deadline drawer so
  * deadline management stays reachable. Carries `id="sec-deadlines"`.
  */
 export function ThisWeek({
@@ -33,7 +33,6 @@ export function ThisWeek({
   weekEnd,
   today,
   onAll,
-  onAddDeadline,
 }: {
   events: CalendarEvent[];
   deadlines: Task[];
@@ -41,7 +40,6 @@ export function ThisWeek({
   weekEnd: string;
   today: string;
   onAll?: () => void;
-  onAddDeadline?: () => void;
 }) {
   const items: WeekItem[] = [
     ...events.map((e): WeekItem => ({
@@ -68,7 +66,6 @@ export function ThisWeek({
         <h2>This week</h2>
         <div className="right">
           <span className="sub">{fmtRange(weekStart, weekEnd)}</span>
-          {onAddDeadline && <button type="button" className="card-act" title="Add Deadline" aria-label="Add Deadline" onClick={(e) => { e.stopPropagation(); onAddDeadline(); }}>+ Add</button>}
         </div>
       </div>
       {items.length === 0 ? (

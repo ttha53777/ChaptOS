@@ -2083,7 +2083,6 @@ export default function Home() {
                     weekEnd={weekRange.end}
                     today={todayISO}
                     onAll={() => setWidgetDrawer("deadlines")}
-                    onAddDeadline={canTasks ? () => setActiveModal("deadline") : () => router.push(orgPath("/tasks?new=1"))}
                   />
                   {financeEnabled && (
                     <TreasuryRail balance={liveBalance} projected={liveProjected} trend={liveTrend} />
