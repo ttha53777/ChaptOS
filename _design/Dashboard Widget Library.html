@@ -1,0 +1,921 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Dashboard Widget Library — Chapter Ledger</title>
+
+<!--
+  CUSTOMIZABLE DASHBOARD — a working prototype, not a slide deck.
+
+  Builds on two earlier explorations that never shipped:
+    _design/widget-concepts/Widget Reimagining.html      (existing widgets, redesigned)
+    _design/widget-concepts/Dashboard Widget Concepts.html (5 new widget ideas)
+
+  Those explored WHAT widgets should look like. This explores HOW an admin
+  arranges them: drag to reorder, resize Half/Full, remove, and add new ones
+  from a widget library — a single org-wide layout (admin-only customization,
+  matches the live app's existing admin-gated show/hide model, just deeper).
+
+  Click "Customize Dashboard" top-right to enter edit mode. Layout persists
+  to localStorage so Save/Reset/Cancel behave like a real settings screen.
+  Same dusk tokens as the live app (app/components/dashboard/dashboard-ledger.css).
+  Illustrative data only — internally consistent across a fictional 42-member
+  chapter (same numbers used in both source explorations above).
+-->
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;1,9..144,400&family=Geist:wght@400;500;550;600&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+<style>
+:root {
+  --serif: "Fraunces", Georgia, serif;
+  --sans:  "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --mono:  "Geist Mono", ui-monospace, Menlo, monospace;
+  --paper:#0f0d0a; --paper-2:#14120e; --card:#161310; --card-2:#1b1813;
+  --ink:#ece7dd; --ink-soft:#c9c2b4; --muted:#958d7c; --faint:#6b6354;
+  --line:rgba(236,231,221,.09); --line-soft:rgba(236,231,221,.05);
+  --vio:#a78bfa; --vio-deep:#7c3aed; --vio-bg:rgba(167,139,250,.10);
+  --gold:#ddb36a; --gold-bg:rgba(221,179,106,.10);
+  --rose:#d98ba3; --rose-bg:rgba(217,139,163,.10);
+  --ok:#7fb08a; --ok-bg:rgba(127,176,138,.10);
+  --shadow:0 1px 0 rgba(0,0,0,.4), 0 16px 40px -24px rgba(0,0,0,.7);
+}
+* { box-sizing: border-box; }
+html,body { margin:0; }
+body { background:var(--paper); color:var(--ink); font-family:var(--sans); font-size:13.5px;
+  line-height:1.45; -webkit-font-smoothing:antialiased; padding:26px clamp(20px,4vw,56px) 90px; }
+::selection { background:var(--vio-bg); }
+.mono{font-family:var(--mono);} .tnum{font-variant-numeric:tabular-nums;}
+.rose{color:var(--rose);} .gold{color:var(--gold);} .sage{color:var(--ok);} .vio{color:var(--vio);}
+a { color:inherit; }
+
+/* ── shared card chrome ─────────────────────────────────────────────────── */
+.card{border:1px solid var(--line);border-radius:12px;background:var(--card);box-shadow:var(--shadow);overflow:hidden;height:100%;display:flex;flex-direction:column;}
+.card-h{display:flex;align-items:baseline;justify-content:space-between;padding:15px 18px 12px;border-bottom:1px solid var(--line-soft);gap:12px;}
+.card-h h2{font-family:var(--serif);font-weight:500;font-size:15.5px;color:var(--ink);white-space:nowrap;}
+.card-h .sub{font-family:var(--mono);font-size:9px;letter-spacing:.13em;text-transform:uppercase;color:var(--faint);white-space:nowrap;}
+.card-h .right{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end;}
+.count-chip{font-family:var(--mono);font-size:9.5px;border-radius:999px;padding:2px 8px;white-space:nowrap;}
+.count-chip.rose{color:var(--rose);background:var(--rose-bg);} .count-chip.gold{color:var(--gold);background:var(--gold-bg);} .count-chip.ok{color:var(--ok);background:var(--ok-bg);}
+.card-act{font-family:var(--mono);font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);border:1px solid var(--line);background:transparent;border-radius:6px;padding:3px 9px;cursor:pointer;}
+.card-act:hover{color:var(--vio);border-color:var(--vio);}
+.avatar{width:26px;height:26px;border-radius:50%;background:var(--vio-bg);color:var(--vio);display:grid;place-items:center;font-family:var(--mono);font-size:9px;font-weight:600;flex-shrink:0;}
+.status-tag{font-family:var(--mono);font-size:8.5px;font-weight:600;letter-spacing:.13em;border-radius:5px;padding:3px 7px;white-space:nowrap;}
+.st-good{color:var(--ok);background:var(--ok-bg);} .st-watch{color:var(--gold);background:var(--gold-bg);} .st-risk{color:var(--rose);background:var(--rose-bg);}
+
+/* ════════ KPI MEASURE STRIP ════════ */
+.m-after-strip{display:grid;grid-template-columns:repeat(4,1fr);flex:1;}
+.m-after{padding:16px 18px 14px;border-right:1px solid var(--line-soft);position:relative;min-width:0;}
+.m-after:last-child{border-right:none;}
+.m-after .k{font-family:var(--mono);font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);}
+.m-after .top{display:flex;align-items:baseline;gap:8px;margin-top:7px;flex-wrap:wrap;}
+.m-after .v{font-family:var(--mono);font-size:23px;font-weight:500;letter-spacing:-.02em;color:var(--ink);}
+.m-after .v small{font-size:13px;color:var(--muted);}
+.m-after .delta{font-family:var(--mono);font-size:10.5px;}
+.m-after .delta.up::before{content:"▲ ";font-size:8px;} .m-after .delta.down::before{content:"▼ ";font-size:8px;}
+.m-dist{display:flex;height:6px;border-radius:3px;overflow:hidden;margin:12px 0 6px;background:var(--line);}
+.m-dist i{display:block;height:100%;}
+.m-dist .g{background:var(--ok);} .m-dist .w{background:var(--gold);opacity:.75;} .m-dist .r{background:var(--rose);}
+.m-after .dist-lab{font-family:var(--mono);font-size:9px;letter-spacing:.03em;color:var(--faint);}
+.m-after .dist-lab b{color:var(--ink-soft);}
+@media (max-width:1180px){ .m-after-strip{grid-template-columns:repeat(2,1fr);} .m-after:nth-child(2){border-right:none;} .m-after:nth-child(n+3){border-top:1px solid var(--line-soft);} }
+
+/* ════════ CHAPTER HEALTH ════════ */
+.h-body{display:flex;gap:18px;align-items:center;padding:18px;flex:1;}
+.dial{position:relative;width:92px;height:92px;flex-shrink:0;}
+.dial svg{transform:rotate(-90deg);}
+.dial .num{position:absolute;inset:0;display:grid;place-items:center;}
+.dial .num span{font-family:var(--serif);font-size:27px;font-weight:500;color:var(--ink);}
+.dial .num .d{font-family:var(--mono);font-size:9px;color:var(--ok);margin-top:1px;}
+.h-rank{flex:1;display:flex;flex-direction:column;gap:8px;min-width:0;}
+.h-rrow{display:grid;grid-template-columns:62px 1fr 56px;gap:10px;align-items:center;}
+.h-rrow .k{font-size:11px;color:var(--ink-soft);}
+.h-rrow .track{height:5px;border-radius:3px;background:var(--line);overflow:hidden;}
+.h-rrow .track i{display:block;height:100%;border-radius:3px;}
+.h-rrow .track i.good{background:var(--ok);} .h-rrow .track i.watch{background:var(--gold);} .h-rrow .track i.risk{background:var(--rose);}
+.h-rrow .mv{font-family:var(--mono);font-size:9.5px;text-align:right;}
+.h-rrow .mv.up{color:var(--ok);} .h-rrow .mv.down{color:var(--rose);} .h-rrow .mv.flat{color:var(--faint);}
+.h-foot{border-top:1px solid var(--line-soft);padding:9px 18px;font-size:11.5px;color:var(--faint);}
+.h-foot b{color:var(--ink-soft);}
+
+/* ════════ TREASURY ════════ */
+.t-after-body{padding:16px 18px;flex:1;}
+.t-runway{display:flex;align-items:baseline;gap:9px;flex-wrap:wrap;}
+.t-runway .big{font-family:var(--mono);font-size:26px;font-weight:500;letter-spacing:-.02em;}
+.t-runway .lab{font-family:var(--mono);font-size:11px;color:var(--muted);}
+.t-runway .pill{margin-left:auto;font-family:var(--mono);font-size:9.5px;color:var(--ok);background:var(--ok-bg);border-radius:999px;padding:2px 9px;}
+.t-flow{display:flex;gap:14px;margin:14px 0 4px;flex-wrap:wrap;}
+.t-flow .col{flex:1;min-width:80px;}
+.t-flow .col .cl{font-family:var(--mono);font-size:8.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);}
+.t-flow .col .cv{font-family:var(--mono);font-size:15px;margin-top:3px;}
+.t-flow .in .cv{color:var(--ok);} .t-flow .out .cv{color:var(--rose);}
+.t-split{display:flex;height:8px;border-radius:4px;overflow:hidden;margin:14px 0 8px;background:var(--line);}
+.t-split i{display:block;height:100%;}
+.t-cats{display:flex;flex-wrap:wrap;gap:10px 16px;font-family:var(--mono);font-size:9px;letter-spacing:.02em;color:var(--muted);}
+.t-cats span{display:inline-flex;align-items:center;gap:6px;}
+.t-cats em{width:8px;height:8px;border-radius:2px;font-style:normal;}
+.t-foot{border-top:1px solid var(--line-soft);padding:9px 18px;font-size:11.5px;color:var(--faint);}
+.t-foot b{color:var(--ink-soft);}
+
+/* ════════ THIS WEEK ════════ */
+.w-after{flex:1;}
+.w-after .wk{display:flex;gap:13px;padding:11px 18px;border-bottom:1px solid var(--line-soft);align-items:center;}
+.w-after .wk:last-child{border-bottom:none;}
+.w-after .day{font-family:var(--mono);font-size:9px;letter-spacing:.1em;color:var(--faint);width:40px;flex-shrink:0;line-height:1.3;}
+.w-after .day b{display:block;font-size:15px;font-weight:500;color:var(--ink-soft);}
+.w-after .wk.today .day,.w-after .wk.today .day b{color:var(--vio);}
+.w-after .what{flex:1;min-width:0;}
+.w-after .what .t{font-size:12.5px;font-weight:550;color:var(--ink);}
+.w-after .what .t .mand{font-family:var(--mono);font-size:7.5px;font-weight:600;letter-spacing:.12em;color:var(--gold);background:var(--gold-bg);border-radius:3px;padding:1px 4px;margin-left:7px;vertical-align:2px;}
+.w-after .what .m{font-size:11px;color:var(--faint);margin-top:2px;}
+.w-sig{flex-shrink:0;width:90px;text-align:right;}
+.w-sig .track{height:4px;border-radius:2px;background:var(--line);overflow:hidden;margin-bottom:4px;}
+.w-sig .track i{display:block;height:100%;border-radius:2px;}
+.w-sig .track i.ok{background:var(--ok);} .w-sig .track i.warn{background:var(--gold);} .w-sig .track i.vio{background:var(--vio);}
+.w-sig .lab{font-family:var(--mono);font-size:8.5px;letter-spacing:.04em;color:var(--muted);}
+
+/* ════════ NEEDS ATTENTION ════════ */
+.n-group{border-bottom:1px solid var(--line-soft);}
+.n-group:last-child{border-bottom:none;}
+.n-ghead{display:flex;align-items:center;gap:9px;padding:9px 18px 5px;}
+.n-ghead .gt{font-family:var(--mono);font-size:8.5px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;}
+.n-ghead .gc{font-family:var(--mono);font-size:9px;color:var(--faint);}
+.n-ghead .gline{flex:1;height:1px;background:var(--line-soft);}
+.n-arow{display:flex;align-items:center;gap:12px;padding:8px 18px;}
+.n-arow .bd{flex:1;min-width:0;}
+.n-arow .bd .t{font-size:12.5px;font-weight:550;color:var(--ink);}
+.n-arow .bd .m{font-size:11px;color:var(--faint);margin-top:1px;font-variant-numeric:tabular-nums;}
+.n-arow .ctx{flex-shrink:0;display:flex;align-items:center;gap:8px;}
+.n-badge{font-family:var(--mono);font-size:9px;border-radius:5px;padding:2px 7px;}
+.n-spark{display:flex;align-items:flex-end;gap:2px;height:16px;}
+.n-spark i{width:3px;border-radius:1px;}
+.n-arow .ac{font-family:var(--mono);font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);border:1px solid var(--line);border-radius:7px;padding:4px 10px;cursor:pointer;background:transparent;}
+.n-arow .ac:hover{color:var(--vio);border-color:var(--vio);}
+
+/* ════════ QUORUM PULSE ════════ */
+.qp-body{padding:16px 18px 14px;flex:1;}
+.qp-when{display:flex;align-items:baseline;justify-content:space-between;}
+.qp-when .t{font-family:var(--serif);font-size:15px;color:var(--ink);}
+.qp-when .d{font-family:var(--mono);font-size:10px;letter-spacing:.08em;color:var(--vio);text-transform:uppercase;}
+.qp-stat{display:flex;align-items:flex-end;gap:10px;margin:14px 0 4px;flex-wrap:wrap;}
+.qp-stat .big{font-family:var(--mono);font-size:34px;font-weight:500;letter-spacing:-.02em;line-height:1;}
+.qp-stat .need{font-family:var(--mono);font-size:11px;color:var(--muted);padding-bottom:4px;}
+.qp-track{position:relative;display:flex;height:14px;border-radius:7px;overflow:hidden;margin:16px 0 8px;background:var(--line);}
+.qp-track .seg.conf{background:var(--ok);} .qp-track .seg.exc{background:var(--vio);opacity:.55;} .qp-track .seg.sil{background:transparent;}
+.qp-mark{position:absolute;top:-4px;bottom:-4px;width:2px;background:var(--gold);}
+.qp-mark::after{content:"QUORUM";position:absolute;top:-13px;left:50%;transform:translateX(-50%);font-family:var(--mono);font-size:7.5px;letter-spacing:.14em;color:var(--gold);white-space:nowrap;}
+.qp-counts{display:flex;gap:16px;flex-wrap:wrap;font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:14px;}
+.qp-counts span{display:inline-flex;align-items:center;gap:6px;}
+.qp-counts i{width:8px;height:8px;border-radius:2px;}
+.qp-counts .conf i{background:var(--ok);} .qp-counts .exc i{background:var(--vio);opacity:.55;} .qp-counts .sil i{background:var(--faint);}
+.qp-foot{border-top:1px solid var(--line-soft);padding:10px 18px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+.qp-foot .av{display:flex;}
+.qp-foot .av .avatar{margin-left:-7px;border:1.5px solid var(--card);}
+.qp-foot .av .avatar:first-child{margin-left:0;}
+.qp-foot .txt{font-size:11.5px;color:var(--faint);flex:1;min-width:120px;}
+.qp-foot .txt b{color:var(--ink-soft);}
+.qp-foot .act{font-family:var(--mono);font-size:10px;letter-spacing:.07em;text-transform:uppercase;color:var(--vio);border:1px solid var(--vio-bg);background:var(--vio-bg);border-radius:7px;padding:5px 11px;cursor:pointer;}
+.qp-foot .act:hover{background:var(--vio-deep);color:#fff;border-color:var(--vio-deep);}
+
+/* ════════ OFFICER LOAD ════════ */
+.ol-row{display:flex;align-items:center;gap:12px;padding:11px 18px;border-bottom:1px solid var(--line-soft);flex-wrap:wrap;}
+.ol-row:last-child{border-bottom:none;}
+.ol-who{width:150px;flex-shrink:0;min-width:0;}
+.ol-who .nm{display:flex;align-items:center;gap:9px;}
+.ol-who .nm p{font-size:12.5px;font-weight:550;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.ol-who .role{font-family:var(--mono);font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);margin:3px 0 0 35px;}
+.ol-bar{flex:1;min-width:120px;display:flex;align-items:center;gap:10px;}
+.ol-bar .track{flex:1;height:6px;border-radius:3px;background:var(--line);overflow:hidden;display:flex;}
+.ol-bar .track i{display:block;height:100%;}
+.ol-bar .track .open{background:var(--vio);opacity:.8;} .ol-bar .track .over{background:var(--rose);}
+.ol-bar .n{font-family:var(--mono);font-size:11.5px;color:var(--ink-soft);width:78px;text-align:right;}
+.ol-bar .n b{color:var(--ink);} .ol-bar .n .od{color:var(--rose);}
+.ol-foot{padding:10px 18px;background:var(--card-2);display:flex;justify-content:space-between;font-family:var(--mono);font-size:10px;letter-spacing:.04em;color:var(--faint);flex-wrap:wrap;gap:6px;}
+.ol-foot b{color:var(--ink-soft);}
+
+/* ════════ ENGAGEMENT RADAR ════════ */
+.er-wrap{padding:4px 0 0;overflow-x:auto;}
+.er-grid{width:100%;border-collapse:collapse;min-width:640px;}
+.er-grid thead th{font-family:var(--mono);font-size:8.5px;font-weight:500;letter-spacing:.14em;text-transform:uppercase;color:var(--faint);text-align:center;padding:10px 8px;border-bottom:1px solid var(--line-soft);}
+.er-grid thead th:first-child{text-align:left;padding-left:18px;width:190px;}
+.er-grid thead th.trend{text-align:right;padding-right:18px;}
+.er-grid tbody td{padding:7px 8px;border-bottom:1px solid var(--line-soft);text-align:center;}
+.er-grid tbody tr:last-child td{border-bottom:none;}
+.er-grid tbody tr:hover{background:var(--card-2);}
+.er-grid tbody td:first-child{text-align:left;padding-left:18px;}
+.er-grid .er-name{display:flex;align-items:center;gap:10px;}
+.er-grid .er-name p{font-size:12.5px;font-weight:550;color:var(--ink);}
+.cell{display:inline-flex;align-items:center;justify-content:center;width:42px;height:24px;border-radius:6px;font-family:var(--mono);font-size:10.5px;font-variant-numeric:tabular-nums;}
+.cell.h4{background:var(--ok-bg);color:var(--ok);} .cell.h3{background:rgba(127,176,138,.05);color:var(--ink-soft);}
+.cell.h2{background:var(--gold-bg);color:var(--gold);} .cell.h1{background:var(--rose-bg);color:var(--rose);}
+.er-trend{display:inline-flex;align-items:center;gap:7px;justify-content:flex-end;width:100%;}
+.er-spark{display:flex;align-items:flex-end;gap:2px;height:18px;}
+.er-spark i{width:3px;border-radius:1px;background:var(--muted);opacity:.5;}
+.er-trend.up i{background:var(--ok);opacity:.8;} .er-trend.down i{background:var(--rose);opacity:.8;}
+.er-arrow{font-family:var(--mono);font-size:10px;width:14px;}
+.er-foot{padding:11px 18px;background:var(--card-2);display:flex;align-items:center;gap:16px;flex-wrap:wrap;font-family:var(--mono);font-size:9.5px;letter-spacing:.04em;color:var(--faint);}
+.er-foot .legend{display:flex;gap:12px;}
+.er-foot .legend span{display:inline-flex;align-items:center;gap:6px;}
+.er-foot .legend i{width:10px;height:10px;border-radius:3px;}
+.er-foot .legend .h4 i{background:var(--ok);} .er-foot .legend .h2 i{background:var(--gold);} .er-foot .legend .h1 i{background:var(--rose);}
+.er-foot .ai{margin-left:auto;color:var(--vio);display:inline-flex;align-items:center;gap:7px;}
+.er-foot .ai .chip{font-family:var(--mono);font-size:8px;font-weight:600;letter-spacing:.14em;color:var(--vio);border:1px solid var(--vio-bg);background:var(--vio-bg);border-radius:4px;padding:2px 5px;}
+
+/* ════════ ROSTER ════════ */
+.ros-grid{width:100%;border-collapse:collapse;}
+.ros-grid thead th{font-family:var(--mono);font-size:8.5px;font-weight:500;letter-spacing:.14em;text-transform:uppercase;color:var(--faint);text-align:left;padding:10px;border-bottom:1px solid var(--line-soft);}
+.ros-grid thead th:first-child{padding-left:18px;}
+.ros-grid tbody td{padding:9px 10px;border-bottom:1px solid var(--line-soft);font-size:12.5px;}
+.ros-grid tbody tr:last-child td{border-bottom:none;}
+.ros-grid tbody tr:hover{background:var(--card-2);}
+.ros-grid tbody td:first-child{padding-left:18px;}
+.ros-name{display:flex;align-items:center;gap:9px;}
+.ros-name p{font-weight:550;color:var(--ink);white-space:nowrap;}
+.ros-role{font-family:var(--mono);font-size:9px;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);margin-top:2px;white-space:nowrap;}
+.ros-att{display:flex;align-items:center;gap:8px;}
+.ros-att .track{width:56px;height:4px;border-radius:2px;background:var(--line);overflow:hidden;}
+.ros-att .track i{display:block;height:100%;border-radius:2px;}
+.ros-att .track i.good{background:var(--ok);} .ros-att .track i.watch{background:var(--gold);} .ros-att .track i.risk{background:var(--rose);}
+.ros-att span{font-family:var(--mono);font-size:11px;color:var(--ink-soft);width:30px;text-align:right;}
+.ros-grid td.tnum{font-family:var(--mono);}
+.ros-foot{padding:10px 18px;background:var(--card-2);display:flex;justify-content:space-between;font-family:var(--mono);font-size:10px;letter-spacing:.04em;color:var(--faint);}
+.ros-foot a{color:var(--vio);text-decoration:none;}
+.tile[data-size="M"] .ros-gpa,.tile[data-size="M"] .ros-svc{display:none;}
+
+/* ══════════════════════════════════════════════════════════════════════
+   APP SHELL (mock-only chrome around the real widgets)
+   ══════════════════════════════════════════════════════════════════════ */
+.topbar{max-width:1230px;margin:0 auto;display:flex;align-items:center;gap:30px;padding:6px 0 24px;flex-wrap:wrap;}
+.topbar .word{font-family:var(--serif);font-size:16px;color:var(--ink);white-space:nowrap;}
+.topbar .word em{font-style:italic;color:var(--vio);}
+.topbar nav{display:flex;gap:22px;}
+.topbar nav a{font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);text-decoration:none;}
+.topbar nav a.active{color:var(--ink);}
+.topbar .spacer{flex:1;}
+.topbar .tag{font-family:var(--mono);font-size:9px;letter-spacing:.12em;color:var(--faint);white-space:nowrap;}
+
+.btn{display:inline-flex;align-items:center;gap:7px;font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;cursor:pointer;border-radius:8px;padding:9px 14px;border:1px solid var(--line);background:transparent;color:var(--muted);transition:color .15s,border-color .15s,background .15s;}
+.btn:hover{color:var(--ink);border-color:var(--vio);}
+.btn.primary{background:var(--vio-bg);border-color:transparent;color:var(--vio);}
+.btn.primary:hover{background:var(--vio);color:var(--paper);}
+.btn.ghost{border-color:transparent;}
+
+.page-head-row{max-width:1230px;margin:0 auto;display:flex;align-items:flex-end;justify-content:space-between;gap:24px;flex-wrap:wrap;}
+.page-head .kicker{font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);}
+.page-head h1{font-family:var(--serif);font-weight:400;font-size:28px;letter-spacing:-.01em;margin:7px 0 0;}
+.page-head h1 em{font-style:italic;color:var(--vio);}
+.page-head p{max-width:600px;margin:10px 0 0;color:var(--ink-soft);font-family:var(--serif);font-weight:350;font-style:italic;font-size:13.5px;}
+.actions{display:flex;gap:10px;flex-shrink:0;padding-bottom:5px;}
+.actions .btn.subtle{color:var(--faint);}
+
+.edit-banner{max-width:1230px;margin:20px auto 0;display:none;align-items:center;gap:14px;padding:12px 16px;border:1px dashed var(--vio);background:var(--vio-bg);border-radius:11px;}
+body.editing .edit-banner{display:flex;}
+.edit-banner .ico{font-family:var(--mono);font-size:13px;color:var(--vio);flex-shrink:0;}
+.edit-banner p{font-size:11.5px;color:var(--ink-soft);flex:1;margin:0;}
+.edit-banner b{color:var(--vio);}
+
+.board{max-width:1230px;margin:24px auto 0;display:grid;grid-template-columns:repeat(4,1fr);gap:16px;border-radius:16px;transition:background .2s,padding .2s;}
+body.editing .board{box-sizing:border-box;padding:16px;background-image:radial-gradient(circle,var(--line) 1px,transparent 1px);background-size:22px 22px;}
+@media (max-width:900px){ .board{grid-template-columns:repeat(2,1fr);} }
+@media (max-width:600px){ .board{grid-template-columns:1fr;} .tile[data-size]{grid-column:1 / -1 !important;} }
+
+.tile{position:relative;grid-column:span 2;min-width:0;}
+.tile[data-size="L"]{grid-column:span 4;}
+body.editing .tile{cursor:grab;}
+body.editing .tile .card{border-style:dashed;border-color:var(--line);pointer-events:none;transition:border-color .15s;}
+body.editing .tile:hover .card{border-color:var(--vio);}
+.tile.dragging{opacity:.35;}
+.tile.dragging .card{border-color:var(--vio);}
+.tile.drop-before::before,.tile.drop-after::after{content:"";position:absolute;top:2px;bottom:2px;width:3px;border-radius:2px;background:var(--vio);box-shadow:0 0 0 4px var(--vio-bg);z-index:6;}
+.tile.drop-before::before{left:-9px;} .tile.drop-after::after{right:-9px;}
+
+.tile-tools{position:absolute;top:-14px;right:12px;z-index:5;display:flex;align-items:center;gap:3px;background:var(--card-2);border:1px solid var(--line);border-radius:9px;padding:5px 5px;box-shadow:var(--shadow);pointer-events:auto;}
+.tt-handle{font-size:13px;color:var(--faint);cursor:grab;padding:0 4px;line-height:1;user-select:none;}
+.size-toggle{display:flex;background:var(--paper-2);border-radius:6px;padding:2px;gap:2px;}
+.sz-btn{font-family:var(--mono);font-size:9px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);background:transparent;border:none;border-radius:4px;padding:4px 8px;cursor:pointer;}
+.sz-btn.active{background:var(--vio);color:var(--paper);}
+.sz-btn:not(.active):hover{color:var(--ink);}
+.tt-remove{font-family:var(--mono);font-size:13px;line-height:1;color:var(--faint);background:transparent;border:none;cursor:pointer;padding:4px 7px;border-radius:5px;}
+.tt-remove:hover{color:var(--rose);background:var(--rose-bg);}
+
+.catalog{max-width:1230px;margin:28px auto 0;display:none;}
+body.editing .catalog{display:block;}
+.catalog h3{font-family:var(--serif);font-weight:500;font-size:15px;color:var(--ink);margin:0 0 4px;}
+.catalog .cat-hint{font-family:var(--mono);font-size:9.5px;letter-spacing:.04em;color:var(--faint);margin:0 0 12px;}
+.cat-list{display:flex;flex-wrap:wrap;gap:12px;border:1px dashed var(--line);border-radius:12px;padding:16px;min-height:96px;transition:border-color .15s,background .15s;}
+.catalog.drop-target .cat-list{border-color:var(--rose);background:var(--rose-bg);}
+.cat-empty{font-family:var(--serif);font-style:italic;color:var(--muted);font-size:13px;padding:12px 4px;}
+.cat-card{width:230px;border:1px solid var(--line);border-radius:10px;background:var(--card);padding:13px 14px;cursor:grab;display:flex;flex-direction:column;gap:9px;}
+.cat-card:hover{border-color:var(--vio);}
+.cat-card.dragging{opacity:.35;}
+.cat-name{font-family:var(--serif);font-size:13.5px;color:var(--ink);}
+.cat-blurb{font-size:10.5px;color:var(--faint);line-height:1.4;flex:1;margin:0;}
+.cat-card button{align-self:flex-start;font-family:var(--mono);font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--vio);background:var(--vio-bg);border:1px solid transparent;border-radius:6px;padding:5px 9px;cursor:pointer;}
+.cat-card button:hover{background:var(--vio);color:var(--paper);}
+
+.toast{position:fixed;left:50%;bottom:28px;transform:translate(-50%,20px);opacity:0;pointer-events:none;font-family:var(--mono);font-size:11px;letter-spacing:.04em;color:var(--ink);background:var(--card-2);border:1px solid var(--vio-bg);box-shadow:var(--shadow);border-radius:10px;padding:11px 18px;transition:opacity .2s,transform .2s;z-index:50;}
+.toast.show{opacity:1;transform:translate(-50%,0);}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="word">Figurints · <em>ChaptOS</em></div>
+  <nav>
+    <a class="active" href="#">Dashboard</a>
+    <a href="#">Roster</a>
+    <a href="#">Treasury</a>
+    <a href="#">Events</a>
+    <a href="#">Docs</a>
+  </nav>
+  <div class="spacer"></div>
+  <span class="tag">DUSK · WIDGET LIBRARY MOCK</span>
+</header>
+
+<div class="page-head-row">
+  <div class="page-head">
+    <div class="kicker">TUESDAY · OCTOBER 21 · WEEK 8 · FALL 2026</div>
+    <h1>Good afternoon, <em>Thalha</em></h1>
+    <p id="digest">Chapter health dipped to 73 this week — service hours are the drag. Five members are trending into at-risk, and tonight's meeting needs 25 to hit quorum.</p>
+  </div>
+  <div class="actions" id="actions"></div>
+</div>
+
+<div class="edit-banner">
+  <span class="ico">✎</span>
+  <p><b>Customizing dashboard.</b> Drag to reorder, resize Half/Full, or remove a widget — add more from the library below. This is one shared layout for the whole chapter.</p>
+</div>
+
+<div class="board" id="board"></div>
+
+<div class="catalog" id="catalog">
+  <h3>Widget Library</h3>
+  <p class="cat-hint">DRAG ONTO YOUR BOARD, OR CLICK ADD</p>
+  <div class="cat-list" id="catList"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const WIDGETS = {
+  kpi: {
+    name: "This Week's Measures",
+    blurb: "Attendance, dues, GPA and service hours — trend and spread, not just an average.",
+    sizes: ["L"],
+    render: () => `
+      <div class="card-h"><h2>This Week's Measures</h2><div class="right"><span class="sub">4 TRACKED · 42 BROTHERS</span></div></div>
+      <div class="m-after-strip">
+        <div class="m-after">
+          <p class="k">Attendance</p>
+          <div class="top"><span class="v tnum">84<small>%</small></span><span class="delta up sage">3.2</span></div>
+          <div class="m-dist"><i class="g" style="width:67%"></i><i class="w" style="width:21%"></i><i class="r" style="width:12%"></i></div>
+          <p class="dist-lab"><b>28</b> good · <b>9</b> watch · <b class="rose">5</b> at risk</p>
+        </div>
+        <div class="m-after">
+          <p class="k">Dues Collected</p>
+          <div class="top"><span class="v tnum"><small>$</small>11.2k</span><span class="delta up sage">$1.4k</span></div>
+          <div class="m-dist"><i class="g" style="width:80%"></i><i class="w" style="width:11%"></i><i class="r" style="width:9%"></i></div>
+          <p class="dist-lab"><b>35</b> paid · <b class="rose">7</b> owe $2.8k</p>
+        </div>
+        <div class="m-after">
+          <p class="k">Chapter GPA</p>
+          <div class="top"><span class="v tnum">3.31</span><span class="delta up sage">0.06</span></div>
+          <div class="m-dist"><i class="g" style="width:71%"></i><i class="w" style="width:19%"></i><i class="r" style="width:10%"></i></div>
+          <p class="dist-lab"><b>30</b> ≥3.0 · <b class="rose">4</b> below 2.5</p>
+        </div>
+        <div class="m-after">
+          <p class="k">Service Hours</p>
+          <div class="top"><span class="v tnum">218<small>h</small></span><span class="delta down rose">0.4</span></div>
+          <div class="m-dist"><i class="g" style="width:40%"></i><i class="w" style="width:17%"></i><i class="r" style="width:43%"></i></div>
+          <p class="dist-lab"><b>17</b> met goal · <b class="rose">18</b> under goal</p>
+        </div>
+      </div>`
+  },
+  health: {
+    name: "Chapter Health",
+    blurb: "Composite score with a ranked, worst-first breakdown of what's dragging it.",
+    sizes: ["M", "L"],
+    render: () => `
+      <div class="card-h"><h2>Chapter Health</h2><div class="right"><span class="sub">COMPOSITE</span></div></div>
+      <div class="h-body">
+        <div class="dial">
+          <svg width="92" height="92">
+            <circle cx="46" cy="46" r="40" fill="none" stroke="rgba(236,231,221,.09)" stroke-width="6"/>
+            <circle cx="46" cy="46" r="40" fill="none" stroke="rgba(127,176,138,.25)" stroke-width="2" stroke-linecap="round" stroke-dasharray="251" stroke-dashoffset="80"/>
+            <circle cx="46" cy="46" r="40" fill="none" stroke="#ddb36a" stroke-width="6" stroke-linecap="round" stroke-dasharray="251" stroke-dashoffset="68"/>
+          </svg>
+          <div class="num"><span>73</span><span class="d">▲ 3</span></div>
+        </div>
+        <div class="h-rank">
+          <div class="h-rrow"><span class="k">Service</span><div class="track"><i class="risk" style="width:52%"></i></div><span class="mv down">▼ 6 · 52%</span></div>
+          <div class="h-rrow"><span class="k">Deadlines</span><div class="track"><i class="watch" style="width:70%"></i></div><span class="mv flat">— 70%</span></div>
+          <div class="h-rrow"><span class="k">GPA</span><div class="track"><i class="watch" style="width:78%"></i></div><span class="mv up">▲ 2 · 78%</span></div>
+          <div class="h-rrow"><span class="k">Dues</span><div class="track"><i class="good" style="width:80%"></i></div><span class="mv up">▲ 5 · 80%</span></div>
+          <div class="h-rrow"><span class="k">Attend</span><div class="track"><i class="good" style="width:84%"></i></div><span class="mv up">▲ 3 · 84%</span></div>
+        </div>
+      </div>
+      <div class="h-foot"><b>Service hours</b> are pulling the score down most — 18 members under goal.</div>`
+  },
+  needs: {
+    name: "Needs Attention",
+    blurb: "Grouped by urgency and sorted by severity, so triage takes seconds.",
+    sizes: ["M", "L"],
+    render: () => `
+      <div class="card-h"><h2>Needs Attention</h2><div class="right"><span class="count-chip rose">2 urgent</span><span class="count-chip gold">3 soon</span></div></div>
+      <div>
+        <div class="n-group">
+          <div class="n-ghead"><span class="gt rose">URGENT</span><span class="gline"></span><span class="gc">2 items</span></div>
+          <div class="n-arow">
+            <div class="bd"><div class="t">5 members at risk</div><div class="m">attendance &lt; 70% — trending down</div></div>
+            <div class="ctx">
+              <div class="n-spark"><i style="height:6px;background:var(--rose)"></i><i style="height:8px;background:var(--rose)"></i><i style="height:10px;background:var(--rose)"></i><i style="height:13px;background:var(--rose)"></i></div>
+              <button class="ac">Review</button>
+            </div>
+          </div>
+          <div class="n-arow">
+            <div class="bd"><div class="t">$2,800 in overdue dues</div><div class="m">7 members · oldest 41 days</div></div>
+            <div class="ctx"><span class="n-badge st-risk">7</span><button class="ac">Nudge all</button></div>
+          </div>
+        </div>
+        <div class="n-group">
+          <div class="n-ghead"><span class="gt gold">DUE SOON</span><span class="gline"></span><span class="gc">3 items</span></div>
+          <div class="n-arow">
+            <div class="bd"><div class="t">Roster export overdue</div><div class="m">due 2 days ago</div></div>
+            <div class="ctx"><button class="ac">Open</button></div>
+          </div>
+          <div class="n-arow">
+            <div class="bd"><div class="t">2 reimbursements pending</div><div class="m">$840 total · awaiting review</div></div>
+            <div class="ctx"><span class="n-badge st-watch">$840</span><button class="ac">Review</button></div>
+          </div>
+        </div>
+      </div>`
+  },
+  week: {
+    name: "This Week",
+    blurb: "Meetings and deadlines with a live readiness signal, not just a date list.",
+    sizes: ["M", "L"],
+    render: () => `
+      <div class="card-h"><h2>This Week</h2><div class="right"><span class="sub">READINESS</span></div></div>
+      <div class="w-after">
+        <div class="wk today">
+          <div class="day">TUE<b>21</b></div>
+          <div class="what"><div class="t">Chapter Meeting<span class="mand">MANDATORY</span></div><div class="m">7:00 PM · Houser Hall</div></div>
+          <div class="w-sig"><div class="track"><i class="ok" style="width:72%"></i></div><div class="lab">29 / 25 quorum ✓</div></div>
+        </div>
+        <div class="wk">
+          <div class="day">THU<b>23</b></div>
+          <div class="what"><div class="t">Philanthropy Setup</div><div class="m">4:00 PM · Quad</div></div>
+          <div class="w-sig"><div class="track"><i class="warn" style="width:45%"></i></div><div class="lab">prep 5 / 11 done</div></div>
+        </div>
+        <div class="wk">
+          <div class="day">SAT<b>25</b></div>
+          <div class="what"><div class="t">Fall Mixer</div><div class="m">9:00 PM · Annex</div></div>
+          <div class="w-sig"><div class="track"><i class="vio" style="width:88%"></i></div><div class="lab">prep 8 / 9 done</div></div>
+        </div>
+      </div>`
+  },
+  treasury: {
+    name: "Treasury",
+    blurb: "Runway framing, income vs. spend, and where the money's actually going.",
+    sizes: ["M", "L"],
+    render: () => `
+      <div class="card-h"><h2>Treasury</h2><div class="right"><span class="count-chip ok">~5.9 MO RUNWAY</span></div></div>
+      <div class="t-after-body">
+        <div class="t-runway"><span class="big tnum">$8,420</span><span class="lab">on hand</span><span class="pill">▲ 6% MoM</span></div>
+        <div class="t-flow">
+          <div class="col in"><div class="cl">In this period</div><div class="cv tnum">+$12,800</div></div>
+          <div class="col out"><div class="cl">Out this period</div><div class="cv tnum">−$9,640</div></div>
+          <div class="col"><div class="cl">Net</div><div class="cv tnum sage">+$3,160</div></div>
+        </div>
+        <div class="t-split">
+          <i style="width:38%;background:var(--vio)"></i>
+          <i style="width:27%;background:var(--gold)"></i>
+          <i style="width:20%;background:var(--rose)"></i>
+          <i style="width:15%;background:var(--ok)"></i>
+        </div>
+        <div class="t-cats">
+          <span><em style="background:var(--vio)"></em>Socials 38%</span>
+          <span><em style="background:var(--gold)"></em>Events 27%</span>
+          <span><em style="background:var(--rose)"></em>Philanthropy 20%</span>
+          <span><em style="background:var(--ok)"></em>Ops 15%</span>
+        </div>
+      </div>
+      <div class="t-foot"><b>$1,420</b> in reimbursements pending approval.</div>`
+  },
+  roster: {
+    name: "Roster",
+    blurb: "Full member list sorted by standing, lowest first.",
+    sizes: ["M", "L"],
+    render: () => `
+      <div class="card-h"><h2>Roster</h2><div class="right"><span class="sub">42 BROTHERS</span><span class="count-chip rose">1 AT RISK</span></div></div>
+      <table class="ros-grid">
+        <thead><tr><th>Brother</th><th>Attendance</th><th class="ros-gpa">GPA</th><th class="ros-svc">Service</th><th>Dues</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><div class="ros-name"><span class="avatar">MR</span><div><p>Marcus Reed</p><div class="ros-role">Sophomore · Rush</div></div></div></td>
+            <td><div class="ros-att"><div class="track"><i class="risk" style="width:58%"></i></div><span class="tnum">58%</span></div></td>
+            <td class="ros-gpa tnum">2.6</td>
+            <td class="ros-svc tnum">1h</td>
+            <td class="tnum rose">$350</td>
+            <td><span class="status-tag st-risk">AT RISK</span></td>
+          </tr>
+          <tr>
+            <td><div class="ros-name"><span class="avatar">DT</span><div><p>Devin Tran</p><div class="ros-role">Junior · Philanthropy</div></div></div></td>
+            <td><div class="ros-att"><div class="track"><i class="watch" style="width:72%"></i></div><span class="tnum">72%</span></div></td>
+            <td class="ros-gpa tnum">2.9</td>
+            <td class="ros-svc tnum">3h</td>
+            <td class="tnum rose">$350</td>
+            <td><span class="status-tag st-watch">WATCH</span></td>
+          </tr>
+          <tr>
+            <td><div class="ros-name"><span class="avatar">JK</span><div><p>Jordan Kim</p><div class="ros-role">Sophomore · Programming</div></div></div></td>
+            <td><div class="ros-att"><div class="track"><i class="watch" style="width:81%"></i></div><span class="tnum">81%</span></div></td>
+            <td class="ros-gpa tnum">3.1</td>
+            <td class="ros-svc tnum">7h</td>
+            <td class="tnum rose">$200</td>
+            <td><span class="status-tag st-watch">WATCH</span></td>
+          </tr>
+          <tr>
+            <td><div class="ros-name"><span class="avatar">AB</span><div><p>Avery Banks</p><div class="ros-role">Senior · Academic Chair</div></div></div></td>
+            <td><div class="ros-att"><div class="track"><i class="good" style="width:90%"></i></div><span class="tnum">90%</span></div></td>
+            <td class="ros-gpa tnum">3.5</td>
+            <td class="ros-svc tnum">8h</td>
+            <td class="tnum" style="color:var(--faint)">—</td>
+            <td><span class="status-tag st-good">GOOD</span></td>
+          </tr>
+          <tr>
+            <td><div class="ros-name"><span class="avatar">CL</span><div><p>Chris Lowe</p><div class="ros-role">Junior · Social</div></div></div></td>
+            <td><div class="ros-att"><div class="track"><i class="good" style="width:94%"></i></div><span class="tnum">94%</span></div></td>
+            <td class="ros-gpa tnum">3.7</td>
+            <td class="ros-svc tnum">12h</td>
+            <td class="tnum" style="color:var(--faint)">—</td>
+            <td><span class="status-tag st-good">GOOD</span></td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="ros-foot"><span>Showing 5 of 42 · lowest standing first</span><a href="#">View full roster →</a></div>`
+  },
+  quorum: {
+    name: "Quorum Pulse",
+    blurb: "Will the next mandatory meeting hit quorum? Confirmed vs. excused vs. silent.",
+    sizes: ["M", "L"],
+    render: () => `
+      <div class="card-h"><h2>Quorum Pulse</h2><div class="right"><span class="count-chip ok">ON TRACK</span></div></div>
+      <div class="qp-body">
+        <div class="qp-when"><span class="t">Chapter Meeting</span><span class="d">TUE · 7:00 PM</span></div>
+        <div class="qp-stat">
+          <span class="big tnum sage">29</span>
+          <span class="need">expected present · need <b style="color:var(--gold)">25</b> for quorum</span>
+        </div>
+        <div class="qp-track">
+          <div class="seg conf" style="width:55%"></div>
+          <div class="seg exc" style="width:14%"></div>
+          <div class="seg sil" style="width:31%"></div>
+          <div class="qp-mark" style="left:60%"></div>
+        </div>
+        <div class="qp-counts">
+          <span class="conf"><i></i>23 likely present</span>
+          <span class="exc"><i></i>6 excused</span>
+          <span class="sil"><i></i>13 silent</span>
+        </div>
+      </div>
+      <div class="qp-foot">
+        <div class="av"><span class="avatar">AB</span><span class="avatar">CL</span><span class="avatar">RW</span><span class="avatar" style="background:var(--card-2);color:var(--muted)">+10</span></div>
+        <div class="txt"><b>13 haven't responded.</b> Ping the silent list?</div>
+        <button class="act">Remind</button>
+      </div>`
+  },
+  officer: {
+    name: "Officer Load",
+    blurb: "Open tasks by officer, so no one on exec is quietly overloaded.",
+    sizes: ["M", "L"],
+    render: () => `
+      <div class="card-h"><h2>Officer Load</h2><div class="right"><span class="sub">OPEN TASKS BY ROLE</span></div></div>
+      <div>
+        <div class="ol-row">
+          <div class="ol-who"><div class="nm"><span class="avatar">SP</span><p>Sam Patel</p></div><div class="role">President</div></div>
+          <div class="ol-bar"><div class="track"><i class="open" style="width:55%"></i><i class="over" style="width:14%"></i></div><span class="n"><b>5</b> open · <span class="od">1 late</span></span></div>
+        </div>
+        <div class="ol-row">
+          <div class="ol-who"><div class="nm"><span class="avatar">EN</span><p>Elena Nguyen</p></div><div class="role">Social Chair</div></div>
+          <div class="ol-bar"><div class="track"><i class="open" style="width:90%"></i><i class="over" style="width:30%"></i></div><span class="n"><b>9</b> open · <span class="od">3 late</span></span></div>
+        </div>
+        <div class="ol-row">
+          <div class="ol-who"><div class="nm"><span class="avatar">TB</span><p>Theo Brooks</p></div><div class="role">Treasurer</div></div>
+          <div class="ol-bar"><div class="track"><i class="open" style="width:33%"></i></div><span class="n"><b>3</b> open</span></div>
+        </div>
+        <div class="ol-row">
+          <div class="ol-who"><div class="nm"><span class="avatar">MA</span><p>Mia Acosta</p></div><div class="role">Recruitment</div></div>
+          <div class="ol-bar"><div class="track"><i class="open" style="width:22%"></i></div><span class="n"><b>2</b> open</span></div>
+        </div>
+      </div>
+      <div class="ol-foot"><span><b>Elena</b> is carrying the heaviest load</span><span>19 open · 4 late</span></div>`
+  },
+  radar: {
+    name: "Engagement Radar",
+    blurb: "Cross-signal early warning — catches members slipping before they hit at-risk.",
+    sizes: ["L"],
+    render: () => `
+      <div class="card-h"><h2>Engagement Radar</h2><div class="right"><span class="count-chip gold">4 SLIPPING</span><button class="card-act">Sort: Trend ↓</button></div></div>
+      <div class="er-wrap">
+        <table class="er-grid">
+          <thead><tr><th>Member</th><th>Attendance</th><th>Dues</th><th>Service</th><th>Polls / votes</th><th>Status</th><th class="trend">6-week trend</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><div class="er-name"><span class="avatar">CL</span><p>Chris Lowe</p></div></td>
+              <td><span class="cell h4">94%</span></td><td><span class="cell h4">$0</span></td><td><span class="cell h4">12h</span></td><td><span class="cell h4">8/8</span></td>
+              <td><span class="status-tag st-good">GOOD</span></td>
+              <td><div class="er-trend up"><div class="er-spark"><i style="height:8px"></i><i style="height:10px"></i><i style="height:9px"></i><i style="height:13px"></i><i style="height:14px"></i><i style="height:16px"></i></div><span class="er-arrow sage">▲</span></div></td>
+            </tr>
+            <tr>
+              <td><div class="er-name"><span class="avatar">DT</span><p>Devin Tran</p></div></td>
+              <td><span class="cell h2">72%</span></td><td><span class="cell h1">$350</span></td><td><span class="cell h2">3h</span></td><td><span class="cell h1">2/8</span></td>
+              <td><span class="status-tag st-watch">WATCH</span></td>
+              <td><div class="er-trend down"><div class="er-spark"><i style="height:16px"></i><i style="height:14px"></i><i style="height:13px"></i><i style="height:9px"></i><i style="height:7px"></i><i style="height:5px"></i></div><span class="er-arrow rose">▼</span></div></td>
+            </tr>
+            <tr>
+              <td><div class="er-name"><span class="avatar">JK</span><p>Jordan Kim</p></div></td>
+              <td><span class="cell h3">81%</span></td><td><span class="cell h1">$200</span></td><td><span class="cell h3">7h</span></td><td><span class="cell h2">4/8</span></td>
+              <td><span class="status-tag st-watch">WATCH</span></td>
+              <td><div class="er-trend down"><div class="er-spark"><i style="height:13px"></i><i style="height:14px"></i><i style="height:11px"></i><i style="height:11px"></i><i style="height:9px"></i><i style="height:8px"></i></div><span class="er-arrow rose">▼</span></div></td>
+            </tr>
+            <tr>
+              <td><div class="er-name"><span class="avatar">MR</span><p>Marcus Reed</p></div></td>
+              <td><span class="cell h1">58%</span></td><td><span class="cell h1">$350</span></td><td><span class="cell h1">1h</span></td><td><span class="cell h1">1/8</span></td>
+              <td><span class="status-tag st-risk">AT RISK</span></td>
+              <td><div class="er-trend down"><div class="er-spark"><i style="height:11px"></i><i style="height:9px"></i><i style="height:8px"></i><i style="height:6px"></i><i style="height:4px"></i><i style="height:3px"></i></div><span class="er-arrow rose">▼</span></div></td>
+            </tr>
+            <tr>
+              <td><div class="er-name"><span class="avatar">AB</span><p>Avery Banks</p></div></td>
+              <td><span class="cell h4">90%</span></td><td><span class="cell h4">$0</span></td><td><span class="cell h3">8h</span></td><td><span class="cell h3">6/8</span></td>
+              <td><span class="status-tag st-good">GOOD</span></td>
+              <td><div class="er-trend up"><div class="er-spark"><i style="height:10px"></i><i style="height:11px"></i><i style="height:10px"></i><i style="height:12px"></i><i style="height:11px"></i><i style="height:13px"></i></div><span class="er-arrow sage">▲</span></div></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="er-foot">
+        <div class="legend"><span class="h4"><i></i>Strong</span><span class="h2"><i></i>Watch</span><span class="h1"><i></i>Weak</span></div>
+        <span>Showing 5 of 42 · sorted by steepest decline</span>
+        <span class="ai"><span class="chip">AI</span>Devin slipped on all four signals this month — flag for a check-in?</span>
+      </div>`
+  }
+};
+
+const ALL_IDS = Object.keys(WIDGETS);
+const DEFAULT_LAYOUT = [
+  { id: "kpi", size: "L" },
+  { id: "health", size: "M" },
+  { id: "needs", size: "M" },
+  { id: "week", size: "M" },
+  { id: "treasury", size: "M" },
+  { id: "roster", size: "L" },
+];
+const STORAGE_KEY = "figurints-dashboard-widget-library-mock";
+
+function cloneLayout(layout) { return layout.map(w => ({ ...w })); }
+
+function loadSaved() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return { layout: cloneLayout(DEFAULT_LAYOUT) };
+    const parsed = JSON.parse(raw);
+    const layout = (parsed.layout || []).filter(w => WIDGETS[w.id] && WIDGETS[w.id].sizes.includes(w.size));
+    return { layout: layout.length ? layout : cloneLayout(DEFAULT_LAYOUT) };
+  } catch (e) {
+    return { layout: cloneLayout(DEFAULT_LAYOUT) };
+  }
+}
+
+let saved = loadSaved();
+let working = null;
+let editing = false;
+let dragCtx = null;      // { source: 'board'|'catalog', id }
+let dragOverInfo = null; // { anchorId: string|null, before: boolean }
+
+const boardEl = document.getElementById("board");
+const catalogEl = document.getElementById("catalog");
+const catListEl = document.getElementById("catList");
+const actionsEl = document.getElementById("actions");
+const toastEl = document.getElementById("toast");
+
+function currentLayout() { return editing ? working.layout : saved.layout; }
+function availableIds(layout) { return ALL_IDS.filter(id => !layout.some(w => w.id === id)); }
+
+function toolsHTML(id, size, sizes) {
+  const sizeToggle = sizes.length > 1
+    ? `<div class="size-toggle">${sizes.map(s => `<button class="sz-btn ${s === size ? "active" : ""}" data-action="resize" data-id="${id}" data-size="${s}">${s === "L" ? "Full" : "Half"}</button>`).join("")}</div>`
+    : "";
+  return `<div class="tile-tools">
+    <span class="tt-handle" title="Drag to reorder">⠿</span>
+    ${sizeToggle}
+    <button class="tt-remove" data-action="remove" data-id="${id}" title="Remove widget">×</button>
+  </div>`;
+}
+
+function tileHTML(w) {
+  const def = WIDGETS[w.id];
+  return `<div class="tile" data-id="${w.id}" data-size="${w.size}" ${editing ? 'draggable="true"' : ""}>
+    ${editing ? toolsHTML(w.id, w.size, def.sizes) : ""}
+    <div class="card">${def.render()}</div>
+  </div>`;
+}
+
+function catCardHTML(id) {
+  const def = WIDGETS[id];
+  return `<div class="cat-card" draggable="true" data-id="${id}">
+    <div class="cat-name">${def.name}</div>
+    <p class="cat-blurb">${def.blurb}</p>
+    <button data-action="add" data-id="${id}">+ Add to board</button>
+  </div>`;
+}
+
+function renderBoard() {
+  const layout = currentLayout();
+  boardEl.innerHTML = layout.length
+    ? layout.map(tileHTML).join("")
+    : `<div style="grid-column:1/-1;text-align:center;padding:40px;font-family:var(--serif);font-style:italic;color:var(--muted);border:1px dashed var(--line);border-radius:12px;">Your board is empty — add widgets from the library below.</div>`;
+}
+
+function renderCatalog() {
+  if (!editing) return;
+  const ids = availableIds(working.layout);
+  catListEl.innerHTML = ids.length
+    ? ids.map(catCardHTML).join("")
+    : `<div class="cat-empty">You've added every widget in the library — nice board.</div>`;
+}
+
+function renderActions() {
+  actionsEl.innerHTML = editing
+    ? `<button class="btn subtle" data-action="reset">Reset to default</button>
+       <button class="btn" data-action="cancel">Cancel</button>
+       <button class="btn primary" data-action="save">Save layout</button>`
+    : `<button class="btn primary" data-action="enter-edit">✎ Customize Dashboard</button>`;
+}
+
+function render() {
+  renderBoard();
+  renderCatalog();
+  renderActions();
+}
+
+function showToast(msg) {
+  toastEl.textContent = msg;
+  toastEl.classList.add("show");
+  clearTimeout(showToast._t);
+  showToast._t = setTimeout(() => toastEl.classList.remove("show"), 2600);
+}
+
+function enterEdit() {
+  working = { layout: cloneLayout(saved.layout) };
+  editing = true;
+  document.body.classList.add("editing");
+  render();
+}
+function exitEdit() {
+  editing = false;
+  working = null;
+  document.body.classList.remove("editing");
+  render();
+}
+function cancelEdit() { exitEdit(); }
+function saveLayout() {
+  saved = { layout: cloneLayout(working.layout) };
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(saved)); } catch (e) {}
+  exitEdit();
+  showToast("Layout saved — everyone in the chapter sees this arrangement.");
+}
+function resetDefault() {
+  working.layout = cloneLayout(DEFAULT_LAYOUT);
+  render();
+}
+
+function clearDragIndicators() {
+  document.querySelectorAll(".drop-before,.drop-after").forEach(el => el.classList.remove("drop-before", "drop-after"));
+}
+
+document.addEventListener("click", e => {
+  const btn = e.target.closest("[data-action]");
+  if (!btn) return;
+  const { action, id, size } = btn.dataset;
+  switch (action) {
+    case "enter-edit": enterEdit(); break;
+    case "cancel": cancelEdit(); break;
+    case "save": saveLayout(); break;
+    case "reset": resetDefault(); break;
+    case "resize": {
+      const w = working.layout.find(x => x.id === id);
+      if (w) { w.size = size; render(); }
+      break;
+    }
+    case "remove": {
+      working.layout = working.layout.filter(x => x.id !== id);
+      render();
+      break;
+    }
+    case "add": {
+      const def = WIDGETS[id];
+      working.layout.push({ id, size: def.sizes[def.sizes.length - 1] });
+      render();
+      break;
+    }
+  }
+});
+
+// ── Reorder within the board ─────────────────────────────────────────────
+boardEl.addEventListener("dragstart", e => {
+  const tile = e.target.closest(".tile");
+  if (!tile || !editing) return;
+  dragCtx = { source: "board", id: tile.dataset.id };
+  e.dataTransfer.effectAllowed = "move";
+  e.dataTransfer.setData("text/plain", "board:" + tile.dataset.id);
+  requestAnimationFrame(() => tile.classList.add("dragging"));
+});
+boardEl.addEventListener("dragend", e => {
+  const tile = e.target.closest(".tile");
+  if (tile) tile.classList.remove("dragging");
+  clearDragIndicators();
+  dragCtx = null;
+  dragOverInfo = null;
+});
+boardEl.addEventListener("dragover", e => {
+  if (!editing || !dragCtx) return;
+  e.preventDefault();
+  e.dataTransfer.dropEffect = "move";
+  clearDragIndicators();
+  const tile = e.target.closest(".tile");
+  if (tile && tile.dataset.id !== dragCtx.id) {
+    const rect = tile.getBoundingClientRect();
+    const before = e.clientX - rect.left < rect.width / 2;
+    tile.classList.add(before ? "drop-before" : "drop-after");
+    dragOverInfo = { anchorId: tile.dataset.id, before };
+  } else if (!tile) {
+    dragOverInfo = { anchorId: null, before: false };
+  }
+});
+boardEl.addEventListener("drop", e => {
+  if (!editing || !dragCtx) return;
+  e.preventDefault();
+  clearDragIndicators();
+  const layout = working.layout;
+  let insertIdx = layout.length;
+  if (dragOverInfo && dragOverInfo.anchorId) {
+    const idx = layout.findIndex(w => w.id === dragOverInfo.anchorId);
+    insertIdx = dragOverInfo.before ? idx : idx + 1;
+  }
+  if (dragCtx.source === "board") {
+    const fromIdx = layout.findIndex(w => w.id === dragCtx.id);
+    if (fromIdx === -1) return;
+    const [item] = layout.splice(fromIdx, 1);
+    if (fromIdx < insertIdx) insertIdx--;
+    layout.splice(insertIdx, 0, item);
+  } else if (dragCtx.source === "catalog") {
+    const def = WIDGETS[dragCtx.id];
+    layout.splice(insertIdx, 0, { id: dragCtx.id, size: def.sizes[def.sizes.length - 1] });
+  }
+  dragCtx = null;
+  dragOverInfo = null;
+  render();
+});
+
+// ── Drag from the catalog onto the board (add) ───────────────────────────
+catListEl.addEventListener("dragstart", e => {
+  const card = e.target.closest(".cat-card");
+  if (!card) return;
+  dragCtx = { source: "catalog", id: card.dataset.id };
+  e.dataTransfer.effectAllowed = "copy";
+  e.dataTransfer.setData("text/plain", "catalog:" + card.dataset.id);
+  requestAnimationFrame(() => card.classList.add("dragging"));
+});
+catListEl.addEventListener("dragend", e => {
+  const card = e.target.closest(".cat-card");
+  if (card) card.classList.remove("dragging");
+  dragCtx = null;
+  dragOverInfo = null;
+});
+
+// ── Drag a board widget onto the catalog area (remove) ───────────────────
+catalogEl.addEventListener("dragover", e => {
+  if (!editing || !dragCtx || dragCtx.source !== "board") return;
+  e.preventDefault();
+  catalogEl.classList.add("drop-target");
+});
+catalogEl.addEventListener("dragleave", e => {
+  if (!catalogEl.contains(e.relatedTarget)) catalogEl.classList.remove("drop-target");
+});
+catalogEl.addEventListener("drop", e => {
+  if (!editing || !dragCtx || dragCtx.source !== "board") return;
+  e.preventDefault();
+  catalogEl.classList.remove("drop-target");
+  working.layout = working.layout.filter(w => w.id !== dragCtx.id);
+  dragCtx = null;
+  dragOverInfo = null;
+  render();
+});
+
+render();
+</script>
+</body>
+</html>
