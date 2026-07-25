@@ -20,7 +20,7 @@ import { iterSSE } from "../lib/sse";
 import { useChapter } from "../context/ChapterContext";
 import { IcCal, IcCoin, IcSend, IcSpark, IcStop, IcUsers } from "./chat/icons";
 import { MarkdownLite } from "./chat/MarkdownLite";
-import { ReasoningLedger, TraceBlock } from "./chat/ReasoningLedger";
+import { LedgerHandoff, ReasoningLedger, TraceBlock } from "./chat/ReasoningLedger";
 import { AnswerBlock } from "./chat/AnswerBlock";
 import { WritCard } from "./chat/WritCard";
 import { ApprovalsView } from "./chat/ApprovalsView";
@@ -199,9 +199,68 @@ export function ChatWidget() {
     }));
   }, []);
 
+  // ── Ledger staging ─────────────────────────────────────────────────────────
+  // Tool calls arrive in bursts — several names land in one delta chunk, and
+  // parallel tools finish within milliseconds of each other. Applied raw, a
+  // batch pops onto screen in a single frame instead of posting like a ledger.
+  // So ledger mutations queue and apply a beat apart, spending ONLY the slack
+  // we're already waiting through.
+  //
+  // The queue can never delay an answer, because every terminal event flushes it
+  // first. `flushStage` is deliberately synchronous — DO NOT put an `await`
+  // between a flush and the patch that follows it, or the answer waits on the
+  // animation instead of the other way round. Flushed mutations and the terminal
+  // patch land in one React commit, so there is no extra frame either.
+  const stageRef = useRef<{ q: Array<() => void>; timer: ReturnType<typeof setTimeout> | null }>({ q: [], timer: null });
+  const reducedRef = useRef(false);
+
+  useEffect(() => {
+    const mq = window.matchMedia?.("(prefers-reduced-motion: reduce)");
+    if (!mq) return;
+    const sync = () => { reducedRef.current = mq.matches; };
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
+
+  const flushStage = useCallback(() => {
+    const s = stageRef.current;
+    if (s.timer) { clearTimeout(s.timer); s.timer = null; }
+    while (s.q.length) s.q.shift()!();
+  }, []);
+
+  const enqueueStage = useCallback((mutation: () => void) => {
+    const s = stageRef.current;
+    if (reducedRef.current) { mutation(); return; }
+    s.q.push(mutation);
+    const pump = () => {
+      s.timer = null;
+      const next = s.q.shift();
+      if (!next) return;
+      next();
+      if (s.q.length === 0) return;
+      // Tighten as the queue deepens so a three-tool batch still cascades
+      // instead of collapsing, while total staged delay stays bounded.
+      const gap = s.q.length > 6 ? 0 : s.q.length > 3 ? 45 : 90;
+      s.timer = setTimeout(pump, gap);
+    };
+    if (!s.timer) s.timer = setTimeout(pump, 0);
+  }, []);
+
+  // A queued mutation that outlives its turn would patch the wrong message.
+  useEffect(() => () => {
+    const s = stageRef.current;
+    if (s.timer) clearTimeout(s.timer);
+    s.q.length = 0;
+  }, []);
+
   const sendMessage = useCallback(async (text: string) => {
     const trimmed = text.trim();
     if (!trimmed || streaming) return;
+
+    // Any mutation still queued belongs to the turn we're replacing.
+    flushStage();
+    stageRef.current.q.length = 0;
 
     const userMsg: ChatMessage = { id: newId(), role: "user", content: trimmed };
     // Seed the ledger with what the question is plainly about, so the wait while
@@ -246,57 +305,59 @@ export function ChatWidget() {
         let parsed: unknown;
         try { parsed = JSON.parse(data); } catch { continue; }
 
+        // Ledger events stage; everything terminal flushes first (see enqueueStage).
         if (event === "step") {
           const s = parsed as { id?: string; verb?: string; source?: string };
           if (s.id && s.verb) {
             // Named, not yet running — a pending node on the margin.
             const step: LedgerStep = { id: s.id, verb: s.verb, ...(s.source ? { source: s.source } : {}), status: "pending" };
-            patchMessage(aid, m => ({
+            enqueueStage(() => patchMessage(aid, m => ({
               ...m,
               steps: reconcileStep(m.steps ?? [], step),
               composing: false,
-            }));
+            })));
           }
         } else if (event === "step_start") {
           const s = parsed as { id?: string };
           if (s.id) {
-            patchMessage(aid, m => ({
+            enqueueStage(() => patchMessage(aid, m => ({
               ...m,
               // The batch is known now, so any guess it didn't corroborate goes.
               steps: dropProvisional(m.steps ?? []).map(st =>
                 st.id === s.id ? { ...st, status: "active" as const } : st,
               ),
-            }));
+            })));
           }
         } else if (event === "step_done") {
           const s = parsed as { id?: string; finding?: string };
           if (s.id) {
-            patchMessage(aid, m => ({
+            enqueueStage(() => patchMessage(aid, m => ({
               ...m,
               steps: (m.steps ?? []).map(st => st.id === s.id
                 ? { ...st, status: "done" as const, ...(s.finding ? { finding: s.finding } : {}) }
                 : st),
-            }));
+            })));
           }
         } else if (event === "step_drop") {
           const s = parsed as { ids?: string[] };
           const ids = new Set(Array.isArray(s.ids) ? s.ids : []);
           if (ids.size > 0) {
-            patchMessage(aid, m => ({
+            enqueueStage(() => patchMessage(aid, m => ({
               ...m,
               steps: (m.steps ?? []).filter(st => !ids.has(st.id)),
-            }));
+            })));
           }
         } else if (event === "composing") {
           // The model is writing, so anything we guessed it would read is
           // settled as wrong — drop it now rather than let it sit there pending
           // until the answer lands.
-          patchMessage(aid, m => ({
+          enqueueStage(() => patchMessage(aid, m => ({
             ...m,
             steps: dropProvisional(m.steps ?? []),
             composing: true,
-          }));
+          })));
         } else if (event === "answer") {
+          flushStage();
           const a = parsed as Partial<AnswerData>;
           if (typeof a.verdict === "string") {
             const answer: AnswerData = {
@@ -308,9 +369,11 @@ export function ChatWidget() {
             patchMessage(aid, m => ({ ...m, answer, steps: settleLedger(m.steps) }));
           }
         } else if (event === "text") {
+          flushStage();
           const delta = (parsed as { delta?: string }).delta ?? "";
           patchMessage(aid, m => ({ ...m, content: m.content + delta, steps: settleLedger(m.steps) }));
         } else if (event === "proposal") {
+          flushStage();
           const p = parsed as Omit<ProposalCard, "id" | "state"> & Record<string, unknown>;
           if (p.action && p.endpoint && p.method && p.payload && p.display && p.perm) {
             const card: ProposalCard = {
@@ -329,11 +392,13 @@ export function ChatWidget() {
             patchMessage(aid, m => ({ ...m, proposals: [...(m.proposals ?? []), card] }));
           }
         } else if (event === "done") {
+          flushStage();
           patchMessage(aid, m => ({ ...m, steps: settleLedger(m.steps), composing: false }));
           break;
         }
       }
     } catch (e) {
+      flushStage();
       if ((e as { name?: string })?.name === "AbortError") {
         // Stopped by the user — keep whatever arrived, mark the turn stopped.
         patchMessage(aid, m => ({ ...m, stopped: true, steps: settleLedger(m.steps), composing: false }));
@@ -342,10 +407,11 @@ export function ChatWidget() {
         patchMessage(aid, m => ({ ...m, content: m.content || "(network error)", steps: settleLedger(m.steps), composing: false }));
       }
     } finally {
+      flushStage();
       setStreaming(false);
       abortRef.current = null;
     }
-  }, [streaming, patchMessage]);
+  }, [streaming, patchMessage, enqueueStage, flushStage]);
 
   const stopStreaming = useCallback(() => {
     abortRef.current?.abort();
@@ -583,46 +649,55 @@ export function ChatWidget() {
                     return (
                       <div key={m.id} className="msg ai think-in">
                         <div className="who"><i />Ask Chapt</div>
-                        {showLedgerLive && (
-                          <ReasoningLedger
-                            steps={m.steps ?? []}
-                            intent={m.intent ?? "Consulting the records…"}
-                            composing={m.composing}
-                          />
-                        )}
-                        {m.answer && (
-                          <AnswerBlock
-                            answer={m.answer}
-                            steps={m.steps ?? []}
-                            selectedRow={m === lastAnswer ? selRow : -1}
-                            feedback={m.feedback}
-                            onAsk={q => void sendMessage(q)}
-                            onFeedback={v => giveFeedback(m, v)}
-                          />
-                        )}
-                        {!m.answer && m.content && (
-                          <>
-                            {(m.steps?.length ?? 0) > 0 && <TraceBlock steps={m.steps!} />}
-                            <MarkdownLite
-                              text={m.content}
-                              trailing={isLive ? <span className="cs-caret" aria-hidden /> : undefined}
+                        {/* The deliberation lifts away first; the answer mounts
+                            into the space it left, never on top of it. */}
+                        <LedgerHandoff
+                          showLedger={showLedgerLive}
+                          ledger={
+                            <ReasoningLedger
+                              steps={m.steps ?? []}
+                              intent={m.intent ?? "Consulting the records…"}
+                              composing={m.composing}
                             />
-                          </>
-                        )}
-                        {!m.answer && !m.content && !isLive && (
-                          <>
-                            {(m.steps?.length ?? 0) > 0 && <TraceBlock steps={m.steps!} />}
-                            {m.stopped && <div className="note"><em>Stopped.</em></div>}
-                          </>
-                        )}
-                        {m.proposals?.map(card => (
-                          <WritCard
-                            key={card.id}
-                            card={card}
-                            onApprove={c => void approveProposal(m.id, c)}
-                            onDiscard={c => discardProposal(m.id, c)}
-                          />
-                        ))}
+                          }
+                          body={
+                            <>
+                              {m.answer && (
+                                <AnswerBlock
+                                  answer={m.answer}
+                                  steps={m.steps ?? []}
+                                  selectedRow={m === lastAnswer ? selRow : -1}
+                                  feedback={m.feedback}
+                                  onAsk={q => void sendMessage(q)}
+                                  onFeedback={v => giveFeedback(m, v)}
+                                />
+                              )}
+                              {!m.answer && m.content && (
+                                <>
+                                  {(m.steps?.length ?? 0) > 0 && <TraceBlock steps={m.steps!} />}
+                                  <MarkdownLite
+                                    text={m.content}
+                                    trailing={isLive ? <span className="cs-caret" aria-hidden /> : undefined}
+                                  />
+                                </>
+                              )}
+                              {!m.answer && !m.content && !isLive && (
+                                <>
+                                  {(m.steps?.length ?? 0) > 0 && <TraceBlock steps={m.steps!} />}
+                                  {m.stopped && <div className="note"><em>Stopped.</em></div>}
+                                </>
+                              )}
+                              {m.proposals?.map(card => (
+                                <WritCard
+                                  key={card.id}
+                                  card={card}
+                                  onApprove={c => void approveProposal(m.id, c)}
+                                  onDiscard={c => discardProposal(m.id, c)}
+                                />
+                              ))}
+                            </>
+                          }
+                        />
                       </div>
                     );
                   })}

@@ -9,11 +9,14 @@
 // active when the model is writing, and the whole ledger collapses into a
 // tappable trace above the verdict once the answer lands (see TraceBlock).
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { IcChev, IcTick } from "./icons";
 import type { LedgerStep, StepStatus } from "./types";
 
 const COMPOSE_VERB = "Composing the answer";
+
+/** Matches the mock's resolve-out (.18s) — the ledger lifts before the answer mounts. */
+export const HANDOFF_MS = 180;
 
 /** Highlight the numeric/currency spans of a finding in violet, mock-style. */
 function FindingText({ text }: { text: string }) {
@@ -104,6 +107,46 @@ export function ReasoningLedger({ steps, intent, composing: composingSignal }: {
   );
 }
 
+/**
+ * The mock's handoff: the deliberation lifts away, and only then does the answer
+ * take its place — so the two never occupy the frame together. Costs one
+ * resolve-out beat of time-to-answer, which is the deliberate trade.
+ *
+ * Local state on purpose. The thread's auto-scroll effect keys on `messages`,
+ * so putting this phase there would fire a second smooth-scroll on the swap.
+ * A turn that mounts already-answered (history, a reload) starts at "body" and
+ * never animates.
+ */
+type HandoffPhase = "ledger" | "out" | "body";
+
+export function LedgerHandoff({ showLedger, ledger, body }: {
+  showLedger: boolean;
+  ledger: React.ReactNode;
+  body: React.ReactNode;
+}) {
+  const [phase, setPhase] = useState<HandoffPhase>(showLedger ? "ledger" : "body");
+
+  useEffect(() => {
+    if (showLedger) setPhase("ledger");
+    else setPhase(p => (p === "ledger" ? "out" : p));
+  }, [showLedger]);
+
+  useEffect(() => {
+    if (phase !== "out") return;
+    // The reduced-motion rule kills the lift with !important, so holding here
+    // would just park a static copy on screen. Swap on the same frame instead.
+    const reduced = typeof window !== "undefined"
+      && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    if (reduced) { setPhase("body"); return; }
+    const t = setTimeout(() => setPhase("body"), HANDOFF_MS);
+    return () => clearTimeout(t);
+  }, [phase]);
+
+  if (phase === "ledger") return <>{ledger}</>;
+  if (phase === "out") return <div className="reason-out">{ledger}</div>;
+  return <>{body}</>;
+}
+
 /** One-line summary for the collapsed trace: sources touched + the last finding. */
 export function traceLabel(steps: LedgerStep[]): string {
   const sources: string[] = [];
@@ -121,7 +164,7 @@ export function TraceBlock({ steps }: { steps: LedgerStep[] }) {
   const [open, setOpen] = useState(false);
   if (steps.length === 0) return null;
   return (
-    <div className={`trace${open ? " open" : ""}`}>
+    <div className={`trace in in-1${open ? " open" : ""}`}>
       <button type="button" className="trace-toggle" aria-expanded={open} onClick={() => setOpen(o => !o)}>
         <span className="tk"><IcTick /></span>
         {traceLabel(steps)}

@@ -234,8 +234,16 @@
 
 .chat-root .lstep-in { animation: cs-lstep-in .32s var(--ease) both; }
 @keyframes cs-lstep-in { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: none; } }
-.chat-root .lfind.fin-in { animation: cs-fin-in .34s var(--ease) both; }
+/* A finding slides in from the right toward the margin, landing hot and cooling
+   into the record — the mock gets that violet from the step still spinning; here
+   the figure is already final, so it cools instead of counting. */
+.chat-root .lfind.fin-in { animation: cs-fin-in .34s var(--ease) both, cs-fin-cool .55s var(--ease) both; }
 @keyframes cs-fin-in { from { opacity: 0; transform: translateX(7px); } to { opacity: 1; transform: none; } }
+@keyframes cs-fin-cool { from { color: var(--vio); } to { color: var(--ink-soft); } }
+
+/* The deliberation lifts away as the answer takes its place. */
+.chat-root .reason-out { animation: cs-resolve-out .18s var(--ease) both; }
+@keyframes cs-resolve-out { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(-6px); } }
 
 /* ── Trace — the reasoning persists, collapsed, above the answer ─────────── */
 .chat-root .trace { margin-bottom: 15px; }
