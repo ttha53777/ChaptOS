@@ -132,13 +132,15 @@ async function main() {
       // These pages are client components that fetch their data via several
       // /api/* calls *after* hydration (some — the AI digest — take many
       // seconds), so networkidle is both too early and unreliable here. Instead
-      // wait until the roster actually has data: the empty state renders the
-      // literal "No brothers match your filters." string, so we wait for that to
-      // disappear. Falls back to a fixed settle if the marker never resolves
-      // (e.g. a genuinely empty org, or a non-dashboard route).
+      // wait for the roster to actually have rows. Keyed on DOM structure, not
+      // copy: the empty-state string is vocab-driven ("No members/players/…
+      // match your filters"), so matching on text silently stopped working the
+      // moment an org renamed its members. Falls back to a fixed settle if the
+      // marker never resolves (a genuinely empty org, or a non-dashboard route).
       await page
         .waitForFunction(
-          () => !document.body.innerText.includes("No brothers match your filters"),
+          () => document.querySelectorAll("#sec-brothers tbody tr[class], #sec-brothers tbody tr").length > 0
+             && !document.body.innerText.includes("Syncing chapter data"),
           { timeout: 20_000 },
         )
         .catch(() => {});

@@ -34,6 +34,8 @@ import { validateSlugFormat } from "@/lib/slug-rules";
 import { DEFAULT_EVENT_TYPE_SEEDS, getOrgType, normalizeWorkflows, type RoleSeed } from "@/lib/org-types";
 import { BUILTIN_EVENT_TYPES } from "@/lib/event-types";
 import { normalizeDisabledFeatures, type DisabledFeatures } from "@/lib/workflow-features";
+import { BUILTIN_METRIC_KPI } from "@/lib/tracked-metrics";
+import { BUILTIN_METRIC_IDS } from "@/lib/onboarding/kinds";
 import { sanitizeVocabOverrides } from "@/lib/vocab";
 import { PERMISSIONS, ALL_PERMISSIONS, type Permission } from "@/lib/permissions";
 import { uploadOrgLogoObject, removeOrgLogoObject } from "@/lib/supabase/org-logo";
@@ -77,19 +79,6 @@ interface SeededEventType {
 }
 
 /**
- * Built-in metric toggle → the operations KPI widget it shows. An un-tracked
- * built-in hides its widget via OrganizationConfig.disabledFeatures (opt-out
- * map). kpi-treasury deliberately absent: it follows the finance workflow,
- * not a per-member metric.
- */
-const BUILTIN_METRIC_KPI = {
-  attendance:   "kpi-attendance",
-  gpa:          "kpi-gpa",
-  duesOwed:     "kpi-dues",
-  serviceHours: "kpi-service",
-} as const;
-
-/**
  * Kebab-slug a metric name the same shape lib/validation/metrics.ts SLUG_RE
  * accepts, de-duped against slugs already taken in this org's seed batch.
  */
@@ -115,7 +104,7 @@ function resolveMetrics(metrics: NonNullable<CreateOrgInput["blueprint"]>["metri
 } {
   if (!metrics) return { disabledFeatures: {}, customMetrics: [] };
 
-  const hidden = (Object.keys(BUILTIN_METRIC_KPI) as (keyof typeof BUILTIN_METRIC_KPI)[])
+  const hidden = BUILTIN_METRIC_IDS
     .filter(id => !metrics.builtins[id])
     .map(id => BUILTIN_METRIC_KPI[id]);
   const disabledFeatures = normalizeDisabledFeatures(hidden.length ? { operations: hidden } : {});

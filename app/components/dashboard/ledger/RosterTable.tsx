@@ -1,6 +1,9 @@
 import React from "react";
 import { fmt$, getBrotherStatus, roleTitle, type Brother, type BrotherStatus, type Thresholds } from "../../../data";
 import { isAttendanceExempt } from "@/lib/thresholds";
+import { ALL_TRACKED, type TrackedMetrics } from "@/lib/tracked-metrics";
+import type { BuiltinMetricId } from "@/lib/onboarding/kinds";
+import { useVocab } from "../../../hooks/useVocab";
 import { BrotherAvatar } from "../../BrotherAvatar";
 
 const STATUS_TAG: Record<BrotherStatus, { cls: string; label: string }> = {
@@ -9,11 +12,16 @@ const STATUS_TAG: Record<BrotherStatus, { cls: string; label: string }> = {
   "At Risk": { cls: "st-risk",  label: "AT RISK" },
 };
 
-const SORTABLE: [keyof Brother, string][] = [
-  ["attendance", "Attendance"],
-  ["duesOwed", "Dues"],
-  ["gpa", "GPA"],
-  ["serviceHours", "Svc"],
+/**
+ * Metric columns, in display order. `metric` ties each to the org's tracked set
+ * so a measure the org switched off doesn't render a column of zeros; `label`
+ * is a vocab key where the org can rename the concept.
+ */
+const METRIC_COLUMNS: { key: keyof Brother; metric: BuiltinMetricId; label: string; vocabKey?: "Dues" | "Service" }[] = [
+  { key: "attendance",   metric: "attendance",   label: "Attendance" },
+  { key: "duesOwed",     metric: "duesOwed",     label: "Dues", vocabKey: "Dues" },
+  { key: "gpa",          metric: "gpa",          label: "GPA" },
+  { key: "serviceHours", metric: "serviceHours", label: "Svc", vocabKey: "Service" },
 ];
 
 function SortHead({
@@ -55,6 +63,7 @@ export function RosterTable({
   selfAvatarUrl,
   avatarRevision,
   hideButton,
+  tracked = ALL_TRACKED,
 }: {
   brothers: Brother[];
   statusCounts: { Good: number; Watch: number; "At Risk": number };
@@ -69,7 +78,9 @@ export function RosterTable({
   selfAvatarUrl?: string | null;
   avatarRevision: number;
   hideButton?: React.ReactNode;
+  tracked?: TrackedMetrics;
 }) {
+  const v = useVocab();
   const total = statusCounts.Good + statusCounts.Watch + statusCounts["At Risk"];
   const filters: [string, number][] = [
     ["All", total],
@@ -77,6 +88,10 @@ export function RosterTable({
     ["Watch", statusCounts.Watch],
     ["At Risk", statusCounts["At Risk"]],
   ];
+  const columns = METRIC_COLUMNS.filter(c => tracked[c.metric]);
+  // Name + Role + one per tracked metric + Status.
+  const colCount = 3 + columns.length;
+  const memberLabel = v("Member");
 
   return (
     <section id="sec-brothers" className="card dash-group" aria-label="Roster">
@@ -96,20 +111,20 @@ export function RosterTable({
       <table>
         <thead>
           <tr>
-            <th>Brother</th>
+            <th>{memberLabel}</th>
             <th>Role</th>
-            {SORTABLE.map(([k, label]) => (
+            {columns.map(({ key, label, vocabKey }) => (
               <SortHead
-                key={k}
-                label={label}
-                colKey={k}
-                active={sortKey === k}
+                key={key}
+                label={vocabKey ? v(vocabKey) : label}
+                colKey={key}
+                active={sortKey === key}
                 dir={sortDir}
                 onSort={onSort}
-                numeric={k !== "attendance"}
+                numeric={key !== "attendance"}
                 /* GPA + Service are the lowest-priority columns — hidden ≤1023 to
                    keep the roster readable on tablet without horizontal scroll. */
-                secondary={k === "gpa" || k === "serviceHours"}
+                secondary={key === "gpa" || key === "serviceHours"}
               />
             ))}
             <th className="num">Status</th>
@@ -117,10 +132,10 @@ export function RosterTable({
         </thead>
         <tbody>
           {brothers.length === 0 ? (
-            <tr><td colSpan={7} className="muted" style={{ padding: "24px 18px", textAlign: "center" }}>No brothers match your filters.</td></tr>
+            <tr><td colSpan={colCount} className="muted" style={{ padding: "24px 18px", textAlign: "center" }}>No {v("Member", true).toLowerCase()} match your filters.</td></tr>
           ) : (
             brothers.map((b) => {
-              const status = getBrotherStatus(b, thresholds);
+              const status = getBrotherStatus(b, thresholds, tracked);
               const exempt = isAttendanceExempt(b.attendance);
               const attCls = b.attendance >= thresholds.attendanceWatch ? "sage" : b.attendance >= thresholds.attendanceAtRisk ? "gold" : "rose";
               const attBar = b.attendance >= thresholds.attendanceWatch ? "bg-sage" : b.attendance >= thresholds.attendanceAtRisk ? "bg-gold" : "bg-rose";
@@ -143,27 +158,35 @@ export function RosterTable({
                     </div>
                   </td>
                   <td className="role">{roleTitle(b)}</td>
-                  <td>
-                    {exempt ? (
-                      <span className="status-tag exempt" title="Exempt from attendance this semester">Exempt</span>
-                    ) : (
-                      <div className="attb">
-                        <span className="track"><i className={attBar} style={{ width: `${b.attendance}%` }} /></span>
-                        <span className={attCls}>{b.attendance}%</span>
-                      </div>
-                    )}
-                  </td>
-                  <td className="num">
-                    {b.duesOwed > 0 ? (
-                      <span className="mono gold">{fmt$(b.duesOwed)}</span>
-                    ) : (
-                      <span className="mono muted">—</span>
-                    )}
-                  </td>
-                  <td className="num col-secondary"><span className={`mono ${gpaCls}`}>{b.gpa.toFixed(1)}</span></td>
-                  <td className="num col-secondary">
-                    <span className={`mono ${svcCls}`}>{b.serviceHours}h</span>
-                  </td>
+                  {tracked.attendance && (
+                    <td>
+                      {exempt ? (
+                        <span className="status-tag exempt" title={`Exempt from attendance this ${v("Period").toLowerCase()}`}>Exempt</span>
+                      ) : (
+                        <div className="attb">
+                          <span className="track"><i className={attBar} style={{ width: `${b.attendance}%` }} /></span>
+                          <span className={attCls}>{b.attendance}%</span>
+                        </div>
+                      )}
+                    </td>
+                  )}
+                  {tracked.duesOwed && (
+                    <td className="num">
+                      {b.duesOwed > 0 ? (
+                        <span className="mono gold">{fmt$(b.duesOwed)}</span>
+                      ) : (
+                        <span className="mono muted">—</span>
+                      )}
+                    </td>
+                  )}
+                  {tracked.gpa && (
+                    <td className="num col-secondary"><span className={`mono ${gpaCls}`}>{b.gpa.toFixed(1)}</span></td>
+                  )}
+                  {tracked.serviceHours && (
+                    <td className="num col-secondary">
+                      <span className={`mono ${svcCls}`}>{b.serviceHours}h</span>
+                    </td>
+                  )}
                   <td className="num"><span className={`status-tag ${tag.cls}`}>{tag.label}</span></td>
                 </tr>
               );
@@ -174,7 +197,7 @@ export function RosterTable({
       </div>
 
       <div className="table-foot">
-        {total} brothers · {statusCounts.Good} good · {statusCounts.Watch} watch · {statusCounts["At Risk"]} at risk &ensp;—&ensp; click a row for profile, dues &amp; service log
+        {total} {v("Member", total !== 1).toLowerCase()} · {statusCounts.Good} good · {statusCounts.Watch} watch · {statusCounts["At Risk"]} at risk &ensp;—&ensp; click a row for the full profile
       </div>
     </section>
   );

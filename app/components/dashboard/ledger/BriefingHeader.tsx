@@ -31,6 +31,8 @@ export function BriefingHeader({
   weekEnd,
   digest,
   digestLoading,
+  digestQuiet,
+  onExpandDigest,
   health,
   actions,
 }: {
@@ -39,6 +41,14 @@ export function BriefingHeader({
   weekEnd: string;
   digest: string | null;
   digestLoading: boolean;
+  /**
+   * True when the week is genuinely quiet — nothing scheduled and nothing late.
+   * Renders a plain sentence with no AI chip: no model was consulted, and the
+   * badge would misattribute a canned string.
+   */
+  digestQuiet?: boolean;
+  /** Opens the digest detail drawer (the full week breakdown). */
+  onExpandDigest?: () => void;
   health?: React.ReactNode;
   /** Action bar (My Standing / Quick Actions / Log Attendance / search / export)
    *  folded in from the removed top toolbar. Renders below the digest. */
@@ -62,7 +72,7 @@ export function BriefingHeader({
   const dateLabel = clock.label;
 
   return (
-    <section id="sec-dashboard" className="briefing" aria-label="Chapter briefing">
+    <section id="sec-dashboard" className="briefing" aria-label="Briefing">
       <div>
         <p className="kicker">
           <span className="today">{dateLabel}</span>
@@ -71,12 +81,27 @@ export function BriefingHeader({
         <h1 className="greeting">
           {clock.greeting}, <em>{firstName}</em>.
         </h1>
-        {(digest || digestLoading) && (
-          <div className="digest">
-            <span className="ai-chip">AI</span>
+        {(digest || digestLoading || digestQuiet) && (
+          <div
+            className={`digest${onExpandDigest ? " digest-clickable" : ""}`}
+            {...(onExpandDigest
+              ? {
+                  role: "button",
+                  tabIndex: 0,
+                  title: "View this week's breakdown",
+                  onClick: onExpandDigest,
+                  onKeyDown: (e: React.KeyboardEvent) => {
+                    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onExpandDigest(); }
+                  },
+                }
+              : {})}
+          >
+            {!digestQuiet && <span className="ai-chip">AI</span>}
             {digestLoading
               ? <p className="digest-loading">Summarizing this week…</p>
-              : <p>{digest}</p>}
+              : digestQuiet
+                ? <p className="digest-quiet">Nothing scheduled this week.</p>
+                : <p>{digest}</p>}
           </div>
         )}
         {actions}

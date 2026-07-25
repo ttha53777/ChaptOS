@@ -3,7 +3,7 @@ import React from "react";
 /** Container for the ledger strip. Auto-flows columns so hidden measures simply
  *  collapse the grid (no empty gaps). */
 export function LedgerStrip({ children }: { children: React.ReactNode }) {
-  return <section className="ledger" aria-label="Chapter measures">{children}</section>;
+  return <section className="ledger" aria-label="Key measures">{children}</section>;
 }
 
 /**

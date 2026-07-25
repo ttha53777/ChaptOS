@@ -1,4 +1,5 @@
 import React from "react";
+import { useVocab } from "../../../hooks/useVocab";
 import type { Announcement } from "../AnnouncementCard";
 
 /**
@@ -16,6 +17,7 @@ export function PinnedAnnouncement({
   onEdit: () => void;
   hideButton?: React.ReactNode;
 }) {
+  const v = useVocab();
   const body = announcement?.body.trim() ?? "";
   const hasCta = Boolean(announcement?.ctaLabel && announcement?.ctaUrl);
 
@@ -30,7 +32,7 @@ export function PinnedAnnouncement({
             {body && <span className="pin-text">{body}</span>}
           </>
         ) : (
-          <span className="pin-text">Officers can post a chapter-wide announcement here.</span>
+          <span className="pin-text">Officers can post an org-wide {v("Announcement").toLowerCase()} here.</span>
         )}
       </p>
       {hasCta && (

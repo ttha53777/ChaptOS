@@ -107,6 +107,14 @@
   color: var(--vio); border: 1px solid var(--vio-bg); background: var(--vio-bg); border-radius: 4px; padding: 2px 5px; transform: translateY(-1px); }
 .dash .digest p { font-size: 13.5px; color: var(--ink-soft); font-style: italic; font-family: var(--serif); font-weight: 350; }
 .dash .digest .digest-loading { font-style: italic; color: var(--faint); font-family: var(--serif); }
+/* A quiet week is reported, not hidden — dimmer than a real narration so it
+   reads as an absence rather than a finding. */
+.dash .digest .digest-quiet { color: var(--faint); }
+/* The line opens the week's full breakdown drawer. */
+.dash .digest-clickable { cursor: pointer; border-radius: 7px; margin-left: -7px; padding: 3px 7px;
+  transition: background .14s ease; }
+.dash .digest-clickable:hover { background: var(--card-2); }
+.dash .digest-clickable:focus-visible { outline: 1px solid var(--vio); outline-offset: 1px; }
 
 /* ── Briefing action bar (relocated top toolbar) ─────────────
    The My Standing / Quick Actions / Log Attendance / search / export controls,
@@ -247,6 +255,12 @@
 .dash .att-row .act { flex-shrink: 0; font-family: var(--mono); font-size: 10px; letter-spacing: .08em; text-transform: uppercase;
   color: var(--muted); border: 1px solid var(--line); background: transparent; border-radius: 7px; padding: 5px 11px; cursor: pointer; }
 .dash .att-row .act:hover { color: var(--vio); border-color: var(--vio); }
+/* "Show all N" / "Show less" — the queue is capped so a large org's list can't
+   push the roster off screen. Spans the card like a footer row. */
+.dash .att-more { width: 100%; font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--muted); background: transparent; border: none; border-top: 1px solid var(--line-soft);
+  padding: 10px 18px; text-align: left; cursor: pointer; }
+.dash .att-more:hover { color: var(--vio); }
 .dash .rose { color: var(--rose); } .dash .bg-rose { background: var(--rose); }
 .dash .gold { color: var(--gold); } .dash .bg-gold { background: var(--gold); }
 .dash .sage { color: var(--ok); }   .dash .bg-sage { background: var(--ok); }

@@ -10,8 +10,6 @@ const DrawerTrendChart = dynamic(() => import("../components/dashboard/DrawerTre
 import {
   Brother, CalendarEvent, CalEventType, InstagramStatus, InstagramType, ActivityEntry, PartyEvent, Task, InstagramTask, Transaction,
   taskAssigneeLabel,
-  treasuryTrend, TREASURY_BALANCE, TREASURY_PROJECTED,
-  KPI_SPARKLINES,
   getBrotherStatus, calcHealthScore, deriveNeedsAttention, avg, fmt$, fmtDate, fmtRange, isoWeekBounds,
 } from "../data";
 import { useRouter } from "next/navigation";
@@ -21,7 +19,12 @@ import { useSemesterErrorHandler } from "../hooks/useSemesterErrorHandler";
 import { useThresholds } from "../hooks/useThresholds";
 import { useVocab } from "../hooks/useVocab";
 import { useFeature } from "../hooks/useFeature";
+import { useTrackedMetrics } from "../hooks/useTrackedMetrics";
+import { useRollingToday } from "../hooks/useRollingToday";
+import { trackedCount } from "@/lib/tracked-metrics";
+import type { BuiltinMetricId } from "@/lib/onboarding/kinds";
 import { WORKFLOW_FEATURES, type DisabledFeatures } from "@/lib/workflow-features";
+import { isAttendanceExempt } from "@/lib/thresholds";
 import { taskUrgency, URGENCY_ORDER, type TaskUrgency } from "@/lib/tasks/urgency";
 import { Sidebar, SvgIcon, NAV_ICONS, isNavVisible } from "../components/Sidebar";
 import { BrotherAvatar } from "../components/BrotherAvatar";
@@ -45,7 +48,6 @@ import { BriefingActions } from "../components/dashboard/ledger/BriefingActions"
 import { HealthDial } from "../components/dashboard/ledger/HealthDial";
 import { PinnedAnnouncement } from "../components/dashboard/ledger/PinnedAnnouncement";
 import { LedgerStrip, Measure } from "../components/dashboard/ledger/LedgerStrip";
-import { LedgerSparkline } from "../components/dashboard/ledger/LedgerSparkline";
 import { NeedsAttention } from "../components/dashboard/ledger/NeedsAttention";
 import { RosterTable } from "../components/dashboard/ledger/RosterTable";
 import { ThisWeek } from "../components/dashboard/ledger/ThisWeek";
@@ -108,8 +110,8 @@ function KPIDetailDrawer({
   totalDoorRev: number;
   maxRevenue: number;
   bestEvent: PartyEvent | null;
-  liveBalance: number;
-  liveProjected: number;
+  liveBalance: number | null;
+  liveProjected: number | null;
   liveTrend: { month: string; balance: number }[];
   onOpenModal: (key: "deadline" | "revenue" | "ig") => void;
   onOpenAttendance: () => void;
@@ -141,9 +143,12 @@ function KPIDetailDrawer({
 
     switch (activeKey) {
       case "attendance": {
-        const sorted = [...brotherList].sort((a, b) => a.attendance - b.attendance);
-        const belowWatch = brotherList.filter(b => b.attendance < THRESHOLDS.attendanceWatch);
-        const atRisk = brotherList.filter(b => b.attendance < THRESHOLDS.attendanceAtRisk);
+        // Exempt members carry the -1 sentinel, not a real percentage — they
+        // must not count as "below 80%" or sort to the top of the list.
+        const attendees = brotherList.filter(b => !isAttendanceExempt(b.attendance));
+        const sorted = [...attendees].sort((a, b) => a.attendance - b.attendance);
+        const belowWatch = attendees.filter(b => b.attendance < THRESHOLDS.attendanceWatch);
+        const atRisk = attendees.filter(b => b.attendance < THRESHOLDS.attendanceAtRisk);
         return (
           <>
             <div className="dd-stats c3">
@@ -314,43 +319,53 @@ function KPIDetailDrawer({
       }
 
       case "treasury": {
+        if (liveBalance === null || liveProjected === null) {
+          return <div className="dd-empty">No treasury data yet — log an expense or revenue to start the books.</div>;
+        }
         const firstMonth = liveTrend[0];
         const lastMonth  = liveTrend[liveTrend.length - 1];
-        const growth = lastMonth.balance - firstMonth.balance;
-        const growthPct = Math.round((growth / firstMonth.balance) * 100);
+        // A single month (or none) has no growth to report against.
+        const growth = firstMonth && lastMonth ? lastMonth.balance - firstMonth.balance : 0;
+        const growthPct = firstMonth?.balance ? Math.round((growth / firstMonth.balance) * 100) : 0;
         return (
           <>
             <div className="dd-stats c2">
               <div className="dd-stat"><p className="n vio">{fmt$(liveBalance)}</p><p className="l">Current balance</p></div>
               <div className="dd-stat"><p className="n ok">{fmt$(liveProjected)}</p><p className="l">Projected end</p></div>
             </div>
-            <div>
-              <p className="dd-label">Treasury Trend</p>
-              <DrawerTrendChart data={liveTrend} />
-            </div>
-            <div>
-              <p className="dd-label">Monthly Breakdown</p>
-              <div className="dd-rows">
-                {liveTrend.map((t, i) => {
-                  const prev = i > 0 ? liveTrend[i - 1].balance : t.balance;
-                  const delta = t.balance - prev;
-                  return (
-                    <div key={t.month} className="dd-bar-row">
-                      <span className="nm" style={{ width: 32 }}>{t.month}</span>
-                      <div className="dd-track"><i style={{ width: `${Math.round((t.balance / liveProjected) * 100)}%` }} /></div>
-                      <span className="val" style={{ width: 56 }}>{fmt$(t.balance)}</span>
-                      {i > 0 && (
-                        <span className={`hint ${delta >= 0 ? "ok" : "rose"}`} style={{ width: 52 }}>
-                          {delta >= 0 ? "+" : ""}{fmt$(delta)}
-                        </span>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
+            {liveTrend.length > 0 && (
+              <>
+                <div>
+                  <p className="dd-label">Treasury Trend</p>
+                  <DrawerTrendChart data={liveTrend} />
+                </div>
+                <div>
+                  <p className="dd-label">Monthly Breakdown</p>
+                  <div className="dd-rows">
+                    {liveTrend.map((t, i) => {
+                      const prev = i > 0 ? liveTrend[i - 1].balance : t.balance;
+                      const delta = t.balance - prev;
+                      return (
+                        <div key={t.month} className="dd-bar-row">
+                          <span className="nm" style={{ width: 32 }}>{t.month}</span>
+                          <div className="dd-track"><i style={{ width: `${liveProjected ? Math.round((t.balance / liveProjected) * 100) : 0}%` }} /></div>
+                          <span className="val" style={{ width: 56 }}>{fmt$(t.balance)}</span>
+                          {i > 0 && (
+                            <span className={`hint ${delta >= 0 ? "ok" : "rose"}`} style={{ width: 52 }}>
+                              {delta >= 0 ? "+" : ""}{fmt$(delta)}
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </>
+            )}
             <div className="dd-note">
-              Treasury grew by <b>{fmt$(growth)} ({growthPct}%)</b> this semester. Projected end balance: <b>{fmt$(liveProjected)}</b>.
+              {growth !== 0
+                ? <>Treasury {growth > 0 ? "grew" : "shrank"} by <b>{fmt$(Math.abs(growth))} ({Math.abs(growthPct)}%)</b> this period. Projected end balance: <b>{fmt$(liveProjected)}</b>.</>
+                : <>Projected end balance: <b>{fmt$(liveProjected)}</b>.</>}
             </div>
           </>
         );
@@ -450,6 +465,7 @@ function WidgetDetailDrawer({
     eventsThisWeek: CalendarEvent[];
     partiesThisWeek: PartyEvent[];
     atRiskCount: number;
+    overdueCount: number;
   };
   weekRange: { start: string; end: string };
   digestNarration: string | null;
@@ -550,7 +566,7 @@ function WidgetDetailDrawer({
       }
 
       case "digest": {
-        const { deadlinesDue, igDue, eventsThisWeek, partiesThisWeek, atRiskCount } = weeklyDigest;
+        const { deadlinesDue, igDue, eventsThisWeek, partiesThisWeek, atRiskCount, overdueCount } = weeklyDigest;
         const total = deadlinesDue.length + igDue.length + eventsThisWeek.length + partiesThisWeek.length;
         const sections: { label: string; tone: string; count: number; rows: { key: string; title: string; meta: string }[] }[] = [
           { label: "Deadlines", tone: "vio", count: deadlinesDue.length,
@@ -566,9 +582,14 @@ function WidgetDetailDrawer({
           <>
             <div className="flex items-center justify-between">
               <p className="dd-meta" style={{ fontSize: 12 }}>{fmtRange(weekRange.start, weekRange.end)}</p>
-              {atRiskCount > 0 && (
-                <span className="dd-chip gold">{atRiskCount} at risk</span>
-              )}
+              <div className="flex items-center gap-2">
+                {overdueCount > 0 && (
+                  <span className="dd-chip rose">{overdueCount} overdue</span>
+                )}
+                {atRiskCount > 0 && (
+                  <span className="dd-chip gold">{atRiskCount} at risk</span>
+                )}
+              </div>
             </div>
             {digestNarration && (
               <div className="dd-ai">
@@ -582,7 +603,11 @@ function WidgetDetailDrawer({
               ))}
             </div>
             {total === 0 ? (
-              <div className="dd-note ok center">Nothing on the agenda this week</div>
+              <div className={`dd-note center ${overdueCount > 0 ? "" : "ok"}`}>
+                {overdueCount > 0
+                  ? `Nothing scheduled this week — but ${overdueCount} deadline${overdueCount === 1 ? " is" : "s are"} already overdue.`
+                  : "Nothing on the agenda this week"}
+              </div>
             ) : (
               sections.map(s => s.rows.length > 0 && (
                 <div key={s.label}>
@@ -923,6 +948,14 @@ export default function Home() {
   // under the always-on "operations" workflow; a section is shown unless an admin
   // hid it. The mobile layout reads the same flags via its own useFeature() calls.
   const feature = useFeature();
+  // Which built-in per-member metrics this org actually tracks. A metric the
+  // org switched off in onboarding stores a 0 for everyone, so it must not
+  // become a roster column, feed the health score, or flag anyone At Risk.
+  const tracked = useTrackedMetrics();
+  // Today, as local ISO. State rather than a mount-time const: dashboards get
+  // left open for days, and a frozen "today" silently freezes the week's agenda
+  // and every overdue calculation with it.
+  const todayISO = useRollingToday();
   // ── UI state ──────────────────────────────────────────────────────────────
   const [search,         setSearch]         = useState("");
   const [statusFilter,   setStatusFilter]   = useState("All");
@@ -932,6 +965,7 @@ export default function Home() {
   const [activeModal,    setActiveModal]    = useState<"deadline" | "revenue" | "ig" | "attendance" | "pick-event" | "edit-deadline" | "edit-ig" | "expense" | "excuse" | "event" | "pick-event-for-excuse" | null>(null);
   const [selectedEventForAttendance, setSelectedEventForAttendance] = useState<CalendarEvent | null>(null);
   const [calendarList,   setCalendarList]   = useState<CalendarEvent[]>([]);
+  const [calendarLoaded, setCalendarLoaded] = useState(false);
   const [eventTypes,     setEventTypes]     = useState<CalEventType[]>([]);
   // Org roles for the "New task" modal's assignee picker (mirrors the tasks page).
   const [roles,          setRoles]          = useState<RoleOption[]>([]);
@@ -964,7 +998,7 @@ export default function Home() {
   const toast = useToast();
 
   // ── Data state ─────────────────────────────────────────────────────────────
-  const { currentUser, brotherList, setBrotherList, taskList, setTaskList, igTaskList, setIgTaskList, partyList, setPartyList, activityFeed, setActivityFeed, treasuryData, setTransactionList, reimbursementList, isLoading, loadError, mutationError, setMutationError, refreshChapterData, setDisabledFeaturesLocal, setSelfNameLocal, avatarRevision, can } = useChapter();
+  const { currentUser, brotherList, setBrotherList, taskList, setTaskList, igTaskList, setIgTaskList, partyList, setPartyList, activityFeed, setActivityFeed, treasuryData, setTransactionList, reimbursementList, isLoading, loadError, loadedSections, mutationError, setMutationError, refreshChapterData, setDisabledFeaturesLocal, setSelfNameLocal, avatarRevision, can } = useChapter();
   const isAdmin = currentUser?.isAdmin ?? false;
   // Granular permission gates for new UI checks. Existing `isAdmin` is kept
   // unchanged for prop-chains into QuickActionsMenu / KPIDrawer / Modal title
@@ -1034,6 +1068,14 @@ export default function Home() {
   // Matches the timeline/settings deadline modal: when the org's Instagram page
   // is visible, the form offers to log the deadline as an Instagram post instead.
   const igEnabled      = isNavVisible("Instagram", currentUser?.org?.enabledWorkflows ?? []);
+  // Orgs without the `finance` workflow (a sports team, say) have no Treasury
+  // page at all — the dashboard must not show them a treasury either. This gates
+  // both treasury surfaces.
+  const financeEnabled = isNavVisible("Treasury",  currentUser?.org?.enabledWorkflows ?? []);
+  // The `kpi-treasury` toggle narrowly means "the balance measure in the ledger
+  // strip" (see WORKFLOW_FEATURES), so it gates the tile only — hiding a strip
+  // tile must not also remove the full Treasury rail card.
+  const treasuryMeasureVisible = financeEnabled && feature("operations", "kpi-treasury");
   const partiesEnabled = isNavVisible("Parties",   currentUser?.org?.enabledWorkflows ?? []);
   // "New Event" picker options — creatable, workflow-enabled, non-hidden types.
   const eventCategoryOptions = useMemo<CategoryOption[]>(
@@ -1054,10 +1096,14 @@ export default function Home() {
     window.history.replaceState(null, "", `${window.location.pathname}${qs ? `?${qs}` : ""}`);
   }, [orgName, toast]);
 
-  // ── Treasury — live from DB, fall back to hardcoded constants while loading ─
-  const liveBalance   = treasuryData?.balance   ?? TREASURY_BALANCE;
-  const liveProjected = treasuryData?.projected ?? TREASURY_PROJECTED;
-  const liveTrend     = treasuryData?.trend     ?? treasuryTrend;
+  // ── Treasury — live from DB ────────────────────────────────────────────────
+  // `treasuryData` is null while the fetch is in flight AND when it fails, so
+  // there is no safe number to fall back to: a fabricated balance is worse than
+  // no balance. Every treasury surface renders an explicit empty state instead.
+  const hasTreasury   = treasuryData != null;
+  const liveBalance   = treasuryData?.balance   ?? null;
+  const liveProjected = treasuryData?.projected ?? null;
+  const liveTrend     = treasuryData?.trend     ?? [];
 
   // ── Activity logger ────────────────────────────────────────────────────────
   const addActivity = useCallback((message: string, type: ActivityEntry["type"]) => {
@@ -1102,12 +1148,21 @@ export default function Home() {
   }
 
   // ── Health score ───────────────────────────────────────────────────────────
-  // Drives the briefing HealthDial (score + ATT/GPA/DUES/SVC/DDL breakdown) and
-  // the health detail drawer.
-  const health = useMemo(() => calcHealthScore(brotherList, taskList, THRESHOLDS), [brotherList, taskList, THRESHOLDS]);
-  // Hold the Chapter Health widget back until the founder finishes setup — a
-  // brand-new org has no real data, so the dial would only show a noise score.
+  // Drives the briefing HealthDial (score + per-metric breakdown) and the health
+  // detail drawer. Only metrics the org tracks are scored, and the surviving
+  // weights are renormalized — otherwise an org that skipped GPA/dues/service
+  // would be mathematically capped well below "Healthy" no matter how it ran.
+  const health = useMemo(
+    () => calcHealthScore(brotherList, taskList, THRESHOLDS, todayISO, tracked),
+    [brotherList, taskList, THRESHOLDS, todayISO, tracked],
+  );
+  // Hold the health widget back until the founder finishes setup — a brand-new
+  // org has no real data, so the dial would only show a noise score.
   const { setupComplete } = useSetupChecklist();
+  // …and hold it back for orgs with too few tracked measures to composite. With
+  // one per-member metric the "score" is that metric plus a deadline count,
+  // which says less than the KPI tile already does.
+  const healthMeaningful = trackedCount(tracked) >= 2;
 
   // ── Announcement (pinned single record) ───────────────────────────────────
   useEffect(() => {
@@ -1212,7 +1267,11 @@ export default function Home() {
         return r.json();
       })
       .then((data: CalendarEvent[] | null) => { if (data) setCalendarList(data); })
-      .catch(err => { if (err.name !== "AbortError") console.error("Failed to load calendar", err); });
+      .catch(err => { if (err.name !== "AbortError") console.error("Failed to load calendar", err); })
+      // Settled either way. The digest needs to know the difference between "no
+      // events this week" and "events haven't arrived yet" before it will claim
+      // the week is quiet.
+      .finally(() => setCalendarLoaded(true));
     return () => controller.abort();
   }, []);
 
@@ -1231,10 +1290,14 @@ export default function Home() {
   }, [canTasks]);
 
   // ── KPIs ──────────────────────────────────────────────────────────────────
-  const avgAttendance   = useMemo(() => avg(brotherList.map(b => b.attendance)), [brotherList]);
+  // Attendance-exempt members carry the -1 sentinel rather than a percentage,
+  // so they're excluded from every attendance aggregate — averaging -1 in would
+  // drag the headline down and invent a "below watch" warning.
+  const attendees       = useMemo(() => brotherList.filter(b => !isAttendanceExempt(b.attendance)), [brotherList]);
+  const avgAttendance   = useMemo(() => avg(attendees.map(b => b.attendance)), [attendees]);
   const outstandingDues = useMemo(() => brotherList.reduce((s, b) => s + b.duesOwed, 0), [brotherList]);
   const chapterGPA      = useMemo(() => avg(brotherList.map(b => b.gpa)), [brotherList]);
-  const belowAttCount   = useMemo(() => brotherList.filter(b => b.attendance < THRESHOLDS.attendanceWatch).length, [brotherList, THRESHOLDS]);
+  const belowAttCount   = useMemo(() => attendees.filter(b => b.attendance < THRESHOLDS.attendanceWatch).length, [attendees, THRESHOLDS]);
   const owingCount      = useMemo(() => brotherList.filter(b => b.duesOwed > 0).length, [brotherList]);
   const belowGpaCount   = useMemo(() => brotherList.filter(b => b.gpa < THRESHOLDS.gpaWatch).length, [brotherList, THRESHOLDS]);
   const totalServiceHrs = useMemo(() => brotherList.reduce((s, b) => s + b.serviceHours, 0), [brotherList]);
@@ -1244,36 +1307,50 @@ export default function Home() {
   const bestEvent       = useMemo(() => partyList.length ? partyList.reduce((a, b) => b.doorRevenue > a.doorRevenue ? b : a) : null, [partyList]);
 
   const statusCounts = useMemo(() => ({
-    Good:      brotherList.filter(b => getBrotherStatus(b, THRESHOLDS) === "Good").length,
-    Watch:     brotherList.filter(b => getBrotherStatus(b, THRESHOLDS) === "Watch").length,
-    "At Risk": brotherList.filter(b => getBrotherStatus(b, THRESHOLDS) === "At Risk").length,
-  }), [brotherList, THRESHOLDS]);
+    Good:      brotherList.filter(b => getBrotherStatus(b, THRESHOLDS, tracked) === "Good").length,
+    Watch:     brotherList.filter(b => getBrotherStatus(b, THRESHOLDS, tracked) === "Watch").length,
+    "At Risk": brotherList.filter(b => getBrotherStatus(b, THRESHOLDS, tracked) === "At Risk").length,
+  }), [brotherList, THRESHOLDS, tracked]);
 
   // ── Needs-attention queue ───────────────────────────────────────────────────
   // Overdue deadlines, outstanding dues (aggregated), and at-risk members.
-  const todayISO = useMemo(() => new Date().toISOString().slice(0, 10), []);
   const needsAttention = useMemo(
-    () => deriveNeedsAttention(brotherList, taskList, THRESHOLDS, todayISO, reimbursementList),
-    [brotherList, taskList, THRESHOLDS, todayISO, reimbursementList],
+    () => deriveNeedsAttention(brotherList, taskList, THRESHOLDS, todayISO, reimbursementList, tracked),
+    [brotherList, taskList, THRESHOLDS, todayISO, reimbursementList, tracked],
   );
 
   // ── Weekly Digest ──────────────────────────────────────────────────────────
   // Forward-looking "this week's agenda" for the current calendar week (Mon–Sun).
-  const weekRange = useMemo(() => isoWeekBounds(new Date()), []);
+  const weekRange = useMemo(() => isoWeekBounds(new Date(`${todayISO}T00:00:00`)), [todayISO]);
   const weeklyDigest = useMemo(() => {
     const { start, end } = weekRange;
     const inWeek = (iso: string) => iso >= start && iso <= end; // zero-padded ISO compares chronologically
     return {
-      deadlinesDue:    taskList.filter(d => d.dueDate != null && inWeek(d.dueDate)),
-      igDue:           igTaskList.filter(t => inWeek(t.dueDate)),
-      eventsThisWeek:  calendarList.filter(e => e.mandatory && inWeek(e.date)),
+      // Open deadlines only — a task you already finished is not still "due",
+      // and leaving it in also fed the AI digest as outstanding work. Matches
+      // the same filter deriveNeedsAttention applies.
+      deadlinesDue:    taskList.filter(d => d.status !== "done" && d.dueDate != null && inWeek(d.dueDate)),
+      igDue:           igTaskList.filter(t => t.status !== "posted" && inWeek(t.dueDate)),
+      // Every event on the calendar this week, not just mandatory ones. A week
+      // full of optional socials, rehearsals or practices is still a week with
+      // an agenda — filtering to `mandatory` made those weeks read as empty and
+      // suppressed the digest entirely.
+      eventsThisWeek:  calendarList.filter(e => inWeek(e.date)),
       partiesThisWeek: partyList.filter(p => inWeek(p.date)),
       atRiskCount:     statusCounts["At Risk"],
+      // Not "this week", but the most useful thing to say when this week is
+      // quiet: work that is already late.
+      overdueCount:    taskList.filter(d => d.status !== "done" && d.dueDate != null && d.dueDate < todayISO).length,
     };
-  }, [weekRange, taskList, igTaskList, calendarList, partyList, statusCounts]);
+  }, [weekRange, taskList, igTaskList, calendarList, partyList, statusCounts, todayISO]);
   const digestTotal =
     weeklyDigest.deadlinesDue.length + weeklyDigest.igDue.length +
     weeklyDigest.eventsThisWeek.length + weeklyDigest.partiesThisWeek.length;
+  // Something worth narrating: either scheduled items, or late work to flag.
+  const digestHasSignal = digestTotal > 0 || weeklyDigest.overdueCount > 0;
+  // The week's inputs have all arrived, so an empty week can be reported as
+  // empty rather than as "still loading".
+  const digestReady = calendarLoaded && loadedSections.has("deadlines");
 
   // ── AI narration (gpt-4o-mini via /api/ai/digest) ──────────────────────────
   // A stable content key identifies this exact weekly-digest state. Narration is
@@ -1283,13 +1360,14 @@ export default function Home() {
   const digestKey = useMemo(() => {
     const ids = (arr: { id: number }[]) => arr.map(x => x.id).sort((a, b) => a - b).join(",");
     return [
-      "v2", // bump when the AI prompt/length changes, to invalidate cached narrations
+      "v5", // bump when the AI prompt/length changes, to invalidate cached narrations
       weekRange.start, weekRange.end,
       `d:${ids(weeklyDigest.deadlinesDue)}`,
       `i:${ids(weeklyDigest.igDue)}`,
       `e:${ids(weeklyDigest.eventsThisWeek)}`,
       `p:${ids(weeklyDigest.partiesThisWeek)}`,
       `r:${weeklyDigest.atRiskCount}`,
+      `o:${weeklyDigest.overdueCount}`,
     ].join("|");
   }, [weekRange, weeklyDigest]);
 
@@ -1297,7 +1375,15 @@ export default function Home() {
   const [digestNarrationLoading, setDigestNarrationLoading] = useState(false);
 
   useEffect(() => {
-    if (digestTotal === 0) { setDigestNarration(null); return; }
+    // Don't judge the week until the data behind it has actually arrived —
+    // empty arrays mean "not fetched yet" as often as they mean "nothing there"
+    // (see ChapterContext's loadedSections doc).
+    if (!calendarLoaded || !loadedSections.has("deadlines")) return;
+
+    // Genuinely quiet week: say so plainly rather than hiding the line. No model
+    // call — there is nothing to summarize, and a canned sentence must not wear
+    // the AI chip.
+    if (!digestHasSignal) { setDigestNarration(null); setDigestNarrationLoading(false); return; }
 
     const cacheKey = `chaptos_digest_narration:${digestKey}`;
     try {
@@ -1320,6 +1406,7 @@ export default function Home() {
         events:    weeklyDigest.eventsThisWeek.map(e => ({ title: e.title, date: e.date })),
         parties:   weeklyDigest.partiesThisWeek.map(p => ({ name: p.name, date: p.date })),
         atRiskCount: weeklyDigest.atRiskCount,
+        overdueCount: weeklyDigest.overdueCount,
       }),
     })
       .then(r => r.ok ? r.json() : null)
@@ -1332,14 +1419,20 @@ export default function Home() {
       .finally(() => setDigestNarrationLoading(false));
 
     return () => controller.abort();
-  }, [digestKey, digestTotal, weekRange, weeklyDigest]);
+  }, [digestKey, digestHasSignal, weekRange, weeklyDigest, igEnabled, calendarLoaded, loadedSections]);
+
+  // A metric the org stops tracking loses its roster column, so a sort still
+  // pointing at it would silently order rows by an invisible value.
+  useEffect(() => {
+    if (sortKey && sortKey in tracked && !tracked[sortKey as BuiltinMetricId]) setSortKey(null);
+  }, [sortKey, tracked]);
 
   // ── Filtered/sorted brothers ───────────────────────────────────────────────
   const filteredBrothers = useMemo((): Brother[] => {
     let result = brotherList.filter(b => {
       const q = search.toLowerCase();
       return (b.name.toLowerCase().includes(q) || b.role.toLowerCase().includes(q)) &&
-             (statusFilter === "All" || getBrotherStatus(b, THRESHOLDS) === statusFilter);
+             (statusFilter === "All" || getBrotherStatus(b, THRESHOLDS, tracked) === statusFilter);
     });
     if (sortKey) {
       result = [...result].sort((a, b) => {
@@ -1804,6 +1897,8 @@ export default function Home() {
               weekEnd={weekRange.end}
               digest={digestNarration}
               digestLoading={digestNarrationLoading}
+              digestQuiet={digestReady && !digestHasSignal}
+              onExpandDigest={digestReady ? () => setWidgetDrawer("digest") : undefined}
               actions={
                 <BriefingActions
                   onMyStanding={
@@ -1818,7 +1913,7 @@ export default function Home() {
                   enabledWorkflows={currentUser?.org?.enabledWorkflows}
                 />
               }
-              health={feature("operations", "health") && setupComplete ? (
+              health={feature("operations", "health") && setupComplete && healthMeaningful ? (
                 <div className="dash-group">
                   <HealthDial
                     score={health.score}
@@ -1846,9 +1941,12 @@ export default function Home() {
             )}
 
             {/* ── Ledger strip ────────────────────────────────────────────── */}
+            {/* No sparklines: the app stores no metric history, so the only
+                series available would be invented. A real trend needs a
+                periodic snapshot table — until then the headline stands alone. */}
             {(feature("operations", "kpi-attendance") || feature("operations", "kpi-dues") ||
               feature("operations", "kpi-gpa") || feature("operations", "kpi-service") ||
-              feature("operations", "kpi-treasury") || customMetricSnapshots.length > 0) && (
+              treasuryMeasureVisible || customMetricSnapshots.length > 0) && (
               <LedgerStrip>
                 {feature("operations", "kpi-attendance") && (
                   <Measure
@@ -1857,51 +1955,46 @@ export default function Home() {
                     unit="%"
                     note={`${belowAttCount} below ${THRESHOLDS.attendanceWatch}%`}
                     noteWarn={belowAttCount > 0}
-                    spark={<LedgerSparkline data={KPI_SPARKLINES.attendance} stroke="var(--gold)" />}
                     onClick={() => setActiveDrawer("attendance")}
                     hideButton={isActiveOrgAdmin ? <DashHideButton label="Attendance KPI" onHide={() => setWidgetHidden("kpi-attendance", true)} /> : undefined}
                   />
                 )}
                 {feature("operations", "kpi-dues") && (
                   <Measure
-                    label="Dues outstanding"
+                    label={`${v("Dues")} outstanding`}
                     unitLeading="$"
                     value={outstandingDues.toLocaleString()}
-                    note={`${owingCount} ${owingCount === 1 ? "brother" : "brothers"} owe`}
+                    note={`${owingCount} ${v("Member", owingCount !== 1).toLowerCase()} owe`}
                     noteWarn={owingCount > 0}
-                    spark={<LedgerSparkline data={KPI_SPARKLINES.dues} stroke="var(--ok)" />}
                     onClick={() => setActiveDrawer("dues")}
                     hideButton={isActiveOrgAdmin ? <DashHideButton label="Dues KPI" onHide={() => setWidgetHidden("kpi-dues", true)} /> : undefined}
                   />
                 )}
                 {feature("operations", "kpi-gpa") && (
                   <Measure
-                    label="Chapter GPA"
+                    label="Average GPA"
                     value={chapterGPA.toFixed(2)}
                     note={`${belowGpaCount} below ${THRESHOLDS.gpaWatch.toFixed(1)}`}
-                    spark={<LedgerSparkline data={KPI_SPARKLINES.gpa} stroke="var(--vio)" />}
                     onClick={() => setActiveDrawer("gpa")}
                     hideButton={isActiveOrgAdmin ? <DashHideButton label="GPA KPI" onHide={() => setWidgetHidden("kpi-gpa", true)} /> : undefined}
                   />
                 )}
                 {feature("operations", "kpi-service") && (
                   <Measure
-                    label="Service"
+                    label={v("Service")}
                     value={`${totalServiceHrs}`}
                     unit="h"
                     note={`${onTrackSvc} of ${brotherList.length} on track`}
-                    spark={<LedgerSparkline data={KPI_SPARKLINES.service} stroke="var(--vio)" />}
                     onClick={() => setActiveDrawer("service")}
                     hideButton={isActiveOrgAdmin ? <DashHideButton label="Service Hours KPI" onHide={() => setWidgetHidden("kpi-service", true)} /> : undefined}
                   />
                 )}
-                {feature("operations", "kpi-treasury") && (
+                {treasuryMeasureVisible && (
                   <Measure
-                    label="Treasury"
-                    unitLeading="$"
-                    value={liveBalance.toLocaleString()}
-                    note={`proj. ${fmt$(liveProjected)}`}
-                    spark={<LedgerSparkline data={KPI_SPARKLINES.treasury} stroke="var(--ok)" />}
+                    label={v("Treasury")}
+                    unitLeading={hasTreasury ? "$" : undefined}
+                    value={hasTreasury ? liveBalance!.toLocaleString() : "—"}
+                    note={hasTreasury ? `proj. ${fmt$(liveProjected!)}` : "No transactions yet"}
                     onClick={() => setActiveDrawer("treasury")}
                     hideButton={isActiveOrgAdmin ? <DashHideButton label="Treasury KPI" onHide={() => setWidgetHidden("kpi-treasury", true)} /> : undefined}
                   />
@@ -1952,6 +2045,7 @@ export default function Home() {
                     onOpenProfile={(id) => setSelectedBrotherId(id)}
                     onSendReminder={() => setActiveDrawer("dues")}
                     onOpenReimbursements={() => router.push(orgPath("/treasury?tab=Reimbursements"))}
+                    tracked={tracked}
                     hideButton={isActiveOrgAdmin ? <DashHideButton label="Needs attention" onHide={() => setWidgetHidden("needs-attention", true)} /> : undefined}
                   />
                   </div>
@@ -1971,6 +2065,7 @@ export default function Home() {
                     selfId={selfId}
                     selfAvatarUrl={currentUser?.avatarUrl}
                     avatarRevision={avatarRevision}
+                    tracked={tracked}
                     hideButton={isActiveOrgAdmin ? <DashHideButton label="Member tracking" onHide={() => setWidgetHidden("brother-tracking", true)} /> : undefined}
                   />
                   </div>
@@ -1990,7 +2085,9 @@ export default function Home() {
                     onAll={() => setWidgetDrawer("deadlines")}
                     onAddDeadline={canTasks ? () => setActiveModal("deadline") : () => router.push(orgPath("/tasks?new=1"))}
                   />
-                  <TreasuryRail balance={liveBalance} projected={liveProjected} trend={liveTrend} />
+                  {financeEnabled && (
+                    <TreasuryRail balance={liveBalance} projected={liveProjected} trend={liveTrend} />
+                  )}
                 </div>
 
                 {/* Remaining rail — Socials / Instagram / Activity */}
@@ -2032,7 +2129,7 @@ export default function Home() {
             )}
 
             {/* ── Footer ──────────────────────────────────────────────────── */}
-            <footer>{currentUser?.org?.name ?? "ChaptOS"} · Backed by seeded chapter data</footer>
+            <footer>{currentUser?.org?.name ?? "ChaptOS"}</footer>
 
           </div>
         </main>

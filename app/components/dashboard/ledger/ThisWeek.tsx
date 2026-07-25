@@ -19,8 +19,10 @@ type WeekItem = {
 };
 
 /**
- * "This week" agenda — mandatory events + deadlines due in the current ISO week
- * (already filtered by the page's weeklyDigest), merged and date-sorted.
+ * "This week" agenda — every calendar event plus deadlines due in the current
+ * ISO week (already filtered by the page's weeklyDigest), merged and
+ * date-sorted. Mandatory events are tagged as such in the meta line rather than
+ * being the only ones shown.
  * Read-only; the header All/Add link to the existing deadline drawer/modal so
  * deadline management stays reachable. Carries `id="sec-deadlines"`.
  */
