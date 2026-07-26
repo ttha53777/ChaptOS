@@ -35,7 +35,7 @@ The design decisions that do the most work:
 - **Org-scoped DB wrapper with automatic tenancy injection.** `lib/db/tenant.ts` wraps every Prisma operation to inject `organizationId` automatically — services call `ctx.db.transaction.create(...)` and can't accidentally touch another org's data. `findUnique` is replaced by `findFirst + org filter`; updates and deletes run a verify-then-mutate pattern to preserve exact return types without needing composite unique constraints everywhere.
 - **Three-tier auth: PlatformAdmin → OrgAdmin → Member.** `buildContext()` in `lib/context` resolves all three tiers per request, emits a typed `RequestContext`, and optionally gates on a specific permission or rate-limits the caller. Route handlers open with `buildContext()`, parse with Zod, call a service, and map errors with `toResponse()` — no `prisma.*` calls in `app/api/**`.
 - **Side effects through events, never service-to-service calls.** Services call `emit(ctx, action, subject, metadata)` from `lib/events`. Reactions (recalcs, notifications, projections) live as `on(action, handler)` registrations in `lib/events/handlers/`. The event writer also dual-writes an `ActivityLog` row so the existing feed keeps working.
-- **Tool-calling AI assistant with self-correcting validation.** Sixteen read tools + six write-proposal tools in one file ([lib/ai-tools.ts](lib/ai-tools.ts)) so schema and dispatcher can't drift. `validateArgs` walks the schema before dispatch — a wrong enum returns a structured error the model self-corrects on the next iteration.
+- **Tool-calling AI assistant with self-correcting validation.** Sixteen read tools + six write-proposal tools + a terminal `compose_answer` tool in one file ([lib/ai-tools.ts](lib/ai-tools.ts)) so schema and dispatcher can't drift. `validateArgs` walks the schema before dispatch — a wrong enum returns a structured error the model self-corrects on the next iteration. Answers stream as a live reasoning ledger; proposals surface as permission-gated, HMAC-signed writ cards.
 - **Pre-auth org creation that survives OAuth.** A founder builds their org through a six-step `/create` flow (name → interview → roles → timeline → blueprint → build) while signed out — Google sign-in happens *last*, at the Build step. The in-progress answers live in a `localStorage` draft ([lib/onboarding/draft.ts](lib/onboarding/draft.ts)) so the whole flow round-trips through the OAuth redirect and resumes at `/create?resume=1`. The draft is untrusted on the way back in: `parseDraft()` Zod-validates and expires it, and `draftToCreateOrgInput()` is the single mapping to the real `POST /api/orgs` payload. `provisionOrg` applies the resulting blueprint atomically and stamps `onboardingCompletedAt` at creation — there is no separate post-creation setup step.
 - **Org-defined custom fields and metrics.** Admins can add per-member fields (stored sparsely on `Brother.customFields`) and define their own KPIs (`OrgMetricDefinition` + `BrotherMetricValue`) with goal / watch / at-risk bands and an aggregation (`avg` / `sum` / `count_on_track`) — so a team can track "Jersey #" and a band can track "Section" without schema changes. Pure status/headline math lives in [lib/metrics.ts](lib/metrics.ts) and [lib/custom-member-fields.ts](lib/custom-member-fields.ts), importable from both server and client.
 - **Offline eval harness.** Hand-written cases at [evals/ask-the-chapter/cases.jsonl](evals/ask-the-chapter/cases.jsonl) drive the same loop as the production route in-process, graded on tool selection, args, and final-answer substrings. Lets prompt and model changes be measured instead of vibes-checked.
@@ -154,20 +154,21 @@ Four AI surfaces, all server-side, all dormant when `OPENAI_API_KEY` is unset. T
 
 Turns a founder's free-text interview answers into structured picks (workflow add/removes, vocab tweaks, kind/variant, custom metrics, a founder title) plus at most one clarifying follow-up per turn — deepest on the pages stage, where a bounded loop (max 5 follow-ups) asks specific workflow-resolving questions instead of assuming from the template. Non-streaming strict-JSON-schema output; every id in the response is intersected with the real registries (`validateInterviewResult`) before it leaves the route, and the model only *proposes* — picks dispatch into the same client-side draft reducer the founder's own taps use, with the blueprint review still in front of provisioning. Any failure returns `result: null` and the client falls back to keyword matchers.
 
-### Ask the Chapter — tool-calling assistant
-[app/api/ai/chat/route.ts](app/api/ai/chat/route.ts) · [app/components/ChatWidget.tsx](app/components/ChatWidget.tsx)
+### Ask Chapt — the reasoning-ledger Spotlight
+[app/api/ai/chat/route.ts](app/api/ai/chat/route.ts) · [app/components/ChatWidget.tsx](app/components/ChatWidget.tsx) · [app/components/chat/](app/components/chat/)
 
-A floating chat widget that answers ad-hoc questions about chapter state — *"who has the worst attendance?"*, *"how much have we spent on Party Supplies?"*, *"add a deadline for next Friday"* — by calling tools instead of inventing answers.
+A `⌘K` / `Ctrl-K` spotlight modal over a blurred scrim that answers ad-hoc questions about chapter state — *"who has the worst attendance?"*, *"how much have we spent on Party Supplies?"*, *"add a deadline for next Friday"* — by calling tools instead of inventing answers. Thinking renders as a live **reasoning ledger** (steps posting real findings, pending → active → done, on a ruled margin) that collapses into an auditable, persisted trace once the answer lands.
 
 **How it's built:**
-- **Twenty-two tools** declared in [lib/ai-tools.ts](lib/ai-tools.ts): 16 read tools and 6 write-proposal tools. The schemas the model sees and the dispatcher that runs the tools live in the same file so they can't drift.
+- **Twenty-three tools** declared in [lib/ai-tools.ts](lib/ai-tools.ts): 16 read tools, 6 write-proposal tools, and one terminal `compose_answer` tool the model calls to emit its structured final answer. Schemas and dispatcher live in the same file so they can't drift.
 - **Scoped to the authenticated org.** The system prompt and all tool data are bounded to `ctx.orgId`. The assistant can't read or propose writes against another org's data.
-- **Server-Sent Events streaming** with a Node-runtime endpoint, custom SSE framing, and a 10-iteration tool-call loop that lets the model chain queries.
+- **Server-Sent Events streaming** ([lib/ai-ledger.ts](lib/ai-ledger.ts)) with a Node-runtime endpoint and a 10-iteration tool-call loop. Events: `open` (paint "thinking"), `step`/`step_start`/`step_done`/`step_drop` (the ledger), `composing`, `proposal` (a writ card), `answer` (structured verdict/rows/follows/sources), `text` (plain-prose fallback), `done`. Step ids are the raw tool-call delta index so `step_done` can't drift from a filtered array.
 - **Parallel tool calls.** When the model emits multiple calls in one turn, the server runs them concurrently via `Promise.all`.
 - **Schema-validated args** (`validateArgs`). Wrong enums return a structured error the model self-corrects on the next iteration.
-- **Writes are proposals, not executions.** `propose_*` tools validate inputs but never write — the client renders a confirm card and POSTs to the real route on user confirmation. `buildContext()` guards still decide whether the write happens.
+- **Hybrid structured answers.** `answer` events carry a serif verdict plus tappable result rows, Sources, and follow-ups. Rows open a **row peek** sheet ([app/components/chat/PeekSheet.tsx](app/components/chat/PeekSheet.tsx)) — a record detail, not a follow-up question — with refs matched server-side against the tool results that actually ran ([lib/ai-refs.ts](lib/ai-refs.ts)), never emitted by the model.
+- **Writes are permission-gated writ cards, never silent.** `propose_*` tools validate inputs but never write. Each proposal is checked against the caller's `MANAGE_*` bits and HMAC-signed ([lib/ai-approval-sig.ts](lib/ai-approval-sig.ts)) so the confirm POST can't be tampered with; the client renders an Approve/Discard writ card, or — if the caller lacks the permission — a blocked gate naming who holds it. Confirming mints a durable `ChatApproval` record ([lib/services/chat-approval-service.ts](lib/services/chat-approval-service.ts)) surfaced in an Approvals inbox view alongside the real write.
 - **Date context injected at prompt build time** ([lib/ai-prompt.ts](lib/ai-prompt.ts)): today's date + weekday, week bounds, last chapter-meeting date, active semester.
-- **History trimmed before send.** Last 12 turns, prior messages capped at 600 chars.
+- **History trimmed before send.** Last 12 turns, prior messages capped at 600 chars; history itself is localStorage-only client-side.
 
 ### Weekly digest narration
 [app/api/ai/digest/route.ts](app/api/ai/digest/route.ts)
@@ -287,8 +288,10 @@ figurints/
 │   ├── join/[token]/             # invite-link redemption
 │   ├── welcome/                  # zero-membership landing
 │   ├── components/
-│   │   ├── ChatWidget.tsx        # floating "Ask the Chapter" assistant
+│   │   ├── ChatWidget.tsx        # "Ask Chapt" spotlight (⌘K modal + reasoning ledger)
 │   │   ├── ChatWidgetGate.tsx
+│   │   ├── chat-spotlight.css
+│   │   ├── chat/                 # ReasoningLedger, AnswerBlock, PeekSheet, WritCard, ApprovalsView, intent.ts
 │   │   ├── Sidebar.tsx
 │   │   ├── UserAvatar.tsx        # photo upload/remove menu
 │   │   ├── BrotherAvatar.tsx     # avatar with initials fallback
@@ -462,6 +465,9 @@ Task-shaped voting: a `Poll` attaches members and roles the same way a task does
 
 ### DuesPayment / Reimbursement
 Two request queues that gate the ledger. Both hold `amount`, `date`, a `status`, an optional `rejectionNote`, and a unique `transactionId` that is null until approval. Nothing moves on either book — not `Brother.duesOwed`, not `Transaction` — until a treasurer approves, at which point the service mints the ledger row and adjusts the balance atomically ([lib/services/dues-service.ts](lib/services/dues-service.ts), [lib/services/reimbursement-service.ts](lib/services/reimbursement-service.ts)). That `transactionId` is the only link between the two books, so a balance is blind to an approved payout until it exists.
+
+### ChatApproval
+Durable audit record for a confirmed Ask Chapt writ card: `kind`, the `propose_*` `action`, the writ card's `title`/`summary`/`rows` (JSON key/value lines), the `MANAGE_*` `permission` it ran under, who approved it, and a best-effort `subjectType`/`subjectId` link to the row the approval's POST created. Surfaced in the chat Approvals inbox.
 
 ### AttendanceExemption
 Excuses a member from attendance math for a whole `Semester` (e.g. studying abroad, inactive status) rather than event-by-event. Unique on `(semesterId, brotherId)`.
