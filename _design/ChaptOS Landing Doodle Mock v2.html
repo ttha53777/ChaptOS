@@ -1,0 +1,2867 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>ChaptOS — the operating system for student orgs</title>
+<meta name="description" content="One workspace for the roster, the money, the meetings and the week — that opens on what today actually needs, and that you can just ask." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600;12..96,700&family=Inter:wght@400;450;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+
+<style>
+/* ============================================================================
+   ChaptOS — landing mock v2
+   Direction: unchanged from the Doodle mock — Notion-warm (soft pastels,
+              doodles, whitespace) + Klarna motion (scroll-scrubbed scenes,
+              layered parallax, staggered entrances). Same tokens, same
+              primitives, same motion contract.
+
+   What changed is the ARGUMENT. v1 pitched four modules and one clever chat.
+   This one is built from the real product surface:
+     - the dashboard is a *briefing* (digest + health + needs-attention)
+     - a scrubbed "one Tuesday" scene walks the actual day across real pages
+     - Ask Chapt is shown as it ships: ⌘K, reasoning ledger, sources, and
+       permission-gated writ cards that need a human to approve
+     - the setup story (an interview that writes your pages/words/seats) gets
+       its own chapter, because it's the thing nothing else does
+
+   Structure
+     0. tokens + base
+     1. primitives  (buttons, pills, eyebrows, doodles)
+     2. chrome      (progress bar, nav)
+     3. hero
+     4. pain marquee
+     5. day scene   (scroll-scrubbed Tuesday, one product shot per beat)
+     6. ask scene   (autoplayed spotlight: ledger → answer → writ card)
+     7. modules     (four deep surfaces + the rest of the kit)
+     8. setup       (the interview + a live blueprint that swaps per org type)
+     9. trust
+    10. cta (semester-aware)
+    11. footer
+    12. motion utilities + reduced-motion + mobile
+   Motion contract: elements carrying [data-para] are owned by the JS parallax
+   engine and must never also carry [data-reveal] — nest instead. Mobile clears
+   inline transforms with `transform:none !important` (see §12).
+   ========================================================================== */
+
+/* registered so the dues ring can transition its sweep instead of snapping */
+@property --pct{syntax:'<number>'; inherits:false; initial-value:0}
+
+/* ---------- 0. tokens + base ---------------------------------------------- */
+*,*::before,*::after{box-sizing:border-box}
+/* Horizontal clipping lives on <body>, never on <html>: overflow on the root
+   propagates to the viewport and kills position:sticky, which both scenes
+   depend on. body{overflow-x:hidden} (see below) clips the off-grid doodles. */
+html{-webkit-text-size-adjust:100%; scroll-behavior:smooth}
+body,h1,h2,h3,h4,h5,p,figure,blockquote,ul,ol,dl,dd{margin:0}
+ul,ol{padding:0;list-style:none}
+img,svg{display:block;max-width:100%}
+button,input{font:inherit;color:inherit}
+
+:root{
+  /* paper + ink */
+  --paper:#FFFCF6;
+  --paper-2:#FBF5EA;
+  --paper-3:#F4ECDD;
+  --card:#FFFFFF;
+  --ink:#26211B;
+  --ink-2:#544A3F;
+  --ink-3:#8A7F71;
+  --line:#EBE1CF;
+  --line-2:#DCD0B9;
+
+  /* pastels — each has a soft fill, a tint, and a legible ink */
+  --peach:#FFD5C4;   --peach-soft:#FFEDE5;  --peach-ink:#C9542D;
+  --sky:#CFE2FF;     --sky-soft:#EAF2FF;    --sky-ink:#2A66C7;
+  --mint:#C7EFDA;    --mint-soft:#E6F8EF;   --mint-ink:#1B815B;
+  --butter:#FFE5A0;  --butter-soft:#FFF6DC; --butter-ink:#9C6B08;
+  --lilac:#E1D8FF;   --lilac-soft:#F1EDFF;  --lilac-ink:#6244CC;
+  --rose:#FFD6E6;    --rose-soft:#FFEDF4;   --rose-ink:#C23C77;
+
+  --r-sm:10px; --r-md:16px; --r-lg:22px; --r-xl:30px; --r-pill:999px;
+
+  --sh-1:0 1px 2px rgba(38,33,27,.05), 0 3px 10px rgba(38,33,27,.045);
+  --sh-2:0 1px 2px rgba(38,33,27,.05), 0 10px 26px -8px rgba(38,33,27,.14);
+  --sh-3:0 2px 4px rgba(38,33,27,.05), 0 26px 60px -18px rgba(38,33,27,.22);
+
+  --sans:'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --display:'Bricolage Grotesque', 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --mono:'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --ease-out:cubic-bezier(.22,.72,.24,1);
+  --ease-spring:cubic-bezier(.16,.9,.3,1.02);
+  --wrap:1180px;
+}
+
+body{
+  font-family:var(--sans);
+  background:var(--paper);
+  color:var(--ink);
+  font-size:17px;
+  line-height:1.6;
+  letter-spacing:-.005em;
+  -webkit-font-smoothing:antialiased;
+  overflow-x:hidden;
+}
+
+/* the paper itself: faint grain + a couple of huge soft washes */
+body::before{
+  content:''; position:fixed; inset:0; z-index:0; pointer-events:none; opacity:.5;
+  background:
+    radial-gradient(60vw 50vh at 8% 2%,  var(--butter-soft), transparent 62%),
+    radial-gradient(52vw 48vh at 96% 22%, var(--sky-soft),   transparent 60%),
+    radial-gradient(48vw 46vh at 4% 62%,  var(--lilac-soft), transparent 62%),
+    radial-gradient(56vw 50vh at 92% 88%, var(--peach-soft), transparent 62%);
+}
+main,header,footer{position:relative;z-index:1}
+
+.wrap{width:min(100% - 44px, var(--wrap)); margin-inline:auto}
+.wrap--narrow{width:min(100% - 44px, 880px)}
+
+h1,h2,h3,h4,.display{font-family:var(--display); font-weight:600; letter-spacing:-.028em; line-height:1.04}
+h1{font-size:clamp(2.15rem, 4.5vw, 3.5rem)}
+h2{font-size:clamp(1.95rem, 3.9vw, 3rem); line-height:1.06; text-wrap:balance}
+h3{font-size:clamp(1.35rem, 2.2vw, 1.75rem); line-height:1.15; letter-spacing:-.022em}
+h4{font-size:1.06rem; line-height:1.3; letter-spacing:-.015em; font-weight:600}
+.lede{font-size:clamp(1.06rem, 1.55vw, 1.32rem); line-height:1.55; color:var(--ink-2); letter-spacing:-.012em}
+.mono{font-family:var(--mono); font-variant-numeric:tabular-nums; letter-spacing:-.02em}
+.mute{color:var(--ink-3)}
+section{position:relative}
+.section{padding:clamp(84px, 11vw, 168px) 0}
+.section--tight{padding:clamp(60px, 7vw, 104px) 0}
+
+/* highlighter behind a word — hand-drawn, slightly off-register */
+.hi{position:relative; white-space:nowrap}
+.hi::before{
+  content:''; position:absolute; z-index:-1; left:-.14em; right:-.14em; bottom:.02em; height:.52em;
+  background:var(--mark, var(--butter)); border-radius:.4em .55em .38em .6em;
+  transform:rotate(-.7deg) scaleX(var(--mark-x, 1)); transform-origin:left center;
+  opacity:.85;
+}
+
+/* ---------- 1. primitives -------------------------------------------------- */
+.eyebrow{
+  display:inline-flex; align-items:center; gap:9px;
+  font-size:.775rem; font-weight:600; letter-spacing:.1em; text-transform:uppercase;
+  color:var(--ink-3);
+}
+.eyebrow::before{content:''; width:22px; height:2px; border-radius:2px; background:var(--eb, var(--peach))}
+
+.btn{
+  --btn-bg:var(--ink); --btn-fg:#FFFCF6; --btn-shadow:var(--lilac);
+  display:inline-flex; align-items:center; justify-content:center; gap:9px;
+  padding:14px 24px; border-radius:var(--r-pill); border:1.5px solid var(--ink);
+  background:var(--btn-bg); color:var(--btn-fg);
+  font-weight:600; font-size:.97rem; letter-spacing:-.01em; text-decoration:none; cursor:pointer;
+  box-shadow:3px 3px 0 var(--btn-shadow);
+  transition:transform .18s var(--ease-spring), box-shadow .18s var(--ease-spring), background .18s;
+  white-space:nowrap;
+}
+.btn:hover{transform:translate(-1.5px,-1.5px); box-shadow:5.5px 5.5px 0 var(--btn-shadow)}
+.btn:active{transform:translate(1px,1px); box-shadow:1.5px 1.5px 0 var(--btn-shadow)}
+.btn--ghost{--btn-bg:transparent; --btn-fg:var(--ink); --btn-shadow:var(--peach)}
+.btn--sm{padding:9.5px 17px; font-size:.88rem; box-shadow:2.5px 2.5px 0 var(--btn-shadow)}
+.btn--lg{padding:17px 30px; font-size:1.04rem}
+
+.pill{
+  display:inline-flex; align-items:center; gap:7px;
+  padding:5px 12px; border-radius:var(--r-pill);
+  font-size:.78rem; font-weight:600; letter-spacing:-.005em;
+  background:var(--p-bg, var(--paper-2)); color:var(--p-fg, var(--ink-2));
+  border:1px solid var(--p-bd, transparent);
+}
+.pill--paid  {--p-bg:var(--mint-soft);   --p-fg:var(--mint-ink);   --p-bd:#BDE7D2}
+.pill--part  {--p-bg:var(--butter-soft); --p-fg:var(--butter-ink); --p-bd:#F4DFA6}
+.pill--due   {--p-bg:var(--peach-soft);  --p-fg:var(--peach-ink);  --p-bd:#F8D2C2}
+.pill--info  {--p-bg:var(--sky-soft);    --p-fg:var(--sky-ink);    --p-bd:#CCDFFB}
+.pill--calm  {--p-bg:var(--lilac-soft);  --p-fg:var(--lilac-ink);  --p-bd:#DCD2FB}
+.pill--rose  {--p-bg:var(--rose-soft);   --p-fg:var(--rose-ink);   --p-bd:#F8CEE0}
+.dot{width:6px;height:6px;border-radius:50%;background:currentColor;flex:none}
+
+.card{
+  background:var(--card); border:1.5px solid var(--line);
+  border-radius:var(--r-lg); box-shadow:var(--sh-1);
+}
+
+/* doodles: hand-drawn strokes. .draw animates the stroke in on reveal. */
+.doodle{fill:none; stroke:var(--ink); stroke-width:2.4; stroke-linecap:round; stroke-linejoin:round}
+.doodle--thin{stroke-width:1.8}
+.doodle path,.doodle circle,.doodle line,.doodle rect,.doodle polyline{vector-effect:non-scaling-stroke}
+
+.sticky-note{
+  --note:var(--butter);
+  position:relative; padding:18px 20px 20px; border-radius:4px 12px 6px 10px;
+  background:var(--note); color:var(--ink);
+  box-shadow:var(--sh-2);
+  font-size:.95rem; line-height:1.42;
+  transform:rotate(var(--rot, -1.4deg));
+}
+.sticky-note::after{
+  content:''; position:absolute; left:50%; top:-7px; width:52px; height:16px;
+  transform:translateX(-50%) rotate(var(--tape-rot,-2deg));
+  background:rgba(255,255,255,.5); border-inline:1px dashed rgba(38,33,27,.14);
+}
+.sticky-note b{font-weight:600}
+
+/* the blinking caret shared by the hero ask bar and the spotlight scene */
+.caret{
+  display:inline-block; width:2px; height:1.05em; background:var(--peach-ink);
+  vertical-align:-.16em; margin-left:1px; animation:blink 1.05s steps(1,end) infinite;
+}
+@keyframes blink{50%{opacity:0}}
+
+/* ---------- 2. chrome ------------------------------------------------------ */
+.progress{position:fixed; inset:0 0 auto 0; height:3px; z-index:90; background:transparent; pointer-events:none}
+.progress i{
+  display:block; height:100%; width:0;
+  background:linear-gradient(90deg, var(--peach-ink), var(--butter-ink) 34%, var(--mint-ink) 66%, var(--sky-ink));
+  border-radius:0 3px 3px 0;
+}
+
+.nav{
+  position:sticky; top:0; z-index:80;
+  padding:16px 0;
+  transition:padding .3s var(--ease-out), background .3s, box-shadow .3s, border-color .3s;
+  border-bottom:1.5px solid transparent;
+}
+.nav.is-stuck{
+  padding:9px 0; background:rgba(255,252,246,.82); backdrop-filter:blur(14px) saturate(1.3);
+  border-bottom-color:var(--line); box-shadow:0 6px 22px -18px rgba(38,33,27,.5);
+}
+.nav__in{display:flex; align-items:center; gap:26px}
+.brand{display:inline-flex; align-items:center; gap:10px; text-decoration:none; color:var(--ink); font-family:var(--display); font-weight:700; font-size:1.16rem; letter-spacing:-.03em}
+.brand__mark{width:34px;height:34px;flex:none}
+.nav__links{display:flex; gap:4px; margin-left:auto}
+.nav__links a{
+  padding:8px 13px; border-radius:var(--r-pill); text-decoration:none;
+  color:var(--ink-2); font-size:.92rem; font-weight:500;
+  transition:background .18s, color .18s;
+}
+.nav__links a:hover{background:var(--paper-2); color:var(--ink)}
+.nav__cta{display:flex; align-items:center; gap:10px}
+
+/* ---------- 3. hero -------------------------------------------------------- */
+.hero{padding:clamp(48px,7vw,96px) 0 clamp(70px,9vw,124px); position:relative}
+.hero__grid{display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:clamp(28px,4vw,64px); align-items:center}
+.hero__copy{max-width:620px; position:relative; z-index:6}  /* always above the drifting piles */
+.hero h1{margin:20px 0 0}
+.hero h1 .line{display:block}
+.hero__lede{margin-top:22px; max-width:52ch}
+.hero__actions{display:flex; flex-wrap:wrap; gap:12px; margin-top:32px}
+.hero__fine{margin-top:18px; font-size:.85rem; color:var(--ink-3); display:flex; flex-wrap:wrap; gap:6px 14px; align-items:center}
+.hero__fine .dot{background:var(--line-2)}
+
+.hero__stage{position:relative; min-height:470px}
+
+/* the "before" pile — what officers are using today, drifting behind the card */
+.pile{position:absolute; z-index:1; width:190px; will-change:transform}
+.pile--sheet{top:-34px; left:-76px; width:198px}
+.pile--chat{bottom:6px; left:-58px; width:194px}
+
+.hero__card{
+  position:relative; z-index:3; background:var(--card);
+  border:1.5px solid var(--line); border-radius:var(--r-xl);
+  box-shadow:var(--sh-3); overflow:hidden; will-change:transform;
+}
+.hero__cardbar{
+  display:flex; align-items:center; gap:8px; padding:13px 16px;
+  border-bottom:1.5px solid var(--line); background:var(--paper-2);
+}
+.hero__cardbar .tl{width:9px;height:9px;border-radius:50%;background:var(--line-2)}
+.hero__cardbar .tl:nth-child(1){background:#F3B7A4}
+.hero__cardbar .tl:nth-child(2){background:#F5D79A}
+.hero__cardbar .tl:nth-child(3){background:#B7DFC6}
+.hero__crumb{margin-left:8px; font-size:.79rem; color:var(--ink-3); font-weight:500}
+.hero__cardbody{padding:20px}
+
+/* the floating ⌘K spotlight, hanging off the card's bottom-right corner */
+/* hangs off the card's bottom-right corner — far enough down that it clears the
+   last attention row rather than sitting on top of its action button */
+.hero__spot{position:absolute; z-index:5; width:312px; right:-52px; bottom:-84px; will-change:transform}
+.spotmini{
+  background:var(--card); border:1.5px solid var(--ink); border-radius:var(--r-lg);
+  box-shadow:5px 5px 0 var(--lilac); padding:13px 15px 14px;
+}
+.spotmini__hd{display:flex; align-items:center; gap:8px; font-size:.72rem; font-weight:600; letter-spacing:.05em; text-transform:uppercase; color:var(--ink-3)}
+.spotmini__hd kbd{margin-left:auto; font-family:var(--mono); font-size:.7rem; border:1px solid var(--line); border-radius:6px; padding:1px 6px; background:var(--paper-2); text-transform:none; letter-spacing:0}
+.spotmini__q{margin-top:9px; font-size:.94rem; color:var(--ink); min-height:1.5em; font-weight:500}
+.spotmini__a{
+  margin-top:10px; padding-top:10px; border-top:1px dashed var(--line-2);
+  font-size:.85rem; color:var(--ink-2); line-height:1.4;
+  opacity:0; transform:translateY(6px); transition:opacity .45s var(--ease-out), transform .5s var(--ease-spring);
+}
+.spotmini.is-live .spotmini__a{opacity:1; transform:none}
+.spotmini__a b{font-weight:650; color:var(--ink)}
+
+.avatar{
+  width:30px;height:30px;flex:none;border-radius:50%;
+  display:grid;place-items:center;
+  font-size:.72rem; font-weight:700; letter-spacing:-.02em;
+  background:var(--av, var(--lilac)); color:rgba(38,33,27,.72);
+  border:1.5px solid rgba(38,33,27,.08);
+}
+.avatar--sm{width:24px;height:24px;font-size:.64rem}
+
+.trustbar{margin-top:clamp(64px,8vw,104px)}
+.trustbar__label{font-size:.8rem; color:var(--ink-3); font-weight:500; text-align:center}
+.trustbar__row{margin-top:20px; display:flex; flex-wrap:wrap; justify-content:center; gap:10px 12px}
+.orgchip{
+  display:inline-flex; align-items:center; gap:9px; padding:9px 16px 9px 11px;
+  border:1.5px solid var(--line); border-radius:var(--r-pill); background:var(--card);
+  font-size:.87rem; font-weight:550; color:var(--ink-2); box-shadow:var(--sh-1);
+}
+.orgchip svg{width:22px;height:22px;flex:none}
+.orgchip small{color:var(--ink-3); font-weight:500}
+
+/* ---------- 4. pain marquee ------------------------------------------------ */
+.pain{padding:clamp(52px,7vw,92px) 0; overflow:hidden}
+.pain__head{text-align:center; max-width:680px; margin-inline:auto}
+.marquee{margin-top:44px; display:grid; gap:20px; --dur:52s}
+.marquee__track{display:flex; gap:20px; width:max-content; animation:slide var(--dur) linear infinite}
+.marquee__row:nth-child(2) .marquee__track{animation-direction:reverse; --dur:64s}
+.marquee:hover .marquee__track{animation-play-state:paused}
+/* --shift is measured in JS (half the duplicated content + one gap) so the loop
+   seam is exact; -50% is a close-enough fallback if the script never runs. */
+@keyframes slide{from{transform:translate3d(0,0,0)} to{transform:translate3d(var(--shift,-50%),0,0)}}
+.gripe{
+  flex:none; width:min(74vw, 340px); padding:18px 20px;
+  border:1.5px solid var(--line); border-radius:var(--r-lg); background:var(--card);
+  box-shadow:var(--sh-1); font-size:.97rem; line-height:1.45; color:var(--ink-2);
+  transform:rotate(var(--rot,0deg));
+}
+.gripe q{font-style:normal}
+.gripe b{color:var(--ink); font-weight:600}
+.gripe footer{margin-top:11px; font-size:.79rem; color:var(--ink-3); font-weight:500; display:flex; align-items:center; gap:7px}
+.gripe--tint{background:var(--t, var(--butter-soft))}
+
+/* ---------- 5. day scene (scroll-scrubbed Tuesday) ------------------------- */
+/* Same pin-and-scrub rig as v1's chat scene, but the deck shows exactly ONE
+   slide at a time instead of accumulating bubbles — six full product shots
+   stacked in a 100vh stage would overflow it. */
+.day{background:linear-gradient(180deg, transparent, var(--paper-2) 10%, var(--paper-2) 90%, transparent); position:relative}
+.day__rail{height:var(--rail, 560vh); position:relative}
+.day__stage{position:sticky; top:0; height:100vh; display:flex; align-items:center; overflow:hidden}
+.day__in{
+  width:min(100% - 44px, var(--wrap)); margin-inline:auto;
+  display:grid; grid-template-columns:minmax(0,.78fr) minmax(0,1.22fr);
+  gap:clamp(24px,4vw,64px); align-items:center; height:100%; padding:72px 0 52px;
+}
+.day__side{position:relative}
+.day__side h2{margin-top:16px}
+.day__side .lede{margin-top:18px; max-width:34ch}
+.day__doodle{position:absolute; pointer-events:none}
+
+.beatlist{margin-top:28px; display:grid; gap:2px}
+.beatlist li{
+  display:flex; align-items:flex-start; gap:12px; padding:8px 12px; border-radius:var(--r-md);
+  font-size:.92rem; color:var(--ink-3); font-weight:500; line-height:1.35;
+  transition:background .35s var(--ease-out), color .35s var(--ease-out);
+}
+.beatlist li .n{
+  width:22px;height:22px;flex:none;border-radius:50%; margin-top:2px;
+  display:grid;place-items:center; font-family:var(--mono); font-size:.7rem;
+  border:1.5px solid var(--line-2); color:var(--ink-3); background:var(--paper);
+  transition:background .35s, color .35s, border-color .35s, transform .35s var(--ease-spring);
+}
+.beatlist li.is-on{background:var(--card); color:var(--ink); box-shadow:var(--sh-1)}
+.beatlist li.is-on .n{background:var(--ink); border-color:var(--ink); color:var(--paper); transform:scale(1.06)}
+.beatlist li.is-done .n{background:var(--mint); border-color:var(--mint-ink); color:var(--mint-ink)}
+.bt-time{display:block; font-family:var(--mono); font-size:.72rem; letter-spacing:-.02em; opacity:.72; margin-bottom:1px}
+
+.deck{position:relative; height:min(74vh, 618px)}
+.dayslide{
+  position:absolute; inset:0; display:flex; align-items:center;
+  opacity:0; transform:translate3d(0,20px,0) scale(.988); pointer-events:none;
+  transition:opacity .5s var(--ease-out), transform .68s var(--ease-spring);
+}
+.dayslide.is-on{opacity:1; transform:none; pointer-events:auto}
+.dayslide > div{width:100%}
+.dayslide__t{display:none; font-family:var(--mono); font-size:.78rem; font-weight:600; letter-spacing:.04em; text-transform:uppercase; color:var(--ink-3); margin-bottom:10px}
+.dayslide__note{margin-top:12px; font-size:.88rem; color:var(--ink-3); display:flex; gap:9px; align-items:flex-start; line-height:1.45}
+.dayslide__note svg{width:16px;height:16px;flex:none;margin-top:2px}
+
+/* ---------- 6. ask scene --------------------------------------------------- */
+.ask__grid{display:grid; grid-template-columns:minmax(0,.86fr) minmax(0,1.14fr); gap:clamp(28px,4.5vw,72px); align-items:center}
+.ask__points{margin-top:26px; display:grid; gap:14px}
+.ask__points li{display:flex; gap:12px; align-items:flex-start}
+.ask__points .ic{width:32px;height:32px;flex:none;border-radius:10px; display:grid; place-items:center; background:var(--i, var(--lilac-soft)); border:1.5px solid var(--ib, #DCD2FB)}
+.ask__points h4{font-size:.98rem}
+.ask__points p{margin-top:3px; font-size:.9rem; color:var(--ink-2); line-height:1.45}
+.ask__replay{margin-top:24px}
+
+.spot{
+  border:1.5px solid var(--line); border-radius:var(--r-xl); background:var(--card);
+  box-shadow:var(--sh-3); overflow:hidden; will-change:transform;
+}
+.spot__bar{display:flex; align-items:center; gap:11px; padding:15px 18px; border-bottom:1.5px solid var(--line); background:var(--paper-2)}
+.spot__q{font-size:1.02rem; color:var(--ink); font-weight:500; min-height:1.55em}
+.spot__kbd{margin-left:auto; font-family:var(--mono); font-size:.72rem; color:var(--ink-3); border:1px solid var(--line); border-radius:6px; padding:2px 7px; background:var(--card); flex:none}
+/* Fixed height + internal scroll, like the real spotlight modal. The played-out
+   sequence is ~930px tall — letting the card grow to that would push the payoff
+   below a laptop fold and shove the rest of the page around while it plays. JS
+   keeps the newest step in view instead. */
+.spot__body{
+  /* extra right/bottom padding: overflow-y:auto computes overflow-x to auto too,
+     so the cards' 3px hard-offset shadows would otherwise clip (or scroll) */
+  padding:18px 22px 22px 18px; display:grid; gap:12px; align-content:start;
+  height:min(66vh, 528px); overflow-y:auto; overscroll-behavior:contain;
+  scrollbar-width:none;
+}
+.spot__body::-webkit-scrollbar{display:none}
+
+/* the collapsing step: rows animate their own height so nothing jumps */
+.beat{display:grid; grid-template-rows:0fr; transition:grid-template-rows .58s var(--ease-out)}
+.beat.is-in{grid-template-rows:1fr}
+.beat__in{overflow:hidden; min-height:0}
+.beat__in > *{
+  opacity:0; transform:translate3d(0,14px,0) scale(.99);
+  transition:opacity .42s var(--ease-out) .08s, transform .56s var(--ease-spring) .08s;
+}
+.beat.is-in .beat__in > *{opacity:1; transform:none}
+
+.bubble{
+  max-width:min(100%, 480px); padding:13px 17px; border-radius:18px;
+  border:1.5px solid var(--line); background:var(--card); box-shadow:var(--sh-1);
+  font-size:.96rem; line-height:1.48;
+}
+.bubble--me{
+  margin-left:auto; background:var(--ink); color:#FFFCF6; border-color:var(--ink);
+  border-bottom-right-radius:7px; box-shadow:3px 3px 0 var(--lilac);
+}
+.who{display:flex; align-items:center; gap:9px; margin-bottom:7px; font-size:.78rem; font-weight:600; color:var(--ink-3)}
+.who--right{justify-content:flex-end}
+
+/* reasoning ledger */
+.ledger{border:1.5px dashed var(--line-2); border-radius:var(--r-lg); background:var(--paper); padding:14px 16px}
+.ledger__t{font-size:.75rem; font-weight:600; letter-spacing:.05em; text-transform:uppercase; color:var(--ink-3); display:flex; align-items:center; gap:8px}
+.ledger__t .spin{width:13px;height:13px;border-radius:50%;border:2px solid var(--line-2); border-top-color:var(--lilac-ink); animation:spin .9s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.ledger ul{margin-top:10px; display:grid; gap:8px}
+.ledger li{display:flex; align-items:center; gap:10px; font-size:.9rem; color:var(--ink-2); opacity:.32; transition:opacity .4s var(--ease-out)}
+.ledger li .tick{
+  width:17px;height:17px;flex:none;border-radius:50%;border:1.5px solid var(--line-2); background:var(--paper-2);
+  display:grid; place-items:center; transition:background .35s, border-color .35s;
+}
+.ledger li .tick svg{width:10px;height:10px;opacity:0;transition:opacity .3s .1s}
+.ledger.is-live li{opacity:1}
+.ledger.is-live li .tick{background:var(--mint); border-color:var(--mint-ink)}
+.ledger.is-live li .tick svg{opacity:1}
+.ledger.is-live li:nth-child(2),.ledger.is-live li:nth-child(2) .tick,.ledger.is-live li:nth-child(2) .tick svg{transition-delay:.18s}
+.ledger.is-live li:nth-child(3),.ledger.is-live li:nth-child(3) .tick,.ledger.is-live li:nth-child(3) .tick svg{transition-delay:.36s}
+.ledger.is-live li:nth-child(4),.ledger.is-live li:nth-child(4) .tick,.ledger.is-live li:nth-child(4) .tick svg{transition-delay:.54s}
+.consulted{margin-top:12px; display:flex; flex-wrap:wrap; gap:6px; padding-top:11px; border-top:1px dashed var(--line-2)}
+
+/* answer card */
+.acard{border:1.5px solid var(--line); border-radius:var(--r-lg); background:var(--card); box-shadow:var(--sh-2); overflow:hidden}
+.acard__hd{padding:14px 17px; border-bottom:1.5px solid var(--line); display:flex; align-items:center; gap:12px}
+/* big figures use the display face — monospace puts a full cell around the comma,
+   which reads as "$1 , 480" at headline sizes. Small values stay mono. */
+.acard__hd .k{font-family:var(--display); font-size:1.7rem; font-weight:600; letter-spacing:-.035em; font-variant-numeric:tabular-nums}
+.acard__hd .sub{font-size:.85rem; color:var(--ink-3); line-height:1.35}
+.acard__row{display:flex; align-items:center; gap:11px; padding:10px 17px; border-bottom:1px solid var(--paper-3); font-size:.92rem}
+.acard__row:last-of-type{border-bottom:0}
+.acard__row .nm{font-weight:550}
+.acard__row .amt{margin-left:auto; font-family:var(--mono); font-size:.87rem}
+.acard__ft{padding:10px 17px; background:var(--paper-2); font-size:.82rem; color:var(--ink-3); display:flex; align-items:center; gap:8px}
+
+/* writ card (a proposal waiting on a human) */
+.draft{border:1.5px solid var(--line); border-radius:var(--r-lg); background:var(--card); box-shadow:var(--sh-2); overflow:hidden}
+.draft__hd{display:flex; align-items:center; gap:10px; padding:11px 16px; background:var(--butter-soft); border-bottom:1.5px solid #F4DFA6; font-size:.82rem; font-weight:600; color:var(--butter-ink)}
+.draft__body{padding:15px 17px; font-size:.93rem; line-height:1.5; color:var(--ink-2)}
+.draft__body .msg{border-left:2.5px solid var(--peach); padding-left:13px; font-style:italic}
+.draft__ft{display:flex; align-items:center; gap:10px; padding:12px 16px; border-top:1.5px solid var(--line); background:var(--paper); flex-wrap:wrap}
+.draft__ft .who-ok{margin-left:auto; font-size:.77rem; color:var(--ink-3)}
+.done{display:flex; align-items:center; gap:13px}
+.done__ic{width:40px;height:40px;flex:none;border-radius:50%; background:var(--mint); display:grid; place-items:center; box-shadow:var(--sh-1)}
+
+/* ---------- 7. modules ----------------------------------------------------- */
+.modules__head{max-width:760px}
+.mod{padding:clamp(56px,7.5vw,116px) 0; position:relative}
+.mod__grid{display:grid; grid-template-columns:minmax(0,.86fr) minmax(0,1.14fr); gap:clamp(30px,5vw,80px); align-items:center}
+.mod--flip .mod__grid{grid-template-columns:minmax(0,1.14fr) minmax(0,.86fr)}
+.mod--flip .mod__copy{order:2}
+.mod__copy h3{margin-top:14px}
+.mod__pain{
+  margin-top:20px; padding:15px 18px; border-radius:var(--r-md) var(--r-md) var(--r-md) 4px;
+  background:var(--pain-bg, var(--peach-soft)); border:1.5px solid var(--pain-bd, #F8D2C2);
+  font-size:.99rem; line-height:1.45; color:var(--ink);
+}
+.mod__pain .src{display:block; margin-top:8px; font-size:.79rem; color:var(--ink-3); font-weight:500}
+.mod__fix{margin-top:20px; color:var(--ink-2); font-size:1.03rem; line-height:1.6}
+.mod__list{margin-top:20px; display:grid; gap:11px}
+.mod__list li{display:flex; gap:11px; align-items:flex-start; font-size:.95rem; color:var(--ink-2); line-height:1.45}
+.mod__list svg{width:19px;height:19px;flex:none;margin-top:2px}
+.mod__stage{position:relative; will-change:transform}
+
+/* the fake product window */
+.shot{
+  border:1.5px solid var(--line); border-radius:var(--r-xl); background:var(--card);
+  box-shadow:var(--sh-3); overflow:hidden; position:relative; z-index:2;
+}
+.shot--flat{box-shadow:var(--sh-2)}
+.shot__bar{display:flex; align-items:center; gap:8px; padding:12px 15px; border-bottom:1.5px solid var(--line); background:var(--paper-2)}
+.shot__bar .tl{width:8.5px;height:8.5px;border-radius:50%;background:var(--line-2)}
+.shot__bar .tl:nth-child(1){background:#F3B7A4}
+.shot__bar .tl:nth-child(2){background:#F5D79A}
+.shot__bar .tl:nth-child(3){background:#B7DFC6}
+.shot__path{margin-left:10px; font-size:.77rem; color:var(--ink-3); font-weight:500; display:flex; align-items:center; gap:6px; min-width:0}
+.shot__path .sep{color:var(--line-2)}
+.shot__body{padding:18px 20px 20px}
+.shot__toolbar{display:flex; align-items:center; gap:10px; margin-bottom:14px; flex-wrap:wrap}
+.shot__title{font-family:var(--display); font-size:1.1rem; font-weight:600; letter-spacing:-.024em}
+.shot__spacer{margin-left:auto}
+.shot__tabs{display:flex; gap:3px; background:var(--paper-2); padding:3px; border-radius:var(--r-pill); border:1px solid var(--line)}
+.shot__tabs span{padding:5px 12px; border-radius:var(--r-pill); font-size:.79rem; font-weight:550; color:var(--ink-3)}
+.shot__tabs span.on{background:var(--card); color:var(--ink); box-shadow:var(--sh-1)}
+
+/* floating callout that hangs off a shot */
+.callout{
+  position:absolute; z-index:4; max-width:250px; padding:12px 15px;
+  background:var(--card); border:1.5px solid var(--ink); border-radius:var(--r-md);
+  box-shadow:3px 3px 0 var(--co, var(--butter));
+  font-size:.85rem; line-height:1.4; font-weight:500;
+}
+.callout b{font-weight:650}
+
+/* --- ui kit used inside the shots --- */
+/* briefing header: mono kicker → serif greeting → the digest sentence */
+.ui-kick{font-family:var(--mono); font-size:.71rem; letter-spacing:.09em; text-transform:uppercase; color:var(--ink-3); font-weight:600}
+.ui-greet{font-family:var(--display); font-size:1.5rem; font-weight:600; letter-spacing:-.03em; margin-top:6px; line-height:1.1}
+.ui-brief{display:flex; align-items:flex-start; gap:16px}
+.ui-brief > div:first-child{min-width:0}
+.ui-digest{margin-top:9px; font-size:.92rem; line-height:1.45; color:var(--ink-2); display:flex; gap:9px; align-items:flex-start}
+.ui-digest .aichip{
+  flex:none; display:inline-flex; align-items:center; gap:5px; padding:2px 8px; border-radius:var(--r-pill);
+  background:var(--lilac-soft); border:1px solid #DCD2FB; color:var(--lilac-ink);
+  font-size:.68rem; font-weight:700; letter-spacing:.05em; text-transform:uppercase; margin-top:2px;
+}
+
+/* wrap, not shrink: these rows carry nowrap buttons and mono figures, so on a
+   narrow shot they must break to a second line instead of setting a min-width
+   the whole page then has to honour */
+.ui-stat{display:flex; align-items:center; gap:16px; padding:16px; border:1.5px solid var(--line); border-radius:var(--r-lg); background:var(--paper); flex-wrap:wrap}
+.ui-ring{
+  width:74px;height:74px;flex:none;border-radius:50%;
+  background:conic-gradient(var(--ring-c, var(--mint-ink)) calc(var(--pct,0) * 1%), var(--paper-3) 0);
+  display:grid; place-items:center; transition:--pct 1.4s var(--ease-out);
+}
+.ui-ring--sm{width:70px;height:70px}
+.ui-ring i{width:56px;height:56px;border-radius:50%;background:var(--card); display:grid; place-items:center; font-family:var(--mono); font-size:.9rem; font-weight:600; font-style:normal}
+.ui-ring--sm i{width:54px;height:54px;font-size:.84rem; line-height:1}
+/* the label has to clear the ring's inner circle — .48rem is the largest that
+   fits "health" inside 54px without touching the sweep */
+.ui-ring--sm i small{display:block; margin-top:1px; font-size:.48rem; letter-spacing:.04em; color:var(--ink-3); text-transform:uppercase; font-family:var(--sans); font-weight:700}
+.ui-stat__k{font-family:var(--display); font-size:1.62rem; font-weight:600; letter-spacing:-.035em; line-height:1.1; font-variant-numeric:tabular-nums}
+.ui-stat__l{font-size:.83rem; color:var(--ink-3); margin-top:3px}
+
+/* KPI ledger strip */
+.ui-meas{display:grid; grid-template-columns:repeat(4,1fr); gap:9px; margin-top:15px}
+.meas{padding:10px 12px; border:1.5px solid var(--line); border-radius:var(--r-md); background:var(--paper)}
+.meas__l{font-size:.67rem; letter-spacing:.08em; text-transform:uppercase; color:var(--ink-3); font-weight:700}
+.meas__v{margin-top:5px; font-family:var(--display); font-size:1.14rem; font-weight:600; letter-spacing:-.032em; font-variant-numeric:tabular-nums; line-height:1.1}
+.meas__d{margin-top:3px; font-size:.7rem; color:var(--ink-3); font-family:var(--mono); letter-spacing:-.02em}
+.meas__d.up{color:var(--mint-ink)}
+.meas__d.dn{color:var(--peach-ink)}
+
+/* needs-attention queue */
+.ui-att{margin-top:14px; display:grid; gap:8px}
+.att{display:flex; align-items:center; gap:11px; padding:10px 12px; border:1.5px solid var(--line); border-radius:var(--r-md); background:var(--card)}
+.att__tag{
+  font-family:var(--mono); font-size:.63rem; letter-spacing:.09em; text-transform:uppercase; font-weight:600;
+  padding:3px 7px; border-radius:5px; flex:none;
+  background:var(--tg-bg, var(--peach-soft)); color:var(--tg-fg, var(--peach-ink));
+}
+.att__tag.gold{--tg-bg:var(--butter-soft); --tg-fg:var(--butter-ink)}
+.att__tag.sky {--tg-bg:var(--sky-soft);    --tg-fg:var(--sky-ink)}
+.att__tag.calm{--tg-bg:var(--lilac-soft);  --tg-fg:var(--lilac-ink)}
+.att__b{min-width:0}
+.att__b .t{font-size:.9rem; font-weight:550; line-height:1.25}
+.att__b .m{font-size:.77rem; color:var(--ink-3); margin-top:2px}
+.att__a{margin-left:auto; flex:none; font-size:.78rem; font-weight:600; color:var(--ink-2); border:1.5px solid var(--line); background:var(--paper-2); border-radius:var(--r-pill); padding:5px 11px; white-space:nowrap}
+
+.ui-table{margin-top:14px; border:1.5px solid var(--line); border-radius:var(--r-md); overflow:hidden}
+.ui-th{display:grid; grid-template-columns:1.6fr .8fr .9fr; gap:10px; padding:9px 14px; background:var(--paper-2); border-bottom:1.5px solid var(--line); font-size:.71rem; letter-spacing:.07em; text-transform:uppercase; color:var(--ink-3); font-weight:600}
+.ui-tr{display:grid; grid-template-columns:1.6fr .8fr .9fr; gap:10px; align-items:center; padding:10px 14px; border-bottom:1px solid var(--paper-3); font-size:.89rem; background:var(--card)}
+.ui-tr:last-child{border-bottom:0}
+.ui-tr .who{margin:0; display:flex; align-items:center; gap:9px; color:var(--ink); font-size:.89rem; font-weight:500}
+.ui-tr .amt{font-family:var(--mono); font-size:.84rem}
+.ui-tr .txt{font-size:.85rem; color:var(--ink-2)}
+.ui-tr.is-flagged{background:var(--peach-soft)}
+.ui-table--4 .ui-th,.ui-table--4 .ui-tr{grid-template-columns:1.5fr 1fr .8fr .8fr}
+
+.ui-note{margin-top:12px; display:flex; align-items:center; gap:10px; padding:11px 14px; border-radius:var(--r-md); background:var(--lilac-soft); border:1.5px solid #DCD2FB; font-size:.86rem; color:var(--lilac-ink); font-weight:500; flex-wrap:wrap}
+.ui-note b{font-weight:650}
+.ui-note svg{flex:none}
+
+/* attendance roll */
+.ui-roll{display:grid; grid-template-columns:repeat(auto-fill, minmax(122px,1fr)); gap:8px; margin-top:14px}
+.ui-person{display:flex; align-items:center; gap:9px; padding:8px 10px; border-radius:var(--r-md); border:1.5px solid var(--line); background:var(--card); font-size:.83rem; font-weight:500}
+.ui-person.is-here{background:var(--mint-soft); border-color:#BDE7D2}
+.ui-person.is-late{background:var(--butter-soft); border-color:#F4DFA6}
+.ui-person.is-out{background:var(--paper-2); color:var(--ink-3)}
+.ui-person .mk{width:17px;height:17px;flex:none;border-radius:5px;border:1.5px solid var(--line-2); background:var(--paper); display:grid; place-items:center}
+.ui-person.is-here .mk{background:var(--mint-ink); border-color:var(--mint-ink)}
+.ui-person.is-late .mk{background:var(--butter); border-color:var(--butter-ink)}
+.ui-person svg{width:10px;height:10px}
+
+/* timeline week rail */
+.ui-week{margin-top:14px; display:grid; grid-template-columns:repeat(5,1fr); gap:8px}
+.ui-day{border:1.5px solid var(--line); border-radius:var(--r-md); background:var(--paper); min-height:168px; padding:8px; display:grid; gap:7px; align-content:start}
+.ui-day__h{font-size:.7rem; font-weight:600; color:var(--ink-3); letter-spacing:.05em; text-transform:uppercase; padding:2px 2px 4px}
+.ui-day__h span{display:block; font-family:var(--mono); font-size:1rem; color:var(--ink); letter-spacing:-.03em; text-transform:none}
+.ui-ev{border-radius:9px; padding:8px 9px; font-size:.78rem; line-height:1.28; font-weight:550; background:var(--ev, var(--sky-soft)); border:1.5px solid var(--evb, #CCDFFB); color:var(--ink)}
+.ui-ev small{display:block; font-weight:500; color:var(--ink-3); font-size:.71rem; margin-top:3px; font-family:var(--mono)}
+
+/* programming stage board */
+.ui-board{margin-top:14px; display:grid; grid-template-columns:repeat(4,1fr); gap:8px}
+.bcol{border:1.5px solid var(--line); border-radius:var(--r-md); background:var(--paper); padding:8px; min-height:158px; display:grid; gap:7px; align-content:start}
+.bcol__h{display:flex; align-items:center; gap:7px; font-size:.68rem; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--ink-3); padding:2px 2px 3px}
+.bcol__h i{width:7px;height:7px;border-radius:50%;background:var(--s,var(--line-2));flex:none}
+.bcol__h b{margin-left:auto; font-family:var(--mono); font-size:.7rem; color:var(--ink-3); font-weight:600}
+.bcard{background:var(--card); border:1.5px solid var(--line); border-radius:9px; padding:8px 9px; font-size:.79rem; font-weight:550; line-height:1.25; overflow-wrap:anywhere}
+.bcard small{display:block; margin-top:4px; font-weight:500; color:var(--ink-3); font-size:.7rem; font-family:var(--mono)}
+.bcard.is-moved{border-color:var(--mint-ink); box-shadow:0 0 0 3px var(--mint-soft)}
+
+/* checklists (prep items, action items) */
+.ui-check{margin-top:13px; display:grid; gap:8px}
+.ui-check li{display:flex; align-items:center; gap:11px; padding:10px 13px; border:1.5px solid var(--line); border-radius:var(--r-md); background:var(--card); font-size:.89rem}
+.ui-check li .box{width:19px;height:19px;flex:none;border-radius:6px;border:1.5px solid var(--line-2); display:grid;place-items:center; background:var(--paper)}
+.ui-check li.done .box{background:var(--mint-ink); border-color:var(--mint-ink)}
+.ui-check li .lbl{font-weight:500; color:var(--ink)}
+.ui-check li.done .lbl{color:var(--ink-3); text-decoration:line-through; text-decoration-color:var(--line-2)}
+.ui-check li .owner{margin-left:auto; flex:none}
+
+/* minutes → summary */
+.ui-split{margin-top:14px; display:grid; grid-template-columns:1fr 1fr; gap:11px}
+.ui-raw{border:1.5px solid var(--line); border-radius:var(--r-md); background:var(--paper); padding:12px 13px; font-size:.82rem; line-height:1.5; color:var(--ink-2)}
+.ui-raw h5{font-size:.66rem; letter-spacing:.09em; text-transform:uppercase; color:var(--ink-3); font-weight:700; margin-bottom:8px}
+.ui-raw p + p{margin-top:7px}
+.ui-sum{border:1.5px solid #DCD2FB; border-radius:var(--r-md); background:var(--lilac-soft); padding:12px 13px}
+.ui-sum h5{font-size:.66rem; letter-spacing:.09em; text-transform:uppercase; color:var(--lilac-ink); font-weight:700}
+.ui-sum h5 + ul{margin-top:7px}
+.ui-sum ul{display:grid; gap:6px; margin-bottom:11px}
+.ui-sum li{font-size:.81rem; line-height:1.35; display:flex; gap:8px; align-items:flex-start; color:var(--ink)}
+.ui-sum li .pill{margin-left:auto; flex:none}
+.ui-sum li::before{content:'·'; color:var(--lilac-ink); font-weight:700}
+
+/* docs library */
+.ui-docs{margin-top:14px; display:grid; grid-template-columns:repeat(3,1fr); gap:9px}
+.doccard{border:1.5px solid var(--line); border-radius:var(--r-md); background:var(--card); padding:11px 12px}
+.doccard .fd{font-size:.67rem; text-transform:uppercase; letter-spacing:.07em; color:var(--ink-3); font-weight:700; display:flex; gap:6px; align-items:center}
+.doccard .fd svg{width:13px;height:13px}
+.doccard .nm{margin-top:8px; font-size:.85rem; font-weight:550; line-height:1.25}
+.doccard .by{margin-top:5px; font-size:.72rem; color:var(--ink-3)}
+
+/* activity log */
+.ui-log{margin-top:12px; display:grid}
+.logrow{display:flex; align-items:center; gap:11px; padding:9px 2px; border-bottom:1px solid var(--paper-3); font-size:.87rem}
+.logrow:last-child{border-bottom:0}
+.logrow .ts{font-family:var(--mono); font-size:.73rem; color:var(--ink-3); width:58px; flex:none}
+.logrow .tx{min-width:0; line-height:1.3}
+.logrow .tx b{font-weight:600}
+.logrow .pill{margin-left:auto; flex:none}
+
+/* the rest of the kit */
+.kit{margin-top:clamp(34px,4.5vw,60px); display:grid; grid-template-columns:repeat(4,1fr); gap:16px}
+.kit__cell{padding:20px; border:1.5px solid var(--line); border-radius:var(--r-lg); background:var(--card); box-shadow:var(--sh-1); display:flex; flex-direction:column}
+.kit__ic{width:38px;height:38px;flex:none;border-radius:12px; display:grid; place-items:center; background:var(--k,var(--sky-soft)); border:1.5px solid var(--kb,#CCDFFB)}
+.kit__cell h4{margin-top:14px}
+.kit__cell p{margin-top:7px; font-size:.89rem; color:var(--ink-2); line-height:1.5}
+.kit__mini{margin-top:auto; padding-top:13px; display:flex; flex-wrap:wrap; gap:6px}
+
+/* ---------- 8. setup / blueprint ------------------------------------------- */
+.setup{background:var(--paper-2); border-block:1.5px solid var(--line)}
+.setup__grid{margin-top:clamp(32px,4vw,54px); display:grid; grid-template-columns:minmax(0,.92fr) minmax(0,1.08fr); gap:clamp(26px,4vw,58px); align-items:start}
+.switch{display:flex; flex-wrap:wrap; gap:8px; margin-top:22px}
+.switch button{
+  padding:8px 15px; border-radius:var(--r-pill); border:1.5px solid var(--line-2);
+  background:var(--card); font-size:.86rem; font-weight:600; color:var(--ink-2); cursor:pointer;
+  transition:transform .18s var(--ease-spring), box-shadow .18s var(--ease-spring), background .2s, color .2s, border-color .2s;
+}
+.switch button:hover{transform:translateY(-1.5px)}
+.switch button.on{background:var(--ink); border-color:var(--ink); color:var(--paper); box-shadow:3px 3px 0 var(--lilac)}
+.setup__fine{margin-top:20px; font-size:.87rem; color:var(--ink-3); line-height:1.5; max-width:44ch}
+
+.qa{display:grid; gap:10px; margin-top:26px}
+.qa__q{font-size:.9rem; color:var(--ink-3); font-weight:500}
+.qa__row{display:flex; flex-wrap:wrap; gap:7px}
+.qa__chip{
+  padding:6px 13px; border-radius:var(--r-pill); border:1.5px solid var(--line-2);
+  background:var(--card); font-size:.83rem; font-weight:550; color:var(--ink-3);
+}
+.qa__chip.picked{background:var(--mint-soft); border-color:var(--mint-ink); color:var(--mint-ink)}
+
+.bp{border:1.5px solid var(--line); border-radius:var(--r-lg); background:var(--card); box-shadow:var(--sh-2); overflow:hidden; transition:opacity .26s var(--ease-out)}
+.bp.is-swap{opacity:.18}
+.bp__hd{padding:15px 18px; border-bottom:1.5px solid var(--line); background:var(--paper-2); display:flex; align-items:center; gap:11px; flex-wrap:wrap}
+.bp__hd .k{font-family:var(--display); font-size:1.16rem; font-weight:600; letter-spacing:-.028em}
+.bp__hd .sub{font-size:.8rem; color:var(--ink-3)}
+.bp__sec{padding:14px 18px; border-bottom:1px solid var(--paper-3)}
+.bp__sec:last-child{border-bottom:0}
+.bp__t{font-size:.66rem; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-3); font-weight:700}
+.bp__chips{margin-top:10px; display:flex; flex-wrap:wrap; gap:6px}
+.chip{display:inline-flex; align-items:center; gap:7px; padding:5px 11px; border-radius:var(--r-pill); border:1.5px solid var(--line); background:var(--paper); font-size:.79rem; font-weight:550; color:var(--ink)}
+.chip.off{opacity:.4; text-decoration:line-through; text-decoration-color:var(--line-2)}
+.chip i.sw{width:9px;height:9px;border-radius:3px;background:var(--c,var(--line-2)); flex:none}
+.bp__words{margin-top:10px; display:grid; gap:7px}
+.wordrow{display:flex; align-items:center; gap:10px; font-size:.86rem}
+.wordrow .from{font-family:var(--mono); font-size:.76rem; color:var(--ink-3)}
+.wordrow .to{font-weight:650}
+.seat{display:flex; align-items:center; gap:10px; padding:8px 0; border-bottom:1px solid var(--paper-3); font-size:.86rem}
+.seat:last-child{border-bottom:0}
+.seat .nm{font-weight:600}
+.seat .ab{color:var(--ink-3); font-size:.79rem; min-width:0}
+.seat .rk{font-family:var(--mono); font-size:.71rem; color:var(--ink-3); margin-left:auto; flex:none}
+
+/* ---------- 9. trust ------------------------------------------------------- */
+.trust__head{text-align:center; max-width:700px; margin-inline:auto}
+.stats{margin-top:clamp(38px,5vw,58px); display:grid; grid-template-columns:repeat(4,1fr); gap:18px}
+.stat{text-align:center; padding:24px 16px; background:var(--card); border:1.5px solid var(--line); border-radius:var(--r-lg); box-shadow:var(--sh-1)}
+.stat__k{font-family:var(--display); font-size:clamp(1.8rem,3.3vw,2.6rem); font-weight:600; letter-spacing:-.04em; line-height:1; font-variant-numeric:tabular-nums}
+.stat__l{margin-top:9px; font-size:.87rem; color:var(--ink-3); line-height:1.4}
+
+.guards{margin-top:26px; display:grid; grid-template-columns:repeat(3,1fr); gap:18px}
+.guard{padding:26px; background:var(--card); border:1.5px solid var(--line); border-radius:var(--r-lg); box-shadow:var(--sh-1)}
+.guard__ic{width:46px;height:46px;border-radius:14px; display:grid; place-items:center; background:var(--g, var(--sky-soft)); border:1.5px solid var(--gb, #CCDFFB)}
+.guard h4{margin-top:16px}
+.guard p{margin-top:9px; font-size:.94rem; color:var(--ink-2); line-height:1.55}
+
+.quotes{margin-top:26px; display:grid; grid-template-columns:repeat(3,1fr); gap:18px}
+.quote{padding:26px; background:var(--card); border:1.5px solid var(--line); border-radius:var(--r-lg); box-shadow:var(--sh-1); display:flex; flex-direction:column}
+.quote blockquote{font-size:1.02rem; line-height:1.55; letter-spacing:-.012em}
+.quote blockquote b{font-weight:600; background:linear-gradient(transparent 62%, var(--qm, var(--butter)) 0)}
+.quote figcaption{margin-top:auto; padding-top:20px; display:flex; align-items:center; gap:11px; font-size:.86rem}
+.quote figcaption .r{color:var(--ink-3); font-size:.8rem; line-height:1.3}
+.quote figcaption .nm{font-weight:600}
+
+/* ---------- 10. semester CTA ----------------------------------------------- */
+.cta{padding:clamp(80px,10vw,150px) 0; position:relative; overflow:hidden}
+.cta__card{
+  position:relative; z-index:2; text-align:center;
+  padding:clamp(38px,6vw,74px) clamp(24px,5vw,64px);
+  background:var(--card); border:1.5px solid var(--ink); border-radius:var(--r-xl);
+  box-shadow:8px 8px 0 var(--lilac);
+}
+.cta__count{display:inline-flex; align-items:baseline; gap:10px; padding:9px 20px; border-radius:var(--r-pill); background:var(--butter-soft); border:1.5px solid #F4DFA6; color:var(--butter-ink); font-weight:600; font-size:.92rem}
+.cta__count .k{font-family:var(--mono); font-size:1.32rem; letter-spacing:-.04em}
+.cta h2{margin-top:22px}
+.cta__lede{margin-top:18px; max-width:56ch; margin-inline:auto}
+.cta__actions{margin-top:32px; display:flex; flex-wrap:wrap; gap:12px; justify-content:center}
+.plan{margin-top:44px; display:grid; grid-template-columns:repeat(3,1fr); gap:14px; text-align:left}
+.plan__step{padding:20px; border:1.5px solid var(--line); border-radius:var(--r-lg); background:var(--paper); position:relative}
+.plan__when{font-family:var(--mono); font-size:.76rem; font-weight:600; color:var(--st, var(--peach-ink)); text-transform:uppercase; letter-spacing:.05em}
+.plan__step h4{margin-top:9px}
+.plan__step p{margin-top:7px; font-size:.89rem; color:var(--ink-2); line-height:1.5}
+.plan__arrow{position:absolute; right:-19px; top:50%; transform:translateY(-50%); width:26px; z-index:3}
+.cta__fine{margin-top:26px; font-size:.85rem; color:var(--ink-3)}
+.cta__blob{position:absolute; pointer-events:none; z-index:1}
+
+/* ---------- 11. footer ----------------------------------------------------- */
+.foot{border-top:1.5px solid var(--line); padding:clamp(48px,6vw,76px) 0 40px; background:var(--paper-2)}
+.foot__grid{display:grid; grid-template-columns:1.5fr repeat(3, 1fr); gap:34px}
+.foot__blurb{margin-top:16px; font-size:.92rem; color:var(--ink-2); max-width:34ch; line-height:1.6}
+.foot h5{font-size:.78rem; letter-spacing:.09em; text-transform:uppercase; color:var(--ink-3); font-weight:600; margin-bottom:14px}
+.foot ul{display:grid; gap:9px}
+.foot a{color:var(--ink-2); text-decoration:none; font-size:.93rem}
+.foot a:hover{color:var(--ink); text-decoration:underline; text-decoration-color:var(--line-2); text-underline-offset:3px}
+.foot__base{margin-top:44px; padding-top:22px; border-top:1.5px solid var(--line); display:flex; flex-wrap:wrap; gap:12px; align-items:center; font-size:.83rem; color:var(--ink-3)}
+.foot__base .sp{margin-left:auto}
+
+/* ---------- 12. motion utilities ------------------------------------------ */
+[data-reveal]{
+  opacity:0; transform:translate3d(0, var(--ry, 26px), 0);
+  transition:opacity .72s var(--ease-out) var(--d,0ms), transform .92s var(--ease-spring) var(--d,0ms);
+}
+[data-reveal].is-in{opacity:1; transform:none}
+[data-reveal="scale"]{transform:translate3d(0,34px,0) scale(.965)}
+[data-reveal="left"]{transform:translate3d(-30px,0,0)}
+[data-reveal="right"]{transform:translate3d(30px,0,0)}
+[data-para]{will-change:transform}
+
+.counter{font-variant-numeric:tabular-nums}
+
+@media (prefers-reduced-motion: reduce){
+  html{scroll-behavior:auto}
+  *,*::before,*::after{animation-duration:.001ms !important; animation-iteration-count:1 !important; transition-duration:.001ms !important}
+  [data-reveal]{opacity:1 !important; transform:none !important}
+  [data-para]{transform:none !important}
+  .marquee__track{animation:none; transform:none}
+}
+
+/* ---------- responsive ----------------------------------------------------- */
+/* Below ~1320 the wrap loses its side margin, so anything hanging off the card
+   would get sliced by the viewport. Tuck it in instead. */
+@media (max-width: 1320px){
+  .pile--sheet{left:-40px}
+  .pile--chat{left:-32px}
+  .hero__spot{right:-12px; bottom:-92px; width:288px}
+}
+@media (max-width: 1080px){
+  .stats{grid-template-columns:repeat(2,1fr)}
+  .guards,.quotes{grid-template-columns:1fr 1fr}
+  .quote:last-child{grid-column:span 2}
+  .kit{grid-template-columns:repeat(2,1fr)}
+  .foot__grid{grid-template-columns:1fr 1fr 1fr}
+  .foot__brand{grid-column:span 3}
+}
+@media (max-width: 900px){
+  .nav__links{display:none}
+  .nav__cta .btn--ghost{display:none}          /* one CTA only — the bar is 390px wide */
+  .mod--flip .mod__copy{order:0}
+  /* minmax(0,1fr), not 1fr: a single wide child (the eyebrow's tracked caps)
+     would otherwise stretch the column past the viewport */
+  .hero__grid{grid-template-columns:minmax(0,1fr); gap:44px}
+  .hero__stage{min-height:0; margin-top:8px}
+  .pile--sheet{top:-30px; left:-8px; width:150px}
+  .pile--chat{bottom:-24px; left:-14px; width:150px}
+  .day__in,.ask__grid,.setup__grid{grid-template-columns:minmax(0,1fr); gap:26px; align-items:start}
+  .day__in{padding:0}
+  .mod__grid{grid-template-columns:minmax(0,1fr) !important; gap:28px}
+  .guards,.quotes{grid-template-columns:minmax(0,1fr)}
+  .quote:last-child{grid-column:auto}
+  .plan{grid-template-columns:minmax(0,1fr)}
+  .plan__arrow{display:none}
+  .foot__grid{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+  .foot__brand{grid-column:span 2}
+}
+@media (max-width: 860px){
+  /* Mobile motion budget: no pinning, no parallax, no inline transforms left
+     behind by a desktop→mobile resize. Reveals stay (short, one-handed-friendly). */
+  .day__rail{height:auto !important}
+  .day__stage{position:static; height:auto; overflow:visible; padding:6px 0 34px}
+  .deck{height:auto; display:grid; gap:26px}
+  .dayslide{position:static; opacity:1 !important; transform:none !important; display:block}
+  .dayslide__t{display:block}
+  .beatlist{display:none}      /* the per-slide time stamp carries it on mobile */
+  [data-para]{transform:none !important}
+  .pile,.hero__card,.hero__spot,.mod__stage,.day__doodle,.cta__blob,.spot{transform:none !important}
+  .pile--sheet,.pile--chat{position:relative; inset:auto; width:auto}
+  .hero__spot{position:relative; inset:auto; width:auto; margin-top:18px}
+  .hero__piles{display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:12px; margin-top:24px}
+  .sticky-note b{overflow-wrap:anywhere}   /* dues_FALL_v4_FINAL.xlsx is one long token */
+  .callout{position:static; max-width:none; margin-top:14px}
+  .spot__body{height:auto; overflow:visible}
+  .marquee{--dur:38s}
+  .marquee__row:nth-child(2){display:none}
+  .section{padding:64px 0}
+}
+@media (max-width: 640px){
+  .kit{grid-template-columns:minmax(0,1fr)}
+  .ui-split,.ui-docs{grid-template-columns:minmax(0,1fr)}
+}
+@media (max-width: 560px){
+  body{font-size:16px}
+  .wrap,.wrap--narrow{width:calc(100% - 32px)}
+  .hero__actions .btn{width:100%}
+  .stats{grid-template-columns:1fr 1fr; gap:12px}
+  .ui-roll{grid-template-columns:1fr 1fr}
+  .ui-meas{grid-template-columns:1fr 1fr}
+  .ui-board{grid-template-columns:1fr 1fr}
+  .ui-week{grid-template-columns:repeat(3,1fr)}
+  .ui-week .ui-day:nth-child(n+4){display:none}
+  .ui-th,.ui-tr{grid-template-columns:1.4fr .9fr}
+  .ui-th span:nth-child(3),.ui-tr .amt{display:none}  /* drop the balance col, keep its header honest */
+  .ui-table--4 .ui-th,.ui-table--4 .ui-tr{grid-template-columns:1.4fr .9fr}
+  .ui-table--4 .ui-th span:nth-child(4),.ui-table--4 .ui-tr .txt{display:none}
+  .acard__hd{flex-wrap:wrap; row-gap:9px}
+  .acard__hd .pill{margin-left:0 !important; order:3}
+  .ui-brief{flex-wrap:wrap}
+  /* the shots' widest rows: let the trailing controls take their own line
+     rather than pinning a min-width the viewport can't honour */
+  .ui-stat > span:last-child,.ui-note > span:last-child{margin-left:0 !important; width:100%}
+  .att{flex-wrap:wrap; row-gap:8px}
+  .att__a{margin-left:auto}
+  .logrow{flex-wrap:wrap; row-gap:4px}
+  .logrow .pill{margin-left:auto}
+  .shot__body{padding:15px 14px 16px}
+  .seat{flex-wrap:wrap; row-gap:2px}
+  .seat .ab{width:100%; order:3}
+  .foot__grid{grid-template-columns:1fr}
+  .foot__brand{grid-column:auto}
+}
+</style>
+<noscript><style>
+  /* no-js: everything is present and readable, just static */
+  [data-reveal]{opacity:1 !important; transform:none !important}
+  .beat{grid-template-rows:1fr}
+  .ledger li{opacity:1}
+  .day__rail{height:auto}
+  .day__stage{position:static; height:auto}
+  .deck{height:auto; display:grid; gap:26px}
+  .dayslide{position:static; opacity:1; transform:none}
+  .dayslide__t{display:block}
+  .beatlist{display:none}
+  .spot__body{height:auto; overflow:visible}
+  .spotmini__a{opacity:1; transform:none}
+</style></noscript>
+</head>
+<body>
+
+<!-- ============ sprite: every doodle used on the page ====================== -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="d-check" viewBox="0 0 24 24"><path d="M4.5 13.2 9.4 18 19.5 6.4" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="d-spark" viewBox="0 0 24 24"><path d="M12 2.6c.7 5.1 3.6 8 8.7 8.8-5.1.7-8 3.6-8.7 8.7-.7-5.1-3.6-8-8.7-8.7 5.1-.8 8-3.7 8.7-8.8Z" fill="currentColor"/></symbol>
+    <symbol id="d-arrow-r" viewBox="0 0 24 24"><path d="M4 12h15m0 0-6-6m6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="d-shield" viewBox="0 0 24 24"><path d="M12 2.8 4.6 5.7c-.3 6.6 1.6 12 7.4 15.5 5.8-3.5 7.7-8.9 7.4-15.5L12 2.8Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/><path d="M8.6 12.1 11 14.6l4.6-4.9" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="d-receipt" viewBox="0 0 24 24"><path d="M6 2.9h12v18.4l-2.4-1.7-2.4 1.7-2.4-1.7-2.4 1.7L6 19.6V2.9Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/><path d="M9.4 8h5.2M9.4 12.2h5.2" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+    <symbol id="d-export" viewBox="0 0 24 24"><path d="M12 15.4V3.6m0 0L8.2 7.4M12 3.6l3.8 3.8" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/><path d="M4.4 14v5.2c0 .8.6 1.4 1.4 1.4h12.4c.8 0 1.4-.6 1.4-1.4V14" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+    <symbol id="d-cal" viewBox="0 0 24 24"><rect x="3.3" y="5.2" width="17.4" height="15.4" rx="2.6" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M3.6 10h16.8M8.2 3.2v3.6M15.8 3.2v3.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+    <symbol id="d-wallet" viewBox="0 0 24 24"><path d="M3.4 7.6c0-1.3 1-2.3 2.3-2.3h12.6c1.3 0 2.3 1 2.3 2.3v9.2c0 1.3-1 2.3-2.3 2.3H5.7a2.3 2.3 0 0 1-2.3-2.3V7.6Z" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M15.6 12.2h4.9" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></symbol>
+    <symbol id="d-hand" viewBox="0 0 24 24"><path d="M8.6 11V5.4a1.5 1.5 0 0 1 3 0V10m0-1.1a1.5 1.5 0 0 1 3 0v1.4m0-.7a1.5 1.5 0 0 1 3 0v4.6c0 3.4-2.4 6.1-5.8 6.1-3 0-4.6-1.5-6.2-4.2l-1.7-3a1.4 1.4 0 0 1 2.2-1.7l1.5 1.7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="d-people" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.4" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M2.8 20.4c.4-3.6 3-5.8 6.2-5.8s5.8 2.2 6.2 5.8" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/><path d="M16.2 5.2a3.2 3.2 0 0 1 0 6M17.6 14.9c2.2.5 3.6 2.5 3.8 5.1" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+    <symbol id="d-chat" viewBox="0 0 24 24"><path d="M20.6 11.6c0 4.2-3.9 7.6-8.6 7.6-1 0-2-.2-2.9-.5l-5 1.6 1.6-4a7 7 0 0 1-2.3-4.7C3.4 7.4 7.3 4 12 4s8.6 3.4 8.6 7.6Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/></symbol>
+    <symbol id="d-swirl" viewBox="0 0 120 46"><path d="M2 34c14-16 34-28 52-28 12 0 18 7 15 14-3 6-13 7-16 1-4-7 4-16 17-18 12-2 26 3 34 12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/><path d="m97 8 8 7-9 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="d-star" viewBox="0 0 24 24"><path d="M12 3.4c.9 4.2 2.6 6 6.6 6.9-4 .9-5.7 2.7-6.6 6.9-.9-4.2-2.6-6-6.6-6.9 4-.9 5.7-2.7 6.6-6.9Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></symbol>
+    <symbol id="d-mug" viewBox="0 0 24 24"><path d="M4.2 7.4h12.2v7.4a5 5 0 0 1-5 5h-2.2a5 5 0 0 1-5-5V7.4Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/><path d="M16.6 9.4h1.8a2.6 2.6 0 0 1 0 5.2h-1.8" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M8 4.4c.7-.9.7-1.5 0-2.2M11.8 4.4c.7-.9.7-1.5 0-2.2" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></symbol>
+    <symbol id="d-plant" viewBox="0 0 24 24"><path d="M12 21v-8.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/><path d="M12 13.4C9 13.4 6.6 11 6.6 8c3 0 5.4 2.4 5.4 5.4ZM12 12.2c0-3 2.4-5.4 5.4-5.4 0 3-2.4 5.4-5.4 5.4Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/><path d="M8.4 21h7.2" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+    <symbol id="d-clip" viewBox="0 0 24 24"><rect x="4.4" y="4.2" width="15.2" height="16.6" rx="2.4" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M9 4.2c0-1.2 1.3-2 3-2s3 .8 3 2" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M8.4 11.4h7.2M8.4 15.4h4.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+    <symbol id="d-loop" viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.6-5.9" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/><path d="M20.4 3.2v4.4h-4.4" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <!-- added for v2's surfaces -->
+    <symbol id="d-pencil" viewBox="0 0 24 24"><path d="M4 20.2 4.9 16 16.4 4.5a2.1 2.1 0 0 1 3 3L7.9 19.1 4 20.2Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/><path d="M14.6 6.4 17.8 9.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+    <symbol id="d-folder" viewBox="0 0 24 24"><path d="M3.2 6.6c0-1 .8-1.8 1.8-1.8h4l2.2 2.6h8.8c1 0 1.8.8 1.8 1.8v8.6c0 1-.8 1.8-1.8 1.8H5c-1 0-1.8-.8-1.8-1.8V6.6Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/></symbol>
+    <symbol id="d-board" viewBox="0 0 24 24"><path d="M4.6 3.4v17.2M12 3.4v10.4M19.4 3.4v14.2" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></symbol>
+    <symbol id="d-key" viewBox="0 0 24 24"><circle cx="8" cy="8.4" r="4.4" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="m11.2 11.6 8.4 8.4M16.4 16.8l2-2M13.6 14l2-2" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+    <symbol id="d-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.8" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M12 6.8V12l3.6 2.2" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="d-heart" viewBox="0 0 24 24"><path d="M12 20.4C6.4 16.8 3 13.6 3 9.8A4.6 4.6 0 0 1 7.6 5.2c1.8 0 3.4 1 4.4 2.6 1-1.6 2.6-2.6 4.4-2.6A4.6 4.6 0 0 1 21 9.8c0 3.8-3.4 7-9 10.6Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/></symbol>
+    <symbol id="d-link" viewBox="0 0 24 24"><path d="M10.2 13.8a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1.6 1.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/><path d="M13.8 10.2a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1.6-1.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+    <symbol id="d-phone" viewBox="0 0 24 24"><rect x="6.4" y="2.6" width="11.2" height="18.8" rx="2.6" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M10.6 18.4h2.8" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+    <symbol id="d-bars" viewBox="0 0 24 24"><path d="M5.4 20.4V12M12 20.4V4.4M18.6 20.4v-6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></symbol>
+    <symbol id="d-camera" viewBox="0 0 24 24"><rect x="3.4" y="6.4" width="17.2" height="14" rx="3" fill="none" stroke="currentColor" stroke-width="2.1"/><circle cx="12" cy="13.4" r="3.4" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M8.6 6.4 10 3.6h4l1.4 2.8" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/></symbol>
+    <symbol id="d-note" viewBox="0 0 24 24"><path d="M9.4 18V5.2l9.4-2v12.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/><circle cx="7" cy="18.4" r="2.6" fill="none" stroke="currentColor" stroke-width="2.1"/><circle cx="16.4" cy="15.8" r="2.6" fill="none" stroke="currentColor" stroke-width="2.1"/></symbol>
+    <symbol id="d-flag" viewBox="0 0 24 24"><path d="M5.4 21V3.6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><path d="M5.4 4.6h11.8l-2.2 3.8 2.2 3.8H5.4" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/></symbol>
+  </defs>
+</svg>
+
+<div class="progress" aria-hidden="true"><i data-progress></i></div>
+
+<!-- ============ nav ======================================================= -->
+<header class="nav" data-nav>
+  <div class="wrap nav__in">
+    <a class="brand" href="#top">
+      <svg class="brand__mark" viewBox="0 0 40 40" aria-hidden="true">
+        <rect x="2.5" y="4.5" width="35" height="31" rx="9" fill="#FFE5A0" stroke="#26211B" stroke-width="2.4"/>
+        <path d="M12 21.5c2.2 3.4 5 5 8.4 5 3.2 0 5.9-1.5 8-4.6" fill="none" stroke="#26211B" stroke-width="2.4" stroke-linecap="round"/>
+        <circle cx="14.6" cy="16" r="1.9" fill="#26211B"/>
+        <circle cx="25.4" cy="16" r="1.9" fill="#26211B"/>
+      </svg>
+      ChaptOS
+    </a>
+    <nav class="nav__links">
+      <a href="#day">A Tuesday</a>
+      <a href="#ask">Just ask</a>
+      <a href="#modules">What's in it</a>
+      <a href="#setup">Setup</a>
+      <a href="#trust">Trust</a>
+    </nav>
+    <div class="nav__cta">
+      <a class="btn btn--ghost btn--sm" href="#day">See a real day</a>
+      <a class="btn btn--sm" href="#start">Set up your org</a>
+    </div>
+  </div>
+</header>
+
+<main id="top">
+<!-- ============ 3. hero ================================================== -->
+<section class="hero">
+  <div class="wrap hero__grid">
+
+    <div class="hero__copy">
+      <span class="eyebrow" style="--eb:var(--peach)" data-reveal>For chapters · clubs · teams · councils · volunteer corps</span>
+
+      <h1 data-reveal style="--d:60ms">
+        <span class="line">Open one page.</span>
+        <span class="line">It already knows</span>
+        <span class="line"><span class="hi" style="--mark:var(--butter)">what today needs.</span></span>
+      </h1>
+
+      <p class="lede hero__lede" data-reveal style="--d:140ms">
+        ChaptOS holds the whole org — roster, dues, meetings, events, service, docs —
+        and opens on a briefing: what's late, what's this week, who's slipping. Everything
+        else is one <em>question</em> away.
+      </p>
+
+      <div class="hero__actions" data-reveal style="--d:200ms">
+        <a class="btn btn--lg" href="#start">Set up your org — free</a>
+        <a class="btn btn--ghost btn--lg" href="#day">
+          Watch one Tuesday
+          <svg width="17" height="17" aria-hidden="true"><use href="#d-arrow-r"/></svg>
+        </a>
+      </div>
+
+      <p class="hero__fine" data-reveal style="--d:260ms">
+        <span>Built around your org, not a template</span><span class="dot"></span>
+        <span>No card, no contract</span><span class="dot"></span>
+        <span>Export everything, any time</span>
+      </p>
+    </div>
+
+    <div class="hero__stage">
+      <!-- the product: the dashboard as it actually opens, first thing -->
+      <div class="hero__card" data-para data-speed="-0.05">
+        <div class="hero__cardbar">
+          <i class="tl"></i><i class="tl"></i><i class="tl"></i>
+          <span class="hero__crumb mono">chaptos.app / lambda-phi</span>
+        </div>
+        <div class="hero__cardbody">
+          <div class="ui-brief">
+            <div>
+              <p class="ui-kick">Tue · Oct 14 · week 8 of Fall '26</p>
+              <p class="ui-greet">Good evening, Priya</p>
+              <p class="ui-digest">
+                <span class="aichip"><svg width="9" height="9" aria-hidden="true"><use href="#d-spark"/></svg>Digest</span>
+                <span>Three deadlines land this week, dues are 76% in, and two members
+                just dropped below attendance standing.</span>
+              </p>
+            </div>
+            <span class="ui-ring ui-ring--sm" data-ring="82" style="--ring-c:var(--mint-ink)">
+              <i class="mono">82<small>health</small></i>
+            </span>
+          </div>
+
+          <div class="ui-meas">
+            <div class="meas"><p class="meas__l">Attendance</p><p class="meas__v">92%</p><p class="meas__d up">▲ 4.2</p></div>
+            <div class="meas"><p class="meas__l">Dues in</p><p class="meas__v">$4,820</p><p class="meas__d">of $6,300</p></div>
+            <div class="meas"><p class="meas__l">Service</p><p class="meas__v">312 hrs</p><p class="meas__d up">▲ 38</p></div>
+            <div class="meas"><p class="meas__l">Balance</p><p class="meas__v">$12,480</p><p class="meas__d">net</p></div>
+          </div>
+
+          <div class="ui-att">
+            <div class="att">
+              <span class="att__tag">Overdue</span>
+              <div class="att__b"><p class="t">Submit the fall budget to the advisor</p><p class="m">Due Oct 10 · Treasurer · 4 days late</p></div>
+              <span class="att__a">Mark done</span>
+            </div>
+            <div class="att">
+              <span class="att__tag gold">Dues</span>
+              <div class="att__b"><p class="t">Maya Rivera — $140 outstanding</p><p class="m">21 days past the Oct 1 date</p></div>
+              <span class="att__a">Open</span>
+            </div>
+            <div class="att">
+              <span class="att__tag sky">Request</span>
+              <div class="att__b"><p class="t">Reimbursement — $84.20, service supplies</p><p class="m">Nia Brooks · waiting on a treasurer</p></div>
+              <span class="att__a">Review</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- the ⌘K spotlight, live on every page -->
+      <div class="hero__spot" data-para data-speed="0.085">
+        <div class="spotmini" data-spotmini>
+          <p class="spotmini__hd">
+            <svg width="13" height="13" style="color:var(--lilac-ink)" aria-hidden="true"><use href="#d-spark"/></svg>
+            Ask Chapt <kbd>⌘K</kbd>
+          </p>
+          <p class="spotmini__q"><span data-typer data-lines="who still owes dues?|is anyone double-booked next week?|who missed the last two meetings?"></span></p>
+          <p class="spotmini__a" data-spotmini-a></p>
+        </div>
+      </div>
+
+      <!-- what it replaces: the pile of stuff officers use today -->
+      <div class="hero__piles">
+        <div class="pile pile--sheet" data-para data-speed="0.075">
+          <div class="sticky-note" style="--note:var(--mint); --rot:-3.2deg">
+            <b>dues_FALL_v4_FINAL.xlsx</b><br>
+            <span style="font-size:.83rem; color:var(--ink-2)">last edited by an officer who graduated</span>
+          </div>
+        </div>
+        <div class="pile pile--chat" data-para data-speed="0.115">
+          <div class="sticky-note" style="--note:var(--rose); --rot:2.6deg; --tape-rot:3deg">
+            <b>"did anyone take attendance??"</b><br>
+            <span style="font-size:.83rem; color:var(--ink-2)">group chat, 11:52 PM</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- trust strip: the range of orgs it shapes itself to -->
+  <div class="wrap trustbar" data-reveal>
+    <p class="trustbar__label">One product, seven starting shapes — same pages, different words</p>
+    <div class="trustbar__row">
+      <span class="orgchip"><svg class="doodle doodle--thin" style="color:var(--peach-ink)" viewBox="0 0 24 24"><use href="#d-star"/></svg>Fraternity <small>· brothers, chapter</small></span>
+      <span class="orgchip"><svg class="doodle doodle--thin" style="color:var(--sky-ink)" viewBox="0 0 24 24"><use href="#d-flag"/></svg>Club team <small>· players, practice</small></span>
+      <span class="orgchip"><svg class="doodle doodle--thin" style="color:var(--mint-ink)" viewBox="0 0 24 24"><use href="#d-heart"/></svg>Volunteer corps <small>· hours</small></span>
+      <span class="orgchip"><svg class="doodle doodle--thin" style="color:var(--rose-ink)" viewBox="0 0 24 24"><use href="#d-note"/></svg>Theatre &amp; band <small>· cast, rehearsal</small></span>
+      <span class="orgchip"><svg class="doodle doodle--thin" style="color:var(--butter-ink)" viewBox="0 0 24 24"><use href="#d-clip"/></svg>Student government</span>
+      <span class="orgchip"><svg class="doodle doodle--thin" style="color:var(--lilac-ink)" viewBox="0 0 24 24"><use href="#d-mug"/></svg>Honor society</span>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 4. pain marquee ========================================== -->
+<section class="pain" id="pain">
+  <div class="wrap pain__head">
+    <span class="eyebrow" style="--eb:var(--rose)" data-reveal>The 11 p.m. problem</span>
+    <h2 data-reveal style="margin-top:16px; --d:60ms">Nobody signed up to be an admin.</h2>
+    <p class="lede" style="margin-top:18px" data-reveal>
+      You ran for this because you cared about the org. Then the org turned out to be
+      a filing system with a social calendar attached.
+    </p>
+  </div>
+
+  <div class="marquee" data-reveal style="--d:120ms">
+    <div class="marquee__row">
+      <div class="marquee__track" data-marquee>
+        <div class="gripe" style="--rot:-.6deg"><q>I spent <b>two hours</b> matching Venmo notes to a spreadsheet. One said "🍕".</q><footer><svg width="14" height="14" aria-hidden="true"><use href="#d-wallet"/></svg>Treasurer, 60-member chapter</footer></div>
+        <div class="gripe gripe--tint" style="--t:var(--butter-soft); --rot:.5deg"><q>Attendance is a <b>notebook</b>. The notebook is in someone's car. The car is in Ohio.</q><footer><svg width="14" height="14" aria-hidden="true"><use href="#d-clip"/></svg>Secretary, service club</footer></div>
+        <div class="gripe" style="--rot:.8deg"><q>Minutes live in <b>three people's Notes app</b>. Nobody agrees what we decided.</q><footer><svg width="14" height="14" aria-hidden="true"><use href="#d-pencil"/></svg>Secretary, 90-member org</footer></div>
+        <div class="gripe gripe--tint" style="--t:var(--sky-soft); --rot:-.9deg"><q>New treasurer asked where the money was. Honestly? <b>Four places.</b></q><footer><svg width="14" height="14" aria-hidden="true"><use href="#d-receipt"/></svg>Outgoing president</footer></div>
+        <div class="gripe" style="--rot:.4deg"><q>Our whole system was <b>one senior's Google Drive</b>. She graduated in May.</q><footer><svg width="14" height="14" aria-hidden="true"><use href="#d-people"/></svg>Incoming exec board</footer></div>
+        <!-- duplicate half for a seamless loop; JS measures the exact seam -->
+        <div class="gripe" style="--rot:-.6deg"><q>I spent <b>two hours</b> matching Venmo notes to a spreadsheet. One said "🍕".</q><footer><svg width="14" height="14" aria-hidden="true"><use href="#d-wallet"/></svg>Treasurer, 60-member chapter</footer></div>
+        <div class="gripe gripe--tint" style="--t:var(--butter-soft); --rot:.5deg"><q>Attendance is a <b>notebook</b>. The notebook is in someone's car. The car is in Ohio.</q><footer><svg width="14" height="14" aria-hidden="true"><use href="#d-clip"/></svg>Secretary, service club</footer></div>
+        <div class="gripe" style="--rot:.8deg"><q>Minutes live in <b>three people's Notes app</b>. Nobody agrees what we decided.</q><footer><svg width="14" height="14" aria-hidden="true"><use href="#d-pencil"/></svg>Secretary, 90-member org</footer></div>
+        <div class="gripe gripe--tint" style="--t:var(--sky-soft); --rot:-.9deg"><q>New treasurer asked where the money was. Honestly? <b>Four places.</b></q><footer><svg width="14" height="14" aria-hidden="true"><use href="#d-receipt"/></svg>Outgoing president</footer></div>
+        <div class="gripe" style="--rot:.4deg"><q>Our whole system was <b>one senior's Google Drive</b>. She graduated in May.</q><footer><svg width="14" height="14" aria-hidden="true"><use href="#d-people"/></svg>Incoming exec board</footer></div>
+      </div>
+    </div>
+    <div class="marquee__row">
+      <div class="marquee__track" data-marquee>
+        <div class="gripe gripe--tint" style="--t:var(--mint-soft); --rot:.7deg"><q>I approved an <b>$84 reimbursement over text</b> and never wrote it down. The balance lied for a month.</q><footer><svg width="14" height="14" aria-hidden="true"><use href="#d-wallet"/></svg>Treasurer, 4 committees</footer></div>
+        <div class="gripe" style="--rot:-.5deg"><q>Half the exec board <b>can't find</b> last year's event budget. It exists. Somewhere.</q><footer><svg width="14" height="14" aria-hidden="true"><use href="#d-folder"/></svg>President, 120-member org</footer></div>
+        <div class="gripe gripe--tint" style="--t:var(--lilac-soft); --rot:.9deg"><q>Every term we rebuild the same roster sheet <b>from scratch.</b></q><footer><svg width="14" height="14" aria-hidden="true"><use href="#d-loop"/></svg>Membership chair</footer></div>
+        <div class="gripe" style="--rot:-.8deg"><q>Sent dues reminders to <b>nine people who'd already paid.</b> Great look.</q><footer><svg width="14" height="14" aria-hidden="true"><use href="#d-chat"/></svg>Treasurer, honor society</footer></div>
+        <div class="gripe gripe--tint" style="--t:var(--mint-soft); --rot:.7deg"><q>I approved an <b>$84 reimbursement over text</b> and never wrote it down. The balance lied for a month.</q><footer><svg width="14" height="14" aria-hidden="true"><use href="#d-wallet"/></svg>Treasurer, 4 committees</footer></div>
+        <div class="gripe" style="--rot:-.5deg"><q>Half the exec board <b>can't find</b> last year's event budget. It exists. Somewhere.</q><footer><svg width="14" height="14" aria-hidden="true"><use href="#d-folder"/></svg>President, 120-member org</footer></div>
+        <div class="gripe gripe--tint" style="--t:var(--lilac-soft); --rot:.9deg"><q>Every term we rebuild the same roster sheet <b>from scratch.</b></q><footer><svg width="14" height="14" aria-hidden="true"><use href="#d-loop"/></svg>Membership chair</footer></div>
+        <div class="gripe" style="--rot:-.8deg"><q>Sent dues reminders to <b>nine people who'd already paid.</b> Great look.</q><footer><svg width="14" height="14" aria-hidden="true"><use href="#d-chat"/></svg>Treasurer, honor society</footer></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 5. day scene ============================================= -->
+<!-- Scroll-scrubbed Tuesday. The rail is tall; the stage pins; JS maps rail
+     progress → which slide is on. Mobile drops the pin and stacks all six. -->
+<section class="day" id="day" data-day>
+  <div class="day__rail">
+    <div class="day__stage">
+      <div class="day__in">
+
+        <div class="day__side">
+          <span class="eyebrow" style="--eb:var(--sky)">Tuesday, October 14</span>
+          <h2>Nobody logs in<br>to use software.</h2>
+          <p class="lede">
+            They log in because something's due, someone paid, roll needs taking, and
+            the minutes have to say what we decided. Here's an ordinary day, in the
+            order it actually happens.
+          </p>
+
+          <ol class="beatlist" data-beatlist>
+            <li data-day-nav="0"><span class="n">1</span><span><b class="bt-time">8:12 AM</b>The briefing says what's late</span></li>
+            <li data-day-nav="1"><span class="n">2</span><span><b class="bt-time">12:40 PM</b>An idea becomes a real event</span></li>
+            <li data-day-nav="2"><span class="n">3</span><span><b class="bt-time">3:05 PM</b>A payout gets approved — and booked</span></li>
+            <li data-day-nav="3"><span class="n">4</span><span><b class="bt-time">7:31 PM</b>Roll call, 52 names, 40 seconds</span></li>
+            <li data-day-nav="4"><span class="n">5</span><span><b class="bt-time">9:20 PM</b>Minutes turn into assigned work</span></li>
+            <li data-day-nav="5"><span class="n">6</span><span><b class="bt-time">11:58 PM</b>Next year can still read today</span></li>
+          </ol>
+
+          <svg class="day__doodle" style="width:112px; bottom:-14px; right:6px; color:var(--sky-ink); opacity:.45" viewBox="0 0 120 46" aria-hidden="true"><use href="#d-swirl"/></svg>
+        </div>
+
+        <div class="deck" data-deck>
+
+          <!-- 1 — the morning briefing -->
+          <div class="dayslide" data-slide="0">
+            <div>
+              <p class="dayslide__t">8:12 AM · Dashboard</p>
+              <figure class="shot">
+                <div class="shot__bar">
+                  <i class="tl"></i><i class="tl"></i><i class="tl"></i>
+                  <span class="shot__path mono">Dashboard <span class="sep">/</span> Fall 2026</span>
+                </div>
+                <div class="shot__body">
+                  <div class="shot__toolbar">
+                    <span class="shot__title">Needs attention</span>
+                    <span class="pill pill--due"><i class="dot"></i>4</span>
+                    <span class="shot__spacer"></span>
+                    <span class="mono" style="font-size:.78rem; color:var(--ink-3)">resolved items drop off</span>
+                  </div>
+                  <div class="ui-att" style="margin-top:0">
+                    <div class="att">
+                      <span class="att__tag">Overdue</span>
+                      <div class="att__b"><p class="t">Submit the fall budget to the advisor</p><p class="m">Due Oct 10 · Treasurer · 4 days late</p></div>
+                      <span class="att__a">Mark done</span>
+                    </div>
+                    <div class="att">
+                      <span class="att__tag gold">Dues</span>
+                      <div class="att__b"><p class="t">Maya Rivera — $140 outstanding</p><p class="m">21 days past the Oct 1 date</p></div>
+                      <span class="att__a">Open profile</span>
+                    </div>
+                    <div class="att">
+                      <span class="att__tag sky">Request</span>
+                      <div class="att__b"><p class="t">Reimbursement — $84.20, service supplies</p><p class="m">Nia Brooks · waiting on a treasurer</p></div>
+                      <span class="att__a">Review</span>
+                    </div>
+                    <div class="att">
+                      <span class="att__tag calm">Standing</span>
+                      <div class="att__b"><p class="t">Jordan Tao is one absence from review</p><p class="m">2 of 8 missed · policy is 3</p></div>
+                      <span class="att__a">Open profile</span>
+                    </div>
+                  </div>
+                </div>
+              </figure>
+              <p class="dayslide__note">
+                <svg style="color:var(--mint-ink)" aria-hidden="true"><use href="#d-check"/></svg><span>Nobody built a report to find these. The queue is what the dashboard opens on,
+                and rows leave it the moment they're handled.</span></p>
+            </div>
+          </div>
+
+          <!-- 2 — programming board -->
+          <div class="dayslide" data-slide="1">
+            <div>
+              <p class="dayslide__t">12:40 PM · Programming</p>
+              <figure class="shot">
+                <div class="shot__bar">
+                  <i class="tl"></i><i class="tl"></i><i class="tl"></i>
+                  <span class="shot__path mono">Programming <span class="sep">/</span> Fall 2026</span>
+                </div>
+                <div class="shot__body">
+                  <div class="shot__toolbar">
+                    <span class="shot__title">Alumni mixer</span>
+                    <span class="pill pill--paid"><i class="dot"></i>Moved to Confirmed</span>
+                    <span class="shot__spacer"></span>
+                    <span class="shot__tabs"><span class="on">Board</span><span>Table</span><span>Calendar</span></span>
+                  </div>
+
+                  <div class="ui-board">
+                    <div class="bcol">
+                      <p class="bcol__h"><i style="--s:var(--rose-ink)"></i>Idea <b>3</b></p>
+                      <div class="bcard">Casino night<small>no owner yet</small></div>
+                      <div class="bcard">Intramural league<small>needs budget</small></div>
+                    </div>
+                    <div class="bcol">
+                      <p class="bcol__h"><i style="--s:var(--butter-ink)"></i>Planning <b>2</b></p>
+                      <div class="bcard">Beach cleanup<small>Sat · service</small></div>
+                    </div>
+                    <div class="bcol">
+                      <p class="bcol__h"><i style="--s:var(--mint-ink)"></i>Confirmed <b>2</b></p>
+                      <div class="bcard is-moved">Alumni mixer<small>Fri 6:30 · D. Reyes</small></div>
+                      <div class="bcard">Fall formal<small>Oct 23 · social</small></div>
+                    </div>
+                    <div class="bcol">
+                      <p class="bcol__h"><i style="--s:var(--line-2)"></i>Done <b>6</b></p>
+                      <div class="bcard" style="opacity:.62">Fundraiser night<small>Sep 28</small></div>
+                    </div>
+                  </div>
+
+                  <ul class="ui-check">
+                    <li class="done"><i class="box"><svg style="color:#fff; width:11px;height:11px" viewBox="0 0 24 24"><use href="#d-check"/></svg></i><span class="lbl">Venue confirmed — the Union, room 204</span><span class="owner pill pill--paid"><i class="dot"></i>Done</span></li>
+                    <li class="done"><i class="box"><svg style="color:#fff; width:11px;height:11px" viewBox="0 0 24 24"><use href="#d-check"/></svg></i><span class="lbl">Budget line approved — $340</span><span class="owner pill pill--paid"><i class="dot"></i>Done</span></li>
+                    <li><i class="box"></i><span class="lbl">Alumni list pulled + emailed</span><span class="owner pill pill--part"><i class="dot"></i>Due Thu</span></li>
+                  </ul>
+
+                  <p class="ui-note" style="background:var(--mint-soft); border-color:#BDE7D2; color:var(--mint-ink)">
+                    <svg width="15" height="15" aria-hidden="true"><use href="#d-cal"/></svg><span>Confirmed events land on the org timeline — <b>everyone sees Friday 6:30</b> without a single group-chat post</span></p>
+                </div>
+              </figure>
+              <p class="dayslide__note">
+                <svg style="color:var(--mint-ink)" aria-hidden="true"><use href="#d-check"/></svg><span>The social chair dragged one card. That's the whole announcement.</span></p>
+            </div>
+          </div>
+
+          <!-- 3 — treasury: approval mints the ledger row -->
+          <div class="dayslide" data-slide="2">
+            <div>
+              <p class="dayslide__t">3:05 PM · Treasury</p>
+              <figure class="shot">
+                <div class="shot__bar">
+                  <i class="tl"></i><i class="tl"></i><i class="tl"></i>
+                  <span class="shot__path mono">Treasury <span class="sep">/</span> Reimbursements</span>
+                </div>
+                <div class="shot__body">
+                  <div class="shot__toolbar">
+                    <span class="shot__title">Waiting on you</span>
+                    <span class="pill pill--part"><i class="dot"></i>2 pending</span>
+                    <span class="shot__spacer"></span>
+                    <span class="mono" style="font-size:.9rem; font-weight:600">$12,480<span style="color:var(--ink-3)"> balance</span></span>
+                  </div>
+
+                  <div class="ui-stat" style="gap:14px">
+                    <span class="avatar" style="--av:var(--mint)">NB</span>
+                    <div style="min-width:0">
+                      <p class="ui-stat__k">$84.20 <span style="font-size:.9rem; color:var(--ink-3); font-family:var(--sans); font-weight:500">— service supplies</span></p>
+                      <p class="ui-stat__l">Nia Brooks · Oct 12 · receipt attached · category: Service</p>
+                    </div>
+                    <span style="margin-left:auto; display:flex; gap:8px; flex:none">
+                      <span class="btn btn--sm" style="--btn-shadow:var(--mint)">Approve</span>
+                      <span class="btn btn--ghost btn--sm">Decline</span>
+                    </span>
+                  </div>
+
+                  <p class="ui-note" style="background:var(--butter-soft); border-color:#F4DFA6; color:var(--butter-ink)">
+                    <svg width="15" height="15" aria-hidden="true"><use href="#d-receipt"/></svg><span>Approving writes the expense row <b>and</b> moves the balance — one transaction, both books</span></p>
+
+                  <div class="ui-table ui-table--4">
+                    <div class="ui-th"><span>Entry</span><span>Category</span><span>Date</span><span>Amount</span></div>
+                    <div class="ui-tr" style="background:var(--mint-soft)">
+                      <span class="who"><i class="avatar avatar--sm" style="--av:var(--mint)">NB</i>Service supplies</span>
+                      <span class="txt">Service</span>
+                      <span class="txt mono">Oct 14</span>
+                      <span class="amt">−$84.20</span>
+                    </div>
+                    <div class="ui-tr">
+                      <span class="who"><i class="avatar avatar--sm" style="--av:var(--sky)">DO</i>Dues — Dev Okafor</span>
+                      <span class="txt">Dues</span>
+                      <span class="txt mono">Oct 13</span>
+                      <span class="amt">+$75.00</span>
+                    </div>
+                    <div class="ui-tr">
+                      <span class="who"><i class="avatar avatar--sm" style="--av:var(--butter)">FF</i>Formal deposit</span>
+                      <span class="txt">Events</span>
+                      <span class="txt mono">Oct 11</span>
+                      <span class="amt">−$400.00</span>
+                    </div>
+                  </div>
+                </div>
+              </figure>
+              <p class="dayslide__note">
+                <svg style="color:var(--mint-ink)" aria-hidden="true"><use href="#d-check"/></svg><span>Dues payments and payouts are <em>requests</em> until a treasurer approves them.
+                Nothing edits the balance behind anyone's back.</span></p>
+            </div>
+          </div>
+
+          <!-- 4 — roll call -->
+          <div class="dayslide" data-slide="3">
+            <div>
+              <p class="dayslide__t">7:31 PM · Chapter meeting</p>
+              <figure class="shot">
+                <div class="shot__bar">
+                  <i class="tl"></i><i class="tl"></i><i class="tl"></i>
+                  <span class="shot__path mono">Chapter <span class="sep">/</span> General Meeting <span class="sep">/</span> Oct 14</span>
+                </div>
+                <div class="shot__body">
+                  <div class="shot__toolbar">
+                    <span class="shot__title">Taking roll</span>
+                    <span class="pill pill--paid"><i class="dot"></i>Live</span>
+                    <span class="shot__spacer"></span>
+                    <span class="mono" style="font-size:.9rem; font-weight:600">47<span style="color:var(--ink-3)">/52 here</span></span>
+                  </div>
+
+                  <div class="ui-roll" style="margin-top:0">
+                    <span class="ui-person is-here"><i class="mk"><svg style="color:#fff" viewBox="0 0 24 24"><use href="#d-check"/></svg></i>Ana C.</span>
+                    <span class="ui-person is-here"><i class="mk"><svg style="color:#fff" viewBox="0 0 24 24"><use href="#d-check"/></svg></i>Dev O.</span>
+                    <span class="ui-person is-late"><i class="mk"></i>Maya R.</span>
+                    <span class="ui-person is-here"><i class="mk"><svg style="color:#fff" viewBox="0 0 24 24"><use href="#d-check"/></svg></i>Sam W.</span>
+                    <span class="ui-person is-here"><i class="mk"><svg style="color:#fff" viewBox="0 0 24 24"><use href="#d-check"/></svg></i>Priya S.</span>
+                    <span class="ui-person is-out"><i class="mk"></i>Jordan T.</span>
+                    <span class="ui-person is-here"><i class="mk"><svg style="color:#fff" viewBox="0 0 24 24"><use href="#d-check"/></svg></i>Leo M.</span>
+                    <span class="ui-person is-here"><i class="mk"><svg style="color:#fff" viewBox="0 0 24 24"><use href="#d-check"/></svg></i>Nia B.</span>
+                  </div>
+
+                  <p class="ui-note" style="background:var(--butter-soft); border-color:#F4DFA6; color:var(--butter-ink)">
+                    <svg width="15" height="15" aria-hidden="true"><use href="#d-hand"/></svg><span>Jordan T. filed an excuse — <b>lab conflict</b>, 2nd this term</span>
+                    <span style="margin-left:auto; display:flex; gap:6px">
+                      <span class="btn btn--sm" style="--btn-shadow:var(--mint)">Approve</span>
+                    </span>
+                  </p>
+
+                  <div class="ui-table">
+                    <div class="ui-th"><span>Standing</span><span>Missed</span><span>Status</span></div>
+                    <div class="ui-tr">
+                      <span class="who"><i class="avatar avatar--sm" style="--av:var(--lilac)">JT</i>Jordan Tao</span>
+                      <span class="amt">2 of 8</span>
+                      <span><span class="pill pill--part"><i class="dot"></i>1 from review</span></span>
+                    </div>
+                    <div class="ui-tr">
+                      <span class="who"><i class="avatar avatar--sm" style="--av:var(--mint)">AC</i>Ana Chen</span>
+                      <span class="amt">0 of 8</span>
+                      <span><span class="pill pill--paid"><i class="dot"></i>Good standing</span></span>
+                    </div>
+                  </div>
+                </div>
+              </figure>
+              <p class="dayslide__note">
+                <svg style="color:var(--mint-ink)" aria-hidden="true"><use href="#d-check"/></svg><span>Standing updates itself as the roll closes — so the attendance policy is
+                finally a number, not an argument.</span></p>
+            </div>
+          </div>
+
+          <!-- 5 — minutes → decisions + assigned work -->
+          <div class="dayslide" data-slide="4">
+            <div>
+              <p class="dayslide__t">9:20 PM · Minutes</p>
+              <figure class="shot">
+                <div class="shot__bar">
+                  <i class="tl"></i><i class="tl"></i><i class="tl"></i>
+                  <span class="shot__path mono">Chapter <span class="sep">/</span> Minutes <span class="sep">/</span> Oct 14</span>
+                </div>
+                <div class="shot__body">
+                  <div class="shot__toolbar">
+                    <span class="shot__title">Meeting notes</span>
+                    <span class="pill pill--calm"><svg width="13" height="13" aria-hidden="true"><use href="#d-spark"/></svg> Summarized</span>
+                    <span class="shot__spacer"></span>
+                    <span class="mono" style="font-size:.78rem; color:var(--ink-3)">saved · 52 members notified</span>
+                  </div>
+
+                  <div class="ui-split" style="margin-top:0">
+                    <div class="ui-raw">
+                      <h5>What the secretary typed</h5>
+                      <p>ok so formal — voted, 31 yes 6 no, we're doing the 23rd not the 30th…</p>
+                      <p>maya asked about payment plans, priya says fine, 3 splits, needs a vote next week</p>
+                      <p>dev has to send the budget to advisor by friday!! also someone confirm the van</p>
+                      <p>alumni mixer moved to confirmed, dr owns it</p>
+                    </div>
+                    <div class="ui-sum">
+                      <h5>Decisions</h5>
+                      <ul>
+                        <li>Fall formal set for Oct 23 <span class="pill pill--paid">31–6</span></li>
+                        <li>Alumni mixer confirmed, owner D. Reyes</li>
+                      </ul>
+                      <h5>Action items</h5>
+                      <ul>
+                        <li>Budget to the advisor by Fri <span class="pill pill--info">Treasurer</span></li>
+                        <li>Confirm the van + 2 drivers <span class="pill pill--info">Social</span></li>
+                      </ul>
+                      <h5>Discussed</h5>
+                      <ul>
+                        <li>Three-split payment plans — vote next week</li>
+                      </ul>
+                    </div>
+                  </div>
+
+                  <p class="ui-note">
+                    <svg width="15" height="15" aria-hidden="true"><use href="#d-clip"/></svg><span>Action items were handed to <b>the seat, not the person</b> — whoever holds Treasurer next month inherits them</span></p>
+                </div>
+              </figure>
+              <p class="dayslide__note">
+                <svg style="color:var(--mint-ink)" aria-hidden="true"><use href="#d-check"/></svg><span>Two of those action items are now dated tasks. They'll be on tomorrow's
+                briefing whether anyone remembers or not.</span></p>
+            </div>
+          </div>
+
+          <!-- 6 — the record -->
+          <div class="dayslide" data-slide="5">
+            <div>
+              <p class="dayslide__t">11:58 PM · Timeline</p>
+              <figure class="shot">
+                <div class="shot__bar">
+                  <i class="tl"></i><i class="tl"></i><i class="tl"></i>
+                  <span class="shot__path mono">Timeline <span class="sep">/</span> Activity</span>
+                </div>
+                <div class="shot__body">
+                  <div class="shot__toolbar">
+                    <span class="shot__title">Today</span>
+                    <span class="pill pill--info">14 entries</span>
+                    <span class="shot__spacer"></span>
+                    <span class="shot__tabs"><span class="on">Today</span><span>Term</span><span>All</span></span>
+                  </div>
+
+                  <div class="ui-log">
+                    <div class="logrow"><span class="ts">11:41 PM</span><span class="tx">Minutes published — <b>General Meeting, Oct 14</b></span><span class="pill pill--calm">Priya S.</span></div>
+                    <div class="logrow"><span class="ts">9:24 PM</span><span class="tx">2 tasks created from action items</span><span class="pill">auto</span></div>
+                    <div class="logrow"><span class="ts">7:58 PM</span><span class="tx">Attendance closed — <b>47 of 52</b>, 1 excused</span><span class="pill pill--calm">Priya S.</span></div>
+                    <div class="logrow"><span class="ts">7:44 PM</span><span class="tx">Excuse approved — Jordan T., lab conflict</span><span class="pill pill--calm">Ana C.</span></div>
+                    <div class="logrow"><span class="ts">3:06 PM</span><span class="tx">Reimbursement approved — <b>$84.20</b>, expense row minted</span><span class="pill pill--calm">Dev O.</span></div>
+                    <div class="logrow"><span class="ts">12:41 PM</span><span class="tx">Alumni mixer → <b>Confirmed</b>, published to timeline</span><span class="pill pill--calm">D. Reyes</span></div>
+                    <div class="logrow"><span class="ts">8:15 AM</span><span class="tx">Deadline completed — fall budget draft</span><span class="pill pill--calm">Dev O.</span></div>
+                  </div>
+
+                  <p class="ui-note" style="background:var(--sky-soft); border-color:#CCDFFB; color:var(--sky-ink)">
+                    <svg width="15" height="15" aria-hidden="true"><use href="#d-loop"/></svg><span>Nobody wrote a status update. <b>This is just what happened, in order.</b></span></p>
+                </div>
+              </figure>
+              <p class="dayslide__note">
+                <svg style="color:var(--mint-ink)" aria-hidden="true"><use href="#d-check"/></svg><span>Next May, the incoming board reads this instead of interviewing whoever
+                still answers texts.</span></p>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- the payoff line under the scene -->
+<section class="section--tight">
+  <div class="wrap--narrow" style="margin-inline:auto; text-align:center">
+    <p class="lede" data-reveal style="font-size:clamp(1.2rem,2.4vw,1.7rem); color:var(--ink); line-height:1.4">
+      Five officers, six surfaces, one ordinary day — and not one of them
+      <span class="hi" style="--mark:var(--mint)">opened a spreadsheet.</span>
+    </p>
+  </div>
+</section>
+
+<!-- ============ 6. ask scene ============================================= -->
+<!-- Autoplays once when it enters the viewport (and on Replay). Not pinned —
+     one scrubbed scene per page is the motion budget; this one earns its
+     attention by being the only thing moving. -->
+<section class="section" id="ask" style="background:linear-gradient(180deg, transparent, var(--paper-2) 14%, var(--paper-2) 86%, transparent)">
+  <div class="wrap ask__grid" data-ask>
+
+    <div>
+      <span class="eyebrow" style="--eb:var(--lilac)" data-reveal>⌘K, on every page</span>
+      <h2 data-reveal style="margin-top:16px; --d:60ms">Ask the org<br>a question.</h2>
+      <p class="lede" data-reveal style="margin-top:18px; --d:110ms; max-width:38ch">
+        No dashboard to learn, no filter to build. Type the thing you'd have texted
+        the treasurer at midnight — and watch it check the records before it answers.
+      </p>
+
+      <ul class="ask__points" data-reveal style="--d:160ms">
+        <li>
+          <span class="ic" style="--i:var(--lilac-soft); --ib:#DCD2FB"><svg class="doodle doodle--thin" width="17" height="17" style="color:var(--lilac-ink)" viewBox="0 0 24 24"><use href="#d-loop"/></svg></span>
+          <div>
+            <h4>It shows its work as it works</h4>
+            <p>Steps post live — what it read, what it matched, what rule it applied — then fold into a trace you can reopen later.</p>
+          </div>
+        </li>
+        <li>
+          <span class="ic" style="--i:var(--sky-soft); --ib:#CCDFFB"><svg class="doodle doodle--thin" width="17" height="17" style="color:var(--sky-ink)" viewBox="0 0 24 24"><use href="#d-receipt"/></svg></span>
+          <div>
+            <h4>Every row opens its record</h4>
+            <p>Answers are rows, not a paragraph of confident guessing. Tap one and you're looking at the payment, the meeting, the member.</p>
+          </div>
+        </li>
+        <li>
+          <span class="ic" style="--i:var(--butter-soft); --ib:#F4DFA6"><svg class="doodle doodle--thin" width="17" height="17" style="color:var(--butter-ink)" viewBox="0 0 24 24"><use href="#d-shield"/></svg></span>
+          <div>
+            <h4>It proposes; you approve</h4>
+            <p>Anything that writes comes back as a card with an Approve button — checked against your role first. If you can't, it names who can.</p>
+          </div>
+        </li>
+      </ul>
+
+      <div class="ask__replay" data-reveal style="--d:220ms">
+        <button class="btn btn--ghost btn--sm" type="button" data-ask-replay>
+          <svg width="15" height="15" aria-hidden="true"><use href="#d-loop"/></svg>
+          Play it again
+        </button>
+      </div>
+    </div>
+
+    <div data-para data-speed="-0.04">
+      <div class="spot">
+        <div class="spot__bar">
+          <svg width="19" height="19" style="color:var(--lilac-ink); flex:none" aria-hidden="true"><use href="#d-spark"/></svg>
+          <span class="spot__q" data-ask-q></span>
+          <kbd class="spot__kbd">esc</kbd>
+        </div>
+        <div class="spot__body">
+
+          <!-- step 0 — the reasoning ledger -->
+          <div class="beat" data-ask-step="0">
+            <div class="beat__in">
+              <div class="ledger" data-ask-ledger>
+                <p class="ledger__t"><i class="spin"></i> Checking before answering</p>
+                <ul>
+                  <li><i class="tick"><svg viewBox="0 0 24 24" style="color:var(--mint-ink)"><use href="#d-check"/></svg></i>Read 52 dues records for Fall 2026</li>
+                  <li><i class="tick"><svg viewBox="0 0 24 24" style="color:var(--mint-ink)"><use href="#d-check"/></svg></i>Matched 6 unlabeled payments to members</li>
+                  <li><i class="tick"><svg viewBox="0 0 24 24" style="color:var(--mint-ink)"><use href="#d-check"/></svg></i>Applied your Oct 1 late-fee rule</li>
+                  <li><i class="tick"><svg viewBox="0 0 24 24" style="color:var(--mint-ink)"><use href="#d-check"/></svg></i>Excluded 2 members on payment plans</li>
+                </ul>
+                <div class="consulted">
+                  <span class="pill pill--calm">Dues ledger</span>
+                  <span class="pill pill--calm">Roster</span>
+                  <span class="pill pill--calm">Transactions</span>
+                  <span class="pill pill--calm">Fall 2026 term</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- step 1 — the answer, with receipts -->
+          <div class="beat" data-ask-step="1">
+            <div class="beat__in">
+              <div class="acard">
+                <div class="acard__hd">
+                  <span class="k">$1,480</span>
+                  <span class="sub"><b>9 of 52 members</b> still owe.<br>4 are past the late-fee date.</span>
+                  <span class="pill pill--due" style="margin-left:auto"><i class="dot"></i>Needs a nudge</span>
+                </div>
+                <div class="acard__row"><span class="avatar avatar--sm" style="--av:var(--peach)">MR</span><span class="nm">Maya Rivera</span><span class="pill pill--due">21 days late</span><span class="amt">$140</span></div>
+                <div class="acard__row"><span class="avatar avatar--sm" style="--av:var(--sky)">DO</span><span class="nm">Dev Okafor</span><span class="pill pill--part">Plan 2 of 3</span><span class="amt">$65</span></div>
+                <div class="acard__row"><span class="avatar avatar--sm" style="--av:var(--lilac)">JT</span><span class="nm">Jordan Tao</span><span class="pill pill--due">9 days late</span><span class="amt">$140</span></div>
+                <p class="acard__ft"><svg width="13" height="13" aria-hidden="true"><use href="#d-receipt"/></svg> 6 more · tap any row to open the payment it came from</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- step 2 — the follow-up ask -->
+          <div class="beat" data-ask-step="2">
+            <div class="beat__in">
+              <div>
+                <p class="who who--right">Priya · Treasurer <span class="avatar avatar--sm" style="--av:var(--peach)">PS</span></p>
+                <div class="bubble bubble--me">log Maya's $140 as paid — she Venmo'd me this morning</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- step 3 — the proposal, gated on approval -->
+          <div class="beat" data-ask-step="3">
+            <div class="beat__in">
+              <div class="draft">
+                <p class="draft__hd"><svg width="14" height="14" aria-hidden="true"><use href="#d-shield"/></svg> Waiting on you — ChaptOS never writes on its own</p>
+                <div class="draft__body">
+                  <p class="msg">Record a dues payment of <b>$140.00</b> for <b>Maya Rivera</b>, dated
+                  Oct 14, method Venmo. On approval this mints the income row and clears her balance.</p>
+                </div>
+                <div class="draft__ft">
+                  <button class="btn btn--sm" type="button">Approve</button>
+                  <button class="btn btn--ghost btn--sm" type="button">Discard</button>
+                  <span class="who-ok">Your Treasurer seat allows this</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- step 4 — it lands, and it's on the record -->
+          <div class="beat" data-ask-step="4">
+            <div class="beat__in">
+              <div class="done">
+                <span class="done__ic"><svg width="20" height="20" style="color:var(--mint-ink)" aria-hidden="true"><use href="#d-check"/></svg></span>
+                <div class="bubble" style="box-shadow:3px 3px 0 var(--mint)">
+                  Recorded. Balance is now <b>$12,620</b>, Maya is paid in full, and the
+                  approval is in the log with your name on it.
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 7. modules =============================================== -->
+<section class="section" id="modules">
+  <div class="wrap">
+    <div class="modules__head">
+      <span class="eyebrow" style="--eb:var(--mint)" data-reveal>What's actually in it</span>
+      <h2 data-reveal style="margin-top:16px; --d:60ms">Eleven surfaces.<br>Turn on the ones you actually use.</h2>
+      <p class="lede" data-reveal style="margin-top:18px; --d:110ms; max-width:62ch">
+        A 12-person committee and a 200-member chapter run the same pages — just fewer
+        of them. Anything you leave off stays one toggle away, and turning it on
+        mid-term doesn't cost you the history.
+      </p>
+    </div>
+  </div>
+
+  <!-- ---- module 1: money ---- -->
+  <div class="mod">
+    <div class="wrap mod__grid">
+      <div class="mod__copy">
+        <span class="pill pill--paid" data-reveal><svg width="14" height="14" aria-hidden="true"><use href="#d-wallet"/></svg> Treasury, dues &amp; budget</span>
+        <h3 data-reveal style="--d:50ms">Two sets of books that can't disagree.</h3>
+
+        <div class="mod__pain" data-reveal style="--d:90ms; --pain-bg:var(--peach-soft); --pain-bd:#F8D2C2">
+          "Someone Venmo'd $70 with a pizza emoji. Dues are $140. Is that half, or a
+          different thing entirely? And did I ever write down the $84 I paid back?"
+          <span class="src">— every treasurer, week three</span>
+        </div>
+
+        <p class="mod__fix" data-reveal style="--d:130ms">
+          One ledger per member per term, and one ledger for the org — wired together so
+          they move at the same time. A dues payment or a reimbursement is a <em>request</em>
+          until a treasurer approves it; approval mints the matching row and adjusts the
+          balance in a single write. Nothing gets hard-deleted.
+        </p>
+
+        <ul class="mod__list" data-reveal style="--d:170ms">
+          <li><svg class="doodle doodle--thin" style="color:var(--mint-ink)" viewBox="0 0 24 24"><use href="#d-check"/></svg> Per-member balances, payment plans, waivers and late rules as real settings</li>
+          <li><svg class="doodle doodle--thin" style="color:var(--mint-ink)" viewBox="0 0 24 24"><use href="#d-check"/></svg> Semester budget with allocations, category reports, and trend charts</li>
+          <li><svg class="doodle doodle--thin" style="color:var(--mint-ink)" viewBox="0 0 24 24"><use href="#d-check"/></svg> CSV export your advisor accepts without a screenshot</li>
+        </ul>
+      </div>
+
+      <div class="mod__stage" data-para data-speed="-0.045">
+        <figure class="shot" data-reveal="scale">
+          <div class="shot__bar">
+            <i class="tl"></i><i class="tl"></i><i class="tl"></i>
+            <span class="shot__path mono">Treasury <span class="sep">/</span> Dues <span class="sep">/</span> Fall 2026</span>
+          </div>
+          <div class="shot__body">
+            <div class="shot__toolbar">
+              <span class="shot__title">Fall dues</span>
+              <span class="pill pill--info">52 members</span>
+              <span class="shot__spacer"></span>
+              <span class="shot__tabs"><span class="on">Everyone</span><span>Owing</span><span>Plans</span></span>
+            </div>
+
+            <div class="ui-stat">
+              <span class="ui-ring" data-ring="76" style="--ring-c:var(--mint-ink)"><i class="mono">76%</i></span>
+              <div>
+                <p class="ui-stat__k"><span class="counter" data-count="4820" data-prefix="$">$0</span> <span style="font-size:.9rem; color:var(--ink-3); font-family:var(--sans); font-weight:500">of $6,300 collected</span></p>
+                <p class="ui-stat__l">9 owing · 2 on payment plans · $1,480 outstanding</p>
+              </div>
+            </div>
+
+            <div class="ui-table">
+              <div class="ui-th"><span>Member</span><span>Status</span><span>Balance</span></div>
+              <div class="ui-tr is-flagged">
+                <span class="who"><i class="avatar avatar--sm" style="--av:var(--peach)">MR</i>Maya Rivera</span>
+                <span><span class="pill pill--due"><i class="dot"></i>21d late</span></span>
+                <span class="amt">$140.00</span>
+              </div>
+              <div class="ui-tr">
+                <span class="who"><i class="avatar avatar--sm" style="--av:var(--sky)">DO</i>Dev Okafor</span>
+                <span><span class="pill pill--part"><i class="dot"></i>Plan 2/3</span></span>
+                <span class="amt">$65.00</span>
+              </div>
+              <div class="ui-tr">
+                <span class="who"><i class="avatar avatar--sm" style="--av:var(--mint)">AC</i>Ana Chen</span>
+                <span><span class="pill pill--paid"><i class="dot"></i>Paid</span></span>
+                <span class="amt">$0.00</span>
+              </div>
+              <div class="ui-tr">
+                <span class="who"><i class="avatar avatar--sm" style="--av:var(--butter)">SW</i>Sam Whitaker</span>
+                <span><span class="pill pill--calm"><i class="dot"></i>Waived</span></span>
+                <span class="amt">$0.00</span>
+              </div>
+            </div>
+
+            <p class="ui-note"><svg width="15" height="15" aria-hidden="true"><use href="#d-spark"/></svg><span>6 unlabeled payments matched to members this week — <b>1 needs your eyes</b></span></p>
+          </div>
+        </figure>
+
+        <div class="callout" data-reveal style="top:-26px; right:-22px; --co:var(--peach); --d:220ms">
+          <b>The pizza-emoji problem, solved.</b> Money arrives attached to a person, not to somebody's memory.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ---- module 2: people ---- -->
+  <div class="mod mod--flip">
+    <div class="wrap mod__grid">
+      <div class="mod__copy">
+        <span class="pill pill--info" data-reveal><svg width="14" height="14" aria-hidden="true"><use href="#d-people"/></svg> Roster, standing &amp; roles</span>
+        <h3 data-reveal style="--d:50ms">Everyone's whole story, one row each.</h3>
+
+        <div class="mod__pain" data-reveal style="--d:90ms; --pain-bg:var(--sky-soft); --pain-bd:#CCDFFB">
+          "Three misses and you're out — that's the policy. Nobody can prove who's at
+          three, so the policy has never once been enforced."
+          <span class="src">— secretary, 90-member org</span>
+        </div>
+
+        <p class="mod__fix" data-reveal style="--d:130ms">
+          Attendance, dues, service hours, GPA and anything else you decide to track,
+          per member, per term — with the bands you set for on-track, watch, and at-risk.
+          Open anyone and you get their history, not a number somebody typed.
+        </p>
+
+        <ul class="mod__list" data-reveal style="--d:170ms">
+          <li><svg class="doodle doodle--thin" style="color:var(--sky-ink)" viewBox="0 0 24 24"><use href="#d-check"/></svg> Your own member fields and your own metrics — jersey number, section, major, anything</li>
+          <li><svg class="doodle doodle--thin" style="color:var(--sky-ink)" viewBox="0 0 24 24"><use href="#d-check"/></svg> Roles carry fourteen permission switches and a rank, so nobody can promote themselves</li>
+          <li><svg class="doodle doodle--thin" style="color:var(--sky-ink)" viewBox="0 0 24 24"><use href="#d-check"/></svg> Excuses and exemptions are requests with a paper trail, approved in one tap</li>
+        </ul>
+      </div>
+
+      <div class="mod__stage" data-para data-speed="-0.045">
+        <figure class="shot" data-reveal="scale">
+          <div class="shot__bar">
+            <i class="tl"></i><i class="tl"></i><i class="tl"></i>
+            <span class="shot__path mono">Brotherhood <span class="sep">/</span> Roster <span class="sep">/</span> Fall 2026</span>
+          </div>
+          <div class="shot__body">
+            <div class="shot__toolbar">
+              <span class="shot__title">Roster</span>
+              <span class="pill pill--info">52 members · 7 seats</span>
+              <span class="shot__spacer"></span>
+              <span class="shot__tabs"><span class="on">All</span><span>At risk</span><span>Exec</span></span>
+            </div>
+
+            <div class="ui-table ui-table--4" style="margin-top:0">
+              <div class="ui-th"><span>Member</span><span>Seat</span><span>Attendance</span><span>Dues</span></div>
+              <div class="ui-tr">
+                <span class="who"><i class="avatar avatar--sm" style="--av:var(--butter)">AC</i>Ana Chen</span>
+                <span class="txt"><span class="pill pill--part">President</span></span>
+                <span class="txt mono">100%</span>
+                <span><span class="pill pill--paid"><i class="dot"></i>Paid</span></span>
+              </div>
+              <div class="ui-tr">
+                <span class="who"><i class="avatar avatar--sm" style="--av:var(--sky)">DO</i>Dev Okafor</span>
+                <span class="txt"><span class="pill pill--info">Treasurer</span></span>
+                <span class="txt mono">94%</span>
+                <span><span class="pill pill--part"><i class="dot"></i>Plan</span></span>
+              </div>
+              <div class="ui-tr is-flagged">
+                <span class="who"><i class="avatar avatar--sm" style="--av:var(--lilac)">JT</i>Jordan Tao</span>
+                <span class="txt">—</span>
+                <span class="txt mono">75%</span>
+                <span><span class="pill pill--due"><i class="dot"></i>$140</span></span>
+              </div>
+              <div class="ui-tr">
+                <span class="who"><i class="avatar avatar--sm" style="--av:var(--mint)">NB</i>Nia Brooks</span>
+                <span class="txt"><span class="pill pill--calm">Service chair</span></span>
+                <span class="txt mono">97%</span>
+                <span><span class="pill pill--paid"><i class="dot"></i>Paid</span></span>
+              </div>
+            </div>
+
+            <div class="ui-meas" style="margin-top:14px">
+              <div class="meas"><p class="meas__l">Service hrs</p><p class="meas__v">14 / 12</p><p class="meas__d up">on track</p></div>
+              <div class="meas"><p class="meas__l">GPA</p><p class="meas__v">3.42</p><p class="meas__d">steady</p></div>
+              <div class="meas"><p class="meas__l">Section</p><p class="meas__v" style="font-size:1rem">Trumpet</p><p class="meas__d">custom field</p></div>
+              <div class="meas"><p class="meas__l">Standing</p><p class="meas__v" style="font-size:1rem">Watch</p><p class="meas__d dn">2 of 8 missed</p></div>
+            </div>
+
+            <p class="ui-note" style="background:var(--butter-soft); border-color:#F4DFA6; color:var(--butter-ink)">
+              <svg width="15" height="15" aria-hidden="true"><use href="#d-key"/></svg><span>Treasurer sees money + roster · Service chair sees her committee · <b>nobody sees more than their seat</b></span></p>
+          </div>
+        </figure>
+
+        <div class="callout" data-reveal style="bottom:-42px; left:-32px; --co:var(--sky); --d:220ms">
+          <b>Standing stops being a rumor.</b> The policy finally has a number behind it.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ---- module 3: the week ---- -->
+  <div class="mod">
+    <div class="wrap mod__grid">
+      <div class="mod__copy">
+        <span class="pill pill--calm" data-reveal><svg width="14" height="14" aria-hidden="true"><use href="#d-cal"/></svg> Timeline, programming &amp; meetings</span>
+        <h3 data-reveal style="--d:50ms">From "someone should do this" to on the calendar.</h3>
+
+        <div class="mod__pain" data-reveal style="--d:90ms; --pain-bg:var(--lilac-soft); --pain-bd:#DCD2FB">
+          "We posted the formal three times — group chat, story, email. People still
+          showed up an hour late, and nobody knew who was bringing the van."
+          <span class="src">— social chair, four group chats deep</span>
+        </div>
+
+        <p class="mod__fix" data-reveal style="--d:130ms">
+          Ideas live on a board and move through planning to confirmed, carrying their
+          own prep checklist, owner and budget. Confirming publishes to one org timeline
+          — categories you named and colored yourself — and every member's week shows
+          the part that's theirs.
+        </p>
+
+        <ul class="mod__list" data-reveal style="--d:170ms">
+          <li><svg class="doodle doodle--thin" style="color:var(--lilac-ink)" viewBox="0 0 24 24"><use href="#d-check"/></svg> One calendar the whole org opens — not four chats and a flyer</li>
+          <li><svg class="doodle doodle--thin" style="color:var(--lilac-ink)" viewBox="0 0 24 24"><use href="#d-check"/></svg> Meetings keep their agenda, minutes and attendance in the same place</li>
+          <li><svg class="doodle doodle--thin" style="color:var(--lilac-ink)" viewBox="0 0 24 24"><use href="#d-check"/></svg> Free-form notes summarize into decisions, action items and what was discussed</li>
+        </ul>
+      </div>
+
+      <div class="mod__stage" data-para data-speed="-0.045">
+        <figure class="shot" data-reveal="scale">
+          <div class="shot__bar">
+            <i class="tl"></i><i class="tl"></i><i class="tl"></i>
+            <span class="shot__path mono">Timeline <span class="sep">/</span> Week of Oct 20</span>
+          </div>
+          <div class="shot__body">
+            <div class="shot__toolbar">
+              <span class="shot__title">Week 9</span>
+              <span class="pill pill--paid"><i class="dot"></i>All 52 in the loop</span>
+              <span class="shot__spacer"></span>
+              <span class="shot__tabs"><span>Term</span><span class="on">Week</span><span>Mine</span></span>
+            </div>
+
+            <div class="ui-week" style="margin-top:0">
+              <div class="ui-day">
+                <p class="ui-day__h">Mon <span>20</span></p>
+                <div class="ui-ev" style="--ev:var(--paper-2); --evb:var(--line)">Exec sync<small>6:00 PM · 7 going</small></div>
+              </div>
+              <div class="ui-day">
+                <p class="ui-day__h">Tue <span>21</span></p>
+                <div class="ui-ev" style="--ev:var(--sky-soft); --evb:#CCDFFB">General meeting<small>7:30 PM · mandatory</small></div>
+              </div>
+              <div class="ui-day">
+                <p class="ui-day__h">Wed <span>22</span></p>
+                <div class="ui-ev" style="--ev:var(--mint-soft); --evb:var(--mint-ink); box-shadow:0 0 0 3px var(--mint-soft)">Mixer setup<small>4:00 PM · you + 5</small></div>
+              </div>
+              <div class="ui-day">
+                <p class="ui-day__h">Thu <span>23</span></p>
+                <div class="ui-ev" style="--ev:var(--peach-soft); --evb:#F8D2C2">Fall formal<small>8:00 PM · 61 RSVP'd</small></div>
+                <div class="ui-ev" style="--ev:var(--paper-2); --evb:var(--line)">Ride list closes<small>7:00 PM · Maya</small></div>
+              </div>
+              <div class="ui-day">
+                <p class="ui-day__h">Fri <span>24</span></p>
+                <div class="ui-ev" style="--ev:var(--lilac-soft); --evb:#DCD2FB">Budget due<small>Advisor · Treasurer</small></div>
+              </div>
+            </div>
+
+            <p class="mono" style="margin-top:15px; font-size:.71rem; letter-spacing:.07em; text-transform:uppercase; color:var(--ink-3); font-weight:600">What's on you this week</p>
+            <ul class="ui-check" style="margin-top:8px">
+              <li class="done"><i class="box"><svg style="color:#fff; width:11px; height:11px" viewBox="0 0 24 24"><use href="#d-check"/></svg></i><span class="lbl">RSVP to the formal</span><span class="owner pill pill--paid"><i class="dot"></i>Sent</span></li>
+              <li><i class="box"></i><span class="lbl">Confirm the van + 2 drivers</span><span class="owner pill pill--part"><i class="dot"></i>Due Wed</span></li>
+              <li><i class="box"></i><span class="lbl">Bring the deposit to the advisor</span><span class="owner pill pill--info">Fri</span></li>
+            </ul>
+          </div>
+        </figure>
+
+        <div class="callout" data-reveal style="top:-22px; left:-28px; --co:var(--lilac); --d:220ms">
+          <b>One week, 52 copies.</b> Everybody sees the whole thing — and the part that's theirs.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ---- module 4: the record ---- -->
+  <div class="mod mod--flip">
+    <div class="wrap mod__grid">
+      <div class="mod__copy">
+        <span class="pill pill--part" data-reveal><svg width="14" height="14" aria-hidden="true"><use href="#d-folder"/></svg> Docs, activity &amp; terms</span>
+        <h3 data-reveal style="--d:50ms">The org shouldn't reset every May.</h3>
+
+        <div class="mod__pain" data-reveal style="--d:90ms; --pain-bg:var(--butter-soft); --pain-bd:#F4DFA6">
+          "Everything our last president knew — the vendor, the form, the deadline, the
+          login — left with her. We rebuilt it from scratch. Badly."
+          <span class="src">— incoming exec board, spring transition</span>
+        </div>
+
+        <p class="mod__fix" data-reveal style="--d:130ms">
+          Bylaws, forms, vendor links and minutes live in a foldered library anyone can
+          search. Every change writes an entry with who and when. Terms archive instead
+          of vanishing — last year is still readable while this year starts clean.
+        </p>
+
+        <ul class="mod__list" data-reveal style="--d:170ms">
+          <li><svg class="doodle doodle--thin" style="color:var(--butter-ink)" viewBox="0 0 24 24"><use href="#d-check"/></svg> Drag-and-drop filing, pinned essentials, link previews, contributor credit</li>
+          <li><svg class="doodle doodle--thin" style="color:var(--butter-ink)" viewBox="0 0 24 24"><use href="#d-check"/></svg> An activity log the whole board can read — no "who changed this?"</li>
+          <li><svg class="doodle doodle--thin" style="color:var(--butter-ink)" viewBox="0 0 24 24"><use href="#d-check"/></svg> Ask about last year: "what did we spend on formal in 2025?"</li>
+        </ul>
+      </div>
+
+      <div class="mod__stage" data-para data-speed="-0.045">
+        <figure class="shot" data-reveal="scale">
+          <div class="shot__bar">
+            <i class="tl"></i><i class="tl"></i><i class="tl"></i>
+            <span class="shot__path mono">Docs <span class="sep">/</span> Library</span>
+          </div>
+          <div class="shot__body">
+            <div class="shot__toolbar">
+              <span class="shot__title">Library</span>
+              <span class="pill pill--info">4 folders · 38 links</span>
+              <span class="shot__spacer"></span>
+              <span class="shot__tabs"><span class="on">Newest</span><span>Name</span><span>Kind</span></span>
+            </div>
+
+            <div class="ui-docs" style="margin-top:0">
+              <div class="doccard">
+                <p class="fd"><svg style="color:var(--butter-ink)" aria-hidden="true"><use href="#d-folder"/></svg>Governance</p>
+                <p class="nm">Chapter bylaws (2026 rev.)</p>
+                <p class="by">pinned · added by Ana C.</p>
+              </div>
+              <div class="doccard">
+                <p class="fd"><svg style="color:var(--sky-ink)" aria-hidden="true"><use href="#d-folder"/></svg>Forms</p>
+                <p class="nm">Campus event request</p>
+                <p class="by">used 9× this term</p>
+              </div>
+              <div class="doccard">
+                <p class="fd"><svg style="color:var(--mint-ink)" aria-hidden="true"><use href="#d-folder"/></svg>Vendors</p>
+                <p class="nm">Formal venue — contract + contact</p>
+                <p class="by">added by Priya S.</p>
+              </div>
+            </div>
+
+            <div class="ui-log" style="margin-top:16px">
+              <div class="logrow"><span class="ts">Oct 14</span><span class="tx">Minutes published — <b>General Meeting</b></span><span class="pill pill--calm">Priya S.</span></div>
+              <div class="logrow"><span class="ts">Oct 13</span><span class="tx">Bylaws replaced — v2026.1</span><span class="pill pill--calm">Ana C.</span></div>
+              <div class="logrow"><span class="ts">Oct 11</span><span class="tx">Spring 2026 archived — 41 events, 214 records</span><span class="pill">term</span></div>
+            </div>
+
+            <p class="ui-note" style="background:var(--mint-soft); border-color:#BDE7D2; color:var(--mint-ink)">
+              <svg width="15" height="15" aria-hidden="true"><use href="#d-export"/></svg><span>Roster, ledger, attendance and docs export to CSV any time — <b>including on the way out</b></span></p>
+          </div>
+        </figure>
+
+        <div class="callout" data-reveal style="bottom:-26px; right:-22px; --co:var(--butter); --d:220ms">
+          <b>Year four still works.</b> The org keeps its memory even when everyone graduates.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ---- the rest of the kit ---- -->
+  <div class="wrap">
+    <div style="max-width:640px">
+      <span class="eyebrow" style="--eb:var(--rose)" data-reveal>Also in the box</span>
+      <h3 data-reveal style="margin-top:14px; --d:60ms">The pages you'd otherwise glue together yourself.</h3>
+    </div>
+
+    <div class="kit">
+      <div class="kit__cell" data-reveal style="--d:0ms">
+        <span class="kit__ic" style="--k:var(--lilac-soft); --kb:#DCD2FB"><svg class="doodle doodle--thin" width="19" height="19" style="color:var(--lilac-ink)" viewBox="0 0 24 24"><use href="#d-clip"/></svg></span>
+        <h4>Tasks &amp; polls</h4>
+        <p>Hand work to a person <em>or</em> a seat. Role targets resolve to whoever holds the seat today, so a handover moves the to-do list with it.</p>
+        <div class="kit__mini"><span class="pill pill--info">Treasurer</span><span class="pill pill--part">Due Fri</span><span class="pill pill--calm">Blind ballot</span></div>
+      </div>
+      <div class="kit__cell" data-reveal style="--d:70ms">
+        <span class="kit__ic" style="--k:var(--mint-soft); --kb:#BDE7D2"><svg class="doodle doodle--thin" width="19" height="19" style="color:var(--mint-ink)" viewBox="0 0 24 24"><use href="#d-heart"/></svg></span>
+        <h4>Service hours</h4>
+        <p>Log an event once, split the hours across who showed. Every member's total tracks against the goal you set.</p>
+        <div class="kit__mini"><span class="pill pill--paid">312 hrs this term</span><span class="pill">14 of 12 · on track</span></div>
+      </div>
+      <div class="kit__cell" data-reveal style="--d:140ms">
+        <span class="kit__ic" style="--k:var(--peach-soft); --kb:#F8D2C2"><svg class="doodle doodle--thin" width="19" height="19" style="color:var(--peach-ink)" viewBox="0 0 24 24"><use href="#d-bars"/></svg></span>
+        <h4>Parties</h4>
+        <p>Door taken, expenses out, profit line — so the social budget is a number by Sunday instead of a debate in November.</p>
+        <div class="kit__mini"><span class="pill pill--paid">Door $1,240</span><span class="pill pill--due">Costs $610</span></div>
+      </div>
+      <div class="kit__cell" data-reveal style="--d:0ms">
+        <span class="kit__ic" style="--k:var(--rose-soft); --kb:#F8CEE0"><svg class="doodle doodle--thin" width="19" height="19" style="color:var(--rose-ink)" viewBox="0 0 24 24"><use href="#d-camera"/></svg></span>
+        <h4>Social content</h4>
+        <p>A small content calendar for the posts your PR chair keeps forgetting: story, reel, carousel — open until it's up.</p>
+        <div class="kit__mini"><span class="pill pill--rose">Reel · Thu</span><span class="pill pill--paid">Posted</span></div>
+      </div>
+      <div class="kit__cell" data-reveal style="--d:70ms">
+        <span class="kit__ic" style="--k:var(--butter-soft); --kb:#F4DFA6"><svg class="doodle doodle--thin" width="19" height="19" style="color:var(--butter-ink)" viewBox="0 0 24 24"><use href="#d-key"/></svg></span>
+        <h4>Seats &amp; permissions</h4>
+        <p>Fourteen switches per seat and a rank that stops anyone granting themselves more than they hold.</p>
+        <div class="kit__mini"><span class="pill pill--part">Manage treasury</span><span class="pill pill--info">Manage events</span></div>
+      </div>
+      <div class="kit__cell" data-reveal style="--d:140ms">
+        <span class="kit__ic" style="--k:var(--sky-soft); --kb:#CCDFFB"><svg class="doodle doodle--thin" width="19" height="19" style="color:var(--sky-ink)" viewBox="0 0 24 24"><use href="#d-link"/></svg></span>
+        <h4>Getting everyone in</h4>
+        <p>Paste the roster and let people claim their row, or share one invite link. Every redemption is recorded.</p>
+        <div class="kit__mini"><span class="pill pill--info">One link</span><span class="pill">Sign in with Google</span></div>
+      </div>
+      <div class="kit__cell" data-reveal style="--d:0ms">
+        <span class="kit__ic" style="--k:var(--mint-soft); --kb:#BDE7D2"><svg class="doodle doodle--thin" width="19" height="19" style="color:var(--mint-ink)" viewBox="0 0 24 24"><use href="#d-loop"/></svg></span>
+        <h4>More than one org</h4>
+        <p>One account, several orgs. Switch between the chapter, the council and the volunteer group without a second login.</p>
+        <div class="kit__mini"><span class="pill pill--calm">Lambda Phi</span><span class="pill">Eng. Council</span></div>
+      </div>
+      <div class="kit__cell" data-reveal style="--d:70ms">
+        <span class="kit__ic" style="--k:var(--lilac-soft); --kb:#DCD2FB"><svg class="doodle doodle--thin" width="19" height="19" style="color:var(--lilac-ink)" viewBox="0 0 24 24"><use href="#d-phone"/></svg></span>
+        <h4>On the phone</h4>
+        <p>The mobile view isn't a squeezed dashboard — it's a tabbed app for the five things people do standing up at a meeting.</p>
+        <div class="kit__mini"><span class="pill">Overview</span><span class="pill">Tasks</span><span class="pill">Money</span><span class="pill">Logs</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 8. setup ================================================= -->
+<section class="section setup" id="setup" data-setup>
+  <div class="wrap">
+    <div style="max-width:720px">
+      <span class="eyebrow" style="--eb:var(--butter)" data-reveal>Before you even sign in</span>
+      <h2 data-reveal style="margin-top:16px; --d:60ms">You describe the org.<br>It writes the workspace.</h2>
+      <p class="lede" data-reveal style="margin-top:18px; --d:110ms; max-width:60ch">
+        Setup is a short interview, not a settings tour. Answer what your org actually
+        does in a normal month and it drafts the pages, the seats, the words your org
+        uses, your timeline categories and your first term — then shows you the whole
+        blueprint to edit before anything is built.
+      </p>
+
+      <div class="switch" data-reveal style="--d:150ms" data-switch>
+        <button type="button" data-kind="fraternity" class="on">Fraternity</button>
+        <button type="button" data-kind="team">Club team</button>
+        <button type="button" data-kind="service">Volunteer corps</button>
+        <button type="button" data-kind="arts">Theatre company</button>
+      </div>
+    </div>
+
+    <div class="setup__grid">
+      <div data-reveal>
+        <div class="qa">
+          <p class="qa__q">What kind of organization is this?</p>
+          <div class="qa__row" data-qa="kind"></div>
+
+          <p class="qa__q" style="margin-top:8px">In a normal month, which of these actually happen?</p>
+          <div class="qa__row" data-qa="beats"></div>
+
+          <p class="qa__q" style="margin-top:8px">How does your year break up?</p>
+          <div class="qa__row" data-qa="term"></div>
+        </div>
+
+        <p class="setup__fine">
+          Free text works too — describe the org in a sentence and it asks the two or
+          three specific follow-ups it needs to settle the page set. If the model is
+          having a bad day the interview keeps working; it just stops guessing.
+        </p>
+
+        <div class="sticky-note" style="--note:var(--butter); --rot:-1.6deg; margin-top:30px; max-width:340px">
+          <b>Sign-in comes last.</b><br>
+          <span style="font-size:.88rem; color:var(--ink-2)">You build the whole thing signed out. Google sign-in happens at the final step, and your answers survive the round trip.</span>
+        </div>
+      </div>
+
+      <div data-reveal style="--d:120ms">
+        <div class="bp" data-bp>
+          <div class="bp__hd">
+            <span class="k" data-bp-name>Lambda Phi</span>
+            <span class="pill pill--calm" data-bp-kind>Fraternity</span>
+            <span class="sub mono" style="margin-left:auto" data-bp-slug>chaptos.app/lambda-phi</span>
+          </div>
+
+          <div class="bp__sec">
+            <p class="bp__t">Pages</p>
+            <div class="bp__chips" data-bp-pages></div>
+          </div>
+
+          <div class="bp__sec">
+            <p class="bp__t">Words your org uses</p>
+            <div class="bp__words" data-bp-words></div>
+          </div>
+
+          <div class="bp__sec">
+            <p class="bp__t">Seats</p>
+            <div data-bp-seats style="margin-top:6px"></div>
+          </div>
+
+          <div class="bp__sec">
+            <p class="bp__t">Timeline categories</p>
+            <div class="bp__chips" data-bp-cats></div>
+          </div>
+
+          <div class="bp__sec" style="background:var(--paper-2); display:flex; align-items:center; gap:12px; flex-wrap:wrap">
+            <div>
+              <p class="bp__t">First term</p>
+              <p class="mono" style="margin-top:6px; font-size:.9rem; font-weight:600" data-bp-term></p>
+            </div>
+            <span class="btn btn--sm" style="margin-left:auto">Build it</span>
+          </div>
+        </div>
+
+        <p class="dayslide__note" style="margin-top:14px">
+          <svg style="color:var(--butter-ink)" aria-hidden="true"><use href="#d-pencil"/></svg><span>Every line above is editable on this sheet — and again in Settings, next
+          semester, when the org has changed its mind.</span></p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 9. trust ================================================= -->
+<section class="section" id="trust">
+  <div class="wrap">
+    <div class="trust__head">
+      <span class="eyebrow" style="--eb:var(--sky); justify-content:center" data-reveal>Why officers hand it the keys</span>
+      <h2 data-reveal style="margin-top:16px; --d:60ms; max-width:22ch; margin-inline:auto">An assistant holding your org's money should be boring about it.</h2>
+      <p class="lede" data-reveal style="margin-top:18px; --d:110ms">
+        ChaptOS proposes; officers decide. Every number traces back to a record, every
+        action lands in a log, and nothing writes without a human who's allowed to.
+      </p>
+    </div>
+
+    <div class="stats" data-reveal style="--d:80ms">
+      <div class="stat"><p class="stat__k"><span class="counter" data-count="1240" data-suffix="+">0</span></p><p class="stat__l">officers running their org on it</p></div>
+      <div class="stat"><p class="stat__k"><span class="counter" data-count="38" data-suffix="">0</span></p><p class="stat__l">campuses, from 9-person committees up</p></div>
+      <div class="stat"><p class="stat__k"><span class="counter" data-count="2.1" data-prefix="$" data-suffix="M" data-decimals="1">$0</span></p><p class="stat__l">in dues tracked without a spreadsheet</p></div>
+      <div class="stat"><p class="stat__k"><span class="counter" data-count="6" data-suffix=" hrs">0</span></p><p class="stat__l">saved per officer, per month (self-reported)</p></div>
+    </div>
+
+    <div class="guards">
+      <div class="guard" data-reveal style="--d:0ms">
+        <span class="guard__ic" style="--g:var(--butter-soft); --gb:#F4DFA6"><svg class="doodle doodle--thin" width="24" height="24" style="color:var(--butter-ink)" viewBox="0 0 24 24"><use href="#d-shield"/></svg></span>
+        <h4>It can't act alone</h4>
+        <p>Anything that touches money, members or the outside world arrives as a
+        proposal with an Approve button — and it's checked against your seat before
+        you ever see it. If your role can't do it, the card says so and names who can.</p>
+      </div>
+      <div class="guard" data-reveal style="--d:90ms">
+        <span class="guard__ic" style="--g:var(--sky-soft); --gb:#CCDFFB"><svg class="doodle doodle--thin" width="24" height="24" style="color:var(--sky-ink)" viewBox="0 0 24 24"><use href="#d-receipt"/></svg></span>
+        <h4>Every answer shows its work</h4>
+        <p>No confident guesses. It reads your actual records, posts what it read as it
+        goes, and every figure opens the payment, the meeting or the member it came
+        from — so "where did this number come from" is a click, not an argument.</p>
+      </div>
+      <div class="guard" data-reveal style="--d:180ms">
+        <span class="guard__ic" style="--g:var(--mint-soft); --gb:#BDE7D2"><svg class="doodle doodle--thin" width="24" height="24" style="color:var(--mint-ink)" viewBox="0 0 24 24"><use href="#d-export"/></svg></span>
+        <h4>Your org, your data</h4>
+        <p>One org can't read another — that's enforced at the database, not just in the
+        UI. Inside yours, seats decide who sees what. Roster, ledger, attendance and
+        docs export to CSV any time, and full deletion is a request away.</p>
+      </div>
+    </div>
+
+    <div class="quotes">
+      <figure class="quote" data-reveal style="--d:0ms">
+        <blockquote>"I inherited a shoebox and three spreadsheets. Two weeks in, I could
+        answer <b>'who owes what'</b> in one sentence. That never happened before."</blockquote>
+        <figcaption>
+          <span class="avatar" style="--av:var(--peach)">PS</span>
+          <span><span class="nm">Priya S.</span><br><span class="r">Treasurer · 52-member chapter</span></span>
+        </figcaption>
+      </figure>
+      <figure class="quote" data-reveal style="--d:90ms; --qm:var(--sky)">
+        <blockquote>"Minutes used to be a group chat argument. Now the meeting ends and
+        the decisions are <b>already assigned to seats.</b>"</blockquote>
+        <figcaption>
+          <span class="avatar" style="--av:var(--sky)">MK</span>
+          <span><span class="nm">Marcus K.</span><br><span class="r">Secretary · engineering council</span></span>
+        </figcaption>
+      </figure>
+      <figure class="quote" data-reveal style="--d:180ms; --qm:var(--mint)">
+        <blockquote>"The handoff took an afternoon instead of a semester. The new board
+        started with <b>everything we knew</b>, not everything we remembered."</blockquote>
+        <figcaption>
+          <span class="avatar" style="--av:var(--mint)">AC</span>
+          <span><span class="nm">Ana C.</span><br><span class="r">Outgoing president · service org</span></span>
+        </figcaption>
+      </figure>
+    </div>
+
+    <p class="lede" data-reveal style="text-align:center; margin-top:34px; font-size:1rem; color:var(--ink-3)">
+      Built alongside real exec boards — treasurers, secretaries, and the one person
+      who still has the Google Sheet — not from a pitch deck.
+    </p>
+  </div>
+</section>
+
+<!-- ============ 10. semester-aware CTA =================================== -->
+<section class="cta" id="start">
+  <svg class="cta__blob" data-para data-speed="0.06" style="top:9%; left:2%; width:104px; color:var(--peach-ink); opacity:.32" viewBox="0 0 24 24" aria-hidden="true"><use href="#d-mug"/></svg>
+  <svg class="cta__blob" data-para data-speed="-0.05" style="bottom:13%; right:2%; width:98px; color:var(--mint-ink); opacity:.32" viewBox="0 0 24 24" aria-hidden="true"><use href="#d-plant"/></svg>
+  <svg class="cta__blob" data-para data-speed="0.085" style="top:16%; right:9%; width:74px; color:var(--lilac-ink); opacity:.3" viewBox="0 0 24 24" aria-hidden="true"><use href="#d-star"/></svg>
+
+  <div class="wrap">
+    <div class="cta__card" data-reveal="scale">
+      <p class="cta__count">
+        <svg width="16" height="16" style="align-self:center" aria-hidden="true"><use href="#d-cal"/></svg>
+        <span data-term-label>Fall term</span> starts in
+        <span class="k" data-term-days>—</span>
+        <span data-term-unit>days</span>
+      </p>
+
+      <h2>Be the board that<br>didn't inherit a mess.</h2>
+
+      <p class="lede cta__lede">
+        Setup takes an afternoon. Describe the org, bring your people in, and walk into
+        your first meeting with the roster, the dues, the calendar and the record
+        already in one place.
+      </p>
+
+      <div class="cta__actions">
+        <a class="btn btn--lg" href="#">Set up your org — free</a>
+        <a class="btn btn--ghost btn--lg" href="#day">See a real day first</a>
+      </div>
+
+      <div class="plan">
+        <div class="plan__step" style="--st:var(--peach-ink)">
+          <p class="plan__when" data-term-w1>This week</p>
+          <h4>Describe your org</h4>
+          <p>A short interview drafts your pages, seats, vocabulary and first term. You
+          edit the blueprint, then sign in. ~20 minutes.</p>
+          <svg class="plan__arrow doodle doodle--thin" style="color:var(--line-2)" viewBox="0 0 24 24" aria-hidden="true"><use href="#d-arrow-r"/></svg>
+        </div>
+        <div class="plan__step" style="--st:var(--sky-ink)">
+          <p class="plan__when" data-term-w2>Before day one</p>
+          <h4>Bring your people in</h4>
+          <p>Paste the roster from whatever sheet you have, or send one invite link.
+          Seats already carry their powers, so exec is exec on day one.</p>
+          <svg class="plan__arrow doodle doodle--thin" style="color:var(--line-2)" viewBox="0 0 24 24" aria-hidden="true"><use href="#d-arrow-r"/></svg>
+        </div>
+        <div class="plan__step" style="--st:var(--mint-ink)">
+          <p class="plan__when" data-term-w3>Week one</p>
+          <h4>Just open the dashboard</h4>
+          <p>It tells you what's late and what's this week. You spend the term on the
+          org instead of on the spreadsheet about the org.</p>
+        </div>
+      </div>
+
+      <p class="cta__fine">
+        Free for orgs under 25 members, forever · $29/term above that · Advisor and
+        campus-wide plans available · Cancel and export in one click
+      </p>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<!-- ============ 11. footer =============================================== -->
+<footer class="foot">
+  <div class="wrap">
+    <div class="foot__grid">
+      <div class="foot__brand">
+        <a class="brand" href="#top">
+          <svg class="brand__mark" viewBox="0 0 40 40" aria-hidden="true">
+            <rect x="2.5" y="4.5" width="35" height="31" rx="9" fill="#FFE5A0" stroke="#26211B" stroke-width="2.4"/>
+            <path d="M12 21.5c2.2 3.4 5 5 8.4 5 3.2 0 5.9-1.5 8-4.6" fill="none" stroke="#26211B" stroke-width="2.4" stroke-linecap="round"/>
+            <circle cx="14.6" cy="16" r="1.9" fill="#26211B"/><circle cx="25.4" cy="16" r="1.9" fill="#26211B"/>
+          </svg>
+          ChaptOS
+        </a>
+        <p class="foot__blurb">The operating system for student orgs. The roster, the
+        money, the week and the record — in one place you can just ask.</p>
+      </div>
+      <div>
+        <h5>Product</h5>
+        <ul>
+          <li><a href="#ask">Ask Chapt</a></li>
+          <li><a href="#modules">Treasury &amp; dues</a></li>
+          <li><a href="#modules">Roster &amp; standing</a></li>
+          <li><a href="#modules">Timeline &amp; programming</a></li>
+          <li><a href="#modules">Meetings &amp; minutes</a></li>
+          <li><a href="#modules">Docs &amp; activity</a></li>
+        </ul>
+      </div>
+      <div>
+        <h5>For</h5>
+        <ul>
+          <li><a href="#setup">Fraternities &amp; sororities</a></li>
+          <li><a href="#setup">Club &amp; intramural teams</a></li>
+          <li><a href="#setup">Service &amp; volunteer orgs</a></li>
+          <li><a href="#setup">Bands, choirs &amp; theatre</a></li>
+          <li><a href="#setup">Student government</a></li>
+          <li><a href="#setup">Advisors &amp; campus life</a></li>
+        </ul>
+      </div>
+      <div>
+        <h5>Company</h5>
+        <ul>
+          <li><a href="#trust">Trust &amp; privacy</a></li>
+          <li><a href="#start">Pricing</a></li>
+          <li><a href="#">Help center</a></li>
+          <li><a href="#">Talk to a human</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="foot__base">
+      <span>© 2026 ChaptOS</span>
+      <span class="sp"></span>
+      <span>Made by people who ran the meeting, took the minutes, and chased the dues.</span>
+    </div>
+  </div>
+</footer>
+
+<script>
+/* ============================================================================
+   Motion + interaction. Everything is progressive: with JS off you get a
+   complete, readable page (reveals default to visible via the no-js guard,
+   both scenes show every step, the marquee still loops).
+
+   Engines
+     reveal()     IntersectionObserver → .is-in, one-shot
+     parallax()   rAF + lerp; owns inline transform on [data-para] only
+     chrome()     sticky nav state + scroll progress bar
+     marquee()    exact loop seam measurement
+     day()        scroll-scrubbed Tuesday (desktop) / static stack (mobile)
+     ask()        autoplayed spotlight sequence, replayable
+     typer()      hero ask bar cycling three real questions + their answers
+     setup()      org-type switcher driving the live blueprint sheet
+     counters()   count-up + dues ring on first view
+     term()       semester-aware countdown + setup plan labels
+   ========================================================================== */
+(function () {
+  'use strict';
+
+  var q  = function (s, r) { return (r || document).querySelector(s); };
+  var qa = function (s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); };
+  var clamp = function (v, a, b) { return v < a ? a : v > b ? b : v; };
+  var mqReduce = matchMedia('(prefers-reduced-motion: reduce)');
+  var mqMobile = matchMedia('(max-width: 860px)');
+  var isCalm = function () { return mqReduce.matches; };
+
+  /* -------- reveal ------------------------------------------------------- */
+  function reveal() {
+    var els = qa('[data-reveal]');
+    if (isCalm() || !('IntersectionObserver' in window)) {
+      els.forEach(function (el) { el.classList.add('is-in'); });
+      return;
+    }
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) {
+        if (!e.isIntersecting) return;
+        e.target.classList.add('is-in');
+        io.unobserve(e.target);
+      });
+    }, { rootMargin: '0px 0px -12% 0px', threshold: 0.08 });
+    els.forEach(function (el) { io.observe(el); });
+  }
+
+  /* -------- parallax ----------------------------------------------------- */
+  /* Layered depth with a little momentum: each element lerps toward its target
+     offset, so a fast flick overshoots slightly before settling. */
+  function parallax() {
+    var items = qa('[data-para]').map(function (el) {
+      return { el: el, speed: parseFloat(el.getAttribute('data-speed')) || 0.06, cur: 0, target: 0 };
+    });
+    if (!items.length) return;
+
+    var vh = innerHeight, running = false, idleFrames = 0;
+
+    function measure() {
+      vh = innerHeight;
+      items.forEach(function (it) {
+        var r = it.el.getBoundingClientRect();
+        var centre = r.top + r.height / 2;
+        it.target = (centre - vh / 2) * it.speed;
+      });
+    }
+
+    function frame() {
+      // a frame can already be queued when the viewport crosses into mobile;
+      // bail rather than stamping a stale inline transform on the way out
+      if (mqMobile.matches || isCalm()) { running = false; return; }
+      var moving = false;
+      for (var i = 0; i < items.length; i++) {
+        var it = items[i];
+        it.cur += (it.target - it.cur) * 0.11;           // momentum
+        if (Math.abs(it.target - it.cur) > 0.08) moving = true;
+        it.el.style.transform = 'translate3d(0,' + it.cur.toFixed(2) + 'px,0)';
+      }
+      idleFrames = moving ? 0 : idleFrames + 1;
+      if (idleFrames > 12) { running = false; return; }   // sleep until next scroll
+      requestAnimationFrame(frame);
+    }
+
+    function wake() {
+      if (mqMobile.matches || isCalm()) return;
+      measure();
+      idleFrames = 0;
+      if (!running) { running = true; requestAnimationFrame(frame); }
+    }
+
+    function clear() {
+      items.forEach(function (it) { it.cur = it.target = 0; it.el.style.transform = ''; });
+      running = false;
+    }
+
+    // Desktop → mobile resize used to strand inline transforms mid-page; clear them.
+    function sync() { mqMobile.matches || isCalm() ? clear() : wake(); }
+
+    addEventListener('scroll', wake, { passive: true });
+    addEventListener('resize', sync);
+    (mqMobile.addEventListener ? mqMobile.addEventListener('change', sync) : mqMobile.addListener(sync));
+    sync();
+  }
+
+  /* -------- nav state + scroll progress ---------------------------------- */
+  function chrome() {
+    var nav = q('[data-nav]'), bar = q('[data-progress]');
+    function tick() {
+      var y = scrollY || pageYOffset;
+      if (nav) nav.classList.toggle('is-stuck', y > 18);
+      if (bar) {
+        var max = document.documentElement.scrollHeight - innerHeight;
+        bar.style.width = (max > 0 ? clamp(y / max, 0, 1) * 100 : 0) + '%';
+      }
+    }
+    addEventListener('scroll', tick, { passive: true });
+    addEventListener('resize', tick);
+    tick();
+  }
+
+  /* -------- marquee seam ------------------------------------------------- */
+  function marquee() {
+    qa('[data-marquee]').forEach(function (track) {
+      function size() {
+        var gap = parseFloat(getComputedStyle(track).columnGap || '20') || 20;
+        track.style.setProperty('--shift', '-' + ((track.scrollWidth + gap) / 2) + 'px');
+      }
+      size();
+      addEventListener('resize', size);
+    });
+  }
+
+  /* -------- the day scene ------------------------------------------------ */
+  /* Desktop: rail scroll position picks exactly ONE slide (a deck, not a
+     transcript — six full product shots can't share a 100vh stage).
+     Mobile / reduced motion: no pin, every slide rendered in document flow. */
+  function day() {
+    var root = q('[data-day]');
+    if (!root) return;
+    var rail   = q('.day__rail', root);
+    var stage  = q('.day__stage', root);
+    var slides = qa('.dayslide', root);
+    var navs   = qa('[data-day-nav]', root);
+    var AT     = [0, 0.17, 0.345, 0.52, 0.69, 0.855];   // rail progress per slide
+
+    function paint(active) {
+      slides.forEach(function (s, i) { s.classList.toggle('is-on', i === active); });
+      navs.forEach(function (n, i) {
+        n.classList.toggle('is-on', i === active);
+        n.classList.toggle('is-done', i < active);
+      });
+    }
+
+    function showAll() {
+      slides.forEach(function (s) { s.classList.add('is-on'); });
+      navs.forEach(function (n) { n.classList.add('is-done'); });
+    }
+
+    function scrub() {
+      var r = rail.getBoundingClientRect();
+      var span = rail.offsetHeight - stage.offsetHeight;
+      var p = span > 0 ? clamp(-r.top / span, 0, 1) : 0;
+      var active = 0;
+      for (var i = 0; i < AT.length; i++) if (p >= AT[i]) active = i;
+      paint(active);
+    }
+
+    var mode = null;
+    function setMode() {
+      var next = (isCalm() || mqMobile.matches) ? 'static' : 'scrub';
+      if (next === mode) return;
+      mode = next;
+      removeEventListener('scroll', scrub);
+      if (mode === 'static') { showAll(); return; }
+      navs.forEach(function (n) { n.classList.remove('is-done'); });
+      addEventListener('scroll', scrub, { passive: true });
+      scrub();
+    }
+
+    addEventListener('resize', setMode);
+    (mqMobile.addEventListener ? mqMobile.addEventListener('change', setMode) : mqMobile.addListener(setMode));
+    setMode();
+
+    // clicking a time in the side list jumps the rail to that slide
+    navs.forEach(function (n, i) {
+      n.style.cursor = 'pointer';
+      n.addEventListener('click', function () {
+        if (mode !== 'scrub') return;
+        var span = rail.offsetHeight - stage.offsetHeight;
+        scrollTo({ top: rail.offsetTop + span * (AT[i] + 0.02), behavior: 'smooth' });
+      });
+    });
+  }
+
+  /* -------- the ask scene ------------------------------------------------ */
+  /* One scripted pass: type the question, tick the ledger, land the answer,
+     ask a follow-up, gate the write on a human. Plays on entry, replays on
+     demand. Reduced motion gets the finished state immediately. */
+  function ask() {
+    var root = q('[data-ask]');
+    if (!root) return;
+    var qEl    = q('[data-ask-q]', root);
+    var ledger = q('[data-ask-ledger]', root);
+    var steps  = qa('[data-ask-step]', root);
+    var replay = q('[data-ask-replay]', root);
+    var body   = q('.spot__body', root);
+    var QUESTION = 'who still owes dues this semester, and how bad is it?';
+    var timers = [];
+
+    function clearTimers() { timers.forEach(clearTimeout); timers = []; }
+    function at(ms, fn) { timers.push(setTimeout(fn, ms)); }
+
+    // the card is a fixed-height scroller; follow the step that just landed
+    // (after its height transition, or the target is still 0px tall)
+    function land(i) {
+      steps[i].classList.add('is-in');
+      timers.push(setTimeout(function () {
+        body.scrollTo({ top: body.scrollHeight, behavior: isCalm() ? 'auto' : 'smooth' });
+      }, 620));
+    }
+
+    function reset() {
+      clearTimers();
+      steps.forEach(function (s) { s.classList.remove('is-in'); });
+      if (ledger) ledger.classList.remove('is-live');
+      if (qEl) qEl.textContent = '';
+      if (body) body.scrollTop = 0;
+    }
+
+    function finish() {
+      clearTimers();
+      if (qEl) qEl.textContent = QUESTION;
+      steps.forEach(function (s) { s.classList.add('is-in'); });
+      if (ledger) ledger.classList.add('is-live');
+    }
+
+    function play() {
+      if (isCalm()) { finish(); return; }
+      reset();
+
+      // type the question, then run the beats on a fixed script
+      var caret = document.createElement('i');
+      caret.className = 'caret';
+      var txt = document.createElement('span');
+      qEl.append(txt, caret);
+
+      var i = 0;
+      (function type() {
+        if (i > QUESTION.length) { caret.remove(); return; }
+        txt.textContent = QUESTION.slice(0, i);
+        i++;
+        timers.push(setTimeout(type, 26 + Math.random() * 34));
+      })();
+
+      var t0 = QUESTION.length * 44;                 // roughly when typing lands
+      at(t0 + 320,  function () { land(0); });
+      at(t0 + 1250, function () { ledger.classList.add('is-live'); });
+      at(t0 + 2600, function () { land(1); });
+      at(t0 + 4300, function () { land(2); });
+      at(t0 + 5500, function () { land(3); });
+      at(t0 + 7400, function () { land(4); });
+    }
+
+    if (replay) replay.addEventListener('click', play);
+
+    if (isCalm() || !('IntersectionObserver' in window)) { finish(); return; }
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) {
+        if (!e.isIntersecting) return;
+        io.disconnect();
+        play();
+      });
+    }, { threshold: 0.28 });
+    io.observe(root);
+  }
+
+  /* -------- hero ask bar ------------------------------------------------- */
+  function typer() {
+    var el = q('[data-typer]');
+    var mini = q('[data-spotmini]');
+    var out = q('[data-spotmini-a]');
+    if (!el) return;
+
+    var SETS = [
+      { q: 'who still owes dues?',
+        a: '<b>9 of 52</b> still owe — $1,480 total, 4 past the late-fee date.' },
+      { q: 'is anyone double-booked next week?',
+        a: 'Thursday 8 PM: <b>the formal and the food drive</b> overlap for 9 volunteers.' },
+      { q: 'who missed the last two meetings?',
+        a: '<b>Jordan T.</b> (2 unexcused) and <b>Sam W.</b> (1 excused, lab conflict).' }
+    ];
+
+    var txt = document.createElement('span');
+    var caret = document.createElement('i');
+    caret.className = 'caret';
+    el.textContent = '';
+    el.append(txt, caret);
+
+    if (isCalm()) {
+      txt.textContent = SETS[0].q;
+      if (out) out.innerHTML = SETS[0].a;
+      if (mini) mini.classList.add('is-live');
+      return;
+    }
+
+    var sleep = function (ms) { return new Promise(function (r) { setTimeout(r, ms); }); };
+
+    (async function loop() {
+      var i = 0;
+      // let the hero land before anything starts moving
+      await sleep(900);
+      while (true) {
+        var set = SETS[i % SETS.length];
+        for (var c = 1; c <= set.q.length; c++) {
+          txt.textContent = set.q.slice(0, c);
+          await sleep(30 + Math.random() * 46);
+        }
+        await sleep(430);
+        if (out) out.innerHTML = set.a;
+        if (mini) mini.classList.add('is-live');
+        await sleep(3600);
+        if (mini) mini.classList.remove('is-live');
+        await sleep(420);
+        for (var d = set.q.length; d >= 0; d--) {
+          txt.textContent = set.q.slice(0, d);
+          await sleep(15);
+        }
+        await sleep(280);
+        i++;
+      }
+    })();
+  }
+
+  /* -------- setup: org type → live blueprint ----------------------------- */
+  /* The four templates are real starting shapes, not marketing variants: the
+     pages, the seat names, the vocabulary and the timeline categories each
+     differ, which is the whole point of the section. Auto-rotates until the
+     visitor takes over. */
+  function setup() {
+    var root = q('[data-setup]');
+    if (!root) return;
+
+    var PAGES = ['Dashboard','Timeline','Roster','Meetings','Attendance','Tasks','Treasury','Service','Parties','Announcements','Docs'];
+
+    var KINDS = {
+      fraternity: {
+        btn: 'Fraternity', name: 'Lambda Phi', slug: 'chaptos.app/lambda-phi', kind: 'Fraternity / sorority',
+        on: ['Dashboard','Timeline','Roster','Meetings','Attendance','Treasury','Service','Parties','Docs'],
+        words: [['Member','Brother'],['Meetings','Chapter'],['Term','Semester']],
+        seats: [['President','everything','rank 100'],['Treasurer','money + dues','rank 50'],['Social','events + parties','rank 50'],['PR','social content','rank 50']],
+        cats: [['Social','var(--butter-ink)'],['Fundraiser','var(--mint-ink)'],['Programming','var(--lilac-ink)'],['Chapter','var(--sky-ink)']],
+        term: 'Fall 2026 · Aug 24 – Dec 12',
+        qa: { kind: ['Fraternity', 'Sorority'], beats: ['Weekly meetings','Dues','Service hours','Parties'], term: ['Semesters'] }
+      },
+      team: {
+        btn: 'Club team', name: 'Club Soccer', slug: 'chaptos.app/club-soccer', kind: 'Sports / club team',
+        on: ['Dashboard','Timeline','Roster','Attendance','Tasks','Announcements','Docs'],
+        words: [['Member','Player'],['Meetings','Practice'],['Term','Season']],
+        seats: [['Captain','everything','rank 100'],['Coach','roster + attendance','rank 60'],['Team manager','comms + tasks','rank 50']],
+        cats: [['Game','var(--peach-ink)'],['Practice','var(--sky-ink)'],['Tournament','var(--lilac-ink)']],
+        term: 'Fall Season · Aug 18 – Nov 22',
+        qa: { kind: ['Club team'], beats: ['Practices','Games','Travel forms'], term: ['Seasons'] }
+      },
+      service: {
+        btn: 'Volunteer corps', name: 'Habitat Chapter', slug: 'chaptos.app/habitat', kind: 'Service / volunteer org',
+        on: ['Dashboard','Timeline','Roster','Meetings','Attendance','Tasks','Treasury','Service','Announcements','Docs'],
+        words: [['Meetings','Service events'],['Term','Semester']],
+        seats: [['President','everything','rank 100'],['Service chair','service + events','rank 50'],['Treasurer','money','rank 50'],['Comms chair','announcements','rank 50']],
+        cats: [['Service project','var(--sky-ink)'],['Fundraiser','var(--mint-ink)'],['Outreach','var(--butter-ink)']],
+        term: 'Fall 2026 · Sep 1 – Dec 15',
+        qa: { kind: ['Volunteer org'], beats: ['Service events','Logged hours','Fundraising','Announcements'], term: ['Semesters'] }
+      },
+      arts: {
+        btn: 'Theatre company', name: 'Playhouse Co.', slug: 'chaptos.app/playhouse', kind: 'Performing arts group',
+        on: ['Dashboard','Timeline','Roster','Meetings','Attendance','Tasks','Treasury','Announcements','Docs'],
+        words: [['Member','Cast member'],['Meetings','Rehearsal'],['Event','Rehearsal']],
+        seats: [['Director','everything','rank 100'],['Stage manager','calls + attendance','rank 60'],['Treasurer','money','rank 50'],['Publicity','social + comms','rank 50']],
+        cats: [['Performance','var(--rose-ink)'],['Auditions','var(--sky-ink)'],['Social','var(--butter-ink)']],
+        term: 'Fall Production · Sep 7 – Dec 5',
+        qa: { kind: ['Theatre'], beats: ['Rehearsals','Performances','Dues','Scripts + scores'], term: ['By production'] }
+      }
+    };
+
+    var bp = q('[data-bp]', root);
+    var btns = qa('[data-kind]', root);
+    var elName = q('[data-bp-name]', root), elKind = q('[data-bp-kind]', root), elSlug = q('[data-bp-slug]', root);
+    var elPages = q('[data-bp-pages]', root), elWords = q('[data-bp-words]', root);
+    var elSeats = q('[data-bp-seats]', root), elCats = q('[data-bp-cats]', root), elTerm = q('[data-bp-term]', root);
+    var qaKind = q('[data-qa="kind"]', root), qaBeats = q('[data-qa="beats"]', root), qaTerm = q('[data-qa="term"]', root);
+    var current = 'fraternity', timer = null, touched = false;
+
+    function chips(list, picked) {
+      return list.map(function (t) {
+        return '<span class="qa__chip' + (picked ? ' picked' : '') + '">' + t + '</span>';
+      }).join('');
+    }
+
+    function paint(key) {
+      var k = KINDS[key];
+      if (!k) return;
+      current = key;
+
+      elName.textContent = k.name;
+      elKind.textContent = k.kind;
+      elSlug.textContent = k.slug;
+      elTerm.textContent = k.term;
+
+      elPages.innerHTML = PAGES.map(function (p) {
+        var on = k.on.indexOf(p) > -1;
+        return '<span class="chip' + (on ? '' : ' off') + '">' + p + '</span>';
+      }).join('');
+
+      elWords.innerHTML = k.words.map(function (w) {
+        return '<div class="wordrow"><span class="from">' + w[0] + '</span>' +
+               '<svg width="14" height="14" style="color:var(--line-2); flex:none" aria-hidden="true"><use href="#d-arrow-r"/></svg>' +
+               '<span class="to">' + w[1] + '</span></div>';
+      }).join('');
+
+      elSeats.innerHTML = k.seats.map(function (s) {
+        return '<div class="seat"><span class="nm">' + s[0] + '</span>' +
+               '<span class="ab">' + s[1] + '</span>' +
+               '<span class="rk">' + s[2] + '</span></div>';
+      }).join('');
+
+      elCats.innerHTML = k.cats.map(function (c) {
+        return '<span class="chip"><i class="sw" style="--c:' + c[1] + '"></i>' + c[0] + '</span>';
+      }).join('');
+
+      qaKind.innerHTML  = chips(k.qa.kind, true);
+      qaBeats.innerHTML = chips(k.qa.beats, true);
+      qaTerm.innerHTML  = chips(k.qa.term, true);
+
+      btns.forEach(function (b) { b.classList.toggle('on', b.getAttribute('data-kind') === key); });
+    }
+
+    function swapTo(key) {
+      if (key === current) return;
+      if (isCalm()) { paint(key); return; }
+      bp.classList.add('is-swap');
+      setTimeout(function () { paint(key); bp.classList.remove('is-swap'); }, 200);
+    }
+
+    btns.forEach(function (b) {
+      b.addEventListener('click', function () {
+        touched = true;
+        if (timer) { clearInterval(timer); timer = null; }
+        swapTo(b.getAttribute('data-kind'));
+      });
+    });
+
+    paint('fraternity');
+
+    // auto-rotate once the section is on screen, until the visitor takes over
+    if (isCalm() || !('IntersectionObserver' in window)) return;
+    var order = Object.keys(KINDS), idx = 0;
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) {
+        if (!e.isIntersecting || touched) return;
+        io.disconnect();
+        timer = setInterval(function () {
+          if (touched) { clearInterval(timer); return; }
+          idx = (idx + 1) % order.length;
+          swapTo(order[idx]);
+        }, 4200);
+      });
+    }, { threshold: 0.3 });
+    io.observe(root);
+  }
+
+  /* -------- counters + the dues ring ------------------------------------- */
+  function counters() {
+    var nodes = qa('.counter'), rings = qa('[data-ring]');
+
+    function runCount(el) {
+      var to = parseFloat(el.getAttribute('data-count')) || 0;
+      var dec = parseInt(el.getAttribute('data-decimals') || '0', 10);
+      var pre = el.getAttribute('data-prefix') || '';
+      var suf = el.getAttribute('data-suffix') || '';
+      var fmt = function (v) {
+        return pre + (dec ? v.toFixed(dec) : Math.round(v).toLocaleString('en-US')) + suf;
+      };
+      if (isCalm()) { el.textContent = fmt(to); return; }
+      var t0 = performance.now(), dur = 1500;
+      (function step(t) {
+        var p = clamp((t - t0) / dur, 0, 1);
+        var eased = 1 - Math.pow(1 - p, 3);
+        el.textContent = fmt(to * eased);
+        if (p < 1) requestAnimationFrame(step);
+      })(t0);
+    }
+
+    function runRing(el) {
+      var pct = parseFloat(el.getAttribute('data-ring')) || 0;
+      requestAnimationFrame(function () { el.style.setProperty('--pct', pct); });
+    }
+
+    if (!('IntersectionObserver' in window)) {
+      nodes.forEach(runCount); rings.forEach(runRing); return;
+    }
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) {
+        if (!e.isIntersecting) return;
+        io.unobserve(e.target);
+        (e.target.classList.contains('counter') ? runCount : runRing)(e.target);
+      });
+    }, { threshold: 0.4 });
+    nodes.concat(rings).forEach(function (el) { io.observe(el); });
+  }
+
+  /* -------- semester-aware CTA ------------------------------------------- */
+  /* Picks the next term start and words the countdown (and the 3-step plan)
+     around it — "starts in 30 days" in July reads very differently in week 4. */
+  function term() {
+    var days = q('[data-term-days]'), label = q('[data-term-label]'), unit = q('[data-term-unit]');
+    if (!days) return;
+    var now = new Date(), y = now.getFullYear();
+    var starts = [
+      { name: 'Spring term', d: new Date(y, 0, 12) },
+      { name: 'Fall term',   d: new Date(y, 7, 24) },
+      { name: 'Spring term', d: new Date(y + 1, 0, 12) }
+    ];
+    var next = starts.find(function (s) { return s.d > now; }) || starts[starts.length - 1];
+    var n = Math.max(0, Math.ceil((next.d - now) / 864e5));
+
+    if (label) label.textContent = next.name;
+    days.textContent = n;
+    if (unit) unit.textContent = n === 1 ? 'day' : 'days';
+
+    // In-term visitors get a nudge that doesn't lie about the calendar.
+    if (n > 120) {
+      var card = q('.cta__count');
+      if (card) card.innerHTML = '<svg width="16" height="16" style="align-self:center" aria-hidden="true"><use href="#d-cal"/></svg> Mid-term is the second-best time to start';
+    }
+
+    var w1 = q('[data-term-w1]'), w2 = q('[data-term-w2]'), w3 = q('[data-term-w3]');
+    if (w1) w1.textContent = n <= 21 ? 'This week' : 'Any afternoon';
+    if (w2) w2.textContent = n <= 21 ? 'Before day one' : n + ' days out';
+    if (w3) w3.textContent = 'Week one';
+  }
+
+  /* -------- boot --------------------------------------------------------- */
+  function boot() {
+    reveal(); parallax(); chrome(); marquee();
+    day(); ask(); typer(); setup(); counters(); term();
+  }
+  document.readyState === 'loading'
+    ? document.addEventListener('DOMContentLoaded', boot)
+    : boot();
+})();
+</script>
+
+</body>
+</html>
