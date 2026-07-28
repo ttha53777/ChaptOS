@@ -258,6 +258,9 @@ section{position:relative}
 .pile{position:absolute; z-index:1; width:190px; will-change:transform}
 .pile--sheet{top:-34px; left:-76px; width:198px}
 .pile--chat{bottom:6px; left:-58px; width:194px}
+/* the third scrap hangs off the card's right edge, high enough to clear the
+   ⌘K spotlight parked at the bottom-right corner */
+.pile--receipt{top:150px; right:-84px; width:172px}
 
 .hero__card{
   position:relative; z-index:3; background:var(--card);
@@ -795,6 +798,9 @@ section{position:relative}
 @media (max-width: 1320px){
   .pile--sheet{left:-40px}
   .pile--chat{left:-32px}
+  /* no room left of the viewport edge to peek sideways — clear the card's top
+     right corner instead, mirroring the sheet on the left */
+  .pile--receipt{top:-44px; right:-14px; width:164px}
   .hero__spot{right:-12px; bottom:-92px; width:288px}
 }
 @media (max-width: 1080px){
@@ -815,6 +821,9 @@ section{position:relative}
   .hero__stage{min-height:0; margin-top:8px}
   .pile--sheet{top:-30px; left:-8px; width:150px}
   .pile--chat{bottom:-24px; left:-14px; width:150px}
+  /* one column now — mirror the sheet across the top edge rather than sitting
+     the scrap on top of the spotlight */
+  .pile--receipt{top:-26px; right:-8px; width:150px}
   .day__in,.ask__grid,.setup__grid{grid-template-columns:minmax(0,1fr); gap:26px; align-items:start}
   .day__in{padding:0}
   .mod__grid{grid-template-columns:minmax(0,1fr) !important; gap:28px}
@@ -836,9 +845,10 @@ section{position:relative}
   .beatlist{display:none}      /* the per-slide time stamp carries it on mobile */
   [data-para]{transform:none !important}
   .pile,.hero__card,.hero__spot,.mod__stage,.day__doodle,.cta__blob,.spot{transform:none !important}
-  .pile--sheet,.pile--chat{position:relative; inset:auto; width:auto}
+  .pile--sheet,.pile--chat,.pile--receipt{position:relative; inset:auto; width:auto}
   .hero__spot{position:relative; inset:auto; width:auto; margin-top:18px}
   .hero__piles{display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:12px; margin-top:24px}
+  .hero__piles .pile--receipt{grid-column:span 2}
   .sticky-note b{overflow-wrap:anywhere}   /* dues_FALL_v4_FINAL.xlsx is one long token */
   .callout{position:static; max-width:none; margin-top:14px}
   .spot__body{height:auto; overflow:visible}
@@ -1034,11 +1044,6 @@ section{position:relative}
               <span class="att__a">Mark done</span>
             </div>
             <div class="att">
-              <span class="att__tag gold">Dues</span>
-              <div class="att__b"><p class="t">Maya Rivera — $140 outstanding</p><p class="m">21 days past the Oct 1 date</p></div>
-              <span class="att__a">Open</span>
-            </div>
-            <div class="att">
               <span class="att__tag sky">Request</span>
               <div class="att__b"><p class="t">Reimbursement — $84.20, service supplies</p><p class="m">Nia Brooks · waiting on a treasurer</p></div>
               <span class="att__a">Review</span>
@@ -1071,6 +1076,12 @@ section{position:relative}
           <div class="sticky-note" style="--note:var(--rose); --rot:2.6deg; --tape-rot:3deg">
             <b>"did anyone take attendance??"</b><br>
             <span style="font-size:.83rem; color:var(--ink-2)">group chat, 11:52 PM</span>
+          </div>
+        </div>
+        <div class="pile pile--receipt" data-para data-speed="0.095">
+          <div class="sticky-note" style="--note:var(--sky); --rot:-2deg; --tape-rot:-4deg">
+            <b>47 Venmo notes</b><br>
+            <span style="font-size:.83rem; color:var(--ink-2)">🍕 🎉 "dues i think"</span>
           </div>
         </div>
       </div>
