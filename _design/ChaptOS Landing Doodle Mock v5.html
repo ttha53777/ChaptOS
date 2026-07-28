@@ -488,27 +488,37 @@ section{position:relative}
    8:12 AM is dashed, because that arc IS the part of the day nobody is doing
    admin — which is the whole argument. */
 .day{background:linear-gradient(180deg, transparent, var(--paper-2) 10%, var(--paper-2) 90%, transparent); position:relative}
-.dial__grid{display:grid; grid-template-columns:minmax(0,.78fr) minmax(0,1.22fr); gap:clamp(24px,4vw,64px); align-items:center}
-.dial__side{position:relative}
-.dial__side h2{margin-top:16px}
-.dial__side .lede{margin-top:18px; max-width:34ch}
+.dial__head{max-width:62ch}
+.dial__head .lede{max-width:56ch}
+.dial__grid{
+  margin-top:clamp(30px,4vw,54px);
+  display:grid; grid-template-columns:minmax(0,.72fr) minmax(0,1.28fr);
+  gap:clamp(24px,4vw,56px); align-items:center;
+}
+.dial__side{position:relative; display:flex; flex-direction:column; justify-content:center}
 .dial__doodle{position:absolute; pointer-events:none}
 
-/* --r is the label orbit; the SVG ring is drawn to land under it */
+/* --r is the label orbit; the SVG ring is drawn to land under it. The box adds
+   room for the chips, which are centred ON the ring rather than outside it. */
 .dial{
-  --r:clamp(92px, 11.5vw, 128px);
-  position:relative; width:calc(var(--r) * 2 + 104px); max-width:100%; aspect-ratio:1;
-  margin:clamp(24px,3.2vw,38px) auto 0;
+  --r:clamp(96px, 12.5vw, 146px);
+  position:relative; width:calc(var(--r) * 2 + 108px); max-width:100%; aspect-ratio:1;
+  margin:0 auto;
 }
 .dial__face{position:absolute; inset:0; width:100%; height:100%; overflow:visible}
-.dial__ring,.dial__quiet,.dial__prog{fill:none; vector-effect:non-scaling-stroke; stroke-linecap:round}
-.dial__ring{stroke:var(--line-2); stroke-width:1.5}
-.dial__quiet{stroke:var(--line-2); stroke-width:1.5; stroke-dasharray:3 6}
-.dial__prog{stroke:var(--ink); stroke-width:2.5; transition:stroke-dashoffset .72s var(--ease-spring)}
+.dial__ring,.dial__quiet,.dial__prog{fill:none; stroke-linecap:round}
+.dial__ring{stroke:var(--line-2); stroke-width:1.5; vector-effect:non-scaling-stroke}
+.dial__quiet{stroke:var(--line-2); stroke-width:1.5; stroke-dasharray:3 6; vector-effect:non-scaling-stroke}
+/* Deliberately NO non-scaling-stroke: it makes the browser read stroke-dasharray
+   in rendered px while getTotalLength() reports user units, so the pattern wraps
+   and the progress arc paints in two disconnected places. Width is in user units
+   instead — the dial only spans 300→400px, so 1.4 renders 2.1–2.8px. */
+.dial__prog{stroke:var(--ink); stroke-width:1.4; transition:stroke-dashoffset .72s var(--ease-spring)}
 .dial__hand{transform-box:view-box; transform-origin:50% 50%; transition:transform .72s var(--ease-spring)}
 .dial__hand line{stroke:var(--ink); stroke-width:2.5; stroke-linecap:round; vector-effect:non-scaling-stroke}
 .dial__hand circle{fill:var(--butter); stroke:var(--ink); stroke-width:2; vector-effect:non-scaling-stroke}
-.dial__pin{fill:var(--ink)}
+/* drawn over the hand's inner end so the count reads clean at the hub */
+.dial__disc{fill:var(--paper-2)}
 
 .dial__hub{position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); display:grid; place-items:center; gap:2px; text-align:center; pointer-events:none}
 .dial__hub .c{font-family:var(--mono); font-size:1.06rem; font-weight:600; color:var(--ink); font-variant-numeric:tabular-nums; letter-spacing:-.02em}
@@ -527,12 +537,23 @@ section{position:relative}
 .dial__tick:hover{border-color:var(--ink-3); color:var(--ink)}
 .dial__tick.is-done{background:var(--mint-soft); border-color:var(--mint-ink); color:var(--mint-ink)}
 .dial__tick.is-on,.dial__tick.is-on:hover{background:var(--ink); border-color:var(--ink); color:#FFFCF6; box-shadow:var(--sh-1)}
+/* On the ring, at the dashed arc's midpoint — the same orbit as the chips. At a
+   shorter radius it drifted inside the 11:58 chip's box, which is 60° away but
+   ~70px wide. No chip background: it's an annotation, not a stop. */
 .dial__quiet-l{
-  position:absolute; left:50%; top:50%; font-size:.66rem; color:var(--ink-3);
-  letter-spacing:.03em; white-space:nowrap; pointer-events:none;
-  transform:translate(-50%,-50%) rotate(var(--a)) translateY(calc(var(--r) * -.56)) rotate(calc(var(--a) * -1));
+  position:absolute; left:50%; top:50%; font-size:.68rem; color:var(--ink-3);
+  letter-spacing:.02em; white-space:nowrap; pointer-events:none; font-style:italic;
+  background:var(--paper-2); padding:1px 7px;   /* punch through the dashed arc */
+  transform:translate(-50%,-50%) rotate(var(--a)) translateY(calc(var(--r) * -1)) rotate(calc(var(--a) * -1));
 }
-.dial__replay{margin-top:clamp(18px,2.4vw,26px); display:flex; justify-content:center}
+/* the tick only says a time; this says what the moment IS — the descriptive
+   half of v2's beat list, which the dial has no room for */
+.dial__cap{
+  margin-top:16px; text-align:center; font-family:var(--display);
+  font-size:1.06rem; font-weight:600; letter-spacing:-.022em; color:var(--ink);
+  line-height:1.35; min-height:2.7em; transition:opacity .22s var(--ease-out);
+}
+.dial__replay{margin-top:clamp(14px,2vw,20px); display:flex; justify-content:center}
 
 .dialdeck{position:relative; height:min(56vh, 440px)}
 .dialcard{
@@ -891,6 +912,7 @@ section{position:relative}
      the scrap on top of the spotlight */
   .pile--receipt{top:-26px; right:-8px; width:150px}
   .scene__in,.dial__grid,.setup__grid{grid-template-columns:minmax(0,1fr); gap:26px; align-items:start}
+  .dial__side{margin-inline:auto}
   .scene__in{padding:0}
   .mod__grid{grid-template-columns:minmax(0,1fr) !important; gap:28px}
   .guards,.quotes{grid-template-columns:minmax(0,1fr)}
@@ -1043,14 +1065,14 @@ section{position:relative}
       ChaptOS
     </a>
     <nav class="nav__links">
-      <a href="#day">A Tuesday</a>
       <a href="#ask">Just ask</a>
+      <a href="#day">A Tuesday</a>
       <a href="#modules">What's in it</a>
       <a href="#setup">Setup</a>
       <a href="#trust">Trust</a>
     </nav>
     <div class="nav__cta">
-      <a class="btn btn--ghost btn--sm" href="#day">See a real day</a>
+      <a class="btn btn--ghost btn--sm" href="#ask">See it work</a>
       <a class="btn btn--sm" href="#start">Set up your org</a>
     </div>
   </div>
@@ -1078,8 +1100,8 @@ section{position:relative}
 
       <div class="hero__actions" data-reveal style="--d:200ms">
         <a class="btn btn--lg" href="#start">Set up your org — free</a>
-        <a class="btn btn--ghost btn--lg" href="#day">
-          Watch one Tuesday
+        <a class="btn btn--ghost btn--lg" href="#ask">
+          Ask it something first
           <svg width="17" height="17" aria-hidden="true"><use href="#d-arrow-r"/></svg>
         </a>
       </div>
@@ -1228,340 +1250,126 @@ section{position:relative}
   </div>
 </section>
 
-<!-- ============ 5. day scene ============================================= -->
-<!-- Scroll-scrubbed Tuesday. The rail is tall; the stage pins; JS maps rail
-     progress → which slide is on. Mobile drops the pin and stacks all six. -->
-<section class="day" id="day" data-day>
-  <div class="day__rail">
-    <div class="day__stage">
-      <div class="day__in">
+<!-- ============ 5. ask scene ============================================= -->
+<!-- THE pinned scene, and the first one you meet — v1's slot. The rail is tall,
+     the stage pins, and JS maps rail progress onto beat thresholds, so the
+     reader sets the pace. Mobile drops the pin and plays through once. -->
+<section class="scene" id="ask" data-scene>
+  <div class="scene__rail">
+    <div class="scene__stage">
+      <div class="scene__in">
 
-        <div class="day__side">
-          <span class="eyebrow" style="--eb:var(--sky)">Tuesday, October 14</span>
-          <h2>Nobody logs in<br>to use software.</h2>
+        <div class="scene__side">
+          <span class="eyebrow" style="--eb:var(--lilac)">The part that changes everything</span>
+          <h2>Ask your org<br>a question.</h2>
           <p class="lede">
-            They log in because something's due, someone paid, roll needs taking, and
-            the minutes have to say what we decided. Here's an ordinary day, in the
-            order it actually happens.
+            No dashboards to learn, no filters to build. Type the thing you'd have
+            texted the treasurer at midnight — and watch it actually get handled.
           </p>
 
           <ol class="beatlist" data-beatlist>
-            <li data-day-nav="0"><span class="n">1</span><span><b class="bt-time">8:12 AM</b>The briefing says what's late</span></li>
-            <li data-day-nav="1"><span class="n">2</span><span><b class="bt-time">12:40 PM</b>An idea becomes a real event</span></li>
-            <li data-day-nav="2"><span class="n">3</span><span><b class="bt-time">3:05 PM</b>A payout gets approved — and booked</span></li>
-            <li data-day-nav="3"><span class="n">4</span><span><b class="bt-time">7:31 PM</b>Roll call, 52 names, 40 seconds</span></li>
-            <li data-day-nav="4"><span class="n">5</span><span><b class="bt-time">9:20 PM</b>Minutes turn into assigned work</span></li>
-            <li data-day-nav="5"><span class="n">6</span><span><b class="bt-time">11:58 PM</b>Next year can still read today</span></li>
+            <li data-beat-nav="0"><span class="n">1</span><span>You ask, in plain words</span></li>
+            <li data-beat-nav="1"><span class="n">2</span><span>It checks the real records</span></li>
+            <li data-beat-nav="2"><span class="n">3</span><span>You get an answer with receipts</span></li>
+            <li data-beat-nav="3"><span class="n">4</span><span>You ask it to do something</span></li>
+            <li data-beat-nav="4"><span class="n">5</span><span>Nothing sends without your OK</span></li>
+            <li data-beat-nav="5"><span class="n">6</span><span>It follows up so you don't</span></li>
           </ol>
 
-          <svg class="day__doodle" style="width:112px; bottom:-14px; right:6px; color:var(--sky-ink); opacity:.45" viewBox="0 0 120 46" aria-hidden="true"><use href="#d-swirl"/></svg>
+          <svg class="scene__doodle" style="width:118px; bottom:-16px; right:8px; color:var(--lilac-ink); opacity:.5" viewBox="0 0 120 46" aria-hidden="true"><use href="#d-swirl"/></svg>
         </div>
 
-        <div class="deck" data-deck>
+        <div class="chat" data-chat>
 
-          <!-- 1 — the morning briefing -->
-          <div class="dayslide" data-slide="0">
-            <div>
-              <p class="dayslide__t">8:12 AM · Dashboard</p>
-              <figure class="shot">
-                <div class="shot__bar">
-                  <i class="tl"></i><i class="tl"></i><i class="tl"></i>
-                  <span class="shot__path mono">Dashboard <span class="sep">/</span> Fall 2026</span>
-                </div>
-                <div class="shot__body">
-                  <div class="shot__toolbar">
-                    <span class="shot__title">Needs attention</span>
-                    <span class="pill pill--due"><i class="dot"></i>4</span>
-                    <span class="shot__spacer"></span>
-                    <span class="mono" style="font-size:.78rem; color:var(--ink-3)">resolved items drop off</span>
-                  </div>
-                  <div class="ui-att" style="margin-top:0">
-                    <div class="att">
-                      <span class="att__tag">Overdue</span>
-                      <div class="att__b"><p class="t">Submit the fall budget to the advisor</p><p class="m">Due Oct 10 · Treasurer · 4 days late</p></div>
-                      <span class="att__a">Mark done</span>
-                    </div>
-                    <div class="att">
-                      <span class="att__tag gold">Dues</span>
-                      <div class="att__b"><p class="t">Maya Rivera — $140 outstanding</p><p class="m">21 days past the Oct 1 date</p></div>
-                      <span class="att__a">Open profile</span>
-                    </div>
-                    <div class="att">
-                      <span class="att__tag sky">Request</span>
-                      <div class="att__b"><p class="t">Reimbursement — $84.20, service supplies</p><p class="m">Nia Brooks · waiting on a treasurer</p></div>
-                      <span class="att__a">Review</span>
-                    </div>
-                    <div class="att">
-                      <span class="att__tag calm">Standing</span>
-                      <div class="att__b"><p class="t">Jordan Tao is one absence from review</p><p class="m">2 of 8 missed · policy is 3</p></div>
-                      <span class="att__a">Open profile</span>
-                    </div>
-                  </div>
-                </div>
-              </figure>
-              <p class="dayslide__note">
-                <svg style="color:var(--mint-ink)" aria-hidden="true"><use href="#d-check"/></svg><span>Nobody built a report to find these. The queue is what the dashboard opens on,
-                and rows leave it the moment they're handled.</span></p>
+          <!-- beat 0 — the ask -->
+          <div class="beat" data-beat="0">
+            <div class="beat__in">
+              <div>
+                <p class="who who--right">Priya · Treasurer <span class="avatar avatar--sm" style="--av:var(--peach)">PS</span></p>
+                <div class="bubble bubble--me">who still owes dues this semester, and how bad is it?</div>
+              </div>
             </div>
           </div>
 
-          <!-- 2 — programming board -->
-          <div class="dayslide" data-slide="1">
-            <div>
-              <p class="dayslide__t">12:40 PM · Programming</p>
-              <figure class="shot">
-                <div class="shot__bar">
-                  <i class="tl"></i><i class="tl"></i><i class="tl"></i>
-                  <span class="shot__path mono">Programming <span class="sep">/</span> Fall 2026</span>
-                </div>
-                <div class="shot__body">
-                  <div class="shot__toolbar">
-                    <span class="shot__title">Alumni mixer</span>
-                    <span class="pill pill--paid"><i class="dot"></i>Moved to Confirmed</span>
-                    <span class="shot__spacer"></span>
-                    <span class="shot__tabs"><span class="on">Board</span><span>Table</span><span>Calendar</span></span>
-                  </div>
-
-                  <div class="ui-board">
-                    <div class="bcol">
-                      <p class="bcol__h"><i style="--s:var(--rose-ink)"></i>Idea <b>3</b></p>
-                      <div class="bcard">Casino night<small>no owner yet</small></div>
-                      <div class="bcard">Intramural league<small>needs budget</small></div>
-                    </div>
-                    <div class="bcol">
-                      <p class="bcol__h"><i style="--s:var(--butter-ink)"></i>Planning <b>2</b></p>
-                      <div class="bcard">Beach cleanup<small>Sat · service</small></div>
-                    </div>
-                    <div class="bcol">
-                      <p class="bcol__h"><i style="--s:var(--mint-ink)"></i>Confirmed <b>2</b></p>
-                      <div class="bcard is-moved">Alumni mixer<small>Fri 6:30 · D. Reyes</small></div>
-                      <div class="bcard">Fall formal<small>Oct 23 · social</small></div>
-                    </div>
-                    <div class="bcol">
-                      <p class="bcol__h"><i style="--s:var(--line-2)"></i>Done <b>6</b></p>
-                      <div class="bcard" style="opacity:.62">Fundraiser night<small>Sep 28</small></div>
-                    </div>
-                  </div>
-
-                  <ul class="ui-check">
-                    <li class="done"><i class="box"><svg style="color:#fff; width:11px;height:11px" viewBox="0 0 24 24"><use href="#d-check"/></svg></i><span class="lbl">Venue confirmed — the Union, room 204</span><span class="owner pill pill--paid"><i class="dot"></i>Done</span></li>
-                    <li class="done"><i class="box"><svg style="color:#fff; width:11px;height:11px" viewBox="0 0 24 24"><use href="#d-check"/></svg></i><span class="lbl">Budget line approved — $340</span><span class="owner pill pill--paid"><i class="dot"></i>Done</span></li>
-                    <li><i class="box"></i><span class="lbl">Alumni list pulled + emailed</span><span class="owner pill pill--part"><i class="dot"></i>Due Thu</span></li>
+          <!-- beat 1 — the reasoning ledger -->
+          <div class="beat" data-beat="1">
+            <div class="beat__in">
+              <div>
+                <p class="who"><span class="avatar avatar--sm" style="--av:var(--butter)">✳</span> ChaptOS</p>
+                <div class="ledger" data-ledger>
+                  <p class="ledger__t"><i class="spin"></i> Checking before answering</p>
+                  <ul>
+                    <li><i class="tick"><svg viewBox="0 0 24 24" style="color:var(--mint-ink)"><use href="#d-check"/></svg></i>Read 52 dues records for Fall 2026</li>
+                    <li><i class="tick"><svg viewBox="0 0 24 24" style="color:var(--mint-ink)"><use href="#d-check"/></svg></i>Matched 6 unlabeled payments to members</li>
+                    <li><i class="tick"><svg viewBox="0 0 24 24" style="color:var(--mint-ink)"><use href="#d-check"/></svg></i>Applied your Oct 1 late-fee rule</li>
                   </ul>
-
-                  <p class="ui-note" style="background:var(--mint-soft); border-color:#BDE7D2; color:var(--mint-ink)">
-                    <svg width="15" height="15" aria-hidden="true"><use href="#d-cal"/></svg><span>Confirmed events land on the org timeline — <b>everyone sees Friday 6:30</b> without a single group-chat post</span></p>
+                  <div class="consulted">
+                    <span class="pill pill--calm">Dues ledger</span>
+                    <span class="pill pill--calm">Roster</span>
+                    <span class="pill pill--calm">Payment imports</span>
+                    <span class="pill pill--calm">Chapter bylaws §4</span>
+                  </div>
                 </div>
-              </figure>
-              <p class="dayslide__note">
-                <svg style="color:var(--mint-ink)" aria-hidden="true"><use href="#d-check"/></svg><span>The social chair dragged one card. That's the whole announcement.</span></p>
+              </div>
             </div>
           </div>
 
-          <!-- 3 — treasury: approval mints the ledger row -->
-          <div class="dayslide" data-slide="2">
-            <div>
-              <p class="dayslide__t">3:05 PM · Treasury</p>
-              <figure class="shot">
-                <div class="shot__bar">
-                  <i class="tl"></i><i class="tl"></i><i class="tl"></i>
-                  <span class="shot__path mono">Treasury <span class="sep">/</span> Reimbursements</span>
+          <!-- beat 2 — the answer, with receipts -->
+          <div class="beat" data-beat="2">
+            <div class="beat__in">
+              <div class="acard">
+                <div class="acard__hd">
+                  <span class="k">$1,480</span>
+                  <span class="sub"><b>9 of 52 members</b> still owe.<br>4 are past the late-fee date.</span>
+                  <span class="pill pill--due" style="margin-left:auto"><i class="dot"></i>Needs a nudge</span>
                 </div>
-                <div class="shot__body">
-                  <div class="shot__toolbar">
-                    <span class="shot__title">Waiting on you</span>
-                    <span class="pill pill--part"><i class="dot"></i>2 pending</span>
-                    <span class="shot__spacer"></span>
-                    <span class="mono" style="font-size:.9rem; font-weight:600">$12,480<span style="color:var(--ink-3)"> balance</span></span>
-                  </div>
-
-                  <div class="ui-stat" style="gap:14px">
-                    <span class="avatar" style="--av:var(--mint)">NB</span>
-                    <div style="min-width:0">
-                      <p class="ui-stat__k">$84.20 <span style="font-size:.9rem; color:var(--ink-3); font-family:var(--sans); font-weight:500">— service supplies</span></p>
-                      <p class="ui-stat__l">Nia Brooks · Oct 12 · receipt attached · category: Service</p>
-                    </div>
-                    <span style="margin-left:auto; display:flex; gap:8px; flex:none">
-                      <span class="btn btn--sm" style="--btn-shadow:var(--mint)">Approve</span>
-                      <span class="btn btn--ghost btn--sm">Decline</span>
-                    </span>
-                  </div>
-
-                  <p class="ui-note" style="background:var(--butter-soft); border-color:#F4DFA6; color:var(--butter-ink)">
-                    <svg width="15" height="15" aria-hidden="true"><use href="#d-receipt"/></svg><span>Approving writes the expense row <b>and</b> moves the balance — one transaction, both books</span></p>
-
-                  <div class="ui-table ui-table--4">
-                    <div class="ui-th"><span>Entry</span><span>Category</span><span>Date</span><span>Amount</span></div>
-                    <div class="ui-tr" style="background:var(--mint-soft)">
-                      <span class="who"><i class="avatar avatar--sm" style="--av:var(--mint)">NB</i>Service supplies</span>
-                      <span class="txt">Service</span>
-                      <span class="txt mono">Oct 14</span>
-                      <span class="amt">−$84.20</span>
-                    </div>
-                    <div class="ui-tr">
-                      <span class="who"><i class="avatar avatar--sm" style="--av:var(--sky)">DO</i>Dues — Dev Okafor</span>
-                      <span class="txt">Dues</span>
-                      <span class="txt mono">Oct 13</span>
-                      <span class="amt">+$75.00</span>
-                    </div>
-                    <div class="ui-tr">
-                      <span class="who"><i class="avatar avatar--sm" style="--av:var(--butter)">FF</i>Formal deposit</span>
-                      <span class="txt">Events</span>
-                      <span class="txt mono">Oct 11</span>
-                      <span class="amt">−$400.00</span>
-                    </div>
-                  </div>
+                <div class="acard__rows">
+                  <div class="acard__row"><span class="avatar avatar--sm" style="--av:var(--peach)">MR</span><span class="nm">Maya R.</span><span class="pill pill--due">21 days late</span><span class="amt">$140</span></div>
+                  <div class="acard__row"><span class="avatar avatar--sm" style="--av:var(--sky)">DO</span><span class="nm">Dev O.</span><span class="pill pill--part">Partial</span><span class="amt">$65</span></div>
+                  <div class="acard__row"><span class="avatar avatar--sm" style="--av:var(--lilac)">JT</span><span class="nm">Jordan T.</span><span class="pill pill--due">9 days late</span><span class="amt">$140</span></div>
                 </div>
-              </figure>
-              <p class="dayslide__note">
-                <svg style="color:var(--mint-ink)" aria-hidden="true"><use href="#d-check"/></svg><span>Dues payments and payouts are <em>requests</em> until a treasurer approves them.
-                Nothing edits the balance behind anyone's back.</span></p>
+                <p class="acard__ft"><svg width="13" height="13" aria-hidden="true"><use href="#d-receipt"/></svg> 6 more · every row opens the payment it came from</p>
+              </div>
             </div>
           </div>
 
-          <!-- 4 — roll call -->
-          <div class="dayslide" data-slide="3">
-            <div>
-              <p class="dayslide__t">7:31 PM · Chapter meeting</p>
-              <figure class="shot">
-                <div class="shot__bar">
-                  <i class="tl"></i><i class="tl"></i><i class="tl"></i>
-                  <span class="shot__path mono">Chapter <span class="sep">/</span> General Meeting <span class="sep">/</span> Oct 14</span>
-                </div>
-                <div class="shot__body">
-                  <div class="shot__toolbar">
-                    <span class="shot__title">Taking roll</span>
-                    <span class="pill pill--paid"><i class="dot"></i>Live</span>
-                    <span class="shot__spacer"></span>
-                    <span class="mono" style="font-size:.9rem; font-weight:600">47<span style="color:var(--ink-3)">/52 here</span></span>
-                  </div>
-
-                  <div class="ui-roll" style="margin-top:0">
-                    <span class="ui-person is-here"><i class="mk"><svg style="color:#fff" viewBox="0 0 24 24"><use href="#d-check"/></svg></i>Ana C.</span>
-                    <span class="ui-person is-here"><i class="mk"><svg style="color:#fff" viewBox="0 0 24 24"><use href="#d-check"/></svg></i>Dev O.</span>
-                    <span class="ui-person is-late"><i class="mk"></i>Maya R.</span>
-                    <span class="ui-person is-here"><i class="mk"><svg style="color:#fff" viewBox="0 0 24 24"><use href="#d-check"/></svg></i>Sam W.</span>
-                    <span class="ui-person is-here"><i class="mk"><svg style="color:#fff" viewBox="0 0 24 24"><use href="#d-check"/></svg></i>Priya S.</span>
-                    <span class="ui-person is-out"><i class="mk"></i>Jordan T.</span>
-                    <span class="ui-person is-here"><i class="mk"><svg style="color:#fff" viewBox="0 0 24 24"><use href="#d-check"/></svg></i>Leo M.</span>
-                    <span class="ui-person is-here"><i class="mk"><svg style="color:#fff" viewBox="0 0 24 24"><use href="#d-check"/></svg></i>Nia B.</span>
-                  </div>
-
-                  <p class="ui-note" style="background:var(--butter-soft); border-color:#F4DFA6; color:var(--butter-ink)">
-                    <svg width="15" height="15" aria-hidden="true"><use href="#d-hand"/></svg><span>Jordan T. filed an excuse — <b>lab conflict</b>, 2nd this term</span>
-                    <span style="margin-left:auto; display:flex; gap:6px">
-                      <span class="btn btn--sm" style="--btn-shadow:var(--mint)">Approve</span>
-                    </span>
-                  </p>
-
-                  <div class="ui-table">
-                    <div class="ui-th"><span>Standing</span><span>Missed</span><span>Status</span></div>
-                    <div class="ui-tr">
-                      <span class="who"><i class="avatar avatar--sm" style="--av:var(--lilac)">JT</i>Jordan Tao</span>
-                      <span class="amt">2 of 8</span>
-                      <span><span class="pill pill--part"><i class="dot"></i>1 from review</span></span>
-                    </div>
-                    <div class="ui-tr">
-                      <span class="who"><i class="avatar avatar--sm" style="--av:var(--mint)">AC</i>Ana Chen</span>
-                      <span class="amt">0 of 8</span>
-                      <span><span class="pill pill--paid"><i class="dot"></i>Good standing</span></span>
-                    </div>
-                  </div>
-                </div>
-              </figure>
-              <p class="dayslide__note">
-                <svg style="color:var(--mint-ink)" aria-hidden="true"><use href="#d-check"/></svg><span>Standing updates itself as the roll closes — so the attendance policy is
-                finally a number, not an argument.</span></p>
+          <!-- beat 3 — the follow-up ask -->
+          <div class="beat" data-beat="3">
+            <div class="beat__in">
+              <div>
+                <p class="who who--right">Priya · Treasurer <span class="avatar avatar--sm" style="--av:var(--peach)">PS</span></p>
+                <div class="bubble bubble--me">draft a reminder for the 4 late ones. keep it kind — half of them are broke, not avoiding me</div>
+              </div>
             </div>
           </div>
 
-          <!-- 5 — minutes → decisions + assigned work -->
-          <div class="dayslide" data-slide="4">
-            <div>
-              <p class="dayslide__t">9:20 PM · Minutes</p>
-              <figure class="shot">
-                <div class="shot__bar">
-                  <i class="tl"></i><i class="tl"></i><i class="tl"></i>
-                  <span class="shot__path mono">Chapter <span class="sep">/</span> Minutes <span class="sep">/</span> Oct 14</span>
+          <!-- beat 4 — the proposal, gated on approval -->
+          <div class="beat" data-beat="4">
+            <div class="beat__in">
+              <div class="draft">
+                <p class="draft__hd"><svg width="14" height="14" aria-hidden="true"><use href="#d-shield"/></svg> Waiting on you — ChaptOS never sends on its own</p>
+                <div class="draft__body">
+                  <p class="msg">Hey Maya — no stress, just a heads up that Fall dues ($140) are open past the Oct 1 date. Payment plans are totally fine; reply here and we'll split it into three. 💛 — Priya</p>
                 </div>
-                <div class="shot__body">
-                  <div class="shot__toolbar">
-                    <span class="shot__title">Meeting notes</span>
-                    <span class="pill pill--calm"><svg width="13" height="13" aria-hidden="true"><use href="#d-spark"/></svg> Summarized</span>
-                    <span class="shot__spacer"></span>
-                    <span class="mono" style="font-size:.78rem; color:var(--ink-3)">saved · 52 members notified</span>
-                  </div>
-
-                  <div class="ui-split" style="margin-top:0">
-                    <div class="ui-raw">
-                      <h5>What the secretary typed</h5>
-                      <p>ok so formal — voted, 31 yes 6 no, we're doing the 23rd not the 30th…</p>
-                      <p>maya asked about payment plans, priya says fine, 3 splits, needs a vote next week</p>
-                      <p>dev has to send the budget to advisor by friday!! also someone confirm the van</p>
-                      <p>alumni mixer moved to confirmed, dr owns it</p>
-                    </div>
-                    <div class="ui-sum">
-                      <h5>Decisions</h5>
-                      <ul>
-                        <li>Fall formal set for Oct 23 <span class="pill pill--paid">31–6</span></li>
-                        <li>Alumni mixer confirmed, owner D. Reyes</li>
-                      </ul>
-                      <h5>Action items</h5>
-                      <ul>
-                        <li>Budget to the advisor by Fri <span class="pill pill--info">Treasurer</span></li>
-                        <li>Confirm the van + 2 drivers <span class="pill pill--info">Social</span></li>
-                      </ul>
-                      <h5>Discussed</h5>
-                      <ul>
-                        <li>Three-split payment plans — vote next week</li>
-                      </ul>
-                    </div>
-                  </div>
-
-                  <p class="ui-note">
-                    <svg width="15" height="15" aria-hidden="true"><use href="#d-clip"/></svg><span>Action items were handed to <b>the seat, not the person</b> — whoever holds Treasurer next month inherits them</span></p>
+                <div class="draft__ft">
+                  <button class="btn btn--sm" type="button">Send to 4 members</button>
+                  <button class="btn btn--ghost btn--sm" type="button">Edit</button>
+                  <span class="who-ok">Logged to the audit trail either way</span>
                 </div>
-              </figure>
-              <p class="dayslide__note">
-                <svg style="color:var(--mint-ink)" aria-hidden="true"><use href="#d-check"/></svg><span>Two of those action items are now dated tasks. They'll be on tomorrow's
-                briefing whether anyone remembers or not.</span></p>
+              </div>
             </div>
           </div>
 
-          <!-- 6 — the record -->
-          <div class="dayslide" data-slide="5">
-            <div>
-              <p class="dayslide__t">11:58 PM · Timeline</p>
-              <figure class="shot">
-                <div class="shot__bar">
-                  <i class="tl"></i><i class="tl"></i><i class="tl"></i>
-                  <span class="shot__path mono">Timeline <span class="sep">/</span> Activity</span>
+          <!-- beat 5 — the loop closes -->
+          <div class="beat" data-beat="5">
+            <div class="beat__in">
+              <div class="done">
+                <span class="done__ic"><svg width="22" height="22" style="color:var(--mint-ink)" aria-hidden="true"><use href="#d-check"/></svg></span>
+                <div class="bubble bubble--bot" style="box-shadow:3px 3px 0 var(--mint)">
+                  Sent to 4. I'll re-check Friday and only nudge whoever's still open —
+                  and I'll leave the two on payment plans alone.
                 </div>
-                <div class="shot__body">
-                  <div class="shot__toolbar">
-                    <span class="shot__title">Today</span>
-                    <span class="pill pill--info">14 entries</span>
-                    <span class="shot__spacer"></span>
-                    <span class="shot__tabs"><span class="on">Today</span><span>Term</span><span>All</span></span>
-                  </div>
-
-                  <div class="ui-log">
-                    <div class="logrow"><span class="ts">11:41 PM</span><span class="tx">Minutes published — <b>General Meeting, Oct 14</b></span><span class="pill pill--calm">Priya S.</span></div>
-                    <div class="logrow"><span class="ts">9:24 PM</span><span class="tx">2 tasks created from action items</span><span class="pill">auto</span></div>
-                    <div class="logrow"><span class="ts">7:58 PM</span><span class="tx">Attendance closed — <b>47 of 52</b>, 1 excused</span><span class="pill pill--calm">Priya S.</span></div>
-                    <div class="logrow"><span class="ts">7:44 PM</span><span class="tx">Excuse approved — Jordan T., lab conflict</span><span class="pill pill--calm">Ana C.</span></div>
-                    <div class="logrow"><span class="ts">3:06 PM</span><span class="tx">Reimbursement approved — <b>$84.20</b>, expense row minted</span><span class="pill pill--calm">Dev O.</span></div>
-                    <div class="logrow"><span class="ts">12:41 PM</span><span class="tx">Alumni mixer → <b>Confirmed</b>, published to timeline</span><span class="pill pill--calm">D. Reyes</span></div>
-                    <div class="logrow"><span class="ts">8:15 AM</span><span class="tx">Deadline completed — fall budget draft</span><span class="pill pill--calm">Dev O.</span></div>
-                  </div>
-
-                  <p class="ui-note" style="background:var(--sky-soft); border-color:#CCDFFB; color:var(--sky-ink)">
-                    <svg width="15" height="15" aria-hidden="true"><use href="#d-loop"/></svg><span>Nobody wrote a status update. <b>This is just what happened, in order.</b></span></p>
-                </div>
-              </figure>
-              <p class="dayslide__note">
-                <svg style="color:var(--mint-ink)" aria-hidden="true"><use href="#d-check"/></svg><span>Next May, the incoming board reads this instead of interviewing whoever
-                still answers texts.</span></p>
+              </div>
             </div>
           </div>
 
@@ -1575,150 +1383,395 @@ section{position:relative}
 <section class="section--tight">
   <div class="wrap--narrow" style="margin-inline:auto; text-align:center">
     <p class="lede" data-reveal style="font-size:clamp(1.2rem,2.4vw,1.7rem); color:var(--ink); line-height:1.4">
-      Five officers, six surfaces, one ordinary day — and not one of them
-      <span class="hi" style="--mark:var(--mint)">opened a spreadsheet.</span>
+      That's four tabs, two spreadsheets and a guilt-ridden group text —
+      <span class="hi" style="--mark:var(--mint)">collapsed into one sentence.</span>
     </p>
   </div>
 </section>
 
-<!-- ============ 6. ask scene ============================================= -->
-<!-- Autoplays once when it enters the viewport (and on Replay). Not pinned —
-     one scrubbed scene per page is the motion budget; this one earns its
-     attention by being the only thing moving. -->
-<section class="section" id="ask" style="background:linear-gradient(180deg, transparent, var(--paper-2) 14%, var(--paper-2) 86%, transparent)">
-  <div class="wrap ask__grid" data-ask>
+<!-- ============ 6. day dial ============================================== -->
+<!-- Not pinned. §5 spends the page's motion budget; this one just has to prove
+     the surfaces are real, and a dial does that in ~1.4 screens. Six marks, the
+     hand sweeps once on entry, one product screen at a time. -->
+<section class="day" id="day" data-dial>
+  <div class="wrap section" style="padding-top:clamp(64px,8vw,104px)">
 
-    <div>
-      <span class="eyebrow" style="--eb:var(--lilac)" data-reveal>⌘K, on every page</span>
-      <h2 data-reveal style="margin-top:16px; --d:60ms">Ask the org<br>a question.</h2>
-      <p class="lede" data-reveal style="margin-top:18px; --d:110ms; max-width:38ch">
-        No dashboard to learn, no filter to build. Type the thing you'd have texted
-        the treasurer at midnight — and watch it check the records before it answers.
+    <!-- the head runs full width so the dial and the screen can sit as a pair
+         underneath it — stacking copy + dial in one column left the dial
+         floating at the bottom of a column twice the height of the card -->
+    <div class="dial__head">
+      <span class="eyebrow" style="--eb:var(--sky)" data-reveal>Tuesday, October 14</span>
+      <h2 data-reveal style="margin-top:16px; --d:60ms">Nobody logs in to use software.</h2>
+      <p class="lede" data-reveal style="margin-top:18px; --d:110ms">
+        They log in because something's due, someone paid, roll needs taking, and the
+        minutes have to say what we decided. Here's an ordinary day, in the order it
+        actually happens.
       </p>
-
-      <ul class="ask__points" data-reveal style="--d:160ms">
-        <li>
-          <span class="ic" style="--i:var(--lilac-soft); --ib:#DCD2FB"><svg class="doodle doodle--thin" width="17" height="17" style="color:var(--lilac-ink)" viewBox="0 0 24 24"><use href="#d-loop"/></svg></span>
-          <div>
-            <h4>It shows its work as it works</h4>
-            <p>Steps post live — what it read, what it matched, what rule it applied — then fold into a trace you can reopen later.</p>
-          </div>
-        </li>
-        <li>
-          <span class="ic" style="--i:var(--sky-soft); --ib:#CCDFFB"><svg class="doodle doodle--thin" width="17" height="17" style="color:var(--sky-ink)" viewBox="0 0 24 24"><use href="#d-receipt"/></svg></span>
-          <div>
-            <h4>Every row opens its record</h4>
-            <p>Answers are rows, not a paragraph of confident guessing. Tap one and you're looking at the payment, the meeting, the member.</p>
-          </div>
-        </li>
-        <li>
-          <span class="ic" style="--i:var(--butter-soft); --ib:#F4DFA6"><svg class="doodle doodle--thin" width="17" height="17" style="color:var(--butter-ink)" viewBox="0 0 24 24"><use href="#d-shield"/></svg></span>
-          <div>
-            <h4>It proposes; you approve</h4>
-            <p>Anything that writes comes back as a card with an Approve button — checked against your role first. If you can't, it names who can.</p>
-          </div>
-        </li>
-      </ul>
-
-      <div class="ask__replay" data-reveal style="--d:220ms">
-        <button class="btn btn--ghost btn--sm" type="button" data-ask-replay>
-          <svg width="15" height="15" aria-hidden="true"><use href="#d-loop"/></svg>
-          Play it again
-        </button>
-      </div>
     </div>
 
-    <div data-para data-speed="-0.04">
-      <div class="spot">
-        <div class="spot__bar">
-          <svg width="19" height="19" style="color:var(--lilac-ink); flex:none" aria-hidden="true"><use href="#d-spark"/></svg>
-          <span class="spot__q" data-ask-q></span>
-          <kbd class="spot__kbd">esc</kbd>
-        </div>
-        <div class="spot__body">
+    <div class="dial__grid">
 
-          <!-- step 0 — the reasoning ledger -->
-          <div class="beat" data-ask-step="0">
-            <div class="beat__in">
-              <div class="ledger" data-ask-ledger>
-                <p class="ledger__t"><i class="spin"></i> Checking before answering</p>
-                <ul>
-                  <li><i class="tick"><svg viewBox="0 0 24 24" style="color:var(--mint-ink)"><use href="#d-check"/></svg></i>Read 52 dues records for Fall 2026</li>
-                  <li><i class="tick"><svg viewBox="0 0 24 24" style="color:var(--mint-ink)"><use href="#d-check"/></svg></i>Matched 6 unlabeled payments to members</li>
-                  <li><i class="tick"><svg viewBox="0 0 24 24" style="color:var(--mint-ink)"><use href="#d-check"/></svg></i>Applied your Oct 1 late-fee rule</li>
-                  <li><i class="tick"><svg viewBox="0 0 24 24" style="color:var(--mint-ink)"><use href="#d-check"/></svg></i>Excluded 2 members on payment plans</li>
+      <div class="dial__side">
+        <div class="dial" data-reveal style="--d:170ms">
+          <svg class="dial__face" viewBox="0 0 200 200" aria-hidden="true">
+            <path class="dial__ring"  d="M100 28 A72 72 0 1 1 37.65 64"/>
+            <!-- the 60° nobody is doing admin -->
+            <path class="dial__quiet" d="M37.65 64 A72 72 0 0 1 100 28"/>
+            <path class="dial__prog"  d="M100 28 A72 72 0 1 1 37.65 64" data-dial-prog/>
+            <g class="dial__hand" data-dial-hand>
+              <line x1="100" y1="100" x2="100" y2="44"/>
+              <circle cx="100" cy="41" r="4"/>
+            </g>
+            <circle class="dial__disc" cx="100" cy="100" r="27"/>
+          </svg>
+
+          <div class="dial__hub">
+            <span class="c" data-dial-count>01</span>
+            <span class="l">of six</span>
+          </div>
+
+          <span class="dial__quiet-l" style="--a:330deg">8 quiet hours</span>
+
+          <div class="dial__ticks">
+            <button type="button" class="dial__tick" style="--a:0deg" data-dial-tick="0" data-dial-cap-text="The briefing says what's late">8:12 AM</button>
+            <button type="button" class="dial__tick" style="--a:60deg" data-dial-tick="1" data-dial-cap-text="An idea becomes a real event">12:40 PM</button>
+            <button type="button" class="dial__tick" style="--a:120deg" data-dial-tick="2" data-dial-cap-text="A payout gets approved — and booked">3:05 PM</button>
+            <button type="button" class="dial__tick" style="--a:180deg" data-dial-tick="3" data-dial-cap-text="Roll call, 52 names, 40 seconds">7:31 PM</button>
+            <button type="button" class="dial__tick" style="--a:240deg" data-dial-tick="4" data-dial-cap-text="Minutes turn into assigned work">9:20 PM</button>
+            <button type="button" class="dial__tick" style="--a:300deg" data-dial-tick="5" data-dial-cap-text="Next year can still read today">11:58 PM</button>
+          </div>
+        </div>
+
+        <p class="dial__cap" data-dial-cap>The briefing says what's late</p>
+
+        <div class="dial__replay">
+          <button class="btn btn--ghost btn--sm" type="button" data-dial-replay>
+            <svg width="15" height="15" aria-hidden="true"><use href="#d-loop"/></svg> Play the day again
+          </button>
+        </div>
+
+        <svg class="dial__doodle" style="width:112px; bottom:-30px; right:-6px; color:var(--sky-ink); opacity:.4" viewBox="0 0 120 46" aria-hidden="true"><use href="#d-swirl"/></svg>
+      </div>
+
+      <div class="dialdeck" data-dial-deck>
+
+        <div class="dialcard" data-dial-card="0">
+          <div>
+            <p class="dialcard__t">8:12 AM · Dashboard</p>
+            <figure class="shot">
+              <div class="shot__bar">
+                <i class="tl"></i><i class="tl"></i><i class="tl"></i>
+                <span class="shot__path mono">Dashboard <span class="sep">/</span> Fall 2026</span>
+              </div>
+              <div class="shot__body">
+                <div class="shot__toolbar">
+                  <span class="shot__title">Needs attention</span>
+                  <span class="pill pill--due"><i class="dot"></i>4</span>
+                  <span class="shot__spacer"></span>
+                  <span class="mono" style="font-size:.78rem; color:var(--ink-3)">resolved items drop off</span>
+                </div>
+                <div class="ui-att" style="margin-top:0">
+                  <div class="att">
+                    <span class="att__tag">Overdue</span>
+                    <div class="att__b"><p class="t">Submit the fall budget to the advisor</p><p class="m">Due Oct 10 · Treasurer · 4 days late</p></div>
+                    <span class="att__a">Mark done</span>
+                  </div>
+                  <div class="att">
+                    <span class="att__tag gold">Dues</span>
+                    <div class="att__b"><p class="t">Maya Rivera — $140 outstanding</p><p class="m">21 days past the Oct 1 date</p></div>
+                    <span class="att__a">Open profile</span>
+                  </div>
+                  <div class="att">
+                    <span class="att__tag sky">Request</span>
+                    <div class="att__b"><p class="t">Reimbursement — $84.20, service supplies</p><p class="m">Nia Brooks · waiting on a treasurer</p></div>
+                    <span class="att__a">Review</span>
+                  </div>
+                  <div class="att">
+                    <span class="att__tag calm">Standing</span>
+                    <div class="att__b"><p class="t">Jordan Tao is one absence from review</p><p class="m">2 of 8 missed · policy is 3</p></div>
+                    <span class="att__a">Open profile</span>
+                  </div>
+                </div>
+              </div>
+            </figure>
+            <p class="dialcard__note">
+              <svg style="color:var(--mint-ink)" aria-hidden="true"><use href="#d-check"/></svg><span>Nobody built a report to find these. The queue is what the dashboard opens on,
+              and rows leave it the moment they're handled.</span></p>
+          </div>
+        </div>
+
+        <!-- 2 — programming board -->
+        <div class="dialcard" data-dial-card="1">
+          <div>
+            <p class="dialcard__t">12:40 PM · Programming</p>
+            <figure class="shot">
+              <div class="shot__bar">
+                <i class="tl"></i><i class="tl"></i><i class="tl"></i>
+                <span class="shot__path mono">Programming <span class="sep">/</span> Fall 2026</span>
+              </div>
+              <div class="shot__body">
+                <div class="shot__toolbar">
+                  <span class="shot__title">Alumni mixer</span>
+                  <span class="pill pill--paid"><i class="dot"></i>Moved to Confirmed</span>
+                  <span class="shot__spacer"></span>
+                  <span class="shot__tabs"><span class="on">Board</span><span>Table</span><span>Calendar</span></span>
+                </div>
+
+                <div class="ui-board">
+                  <div class="bcol">
+                    <p class="bcol__h"><i style="--s:var(--rose-ink)"></i>Idea <b>3</b></p>
+                    <div class="bcard">Casino night<small>no owner yet</small></div>
+                    <div class="bcard">Intramural league<small>needs budget</small></div>
+                  </div>
+                  <div class="bcol">
+                    <p class="bcol__h"><i style="--s:var(--butter-ink)"></i>Planning <b>2</b></p>
+                    <div class="bcard">Beach cleanup<small>Sat · service</small></div>
+                  </div>
+                  <div class="bcol">
+                    <p class="bcol__h"><i style="--s:var(--mint-ink)"></i>Confirmed <b>2</b></p>
+                    <div class="bcard is-moved">Alumni mixer<small>Fri 6:30 · D. Reyes</small></div>
+                    <div class="bcard">Fall formal<small>Oct 23 · social</small></div>
+                  </div>
+                  <div class="bcol">
+                    <p class="bcol__h"><i style="--s:var(--line-2)"></i>Done <b>6</b></p>
+                    <div class="bcard" style="opacity:.62">Fundraiser night<small>Sep 28</small></div>
+                  </div>
+                </div>
+
+                <ul class="ui-check">
+                  <li class="done"><i class="box"><svg style="color:#fff; width:11px;height:11px" viewBox="0 0 24 24"><use href="#d-check"/></svg></i><span class="lbl">Venue confirmed — the Union, room 204</span><span class="owner pill pill--paid"><i class="dot"></i>Done</span></li>
+                  <li class="done"><i class="box"><svg style="color:#fff; width:11px;height:11px" viewBox="0 0 24 24"><use href="#d-check"/></svg></i><span class="lbl">Budget line approved — $340</span><span class="owner pill pill--paid"><i class="dot"></i>Done</span></li>
+                  <li><i class="box"></i><span class="lbl">Alumni list pulled + emailed</span><span class="owner pill pill--part"><i class="dot"></i>Due Thu</span></li>
                 </ul>
-                <div class="consulted">
-                  <span class="pill pill--calm">Dues ledger</span>
-                  <span class="pill pill--calm">Roster</span>
-                  <span class="pill pill--calm">Transactions</span>
-                  <span class="pill pill--calm">Fall 2026 term</span>
-                </div>
-              </div>
-            </div>
-          </div>
 
-          <!-- step 1 — the answer, with receipts -->
-          <div class="beat" data-ask-step="1">
-            <div class="beat__in">
-              <div class="acard">
-                <div class="acard__hd">
-                  <span class="k">$1,480</span>
-                  <span class="sub"><b>9 of 52 members</b> still owe.<br>4 are past the late-fee date.</span>
-                  <span class="pill pill--due" style="margin-left:auto"><i class="dot"></i>Needs a nudge</span>
-                </div>
-                <div class="acard__row"><span class="avatar avatar--sm" style="--av:var(--peach)">MR</span><span class="nm">Maya Rivera</span><span class="pill pill--due">21 days late</span><span class="amt">$140</span></div>
-                <div class="acard__row"><span class="avatar avatar--sm" style="--av:var(--sky)">DO</span><span class="nm">Dev Okafor</span><span class="pill pill--part">Plan 2 of 3</span><span class="amt">$65</span></div>
-                <div class="acard__row"><span class="avatar avatar--sm" style="--av:var(--lilac)">JT</span><span class="nm">Jordan Tao</span><span class="pill pill--due">9 days late</span><span class="amt">$140</span></div>
-                <p class="acard__ft"><svg width="13" height="13" aria-hidden="true"><use href="#d-receipt"/></svg> 6 more · tap any row to open the payment it came from</p>
+                <p class="ui-note" style="background:var(--mint-soft); border-color:#BDE7D2; color:var(--mint-ink)">
+                  <svg width="15" height="15" aria-hidden="true"><use href="#d-cal"/></svg><span>Confirmed events land on the org timeline — <b>everyone sees Friday 6:30</b> without a single group-chat post</span></p>
               </div>
-            </div>
+            </figure>
+            <p class="dialcard__note">
+              <svg style="color:var(--mint-ink)" aria-hidden="true"><use href="#d-check"/></svg><span>The social chair dragged one card. That's the whole announcement.</span></p>
           </div>
-
-          <!-- step 2 — the follow-up ask -->
-          <div class="beat" data-ask-step="2">
-            <div class="beat__in">
-              <div>
-                <p class="who who--right">Priya · Treasurer <span class="avatar avatar--sm" style="--av:var(--peach)">PS</span></p>
-                <div class="bubble bubble--me">log Maya's $140 as paid — she Venmo'd me this morning</div>
-              </div>
-            </div>
-          </div>
-
-          <!-- step 3 — the proposal, gated on approval -->
-          <div class="beat" data-ask-step="3">
-            <div class="beat__in">
-              <div class="draft">
-                <p class="draft__hd"><svg width="14" height="14" aria-hidden="true"><use href="#d-shield"/></svg> Waiting on you — ChaptOS never writes on its own</p>
-                <div class="draft__body">
-                  <p class="msg">Record a dues payment of <b>$140.00</b> for <b>Maya Rivera</b>, dated
-                  Oct 14, method Venmo. On approval this mints the income row and clears her balance.</p>
-                </div>
-                <div class="draft__ft">
-                  <button class="btn btn--sm" type="button">Approve</button>
-                  <button class="btn btn--ghost btn--sm" type="button">Discard</button>
-                  <span class="who-ok">Your Treasurer seat allows this</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- step 4 — it lands, and it's on the record -->
-          <div class="beat" data-ask-step="4">
-            <div class="beat__in">
-              <div class="done">
-                <span class="done__ic"><svg width="20" height="20" style="color:var(--mint-ink)" aria-hidden="true"><use href="#d-check"/></svg></span>
-                <div class="bubble" style="box-shadow:3px 3px 0 var(--mint)">
-                  Recorded. Balance is now <b>$12,620</b>, Maya is paid in full, and the
-                  approval is in the log with your name on it.
-                </div>
-              </div>
-            </div>
-          </div>
-
         </div>
+
+        <!-- 3 — treasury: approval mints the ledger row -->
+        <div class="dialcard" data-dial-card="2">
+          <div>
+            <p class="dialcard__t">3:05 PM · Treasury</p>
+            <figure class="shot">
+              <div class="shot__bar">
+                <i class="tl"></i><i class="tl"></i><i class="tl"></i>
+                <span class="shot__path mono">Treasury <span class="sep">/</span> Reimbursements</span>
+              </div>
+              <div class="shot__body">
+                <div class="shot__toolbar">
+                  <span class="shot__title">Waiting on you</span>
+                  <span class="pill pill--part"><i class="dot"></i>2 pending</span>
+                  <span class="shot__spacer"></span>
+                  <span class="mono" style="font-size:.9rem; font-weight:600">$12,480<span style="color:var(--ink-3)"> balance</span></span>
+                </div>
+
+                <div class="ui-stat" style="gap:14px">
+                  <span class="avatar" style="--av:var(--mint)">NB</span>
+                  <div style="min-width:0">
+                    <p class="ui-stat__k">$84.20 <span style="font-size:.9rem; color:var(--ink-3); font-family:var(--sans); font-weight:500">— service supplies</span></p>
+                    <p class="ui-stat__l">Nia Brooks · Oct 12 · receipt attached · category: Service</p>
+                  </div>
+                  <span style="margin-left:auto; display:flex; gap:8px; flex:none">
+                    <span class="btn btn--sm" style="--btn-shadow:var(--mint)">Approve</span>
+                    <span class="btn btn--ghost btn--sm">Decline</span>
+                  </span>
+                </div>
+
+                <p class="ui-note" style="background:var(--butter-soft); border-color:#F4DFA6; color:var(--butter-ink)">
+                  <svg width="15" height="15" aria-hidden="true"><use href="#d-receipt"/></svg><span>Approving writes the expense row <b>and</b> moves the balance — one transaction, both books</span></p>
+
+                <div class="ui-table ui-table--4">
+                  <div class="ui-th"><span>Entry</span><span>Category</span><span>Date</span><span>Amount</span></div>
+                  <div class="ui-tr" style="background:var(--mint-soft)">
+                    <span class="who"><i class="avatar avatar--sm" style="--av:var(--mint)">NB</i>Service supplies</span>
+                    <span class="txt">Service</span>
+                    <span class="txt mono">Oct 14</span>
+                    <span class="amt">−$84.20</span>
+                  </div>
+                  <div class="ui-tr">
+                    <span class="who"><i class="avatar avatar--sm" style="--av:var(--sky)">DO</i>Dues — Dev Okafor</span>
+                    <span class="txt">Dues</span>
+                    <span class="txt mono">Oct 13</span>
+                    <span class="amt">+$75.00</span>
+                  </div>
+                  <div class="ui-tr">
+                    <span class="who"><i class="avatar avatar--sm" style="--av:var(--butter)">FF</i>Formal deposit</span>
+                    <span class="txt">Events</span>
+                    <span class="txt mono">Oct 11</span>
+                    <span class="amt">−$400.00</span>
+                  </div>
+                </div>
+              </div>
+            </figure>
+            <p class="dialcard__note">
+              <svg style="color:var(--mint-ink)" aria-hidden="true"><use href="#d-check"/></svg><span>Dues payments and payouts are <em>requests</em> until a treasurer approves them.
+              Nothing edits the balance behind anyone's back.</span></p>
+          </div>
+        </div>
+
+        <!-- 4 — roll call -->
+        <div class="dialcard" data-dial-card="3">
+          <div>
+            <p class="dialcard__t">7:31 PM · Chapter meeting</p>
+            <figure class="shot">
+              <div class="shot__bar">
+                <i class="tl"></i><i class="tl"></i><i class="tl"></i>
+                <span class="shot__path mono">Chapter <span class="sep">/</span> General Meeting <span class="sep">/</span> Oct 14</span>
+              </div>
+              <div class="shot__body">
+                <div class="shot__toolbar">
+                  <span class="shot__title">Taking roll</span>
+                  <span class="pill pill--paid"><i class="dot"></i>Live</span>
+                  <span class="shot__spacer"></span>
+                  <span class="mono" style="font-size:.9rem; font-weight:600">47<span style="color:var(--ink-3)">/52 here</span></span>
+                </div>
+
+                <div class="ui-roll" style="margin-top:0">
+                  <span class="ui-person is-here"><i class="mk"><svg style="color:#fff" viewBox="0 0 24 24"><use href="#d-check"/></svg></i>Ana C.</span>
+                  <span class="ui-person is-here"><i class="mk"><svg style="color:#fff" viewBox="0 0 24 24"><use href="#d-check"/></svg></i>Dev O.</span>
+                  <span class="ui-person is-late"><i class="mk"></i>Maya R.</span>
+                  <span class="ui-person is-here"><i class="mk"><svg style="color:#fff" viewBox="0 0 24 24"><use href="#d-check"/></svg></i>Sam W.</span>
+                  <span class="ui-person is-here"><i class="mk"><svg style="color:#fff" viewBox="0 0 24 24"><use href="#d-check"/></svg></i>Priya S.</span>
+                  <span class="ui-person is-out"><i class="mk"></i>Jordan T.</span>
+                  <span class="ui-person is-here"><i class="mk"><svg style="color:#fff" viewBox="0 0 24 24"><use href="#d-check"/></svg></i>Leo M.</span>
+                  <span class="ui-person is-here"><i class="mk"><svg style="color:#fff" viewBox="0 0 24 24"><use href="#d-check"/></svg></i>Nia B.</span>
+                </div>
+
+                <p class="ui-note" style="background:var(--butter-soft); border-color:#F4DFA6; color:var(--butter-ink)">
+                  <svg width="15" height="15" aria-hidden="true"><use href="#d-hand"/></svg><span>Jordan T. filed an excuse — <b>lab conflict</b>, 2nd this term</span>
+                  <span style="margin-left:auto; display:flex; gap:6px">
+                    <span class="btn btn--sm" style="--btn-shadow:var(--mint)">Approve</span>
+                  </span>
+                </p>
+
+                <div class="ui-table">
+                  <div class="ui-th"><span>Standing</span><span>Missed</span><span>Status</span></div>
+                  <div class="ui-tr">
+                    <span class="who"><i class="avatar avatar--sm" style="--av:var(--lilac)">JT</i>Jordan Tao</span>
+                    <span class="amt">2 of 8</span>
+                    <span><span class="pill pill--part"><i class="dot"></i>1 from review</span></span>
+                  </div>
+                  <div class="ui-tr">
+                    <span class="who"><i class="avatar avatar--sm" style="--av:var(--mint)">AC</i>Ana Chen</span>
+                    <span class="amt">0 of 8</span>
+                    <span><span class="pill pill--paid"><i class="dot"></i>Good standing</span></span>
+                  </div>
+                </div>
+              </div>
+            </figure>
+            <p class="dialcard__note">
+              <svg style="color:var(--mint-ink)" aria-hidden="true"><use href="#d-check"/></svg><span>Standing updates itself as the roll closes — so the attendance policy is
+              finally a number, not an argument.</span></p>
+          </div>
+        </div>
+
+        <!-- 5 — minutes → decisions + assigned work -->
+        <div class="dialcard" data-dial-card="4">
+          <div>
+            <p class="dialcard__t">9:20 PM · Minutes</p>
+            <figure class="shot">
+              <div class="shot__bar">
+                <i class="tl"></i><i class="tl"></i><i class="tl"></i>
+                <span class="shot__path mono">Chapter <span class="sep">/</span> Minutes <span class="sep">/</span> Oct 14</span>
+              </div>
+              <div class="shot__body">
+                <div class="shot__toolbar">
+                  <span class="shot__title">Meeting notes</span>
+                  <span class="pill pill--calm"><svg width="13" height="13" aria-hidden="true"><use href="#d-spark"/></svg> Summarized</span>
+                  <span class="shot__spacer"></span>
+                  <span class="mono" style="font-size:.78rem; color:var(--ink-3)">saved · 52 members notified</span>
+                </div>
+
+                <div class="ui-split" style="margin-top:0">
+                  <div class="ui-raw">
+                    <h5>What the secretary typed</h5>
+                    <p>ok so formal — voted, 31 yes 6 no, we're doing the 23rd not the 30th…</p>
+                    <p>maya asked about payment plans, priya says fine, 3 splits, needs a vote next week</p>
+                    <p>dev has to send the budget to advisor by friday!! also someone confirm the van</p>
+                    <p>alumni mixer moved to confirmed, dr owns it</p>
+                  </div>
+                  <div class="ui-sum">
+                    <h5>Decisions</h5>
+                    <ul>
+                      <li>Fall formal set for Oct 23 <span class="pill pill--paid">31–6</span></li>
+                      <li>Alumni mixer confirmed, owner D. Reyes</li>
+                    </ul>
+                    <h5>Action items</h5>
+                    <ul>
+                      <li>Budget to the advisor by Fri <span class="pill pill--info">Treasurer</span></li>
+                      <li>Confirm the van + 2 drivers <span class="pill pill--info">Social</span></li>
+                    </ul>
+                    <h5>Discussed</h5>
+                    <ul>
+                      <li>Three-split payment plans — vote next week</li>
+                    </ul>
+                  </div>
+                </div>
+
+                <p class="ui-note">
+                  <svg width="15" height="15" aria-hidden="true"><use href="#d-clip"/></svg><span>Action items were handed to <b>the seat, not the person</b> — whoever holds Treasurer next month inherits them</span></p>
+              </div>
+            </figure>
+            <p class="dialcard__note">
+              <svg style="color:var(--mint-ink)" aria-hidden="true"><use href="#d-check"/></svg><span>Two of those action items are now dated tasks. They'll be on tomorrow's
+              briefing whether anyone remembers or not.</span></p>
+          </div>
+        </div>
+
+        <!-- 6 — the record -->
+        <div class="dialcard" data-dial-card="5">
+          <div>
+            <p class="dialcard__t">11:58 PM · Timeline</p>
+            <figure class="shot">
+              <div class="shot__bar">
+                <i class="tl"></i><i class="tl"></i><i class="tl"></i>
+                <span class="shot__path mono">Timeline <span class="sep">/</span> Activity</span>
+              </div>
+              <div class="shot__body">
+                <div class="shot__toolbar">
+                  <span class="shot__title">Today</span>
+                  <span class="pill pill--info">14 entries</span>
+                  <span class="shot__spacer"></span>
+                  <span class="shot__tabs"><span class="on">Today</span><span>Term</span><span>All</span></span>
+                </div>
+
+                <div class="ui-log">
+                  <div class="logrow"><span class="ts">11:41 PM</span><span class="tx">Minutes published — <b>General Meeting, Oct 14</b></span><span class="pill pill--calm">Priya S.</span></div>
+                  <div class="logrow"><span class="ts">9:24 PM</span><span class="tx">2 tasks created from action items</span><span class="pill">auto</span></div>
+                  <div class="logrow"><span class="ts">7:58 PM</span><span class="tx">Attendance closed — <b>47 of 52</b>, 1 excused</span><span class="pill pill--calm">Priya S.</span></div>
+                  <div class="logrow"><span class="ts">7:44 PM</span><span class="tx">Excuse approved — Jordan T., lab conflict</span><span class="pill pill--calm">Ana C.</span></div>
+                  <div class="logrow"><span class="ts">3:06 PM</span><span class="tx">Reimbursement approved — <b>$84.20</b>, expense row minted</span><span class="pill pill--calm">Dev O.</span></div>
+                  <div class="logrow"><span class="ts">12:41 PM</span><span class="tx">Alumni mixer → <b>Confirmed</b>, published to timeline</span><span class="pill pill--calm">D. Reyes</span></div>
+                  <div class="logrow"><span class="ts">8:15 AM</span><span class="tx">Deadline completed — fall budget draft</span><span class="pill pill--calm">Dev O.</span></div>
+                </div>
+
+                <p class="ui-note" style="background:var(--sky-soft); border-color:#CCDFFB; color:var(--sky-ink)">
+                  <svg width="15" height="15" aria-hidden="true"><use href="#d-loop"/></svg><span>Nobody wrote a status update. <b>This is just what happened, in order.</b></span></p>
+              </div>
+            </figure>
+            <p class="dialcard__note">
+              <svg style="color:var(--mint-ink)" aria-hidden="true"><use href="#d-check"/></svg><span>Next May, the incoming board reads this instead of interviewing whoever
+              still answers texts.</span></p>
+          </div>
+        </div>
+
       </div>
     </div>
+  </div>
+</section>
+
+<!-- the payoff line under the day -->
+<section class="section--tight">
+  <div class="wrap--narrow" style="margin-inline:auto; text-align:center">
+    <p class="lede" data-reveal style="font-size:clamp(1.2rem,2.4vw,1.7rem); color:var(--ink); line-height:1.4">
+      Five officers, six surfaces, one ordinary day — and not one of them
+      <span class="hi" style="--mark:var(--mint)">opened a spreadsheet.</span>
+    </p>
   </div>
 </section>
 
@@ -1726,12 +1779,12 @@ section{position:relative}
 <section class="section" id="modules">
   <div class="wrap">
     <div class="modules__head">
-      <span class="eyebrow" style="--eb:var(--mint)" data-reveal>What's actually in it</span>
-      <h2 data-reveal style="margin-top:16px; --d:60ms">Eleven surfaces.<br>Turn on the ones you actually use.</h2>
+      <span class="eyebrow" style="--eb:var(--mint)" data-reveal>The part a Tuesday can't show you</span>
+      <h2 data-reveal style="margin-top:16px; --d:60ms">A day runs itself.<br>A semester is what piles up.</h2>
       <p class="lede" data-reveal style="margin-top:18px; --d:110ms; max-width:62ch">
-        A 12-person committee and a 200-member chapter run the same pages — just fewer
-        of them. Anything you leave off stays one toggle away, and turning it on
-        mid-term doesn't cost you the history.
+        Every moment on that dial took one person a few seconds. These three are what
+        those seconds add up to by April — the money, the people and the record — and
+        what the next board opens on their first day.
       </p>
     </div>
   </div>
@@ -1907,89 +1960,10 @@ section{position:relative}
     </div>
   </div>
 
-  <!-- ---- module 3: the week ---- -->
+  <!-- ---- module 3: the record ---- -->
+  <!-- back to unflipped: with the week module gone, three blocks alternate
+       normal / flip / normal -->
   <div class="mod">
-    <div class="wrap mod__grid">
-      <div class="mod__copy">
-        <span class="pill pill--calm" data-reveal><svg width="14" height="14" aria-hidden="true"><use href="#d-cal"/></svg> Timeline, programming &amp; meetings</span>
-        <h3 data-reveal style="--d:50ms">From "someone should do this" to on the calendar.</h3>
-
-        <div class="mod__pain" data-reveal style="--d:90ms; --pain-bg:var(--lilac-soft); --pain-bd:#DCD2FB">
-          "We posted the formal three times — group chat, story, email. People still
-          showed up an hour late, and nobody knew who was bringing the van."
-          <span class="src">— social chair, four group chats deep</span>
-        </div>
-
-        <p class="mod__fix" data-reveal style="--d:130ms">
-          Ideas live on a board and move through planning to confirmed, carrying their
-          own prep checklist, owner and budget. Confirming publishes to one org timeline
-          — categories you named and colored yourself — and every member's week shows
-          the part that's theirs.
-        </p>
-
-        <ul class="mod__list" data-reveal style="--d:170ms">
-          <li><svg class="doodle doodle--thin" style="color:var(--lilac-ink)" viewBox="0 0 24 24"><use href="#d-check"/></svg> One calendar the whole org opens — not four chats and a flyer</li>
-          <li><svg class="doodle doodle--thin" style="color:var(--lilac-ink)" viewBox="0 0 24 24"><use href="#d-check"/></svg> Meetings keep their agenda, minutes and attendance in the same place</li>
-          <li><svg class="doodle doodle--thin" style="color:var(--lilac-ink)" viewBox="0 0 24 24"><use href="#d-check"/></svg> Free-form notes summarize into decisions, action items and what was discussed</li>
-        </ul>
-      </div>
-
-      <div class="mod__stage" data-para data-speed="-0.045">
-        <figure class="shot" data-reveal="scale">
-          <div class="shot__bar">
-            <i class="tl"></i><i class="tl"></i><i class="tl"></i>
-            <span class="shot__path mono">Timeline <span class="sep">/</span> Week of Oct 20</span>
-          </div>
-          <div class="shot__body">
-            <div class="shot__toolbar">
-              <span class="shot__title">Week 9</span>
-              <span class="pill pill--paid"><i class="dot"></i>All 52 in the loop</span>
-              <span class="shot__spacer"></span>
-              <span class="shot__tabs"><span>Term</span><span class="on">Week</span><span>Mine</span></span>
-            </div>
-
-            <div class="ui-week" style="margin-top:0">
-              <div class="ui-day">
-                <p class="ui-day__h">Mon <span>20</span></p>
-                <div class="ui-ev" style="--ev:var(--paper-2); --evb:var(--line)">Exec sync<small>6:00 PM · 7 going</small></div>
-              </div>
-              <div class="ui-day">
-                <p class="ui-day__h">Tue <span>21</span></p>
-                <div class="ui-ev" style="--ev:var(--sky-soft); --evb:#CCDFFB">General meeting<small>7:30 PM · mandatory</small></div>
-              </div>
-              <div class="ui-day">
-                <p class="ui-day__h">Wed <span>22</span></p>
-                <div class="ui-ev" style="--ev:var(--mint-soft); --evb:var(--mint-ink); box-shadow:0 0 0 3px var(--mint-soft)">Mixer setup<small>4:00 PM · you + 5</small></div>
-              </div>
-              <div class="ui-day">
-                <p class="ui-day__h">Thu <span>23</span></p>
-                <div class="ui-ev" style="--ev:var(--peach-soft); --evb:#F8D2C2">Fall formal<small>8:00 PM · 61 RSVP'd</small></div>
-                <div class="ui-ev" style="--ev:var(--paper-2); --evb:var(--line)">Ride list closes<small>7:00 PM · Maya</small></div>
-              </div>
-              <div class="ui-day">
-                <p class="ui-day__h">Fri <span>24</span></p>
-                <div class="ui-ev" style="--ev:var(--lilac-soft); --evb:#DCD2FB">Budget due<small>Advisor · Treasurer</small></div>
-              </div>
-            </div>
-
-            <p class="mono" style="margin-top:15px; font-size:.71rem; letter-spacing:.07em; text-transform:uppercase; color:var(--ink-3); font-weight:600">What's on you this week</p>
-            <ul class="ui-check" style="margin-top:8px">
-              <li class="done"><i class="box"><svg style="color:#fff; width:11px; height:11px" viewBox="0 0 24 24"><use href="#d-check"/></svg></i><span class="lbl">RSVP to the formal</span><span class="owner pill pill--paid"><i class="dot"></i>Sent</span></li>
-              <li><i class="box"></i><span class="lbl">Confirm the van + 2 drivers</span><span class="owner pill pill--part"><i class="dot"></i>Due Wed</span></li>
-              <li><i class="box"></i><span class="lbl">Bring the deposit to the advisor</span><span class="owner pill pill--info">Fri</span></li>
-            </ul>
-          </div>
-        </figure>
-
-        <div class="callout" data-reveal style="top:-22px; left:-28px; --co:var(--lilac); --d:220ms">
-          <b>One week, 52 copies.</b> Everybody sees the whole thing — and the part that's theirs.
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ---- module 4: the record ---- -->
-  <div class="mod mod--flip">
     <div class="wrap mod__grid">
       <div class="mod__copy">
         <span class="pill pill--part" data-reveal><svg width="14" height="14" aria-hidden="true"><use href="#d-folder"/></svg> Docs, activity &amp; terms</span>
@@ -2064,63 +2038,19 @@ section{position:relative}
     </div>
   </div>
 
-  <!-- ---- the rest of the kit ---- -->
+  <!-- ---- the rest, in a line ---- -->
+  <!-- v2 spent an eight-cell grid here. The dial already showed six real product
+       screens and the three modules showed three more, so a catalogue was proving
+       a thing already proved. One sentence discharges the long tail; the CTA link
+       absorbs anyone who genuinely wants the full list. -->
   <div class="wrap">
-    <div style="max-width:640px">
-      <span class="eyebrow" style="--eb:var(--rose)" data-reveal>Also in the box</span>
-      <h3 data-reveal style="margin-top:14px; --d:60ms">The pages you'd otherwise glue together yourself.</h3>
-    </div>
-
-    <div class="kit">
-      <div class="kit__cell" data-reveal style="--d:0ms">
-        <span class="kit__ic" style="--k:var(--lilac-soft); --kb:#DCD2FB"><svg class="doodle doodle--thin" width="19" height="19" style="color:var(--lilac-ink)" viewBox="0 0 24 24"><use href="#d-clip"/></svg></span>
-        <h4>Tasks &amp; polls</h4>
-        <p>Hand work to a person <em>or</em> a seat. Role targets resolve to whoever holds the seat today, so a handover moves the to-do list with it.</p>
-        <div class="kit__mini"><span class="pill pill--info">Treasurer</span><span class="pill pill--part">Due Fri</span><span class="pill pill--calm">Blind ballot</span></div>
-      </div>
-      <div class="kit__cell" data-reveal style="--d:70ms">
-        <span class="kit__ic" style="--k:var(--mint-soft); --kb:#BDE7D2"><svg class="doodle doodle--thin" width="19" height="19" style="color:var(--mint-ink)" viewBox="0 0 24 24"><use href="#d-heart"/></svg></span>
-        <h4>Service hours</h4>
-        <p>Log an event once, split the hours across who showed. Every member's total tracks against the goal you set.</p>
-        <div class="kit__mini"><span class="pill pill--paid">312 hrs this term</span><span class="pill">14 of 12 · on track</span></div>
-      </div>
-      <div class="kit__cell" data-reveal style="--d:140ms">
-        <span class="kit__ic" style="--k:var(--peach-soft); --kb:#F8D2C2"><svg class="doodle doodle--thin" width="19" height="19" style="color:var(--peach-ink)" viewBox="0 0 24 24"><use href="#d-bars"/></svg></span>
-        <h4>Parties</h4>
-        <p>Door taken, expenses out, profit line — so the social budget is a number by Sunday instead of a debate in November.</p>
-        <div class="kit__mini"><span class="pill pill--paid">Door $1,240</span><span class="pill pill--due">Costs $610</span></div>
-      </div>
-      <div class="kit__cell" data-reveal style="--d:0ms">
-        <span class="kit__ic" style="--k:var(--rose-soft); --kb:#F8CEE0"><svg class="doodle doodle--thin" width="19" height="19" style="color:var(--rose-ink)" viewBox="0 0 24 24"><use href="#d-camera"/></svg></span>
-        <h4>Social content</h4>
-        <p>A small content calendar for the posts your PR chair keeps forgetting: story, reel, carousel — open until it's up.</p>
-        <div class="kit__mini"><span class="pill pill--rose">Reel · Thu</span><span class="pill pill--paid">Posted</span></div>
-      </div>
-      <div class="kit__cell" data-reveal style="--d:70ms">
-        <span class="kit__ic" style="--k:var(--butter-soft); --kb:#F4DFA6"><svg class="doodle doodle--thin" width="19" height="19" style="color:var(--butter-ink)" viewBox="0 0 24 24"><use href="#d-key"/></svg></span>
-        <h4>Seats &amp; permissions</h4>
-        <p>Fourteen switches per seat and a rank that stops anyone granting themselves more than they hold.</p>
-        <div class="kit__mini"><span class="pill pill--part">Manage treasury</span><span class="pill pill--info">Manage events</span></div>
-      </div>
-      <div class="kit__cell" data-reveal style="--d:140ms">
-        <span class="kit__ic" style="--k:var(--sky-soft); --kb:#CCDFFB"><svg class="doodle doodle--thin" width="19" height="19" style="color:var(--sky-ink)" viewBox="0 0 24 24"><use href="#d-link"/></svg></span>
-        <h4>Getting everyone in</h4>
-        <p>Paste the roster and let people claim their row, or share one invite link. Every redemption is recorded.</p>
-        <div class="kit__mini"><span class="pill pill--info">One link</span><span class="pill">Sign in with Google</span></div>
-      </div>
-      <div class="kit__cell" data-reveal style="--d:0ms">
-        <span class="kit__ic" style="--k:var(--mint-soft); --kb:#BDE7D2"><svg class="doodle doodle--thin" width="19" height="19" style="color:var(--mint-ink)" viewBox="0 0 24 24"><use href="#d-loop"/></svg></span>
-        <h4>More than one org</h4>
-        <p>One account, several orgs. Switch between the chapter, the council and the volunteer group without a second login.</p>
-        <div class="kit__mini"><span class="pill pill--calm">Lambda Phi</span><span class="pill">Eng. Council</span></div>
-      </div>
-      <div class="kit__cell" data-reveal style="--d:70ms">
-        <span class="kit__ic" style="--k:var(--lilac-soft); --kb:#DCD2FB"><svg class="doodle doodle--thin" width="19" height="19" style="color:var(--lilac-ink)" viewBox="0 0 24 24"><use href="#d-phone"/></svg></span>
-        <h4>On the phone</h4>
-        <p>The mobile view isn't a squeezed dashboard — it's a tabbed app for the five things people do standing up at a meeting.</p>
-        <div class="kit__mini"><span class="pill">Overview</span><span class="pill">Tasks</span><span class="pill">Money</span><span class="pill">Logs</span></div>
-      </div>
-    </div>
+    <p class="mod__rest" data-reveal>
+      Plus tasks, polls, service hours, party books, a social calendar, role permissions,
+      several orgs on one login, and a phone app that isn't a squeezed dashboard. A
+      12-person committee and a 200-member chapter run the same pages — just fewer of
+      them, and turning one on mid-term doesn't cost you the history.
+      <a href="#start">See every page <svg width="15" height="15" aria-hidden="true"><use href="#d-arrow-r"/></svg></a>
+    </p>
   </div>
 </section>
 
@@ -2317,7 +2247,7 @@ section{position:relative}
 
       <div class="cta__actions">
         <a class="btn btn--lg" href="#">Set up your org — free</a>
-        <a class="btn btn--ghost btn--lg" href="#day">See a real day first</a>
+        <a class="btn btn--ghost btn--lg" href="#ask">Ask it something first</a>
       </div>
 
       <div class="plan">
@@ -2375,8 +2305,7 @@ section{position:relative}
           <li><a href="#ask">Ask Chapt</a></li>
           <li><a href="#modules">Treasury &amp; dues</a></li>
           <li><a href="#modules">Roster &amp; standing</a></li>
-          <li><a href="#modules">Timeline &amp; programming</a></li>
-          <li><a href="#modules">Meetings &amp; minutes</a></li>
+          <li><a href="#day">Timeline &amp; meetings</a></li>
           <li><a href="#modules">Docs &amp; activity</a></li>
         </ul>
       </div>
@@ -2420,8 +2349,8 @@ section{position:relative}
      parallax()   rAF + lerp; owns inline transform on [data-para] only
      chrome()     sticky nav state + scroll progress bar
      marquee()    exact loop seam measurement
-     day()        scroll-scrubbed Tuesday (desktop) / static stack (mobile)
-     ask()        autoplayed spotlight sequence, replayable
+     scene()      THE pinned one — scroll-scrubbed six-beat conversation
+     dial()       the Tuesday clock; sweeps once on entry, click to steer
      typer()      hero ask bar cycling three real questions + their answers
      setup()      org-type switcher driving the live blueprint sheet
      counters()   count-up + dues ring on first view
@@ -2436,6 +2365,12 @@ section{position:relative}
   var mqReduce = matchMedia('(prefers-reduced-motion: reduce)');
   var mqMobile = matchMedia('(max-width: 860px)');
   var isCalm = function () { return mqReduce.matches; };
+  /* Safari < 14 only has the deprecated addListener. Both scenes bind mqReduce
+     as well as their own breakpoint, so toggling reduced motion re-arms them
+     right away instead of waiting for the next resize. */
+  var bindMQ = function (mq, fn) {
+    mq.addEventListener ? mq.addEventListener('change', fn) : mq.addListener(fn);
+  };
 
   /* -------- reveal ------------------------------------------------------- */
   function reveal() {
@@ -2539,149 +2474,194 @@ section{position:relative}
     });
   }
 
-  /* -------- the day scene ------------------------------------------------ */
-  /* Desktop: rail scroll position picks exactly ONE slide (a deck, not a
-     transcript — six full product shots can't share a 100vh stage).
-     Mobile / reduced motion: no pin, every slide rendered in document flow. */
-  function day() {
-    var root = q('[data-day]');
+  /* -------- the ask scene (the pinned one) -------------------------------- */
+  /* Desktop: rail scroll position drives which beats have landed — cumulative,
+     so the transcript accumulates rather than swapping. Mobile: no pin, no
+     scrub, the conversation plays once on entry. Reduced motion: all of it,
+     immediately. */
+  function scene() {
+    var root = q('[data-scene]');
     if (!root) return;
-    var rail   = q('.day__rail', root);
-    var stage  = q('.day__stage', root);
-    var slides = qa('.dayslide', root);
-    var navs   = qa('[data-day-nav]', root);
-    var AT     = [0, 0.17, 0.345, 0.52, 0.69, 0.855];   // rail progress per slide
+    var rail   = q('.scene__rail', root);
+    var stage  = q('.scene__stage', root);
+    var beats  = qa('.beat', root);
+    var navs   = qa('[data-beat-nav]', root);
+    var ledger = q('[data-ledger]', root);
+    var AT     = [0, 0.13, 0.29, 0.47, 0.63, 0.80];   // rail progress per beat
+    var LEDGER_AT = AT[1] + 0.05;    // the spinner reads before the ticks fill
+    var mobileTimers = [];
 
-    function paint(active) {
-      slides.forEach(function (s, i) { s.classList.toggle('is-on', i === active); });
+    function paint(active, ledgerLive) {
+      beats.forEach(function (b, i) { b.classList.toggle('is-in', i <= active); });
       navs.forEach(function (n, i) {
         n.classList.toggle('is-on', i === active);
         n.classList.toggle('is-done', i < active);
       });
+      if (ledger) ledger.classList.toggle('is-live', !!ledgerLive);
     }
 
-    function showAll() {
-      slides.forEach(function (s) { s.classList.add('is-on'); });
-      navs.forEach(function (n) { n.classList.add('is-done'); });
-    }
+    // section.scene is position:relative, so rail.offsetTop is ~0 and a nav
+    // click would jump to the top of the page. Always go through the rect.
+    function railY() { return rail.getBoundingClientRect().top + (scrollY || pageYOffset); }
+    function span()  { return rail.offsetHeight - stage.offsetHeight; }
 
     function scrub() {
-      var r = rail.getBoundingClientRect();
-      var span = rail.offsetHeight - stage.offsetHeight;
-      var p = span > 0 ? clamp(-r.top / span, 0, 1) : 0;
-      var active = 0;
+      var s = span();
+      var p = s > 0 ? clamp(-rail.getBoundingClientRect().top / s, 0, 1) : 0;
+      var active = -1;
       for (var i = 0; i < AT.length; i++) if (p >= AT[i]) active = i;
-      paint(active);
+      paint(active, p >= LEDGER_AT);
+    }
+
+    function playOnce() {
+      mobileTimers.forEach(clearTimeout);
+      mobileTimers = [];
+      beats.forEach(function (_, i) {
+        mobileTimers.push(setTimeout(function () { paint(i, i >= 1); }, 200 + i * 760));
+      });
     }
 
     var mode = null;
     function setMode() {
-      var next = (isCalm() || mqMobile.matches) ? 'static' : 'scrub';
+      var next = isCalm() ? 'all' : (mqMobile.matches ? 'mobile' : 'scrub');
       if (next === mode) return;
       mode = next;
       removeEventListener('scroll', scrub);
-      if (mode === 'static') { showAll(); return; }
-      navs.forEach(function (n) { n.classList.remove('is-done'); });
-      addEventListener('scroll', scrub, { passive: true });
-      scrub();
+      mobileTimers.forEach(clearTimeout);
+
+      if (mode === 'all') { paint(beats.length - 1, true); return; }
+      if (mode === 'scrub') {
+        addEventListener('scroll', scrub, { passive: true });
+        scrub();
+        return;
+      }
+      // mobile: hold at beat 0 until the section is on screen, then play through
+      paint(0, false);
+      if (!('IntersectionObserver' in window)) { paint(beats.length - 1, true); return; }
+      var io = new IntersectionObserver(function (entries) {
+        entries.forEach(function (e) {
+          if (!e.isIntersecting) return;
+          io.disconnect();
+          playOnce();
+        });
+      }, { threshold: 0.22 });
+      io.observe(root);
     }
 
     addEventListener('resize', setMode);
-    (mqMobile.addEventListener ? mqMobile.addEventListener('change', setMode) : mqMobile.addListener(setMode));
+    bindMQ(mqMobile, setMode);
+    bindMQ(mqReduce, setMode);     // toggling reduced motion re-arms immediately
     setMode();
 
-    // clicking a time in the side list jumps the rail to that slide
+    // clicking a step in the side list jumps the rail to that beat
     navs.forEach(function (n, i) {
       n.style.cursor = 'pointer';
       n.addEventListener('click', function () {
         if (mode !== 'scrub') return;
-        var span = rail.offsetHeight - stage.offsetHeight;
-        scrollTo({ top: rail.offsetTop + span * (AT[i] + 0.02), behavior: 'smooth' });
+        scrollTo({ top: railY() + span() * (AT[i] + 0.02), behavior: 'smooth' });
       });
     });
   }
 
-  /* -------- the ask scene ------------------------------------------------ */
-  /* One scripted pass: type the question, tick the ledger, land the answer,
-     ask a follow-up, gate the write on a human. Plays on entry, replays on
-     demand. Reduced motion gets the finished state immediately. */
-  function ask() {
-    var root = q('[data-ask]');
+  /* -------- the day dial -------------------------------------------------- */
+  /* Not pinned, not scrubbed — §5 spends the page's motion budget. The hand
+     sweeps through six marks once on entry and stops; clicking a mark takes
+     over. Below 600px the circle is abandoned for a chip row + a snap
+     carousel (see §12), so JS goes hands-off there. */
+  function dial() {
+    var root = q('[data-dial]');
     if (!root) return;
-    var qEl    = q('[data-ask-q]', root);
-    var ledger = q('[data-ask-ledger]', root);
-    var steps  = qa('[data-ask-step]', root);
-    var replay = q('[data-ask-replay]', root);
-    var body   = q('.spot__body', root);
-    var QUESTION = 'who still owes dues this semester, and how bad is it?';
+    var ticks = qa('[data-dial-tick]', root);
+    var cards = qa('[data-dial-card]', root);
+    var hand  = q('[data-dial-hand]', root);
+    var prog  = q('[data-dial-prog]', root);
+    var count = q('[data-dial-count]', root);
+    var cap   = q('[data-dial-cap]', root);
+    var replay= q('[data-dial-replay]', root);
+    var mqFlat= matchMedia('(max-width: 600px)');   // the dial's own breakpoint
+    var n = ticks.length;
+    var STEP = 360 / n;
+    var DWELL = 3200;
     var timers = [];
+    var acc = 0, prev = 0, at = 0;
 
-    function clearTimers() { timers.forEach(clearTimeout); timers = []; }
-    function at(ms, fn) { timers.push(setTimeout(fn, ms)); }
+    // the caption carries what v2's beat list said; the tick only says a time
+    var CAPS = ticks.map(function (t) { return t.getAttribute('data-dial-cap-text') || ''; });
 
-    // the card is a fixed-height scroller; follow the step that just landed
-    // (after its height transition, or the target is still 0px tall)
-    function land(i) {
-      steps[i].classList.add('is-in');
-      timers.push(setTimeout(function () {
-        body.scrollTo({ top: body.scrollHeight, behavior: isCalm() ? 'auto' : 'smooth' });
-      }, 620));
+    var len = 0;
+    if (prog && prog.getTotalLength) {
+      len = prog.getTotalLength();
+      prog.style.strokeDasharray = len;
+      prog.style.strokeDashoffset = len;
     }
 
-    function reset() {
-      clearTimers();
-      steps.forEach(function (s) { s.classList.remove('is-in'); });
-      if (ledger) ledger.classList.remove('is-live');
-      if (qEl) qEl.textContent = '';
-      if (body) body.scrollTop = 0;
+    function clear() { timers.forEach(clearTimeout); timers = []; }
+
+    // shortest signed delta, accumulated — otherwise 11:58 → 8:12 spins back 300°
+    function rotTo(deg) {
+      var d = ((deg - prev + 540) % 360) - 180;
+      acc += d; prev = deg;
+      if (hand) hand.style.transform = 'rotate(' + acc + 'deg)';
     }
 
-    function finish() {
-      clearTimers();
-      if (qEl) qEl.textContent = QUESTION;
-      steps.forEach(function (s) { s.classList.add('is-in'); });
-      if (ledger) ledger.classList.add('is-live');
-    }
-
-    function play() {
-      if (isCalm()) { finish(); return; }
-      reset();
-
-      // type the question, then run the beats on a fixed script
-      var caret = document.createElement('i');
-      caret.className = 'caret';
-      var txt = document.createElement('span');
-      qEl.append(txt, caret);
-
-      var i = 0;
-      (function type() {
-        if (i > QUESTION.length) { caret.remove(); return; }
-        txt.textContent = QUESTION.slice(0, i);
-        i++;
-        timers.push(setTimeout(type, 26 + Math.random() * 34));
-      })();
-
-      var t0 = QUESTION.length * 44;                 // roughly when typing lands
-      at(t0 + 320,  function () { land(0); });
-      at(t0 + 1250, function () { ledger.classList.add('is-live'); });
-      at(t0 + 2600, function () { land(1); });
-      at(t0 + 4300, function () { land(2); });
-      at(t0 + 5500, function () { land(3); });
-      at(t0 + 7400, function () { land(4); });
-    }
-
-    if (replay) replay.addEventListener('click', play);
-
-    if (isCalm() || !('IntersectionObserver' in window)) { finish(); return; }
-    var io = new IntersectionObserver(function (entries) {
-      entries.forEach(function (e) {
-        if (!e.isIntersecting) return;
-        io.disconnect();
-        play();
+    function go(i) {
+      at = i;
+      ticks.forEach(function (t, k) {
+        t.classList.toggle('is-on', k === i);
+        t.classList.toggle('is-done', k < i);
       });
-    }, { threshold: 0.28 });
-    io.observe(root);
+      cards.forEach(function (c, k) { c.classList.toggle('is-on', k === i); });
+      rotTo(i * STEP);
+      if (prog && len) prog.style.strokeDashoffset = len * (1 - i / (n - 1));
+      if (count) count.textContent = ('0' + (i + 1)).slice(-2);
+      if (cap && CAPS[i]) {
+        cap.style.opacity = 0;
+        timers.push(setTimeout(function () { cap.textContent = CAPS[i]; cap.style.opacity = 1; }, 170));
+      }
+    }
+
+    function showAll() {
+      clear();
+      ticks.forEach(function (t) { t.classList.remove('is-on'); t.classList.add('is-done'); });
+      cards.forEach(function (c) { c.classList.add('is-on'); });
+    }
+
+    function play(from) {
+      clear();
+      go(from || 0);
+      for (var i = (from || 0) + 1; i < n; i++) {
+        (function (k) { timers.push(setTimeout(function () { go(k); }, DWELL * (k - (from || 0)))); })(i);
+      }
+    }
+
+    ticks.forEach(function (t, i) {
+      t.addEventListener('click', function () { clear(); go(i); });
+    });
+    if (replay) replay.addEventListener('click', function () { play(0); });
+
+    var armed = false;
+    function setMode() {
+      clear();
+      if (isCalm() || mqFlat.matches) { showAll(); armed = false; return; }
+      if (armed) { go(at); return; }          // a resize back from flat shouldn't replay
+      go(0);
+      if (!('IntersectionObserver' in window)) { play(0); armed = true; return; }
+      var io = new IntersectionObserver(function (entries) {
+        entries.forEach(function (e) {
+          if (!e.isIntersecting) return;
+          io.disconnect();
+          play(0);
+        });
+      }, { threshold: 0.35 });
+      io.observe(root);
+      armed = true;
+    }
+    addEventListener('resize', setMode);
+    bindMQ(mqFlat, setMode);
+    bindMQ(mqReduce, setMode);
+    setMode();
   }
+
 
   /* -------- hero ask bar ------------------------------------------------- */
   function typer() {
@@ -2950,7 +2930,7 @@ section{position:relative}
   /* -------- boot --------------------------------------------------------- */
   function boot() {
     reveal(); parallax(); chrome(); marquee();
-    day(); ask(); typer(); setup(); counters(); term();
+    scene(); dial(); typer(); setup(); counters(); term();
   }
   document.readyState === 'loading'
     ? document.addEventListener('DOMContentLoaded', boot)
