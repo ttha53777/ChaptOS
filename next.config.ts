@@ -7,6 +7,13 @@ const nextConfig: NextConfig = {
   // chart rendering are identical; only the client bundle shrinks.
   experimental: {
     optimizePackageImports: ["recharts"],
+    // Type-check via the project-local `tsc` binary instead of TypeScript's
+    // JavaScript compiler API. Required by TypeScript 7, which ships as native
+    // binaries and no longer exposes that API. Checker-only change: Next
+    // transpiles through SWC and tsconfig sets `noEmit`, so tsc never
+    // contributes to the bundle. Tradeoff is that build-time diagnostics print
+    // as raw tsc output without Next's route/page-specific code frames.
+    useTypeScriptCli: true,
   },
   async headers() {
     return [
