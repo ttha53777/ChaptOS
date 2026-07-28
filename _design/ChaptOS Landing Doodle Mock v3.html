@@ -35,7 +35,9 @@
    block and the [data-hb] contract in §12.
 
    Everything else is v2 unchanged:
-     - a scrubbed "one Tuesday" scene walks the actual day across real pages
+     - the "one Tuesday" scene walks the actual day across real pages — now as a
+       horizontal filmstrip: the stage pins and vertical scroll drives the strip
+       sideways, one beat per stop, 8:12 AM to 11:58 PM
      - Ask Chapt is shown as it ships: ⌘K, reasoning ledger, sources, and
        permission-gated writ cards that need a human to approve
      - the setup story (an interview that writes your pages/words/seats) gets
@@ -47,7 +49,7 @@
      2. chrome      (progress bar, nav)
      3. hero
      4. pain marquee
-     5. day scene   (scroll-scrubbed Tuesday, one product shot per beat)
+     5. day scene   (horizontal filmstrip of one Tuesday, one shot per beat)
      6. ask scene   (autoplayed spotlight: ledger → answer → writ card)
      7. modules     (four deep surfaces + the rest of the kit)
      8. setup       (the interview + a live blueprint that swaps per org type)
@@ -353,50 +355,128 @@ section{position:relative}
 .gripe footer{margin-top:11px; font-size:.79rem; color:var(--ink-3); font-weight:500; display:flex; align-items:center; gap:7px}
 .gripe--tint{background:var(--t, var(--butter-soft))}
 
-/* ---------- 5. day scene (scroll-scrubbed Tuesday) ------------------------- */
-/* Same pin-and-scrub rig as v1's chat scene, but the deck shows exactly ONE
-   slide at a time instead of accumulating bubbles — six full product shots
-   stacked in a 100vh stage would overflow it. */
+/* ---------- 5. day scene (a horizontal filmstrip of one Tuesday) ----------- */
+/* The rail is tall, the stage pins, and vertical scroll is remapped onto a
+   lerped translateX of the track — so the day literally runs left to right.
+   Stops are measured off the DOM (stage centre minus panel centre), which is
+   why the narrow title card and the wide product cards both land dead-centre.
+   Nothing here animates layout: the track moves on transform, panels get
+   transform + opacity, the axis fill is one custom property.
+   Free mode — narrow viewports, reduced motion, no JS — throws away the pin
+   and hands the same strip to the browser as a native scroll-snap carousel.
+   See the shared @media block near the bottom of §12. */
 .day{background:linear-gradient(180deg, transparent, var(--paper-2) 10%, var(--paper-2) 90%, transparent); position:relative}
-.day__rail{height:var(--rail, 560vh); position:relative}
-.day__stage{position:sticky; top:0; height:100vh; display:flex; align-items:center; overflow:hidden}
-.day__in{
-  width:min(100% - 44px, var(--wrap)); margin-inline:auto;
-  display:grid; grid-template-columns:minmax(0,.78fr) minmax(0,1.22fr);
-  gap:clamp(24px,4vw,64px); align-items:center; height:100%; padding:72px 0 52px;
+.day__rail{height:var(--rail, 620vh); position:relative}
+.day__stage{
+  position:sticky; top:0; height:100vh; overflow:hidden;
+  display:flex; flex-direction:column; justify-content:center;
+  /* the nav is sticky at top:0 and ~52px tall when stuck — the stage pins
+     underneath it, so the top pad has to clear it or beat captions hide */
+  padding:clamp(62px,8vh,88px) 0 clamp(16px,2.6vh,30px);
 }
-.day__side{position:relative}
-.day__side h2{margin-top:16px}
-.day__side .lede{margin-top:18px; max-width:34ch}
-.day__doodle{position:absolute; pointer-events:none}
 
-.beatlist{margin-top:28px; display:grid; gap:2px}
-.beatlist li{
-  display:flex; align-items:flex-start; gap:12px; padding:8px 12px; border-radius:var(--r-md);
-  font-size:.92rem; color:var(--ink-3); font-weight:500; line-height:1.35;
-  transition:background .35s var(--ease-out), color .35s var(--ease-out);
+/* faint paper doodles drifting behind the strip at a fraction of its speed */
+.day__bg{position:absolute; inset:0; z-index:0; pointer-events:none}
+.day__bg svg{position:absolute; color:var(--ink-3); opacity:.12; transform:rotate(var(--rot, 0deg)); will-change:transform}
+
+/* the mask dissolves cards at the edges instead of guillotining them, and
+   doubles as the clip — mask-size is pinned so the gradient can't tile */
+.day__view{
+  position:relative; z-index:1; flex:1 1 auto; min-height:0;
+  display:flex; align-items:center;
+  -webkit-mask-image:linear-gradient(90deg, transparent 0, #000 7%, #000 93%, transparent 100%);
+          mask-image:linear-gradient(90deg, transparent 0, #000 7%, #000 93%, transparent 100%);
+  -webkit-mask-size:100% 100%; mask-size:100% 100%;
+  -webkit-mask-repeat:no-repeat; mask-repeat:no-repeat;
 }
-.beatlist li .n{
-  width:22px;height:22px;flex:none;border-radius:50%; margin-top:2px;
+.day__track{
+  display:flex; align-items:center; gap:var(--gap, 46px);
+  width:max-content; padding-inline:26px; will-change:transform;
+}
+
+.dayp{--pw:min(72vw, 872px); flex:none; width:var(--pw); will-change:transform, opacity}
+/* the fit scale keeps the tallest shot inside short viewports without any of
+   the six cards changing width — so the measured stops stay valid */
+.dayp__in{position:relative; transform-origin:center center}
+
+/* the heading layer — JS pins it to the view's box and rides it with the track */
+.day__head{position:absolute; left:0; right:0; z-index:3; display:flex; align-items:center; pointer-events:none}
+.day__head-in{
+  position:relative; width:min(56vw, 604px); pointer-events:auto;
+  margin-left:calc(50% - min(50% - 22px, var(--wrap) / 2));
+  transform-origin:left center; will-change:transform, opacity;
+}
+
+.dayp__hd{display:flex; align-items:center; gap:11px; margin-bottom:15px; padding-inline:3px}
+.dayp__n{
+  width:23px;height:23px;flex:none;border-radius:50%;
   display:grid;place-items:center; font-family:var(--mono); font-size:.7rem;
   border:1.5px solid var(--line-2); color:var(--ink-3); background:var(--paper);
-  transition:background .35s, color .35s, border-color .35s, transform .35s var(--ease-spring);
+  transition:background .4s var(--ease-out), color .4s, border-color .4s, transform .45s var(--ease-spring);
 }
-.beatlist li.is-on{background:var(--card); color:var(--ink); box-shadow:var(--sh-1)}
-.beatlist li.is-on .n{background:var(--ink); border-color:var(--ink); color:var(--paper); transform:scale(1.06)}
-.beatlist li.is-done .n{background:var(--mint); border-color:var(--mint-ink); color:var(--mint-ink)}
-.bt-time{display:block; font-family:var(--mono); font-size:.72rem; letter-spacing:-.02em; opacity:.72; margin-bottom:1px}
+.dayp.is-on .dayp__n{background:var(--ink); border-color:var(--ink); color:var(--paper); transform:scale(1.08)}
+.dayp__time{font-family:var(--mono); font-size:.79rem; font-weight:600; letter-spacing:-.02em; color:var(--ink-2); flex:none}
+.dayp__cap{font-family:var(--display); font-size:1.02rem; font-weight:600; letter-spacing:-.022em; color:var(--ink); flex:none; white-space:nowrap}
+.dayp__rule{flex:1 1 auto; min-width:14px; height:1.5px; border-radius:2px; background:var(--line); opacity:.85}
 
-.deck{position:relative; height:min(74vh, 618px)}
-.dayslide{
-  position:absolute; inset:0; display:flex; align-items:center;
-  opacity:0; transform:translate3d(0,20px,0) scale(.988); pointer-events:none;
-  transition:opacity .5s var(--ease-out), transform .68s var(--ease-spring);
+.day__head h2{margin-top:18px}
+.day__head .lede{margin-top:18px; max-width:34ch}
+.day__doodle{position:absolute; pointer-events:none}
+.day__hint{
+  margin-top:32px; display:inline-flex; align-items:center; gap:13px;
+  font-size:.92rem; color:var(--ink-3); font-weight:500;
+  transition:opacity .4s var(--ease-out);
 }
-.dayslide.is-on{opacity:1; transform:none; pointer-events:auto}
-.dayslide > div{width:100%}
-.dayslide__t{display:none; font-family:var(--mono); font-size:.78rem; font-weight:600; letter-spacing:.04em; text-transform:uppercase; color:var(--ink-3); margin-bottom:10px}
-.dayslide__note{margin-top:12px; font-size:.88rem; color:var(--ink-3); display:flex; gap:9px; align-items:flex-start; line-height:1.45}
+.day__hint-k{
+  font-size:.7rem; font-weight:600; letter-spacing:.09em; text-transform:uppercase;
+  color:var(--sky-ink); background:var(--sky-soft); border:1.5px solid #CCDFFB;
+  border-radius:var(--r-pill); padding:5px 11px; flex:none;
+}
+.day__hint-a{width:21px;height:21px;flex:none;color:var(--ink-2); animation:nudge 2s var(--ease-out) infinite}
+@keyframes nudge{0%,100%{transform:translateX(0)} 46%{transform:translateX(8px)}}
+
+/* the scrubber: a real timeline of the day, 8:12 AM → 11:58 PM */
+.day__axis{
+  position:relative; z-index:2; flex:none;
+  width:min(100% - 44px, var(--wrap)); margin-inline:auto;
+  padding-top:clamp(12px,2vh,22px); display:flex; align-items:center; gap:clamp(16px,2.6vw,34px);
+  opacity:0; transform:translate3d(0,10px,0);
+  transition:opacity .55s var(--ease-out), transform .55s var(--ease-out);
+}
+.day__axis.is-live{opacity:1; transform:none}
+.day__axis-date{flex:none}
+.day__axis-rail{position:relative; flex:1 1 auto; min-width:0; display:flex; height:36px}
+/* the line spans dot-centre to dot-centre: half a cell in from each end */
+.day__axis-rail::before{
+  content:''; position:absolute; left:calc(100% / 12); right:calc(100% / 12); top:5px;
+  height:2px; border-radius:2px; background:var(--line-2);
+}
+.day__axis-fill{
+  position:absolute; left:calc(100% / 12); top:5px; height:2px; border-radius:2px;
+  background:var(--ink); width:calc((100% - 100% / 6) * var(--p, 0));
+}
+.day__tick{
+  flex:1 1 0; min-width:0; display:flex; flex-direction:column; align-items:center; gap:7px;
+  background:none; border:0; padding:0; cursor:pointer; color:var(--ink-3);
+}
+.day__tick i{
+  width:12px;height:12px;border-radius:50%; position:relative; z-index:1;
+  background:var(--paper-2); border:2px solid var(--line-2);
+  transition:transform .4s var(--ease-spring), background .35s, border-color .35s, box-shadow .35s;
+}
+.day__tick b{
+  font-family:var(--mono); font-size:.68rem; font-weight:500; letter-spacing:-.02em;
+  opacity:.72; white-space:nowrap; transition:color .35s, opacity .35s;
+}
+.day__tick:hover i{border-color:var(--ink-3)}
+.day__tick.is-done i{background:var(--ink); border-color:var(--ink)}
+.day__tick.is-on i{background:var(--ink); border-color:var(--ink); transform:scale(1.42); box-shadow:0 0 0 5px rgba(38,33,27,.07)}
+.day__tick.is-on b{color:var(--ink); font-weight:600; opacity:1}
+.day__axis-count{flex:none; font-size:.76rem; color:var(--ink-3); letter-spacing:-.01em}
+.day__axis-count b{color:var(--ink); font-weight:600}
+
+/* still used by the setup sheet's caption, further down the page */
+.dayslide__note{margin-top:13px; font-size:.88rem; color:var(--ink-3); display:flex; gap:9px; align-items:flex-start; line-height:1.45}
 .dayslide__note svg{width:16px;height:16px;flex:none;margin-top:2px}
 
 /* ---------- 6. ask scene --------------------------------------------------- */
@@ -860,8 +940,7 @@ section{position:relative}
   /* one column now — mirror the sheet across the top edge rather than sitting
      the scrap on top of the spotlight */
   .pile--receipt{top:-26px; right:-8px; width:150px}
-  .day__in,.ask__grid,.setup__grid{grid-template-columns:minmax(0,1fr); gap:26px; align-items:start}
-  .day__in{padding:0}
+  .ask__grid,.setup__grid{grid-template-columns:minmax(0,1fr); gap:26px; align-items:start}
   .mod__grid{grid-template-columns:minmax(0,1fr) !important; gap:28px}
   .guards,.quotes{grid-template-columns:minmax(0,1fr)}
   .quote:last-child{grid-column:auto}
@@ -872,13 +951,8 @@ section{position:relative}
 }
 @media (max-width: 860px){
   /* Mobile motion budget: no pinning, no parallax, no inline transforms left
-     behind by a desktop→mobile resize. Reveals stay (short, one-handed-friendly). */
-  .day__rail{height:auto !important}
-  .day__stage{position:static; height:auto; overflow:visible; padding:6px 0 34px}
-  .deck{height:auto; display:grid; gap:26px}
-  .dayslide{position:static; opacity:1 !important; transform:none !important; display:block}
-  .dayslide__t{display:block}
-  .beatlist{display:none}      /* the per-slide time stamp carries it on mobile */
+     behind by a desktop→mobile resize. Reveals stay (short, one-handed-friendly).
+     The day scene's own free-mode block lives just below this one. */
   [data-para]{transform:none !important}
   .pile,.hero__card,.hero__spot,.mod__stage,.day__doodle,.cta__blob,.spot{transform:none !important}
   .pile--sheet,.pile--chat,.pile--receipt{position:relative; inset:auto; width:auto}
@@ -891,6 +965,48 @@ section{position:relative}
   .marquee{--dur:38s}
   .marquee__row:nth-child(2){display:none}
   .section{padding:64px 0}
+}
+
+/* ---- day scene, free mode ------------------------------------------------ */
+/* Narrow viewports and anyone who asked for less motion keep the horizontal
+   strip — it just stops being scroll-jacked. No pin, no rail, no rAF: the
+   track becomes a real overflow-x scroller with snap points, which is the
+   gesture a thumb already knows. day() only mirrors the axis here.
+   Kept as one media LIST so the two conditions can't drift apart. */
+@media (max-width: 860px), (prefers-reduced-motion: reduce){
+  .day__rail{height:auto !important}
+  .day__stage{position:static; height:auto; overflow:visible; display:block; padding:8px 0 30px}
+  .day__bg{display:none}
+  .day__view{display:block; -webkit-mask-image:none; mask-image:none}
+  .day__track{
+    width:auto; max-width:100%; gap:20px; align-items:flex-start;
+    padding:10px max(22px, calc((100% - var(--wrap)) / 2)) 20px;
+    overflow-x:auto; overflow-y:hidden; overscroll-behavior-x:contain;
+    scroll-snap-type:x mandatory; -webkit-overflow-scrolling:touch;
+    scrollbar-width:none; transform:none !important; will-change:auto;
+  }
+  .day__track::-webkit-scrollbar{display:none}
+  /* a mouse gets no swipe and no edge-drag, so give it back the scrollbar —
+     this is the reduced-motion desktop case */
+  @media (pointer: fine){ .day__track{scrollbar-width:thin} .day__track::-webkit-scrollbar{display:block; height:8px} }
+  .dayp{
+    --pw:min(86vw, 560px); scroll-snap-align:center;
+    opacity:1 !important; visibility:visible !important; transform:none !important; filter:none !important;
+  }
+  .dayp__in{transform:none !important}
+  .dayp .dayp__n{background:var(--ink); border-color:var(--ink); color:var(--paper)}
+  .dayp__hd{flex-wrap:wrap; row-gap:6px}
+  .dayp__cap{white-space:normal}
+  .dayp__rule{display:none}
+  .day__head{position:static; display:block; height:auto !important; top:auto !important; pointer-events:auto}
+  .day__head-in{
+    width:auto; margin:0 max(22px, calc((100% - var(--wrap)) / 2)) 26px;
+    opacity:1 !important; visibility:visible !important; transform:none !important;
+  }
+  .day__doodle{display:none}
+  .day__hint{margin-top:26px}
+  .day__axis{opacity:1; transform:none; padding-top:20px}
+  .day__axis-date,.day__axis-count{display:none}   /* the strip is the counter */
 }
 @media (max-width: 640px){
   .kit{grid-template-columns:minmax(0,1fr)}
@@ -933,12 +1049,23 @@ section{position:relative}
   [data-hb]{opacity:1 !important; transform:none !important}
   .beat{grid-template-rows:1fr}
   .ledger li{opacity:1}
+  /* no pin without JS, so the strip falls back to a plain snap scroller */
   .day__rail{height:auto}
-  .day__stage{position:static; height:auto}
-  .deck{height:auto; display:grid; gap:26px}
-  .dayslide{position:static; opacity:1; transform:none}
-  .dayslide__t{display:block}
-  .beatlist{display:none}
+  .day__stage{position:static; height:auto; overflow:visible; display:block; padding:8px 0 30px}
+  .day__bg{display:none}
+  .day__view{display:block; -webkit-mask-image:none; mask-image:none}
+  .day__track{
+    width:auto; max-width:100%; align-items:flex-start;
+    padding:10px max(22px, calc((100% - var(--wrap)) / 2)) 20px;
+    overflow-x:auto; overflow-y:hidden; scroll-snap-type:x mandatory; scrollbar-width:none;
+  }
+  .dayp{scroll-snap-align:center}
+  .dayp .dayp__n{background:var(--ink); border-color:var(--ink); color:var(--paper)}
+  .day__head{position:static; display:block; pointer-events:auto}
+  .day__head-in{width:auto; margin:0 max(22px, calc((100% - var(--wrap)) / 2)) 26px}
+  .day__doodle{display:none}
+  .day__axis{opacity:1; transform:none}
+  .day__axis-fill,.day__axis-count{display:none}
   .spot__body{height:auto; overflow:visible}
   .spotmini__a{opacity:1; transform:none}
 </style></noscript>
@@ -1188,40 +1315,54 @@ section{position:relative}
 </section>
 
 <!-- ============ 5. day scene ============================================= -->
-<!-- Scroll-scrubbed Tuesday. The rail is tall; the stage pins; JS maps rail
-     progress → which slide is on. Mobile drops the pin and stacks all six. -->
+<!-- One Tuesday as a horizontal filmstrip. The rail is tall; the stage pins;
+     JS remaps rail progress onto a lerped translateX of the track, so vertical
+     scroll walks the day sideways. Narrow / reduced-motion / no-JS get the same
+     strip as a native scroll-snap carousel with no pin. -->
 <section class="day" id="day" data-day>
   <div class="day__rail">
     <div class="day__stage">
-      <div class="day__in">
 
-        <div class="day__side">
+      <div class="day__bg" data-day-bg aria-hidden="true">
+        <svg data-drift="-6" style="width:190px; top:11%; left:5%; --rot:-6deg" viewBox="0 0 120 46"><use href="#d-swirl"/></svg>
+        <svg data-drift="0" style="width:78px; top:16%; right:11%" viewBox="0 0 24 24"><use href="#d-clock"/></svg>
+        <svg data-drift="-11" style="width:62px; bottom:16%; left:13%; --rot:-11deg" viewBox="0 0 24 24"><use href="#d-star"/></svg>
+        <svg data-drift="9" style="width:70px; bottom:12%; right:7%; --rot:9deg" viewBox="0 0 24 24"><use href="#d-mug"/></svg>
+      </div>
+
+      <!-- The heading is its own layer, not a strip item: on desktop it rides
+           the track (same translateX, so the gap to beat 1 never changes) and
+           fades out as the day starts; on mobile it drops into normal flow
+           above the strip, where a short card in a flex row sized by the
+           tallest product shot would otherwise leave a screen of void. -->
+      <div class="day__head" data-day-head>
+        <div class="day__head-in">
           <span class="eyebrow" style="--eb:var(--sky)">Tuesday, October 14</span>
-          <h2>Nobody logs in<br>to use software.</h2>
+          <h2>Nothing new to do.<br>Just somewhere for it to go.</h2>
           <p class="lede">
             They log in because something's due, someone paid, roll needs taking, and
             the minutes have to say what we decided. Here's an ordinary day, in the
             order it actually happens.
           </p>
-
-          <ol class="beatlist" data-beatlist>
-            <li data-day-nav="0"><span class="n">1</span><span><b class="bt-time">8:12 AM</b>The briefing says what's late</span></li>
-            <li data-day-nav="1"><span class="n">2</span><span><b class="bt-time">12:40 PM</b>An idea becomes a real event</span></li>
-            <li data-day-nav="2"><span class="n">3</span><span><b class="bt-time">3:05 PM</b>A payout gets approved — and booked</span></li>
-            <li data-day-nav="3"><span class="n">4</span><span><b class="bt-time">7:31 PM</b>Roll call, 52 names, 40 seconds</span></li>
-            <li data-day-nav="4"><span class="n">5</span><span><b class="bt-time">9:20 PM</b>Minutes turn into assigned work</span></li>
-            <li data-day-nav="5"><span class="n">6</span><span><b class="bt-time">11:58 PM</b>Next year can still read today</span></li>
-          </ol>
-
-          <svg class="day__doodle" style="width:112px; bottom:-14px; right:6px; color:var(--sky-ink); opacity:.45" viewBox="0 0 120 46" aria-hidden="true"><use href="#d-swirl"/></svg>
+          <p class="day__hint">
+            <span class="day__hint-k mono">Six beats</span>
+            <span>the day runs sideways</span>
+            <svg class="day__hint-a" viewBox="0 0 24 24" aria-hidden="true"><use href="#d-arrow-r"/></svg>
+          </p>
+          <svg class="day__doodle" style="width:104px; bottom:-2px; right:-116px; color:var(--sky-ink); opacity:.42; transform:rotate(4deg)" viewBox="0 0 120 46" aria-hidden="true"><use href="#d-swirl"/></svg>
         </div>
+      </div>
 
-        <div class="deck" data-deck>
+      <div class="day__view">
+        <div class="day__track" data-day-track>
 
           <!-- 1 — the morning briefing -->
-          <div class="dayslide" data-slide="0">
-            <div>
-              <p class="dayslide__t">8:12 AM · Dashboard</p>
+          <article class="dayp" data-panel>
+            <div class="dayp__in">
+              <header class="dayp__hd">
+                <span class="dayp__n">1</span><b class="dayp__time">8:12 AM</b>
+                <span class="dayp__cap">The briefing says what's late</span><i class="dayp__rule"></i>
+              </header>
               <figure class="shot">
                 <div class="shot__bar">
                   <i class="tl"></i><i class="tl"></i><i class="tl"></i>
@@ -1262,12 +1403,15 @@ section{position:relative}
                 <svg style="color:var(--mint-ink)" aria-hidden="true"><use href="#d-check"/></svg><span>Nobody built a report to find these. The queue is what the dashboard opens on,
                 and rows leave it the moment they're handled.</span></p>
             </div>
-          </div>
+          </article>
 
           <!-- 2 — programming board -->
-          <div class="dayslide" data-slide="1">
-            <div>
-              <p class="dayslide__t">12:40 PM · Programming</p>
+          <article class="dayp" data-panel>
+            <div class="dayp__in">
+              <header class="dayp__hd">
+                <span class="dayp__n">2</span><b class="dayp__time">12:40 PM</b>
+                <span class="dayp__cap">An idea becomes a real event</span><i class="dayp__rule"></i>
+              </header>
               <figure class="shot">
                 <div class="shot__bar">
                   <i class="tl"></i><i class="tl"></i><i class="tl"></i>
@@ -1315,12 +1459,15 @@ section{position:relative}
               <p class="dayslide__note">
                 <svg style="color:var(--mint-ink)" aria-hidden="true"><use href="#d-check"/></svg><span>The social chair dragged one card. That's the whole announcement.</span></p>
             </div>
-          </div>
+          </article>
 
           <!-- 3 — treasury: approval mints the ledger row -->
-          <div class="dayslide" data-slide="2">
-            <div>
-              <p class="dayslide__t">3:05 PM · Treasury</p>
+          <article class="dayp" data-panel>
+            <div class="dayp__in">
+              <header class="dayp__hd">
+                <span class="dayp__n">3</span><b class="dayp__time">3:05 PM</b>
+                <span class="dayp__cap">A payout gets approved — and booked</span><i class="dayp__rule"></i>
+              </header>
               <figure class="shot">
                 <div class="shot__bar">
                   <i class="tl"></i><i class="tl"></i><i class="tl"></i>
@@ -1376,12 +1523,15 @@ section{position:relative}
                 <svg style="color:var(--mint-ink)" aria-hidden="true"><use href="#d-check"/></svg><span>Dues payments and payouts are <em>requests</em> until a treasurer approves them.
                 Nothing edits the balance behind anyone's back.</span></p>
             </div>
-          </div>
+          </article>
 
           <!-- 4 — roll call -->
-          <div class="dayslide" data-slide="3">
-            <div>
-              <p class="dayslide__t">7:31 PM · Chapter meeting</p>
+          <article class="dayp" data-panel>
+            <div class="dayp__in">
+              <header class="dayp__hd">
+                <span class="dayp__n">4</span><b class="dayp__time">7:31 PM</b>
+                <span class="dayp__cap">Roll call, 52 names, 40 seconds</span><i class="dayp__rule"></i>
+              </header>
               <figure class="shot">
                 <div class="shot__bar">
                   <i class="tl"></i><i class="tl"></i><i class="tl"></i>
@@ -1432,12 +1582,15 @@ section{position:relative}
                 <svg style="color:var(--mint-ink)" aria-hidden="true"><use href="#d-check"/></svg><span>Standing updates itself as the roll closes — so the attendance policy is
                 finally a number, not an argument.</span></p>
             </div>
-          </div>
+          </article>
 
           <!-- 5 — minutes → decisions + assigned work -->
-          <div class="dayslide" data-slide="4">
-            <div>
-              <p class="dayslide__t">9:20 PM · Minutes</p>
+          <article class="dayp" data-panel>
+            <div class="dayp__in">
+              <header class="dayp__hd">
+                <span class="dayp__n">5</span><b class="dayp__time">9:20 PM</b>
+                <span class="dayp__cap">Minutes turn into assigned work</span><i class="dayp__rule"></i>
+              </header>
               <figure class="shot">
                 <div class="shot__bar">
                   <i class="tl"></i><i class="tl"></i><i class="tl"></i>
@@ -1485,12 +1638,15 @@ section{position:relative}
                 <svg style="color:var(--mint-ink)" aria-hidden="true"><use href="#d-check"/></svg><span>Two of those action items are now dated tasks. They'll be on tomorrow's
                 briefing whether anyone remembers or not.</span></p>
             </div>
-          </div>
+          </article>
 
           <!-- 6 — the record -->
-          <div class="dayslide" data-slide="5">
-            <div>
-              <p class="dayslide__t">11:58 PM · Timeline</p>
+          <article class="dayp" data-panel>
+            <div class="dayp__in">
+              <header class="dayp__hd">
+                <span class="dayp__n">6</span><b class="dayp__time">11:58 PM</b>
+                <span class="dayp__cap">Next year can still read today</span><i class="dayp__rule"></i>
+              </header>
               <figure class="shot">
                 <div class="shot__bar">
                   <i class="tl"></i><i class="tl"></i><i class="tl"></i>
@@ -1522,10 +1678,26 @@ section{position:relative}
                 <svg style="color:var(--mint-ink)" aria-hidden="true"><use href="#d-check"/></svg><span>Next May, the incoming board reads this instead of interviewing whoever
                 still answers texts.</span></p>
             </div>
-          </div>
+          </article>
 
         </div>
       </div>
+
+      <!-- the scrubber: a real clock face for the day, and the jump control -->
+      <nav class="day__axis" data-day-axis aria-label="Jump to a moment in the day">
+        <span class="eyebrow day__axis-date" style="--eb:var(--sky)">Tuesday, Oct 14</span>
+        <div class="day__axis-rail">
+          <span class="day__axis-fill" data-day-fill></span>
+          <button type="button" class="day__tick" data-day-nav="0"><i></i><b>8:12 AM</b></button>
+          <button type="button" class="day__tick" data-day-nav="1"><i></i><b>12:40 PM</b></button>
+          <button type="button" class="day__tick" data-day-nav="2"><i></i><b>3:05 PM</b></button>
+          <button type="button" class="day__tick" data-day-nav="3"><i></i><b>7:31 PM</b></button>
+          <button type="button" class="day__tick" data-day-nav="4"><i></i><b>9:20 PM</b></button>
+          <button type="button" class="day__tick" data-day-nav="5"><i></i><b>11:58 PM</b></button>
+        </div>
+        <span class="day__axis-count mono"><b data-day-count>01</b> / 06</span>
+      </nav>
+
     </div>
   </div>
 </section>
@@ -2379,7 +2551,8 @@ section{position:relative}
      parallax()   rAF + lerp; owns inline transform on [data-para] only
      chrome()     sticky nav state + scroll progress bar
      marquee()    exact loop seam measurement
-     day()        scroll-scrubbed Tuesday (desktop) / static stack (mobile)
+     day()        Tuesday as a horizontal filmstrip — pinned + scrubbed on
+                  desktop, native snap carousel in free mode
      ask()        autoplayed spotlight sequence, replayable
      typer()      hero ask bar cycling three real questions + their answers
      setup()      org-type switcher driving the live blueprint sheet
@@ -2499,64 +2672,302 @@ section{position:relative}
     });
   }
 
-  /* -------- the day scene ------------------------------------------------ */
-  /* Desktop: rail scroll position picks exactly ONE slide (a deck, not a
-     transcript — six full product shots can't share a 100vh stage).
-     Mobile / reduced motion: no pin, every slide rendered in document flow. */
+  /* -------- the day scene (horizontal filmstrip) ------------------------- */
+  /* Scrub mode (desktop, motion allowed): the stage pins and rail progress maps
+     onto a continuous panel index t ∈ [0, n-1]. The track's translateX is
+     interpolated between DOM-measured stops — stage centre minus panel centre —
+     so every panel lands dead-centre no matter how wide it is, and t is also the
+     one number the depth falloff, the axis fill and the tick states read from.
+     A rAF lerp chases t instead of snapping to it: that's the glide, and it lets
+     a flick overshoot a hair before settling (same trick as parallax()).
+
+     You are never parked between two beats. Two things enforce that, and they
+     are deliberately layered so the second one rarely has to fire:
+       1. eased() — the segment between two stops is mostly DWELL. The strip only
+          travels during the middle FLOW of it, on a smootherstep, so most places
+          a reader can stop already show one composed card. It also makes the
+          hand-off itself quicker and more decisive, which is the whole effect.
+       2. settle() — for the remainder, once scrolling actually stops we glide
+          the page shut onto the nearer stop, in the direction they were already
+          heading, so it reads as a magnet rather than a snatch. Any real input
+          (wheel, touch, key) kills the glide mid-flight.
+     Free mode (narrow, reduced motion, no JS): the CSS hands the identical strip
+     to the browser as a scroll-snap carousel — x mandatory, so the browser
+     enforces the same one-beat-at-a-time rule; JS only mirrors the axis. */
   function day() {
     var root = q('[data-day]');
     if (!root) return;
     var rail   = q('.day__rail', root);
     var stage  = q('.day__stage', root);
-    var slides = qa('.dayslide', root);
+    var view   = q('.day__view', root);
+    var track  = q('[data-day-track]', root);
+    var bg     = q('[data-day-bg]', root);
+    var axis   = q('[data-day-axis]', root);
+    var fill   = q('[data-day-fill]', root);
+    var count  = q('[data-day-count]', root);
+    var head   = q('[data-day-head]', root);
+    var headIn = head && q('.day__head-in', head);
+    var panels = qa('[data-panel]', root);
+    var inners = panels.map(function (p) { return q('.dayp__in', p); });
     var navs   = qa('[data-day-nav]', root);
-    var AT     = [0, 0.17, 0.345, 0.52, 0.69, 0.855];   // rail progress per slide
+    var drift  = bg ? qa('[data-drift]', bg) : [];
+    var nc = panels.length;                   // six beats
+    var n  = nc + 1;                          // stop 0 is the heading, then each beat
+    if (nc < 2) return;
 
-    function paint(active) {
-      slides.forEach(function (s, i) { s.classList.toggle('is-on', i === active); });
-      navs.forEach(function (n, i) {
-        n.classList.toggle('is-on', i === active);
-        n.classList.toggle('is-done', i < active);
+    var stops = [], step = 640, fit = 1;
+    var cur = 0, target = 0, running = false, settled = 0, mode = null, lastBeat = -1;
+    var glide = null, idleTimer = 0, lastY = 0, dir = 1;
+    var docEl = document.documentElement;
+
+    // share of each segment spent parked on a stop, per end
+    var DWELL = 0.2, FLOW = 1 - DWELL * 2;
+
+    // raw index → the index the strip actually shows: flat, then a smootherstep
+    // hand-off, then flat again
+    function eased(t) {
+      var i = clamp(Math.floor(t), 0, n - 2), f = t - i;
+      var u = clamp((f - DWELL) / FLOW, 0, 1);
+      return i + u * u * u * (u * (u * 6 - 15) + 10);
+    }
+
+    /* ---- geometry: stops, the fit scale, and how tall the rail has to be -- */
+    function measure() {
+      var vr = view.getBoundingClientRect(), sr = stage.getBoundingClientRect();
+      var mid = view.clientWidth / 2;
+      stops = panels.map(function (p) { return mid - (p.offsetLeft + p.offsetWidth / 2); });
+
+      // the heading layer is absolutely positioned over the stage, so give it
+      // the view's exact box — otherwise it centres against the axis too
+      if (head) { head.style.top = (vr.top - sr.top) + 'px'; head.style.height = vr.height + 'px'; }
+
+      // stop 0 parks beat 1 just off the heading's right edge, one gap away —
+      // the section opens on its own title with a wide, obvious peek
+      var gap = parseFloat(getComputedStyle(track).columnGap) || 46;
+      var headRight = headIn ? headIn.offsetLeft + headIn.offsetWidth : mid;
+      stops.unshift(headRight + gap - panels[0].offsetLeft);
+
+      // shrink the cards, never the panel boxes, so the stops above stay valid
+      var tallest = inners.reduce(function (m, el) { return Math.max(m, el.scrollHeight); }, 0);
+      fit = tallest > 0 ? clamp((view.clientHeight - 30) / tallest, 0.62, 1) : 1;
+
+      // ~0.8 of the horizontal travel, so the page doesn't outrun the strip
+      var travel = (stops[0] - stops[n - 1]) / (n - 1);
+      step = clamp(Math.round(travel * 0.8), 380, 760);
+      rail.style.height = (stage.offsetHeight + step * (n - 1)) + 'px';
+    }
+
+    /* ---- the chrome both modes share ------------------------------------- */
+    function paintChrome(t) {
+      var beat = clamp(Math.round(t) - 1, 0, nc - 1);     // stop 0 is the heading
+      if (axis) {
+        axis.style.setProperty('--p', clamp((t - 1) / (nc - 1), 0, 1).toFixed(4));
+        // free mode has no title-card beat to hide behind — the axis just stays
+        axis.classList.toggle('is-live', mode === 'free' || t > 0.34);
+      }
+      if (beat === lastBeat) return;
+      lastBeat = beat;
+      navs.forEach(function (b, i) {
+        b.classList.toggle('is-on', i === beat);
+        b.classList.toggle('is-done', i < beat);
+      });
+      if (count) count.textContent = ('0' + (beat + 1)).slice(-2);
+    }
+
+    /* ---- one frame of the strip ------------------------------------------ */
+    function paint(raw) {
+      var t = eased(raw);
+      var i0 = clamp(Math.floor(t), 0, n - 2), f = t - i0;
+      var x = stops[i0] + (stops[i0 + 1] - stops[i0]) * f;
+      var active = Math.round(t);          // exactly one beat is ever the live one
+      track.style.transform = 'translate3d(' + x.toFixed(2) + 'px,0,0)';
+
+      panels.forEach(function (p, i) {
+        var d = (i + 1) - t, ad = Math.abs(d), k = Math.min(ad, 2);
+        // opacity reaches 0 exactly where the panel gets hidden — no pop
+        var far = ad > 2;
+        p.style.visibility = far ? 'hidden' : '';
+        if (far) return;
+        p.style.opacity   = (1 - 0.5 * k).toFixed(3);
+        p.style.filter    = ad > 0.02 ? 'blur(' + (Math.min(ad, 1) * 2.4).toFixed(2) + 'px)' : '';
+        p.style.transform = 'translate3d(0,' + (20 * Math.min(ad, 1.5) / 1.5).toFixed(2) +
+                            'px,0) scale(' + (1 - 0.05 * k).toFixed(4) + ')';
+        // the card lags its own panel a little — depth without a 3D blur
+        inners[i].style.transform =
+          'translate3d(' + (clamp(d, -2, 2) * 22).toFixed(2) + 'px,0,0) scale(' + fit.toFixed(4) + ')';
+        p.classList.toggle('is-on', i + 1 === active);
+      });
+
+      if (headIn) {
+        var ho = clamp((0.88 - t) / 0.62, 0, 1);
+        headIn.style.visibility = ho <= 0 ? 'hidden' : '';
+        headIn.style.opacity = ho.toFixed(3);
+        headIn.style.transform = 'translate3d(' + (x - stops[0]).toFixed(2) + 'px,0,0)' +
+                                 ' scale(' + (1 - 0.05 * Math.min(t, 1)).toFixed(4) + ')';
+      }
+
+      var p01 = t / (n - 1);
+      drift.forEach(function (el, i) {
+        el.style.transform = 'translate3d(' + (-p01 * 130 * (0.5 + i * 0.34)).toFixed(1) + 'px,0,0)' +
+                             ' rotate(' + (el.getAttribute('data-drift') || 0) + 'deg)';
+      });
+      paintChrome(t);
+    }
+
+    // section.day is position:relative, so rail.offsetTop is ~0 — always go
+    // through the rect for a document-space y
+    function railY() { return rail.getBoundingClientRect().top + (scrollY || pageYOffset); }
+
+    function progress() {
+      var span = rail.offsetHeight - stage.offsetHeight;
+      return span > 0 ? clamp(-rail.getBoundingClientRect().top / span, 0, 1) : 0;
+    }
+
+    function frame() {
+      if (mode !== 'scrub') { running = false; return; }
+      cur += (target - cur) * 0.16;
+      if (Math.abs(target - cur) < 0.0005) { cur = target; settled++; } else settled = 0;
+      paint(cur);
+      if (settled > 4) { running = false; return; }
+      requestAnimationFrame(frame);
+    }
+
+    /* ---- gliding the page shut on the nearer beat ------------------------- */
+    /* html{scroll-behavior:smooth} would turn every frame of this into its own
+       animation, so the glide owns that property for its duration. */
+    function stopGlide() {
+      lastY = scrollY || pageYOffset;      // a gesture starts measuring from here
+      if (!glide) return;
+      cancelAnimationFrame(glide);
+      glide = null;
+      docEl.style.scrollBehavior = '';
+    }
+
+    function glideTo(y) {
+      stopGlide();
+      var from = scrollY || pageYOffset, dist = y - from;
+      if (Math.abs(dist) < 2) return;
+      var dur = clamp(Math.abs(dist) * 0.85, 240, 540), t0 = performance.now();
+      docEl.style.scrollBehavior = 'auto';
+      glide = requestAnimationFrame(function run() {
+        var e = clamp((performance.now() - t0) / dur, 0, 1);
+        scrollTo(0, from + dist * (1 - Math.pow(1 - e, 3)));
+        if (e < 1) { glide = requestAnimationFrame(run); return; }
+        glide = null;
+        docEl.style.scrollBehavior = '';
       });
     }
 
-    function showAll() {
-      slides.forEach(function (s) { s.classList.add('is-on'); });
-      navs.forEach(function (n) { n.classList.add('is-done'); });
+    function settle() {
+      if (mode !== 'scrub' || glide) return;
+      var p = progress();
+      if (p <= 0 || p >= 1) return;              // at the rail's ends, let them leave
+      var t = p * (n - 1), i = Math.floor(t), f = t - i;
+      if (i >= n - 1) return;
+      if (f <= DWELL || f >= 1 - DWELL) return;  // already showing one composed beat
+      glideTo(railY() + step * (i + (dir > 0 ? 1 : 0)));
     }
 
-    function scrub() {
-      var r = rail.getBoundingClientRect();
-      var span = rail.offsetHeight - stage.offsetHeight;
-      var p = span > 0 ? clamp(-r.top / span, 0, 1) : 0;
-      var active = 0;
-      for (var i = 0; i < AT.length; i++) if (p >= AT[i]) active = i;
-      paint(active);
+    function wake() {
+      var y = scrollY || pageYOffset;
+      // Only a real gesture may set the settle direction. The nav loses 14px of
+      // padding when it sticks, and Chrome's scroll anchoring compensates with a
+      // small backward hop — read literally, that reads as "scrolling up" and
+      // settles the reader onto the beat behind them.
+      if (glide) lastY = y;                      // our own move, not a gesture
+      else if (Math.abs(y - lastY) > 4) { dir = y > lastY ? 1 : -1; lastY = y; }
+      target = progress() * (n - 1);
+      settled = 0;
+      if (!running) { running = true; requestAnimationFrame(frame); }
+      clearTimeout(idleTimer);
+      idleTimer = setTimeout(settle, 120);       // momentum keeps firing scroll; wait it out
     }
 
-    var mode = null;
+    /* ---- free mode: read the native scroller, drive the same chrome ------- */
+    var freeQueued = false;
+    function freeSync() {
+      if (freeQueued) return;
+      freeQueued = true;
+      requestAnimationFrame(function () {
+        freeQueued = false;
+        var r = track.getBoundingClientRect(), c = r.left + r.width / 2, best = 0, bd = Infinity;
+        panels.forEach(function (p, i) {
+          var pr = p.getBoundingClientRect();
+          var d = Math.abs(pr.left + pr.width / 2 - c);
+          if (d < bd) { bd = d; best = i; }
+        });
+        lastBeat = -1;
+        paintChrome(best + 1);        // paintChrome counts the heading as stop 0
+      });
+    }
+
+    function clearInline() {
+      track.style.transform = '';
+      rail.style.height = '';
+      panels.forEach(function (p) { p.style.cssText = ''; p.classList.remove('is-on'); });
+      inners.forEach(function (el) { el.style.transform = ''; });
+      drift.forEach(function (el) { el.style.transform = ''; });
+      if (head) { head.style.top = ''; head.style.height = ''; }
+      if (headIn) headIn.style.cssText = '';
+    }
+
+    // a real input always outranks a glide in flight — never fight the reader
+    var TAKE = ['wheel', 'touchstart', 'pointerdown', 'keydown'];
+
     function setMode() {
-      var next = (isCalm() || mqMobile.matches) ? 'static' : 'scrub';
+      var next = (isCalm() || mqMobile.matches) ? 'free' : 'scrub';
       if (next === mode) return;
       mode = next;
-      removeEventListener('scroll', scrub);
-      if (mode === 'static') { showAll(); return; }
-      navs.forEach(function (n) { n.classList.remove('is-done'); });
-      addEventListener('scroll', scrub, { passive: true });
-      scrub();
+      stopGlide();
+      clearTimeout(idleTimer);
+      removeEventListener('scroll', wake);
+      track.removeEventListener('scroll', freeSync);
+      TAKE.forEach(function (e) { removeEventListener(e, stopGlide); });
+      clearInline();
+      if (mode === 'free') {
+        track.addEventListener('scroll', freeSync, { passive: true });
+        if (axis) axis.classList.add('is-live');
+        freeSync();
+        return;
+      }
+      measure();
+      cur = target = progress() * (n - 1);
+      lastY = scrollY || pageYOffset;
+      paint(cur);
+      addEventListener('scroll', wake, { passive: true });
+      TAKE.forEach(function (e) { addEventListener(e, stopGlide, { passive: true }); });
     }
 
-    addEventListener('resize', setMode);
+    var reQueued = false;
+    function onResize() {
+      stopGlide();                 // its target y is about to be wrong
+      if (mode !== 'scrub') { setMode(); return; }
+      if (reQueued) return;
+      reQueued = true;
+      requestAnimationFrame(function () {
+        reQueued = false;
+        setMode();                 // may flip us into free mode
+        if (mode !== 'scrub') return;
+        measure();
+        cur = target = progress() * (n - 1);
+        paint(cur);
+      });
+    }
+
+    addEventListener('resize', onResize);
     (mqMobile.addEventListener ? mqMobile.addEventListener('change', setMode) : mqMobile.addListener(setMode));
+    // web fonts land after first paint and change how tall the cards measure
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(onResize);
     setMode();
 
-    // clicking a time in the side list jumps the rail to that slide
-    navs.forEach(function (n, i) {
-      n.style.cursor = 'pointer';
-      n.addEventListener('click', function () {
-        if (mode !== 'scrub') return;
-        var span = rail.offsetHeight - stage.offsetHeight;
-        scrollTo({ top: rail.offsetTop + span * (AT[i] + 0.02), behavior: 'smooth' });
+    // clicking a time on the axis walks the strip to that beat
+    navs.forEach(function (b, i) {
+      b.addEventListener('click', function () {
+        if (mode === 'free') {
+          panels[i + 1].scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+          return;
+        }
+        glideTo(railY() + step * (i + 1));
       });
     });
   }
