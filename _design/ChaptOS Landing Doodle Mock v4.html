@@ -275,7 +275,7 @@ section{position:relative}
    worse than no joke. Two notes now, stuck ON the window like paper on a screen,
    fully legible, sitting between the card (3) and the spotlight (5). */
 .pile{position:absolute; z-index:4; width:190px; will-change:transform}
-.pile--sheet{top:-46px; left:-34px; width:206px}
+.pile--sheet{top:-70px; left:-52px; width:206px}
 .pile--chat{bottom:-30px; left:-24px; width:200px}
 
 .hero__card{
@@ -335,7 +335,7 @@ section{position:relative}
 
 /* ---------- 4. pain marquee ------------------------------------------------ */
 .pain{padding:clamp(52px,7vw,92px) 0; overflow:hidden}
-.pain__head{text-align:center; max-width:680px; margin-inline:auto}
+.pain__head{text-align:center; max-width:800px; margin-inline:auto}
 .gripes{margin-top:40px; display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:20px; align-items:start}
 .gripe{
   padding:18px 20px;
@@ -419,7 +419,7 @@ section{position:relative}
   /* extra right/bottom padding: overflow-y:auto computes overflow-x to auto too,
      so the cards' 3px hard-offset shadows would otherwise clip (or scroll) */
   padding:18px 22px 22px 18px; display:grid; gap:12px; align-content:start;
-  height:min(62vh, 500px); overflow-y:auto; overscroll-behavior:contain;
+  height:min(66vh, 545px); overflow-y:auto; overscroll-behavior:contain;
   scrollbar-width:none;
 }
 .spot__body::-webkit-scrollbar{display:none}
@@ -617,16 +617,17 @@ section{position:relative}
   margin-top:22px; max-width:74ch; font-size:.96rem; line-height:1.6; color:var(--ink-2);
 }
 .kit__rest a{
-  color:var(--ink); font-weight:600; text-decoration:none; white-space:nowrap;
+  display:inline-flex; align-items:center; gap:4px; white-space:nowrap;
+  color:var(--ink); font-weight:600; text-decoration:none;
   border-bottom:1.5px solid var(--line-2); padding-bottom:1px;
 }
 .kit__rest a:hover{border-bottom-color:var(--ink)}
-.kit__rest a svg{vertical-align:-2px; margin-left:2px}
+.kit__rest a svg{flex:none}
 
 /* ---------- 9. trust ------------------------------------------------------- */
 .trust__head{text-align:center; max-width:700px; margin-inline:auto}
 
-.guards{margin-top:clamp(34px,4.5vw,54px); display:grid; grid-template-columns:repeat(3,1fr); gap:18px}
+.guards{margin-top:clamp(34px,4.5vw,54px); display:grid; grid-template-columns:repeat(3,1fr); gap:18px; align-items:start}
 .guard{padding:26px; background:var(--card); border:1.5px solid var(--line); border-radius:var(--r-lg); box-shadow:var(--sh-1)}
 .guard__ic{width:46px;height:46px;border-radius:14px; display:grid; place-items:center; background:var(--g, var(--sky-soft)); border:1.5px solid var(--gb, #CCDFFB)}
 .guard h4{margin-top:16px}
@@ -843,7 +844,7 @@ section{position:relative}
     <symbol id="d-plant" viewBox="0 0 24 24"><path d="M12 21v-8.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/><path d="M12 13.4C9 13.4 6.6 11 6.6 8c3 0 5.4 2.4 5.4 5.4ZM12 12.2c0-3 2.4-5.4 5.4-5.4 0 3-2.4 5.4-5.4 5.4Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/><path d="M8.4 21h7.2" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
     <symbol id="d-clip" viewBox="0 0 24 24"><rect x="4.4" y="4.2" width="15.2" height="16.6" rx="2.4" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M9 4.2c0-1.2 1.3-2 3-2s3 .8 3 2" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M8.4 11.4h7.2M8.4 15.4h4.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
     <symbol id="d-loop" viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.6-5.9" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/><path d="M20.4 3.2v4.4h-4.4" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></symbol>
-    <!-- added for v2's surfaces -->
+    <!-- added for the module icons -->
     <symbol id="d-pencil" viewBox="0 0 24 24"><path d="M4 20.2 4.9 16 16.4 4.5a2.1 2.1 0 0 1 3 3L7.9 19.1 4 20.2Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/><path d="M14.6 6.4 17.8 9.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
     <symbol id="d-folder" viewBox="0 0 24 24"><path d="M3.2 6.6c0-1 .8-1.8 1.8-1.8h4l2.2 2.6h8.8c1 0 1.8.8 1.8 1.8v8.6c0 1-.8 1.8-1.8 1.8H5c-1 0-1.8-.8-1.8-1.8V6.6Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/></symbol>
     <symbol id="d-board" viewBox="0 0 24 24"><path d="M4.6 3.4v17.2M12 3.4v10.4M19.4 3.4v14.2" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></symbol>
@@ -1054,7 +1055,7 @@ section{position:relative}
             <li data-day-nav="2"><span class="n">3</span><span><b class="bt-time">11:58 PM</b>Next year can still read today</span></li>
           </ol>
 
-          <svg class="day__doodle" style="width:112px; bottom:-14px; right:6px; color:var(--sky-ink); opacity:.45" viewBox="0 0 120 46" aria-hidden="true"><use href="#d-swirl"/></svg>
+          <svg class="day__doodle" style="width:112px; bottom:-78px; right:18px; color:var(--sky-ink); opacity:.45" viewBox="0 0 120 46" aria-hidden="true"><use href="#d-swirl"/></svg>
         </div>
 
         <div class="deck" data-deck>
@@ -1322,8 +1323,7 @@ section{position:relative}
                 </div>
                 <div class="acard__row"><span class="avatar avatar--sm" style="--av:var(--peach)">MR</span><span class="nm">Maya Rivera</span><span class="pill pill--due">21 days late</span><span class="amt">$140</span></div>
                 <div class="acard__row"><span class="avatar avatar--sm" style="--av:var(--sky)">DO</span><span class="nm">Dev Okafor</span><span class="pill pill--part">Plan 2 of 3</span><span class="amt">$65</span></div>
-                <div class="acard__row"><span class="avatar avatar--sm" style="--av:var(--lilac)">JT</span><span class="nm">Jordan Tao</span><span class="pill pill--due">9 days late</span><span class="amt">$140</span></div>
-                <p class="acard__ft"><svg width="13" height="13" aria-hidden="true"><use href="#d-receipt"/></svg> 6 more · tap any row to open the payment it came from</p>
+                <p class="acard__ft"><svg width="13" height="13" aria-hidden="true"><use href="#d-receipt"/></svg> 7 more · tap any row to open the payment it came from</p>
               </div>
             </div>
           </div>
