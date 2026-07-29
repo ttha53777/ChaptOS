@@ -87,6 +87,19 @@
 /* empty-state row */
 .dash .roster .empty-row td { padding: 28px 18px; text-align: center; color: var(--faint); font-style: italic; font-family: var(--serif); }
 
+/* The zero-members case, which is a different situation from a filter that
+   matched nothing: there's nothing to un-filter, so the state has to hand over
+   the way forward instead of just reporting the absence. */
+.dash .roster .roster-empty { display: flex; flex-direction: column; align-items: center; gap: 6px; font-style: normal; }
+.dash .roster .roster-empty .t { font-family: var(--serif); font-size: 16px; color: var(--ink); }
+.dash .roster .roster-empty .h { font-size: 12.5px; color: var(--muted); font-family: var(--sans); max-width: 42ch; }
+.dash .roster .roster-empty .a { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 10px; }
+
+/* ── Explanatory (non-error) page note ───────────────────────────────────────── */
+.dash .page-note { border: 1px solid var(--vio-bg); border-radius: 10px; background: var(--vio-bg); padding: 11px 14px; }
+.dash .page-note p { font-size: 12.5px; line-height: 1.55; color: var(--ink-soft, var(--ink)); }
+.dash .page-note .who { margin-top: 5px; color: var(--muted); font-size: 12px; }
+
 /* ── Error bands (re-skinned from the cold toasts) ───────────────────────────── */
 .dash .page-err { display: flex; align-items: center; justify-content: space-between; gap: 12px;
   border: 1px solid var(--rose-bg); border-radius: 10px; background: var(--rose-bg); padding: 11px 14px; margin-bottom: 14px; }

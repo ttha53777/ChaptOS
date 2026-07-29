@@ -57,6 +57,53 @@ export async function listVisibleBrothers(ctx: RequestContext) {
   }));
 }
 
+/** Someone with access to this org who will never appear on its roster. */
+export interface OffRosterMember {
+  brotherId: number;
+  name:      string;
+  email:     string | null;
+  joinedAt:  string;
+}
+
+/**
+ * Members of this org whose home org is elsewhere (Brother.organizationId ≠
+ * ctx.orgId), so Phase 1 roster reads can't see them.
+ *
+ * This is the visible half of a real gap: a Google account maps to ONE Brother
+ * globally, so when someone who already belongs to another org redeems an open
+ * invite here, redeem-invite gives them a Membership and reuses their existing
+ * Brother row. They get access, they can sign in, they show up in chat and
+ * tasks — but listVisibleBrothers scopes by Brother.organizationId, so the
+ * admin who sent the link sees nothing happen. Silent.
+ *
+ * Kept deliberately SEPARATE from listVisibleBrothers rather than unioned in:
+ * these people have no roster row, so they have no attendance, dues, GPA, or
+ * service figures, and folding them into brotherList would corrupt every KPI
+ * and every roster-driven recalc that assumes those columns exist. The roster
+ * page renders this as an explanatory callout instead.
+ *
+ * The real fix is Phase 2 (roster reads move to Membership) — see AGENTS.md.
+ */
+export async function listOffRosterMembers(ctx: RequestContext): Promise<OffRosterMember[]> {
+  const memberships = await ctx.db.membership.findMany({
+    where:  { brother: { is: { organizationId: { not: ctx.orgId }, isGhost: false } } },
+    select: {
+      brotherId: true,
+      name:      true,
+      joinedAt:  true,
+      brother:   { select: { name: true, email: true } },
+    },
+    orderBy: { joinedAt: "desc" },
+  });
+
+  return memberships.map(m => ({
+    brotherId: m.brotherId,
+    name:      m.name ?? m.brother.name,
+    email:     m.brother.email,
+    joinedAt:  m.joinedAt.toISOString(),
+  }));
+}
+
 export async function createBrother(ctx: RequestContext, input: CreateBrotherInput) {
   let customFields: CustomFieldValues = {};
   if (input.customFields) {

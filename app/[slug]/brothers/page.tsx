@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useMemo, useCallback, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Sidebar } from "../../components/Sidebar";
 import { BrotherAvatar } from "../../components/BrotherAvatar";
 import { Modal, FieldLabel } from "../../components/dashboard/primitives";
@@ -11,6 +12,7 @@ import { useToast } from "../../components/dashboard/Toast";
 import { useChapter } from "../../context/ChapterContext";
 import { useVocab } from "../../hooks/useVocab";
 import { useThresholds } from "../../hooks/useThresholds";
+import { useOrgPath } from "../../hooks/useOrgPath";
 import {
   Brother,
   BrotherStatus,
@@ -34,6 +36,8 @@ function clamp(n: number, lo: number, hi: number) {
 
 // Minimal service-event shape for the Brother-drawer "Log service hours" picker.
 type ServiceEventOption = { id: number; title: string; date: string };
+/** Shape of GET /api/brothers/off-roster (lib/services/brother-service). */
+type OffRosterMember = { brotherId: number; name: string; email: string | null; joinedAt: string };
 
 // Warm "Chapter Ledger" KPI cell — non-interactive (no per-KPI drawer on this page).
 // `note` carries the optional gold "needs attention" subline.
@@ -136,9 +140,14 @@ export default function BrothersPage() {
   const { currentUser, brotherList, setBrotherList, isLoading, avatarRevision, can, setSelfNameLocal } = useChapter();
   const v = useVocab();
   const toast = useToast();
+  const router = useRouter();
+  const orgPath = useOrgPath();
   const THRESHOLDS = useThresholds();
   const canBrothers = can("MANAGE_BROTHERS");
   const canTreasury = can("MANAGE_TREASURY");
+  // Invite links are gated on MANAGE_SETTINGS, not MANAGE_BROTHERS — roster CRUD
+  // and settings authority are deliberately separate bits (lib/permissions.ts).
+  const canSettings = can("MANAGE_SETTINGS");
   // Distinct from MANAGE_BROTHERS — gates the pending-excuse chip + drawer review.
   const canAttendance = can("MANAGE_ATTENDANCE");
   const customFieldDefs = useMemo(
@@ -171,6 +180,15 @@ export default function BrothersPage() {
   const [logHoursEventId, setLogHoursEventId] = useState<number | null>(null);
   const [logHoursStr,     setLogHoursStr]     = useState("");
   const [logHoursBusy,    setLogHoursBusy]    = useState(false);
+  // Members with access to this org who can't appear on its roster — see the
+  // effect below.
+  const [offRoster,       setOffRoster]       = useState<OffRosterMember[]>([]);
+
+  // ?section=invitations is read on mount by the settings page, which opens the
+  // Membership group and scrolls to the invitations block.
+  const goToInvites = useCallback(() => {
+    router.push(`${orgPath("/settings")}?section=invitations`);
+  }, [router, orgPath]);
 
   function openLogServiceHours(b: Brother) {
     setLogHoursFor(b);
@@ -192,6 +210,18 @@ export default function BrothersPage() {
       .then(setPendingCounts)
       .catch(() => {});
   }, [canAttendance]);
+
+  // People who joined this org through an invite link but can never show up in
+  // the table below, because their Brother row's home org is elsewhere (see
+  // listOffRosterMembers). Without this the admin sees an invite's join count
+  // climb while the roster sits still, and nothing explains the gap.
+  // Silent on failure: it's an explanatory callout, not roster data.
+  useEffect(() => {
+    if (!canBrothers) { setOffRoster([]); return; }
+    requestJson<OffRosterMember[]>("/api/brothers/off-roster")
+      .then(setOffRoster)
+      .catch(() => {});
+  }, [canBrothers]);
 
   // After a drawer approve/reject, drop the acted-on member's chip (floor 0) and
   // patch attendance on approval (mirrors the Timeline review queue).
@@ -508,6 +538,15 @@ export default function BrothersPage() {
                   <svg viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
                   Export
                 </button>
+                {/* The roster is where anyone goes to think about adding people,
+                    but inviting used to live only in Settings → Membership with
+                    nothing here pointing at it. */}
+                {canSettings && (
+                  <button className="btn" onClick={goToInvites} title="Create an invite link">
+                    <svg viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M13.5 10.5L21 3m0 0h-5.25M21 3v5.25M10 5H6a3 3 0 00-3 3v10a3 3 0 003 3h10a3 3 0 003-3v-4" /></svg>
+                    Invite
+                  </button>
+                )}
                 {canBrothers && (
                   <button className="btn primary" onClick={() => setShowAddModal(true)}>
                     <svg viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 5v14m7-7H5" /></svg>
@@ -583,6 +622,27 @@ export default function BrothersPage() {
               </section>
             )}
 
+            {/* ── Off-roster members ──
+                People who joined this org through an invite link but hold only a
+                Membership here: their Brother row's home org is elsewhere, and a
+                Google account maps to exactly one Brother globally, so no roster
+                row can exist for them until Phase 2 moves these reads to
+                Membership. Explaining that beats leaving the admin to wonder why
+                an invite's join count moved and the roster didn't. */}
+            {offRoster.length > 0 && (
+              <div className="page-note" style={{ marginTop: 14 }}>
+                <p>
+                  <b>
+                    {offRoster.length} {offRoster.length === 1 ? "person" : "people"} joined by invite link
+                  </b>{" "}
+                  but {offRoster.length === 1 ? "isn’t" : "aren’t"} on this roster — they already belong to
+                  another organization on ChaptOS. Their access works; the figures
+                  above and the table below don&rsquo;t count them.
+                </p>
+                <p className="who">{offRoster.map(m => m.name).join(", ")}</p>
+              </div>
+            )}
+
             {/* ── Roster ── */}
             <section className="card roster" style={{ marginTop: 14 }} aria-label="Roster">
               <div className="card-h">
@@ -626,6 +686,33 @@ export default function BrothersPage() {
                       [...Array(6)].map((_, i) => (
                         <tr key={i}><td colSpan={6 + customFieldDefs.length} style={{ padding: 0 }}><div className="row-skel" /></td></tr>
                       ))
+                    ) : brotherList.length === 0 ? (
+                      /* A brand-new org used to be told its members didn't
+                         "match your filters" — the one moment the page should be
+                         handing over a way to get people in. */
+                      <tr className="empty-row">
+                        <td colSpan={6 + customFieldDefs.length}>
+                          <div className="roster-empty">
+                            <div className="t">No one&rsquo;s on the roster yet</div>
+                            <div className="h">
+                              Share an invite link and {v("Member", true).toLowerCase()} can sign in
+                              themselves, or add them by hand.
+                            </div>
+                            <div className="a">
+                              {canSettings && (
+                                <button className="btn primary" onClick={goToInvites}>
+                                  Invite your {v("Member", true).toLowerCase()}
+                                </button>
+                              )}
+                              {canBrothers && (
+                                <button className="btn" onClick={() => setShowAddModal(true)}>
+                                  Add manually
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
                     ) : filtered.length === 0 ? (
                       <tr className="empty-row"><td colSpan={6 + customFieldDefs.length}>No {v("Member", true).toLowerCase()} match your filters.</td></tr>
                     ) : (
