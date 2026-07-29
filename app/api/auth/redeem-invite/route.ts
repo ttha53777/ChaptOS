@@ -10,6 +10,7 @@ import { logActivity } from "@/lib/activity";
 import { claimedResponse } from "@/lib/auth/session-cookies";
 import { rateLimit, clientIp, tooManyRequests } from "@/lib/rate-limit";
 import { logError } from "@/lib/observability";
+import { resolveInviteToken, deadReasonStatus, DEAD_REASON_MESSAGE } from "@/lib/auth/invite-lookup";
 
 // Pre-auth invite redemption. The redeemer has a Supabase session but may have
 // no Brother / no Membership in this org yet, so there's no RequestContext to
@@ -59,31 +60,68 @@ export async function POST(req: NextRequest) {
   const token = String(body.token ?? "").trim();
   if (!token) return Response.json({ error: "Missing invite token" }, { status: 400 });
 
-  // ── 3. Global token lookup (redeemer isn't a member yet) ──────────────────
-  const invite = await prisma.orgInvite.findUnique({
-    where: { token },
-    select: {
-      id: true, mode: true, expiresAt: true, revokedAt: true,
-      organization: { select: { id: true, slug: true, name: true } },
-    },
-  });
-  if (!invite) return Response.json({ error: "Invite not found" }, { status: 404 });
-  if (invite.revokedAt) return Response.json({ error: "This invite has been revoked." }, { status: 410 });
-  if (invite.expiresAt && invite.expiresAt < new Date()) {
-    return Response.json({ error: "This invite has expired." }, { status: 410 });
+  // ── 3. Resolve the token (redeemer isn't a member yet) ────────────────────
+  // Shared with GET /api/auth/invite-status so the pre-flight the join screen
+  // rendered and the write it then attempts can never disagree.
+  const lookup = await resolveInviteToken(token);
+  if (!lookup.invite) {
+    return Response.json({ error: DEAD_REASON_MESSAGE.not_found }, { status: 404 });
   }
 
-  const orgId   = invite.organization.id;
-  const orgSlug = invite.organization.slug;
+  const orgId   = lookup.invite.orgId;
+  const orgSlug = lookup.invite.orgSlug;
+  const mode    = lookup.invite.mode;
+  const inviteId = lookup.invite.id;
 
-  // ── 4. claim mode → hand off to the existing name-match claim flow ────────
-  // We validated expiry/revoke above, so a dead claim link is rejected before
-  // the user is sent to /pending-access. We write nothing here.
-  if (invite.mode === "claim") {
+  // ── 4. Already in this org? ───────────────────────────────────────────────
+  // Answered BEFORE the dead-link gate on purpose: someone who already has
+  // access should be told so and sent to the org, not handed "this link
+  // expired" for a link that has nothing left to do for them.
+  //
+  // This is also what stops the silent rename. This path used to fall straight
+  // through to the membership upsert below, whose `update: { name }` quietly
+  // overwrote the person's org display name with whatever they retyped on a
+  // form they shouldn't have been shown. Now it writes nothing at all.
+  const existing = await prisma.brother.findUnique({
+    where:  { authUserId: user.id },
+    select: { id: true },
+  });
+  if (existing) {
+    const membership = await prisma.membership.findUnique({
+      where:  { brotherId_organizationId: { brotherId: existing.id, organizationId: orgId } },
+      select: { id: true },
+    });
+    if (membership) {
+      return claimedResponse(orgId, { mode, orgSlug, alreadyMember: true });
+    }
+  }
+
+  // ── 5. Dead-link gate ─────────────────────────────────────────────────────
+  // Covers revoked, expired, and (new) exhausted — maxUses. The cap is soft:
+  // the count is read here and the write happens below, so two simultaneous
+  // redemptions can both pass. Hardening it would take a serializable
+  // transaction or a counter column, and over-admitting a person or two on a
+  // rush link isn't worth either.
+  if (!lookup.ok) {
+    return Response.json(
+      { error: DEAD_REASON_MESSAGE[lookup.reason], reason: lookup.reason },
+      { status: deadReasonStatus(lookup.reason) },
+    );
+  }
+
+  // ── 6. claim mode → hand off to the existing name-match claim flow ────────
+  // ONLY for genuinely new accounts. Brother.authUserId is unique globally, so
+  // a user who already owns a Brother row can never be linked to a second one:
+  // /api/auth/claim answers them 409 "already linked to a brother" every time,
+  // and /pending-access offers nothing but a Sign out button. Routing them
+  // there was a guaranteed dead end, so they take the membership path below
+  // instead. Their roster entry in this org stays unclaimed for an officer to
+  // reconcile — the honest Phase 1 outcome, and the join screen says as much.
+  if (mode === "claim" && !existing) {
     return Response.json({ ok: true, mode: "claim", orgSlug });
   }
 
-  // ── 5. open mode ──────────────────────────────────────────────────────────
+  // ── 7. Join by membership ─────────────────────────────────────────────────
   // A Google account maps to one Brother globally (authUserId @unique). If one
   // already exists, REUSE it and just add a Membership to this org (the
   // multi-org pattern from org-service). Otherwise create a fresh Brother.
@@ -95,11 +133,6 @@ export async function POST(req: NextRequest) {
   // Membership for this org (below), which is what makes per-org names work.
   const name = String(body.name ?? "").trim();
   if (!name) return Response.json({ error: "Name is required" }, { status: 400 });
-
-  const existing = await prisma.brother.findUnique({
-    where: { authUserId: user.id },
-    select: { id: true },
-  });
 
   let brotherId: number;
   let reused: boolean;
@@ -145,11 +178,15 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // ── 6. Membership (idempotent) — plain member, no admin ───────────────────
+  // ── 8. Membership — plain member, no admin ────────────────────────────────
   // `name` lands here, not on the Brother row: it's this person's identity in
   // THIS org, so a member reusing an existing account keeps whatever their other
-  // orgs call them. Set on update too — re-redeeming with a different name is a
-  // rename, and it must not be a silent no-op the way the old `update: {}` was.
+  // orgs call them.
+  //
+  // `update: { name }` is now unreachable for an existing member — step 4
+  // returns before this — so it only ever fires on a genuine race where the
+  // membership appeared between that check and this write. Keeping it means
+  // such a race still records the name the person just typed.
   try {
     await prisma.membership.upsert({
       where:  { brotherId_organizationId: { brotherId, organizationId: orgId } },
@@ -161,10 +198,10 @@ export async function POST(req: NextRequest) {
     return Response.json({ error: "Failed to join. Please try again." }, { status: 500 });
   }
 
-  // ── 7. Record the redemption (idempotent on re-click) ─────────────────────
+  // ── 9. Record the redemption (idempotent on re-click) ─────────────────────
   await prisma.inviteRedemption.upsert({
-    where:  { inviteId_brotherId: { inviteId: invite.id, brotherId } },
-    create: { inviteId: invite.id, brotherId },
+    where:  { inviteId_brotherId: { inviteId, brotherId } },
+    create: { inviteId, brotherId },
     update: {},
   }).catch(e => logError(e, { route: "/api/auth/redeem-invite", method: "POST", userId: user.id, extra: { stage: "redemption", orgId } }));
 
@@ -174,7 +211,12 @@ export async function POST(req: NextRequest) {
     message: `${user.email ?? "A new member"} joined via invite link`,
     orgId,
   });
-  void emitRedeemEvent(orgId, invite.id, brotherId, invite.mode, reused);
+  void emitRedeemEvent(orgId, inviteId, brotherId, mode, reused);
 
+  // Always "open" to the client: reaching here means they joined by Membership,
+  // whichever mode the link carried. Only the /pending-access handoff in step 6
+  // reports "claim", and the client keys its redirect off that. A claim link
+  // that lands here belongs to someone the join screen already warned (its
+  // "existing_account" state) that an officer must link their roster entry.
   return claimedResponse(orgId, { mode: "open", orgSlug });
 }
