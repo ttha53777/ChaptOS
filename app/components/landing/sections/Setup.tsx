@@ -46,8 +46,8 @@ type Kind = {
 const KINDS: Record<string, Kind> = {
   fraternity: {
     btn: "Fraternity",
-    name: "Lambda Phi",
-    slug: "chaptos.app/lambda-phi",
+    name: "Oozma Kappa",
+    slug: "chaptos.app/oozma-kappa",
     kind: "Fraternity / sorority",
     on: ["Dashboard", "Timeline", "Roster", "Meetings", "Attendance", "Treasury", "Service", "Parties", "Docs"],
     words: [["Member", "Brother"], ["Meetings", "Chapter"], ["Term", "Semester"]],

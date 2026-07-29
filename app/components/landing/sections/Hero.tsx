@@ -67,7 +67,7 @@ export function Hero() {
               <i className="tl" />
               <i className="tl" />
               <i className="tl" />
-              <span className="hero__crumb mono">chaptos.app / lambda-phi</span>
+              <span className="hero__crumb mono">chaptos.app / oozma-kappa</span>
             </div>
             <div className="hero__cardbody">
               <div className="ui-brief">
