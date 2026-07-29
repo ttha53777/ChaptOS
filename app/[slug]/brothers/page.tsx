@@ -635,9 +635,10 @@ export default function BrothersPage() {
                   <b>
                     {offRoster.length} {offRoster.length === 1 ? "person" : "people"} joined by invite link
                   </b>{" "}
-                  but {offRoster.length === 1 ? "isn’t" : "aren’t"} on this roster — they already belong to
-                  another organization on ChaptOS. Their access works; the figures
-                  above and the table below don&rsquo;t count them.
+                  but {offRoster.length === 1 ? "isn’t" : "aren’t"}{" "}
+                  on this roster — they already belong to another organization on
+                  ChaptOS. Their access works; the figures above and the table
+                  below don&rsquo;t count them.
                 </p>
                 <p className="who">{offRoster.map(m => m.name).join(", ")}</p>
               </div>
