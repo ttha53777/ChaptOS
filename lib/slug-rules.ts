@@ -34,6 +34,11 @@ const SYSTEM_ROUTES: readonly string[] = [
   "docs", "login", "logout", "settings", "signin", "signout", "signup",
   "welcome", "pending-access", "brothers", "timeline", "treasury",
   "service", "parties", "instagram",
+  // "trust" backs the real page at app/trust/ (public disclosure copy). The
+  // other three are its conventional siblings — reserved ahead of being built so
+  // adding app/privacy/ later can't be shadowed by an org that already took the
+  // slug, which is unfixable without renaming someone's workspace.
+  "trust", "privacy", "terms", "legal",
 ];
 
 const INFRA_HOSTS: readonly string[] = [

@@ -91,6 +91,10 @@ export async function proxy(request: NextRequest) {
     // matcher (unlike /login) so the post-OAuth resume leg still gets a fresh
     // session cookie from the refresh above.
     if (request.nextUrl.pathname === "/create") return response;
+    // /trust is public disclosure copy linked from the marketing footer — it must
+    // be readable without an account (that's the whole point of publishing it),
+    // and it renders the same for signed-in visitors, so no redirect either way.
+    if (request.nextUrl.pathname === "/trust") return response;
     return redirectToLogin(request);
   }
 

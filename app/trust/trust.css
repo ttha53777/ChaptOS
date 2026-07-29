@@ -1,0 +1,292 @@
+/* ============================================================================
+   ChaptOS — /trust (Trust & privacy)
+
+   Same paper, ink, pastels and typefaces as the marketing landing page: this
+   file is scoped under `.lp .tp` and deliberately imports NOTHING of its own —
+   every token comes from landing.css, which the page also imports. Adding `.tp`
+   next to `.lp` therefore inherits the whole design system (wrap, btn, eyebrow,
+   pill, card, mono, foot, nav) and this file only adds the long-form reading
+   layout the landing page has no use for.
+
+   Two deliberate differences from the landing page:
+
+     1. NO MOTION. The landing page's reveal system leaves [data-reveal] nodes at
+        opacity:0 until LandingMotion (a client component) adds .is-in. This page
+        never mounts it, so it must never carry those hooks — nothing here fades,
+        pins, or parallaxes. That's also the brief: a page someone reads under
+        pressure should not animate.
+     2. THE NAV IS PERMANENTLY "STUCK". `.lp .nav.is-stuck` is normally applied by
+        LandingMotion on scroll. Without it a sticky-but-transparent bar would let
+        text scroll underneath it, so §1 below bakes the stuck treatment in.
+
+   Structure
+     1. nav (always-stuck variant)
+     2. hero + the short version
+     3. reading layout + sticky contents rail
+     4. prose (headings, paragraphs, lists, links)
+     5. blocks (callouts, tables, key/value rows, claim split, contact)
+     6. responsive
+   ========================================================================== */
+
+/* Height of the always-stuck nav. Drives both the contents rail's sticky offset
+   and every heading's scroll-margin, so an anchor jump can't land a heading
+   underneath the bar. */
+.lp.tp{--tp-nav-h:68px}
+
+/* ---------- 1. nav (always-stuck variant) --------------------------------- */
+/* Mirrors .lp .nav.is-stuck from landing.css. Not written as a shared class
+   because the landing page transitions INTO this state and this page is born in
+   it — no transition, so nothing to share. */
+.lp.tp .nav{
+  padding:9px 0;
+  background:rgba(255,252,246,.86);
+  backdrop-filter:blur(14px) saturate(1.3);
+  border-bottom-color:var(--line);
+  box-shadow:0 6px 22px -18px rgba(38,33,27,.5);
+}
+/* The current page in the nav: readable as "you are here" without a link's
+   affordance. */
+.lp.tp .nav__links .is-here{color:var(--ink); background:var(--paper-3); font-weight:600}
+
+/* ---------- 2. hero + the short version ----------------------------------- */
+.lp .tp__hero{padding:clamp(46px,6vw,84px) 0 0}
+.lp .tp__head{max-width:760px}
+.lp .tp__head h1{margin-top:18px; font-size:clamp(2.1rem,4.2vw,3.15rem)}
+.lp .tp__head .lede{margin-top:20px; max-width:60ch}
+
+/* Effective date / version strip. Mono for the date so it reads as a record.
+   The separator is a ::before on every item but the first, so a row that wraps
+   leads the new line with the bullet instead of orphaning one at the end of the
+   previous line. */
+.lp .tp__meta{
+  margin-top:26px; display:flex; flex-wrap:wrap; gap:8px 14px; align-items:baseline;
+  font-size:.86rem; color:var(--ink-3);
+}
+/* The bullet is an inline ::before inside the (blockified) flex item, so it sits
+   on the same line as that item's own text and travels with it when it wraps. */
+.lp .tp__meta > span + span::before{
+  content:'·'; margin-right:9px; color:var(--line-2); font-weight:700;
+}
+.lp .tp__meta .k{font-family:var(--mono); color:var(--ink-2); font-variant-numeric:tabular-nums}
+
+/* "The short version" — the five things a reader wants before they decide
+   whether to read the rest. Four across, then two, then one. */
+.lp .tp__tldr{
+  margin-top:clamp(34px,4.5vw,54px);
+  display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:14px;
+}
+.lp .tldr{
+  padding:20px; background:var(--card); border:1.5px solid var(--line);
+  border-radius:var(--r-lg); box-shadow:var(--sh-1);
+}
+.lp .tldr__ic{
+  width:38px; height:38px; border-radius:12px; display:grid; place-items:center;
+  background:var(--g, var(--sky-soft)); border:1.5px solid var(--gb, #CCDFFB);
+}
+.lp .tldr h4{margin-top:13px}
+.lp .tldr p{margin-top:7px; font-size:.89rem; line-height:1.5; color:var(--ink-2)}
+
+/* ---------- 3. reading layout + contents rail ----------------------------- */
+.lp .tp__layout{
+  margin-top:clamp(48px,6vw,86px); padding-bottom:clamp(64px,8vw,120px);
+  display:grid; grid-template-columns:236px minmax(0,1fr); gap:clamp(32px,4.5vw,72px);
+  align-items:start;
+}
+
+.lp .tp__toc{position:sticky; top:calc(var(--tp-nav-h) + 20px)}
+.lp .tp__toc h5{
+  font-size:.74rem; letter-spacing:.09em; text-transform:uppercase;
+  color:var(--ink-3); font-weight:600; margin-bottom:12px;
+}
+.lp .tp__toc ol{display:grid; gap:1px; counter-reset:toc}
+.lp .tp__toc a{
+  display:flex; gap:10px; padding:7px 10px; border-radius:var(--r-sm);
+  text-decoration:none; color:var(--ink-2); font-size:.885rem; line-height:1.35;
+  transition:background .16s, color .16s;
+}
+.lp .tp__toc a::before{
+  counter-increment:toc; content:counter(toc);
+  font-family:var(--mono); font-size:.76rem; color:var(--ink-3);
+  flex:none; padding-top:.12em; font-variant-numeric:tabular-nums;
+}
+.lp .tp__toc a:hover{background:var(--paper-2); color:var(--ink)}
+
+/* The prose column. ~74ch is the widest a 17px line stays comfortable at.
+   min-width:0 because this is a grid item AND a grid container: without it the
+   automatic minimum size would be its content-based minimum, and the widest
+   thing inside is a table carrying min-width (see .tp__t) — which would push the
+   whole column past the viewport instead of scrolling inside its own box. */
+.lp .tp__body{max-width:74ch; min-width:0; display:grid; gap:clamp(44px,5vw,68px)}
+
+/* ---------- 4. prose ------------------------------------------------------ */
+/* min-width:0 for the same reason as .tp__body above — each section is a grid
+   item, and a table's min-width inside it must not become the section's floor. */
+.lp .tp__sec{min-width:0; scroll-margin-top:calc(var(--tp-nav-h) + 24px)}
+.lp .tp__sec > h2{
+  font-size:clamp(1.5rem,2.6vw,2.05rem); line-height:1.12;
+  display:flex; gap:14px; align-items:baseline;
+}
+/* Section number, mono, in the gutter on wide screens so the heading text keeps
+   a flush left edge with the body copy. */
+.lp .tp__sec > h2::before{
+  content:counter(sec); counter-increment:sec;
+  font-family:var(--mono); font-size:.82rem; font-weight:500;
+  color:var(--ink-3); letter-spacing:0; flex:none;
+  padding-top:.34em; min-width:1.6ch;
+}
+.lp .tp__body{counter-reset:sec}
+
+.lp .tp__sec h3{
+  margin-top:32px; font-size:1.12rem; letter-spacing:-.018em; line-height:1.3;
+  font-family:var(--display); font-weight:600;
+}
+.lp .tp__sec h4{margin-top:24px; font-size:.99rem}
+.lp .tp__sec p{margin-top:14px; color:var(--ink-2); line-height:1.68}
+.lp .tp__sec > p:first-of-type{margin-top:16px}
+/* Section standfirst — one plain-language line under the heading, before detail. */
+.lp .tp__sec .tp__lede{font-size:1.06rem; color:var(--ink); line-height:1.6; margin-top:16px}
+.lp .tp__sec strong,.lp .tp__sec b{color:var(--ink); font-weight:600}
+.lp .tp__sec a{
+  color:var(--sky-ink); text-decoration:underline;
+  text-decoration-color:#BBD3F5; text-underline-offset:2.5px;
+}
+.lp .tp__sec a:hover{text-decoration-color:var(--sky-ink)}
+.lp .tp__sec code{
+  font-family:var(--mono); font-size:.86em; padding:1.5px 5px;
+  background:var(--paper-3); border-radius:5px; color:var(--ink-2);
+  overflow-wrap:anywhere;
+}
+
+/* landing.css strips list styling globally under .lp, so bullets are rebuilt
+   here rather than inherited. The dash is a hand-drawn-feeling en rule. */
+.lp .tp__list{margin-top:14px; display:grid; gap:10px}
+.lp .tp__list > li{
+  position:relative; padding-left:20px; color:var(--ink-2); line-height:1.62;
+}
+.lp .tp__list > li::before{
+  content:''; position:absolute; left:0; top:.72em;
+  width:10px; height:2px; border-radius:2px; background:var(--line-2);
+}
+.lp .tp__list--check > li::before{
+  content:'✓'; width:auto; height:auto; background:none; top:0;
+  color:var(--mint-ink); font-size:.92em; font-weight:700;
+}
+.lp .tp__list--no > li::before{
+  content:'✕'; width:auto; height:auto; background:none; top:0;
+  color:var(--peach-ink); font-size:.86em; font-weight:700;
+}
+.lp .tp__list li > strong:first-child{color:var(--ink)}
+
+/* ---------- 5. blocks ----------------------------------------------------- */
+/* Callout. Default is the calm "in plain English" note; --warn is for a limit
+   or a caveat the reader must not skim past. */
+.lp .tp__note{
+  margin-top:22px; padding:18px 20px; border-radius:var(--r-md);
+  background:var(--n-bg, var(--sky-soft)); border:1.5px solid var(--n-bd, #CCDFFB);
+}
+.lp .tp__note h5{
+  font-size:.73rem; letter-spacing:.09em; text-transform:uppercase; font-weight:700;
+  color:var(--n-fg, var(--sky-ink)); margin-bottom:8px;
+}
+.lp .tp__note p{margin-top:0; color:var(--ink-2); font-size:.94rem; line-height:1.6}
+.lp .tp__note p + p{margin-top:10px}
+.lp .tp__note--warn{--n-bg:var(--butter-soft); --n-bd:#F4DFA6; --n-fg:var(--butter-ink)}
+.lp .tp__note--good{--n-bg:var(--mint-soft); --n-bd:#BDE7D2; --n-fg:var(--mint-ink)}
+.lp .tp__note--flag{--n-bg:var(--peach-soft); --n-bd:#F8D2C2; --n-fg:var(--peach-ink)}
+
+/* Tables. Wide ones scroll inside their own box — the page body never scrolls
+   sideways. */
+.lp .tp__tw{
+  margin-top:20px; overflow-x:auto; border:1.5px solid var(--line);
+  border-radius:var(--r-md); background:var(--card);
+}
+.lp .tp__t{width:100%; border-collapse:collapse; font-size:.9rem; min-width:520px}
+.lp .tp__t th,.lp .tp__t td{
+  text-align:left; padding:11px 14px; vertical-align:top; line-height:1.5;
+  border-bottom:1px solid var(--line);
+}
+.lp .tp__t thead th{
+  background:var(--paper-2); font-size:.73rem; letter-spacing:.07em;
+  text-transform:uppercase; color:var(--ink-3); font-weight:600; white-space:nowrap;
+}
+.lp .tp__t tbody tr:last-child th,.lp .tp__t tbody tr:last-child td{border-bottom:0}
+.lp .tp__t tbody th{font-weight:600; color:var(--ink); white-space:nowrap}
+.lp .tp__t td{color:var(--ink-2)}
+.lp .tp__t code{font-size:.82em}
+/* A column of field names / cookie names reads better mono and left-locked. */
+.lp .tp__t .m{font-family:var(--mono); font-size:.83em; color:var(--ink-2); overflow-wrap:anywhere}
+
+/* Two facing columns: what we do claim vs what we don't. Colour does the
+   labelling work so the split survives being skimmed. */
+.lp .tp__split{margin-top:22px; display:grid; grid-template-columns:1fr 1fr; gap:14px}
+.lp .tp__col{
+  padding:20px; border-radius:var(--r-md); border:1.5px solid var(--c-bd, var(--line));
+  background:var(--c-bg, var(--card));
+}
+.lp .tp__col--yes{--c-bg:var(--mint-soft); --c-bd:#BDE7D2}
+.lp .tp__col--no{--c-bg:var(--paper-2); --c-bd:var(--line-2)}
+.lp .tp__col h5{
+  font-size:.73rem; letter-spacing:.09em; text-transform:uppercase; font-weight:700;
+  margin-bottom:12px; color:var(--ink-2);
+}
+.lp .tp__col--yes h5{color:var(--mint-ink)}
+.lp .tp__col--no h5{color:var(--ink-3)}
+.lp .tp__col .tp__list{margin-top:0}
+.lp .tp__col .tp__list > li{font-size:.91rem; line-height:1.55}
+
+/* Contact / rights card — the page's one call to action. */
+.lp .tp__contact{
+  margin-top:26px; padding:clamp(24px,3.5vw,34px);
+  background:var(--card); border:1.5px solid var(--ink); border-radius:var(--r-xl);
+  box-shadow:6px 6px 0 var(--lilac);
+}
+.lp .tp__contact h3{margin-top:0}
+.lp .tp__contact p{margin-top:12px}
+.lp .tp__contact .tp__rows{margin-top:20px; display:grid; gap:12px}
+.lp .tp__row{
+  display:flex; flex-wrap:wrap; gap:4px 12px; align-items:baseline;
+  padding-top:12px; border-top:1px solid var(--line);
+}
+.lp .tp__row:first-child{padding-top:0; border-top:0}
+.lp .tp__row dt{
+  font-size:.74rem; letter-spacing:.08em; text-transform:uppercase;
+  color:var(--ink-3); font-weight:600; min-width:132px;
+}
+.lp .tp__row dd{font-size:.95rem; color:var(--ink)}
+
+/* An unfilled placeholder (entity name, contact address). Deliberately loud:
+   this page must not ship with any of these still visible. */
+.lp .tp__todo{
+  font-family:var(--mono); font-size:.86em; padding:1.5px 6px; border-radius:5px;
+  background:var(--rose-soft); border:1px dashed var(--rose-ink); color:var(--rose-ink);
+}
+
+/* ---------- 6. responsive ------------------------------------------------- */
+@media (max-width: 1180px){
+  .lp .tp__tldr{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media (max-width: 1000px){
+  /* The rail stops being a rail: it becomes a contents card above the copy,
+     two columns wide so it doesn't push the first section off-screen. */
+  .lp .tp__layout{grid-template-columns:minmax(0,1fr); gap:36px}
+  .lp .tp__toc{
+    position:static; padding:20px; background:var(--paper-2);
+    border:1.5px solid var(--line); border-radius:var(--r-lg);
+  }
+  .lp .tp__toc ol{grid-template-columns:1fr 1fr; display:grid; gap:2px 18px}
+  .lp .tp__body{max-width:none}
+}
+@media (max-width: 760px){
+  .lp .tp__split{grid-template-columns:minmax(0,1fr)}
+  .lp .tp__toc ol{grid-template-columns:minmax(0,1fr)}
+  /* The number moves inline above 2 lines of heading rather than eating width. */
+  .lp .tp__sec > h2{gap:11px; font-size:1.42rem}
+}
+@media (max-width: 560px){
+  .lp .tp__tldr{grid-template-columns:minmax(0,1fr)}
+  .lp .tp__row dt{min-width:0; width:100%}
+  /* Tables still scroll rather than reflow (a two-column table of prose is worse
+     stacked), but a narrower floor means less of a swipe on a phone. */
+  .lp .tp__t{min-width:400px}
+  .lp .tp__t th,.lp .tp__t td{padding:10px 12px}
+}
