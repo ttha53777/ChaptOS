@@ -8,11 +8,15 @@ import { logError } from "@/lib/observability";
 // Invite links are credentials, so both list and create require MANAGE_SETTINGS
 // (org/platform admins bypass via buildContext).
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const { ctx, error } = await buildContext({ requirePerm: "MANAGE_SETTINGS", rateLimit: false });
   if (error) return error;
   try {
-    return Response.json(await listInvites(ctx));
+    // ?include=all also returns revoked / expired / exhausted links, so the
+    // settings list can offer a history view instead of having revoked links
+    // vanish without a trace.
+    const includeInactive = new URL(req.url).searchParams.get("include") === "all";
+    return Response.json(await listInvites(ctx, { includeInactive }));
   } catch (e) {
     logError(e, { route: "/api/invites", method: "GET", userId: ctx.actorId, extra: { requestId: ctx.requestId } });
     return toResponse(e);

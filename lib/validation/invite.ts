@@ -3,16 +3,28 @@ import { INVITE_MODES } from "@/lib/state";
 
 // Input for POST /api/invites (admin generates an org invite link).
 //
-//   mode   — "open" (redeeming creates a new Brother + Membership) or
-//            "claim" (routes the redeemer into the name-match claim flow).
-//   expiry — a preset; mapped to an absolute expiresAt server-side via
-//            expiryToDate(). "never" → null (no expiry).
+//   mode    — "open" (redeeming creates a new Brother + Membership) or
+//             "claim" (routes the redeemer into the name-match claim flow).
+//   expiry  — a preset; mapped to an absolute expiresAt server-side via
+//             expiryToDate(). "never" → null (no expiry).
+//   label   — the admin's own name for the link. Optional; blank is normalized
+//             to undefined so an untouched input doesn't store an empty string.
+//   maxUses — redemption cap. Optional; undefined = unlimited. Bounded at 500
+//             because it's a chapter roster, not a public signup funnel.
 export const INVITE_EXPIRY_PRESETS = ["20m", "1d", "7d", "14d", "never"] as const;
 export type InviteExpiry = (typeof INVITE_EXPIRY_PRESETS)[number];
+
+export const INVITE_LABEL_MAX = 60;
+export const INVITE_MAX_USES_CEILING = 500;
 
 export const createInviteInput = z.object({
   mode:   z.enum(INVITE_MODES as readonly [string, ...string[]]),
   expiry: z.enum(INVITE_EXPIRY_PRESETS),
+  label:  z.string().trim().max(INVITE_LABEL_MAX)
+           .transform(s => (s === "" ? undefined : s))
+           .optional(),
+  maxUses: z.number().int().positive().max(INVITE_MAX_USES_CEILING).nullish()
+           .transform(n => n ?? undefined),
 });
 
 export type CreateInviteInput = z.infer<typeof createInviteInput>;
