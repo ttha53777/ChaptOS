@@ -267,21 +267,29 @@ export default function SettingsPage() {
     if (deepLinkHandledRef.current) return;
     const params = new URLSearchParams(window.location.search);
     const id = params.get("section");
+    if (!id) { deepLinkHandledRef.current = true; return; }
+
+    // Wait for ChapterContext before deciding. Permission bits ride in with
+    // currentUser, and until they land `isVisible` reports false for every
+    // permission-gated section — so running this on mount silently dropped the
+    // deep link for exactly the sections that use it (the dashboard setup
+    // checklist's "Invite your members" and the roster's Invite button both
+    // point at ?section=invitations, which is MANAGE_SETTINGS-gated).
+    if (!currentUser) return;
     deepLinkHandledRef.current = true;
+
     // Match against the real id list (not `id in BY_ID`, which would also accept
     // inherited Object keys like "toString" and set dest to undefined).
     const known = NAV_ITEMS.some(n => n.id === id);
-    if (id && known && isVisible(id as NavItem["id"])) {
+    if (known && isVisible(id as NavItem["id"])) {
       selectSection(id as NavItem["id"]);
     }
-    if (id) {
-      params.delete("section");
-      const qs = params.toString();
-      window.history.replaceState(null, "", `${window.location.pathname}${qs ? `?${qs}` : ""}`);
-    }
-    // selectSection/isVisible are stable enough for a once-on-mount effect.
+    params.delete("section");
+    const qs = params.toString();
+    window.history.replaceState(null, "", `${window.location.pathname}${qs ? `?${qs}` : ""}`);
+    // selectSection/isVisible are stable enough; currentUser is the readiness gate.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [currentUser]);
 
   const activeGroup = dest === "index" ? null : dest;
 
