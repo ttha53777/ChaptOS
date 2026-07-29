@@ -203,6 +203,15 @@ model Brother {
 //             "claim" → redeeming routes the user into the name-match claim flow.
 //   expiresAt null    → never expires.
 //   revokedAt null    → still active.
+//   label     null    → unnamed; otherwise the admin's own name for the link
+//                       ("Fall rush"), so a settings list of several links is
+//                       readable at a glance.
+//   maxUses   null    → unlimited. Otherwise the redemption cap.
+//
+// The cap is deliberately SOFT: redeem-invite counts redemptions and then
+// writes, so simultaneous joins can exceed it by a small margin. Making it hard
+// would need a serializable transaction or a counter column, and over-admitting
+// two people on a rush link is not worth either.
 //
 // `token` is stored in plaintext: it's a bearer credential that already lives in
 // the URL/clipboard/chat, so hashing it (vs a password) buys little here. If a
@@ -213,6 +222,8 @@ model OrgInvite {
   organizationId     Int
   token              String    @unique
   mode               String // InviteMode union in @/lib/state
+  label              String?
+  maxUses            Int?
   expiresAt          DateTime?
   revokedAt          DateTime?
   createdByBrotherId Int

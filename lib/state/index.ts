@@ -20,6 +20,7 @@ export * from "./party-type";
 export * from "./activity-type";
 export * from "./calendar-category";
 export * from "./invite-mode";
+export * from "./invite-status";
 export * from "./task-status";
 export * from "./poll-status";
 export * from "./approval-kind";
