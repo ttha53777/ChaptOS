@@ -23,8 +23,10 @@ export const createInviteInput = z.object({
   label:  z.string().trim().max(INVITE_LABEL_MAX)
            .transform(s => (s === "" ? undefined : s))
            .optional(),
-  maxUses: z.number().int().positive().max(INVITE_MAX_USES_CEILING).nullish()
-           .transform(n => n ?? undefined),
+  // .nullish() (not .optional().transform()) so the KEY stays optional in the
+  // inferred type — a transform would make callers pass `maxUses: undefined`
+  // explicitly. Both null and undefined mean "no cap"; the service normalizes.
+  maxUses: z.number().int().positive().max(INVITE_MAX_USES_CEILING).nullish(),
 });
 
 export type CreateInviteInput = z.infer<typeof createInviteInput>;
