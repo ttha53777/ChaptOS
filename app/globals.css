@@ -365,6 +365,41 @@ table {
 .auth-scope .auth-badmark { height: 48px; width: 48px; border-radius: 12px; background: var(--danger-bg);
   border: 1px solid var(--danger-line); color: var(--danger); display: flex; align-items: center; justify-content: center; margin: 0 auto; }
 
+/* ── Invite landing (/join) ───────────────────────────────────────────────────
+   The org's badge + headcount are trust signals shown BEFORE sign-in: an invite
+   link arrives out of context (a group chat, a forwarded text), so the first
+   frame has to prove whose door this is before asking for a Google account. */
+.auth-scope .auth-orgmark { height: 46px; width: 46px; border-radius: 12px; overflow: hidden;
+  border: 1px solid var(--line); background: var(--surface); display: flex; align-items: center;
+  justify-content: center; margin-bottom: 18px; flex: 0 0 auto; }
+.auth-scope .auth-orgmark img { height: 100%; width: 100%; object-fit: cover; }
+/* Monogram fallback — an org with no logo still gets a mark, not a gap. */
+.auth-scope .auth-orgmark .mono { font-family: var(--serif, var(--sans)); font-size: 20px; color: var(--ink-80); }
+.auth-scope .auth-orgmeta { font-size: 12.5px; color: var(--ink-45); margin: 10px 0 0; }
+
+/* Which Google account is about to join. Its absence was the flow's sharpest
+   edge: a stale session redeemed silently as the wrong person. */
+.auth-scope .auth-account { display: flex; align-items: center; gap: 11px; border: 1px solid var(--line);
+  border-radius: var(--r); background: var(--paper-2); padding: 10px 13px; }
+.auth-scope .auth-account img,
+.auth-scope .auth-account .avatar-fallback { height: 30px; width: 30px; border-radius: 50%; flex: 0 0 auto; }
+.auth-scope .auth-account .avatar-fallback { background: var(--vio-soft); color: var(--vio);
+  display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; }
+.auth-scope .auth-account .who { min-width: 0; flex: 1; }
+.auth-scope .auth-account .who .k { font-size: 11px; color: var(--ink-45); }
+.auth-scope .auth-account .who .v { font-size: 13px; color: var(--ink-80);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Neutral (non-error) explanation, e.g. "your roster entry still needs linking".
+   Deliberately not .auth-alert — nothing has gone wrong. */
+.auth-scope .auth-notice { border: 1px solid var(--vio-line); border-radius: var(--r); background: var(--vio-soft);
+  padding: 12px 15px; font-size: 12.5px; line-height: 1.55; color: var(--ink-80); }
+
+/* Holds the CTA's exact height while the session resolves, so the button fades
+   in rather than popping the layout. */
+.auth-scope .auth-btn-skel { height: 46px; width: 100%; border-radius: var(--r);
+  border: 1px solid var(--line); background: var(--paper-2); opacity: .55; }
+
 @media (prefers-reduced-motion: reduce) {
   .auth-scope .auth-col { animation: none; }
   .auth-scope .auth-spinner { animation: none; }

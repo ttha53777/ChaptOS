@@ -2,32 +2,76 @@
 
 import { createClient } from "@/lib/supabase/client";
 import { APP_NAME } from "@/lib/domains";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import type { InviteDeadReason } from "@/lib/auth/invite-lookup";
 
 type Mode = "open" | "claim";
+type JoinState = "guest" | "ready" | "already_member" | "existing_account";
 
-// Drives the invite flow once the server has resolved the token:
-//   signed-out → "Continue with Google" (OAuth returns here via /auth/callback?next=)
-//   signed-in  → POST /api/auth/redeem-invite (open mode prompts for a name first),
-//                then route to the org (open) or the name-claim form (claim).
+interface Account { email: string | null; name: string | null; avatarUrl: string | null }
+
+// Drives the invite flow once the server has resolved the token.
+//
+// The screen is a function of ONE value — `state`, decided server-side by
+// GET /api/auth/invite-status — rather than the old "is there a session?"
+// boolean. That boolean couldn't tell an invited stranger from the wrong Google
+// account from someone who already belonged to the org, so all three got the
+// same "Join <Org>" form, and two of them got a bad outcome from submitting it.
+//
+//   guest            → Continue with Google (OAuth returns here via ?next=)
+//   ready            → confirm the account, name yourself, join
+//   already_member   → you're in already; here's the door (no form, no rename)
+//   existing_account → claim link + an account that can't be claim-linked;
+//                      join by membership instead of dead-ending at 409
 export function JoinClient({
-  token, valid, orgName, mode,
-}: { token: string; valid: boolean; orgName: string | null; mode: Mode }) {
+  token, valid, reason, orgName, orgLogoUrl, memberCount, mode,
+}: {
+  token: string;
+  valid: boolean;
+  reason: InviteDeadReason | null;
+  orgName: string | null;
+  orgLogoUrl: string | null;
+  memberCount: number | null;
+  mode: Mode;
+}) {
   // null = still checking the session on mount; avoids a flash of the wrong CTA.
-  const [signedIn, setSignedIn] = useState<boolean | null>(null);
-  const [name, setName]         = useState("");
-  const [busy, setBusy]         = useState(false);
-  const [error, setError]       = useState<string | null>(null);
+  const [state, setState]     = useState<JoinState | null>(null);
+  const [account, setAccount] = useState<Account | null>(null);
+  const [orgSlug, setOrgSlug] = useState<string | null>(null);
+  const [name, setName]       = useState("");
+  const [busy, setBusy]       = useState(false);
+  const [error, setError]     = useState<string | null>(null);
 
   useEffect(() => {
+    if (!valid) return;
     let cancelled = false;
-    createClient().auth.getUser().then(({ data }) => {
-      if (!cancelled) setSignedIn(!!data.user);
-    });
+    (async () => {
+      try {
+        const res  = await fetch(`/api/auth/invite-status?token=${encodeURIComponent(token)}`);
+        const data = await res.json().catch(() => null);
+        if (cancelled) return;
+        if (res.ok && data?.valid) {
+          setState(data.state as JoinState);
+          setAccount(data.account ?? null);
+          setOrgSlug(data.org?.slug ?? null);
+          if (data.account?.name) setName(n => n || data.account.name);
+          return;
+        }
+      } catch {
+        // Fall through to the session-only path below.
+      }
+      if (cancelled) return;
+      // Pre-flight unavailable (offline, 500). Degrade to what we can still
+      // determine locally rather than blocking a legitimate join: a session
+      // means "ready", none means "guest". The redeem call re-checks everything
+      // server-side anyway, so the worst case is a form we'd have skipped.
+      const { data: userData } = await createClient().auth.getUser();
+      if (!cancelled) setState(userData.user ? "ready" : "guest");
+    })();
     return () => { cancelled = true; };
-  }, []);
+  }, [token, valid]);
 
-  async function signIn() {
+  const signIn = useCallback(async () => {
     setBusy(true);
     setError(null);
     try {
@@ -45,7 +89,15 @@ export function JoinClient({
       setError("Sign-in failed. Please try again.");
       setBusy(false);
     }
-  }
+  }, [token]);
+
+  /** Sign out and come straight back, so the wrong-account case is one click. */
+  const switchAccount = useCallback(async () => {
+    setBusy(true);
+    try { await fetch("/api/auth/signout", { method: "POST" }); }
+    catch { /* network failure — reload anyway; the page re-checks on mount */ }
+    window.location.assign(`/join/${encodeURIComponent(token)}`);
+  }, [token]);
 
   async function redeem() {
     setBusy(true);
@@ -58,22 +110,26 @@ export function JoinClient({
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setError(data?.error ?? "Couldn't join. Please try again.");
+        setError(messageFor(res.status, data?.error));
         setBusy(false);
         return;
       }
-      // claim mode → hand off to the existing name-match claim form.
+      // claim mode → hand off to the existing name-match claim form. Only new
+      // accounts get here; the server routes existing ones through membership.
       if (data?.mode === "claim") {
         window.location.assign(`/pending-access?org=${encodeURIComponent(data.orgSlug)}`);
         return;
       }
-      // open mode → land in the org (server set the active_org cookie).
-      window.location.assign(`/${data.orgSlug}`);
+      // Joined. The server set the active_org cookie; ?toast=welcome greets them
+      // on arrival instead of dropping them onto a cold dashboard.
+      window.location.assign(`/${data.orgSlug}?toast=welcome`);
     } catch {
       setError("Couldn't reach the server. Check your connection.");
       setBusy(false);
     }
   }
+
+  const isClaimHandoff = mode === "claim" && state === "ready";
 
   return (
     <div className="auth-scope">
@@ -89,50 +145,58 @@ export function JoinClient({
         <div className="auth-main">
           <div className="auth-col">
             {!valid ? (
-              <div className="auth-body" style={{ marginTop: 0 }}>
-                <div className="auth-badmark" aria-hidden="true">
-                  <svg width="22" height="22" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z" clipRule="evenodd" />
-                  </svg>
-                </div>
-                <h1 className="auth-h1" style={{ textAlign: "center", fontSize: 24, marginTop: 20 }}>
-                  Invite unavailable
-                </h1>
-                <p className="auth-lede" style={{ textAlign: "center", margin: "12px auto 0" }}>
-                  This invite link is invalid, has expired, or was revoked. Ask an organizer for a fresh link.
-                </p>
-              </div>
+              <DeadLink reason={reason} orgName={orgName} />
             ) : (
               <>
-                <div className="auth-index">You&rsquo;re invited</div>
+                <OrgMark name={orgName} logoUrl={orgLogoUrl} />
+                <div className="auth-index">
+                  {state === "already_member" ? "Already a member" : "You’re invited"}
+                </div>
                 <h1 className="auth-h1">
-                  Join <em>{orgName}.</em>
+                  {state === "already_member"
+                    ? <>You&rsquo;re in <em>{orgName}.</em></>
+                    : <>Join <em>{orgName}.</em></>}
                 </h1>
-                <p className="auth-lede">
-                  {signedIn
-                    ? mode === "open"
-                      ? "Tell us your name to finish joining."
-                      : "Continue to link your roster profile."
-                    : `Sign in with Google to join on ${APP_NAME}.`}
-                </p>
+                <p className="auth-lede">{lede(state, mode, orgName)}</p>
+                {memberCount != null && memberCount > 0 && state !== "already_member" && (
+                  <p className="auth-orgmeta">
+                    {memberCount} {memberCount === 1 ? "member" : "members"} already here
+                  </p>
+                )}
 
                 <div className="auth-body auth-stack">
                   {error && (
                     <div className="auth-alert" role="alert">
-                      <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z" clipRule="evenodd" />
-                      </svg>
+                      <AlertIcon />
                       {error}
                     </div>
                   )}
 
-                  {signedIn === null ? (
-                    <div style={{ height: 50 }} aria-hidden />
-                  ) : !signedIn ? (
+                  {state === null ? (
+                    <div className="auth-btn-skel" aria-hidden />
+                  ) : state === "guest" ? (
                     <GoogleButton loading={busy} onClick={signIn} />
+                  ) : state === "already_member" ? (
+                    <button
+                      onClick={() => window.location.assign(`/${orgSlug ?? ""}`)}
+                      disabled={!orgSlug}
+                      className="auth-btn-vio"
+                    >
+                      Go to {orgName}
+                    </button>
                   ) : (
                     <>
-                      {mode === "open" && (
+                      {account && <AccountRow account={account} onSwitch={switchAccount} busy={busy} />}
+
+                      {state === "existing_account" && (
+                        <div className="auth-notice">
+                          You already have a {APP_NAME} account, so we&rsquo;ll add you to{" "}
+                          {orgName} directly. If you&rsquo;re on their roster under a different
+                          name, an officer can link that entry to your account.
+                        </div>
+                      )}
+
+                      {!isClaimHandoff && (
                         <div>
                           <label className="auth-label" htmlFor="join-name">Your full name</label>
                           <input
@@ -146,12 +210,13 @@ export function JoinClient({
                           />
                         </div>
                       )}
+
                       <button
                         onClick={redeem}
-                        disabled={busy || (mode === "open" && !name.trim())}
+                        disabled={busy || (!isClaimHandoff && !name.trim())}
                         className="auth-btn-vio"
                       >
-                        {busy ? "Joining…" : mode === "open" ? `Join ${orgName}` : "Continue"}
+                        {busy ? "Joining…" : isClaimHandoff ? "Continue" : `Join ${orgName}`}
                       </button>
                     </>
                   )}
@@ -165,13 +230,121 @@ export function JoinClient({
   );
 }
 
+/** Copy under the headline, per state. */
+function lede(state: JoinState | null, mode: Mode, orgName: string | null): string {
+  if (state === "already_member") return `You already have access to ${orgName ?? "this org"}.`;
+  if (state === "existing_account") return "One step to finish joining.";
+  if (state === "ready") {
+    return mode === "open"
+      ? "Tell us your name to finish joining."
+      : "Continue to link your roster profile.";
+  }
+  return `Sign in with Google to join on ${APP_NAME}.`;
+}
+
+/**
+ * Dead-link screen. Each reason gets its own copy and its own implied next step
+ * — "expired" wants a fresh link, "revoked" means someone decided, "not found"
+ * usually means a mangled paste. The flow used to answer all three with one
+ * sentence that told the invitee nothing they could act on.
+ */
+function DeadLink({ reason, orgName }: { reason: InviteDeadReason | null; orgName: string | null }) {
+  const org = orgName ? `to ${orgName} ` : "";
+  const COPY: Record<InviteDeadReason, { title: string; body: string }> = {
+    expired: {
+      title: "This invite has expired",
+      body: `The link ${org}is past its expiry date. Ask an organizer to send you a fresh one — it only takes them a moment.`,
+    },
+    revoked: {
+      title: "This invite was turned off",
+      body: `An organizer switched off this link ${org}. If you think that’s a mistake, ask them for a new one.`,
+    },
+    exhausted: {
+      title: "This invite is full",
+      body: `The link ${org}has reached the number of people it was set to admit. Ask an organizer to send you your own.`,
+    },
+    not_found: {
+      title: "This link doesn’t work",
+      body: "We couldn’t find an invite for this address. Check that you copied the whole link — they’re long and easy to cut short.",
+    },
+  };
+  const { title, body } = COPY[reason ?? "not_found"];
+
+  return (
+    <div className="auth-body" style={{ marginTop: 0 }}>
+      <div className="auth-badmark" aria-hidden="true">
+        <svg width="22" height="22" viewBox="0 0 20 20" fill="currentColor">
+          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z" clipRule="evenodd" />
+        </svg>
+      </div>
+      <h1 className="auth-h1" style={{ textAlign: "center", fontSize: 24, marginTop: 20 }}>
+        {title}
+      </h1>
+      <p className="auth-lede" style={{ textAlign: "center", margin: "12px auto 0" }}>
+        {body}
+      </p>
+    </div>
+  );
+}
+
+/** The org's badge, or its initial when it has no logo. */
+function OrgMark({ name, logoUrl }: { name: string | null; logoUrl: string | null }) {
+  return (
+    <div className="auth-orgmark" aria-hidden="true">
+      {logoUrl
+        ? <img src={logoUrl} alt="" />
+        : <span className="mono">{(name ?? "?").trim().charAt(0).toUpperCase()}</span>}
+    </div>
+  );
+}
+
+/** Which Google account is about to join, and a one-click way out of the wrong one. */
+function AccountRow({ account, onSwitch, busy }: { account: Account; onSwitch: () => void; busy: boolean }) {
+  const label = account.email ?? account.name ?? "your Google account";
+  return (
+    <div className="auth-account">
+      {account.avatarUrl
+        ? <img src={account.avatarUrl} alt="" />
+        : <span className="avatar-fallback" aria-hidden>{label.charAt(0).toUpperCase()}</span>}
+      <span className="who">
+        <span className="k">Joining as</span>
+        <span className="v" title={label}>{label}</span>
+      </span>
+      <button onClick={onSwitch} disabled={busy} className="auth-link vio" style={{ flex: "0 0 auto" }}>
+        Switch
+      </button>
+    </div>
+  );
+}
+
+/**
+ * Map a redeem failure to copy the invitee can act on. The server's strings are
+ * already user-safe and stay as the fallback, but the common cases get phrasing
+ * written for this screen rather than for an API consumer.
+ */
+function messageFor(status: number, serverError?: string): string {
+  if (status === 410) return serverError ?? "This invite link is no longer active.";
+  if (status === 429) return "Too many attempts. Wait a minute and try again.";
+  if (status === 401) return "Your sign-in expired. Refresh the page and try again.";
+  if (status >= 500)  return "Something went wrong on our end. Try again in a moment.";
+  return serverError ?? "Couldn’t join. Please try again.";
+}
+
+function AlertIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z" clipRule="evenodd" />
+    </svg>
+  );
+}
+
 function GoogleButton({ loading, onClick }: { loading: boolean; onClick: () => void }) {
   return (
     <button onClick={onClick} disabled={loading} className="auth-btn" aria-live="polite">
       {loading ? (
         <>
           <span className="auth-spinner" aria-hidden="true" />
-          <span>Redirecting to Google…</span>
+          <span>Redirecting to Google&hellip;</span>
         </>
       ) : (
         <>

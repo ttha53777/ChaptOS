@@ -1,35 +1,39 @@
+import { resolveInviteToken } from "@/lib/auth/invite-lookup";
 import { prisma } from "@/lib/prisma"; // lint-modules:ignore (public pre-auth page; no ctx — redeemer may not be a member)
 import { JoinClient } from "./JoinClient";
 
-// Public invite landing page. A server component resolves the token to its org
-// (name + mode + validity) so we can render "Join <Org>" before any auth, then
-// hands off to the client child which drives Google OAuth + redemption. The
-// token never leaves the URL; redemption happens via POST /api/auth/redeem-invite.
+// Public invite landing page. The server resolves the token to its org (name,
+// logo, headcount, validity) so "Join <Org>" and the org's badge paint before
+// any auth — an invitee's first frame should say whose door this is.
+//
+// The client child then calls GET /api/auth/invite-status to layer on the parts
+// that depend on the browser's session (which Google account is signed in,
+// whether they're already a member) and drives OAuth + redemption from there.
+// The token never leaves the URL; redemption is POST /api/auth/redeem-invite.
+//
+// Token resolution is shared with both API routes via resolveInviteToken, so a
+// link this page calls dead can't be one redeem-invite would have accepted.
 
 export default async function JoinPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
 
-  const invite = await prisma.orgInvite.findUnique({
-    where: { token },
-    select: {
-      mode: true,
-      expiresAt: true,
-      revokedAt: true,
-      organization: { select: { name: true } },
-    },
-  });
+  const lookup = await resolveInviteToken(token);
 
-  const valid =
-    !!invite &&
-    !invite.revokedAt &&
-    (!invite.expiresAt || invite.expiresAt > new Date());
+  // Headcount is a trust signal ("this is a real chapter"), so it's only worth
+  // the query when there's a live invite to show it on.
+  const memberCount = lookup.ok
+    ? await prisma.brother.count({ where: { organizationId: lookup.invite.orgId, isGhost: false } })
+    : null;
 
   return (
     <JoinClient
       token={token}
-      valid={valid}
-      orgName={invite?.organization.name ?? null}
-      mode={invite?.mode === "claim" ? "claim" : "open"}
+      valid={lookup.ok}
+      reason={lookup.ok ? null : lookup.reason}
+      orgName={lookup.invite?.orgName ?? null}
+      orgLogoUrl={lookup.invite?.orgLogoUrl ?? null}
+      memberCount={memberCount}
+      mode={lookup.invite?.mode ?? "open"}
     />
   );
 }
