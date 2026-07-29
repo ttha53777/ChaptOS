@@ -5,11 +5,10 @@ import { LandingPage } from "./components/landing/LandingPage";
 import { APP_NAME } from "@/lib/domains";
 
 export const metadata: Metadata = {
-  title: `${APP_NAME} — The AI-native operating system for student orgs`,
+  title: `${APP_NAME} — the operating system for student orgs`,
   description:
-    "Dues, attendance, programming, people — one calm, intelligent home for " +
-    "everything your fraternity, sorority, or student org runs on, with an " +
-    "AI that answers from your real data and drafts the busywork for you.",
+    "One workspace for the roster, the money, the meetings and the week — " +
+    "that opens on what today actually needs, and that you can just ask.",
 };
 
 /**
