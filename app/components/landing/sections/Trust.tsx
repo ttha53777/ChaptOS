@@ -85,14 +85,34 @@ export function Trust() {
               />
             </span>
             <h4>Your org, your data</h4>
+            {/* Keep this claim inside what the product actually does: roster and
+                ledger are the two CSV exports that exist (BrothersPage's own
+                handleExport + /api/transactions/export), and deleting the whole
+                workspace is genuinely self-serve for an org admin. Anything
+                broader belongs on /trust, where the limits are stated too. */}
             <p>
               One org can&apos;t read another — that&apos;s enforced at the database, not
-              just in the UI. Inside yours, seats decide who sees what. Roster, ledger,
-              attendance and docs export to CSV any time, and full deletion is a request
-              away.
+              just in the UI. Inside yours, seats decide who sees what. Roster and ledger
+              export to CSV any time, and deleting the whole workspace is one
+              confirmation away.
             </p>
           </div>
         </div>
+
+        <p className="trust__more" data-reveal style={sx({ "--d": "240ms" })}>
+          <a href="/trust">
+            Read the full trust &amp; privacy page
+            <Doodle
+              id="arrow-r"
+              className="doodle doodle--thin"
+              size={18}
+              viewBox="0 0 24 24"
+            />
+          </a>
+          <span>
+            Every mechanism named, plus the things we don&apos;t claim yet.
+          </span>
+        </p>
       </div>
     </section>
   );

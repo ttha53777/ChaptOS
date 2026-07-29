@@ -62,7 +62,7 @@ export function Footer() {
             <h5>Company</h5>
             <ul>
               <li>
-                <a href="#trust">Trust &amp; privacy</a>
+                <a href="/trust">Trust &amp; privacy</a>
               </li>
               <li>
                 <a href="#start">Pricing</a>

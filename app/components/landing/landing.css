@@ -807,6 +807,27 @@ html:has(.lp) *::-webkit-scrollbar-thumb:hover{background:rgba(38,33,27,.26)}
 .lp .guard h4{margin-top:16px}
 .lp .guard p{margin-top:9px; font-size:.94rem; color:var(--ink-2); line-height:1.55}
 
+/* the way through to /trust — the three cards are the summary, that page is the
+   whole disclosure. Centred under the grid, link then caption. */
+.lp .trust__more{
+  margin-top:26px; display:flex; flex-wrap:wrap; gap:6px 16px;
+  align-items:center; justify-content:center; text-align:center;
+  font-size:.9rem; color:var(--ink-3);
+}
+.lp .trust__more a{
+  display:inline-flex; align-items:center; gap:8px;
+  color:var(--ink); font-weight:600; text-decoration:none;
+  padding:9px 17px; border-radius:var(--r-pill);
+  border:1.5px solid var(--line-2); background:var(--card);
+  transition:transform .18s var(--ease-spring), box-shadow .18s var(--ease-spring), border-color .18s;
+}
+.lp .trust__more a:hover{
+  border-color:var(--ink); transform:translate(-1.5px,-1.5px);
+  box-shadow:3.5px 3.5px 0 var(--sky);
+}
+.lp .trust__more a svg{transition:transform .18s var(--ease-out)}
+.lp .trust__more a:hover svg{transform:translateX(2.5px)}
+
 /* ---------- 10. semester CTA ----------------------------------------------- */
 .lp .cta{padding:clamp(80px,10vw,150px) 0; position:relative; overflow:hidden}
 .lp .cta__card{
