@@ -66,6 +66,8 @@ model Organization {
   invites                   OrgInvite[]
   metricDefinitions         OrgMetricDefinition[]
   calendarEventTypes        CalendarEventType[]
+  subscription              Subscription?
+  salesLeads                SalesLead[]
 }
 
 // Per-org configuration extracted from Organization to keep the hot row small.
@@ -86,14 +88,14 @@ model Organization {
 // Previously stored per-browser in localStorage — moved here so every officer
 // shares one set of rules.
 model OrganizationConfig {
-  id                  Int      @id @default(autoincrement())
-  organizationId      Int      @unique
-  enabledWorkflows    String[] @default([])
-  vocabularyOverrides Json     @default("{}")
-  thresholds          Json     @default("{}")
-  disabledFeatures    Json     @default("{}")
+  id                    Int       @id @default(autoincrement())
+  organizationId        Int       @unique
+  enabledWorkflows      String[]  @default([])
+  vocabularyOverrides   Json      @default("{}")
+  thresholds            Json      @default("{}")
+  disabledFeatures      Json      @default("{}")
   // Org-defined extra fields (label, type, showOnRoster, etc.). See lib/custom-member-fields.ts.
-  customMemberFields  Json     @default("[]")
+  customMemberFields    Json      @default("[]")
   // Admin-chosen sidebar order — a list of nav labels (e.g. "Treasury",
   // "Docs"). Sparse and advisory: the sidebar sorts each NAV_GROUP by this list,
   // appending any labels not present (new pages, or labels the org never
@@ -101,7 +103,7 @@ model OrganizationConfig {
   // Labels here are NOT validated against enabledWorkflows — a hidden page can
   // keep its slot so re-enabling it lands back where the admin put it. See
   // lib/nav-order.ts.
-  navOrder            String[] @default([])
+  navOrder              String[]  @default([])
   // When the founder finished the post-creation setup wizard, or null while
   // setup is still in progress. This is the authoritative "is onboarding done?"
   // signal — the OrgGuard layout gates every /[slug]/* route on it being set.
@@ -110,8 +112,8 @@ model OrganizationConfig {
   // rows; backfilled to createdAt in this column's migration so existing orgs
   // aren't bounced back into onboarding.
   onboardingCompletedAt DateTime?
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
@@ -167,6 +169,15 @@ model Brother {
   // "Ghost" members provisioned via the Atomic Samurai backdoor: full app access
   // but hidden from every brother listing, count, and attendance enrollment.
   isGhost               Boolean                @default(false)
+  // When this member was archived (graduated, went inactive, left), or null for
+  // an active member. Archiving is deliberately NOT deletion: every attendance
+  // record, dues payment, and metric value survives, so historical reports stay
+  // correct. An archived member drops out of the default roster read and out of
+  // the billable headcount (lib/billing/seats.ts) — the latter is why the column
+  // exists at all, since orgs need a way to stop paying for graduated seniors
+  // without destroying their history. Un-archiving re-adds a billable seat and
+  // is therefore gated by the same seat guard as adding a new member.
+  archivedAt            DateTime?
   // Per-member values for org-defined custom fields. Sparse map { fieldId → value }.
   // Unknown field ids (from deleted definitions) are stripped on read by sanitizeCustomFields().
   customFields          Json                   @default("{}")
@@ -254,20 +265,20 @@ model InviteRedemption {
 // Discord-style role: a named bundle of permission bits with a hierarchy rank.
 // name is unique per org (not globally) — two orgs may both have a "President" role.
 model Role {
-  id             Int           @id @default(autoincrement())
-  organizationId Int
-  name           String
+  id              Int              @id @default(autoincrement())
+  organizationId  Int
+  name            String
   // Optional hex color (e.g. "#5865F2") for the UI chip; null = neutral.
-  color          String?
+  color           String?
   // Hierarchy rank. A caller can only grant/edit roles whose rank is STRICTLY
   // LESS than their own highest assigned role's rank. Higher = more authority.
-  rank           Int           @default(0)
+  rank            Int              @default(0)
   // Bitfield of PERMISSIONS flags (see lib/permissions.ts).
-  permissions    Int           @default(0)
+  permissions     Int              @default(0)
   // System roles are seeded by migration and protected from deletion/rename.
-  isSystem       Boolean       @default(false)
-  createdAt      DateTime      @default(now())
-  brothers       BrotherRole[]
+  isSystem        Boolean          @default(false)
+  createdAt       DateTime         @default(now())
+  brothers        BrotherRole[]
   taskAssignments TaskAssignment[]
   pollAssignments PollAssignment[]
 
@@ -296,12 +307,12 @@ model BrotherRole {
 }
 
 model Semester {
-  id             Int                @id @default(autoincrement())
+  id             Int                   @id @default(autoincrement())
   organizationId Int
   label          String
   startDate      String
   endDate        String
-  isActive       Boolean            @default(false)
+  isActive       Boolean               @default(false)
   records        AttendanceRecord[]
   excuses        AttendanceExcuse[]
   exemptions     AttendanceExemption[]
@@ -405,7 +416,7 @@ model Task {
 // denormalized for self-contained org isolation (mirrors BrotherRole). Exactly
 // one of brotherId/roleId is set (CHECK constraint in the migration).
 model TaskAssignment {
-  id             Int @id @default(autoincrement())
+  id             Int  @id @default(autoincrement())
   taskId         Int
   organizationId Int
   brotherId      Int?
@@ -464,7 +475,7 @@ model PollOption {
 // constraint in the migration). Role targets resolve to current holders at READ
 // time, so a member granted a role gains the right to vote on its open polls.
 model PollAssignment {
-  id             Int @id @default(autoincrement())
+  id             Int  @id @default(autoincrement())
   pollId         Int
   organizationId Int
   brotherId      Int?
@@ -502,16 +513,16 @@ model PollVote {
 }
 
 model InstagramTask {
-  id             Int    @id @default(autoincrement())
-  organizationId Int
-  title          String
-  dueDate        String
+  id              Int     @id @default(autoincrement())
+  organizationId  Int
+  title           String
+  dueDate         String
   // The actual day the post went live. Null until posted; set when a post is
   // marked posted (defaults to dueDate) and independently editable. dueDate
   // stays the planned/target date that drives urgency.
-  postedDate     String?
-  status         String @default("open") // "open" | "posted" — urgency is computed from dueDate, never stored
-  type           String
+  postedDate      String?
+  status          String  @default("open") // "open" | "posted" — urgency is computed from dueDate, never stored
+  type            String
   // Optional soft reference to the event this post promotes. Not a date
   // constraint — the post keeps its own dueDate. SetNull so deleting the event
   // just clears the link (the post survives).
@@ -528,7 +539,7 @@ model InstagramTask {
 // shown on the Docs page. We cache OG metadata so cards can fall back to a
 // thumbnail when the destination refuses to load in an iframe.
 model Doc {
-  id             Int      @id @default(autoincrement())
+  id             Int       @id @default(autoincrement())
   organizationId Int
   title          String
   url            String
@@ -540,8 +551,8 @@ model Doc {
   ogTitle        String?
   faviconUrl     String?
   embedOk        Boolean?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
   createdById    Int?
   // Library folder this doc lives in. null = library root (no folder).
   folderId       Int?
@@ -566,11 +577,11 @@ model Doc {
 // Drive. Docs reference it via Doc.folderId; deleting a folder releases its docs
 // back to the library root rather than cascading the docs away.
 model DocFolder {
-  id             Int      @id @default(autoincrement())
+  id             Int       @id @default(autoincrement())
   organizationId Int
   name           String
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
   createdById    Int?
   // Pinned / favorite. null = not pinned; a timestamp floats the folder to the
   // top of the library ahead of unpinned folders, most-recently pinned first.
@@ -613,7 +624,7 @@ model PartyEvent {
 }
 
 model CalendarEvent {
-  id                Int                @id @default(autoincrement())
+  id                Int                        @id @default(autoincrement())
   organizationId    Int
   title             String
   date              String
@@ -626,12 +637,12 @@ model CalendarEvent {
   notesSummaryAt    DateTime?
   notesUpdatedAt    DateTime?
   // Used by the Programming page (events workflow). Chapter/Timeline rows keep defaults.
-  owner             String             @default("")
-  status            String             @default("Upcoming")
+  owner             String                     @default("")
+  status            String                     @default("Upcoming")
   attendanceRecords AttendanceRecord[]
   attendanceExcuses AttendanceExcuse[]
   programmingEvent  ProgrammingEvent?
-  partyEvent        PartyEvent?        @relation("PartyAttendance")
+  partyEvent        PartyEvent?                @relation("PartyAttendance")
   transactionLinks  TransactionCalendarEvent[]
   instagramTasks    InstagramTask[]
 
@@ -686,35 +697,35 @@ model CalendarEventType {
 }
 
 model ProgrammingEvent {
-  id              Int      @id @default(autoincrement())
-  organizationId  Int
-  calendarEventId Int?     @unique
+  id                 Int      @id @default(autoincrement())
+  organizationId     Int
+  calendarEventId    Int?     @unique
   // Owning planning fields. A CalendarEvent is created only once the event
   // leaves the "idea" stage (Planning+); until then these live here alone.
-  title           String
-  date            String?
-  category        String
-  location        String?
-  time            String?
-  description     String?
-  status          String   @default("Upcoming")
-  stage           String   @default("idea")
-  mandatory       Boolean  @default(false)
+  title              String
+  date               String?
+  category           String
+  location           String?
+  time               String?
+  description        String?
+  status             String   @default("Upcoming")
+  stage              String   @default("idea")
+  mandatory          Boolean  @default(false)
   // Prep / ops fields.
-  owner           String   @default("")
-  collabOrg       String   @default("")
-  itineraryUrl    String? // deprecated — backfilled into attachmentUrl
-  attachmentUrl   String?
-  attachmentDocId Int?
-  roomStatus      String   @default("not_submitted")
-  itineraryNotNeeded Boolean @default(false) // marks the itinerary prep item done without a file
-  flyerPosted     Boolean  @default(false)
-  socialsMeeting  Boolean  @default(false)
-  spendingCents   Int      @default(0)
-  successRating   Int?
-  wrapUpNotes     String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  owner              String   @default("")
+  collabOrg          String   @default("")
+  itineraryUrl       String? // deprecated — backfilled into attachmentUrl
+  attachmentUrl      String?
+  attachmentDocId    Int?
+  roomStatus         String   @default("not_submitted")
+  itineraryNotNeeded Boolean  @default(false) // marks the itinerary prep item done without a file
+  flyerPosted        Boolean  @default(false)
+  socialsMeeting     Boolean  @default(false)
+  spendingCents      Int      @default(0)
+  successRating      Int?
+  wrapUpNotes        String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
   organization  Organization               @relation(fields: [organizationId], references: [id])
   calendarEvent CalendarEvent?             @relation(fields: [calendarEventId], references: [id], onDelete: SetNull)
@@ -857,12 +868,12 @@ model Transaction {
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
-  organization    Organization              @relation(fields: [organizationId], references: [id])
-  semesterRef     Semester?                 @relation(fields: [semesterId], references: [id], onDelete: SetNull)
-  brother         Brother?                  @relation(fields: [brotherId], references: [id], onDelete: SetNull)
-  calendarEvents  TransactionCalendarEvent[]
-  reimbursement   Reimbursement?
-  duesPayment     DuesPayment?
+  organization   Organization               @relation(fields: [organizationId], references: [id])
+  semesterRef    Semester?                  @relation(fields: [semesterId], references: [id], onDelete: SetNull)
+  brother        Brother?                   @relation(fields: [brotherId], references: [id], onDelete: SetNull)
+  calendarEvents TransactionCalendarEvent[]
+  reimbursement  Reimbursement?
+  duesPayment    DuesPayment?
 
   @@index([organizationId, deletedAt])
   @@index([semesterId])
@@ -948,12 +959,12 @@ model ChatApproval {
   organizationId Int
   // ApprovalKind (lib/state/approval-kind.ts) — CHECK-constrained in the DB.
   kind           String
-  action         String   // the propose_* tool name
-  title          String   // writ-card title — "Record a dues payment"
-  summary        String   // list-row label — "Record a dues payment · $200.00"
-  rows           Json     // [{k, v, em?}] — the writ card's key/value lines
-  permission     String   // MANAGE_* permission name the approval ran under
-  permLabel      String   // its human label — "Manage dues"
+  action         String // the propose_* tool name
+  title          String // writ-card title — "Record a dues payment"
+  summary        String // list-row label — "Record a dues payment · $200.00"
+  rows           Json // [{k, v, em?}] — the writ card's key/value lines
+  permission     String // MANAGE_* permission name the approval ran under
+  permLabel      String // its human label — "Manage dues"
   approvedById   Int
   approvedByName String
   approvedByRole String
@@ -1062,4 +1073,120 @@ model ChapterAnnouncement {
   organization Organization @relation(fields: [organizationId], references: [id])
 
   @@unique([organizationId])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Platform billing
+//
+// These three models are about what an ORG PAYS US. They are deliberately not
+// related to Transaction / DuesPayment / Reimbursement, which are about money
+// moving INSIDE an org and never touch a payment processor. The vocabularies are
+// kept apart on purpose: "subscription / plan / tier / billing" is platform
+// revenue, "dues / transaction / treasury" is chapter bookkeeping. Do not let
+// them meet.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// One org's platform subscription. Exactly one row per org (unique FK).
+//
+// A row exists even for free orgs — `status = "free"`, every Stripe id null. The
+// org converts to paid when it tries to add member #5 and completes Checkout,
+// which is when stripeCustomerId/stripeSubscriptionId/stripeItemId get filled in
+// by the webhook. We never create a $0 Stripe subscription: a customer who never
+// entered a card should not exist in Stripe's billing system at all.
+//
+// Pricing is a single volume-tiered Stripe Price (see lib/billing/tiers.ts and
+// scripts/stripe-setup.ts), so a band change is just a quantity update on
+// stripeItemId — there is no plan-switching logic anywhere in this codebase.
+model Subscription {
+  id             Int @id @default(autoincrement())
+  organizationId Int @unique
+
+  stripeCustomerId     String?
+  stripeSubscriptionId String?
+  stripeItemId         String?
+  stripePriceId        String?
+
+  // SubscriptionStatus (lib/state/subscription-status.ts) — CHECK-constrained.
+  status String @default("free")
+  // BillingTier (lib/state/billing-tier.ts) — CHECK-constrained. Derived from
+  // billableMembers, stored so the platform-admin list can filter without
+  // recomputing a headcount per org.
+  tier   String @default("free")
+
+  // Last computed billable headcount (lib/billing/seats.ts).
+  billableMembers   Int       @default(0)
+  // What Stripe currently believes the quantity is, or null when we have never
+  // pushed. billableMembers != syncedQuantity means a push is owed.
+  syncedQuantity    Int?
+  // Set when a seat push is owed, cleared on a successful push. The seat-sync
+  // handler writes the local count FIRST and only then calls Stripe, because
+  // dispatchHandlers races handlers against a 3s timeout and swallows failures —
+  // so a slow Stripe call must not be able to lose the count. Anything left
+  // pending is reconciled by GET /api/billing, POST /api/billing/sync, or the
+  // invoice.upcoming webhook. There is no cron in this app.
+  seatSyncPendingAt DateTime?
+
+  currentPeriodEnd  DateTime?
+  cancelAtPeriodEnd Boolean   @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([stripeCustomerId])
+}
+
+// Webhook idempotency ledger. The Stripe event id is the primary key, so a
+// replayed delivery collides on INSERT (P2002) and is skipped — Stripe retries
+// for up to three days and explicitly does not guarantee at-most-once delivery.
+//
+// GLOBAL, no organizationId: an event can arrive before we can resolve which org
+// it belongs to (or for an org that no longer exists), so it cannot be org-scoped
+// without dropping events on the floor. Same reasoning as PlatformAdmin, and like
+// PlatformAdmin it carries a permissive RLS policy rather than org_isolation.
+model StripeEvent {
+  id          String    @id
+  type        String
+  receivedAt  DateTime  @default(now())
+  processedAt DateTime?
+  // Populated when handling threw. The row staying unprocessed with an error is
+  // the signal to investigate; Stripe will have retried on its own.
+  error       String?
+
+  @@index([type, receivedAt])
+}
+
+// A "talk to us" request: an org past the self-serve ceiling (121+ members), or
+// one person administering several orgs who wants a group plan.
+//
+// Written BEFORE the mail draft is handed back to the browser, so the lead
+// survives the user closing the compose window. The draft is a courtesy copy;
+// this row is the record.
+//
+// organizationId and brotherId are nullable so a lead outlives the org or member
+// it came from — losing the org must not lose the pipeline.
+model SalesLead {
+  id             Int  @id @default(autoincrement())
+  organizationId Int?
+  brotherId      Int?
+
+  // SalesLeadKind (lib/state/sales-lead.ts) — "quote" | "multi_org".
+  kind        String
+  memberCount Int    @default(0)
+
+  contactName  String
+  contactEmail String
+  message      String?
+
+  // SalesLeadStatus (lib/state/sales-lead.ts) — "new" | "contacted" | "closed".
+  status String @default("new")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([status, createdAt])
 }

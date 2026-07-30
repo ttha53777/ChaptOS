@@ -236,6 +236,14 @@ export function formatActivityMessage(ctx: RequestContext, action: Action, m: an
       return `${who} updated organization settings`;
     case "membership.left":
       return `${who} left ${m.orgName}`;
+    // Platform billing. Only the two member-visible actions need phrasing here —
+    // the rest are emitted with { activity: false } and never reach the feed.
+    case "billing.seats_blocked":
+      return m.action === "quote"
+        ? `${who} tried to add a member beyond the self-serve limit (${m.members})`
+        : `${who} tried to add a member beyond the current plan (${m.members})`;
+    case "billing.quote_requested":
+      return `${who} requested a custom quote (${m.members} members)`;
     default:
       return `${who} performed ${action}`;
   }

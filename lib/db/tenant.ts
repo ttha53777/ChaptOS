@@ -1048,6 +1048,61 @@ function scopedOrganizationConfig(orgId: number, run: Run) {
   };
 }
 
+function scopedSubscription(orgId: number, run: Run) {
+  // Like OrganizationConfig: one row per org with organizationId @unique, so
+  // organizationId is simultaneously the scoping filter and a valid unique
+  // selector — no id-based verify() dance needed.
+  //
+  // findFirst rather than findUnique is the read path because callers routinely
+  // ask about an org that has no row yet (every org that has never opened the
+  // billing page), and `null` is a meaningful answer meaning "free, never
+  // converted" rather than an error.
+  //
+  // NOTE: this is the SIGNED-IN read/write path only. The Stripe webhook has no
+  // org context to SET LOCAL and figurints_app is NOBYPASSRLS, so webhook writes
+  // must go through prismaPrivileged — see app/api/billing/webhook/route.ts.
+  return {
+    findFirst: (args?: Prisma.SubscriptionFindFirstArgs) =>
+      run(p => p.subscription.findFirst({ ...args, where: { ...args?.where, organizationId: orgId } })),
+    update: (data: Prisma.SubscriptionUpdateInput) =>
+      run(p => p.subscription.update({ where: { organizationId: orgId }, data })),
+    /**
+     * Create-or-update the single subscription row for this org. The create
+     * branch is how a free org gets its row the first time anything asks about
+     * billing; organizationId is injected, never taken from the caller.
+     */
+    upsert: (data: Omit<Prisma.SubscriptionUncheckedCreateInput, "organizationId">) =>
+      run(p => p.subscription.upsert({
+        where:  { organizationId: orgId },
+        update: data,
+        create: { organizationId: orgId, ...data },
+      })),
+  };
+}
+
+function scopedSalesLead(orgId: number, run: Run) {
+  type W = Prisma.SalesLeadWhereInput;
+  const org = (w?: W): W => ({ ...w, organizationId: orgId });
+
+  async function verify(where: Prisma.SalesLeadWhereUniqueInput): Promise<number> {
+    const row = await run(p => p.salesLead.findFirst({ where: org(where as W), select: { id: true } }));
+    if (!row) notInOrg();
+    return row.id;
+  }
+
+  return {
+    findMany:  (args?: Prisma.SalesLeadFindManyArgs)  => run(p => p.salesLead.findMany({ ...args, where: org(args?.where) })),
+    findFirst: (args?: Prisma.SalesLeadFindFirstArgs) => run(p => p.salesLead.findFirst({ ...args, where: org(args?.where) })),
+    create:    (args: Omit<Prisma.SalesLeadCreateArgs, "data"> & { data: Omit<Prisma.SalesLeadUncheckedCreateInput, "organizationId"> }) =>
+      run(p => p.salesLead.create({ ...args, data: { ...args.data, organizationId: orgId } })),
+    update:    async (args: Prisma.SalesLeadUpdateArgs) => {
+      const id = await verify(args.where);
+      return run(p => p.salesLead.update({ ...args, where: { id } }));
+    },
+    count:     (args?: Prisma.SalesLeadCountArgs)     => run(p => p.salesLead.count({ ...args, where: org(args?.where) })),
+  };
+}
+
 function scopedReimbursement(orgId: number, run: Run) {
   type W = Prisma.ReimbursementWhereInput;
   const org = (w?: W): W => ({ ...w, organizationId: orgId });
@@ -1354,6 +1409,8 @@ export function db(orgId: number) {
     reimbursement:       scopedReimbursement(orgId, run),
     duesPayment:         scopedDuesPayment(orgId, run),
     chatApproval:        scopedChatApproval(orgId, run),
+    subscription:        scopedSubscription(orgId, run),
+    salesLead:           scopedSalesLead(orgId, run),
     budget:              scopedBudget(orgId, run),
     activityLog:         scopedActivityLog(orgId, run),
     chapterAnnouncement: scopedChapterAnnouncement(orgId, run),
@@ -1454,6 +1511,8 @@ export function _dbWithClient(orgId: number, client: P) {
     reimbursement:       scopedReimbursement(orgId, run),
     duesPayment:         scopedDuesPayment(orgId, run),
     chatApproval:        scopedChatApproval(orgId, run),
+    subscription:        scopedSubscription(orgId, run),
+    salesLead:           scopedSalesLead(orgId, run),
     budget:              scopedBudget(orgId, run),
     activityLog:         scopedActivityLog(orgId, run),
     chapterAnnouncement: scopedChapterAnnouncement(orgId, run),

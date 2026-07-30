@@ -19,6 +19,7 @@ export type DomainErrorCode =
   | "UNAUTHORIZED"
   | "VALIDATION"
   | "RATE_LIMITED"
+  | "PAYMENT_REQUIRED"
   | "INTERNAL";
 
 export class DomainError extends Error {
@@ -82,6 +83,39 @@ export class RateLimitedError extends DomainError {
 }
 
 /**
+ * The org has outgrown what it is paying for. Thrown only by the seat guard
+ * (lib/billing/guard.ts) when adding a member would cross a price band the org
+ * can't currently cover.
+ *
+ * Nothing the org already has is ever taken away by this error — it is raised on
+ * *growth* paths only. Reads, exports and every existing member keep working.
+ *
+ * `details` carries what the client needs to render the right affordance:
+ *
+ *   { currentMembers: number
+ *     limit:          number   the largest count the org can reach as things stand
+ *     requiredTier:   "standard" | "pro" | "custom"
+ *     priceCents:     number | null   null above the self-serve ceiling
+ *     action:         "checkout" | "quote" }
+ *
+ * `action` is the fork: "checkout" means a card would fix it, "quote" means the
+ * org is past the self-serve ceiling and needs a human.
+ */
+export interface PaymentRequiredDetails {
+  currentMembers: number;
+  limit: number;
+  requiredTier: string;
+  priceCents: number | null;
+  action: "checkout" | "quote";
+}
+
+export class PaymentRequiredError extends DomainError {
+  constructor(message: string, details: PaymentRequiredDetails) {
+    super("PAYMENT_REQUIRED", message, 402, details);
+  }
+}
+
+/**
  * Map any thrown value to a Response. Handles DomainError, ZodError, and
  * Prisma's known error codes. Anything else becomes a 500.
  *
@@ -90,7 +124,11 @@ export class RateLimitedError extends DomainError {
  */
 export function toResponse(err: unknown): Response {
   if (err instanceof DomainError) {
-    const body: Record<string, unknown> = { error: err.message };
+    // `code` is emitted for every domain error, not just the ones that need it:
+    // a client branching on failure should key off a stable machine-readable
+    // symbol, not a prose message that may be reworded. Purely additive —
+    // existing callers read `error`.
+    const body: Record<string, unknown> = { error: err.message, code: err.code };
     if (err.details !== undefined) body.details = err.details;
     const headers: Record<string, string> = {};
     if (err instanceof RateLimitedError && err.retryAfterMs) {

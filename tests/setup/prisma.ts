@@ -25,6 +25,9 @@ export const testPrisma = new PrismaClient({ adapter });
 export async function resetDb(): Promise<void> {
   await testPrisma.$executeRawUnsafe(`
     TRUNCATE TABLE
+      "StripeEvent",
+      "SalesLead",
+      "Subscription",
       "OperationalEvent",
       "ActivityLog",
       "AttendanceRecord",

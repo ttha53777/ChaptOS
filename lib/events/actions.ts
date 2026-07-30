@@ -37,7 +37,9 @@ export type SubjectType =
   | "BrotherMetricValue"
   | "Reimbursement"
   | "DuesPayment"
-  | "ChatApproval";
+  | "ChatApproval"
+  | "Subscription"
+  | "SalesLead";
 
 // Metadata schemas per action. Each key is an Action; each value is the shape
 // passed to emit() and received by handlers. Keep payloads small and stable —
@@ -173,6 +175,28 @@ export interface EventMetadata {
   // members should never see in the feed.
   "assistant.proposal_approved": { action: string; kind: string; permission: string; subjectType: string | null; subjectId: number | null };
   "assistant.feedback":          { helpful: boolean; question: string; answerKind: string };
+
+  // ── Platform billing ──────────────────────────────────────────────────────
+  // What the org pays US. Nothing here touches the dues/treasury books.
+  //
+  // Most of these are emitted with { activity: false }: an org's subscription
+  // state is admin business, and a "payment failed" line in the members' feed
+  // would be both noise and an embarrassment. The two exceptions are
+  // seats_blocked and quote_requested, which are the direct consequence of
+  // something an admin just tried to do and need to be explicable afterwards.
+  "billing.checkout_started":      { tier: string; priceCents: number | null; members: number };
+  "billing.subscription_activated":{ tier: string; priceCents: number | null; members: number; stripeSubscriptionId: string };
+  "billing.tier_changed":          { fromTier: string; toTier: string; members: number; priceCents: number | null };
+  "billing.payment_failed":        { stripeInvoiceId: string | null; amountDueCents: number | null };
+  "billing.subscription_canceled": { tier: string; atPeriodEnd: boolean };
+  // The seat guard turned someone away. `action` mirrors PaymentRequiredDetails:
+  // "checkout" (a card would fix it) or "quote" (past the self-serve ceiling).
+  "billing.seats_blocked":         { members: number; requiredTier: string; action: string };
+  "billing.quote_requested":       { kind: string; members: number; leadId: number };
+  // Local count moved but the push to Stripe didn't land. Recorded because the
+  // handler swallows the failure — this row is the only evidence a reconcile is
+  // owed. { activity: false }: nothing a member should see.
+  "billing.seat_sync_failed":      { members: number; reason: string };
 }
 
 export type Action = keyof EventMetadata;
@@ -203,6 +227,9 @@ const KNOWN_ACTIONS = new Set<Action>([
   "dues.paid", "dues.adjusted", "dues.payment_voided", "dues.payment_attributed",
   "dues_payment.submitted", "dues_payment.rejected",
   "assistant.proposal_approved", "assistant.feedback",
+  "billing.checkout_started", "billing.subscription_activated", "billing.tier_changed",
+  "billing.payment_failed", "billing.subscription_canceled", "billing.seats_blocked",
+  "billing.quote_requested", "billing.seat_sync_failed",
 ]);
 
 export function isKnownAction(action: string): action is Action {

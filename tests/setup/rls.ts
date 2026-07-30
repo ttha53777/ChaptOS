@@ -40,7 +40,13 @@ const ORG_COLUMN_TABLES = [
   "OperationalEvent", "OrgInvite", "OrgMetricDefinition", "OrganizationConfig",
   "PartyEvent", "ProgrammingChecklistItem", "ProgrammingEvent",
   "ProgrammingEventDoc", "Reimbursement", "Role", "Semester", "ServiceEvent",
-  "ServiceParticipation", "Task", "TaskAssignment", "Transaction",
+  "ServiceParticipation", "Subscription", "Task", "TaskAssignment", "Transaction",
+  // SalesLead's organizationId is NULLABLE (ON DELETE SET NULL keeps a lead alive
+  // after its org is deleted). `NULL = <int>` is NULL, not true, so an orphaned
+  // lead is invisible to the org-scoped client by construction — which is the
+  // intended production behaviour: orphans belong to the platform-admin surface,
+  // which reads them through the privileged client.
+  "SalesLead",
 ] as const;
 
 // Org-column-less join tables → scope through an org-bound parent via subquery.
