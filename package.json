@@ -18,7 +18,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "eval:chat": "tsx scripts/eval-ask-the-chapter.ts",
-    "screenshot": "tsx scripts/screenshot.ts"
+    "screenshot": "tsx scripts/screenshot.ts",
+    "stripe:setup": "tsx scripts/stripe-setup.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.8.0",
@@ -33,6 +34,7 @@
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "recharts": "^3.8.1",
+    "stripe": "^22.4.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {

@@ -6,3 +6,4 @@
  */
 import "./recalc-attendance";
 import "./recalc-service-hours";
+import "./sync-seats";
