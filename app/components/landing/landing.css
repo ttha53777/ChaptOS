@@ -798,6 +798,24 @@ html:has(.lp) *::-webkit-scrollbar-thumb:hover{background:rgba(38,33,27,.26)}
 .lp .seat .ab{color:var(--ink-3); font-size:.79rem; min-width:0}
 .lp .seat .rk{font-family:var(--mono); font-size:.71rem; color:var(--ink-3); margin-left:auto; flex:none}
 
+/* The way through to /for/<audience> for whichever shape is on screen. Same
+   affordance as .trust__more — an outlined pill, not a third button — because
+   it's an exit from the section rather than the section's own action. */
+.lp .setup__guide{margin-top:18px}
+.lp .setup__guide a{
+  display:inline-flex; align-items:center; gap:9px;
+  color:var(--ink); font-weight:600; font-size:.9rem; text-decoration:none;
+  padding:9px 17px; border-radius:var(--r-pill);
+  border:1.5px solid var(--line-2); background:var(--card);
+  transition:transform .18s var(--ease-spring), box-shadow .18s var(--ease-spring), border-color .18s;
+}
+.lp .setup__guide a:hover{
+  border-color:var(--ink); transform:translate(-1.5px,-1.5px);
+  box-shadow:3.5px 3.5px 0 var(--butter);
+}
+.lp .setup__guide a svg{flex:none; transition:transform .18s var(--ease-out)}
+.lp .setup__guide a:hover svg{transform:translateX(2.5px)}
+
 /* ---------- 9. trust ------------------------------------------------------- */
 .lp .trust__head{text-align:center; max-width:700px; margin-inline:auto}
 

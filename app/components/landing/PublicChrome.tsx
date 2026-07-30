@@ -1,4 +1,5 @@
-// Shared chrome for the public, non-marketing pages (/help, /help/*, /contact).
+// Shared chrome for the public, non-marketing pages (/help, /help/*, /contact,
+// /for, /for/*).
 //
 // The landing page's own <Nav> is animated: LandingMotion adds `.is-stuck` on
 // scroll. These pages never mount LandingMotion, so they get the stuck treatment
@@ -13,7 +14,7 @@ import { SignInLink } from "./SignInLink";
 import { APP_NAME } from "@/lib/domains";
 
 /** Which nav link renders as "you are here". */
-export type PublicNavHere = "help" | "trust" | null;
+export type PublicNavHere = "for" | "help" | "trust" | null;
 
 export function PublicNav({ here = null }: { here?: PublicNavHere }) {
   const mark = (id: Exclude<PublicNavHere, null>) =>
@@ -32,6 +33,9 @@ export function PublicNav({ here = null }: { here?: PublicNavHere }) {
           <a href="/#ask">Just ask</a>
           <a href="/#modules">What&apos;s in it</a>
           <a href="/#setup">Setup</a>
+          <a href="/for" {...mark("for")}>
+            Who it&apos;s for
+          </a>
           <a href="/help" {...mark("help")}>
             Help
           </a>

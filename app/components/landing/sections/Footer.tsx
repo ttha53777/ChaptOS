@@ -35,26 +35,29 @@ export function Footer() {
               </li>
             </ul>
           </div>
+          {/* Each of these is a real page under app/for/. The labels are the
+              source of truth for AUDIENCES[].label in app/for/content.ts — if
+              one changes here, change it there so the two agree. */}
           <div>
             <h5>For</h5>
             <ul>
               <li>
-                <a href="#setup">Fraternities &amp; sororities</a>
+                <a href="/for/fraternities-sororities">Fraternities &amp; sororities</a>
               </li>
               <li>
-                <a href="#setup">Club &amp; intramural teams</a>
+                <a href="/for/club-teams">Club &amp; intramural teams</a>
               </li>
               <li>
-                <a href="#setup">Service &amp; volunteer orgs</a>
+                <a href="/for/service-orgs">Service &amp; volunteer orgs</a>
               </li>
               <li>
-                <a href="#setup">Bands, choirs &amp; theatre</a>
+                <a href="/for/performing-arts">Bands, choirs &amp; theatre</a>
               </li>
               <li>
-                <a href="#setup">Student government</a>
+                <a href="/for/student-government">Student government</a>
               </li>
               <li>
-                <a href="#setup">Advisors &amp; campus life</a>
+                <a href="/for/advisors">Advisors &amp; campus life</a>
               </li>
             </ul>
           </div>

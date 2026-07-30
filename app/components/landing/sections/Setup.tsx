@@ -35,6 +35,8 @@ type Kind = {
   name: string;
   slug: string;
   kind: string;
+  /** The audience page under app/for/ that goes deeper on this shape. */
+  guide: { href: string; label: string };
   on: string[];
   words: [string, string][];
   seats: [string, string, string][];
@@ -49,6 +51,7 @@ const KINDS: Record<string, Kind> = {
     name: "Oozma Kappa",
     slug: "chaptos.app/oozma-kappa",
     kind: "Fraternity / sorority",
+    guide: { href: "/for/fraternities-sororities", label: "fraternities & sororities" },
     on: ["Dashboard", "Timeline", "Roster", "Meetings", "Attendance", "Treasury", "Service", "Parties", "Docs"],
     words: [["Member", "Brother"], ["Meetings", "Chapter"], ["Term", "Semester"]],
     seats: [
@@ -75,6 +78,7 @@ const KINDS: Record<string, Kind> = {
     name: "Club Soccer",
     slug: "chaptos.app/club-soccer",
     kind: "Sports / club team",
+    guide: { href: "/for/club-teams", label: "club & intramural teams" },
     on: ["Dashboard", "Timeline", "Roster", "Attendance", "Tasks", "Announcements", "Docs"],
     words: [["Member", "Player"], ["Meetings", "Practice"], ["Term", "Season"]],
     seats: [
@@ -99,6 +103,7 @@ const KINDS: Record<string, Kind> = {
     name: "Habitat Chapter",
     slug: "chaptos.app/habitat",
     kind: "Service / volunteer org",
+    guide: { href: "/for/service-orgs", label: "service & volunteer orgs" },
     on: ["Dashboard", "Timeline", "Roster", "Meetings", "Attendance", "Tasks", "Treasury", "Service", "Announcements", "Docs"],
     words: [["Meetings", "Service events"], ["Term", "Semester"]],
     seats: [
@@ -124,6 +129,7 @@ const KINDS: Record<string, Kind> = {
     name: "Playhouse Co.",
     slug: "chaptos.app/playhouse",
     kind: "Performing arts group",
+    guide: { href: "/for/performing-arts", label: "bands, choirs & theatre" },
     on: ["Dashboard", "Timeline", "Roster", "Meetings", "Attendance", "Tasks", "Treasury", "Announcements", "Docs"],
     words: [["Member", "Cast member"], ["Meetings", "Rehearsal"], ["Event", "Rehearsal"]],
     seats: [
@@ -406,6 +412,15 @@ export function Setup() {
                 Every line above is editable on this sheet — and again in Settings, next
                 semester, when the org has changed its mind.
               </span>
+            </p>
+
+            {/* The way deeper for whichever shape is currently on screen: why
+                this page set, the first week, and what it won't do. */}
+            <p className="setup__guide">
+              <a href={k.guide.href}>
+                The full setup for {k.guide.label}
+                <Doodle id="arrow-r" size={15} viewBox="0 0 24 24" />
+              </a>
             </p>
           </div>
         </div>

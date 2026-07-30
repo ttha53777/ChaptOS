@@ -1,0 +1,227 @@
+/* ============================================================================
+   ChaptOS — /for (who it's for: six audience pages + their index)
+
+   Same paper, ink, pastels and typefaces as the marketing landing page. Scoped
+   under `.lp .fr` and imports NOTHING of its own: every token comes from
+   landing.css, the always-stuck nav / page head / escalation band come from
+   public-chrome.css, and the blueprint sheet reuses landing.css's `.bp` kit
+   verbatim so the sheet on /for reads as the same object as the one in the
+   landing page's setup section.
+
+   No motion anywhere — these pages never mount LandingMotion, so a [data-reveal]
+   hook in this tree would stay at opacity:0 forever. See public-chrome.css.
+
+   Structure
+     1. index (the six cards)
+     2. hero glance strip
+     3. section furniture (shared heads)
+     4. the month (beat rows)
+     5. the setup band (why column + blueprint sheet)
+     6. steps
+     7. asks
+     8. limits
+     9. the other-audiences strip
+    10. responsive
+   ========================================================================== */
+
+/* ---------- 1. index ------------------------------------------------------- */
+.lp .fr__cards{
+  margin-top:clamp(34px,4.4vw,52px); padding-bottom:clamp(10px,2vw,24px);
+  display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px;
+}
+.lp .fr__card{
+  display:block; padding:24px; text-decoration:none; color:inherit; min-width:0;
+  background:var(--card); border:1.5px solid var(--line); border-radius:var(--r-lg);
+  box-shadow:var(--sh-1);
+  transition:transform .18s var(--ease-spring), box-shadow .18s var(--ease-spring),
+             border-color .18s;
+}
+.lp .fr__card:hover{transform:translateY(-3px); border-color:var(--line-2); box-shadow:var(--sh-2)}
+.lp .fr__card h3{margin-top:15px; font-size:1.24rem; letter-spacing:-.024em}
+.lp .fr__card p{margin-top:8px; font-size:.92rem; line-height:1.55; color:var(--ink-2)}
+.lp .fr__go{
+  margin-top:15px; display:inline-flex; align-items:center; gap:7px;
+  font-size:.85rem; font-weight:600; color:var(--ink);
+}
+.lp .fr__go svg{transition:transform .18s var(--ease-spring)}
+.lp .fr__card:hover .fr__go svg{transform:translateX(3px)}
+
+/* The pastel chip an audience wears everywhere it's named. */
+.lp .fr__ic{
+  width:40px; height:40px; border-radius:13px; display:grid; place-items:center; flex:none;
+  background:var(--g, var(--sky-soft)); border:1.5px solid var(--gb, var(--sky));
+}
+
+/* ---------- 2. hero glance ------------------------------------------------- */
+/* Four facts under the lede. Not stat-cards — a rule between them and nothing
+   else, so they read as one sentence in four parts rather than a KPI row. */
+.lp .fr__glance{
+  margin-top:clamp(28px,3.4vw,40px);
+  display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:0;
+  border:1.5px solid var(--line); border-radius:var(--r-lg); background:var(--card);
+  box-shadow:var(--sh-1); overflow:hidden;
+}
+.lp .fr__glance > div{padding:16px 20px; border-left:1.5px solid var(--line); min-width:0}
+.lp .fr__glance > div:first-child{border-left:0}
+.lp .fr__glance .k{
+  font-family:var(--display); font-size:1.18rem; font-weight:600; letter-spacing:-.03em;
+  line-height:1.15; display:block;
+}
+.lp .fr__glance .l{margin-top:5px; font-size:.82rem; line-height:1.45; color:var(--ink-3); display:block}
+
+.lp .fr__actions{margin-top:clamp(26px,3vw,34px); display:flex; flex-wrap:wrap; gap:12px}
+
+/* ---------- 3. section furniture ------------------------------------------ */
+.lp .fr__sec{padding:clamp(52px,6.5vw,92px) 0}
+.lp .fr__sec--tint{background:var(--paper-2); border-block:1.5px solid var(--line)}
+.lp .fr__head{max-width:62ch}
+.lp .fr__head h2{margin-top:15px; font-size:clamp(1.7rem,3vw,2.35rem)}
+.lp .fr__head .lede{margin-top:16px; font-size:clamp(1rem,1.35vw,1.14rem); max-width:60ch}
+
+/* ---------- 4. the month --------------------------------------------------- */
+/* Beat rows: a mono cadence label in its own gutter, the thing that happens,
+   then what carries it. The gutter is what makes it scan as a calendar rather
+   than as five paragraphs. */
+.lp .fr__beats{margin-top:clamp(26px,3.2vw,40px); display:grid; gap:0}
+.lp .fr__beat{
+  display:grid; grid-template-columns:minmax(0,152px) minmax(0,1fr);
+  gap:8px 28px; padding:22px 0; border-top:1.5px solid var(--line);
+}
+.lp .fr__beat:last-child{border-bottom:1.5px solid var(--line)}
+.lp .fr__when{
+  font-family:var(--mono); font-size:.74rem; font-weight:600; letter-spacing:.04em;
+  text-transform:uppercase; color:var(--bt, var(--ink-3)); padding-top:3px;
+}
+.lp .fr__beat h4{font-size:1.08rem; letter-spacing:-.02em}
+.lp .fr__beat p{margin-top:8px; font-size:.96rem; line-height:1.62; color:var(--ink-2); max-width:64ch}
+
+/* ---------- 5. the setup band ---------------------------------------------- */
+.lp .fr__setup{
+  margin-top:clamp(30px,3.6vw,46px);
+  display:grid; grid-template-columns:minmax(0,.9fr) minmax(0,1.1fr);
+  gap:clamp(26px,4vw,58px); align-items:start;
+}
+/* The argument for the sheet's shape, beside the sheet itself. */
+.lp .fr__why{display:grid; gap:20px}
+.lp .fr__why > div{padding-left:18px; border-left:2.5px solid var(--wl, var(--line-2))}
+.lp .fr__why h4{font-size:1.02rem; letter-spacing:-.018em}
+.lp .fr__why p{margin-top:7px; font-size:.93rem; line-height:1.6; color:var(--ink-2)}
+
+/* A note under a blueprint row, in the sheet itself. Mono-adjacent size, never
+   competing with the row it explains. */
+.lp .bp__note{
+  margin-top:10px; font-size:.82rem; line-height:1.5; color:var(--ink-3);
+}
+.lp .bp__note strong{color:var(--ink-2); font-weight:600}
+.lp .bp__note em{font-style:italic}
+.lp .fr__bpfoot{
+  margin-top:14px; display:flex; gap:9px; align-items:flex-start;
+  font-size:.87rem; color:var(--ink-3); line-height:1.45;
+}
+.lp .fr__bpfoot svg{width:16px; height:16px; flex:none; margin-top:2px}
+
+/* ---------- 6. steps ------------------------------------------------------- */
+/* landing.css strips list styling under .lp, so the numbers are a counter in
+   their own gutter rather than a marker. */
+.lp .fr__steps{
+  margin-top:clamp(26px,3.2vw,40px); max-width:74ch;
+  display:grid; gap:18px; counter-reset:frstep;
+}
+.lp .fr__steps > li{position:relative; padding-left:46px}
+.lp .fr__steps > li::before{
+  counter-increment:frstep; content:counter(frstep);
+  position:absolute; left:0; top:-2px;
+  width:30px; height:30px; display:grid; place-items:center;
+  font-family:var(--mono); font-size:.84rem; font-weight:500; color:var(--ink-2);
+  background:var(--card); border:1.5px solid var(--line-2); border-radius:50%;
+  font-variant-numeric:tabular-nums;
+}
+.lp .fr__steps h4{font-size:1.02rem; letter-spacing:-.018em; padding-top:2px}
+.lp .fr__steps p{margin-top:7px; font-size:.94rem; line-height:1.62; color:var(--ink-2)}
+
+/* ---------- 7. asks -------------------------------------------------------- */
+/* Reuses landing.css's `.spotmini` (the hero's ⌘K card) with `.is-live` baked
+   on, since nothing here can animate it open. */
+.lp .fr__asks{margin-top:clamp(26px,3.2vw,40px); display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:18px}
+.lp .fr__asks .spotmini{height:100%; display:flex; flex-direction:column}
+.lp .fr__asks .spotmini__q{font-style:normal}
+.lp .fr__asks .spotmini__a{margin-top:auto}
+.lp .fr__asknote{
+  margin-top:20px; font-size:.88rem; color:var(--ink-3); line-height:1.55; max-width:66ch;
+  display:flex; gap:9px; align-items:flex-start;
+}
+.lp .fr__asknote svg{width:16px; height:16px; flex:none; margin-top:3px}
+
+/* ---------- 8. limits ------------------------------------------------------ */
+/* The section that earns the rest of the page. Deliberately as loud as the
+   feature sections: same card weight, a cross rather than a tick. */
+.lp .fr__limits{margin-top:clamp(26px,3.2vw,40px); display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px}
+.lp .fr__limit{
+  padding:20px 22px; min-width:0;
+  background:var(--card); border:1.5px solid var(--line); border-radius:var(--r-lg);
+  box-shadow:var(--sh-1);
+}
+/* An odd number of limits would otherwise end the grid with a half-width card
+   beside a hole. The last one spans instead — same move as .hc__path:last-child. */
+.lp .fr__limits > .fr__limit:last-child:nth-child(odd){grid-column:1 / -1}
+.lp .fr__limit h4{display:flex; gap:11px; align-items:flex-start; font-size:1.02rem; letter-spacing:-.018em}
+.lp .fr__limit h4::before{
+  content:'✕'; flex:none; width:22px; height:22px; border-radius:50%;
+  display:grid; place-items:center; margin-top:-1px;
+  background:var(--peach-soft); border:1.5px solid #F8D2C2; color:var(--peach-ink);
+  font-size:.72rem; font-weight:700; line-height:1;
+}
+.lp .fr__limit p{margin-top:10px; font-size:.93rem; line-height:1.62; color:var(--ink-2)}
+.lp .fr__limit a{
+  color:var(--sky-ink); text-decoration:underline;
+  text-decoration-color:#BBD3F5; text-underline-offset:2.5px;
+}
+.lp .fr__limit a:hover{text-decoration-color:var(--sky-ink)}
+.lp .fr__limit strong{color:var(--ink); font-weight:650}
+
+/* ---------- 9. the other-audiences strip ----------------------------------- */
+.lp .fr__other{padding:clamp(44px,5.5vw,72px) 0 0}
+.lp .fr__other h3{font-size:1.24rem}
+.lp .fr__otherrow{margin-top:20px; display:flex; flex-wrap:wrap; gap:10px}
+.lp .fr__pill{
+  display:inline-flex; align-items:center; gap:10px; padding:9px 16px 9px 10px;
+  border:1.5px solid var(--line); border-radius:var(--r-pill); background:var(--card);
+  font-size:.9rem; font-weight:550; color:var(--ink-2); text-decoration:none;
+  box-shadow:var(--sh-1);
+  transition:transform .18s var(--ease-spring), box-shadow .18s var(--ease-spring),
+             border-color .18s, color .18s;
+}
+.lp .fr__pill:hover{
+  color:var(--ink); border-color:var(--ink);
+  transform:translate(-1.5px,-1.5px); box-shadow:3.5px 3.5px 0 var(--pl, var(--sky));
+}
+.lp .fr__pill .fr__ic{width:26px; height:26px; border-radius:9px}
+
+/* ---------- 10. responsive -------------------------------------------------- */
+@media (max-width: 1080px){
+  .lp .fr__setup{grid-template-columns:minmax(0,1fr); gap:34px}
+  /* The sheet is the point of the section — lead with it, then the argument. */
+  .lp .fr__why{order:2}
+  .lp .fr__sheet{order:1}
+}
+@media (max-width: 900px){
+  .lp .fr__cards{grid-template-columns:minmax(0,1fr)}
+  .lp .fr__asks{grid-template-columns:minmax(0,1fr)}
+  .lp .fr__limits{grid-template-columns:minmax(0,1fr)}
+  /* Four facts don't survive a phone as a row; two rows of two do. */
+  .lp .fr__glance{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .lp .fr__glance > div:nth-child(3),.lp .fr__glance > div:nth-child(4){border-top:1.5px solid var(--line)}
+  .lp .fr__glance > div:nth-child(3){border-left:0}
+}
+@media (max-width: 620px){
+  /* The cadence label stops being a gutter and becomes a kicker above the row. */
+  .lp .fr__beat{grid-template-columns:minmax(0,1fr); gap:6px; padding:20px 0}
+  .lp .fr__when{padding-top:0}
+  .lp .fr__glance{grid-template-columns:minmax(0,1fr)}
+  .lp .fr__glance > div{border-left:0; border-top:1.5px solid var(--line)}
+  .lp .fr__glance > div:first-child{border-top:0}
+  .lp .fr__glance > div:nth-child(3){border-left:0}
+  .lp .fr__actions .btn{width:100%}
+  .lp .fr__steps > li{padding-left:38px}
+  .lp .fr__steps > li::before{width:26px; height:26px; font-size:.78rem}
+}

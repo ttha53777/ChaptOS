@@ -34,6 +34,18 @@
    affordance. */
 .lp.pub .nav__links .is-here{color:var(--ink); background:var(--paper-3); font-weight:600}
 
+/* Six links, a wordmark and two buttons stop fitting on one row at ~925px, and
+   .nav__links is a nowrap flex row — so something has to go before the bar
+   pushes the page sideways. The two that go are the ones pointing back at
+   landing-page sections; a reader already on a public page is served by its
+   siblings (Who it's for / Help / Trust), and the wordmark still goes home.
+   980 rather than 925 leaves cushion for a wider fallback face; below 900 the
+   whole row is hidden by landing.css anyway. */
+@media (max-width: 980px){
+  .lp.pub .nav__links a[href="/#modules"],
+  .lp.pub .nav__links a[href="/#setup"]{display:none}
+}
+
 /* ---------- 2. page head -------------------------------------------------- */
 /* The band every public page opens with: eyebrow, h1, lede, then whatever the
    page puts under it. */

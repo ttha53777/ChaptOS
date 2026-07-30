@@ -44,6 +44,9 @@ const SYSTEM_ROUTES: readonly string[] = [
   // help centre's own slug ("help") is already reserved as an infra host below,
   // as is "support".
   "contact", "faq",
+  // "for" backs app/for/ (the six audience pages). Only three characters, so it
+  // clears MIN_SLUG_LEN and would otherwise be claimable.
+  "for",
 ];
 
 const INFRA_HOSTS: readonly string[] = [

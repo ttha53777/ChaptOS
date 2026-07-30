@@ -106,16 +106,24 @@ export async function proxy(request: NextRequest) {
  *   /trust     public disclosure copy, linked from the marketing footer
  *   /help      the help centre, plus /help/<article>
  *   /contact   "talk to a human"
+ *   /for       who it's for, plus /for/<audience> — the six org-type pages the
+ *              footer's "For" column links to
  *
- * The /help articles are matched by prefix rather than enumerated, but the
- * prefix carries its trailing "/" so a future org slug like "helpdesk" can't be
- * swept in — org routes are /<slug>, and "/helpdesk" does not start with
- * "/help/".
+ * The /help articles and /for audiences are matched by prefix rather than
+ * enumerated, but each prefix carries its trailing "/" so a future org slug like
+ * "helpdesk" or "formal" can't be swept in — org routes are /<slug>, and
+ * "/helpdesk" does not start with "/help/".
  */
-const PUBLIC_PATHS: ReadonlySet<string> = new Set(["/", "/create", "/trust", "/help", "/contact"]);
+const PUBLIC_PATHS: ReadonlySet<string> = new Set([
+  "/", "/create", "/trust", "/help", "/contact", "/for",
+]);
 
 function isPublicPath(pathname: string): boolean {
-  return PUBLIC_PATHS.has(pathname) || pathname.startsWith("/help/");
+  return (
+    PUBLIC_PATHS.has(pathname) ||
+    pathname.startsWith("/help/") ||
+    pathname.startsWith("/for/")
+  );
 }
 
 /**
