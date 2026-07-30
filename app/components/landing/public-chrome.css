@@ -68,6 +68,10 @@
 .lp .pub__askcard h3{font-size:clamp(1.3rem,2.1vw,1.62rem)}
 .lp .pub__askcard p{margin-top:9px; color:var(--ink-2); font-size:.97rem; line-height:1.6}
 .lp .pub__askcard .a{display:flex; flex-wrap:wrap; gap:10px; flex:none}
+/* The address as copy rather than a control (see the note in app/help/page.tsx).
+   Mono because it's a literal you might retype. */
+.lp .pub__askaddr{font-size:.86rem; color:var(--ink-3)}
+.lp .pub__askaddr .m{font-family:var(--mono); font-size:.95em; color:var(--ink-2); overflow-wrap:anywhere}
 
 @media (max-width: 560px){
   .lp .pub__askcard{box-shadow:5px 5px 0 var(--butter)}

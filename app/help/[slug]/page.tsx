@@ -23,7 +23,6 @@ import { CatIcon } from "../CatIcon";
 import { inline } from "../inline";
 import { ARTICLES, ARTICLES_BY_SLUG, CATEGORIES_BY_ID, articlesIn } from "../content";
 import { APP_NAME } from "@/lib/domains";
-import { mailto } from "@/lib/support";
 
 export function generateStaticParams() {
   return ARTICLES.map(a => ({ slug: a.slug }));
@@ -57,15 +56,11 @@ export default async function HelpArticlePage({
   // someone wants next and is cheaper to scan than a global list.
   const siblings = articlesIn(category.id).filter(a => a.slug !== article.slug);
 
-  // Pre-fills the subject line with the article the reader gave up on. It's the
-  // single most useful thing an email about a help page can carry.
-  const askHref = mailto(
-    `Help: ${article.title}`,
-    `I was reading /help/${article.slug} and I'm still stuck.\n\n` +
-      `What I was trying to do:\n\n\n` +
-      `What happened instead:\n\n\n` +
-      `My org:\n\n`,
-  );
+  // Carries the article the reader gave up on into the composer on /contact,
+  // which opens with it named in the subject and the draft. Deliberately NOT a
+  // mailto: — a mailto: does nothing at all on a browser with no mail handler,
+  // and a whole card that silently no-ops is worse than one that navigates.
+  const askHref = `/contact?from=${encodeURIComponent(article.slug)}`;
 
   return (
     <div className={`lp pub hc hc--art ${landingFontClass}`}>
@@ -123,7 +118,7 @@ export default async function HelpArticlePage({
                 />
                 <span>
                   <b>This didn&apos;t answer it</b>
-                  Email a person, with this page&apos;s title already in the subject.
+                  Write to a person, with this page already named in the draft.
                 </span>
               </a>
             </aside>

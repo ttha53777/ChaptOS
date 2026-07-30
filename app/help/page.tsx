@@ -82,14 +82,19 @@ export default function HelpIndexPage() {
                   person, and that person reads everything. Tell them what you were doing and
                   what happened instead.
                 </p>
+                {/* The address as plain text, not a second button. It used to be
+                    a mailto: styled as one, which does nothing at all on a
+                    browser with no mail handler — a button-shaped no-op. As copy
+                    it still tells you where to write, and it can't fail. */}
+                <p className="pub__askaddr">
+                  Or write to <span className="m">{SUPPORT_EMAIL}</span>{" "}— /contact just
+                  helps you say the useful parts.
+                </p>
               </div>
               <div className="a">
                 <a className="btn" href="/contact">
                   Talk to a human{" "}
                   <Doodle id="arrow-r" size={16} viewBox="0 0 24 24" />
-                </a>
-                <a className="btn btn--ghost" href={`mailto:${SUPPORT_EMAIL}`}>
-                  {SUPPORT_EMAIL}
                 </a>
               </div>
             </div>

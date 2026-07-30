@@ -36,6 +36,16 @@
 .lp .ct__main{padding:clamp(58px,7vw,100px) 0 0}
 .lp .ct__mainhead{max-width:62ch}
 .lp .ct__mainhead .lede{margin-top:16px; font-size:clamp(1rem,1.35vw,1.16rem)}
+/* Shown only when ?from=<article> resolved — confirms the context carried over
+   rather than leaving the visitor to notice it in the draft. */
+.lp .ct__from{
+  margin-top:14px; display:inline-flex; flex-wrap:wrap; align-items:baseline; gap:0 4px;
+  padding:7px 14px; border-radius:var(--r-pill);
+  background:var(--lilac-soft); border:1px solid #DCD2FB;
+  font-size:.86rem; color:var(--ink-2);
+}
+.lp .ct__from a{color:var(--ink); font-weight:600; text-decoration:underline;
+  text-decoration-color:#C9B9F7; text-underline-offset:3px}
 
 .lp .ct__pick{
   margin-top:clamp(28px,3.4vw,42px);
@@ -72,11 +82,15 @@
 }
 
 /* --- compose panel --- */
+/* Deliberately NOT sticky. It was, while it held only a checklist — but with the
+   draft textarea in it the panel is now the taller of the two columns and
+   frequently taller than the viewport, and a stuck element taller than its
+   scrollport pins its top and puts its own send buttons permanently out of
+   reach. */
 .lp .ct__compose{
   padding:clamp(22px,2.8vw,30px);
   background:var(--card); border:1.5px solid var(--ink); border-radius:var(--r-xl);
   box-shadow:6px 6px 0 var(--peach);
-  position:sticky; top:calc(var(--pub-nav-h) + 24px);
 }
 .lp .ct__subject{
   display:flex; flex-wrap:wrap; align-items:baseline; gap:6px 12px;
@@ -113,17 +127,62 @@
 .lp .ct__note--warn{--n-bg:var(--butter-soft); --n-bd:#F4DFA6; --n-fg:var(--butter-ink)}
 .lp .ct__note--good{--n-bg:var(--mint-soft);   --n-bd:#BDE7D2; --n-fg:var(--mint-ink)}
 
-.lp .ct__actions{margin-top:22px; display:flex; flex-wrap:wrap; gap:10px}
+/* --- the draft --- */
+/* The email as real, editable text. This is the load-bearing element of the
+   page: as long as it's here, no button failing can leave a visitor with
+   nothing — the thing they wanted to send is on screen to read and copy. */
+.lp .ct__drafthead{
+  margin-top:20px; display:flex; align-items:baseline; gap:12px;
+}
+.lp .ct__drafthead label{
+  font-size:.72rem; letter-spacing:.09em; text-transform:uppercase;
+  font-weight:700; color:var(--ink-3);
+}
+.lp .ct__reset{
+  margin-left:auto; border:0; background:none; cursor:pointer; padding:0;
+  font-family:inherit; font-size:.8rem; font-weight:600; color:var(--sky-ink);
+  text-decoration:underline; text-decoration-color:#BBD3F5; text-underline-offset:3px;
+}
+.lp .ct__reset:hover{text-decoration-color:var(--sky-ink)}
+
+/* landing.css resets font on `.lp button, .lp input` — NOT textarea, which
+   would otherwise inherit the UA monospace default. */
+.lp .ct__draft{
+  margin-top:9px; width:100%; display:block; resize:vertical; min-height:180px;
+  padding:14px 15px;
+  font-family:var(--sans); font-size:.94rem; line-height:1.62;
+  color:var(--ink); background:var(--paper-2);
+  border:1.5px solid var(--line); border-radius:var(--r-md);
+  transition:border-color .16s, background .16s, box-shadow .16s;
+}
+.lp .ct__draft:focus{
+  outline:0; background:var(--card); border-color:var(--ink);
+  box-shadow:3px 3px 0 var(--sky);
+}
+.lp .ct__drafthelp{margin-top:9px; font-size:.82rem; line-height:1.5; color:var(--ink-3)}
+
+/* --- send --- */
+.lp .ct__actions{margin-top:18px; display:flex; flex-wrap:wrap; gap:10px}
 /* .btn is styled for anchors; the copy control is a <button> and needs the
    font/appearance reset landing.css only applies to inputs. */
 .lp .ct__actions button.btn{font-family:inherit; appearance:none}
-.lp .ct__addr{margin-top:14px; font-size:.85rem; line-height:1.55; color:var(--ink-3)}
-.lp .ct__addr a{
-  color:var(--ink); font-family:var(--mono); font-size:.95em;
-  text-decoration:underline; text-decoration-color:var(--line-2); text-underline-offset:3px;
-  overflow-wrap:anywhere;
+
+/* Always in the DOM (role=status), so the region is announced when it fills
+   rather than being a node that appears from nowhere. Empty = zero height. */
+.lp .ct__copystate:not(:empty){
+  margin-top:11px; font-size:.83rem; line-height:1.5; color:var(--mint-ink); font-weight:500;
 }
-.lp .ct__addr a:hover{text-decoration-color:var(--ink)}
+
+.lp .ct__ways{margin-top:16px; padding-top:15px; border-top:1px solid var(--line)}
+.lp .ct__ways p{font-size:.84rem; line-height:1.6; color:var(--ink-3)}
+.lp .ct__ways a{
+  color:var(--ink-2); text-decoration:underline;
+  text-decoration-color:var(--line-2); text-underline-offset:3px;
+}
+.lp .ct__ways a:hover{color:var(--ink); text-decoration-color:var(--ink)}
+.lp .ct__ways a.m{font-family:var(--mono); font-size:.95em; overflow-wrap:anywhere}
+.lp .ct__caveat{margin-top:10px}
+.lp .ct__caveat b{color:var(--ink-2); font-weight:600}
 
 /* ---------- 3. probably faster ---------------------------------------------- */
 .lp .ct__faster{padding:clamp(58px,7vw,100px) 0 0}
@@ -160,9 +219,6 @@
 /* ---------- 4. responsive ---------------------------------------------------- */
 @media (max-width: 1000px){
   .lp .ct__pick{grid-template-columns:minmax(0,1fr); gap:22px}
-  /* Sticky is wrong once the panel is BELOW the list rather than beside it —
-     it would pin the compose card while the reasons scroll away above it. */
-  .lp .ct__compose{position:static}
   .lp .ct__fastgrid{grid-template-columns:minmax(0,1fr); gap:30px}
 }
 @media (max-width: 860px){

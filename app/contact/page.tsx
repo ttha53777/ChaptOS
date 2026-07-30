@@ -19,6 +19,7 @@ import { landingFontClass } from "../components/landing/fonts";
 import { PublicNav } from "../components/landing/PublicChrome";
 import { Footer } from "../components/landing/sections/Footer";
 import { ContactPicker } from "./ContactPicker";
+import { ARTICLES_BY_SLUG } from "../help/content";
 import { APP_NAME } from "@/lib/domains";
 import { SUPPORT_EMAIL } from "@/lib/support";
 
@@ -29,7 +30,25 @@ export const metadata: Metadata = {
     "reads it, and an honest account of how long a reply takes.",
 };
 
-export default function ContactPage() {
+/**
+ * `?from=<help-article-slug>` — set by the "this didn't answer it" card on every
+ * help article. The slug is resolved against the article registry rather than
+ * echoed, so an arbitrary query string can never put attacker-chosen text into
+ * the page or into the draft; an unknown slug just means no context.
+ *
+ * Read as a server prop rather than with useSearchParams(): that hook would make
+ * everything up to the nearest Suspense boundary client-rendered, and the whole
+ * point of the composer is that the draft is in the initial HTML.
+ */
+export default async function ContactPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ from?: string }>;
+}) {
+  const { from } = await searchParams;
+  const source = from ? ARTICLES_BY_SLUG.get(from) : undefined;
+  const fromArticle = source ? { slug: source.slug, title: source.title } : null;
+
   return (
     <div className={`lp pub ct ${landingFontClass}`}>
       <DoodleSprite />
@@ -112,12 +131,18 @@ export default function ContactPage() {
             <div className="ct__mainhead">
               <h2>Write in</h2>
               <p className="lede">
-                Pick what it&apos;s about and we&apos;ll start the email for you — with a
-                subject line and the handful of details that let the first reply be the answer
-                instead of a question.
+                Pick what it&apos;s about and we&apos;ll draft the email for you. Fill it in
+                right here, then send it whichever way suits — nothing on this page needs a
+                mail app installed.
               </p>
+              {fromArticle && (
+                <p className="ct__from">
+                  Coming from <a href={`/help/${fromArticle.slug}`}>{fromArticle.title}</a>
+                  {" "}— it&apos;s already named in the draft.
+                </p>
+              )}
             </div>
-            <ContactPicker />
+            <ContactPicker fromArticle={fromArticle} />
           </div>
         </section>
 
