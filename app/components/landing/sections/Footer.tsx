@@ -68,10 +68,10 @@ export function Footer() {
                 <a href="#start">Pricing</a>
               </li>
               <li>
-                <a href="#">Help center</a>
+                <a href="/help">Help center</a>
               </li>
               <li>
-                <a href="#">Talk to a human</a>
+                <a href="/contact">Talk to a human</a>
               </li>
             </ul>
           </div>

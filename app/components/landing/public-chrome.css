@@ -1,0 +1,83 @@
+/* ============================================================================
+   ChaptOS — shared chrome for the public pages (/help, /help/*, /contact)
+
+   Scoped under `.lp.pub` and imports NOTHING of its own: every token comes from
+   landing.css, which each page also imports. Adding `.pub` next to `.lp` gets
+   the whole design system (wrap, btn, eyebrow, pill, card, mono, nav, foot) and
+   this file only adds what a page without LandingMotion needs.
+
+   Two deliberate differences from the landing page, both consequences of these
+   pages being static:
+
+     1. NO MOTION. The landing reveal system leaves [data-reveal] nodes at
+        opacity:0 until LandingMotion (a client component) adds .is-in. These
+        pages never mount it, so they must never carry those hooks — nothing
+        here fades, pins or parallaxes.
+     2. THE NAV IS PERMANENTLY "STUCK". `.lp .nav.is-stuck` is normally applied
+        by LandingMotion on scroll; without it a transparent sticky bar lets
+        text scroll underneath. §1 bakes the stuck treatment in.
+   ========================================================================== */
+
+/* Height of the always-stuck nav. Drives every heading's scroll-margin so an
+   anchor jump can't land a heading underneath the bar. Mirrors --tp-nav-h. */
+.lp.pub{--pub-nav-h:68px}
+
+/* ---------- 1. nav (always-stuck variant) --------------------------------- */
+.lp.pub .nav{
+  padding:9px 0;
+  background:rgba(255,252,246,.86);
+  backdrop-filter:blur(14px) saturate(1.3);
+  border-bottom-color:var(--line);
+  box-shadow:0 6px 22px -18px rgba(38,33,27,.5);
+}
+/* The current page in the nav: reads as "you are here" without a link's
+   affordance. */
+.lp.pub .nav__links .is-here{color:var(--ink); background:var(--paper-3); font-weight:600}
+
+/* ---------- 2. page head -------------------------------------------------- */
+/* The band every public page opens with: eyebrow, h1, lede, then whatever the
+   page puts under it. */
+.lp .pub__hero{padding:clamp(44px,5.5vw,78px) 0 0}
+.lp .pub__head{max-width:740px}
+.lp .pub__head h1{margin-top:18px; font-size:clamp(2.1rem,4.2vw,3.15rem)}
+.lp .pub__head .lede{margin-top:20px; max-width:58ch}
+
+/* Breadcrumb above an inner-page title. Separators are ::before on every item
+   after the first so a wrapped row leads with the chevron instead of orphaning
+   one at the end of the previous line. */
+.lp .pub__crumbs{
+  display:flex; flex-wrap:wrap; align-items:baseline; gap:6px 10px;
+  font-size:.86rem; color:var(--ink-3);
+}
+.lp .pub__crumbs a{color:var(--ink-3); text-decoration:none}
+.lp .pub__crumbs a:hover{color:var(--ink-2); text-decoration:underline; text-underline-offset:3px}
+.lp .pub__crumbs > *+ *::before{content:'›'; margin-right:10px; color:var(--line-2)}
+
+/* ---------- 3. the "still stuck?" band ------------------------------------ */
+/* Sits above the footer on every public page: one card, one question, one way
+   out. Deliberately the same shape on /help, an article, and /contact so it
+   reads as the same offer rather than three different ones. */
+.lp .pub__ask{padding:clamp(56px,7vw,96px) 0 clamp(64px,8vw,104px)}
+.lp .pub__askcard{
+  padding:clamp(26px,3.6vw,40px);
+  display:flex; flex-wrap:wrap; align-items:center; gap:20px 30px;
+  background:var(--card); border:1.5px solid var(--ink); border-radius:var(--r-xl);
+  box-shadow:7px 7px 0 var(--butter);
+}
+.lp .pub__askcard .t{flex:1 1 300px; min-width:0}
+.lp .pub__askcard h3{font-size:clamp(1.3rem,2.1vw,1.62rem)}
+.lp .pub__askcard p{margin-top:9px; color:var(--ink-2); font-size:.97rem; line-height:1.6}
+.lp .pub__askcard .a{display:flex; flex-wrap:wrap; gap:10px; flex:none}
+
+@media (max-width: 560px){
+  .lp .pub__askcard{box-shadow:5px 5px 0 var(--butter)}
+  /* Both rules are needed. `.a` is flex:none above so the buttons sit on one
+     line beside the copy at desktop — which also means its base size is
+     max-content, and its own flex-wrap can never fire. Releasing it to a full
+     row (and allowing it to shrink) is what lets the buttons below stack; on
+     their own they'd still be laid out inside a max-content box wider than the
+     card. `.btn` is white-space:nowrap, so an address that can't shrink would
+     otherwise push the page sideways. */
+  .lp .pub__askcard .a{flex:1 1 100%; min-width:0}
+  .lp .pub__askcard .a .btn{flex:1 1 100%}
+}

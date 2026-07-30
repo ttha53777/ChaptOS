@@ -8,6 +8,11 @@
  */
 
 // First-path segments that are platform/auth routes, NOT org dashboards.
+//
+// Missing one here is not cosmetic: isDashboardRoute() gates the chat widget,
+// the no-active-semester modal and the org header on api calls, so a public page
+// left out of this set gets the signed-in app's dark chrome bolted onto an ivory
+// marketing page.
 export const RESERVED_SEGMENTS = new Set([
   "login",
   "welcome",
@@ -17,6 +22,11 @@ export const RESERVED_SEGMENTS = new Set([
   "auth",
   "admin",
   "api",
+  // Public marketing/disclosure pages (see PUBLIC_PATHS in proxy.ts). They
+  // render the same signed in, and none of them belongs to an org.
+  "trust",
+  "help",
+  "contact",
 ]);
 
 /**

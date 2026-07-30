@@ -1,0 +1,179 @@
+/* ============================================================================
+   ChaptOS — /contact ("Talk to a human")
+
+   Same paper, ink, pastels and typefaces as the marketing landing page. Scoped
+   under `.lp .ct` and imports NOTHING of its own: every token comes from
+   landing.css, and the always-stuck nav / page head / escalation band come from
+   public-chrome.css. Both are imported by the page alongside this file.
+
+   No motion — this page never mounts LandingMotion, so a [data-reveal] hook
+   here would stay invisible forever.
+
+   Structure
+     1. the three facts
+     2. the picker (reason list + compose panel)
+     3. "probably faster"
+     4. responsive
+   ========================================================================== */
+
+/* ---------- 1. the three facts --------------------------------------------- */
+.lp .ct__facts{
+  margin-top:clamp(34px,4.2vw,52px);
+  display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px;
+}
+.lp .ct__fact{
+  padding:22px; background:var(--card); border:1.5px solid var(--line);
+  border-radius:var(--r-lg); box-shadow:var(--sh-1);
+}
+.lp .ct__fic,.lp .ct__ric{
+  width:38px; height:38px; border-radius:12px; display:grid; place-items:center; flex:none;
+  background:var(--g, var(--sky-soft)); border:1.5px solid var(--gb, var(--sky));
+}
+.lp .ct__fact h4{margin-top:14px}
+.lp .ct__fact p{margin-top:7px; font-size:.9rem; line-height:1.55; color:var(--ink-2)}
+
+/* ---------- 2. the picker --------------------------------------------------- */
+.lp .ct__main{padding:clamp(58px,7vw,100px) 0 0}
+.lp .ct__mainhead{max-width:62ch}
+.lp .ct__mainhead .lede{margin-top:16px; font-size:clamp(1rem,1.35vw,1.16rem)}
+
+.lp .ct__pick{
+  margin-top:clamp(28px,3.4vw,42px);
+  display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.05fr);
+  gap:clamp(20px,2.6vw,34px);
+  align-items:start;
+}
+
+/* --- reason list --- */
+.lp .ct__reasons{display:grid; gap:8px}
+.lp .ct__reasons h5{
+  font-size:.72rem; letter-spacing:.09em; text-transform:uppercase;
+  color:var(--ink-3); font-weight:600; margin-bottom:4px;
+}
+.lp .ct__reason{
+  display:flex; gap:13px; align-items:flex-start; text-align:left; width:100%;
+  padding:15px 16px; cursor:pointer;
+  background:var(--card); border:1.5px solid var(--line); border-radius:var(--r-md);
+  transition:border-color .16s, background .16s, transform .16s var(--ease-spring),
+             box-shadow .16s var(--ease-spring);
+}
+.lp .ct__reason:hover{border-color:var(--line-2); transform:translateX(2px)}
+/* Selected state carries THREE signals — ink border, offset shadow and a bolder
+   label — because this control is a button, not a radio, and has no dot of its
+   own to check. */
+.lp .ct__reason.is-on{
+  border-color:var(--ink); background:var(--card);
+  transform:translateX(2px); box-shadow:3px 3px 0 var(--ink);
+}
+.lp .ct__rtx{display:block; min-width:0; font-size:.86rem; line-height:1.5; color:var(--ink-3)}
+.lp .ct__rtx b{
+  display:block; font-family:var(--display); font-weight:600; font-size:1rem;
+  letter-spacing:-.018em; line-height:1.25; color:var(--ink); margin-bottom:4px;
+}
+
+/* --- compose panel --- */
+.lp .ct__compose{
+  padding:clamp(22px,2.8vw,30px);
+  background:var(--card); border:1.5px solid var(--ink); border-radius:var(--r-xl);
+  box-shadow:6px 6px 0 var(--peach);
+  position:sticky; top:calc(var(--pub-nav-h) + 24px);
+}
+.lp .ct__subject{
+  display:flex; flex-wrap:wrap; align-items:baseline; gap:6px 12px;
+  padding-bottom:16px; margin-bottom:18px; border-bottom:1.5px solid var(--line);
+}
+.lp .ct__subject .l{
+  font-size:.7rem; letter-spacing:.09em; text-transform:uppercase;
+  font-weight:700; color:var(--ink-3); flex:none;
+}
+.lp .ct__subject .v{font-family:var(--mono); font-size:.94rem; color:var(--ink)}
+
+.lp .ct__compose h4{font-size:1rem}
+.lp .ct__inc{margin-top:13px; display:grid; gap:10px}
+/* landing.css strips list styling globally under .lp, so the tick is rebuilt. */
+.lp .ct__inc > li{
+  position:relative; padding-left:23px;
+  font-size:.9rem; line-height:1.55; color:var(--ink-2);
+}
+.lp .ct__inc > li::before{
+  content:'✓'; position:absolute; left:0; top:0;
+  color:var(--mint-ink); font-size:.9em; font-weight:700;
+}
+
+.lp .ct__note{
+  margin-top:18px; padding:15px 17px; border-radius:var(--r-md);
+  background:var(--n-bg, var(--sky-soft)); border:1.5px solid var(--n-bd, #CCDFFB);
+}
+.lp .ct__note h5{
+  font-size:.71rem; letter-spacing:.09em; text-transform:uppercase; font-weight:700;
+  color:var(--n-fg, var(--sky-ink)); margin-bottom:7px;
+}
+.lp .ct__note p{font-size:.89rem; line-height:1.6; color:var(--ink-2)}
+.lp .ct__note a{color:var(--ink); text-decoration:underline; text-underline-offset:2.5px}
+.lp .ct__note--warn{--n-bg:var(--butter-soft); --n-bd:#F4DFA6; --n-fg:var(--butter-ink)}
+.lp .ct__note--good{--n-bg:var(--mint-soft);   --n-bd:#BDE7D2; --n-fg:var(--mint-ink)}
+
+.lp .ct__actions{margin-top:22px; display:flex; flex-wrap:wrap; gap:10px}
+/* .btn is styled for anchors; the copy control is a <button> and needs the
+   font/appearance reset landing.css only applies to inputs. */
+.lp .ct__actions button.btn{font-family:inherit; appearance:none}
+.lp .ct__addr{margin-top:14px; font-size:.85rem; line-height:1.55; color:var(--ink-3)}
+.lp .ct__addr a{
+  color:var(--ink); font-family:var(--mono); font-size:.95em;
+  text-decoration:underline; text-decoration-color:var(--line-2); text-underline-offset:3px;
+  overflow-wrap:anywhere;
+}
+.lp .ct__addr a:hover{text-decoration-color:var(--ink)}
+
+/* ---------- 3. probably faster ---------------------------------------------- */
+.lp .ct__faster{padding:clamp(58px,7vw,100px) 0 0}
+.lp .ct__fastgrid{
+  display:grid; grid-template-columns:minmax(0,.85fr) minmax(0,1.15fr);
+  gap:clamp(28px,4vw,64px); align-items:start;
+}
+.lp .ct__fasthead h3{margin-top:16px}
+.lp .ct__fasthead p{margin-top:14px; font-size:.95rem; line-height:1.6; color:var(--ink-2)}
+
+.lp .ct__fastlist{display:grid; gap:10px}
+.lp .ct__fastlist a{
+  display:block; padding:18px 20px; text-decoration:none; color:inherit;
+  background:var(--paper-2); border:1.5px solid var(--line); border-radius:var(--r-lg);
+  transition:background .16s, border-color .16s, transform .16s var(--ease-spring);
+}
+.lp .ct__fastlist a:hover{
+  background:var(--card); border-color:var(--ink); transform:translateX(3px);
+}
+.lp .ct__fastlist .t{
+  display:block; font-family:var(--display); font-weight:600; font-size:1.05rem;
+  letter-spacing:-.02em; line-height:1.25;
+}
+.lp .ct__fastlist .b{display:block; margin-top:7px; font-size:.89rem; line-height:1.6; color:var(--ink-2)}
+
+/* The address, always in the DOM for Cmd+F and screen readers even though the
+   picker above is the intended path. Visually hidden, not display:none — the
+   latter takes it out of the accessibility tree too. */
+.lp .ct__sr{
+  position:absolute; width:1px; height:1px; padding:0; margin:-1px;
+  overflow:hidden; clip-path:inset(50%); white-space:nowrap; border:0;
+}
+
+/* ---------- 4. responsive ---------------------------------------------------- */
+@media (max-width: 1000px){
+  .lp .ct__pick{grid-template-columns:minmax(0,1fr); gap:22px}
+  /* Sticky is wrong once the panel is BELOW the list rather than beside it —
+     it would pin the compose card while the reasons scroll away above it. */
+  .lp .ct__compose{position:static}
+  .lp .ct__fastgrid{grid-template-columns:minmax(0,1fr); gap:30px}
+}
+@media (max-width: 860px){
+  .lp .ct__facts{grid-template-columns:repeat(2,minmax(0,1fr))}
+  /* Three cards in a 2-up grid: the third spans rather than sitting half-width
+     beside a hole. */
+  .lp .ct__fact:last-child{grid-column:1 / -1}
+}
+@media (max-width: 560px){
+  .lp .ct__facts{grid-template-columns:minmax(0,1fr)}
+  .lp .ct__fact:last-child{grid-column:auto}
+  .lp .ct__compose{box-shadow:4px 4px 0 var(--peach)}
+  .lp .ct__actions .btn{flex:1 1 100%}
+}

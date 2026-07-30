@@ -39,6 +39,11 @@ const SYSTEM_ROUTES: readonly string[] = [
   // adding app/privacy/ later can't be shadowed by an org that already took the
   // slug, which is unfixable without renaming someone's workspace.
   "trust", "privacy", "terms", "legal",
+  // "contact" backs app/contact/ ("talk to a human"); "faq" is its conventional
+  // sibling, reserved ahead of being built for the same reason as above. The
+  // help centre's own slug ("help") is already reserved as an infra host below,
+  // as is "support".
+  "contact", "faq",
 ];
 
 const INFRA_HOSTS: readonly string[] = [

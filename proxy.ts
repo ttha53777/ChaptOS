@@ -82,25 +82,40 @@ export async function proxy(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser();
 
   if (!user) {
-    // Root is the public marketing page — anonymous visitors see it instead of
-    // being bounced to /login. Signed-in users still hit app/page.tsx, which
-    // routes them into their org. Everything else stays gated.
-    if (request.nextUrl.pathname === "/") return response;
-    // /create is the pre-auth org-creation flow: a founder runs the whole
-    // interview signed out and signs in at the Build step. It stays inside the
-    // matcher (unlike /login) so the post-OAuth resume leg still gets a fresh
-    // session cookie from the refresh above.
-    if (request.nextUrl.pathname === "/create") return response;
-    // /trust is public disclosure copy linked from the marketing footer — it must
-    // be readable without an account (that's the whole point of publishing it),
-    // and it renders the same for signed-in visitors, so no redirect either way.
-    if (request.nextUrl.pathname === "/trust") return response;
+    // The public surface (see PUBLIC_PATHS) is readable signed out; everything
+    // else stays gated. Signed-in users still hit app/page.tsx for "/", which
+    // routes them into their org.
+    if (isPublicPath(request.nextUrl.pathname)) return response;
     return redirectToLogin(request);
   }
 
   // Authenticated — let it through with the refreshed session cookie. Any
   // link-status / membership gating happens in the page/layout via requireUser.
   return response;
+}
+
+/**
+ * Paths an anonymous visitor may read. All of them render identically for a
+ * signed-in visitor, so there's no redirect in either direction.
+ *
+ *   /          the marketing landing page
+ *   /create    the pre-auth org-creation flow — a founder runs the whole
+ *              interview signed out and signs in at the Build step. It stays
+ *              inside the matcher (unlike /login) so the post-OAuth resume leg
+ *              still gets a fresh session cookie from the refresh above.
+ *   /trust     public disclosure copy, linked from the marketing footer
+ *   /help      the help centre, plus /help/<article>
+ *   /contact   "talk to a human"
+ *
+ * The /help articles are matched by prefix rather than enumerated, but the
+ * prefix carries its trailing "/" so a future org slug like "helpdesk" can't be
+ * swept in — org routes are /<slug>, and "/helpdesk" does not start with
+ * "/help/".
+ */
+const PUBLIC_PATHS: ReadonlySet<string> = new Set(["/", "/create", "/trust", "/help", "/contact"]);
+
+function isPublicPath(pathname: string): boolean {
+  return PUBLIC_PATHS.has(pathname) || pathname.startsWith("/help/");
 }
 
 /**
