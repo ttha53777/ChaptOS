@@ -38,6 +38,7 @@ import { BUILTIN_METRIC_KPI } from "@/lib/tracked-metrics";
 import { BUILTIN_METRIC_IDS } from "@/lib/onboarding/kinds";
 import { sanitizeVocabOverrides } from "@/lib/vocab";
 import { PERMISSIONS, ALL_PERMISSIONS, type Permission } from "@/lib/permissions";
+import { stripe, stripeEnabled } from "@/lib/stripe";
 import { uploadOrgLogoObject, removeOrgLogoObject } from "@/lib/supabase/org-logo";
 import type { CreateOrgInput } from "@/lib/validation/org";
 import type { RequestContext } from "@/lib/context";
@@ -786,6 +787,40 @@ export async function deleteOrg(ctx: RequestContext, confirmSlug: string): Promi
 
   const orgId = org.id;
 
+  // ── Stop billing BEFORE tearing the org down ──────────────────────────────
+  // Ordering is a judgement call between two failure modes:
+  //
+  //   cancel first, teardown fails  → the org survives with no subscription. It
+  //                                   drops to free-tier rules and can't add
+  //                                   members until it re-subscribes. Annoying,
+  //                                   recoverable, and the admin was trying to
+  //                                   delete it anyway.
+  //   teardown first, cancel fails  → we keep charging a customer whose org no
+  //                                   longer exists, and the id needed to stop
+  //                                   it has just been deleted.
+  //
+  // The second is a refund and a support ticket, so cancel goes first. A failure
+  // here is logged loudly and does NOT block the deletion — leaving an org the
+  // admin asked to delete half-alive because Stripe was unreachable would be a
+  // worse outcome than a subscription we cancel by hand.
+  const sub = await prisma.subscription.findUnique({ // lint-direct-prisma:ignore teardown path, mirrors the rest of deleteOrg
+    where:  { organizationId: orgId },
+    select: { stripeSubscriptionId: true },
+  });
+  if (sub?.stripeSubscriptionId && stripeEnabled()) {
+    try {
+      await stripe().subscriptions.cancel(sub.stripeSubscriptionId, {
+        // No refund of the current period: they had the service for it.
+        prorate: false,
+      });
+    } catch (e) {
+      logError(e, {
+        route: "lib/services/org-service", method: "deleteOrg", userId: ctx.actorId,
+        extra: { orgId, stripeSubscriptionId: sub.stripeSubscriptionId, stage: "cancel_subscription" },
+      });
+    }
+  }
+
   await prisma.$transaction(async (tx) => {
     // Brother ids that call this org home — needed for the re-home/delete pass
     // and to scope the no-org-column join tables (attendance) by brother too.
@@ -851,6 +886,16 @@ export async function deleteOrg(ctx: RequestContext, confirmSlug: string): Promi
     await tx.orgInvite.deleteMany({ where: { organizationId: orgId } });
     await tx.organizationConfig.deleteMany({ where: { organizationId: orgId } });
     await tx.membership.deleteMany({ where: { organizationId: orgId } });
+
+    // Platform billing. The Stripe subscription was already cancelled above.
+    //
+    // Subscription is deleted explicitly rather than left to its ON DELETE
+    // CASCADE, matching how every other table here is hand-ordered.
+    //
+    // SalesLead is deliberately NOT deleted: its FK is ON DELETE SET NULL so the
+    // lead survives with a null organizationId. Losing the org must not lose the
+    // pipeline record of why they were talking to us.
+    await tx.subscription.deleteMany({ where: { organizationId: orgId } });
 
     // ── 8. Brothers (re-home multi-org members, delete home-only ones) ─────────
     // Null out the back-reference first so deleting/repointing brothers can't

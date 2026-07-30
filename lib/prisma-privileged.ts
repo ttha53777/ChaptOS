@@ -16,8 +16,22 @@
  *   precisely because tenant context doesn't exist yet.
  *
  * Scope of use:
- *   Import ONLY from lib/services/org-service.ts. Do not use this in any
- *   other surface — that would defeat the tenancy enforcement design.
+ *   lib/services/org-service.ts   provisioning + teardown (the original caller)
+ *   instrumentation.ts            boot-time cross-org role-permission sweep
+ *   app/api/admin/**             platform-admin cross-tenant reads. No active
+ *                                 org means no app.org_id, and the billing
+ *                                 tables have no permissive policy — the app
+ *                                 role would return an empty result rather than
+ *                                 an error, which reads as real data.
+ *   lib/billing/webhook.ts        Stripe deliveries, which carry no session and
+ *                                 no org cookie, so there is no app.org_id to
+ *                                 SET LOCAL and the enforcing org_isolation
+ *                                 policies on Subscription would reject the
+ *                                 write. Same posture as the claim /
+ *                                 redeem-invite bootstrap routes.
+ *
+ *   Do not widen this list casually — every entry is a place tenancy is enforced
+ *   by code review rather than by the database.
  *
  * Implementation:
  *   Minimal, no hot-reload caching. provisionOrg is low-volume by nature

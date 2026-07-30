@@ -6,6 +6,17 @@ import { useEffect, useState } from "react";
 // Lists every organization in the system, newest first. Read-only.
 // Gated server-side by /api/admin/orgs which calls requireAdmin().
 
+interface OrgBilling {
+  status:            string;
+  tier:              string;
+  members:           number;
+  priceLabel:        string;
+  currentPeriodEnd:  string | null;
+  cancelAtPeriodEnd: boolean;
+  seatSyncPending:   boolean;
+  nearLimit:         boolean;
+}
+
 interface OrgRow {
   id:          number;
   name:        string;
@@ -13,6 +24,7 @@ interface OrgRow {
   orgType:     string | null;
   createdAt:   string;
   founderName: string | null;
+  billing:     OrgBilling;
 }
 
 type Status =
@@ -96,6 +108,9 @@ function OrgTable({ orgs }: { orgs: OrgRow[] }) {
             <Th>Name</Th>
             <Th>Slug</Th>
             <Th>Type</Th>
+            <Th>Members</Th>
+            <Th>Plan</Th>
+            <Th>Status</Th>
             <Th>Founder</Th>
             <Th>Created</Th>
           </tr>
@@ -106,6 +121,28 @@ function OrgTable({ orgs }: { orgs: OrgRow[] }) {
               <Td>{o.name}</Td>
               <Td className="font-mono text-white/70">{o.slug}</Td>
               <Td>{o.orgType ?? "—"}</Td>
+              <Td>
+                <span className={o.billing.nearLimit ? "text-amber-300" : ""}>
+                  {o.billing.members}
+                </span>
+                {o.billing.nearLimit && (
+                  <span className="ml-1.5 text-[11px] text-amber-300/60" title="Approaching the self-serve ceiling">
+                    near limit
+                  </span>
+                )}
+              </Td>
+              <Td>
+                {o.billing.priceLabel}
+                <span className="ml-1.5 text-white/30">{o.billing.tier}</span>
+              </Td>
+              <Td>
+                <StatusPill status={o.billing.status} />
+                {o.billing.seatSyncPending && (
+                  <span className="ml-1.5 text-[11px] text-amber-300/60" title="A seat count push to Stripe is still owed">
+                    sync owed
+                  </span>
+                )}
+              </Td>
               <Td>{o.founderName ?? <span className="text-white/30">—</span>}</Td>
               <Td>{formatDate(o.createdAt)}</Td>
             </tr>
@@ -113,6 +150,20 @@ function OrgTable({ orgs }: { orgs: OrgRow[] }) {
         </tbody>
       </table>
     </div>
+  );
+}
+
+/** Colour maps to how much attention the state deserves, not to the word itself. */
+function StatusPill({ status }: { status: string }) {
+  const tone =
+    status === "active" || status === "trialing" ? "text-emerald-300 border-emerald-400/20 bg-emerald-400/8"
+    : status === "past_due" || status === "unpaid" ? "text-red-300 border-red-400/20 bg-red-400/8"
+    : status === "quote_pending" ? "text-amber-300 border-amber-400/20 bg-amber-400/8"
+    : "text-white/45 border-white/10 bg-white/[0.03]";
+  return (
+    <span className={`inline-block rounded border px-1.5 py-0.5 text-[11px] ${tone}`}>
+      {status.replace("_", " ")}
+    </span>
   );
 }
 
