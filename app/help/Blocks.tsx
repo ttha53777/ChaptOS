@@ -1,6 +1,6 @@
 import { Doodle } from "../components/landing/Doodle";
 import type { Block } from "./content";
-import { inline } from "./inline";
+import { inline } from "../components/landing/inline";
 
 /**
  * Renders an article body. One component per block kind, all styled by

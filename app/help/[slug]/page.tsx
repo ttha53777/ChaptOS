@@ -20,7 +20,7 @@ import { PublicNav } from "../../components/landing/PublicChrome";
 import { Footer } from "../../components/landing/sections/Footer";
 import { Blocks } from "../Blocks";
 import { CatIcon } from "../CatIcon";
-import { inline } from "../inline";
+import { inline } from "../../components/landing/inline";
 import { ARTICLES, ARTICLES_BY_SLUG, CATEGORIES_BY_ID, articlesIn } from "../content";
 import { APP_NAME } from "@/lib/domains";
 

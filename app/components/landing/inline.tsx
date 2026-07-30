@@ -1,12 +1,13 @@
 import type { ReactNode } from "react";
 
 /**
- * The four inline marks help content is allowed to use.
+ * The four inline marks public-page content is allowed to use. Shared by the
+ * help centre (app/help/content.ts) and the audience pages (app/for/content.ts).
  *
  * Deliberately tiny — this is not a Markdown implementation and shouldn't grow
- * into one. Content lives in a typed module (./content.ts) precisely so the
- * markup surface can stay this small; anything a paragraph can't express is a
- * block type, not a new mark.
+ * into one. Content lives in typed modules precisely so the markup surface can
+ * stay this small; anything a paragraph can't express is a block type, not a
+ * new mark.
  *
  *   **bold**      strong
  *   *italic*      em
