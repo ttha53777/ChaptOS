@@ -1,4 +1,5 @@
 import type { Prisma } from "@/app/generated/prisma/client";
+import { assertSeatAvailable } from "@/lib/billing/guard";
 import type { RequestContext } from "@/lib/context";
 import { emit } from "@/lib/events";
 import { ConflictError, NotFoundError } from "@/lib/errors";
@@ -105,6 +106,12 @@ export async function listOffRosterMembers(ctx: RequestContext): Promise<OffRost
 }
 
 export async function createBrother(ctx: RequestContext, input: CreateBrotherInput) {
+  // Seat gate. Throws PaymentRequiredError (402) when this member would push the
+  // org into a price band it isn't covering — the one place platform billing
+  // touches a domain write, and deliberately the only kind of restriction there
+  // is: nothing the org already has is ever taken away.
+  await assertSeatAvailable(ctx.db);
+
   let customFields: CustomFieldValues = {};
   if (input.customFields) {
     const defs = await getFieldDefs(ctx);
@@ -166,6 +173,28 @@ export async function updateBrother(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (data as any).customFields = sanitized;
     changedFields.push("customFields");
+  }
+
+  // Archive / restore. This is how an org sheds graduated seniors without
+  // destroying their history: the row and every attendance, dues and metric
+  // record attached to it survive untouched, but the member stops counting
+  // toward the billable headcount (lib/billing/seats.ts).
+  //
+  // "archivedAt" in changedFields is what the seat-sync event handler keys on to
+  // trigger a recount — see lib/events/handlers/sync-seats.ts.
+  if (input.archived !== undefined) {
+    if (input.archived === false) {
+      // Restoring adds a billable seat back, so it goes through the same gate as
+      // adding a new member. Guarded on the member actually being archived today:
+      // a no-op restore of an active member must not be able to 402.
+      const current = await ctx.db.brother.findUnique({
+        where:  { id: brotherId },
+        select: { archivedAt: true },
+      });
+      if (current?.archivedAt) await assertSeatAvailable(ctx.db);
+    }
+    data.archivedAt = input.archived ? new Date() : null;
+    changedFields.push("archivedAt");
   }
 
   // The name is an ORG-LOCAL identity: it lands on this org's Membership row, so

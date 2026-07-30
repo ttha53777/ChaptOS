@@ -32,5 +32,12 @@ export const updateBrotherInput = z.object({
   gpa:          z.coerce.number().nonnegative().optional(),
   serviceHours: z.coerce.number().nonnegative().optional(),
   customFields: customFieldsSchema,
+  // Archive / restore. A boolean rather than a timestamp so the caller can't
+  // backdate it, and so "is this person active?" stays a yes/no question at the
+  // API boundary. Archiving keeps every attendance record, dues row and metric
+  // value intact — it only removes the member from the default roster read and
+  // from the billable headcount. Restoring re-adds a billable seat and is
+  // therefore gated by the same seat check as adding a new member.
+  archived:     z.boolean().optional(),
 });
 export type UpdateBrotherInput = z.infer<typeof updateBrotherInput>;

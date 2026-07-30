@@ -11,6 +11,8 @@ import { claimedResponse } from "@/lib/auth/session-cookies";
 import { rateLimit, clientIp, tooManyRequests } from "@/lib/rate-limit";
 import { logError } from "@/lib/observability";
 import { resolveInviteToken, deadReasonStatus, DEAD_REASON_MESSAGE } from "@/lib/auth/invite-lookup";
+import { AT_CAPACITY_PUBLIC_MESSAGE, checkSeatAvailable } from "@/lib/billing/guard";
+import { reconcileSeats } from "@/lib/billing/sync";
 
 // Pre-auth invite redemption. The redeemer has a Supabase session but may have
 // no Brother / no Membership in this org yet, so there's no RequestContext to
@@ -121,6 +123,22 @@ export async function POST(req: NextRequest) {
     return Response.json({ ok: true, mode: "claim", orgSlug });
   }
 
+  // ── 6b. Seat gate ─────────────────────────────────────────────────────────
+  // Reaching here means a NEW membership in this org — step 4 already returned
+  // for anyone who belongs — so this redemption is a billable seat.
+  //
+  // The message is deliberately generic (AT_CAPACITY_PUBLIC_MESSAGE): the person
+  // holding this link is not a member yet, and must not be able to read the
+  // org's billing state out of an error body. The admin who shared the link sees
+  // the real reason on their own billing page.
+  //
+  // Checked rather than thrown because this route builds its responses by hand
+  // (no ctx, so no toResponse contract to honour).
+  const seat = await checkSeatAvailable(db(orgId));
+  if (!seat.allowed) {
+    return Response.json({ error: AT_CAPACITY_PUBLIC_MESSAGE }, { status: 402 });
+  }
+
   // ── 7. Join by membership ─────────────────────────────────────────────────
   // A Google account maps to one Brother globally (authUserId @unique). If one
   // already exists, REUSE it and just add a Membership to this org (the
@@ -212,6 +230,16 @@ export async function POST(req: NextRequest) {
     orgId,
   });
   void emitRedeemEvent(orgId, inviteId, brotherId, mode, reused);
+
+  // Seat sync. This route writes its OperationalEvent row directly rather than
+  // through emit() (no ctx), which means no handler dispatch — so the recount
+  // that lib/events/handlers/sync-seats.ts does for admin-side roster changes
+  // has to be triggered explicitly here. Fire-and-forget: a join must never fail
+  // because Stripe was slow, and reconcileSeats persists the count locally before
+  // it touches the network.
+  void reconcileSeats(db(orgId)).catch(e =>
+    logError(e, { route: "/api/auth/redeem-invite", method: "POST", userId: user.id, extra: { stage: "seat_sync", orgId } }),
+  );
 
   // Always "open" to the client: reaching here means they joined by Membership,
   // whichever mode the link carried. Only the /pending-access handoff in step 6

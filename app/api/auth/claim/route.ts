@@ -152,6 +152,16 @@ export async function POST(req: NextRequest) {
   // Search only within the resolved org so a user on org-beta cannot claim
   // a brother from org-alpha.
   //
+  // Deliberately NOT seat-gated, unlike /api/auth/redeem-invite. Claiming adds
+  // no billable seat: it links an auth account to a Brother row that already
+  // exists in this org and therefore already counts toward the headcount
+  // (lib/billing/seats.ts unions roster and memberships, deduped by brotherId).
+  // Step 4 above turns away anyone who already owns a Brother elsewhere, so this
+  // path cannot introduce a new person. The ghost branch above is likewise exempt
+  // — isGhost rows are excluded from every count in the app, billing included.
+  // Gating either one would block support access and roster reconciliation for
+  // no revenue.
+  //
   // Match EITHER name: the account-level Brother.name, or the display name this
   // org gave them (Membership.name). Names are org-local now, so the roster may
   // list someone under a name that isn't on their Brother row — matching only the
