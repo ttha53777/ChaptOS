@@ -51,6 +51,11 @@ export default function RootLayout({
   return (
     <html
       lang="en"
+      // /create's theme boot script stamps data-crf-theme here before hydration
+      // (see lib/onboarding/create-theme.ts), which React would otherwise report
+      // as a server/client attribute mismatch. Same reason next-themes requires
+      // this. Only ever affects attributes on <html> itself.
+      suppressHydrationWarning
       className={`${geistSans.variable} ${geistMono.variable} ${fraunces.variable} h-full antialiased`}
     >
       <body suppressHydrationWarning className="min-h-full flex flex-col"><ToastProvider><ChapterProvider>{children}<SemesterGate /><ChatWidgetGate /></ChapterProvider></ToastProvider></body>

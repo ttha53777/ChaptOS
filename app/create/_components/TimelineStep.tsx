@@ -155,7 +155,9 @@ interface PreviewRow {
   key: string;
   day: number | null;
   dow: string;
+  /** Both halves of the type's ivory/dusk pair — create-flow.css picks one. */
   color: string;
+  colorDark: string;
   label: string;
   title: string;
   when: string;
@@ -172,27 +174,29 @@ function previewRows(rows: DraftEventTypeRow[], month: ReturnType<typeof sampleM
     if (sample) {
       const day = sample.day(month);
       dated.push({
-        key:      row.slug,
+        key:       row.slug,
         day,
-        dow:      DOW[new Date(month.year, month.month, day).getDay()]!,
-        color:    row.colorDark,
-        label:    row.label,
-        title:    sample.title ?? row.label,
-        when:     sample.when,
-        scaffold: false,
+        dow:       DOW[new Date(month.year, month.month, day).getDay()]!,
+        color:     row.color,
+        colorDark: row.colorDark,
+        label:     row.label,
+        title:     sample.title ?? row.label,
+        when:      sample.when,
+        scaffold:  false,
       });
     } else {
       // Anything without a canned sample (every custom type) shows as a dashed
       // placeholder — an honest "this is where yours will land", not a fake event.
       scaffolds.push({
-        key:      row.slug,
-        day:      null,
-        dow:      "",
-        color:    row.colorDark,
-        label:    row.label,
-        title:    `First ${row.label.toLowerCase()} — add it after the build`,
-        when:     "",
-        scaffold: true,
+        key:       row.slug,
+        day:       null,
+        dow:       "",
+        color:     row.color,
+        colorDark: row.colorDark,
+        label:     row.label,
+        title:     `First ${row.label.toLowerCase()} — add it after the build`,
+        when:      "",
+        scaffold:  true,
       });
     }
   }
@@ -236,8 +240,8 @@ function Swatches({ current, onPick }: { current: string; onPick: (c: { color: s
       {EVENT_TYPE_PALETTE.map(c => (
         <button
           key={c.id}
-          className={`sw${c.colorDark.toLowerCase() === current.toLowerCase() ? " on" : ""}`}
-          style={{ ["--sc" as string]: c.colorDark }}
+          className={`sw${c.color.toLowerCase() === current.toLowerCase() ? " on" : ""}`}
+          style={{ ["--sc-dusk" as string]: c.colorDark, ["--sc-ivory" as string]: c.color }}
           title={c.label}
           aria-label={`Use ${c.label}`}
           onClick={() => onPick({ color: c.color, colorDark: c.colorDark })}
@@ -282,7 +286,7 @@ function TypeRow({
   return (
     <div
       className={`et-row${row.active ? "" : " ghost"}${open ? " open" : ""}`}
-      style={{ ["--tc" as string]: row.colorDark }}
+      style={{ ["--tc-dusk" as string]: row.colorDark, ["--tc-ivory" as string]: row.color }}
     >
       <button
         className="et-dot"
@@ -318,7 +322,7 @@ function TypeRow({
         <div className="et-more">
           <div className="et-more-in">
             <Swatches
-              current={row.colorDark}
+              current={row.color}
               onPick={c => dispatch({ type: "recolorEventType", slug: row.slug, ...c })}
             />
             <p className="et-note">
@@ -490,7 +494,7 @@ export function TimelineStep({
                 </div>
               )}
               <div className="lab">Its color on the timeline</div>
-              <Swatches current={newColor.colorDark} onPick={c => setNewColor({ ...newColor, ...c })} />
+              <Swatches current={newColor.color} onPick={c => setNewColor({ ...newColor, ...c })} />
               <div className="et-ed-foot">
                 <button className="et-ed-add" disabled={!newLabel.trim()} onClick={commitAdd}>
                   Add to timeline<span>&nbsp;→</span>
@@ -540,7 +544,7 @@ export function TimelineStep({
                 <div
                   key={row.key}
                   className={`tlp-row${row.scaffold ? " scaf" : ""}`}
-                  style={{ ["--tc" as string]: row.color }}
+                  style={{ ["--tc-dusk" as string]: row.colorDark, ["--tc-ivory" as string]: row.color }}
                 >
                   <div className="tlp-date">
                     <div className="dow">{row.dow}</div>
@@ -568,7 +572,7 @@ export function TimelineStep({
               <h6>Your palette</h6>
               <div className="lgd">
                 {active.map(row => (
-                  <span key={row.slug} className="li" style={{ ["--tc" as string]: row.colorDark }}>
+                  <span key={row.slug} className="li" style={{ ["--tc-dusk" as string]: row.colorDark, ["--tc-ivory" as string]: row.color }}>
                     <span className="d" />
                     <span className="nm">{row.label}</span>
                     {!row.builtin && <span className="src you">YOU</span>}

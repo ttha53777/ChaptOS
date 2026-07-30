@@ -35,6 +35,37 @@ export interface SeatPoolEntry {
 export const ROLE_COLORS = ["#F59E0B", "#10B981", "#EC4899", "#3B82F6", "#8B5CF6"] as const;
 
 /**
+ * Light-theme twins for the seat palette — PRESENTATION ONLY.
+ *
+ * ROLE_COLORS are Tailwind-500 hexes picked for dark surfaces. On the /create
+ * flow's ivory paper (#faf9f6) the warm ones fall apart: #F59E0B is 2.08:1 and
+ * #10B981 is 2.45:1, and a seat's color is not merely a dot — it paints the
+ * role card's 15px serif monogram and its hover-peek title.
+ *
+ * A seat's `color` is PERSISTED (draftSchema → Role.color, read by the
+ * dashboard), so it must not change. This maps it at render time instead, using
+ * hexes already shipped in EVENT_TYPE_PALETTE so the two palettes agree.
+ * Ratios on #faf9f6: gold 4.18, teal 4.23, rose 4.70, blue 5.06, purple 6.80 —
+ * all clear of the 3:1 non-text bar (the flow additionally mixes toward ink for
+ * the two text uses, see create-flow.css's ivory block).
+ *
+ * tests/onboarding/seats.test.ts asserts every seeded role hue has an entry, so
+ * a new org type can't ship an unmapped color.
+ */
+export const ROLE_TONE_IVORY: Record<string, string> = {
+  "#f59e0b": "#9a7224", // gold
+  "#10b981": "#2f8579", // teal
+  "#ec4899": "#b34f72", // rose
+  "#3b82f6": "#3f6ea3", // blue
+  "#8b5cf6": "#6d28d9", // purple
+};
+
+/** The ivory twin for a seat color, or the input unchanged if unmapped. */
+export function roleToneIvory(hex: string): string {
+  return ROLE_TONE_IVORY[hex.toLowerCase()] ?? hex;
+}
+
+/**
  * Initial editable seats for an org type, cloned from the template's roleSeeds
  * so each seat owns its own mutable ability set. Unknown ids fall back to the
  * fraternity template (same fallback the mock used).

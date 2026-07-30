@@ -18,6 +18,7 @@ import {
   type BuiltinMetricId,
 } from "@/lib/onboarding/kinds";
 import { roleSummary } from "@/lib/onboarding/perm-areas";
+import { roleToneIvory } from "@/lib/onboarding/seats";
 import type { WorkflowId } from "@/lib/org-types";
 import type { VocabKey } from "@/lib/vocab";
 import {
@@ -374,7 +375,7 @@ function EventTypesCard({ draft, onEditTypes }: { draft: Draft; onEditTypes: (sl
           <button
             key={row.slug}
             className="pg type click"
-            style={{ ["--tc" as string]: row.colorDark }}
+            style={{ ["--tc-dusk" as string]: row.colorDark, ["--tc-ivory" as string]: row.color }}
             title="Edit on the Timeline step"
             onClick={() => onEditTypes(row.slug)}
           >
@@ -506,7 +507,13 @@ export function BlueprintStep({
                     : "along for the ride — no abilities yet";
                 return (
                   <div key={`${i}-${seat.title}`} className="seat">
-                    <span className="seat-dot" style={{ background: seat.color }} />
+                    <span
+                      className="seat-dot"
+                      style={{
+                        ["--rc-dusk" as string]: seat.color,
+                        ["--rc-ivory" as string]: roleToneIvory(seat.color),
+                      }}
+                    />
                     <span className="seat-title">{seat.title}</span>
                     <span className="seat-able">{able}</span>
                     {seat.all ? <span className="seat-you">YOU</span> : <span />}

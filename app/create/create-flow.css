@@ -4,7 +4,24 @@
    scoped under .crf; fonts come from the next/font variables set on <html>
    (--font-fraunces / --font-geist-sans / --font-geist-mono).
    The app-world (Reveal/Invite) styles are deliberately absent — after Build
-   the founder lands in the REAL /[slug] workspace. */
+   the founder lands in the REAL /[slug] workspace.
+
+   TWO THEMES. The .crf block below is the DUSK base; one
+   html[data-crf-theme="ivory"] .crf override block near the end of this file
+   re-points the same tokens at the ivory palette (from _design/Org Creation
+   Flow Mock v5.html). Dusk therefore cannot regress from a change that only
+   adds a more-specific selector. The attribute is stamped on <html> by a
+   blocking inline script — see lib/onboarding/create-theme.ts. */
+
+/* globals.css sets html{color-scheme:dark} and paints the body #07090f. .crf is
+   position:fixed/inset:0 so it covers that — but page.tsx wraps the flow in
+   <Suspense fallback={null}>, so a slow first byte can genuinely paint an empty
+   dark body before an ivory flow arrives. These two rules close that gap.
+   Specificity (0,1,1) beats globals' bare `html` (0,0,1), so no !important.
+   The hexes are literals, not var(--paper): the palette lives on .crf, and an
+   inherited custom property would lose to .crf's own declaration. */
+html[data-crf-theme="ivory"]      { color-scheme: light; background: #faf9f6; }
+html[data-crf-theme="ivory"] body { background: #faf9f6; }
 
 .crf {
   /* ═══ Tokens (v3) ═══ */
@@ -29,6 +46,39 @@
   --ok-soft: rgba(127,176,138,.14);
   --amber: #d9a05b;
   --sky: #7fb3d9;
+
+  /* ── Theme-varying values that used to be literals ──
+     Every one of these is seeded with the exact value it replaced, so adding
+     them changed nothing about dusk. The ivory block re-points them. */
+  --paper-deep: #060504;                /* the Build step's world beat */
+  --stipple: rgba(236,231,221,.025);    /* the 4px dot grid */
+  --wash: rgba(236,231,221,.02);        /* faint fills on chips / pills / fields */
+  --line-hover: rgba(236,231,221,.2);
+  --on-accent: #fff;                    /* text/glyphs sitting ON an accent fill */
+  --vio-fill: rgba(167,139,250,.18);
+  --vio-wash: rgba(167,139,250,.05);
+  --vio-glow: rgba(167,139,250,.6);
+  --ok-line: rgba(127,176,138,.4);
+  --rose-line: rgba(217,139,163,.45);
+  --rose-soft: rgba(217,139,163,.1);
+  --bloom-vio: rgba(167,139,250,.12);   /* the sheet's ambient blooms */
+  --bloom-gold: rgba(217,179,106,.07);
+  --glow-breathe: 0 0 44px -6px rgba(167,139,250,.55);
+  --glow-lift: 0 10px 30px -12px rgba(236,231,221,.35);
+  /* Six separate shadows rather than a shared scale, so each keeps the exact
+     value it had before this refactor. */
+  --shadow-sheet: 0 2px 4px rgba(0,0,0,.5), 0 32px 80px -24px rgba(0,0,0,.7);
+  --shadow-card: none;
+  --shadow-signin: 0 40px 100px -30px rgba(0,0,0,.8);
+  --shadow-pop: 0 16px 40px -18px rgba(0,0,0,.85);
+  --shadow-peek: 0 24px 60px -24px rgba(0,0,0,.85), 0 0 0 1px rgba(0,0,0,.3);
+  --shadow-rail: 0 20px 50px -20px rgba(0,0,0,.8);
+  --shadow-mark: 0 8px 24px -10px rgba(0,0,0,.6);
+  --rail-bg: rgba(15,13,10,.82);
+  --rail-saturate: 140%;
+  --mark-line: rgba(255,255,255,.14);
+  --mark-logo-bg: #000;
+
   --serif: var(--font-fraunces), "Fraunces", Georgia, serif;
   --sans: var(--font-geist-sans), "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --mono: var(--font-geist-mono), "Geist Mono", ui-monospace, Menlo, monospace;
@@ -45,11 +95,13 @@
 .crf::before {
   content: ""; position: absolute; inset: 0; pointer-events: none; z-index: 0;
   opacity: .55;
-  background-image: radial-gradient(rgba(236,231,221,.025) 1px, transparent 1px);
+  background-image: radial-gradient(var(--stipple) 1px, transparent 1px);
   background-size: 4px 4px;
 }
-.crf[data-world="dark"] { background: #060504; }
-.crf ::selection { background: var(--vio-deep); color: #fff; }
+/* The Build step's world beat. The attribute names the BEAT, not a color:
+   dusk goes near-black, ivory deepens the paper. */
+.crf[data-world="dark"] { background: var(--paper-deep); }
+.crf ::selection { background: var(--vio-deep); color: var(--on-accent); }
 .crf button { font: inherit; color: inherit; background: none; border: none; cursor: pointer; }
 .crf input { font: inherit; }
 .crf h1, .crf h2, .crf h3, .crf h4, .crf h6, .crf p, .crf ul { margin: 0; padding: 0; }
@@ -65,7 +117,24 @@
   display: flex; align-items: center; justify-content: center;
 }
 .crf .wm-txt { font-size: 12px; font-weight: 600; letter-spacing: .14em; }
+.crf .chrome-right { display: flex; align-items: center; gap: 22px; }
 .crf .chrome-tag { font-family: var(--mono); font-size: 10.5px; letter-spacing: .16em; color: var(--ink-28); }
+
+/* Theme switch. Sized to read as a sibling of .chrome-tag rather than a
+   button-shaped intrusion into the chrome. */
+.crf .theme-btn {
+  height: 28px; width: 28px; border-radius: 6px; flex: none;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--ink-40); transition: color 180ms var(--ease), background 180ms var(--ease);
+}
+.crf .theme-btn:hover { color: var(--ink); background: var(--paper-3); }
+.crf .theme-btn .ti { display: flex; }
+.crf .theme-btn svg { height: 15px; width: 15px; }
+/* Which glyph shows is decided by <html>, not React, so it is correct in the
+   first painted frame. Dusk offers the sun; ivory offers the moon. */
+.crf .theme-btn .i-moon { display: none; }
+html[data-crf-theme="ivory"] .crf .theme-btn .i-sun  { display: none; }
+html[data-crf-theme="ivory"] .crf .theme-btn .i-moon { display: flex; }
 
 /* ═══ Screens ═══ */
 .crf .screens { flex: 1; min-height: 0; position: relative; z-index: 1; }
@@ -220,9 +289,9 @@
 .crf .mark {
   height: 44px; width: 44px; border-radius: 12px; flex: none;
   display: flex; align-items: center; justify-content: center;
-  font-family: var(--serif); font-weight: 600; font-size: 17px; color: #fff;
-  border: 1px solid rgba(255,255,255,.14);
-  box-shadow: 0 8px 24px -10px rgba(0,0,0,.6);
+  font-family: var(--serif); font-weight: 600; font-size: 17px; color: var(--on-accent);
+  border: 1px solid var(--mark-line);
+  box-shadow: var(--shadow-mark);
   background-size: cover; background-position: center;
   transition: background 400ms var(--ease);
 }
@@ -238,7 +307,7 @@
   font-size: 14.5px; font-weight: 600;
   transition: transform 200ms var(--ease), box-shadow 200ms var(--ease), opacity 200ms;
 }
-.crf .cta:hover { transform: translateY(-1px); box-shadow: 0 10px 30px -12px rgba(236,231,221,.35); }
+.crf .cta:hover { transform: translateY(-1px); box-shadow: var(--glow-lift); }
 .crf .cta:disabled { opacity: .35; cursor: not-allowed; transform: none; box-shadow: none; }
 .crf .fine { margin-top: 18px; font-size: 12.5px; color: var(--ink-40); }
 
@@ -262,15 +331,15 @@
 .crf .sheet-wrap::before {
   content: ""; position: absolute; inset: -8% -6%;
   background:
-    radial-gradient(42% 46% at 22% 24%, rgba(167,139,250,.12), transparent 70%),
-    radial-gradient(38% 42% at 82% 78%, rgba(217,179,106,.07), transparent 70%);
+    radial-gradient(42% 46% at 22% 24%, var(--bloom-vio), transparent 70%),
+    radial-gradient(38% 42% at 82% 78%, var(--bloom-gold), transparent 70%);
   filter: blur(6px); pointer-events: none;
 }
 .crf .sheet-cap { position: absolute; top: -28px; left: 2px; font-family: var(--mono); font-size: 10px; letter-spacing: .18em; color: var(--ink-28); text-transform: uppercase; }
 .crf .sheet {
   position: relative; width: 100%; max-height: 100%;
   background: var(--card); border: 1px solid var(--line); border-radius: 14px;
-  box-shadow: 0 2px 4px rgba(0,0,0,.5), 0 32px 80px -24px rgba(0,0,0,.7);
+  box-shadow: var(--shadow-sheet);
   overflow: hidden; display: flex; flex-direction: column;
   padding: 22px 24px 18px;
 }
@@ -302,7 +371,7 @@
 }
 .crf .pg .dot { height: 4px; width: 4px; border-radius: 50%; background: var(--ink-40); }
 .crf .pg.lead { border-color: var(--vio-line); color: var(--ink); background: var(--vio-soft); }
-.crf .pg.lead .dot { background: var(--vio); box-shadow: 0 0 8px rgba(167,139,250,.6); }
+.crf .pg.lead .dot { background: var(--vio); box-shadow: 0 0 8px var(--vio-glow); }
 .crf .words-line { font-family: var(--serif); font-size: 17px; color: var(--ink); }
 .crf .words-line span { color: var(--ink-28); font-size: 14px; margin: 0 7px; }
 .crf .sheet-line { font-size: 13px; color: var(--ink-72); display: flex; align-items: center; gap: 9px; }
@@ -337,7 +406,7 @@
 .crf .chip {
   padding: 9px 17px; border-radius: 999px;
   border: 1px solid var(--line); color: var(--ink-72); font-size: 13.5px;
-  transition: all 200ms var(--ease); background: rgba(236,231,221,.02);
+  transition: all 200ms var(--ease); background: var(--wash);
 }
 .crf .chip:hover { border-color: var(--vio-line); color: var(--ink); background: var(--vio-soft); transform: translateY(-1px); }
 /* The composer sits with the chips as one answer zone — no dividing border,
@@ -394,7 +463,7 @@
 .crf .bp-head .q-serif { margin-bottom: 12px; }
 .crf .bp-sub { font-size: 14.5px; color: var(--ink-55); }
 .crf .bp-grid { max-width: 1010px; margin: 34px auto 0; display: grid; grid-template-columns: 1.15fr 1fr; gap: 18px; align-items: start; }
-.crf .bp-card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 20px 22px; animation: crf-msg-in 480ms var(--ease) both; }
+.crf .bp-card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 20px 22px; box-shadow: var(--shadow-card); animation: crf-msg-in 480ms var(--ease) both; }
 .crf .bp-grid > *:nth-child(1) { animation-delay: 40ms; }
 .crf .bp-grid > *:nth-child(2) { animation-delay: 120ms; }
 .crf .bp-col { display: flex; flex-direction: column; gap: 18px; }
@@ -411,7 +480,7 @@
 .crf .wf-tgl {
   flex: none; font-family: var(--mono); font-size: 10px; letter-spacing: .1em;
   padding: 4px 12px; border-radius: 999px;
-  border: 1px solid rgba(127,176,138,.4); color: var(--ok); background: var(--ok-soft);
+  border: 1px solid var(--ok-line); color: var(--ok); background: var(--ok-soft);
   transition: all 180ms var(--ease); min-width: 46px;
 }
 .crf .wf-row.off .wf-tgl { border-color: var(--line); color: var(--ink-40); background: transparent; }
@@ -457,11 +526,11 @@
 .crf .url-field {
   display: flex; align-items: stretch; overflow: hidden;
   border: 1px solid var(--line); border-radius: 12px;
-  background: linear-gradient(180deg, rgba(236,231,221,.02), transparent), var(--card);
+  background: linear-gradient(180deg, var(--wash), transparent), var(--card);
   transition: border-color 220ms var(--ease), box-shadow 220ms var(--ease);
 }
 .crf .url-field.focus { border-color: var(--vio-line); box-shadow: 0 0 0 4px var(--vio-soft); }
-.crf .url-field.taken { border-color: rgba(217,139,163,.45); }
+.crf .url-field.taken { border-color: var(--rose-line); }
 .crf .url-host {
   display: flex; align-items: center; padding: 0 12px 0 16px;
   font-family: var(--mono); font-size: 13.5px; color: var(--ink-40);
@@ -486,9 +555,9 @@
   color: var(--ink-28); transition: all 200ms var(--ease);
 }
 .crf .url-field.ok .url-state { color: var(--ok); }
-.crf .url-field.ok .url-state .ic { border-color: rgba(127,176,138,.5); background: var(--ok-soft); color: var(--ok); }
+.crf .url-field.ok .url-state .ic { border-color: var(--ok-line); background: var(--ok-soft); color: var(--ok); }
 .crf .url-field.taken .url-state { color: var(--rose); }
-.crf .url-field.taken .url-state .ic { border-color: rgba(217,139,163,.5); background: rgba(217,139,163,.12); color: var(--rose); }
+.crf .url-field.taken .url-state .ic { border-color: var(--rose-line); background: var(--rose-soft); color: var(--rose); }
 .crf .url-note { margin-top: 9px; text-align: center; font-size: 12px; color: var(--ink-40); line-height: 1.5; min-height: 17px; }
 .crf .url-note:empty { margin-top: 0; min-height: 0; }
 .crf .url-note .suggest {
@@ -505,6 +574,7 @@
   position: relative;
   background: var(--card); border: 1px solid var(--line); border-radius: 16px;
   padding: 18px 22px 17px 24px; animation: crf-msg-in 480ms var(--ease) both;
+  box-shadow: var(--shadow-card);
   transition: border-color 200ms var(--ease);
 }
 .crf .role-card::before {
@@ -512,7 +582,7 @@
   border-radius: 16px 0 0 16px;
   background: var(--rc, var(--ink-40)); opacity: .55;
 }
-.crf .role-card:hover { border-color: rgba(236,231,221,.2); }
+.crf .role-card:hover { border-color: var(--line-hover); }
 .crf .role-card.founder {
   border-color: var(--vio-line);
   background: radial-gradient(120% 100% at 0% 0%, var(--vio-soft), transparent 55%), var(--card);
@@ -538,14 +608,14 @@
   position: relative;
   display: inline-flex; align-items: center; gap: 8px;
   padding: 8px 14px; border-radius: 10px; font-size: 13px; font-weight: 500;
-  border: 1px solid var(--line); color: var(--ink-40); background: rgba(236,231,221,.015);
+  border: 1px solid var(--line); color: var(--ink-40); background: var(--wash);
   transition: all 170ms var(--ease); cursor: pointer; user-select: none;
 }
 .crf .pi { height: 15px; width: 15px; flex: none; color: currentColor; opacity: .7; transition: opacity 170ms; display: inline-block; }
 .crf .pi svg { display: block; height: 100%; width: 100%; }
-.crf .pill:hover { border-color: var(--vio-line); color: var(--ink-72); background: rgba(167,139,250,.05); }
+.crf .pill:hover { border-color: var(--vio-line); color: var(--ink-72); background: var(--vio-wash); }
 .crf .pill:hover .pi { opacity: 1; }
-.crf .pill.on { border-color: var(--vio-line); color: var(--ink); background: rgba(167,139,250,.18); }
+.crf .pill.on { border-color: var(--vio-line); color: var(--ink); background: var(--vio-fill); }
 .crf .pill.on .pi { opacity: 1; color: var(--vio); }
 .crf .pill.partial { border-color: var(--vio-line); color: var(--ink); background: var(--vio-soft); }
 .crf .pill.partial .pi { opacity: 1; color: var(--vio); }
@@ -569,7 +639,7 @@
   background: var(--paper-2); border: 1px solid var(--vio-line); border-radius: 10px;
   padding: 8px 11px; font-size: 12px; line-height: 1.45; color: var(--ink-72);
   font-weight: 400; text-align: left; white-space: normal;
-  box-shadow: 0 16px 40px -18px rgba(0,0,0,.85);
+  box-shadow: var(--shadow-pop);
   opacity: 0; transition: opacity 140ms var(--ease), transform 140ms var(--ease);
 }
 .crf .pill:hover .pill-tip { opacity: 1; transform: translateX(-50%); }
@@ -587,7 +657,7 @@
   pointer-events: none;
   background: var(--paper-2); border: 1px solid var(--vio-line);
   border-radius: 14px; padding: 15px 16px 14px;
-  box-shadow: 0 24px 60px -24px rgba(0,0,0,.85), 0 0 0 1px rgba(0,0,0,.3);
+  box-shadow: var(--shadow-peek);
   opacity: 0; transform: translateY(6px) scale(.985);
   transition: opacity 180ms var(--ease), transform 180ms var(--ease);
 }
@@ -621,12 +691,12 @@
 .crf .abil {
   display: inline-flex; align-items: center; gap: 8px; padding: 7px 12px; border-radius: 9px;
   border: 1px solid var(--line); font-size: 12.5px; color: var(--ink-40); cursor: pointer;
-  transition: all 160ms var(--ease); user-select: none; background: rgba(236,231,221,.015);
+  transition: all 160ms var(--ease); user-select: none; background: var(--wash);
 }
 .crf .abil .ac { height: 14px; width: 14px; border-radius: 5px; border: 1.5px solid var(--ink-28); display: flex; align-items: center; justify-content: center; font-size: 9px; color: transparent; transition: all 160ms; flex: none; }
 .crf .abil:hover { border-color: var(--vio-line); color: var(--ink-72); }
 .crf .abil.on { border-color: var(--vio-line); color: var(--ink); background: var(--vio-soft); }
-.crf .abil.on .ac { background: var(--vio); border-color: var(--vio); color: #fff; }
+.crf .abil.on .ac { background: var(--vio); border-color: var(--vio); color: var(--on-accent); }
 .crf .roles-add { display: block; max-width: 700px; margin: 14px auto 0; }
 
 /* ═══ Step 5 — Sign in + build ═══ */
@@ -635,7 +705,7 @@
   width: 400px; text-align: center;
   background: var(--card); border: 1px solid var(--line); border-radius: 18px;
   padding: 44px 40px 38px;
-  box-shadow: 0 40px 100px -30px rgba(0,0,0,.8);
+  box-shadow: var(--shadow-signin);
 }
 .crf .signin .mark { margin: 0 auto 18px; }
 .crf .signin h2 { font-family: var(--serif); font-weight: 500; font-size: 24px; line-height: 1.25; margin-bottom: 6px; }
@@ -656,12 +726,12 @@
 .crf .bld-glyph {
   margin: 0 auto 34px; height: 64px; width: 64px; border-radius: 16px;
   display: flex; align-items: center; justify-content: center;
-  font-family: var(--serif); font-weight: 600; font-size: 26px; color: #fff;
-  border: 1px solid rgba(255,255,255,.14);
+  font-family: var(--serif); font-weight: 600; font-size: 26px; color: var(--on-accent);
+  border: 1px solid var(--mark-line);
   background-size: cover; background-position: center;
   animation: crf-breathe 2s ease-in-out infinite;
 }
-@keyframes crf-breathe { 50% { box-shadow: 0 0 44px -6px rgba(167,139,250,.55); transform: scale(1.04); } }
+@keyframes crf-breathe { 50% { box-shadow: var(--glow-breathe); transform: scale(1.04); } }
 .crf .bld-lines { display: flex; flex-direction: column; gap: 13px; text-align: left; width: 400px; margin: 0 auto; }
 .crf .bld-line {
   display: flex; align-items: center; gap: 12px;
@@ -675,8 +745,8 @@
 .crf .bld-line.done .tick { opacity: 1; }
 .crf .bld-err {
   margin: 26px auto 0; width: 400px; text-align: left;
-  border: 1px solid rgba(217,139,163,.45); border-radius: 12px; padding: 14px 16px;
-  font-size: 13px; color: var(--ink-72); line-height: 1.5; background: rgba(217,139,163,.06);
+  border: 1px solid var(--rose-line); border-radius: 12px; padding: 14px 16px;
+  font-size: 13px; color: var(--ink-72); line-height: 1.5; background: var(--rose-soft);
 }
 .crf .bld-err b { color: var(--rose); display: block; margin-bottom: 4px; }
 .crf .bld-err .cta { margin-top: 14px; padding: 9px 18px; font-size: 13px; }
@@ -685,9 +755,9 @@
 .crf .rail {
   position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); z-index: 60;
   display: flex; align-items: stretch; gap: 2px;
-  background: rgba(15,13,10,.82); border: 1px solid var(--line); border-radius: 999px;
-  padding: 5px; backdrop-filter: blur(14px) saturate(140%); -webkit-backdrop-filter: blur(14px) saturate(140%);
-  box-shadow: 0 20px 50px -20px rgba(0,0,0,.8);
+  background: var(--rail-bg); border: 1px solid var(--line); border-radius: 999px;
+  padding: 5px; backdrop-filter: blur(14px) saturate(var(--rail-saturate)); -webkit-backdrop-filter: blur(14px) saturate(var(--rail-saturate));
+  box-shadow: var(--shadow-rail);
 }
 .crf .rail button {
   display: flex; align-items: center; gap: 8px;
@@ -830,7 +900,7 @@
 .crf .sugg button { font-size: 12px; color: var(--ink-55); border: 1px solid var(--line); border-radius: 999px; padding: 4px 12px; transition: all 160ms var(--ease); }
 .crf .sugg button:hover { border-color: var(--vio-line); color: var(--ink); background: var(--vio-soft); }
 .crf .et-ed-foot { display: flex; align-items: center; gap: 16px; margin-top: 12px; }
-.crf .et-ed-add { background: var(--vio-deep); color: #fff; border-radius: 999px; padding: 8px 20px; font-size: 13px; font-weight: 600; transition: box-shadow 180ms; }
+.crf .et-ed-add { background: var(--vio-deep); color: var(--on-accent); border-radius: 999px; padding: 8px 20px; font-size: 13px; font-weight: 600; transition: box-shadow 180ms; }
 .crf .et-ed-add:disabled { opacity: .4; cursor: default; }
 .crf .et-ed-add:not(:disabled):hover { box-shadow: 0 8px 22px -10px var(--vio-deep); }
 .crf .et-ed-cancel { font-size: 12.5px; color: var(--ink-40); }
@@ -841,14 +911,14 @@
 .crf .tlp-wrap::before {
   content: ""; position: absolute; inset: -8% -6%; pointer-events: none; filter: blur(6px);
   background:
-    radial-gradient(42% 46% at 22% 24%, rgba(167,139,250,.12), transparent 70%),
-    radial-gradient(38% 42% at 82% 78%, rgba(217,179,106,.07), transparent 70%);
+    radial-gradient(42% 46% at 22% 24%, var(--bloom-vio), transparent 70%),
+    radial-gradient(38% 42% at 82% 78%, var(--bloom-gold), transparent 70%);
 }
 .crf .tlp-cap { position: absolute; top: -26px; left: 2px; font-family: var(--mono); font-size: 10px; letter-spacing: .18em; color: var(--ink-28); text-transform: uppercase; }
 .crf .tlp-sheet {
   position: relative; width: 100%; max-height: min(72vh, 640px);
   background: var(--card); border: 1px solid var(--line); border-radius: 14px;
-  box-shadow: 0 2px 4px rgba(0,0,0,.5), 0 32px 80px -24px rgba(0,0,0,.7);
+  box-shadow: var(--shadow-sheet);
   overflow: hidden; display: flex; flex-direction: column; padding: 20px 22px 16px;
 }
 .crf .tlp-month { display: flex; align-items: baseline; gap: 12px; padding-bottom: 12px; }
@@ -918,4 +988,167 @@
     transform: translateY(24px) scale(.98);
   }
   .crf .split--name[data-named="1"] > .sheet-slot { transform: none; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   IVORY — the light theme
+   ═══════════════════════════════════════════════════════════════════════════
+   Palette from _design/Org Creation Flow Mock v5.html ("Ledger"), which is a
+   light reskin of this exact flow and shares its --ink-72/55/40/28 alpha
+   ladder — so this is a token re-point, not a restyle. v5's --bg/--surface are
+   mapped onto this file's shipped --paper/--card names.
+
+   Keyed on <html> rather than .crf because the attribute is stamped there
+   before React exists (lib/onboarding/create-theme.ts) — that is what makes the
+   first painted frame correct instead of a dusk flash.
+   ══════════════════════════════════════════════════════════════════════════ */
+html[data-crf-theme="ivory"] .crf {
+  --paper: #faf9f6;
+  --paper-2: #f1efe9;
+  --paper-3: #e8e5dc;         /* one step below paper-2 (v5 ships no third tier) */
+  --card: #fffefb;
+  --ink: #1a1814;
+  --ink-72: rgba(26,24,20,.72);
+  --ink-55: rgba(26,24,20,.55);
+  /* -40 and -28 are deliberately DARKER than v5's .42/.30. Those tiers carry
+     real information here (the mono micro-labels, source tags, placeholders,
+     card dates), and on #faf9f6 v5's values land at 2.66:1 and 1.96:1 — below
+     even the 3:1 non-text bar. .52 clears it at 3.57:1. Going further would
+     need ~.62 at the -28 tier, which would make it darker than --ink-55 and
+     collapse the hierarchy, so the tier stays sub-AA by design. */
+  --ink-40: rgba(26,24,20,.52);
+  --ink-28: rgba(26,24,20,.4);
+  --line: rgba(26,24,20,.16);
+  --line-soft: rgba(26,24,20,.08);
+  /* Violet inverts across themes — every ivory block in this repo does this. */
+  --vio: #6d28d9;
+  --vio-deep: #5b21b6;        /* no v5 counterpart; keeps "deeper than accent" */
+  --vio-soft: rgba(109,40,217,.07);
+  --vio-line: rgba(109,40,217,.38);
+  --gold: #9a7224;
+  --rose: #b4506e;
+  --ok: #3d7a4e;
+  --ok-soft: rgba(61,122,78,.08);
+  --amber: #8a5a1f;
+  --sky: #3f6ea3;
+
+  --paper-deep: #eceae2;      /* the Build beat: paper deepens, world stays light */
+  --stipple: rgba(26,24,20,.022);
+  --wash: rgba(26,24,20,.022);
+  --line-hover: rgba(26,24,20,.26);
+  --on-accent: #fff;          /* white on --vio is 7.1:1, on --vio-deep 8.6:1 */
+  --vio-fill: rgba(109,40,217,.1);
+  --vio-wash: rgba(109,40,217,.04);
+  --vio-glow: rgba(109,40,217,.3);
+  --ok-line: rgba(61,122,78,.4);
+  --rose-line: rgba(180,80,110,.42);
+  --rose-soft: rgba(180,80,110,.07);
+  --bloom-vio: rgba(109,40,217,.05);
+  --bloom-gold: rgba(154,114,36,.05);
+  /* On paper a glow reads as a stain, so "breathing" becomes a soft ring. */
+  --glow-breathe: 0 0 0 8px rgba(109,40,217,.1);
+  --glow-lift: 0 8px 22px -14px rgba(26,24,20,.3);
+  --shadow-sheet: 0 1px 2px rgba(26,24,20,.04), 0 24px 48px -32px rgba(26,24,20,.22);
+  --shadow-card: 0 1px 2px rgba(26,24,20,.03);
+  --shadow-signin: 0 1px 2px rgba(26,24,20,.04), 0 32px 64px -34px rgba(26,24,20,.24);
+  --shadow-pop: 0 10px 28px -14px rgba(26,24,20,.26);
+  --shadow-peek: 0 16px 40px -20px rgba(26,24,20,.22), 0 0 0 1px rgba(26,24,20,.05);
+  --shadow-rail: 0 10px 30px -16px rgba(26,24,20,.2);
+  --shadow-mark: 0 3px 10px -5px rgba(26,24,20,.22);
+  --rail-bg: rgba(250,249,246,.86);
+  --rail-saturate: 115%;      /* 140% reads acidic over warm paper */
+  --mark-line: rgba(26,24,20,.12);
+  --mark-logo-bg: #fffefb;
+}
+
+/* ── Four cases that need a rule, not a token ── */
+
+/* 1 · Google button. A #fff pill on #faf9f6 disappears, and its white hover
+   glow is invisible. v5's answer: card fill + a hairline. var(--line) over ivory
+   resolves to ≈#d9d7d2, a hair off Google's own #dadce0 button border. */
+html[data-crf-theme="ivory"] .crf .gbtn {
+  background: var(--card); color: var(--ink); border: 1px solid var(--line);
+}
+html[data-crf-theme="ivory"] .crf .gbtn:hover {
+  border-color: var(--ink-40); box-shadow: var(--shadow-card);
+}
+
+/* 2 · Role hues as TEXT. --rc carries the seat's stored color, which is a
+   Tailwind-500 hex chosen for dark backgrounds; roleToneIvory() already deepens
+   it, but gold/teal still land ~4.2:1 as 15px text. Mixing toward ink keeps the
+   hue identity and clears AA. */
+html[data-crf-theme="ivory"] .crf .rc-avatar,
+html[data-crf-theme="ivory"] .crf .rc-peek-title em {
+  color: color-mix(in srgb, var(--rc, var(--ink)) 62%, var(--ink));
+}
+
+/* 3 · A dashed --ink-28 ring at 1.96:1 is invisible on paper. */
+html[data-crf-theme="ivory"] .crf .et-row.ghost .et-dot { border-color: var(--ink-40); }
+
+/* ── Per-item hues: ivory/dusk pairs resolved in CSS ──
+   Event-type and seat colors ship as {color, colorDark} pairs (lib/event-types.ts,
+   lib/onboarding/seats.ts). The components emit BOTH halves as --*-dusk / --*-ivory
+   custom properties and these two rules alias the one the theme wants, so a theme
+   flip repaints every hue without React re-rendering anything.
+
+   The alias MUST sit on the element carrying the inline pair. A single alias on
+   .crf would not work: --tc-dusk is unset there, so --tc would compute to the
+   guaranteed-invalid value and descendants would inherit THAT rather than
+   re-resolving. Hence the explicit carrier list. */
+.crf .et-row, .crf .sw, .crf .tlp-row, .crf .lgd .li, .crf .pg.type,
+.crf .role-card, .crf .seat-dot, .crf .mark, .crf .bld-glyph {
+  --tc: var(--tc-dusk);
+  --sc: var(--sc-dusk);
+  --rc: var(--rc-dusk);
+  --mk: var(--mk-dusk);
+}
+html[data-crf-theme="ivory"] .crf .et-row,
+html[data-crf-theme="ivory"] .crf .sw,
+html[data-crf-theme="ivory"] .crf .tlp-row,
+html[data-crf-theme="ivory"] .crf .lgd .li,
+html[data-crf-theme="ivory"] .crf .pg.type,
+html[data-crf-theme="ivory"] .crf .role-card,
+html[data-crf-theme="ivory"] .crf .seat-dot,
+html[data-crf-theme="ivory"] .crf .mark,
+html[data-crf-theme="ivory"] .crf .bld-glyph {
+  --tc: var(--tc-ivory);
+  --sc: var(--sc-ivory);
+  --rc: var(--rc-ivory);
+  --mk: var(--mk-ivory);
+}
+
+/* The seat dot and the monogram marks read their paint from the aliased pair
+   rather than from an inline background, so they follow the theme too. */
+.crf .seat-dot { background: var(--rc); }
+.crf .mark, .crf .bld-glyph { background-image: var(--mk); }
+
+/* ── The flip itself ──
+   A transition only WHILE the theme changes (useCreateTheme sets
+   data-crf-theming for 300ms), never permanently. A standing transition on .crf
+   or on * would fight this flow's own motion: the property list on
+   .split--name is a live 1100ms grid/gap/justify-self choreography, and a
+   blanket `transition: ... !important` would replace it mid-reveal and snap the
+   layout. So this list carries ONLY color properties — no transform, opacity,
+   grid-template-columns, gap or justify-self — which leaves the reveal and every
+   crf-* entrance keyframe untouched by construction.
+
+   Interactive surfaces (.cta, .chip, .pill, .composer, .send) are deliberately
+   out: they own hover/focus feedback that would visibly snap for those 300ms,
+   and a solid ink pill flipping instantly under a paper crossfade is invisible. */
+html[data-crf-theming] .crf,
+html[data-crf-theming] .crf .sheet,
+html[data-crf-theming] .crf .tlp-sheet,
+html[data-crf-theming] .crf .bp-card,
+html[data-crf-theming] .crf .role-card,
+html[data-crf-theming] .crf .signin,
+html[data-crf-theming] .crf .rail,
+html[data-crf-theming] .crf .glyph,
+html[data-crf-theming] .crf .m-glyph,
+html[data-crf-theming] .crf .tlp-card,
+html[data-crf-theming] .crf .msg.user .m-body {
+  transition: background-color 260ms var(--ease), color 260ms var(--ease),
+              border-color 260ms var(--ease);
+}
+@media (prefers-reduced-motion: reduce) {
+  html[data-crf-theming] .crf, html[data-crf-theming] .crf * { transition: none !important; }
 }

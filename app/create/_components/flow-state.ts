@@ -7,8 +7,15 @@
  * lib/onboarding/draft — this file only decides how UI events mutate it.
  */
 
-import { useEffect, useReducer, useRef } from "react";
+import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import {
+  CREATE_THEME_STORAGE_KEY,
+  CREATE_THEME_TRANSITION_MS,
+  isCrfTheme,
+  resolveCreateTheme,
+  type CrfTheme,
+} from "@/lib/onboarding/create-theme";
 import {
   DRAFT_STORAGE_KEY,
   LEGACY_DRAFT_STORAGE_KEY,
@@ -427,6 +434,82 @@ export function clearStoredDraft(): void {
   }
 }
 
+/* ─── Theme ───────────────────────────────────────────────────────────────── */
+
+/**
+ * The ivory/dusk toggle's state. The THEME ITSELF is not React state — it lives
+ * on <html data-crf-theme>, stamped by the boot script before first paint (see
+ * lib/onboarding/create-theme.ts) and read from there by every CSS selector.
+ * This hook only mirrors it so the button can render its own pressed state.
+ *
+ * `theme` is null on the server AND on the first client render, so those two
+ * renders are byte-identical — no hydration mismatch to suppress, and no
+ * `typeof window` guard. The effect fills it in a tick later.
+ *
+ * `toggle` is imperative and identity-stable: it writes the attribute and
+ * localStorage directly, so flipping the theme repaints via CSS without
+ * re-rendering the flow. The stable identity matters because CreateFlow feeds it
+ * into the keydown effect that also owns ←/→.
+ */
+export function useCreateTheme(): { theme: CrfTheme | null; toggle: () => void } {
+  const [theme, setTheme] = useState<CrfTheme | null>(null);
+  const themingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    setTheme(resolveCreateTheme(root.dataset.crfTheme, false));
+
+    // Follow the system until the founder expresses a preference of their own.
+    const mq = window.matchMedia("(prefers-color-scheme: dark)");
+    const onSystemChange = (e: MediaQueryListEvent) => {
+      let stored: string | null = null;
+      try {
+        stored = window.localStorage.getItem(CREATE_THEME_STORAGE_KEY);
+      } catch {
+        // Storage unavailable — treat as "no stored preference".
+      }
+      if (isCrfTheme(stored)) return;
+      const next = resolveCreateTheme(null, e.matches);
+      root.dataset.crfTheme = next;
+      setTheme(next);
+    };
+    mq.addEventListener("change", onSystemChange);
+
+    return () => {
+      mq.removeEventListener("change", onSystemChange);
+      if (themingTimer.current) clearTimeout(themingTimer.current);
+      // Never leave the html-level rules armed after a client-side nav off
+      // /create. StrictMode's remount removes and re-adds in one commit, so
+      // there is no paint in between.
+      delete root.dataset.crfTheme;
+      delete root.dataset.crfTheming;
+    };
+  }, []);
+
+  const toggle = useCallback(() => {
+    const root = document.documentElement;
+    const next: CrfTheme = root.dataset.crfTheme === "ivory" ? "dusk" : "ivory";
+    try {
+      window.localStorage.setItem(CREATE_THEME_STORAGE_KEY, next);
+    } catch {
+      // Best-effort, same posture as the draft write-through above.
+    }
+    // Arm the color transition for this flip only — a permanent transition would
+    // fight the flow's own hover/focus and reveal choreography.
+    root.dataset.crfTheming = "";
+    if (themingTimer.current) clearTimeout(themingTimer.current);
+    themingTimer.current = setTimeout(() => {
+      delete document.documentElement.dataset.crfTheming;
+      themingTimer.current = null;
+    }, CREATE_THEME_TRANSITION_MS);
+
+    root.dataset.crfTheme = next;
+    setTheme(next);
+  }, []);
+
+  return { theme, toggle };
+}
+
 /* ─── Display helpers (ported from the mock) ─────────────────────────────── */
 
 export function slugify(s: string): string {
@@ -452,11 +535,33 @@ const GRADS: readonly [string, string][] = [
   ["#3f6e4e", "#7fb08a"], ["#2f5d7c", "#7fb3d9"], ["#7a4a2b", "#d9a05b"],
 ];
 
-/** Deterministic gradient from the org name — the product's logo fallback. */
-export function grad(name: string): string {
+/**
+ * The ivory twins. The monogram is drawn in white (--on-accent) over the
+ * gradient, and GRADS' light stops are pastels — white on #ddb36a is ~1.7:1, so
+ * half of every dark-theme monogram is already hard to read. These stops are all
+ * deep enough to carry white: the lightest ends land 4.4–7.1:1.
+ */
+const GRADS_IVORY: readonly [string, string][] = [
+  ["#4c1d95", "#6d28d9"], ["#6b4a12", "#8a6420"], ["#7d2f4c", "#b34f72"],
+  ["#2f5c34", "#4a7d4c"], ["#26465e", "#3f6ea3"], ["#7a3a1f", "#c14a37"],
+];
+
+/** Stable slot for a name, so both themes pick the same gradient position. */
+function gradSlot(name: string): number {
   let h = 0;
   for (const ch of name) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
-  const g = GRADS[h % GRADS.length]!;
+  return h % GRADS.length;
+}
+
+/** Deterministic gradient from the org name — the product's logo fallback. */
+export function grad(name: string): string {
+  const g = GRADS[gradSlot(name)]!;
+  return `linear-gradient(135deg, ${g[0]}, ${g[1]})`;
+}
+
+/** The ivory-theme gradient for the same name (same slot, deeper stops). */
+export function gradIvory(name: string): string {
+  const g = GRADS_IVORY[gradSlot(name)]!;
   return `linear-gradient(135deg, ${g[0]}, ${g[1]})`;
 }
 

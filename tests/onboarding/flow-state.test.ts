@@ -10,7 +10,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { draftEventTypes, flowReducer, slugify } from "@/app/create/_components/flow-state";
+import { draftEventTypes, flowReducer, grad, gradIvory, slugify } from "@/app/create/_components/flow-state";
 import { MAX_SLUG_LEN } from "@/lib/slug-rules";
 import { createOrgInput } from "@/lib/validation/org";
 import { emptyDraft, type Draft } from "@/lib/onboarding/draft";
@@ -176,5 +176,53 @@ describe("flowReducer: event types", () => {
     expect(draftEventTypes(switched).filter(r => !r.builtin).map(r => r.slug)).toEqual(
       getOrgType("sports-team")!.eventTypeSeeds!.map(s => s.slug),
     );
+  });
+});
+
+/**
+ * The monogram gradient ships as an ivory/dusk pair (OrgMark emits both and
+ * create-flow.css aliases the themed one). The invariant that matters is SLOT
+ * parity: the same org name must land the same gradient position in both themes,
+ * or flipping the theme would appear to change the org's identity.
+ */
+describe("flow-state: grad / gradIvory", () => {
+  const NAMES = ["Oozma Kappa", "Roar Omega Roar", "a", "", "Iota Iota Kappa", "Zeta"];
+
+  it("is deterministic per name", () => {
+    for (const n of NAMES) {
+      expect(gradIvory(n)).toBe(gradIvory(n));
+      expect(grad(n)).toBe(grad(n));
+    }
+  });
+
+  it("picks the same slot as the dusk gradient for a given name", () => {
+    // Slot parity is observable through collision structure: two names that
+    // share a dusk gradient must share an ivory one, and vice versa.
+    for (const a of NAMES) {
+      for (const b of NAMES) {
+        expect(gradIvory(a) === gradIvory(b)).toBe(grad(a) === grad(b));
+      }
+    }
+  });
+
+  it("returns a distinct ivory gradient for each of the six slots", () => {
+    // Enough names to hit every slot, then assert the palette isn't degenerate.
+    const seen = new Set<string>();
+    for (let i = 0; i < 200; i++) seen.add(gradIvory(`org-${i}`));
+    expect(seen.size).toBe(6);
+  });
+
+  it("never reuses a dusk gradient as an ivory one", () => {
+    const dusk = new Set<string>();
+    const ivory = new Set<string>();
+    for (let i = 0; i < 200; i++) {
+      dusk.add(grad(`org-${i}`));
+      ivory.add(gradIvory(`org-${i}`));
+    }
+    for (const g of ivory) expect(dusk.has(g)).toBe(false);
+  });
+
+  it("emits a two-stop 135deg linear-gradient", () => {
+    expect(gradIvory("Oozma Kappa")).toMatch(/^linear-gradient\(135deg, #[0-9a-f]{6}, #[0-9a-f]{6}\)$/);
   });
 });

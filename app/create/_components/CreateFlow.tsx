@@ -13,8 +13,9 @@ import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { APP_NAME } from "@/lib/domains";
 import type { CreateStep } from "@/lib/onboarding/draft";
-import { useDraft } from "./flow-state";
+import { useCreateTheme, useDraft } from "./flow-state";
 import { BlueprintSheet, type SheetFlash } from "./BlueprintSheet";
+import { ThemeToggle } from "./ThemeToggle";
 import { NameStep } from "./NameStep";
 import { InterviewStep } from "./InterviewStep";
 import { RolesStep } from "./RolesStep";
@@ -28,6 +29,7 @@ const PAST_INTERVIEW: CreateStep[] = ["roles", "timeline", "blueprint", "build"]
 
 export function CreateFlow() {
   const [draft, dispatch, restored] = useDraft();
+  const { theme, toggle: toggleTheme } = useCreateTheme();
   const searchParams = useSearchParams();
   const [flash, setFlash] = useState<SheetFlash>(null);
   const [slugNotice, setSlugNotice] = useState<string | null>(null);
@@ -88,19 +90,23 @@ export function CreateFlow() {
     return () => clearTimeout(t);
   }, [flash]);
 
-  // ←/→ step the rail, like the mock — never while typing.
+  // ←/→ step the rail and T flips the theme, like the mock — never while typing.
+  // toggleTheme is identity-stable, so it doesn't re-subscribe this listener.
   useEffect(() => {
     const ORDER: CreateStep[] = ["name", "interview", "roles", "timeline", "blueprint", "build"];
     const onKey = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement | null)?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA") return;
+      // Leave ⌘T (new tab) and IME composition alone.
+      if (e.metaKey || e.ctrlKey || e.altKey || e.isComposing) return;
+      if (e.key === "t" || e.key === "T") return void toggleTheme();
       const idx = ORDER.indexOf(step);
       if (e.key === "ArrowRight" && idx < ORDER.length - 1) goto(ORDER[idx + 1]!);
       if (e.key === "ArrowLeft" && idx > 0) goto(ORDER[idx - 1]!);
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [step, goto]);
+  }, [step, goto, toggleTheme]);
 
   const world = step === "build" ? "dark" : "paper";
 
@@ -111,7 +117,10 @@ export function CreateFlow() {
           <span className="glyph">{APP_NAME[0]}</span>
           <span className="wm-txt">{APP_NAME.toUpperCase()}</span>
         </div>
-        <div className="chrome-tag">CREATE YOUR ORG</div>
+        <div className="chrome-right">
+          <div className="chrome-tag">CREATE YOUR ORG</div>
+          <ThemeToggle theme={theme} onToggle={toggleTheme} />
+        </div>
       </header>
 
       <main className="screens">

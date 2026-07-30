@@ -6,7 +6,7 @@
  * and no logo it renders the dashed "empty" placeholder.
  */
 
-import { grad, monogram } from "./flow-state";
+import { grad, gradIvory, monogram } from "./flow-state";
 
 export function OrgMark({
   name,
@@ -24,7 +24,7 @@ export function OrgMark({
         // Separate longhands, not the `background` shorthand: the shorthand
         // resets background-size to `auto`, clobbering the stylesheet's `cover`
         // and rendering the image at native size in the corner.
-        style={{ backgroundColor: "#000", backgroundImage: `url(${logoUrl})` }}
+        style={{ backgroundColor: "var(--mark-logo-bg)", backgroundImage: `url(${logoUrl})` }}
         aria-hidden
       />
     );
@@ -33,8 +33,18 @@ export function OrgMark({
   if (!named) {
     return <span className={`${className} empty`} aria-hidden>·</span>;
   }
+  // Both gradients are emitted; create-flow.css aliases --mk to the themed one,
+  // so the mark re-paints on a theme flip without re-rendering.
+  const trimmed = name.trim();
   return (
-    <span className={className} style={{ background: grad(name.trim()) }} aria-hidden>
+    <span
+      className={className}
+      style={{
+        ["--mk-dusk" as string]: grad(trimmed),
+        ["--mk-ivory" as string]: gradIvory(trimmed),
+      }}
+      aria-hidden
+    >
       {monogram(name)}
     </span>
   );

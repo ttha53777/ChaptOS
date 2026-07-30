@@ -19,7 +19,7 @@ import {
   PERM_LABELS,
   type PermArea,
 } from "@/lib/onboarding/perm-areas";
-import { SEAT_POOL, type Seat } from "@/lib/onboarding/seats";
+import { SEAT_POOL, roleToneIvory, type Seat } from "@/lib/onboarding/seats";
 import { KIND_TO_TYPE } from "@/lib/onboarding/kinds";
 import type { WorkflowId } from "@/lib/org-types";
 import { monogram, wfSet, type FlowAction } from "./flow-state";
@@ -138,7 +138,11 @@ export function RolesStep({
             <div
               key={`${i}-${seat.title}`}
               className={`role-card${founder ? " founder" : ""}`}
-              style={{ ["--rc" as string]: seat.color, animationDelay: `${i * 60}ms` }}
+              style={{
+                ["--rc-dusk" as string]: seat.color,
+                ["--rc-ivory" as string]: roleToneIvory(seat.color),
+                animationDelay: `${i * 60}ms`,
+              }}
             >
               <div className="rc-head">
                 <span className="rc-avatar">{monogram(seat.title)}</span>
