@@ -1157,6 +1157,38 @@ model StripeEvent {
   @@index([type, receivedAt])
 }
 
+// A Stripe subscription we failed to cancel while deleting its org.
+//
+// deleteOrg cancels Stripe before tearing the org down, and deliberately does
+// NOT let a Stripe failure block the deletion — leaving an org the admin asked
+// to delete half-alive is the worse outcome. But the teardown then drops the
+// only row holding stripeSubscriptionId, so without this table a transient
+// network blip becomes an invisible, indefinite charge to someone whose org no
+// longer exists, recoverable only by diffing Stripe against a DB that no longer
+// has the org.
+//
+// GLOBAL, like StripeEvent: the org is gone by design, so there is nothing to
+// scope to and organizationId is a plain int with no FK (a FK would either block
+// the delete or cascade the evidence away). Carries no tenant data beyond the
+// org's name/slug, kept so a human reading this table knows who to contact.
+model OrphanedSubscription {
+  id                   Int       @id @default(autoincrement())
+  stripeSubscriptionId String
+  stripeCustomerId     String?
+  // Not a relation: the Organization row is deleted moments after this is written.
+  organizationId       Int
+  orgName              String?
+  orgSlug              String?
+  // Why the cancel failed, for telling a real outage apart from an already-gone
+  // subscription that needs no action.
+  lastError            String?
+  failedAt             DateTime  @default(now())
+  // Set once someone has cancelled it by hand (or confirmed it was already gone).
+  resolvedAt           DateTime?
+
+  @@index([resolvedAt, failedAt])
+}
+
 // A "talk to us" request: an org past the self-serve ceiling (121+ members), or
 // one person administering several orgs who wants a group plan.
 //

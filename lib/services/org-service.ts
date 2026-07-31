@@ -805,7 +805,7 @@ export async function deleteOrg(ctx: RequestContext, confirmSlug: string): Promi
   // worse outcome than a subscription we cancel by hand.
   const sub = await prisma.subscription.findUnique({ // lint-direct-prisma:ignore teardown path, mirrors the rest of deleteOrg
     where:  { organizationId: orgId },
-    select: { stripeSubscriptionId: true },
+    select: { stripeSubscriptionId: true, stripeCustomerId: true },
   });
   if (sub?.stripeSubscriptionId && stripeEnabled()) {
     try {
@@ -818,6 +818,29 @@ export async function deleteOrg(ctx: RequestContext, confirmSlug: string): Promi
         route: "lib/services/org-service", method: "deleteOrg", userId: ctx.actorId,
         extra: { orgId, stripeSubscriptionId: sub.stripeSubscriptionId, stage: "cancel_subscription" },
       });
+
+      // Record the orphan BEFORE the teardown transaction, and outside it: in a
+      // few lines the Subscription row holding this id is gone, and a log line
+      // is not something anyone can query later. Deliberately its own try/catch
+      // — failing to write the bookkeeping row must not do what a Stripe failure
+      // is already forbidden from doing and block the deletion.
+      try {
+        await prisma.orphanedSubscription.create({ // lint-direct-prisma:ignore global table, teardown path
+          data: {
+            stripeSubscriptionId: sub.stripeSubscriptionId,
+            stripeCustomerId:     sub.stripeCustomerId,
+            organizationId:       orgId,
+            orgName:              org.name,
+            orgSlug:              org.slug,
+            lastError:            e instanceof Error ? e.message : String(e),
+          },
+        });
+      } catch (recordErr) {
+        logError(recordErr, {
+          route: "lib/services/org-service", method: "deleteOrg", userId: ctx.actorId,
+          extra: { orgId, stripeSubscriptionId: sub.stripeSubscriptionId, stage: "record_orphaned_subscription" },
+        });
+      }
     }
   }
 
