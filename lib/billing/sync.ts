@@ -1,5 +1,12 @@
 /**
- * Keeping Stripe's idea of an org's size in step with ours.
+ * Keeping Stripe and our row in step, in both directions.
+ *
+ *   push — reconcileSeats / flushPendingSeatSync: our headcount → Stripe
+ *   pull — refreshFromStripe / refreshIfStale: Stripe's status → our row
+ *
+ * The push keeps the invoice honest. The pull keeps the seat gate honest: it
+ * reads a cached status, so a lost webhook would otherwise wall a paying org
+ * permanently. See refreshFromStripe for why that failure is the likely one.
  *
  * ── Ordering is the whole design ─────────────────────────────────────────────
  *
@@ -38,6 +45,8 @@
 import type { db } from "@/lib/db";
 import { stripe, stripeEnabled } from "@/lib/stripe";
 import { logError } from "@/lib/observability";
+import { isInGoodStanding } from "@/lib/state/subscription-status";
+import { applySubscription } from "./apply";
 import { tierForCount } from "./tiers";
 import { countBillableMembers } from "./seats";
 
@@ -132,4 +141,84 @@ export async function flushPendingSeatSync(scoped: ScopedDb): Promise<SeatSyncRe
   const sub = await scoped.subscription.findFirst({ select: { seatSyncPendingAt: true } });
   if (!sub?.seatSyncPendingAt) return null;
   return reconcileSeats(scoped);
+}
+
+/**
+ * Pull Stripe's view of the subscription back into our row.
+ *
+ * ── Why this has to exist ────────────────────────────────────────────────────
+ *
+ * Subscription.status is a cache of Stripe's state, and the seat gate reads only
+ * that cache. Every other path that touches it is push-only, so a single lost
+ * webhook delivery leaves the cache wrong permanently — Stripe gives up after
+ * about three days, and nothing here ever asked again.
+ *
+ * The damaging direction is the likely one. A lost `checkout.session.completed`
+ * leaves an org that just paid sitting at status "free", still blocked by the
+ * seat wall, with no self-serve way out: the billing page's recheck button only
+ * pushes seat counts outward, and the admin surface is read-only.
+ *
+ * ── Finding the subscription ─────────────────────────────────────────────────
+ *
+ * The customer-id fallback is the whole point, not a nicety. In exactly the case
+ * above we never recorded a stripeSubscriptionId (that write is the webhook's
+ * job) — but we DID record the customer id, because startCheckout persists it
+ * before redirecting so a retry can't create a second Customer. That one field
+ * is what makes the org recoverable.
+ *
+ * Never throws, for the same reason reconcileSeats doesn't: a Stripe outage must
+ * not break the billing page that explains the problem.
+ *
+ * @returns true if Stripe returned a subscription and we applied it.
+ */
+export async function refreshFromStripe(scoped: ScopedDb): Promise<boolean> {
+  if (!stripeEnabled()) return false;
+
+  const existing = await scoped.subscription.findFirst({
+    select: { stripeSubscriptionId: true, stripeCustomerId: true },
+  });
+  if (!existing?.stripeSubscriptionId && !existing?.stripeCustomerId) return false;
+
+  try {
+    const sub = existing.stripeSubscriptionId
+      ? await stripe().subscriptions.retrieve(existing.stripeSubscriptionId)
+      : (await stripe().subscriptions.list({
+          customer: existing.stripeCustomerId!,
+          status:   "all",
+          limit:    1,
+        })).data[0];
+
+    if (!sub) return false;
+
+    // applySubscription writes absolute state and only records audit events on a
+    // real transition, so re-applying state that already matches is a no-op.
+    await applySubscription(sub);
+    return true;
+  } catch (e) {
+    logError(e, { route: "lib/billing/sync", method: "refreshFromStripe", extra: { orgId: scoped.orgId } });
+    return false;
+  }
+}
+
+/**
+ * Pull only when the local row looks like it lost a delivery.
+ *
+ * Cheap enough for the billing page's hot path: a healthy subscription never
+ * pays a Stripe round-trip, because the states worth re-checking are exactly the
+ * ones a lost webhook produces — a customer with no subscription recorded
+ * (checkout completed but we never heard), or a subscription that isn't in good
+ * standing (a recovery we may have missed).
+ */
+export async function refreshIfStale(scoped: ScopedDb): Promise<boolean> {
+  if (!stripeEnabled()) return false;
+
+  const sub = await scoped.subscription.findFirst({
+    select: { status: true, stripeCustomerId: true, stripeSubscriptionId: true },
+  });
+  if (!sub?.stripeCustomerId) return false;
+
+  const suspect = !sub.stripeSubscriptionId || !isInGoodStanding(sub.status);
+  if (!suspect) return false;
+
+  return refreshFromStripe(scoped);
 }

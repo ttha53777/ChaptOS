@@ -1,6 +1,10 @@
 /**
  * Stripe webhook handling — everything except signature verification, which
- * stays in the route because it needs the raw request body.
+ * stays in the route because it needs the raw request body, and the write
+ * itself, which lives in ./apply so the pull path can share it.
+ *
+ * This module is now just the event→action mapping: which Stripe events matter,
+ * what each one should re-read, and the delivery ledger that makes replays safe.
  *
  * ── Why this runs privileged ─────────────────────────────────────────────────
  *
@@ -33,8 +37,8 @@ import { logError } from "@/lib/observability";
 import { prismaPrivileged } from "@/lib/prisma-privileged";
 import { SubscriptionStatus } from "@/lib/state/subscription-status";
 import { stripe } from "@/lib/stripe";
+import { applySubscription, idOf, recordEvent, resolveOrgId } from "./apply";
 import { reconcileSeats } from "./sync";
-import { tierForCount } from "./tiers";
 
 /** Stripe event types this endpoint acts on. Anything else is acknowledged and ignored. */
 export const HANDLED_EVENTS = [
@@ -167,163 +171,6 @@ export async function handleStripeEvent(event: Stripe.Event): Promise<void> {
       await reconcileSeats(db(orgId));
       return;
     }
-  }
-}
-
-/**
- * Write Stripe's current view of a subscription into our row.
- *
- * Idempotent by construction: it stores absolute state rather than applying a
- * delta, so replaying it any number of times converges on the same result.
- */
-async function applySubscription(
-  sub: Stripe.Subscription,
-  opts: { activated?: boolean; canceled?: boolean } = {},
-): Promise<void> {
-  const orgId = await resolveOrgId(sub.metadata, idOf(sub.customer));
-  if (!orgId) {
-    // Not an error worth retrying: a subscription we can't attribute is either
-    // from another product on the same Stripe account or belongs to a deleted
-    // org. Log it and acknowledge.
-    logError(new Error("stripe subscription could not be attributed to an org"), {
-      route: "lib/billing/webhook", method: "applySubscription",
-      extra: { subscriptionId: sub.id, customer: idOf(sub.customer) },
-    });
-    return;
-  }
-
-  const item = sub.items.data[0];
-  const quantity = item?.quantity ?? 0;
-  const status = opts.canceled ? SubscriptionStatus.Canceled : mapStatus(sub.status);
-  const tier = tierForCount(quantity).id;
-
-  const previous = await prismaPrivileged.subscription.findUnique({
-    where:  { organizationId: orgId },
-    select: { status: true, tier: true },
-  });
-
-  const data = {
-    stripeCustomerId:     idOf(sub.customer),
-    stripeSubscriptionId: sub.id,
-    stripeItemId:         item?.id ?? null,
-    stripePriceId:        item?.price?.id ?? null,
-    status,
-    tier,
-    syncedQuantity:       quantity,
-    // current_period_end lives on the ITEM in Stripe 22.x, not the subscription.
-    currentPeriodEnd:     item?.current_period_end ? new Date(item.current_period_end * 1000) : null,
-    cancelAtPeriodEnd:    sub.cancel_at_period_end ?? false,
-  };
-
-  await prismaPrivileged.subscription.upsert({
-    where:  { organizationId: orgId },
-    update: data,
-    create: { organizationId: orgId, billableMembers: quantity, ...data },
-  });
-
-  // ── Audit trail ───────────────────────────────────────────────────────────
-  // Only on transitions, so a renewal storm doesn't write a row per delivery.
-  if (opts.activated || (previous?.status !== status && status === SubscriptionStatus.Active)) {
-    await recordEvent(orgId, "billing.subscription_activated", orgId, {
-      tier, priceCents: tierForCount(quantity).priceCents, members: quantity,
-      stripeSubscriptionId: sub.id,
-    });
-  }
-  if (status === SubscriptionStatus.Canceled && previous?.status !== SubscriptionStatus.Canceled) {
-    await recordEvent(orgId, "billing.subscription_canceled", orgId, {
-      tier, atPeriodEnd: sub.cancel_at_period_end ?? false,
-    });
-  }
-  if (previous && previous.tier !== tier) {
-    await recordEvent(orgId, "billing.tier_changed", orgId, {
-      fromTier: previous.tier, toTier: tier, members: quantity,
-      priceCents: tierForCount(quantity).priceCents,
-    });
-  }
-}
-
-/**
- * Stripe status → ours.
- *
- * `incomplete` / `incomplete_expired` mean the first payment never landed, which
- * for entitlement purposes is indistinguishable from never having subscribed —
- * so they map to `free` rather than inventing states nobody acts on. `paused`
- * (no payment method) maps to past_due: growth blocked, data untouched.
- */
-function mapStatus(status: Stripe.Subscription.Status): string {
-  switch (status) {
-    case "active":   return SubscriptionStatus.Active;
-    case "trialing": return SubscriptionStatus.Trialing;
-    case "past_due": return SubscriptionStatus.PastDue;
-    case "unpaid":   return SubscriptionStatus.Unpaid;
-    case "canceled": return SubscriptionStatus.Canceled;
-    case "paused":   return SubscriptionStatus.PastDue;
-    default:         return SubscriptionStatus.Free;
-  }
-}
-
-/**
- * Which org does this event belong to?
- *
- * Metadata first — it's set on both the Customer and the Subscription at
- * creation, so it survives everything. The customer-id lookup is the fallback
- * for anything created outside this app (a subscription set up by hand in the
- * Dashboard, say).
- */
-async function resolveOrgId(
-  metadata: Stripe.Metadata | null | undefined,
-  customerId: string | null,
-): Promise<number | null> {
-  const raw = metadata?.organizationId;
-  if (raw) {
-    const parsed = Number(raw);
-    if (Number.isInteger(parsed) && parsed > 0) return parsed;
-  }
-  if (!customerId) return null;
-
-  const row = await prismaPrivileged.subscription.findFirst({
-    where:  { stripeCustomerId: customerId },
-    select: { organizationId: true },
-  });
-  return row?.organizationId ?? null;
-}
-
-/** Stripe fields are `string | Expanded | null`; we only ever want the id. */
-function idOf(value: string | { id: string } | null | undefined): string | null {
-  if (!value) return null;
-  return typeof value === "string" ? value : value.id;
-}
-
-/**
- * Append an OperationalEvent without a RequestContext.
- *
- * emit() needs a ctx that a webhook cannot have, so this mirrors the local
- * helpers in the other pre-auth routes (emitRedeemEvent in redeem-invite,
- * emitClaimEvent in claim). Deliberately no ActivityLog dual-write: a member's
- * feed should not narrate the org's billing.
- *
- * Best-effort — telemetry must never fail an event we already applied.
- */
-async function recordEvent(
-  orgId: number,
-  action: string,
-  subjectId: number,
-  metadata: Record<string, unknown>,
-): Promise<void> {
-  try {
-    await prismaPrivileged.operationalEvent.create({
-      data: {
-        organizationId: orgId,
-        requestId:      `stripe-webhook-${Date.now()}`,
-        actorId:        null,
-        action,
-        subjectType:    "Subscription",
-        subjectId,
-        metadata:       metadata as never,
-      },
-    });
-  } catch (e) {
-    logError(e, { route: "lib/billing/webhook", method: "recordEvent", extra: { orgId, action } });
   }
 }
 

@@ -14,7 +14,7 @@
 import type { RequestContext } from "@/lib/context/request-context";
 import { emit } from "@/lib/events";
 import { ForbiddenError, NotFoundError, ValidationError } from "@/lib/errors";
-import { prisma } from "@/lib/prisma"; // lint-direct-prisma:ignore cross-org membership count for group-plan detection
+import { prismaPrivileged } from "@/lib/prisma-privileged"; // lint-direct-prisma:ignore cross-org membership count for group-plan detection
 import { logError } from "@/lib/observability";
 import { SUPPORT_EMAIL, emailAsText, gmailCompose, mailto, outlookCompose } from "@/lib/support";
 import { SalesLeadKind } from "@/lib/state/sales-lead";
@@ -22,7 +22,7 @@ import { SubscriptionStatus } from "@/lib/state/subscription-status";
 import { stripe, stripeEnabled, stripePriceId } from "@/lib/stripe";
 import { checkSeatAvailable } from "@/lib/billing/guard";
 import { countBillableMembers } from "@/lib/billing/seats";
-import { flushPendingSeatSync, reconcileSeats, type SeatSyncResult } from "@/lib/billing/sync";
+import { flushPendingSeatSync, reconcileSeats, refreshFromStripe, refreshIfStale, type SeatSyncResult } from "@/lib/billing/sync";
 import { BILLING_BANDS, SELF_SERVE_MAX, formatPrice, formatRange, tierForCount } from "@/lib/billing/tiers";
 import type { OpenPortalInput, RequestQuoteInput, StartCheckoutInput } from "@/lib/validation/billing";
 
@@ -83,9 +83,15 @@ export interface BillingSummary {
 export async function getBillingSummary(ctx: RequestContext): Promise<BillingSummary> {
   assertCanManageBilling(ctx);
 
+  // Pull first, then push. If a delivery was lost, the pull is what repairs
+  // status/tier, and the push that follows is then working from a row that
+  // actually reflects Stripe. Both are opportunistic and both no-op in the
+  // healthy case; neither may break the page that explains the problem.
+  await refreshIfStale(ctx.db).catch(e => {
+    logError(e, { route: "lib/services/billing-service", method: "getBillingSummary", userId: ctx.actorId, extra: { orgId: ctx.orgId, stage: "refresh" } });
+  });
   await flushPendingSeatSync(ctx.db).catch(e => {
-    // Never let a reconcile failure break the page that explains the problem.
-    logError(e, { route: "lib/services/billing-service", method: "getBillingSummary", userId: ctx.actorId, extra: { orgId: ctx.orgId } });
+    logError(e, { route: "lib/services/billing-service", method: "getBillingSummary", userId: ctx.actorId, extra: { orgId: ctx.orgId, stage: "seat_sync" } });
   });
 
   const [sub, members, seat, adminOrgCount] = await Promise.all([
@@ -128,12 +134,21 @@ export async function getBillingSummary(ctx: RequestContext): Promise<BillingSum
  * Necessarily a cross-org read, so it cannot go through ctx.db (which is bound
  * to one org by construction). Counts memberships only — never reads another
  * org's data, just how many rows carry this brotherId.
+ *
+ * Privileged on purpose. Membership lost its permissive policy in Phase 4
+ * (20260622000001_phase4_drop_allow_all) and lib/prisma.ts pins app.org_id to ''
+ * on every connection, so the plain client returns ZERO rows here rather than
+ * erroring — which reads as "administers one org" and silently suppressed the
+ * group-plan offer for everyone. Same reasoning, and the same fix, as the
+ * cross-tenant reads in app/api/admin/**.
  */
 async function countAdministeredOrgs(brotherId: number): Promise<number> {
   try {
-    return await prisma.membership.count({ where: { brotherId, isOrgAdmin: true } }); // lint-direct-prisma:ignore cross-org by design; counts this actor's own memberships only
+    return await prismaPrivileged.membership.count({ where: { brotherId, isOrgAdmin: true } }); // lint-direct-prisma:ignore cross-org by design; counts this actor's own memberships only
   } catch (e) {
-    // A group-plan nudge is not worth failing the billing page over.
+    // A group-plan nudge is not worth failing the billing page over. Returning 0
+    // suppresses the offer, which is the safe direction — but log it, because
+    // this is now the ONLY way a zero here can mean "we don't know".
     logError(e, { route: "lib/services/billing-service", method: "countAdministeredOrgs", userId: brotherId });
     return 0;
   }
@@ -338,8 +353,17 @@ export async function requestQuote(ctx: RequestContext, input: RequestQuoteInput
   };
 }
 
-/** Force a seat reconcile. Manual counterpart to the event-driven sync. */
+/**
+ * Force a full reconcile in both directions. Manual counterpart to the
+ * event-driven sync, and the support lever when something looks wrong.
+ *
+ * Unconditionally pulls first — unlike the billing page's opportunistic
+ * refreshIfStale, someone pressing this button is telling us they think the row
+ * is wrong, so the staleness heuristic shouldn't get a vote. The pull repairs
+ * status/tier from Stripe; the push that follows corrects the quantity.
+ */
 export async function syncSeats(ctx: RequestContext): Promise<SeatSyncResult> {
   assertCanManageBilling(ctx);
+  await refreshFromStripe(ctx.db);
   return reconcileSeats(ctx.db);
 }

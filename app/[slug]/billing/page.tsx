@@ -125,6 +125,13 @@ export default function BillingPage() {
    * and our own /api/billing read race. So this re-fetches once after a beat
    * instead of asserting the subscription is active; until then the summary can
    * legitimately still read "free".
+   *
+   * The re-fetch now repairs rather than hopes: GET /api/billing runs
+   * refreshIfStale, which pulls the subscription straight from Stripe whenever
+   * the row looks like it lost a delivery (a customer id with no subscription id
+   * is exactly that shape). So this covers both a slow webhook and one that
+   * never arrives at all — the case that used to leave a paying org walled with
+   * no way out. See refreshFromStripe in lib/billing/sync.ts.
    */
   useEffect(() => {
     if (typeof window === "undefined") return;
