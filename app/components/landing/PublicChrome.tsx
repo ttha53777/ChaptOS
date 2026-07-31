@@ -14,7 +14,7 @@ import { SignInLink } from "./SignInLink";
 import { APP_NAME } from "@/lib/domains";
 
 /** Which nav link renders as "you are here". */
-export type PublicNavHere = "for" | "help" | "trust" | null;
+export type PublicNavHere = "for" | "help" | "trust" | "pricing" | null;
 
 export function PublicNav({ here = null }: { here?: PublicNavHere }) {
   const mark = (id: Exclude<PublicNavHere, null>) =>
@@ -35,6 +35,9 @@ export function PublicNav({ here = null }: { here?: PublicNavHere }) {
           <a href="/#setup">Setup</a>
           <a href="/for" {...mark("for")}>
             Who it&apos;s for
+          </a>
+          <a href="/pricing" {...mark("pricing")}>
+            Pricing
           </a>
           <a href="/help" {...mark("help")}>
             Help

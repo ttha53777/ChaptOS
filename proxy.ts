@@ -115,7 +115,7 @@ export async function proxy(request: NextRequest) {
  * "/helpdesk" does not start with "/help/".
  */
 const PUBLIC_PATHS: ReadonlySet<string> = new Set([
-  "/", "/create", "/trust", "/help", "/contact", "/for",
+  "/", "/create", "/trust", "/help", "/contact", "/for", "/pricing",
 ]);
 
 function isPublicPath(pathname: string): boolean {

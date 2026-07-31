@@ -17,6 +17,10 @@ import type { Draft } from "@/lib/onboarding/draft";
 import { draftToCreateOrgInput } from "@/lib/onboarding/draft";
 import { createClient } from "@/lib/supabase/client";
 import { signInWithGoogle } from "@/lib/supabase/oauth";
+import { BILLING_BANDS, formatPrice } from "@/lib/billing/tiers";
+
+const FREE_BAND = BILLING_BANDS[0];
+const FIRST_PAID = BILLING_BANDS.find(b => (b.priceCents ?? 0) > 0) ?? BILLING_BANDS[1];
 import { ORG_SLUG_HEADER } from "@/app/lib/api";
 import { clearStoredDraft, DISPLAY_HOST, draftSlug } from "./flow-state";
 import { OrgMark } from "./OrgMark";
@@ -245,6 +249,15 @@ export function BuildStep({
           )}
           {phase.notice && <p className="fine" style={{ color: "var(--rose)" }}>{phase.notice}</p>}
           <p className="fine">One account · one chapter to start · switch orgs anytime</p>
+          {/* Money, said once, before they commit — not a paywall. A new org is
+              one person, so it is always free at this moment; the point is that
+              nobody discovers the price for the first time at the seat wall.
+              Derived from BILLING_BANDS so it can't drift from what we charge. */}
+          <p className="fine">
+            Free while there are {FREE_BAND.upTo} or fewer of you ·{" "}
+            {formatPrice(FIRST_PAID.priceCents)}/month above that · no card today ·{" "}
+            <a href="/pricing" target="_blank" rel="noreferrer">pricing</a>
+          </p>
           <button className="back-link" onClick={onBackToBlueprint}>
             ← Back to the blueprint
           </button>

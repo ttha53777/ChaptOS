@@ -47,6 +47,11 @@ const SYSTEM_ROUTES: readonly string[] = [
   // "for" backs app/for/ (the six audience pages). Only three characters, so it
   // clears MIN_SLUG_LEN and would otherwise be claimable.
   "for",
+  // "pricing" backs app/pricing/; "billing" is reserved alongside it because
+  // /<slug>/billing is a real route and a top-level /billing page is the obvious
+  // future sibling. Same reasoning as trust/privacy/terms above — cheaper to
+  // reserve now than to rename someone's workspace later.
+  "pricing", "billing",
 ];
 
 const INFRA_HOSTS: readonly string[] = [
