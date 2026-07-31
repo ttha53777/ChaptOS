@@ -69,12 +69,28 @@ export function apiErrorMessage(err: unknown, fallback: string): string {
   return fallback;
 }
 
-/** Pull `details.code` out of an ApiError body, if present. */
+/**
+ * The machine-readable code for a failure, most specific first.
+ *
+ * Two conventions coexist, and the order here is load-bearing:
+ *
+ *  - `details.code` is the *specific* one. A service narrows a broad error with
+ *    it — semester-bounds.ts throws ValidationError(msg, { code:
+ *    "NO_ACTIVE_SEMESTER" }), and useSemesterErrorHandler branches on exactly
+ *    that to route the user to semester setup.
+ *  - top-level `code` is the DomainErrorCode that toResponse() now emits on
+ *    every domain error ("VALIDATION", "PAYMENT_REQUIRED", ...).
+ *
+ * Checking details first keeps the narrow codes reachable: a semester error
+ * carries BOTH, and reading the top level first would hand its caller a useless
+ * "VALIDATION" and silently break the redirect.
+ */
 export function apiErrorCode(err: unknown): string | null {
   if (!(err instanceof ApiError)) return null;
-  const details = (err.body as { details?: unknown } | null)?.details;
-  const code = (details as { code?: unknown } | null)?.code;
-  return typeof code === "string" ? code : null;
+  const body = err.body as { code?: unknown; details?: unknown } | null;
+  const detailCode = (body?.details as { code?: unknown } | null)?.code;
+  if (typeof detailCode === "string") return detailCode;
+  return typeof body?.code === "string" ? body.code : null;
 }
 
 export async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
