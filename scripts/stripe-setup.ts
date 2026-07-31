@@ -39,6 +39,20 @@ const LOOKUP_KEY_VERSION = 1;
 const LOOKUP_KEY = `figurints_monthly_v${LOOKUP_KEY_VERSION}`;
 const PRODUCT_NAME = "Figurints";
 
+/**
+ * "Software as a service (SaaS) - business use".
+ *
+ * Not optional. Stripe accounts now have Managed Payments enabled by default,
+ * and it refuses to create a Checkout Session for a product with no eligible tax
+ * code — the failure surfaces at checkout time as
+ * "Invalid line_items[0]: the product tax code is missing", long after setup
+ * appeared to succeed.
+ *
+ * Business rather than personal use: the customer is an organization buying
+ * software for its operations, not an individual consumer.
+ */
+const SAAS_TAX_CODE = "txcd_10103001";
+
 async function main(): Promise<void> {
   const key = process.env.STRIPE_SECRET_KEY;
   if (!key) {
@@ -59,6 +73,29 @@ async function main(): Promise<void> {
   }
   console.log(`\n  Self-serve ceiling: ${SELF_SERVE_MAX} members`);
 
+  // ── Product ─────────────────────────────────────────────────────────────────
+  // Resolved BEFORE the existing-price check, deliberately. The tax-code heal
+  // below has to run even on an otherwise no-op invocation — a product created
+  // without one still fails at checkout, and "re-run the setup script" should be
+  // enough to fix it. Putting this after an early return made the fix
+  // unreachable on exactly the accounts that needed it.
+  //
+  // Reused across price versions so Stripe reporting treats them as one product.
+  const products = await stripe.products.search({ query: `name:"${PRODUCT_NAME}" AND active:"true"`, limit: 1 });
+  let product = products.data[0] ?? await stripe.products.create({
+    name: PRODUCT_NAME,
+    description: "Chapter operations platform — billed monthly by member count.",
+    tax_code: SAAS_TAX_CODE,
+  });
+
+  const currentTaxCode = typeof product.tax_code === "string" ? product.tax_code : product.tax_code?.id;
+  if (currentTaxCode !== SAAS_TAX_CODE) {
+    product = await stripe.products.update(product.id, { tax_code: SAAS_TAX_CODE });
+    console.log(`\nProduct: ${product.id} — tax_code set to ${SAAS_TAX_CODE} (required by Managed Payments)`);
+  } else {
+    console.log(`\nProduct: ${product.id} (${products.data[0] ? "existing" : "created"})`);
+  }
+
   // ── Existing price? ─────────────────────────────────────────────────────────
   if (!forceNew) {
     const found = await stripe.prices.list({ lookup_keys: [LOOKUP_KEY], active: true, limit: 1, expand: ["data.tiers"] });
@@ -66,19 +103,10 @@ async function main(): Promise<void> {
       const price = found.data[0];
       console.log(`\nPrice already exists for lookup_key "${LOOKUP_KEY}".`);
       printPrice(price);
-      console.log("\nNothing to do. Pass --force-new to mint a new version instead.");
+      console.log("\nNothing else to do. Pass --force-new to mint a new version.");
       return;
     }
   }
-
-  // ── Product ─────────────────────────────────────────────────────────────────
-  // Reused across price versions so Stripe reporting treats them as one product.
-  const products = await stripe.products.search({ query: `name:"${PRODUCT_NAME}" AND active:"true"`, limit: 1 });
-  const product = products.data[0] ?? await stripe.products.create({
-    name: PRODUCT_NAME,
-    description: "Chapter operations platform — billed monthly by member count.",
-  });
-  console.log(`\nProduct: ${product.id} (${products.data[0] ? "existing" : "created"})`);
 
   // ── Price ───────────────────────────────────────────────────────────────────
   const tiers = stripeTiers();
