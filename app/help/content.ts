@@ -120,6 +120,19 @@ export const CATEGORIES: Category[] = [
     doodle: "key",
     tint: "sky",
   },
+  {
+    // Deliberately NOT folded into "Money". That category is the chapter's own
+    // money — dues, reimbursements, the budget. This one is what the org pays
+    // us. The services are firewalled from each other in the codebase for the
+    // same reason (see lib/services/billing-service.ts): two different kinds of
+    // money, and conflating them in the help centre is exactly the confusion
+    // that separation exists to prevent.
+    id: "billing",
+    title: "What this costs",
+    blurb: "The price, what counts toward it, and what happens when you outgrow the free plan.",
+    doodle: "receipt",
+    tint: "butter",
+  },
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -426,9 +439,11 @@ export const ARTICLES: Article[] = [
         "If you void or re-price a dues row, the member's balance goes back up by the same amount. " +
         "That's the mirror image of recording it — but it does mean a \"quick fix\" to a ledger row " +
         "shows up on someone's account." },
-      { k: "note", tone: "info", h: "We never touch actual money", t:
-        "No card numbers, no bank details, no processor. What's here are *records* of money that " +
-        "moved somewhere else. [More in Trust & privacy](/trust)." },
+      { k: "note", tone: "info", h: "We never touch your chapter's money", t:
+        "No card numbers, no bank details, no processor for dues. What's here are *records* of " +
+        "money that moved somewhere else. (Your org's own subscription to this app is separate and " +
+        "does go through a processor — see [what this costs](/help/what-you-pay).) " +
+        "[More in Trust & privacy](/trust)." },
     ],
   },
   {
@@ -907,6 +922,156 @@ export const ARTICLES: Article[] = [
       { k: "note", tone: "info", h: "Do it before you invite everyone", t:
         "The vocabulary is the first thing people notice and the last thing they mention. Get it " +
         "right before the roster arrives and nobody ever has to be told \"ignore that word\"." },
+    ],
+  },
+
+  // ── What this costs ───────────────────────────────────────────────────────
+  // Every figure in these four articles is stated in prose, which means it can
+  // drift from lib/billing/tiers.ts. If you change a band, change these too —
+  // the /pricing page derives its numbers and can't go stale, but this file
+  // can. That's the trade for keeping help content free of imports.
+  {
+    slug: "what-you-pay",
+    title: "What this costs",
+    blurb: "One price per org, set by headcount. Free to four, $25/month to fifty.",
+    categoryId: "billing",
+    keywords: ["price", "pricing", "cost", "plan", "subscription", "free", "how much", "billing", "$"],
+    lede:
+      "One price for the whole organization, decided by how many people are on it. Not per person, " +
+      "not per term, and not a smaller product at the lower prices.",
+    body: [
+      { k: "table", head: ["Organization size", "Per month"], rows: [
+        ["1–4 people",     "Free"],
+        ["5–50 people",    "$25"],
+        ["51–120 people",  "$65"],
+        ["121+ people",    "Quoted — talk to us"],
+      ] },
+      { k: "p", t:
+        "The band you land in is worked out from your live headcount, so it moves on its own. Add " +
+        "people and it goes up at the boundary; graduate a class and it comes back down. Nobody has " +
+        "to remember to tell us." },
+      { k: "h", t: "Every feature is on every plan" },
+      { k: "p", t:
+        "This is worth stating plainly because most software doesn't work this way: there is no " +
+        "feature in this product locked behind a higher price, and no screen that asks you to " +
+        "upgrade to see something. The roster, dues, the ledger, attendance, documents, the " +
+        "assistant, exports and the audit log are all there on the free plan. The price only " +
+        "tracks how many of you there are." },
+      { k: "note", tone: "info", h: "Two different kinds of money", t:
+        "This is what your org pays *us*. It has nothing to do with the dues and budget you track " +
+        "inside the app — those never touch this, and this never touches those. See " +
+        "[Dues](/help/dues) for the other one." },
+      { k: "where", path: ["Settings", "System", "Billing"] },
+    ],
+  },
+  {
+    slug: "member-limit",
+    title: "What happens when you hit the limit",
+    blurb: "The one thing that stops, and the many things that don't.",
+    categoryId: "billing",
+    keywords: ["limit", "cap", "full", "can't add", "at capacity", "402", "blocked", "seat", "maximum"],
+    lede:
+      "Growing past what you're paying for blocks exactly one thing: adding the next person. " +
+      "Everything you already have keeps working.",
+    body: [
+      { k: "h", t: "What stops" },
+      { k: "list", tone: "no", items: [
+        "Adding a new member to the roster.",
+        "A new person redeeming an invite link.",
+        "Un-archiving someone who was archived.",
+      ] },
+      { k: "h", t: "What doesn't" },
+      { k: "list", tone: "check", items: [
+        "Every member you already have keeps their access — nobody is removed or locked out.",
+        "Every page keeps working: roster, dues, attendance, timeline, documents, the assistant.",
+        "Your exports keep working, so your data is never held hostage.",
+        "Nothing is deleted, hidden, or degraded.",
+      ] },
+      { k: "note", tone: "good", h: "It only ever blocks growth", t:
+        "The check runs when something would make your org bigger, and never on anything you " +
+        "already have. Running past your plan is an inconvenience, not a shutdown." },
+      { k: "h", t: "Clearing it" },
+      { k: "steps", items: [
+        "An org admin opens Settings → Billing.",
+        "Add a payment method. You're not charged for doing this while you're still within the free band — the card just sits there.",
+        "Add the person. Billing catches up with the new headcount on its own.",
+      ] },
+      { k: "note", tone: "warn", h: "Only an org admin can clear it", t:
+        "Billing is org-admin authority, not a permission you can hand out — it belongs to whoever " +
+        "set the organization up. A Treasurer running the chapter's money can't add the card." },
+      { k: "note", tone: "info", h: "Above 120 people it needs a conversation", t:
+        "Past that size we price per organization rather than off a table, so the button asks for a " +
+        "quote instead of a card. [Talk to us](/contact) and we'll come back with a number." },
+    ],
+  },
+  {
+    slug: "paying-and-invoices",
+    title: "Cards, invoices and failed payments",
+    blurb: "Where the card lives, how to get receipts, and what a declined payment does.",
+    categoryId: "billing",
+    keywords: ["card", "invoice", "receipt", "payment", "stripe", "portal", "past due", "declined", "failed"],
+    lede:
+      "Payment is handled by Stripe end to end. We never see or store your card, and everything you " +
+      "might want to do with it lives in one place.",
+    body: [
+      { k: "where", path: ["Settings", "System", "Billing", "Manage billing"] },
+      { k: "p", t:
+        "That button opens Stripe's own billing portal, where you can change the card, download " +
+        "every past invoice, update the billing address and cancel. We deliberately didn't rebuild " +
+        "any of that — handling card details ourselves would mean taking on risk for no benefit to " +
+        "you." },
+      { k: "h", t: "When a payment fails" },
+      { k: "p", t:
+        "Cards expire and banks decline things. When that happens the subscription goes to " +
+        "**past due**, and Stripe retries on a schedule of its own while emailing the address on " +
+        "the account." },
+      { k: "list", tone: "check", items: [
+        "Nobody is removed and nothing is deleted.",
+        "Every existing member keeps working access.",
+        "You can't add new members until it's resolved — same rule as the member limit.",
+      ] },
+      { k: "note", tone: "good", h: "Fixing it is faster than waiting", t:
+        "Updating the card in the portal settles it immediately rather than waiting for the next " +
+        "automatic retry." },
+      { k: "note", tone: "info", h: "Who gets the emails", t:
+        "Stripe sends receipts and payment warnings to the email on the billing account — the " +
+        "person who set the subscription up. If that person has graduated, change the address in " +
+        "the portal before it matters." },
+    ],
+  },
+  {
+    slug: "cancelling",
+    title: "Cancelling",
+    blurb: "How to stop paying, what you keep, and what the free plan means afterwards.",
+    categoryId: "billing",
+    keywords: ["cancel", "stop paying", "downgrade", "unsubscribe", "refund", "end subscription"],
+    lede:
+      "Cancelling takes a couple of clicks, doesn't require emailing anyone, and doesn't take your " +
+      "records with it.",
+    body: [
+      { k: "steps", items: [
+        "An org admin opens Settings → Billing.",
+        "Click Manage billing to open the Stripe portal.",
+        "Cancel there. It takes effect at the end of the period you've already paid for.",
+      ] },
+      { k: "h", t: "What happens next" },
+      { k: "list", tone: "check", items: [
+        "You keep full use of the rest of the month you paid for.",
+        "After that the org drops back to the free plan.",
+        "Every record stays exactly where it is — nothing is deleted by cancelling.",
+        "Exports keep working, so you can take the ledger and roster with you whenever.",
+      ] },
+      { k: "note", tone: "warn", h: "The free plan caps new members at four", t:
+        "Dropping back doesn't remove anyone — if you're 40 people, you stay 40 people with full " +
+        "access. But you won't be able to add the 41st until you subscribe again. The cap is on " +
+        "growth, not on what exists." },
+      { k: "note", tone: "info", h: "Cancelling is not deleting", t:
+        "They're separate. If you want the organization and its data actually gone, that's a " +
+        "different action with its own confirmation — see " +
+        "[Leaving or deleting](/help/leaving-or-deleting)." },
+      { k: "note", tone: "info", h: "Changed your mind before it ends?", t:
+        "A cancellation that hasn't taken effect yet can be resumed from the same portal, and " +
+        "nothing will have changed in the meantime." },
     ],
   },
 ];
