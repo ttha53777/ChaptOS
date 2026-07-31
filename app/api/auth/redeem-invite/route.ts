@@ -41,6 +41,34 @@ async function emitRedeemEvent(
   }
 }
 
+/**
+ * Fire-and-forget record that the seat gate turned a redeemer away.
+ *
+ * The admin-side equivalent lives in brother-service and goes through emit();
+ * this route has no ctx, so it writes the row directly like emitRedeemEvent
+ * above. actorId is whoever tried — null when they have no Brother yet, which is
+ * the common case for an invite link.
+ */
+async function emitSeatsBlockedEvent(
+  orgId: number, brotherId: number | null, members: number, requiredTier: string, action: string,
+) {
+  try {
+    await prisma.operationalEvent.create({
+      data: {
+        organizationId: orgId,
+        requestId:      randomUUID(),
+        actorId:        brotherId,
+        action:         "billing.seats_blocked",
+        subjectType:    "Subscription",
+        subjectId:      orgId,
+        metadata:       { members, requiredTier, action, via: "invite" },
+      },
+    });
+  } catch {
+    // Non-fatal — telemetry must not break the 402.
+  }
+}
+
 export async function POST(req: NextRequest) {
   // ── 1. Validate Supabase session ─────────────────────────────────────────
   const cookieStore = await cookies();
@@ -136,6 +164,9 @@ export async function POST(req: NextRequest) {
   // (no ctx, so no toResponse contract to honour).
   const seat = await checkSeatAvailable(db(orgId));
   if (!seat.allowed) {
+    // Recorded even though the redeemer never sees why: an admin whose invite
+    // link is quietly bouncing people needs this to be explicable afterwards.
+    void emitSeatsBlockedEvent(orgId, existing?.id ?? null, seat.currentMembers, seat.requiredTier, seat.action ?? "checkout");
     return Response.json({ error: AT_CAPACITY_PUBLIC_MESSAGE }, { status: 402 });
   }
 

@@ -2,13 +2,42 @@ import type { Prisma } from "@/app/generated/prisma/client";
 import { assertSeatAvailable } from "@/lib/billing/guard";
 import type { RequestContext } from "@/lib/context";
 import { emit } from "@/lib/events";
-import { ConflictError, NotFoundError } from "@/lib/errors";
+import { ConflictError, NotFoundError, PaymentRequiredError, type PaymentRequiredDetails } from "@/lib/errors";
 import type { CreateBrotherInput, UpdateBrotherInput } from "@/lib/validation/brother";
 import {
   sanitizeCustomFields,
   type CustomMemberFieldDef,
   type CustomFieldValues,
 } from "@/lib/custom-member-fields";
+
+/**
+ * The seat gate, plus the record that it fired.
+ *
+ * assertSeatAvailable lives in lib/billing/guard.ts, which takes a ScopedDb
+ * rather than a RequestContext — it is shared with the pre-auth invite path, and
+ * services may not import services — so it has no way to call emit(). The emit
+ * has to happen at a call site that has a context, which is here.
+ *
+ * Rethrows untouched: the 402 body and every caller behave exactly as before.
+ * Unlike most billing events this one is deliberately member-visible (no
+ * `activity: false`) — it is the direct consequence of something an admin just
+ * tried to do, and it needs to be explicable afterwards. See lib/events/actions.ts.
+ */
+async function gateSeat(ctx: RequestContext): Promise<void> {
+  try {
+    await assertSeatAvailable(ctx.db);
+  } catch (e) {
+    if (e instanceof PaymentRequiredError) {
+      const details = e.details as PaymentRequiredDetails;
+      await emit(ctx, "billing.seats_blocked", { type: "Subscription", id: ctx.orgId }, {
+        members:      details.currentMembers,
+        requiredTier: details.requiredTier,
+        action:       details.action,
+      });
+    }
+    throw e;
+  }
+}
 
 /** Fetch the org's current custom field definitions from config (server-side only). */
 async function getFieldDefs(ctx: RequestContext): Promise<CustomMemberFieldDef[]> {
@@ -110,7 +139,7 @@ export async function createBrother(ctx: RequestContext, input: CreateBrotherInp
   // org into a price band it isn't covering — the one place platform billing
   // touches a domain write, and deliberately the only kind of restriction there
   // is: nothing the org already has is ever taken away.
-  await assertSeatAvailable(ctx.db);
+  await gateSeat(ctx);
 
   let customFields: CustomFieldValues = {};
   if (input.customFields) {
@@ -191,7 +220,7 @@ export async function updateBrother(
         where:  { id: brotherId },
         select: { archivedAt: true },
       });
-      if (current?.archivedAt) await assertSeatAvailable(ctx.db);
+      if (current?.archivedAt) await gateSeat(ctx);
     }
     data.archivedAt = input.archived ? new Date() : null;
     changedFields.push("archivedAt");
