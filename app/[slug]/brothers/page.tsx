@@ -24,6 +24,8 @@ import {
   fmtDate,
 } from "../../data";
 import { apiErrorMessage, requestJson } from "../../lib/api";
+import { seatWallFrom, type SeatWall } from "../../lib/seat-wall";
+import { useIsOrgAdmin } from "../../hooks/useIsOrgAdmin";
 import { todayStr } from "../../lib/dates";
 import "../../components/dashboard/dashboard-ledger.css";
 import "../../components/dashboard/brotherhood-ledger.css";
@@ -142,6 +144,7 @@ export default function BrothersPage() {
   const toast = useToast();
   const router = useRouter();
   const orgPath = useOrgPath();
+  const isOrgAdmin = useIsOrgAdmin();
   const THRESHOLDS = useThresholds();
   const canBrothers = can("MANAGE_BROTHERS");
   const canTreasury = can("MANAGE_TREASURY");
@@ -173,6 +176,9 @@ export default function BrothersPage() {
   // Loaded once for MANAGE_ATTENDANCE holders; missing key = 0 (no chip).
   const [pendingCounts,    setPendingCounts]    = useState<Record<number, number>>({});
   const [pageError,        setPageError]        = useState<string | null>(null);
+  // The org has outgrown its plan. Kept separate from pageError because it isn't
+  // a failure to retry — it's a state with one specific way out.
+  const [seatWall,         setSeatWall]         = useState<SeatWall | null>(null);
   const [deleteError,      setDeleteError]      = useState<string | null>(null);
   // "Log service hours" modal (opened from the Brother drawer's + control).
   const [logHoursFor,     setLogHoursFor]     = useState<Brother | null>(null);
@@ -319,6 +325,7 @@ export default function BrothersPage() {
     setBrotherList(prev => [...prev, optimistic]);
     setShowAddModal(false);
     setPageError(null);
+    setSeatWall(null);
     try {
       const saved = await requestJson<Brother>("/api/brothers", {
         method: "POST",
@@ -326,9 +333,14 @@ export default function BrothersPage() {
         body: JSON.stringify({ ...data, attendance: 0 }),
       });
       setBrotherList(prev => prev.map(b => b.id === optimisticId ? saved : b));
-    } catch {
+    } catch (err) {
       setBrotherList(prev => prev.filter(b => b.id !== optimisticId));
-      setPageError("Failed to add brother. Please try again.");
+      // A 402 is the seat guard, not a fault: the org has grown past what it's
+      // paying for. Telling someone to "try again" there is both wrong and a
+      // dead end, so it gets its own band with the way out.
+      const wall = seatWallFrom(err);
+      if (wall) setSeatWall(wall);
+      else setPageError(apiErrorMessage(err, "Failed to add brother. Please try again."));
     }
   }, [setBrotherList]);
 
@@ -345,10 +357,14 @@ export default function BrothersPage() {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(updates),
-    }).catch(() => {
+    }).catch(err => {
       setBrotherList(list => list.map(b => b.id === id ? prev : b));
       if (renamingSelf) setSelfNameLocal(prev.name);
-      setPageError("Update failed. Changes were reverted.");
+      // Un-archiving a member is a growth path too, so this can 402 exactly like
+      // adding one (see updateBrother in lib/services/brother-service.ts).
+      const wall = seatWallFrom(err);
+      if (wall) setSeatWall(wall);
+      else setPageError(apiErrorMessage(err, "Update failed. Changes were reverted."));
     });
   }, [brotherList, setBrotherList, currentUser?.id, setSelfNameLocal]);
 
@@ -503,6 +519,30 @@ export default function BrothersPage() {
           <div className="dash" data-dashboard-theme="dusk">
 
             {/* ── Error bands ── */}
+            {seatWall && (
+              <div className="seat-wall" role="status">
+                <div className="sw-copy">
+                  <p className="sw-head">{seatWall.message}</p>
+                  <p className="sw-sub">
+                    Nobody was removed and nothing stopped working — this only blocks adding
+                    someone new.{" "}
+                    {isOrgAdmin
+                      ? seatWall.action === "quote"
+                        ? "Past this size we price per organization, which takes a short conversation."
+                        : "Adding a payment method clears it."
+                      : "An org admin can clear this from Settings → Billing."}
+                  </p>
+                </div>
+                <div className="sw-act">
+                  {isOrgAdmin && (
+                    <button className={btnDuskActionCls} onClick={() => router.push(orgPath("/billing"))}>
+                      {seatWall.action === "quote" ? "Request a quote" : "Set up billing"}
+                    </button>
+                  )}
+                  <button className="sw-dismiss" onClick={() => setSeatWall(null)}>Dismiss</button>
+                </div>
+              </div>
+            )}
             {pageError && (
               <div className="page-err">
                 <p>{pageError}</p>

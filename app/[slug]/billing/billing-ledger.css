@@ -1,0 +1,234 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+   Billing — the platform subscription pane.
+
+   Same warm-paper editorial system as dashboard-ledger.css / instagram-ledger.css
+   / settings-ledger.css. Quieter than its siblings on purpose: this is a page
+   someone visits twice a year to check a number, not a working surface. No
+   glance strips, no lenses, no motion.
+
+   ISOLATION: every rule is scoped under `.dash` (set on the content wrapper, the
+   convention dashboard-ledger.css uses) and every class name is net-new `.bl-*`
+   so nothing leaks into pages that share `.dash`.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+.dash.dash-billing {
+  --serif: var(--font-fraunces), Georgia, serif;
+  --sans:  var(--font-geist-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --mono:  var(--font-geist-mono), ui-monospace, Menlo, monospace;
+
+  --paper:    #0f0d0a;
+  --paper-2:  #14120e;
+  --card:     #161310;
+  --card-2:   #1b1813;
+  --ink:      #ece7dd;
+  --ink-soft: #c9c2b4;
+  --muted:    #958d7c;
+  --faint:    #6b6354;
+  --line:     rgba(236,231,221,.09);
+  --line-soft:rgba(236,231,221,.05);
+  --vio:      #a78bfa;
+  --vio-bg:   rgba(167,139,250,.10);
+  --gold:     #ddb36a;
+  --gold-bg:  rgba(221,179,106,.10);
+  --rose:     #d98ba3;
+  --rose-bg:  rgba(217,139,163,.10);
+  --ok:       #7fb08a;
+  --ok-bg:    rgba(127,176,138,.10);
+  --shadow:   0 1px 0 rgba(0,0,0,.4), 0 16px 40px -24px rgba(0,0,0,.7);
+
+  max-width: 900px;
+  margin: 0;
+  padding: 30px 40px 64px;
+}
+
+/* ── Mobile toolbar ─────────────────────────────────────────────────────────── */
+header.dash-toolbar.bl-toolbar-bar {
+  background: rgba(15, 13, 10, .85);
+  border-bottom-color: rgba(236, 231, 221, .09);
+}
+header.dash-toolbar.bl-toolbar-bar .tb-icon-btn { color: #958d7c; }
+header.dash-toolbar.bl-toolbar-bar .tb-icon-btn:hover { color: #ece7dd; background: rgba(236,231,221,.035); }
+header.dash-toolbar .bl-crumb {
+  font-family: var(--font-fraunces), Georgia, serif;
+  font-weight: 500; font-size: 15px; letter-spacing: -.01em; color: #ece7dd;
+}
+
+/* ── Head ───────────────────────────────────────────────────────────────────── */
+.dash .bl-head { margin-bottom: 26px; }
+.dash .bl-head .kicker {
+  font-family: var(--mono); font-size: 10.5px; letter-spacing: .13em;
+  text-transform: uppercase; color: var(--muted); margin-bottom: 8px;
+}
+.dash .bl-head h1 {
+  font-family: var(--serif); font-weight: 500; font-size: 31px;
+  letter-spacing: -.02em; color: var(--ink); margin: 0 0 8px;
+}
+.dash .bl-head h1 em { font-style: italic; color: var(--vio); }
+.dash .bl-lede { font-size: 13.5px; line-height: 1.65; color: var(--muted); max-width: 60ch; margin: 0; }
+
+.dash .bl-loading { display: flex; justify-content: center; padding: 80px 0; }
+
+/* ── Notices ────────────────────────────────────────────────────────────────── */
+.dash .bl-note {
+  border: 1px solid var(--line);
+  border-left-width: 3px;
+  border-radius: 10px;
+  background: var(--card);
+  padding: 13px 16px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--ink-soft);
+  margin-bottom: 14px;
+}
+.dash .bl-note b { color: var(--ink); font-weight: 600; }
+.dash .bl-note-ok     { border-left-color: var(--ok);   background: var(--ok-bg); }
+.dash .bl-note-rose   { border-left-color: var(--rose); background: var(--rose-bg); }
+.dash .bl-note-gold   { border-left-color: var(--gold); background: var(--gold-bg); }
+.dash .bl-note-vio    { border-left-color: var(--vio);  background: var(--vio-bg); }
+.dash .bl-note-muted  { border-left-color: var(--faint); }
+
+/* ── Summary measures ───────────────────────────────────────────────────────── */
+.dash .bl-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1px;
+  background: var(--line);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+  margin: 22px 0 26px;
+}
+.dash .bl-measure { background: var(--card); padding: 15px 16px 14px; }
+.dash .bl-measure .k {
+  font-family: var(--mono); font-size: 10px; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--muted); margin: 0 0 7px;
+}
+.dash .bl-measure .v {
+  font-family: var(--serif); font-size: 23px; font-weight: 500;
+  color: var(--ink); letter-spacing: -.01em; margin: 0 0 5px; line-height: 1.1;
+}
+.dash .bl-measure .note { font-size: 11.5px; color: var(--faint); margin: 0; }
+
+.dash .bl-linkish {
+  background: none; border: 0; padding: 0;
+  font: inherit; color: var(--vio); cursor: pointer;
+  text-decoration: underline; text-underline-offset: 2px;
+}
+.dash .bl-linkish:disabled { color: var(--faint); cursor: default; text-decoration: none; }
+
+/* ── Status pill ────────────────────────────────────────────────────────────── */
+.dash .bl-pill {
+  display: inline-block; padding: 3px 9px; border-radius: 999px;
+  font-family: var(--sans); font-size: 11.5px; font-weight: 600; letter-spacing: .01em;
+  border: 1px solid transparent; vertical-align: middle;
+}
+.dash .bl-pill-ok    { color: var(--ok);   background: var(--ok-bg);   border-color: rgba(127,176,138,.28); }
+.dash .bl-pill-vio   { color: var(--vio);  background: var(--vio-bg);  border-color: rgba(167,139,250,.28); }
+.dash .bl-pill-gold  { color: var(--gold); background: var(--gold-bg); border-color: rgba(221,179,106,.28); }
+.dash .bl-pill-rose  { color: var(--rose); background: var(--rose-bg); border-color: rgba(217,139,163,.28); }
+.dash .bl-pill-muted { color: var(--muted); background: rgba(236,231,221,.05); border-color: var(--line); }
+
+/* ── Action cards ───────────────────────────────────────────────────────────── */
+.dash .bl-actions { display: flex; flex-direction: column; gap: 12px; margin-bottom: 30px; }
+.dash .bl-act {
+  display: flex; align-items: center; justify-content: space-between; gap: 22px;
+  border: 1px solid var(--line); border-radius: 12px;
+  background: var(--card); padding: 18px 20px; box-shadow: var(--shadow);
+}
+.dash .bl-act-soft { background: var(--paper-2); box-shadow: none; }
+.dash .bl-act .t { min-width: 0; }
+.dash .bl-act h3 {
+  font-family: var(--serif); font-size: 16px; font-weight: 500;
+  color: var(--ink); margin: 0 0 5px; letter-spacing: -.01em;
+}
+.dash .bl-act p { font-size: 12.5px; line-height: 1.6; color: var(--muted); margin: 0; max-width: 56ch; }
+.dash .bl-act > button { flex: 0 0 auto; white-space: nowrap; }
+
+.dash .bl-disabled {
+  border: 1px dashed var(--line); border-radius: 12px;
+  padding: 18px 20px; background: var(--paper-2);
+}
+.dash .bl-disabled h3 {
+  font-family: var(--serif); font-size: 15px; font-weight: 500; color: var(--ink-soft); margin: 0 0 5px;
+}
+.dash .bl-disabled p { font-size: 12.5px; line-height: 1.6; color: var(--muted); margin: 0; }
+
+/* ── Band table ─────────────────────────────────────────────────────────────── */
+.dash .bl-h3 {
+  font-family: var(--serif); font-size: 18px; font-weight: 500;
+  color: var(--ink); margin: 0 0 6px; letter-spacing: -.01em;
+}
+.dash .bl-bands { margin-bottom: 26px; }
+.dash .bl-bands .bl-lede { margin-bottom: 14px; }
+
+/* Wide content scrolls inside its own box — the page body never scrolls sideways. */
+.dash .bl-table {
+  width: 100%; border-collapse: collapse;
+  border: 1px solid var(--line); border-radius: 12px; overflow: hidden;
+  font-size: 13px;
+}
+.dash .bl-table thead th {
+  font-family: var(--mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--muted); text-align: left; font-weight: 500;
+  padding: 10px 16px; background: var(--paper-2); border-bottom: 1px solid var(--line);
+}
+.dash .bl-table td {
+  padding: 12px 16px; color: var(--ink-soft); border-bottom: 1px solid var(--line-soft);
+}
+.dash .bl-table tbody tr:last-child td { border-bottom: 0; }
+.dash .bl-table td.num { font-family: var(--mono); color: var(--ink); }
+.dash .bl-table tr.is-current td { background: var(--vio-bg); color: var(--ink); }
+.dash .bl-you {
+  margin-left: 8px; padding: 1px 7px; border-radius: 999px;
+  font-family: var(--mono); font-size: 9.5px; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--vio); background: rgba(167,139,250,.16); border: 1px solid rgba(167,139,250,.3);
+}
+
+.dash .bl-fine { font-size: 12px; line-height: 1.65; color: var(--faint); margin: 12px 0 0; max-width: 66ch; }
+.dash .bl-fine a { color: var(--muted); text-decoration: underline; text-underline-offset: 2px; }
+.dash .bl-fine a:hover { color: var(--ink-soft); }
+
+/* ── Walls (non-admin, load failure) ────────────────────────────────────────── */
+.dash .bl-wall {
+  border: 1px solid var(--line); border-radius: 12px;
+  background: var(--card); padding: 30px 26px; max-width: 62ch;
+}
+.dash .bl-wall h2 {
+  font-family: var(--serif); font-size: 20px; font-weight: 500; color: var(--ink);
+  margin: 0 0 10px; letter-spacing: -.01em;
+}
+.dash .bl-wall p { font-size: 13.5px; line-height: 1.7; color: var(--muted); margin: 0 0 10px; }
+.dash .bl-wall-sub { color: var(--faint) !important; }
+
+.dash .bl-back { margin-top: 30px; font-size: 12.5px; }
+.dash .bl-back a { color: var(--muted); text-decoration: none; }
+.dash .bl-back a:hover { color: var(--ink-soft); }
+
+/* ── Quote modal internals ──────────────────────────────────────────────────────
+   Modal renders in place (position:fixed, no portal), so it stays inside
+   .dash.dash-billing and the dusk custom properties above still inherit. */
+.dash .bl-quote-form, .dash .bl-quote-done { display: flex; flex-direction: column; gap: 14px; }
+.dash .bl-quote-intro, .dash .bl-quote-done p {
+  font-size: 13px; line-height: 1.65; color: var(--muted); margin: 0;
+}
+.dash .bl-quote-done b { color: var(--ink); }
+.dash .bl-quote-sub { color: var(--faint) !important; }
+.dash .bl-quote-links { display: flex; flex-wrap: wrap; gap: 8px; }
+.dash .bl-field { display: flex; flex-direction: column; gap: 6px; }
+.dash .bl-field > span {
+  font-family: var(--mono);
+  font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted);
+}
+.dash .bl-field > span em { font-style: normal; text-transform: none; letter-spacing: 0; color: var(--faint); }
+
+/* ── Narrow ─────────────────────────────────────────────────────────────────── */
+@media (max-width: 860px) {
+  .dash.dash-billing { padding: 22px 18px 56px; }
+  .dash.dash-billing .bl-head h1 { font-size: 26px; }
+  .dash .bl-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .dash .bl-act { flex-direction: column; align-items: flex-start; gap: 14px; }
+  .dash .bl-act > button { width: 100%; }
+}
+@media (max-width: 460px) {
+  .dash .bl-summary { grid-template-columns: minmax(0, 1fr); }
+}

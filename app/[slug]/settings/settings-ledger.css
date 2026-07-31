@@ -555,6 +555,20 @@ header.dash-toolbar .set-crumb svg { color: var(--tb-faint, #6b6354); }
 .dash .set-section .et-swatch:hover { transform: scale(1.15); }
 .dash .set-section .et-swatch.on { border-color: var(--paper, #0f0d0a); box-shadow: 0 0 0 2px var(--sc); }
 
+/* ── Link-out row ─────────────────────────────────────────────────────────
+   A settings block that leaves Settings rather than expanding in place
+   (Billing — Stripe redirects back to a fixed /<slug>/billing path, so it
+   can't live behind a ?section= param). */
+.dash .set-section .set-linkout {
+  display: inline-flex; align-items: center; gap: 8px;
+  border: 1px solid var(--line); border-radius: 10px;
+  background: var(--card-2); padding: 9px 14px;
+  font-size: 13px; font-weight: 500; color: var(--ink-soft);
+  text-decoration: none; transition: border-color 140ms ease, color 140ms ease;
+}
+.dash .set-section .set-linkout:hover { border-color: var(--gold); color: var(--ink); }
+.dash .set-section .set-linkout svg { height: 13px; width: 13px; opacity: .6; }
+
 @media (prefers-reduced-motion: reduce) {
   .dash.dash-settings * { transition: none !important; animation: none !important; }
 }

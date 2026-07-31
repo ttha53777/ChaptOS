@@ -2,7 +2,9 @@
 
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Sidebar } from "../../components/Sidebar";
+import { useIsOrgAdmin } from "../../hooks/useIsOrgAdmin";
 import { useOrgPath } from "../../hooks/useOrgPath";
 import { GeneralSection } from "./sections/GeneralSection";
 import { ThresholdsSection } from "./sections/ThresholdsSection";
@@ -30,7 +32,7 @@ type SectionId =
   | "general" | "vocabulary"
   | "accounts" | "invitations" | "roles" | "member-fields"
   | "thresholds" | "semesters" | "custom-metrics" | "event-types" | "workflows"
-  | "activity-log";
+  | "activity-log" | "billing";
 
 type Intent = "Identity" | "Membership" | "Operations" | "System";
 
@@ -45,6 +47,12 @@ interface NavItem {
   group: Intent;
   tint: Tint;
   icon: string;         // heroicons-style path data
+  /** Set when the row leaves Settings instead of expanding a section in place.
+   *  Billing is its own page because Stripe redirects back to a fixed path
+   *  (/<slug>/billing, hardcoded in billing-service.ts) — it can't live behind a
+   *  ?section= param. An item with an href has no section component and is never
+   *  passed to renderSection. Org-scoped path, run through orgPath at use. */
+  href?: string;
 }
 
 const NAV_ITEMS: NavItem[] = [
@@ -120,6 +128,12 @@ const NAV_ITEMS: NavItem[] = [
     lede: "A chronological record of every mutation across the app — who did what, and when.",
     icon: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4",
   },
+  {
+    id: "billing", label: "Billing", group: "System", tint: "t-gold", href: "/billing",
+    blurb: "The plan this org is on, and what it costs.",
+    lede: "What this organization pays to use the platform — separate from your chapter's own dues and budget.",
+    icon: "M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z",
+  },
 ];
 
 const INTENT_ORDER: Intent[] = ["Identity", "Membership", "Operations", "System"];
@@ -179,6 +193,8 @@ function orgInitials(name: string | undefined | null): string {
 export default function SettingsPage() {
   const { can, currentUser, brotherList, taskList, partyList } = useChapter();
   const orgPath = useOrgPath();
+  const router = useRouter();
+  const isOrgAdmin = useIsOrgAdmin();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   // Settings section nav (.set-nav) drawer — static column at lg+, slide-in drawer
   // on mobile (mirrors the main app Sidebar's open/close behaviour).
@@ -193,6 +209,11 @@ export default function SettingsPage() {
   const canManageRoles    = can("MANAGE_ROLES");
   const canManageSettings = can("MANAGE_SETTINGS");
   const isVisible = useMemo(() => (id: NavItem["id"]) => {
+    // Billing is org-admin authority, not a permission bit — see
+    // assertCanManageBilling in lib/services/billing-service.ts. A Treasurer
+    // runs the chapter's money; the platform subscription is the account
+    // holder's business, so MANAGE_SETTINGS deliberately doesn't reach it.
+    if (id === "billing")        return isOrgAdmin;
     if (id === "roles")          return canManageRoles;
     if (id === "invitations")    return canManageSettings;
     if (id === "workflows")      return canManageSettings;
@@ -202,7 +223,7 @@ export default function SettingsPage() {
     if (id === "custom-metrics") return canManageSettings;
     if (id === "event-types")    return canManageSettings;
     return true;
-  }, [canManageRoles, canManageSettings]);
+  }, [canManageRoles, canManageSettings, isOrgAdmin]);
 
   const visibleNavItems = useMemo(() => NAV_ITEMS.filter(n => isVisible(n.id)), [isVisible]);
 
@@ -239,8 +260,15 @@ export default function SettingsPage() {
 
   // From the "find a setting" results: open the section's group page, then scroll
   // to that section's anchor once the group page has rendered.
+  //
+  // An item carrying an href leaves Settings entirely instead — there is no
+  // in-page section to scroll to.
   function selectSection(id: NavItem["id"]) {
     const item = BY_ID[id];
+    if (item.href) {
+      router.push(orgPath(item.href));
+      return;
+    }
     setDest(item.group);
     setPendingAnchor(`set-${id}`);
     setSidebarOpen(false);
@@ -564,7 +592,14 @@ export default function SettingsPage() {
                           </div>
                         </header>
                         <div className="set-section">
-                          {renderSection(item.id)}
+                          {/* Link-out items (Billing) have no section component —
+                              they get a way through instead of an inline panel. */}
+                          {item.href
+                            ? <Link className="set-linkout" href={orgPath(item.href)}>
+                                Open {item.label.toLowerCase()}
+                                <Chevron />
+                              </Link>
+                            : renderSection(item.id)}
                         </div>
                       </section>
                     ))}

@@ -110,6 +110,30 @@
   color: var(--faint); background: none; border: 0; cursor: pointer; flex-shrink: 0; }
 .dash .page-err button:hover { color: var(--ink); }
 
+/* ── Seat wall ───────────────────────────────────────────────────────────────
+   The 402 from the billing seat guard. Deliberately violet rather than rose:
+   this is not a fault and nothing broke — the org grew past what it's paying
+   for, and there is exactly one way forward. Styling it like an error would
+   read as "the app is down", which is the failure mode this replaced. */
+.dash .seat-wall {
+  display: flex; align-items: center; justify-content: space-between; gap: 20px;
+  border: 1px solid rgba(167,139,250,.3); border-left-width: 3px;
+  border-radius: 10px; background: var(--vio-bg); padding: 14px 16px; margin-bottom: 14px;
+}
+.dash .seat-wall .sw-copy { min-width: 0; }
+.dash .seat-wall .sw-head { font-size: 13px; font-weight: 600; color: var(--ink); margin-bottom: 4px; }
+.dash .seat-wall .sw-sub { font-size: 12.5px; line-height: 1.6; color: var(--muted); max-width: 62ch; }
+.dash .seat-wall .sw-act { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+.dash .seat-wall .sw-dismiss {
+  font-family: var(--mono); font-size: 9.5px; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--faint); background: none; border: 0; cursor: pointer;
+}
+.dash .seat-wall .sw-dismiss:hover { color: var(--ink); }
+@media (max-width: 720px) {
+  .dash .seat-wall { flex-direction: column; align-items: flex-start; gap: 12px; }
+  .dash .seat-wall .sw-act { width: 100%; }
+}
+
 /* ── KPI / table loading skeletons on the warm pane ──────────────────────────── */
 .dash .ledger-skel { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 1px;
   border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }

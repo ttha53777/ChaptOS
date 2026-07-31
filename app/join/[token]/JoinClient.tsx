@@ -326,6 +326,11 @@ function messageFor(status: number, serverError?: string): string {
   if (status === 410) return serverError ?? "This invite link is no longer active.";
   if (status === 429) return "Too many attempts. Wait a minute and try again.";
   if (status === 401) return "Your sign-in expired. Refresh the page and try again.";
+  // 402 — the org is at its member limit. Stays deliberately vague: the server
+  // sends AT_CAPACITY_PUBLIC_MESSAGE here rather than the detailed admin copy
+  // precisely so someone who isn't a member can't read an org's billing state
+  // out of a failed join. Don't add a price, a count, or a billing link.
+  if (status === 402) return serverError ?? "This organization can’t take new members right now. Ask whoever sent you the link.";
   if (status >= 500)  return "Something went wrong on our end. Try again in a moment.";
   return serverError ?? "Couldn’t join. Please try again.";
 }
