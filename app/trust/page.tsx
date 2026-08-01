@@ -146,10 +146,11 @@ export default function TrustPage() {
                     style={sx({ color: "var(--mint-ink)" })}
                   />
                 </span>
-                <h4>We never touch actual money</h4>
+                <h4>We never touch your chapter&rsquo;s money</h4>
                 <p>
-                  No card numbers, no bank details, no payment processor. Dues and
-                  reimbursements are <em>records</em>{" "}of money that moved somewhere else.
+                  Dues and reimbursements are <em>records</em>{" "}of money that moved somewhere
+                  else — no card numbers, no bank details, no processor. Your own subscription
+                  is paid through Stripe, and your card details go to them, never to us.
                 </p>
               </div>
               <div className="tldr">
@@ -287,10 +288,13 @@ export default function TrustPage() {
                   pixels, no session recorders, no fingerprinting, no third-party cookies.
                 </li>
                 <li>
-                  <strong>We hold no payment instruments.</strong>{" "}No processor is integrated
-                  at all. &ldquo;Payment method&rdquo; on a dues record is a word someone
-                  typed — <code>venmo</code>, <code>cash</code>, <code>check</code>. Card and
-                  bank data never enters the product, so it can never leak from it.
+                  <strong>We hold no payment instruments.</strong>{" "}Card and bank data never
+                  enters the product, so it can never leak from it. Your chapter&rsquo;s own
+                  books have no processor behind them at all: &ldquo;payment method&rdquo; on a
+                  dues record is a word someone typed — <code>venmo</code>, <code>cash</code>,
+                  <code>check</code>. The one place real money moves is your subscription to
+                  us, and that is handled end to end by Stripe on their own pages — we store an
+                  identifier for your Stripe customer and nothing else.
                 </li>
                 <li>
                   <strong>We don&apos;t train models on your data</strong>, and we have no
@@ -821,6 +825,16 @@ export default function TrustPage() {
                       <td>
                         Authenticates you and returns your name, email and profile photo. It
                         receives no org data from us.
+                      </td>
+                    </tr>
+                    <tr>
+                      <th>Stripe</th>
+                      <td>Subscription billing — what your org pays us</td>
+                      <td>
+                        Your card details, which go to Stripe directly and never reach our
+                        servers, plus the billing contact email and your member count (the
+                        subscription is priced on it). No chapter data — no roster, dues,
+                        attendance or documents.
                       </td>
                     </tr>
                     <tr>

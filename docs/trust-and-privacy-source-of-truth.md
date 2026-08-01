@@ -1,6 +1,8 @@
 # Trust & Privacy — source of truth
 
-Everything in this document was extracted from the code on `main` (2026-07-29). It is the factual
+Everything in this document was extracted from the code on `main` (2026-07-29), and revised for the
+Stripe billing subsystem that landed 2026-07-30/31 (§3 sub-processors, §6 financial data, §14). It is
+the factual
 substrate for a `/trust` page, a privacy policy, a ToS, and a DPA. Every claim below is traceable to
 a file so nothing on the published page is asserted without a basis in the product.
 
@@ -86,6 +88,7 @@ a diligence questionnaire asks for.
 | **Supabase** (Postgres, Auth, Storage) | Primary database, OAuth session management, image hosting | All application data; auth identities; avatars and org logos | [prisma.ts](lib/prisma.ts), [require-user.ts](lib/auth/require-user.ts), [org-logo.ts](lib/supabase/org-logo.ts) |
 | **Vercel** | Application hosting, serverless execution, request/function logs | All data in transit; structured error and timing logs incl. `userId`, `orgId`, route, stack traces | README "Deployment"; [observability.ts](lib/observability.ts) writes JSON lines to stdout, which Vercel captures |
 | **Google** (OAuth via Supabase) | Sign-in only | Authentication assertion; returns name, email, profile photo URL | [oauth.ts](lib/supabase/oauth.ts) — `signInWithOAuth({ provider: "google" })` |
+| **Stripe** *(only when `STRIPE_SECRET_KEY` + `STRIPE_PRICE_ID` are set)* | Subscription billing — what an org pays **us**. Not the org's own dues/treasury books, which have no processor. | Card details, entered on Stripe-hosted Checkout/Portal pages and **never transiting our servers**; the billing contact's name and email; the org name, slug and id as metadata; and the billable member count, which is the quantity the price is computed from. No roster, dues, attendance or document data. | [stripe.ts](lib/stripe.ts), [billing-service.ts](lib/services/billing-service.ts) (`checkout.sessions.create`, `billingPortal.sessions.create`, `customers.create`), [webhook.ts](lib/billing/webhook.ts) |
 | **OpenAI** | Four AI features (§9) | Chat questions, trimmed conversation history, **tool results containing real member names / dues / attendance / GPA aggregates**, meeting-notes text, digest inputs, pre-auth org-setup free text | [ai.ts](lib/ai.ts), [ai-prompt.ts](lib/ai-prompt.ts), [chat/route.ts](app/api/ai/chat/route.ts) |
 | **Sentry** *(optional; only when `SENTRY_DSN` is set)* | Error monitoring | Exception messages, stack traces, `route`, `requestId`, `userId` as a tag | [observability.ts:56-72](lib/observability.ts#L56-L72) |
 
@@ -142,8 +145,17 @@ requests with `status` and `rejectionNote`) · `Budget` / `BudgetAllocation` · 
 (`doorRevenue`, `expenses`, attendance count).
 
 `paymentMethod` is a **free-text string** — values seen in the codebase are `venmo`, `cash`, `check`,
-`card`. **No payment processor is integrated.** No card numbers, no bank details, no ACH. ChaptOS
-*records* money; it never moves it. This is a strong, true, and reassuring claim — make it prominently.
+`card`. **No payment processor is integrated for chapter money.** No card numbers, no bank details,
+no ACH: ChaptOS *records* the org's money; it never moves it. This is a strong, true and reassuring
+claim — make it prominently, but scope it to the chapter's books.
+
+**The claim must NOT be made unqualified any more.** Stripe was integrated on 2026-07-30 for platform
+billing (what an org pays us). The two are firewalled in code — nothing in `lib/billing/**` reads or
+writes `Transaction`, `DuesPayment`, `Reimbursement` or `Budget`, and nothing in those services knows
+billing exists — so the underlying facts are still good, but "no processor is integrated at all"
+became false and had to be narrowed on `app/trust/page.tsx`. Card data still never touches our
+servers: Checkout and the Billing Portal are Stripe-hosted, and the only thing we persist is
+`Subscription.stripeCustomerId` / `stripeSubscriptionId`.
 
 ### Governance & participation
 `Role` / `BrotherRole` (14 permission bits, hierarchy rank) · `Task` / `TaskAssignment` ·
@@ -221,8 +233,10 @@ or government-identifier data"), and repeat the warning in the Settings UI where
 disclosure by design ("medical leave", "study abroad"). Disclose that these are visible to anyone with
 `MANAGE_ATTENDANCE` and retained indefinitely.
 
-**Financial data.** Dues, reimbursements, and ledger entries — but **no payment instruments, no
-processor, no card or bank data**, so PCI-DSS is out of scope and GLBA is not triggered.
+**Financial data.** Dues, reimbursements, and ledger entries — **no payment instruments, no card or
+bank data**. The org's own books have no processor at all. Platform billing goes through Stripe, but
+using Stripe-hosted Checkout and Billing Portal means card data never reaches our servers, which is
+SAQ-A territory rather than PCI-DSS scope proper, and GLBA is not triggered.
 
 **Minors.** No age collection and no gate. See §1 #7.
 
@@ -447,7 +461,10 @@ inside `deleteBrother()`.
 - **State student-privacy statutes** (CA SOPIPA, ~40 similar) — trigger on K-12 use. Bind to the age
   floor decision in §1 #7.
 - **COPPA** — trigger under 13. Prohibit contractually.
-- **PCI-DSS / GLBA** — out of scope; no payment instruments or financial-institution role.
+- **PCI-DSS / GLBA** — no payment instruments stored and no financial-institution role. Card data is
+  entered on Stripe-hosted pages and never touches our servers (SAQ-A shape), so full PCI-DSS scope
+  does not attach; GLBA is not triggered. Note this is a *narrowing* of the pre-2026-07-30 position,
+  which was simply "no processor" — see §6.
 - **HIPAA** — out of scope, but the free-text fields in §6 are how it accidentally comes into scope.
   The contractual prohibition is the control.
 - **FTC Act §5 / state UDAP** — **the most likely enforcement theory against this product today**, and
