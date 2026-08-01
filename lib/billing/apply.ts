@@ -68,17 +68,41 @@ export async function applySubscription(
     select: { status: true, tier: true },
   });
 
+  // A cancelled subscription is a DEAD handle, and holding onto it breaks two
+  // things in opposite directions:
+  //
+  //   startCheckout refused outright while stripeSubscriptionId was set, so an
+  //   org that cancelled could never come back — walled by the seat gate and
+  //   unable to pay to unwall itself. /pricing promises the opposite.
+  //
+  //   reconcileSeats gates its push on stripeItemId, so every later roster
+  //   change called subscriptionItems.update on an item belonging to a cancelled
+  //   subscription, failed, and left seatSyncPendingAt set forever — a permanent
+  //   "sync owed" flag that none of the three drain paths can clear.
+  //
+  // stripeCustomerId deliberately SURVIVES: it's what refreshFromStripe's
+  // fallback looks the subscription up by, and what stops a resubscribe from
+  // minting a second Customer for the same org.
+  const dead = status === SubscriptionStatus.Canceled;
+
   const data = {
     stripeCustomerId:     idOf(sub.customer),
-    stripeSubscriptionId: sub.id,
-    stripeItemId:         item?.id ?? null,
-    stripePriceId:        item?.price?.id ?? null,
+    stripeSubscriptionId: dead ? null : sub.id,
+    stripeItemId:         dead ? null : (item?.id ?? null),
+    stripePriceId:        dead ? null : (item?.price?.id ?? null),
     status,
     tier,
-    syncedQuantity:       quantity,
+    syncedQuantity:       dead ? null : quantity,
     // current_period_end lives on the ITEM in Stripe 22.x, not the subscription.
-    currentPeriodEnd:     item?.current_period_end ? new Date(item.current_period_end * 1000) : null,
-    cancelAtPeriodEnd:    sub.cancel_at_period_end ?? false,
+    // Cleared on cancel so the billing page doesn't render "renews <date>" for a
+    // subscription that has already ended.
+    currentPeriodEnd:     dead || !item?.current_period_end
+      ? null
+      : new Date(item.current_period_end * 1000),
+    // Likewise: a cancel_at_period_end that has now HAPPENED is no longer
+    // pending, and leaving it true renders "cancels on <date> … you can resume
+    // any time before then" to an org whose subscription is already gone.
+    cancelAtPeriodEnd:    dead ? false : (sub.cancel_at_period_end ?? false),
   };
 
   await prismaPrivileged.subscription.upsert({

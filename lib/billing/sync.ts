@@ -42,6 +42,7 @@
  * saving lands on the next invoice. Nobody gets a surprise credit-then-recharge.
  */
 
+import type Stripe from "stripe";
 import type { db } from "@/lib/db";
 import { stripe, stripeEnabled } from "@/lib/stripe";
 import { logError } from "@/lib/observability";
@@ -141,6 +142,45 @@ export async function flushPendingSeatSync(scoped: ScopedDb): Promise<SeatSyncRe
   const sub = await scoped.subscription.findFirst({ select: { seatSyncPendingAt: true } });
   if (!sub?.seatSyncPendingAt) return null;
   return reconcileSeats(scoped);
+}
+
+/**
+ * Stripe statuses that mean "this subscription is still a thing".
+ *
+ * Wider than `isInGoodStanding`, and deliberately so — the two questions are
+ * different. Good standing asks "may this org grow?"; this asks "would a second
+ * checkout create a duplicate?". A `past_due` subscription is not in good
+ * standing but is very much still live, and subscribing again on top of it would
+ * bill the org twice.
+ *
+ * `incomplete` counts as live: its first payment may still succeed. Only
+ * `canceled` and `incomplete_expired` are terminal.
+ */
+const LIVE_STRIPE_STATUSES: readonly Stripe.Subscription.Status[] = [
+  "active", "trialing", "past_due", "unpaid", "paused", "incomplete",
+];
+
+/**
+ * The org's live subscription according to Stripe, or null if it has none.
+ *
+ * Exists because our `stripeSubscriptionId` answers a subtly different question:
+ * it records the last subscription we heard about, which is neither current (a
+ * lost webhook) nor necessarily alive (a cancellation). Checkout has to know
+ * whether charging this customer again would double-bill them, and only Stripe
+ * knows that.
+ *
+ * Unlike the rest of this module this one DOES throw on a Stripe failure. It
+ * guards a payment: refusing to answer has to block checkout, not wave it
+ * through, and the caller cannot reach Stripe for the session either way.
+ */
+export async function findLiveSubscription(customerId: string): Promise<Stripe.Subscription | null> {
+  const { data } = await stripe().subscriptions.list({
+    customer: customerId,
+    status:   "all",
+    // Enough to see past a history of cancelled subscriptions to a live one.
+    limit:    20,
+  });
+  return data.find(s => LIVE_STRIPE_STATUSES.includes(s.status)) ?? null;
 }
 
 /**

@@ -22,7 +22,7 @@ import { SubscriptionStatus } from "@/lib/state/subscription-status";
 import { stripe, stripeEnabled, stripePriceId } from "@/lib/stripe";
 import { checkSeatAvailable } from "@/lib/billing/guard";
 import { countBillableMembers } from "@/lib/billing/seats";
-import { flushPendingSeatSync, reconcileSeats, refreshFromStripe, refreshIfStale, type SeatSyncResult } from "@/lib/billing/sync";
+import { findLiveSubscription, flushPendingSeatSync, reconcileSeats, refreshFromStripe, refreshIfStale, type SeatSyncResult } from "@/lib/billing/sync";
 import { BILLING_BANDS, SELF_SERVE_MAX, formatPrice, formatRange, tierForCount } from "@/lib/billing/tiers";
 import type { OpenPortalInput, RequestQuoteInput, StartCheckoutInput } from "@/lib/validation/billing";
 
@@ -183,8 +183,26 @@ export async function startCheckout(
   const existing = await ctx.db.subscription.findFirst({
     select: { stripeCustomerId: true, stripeSubscriptionId: true },
   });
-  if (existing?.stripeSubscriptionId) {
-    throw new ValidationError("This organization already has a subscription — manage it in the billing portal.");
+
+  // Ask Stripe whether a subscription is LIVE, rather than trusting our own row.
+  //
+  // The old guard was `if (existing?.stripeSubscriptionId) throw`, and it was
+  // wrong in both directions. It read a field only the webhook writes, so a lost
+  // delivery let a second checkout through; and it kept firing after a
+  // cancellation, so an org that cancelled could never resubscribe — walled by
+  // the seat gate and refused at the till, with the billing page pointing them at
+  // a portal that has nothing to manage.
+  //
+  // One list call answers the question properly. It closes the common race (a
+  // second admin, or a second tab, starting checkout after the first one
+  // finished) but not two payments completing in the same instant — nothing
+  // short of a lock would, and Stripe has no dedup for that. A duplicate that
+  // does slip through is visible in /admin/orgs → billing health.
+  if (existing?.stripeCustomerId) {
+    const live = await findLiveSubscription(existing.stripeCustomerId);
+    if (live) {
+      throw new ValidationError("This organization already has a subscription — manage it in the billing portal.");
+    }
   }
 
   const customerId = existing?.stripeCustomerId ?? await createCustomer(ctx, org);

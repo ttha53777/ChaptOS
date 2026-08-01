@@ -188,6 +188,14 @@ export interface EventMetadata {
   "billing.subscription_activated":{ tier: string; priceCents: number | null; members: number; stripeSubscriptionId: string };
   "billing.tier_changed":          { fromTier: string; toTier: string; members: number; priceCents: number | null };
   "billing.payment_failed":        { stripeInvoiceId: string | null; amountDueCents: number | null };
+  // The bank wants the cardholder to authenticate (3-D Secure / SCA). Distinct
+  // from payment_failed on purpose: the card is fine, a human just has to tap
+  // something, and nothing retries its way out of that.
+  "billing.payment_action_required": { stripeInvoiceId: string | null; amountDueCents: number | null; hostedInvoiceUrl: string | null };
+  // A chargeback. Deliberately does NOT change entitlement — Stripe will send
+  // the subscription events if it decides to act. This row exists so the
+  // relationship ending is not invisible to us.
+  "billing.dispute_opened":        { stripeDisputeId: string; amountCents: number | null; reason: string | null };
   "billing.subscription_canceled": { tier: string; atPeriodEnd: boolean };
   // The seat guard turned someone away. `action` mirrors PaymentRequiredDetails:
   // "checkout" (a card would fix it) or "quote" (past the self-serve ceiling).
@@ -228,7 +236,8 @@ const KNOWN_ACTIONS = new Set<Action>([
   "dues_payment.submitted", "dues_payment.rejected",
   "assistant.proposal_approved", "assistant.feedback",
   "billing.checkout_started", "billing.subscription_activated", "billing.tier_changed",
-  "billing.payment_failed", "billing.subscription_canceled", "billing.seats_blocked",
+  "billing.payment_failed", "billing.payment_action_required", "billing.dispute_opened",
+  "billing.subscription_canceled", "billing.seats_blocked",
   "billing.quote_requested", "billing.seat_sync_failed",
 ]);
 

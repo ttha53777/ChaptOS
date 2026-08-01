@@ -26,6 +26,10 @@ export async function resetDb(): Promise<void> {
   await testPrisma.$executeRawUnsafe(`
     TRUNCATE TABLE
       "StripeEvent",
+      -- Global, no FK to Organization by design (the org is deleted moments
+      -- after the row is written), so nothing cascades it away for us and it has
+      -- to be truncated explicitly or rows leak between test files.
+      "OrphanedSubscription",
       "SalesLead",
       "Subscription",
       "OperationalEvent",
