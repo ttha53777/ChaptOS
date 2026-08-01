@@ -52,13 +52,17 @@ function emit(line: LogLine) {
   stream(JSON.stringify(line));
 }
 
-/** Best-effort Sentry forwarding. No-op until SENTRY_DSN is set AND @sentry/nextjs is installed. */
+/**
+ * Best-effort Sentry forwarding. No-op until SENTRY_DSN is set.
+ *
+ * The SDK is a real dependency now, but the DSN is still what switches this on —
+ * and the matching `Sentry.init()` lives in instrumentation.ts, without which
+ * captureException would silently do nothing.
+ */
 async function forwardToSentry(line: LogLine, err: unknown) {
   if (!process.env.SENTRY_DSN) return;
   try {
-    // Dynamic import keeps Sentry out of the bundle when not configured.
-    // The package may not be installed yet — we swallow the resolution error.
-    // @ts-expect-error — optional peer; resolved at runtime only when present.
+    // Dynamic import keeps Sentry out of bundles that never log an error.
     const Sentry = await import("@sentry/nextjs").catch(() => null);
     if (!Sentry) return;
     Sentry.captureException(err, {

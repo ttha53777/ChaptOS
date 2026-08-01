@@ -17,6 +17,40 @@
  * every org regardless of RLS org-scoping.
  */
 export async function register() {
+  // ── Sentry ────────────────────────────────────────────────────────────────
+  //
+  // Before anything else, and outside the nodejs-only guard below, because the
+  // Edge runtime needs monitoring too.
+  //
+  // lib/observability.ts has always had the forwarding call, but forwarding is
+  // worthless without an init: captureException on an uninitialised SDK silently
+  // does nothing. Installing @sentry/nextjs and setting SENTRY_DSN was therefore
+  // not sufficient, which mattered because every Stripe-side failure in this app
+  // is deliberately logged-and-swallowed — reconcileSeats, refreshFromStripe,
+  // getBillingSummary, applySubscription's unattributable-subscription drop,
+  // deleteOrg's cancel. Without this, all of them were stdout lines nobody was
+  // paged on.
+  //
+  // Still entirely optional: no DSN, no init, and the JSON-to-stdout path is
+  // unchanged.
+  if (process.env.SENTRY_DSN) {
+    try {
+      const Sentry = await import("@sentry/nextjs");
+      Sentry.init({
+        dsn: process.env.SENTRY_DSN,
+        // Errors only. This app has no tracing budget and no performance
+        // dashboards; sampling traces would cost quota and tell us nothing we
+        // don't already get from logTiming's structured lines.
+        tracesSampleRate: 0,
+        environment: process.env.VERCEL_ENV ?? process.env.NODE_ENV,
+      });
+    } catch (e) {
+      // A monitoring failure must never stop a server from booting.
+      // eslint-disable-next-line no-console
+      console.error("[instrumentation] Sentry init failed", e);
+    }
+  }
+
   // Only run in the Node.js server runtime — never in the Edge runtime, where
   // pg / the privileged client isn't available.
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
