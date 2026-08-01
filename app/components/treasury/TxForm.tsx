@@ -9,7 +9,12 @@ import { useVocab } from "../../hooks/useVocab";
 
 const CURRENT_SEMESTER = "SPR26";
 
-export type TxFormSubmit = (data: Omit<Transaction, "id" | "createdAt" | "updatedAt" | "deletedAt" | "calendarEvents"> & { calendarEventIds: number[]; brotherId?: number }) => void;
+/**
+ * Returning a promise is optional but preferred: the form awaits it to keep the
+ * submit button disabled for the duration, so a double-click can't fire twice.
+ * Callers that return void get the latch for one tick only.
+ */
+export type TxFormSubmit = (data: Omit<Transaction, "id" | "createdAt" | "updatedAt" | "deletedAt" | "calendarEvents"> & { calendarEventIds: number[]; brotherId?: number }) => void | Promise<void>;
 
 export interface TxFormEvent {
   id: number;
@@ -71,6 +76,12 @@ export function TxForm({
     : (initial?.calendarEvents?.map(e => e.id) ?? []);
   const [selectedEventIds, setSelectedEventIds] = useState<number[]>(initialIds);
 
+  // In-flight latch. Most callers close their modal before awaiting the POST, but
+  // ProgrammingDetailPanel deliberately keeps this form mounted for the whole
+  // round-trip so the user can retry on failure — which left the submit button
+  // live and a double-click minting two money rows.
+  const [saving, setSaving] = useState(false);
+
   const v = useVocab();
   const isFutureDate = date > todayStr();
 
@@ -96,16 +107,24 @@ export function TxForm({
     setSelectedEventIds(prev => prev.filter(x => x !== id));
   }
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    onSubmit({
-      type, category, amount: Number(amount), date, description,
-      paymentMethod: paymentMethod || undefined,
-      semester:      semester || undefined,
-      status,
-      calendarEventIds: selectedEventIds,
-      ...(duesFor ? { brotherId: duesFor.id } : {}),
-    });
+    if (saving) return;
+    setSaving(true);
+    try {
+      await onSubmit({
+        type, category, amount: Number(amount), date, description,
+        paymentMethod: paymentMethod || undefined,
+        semester:      semester || undefined,
+        status,
+        calendarEventIds: selectedEventIds,
+        ...(duesFor ? { brotherId: duesFor.id } : {}),
+      });
+    } finally {
+      // Callers that unmount this form on success (every one but the programming
+      // panel) will have torn it down before this runs; React no-ops the update.
+      setSaving(false);
+    }
   }
 
   return (
@@ -256,8 +275,8 @@ export function TxForm({
 
       <div className="flex justify-end gap-2 pt-1">
         <button type="button" onClick={onCancel} className={dusk ? btnDuskGhostCls : "rounded-lg border border-white/[0.08] px-4 py-1.5 text-[13px] text-slate-400 hover:border-white/[0.16] hover:text-white transition-colors"}>Cancel</button>
-        <button type="submit" className={dusk ? btnDuskActionCls : "rounded-lg bg-indigo-600 px-4 py-1.5 text-[13px] font-semibold text-white hover:bg-indigo-500 transition-colors"}>
-          {duesFor ? "Record Payment" : initial?.id ? "Save Changes" : (lockType === "expense" ? "Log Expense" : lockType === "income" ? "Log Revenue" : "Add Transaction")}
+        <button type="submit" disabled={saving} className={`${dusk ? btnDuskActionCls : "rounded-lg bg-indigo-600 px-4 py-1.5 text-[13px] font-semibold text-white hover:bg-indigo-500 transition-colors"} disabled:cursor-not-allowed disabled:opacity-60`}>
+          {saving ? "Saving…" : duesFor ? "Record Payment" : initial?.id ? "Save Changes" : (lockType === "expense" ? "Log Expense" : lockType === "income" ? "Log Revenue" : "Add Transaction")}
         </button>
       </div>
     </form>

@@ -1,8 +1,10 @@
+import type { Prisma } from "@/app/generated/prisma/client";
 import type { RequestContext } from "@/lib/context";
 import { DUES_CATEGORY } from "@/lib/dues";
 import { emit } from "@/lib/events";
 import { ConflictError, NotFoundError } from "@/lib/errors";
 import { atLeast, money, toCents } from "@/lib/money";
+import { logTiming } from "@/lib/observability";
 import { TransactionStatus, TransactionType } from "@/lib/state";
 import type { CreateTransactionInput, UpdateTransactionInput } from "@/lib/validation/transaction";
 
@@ -14,6 +16,53 @@ export interface TxFilter {
 }
 
 type LinkedEvent = { id: number; title: string; date: string; category: string };
+
+/**
+ * How long an identical transaction is treated as a duplicate of the one before
+ * it. Long enough to swallow a double-click and a retry on a slow connection,
+ * short enough that a treasurer deliberately logging the same amount twice in a
+ * sitting isn't silently ignored.
+ */
+const DUPLICATE_WINDOW_MS = 10_000;
+
+/** The columns that make two transactions "the same submission". Mirrors the natural key in scripts/dedupe-transactions.ts. */
+function duplicateWhere(orgId: number, input: CreateTransactionInput, brotherId: number | null) {
+  return {
+    organizationId: orgId,
+    type:           input.type,
+    category:       input.category,
+    amount:         input.amount,
+    date:           input.date,
+    description:    input.description,
+    brotherId,
+    deletedAt:      null,
+    createdAt:      { gte: new Date(Date.now() - DUPLICATE_WINDOW_MS) },
+  };
+}
+
+/**
+ * Serialize concurrent identical creates for the remainder of the transaction.
+ *
+ * A plain "look for a recent duplicate, then insert" is a read-then-write race:
+ * two simultaneous requests both read before either commits, both find nothing,
+ * and both insert. This takes a Postgres advisory lock on a hash of the natural
+ * key first, so the second request blocks until the first has committed and then
+ * sees the row it wrote.
+ *
+ * `pg_advisory_xact_lock` releases automatically at commit/rollback — important
+ * under a connection pooler, where a session-level lock could outlive the request
+ * and leak onto whoever gets that connection next. Hash collisions are harmless:
+ * the worst case is two unrelated inserts briefly serializing.
+ */
+async function lockNaturalKey(
+  tx: Prisma.TransactionClient,
+  orgId: number,
+  input: CreateTransactionInput,
+  brotherId: number | null,
+): Promise<void> {
+  const key = [orgId, input.type, input.category, input.amount, input.date, input.description, brotherId ?? ""].join("|");
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${key})::bigint)`;
+}
 
 const EVENT_INCLUDE = {
   calendarEvents: {
@@ -91,25 +140,62 @@ export async function createTransaction(ctx: RequestContext, input: CreateTransa
     return recordDuesPayment(ctx, input, brotherId!, ids);
   }
 
-  const raw = await ctx.db.transaction.create({
-    data: {
-      type:          input.type,
-      category:      input.category,
-      amount:        input.amount,
-      amountCents:   BigInt(toCents(input.amount)),
-      date:          input.date,
-      description:   input.description,
-      paymentMethod: input.paymentMethod ?? null,
-      semester:      input.semester      ?? null,
-      status:        input.status        ?? "posted",
-      calendarEvents: ids.length > 0
-        ? { create: ids.map(id => ({ calendarEventId: id })) }
-        : undefined,
-    },
-    include: EVENT_INCLUDE,
+  // Idempotency. Two identical POSTs — a double-clicked submit, a retried request,
+  // any non-UI client — used to mint two identical money rows;
+  // scripts/dedupe-transactions.ts exists to soft-delete exactly that after the fact.
+  //
+  // A short time window rather than a unique constraint, deliberately: chapters do
+  // legitimately record two identical $20 expenses on the same day, just never
+  // within seconds of each other. The lock is what makes it correct under real
+  // concurrency — without it the check and the insert race each other.
+  //
+  // The tx client is raw and NOT org-scoped, so organizationId is carried
+  // explicitly on both the lookup and the write (the house pattern).
+  const { raw, deduped } = await ctx.db.$transaction(async (tx) => {
+    await lockNaturalKey(tx, ctx.orgId, input, brotherId);
+
+    const existing = await tx.transaction.findFirst({
+      where:   duplicateWhere(ctx.orgId, input, brotherId),
+      include: EVENT_INCLUDE,
+      orderBy: { createdAt: "desc" },
+    });
+    if (existing) return { raw: existing, deduped: true };
+
+    const created = await tx.transaction.create({
+      data: {
+        organizationId: ctx.orgId,
+        type:          input.type,
+        category:      input.category,
+        amount:        input.amount,
+        amountCents:   BigInt(toCents(input.amount)),
+        date:          input.date,
+        description:   input.description,
+        paymentMethod: input.paymentMethod ?? null,
+        semester:      input.semester      ?? null,
+        status:        input.status        ?? "posted",
+        calendarEvents: ids.length > 0
+          ? { create: ids.map(id => ({ calendarEventId: id })) }
+          : undefined,
+      },
+      include: EVENT_INCLUDE,
+    });
+    return { raw: created, deduped: false };
   });
 
   const tx = mapTx(raw as unknown as RawWithEvents);
+
+  if (deduped) {
+    // No emit() — the original create already fired transaction.created, and
+    // re-emitting would double-count every downstream reaction.
+    logTiming({
+      route:   "transaction-service.createTransaction",
+      userId:  ctx.actorId,
+      message: "suppressed duplicate transaction",
+      extra:   { transactionId: raw.id, windowMs: DUPLICATE_WINDOW_MS, requestId: ctx.requestId },
+    });
+    return tx;
+  }
+
   await emit(ctx, "transaction.created", { type: "Transaction", id: raw.id }, {
     type:        raw.type as "income" | "expense",
     category:    raw.category,
@@ -151,7 +237,19 @@ async function recordDuesPayment(
   const { amount } = input;
   const orgId = ctx.orgId;
 
-  const { raw, remainingOwed } = await ctx.db.$transaction(async (tx) => {
+  const { raw, remainingOwed, deduped } = await ctx.db.$transaction(async (tx) => {
+    // Same idempotency guard as the plain path, and it matters more here: a
+    // duplicate dues payment that slipped through would decrement the member's
+    // balance twice. The compare-and-set below only catches that when the balance
+    // can't cover both payments, so it fails open on anyone owing 2x or more.
+    await lockNaturalKey(tx, orgId, input, brotherId);
+    const existing = await tx.transaction.findFirst({
+      where:   duplicateWhere(orgId, input, brotherId),
+      include: EVENT_INCLUDE,
+      orderBy: { createdAt: "desc" },
+    });
+    if (existing) return { raw: existing, remainingOwed: money(brother.duesOwed), deduped: true };
+
     // Compare-and-set: atomic decrement, refusal of overpayment, and safety against a
     // concurrent second payment against the same balance, all in the WHERE clause — the
     // loser matches zero rows and 409s, rolling back the (as-yet-unwritten) income row.
@@ -218,10 +316,23 @@ async function recordDuesPayment(
       remainingOwed = 0;
     }
 
-    return { raw, remainingOwed };
+    return { raw, remainingOwed, deduped: false };
   });
 
   const tx = mapTx(raw as unknown as RawWithEvents);
+
+  if (deduped) {
+    // No emit() — the first payment already fired dues.paid. Re-emitting would
+    // double-count the money in every downstream reaction.
+    logTiming({
+      route:   "transaction-service.recordDuesPayment",
+      userId:  ctx.actorId,
+      message: "suppressed duplicate dues payment",
+      extra:   { transactionId: raw.id, brotherId, windowMs: DUPLICATE_WINDOW_MS, requestId: ctx.requestId },
+    });
+    return tx;
+  }
+
   // Emit after commit, same action and shape the approval step used to emit — it still
   // means "money moved", just triggered by posting the transaction directly.
   await emit(ctx, "dues.paid", { type: "Transaction", id: raw.id }, {

@@ -191,15 +191,42 @@ describe("recordPayment (createTransaction, dues) — moves both books at once",
     expect(await duesRows(org.id)).toHaveLength(0);
   });
 
-  it("two concurrent payments against one balance: one lands, one 409s", async () => {
+  it("two concurrent IDENTICAL submissions are deduped into one payment", async () => {
     const { org, member } = await chapterWithDebtor(75);
 
-    // Two treasurers each record a $75 payment against the same $75 balance. Without the
-    // balance check in the WHERE clause, both would decrement and both would mint a row:
-    // $150 of income against −$75 owed.
+    // A double-clicked submit: the same payment posted twice, byte for byte. The
+    // idempotency guard in createTransaction takes an advisory lock on the natural
+    // key, so the loser blocks, sees the row the winner wrote, and returns it
+    // instead of minting a second — both callers succeed and get the same row.
     const results = await Promise.allSettled([
       recordPayment(ctxFor(org.id, member.id), { brotherId: member.id, amount: 75, date: "2026-07-14" }),
       recordPayment(ctxFor(org.id, member.id), { brotherId: member.id, amount: 75, date: "2026-07-14" }),
+    ]);
+
+    expect(results.filter(r => r.status === "fulfilled")).toHaveLength(2);
+    const ids = results
+      .filter((r): r is PromiseFulfilledResult<{ id: number }> => r.status === "fulfilled")
+      .map(r => r.value.id);
+    expect(ids[0]).toBe(ids[1]);
+
+    // The invariant that matters is unchanged: one row of income, and the balance
+    // moved exactly once — zero, not negative, and not double-decremented.
+    expect(await duesRows(org.id)).toHaveLength(1);
+    const after = await testPrisma.brother.findUnique({ where: { id: member.id } });
+    expect(after?.duesOwed).toBe(0);
+  });
+
+  it("two concurrent DISTINCT payments against one balance: one lands, one 409s", async () => {
+    const { org, member } = await chapterWithDebtor(75);
+
+    // Two treasurers each record a genuinely separate $75 payment against the same
+    // $75 balance. Distinct descriptions, so the idempotency guard correctly treats
+    // them as two submissions and the compare-and-set in the WHERE clause is what
+    // has to refuse the second. Without it both would decrement and both would mint
+    // a row: $150 of income against −$75 owed.
+    const results = await Promise.allSettled([
+      recordPayment(ctxFor(org.id, member.id), { brotherId: member.id, amount: 75, date: "2026-07-14", description: "Cash to treasurer A" }),
+      recordPayment(ctxFor(org.id, member.id), { brotherId: member.id, amount: 75, date: "2026-07-14", description: "Cash to treasurer B" }),
     ]);
 
     expect(results.filter(r => r.status === "fulfilled")).toHaveLength(1);
