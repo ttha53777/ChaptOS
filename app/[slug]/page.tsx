@@ -57,6 +57,7 @@ import { InstagramRail } from "../components/dashboard/ledger/InstagramRail";
 import { ActivityRail } from "../components/dashboard/ledger/ActivityRail";
 import { DashHideButton } from "../components/dashboard/ledger/DashHideButton";
 import { SetupChecklist, useSetupChecklist } from "../components/dashboard/SetupChecklist";
+import { BillingAlert } from "../components/dashboard/BillingAlert";
 import { apiErrorMessage, orgFetch, requestJson } from "../lib/api";
 import { todayStr } from "../lib/dates";
 import type { MetricSnapshot } from "@/lib/metrics";
@@ -1925,6 +1926,11 @@ export default function Home() {
                 </div>
               ) : null}
             />
+
+            {/* ── Billing needs attention ─────────────────────────────────── */}
+            {/* Self-gating and admin-only: org.billingAlert is null for anyone
+                who can't act on it (computed server-side in /api/auth/me). */}
+            <BillingAlert />
 
             {/* ── Post-onboarding setup checklist ─────────────────────────── */}
             {/* Self-gating: renders only when onboarding is complete, items

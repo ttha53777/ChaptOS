@@ -242,7 +242,13 @@ export default function BillingPage() {
 
   const s = summary;
   const band = s.bands.find(b => b.id === s.tier);
-  const hasSubscription = s.status !== SubscriptionStatus.Free;
+  // "Is there something to MANAGE?" — not "have they ever paid?". A cancelled
+  // subscription is gone from Stripe's side, so sending someone to the portal
+  // shows them an empty page, while the thing they actually want (start again)
+  // sits behind the branch this flag used to hide. Cancelled orgs get the
+  // Subscribe path back.
+  const cancelled = s.status === SubscriptionStatus.Canceled;
+  const hasSubscription = s.status !== SubscriptionStatus.Free && !cancelled;
   const inTrouble = s.status === SubscriptionStatus.PastDue || s.status === SubscriptionStatus.Unpaid;
   const overCeiling = s.members > s.selfServeMax || s.blockedBy === "quote";
 
@@ -279,7 +285,15 @@ export default function BillingPage() {
           any time before then.
         </div>
       )}
-      {!s.canAddMember && !inTrouble && (
+      {cancelled && (
+        <div className="bl-note bl-note-muted" role="status">
+          <b>Your subscription has ended.</b> Nothing was taken away — every member, every
+          record and every export is exactly where you left it. The free plan tops out at{" "}
+          {s.bands[0]?.range ?? "four members"}, so adding anyone past that needs a card again.
+          You can start again below; it picks up from your current headcount.
+        </div>
+      )}
+      {!s.canAddMember && !inTrouble && !cancelled && (
         <div className="bl-note bl-note-vio" role="status">
           <b>You&rsquo;ve reached the limit for this plan.</b>{" "}
           {overCeiling

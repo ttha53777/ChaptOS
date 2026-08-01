@@ -227,6 +227,10 @@ export default function SettingsPage() {
 
   const visibleNavItems = useMemo(() => NAV_ITEMS.filter(n => isVisible(n.id)), [isVisible]);
 
+  // Billing trouble, for the index dot. Server-computed and null for anyone who
+  // isn't an org/platform admin — see /api/auth/me.
+  const billingAlert = currentUser?.org?.billingAlert ?? null;
+
   // The intent groups that still have at least one visible section for this user.
   const visibleGroups = useMemo(
     () => INTENT_ORDER.filter(g => visibleNavItems.some(n => n.group === g)),
@@ -553,7 +557,21 @@ export default function SettingsPage() {
                             <button key={item.id} className={`ix-row ${item.tint}`} onClick={() => selectSection(item.id)}>
                               <span className="ic"><PathIcon d={item.icon} /></span>
                               <span className="ic-txt">
-                                <span className="t">{item.label}</span>
+                                <span className="t">
+                                  {item.label}
+                                  {/* Billing is the one section that can be in a
+                                      state needing action while nothing on this
+                                      page says so. The dot is what makes the
+                                      dashboard banner findable from here. */}
+                                  {item.id === "billing" && billingAlert && (
+                                    <span
+                                      className="ix-dot"
+                                      role="img"
+                                      aria-label="Needs attention"
+                                      title="Billing needs attention"
+                                    />
+                                  )}
+                                </span>
                                 <span className="h">{item.blurb}</span>
                               </span>
                               <span className="go"><Chevron /></span>

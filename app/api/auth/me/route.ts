@@ -3,7 +3,10 @@ import { requireUser } from "@/lib/auth/require-user";
 import { resolvePermissions } from "@/lib/auth/require-permission";
 import { parseAvatarFromMetadata } from "@/lib/avatar";
 import { db } from "@/lib/db"; // lint-modules:ignore (auth bootstrap; runs before buildContext is viable)
+import { BillingTier } from "@/lib/state/billing-tier";
+import { tierForCount } from "@/lib/billing/tiers";
 import { ALL_WORKFLOWS } from "@/lib/org-types";
+import { SubscriptionStatus } from "@/lib/state/subscription-status";
 import { ReimbursementStatus } from "@/lib/state";
 import { resolveThresholds } from "@/lib/thresholds";
 import { sanitizeFieldDefs, type CustomMemberFieldDef } from "@/lib/custom-member-fields";
@@ -15,7 +18,16 @@ export async function GET() {
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   try {
-    const [brother, org, perms, metricDefinitionCount, pendingReimbursementCount] = await Promise.all([
+    // Hoisted above the fan-out because it decides whether to make one more
+    // query. Billing is org-admin authority, not a permission bit — the same
+    // rule assertCanManageBilling applies (lib/services/billing-service.ts) —
+    // and a member who cannot act on a billing problem must not be told the org
+    // has one.
+    const isOrgAdmin =
+      user.memberships.find(m => m.organizationId === user.orgId)?.isOrgAdmin ?? false;
+    const elevated = user.isPlatformAdmin || isOrgAdmin;
+
+    const [brother, org, perms, metricDefinitionCount, pendingReimbursementCount, subscription] = await Promise.all([
       db(user.orgId).brother.findUnique({
         where: { id: user.id },
         select: { name: true, email: true, avatarUrl: true },
@@ -45,6 +57,18 @@ export async function GET() {
       // only the treasury page reads the list itself. One count in this
       // already-parallel batch is far cheaper than a whole extra request.
       db(user.orgId).reimbursement.count({ where: { status: ReimbursementStatus.Pending } }),
+      // Billing state, for admins only, so a failed card can be surfaced where
+      // people actually look. Until now it rendered on exactly one screen —
+      // Settings → Billing — with no sidebar entry and nothing on the dashboard,
+      // and the app sends no email of any kind, so an org whose card expired
+      // found out by hitting the 402 wall days later.
+      //
+      // One indexed read of a row we already keep current, and deliberately NO
+      // Stripe call: this runs on every page load. The billing page still owns
+      // the authoritative pull (refreshIfStale).
+      elevated
+        ? db(user.orgId).subscription.findFirst({ select: { status: true, billableMembers: true } })
+        : null,
     ]);
 
     // requireUser() already verified the session with Supabase and surfaced the
@@ -58,9 +82,7 @@ export async function GET() {
     // resolvePermissions() would report only their explicit role bits and the
     // UI would hide controls for actions the server permits. Platform admins are
     // already elevated inside resolvePermissions().
-    const isOrgAdmin =
-      user.memberships.find(m => m.organizationId === user.orgId)?.isOrgAdmin ?? false;
-    const elevated = user.isPlatformAdmin || isOrgAdmin;
+    // (isOrgAdmin / elevated are computed above, before the fan-out.)
     const effectivePermissions = elevated ? (~0 >>> 0) : perms.permissions;
     const effectiveMaxRank = elevated ? Number.POSITIVE_INFINITY : perms.maxRank;
 
@@ -81,6 +103,25 @@ export async function GET() {
         data: { email: user.email },
       }).catch(e => logError(e, { route: "/api/auth/me", method: "GET", userId: user.id, extra: { stage: "email_backfill" } }));
     }
+
+    // What, if anything, needs an admin's attention about billing.
+    //
+    // Only states a person can actually DO something about. `past_due`/`unpaid`
+    // mean a card needs fixing. `canceled` only counts when the org is above the
+    // free band — a cancelled four-person chapter owes nothing and needs no
+    // banner. Everything else, including a healthy subscription and a free org
+    // inside its allowance, is silent.
+    //
+    // billableMembers is the cached headcount the seat sync keeps current, so
+    // this costs no extra query. It's a nudge, not a gate: the seat guard still
+    // does its own live count.
+    const billingAlert: "past_due" | "unpaid" | "canceled" | null = !subscription
+      ? null
+      : subscription.status === SubscriptionStatus.PastDue ? "past_due"
+      : subscription.status === SubscriptionStatus.Unpaid  ? "unpaid"
+      : subscription.status === SubscriptionStatus.Canceled
+        && tierForCount(subscription.billableMembers).id !== BillingTier.Free ? "canceled"
+      : null;
 
     return Response.json({
       id: user.id,
@@ -131,6 +172,9 @@ export async function GET() {
             // complete) and is the same signal the server onboarding guard gates
             // on. A missing config row reads as not-yet-complete.
             onboardingComplete: org.config?.onboardingCompletedAt != null,
+            // Billing trouble worth a banner, or null. Admin-only by
+            // construction: `subscription` above is only read when elevated.
+            billingAlert,
           }
         : null,
       orgId: user.orgId,
