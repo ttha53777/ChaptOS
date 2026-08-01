@@ -49,6 +49,30 @@ export function hasPermission(bits: number, perm: Permission): boolean {
   return (bits & PERMISSIONS[perm]) !== 0;
 }
 
+/**
+ * The authority a permission check needs. Structural on purpose: `RequestContext`
+ * satisfies it without this module importing `lib/context`, which would drag DB
+ * and env code into a file the client imports.
+ */
+export interface PermissionActor {
+  permissions: number;
+  isOrgAdmin: boolean;
+  isPlatformAdmin: boolean;
+}
+
+/**
+ * Does this actor hold `perm`? Admins hold everything.
+ *
+ * The canonical form of the check that was previously re-declared in ~8 services
+ * as `ctx.isPlatformAdmin || ctx.isOrgAdmin || hasPermission(ctx.permissions, …)`.
+ * Prefer this for *soft* checks — deciding which fields to return, or whether to
+ * do extra work. For hard 403s at the route boundary, keep using
+ * `buildContext({ requirePerm })`, which is still the authoritative guard.
+ */
+export function can(actor: PermissionActor, perm: Permission): boolean {
+  return actor.isPlatformAdmin || actor.isOrgAdmin || hasPermission(actor.permissions, perm);
+}
+
 /** Convenience: the OR of every flag — used by the seeded "President" role. */
 export const ALL_PERMISSIONS = Object.values(PERMISSIONS).reduce((a, b) => a | b, 0);
 

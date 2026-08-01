@@ -2,6 +2,7 @@ import type { Prisma } from "@/app/generated/prisma/client";
 import type { RequestContext } from "@/lib/context";
 import { emit } from "@/lib/events";
 import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from "@/lib/errors";
+import { can } from "@/lib/permissions";
 import type { CreateRoleInput, UpdateRoleInput } from "@/lib/validation/role";
 
 export async function listRoles(ctx: RequestContext) {
@@ -12,14 +13,22 @@ export async function listRoles(ctx: RequestContext) {
   // Org-scoped identically; a role with no members is absent from the map, so
   // `?? 0` reproduces the previous per-role count of zero exactly.
   const countByRole = await ctx.db.brotherRole.countByRole(roles.map(r => r.id));
+
+  // The raw `permissions` bitfield is the org's authority model — who can touch
+  // the treasury, who can mint roles. Only MANAGE_ROLES holders (the Roles
+  // settings UI) have any use for it. Everyone else reaches this endpoint for
+  // name/color chips and the task/poll assignee pickers, so they get identity
+  // fields only. Withholding it here doesn't guard anything by itself — the
+  // write paths are separately gated — it just stops advertising the model.
+  const detailed = can(ctx, "MANAGE_ROLES");
+
   return roles.map(r => ({
     id:          r.id,
     name:        r.name,
     color:       r.color,
     rank:        r.rank,
-    permissions: r.permissions,
-    isSystem:    r.isSystem,
     memberCount: countByRole.get(r.id) ?? 0,
+    ...(detailed ? { permissions: r.permissions, isSystem: r.isSystem } : {}),
   }));
 }
 
