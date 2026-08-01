@@ -11,19 +11,12 @@ import { useOrgPath } from "../../../hooks/useOrgPath";
 import { useActiveSemester } from "../../../hooks/useActiveSemester";
 import { useSemesterErrorHandler } from "../../../hooks/useSemesterErrorHandler";
 import { orgFetch, requestJson } from "../../../lib/api";
+import { orgInitials } from "@/lib/org-initials";
 import { DangerZone } from "./DangerZone";
 
 let _nextId = Date.now();
 
 type ModalKey = "revenue" | "ig" | null;
-
-// Initials for the no-logo gradient fallback badge. Up to two words; falls back
-// to "Org" so the badge is never empty before /api/auth/me resolves.
-function orgInitials(name: string | undefined | null): string {
-  const words = (name ?? "").trim().split(/\s+/).filter(Boolean);
-  if (words.length === 0) return "Org";
-  return words.slice(0, 2).map(w => w[0]!.toUpperCase()).join("");
-}
 
 export function GeneralSection({
   onStatus,

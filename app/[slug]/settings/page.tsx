@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { Sidebar } from "../../components/Sidebar";
 import { useIsOrgAdmin } from "../../hooks/useIsOrgAdmin";
 import { useOrgPath } from "../../hooks/useOrgPath";
+import { orgInitials } from "@/lib/org-initials";
 import { GeneralSection } from "./sections/GeneralSection";
 import { ThresholdsSection } from "./sections/ThresholdsSection";
 import { SemestersSection } from "./sections/SemestersSection";
@@ -180,12 +181,6 @@ function Chevron() {
       <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
     </svg>
   );
-}
-
-function orgInitials(name: string | undefined | null): string {
-  const words = (name ?? "").trim().split(/\s+/).filter(Boolean);
-  if (words.length === 0) return "Org";
-  return words.slice(0, 2).map(w => w[0]!.toUpperCase()).join("");
 }
 
 // ─── Page ─────────────────────────────────────────────────────────────────────

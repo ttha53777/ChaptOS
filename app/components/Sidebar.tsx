@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import type { WorkflowId } from "@/lib/org-types";
 import { NAV_GROUPS, NAV_LABELS, applyNavOrder } from "@/lib/nav-order";
+import { orgInitials } from "@/lib/org-initials";
 import { useOrgPath } from "../hooks/useOrgPath";
 import { orgFetch, requestJson } from "../lib/api";
 import { useChapter } from "../context/ChapterContext";
@@ -415,7 +416,7 @@ export function Sidebar({ open, onClose, activeSection, onNavClick }: {
             // eslint-disable-next-line @next/next/no-img-element
             <img src={logoUrl} alt="Org logo" className="h-8 w-8 shrink-0 rounded-lg object-cover shadow-[0_2px_8px_rgba(0,0,0,0.4)]" />
           ) : (
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#a78bfa] to-[#7c3aed] text-[11px] font-bold text-white shadow-[0_2px_8px_rgba(167,139,250,0.3)]">ΛΦΕ</div>
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#a78bfa] to-[#7c3aed] text-[11px] font-bold text-white shadow-[0_2px_8px_rgba(167,139,250,0.3)]">{orgInitials(orgName)}</div>
           )}
           <div className="min-w-0">
             <p className="truncate text-[13px] font-semibold leading-tight text-[#ece7dd]" style={{ fontFamily: "var(--font-fraunces), Georgia, serif" }}>{orgName}</p>
