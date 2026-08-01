@@ -49,7 +49,25 @@ async function getFieldDefs(ctx: RequestContext): Promise<CustomMemberFieldDef[]
 
 export async function listVisibleBrothers(ctx: RequestContext) {
   // Excludes ghost members (Atomic Samurai backdoor users).
-  const brothers = await ctx.db.brother.findMany({ where: { isGhost: false }, orderBy: { id: "asc" } });
+  //
+  // Explicit select, not a bare findMany: this endpoint is fetched on EVERY page
+  // for EVERY user (ChapterContext's ALWAYS_SECTIONS), so anything selected here
+  // is shipped to every member. `email`, `isAdmin`, `organizationId`, `archivedAt`
+  // and `isGhost` used to ride along despite appearing nowhere in the client's
+  // `Brother` type (app/data.ts) — pure over-fetch of member PII. Add a field here
+  // only if the client actually reads it.
+  //
+  // `authUserId` is deliberately kept: hydrateBrotherAvatars() keys on it, and
+  // publicBrother() strips it before the response is serialized.
+  const brothers = await ctx.db.brother.findMany({
+    where:   { isGhost: false },
+    orderBy: { id: "asc" },
+    select: {
+      id: true, name: true, role: true, attendance: true, duesOwed: true,
+      gpa: true, serviceHours: true, avatarUrl: true, customFields: true,
+      authUserId: true,
+    },
+  });
   const brotherIds = brothers.map(b => b.id);
   // Scope role assignments to the active org. A multi-org member has BrotherRole
   // rows in several orgs; without the org-scoped wrapper's filter another org's
