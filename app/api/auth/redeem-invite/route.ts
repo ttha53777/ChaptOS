@@ -265,10 +265,21 @@ export async function POST(req: NextRequest) {
   // Seat sync. This route writes its OperationalEvent row directly rather than
   // through emit() (no ctx), which means no handler dispatch — so the recount
   // that lib/events/handlers/sync-seats.ts does for admin-side roster changes
-  // has to be triggered explicitly here. Fire-and-forget: a join must never fail
-  // because Stripe was slow, and reconcileSeats persists the count locally before
-  // it touches the network.
-  void reconcileSeats(db(orgId)).catch(e =>
+  // has to be triggered explicitly here.
+  //
+  // AWAITED, not fire-and-forget. This used to be `void reconcileSeats(...)`,
+  // which is the pattern the webhook route argues against in its own header: on
+  // serverless the instance may freeze the moment the response is returned, so
+  // the work simply never finishes. Here that loses the LOCAL write too, and the
+  // local write is what sets seatSyncPendingAt — the durable flag the entire
+  // self-healing design hangs off. Without it flushPendingSeatSync no-ops
+  // forever and the only remaining net is next month's invoice.upcoming, so an
+  // org that grows purely through invite links could be under-billed for a full
+  // cycle with nothing anywhere recording that fact.
+  //
+  // Awaiting is cheap and cannot fail the join: reconcileSeats writes locally
+  // before it touches the network and never throws for a Stripe-side failure.
+  await reconcileSeats(db(orgId)).catch(e =>
     logError(e, { route: "/api/auth/redeem-invite", method: "POST", userId: user.id, extra: { stage: "seat_sync", orgId } }),
   );
 
