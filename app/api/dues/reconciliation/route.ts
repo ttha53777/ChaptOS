@@ -7,8 +7,12 @@ import { attributeDuesPaymentInput } from "@/lib/validation/dues";
 
 // Roster-owed vs ledger-collected, side by side. The view whose absence let the two
 // books contradict each other in silence.
+//
+// Treasury-gated to match the POST below: this returns every member's owed/paid
+// position, which is not roster-level information. It previously ran ungated, so
+// any member could read the whole dues book.
 export async function GET() {
-  const { ctx, error } = await buildContext({ rateLimit: false });
+  const { ctx, error } = await buildContext({ requirePerm: "MANAGE_TREASURY", rateLimit: false });
   if (error) return error;
   try {
     const reconciliation = await getDuesReconciliation(ctx);
