@@ -11,9 +11,11 @@
 // privileged client keeps it correct when that policy is eventually dropped.
 import { prismaPrivileged as prisma } from "@/lib/prisma-privileged"; // lint-modules:ignore (cross-org platform-admin surface, BYPASSRLS by design)
 import { requireAdmin } from "@/lib/auth/require-admin";
-import { toResponse } from "@/lib/errors";
+import { db } from "@/lib/db"; // lint-modules:ignore (platform-admin repair lever; no active org, so no buildContext)
+import { NotFoundError, ValidationError, toResponse } from "@/lib/errors";
 import { logError } from "@/lib/observability";
 import { SELF_SERVE_MAX, formatPrice, tierForCount } from "@/lib/billing/tiers";
+import { reconcileSeats, refreshFromStripe } from "@/lib/billing/sync";
 
 // GET /api/admin/orgs — cross-org list for PlatformAdmin audit.
 //
@@ -31,6 +33,55 @@ const MAX_ROWS = 200;
 
 /** Fraction of the self-serve ceiling past which an org is worth a sales look. */
 const NEAR_LIMIT_RATIO = 0.85;
+
+/**
+ * POST /api/admin/orgs — force a full billing reconcile for one org.
+ *
+ * The only repair lever platform admins had was cookie-switching `active_org_id`
+ * into the broken org and pressing the customer's own buttons, because this
+ * surface was GET-only. That is a bad shape for support: it needs an
+ * undocumented trick, and it leaves no trace that support touched anything.
+ *
+ * Deliberately the SAME operation an org admin can already run on their own
+ * billing page (`POST /api/billing/sync`) — pull Stripe's state in, push the
+ * seat count back out. It grants no new power; it just makes the existing one
+ * reachable from the table that shows the problem. In particular it cannot set a
+ * status, comp an org, or change what anyone is charged.
+ *
+ * This is exactly the repair for the failure mode f9b18ac was written for: an
+ * org whose `checkout.session.completed` was lost, sitting at `free` after
+ * paying, walled by the seat gate.
+ */
+export async function POST(req: Request) {
+  const { user, error } = await requireAdmin();
+  if (error) return error;
+
+  try {
+    const body = await req.json().catch(() => ({}));
+    const orgId = Number(body?.orgId);
+    if (!Number.isInteger(orgId) || orgId <= 0) {
+      throw new ValidationError("A numeric orgId is required");
+    }
+
+    const org = await prisma.organization.findUnique({ // lint-direct-prisma:ignore (cross-tenant platform-admin surface)
+      where: { id: orgId }, select: { id: true },
+    });
+    if (!org) throw new NotFoundError("Organization");
+
+    // db(orgId) rather than the privileged client: reconcileSeats counts members
+    // and writes the Subscription row, and both must go through the org-scoped
+    // wrapper so RLS sees app.org_id. Never throws for a Stripe-side failure —
+    // it reports `pending` instead.
+    const scoped = db(orgId);
+    const refreshed = await refreshFromStripe(scoped);
+    const result = await reconcileSeats(scoped);
+
+    return Response.json({ refreshed, ...result });
+  } catch (e) {
+    logError(e, { route: "/api/admin/orgs", method: "POST", userId: user.id });
+    return toResponse(e);
+  }
+}
 
 export async function GET() {
   const { user, error } = await requireAdmin();
