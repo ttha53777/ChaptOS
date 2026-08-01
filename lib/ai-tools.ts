@@ -13,7 +13,8 @@
 import type OpenAI from "openai";
 import { db } from "@/lib/db";
 import { isoWeekBounds, todayISO, DATE_RE } from "@/lib/dates";
-import { getBrotherStatus, round2, type Brother as BrotherType } from "@/app/data";
+import { getBrotherStatus, type Brother as BrotherType } from "@/app/data";
+import { fmtUsd as fmtMoney, money } from "@/lib/money";
 import { resolveThresholds, type Thresholds } from "@/lib/thresholds";
 import { isProgrammingManagedType } from "@/lib/programming";
 import { INSTAGRAM_TYPES } from "@/lib/validation/instagram";
@@ -752,15 +753,11 @@ export function parseComposeAnswer(args: ToolArgs): AnswerPayload | { error: str
 // Helpers
 // ────────────────────────────────────────────────────────────────────────────
 
-const r2 = round2;
-
-// Whole dollars when round, else two decimals — matches how officers read it.
-function fmtUsd(n: number): string {
-  const v = r2(n);
-  return Number.isInteger(v)
-    ? `$${v.toLocaleString("en-US")}`
-    : `$${v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
+// Both now come from lib/money.ts — the same rounding and the same "whole
+// dollars when round, else two decimals" the officers' surfaces use. Kept as
+// local aliases so the ~80 r2()/fmtUsd() call sites in this file don't churn.
+const r2 = money;
+const fmtUsd = fmtMoney;
 
 function clampLimit(n: unknown, def = 100, max = 100): number {
   const v = typeof n === "number" ? Math.floor(n) : def;

@@ -159,6 +159,38 @@ describe("recordPayment (createTransaction, dues) — moves both books at once",
     expect(after?.duesOwed).toBe(75);
   });
 
+  it("accepts an exact payment against a balance that float arithmetic has drifted", async () => {
+    // duesOwed is a Float mutated by repeated increment/decrement, so a balance
+    // that is conceptually $200.00 really can be sitting in the row just under
+    // it. A bare `gte: 200` then refused the member's exact, honest payment with
+    // the self-contradicting "Payment of $200.00 exceeds their balance of
+    // $200.00". The guard carries a half-cent tolerance now (atLeast, lib/money).
+    const { org, member, ctx } = await chapterWithDebtor(200);
+    await testPrisma.brother.update({
+      where: { id: member.id },
+      data:  { duesOwed: 199.99999999999997 },
+    });
+
+    await recordPayment(ctx, { brotherId: member.id, amount: 200, date: "2026-07-14" });
+
+    expect(await duesRows(org.id)).toHaveLength(1);
+    // And the residue is snapped away rather than left behind: "owes money" is
+    // `duesOwed > 0` all over the app, so a leftover +3e-14 would keep a member
+    // who has paid in full on the outstanding list, displaying "$0.00".
+    const after = await testPrisma.brother.findUnique({ where: { id: member.id } });
+    expect(after?.duesOwed).toBe(0);
+  });
+
+  it("still refuses a real overpayment — the tolerance is half a cent, not a loophole", async () => {
+    const { org, member, ctx } = await chapterWithDebtor(200);
+
+    await expect(
+      recordPayment(ctx, { brotherId: member.id, amount: 200.01, date: "2026-07-14" }),
+    ).rejects.toBeInstanceOf(ConflictError);
+
+    expect(await duesRows(org.id)).toHaveLength(0);
+  });
+
   it("two concurrent payments against one balance: one lands, one 409s", async () => {
     const { org, member } = await chapterWithDebtor(75);
 
@@ -241,6 +273,22 @@ describe("adjustDues — a receivable, not cash", () => {
 
     const after = await testPrisma.brother.findUnique({ where: { id: member.id } });
     expect(after?.duesOwed).toBe(50);
+  });
+
+  it("can waive a full balance that float arithmetic has drifted, and lands on exactly zero", async () => {
+    // Same tolerance, same reason as recordDuesPayment: waiving someone's whole
+    // $200 must not be refused because the row is holding 199.99999999999997.
+    const { member, ctx } = await chapterWithDebtor(200);
+    await testPrisma.brother.update({
+      where: { id: member.id },
+      data:  { duesOwed: 199.99999999999997 },
+    });
+
+    const res = await adjustDues(ctx, { brotherId: member.id, delta: -200, reason: "Full waiver" });
+
+    expect(res.duesOwed).toBe(0);
+    const after = await testPrisma.brother.findUnique({ where: { id: member.id } });
+    expect(after?.duesOwed).toBe(0);
   });
 
   it("MANAGE_BROTHERS alone is NOT enough — dues are treasury-only now", async () => {

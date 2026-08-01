@@ -2,6 +2,7 @@ import type { RequestContext } from "@/lib/context";
 import { DUES_CATEGORY } from "@/lib/dues";
 import { emit } from "@/lib/events";
 import { ConflictError, NotFoundError } from "@/lib/errors";
+import { atLeast, money, toCents } from "@/lib/money";
 import { TransactionStatus, TransactionType } from "@/lib/state";
 import type { CreateTransactionInput, UpdateTransactionInput } from "@/lib/validation/transaction";
 
@@ -75,11 +76,6 @@ export async function listTransactions(ctx: RequestContext, filter: TxFilter = {
   return rows.map(r => mapTx(r as unknown as RawWithEvents));
 }
 
-/** Two decimal places. Float dollars drift under repeated arithmetic; money reads shouldn't. */
-function money(n: number): number {
-  return Math.round(n * 100) / 100;
-}
-
 export async function createTransaction(ctx: RequestContext, input: CreateTransactionInput) {
   const ids = input.calendarEventIds ?? [];
   await validateEventIds(ctx, ids);
@@ -100,7 +96,7 @@ export async function createTransaction(ctx: RequestContext, input: CreateTransa
       type:          input.type,
       category:      input.category,
       amount:        input.amount,
-      amountCents:   BigInt(Math.round(input.amount * 100)),
+      amountCents:   BigInt(toCents(input.amount)),
       date:          input.date,
       description:   input.description,
       paymentMethod: input.paymentMethod ?? null,
@@ -159,14 +155,23 @@ async function recordDuesPayment(
     // Compare-and-set: atomic decrement, refusal of overpayment, and safety against a
     // concurrent second payment against the same balance, all in the WHERE clause — the
     // loser matches zero rows and 409s, rolling back the (as-yet-unwritten) income row.
+    // `atLeast` is `amount - half a cent`, not `amount`. duesOwed is a Float
+    // mutated by repeated increment/decrement, so a balance that is conceptually
+    // $200.00 can be sitting in the row as 199.99999999999997 — and a bare
+    // `gte: 200` then refuses the member's exact payment with the self-
+    // contradicting "Payment of $200.00 exceeds their balance of $200.00".
+    // The tolerance is smaller than any amount the validator will accept, so a
+    // genuine overpayment of a cent or more is still refused.
     const claimed = await tx.brother.updateMany({
-      where: { id: brotherId, organizationId: orgId, duesOwed: { gte: amount } },
+      where: { id: brotherId, organizationId: orgId, duesOwed: { gte: atLeast(amount) } },
       data:  { duesOwed: { decrement: amount } },
     });
     if (claimed.count === 0) {
       throw new ConflictError(
-        `Payment of $${money(amount).toFixed(2)} exceeds ${brother.name}'s outstanding `
-        + `balance of $${money(brother.duesOwed).toFixed(2)}.`,
+        `Payment of $${money(amount).toFixed(2)} is more than ${brother.name} owes `
+        + `($${money(brother.duesOwed).toFixed(2)}), and a payment can't leave a credit. `
+        + `Charge the difference first, or record $${money(brother.duesOwed).toFixed(2)} here `
+        + `and the rest as a separate income row.`,
       );
     }
 
@@ -179,7 +184,7 @@ async function recordDuesPayment(
         category:      DUES_CATEGORY,   // the STORED category — never the vocab label
         brotherId,
         amount,
-        amountCents:   BigInt(Math.round(amount * 100)),
+        amountCents:   BigInt(toCents(amount)),
         date:          input.date,
         description:   input.description,
         paymentMethod: input.paymentMethod ?? null,
@@ -198,7 +203,22 @@ async function recordDuesPayment(
       where:  { id: brotherId },
       select: { duesOwed: true },
     });
-    return { raw, remainingOwed: money(updated?.duesOwed ?? 0) };
+
+    // Snap a sub-cent remainder to exactly zero. Float subtraction rarely lands
+    // on 0.0 — paying off $200.00 can leave +0.00000000000003 — and "owes money"
+    // is `duesOwed > 0` all over the app, so without this a member who has paid
+    // in full sits on the outstanding list forever displaying "$0.00". Writes
+    // only in that case, and inside the same transaction as the decrement.
+    let remainingOwed = money(updated?.duesOwed ?? 0);
+    if (remainingOwed === 0 && (updated?.duesOwed ?? 0) !== 0) {
+      await tx.brother.updateMany({
+        where: { id: brotherId, organizationId: orgId },
+        data:  { duesOwed: 0 },
+      });
+      remainingOwed = 0;
+    }
+
+    return { raw, remainingOwed };
   });
 
   const tx = mapTx(raw as unknown as RawWithEvents);
@@ -253,7 +273,7 @@ export async function updateTransaction(ctx: RequestContext, id: number, input: 
     scalarData[k] = v;
     changedFields.push(k);
     if (k === "amount" && typeof v === "number") {
-      scalarData.amountCents = BigInt(Math.round(v * 100));
+      scalarData.amountCents = BigInt(toCents(v));
       changedFields.push("amountCents");
     }
   }
@@ -315,7 +335,7 @@ export async function softDeleteTransaction(ctx: RequestContext, id: number) {
         where:  { id: brotherId },
         select: { duesOwed: true },
       });
-      return Math.round((brother?.duesOwed ?? 0) * 100) / 100;
+      return money(brother?.duesOwed ?? 0);
     });
 
     await emit(ctx, "dues.payment_voided", { type: "Transaction", id }, {

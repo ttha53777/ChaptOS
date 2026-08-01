@@ -1,5 +1,6 @@
 import { buildContext } from "@/lib/context";
 import { toResponse } from "@/lib/errors";
+import { money } from "@/lib/money";
 import { logError } from "@/lib/observability";
 
 const MONTH_LABELS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
@@ -48,7 +49,7 @@ export async function GET() {
     });
 
     return Response.json({
-      balance:   Math.round(netBalance * 100) / 100,
+      balance:   money(netBalance),
       projected: Math.round(netBalance * 1.3),
       trend,
     });

@@ -1,3 +1,5 @@
+import { fmtUsd, money } from "@/lib/money";
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export type BrotherStatus = "Good" | "Watch" | "At Risk";
@@ -636,13 +638,23 @@ export function avg(values: number[]): number {
   return values.reduce((a, b) => a + b, 0) / values.length;
 }
 
-/** Round to 2 decimal places (cents). */
-export function round2(n: number): number {
-  return Math.round(n * 100) / 100;
-}
+/**
+ * Round to 2 decimal places (cents). Re-exported from lib/money.ts, which is now
+ * the single definition — this alias exists so the dozen existing `round2`
+ * importers don't all have to change.
+ */
+export const round2 = money;
 
+/**
+ * "$1,234.50" — money for display.
+ *
+ * Was `` `$${n.toLocaleString()}` ``, which drops a trailing zero: a balance of
+ * $1,234.50 rendered "$1,234.5" everywhere it appeared, including the roster
+ * dues column and the treasury rail. fmtUsd keeps whole dollars whole and gives
+ * anything with cents both digits.
+ */
 export function fmt$(n: number): string {
-  return `$${(n ?? 0).toLocaleString()}`;
+  return fmtUsd(n ?? 0);
 }
 
 export function fmtDate(s: string): string {

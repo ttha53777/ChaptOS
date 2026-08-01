@@ -3,6 +3,7 @@ import { emit } from "@/lib/events";
 import { ValidationError } from "@/lib/errors";
 import { EXPENSE_CATEGORIES } from "@/app/data";
 import type { UpsertBudgetInput } from "@/lib/validation/budget";
+import { toCents } from "@/lib/money";
 
 const VALID_CATEGORIES = new Set<string>(EXPENSE_CATEGORIES);
 
@@ -30,15 +31,15 @@ export async function upsertBudget(ctx: RequestContext, input: UpsertBudgetInput
         organizationId:       orgId,
         semester:             input.semester,
         carryoverBalance:     input.carryoverBalance,
-        carryoverBalanceCents: BigInt(Math.round(input.carryoverBalance * 100)),
+        carryoverBalanceCents: BigInt(toCents(input.carryoverBalance)),
         reserveAmount:        input.reserveAmount,
-        reserveAmountCents:   BigInt(Math.round(input.reserveAmount * 100)),
+        reserveAmountCents:   BigInt(toCents(input.reserveAmount)),
       },
       update: {
         carryoverBalance:     input.carryoverBalance,
-        carryoverBalanceCents: BigInt(Math.round(input.carryoverBalance * 100)),
+        carryoverBalanceCents: BigInt(toCents(input.carryoverBalance)),
         reserveAmount:        input.reserveAmount,
-        reserveAmountCents:   BigInt(Math.round(input.reserveAmount * 100)),
+        reserveAmountCents:   BigInt(toCents(input.reserveAmount)),
       },
     });
     await tx.budgetAllocation.deleteMany({ where: { budgetId: budget.id } });

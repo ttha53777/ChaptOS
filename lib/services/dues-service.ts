@@ -28,6 +28,7 @@ import type { RequestContext } from "@/lib/context";
 import { DUES_CATEGORY, duesPaymentWhere, sumDuesPaidByBrother } from "@/lib/dues";
 import { ConflictError, ForbiddenError, NotFoundError } from "@/lib/errors";
 import { emit } from "@/lib/events";
+import { atLeast, money } from "@/lib/money";
 import { hasPermission } from "@/lib/permissions";
 import { TransactionType } from "@/lib/state";
 import type {
@@ -50,11 +51,6 @@ function assertCanManageDues(ctx: RequestContext): void {
     || ctx.isOrgAdmin
     || hasPermission(ctx.permissions, "MANAGE_TREASURY");
   if (!allowed) throw new ForbiddenError("Cannot record or adjust dues");
-}
-
-/** Two decimal places. Float dollars drift under repeated arithmetic; money reads shouldn't. */
-function money(n: number): number {
-  return Math.round(n * 100) / 100;
 }
 
 /**
@@ -86,7 +82,11 @@ export async function adjustDues(ctx: RequestContext, input: AdjustDuesInput) {
   // A waiver can't push the balance below zero — the same compare-and-set guard as a
   // payment, for the same reason (and it's race-safe against a concurrent payment).
   // ctx.db.brother.updateMany is org-scoped, so the org filter is injected for us.
-  const guard = delta < 0 ? { duesOwed: { gte: -delta } } : {};
+  //
+  // Half-a-cent tolerance, same as recordDuesPayment: waiving a member's full
+  // $200 balance must not be refused because repeated float arithmetic left the
+  // row holding 199.99999999999997. See atLeast in lib/money.ts.
+  const guard = delta < 0 ? { duesOwed: { gte: atLeast(-delta) } } : {};
 
   const claimed = await ctx.db.brother.updateMany({
     where: { id: brother.id, ...guard },
@@ -103,7 +103,19 @@ export async function adjustDues(ctx: RequestContext, input: AdjustDuesInput) {
     where:  { id: brother.id },
     select: { duesOwed: true },
   });
+
+  // Snap a sub-cent remainder to exactly zero — same reason as recordDuesPayment
+  // in transaction-service.ts. Waiving someone's full balance subtracts two
+  // floats that rarely cancel to 0.0, and "owes money" is `duesOwed > 0`
+  // throughout the app, so the residue would keep a fully-waived member on the
+  // outstanding list showing "$0.00".
   const newOwed = money(updated?.duesOwed ?? 0);
+  if (newOwed === 0 && (updated?.duesOwed ?? 0) !== 0) {
+    await ctx.db.brother.updateMany({
+      where: { id: brother.id },
+      data:  { duesOwed: 0 },
+    });
+  }
 
   await emit(ctx, "dues.adjusted", { type: "Brother", id: brother.id }, {
     brotherId: brother.id,

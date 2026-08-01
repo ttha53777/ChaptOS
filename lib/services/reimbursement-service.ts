@@ -6,6 +6,7 @@ import { resolveMemberName } from "@/lib/member-names";
 import { hasPermission } from "@/lib/permissions";
 import { ReimbursementStatus, TransactionStatus, TransactionType } from "@/lib/state";
 import type { CreateReimbursementInput, UpdateReimbursementInput } from "@/lib/validation/reimbursement";
+import { toCents } from "@/lib/money";
 
 // Fallback bucket when neither the requester nor the approving treasurer named one.
 // Budget allocations are user-named per org, so this may match no allocation — the
@@ -67,7 +68,7 @@ export async function createReimbursement(ctx: RequestContext, input: CreateReim
     data: {
       brotherId:   input.brotherId,
       amount:      input.amount,
-      amountCents: BigInt(Math.round(input.amount * 100)),
+      amountCents: BigInt(toCents(input.amount)),
       date:        input.date,
       description: input.description,
       category:    input.category ?? null,
@@ -149,7 +150,7 @@ export async function updateReimbursement(ctx: RequestContext, id: number, input
           type:        TransactionType.Expense,
           category,
           amount:      existing.amount,
-          amountCents: existing.amountCents ?? BigInt(Math.round(existing.amount * 100)),
+          amountCents: existing.amountCents ?? BigInt(toCents(existing.amount)),
           date:        existing.date,
           description: payee
             ? `Reimbursement: ${payee} - ${existing.description}`

@@ -20,6 +20,7 @@
 import { runTool } from "@/lib/ai-tools";
 import type { db } from "@/lib/db";
 import { isoWeekBounds } from "@/lib/dates";
+import { fmtUsd } from "@/lib/money";
 
 export interface FastPathResult {
   /** The complete answer text, streamed as a single SSE `text` event. */
@@ -50,13 +51,9 @@ function isEmptyEnvelope(r: ToolResult): boolean {
 }
 
 // ── Money / number formatting ───────────────────────────────────────────────
-function money(n: number): string {
-  // Whole dollars when round, else two decimals — matches how officers read it.
-  const rounded = Math.round(n * 100) / 100;
-  return Number.isInteger(rounded)
-    ? `$${rounded.toLocaleString("en-US")}`
-    : `$${rounded.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
+// Local alias for the shared formatter. NB: this `money` returns a STRING,
+// unlike lib/money.ts's `money`, which rounds — hence the rename on import.
+const money = fmtUsd;
 
 // Format a name + a single metric, for ranking answers.
 function nameLine(b: { name: string }, metric: string): string {
