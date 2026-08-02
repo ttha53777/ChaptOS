@@ -204,9 +204,16 @@ describe("recordPayment (createTransaction, dues) — moves both books at once",
     ]);
 
     expect(results.filter(r => r.status === "fulfilled")).toHaveLength(2);
+    // Same `as unknown as` idiom as the first test in this file: createTransaction's
+    // two branches infer down to their common member, so `id` isn't on the declared
+    // type even though mapTx always returns it.
     const ids = results
-      .filter((r): r is PromiseFulfilledResult<{ id: number }> => r.status === "fulfilled")
-      .map(r => r.value.id);
+      .filter(r => r.status === "fulfilled")
+      .map(r => (r.value as unknown as { id: number }).id);
+    // Assert the ids are REAL before comparing them. Reading a property that isn't
+    // on the type produced undefined for both, so `ids[0] === ids[1]` held vacuously
+    // and this test passed no matter what the idempotency guard did.
+    expect(typeof ids[0]).toBe("number");
     expect(ids[0]).toBe(ids[1]);
 
     // The invariant that matters is unchanged: one row of income, and the balance
