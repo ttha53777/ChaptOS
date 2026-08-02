@@ -44,12 +44,18 @@ export const PERM_AREAS: readonly PermArea[] = [
   {
     id: "meetings", label: "Meetings",
     perms: ["MANAGE_ATTENDANCE", "MANAGE_SEMESTERS"],
-    gate: w => w.has("attendance"),
+    // Both pages this area governs count, not just attendance: an org that holds
+    // meetings but doesn't take roll still needs MANAGE_SEMESTERS reachable.
+    gate: w => w.has("attendance") || w.has("meetings"),
   },
   {
     id: "events", label: "Events",
     perms: ["MANAGE_EVENTS", "MANAGE_PARTIES"],
-    gate: w => w.has("events"),
+    // Likewise `parties` — the activities checklist turns on `parties` WITHOUT
+    // `events` for an org that named socials, so gating on `events` alone hid
+    // this pill from exactly the orgs that throw parties and left MANAGE_PARTIES
+    // ungrantable in /create.
+    gate: w => w.has("events") || w.has("parties"),
   },
   {
     id: "comms", label: "Comms",

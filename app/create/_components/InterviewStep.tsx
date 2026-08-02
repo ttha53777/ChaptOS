@@ -105,11 +105,21 @@ function activityPicksToAiPicks(ids: ReadonlySet<string>): AiPicks {
   };
 }
 
-/** Keyword-match a typed "normal month" answer onto the checklist options, so a
-    founder who types their answer lands in exactly the same place as one who
-    taps it. Deliberately naive (same posture as matchKind) — the checklist is
-    the primary input. */
-function matchActivities(text: string): Set<string> {
+/**
+ * Keyword-match a typed "normal month" answer onto the checklist options, so a
+ * founder who types their answer lands in exactly the same place as one who taps
+ * it. Deliberately naive (same posture as matchKind) — the checklist is the
+ * primary input.
+ *
+ * Returns `null` for an answer it CANNOT read. That distinction is the whole
+ * point: submitActivities is authoritative, so an empty set means "none of these
+ * happen" and turns all six pages OFF. Every natural affirmative — "yes",
+ * "yeah, all of those", "we do all of them" — names no keyword, so folding
+ * unparseable into empty made the founder's "we do those things" strip the exact
+ * pages they were confirming. An unreadable answer is a question to re-ask, not
+ * an answer of "none".
+ */
+function matchActivities(text: string): Set<string> | null {
   const l = text.toLowerCase();
   const ids = new Set<string>();
   if (/\bmeet|chapter|assembly|weekly|general body\b/.test(l)) ids.add("meetings");
@@ -118,7 +128,19 @@ function matchActivities(text: string): Set<string> {
   if (/fundrais|program|workshop|speaker|rush|recruit/.test(l)) ids.add("fundraise");
   if (/task|deadline|assign|committee|to-?do/.test(l)) ids.add("tasks");
   if (/instagram|social media|\bpost|announce|newsletter|online/.test(l)) ids.add("online");
-  return ids;
+  if (ids.size) return ids;
+
+  // Nothing named. A blanket yes ("all of the above", "we do everything") is a
+  // real answer meaning every option; a blanket no is a real answer meaning none.
+  // Anything else is unreadable — and "yes" on its own is unreadable too, since
+  // it could be agreeing to all six or to whichever one they had in mind.
+  if (/\b(all|everything|every one|the lot)\b/.test(l) && !/\bnot? \b/.test(l)) {
+    return new Set(ACTIVITY_OPTIONS.map(o => o.id));
+  }
+  if (/\b(none|nothing|neither|no(ne)? of (them|those|these)|not really)\b/.test(l)) {
+    return new Set();
+  }
+  return null;
 }
 
 type Stage =
@@ -521,10 +543,24 @@ export function InterviewStep({
       of truth. Flashes the sheet sections that actually changed. */
   function applyConciergePicks(picks: InterviewAiResult["picks"]) {
     const p = picks;
-    if (p.kind) dispatch({ type: "setKind", kind: p.kind });
+    // ONLY dispatch setKind when the kind actually CHANGES. The model re-sends
+    // its resolved `kind` on every turn (the response schema requires the field,
+    // and structured output fills it with the standing answer rather than null),
+    // but setKind is a RESET — kindDefaults wipes enabledWorkflows back to
+    // BASE_WORKFLOWS and rebuilds seats, vocab, metrics and event types from the
+    // template. Dispatching it on an unchanged re-send silently stripped every
+    // page the activities checklist had just turned on, leaving only whatever
+    // that same turn's addWorkflows happened to carry: the founder answers "yes,
+    // we do all of those", and the blueprint empties out a beat later.
+    const kindChanged = !!p.kind && p.kind !== draftRef.current.kind;
+    if (kindChanged) dispatch({ type: "setKind", kind: p.kind! });
     // A variant only makes sense once a kind exists; setKind resets variant, so
     // this sequential dispatch (reducer sees the new kind) applies it cleanly.
-    if (p.variant) dispatch({ type: "setVariant", variant: p.variant });
+    // Re-sends are skipped for the same reason as kind — applyVariant rebuilds
+    // seats from the template, discarding any seat edits — but a real kind change
+    // always re-applies, since setKind just cleared the variant out from under it.
+    const variantChanged = !!p.variant && (kindChanged || p.variant !== draftRef.current.variant);
+    if (variantChanged) dispatch({ type: "setVariant", variant: p.variant! });
     if (p.addWorkflows.length || p.removeWorkflows.length || Object.keys(p.vocab).length) {
       dispatch({ type: "applyAiPicks", picks: { addWorkflows: p.addWorkflows, removeWorkflows: p.removeWorkflows, vocab: p.vocab } });
     }
@@ -538,8 +574,8 @@ export function InterviewStep({
     // re-sends its whole workflow list every turn, so a non-empty add/remove is
     // NOT evidence anything moved. Ask what the picks would actually do — and ask
     // it of the post-setKind draft, since a kind answer resets the set to BASE.
-    if (p.kind || p.variant) onFlash("seats");
-    const base = p.kind ? workflowsForKind(draftRef.current, p.kind) : draftRef.current;
+    if (kindChanged || variantChanged) onFlash("seats");
+    const base = kindChanged ? workflowsForKind(draftRef.current, p.kind!) : draftRef.current;
     if (workflowsChanged(base, { addWorkflows: p.addWorkflows, removeWorkflows: p.removeWorkflows, vocab: {} })) {
       onFlash("pages");
     }
@@ -681,6 +717,19 @@ export function InterviewStep({
     });
   }
 
+  /** Re-ask the activities beat after an answer we couldn't read. Stays on the
+      stage and re-opens the checklist, so the founder can tap their way out of a
+      phrasing the keyword matcher doesn't cover. */
+  function reopenActivities() {
+    setChips(null);
+    setTyping(true);
+    later(() => {
+      setTyping(false);
+      push("bot", <>Sorry — I didn&rsquo;t catch which ones. Tap the ones that happen and I&rsquo;ll set those pages up.</>);
+      setActivityPicks(new Set());
+    }, 700);
+  }
+
   function activitiesReply(picked: typeof ACTIVITY_OPTIONS): ReactNode {
     if (!picked.length) {
       return <>Kept lean, then — just the roster and the dashboard. You can add any page you want on the blueprint.</>;
@@ -753,7 +802,12 @@ export function InterviewStep({
       // and run the SAME authoritative submit, so typing and tapping agree. Their
       // own words are the user bubble, so don't echo a synthesized summary too.
       push("user", text);
-      submitActivities(matchActivities(text), false);
+      const ids = matchActivities(text);
+      // Unreadable answer → re-open the checklist rather than submitting. The
+      // submit is authoritative, so guessing an empty set here would turn every
+      // activity page off on the strength of a sentence we admit we can't parse.
+      if (ids === null) reopenActivities();
+      else submitActivities(ids, false);
     } else if (s === "docs") {
       answerDocs(matchYesNo(text), text);
     } else if (s === "payments") {
