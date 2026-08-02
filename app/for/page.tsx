@@ -27,9 +27,9 @@ import { APP_NAME } from "@/lib/domains";
 export const metadata: Metadata = {
   title: `Who it's for — ${APP_NAME}`,
   description:
-    "The setup a chapter, a club team, a service org, an ensemble, a student " +
-    "government or an advisor should start from — with what it does for each of " +
-    "them, and what it won't.",
+    "The setup a chapter, a club team, a service org, an ensemble or a student " +
+    "government should start from — plus how the same workspace is rebuilt from " +
+    "scratch for any other kind of org.",
 };
 
 export default function ForIndexPage() {
@@ -46,14 +46,14 @@ export default function ForIndexPage() {
               <span className="eyebrow" style={sx({ "--eb": "var(--peach)" })}>
                 Who it&apos;s for
               </span>
-              <h1>Six kinds of org, six different right answers.</h1>
+              <h1>Five kinds of org, and one page for everything else.</h1>
               <p className="lede">
                 A club team and a chapter need almost nothing in common: one tracks a single
                 number across a season, the other runs money, standing and a meeting every
                 week. So they don&apos;t get the same workspace. Each page below is the
                 setup that org actually starts from — the pages, the seats, the words, the
-                first term — plus the honest list of what {APP_NAME}{" "}won&apos;t do for
-                them.
+                first term. And if none of the five is you, the last one shows how the same
+                workspace gets built to fit whatever you run.
               </p>
             </div>
 
@@ -64,7 +64,7 @@ export default function ForIndexPage() {
                   <h3>{a.label}</h3>
                   <p>{a.blurb}</p>
                   <span className="fr__go">
-                    The setup, and the limits{" "}
+                    {a.go ?? "The setup, and the limits"}{" "}
                     <Doodle id="arrow-r" size={15} viewBox="0 0 24 24" />
                   </span>
                 </a>

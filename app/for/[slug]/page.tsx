@@ -233,7 +233,7 @@ export default async function AudiencePage({
           <div className="wrap">
             <div className="fr__head">
               <span className="eyebrow" style={sx({ "--eb": "var(--sky)" })}>
-                What recurs
+                {a.monthEyebrow ?? "What recurs"}
               </span>
               <h2>{a.monthTitle}</h2>
               <p className="lede">{inline(a.monthLede)}</p>

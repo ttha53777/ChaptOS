@@ -41,6 +41,8 @@ export interface Audience {
   doodle: string;
   /** One line on the index card. */
   blurb: string;
+  /** Overrides the index card's "The setup, and the limits" call to action. */
+  go?: string;
 
   eyebrow: string;
   title: string;
@@ -51,6 +53,8 @@ export interface Audience {
   /** "A month in the life": what recurs, and what handles it. */
   monthTitle: string;
   monthLede: string;
+  /** Overrides the section's "What recurs" eyebrow when the beats aren't a month. */
+  monthEyebrow?: string;
   beats: readonly { when: string; what: string; how: string }[];
 
   /** The blueprint sheet + the argument for its shape. */
@@ -1195,227 +1199,269 @@ const GOVERNMENT: Audience = {
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-const ADVISORS: Audience = {
-  slug: "advisors",
-  label: "Advisors & campus life",
+const CUSTOM: Audience = {
+  slug: "custom",
+  label: "Custom & anything else",
   tint: "peach",
-  doodle: "key",
+  doodle: "pencil",
   blurb:
-    "You'll be in six of these at once. What that gets you, what it doesn't, and the " +
-    "seat to ask each org for.",
+    "Your org isn't on this list? Good — none of the five above is hard-coded either. " +
+    "The pages, the words, the seats and the numbers are all yours.",
+  go: "The setup, and how it bends",
 
-  eyebrow: "For advisors & campus life staff",
-  title: "You'll be in six of these. Here's exactly what that gets you.",
+  eyebrow: "For every other kind of org",
+  title: "Nothing here is hard-coded. Not the pages, not the words, not the numbers.",
   lede:
-    "An advisor is a member of each org they advise — not an account tier above them. " +
-    "That's a deliberate design choice with real consequences in both directions, and " +
-    "this page is the honest version of them: what you can see, what you can't, what to " +
-    "ask a chapter to give you, and what to read before you recommend this to anyone.",
+    "The five pages before this one aren't five products — they're five different answers " +
+    "the same workspace gave to five different sets of questions. A quiz bowl team, a " +
+    "cultural association, a robotics lab, a debate union and a campus radio station all " +
+    "get their own answer too, assembled the same way: eleven pages you switch on and off, " +
+    "twelve words you rename, seats you invent, and the measures your org is actually " +
+    "judged on.",
   glance: [
-    { k: "One account", l: "many orgs, switched from the header" },
-    { k: "Your seat", l: "is whatever each org grants — nothing platform-wide" },
-    { k: "Same log", l: "your actions record exactly like an officer's" },
-    { k: "No roll-up", l: "there is no cross-org view, and that's today's honest answer" },
+    { k: "11 pages", l: "and only two of them can't be switched off" },
+    { k: "12 words", l: "renamed to whatever your org already calls them" },
+    { k: "Any seat", l: "your titles, your powers, your ranks" },
+    { k: "Your measures", l: "with a goal and an at-risk line you set" },
   ],
 
-  monthTitle: "What being in several orgs actually looks like",
+  monthEyebrow: "What bends",
+  monthTitle: "Five things that are yours, and the moment each one is easiest to set",
   monthLede:
-    "Five things are worth knowing before you're in your third workspace, and two of " +
-    "them are limits rather than features.",
+    "None of these is a settings page nobody opens — each one changes what a member sees " +
+    "on the first screen they ever load. They're listed in the order you'll reach them.",
   beats: [
     {
-      when: "Getting in",
-      what: "An officer invites you like anyone else",
+      when: "In the interview",
+      what: "The pages, chosen by what you actually do",
       how:
-        "You claim a seeded row or redeem an invite link, and sign in with Google. Nothing " +
-        "about your account is special — which is why nothing about it can quietly grow.",
+        "The interview asks what happens in a normal month rather than what category you " +
+        "are. Name travel, dues, a weekly meeting or a build night and those pages turn on; " +
+        "anything you don't name stays off. That's how one org ends up with six pages in " +
+        "the sidebar and another with eleven.",
     },
     {
-      when: "Day to day",
-      what: "Switching between orgs",
+      when: "Before you invite anyone",
+      what: "The words your org already uses",
       how:
-        "One Google account holds one membership per org. The switcher in the header moves " +
-        "you between them; leaving one has no effect on your access to the others.",
+        "Twelve words carry your vocabulary instead of ours — member, term, meeting, event, " +
+        "attendance, treasury, dues, role, admin, service, announcement, doc. You store the " +
+        "singular and plurals are derived, so *Debater* becomes *Debaters* on every screen " +
+        "without a second field to fill in.",
     },
     {
-      when: "When something's questioned",
-      what: "\"Who changed this, and when?\"",
+      when: "Day one",
+      what: "Seats your constitution already names",
       how:
-        "The activity log answers it by name and timestamp — including for your own " +
-        "changes, and including for our platform staff, whose actions write to the same " +
-        "trail rather than a private one.",
+        "A seat is a title, a color, a rank and any subset of fourteen abilities. " +
+        "Quartermaster, Novice Master, Race Director, Station Manager — invent it, tick " +
+        "what it can do, and rank it. Rank is the delegation rule: an officer can only " +
+        "grant roles ranked strictly below their own.",
     },
     {
-      when: "Risk conversations",
-      what: "What the org is actually holding",
+      when: "Week one",
+      what: "The number your org is judged on",
       how:
-        "[Trust & privacy](/trust) is written to be handed to a risk or legal office: a " +
-        "full data inventory, the sub-processor list, and a section naming what we " +
-        "deliberately don't claim.",
+        "Four built-in measures — attendance, GPA, dues, service hours — each carry a goal " +
+        "and an at-risk line you set. Past those, define your own: a name, a unit, a goal, " +
+        "an at-risk cutoff, and whether the headline is an average, a total, or a count of " +
+        "who's on track. It lands in the dashboard's measure strip like a built-in.",
     },
     {
-      when: "Every spring",
-      what: "Turnover, from your side",
+      when: "Any time after",
+      what: "Second thoughts, which are free",
       how:
-        "The record isn't attached to the outgoing president's login. A new exec takes the " +
-        "seats and the four years behind them are still there.",
+        "Every line above lives in Settings behind an org-admin gate: pages, the widgets " +
+        "inside them, sidebar order, words, seats, member fields, measures, thresholds, " +
+        "categories and terms. Turning a page off only hides it — its transactions, docs " +
+        "and records are kept and come back unchanged when you turn it on.",
     },
   ],
 
-  setupTitle: "The seat to ask each org for",
+  setupTitle: "What a from-scratch org starts as",
   setupLede:
-    "There is no advisor tier, so your access is a role the org creates and grants. Ask " +
-    "for the smallest of these three that does your job — an admin seat carries every " +
-    "permission in that org, which is almost never what an advisor needs or wants.",
+    "Tell the interview you're another kind of org and you get the smallest template in " +
+    "the product: six pages, one seat, our words. It's a floor rather than a guess — " +
+    "every row below is editable on the sheet before anything is built, and again in " +
+    "Settings for as long as the org exists.",
   bp: {
-    name: "Advisor",
-    kind: "A role each org creates",
-    sub: "not a platform account type",
+    name: "Debate Union",
+    kind: "Generic organization",
+    sub: "chaptos.app/debate-union",
     sections: [
       {
-        k: "seats",
-        title: "Three shapes worth asking for",
-        rows: [
-          ["Observer", "none of the fourteen permissions", "rank 40"],
-          ["Risk advisor", "adds events + parties", "rank 40"],
-          ["Oversight", "adds treasury, for money you're accountable for", "rank 60"],
-        ],
+        k: "pages",
+        on: ["Dashboard", "Timeline", "Roster", "Tasks", "Announcements", "Docs"],
+        off: ["Meetings", "Attendance", "Treasury", "Service", "Parties"],
         note:
-          "**There is no read-only tier.** \"Observer\" is simply a role with none of the " +
-          "permissions ticked — the closest thing that exists, and the one to ask for.",
-      },
-      {
-        k: "measures",
-        title: "What a no-permission seat still sees",
-        on: ["The roster", "Much of the dashboard"],
-        off: ["Editing anything"],
-        note:
-          "Permissions gate *changing* things far more than *seeing* them. Assume anything " +
-          "in the org is visible to any member unless you've checked otherwise — and tell " +
-          "your orgs that before they invent a custom field.",
+          "Six on, because a template with no assumptions shouldn't make five. Name " +
+          "tournaments, dues or a weekly assembly in the interview and those pages arrive " +
+          "switched on — your answers own this list, not the template. **Dashboard and " +
+          "Timeline** are the only two that can never be turned off.",
       },
       {
         k: "words",
-        title: "What your seat does not carry",
+        title: "Twelve words you can rename",
         rows: [
-          ["Across orgs", "nothing"],
-          ["Above the org", "nothing"],
-          ["Over our staff", "nothing"],
+          ["Member", "Debater"],
+          ["Meetings", "Assembly"],
+          ["Event", "Tournament"],
+          ["Period", "Year"],
         ],
         note:
-          "Being an admin in one org grants you nothing in another, and there's no campus " +
-          "or institutional layer above the orgs themselves.",
+          "Four of the twelve, filled in the way a debate union would. The rest cover " +
+          "**Attendance**, **Treasury**, **Dues**, **Role**, **Admin**, **Service**, " +
+          "**Announcement** and **Doc** — one sparse map, read by every nav label and page " +
+          "heading, so a rename lands everywhere at once.",
+      },
+      {
+        k: "seats",
+        title: "Seats you invent",
+        rows: [
+          ["Admin", "everything — the founder's seat", "rank 100"],
+          ["Novice Master", "attendance + tasks", "rank 60"],
+          ["Tournament Director", "events + docs", "rank 50"],
+        ],
+        note:
+          "Only the first is seeded; the other two are invented, and so is every seat after " +
+          "them. Ranks are yours to assign, and they're what stops a chair promoting " +
+          "themselves — the constraint lives in the server, not in a norm.",
+      },
+      {
+        k: "words",
+        title: "Columns you add to a member",
+        rows: [
+          ["Novice year", "a number"],
+          ["Shirt size", "a set of options"],
+          ["Home region", "free text"],
+        ],
+        note:
+          "Custom member fields carry a label, a type and a choice about whether they show " +
+          "on the roster. Worth reading [what not to put in one](/trust#sensitive) before " +
+          "you add the fourth.",
+      },
+      {
+        k: "measures",
+        title: "Numbers tracked per member",
+        on: ["Attendance", "GPA", "Dues owed", "Service hours", "Anything you define"],
+        off: [],
+        note:
+          "The four built-ins are on or off per org, each with your own goal and at-risk " +
+          "line. A measure of your own adds a name, a unit, a goal, an at-risk cutoff and " +
+          "an aggregation — *average per member*, *org total*, or *how many are on track*.",
+      },
+      {
+        k: "cats",
+        rows: [
+          ["Social", "var(--butter-ink)"],
+          ["Fundraiser", "var(--mint-ink)"],
+        ],
+        note:
+          "The two this template seeds. They're editable rows rather than built-ins — " +
+          "rename them to *Tournament* and *Practice round*, recolor them, reorder them, " +
+          "or delete both.",
+      },
+      {
+        k: "term",
+        label: "How your calendar resets",
+        value: "Semesters · Quarters · Seasons · Year-round",
       },
     ],
   },
   why: [
     {
-      h: "Advisor isn't an account type, on purpose",
+      h: "The interview builds it, not a dropdown",
       p:
-        "If it were, someone would have to decide what it means across every org on the " +
-        "platform, and the answer would be wrong for most of them. Each org grants what it " +
-        "means to grant, and it can revoke it without asking us.",
+        "Seven templates exist, and which one you land on matters far less than what you " +
+        "answered. An activity you didn't name leaves its page off even when the template " +
+        "would have seeded it — otherwise the interview is theatre over a preset.",
     },
     {
-      h: "Your actions are in their log, not a private one",
+      h: "A word your members don't use is a tool they don't trust",
       p:
-        "This cuts both ways and that's the point. An advisor who edits a roster leaves the " +
-        "same trace an officer does, which is what makes the log worth trusting when you're " +
-        "the one reading it.",
+        "Vocabulary is one map read by every nav label and heading, so *Member → Sister*, " +
+        "*Player*, *Debater* or *Volunteer* changes the whole interface in one edit. No " +
+        "half-renamed screens, and no plural typed twice.",
     },
     {
-      h: "The org is the controller; we're the processor",
+      h: "Your number is first-class, not a spreadsheet column",
       p:
-        "The chapter decides what to collect and who holds which seat. We store and compute " +
-        "it on their instruction, don't sell it, don't train on it, and run no analytics or " +
-        "tracking anywhere in the product.",
+        "A measure you define carries a goal and an at-risk line, so it computes an " +
+        "on-track count and gets its own card and drawer on the dashboard — the same " +
+        "treatment attendance gets. That's the difference between tracking something and " +
+        "writing it down.",
     },
   ],
   steps: [
     {
-      t: "Read what not to put here, before you recommend it",
+      t: "Answer the interview about your month, not your category",
       p:
-        "[Trust §4](/trust#sensitive) lists the categories that must not go in a custom " +
-        "field — health, biometrics, government identifiers. You are the person who'll be " +
-        "asked about this, so read it first rather than after.",
+        "[/create](/create) runs signed out. Describe what actually happens — we travel " +
+        "twice a term, we charge dues, we run a build night. The page list follows those " +
+        "answers, which is how you get a short sidebar instead of a full one.",
     },
     {
-      t: "Know where grades stand",
+      t: "Rename the nouns before a single person joins",
       p:
-        "GPA is a field the org fills in itself; there is no registrar or SIS integration " +
-        "and none is possible today. A university adopting this institutionally, or an org " +
-        "loading grades obtained from the school, both need a conversation with us first.",
+        "Members read the vocabulary on their first screen, and a tool that calls them the " +
+        "wrong thing gets treated like one. It takes a minute now and it's free forever.",
     },
     {
-      t: "Ask for the Observer seat, not an admin seat",
+      t: "Build the seats, then hand them out",
       p:
-        "An admin seat is every permission in that org. If you need one for a recovery, ask " +
-        "for it then — it's a role change, not a support ticket.",
+        "Create the offices your constitution already names, tick what each can do, and " +
+        "rank the ones with real authority above the ones without. Then assign them — " +
+        "seats are roles, so next year's turnover is a reassignment, not a migration.",
     },
     {
-      t: "Get the invite hygiene right on day one",
+      t: "Define your one number in week one",
       p:
-        "Invite links are bearer credentials that can be set to never expire. Tell your " +
-        "orgs to use short expiries, revoke after rush, and check the redemption list — " +
-        "every join through a link is recorded.",
+        "Every org has one: hours, tournaments, shifts, rehearsals, builds, points. Set the " +
+        "goal and the at-risk line while nobody is failing them yet, and the standing it " +
+        "produces will never look political.",
     },
     {
-      t: "Tell them polls are not anonymous",
+      t: "Come back at the end of the term and cut",
       p:
-        "Every vote records who cast it. Say it out loud before a chapter runs a judicial " +
-        "vote or a council runs an election through one. It's the single most consequential " +
-        "thing on this page.",
+        "The page nobody opened, the field nobody filled, the measure that measured " +
+        "nothing. This is the step everyone skips, and turning a page off keeps everything " +
+        "underneath it — so there's nothing to lose by trying.",
     },
   ],
   asks: [
     {
-      q: "show me every member under 70% attendance this term",
-      a: "Answers within the org you're currently in, scoped to your seat's permissions.",
+      q: "who holds the tournament director seat right now?",
+      a: "Reads the current role assignments rather than a title someone typed once.",
     },
     {
-      q: "what changed on the ledger in the last two weeks?",
-      a: "Reads the transactions and cites the rows behind the answer.",
+      q: "what's on the calendar in the next two weeks?",
+      a: "Reads the timeline, in your categories and your words for them.",
     },
     {
-      q: "who holds the treasurer role right now?",
-      a: "Reads the current role assignments rather than a title someone typed.",
+      q: "how do I add a measure for tournament wins?",
+      a: "It answers product questions about your own setup, and names the page to do it on.",
     },
   ],
   limits: [
     {
-      h: "No cross-org view",
+      h: "You can shape the eleven pages, not invent a twelfth",
       p:
-        "Six orgs is six switches. There is no campus roll-up, no multi-chapter report, no " +
-        "dashboard of the orgs you advise, and the assistant answers within one org at a " +
-        "time by design.",
+        "Every page can be renamed, reordered, switched off, or trimmed section by section. " +
+        "What you can't do is add a brand-new surface with its own data model — if what you " +
+        "run genuinely needs one, [tell us](/contact); it's the request we most want.",
     },
     {
-      h: "You'll appear on one org's roster",
+      h: "Words change; structure doesn't",
       p:
-        "Rosters, attendance and dues still scope to the org you first joined. You can open " +
-        "and administer the others in full, but you show up in one member list — a known " +
-        "limitation of the current model, not a permission you're missing.",
+        "Renaming *Member* to *Debater* changes every label, not what a member row holds. A " +
+        "custom field is likewise a column on a person rather than a new object with a page " +
+        "of its own.",
     },
     {
-      h: "No institutional adoption path yet",
+      h: "Customization is per-org",
       p:
-        "No SSO, no campus-wide account, no department billing. If your institution wants " +
-        "to adopt this centrally, that needs an agreement rather than a founder clicking " +
-        "through — [start that conversation](/contact) rather than piloting around it.",
-    },
-    {
-      h: "Not audited, and we say so",
-      p:
-        "No SOC 2, no ISO 27001, no third-party penetration test, no formal breach-" +
-        "notification window, and the content security policy is still report-only. The " +
-        "full list is [section 8 of Trust](/trust#security) — bring it to your risk office " +
-        "rather than around them.",
-    },
-    {
-      h: "It contacts nobody",
-      p:
-        "No email, no texts, no notifications to members on anyone's behalf. Nothing you or " +
-        "an officer does here reaches a student's inbox.",
+        "Each org is its own workspace with its own settings. There's no master template you " +
+        "push to a dozen chapters at once, and no view that spans them.",
     },
   ],
 };
@@ -1429,7 +1475,7 @@ export const AUDIENCES: readonly Audience[] = [
   SERVICE,
   ARTS,
   GOVERNMENT,
-  ADVISORS,
+  CUSTOM,
 ];
 
 export const AUDIENCES_BY_SLUG: ReadonlyMap<string, Audience> = new Map(

@@ -57,7 +57,7 @@ export function Footer() {
                 <a href="/for/student-government">Student government</a>
               </li>
               <li>
-                <a href="/for/advisors">Advisors &amp; campus life</a>
+                <a href="/for/custom">Custom &amp; anything else</a>
               </li>
             </ul>
           </div>
