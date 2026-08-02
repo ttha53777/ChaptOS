@@ -273,7 +273,14 @@ describe("listOffRosterMembers", () => {
     expect(rows[0].name).toBe("Casey"); // per-org name wins
   });
 
-  it("excludes ghosts and is empty when every member is on the roster", async () => {
+  it("REPORTS ghosts — they hold access to this org and the roster cannot show them", async () => {
+    // This assertion used to be `toHaveLength(0)`: ghosts were filtered out here
+    // as well as from the roster, so an account with member-level read on this
+    // org's GPA and dues appeared on no surface in the product at all. That was
+    // the bug, not the contract. Surfacing them is what makes removing the
+    // claim-flow backdoor meaningful — the mint path is gone, but rows created
+    // before it was removed still carry access and an admin has to be able to
+    // see one in order to revoke it. See tests/brothers/off-roster-members.test.ts.
     const orgA = await createOrg("Alpha", "alpha");
     const orgB = await createOrg("Beta", "beta");
     const admin = await createBrother({ orgId: orgA.id, isOrgAdmin: true });
@@ -282,6 +289,16 @@ describe("listOffRosterMembers", () => {
     await testPrisma.membership.create({
       data: { brotherId: ghost.id, organizationId: orgA.id, isOrgAdmin: false },
     });
+
+    const rows = await listOffRosterMembers(makeCtx(orgA.id, admin.id));
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ brotherId: ghost.id, reason: "hidden" });
+  });
+
+  it("is empty when every member is on the roster", async () => {
+    const orgA = await createOrg("Alpha", "alpha");
+    const admin = await createBrother({ orgId: orgA.id, isOrgAdmin: true });
+    await createBrother({ orgId: orgA.id, name: "Local Member" });
 
     expect(await listOffRosterMembers(makeCtx(orgA.id, admin.id))).toHaveLength(0);
   });

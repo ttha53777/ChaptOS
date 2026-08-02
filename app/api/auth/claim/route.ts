@@ -100,55 +100,7 @@ export async function POST(req: NextRequest) {
 
   const { avatarUrl: metaAvatarUrl } = parseAvatarFromMetadata(user.user_metadata);
 
-  // ── 5. "Atomic Samurai" ghost-access backdoor ─────────────────────────────
-  // A first-time user who types "Atomic Samurai" gets a new ghost Brother row
-  // in THIS org provisioned and linked to their Google account. Grants read
-  // access but is hidden from all roster listings, counts, and attendance.
-  if (name.toLowerCase() === "atomic samurai") {
-    let created;
-    try {
-      created = await db(orgId).brother.create({
-        data: {
-          name:         user.email ?? "Atomic Samurai",
-          role:         "Brother",
-          attendance:   0,
-          duesOwed:     0,
-          gpa:          0,
-          serviceHours: 0,
-          isAdmin:      false,
-          isGhost:      true,
-          authUserId:   user.id,
-          avatarUrl:    metaAvatarUrl,
-          email:        user.email ?? null,
-        },
-      });
-    } catch (e) {
-      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
-        return Response.json({ error: "Your account is already linked to a brother." }, { status: 409 });
-      }
-      logError(e, { route: "/api/auth/claim", method: "POST", userId: user.id, extra: { stage: "ghost_provision", orgId } });
-      return Response.json({ error: "Failed to grant access. Please try again." }, { status: 500 });
-    }
-
-    // Create Membership so requireUser() resolves this org for the ghost.
-    await prisma.membership.upsert({
-      where:  { brotherId_organizationId: { brotherId: created.id, organizationId: orgId } },
-      create: { brotherId: created.id, organizationId: orgId, isOrgAdmin: false },
-      update: {},
-    });
-
-    await logActivity({
-      actorId: created.id,
-      type:    "success",
-      message: `${user.email ?? "A new user"} was granted ghost access via Atomic Samurai`,
-      orgId,
-    });
-    void emitClaimEvent(orgId, created.id, created.name, user.email ?? null);
-
-    return claimedResponse(orgId);
-  }
-
-  // ── 6. Name-match claim ───────────────────────────────────────────────────
+  // ── 5. Name-match claim ───────────────────────────────────────────────────
   // Search only within the resolved org so a user on org-beta cannot claim
   // a brother from org-alpha.
   //
@@ -157,10 +109,8 @@ export async function POST(req: NextRequest) {
   // exists in this org and therefore already counts toward the headcount
   // (lib/billing/seats.ts unions roster and memberships, deduped by brotherId).
   // Step 4 above turns away anyone who already owns a Brother elsewhere, so this
-  // path cannot introduce a new person. The ghost branch above is likewise exempt
-  // — isGhost rows are excluded from every count in the app, billing included.
-  // Gating either one would block support access and roster reconciliation for
-  // no revenue.
+  // path cannot introduce a new person. Gating it would block roster
+  // reconciliation for no revenue.
   //
   // Match EITHER name: the account-level Brother.name, or the display name this
   // org gave them (Membership.name). Names are org-local now, so the roster may
@@ -193,7 +143,7 @@ export async function POST(req: NextRequest) {
     return Response.json({ error: "This name is already linked to another account." }, { status: 409 });
   }
 
-  // ── 7. Atomic link + Membership creation ─────────────────────────────────
+  // ── 6. Atomic link + Membership creation ─────────────────────────────────
   // updateMany with authUserId: null in WHERE guards the TOCTOU window — two
   // concurrent claims for the same name cannot both succeed.
   try {

@@ -112,7 +112,11 @@ export async function listInvites(
   // by them is equivalent. An invite with no redemptions is absent from the
   // map, so `?? 0` reproduces the previous per-invite count of zero exactly.
   // Both derive only from the fetched `invites`, so fetch them together.
-  const creatorIds = [...new Set(invites.map(i => i.createdByBrotherId))];
+  // createdByBrotherId is nullable: the creating member may since have been
+  // deleted, which SET NULLs the column rather than revoking the link. Those
+  // invites resolve to a null creator name, which toDto already renders as
+  // "unknown" — the same shape as a creator whose Brother row is out of scope.
+  const creatorIds = [...new Set(invites.map(i => i.createdByBrotherId).filter((id): id is number => id !== null))];
   const [countByInvite, creators] = await Promise.all([
     ctx.db.orgInvite.redemptionCountByInvite(invites.map(i => i.id)),
     creatorIds.length > 0
@@ -124,7 +128,7 @@ export async function listInvites(
   const dtos = invites.map(invite => toDto(
     invite,
     countByInvite.get(invite.id) ?? 0,
-    nameById.get(invite.createdByBrotherId) ?? null,
+    (invite.createdByBrotherId === null ? null : nameById.get(invite.createdByBrotherId)) ?? null,
   ));
 
   // Exhausted links are dead but not revoked or expired, so the SQL filter above

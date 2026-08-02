@@ -237,11 +237,15 @@ model OrgInvite {
   maxUses            Int?
   expiresAt          DateTime?
   revokedAt          DateTime?
-  createdByBrotherId Int
+  // Nullable since 20260801000000_member_erasure_fks: an invite link is org
+  // property that outlives the officer who created it, so deleting that member
+  // anonymises the creator rather than revoking every outstanding link (same
+  // posture as ActivityLog.actorId and Transaction.brotherId).
+  createdByBrotherId Int?
   createdAt          DateTime  @default(now())
 
   organization Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  createdBy    Brother            @relation("InviteCreator", fields: [createdByBrotherId], references: [id])
+  createdBy    Brother?           @relation("InviteCreator", fields: [createdByBrotherId], references: [id], onDelete: SetNull)
   redemptions  InviteRedemption[]
 
   @@index([organizationId])
@@ -333,7 +337,10 @@ model AttendanceRecord {
   attended        Boolean
   loggedAt        DateTime      @default(now())
   calendarEvent   CalendarEvent @relation(fields: [calendarEventId], references: [id])
-  brother         Brother       @relation(fields: [brotherId], references: [id])
+  // Cascade: an attendance row is *about* this member and is meaningless without
+  // them, so deleting the member erases it. Was RESTRICT, which made members with
+  // any attendance history undeletable — see 20260801000000_member_erasure_fks.
+  brother         Brother       @relation(fields: [brotherId], references: [id], onDelete: Cascade)
   semester        Semester      @relation(fields: [semesterId], references: [id])
 
   @@unique([calendarEventId, brotherId])
@@ -354,7 +361,9 @@ model AttendanceExcuse {
   decidedAt       DateTime?
   rejectionNote   String?
   calendarEvent   CalendarEvent @relation(fields: [calendarEventId], references: [id])
-  brother         Brother       @relation(fields: [brotherId], references: [id])
+  // Cascade for the same reason as AttendanceRecord.brother — see
+  // 20260801000000_member_erasure_fks.
+  brother         Brother       @relation(fields: [brotherId], references: [id], onDelete: Cascade)
   semester        Semester      @relation(fields: [semesterId], references: [id])
 
   @@unique([calendarEventId, brotherId])
@@ -379,7 +388,12 @@ model AttendanceExemption {
   createdById    Int?
   createdAt      DateTime     @default(now())
   organization   Organization @relation(fields: [organizationId], references: [id])
-  brother        Brother      @relation(fields: [brotherId], references: [id])
+  // Explicit Cascade to match what the DB has actually enforced since
+  // 20260709000000_attendance_exemptions. Prisma infers RESTRICT when onDelete is
+  // omitted on a required relation, so leaving it off meant schema and database
+  // disagreed and the next `prisma migrate` would have "corrected" the database
+  // to RESTRICT — quietly reintroducing the undeletable-member bug on this table.
+  brother        Brother      @relation(fields: [brotherId], references: [id], onDelete: Cascade)
   semester       Semester     @relation(fields: [semesterId], references: [id])
 
   @@unique([semesterId, brotherId])

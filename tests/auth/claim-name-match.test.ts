@@ -14,6 +14,8 @@
  */
 
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { testPrisma, resetDb } from "../setup/prisma";
 import { createOrg, createBrother } from "../setup/factories";
 import { db } from "@/lib/db";
@@ -78,6 +80,18 @@ describe("claim: name match is org-local", () => {
     expect(matches.length).toBeGreaterThan(1); // → route returns 409
   });
 
+  it("treats the old backdoor name as an ordinary, non-matching name", async () => {
+    // "Atomic Samurai" used to be special-cased by the claim route: typing it
+    // provisioned a hidden `isGhost` row with full member-level read access and no
+    // footprint. That branch is gone, so the name is now just a name — it matches
+    // nothing, and the route's zero-match arm returns 404 like any other miss.
+    const org = await createOrg("Claim Org", "claim-org");
+    await createBrother({ orgId: org.id, name: "Robert Chen" });
+
+    expect(await claimMatches(org.id, "Atomic Samurai")).toHaveLength(0);
+    expect(await testPrisma.brother.count({ where: { isGhost: true } })).toBe(0);
+  });
+
   it("does not match a name that only exists in ANOTHER org", async () => {
     // Tenancy: a Membership.name in org B must be invisible to a claim in org A,
     // or org A could enumerate/claim org B's roster.
@@ -88,5 +102,37 @@ describe("claim: name match is org-local", () => {
 
     expect(await claimMatches(orgA.id, "Only In B")).toHaveLength(0);
     expect(await claimMatches(orgA.id, "Brother Name B")).toHaveLength(0);
+  });
+});
+
+/**
+ * The tests above drive the route's *query*, which cannot prove anything about a
+ * branch that sits beside it — the route is gated on a Supabase session and can't
+ * be invoked directly here. The backdoor was exactly such a branch: a hard-coded
+ * name check that wrote its own Brother row without consulting the match at all.
+ *
+ * So this reads the source. A source assertion is a blunt instrument and normally
+ * the wrong tool, but the thing being guarded is the *absence* of a code path, and
+ * absence is not observable through the seam the rest of this file uses. It fails
+ * loudly if anyone reintroduces ghost provisioning on the claim route.
+ */
+describe("claim: no ghost-provisioning path exists on the route", () => {
+  const routeSource = readFileSync(
+    fileURLToPath(new URL("../../app/api/auth/claim/route.ts", import.meta.url)),
+    "utf8",
+  );
+
+  it("never writes isGhost", () => {
+    expect(routeSource).not.toMatch(/isGhost\s*:\s*true/);
+  });
+
+  it("does not hard-code the backdoor name", () => {
+    expect(routeSource.toLowerCase()).not.toContain("atomic samurai");
+  });
+
+  it("creates no Brother row — claiming only ever LINKS an existing one", () => {
+    // The route may update a Brother (to attach authUserId) and create a
+    // Membership, but a `brother.create` here would mean it can conjure accounts.
+    expect(routeSource).not.toMatch(/\bbrother\.create\b/);
   });
 });

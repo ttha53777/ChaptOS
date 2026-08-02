@@ -48,7 +48,11 @@ async function getFieldDefs(ctx: RequestContext): Promise<CustomMemberFieldDef[]
 }
 
 export async function listVisibleBrothers(ctx: RequestContext) {
-  // Excludes ghost members (Atomic Samurai backdoor users).
+  // Excludes legacy `isGhost` rows. Nothing can create one any more (the claim-
+  // flow backdoor that minted them is gone), but pre-existing rows keep read
+  // access and must stay out of the roster and every figure derived from it —
+  // they have no attendance/dues/GPA history to contribute. listOffRosterMembers
+  // is where an admin sees that such an account exists at all.
   //
   // Explicit select, not a bare findMany: this endpoint is fetched on EVERY page
   // for EVERY user (ChapterContext's ALWAYS_SECTIONS), so anything selected here
@@ -105,41 +109,68 @@ export async function listVisibleBrothers(ctx: RequestContext) {
   }));
 }
 
+/**
+ * Why someone has access to this org without appearing on its roster.
+ *
+ *   "invite" — their home org is elsewhere, so Phase 1 roster reads miss them.
+ *   "hidden" — a legacy `isGhost` account (see listOffRosterMembers).
+ */
+export type OffRosterReason = "invite" | "hidden";
+
 /** Someone with access to this org who will never appear on its roster. */
 export interface OffRosterMember {
   brotherId: number;
   name:      string;
   email:     string | null;
   joinedAt:  string;
+  reason:    OffRosterReason;
 }
 
 /**
- * Members of this org whose home org is elsewhere (Brother.organizationId ≠
- * ctx.orgId), so Phase 1 roster reads can't see them.
+ * Everyone who can read this org but is absent from its roster. Two disjoint
+ * groups, each invisible to listVisibleBrothers for a different reason.
  *
- * This is the visible half of a real gap: a Google account maps to ONE Brother
- * globally, so when someone who already belongs to another org redeems an open
- * invite here, redeem-invite gives them a Membership and reuses their existing
- * Brother row. They get access, they can sign in, they show up in chat and
- * tasks — but listVisibleBrothers scopes by Brother.organizationId, so the
- * admin who sent the link sees nothing happen. Silent.
+ * **"invite"** — members whose home org is elsewhere (Brother.organizationId ≠
+ * ctx.orgId). This is the visible half of a real gap: a Google account maps to
+ * ONE Brother globally, so when someone who already belongs to another org
+ * redeems an open invite here, redeem-invite gives them a Membership and reuses
+ * their existing Brother row. They get access, they can sign in, they show up in
+ * chat and tasks — but listVisibleBrothers scopes by Brother.organizationId, so
+ * the admin who sent the link sees nothing happen. Silent. The real fix is
+ * Phase 2 (roster reads move to Membership) — see AGENTS.md.
+ *
+ * **"hidden"** — legacy `isGhost` accounts. These were provisioned by a claim-
+ * flow backdoor (typing the name "Atomic Samurai") that granted full member-level
+ * read access while being filtered out of every listing, count, attendance roll
+ * and billing seat. The backdoor is GONE — nothing can mint one of these any
+ * more — but rows created before its removal still carry access, and until this
+ * query included them there was no surface anywhere in the product that revealed
+ * their existence to the admins whose data they can read. Reporting them here is
+ * what makes the removal complete: an admin can now see the account and revoke it.
  *
  * Kept deliberately SEPARATE from listVisibleBrothers rather than unioned in:
  * these people have no roster row, so they have no attendance, dues, GPA, or
  * service figures, and folding them into brotherList would corrupt every KPI
  * and every roster-driven recalc that assumes those columns exist. The roster
  * page renders this as an explanatory callout instead.
- *
- * The real fix is Phase 2 (roster reads move to Membership) — see AGENTS.md.
  */
 export async function listOffRosterMembers(ctx: RequestContext): Promise<OffRosterMember[]> {
   const memberships = await ctx.db.membership.findMany({
-    where:  { brother: { is: { organizationId: { not: ctx.orgId }, isGhost: false } } },
+    where: {
+      brother: {
+        is: {
+          OR: [
+            { organizationId: { not: ctx.orgId }, isGhost: false },
+            { isGhost: true },
+          ],
+        },
+      },
+    },
     select: {
       brotherId: true,
       name:      true,
       joinedAt:  true,
-      brother:   { select: { name: true, email: true } },
+      brother:   { select: { name: true, email: true, isGhost: true } },
     },
     orderBy: { joinedAt: "desc" },
   });
@@ -149,6 +180,7 @@ export async function listOffRosterMembers(ctx: RequestContext): Promise<OffRost
     name:      m.name ?? m.brother.name,
     email:     m.brother.email,
     joinedAt:  m.joinedAt.toISOString(),
+    reason:    m.brother.isGhost ? "hidden" : "invite",
   }));
 }
 
@@ -298,6 +330,30 @@ export async function updateBrother(
   return { ...brother, name: displayName };
 }
 
+/**
+ * Hard-delete a member and everything the schema says belongs to them.
+ *
+ * This is a real erasure, not an archive. The dependent rows go with the member
+ * by referential action rather than by application code, because `ctx.db` has no
+ * transaction primitive (see doc-folder-service.ts) and a multi-statement cleanup
+ * could half-fail — leaving someone whose attendance had been wiped but who still
+ * exists. One DELETE, one transaction, enforced by Postgres:
+ *
+ *   erased    attendance records + excuses + exemptions, dues payments,
+ *             reimbursements, poll votes/assignments, task assignments, service
+ *             participation, metric values, role grants, memberships, redemptions
+ *   preserved ledger Transactions and ActivityLog entries, with the actor
+ *             anonymised (SET NULL) — the books and the audit trail must survive
+ *             a member leaving
+ *   preserved OrgInvite links they created, creator anonymised (SET NULL)
+ *
+ * Callers who want the member off the roster while KEEPING their history should
+ * archive instead (`updateBrother` with `archived: true`), which also releases the
+ * billing seat. Deletion is for erasure requests and mistaken entries.
+ *
+ * Two refusals, both raised up front with a reason rather than surfacing as an
+ * opaque FK violation from the database:
+ */
 export async function deleteBrother(ctx: RequestContext, brotherId: number) {
   const target = await ctx.db.brother.findUnique({
     where: { id: brotherId },
@@ -310,6 +366,21 @@ export async function deleteBrother(ctx: RequestContext, brotherId: number) {
     if (adminCount <= 1) {
       throw new ConflictError("Cannot delete the last admin. Promote another brother first.");
     }
+  }
+
+  // PlatformAdmin.brotherId is deliberately still ON DELETE RESTRICT: revoking
+  // someone's platform-staff grant should never be a side effect of an org admin
+  // tidying a roster. Check it here so the caller gets a reason instead of the
+  // 409 "Foreign key constraint" the raw constraint would produce. Not org-scoped
+  // (PlatformAdmin is platform-level, and ctx.db exposes it raw on purpose).
+  const platformGrant = await ctx.db.platformAdmin.findUnique({
+    where:  { brotherId },
+    select: { id: true },
+  });
+  if (platformGrant) {
+    throw new ConflictError(
+      "This account holds a platform-admin grant and can't be removed from a roster. Contact support.",
+    );
   }
 
   await ctx.db.brother.delete({ where: { id: brotherId } });

@@ -215,7 +215,7 @@ Access is controlled by three independent mechanisms: auth tiers, identity flags
 | Flag | What it does |
 |------|--------------|
 | **`isAdmin = true`** | Legacy superuser flag. Still present in schema for backcompat; new code should use `Membership.isOrgAdmin` instead. |
-| **`isGhost = true`** | Full member-level read access, but hidden from every member listing, count, and attendance enrollment — an observer (e.g. an alumnus) with no footprint. Provisioned via the "Atomic Samurai" claim name; never granted admin. |
+| **`isGhost = true`** | Full member-level read access, but hidden from every member listing, count, and attendance enrollment — an observer (e.g. an alumnus) with no footprint. **No longer provisionable.** The claim-name backdoor that minted these rows was removed on 2026-08-01; no code path sets the flag today. The column and any pre-existing rows remain, and off-roster ghosts are now surfaced to admins on the Brothers page so a hidden account can't sit undisclosed. |
 
 ### Permission flags ([lib/permissions.ts](lib/permissions.ts))
 
@@ -393,8 +393,11 @@ figurints/
                 ▼
 5. User types their name → POST /api/auth/claim
         │
-        ├── Name matches one unclaimed Brother row → link it, create Membership
-        └── Name is "Atomic Samurai" → provision a hidden ghost row (full access, no footprint)
+        ├── No match ─────────────────────► 404 "No brother found with that name"
+        ├── Matches >1 row ───────────────► 409 "Multiple brothers share that name"
+        ├── Row already has an authUserId ► 409 "already linked to another account"
+        │
+        └── Exactly one unclaimed Brother row → link it, create Membership
                 │
                 ▼
 6. authUserId written to the Brother row, Membership created
@@ -437,7 +440,7 @@ A separate table (not a flag on `Brother`) for cross-org superusers. One row per
 | avatarUrl | String? | Custom profile photo (source of truth) |
 | email | String? | Cached from the session |
 | isAdmin | Boolean | Legacy flag; prefer `Membership.isOrgAdmin` in new code |
-| isGhost | Boolean | Hidden observer — excluded from all listings/counts |
+| isGhost | Boolean | Hidden observer — excluded from all listings/counts. Legacy: no code path sets it (see [Identity flags](#identity-flags-on-brother)) |
 | customFields | Json | Sparse `{ fieldId → value }` map for org-defined member fields |
 | roles | BrotherRole[] | Many-to-many join to `Role` |
 | memberships | Membership[] | Orgs this brother belongs to |

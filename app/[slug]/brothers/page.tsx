@@ -39,7 +39,7 @@ function clamp(n: number, lo: number, hi: number) {
 // Minimal service-event shape for the Brother-drawer "Log service hours" picker.
 type ServiceEventOption = { id: number; title: string; date: string };
 /** Shape of GET /api/brothers/off-roster (lib/services/brother-service). */
-type OffRosterMember = { brotherId: number; name: string; email: string | null; joinedAt: string };
+type OffRosterMember = { brotherId: number; name: string; email: string | null; joinedAt: string; reason: "invite" | "hidden" };
 
 // Warm "Chapter Ledger" KPI cell — non-interactive (no per-KPI drawer on this page).
 // `note` carries the optional gold "needs attention" subline.
@@ -217,10 +217,12 @@ export default function BrothersPage() {
       .catch(() => {});
   }, [canAttendance]);
 
-  // People who joined this org through an invite link but can never show up in
-  // the table below, because their Brother row's home org is elsewhere (see
-  // listOffRosterMembers). Without this the admin sees an invite's join count
-  // climb while the roster sits still, and nothing explains the gap.
+  // People who can read this org but can never show up in the table below (see
+  // listOffRosterMembers). Two disjoint groups with very different stories, so
+  // they render as separate callouts: invite joiners whose home org is elsewhere
+  // (otherwise the admin sees an invite's join count climb while the roster sits
+  // still, with nothing explaining the gap), and legacy hidden `isGhost`
+  // accounts, which are a thing an admin needs to know exists at all.
   // Silent on failure: it's an explanatory callout, not roster data.
   useEffect(() => {
     if (!canBrothers) { setOffRoster([]); return; }
@@ -228,6 +230,9 @@ export default function BrothersPage() {
       .then(setOffRoster)
       .catch(() => {});
   }, [canBrothers]);
+
+  const offRosterByInvite = useMemo(() => offRoster.filter(m => m.reason === "invite"), [offRoster]);
+  const offRosterHidden   = useMemo(() => offRoster.filter(m => m.reason === "hidden"), [offRoster]);
 
   // After a drawer approve/reject, drop the acted-on member's chip (floor 0) and
   // patch attendance on approval (mirrors the Timeline review queue).
@@ -416,10 +421,13 @@ export default function BrothersPage() {
       await requestJson<void>(`/api/brothers/${b.id}`, { method: "DELETE" });
     } catch (err) {
       setBrotherList(prev => [...prev, b]);
-      const msg = err instanceof Error && err.message.includes("attendance records")
-        ? "Cannot remove a brother with attendance records."
-        : "Failed to remove brother.";
-      setDeleteError(msg);
+      // Show the server's reason. deleteBrother refuses for exactly two stated
+      // reasons (last admin, platform-admin grant) and both arrive as readable
+      // ConflictError text; anything else falls back. This used to sniff for
+      // "attendance records", a string the server never sent — members with
+      // attendance were undeletable, but the message shown was always the
+      // generic one. They're deletable now, so the branch is gone entirely.
+      setDeleteError(apiErrorMessage(err, "Failed to remove brother."));
     }
   }, [setBrotherList]);
 
@@ -669,18 +677,43 @@ export default function BrothersPage() {
                 row can exist for them until Phase 2 moves these reads to
                 Membership. Explaining that beats leaving the admin to wonder why
                 an invite's join count moved and the roster didn't. */}
-            {offRoster.length > 0 && (
+            {offRosterByInvite.length > 0 && (
               <div className="page-note" style={{ marginTop: 14 }}>
                 <p>
                   <b>
-                    {offRoster.length} {offRoster.length === 1 ? "person" : "people"} joined by invite link
+                    {offRosterByInvite.length} {offRosterByInvite.length === 1 ? "person" : "people"} joined by invite link
                   </b>{" "}
-                  but {offRoster.length === 1 ? "isn’t" : "aren’t"}{" "}
+                  but {offRosterByInvite.length === 1 ? "isn’t" : "aren’t"}{" "}
                   on this roster — they already belong to another organization on
                   ChaptOS. Their access works; the figures above and the table
                   below don&rsquo;t count them.
                 </p>
-                <p className="who">{offRoster.map(m => m.name).join(", ")}</p>
+                <p className="who">{offRosterByInvite.map(m => m.name).join(", ")}</p>
+              </div>
+            )}
+
+            {/* ── Hidden legacy accounts ──
+                `isGhost` rows: full member-level read access, filtered out of every
+                listing, count and attendance roll. They were provisioned by a claim-
+                flow backdoor that no longer exists, so this list can only shrink —
+                but anyone still on it can read this org's data, and before this
+                callout nothing in the product said so. Surfaced with the email
+                attached because revoking one is a support request, not a button:
+                they have no roster row for the table's remove action to target. */}
+            {offRosterHidden.length > 0 && (
+              <div className="page-note" style={{ marginTop: 14 }}>
+                <p>
+                  <b>
+                    {offRosterHidden.length} hidden {offRosterHidden.length === 1 ? "account has" : "accounts have"} read access
+                  </b>{" "}
+                  to this organization without appearing on the roster. These are
+                  legacy observer accounts; nothing can create new ones. They can
+                  see member names, GPA, dues and attendance figures. If you
+                  don&rsquo;t recognise one, contact support to have it removed.
+                </p>
+                <p className="who">
+                  {offRosterHidden.map(m => m.email ?? m.name).join(", ")}
+                </p>
               </div>
             )}
 

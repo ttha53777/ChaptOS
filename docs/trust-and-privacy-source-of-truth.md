@@ -44,8 +44,8 @@ by — or shadow — an org that took that slug. No existing org uses any of the
 |---|-------|-------|--------------------|
 | 1 | **No legal entity, no contact method, no address** anywhere in the app | grep for `mailto:`/`LLC`/`Inc` returns nothing; [Footer.tsx](app/components/landing/sections/Footer.tsx) links "Talk to a human" to `href="#"` | GDPR Art. 13(1)(a)–(b), CCPA §1798.130(a)(5), and CalOPPA all require an identified operator and a working contact channel. A policy without them is defective on its face. |
 | 2 | **"Roster, ledger, attendance and docs export to CSV any time"** | [Trust.tsx:90-92](app/components/landing/sections/Trust.tsx#L90-L92) | Only two of four exist: roster (client-side, [brothers/page.tsx:410](app/[slug]/brothers/page.tsx#L410)) and ledger ([transactions/export/route.ts](app/api/transactions/export/route.ts)). **Attendance and docs have no export path at all.** FTC Act §5 / state UDAP deception. Either build the two exports or narrow the sentence. |
-| 3 | **"full deletion is a request away"** | [Trust.tsx:92](app/components/landing/sections/Trust.tsx#L92) | There is no request channel (see #1), and `deleteBrother()` will **fail with a foreign-key violation** for any member who has ever been marked present or absent — `AttendanceRecord.brotherId` is `ON DELETE RESTRICT` ([migration](prisma/migrations/20260517000644_attendance_v2/migration.sql#L50)), and [deleteBrother()](lib/services/brother-service.ts#L225) does not clear attendance first. Org-level deletion works; member-level erasure does not. |
-| 4 | **Undisclosed hidden-observer accounts.** `Brother.isGhost` grants full member-level read access while being hidden from every listing, count, and attendance roll — provisioned by typing the claim name "Atomic Samurai" | [schema.prisma:169](prisma/schema.prisma#L169), README "Identity flags" | An invisible account with read access to members' GPA and financial records, undisclosed, in a product sold to student orgs. This is the single highest-risk item in the repo. Disclose it precisely, gate it behind org-admin consent, or remove it. Do not publish a trust page while it exists undocumented. |
+| 3 | **"full deletion is a request away"** — *code fixed 2026-08-01, disclosure still open* | [Trust.tsx:92](app/components/landing/sections/Trust.tsx#L92), [migration](prisma/migrations/20260801000000_member_erasure_fks/migration.sql) | `deleteBrother()` used to **fail with a foreign-key violation** for any member ever marked present or absent (26 of 34 members on the dev DB). Fixed by flipping `AttendanceRecord` and `AttendanceExcuse` to `ON DELETE CASCADE` and `OrgInvite.createdByBrotherId` to nullable `SET NULL`; `PlatformAdmin.brotherId` stays `RESTRICT` deliberately and [deleteBrother()](lib/services/brother-service.ts) now raises a named `ConflictError` for it instead of leaking a raw FK error. **Still open:** (a) there is still no request channel — see #1; (b) what *survives* an erasure is undisclosed — `Transaction.brotherId` and `ActivityLog.actorId` are `SET NULL`, so the ledger and audit trail persist with an anonymous actor, which is defensible but must be stated; (c) the migration is **not yet applied to production**. |
+| 4 | **Undisclosed hidden-observer accounts** — *backdoor removed 2026-08-01, existing rows still live* | [claim/route.ts](app/api/auth/claim/route.ts), [schema.prisma](prisma/schema.prisma), README "Identity flags" | `Brother.isGhost` granted full member-level read access while hidden from every listing, count, and attendance roll, and was provisioned by typing the claim name "Atomic Samurai". That mint path is gone; no code path sets the flag today, and the column is annotated as legacy in the README. **Still open:** removing the mint path does not revoke access already granted. Pre-existing ghost rows keep member-level read on members' GPA and dues — **6 of them in dev org `lpe`**. `listOffRosterMembers()` now surfaces off-roster accounts to admins on the Brothers page, so they are no longer invisible, but a keep-or-revoke decision per org is still outstanding and the trust page must not claim otherwise. |
 | 5 | **Platform staff can read and write any org's data** | `PlatformAdmin` tier, [require-user.ts:181](lib/auth/require-user.ts#L181); all permission bits granted, operates via the active-org cookie | Legitimate and normal for SaaS — but it must be disclosed as a named access path with a stated control (audit logging), not left implicit while the page says "your org, your data". |
 | 6 | **CSP is report-only** | [next.config.ts:35](next.config.ts#L35) | Do not write "we enforce a content security policy". You may write that other headers are enforced (§10). |
 | 7 | **No age floor and no age gate** | nothing in the codebase collects or checks age | The footer markets to "Bands, choirs & theatre" and "Student government" — plausibly high-school. Under-13 triggers COPPA; 13–18 triggers state student-privacy statutes (e.g. CA SOPIPA). Set a contractual age floor in the ToS (recommend 16+, or 13+ with school authorization) before this is a customer question. |
@@ -128,7 +128,7 @@ Derived from [schema.prisma](prisma/schema.prisma) (36 models). Grouped by what 
 | Service hours | `Brother.serviceHours` | |
 | **Org-defined custom fields** | `Brother.customFields` (JSON) + `OrganizationConfig.customMemberFields` | **Unbounded — see §6.** Up to 20 fields, 255 chars each, types text/number/select ([custom-member-fields.ts](lib/custom-member-fields.ts)) |
 | Custom metric values | `BrotherMetricValue.value` + `OrgMetricDefinition` | Org-defined KPIs with at-risk bands |
-| Hidden-observer flag | `Brother.isGhost` | See §1 #4 |
+| Hidden-observer flag | `Brother.isGhost` | Legacy — no longer settable; pre-existing rows persist. See §1 #4 |
 
 ### Attendance & absence
 `AttendanceRecord` (per member per event, attended true/false) · `AttendanceExcuse` (**free-text
@@ -265,7 +265,8 @@ Truthful and specific beats vague reassurance. All of this is real and citable.
 1. **PlatformAdmin** — cross-org superuser, all bits, any org via the active-org cookie (§1 #5)
 2. **`Membership.isOrgAdmin`** — all bits within the active org only; switching orgs drops back to member
 3. **Member with roles** — effective permissions = bitwise OR of every held role
-4. **Ghost** (`isGhost`) — member-level read, hidden from all listings (§1 #4)
+4. **Ghost** (`isGhost`) — member-level read, hidden from all listings. Legacy: no longer
+   provisionable, but existing rows retain access and are now surfaced to admins (§1 #4)
 
 **Fourteen permission bits** ([permissions.ts](lib/permissions.ts)): `MANAGE_BROTHERS`,
 `MANAGE_TREASURY`, `MANAGE_EVENTS`, `MANAGE_PARTIES`, `MANAGE_INSTAGRAM`, `MANAGE_SERVICE`,
@@ -502,7 +503,9 @@ than the overclaim it replaces.
 ## 16. Ranked pre-publish fix list
 
 1. Register the entity; add a real contact address and a rights-request inbox. *(Blocks everything.)*
-2. Resolve the ghost-account disclosure — document it precisely, gate it, or remove it.
+2. ~~Resolve the ghost-account disclosure — document it precisely, gate it, or remove it.~~
+   **Mint path removed 2026-08-01.** Remaining: decide keep-or-revoke for the ghost rows that
+   already exist (6 in dev org `lpe`) — removing the backdoor did not revoke their access.
 3. Fix the [Trust.tsx](app/components/landing/sections/Trust.tsx) export sentence, **or** build
    attendance and docs CSV export. Two lines of copy, or two small routes.
 4. Make member erasure actually work: clear `AttendanceRecord` inside `deleteBrother()`, and document
