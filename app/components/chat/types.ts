@@ -34,6 +34,35 @@ export interface AnswerRow {
   ref?: EntityRef;
 }
 
+/**
+ * What tapping a row actually does. The single source of truth shared by the
+ * row's affordance, its click handler and keyboard selection — so the three
+ * can't drift into showing an affordance for an interaction that isn't there.
+ * Precedence matters: a row the server could identify opens its record rather
+ * than spending a model turn re-deriving it.
+ */
+export type RowAction = "peek" | "ask";
+
+export function rowAction(row: AnswerRow): RowAction | null {
+  if (row.ref) return "peek";
+  if (row.ask) return "ask";
+  return null;
+}
+
+/**
+ * Next row the arrows should land on, skipping any the server could resolve to
+ * neither a record nor a follow-up. Selection paints a row as actionable, so
+ * parking it where Enter does nothing reads as a broken key rather than as an
+ * inert row. Returns -1 when no row in the answer can be acted on at all.
+ */
+export function stepRow(rows: AnswerRow[], from: number, dir: 1 | -1): number {
+  if (from < 0) return rows.findIndex(r => rowAction(r));
+  for (let i = from + dir; i >= 0 && i < rows.length; i += dir) {
+    if (rowAction(rows[i])) return i;
+  }
+  return from;
+}
+
 export interface AnswerData {
   verdict: string; // may contain one *emphasis* span — rendered, never injected
   rows: AnswerRow[];

@@ -28,6 +28,7 @@ import { ApprovalsView } from "./chat/ApprovalsView";
 import { dropProvisional, intentFor, planFor, reconcileStep, settleLedger } from "./chat/intent";
 import {
   newId,
+  stepRow,
   timeStamp,
   type AnswerData,
   type AnswerRow,
@@ -560,10 +561,10 @@ export function ChatWidget() {
       if (peek) return;
       if (e.key === "ArrowDown" && rows.length > 0) {
         e.preventDefault();
-        setSelRow(i => Math.min(rows.length - 1, i < 0 ? 0 : i + 1));
+        setSelRow(i => stepRow(rows, i, 1));
       } else if (e.key === "ArrowUp" && rows.length > 0) {
         e.preventDefault();
-        setSelRow(i => Math.max(0, i < 0 ? 0 : i - 1));
+        setSelRow(i => stepRow(rows, i, -1));
       } else if (e.key === "Enter" && selRow >= 0 && rows[selRow]?.ref) {
         e.preventDefault();
         openPeek(rows[selRow]);

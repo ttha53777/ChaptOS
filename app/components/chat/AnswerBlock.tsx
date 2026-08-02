@@ -6,9 +6,9 @@
 // as escaped text (React text nodes); the only markup honored is the single
 // *emphasis* span in the verdict, parsed here — never injected as HTML.
 
-import { IcChev, IcThumbDown, IcThumbUp, KindGlyph } from "./icons";
+import { IcChev, IcSpark, IcThumbDown, IcThumbUp, KindGlyph } from "./icons";
 import { TraceBlock } from "./ReasoningLedger";
-import { initialsOf, type AnswerData, type AnswerRow, type LedgerStep } from "./types";
+import { initialsOf, rowAction, type AnswerData, type AnswerRow, type LedgerStep } from "./types";
 
 function Verdict({ text }: { text: string }) {
   const m = /\*([^*]+)\*/.exec(text);
@@ -29,16 +29,19 @@ function ResultRow({ row, selected, onAsk, onPeek }: {
   onPeek: (row: AnswerRow) => void;
 }) {
   // A row the server could identify opens its record; one it couldn't falls back
-  // to the model's follow-up question, exactly as before.
-  const tappable = Boolean(row.ref || row.ask);
+  // to the model's follow-up question. The affordance says which — a chevron
+  // opens a record on the spot, the spark spends a turn asking — and a row that
+  // resolved to neither (an ambiguous name, say) renders inert rather than
+  // looking identical to its neighbours and then swallowing the tap.
+  const action = rowAction(row);
   return (
     <button
       type="button"
-      className={`res${selected ? " sel" : ""}`}
-      disabled={!tappable}
+      className={`res${selected ? " sel" : ""}${action ? "" : " inert"}`}
+      disabled={!action}
       onClick={() => {
-        if (row.ref) onPeek(row);
-        else if (row.ask) onAsk(row.ask);
+        if (action === "peek") onPeek(row);
+        else if (action === "ask") onAsk(row.ask!);
       }}
     >
       {row.kind === "person"
@@ -49,7 +52,10 @@ function ResultRow({ row, selected, onAsk, onPeek }: {
         {row.subtitle && <span className="s">{row.subtitle}</span>}
       </span>
       {row.value && <span className="val">{row.value}</span>}
-      <span className="chev"><IcChev /></span>
+      <span className={`chev${action === "ask" ? " ask" : ""}`}>
+        {action === "peek" && <IcChev />}
+        {action === "ask" && <IcSpark size={14} />}
+      </span>
     </button>
   );
 }
