@@ -109,6 +109,13 @@ export function LandingMotion() {
       const items = qa<HTMLElement>("[data-para]").map(el => ({
         el,
         speed: parseFloat(el.getAttribute("data-speed") ?? "") || 0.06,
+        /* Opt-in floor for drift that only makes sense in one layout. The price
+           rungs stagger against each other while the ladder is a single row;
+           the moment it wraps to 2×2 the same offsets read as a misaligned
+           grid, which is exactly why the CSS lift is dropped there too. Below
+           the floor the target is pinned to 0 rather than the item being
+           skipped, so a resize lerps it home instead of snapping. */
+        min: parseFloat(el.getAttribute("data-para-min") ?? "") || 0,
         cur: 0,
         target: 0,
       }));
@@ -122,6 +129,10 @@ export function LandingMotion() {
       function measure() {
         vh = innerHeight;
         for (const it of items) {
+          if (innerWidth < it.min) {
+            it.target = 0;
+            continue;
+          }
           const r = it.el.getBoundingClientRect();
           it.target = (r.top + r.height / 2 - vh / 2) * it.speed;
         }

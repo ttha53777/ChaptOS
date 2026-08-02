@@ -23,6 +23,7 @@ import { Hero } from "./sections/Hero";
 import { Modules } from "./sections/Modules";
 import { Nav } from "./sections/Nav";
 import { Pain } from "./sections/Pain";
+import { Price } from "./sections/Price";
 import { Setup } from "./sections/Setup";
 import { Trust } from "./sections/Trust";
 
@@ -71,6 +72,7 @@ export function LandingPage() {
         <Modules />
         <Setup />
         <Trust />
+        <Price />
         <Cta />
       </main>
 

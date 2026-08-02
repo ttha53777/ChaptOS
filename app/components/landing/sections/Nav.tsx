@@ -15,6 +15,11 @@ export function Nav() {
           <a href="#modules">What&apos;s in it</a>
           <a href="#setup">Setup</a>
           <a href="#trust">Trust</a>
+          {/* In-page, not /pricing: the section answers it in five seconds and
+              links through, so a visitor asking the price doesn't leave the
+              funnel to find out. Every other public nav (PublicChrome) points
+              at the page itself, which is right there — this one shouldn't. */}
+          <a href="#price">Pricing</a>
         </nav>
         <div className="nav__cta">
           <SignInLink className="btn btn--ghost btn--sm">Sign in</SignInLink>

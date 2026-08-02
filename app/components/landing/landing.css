@@ -25,9 +25,11 @@
      7. modules     (three surfaces a Tuesday can't show + the rest, in a line)
      8. setup       (the interview + a live blueprint that swaps per org type)
      9. trust
-    10. cta (semester-aware)
-    11. footer
-    12. motion utilities + reduced-motion + mobile
+    10. pricing    (the band ladder — a row you land on, not a plan you pick;
+                    the page's deepest parallax stack sits behind it)
+    11. cta (semester-aware)
+    12. footer
+    13. motion utilities + reduced-motion + mobile
 
    Motion contract: elements carrying [data-para] are owned by the JS parallax
    engine and must never also carry [data-reveal] — nest instead. Mobile clears
@@ -263,6 +265,10 @@ html:has(.lp) *::-webkit-scrollbar-thumb:hover{background:rgba(38,33,27,.26)}
 .lp .hero__actions{display:flex; flex-wrap:wrap; gap:12px; margin-top:32px}
 .lp .hero__fine{margin-top:18px; font-size:.85rem; color:var(--ink-3); display:flex; flex-wrap:wrap; gap:6px 14px; align-items:center}
 .lp .hero__fine .dot{background:var(--line-2)}
+/* the one link in the fine print — underlined so it reads as a way through,
+   not as emphasis on a claim */
+.lp .hero__fine a{color:var(--ink-2); font-weight:600; text-decoration:underline; text-decoration-color:var(--line-2); text-underline-offset:3px}
+.lp .hero__fine a:hover{color:var(--ink); text-decoration-color:var(--mint-ink)}
 
 .lp .hero__stage{position:relative; min-height:470px}
 
@@ -846,7 +852,179 @@ html:has(.lp) *::-webkit-scrollbar-thumb:hover{background:rgba(38,33,27,.26)}
 .lp .trust__more a svg{transition:transform .18s var(--ease-out)}
 .lp .trust__more a:hover svg{transform:translateX(2.5px)}
 
-/* ---------- 10. semester CTA ----------------------------------------------- */
+/* ---------- 10. pricing ---------------------------------------------------- */
+/* A tinted band between two sections that sit on bare paper, so price reads as
+   a deliberate interlude rather than another chapter. Hairline rules top and
+   bottom; --paper-2 covers the fixed washes locally, which is the point. */
+.lp .price{
+  position:relative; overflow:hidden;
+  background:var(--paper-2);
+  border-block:1.5px solid var(--line);
+  /* Three links point at #price (nav, hero fine print, CTA fine print) and the
+     nav is sticky, so the jump needs an offset. The other sections get away
+     without one only because .section's padding is larger than the bar —
+     .section--tight isn't, and at ≤860 it drops to 64px against a ~68px nav,
+     which lands the eyebrow underneath it. Mirrors --pub-nav-h. */
+  scroll-margin-top:76px;
+}
+
+/* --- the depth stack ------------------------------------------------------
+   Five parallax layers between the paper and the copy, so the band has a back
+   rather than being a flat tint. All of them are owned by the JS engine (see
+   §13's motion contract): nothing here may set `transform` for layout, which
+   is why the staircase centres on auto margins and the blobs are wrapped
+   spans. Each layer is oversized past the section's overflow:hidden by more
+   than its own drift budget, so no offset can ever expose an edge. */
+.lp .price__depth{position:absolute; inset:0; z-index:0; pointer-events:none}
+
+/* the bloom, slowest. Sized in vw so it stays huge at any width; these are the
+   page's --*-soft tints, which sit a shade off --paper-2 and read as light
+   rather than as colour. */
+.lp .price__wash{
+  position:absolute; inset:-20%;
+  background:
+    radial-gradient(38vw 30vw at 16% 24%, var(--mint-soft),  transparent 64%),
+    radial-gradient(34vw 28vw at 86% 16%, var(--sky-soft),   transparent 62%),
+    radial-gradient(40vw 32vw at 62% 98%, var(--lilac-soft), transparent 64%);
+}
+/* ledger rules — accounting paper under the section about money. The mask is
+   load-bearing: it clears the middle, where the centred copy runs, and only
+   lets the lines build toward the edges. Without it this is a lined notebook
+   behind a paragraph. --line-2 rather than --line: on --paper-2 the lighter
+   one is invisible, which is a texture nobody can see rather than a subtle
+   one. */
+.lp .price__rules{
+  position:absolute; inset:-16% 0; opacity:.42;
+  background:repeating-linear-gradient(to bottom, transparent 0 33px, var(--line-2) 33px 34.5px);
+  -webkit-mask-image:radial-gradient(108% 72% at 50% 50%, transparent 40%, #000 92%);
+  mask-image:radial-gradient(108% 72% at 50% 50%, transparent 40%, #000 92%);
+}
+
+/* the doodles ride in front of the layers, one drifting each way. The span
+   carries the position and the colour; the svg inside just fills it, and
+   inherits `color` for its currentColor stroke. */
+.lp .price__blob{position:absolute; display:block; pointer-events:none; z-index:0}
+.lp .price__blob svg{width:100%; height:auto}
+
+.lp .price > .wrap{position:relative; z-index:1}
+.lp .price__head{text-align:center; max-width:720px; margin-inline:auto}
+.lp .price__head .lede{max-width:54ch; margin-inline:auto}
+.lp .price__head em{font-style:normal; font-weight:650; color:var(--ink)}
+
+/* The deck exists only to give the ghost staircase something to measure
+   against: anchored here it lines up with the rungs at every width, which
+   nothing positioned off the section's own height could manage. */
+.lp .ladder__deck{position:relative}
+/* Hangs below the cards so the bottom tread and the ground line clear them —
+   the rise is legible in the gaps between rungs and under the row, and the
+   cards cover the rest, which is what makes it read as a ghost rather than a
+   second ladder. preserveAspectRatio:none in the markup lets it stretch to the
+   deck instead of letterboxing, so its treads track the grid's columns.
+
+   Overrides .doodle's stroke (--ink is a hard black line at this scale) and its
+   width — vector-effect:non-scaling-stroke means stroke-width is in screen px,
+   so stretching the 640-unit box across the wrap doesn't fatten it. */
+.lp .ladder__ghost{
+  position:absolute; z-index:0; left:-2.5%; top:-10%;
+  /* An <svg> is a replaced element: with height:auto it takes its intrinsic
+     aspect ratio and `bottom` is dropped as over-constrained, which sizes this
+     off the wrap's width instead of the deck's height and sends the staircase
+     a third of a section past the cards. Both axes are stated in % of the deck
+     for that reason, and max-width is cleared because .lp svg's 100% would
+     otherwise clamp the 105% the same way. */
+  width:105%; height:124%; max-width:none;
+  stroke:var(--line-2); stroke-width:2.4; opacity:.9;
+}
+.lp .ladder__ghost-base{stroke-dasharray:5 14; opacity:.6}
+
+/* the ladder: four rungs rising left to right. --i is the rung index; the lift
+   is what makes it a staircase rather than a plan-picker, so it's load-bearing
+   and not decoration. align-items:end pins the bottoms before the lift. */
+.lp .ladder{
+  position:relative; z-index:1;
+  margin-top:clamp(30px,4vw,44px);
+  display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:14px;
+  align-items:end;
+}
+/* The <li> is the parallax carrier and holds nothing but the cell and the
+   lift — the card lives one level in, because [data-para] and [data-reveal]
+   can't share a node. */
+.lp .rung{
+  margin-bottom:calc(var(--i, 0) * 15px);
+  /* Equal heights are what make the lift read as a staircase: left to content
+     height the four rungs differ by a text line and both edges come out ragged,
+     which looks like a broken grid rather than a rise. Sized for the tallest
+     case (a two-line note at the narrowest 4-col width) with headroom; the note
+     pins to the bottom of the leftover space. Only matters above 1080, where
+     the lift is cleared and the grid stretches instead. */
+  min-height:152px;
+  display:flex;
+}
+.lp .rung__in{
+  flex:1;
+  padding:20px 18px 18px;
+  background:var(--card); border:1.5px solid var(--line);
+  border-top:4px solid var(--bt, var(--mint));
+  border-radius:var(--r-lg); box-shadow:var(--sh-1);
+  display:flex; flex-direction:column;
+}
+.lp .rung--quote .rung__in{background:var(--paper-3); box-shadow:none}
+.lp .rung__range{
+  font-size:.72rem; letter-spacing:.11em; text-transform:uppercase;
+  color:var(--bti, var(--ink-3)); font-weight:600;
+}
+.lp .rung__price{display:flex; align-items:baseline; gap:5px; margin-top:11px}
+.lp .rung__price .n{font-family:var(--display); font-size:clamp(1.75rem,2.6vw,2.2rem); font-weight:600; letter-spacing:-.035em; color:var(--ink)}
+.lp .rung__price .per{font-size:.84rem; color:var(--ink-3)}
+.lp .rung__custom{font-family:var(--display); font-size:clamp(1.2rem,1.8vw,1.45rem); font-weight:600; letter-spacing:-.025em; color:var(--ink)}
+.lp .rung__note{margin-top:auto; padding-top:9px; font-size:.84rem; line-height:1.5; color:var(--ink-3)}
+
+/* The thesis of the section: you don't choose one of these. The gap is wider
+   than the 22px it wants on its own because the ghost's ground line hangs
+   below the deck and drifts another ~30px with the scroll — at 22px the dashes
+   run straight through this sentence at the top of the section's pass. */
+.lp .ladder__cap{
+  margin-top:clamp(34px,3.4vw,48px); display:flex; gap:9px; align-items:flex-start; justify-content:center;
+  text-align:center; max-width:60ch; margin-inline:auto;
+  font-size:.92rem; line-height:1.55; color:var(--ink-2);
+}
+.lp .ladder__cap svg{flex:none; margin-top:2px; color:var(--mint-ink)}
+
+/* three reassurances — no card chrome on purpose, so this doesn't read as a
+   second grid of boxes stacked under the first */
+.lp .assur{margin-top:clamp(34px,4.6vw,52px); display:grid; grid-template-columns:repeat(3,1fr); gap:clamp(20px,3vw,36px)}
+.lp .assur__ic{
+  width:38px; height:38px; border-radius:12px; display:grid; place-items:center;
+  background:var(--g, var(--mint-soft)); border:1.5px solid var(--gb, #BDE7D2);
+}
+.lp .assur__i h4{margin-top:14px}
+/* the cap only bites once this collapses to one column, where the full wrap
+   width would otherwise hand these a ~95ch measure */
+.lp .assur__i p{margin-top:8px; font-size:.92rem; line-height:1.55; color:var(--ink-2); max-width:62ch}
+.lp .assur__i em{font-style:normal; font-weight:600; color:var(--ink)}
+
+/* way through to /pricing. Same shape as .trust__more one section up — the two
+   "there is a whole page about this" affordances should look identical. */
+.lp .price__more{
+  margin-top:clamp(30px,4vw,42px); display:flex; flex-wrap:wrap; gap:6px 16px;
+  align-items:center; justify-content:center; text-align:center;
+  font-size:.9rem; color:var(--ink-3);
+}
+.lp .price__more a{
+  display:inline-flex; align-items:center; gap:8px;
+  color:var(--ink); font-weight:600; text-decoration:none;
+  padding:9px 17px; border-radius:var(--r-pill);
+  border:1.5px solid var(--line-2); background:var(--card);
+  transition:transform .18s var(--ease-spring), box-shadow .18s var(--ease-spring), border-color .18s;
+}
+.lp .price__more a:hover{
+  border-color:var(--ink); transform:translate(-1.5px,-1.5px);
+  box-shadow:3.5px 3.5px 0 var(--mint);
+}
+.lp .price__more a svg{transition:transform .18s var(--ease-out)}
+.lp .price__more a:hover svg{transform:translateX(2.5px)}
+
+/* ---------- 11. semester CTA ----------------------------------------------- */
 .lp .cta{padding:clamp(80px,10vw,150px) 0; position:relative; overflow:hidden}
 .lp .cta__card{
   position:relative; z-index:2; text-align:center;
@@ -872,9 +1050,12 @@ html:has(.lp) *::-webkit-scrollbar-thumb:hover{background:rgba(38,33,27,.26)}
 .lp .plan__step p{margin-top:7px; font-size:.89rem; color:var(--ink-2); line-height:1.5}
 .lp .plan__arrow{position:absolute; right:-19px; top:50%; transform:translateY(-50%); width:26px; z-index:3}
 .lp .cta__fine{margin-top:26px; font-size:.85rem; color:var(--ink-3)}
+/* was inheriting the UA's default link blue on a warm cream card */
+.lp .cta__fine a{color:var(--ink-2); font-weight:600; text-decoration:underline; text-decoration-color:var(--line-2); text-underline-offset:3px}
+.lp .cta__fine a:hover{color:var(--ink); text-decoration-color:var(--mint-ink)}
 .lp .cta__blob{position:absolute; pointer-events:none; z-index:1}
 
-/* ---------- 11. footer ----------------------------------------------------- */
+/* ---------- 12. footer ----------------------------------------------------- */
 .lp .foot{border-top:1.5px solid var(--line); padding:clamp(48px,6vw,76px) 0 40px; background:var(--paper-2)}
 .lp .foot__grid{display:grid; grid-template-columns:1.5fr repeat(3, 1fr); gap:34px}
 .lp .foot__blurb{margin-top:16px; font-size:.92rem; color:var(--ink-2); max-width:34ch; line-height:1.6}
@@ -885,7 +1066,7 @@ html:has(.lp) *::-webkit-scrollbar-thumb:hover{background:rgba(38,33,27,.26)}
 .lp .foot__base{margin-top:44px; padding-top:22px; border-top:1.5px solid var(--line); display:flex; flex-wrap:wrap; gap:12px; align-items:center; font-size:.83rem; color:var(--ink-3)}
 .lp .foot__base .sp{margin-left:auto}
 
-/* ---------- 12. motion utilities ------------------------------------------ */
+/* ---------- 13. motion utilities ------------------------------------------ */
 .lp [data-reveal]{
   opacity:0; transform:translate3d(0, var(--ry, 26px), 0);
   transition:opacity .72s var(--ease-out) var(--d,0ms), transform .92s var(--ease-spring) var(--d,0ms);
@@ -941,6 +1122,21 @@ html:has(.lp) *::-webkit-scrollbar-thumb:hover{background:rgba(38,33,27,.26)}
 @media (max-width: 1080px){
   .lp .guards{grid-template-columns:1fr 1fr}
   .lp .guards .guard:last-child{grid-column:span 2}
+  /* Two up, and the staircase lift goes with the single row that justified it —
+     kept on a 2×2 it reads as a misaligned grid, not a rise. */
+  .lp .ladder{grid-template-columns:repeat(2,minmax(0,1fr)); align-items:stretch}
+  /* min-height existed to equalise the four rungs so the lift read as a rise;
+     with the lift gone the grid equalises them per row on its own, and holding
+     152px just pads dead space into a column that now costs scroll. */
+  .lp .rung{margin-bottom:0; min-height:0}
+  /* The ghost goes with the lift for the same reason, and one more: it draws
+     four treads for four rungs, which is a lie the moment the row wraps to a
+     2×2. The wash and the rules carry the depth from here down. */
+  .lp .ladder__ghost{display:none}
+  /* .assur deliberately does NOT drop to two here the way .guards does: these
+     are bare paragraphs, not cards, so they take a narrow column happily —
+     whereas spanning the third across the full width gives it a ~90ch measure
+     that matches nothing else in the section. It goes straight to one at 900. */
   .lp .foot__grid{grid-template-columns:1fr 1fr 1fr}
   .lp .foot__brand{grid-column:span 3}
 }
@@ -968,6 +1164,7 @@ html:has(.lp) *::-webkit-scrollbar-thumb:hover{background:rgba(38,33,27,.26)}
   .lp .mod__grid{grid-template-columns:minmax(0,1fr) !important; gap:28px}
   .lp .guards{grid-template-columns:minmax(0,1fr)}
   .lp .guards .guard:last-child{grid-column:auto}
+  .lp .assur{grid-template-columns:minmax(0,1fr)}
   .lp .plan{grid-template-columns:minmax(0,1fr)}
   .lp .plan__arrow{display:none}
   .lp .foot__grid{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
@@ -1029,6 +1226,10 @@ html:has(.lp) *::-webkit-scrollbar-thumb:hover{background:rgba(38,33,27,.26)}
   .lp{font-size:16px}
   .lp .wrap,.lp .wrap--narrow{width:calc(100% - 32px)}
   .lp .hero__actions .btn{width:100%}
+  .lp .ladder{grid-template-columns:minmax(0,1fr)}
+  /* one column of centred copy is too narrow to have anything drifting behind
+     it, even at .26 — the CTA's blobs survive because that card is opaque */
+  .lp .price__blob{display:none}
   .lp .ui-roll{grid-template-columns:1fr 1fr}
   .lp .ui-meas{grid-template-columns:1fr 1fr}
   .lp .ui-board{grid-template-columns:1fr 1fr}

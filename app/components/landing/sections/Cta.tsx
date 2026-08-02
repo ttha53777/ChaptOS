@@ -1,8 +1,7 @@
 import { Doodle, sx } from "../Doodle";
-import { BILLING_BANDS, formatPrice } from "@/lib/billing/tiers";
+import { BILLING_BANDS } from "@/lib/billing/tiers";
 
 const FREE_BAND = BILLING_BANDS[0];
-const FIRST_PAID = BILLING_BANDS.find(b => (b.priceCents ?? 0) > 0) ?? BILLING_BANDS[1];
 
 /**
  * The countdown and the three step labels are filled in by term() after mount,
@@ -121,11 +120,14 @@ export function Cta() {
               of this line claimed "free under 25 members · $29/term · advisor and
               campus-wide plans" — a wrong limit, a wrong price, a wrong billing
               period, and two plans that never existed. A hardcoded price is a
-              promise that rots. */}
+              promise that rots.
+
+              Shorter than it was, because <Price /> now sits directly above and
+              says the same thing at full size. This keeps the free tier next to
+              the button that uses it and gets out of the way. */}
           <p className="cta__fine">
-            Free for orgs of {FREE_BAND.upTo} or fewer, forever ·{" "}
-            {formatPrice(FIRST_PAID.priceCents)}/month above that, for the whole org ·
-            Every feature on every plan · <a href="/pricing">See pricing</a>
+            Free for orgs of {FREE_BAND.upTo} or fewer, forever · Every feature on every plan ·{" "}
+            <a href="#price">What it costs</a>
           </p>
         </div>
       </div>

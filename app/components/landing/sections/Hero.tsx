@@ -1,4 +1,7 @@
 import { Doodle, sx } from "../Doodle";
+import { BILLING_BANDS } from "@/lib/billing/tiers";
+
+const FREE_BAND = BILLING_BANDS[0];
 
 /**
  * The hero opens on a COLD OPEN, not a poster: the card chrome and the body's
@@ -51,10 +54,17 @@ export function Hero() {
             </a>
           </div>
 
+          {/* The middle chip carries the price, derived from BILLING_BANDS —
+              "will this cost me?" is answered on the first screen rather than
+              nine sections down in the CTA's fine print. It replaces "No card,
+              no contract" instead of joining it: three chips is what the row
+              fits, and the free tier is the stronger version of that claim. */}
           <p className="hero__fine" data-reveal style={sx({ "--d": "260ms" })}>
             <span>Built around your org, not a template</span>
             <span className="dot" />
-            <span>No card, no contract</span>
+            <span>
+              Free up to {FREE_BAND.upTo} people, no card — <a href="#price">what it costs</a>
+            </span>
             <span className="dot" />
             <span>Export everything, any time</span>
           </p>
