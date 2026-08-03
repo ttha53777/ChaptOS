@@ -197,7 +197,7 @@ export function CreateFlow() {
             <BuildStep
               draft={draft}
               autoBuild={resume}
-              onSlugTaken={message => {
+              onSlugRejected={message => {
                 setResume(false);
                 setSlugNotice(message);
                 goto("blueprint");

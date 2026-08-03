@@ -20,6 +20,7 @@ import {
 import { roleSummary } from "@/lib/onboarding/perm-areas";
 import { roleToneIvory } from "@/lib/onboarding/seats";
 import type { WorkflowId } from "@/lib/org-types";
+import { validateSlugFormat, type SlugIssue } from "@/lib/slug-rules";
 import type { VocabKey } from "@/lib/vocab";
 import {
   DISPLAY_HOST,
@@ -37,29 +38,58 @@ type SlugState =
   | { kind: "idle" }
   | { kind: "checking" }
   | { kind: "ok" }
-  | { kind: "bad"; message: string }
+  /** `label` is the badge inside the field (one or two words); `message` is the
+      sentence under it. They used to be one hardcoded "too short". */
+  | { kind: "bad"; label: string; message: string }
   | { kind: "taken"; suggestions: string[] };
 
-export function SlugEditor({
-  draft,
-  dispatch,
-  invalidNotice,
-}: {
-  draft: Draft;
-  dispatch: React.Dispatch<FlowAction>;
-  /** Set when a create attempt bounced back here (409) — shown once. */
-  invalidNotice?: string | null;
-}) {
-  const slug = draftSlug(draft);
+/** The badge word for each way a slug can fail format/reserved/profanity rules. */
+const SLUG_ISSUE_LABEL: Record<SlugIssue, string> = {
+  empty:        "needed",
+  "too-short":  "too short",
+  "too-long":   "too long",
+  "bad-format": "not allowed",
+  reserved:     "reserved",
+  profane:      "not allowed",
+};
+
+/** Whether a slug state is a KNOWN-fatal answer — the org cannot be created with
+    this URL, so the Build button must not offer to try. "checking" and "idle" (a
+    network hiccup) are deliberately not fatal: the POST re-checks, and blocking
+    on an unknown would strand a founder whose connection is flaky. */
+export function slugBlocks(state: SlugState): boolean {
+  return state.kind === "bad" || state.kind === "taken";
+}
+
+/**
+ * The blueprint's live slug check, owned by the STEP rather than by the field —
+ * the Build button has to know the answer too. Format rules are evaluated
+ * locally first: they're the same rules the server applies (lib/slug-rules is
+ * pure and shared), so an empty, reserved, over-long or malformed slug gets an
+ * instant, offline-proof answer and never spends a request. Only a
+ * format-passing slug asks the network the one thing it alone knows — whether
+ * someone already took it.
+ */
+function useSlugCheck(slug: string): SlugState {
   const [state, setState] = useState<SlugState>({ kind: "idle" });
-  const [focus, setFocus] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Debounced live check against the real availability endpoint.
   useEffect(() => {
     if (timer.current) clearTimeout(timer.current);
-    if (!slug || slug.length < 3) {
-      setState({ kind: "bad", message: "3 characters or more." });
+    const local = validateSlugFormat(slug);
+    if (!local.ok) {
+      setState({
+        kind: "bad",
+        label: local.issue ? SLUG_ISSUE_LABEL[local.issue] : "won't work",
+        // "empty" gets flow-specific copy: at this point the founder hasn't
+        // typed a URL, they were handed one — and if it came out empty their org
+        // name had nothing romanizable in it, which "Slug is required" doesn't
+        // explain.
+        message:
+          local.issue === "empty"
+            ? "We couldn't build a web address out of your org's name — type one here."
+            : local.message ?? "That URL won't work.",
+      });
       return;
     }
     setState({ kind: "checking" });
@@ -76,7 +106,7 @@ export function SlugEditor({
         const data = await res.json();
         if (data.ok) setState({ kind: "ok" });
         else if (data.reason === "taken") setState({ kind: "taken", suggestions: data.suggestions ?? [] });
-        else setState({ kind: "bad", message: data.message ?? "That URL won't work." });
+        else setState({ kind: "bad", label: "won't work", message: data.message ?? "That URL won't work." });
       } catch {
         setState({ kind: "idle" }); // network hiccup — stay quiet, POST re-checks anyway
       }
@@ -87,12 +117,35 @@ export function SlugEditor({
     };
   }, [slug]);
 
+  return state;
+}
+
+export function SlugEditor({
+  draft,
+  dispatch,
+  state,
+  inputRef,
+  invalidNotice,
+}: {
+  draft: Draft;
+  dispatch: React.Dispatch<FlowAction>;
+  /** From useSlugCheck, owned by the step — see slugBlocks. */
+  state: SlugState;
+  /** So the blocked Build CTA can send the founder straight here. */
+  inputRef?: React.RefObject<HTMLInputElement | null>;
+  /** Set when a create attempt bounced back here (409/400) — shown once. */
+  invalidNotice?: string | null;
+}) {
+  const slug = draftSlug(draft);
+  const [focus, setFocus] = useState(false);
+
   const bad = state.kind === "taken" || state.kind === "bad";
   return (
     <div className="bp-url">
       <div className={`url-field${focus ? " focus" : ""}${bad ? " taken" : ""}${state.kind === "ok" ? " ok" : ""}`}>
         <span className="url-host">{DISPLAY_HOST}/</span>
         <input
+          ref={inputRef}
           className="url-slug"
           spellCheck={false}
           autoComplete="off"
@@ -122,7 +175,10 @@ export function SlugEditor({
               : state.kind === "taken"
                 ? "taken"
                 : state.kind === "bad"
-                  ? "too short"
+                  ? // Was hardcoded "too short", which was a lie for every other
+                    // way a slug fails — reserved, profane, malformed, or empty
+                    // because the org's name had no romanizable letters in it.
+                    state.label
                   : state.kind === "checking"
                     ? "…"
                     : ""}
@@ -428,6 +484,15 @@ export function BlueprintStep({
 }) {
   const enabled = wfSet(draft);
   const name = draft.name.trim() || "your organization";
+  const slugState = useSlugCheck(draftSlug(draft));
+  const slugInputRef = useRef<HTMLInputElement>(null);
+  // The URL is the one thing on this sheet that can make the build IMPOSSIBLE
+  // rather than merely different. Everything else here is a preference; a slug
+  // that fails the shared rules will be rejected by POST /api/orgs no matter how
+  // many times it's retried — and the founder signs in with Google in between,
+  // so an unblocked button spends their sign-in to reach an error it already
+  // knew about.
+  const buildBlocked = slugBlocks(slugState);
 
   return (
     <div className="bp">
@@ -441,7 +506,13 @@ export function BlueprintStep({
         </p>
       </div>
 
-      <SlugEditor draft={draft} dispatch={dispatch} invalidNotice={slugNotice} />
+      <SlugEditor
+        draft={draft}
+        dispatch={dispatch}
+        state={slugState}
+        inputRef={slugInputRef}
+        invalidNotice={slugNotice}
+      />
 
       <div className="bp-grid">
         <div className="bp-col">
@@ -531,9 +602,26 @@ export function BlueprintStep({
         </div>
       </div>
       <div className="bp-cta-row">
-        <button className="cta big" onClick={onBuild}>
+        <button className="cta big" onClick={onBuild} disabled={buildBlocked}>
           Looks right — build it<span>→</span>
         </button>
+        {buildBlocked && (
+          <p className="bp-blocked">
+            {slugState.kind === "taken"
+              ? "That web address is taken — "
+              : "Your web address needs fixing — "}
+            <button
+              className="link-btn"
+              onClick={() => {
+                slugInputRef.current?.focus();
+                slugInputRef.current?.select();
+              }}
+            >
+              pick another
+            </button>{" "}
+            first.
+          </p>
+        )}
       </div>
       <p className="bp-foot">
         This exact sheet is what gets created — atomically, in one step. Every line still has a home

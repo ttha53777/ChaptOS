@@ -22,6 +22,7 @@ import { BILLING_BANDS, formatPrice } from "@/lib/billing/tiers";
 const FREE_BAND = BILLING_BANDS[0];
 const FIRST_PAID = BILLING_BANDS.find(b => (b.priceCents ?? 0) > 0) ?? BILLING_BANDS[1];
 import { ORG_SLUG_HEADER } from "@/app/lib/api";
+import { validateSlugFormat } from "@/lib/slug-rules";
 import { clearStoredDraft, DISPLAY_HOST, draftSlug } from "./flow-state";
 import { OrgMark } from "./OrgMark";
 
@@ -46,14 +47,17 @@ function GoogleIcon() {
 export function BuildStep({
   draft,
   autoBuild,
-  onSlugTaken,
+  onSlugRejected,
   onBackToBlueprint,
   onBackToName,
 }: {
   draft: Draft;
   /** True when we just returned from OAuth (?resume=1) — fire immediately. */
   autoBuild: boolean;
-  onSlugTaken: (message: string) => void;
+  /** Send them back to the blueprint's URL field with a reason. Covers every way
+      the slug can be unusable — taken, malformed, reserved, or empty — not just
+      the 409 this was originally written for. */
+  onSlugRejected: (message: string) => void;
   onBackToBlueprint: () => void;
   onBackToName: () => void;
 }) {
@@ -101,6 +105,25 @@ export function BuildStep({
     }
 
     const input = draftToCreateOrgInput(draft, fallbackName);
+
+    // Last line of defence, and the only one the ?resume=1 leg ever meets: that
+    // leg auto-fires from here without rendering the blueprint, so its disabled
+    // Build button never had a chance to stop an unusable URL. The rules are the
+    // same pure module the server validates with, so this can't disagree with
+    // it — it just fails here, where the founder can fix it, instead of after a
+    // round trip through Google sign-in.
+    const slugCheck = validateSlugFormat(input.slug);
+    if (!slugCheck.ok) {
+      started.current = false;
+      setPhase({ kind: "signin" });
+      onSlugRejected(
+        slugCheck.issue === "empty" || slugCheck.issue === "too-short"
+          ? "Your org needs a web address before it can be built — type one here."
+          : slugCheck.message ?? "That web address won't work — pick another.",
+      );
+      return;
+    }
+
     const seatLine = draft.seats
       .map((s, i) => `${s.title}${i === 0 ? " (you)" : ""}`)
       .join(", ");
@@ -162,7 +185,22 @@ export function BuildStep({
 
       started.current = false;
       if (res.status === 409) {
-        onSlugTaken(`${DISPLAY_HOST}/${input.slug} was claimed while you were signing in — pick another.`);
+        onSlugRejected(`${DISPLAY_HOST}/${input.slug} was claimed while you were signing in — pick another.`);
+        return;
+      }
+      // A 400 is the payload failing the API's schema, which no amount of
+      // retrying changes — the old "Couldn't create it / Validation failed" with
+      // a Try again button was a loop with no exit, offered to a founder who had
+      // just signed in for it. Send them back to the sheet that can actually be
+      // edited, naming the field when the schema tells us which one.
+      if (res.status === 400) {
+        const issues = Array.isArray(data?.details) ? (data.details as { path?: unknown[] }[]) : [];
+        const onSlug = issues.some(i => Array.isArray(i.path) && i.path[0] === "slug");
+        onSlugRejected(
+          onSlug
+            ? `${DISPLAY_HOST}/${input.slug} isn't a usable web address — pick another.`
+            : "Something on the blueprint didn't pass our checks — have a look and try again.",
+        );
         return;
       }
       if (res.status === 401) {
@@ -194,7 +232,7 @@ export function BuildStep({
         canRetry: true,
       });
     }
-  }, [draft, onSlugTaken]);
+  }, [draft, onSlugRejected]);
 
   // Post-OAuth resume: the callback landed us here with a restored draft.
   useEffect(() => {

@@ -25,6 +25,7 @@ export function NameStep({
   const fileRef = useRef<HTMLInputElement>(null);
   const [logoError, setLogoError] = useState<string | null>(null);
   const named = !!draft.name.trim();
+  const slug = draftSlug(draft);
 
   function pickLogo(file: File | null | undefined) {
     if (!file) return;
@@ -65,7 +66,13 @@ export function NameStep({
         autoFocus
       />
       <div className="slugline" style={{ opacity: named ? 1 : 0 }}>
-        {DISPLAY_HOST}/<b>{draftSlug(draft) || " "}</b> — reserved while you set up
+        {slug ? (
+          <>
+            {DISPLAY_HOST}/<b>{slug}</b> — reserved while you set up
+          </>
+        ) : (
+          <>We&rsquo;ll need a web address for this one — you&rsquo;ll pick it on the blueprint</>
+        )}
       </div>
       <div className="idrow">
         <button
