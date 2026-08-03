@@ -163,24 +163,99 @@ export function validateSlugFormat(raw: string): SlugCheck {
 // ---------------------------------------------------------------------------
 
 /**
- * Derive a slug candidate from an org name. Lowercases, replaces non-alphanum
- * with hyphens, collapses runs, trims, truncates. Does not check reserved or
- * uniqueness — the form should run validateSlugFormat() afterwards and the
- * service should check the DB.
+ * Greek letter → its English NAME. Used for a word written entirely in Greek,
+ * which for this product's core demographic is the org's actual name: "ΣΦΕ" is
+ * Sigma Phi Epsilon, and the slug founders write by hand is
+ * "sigma-phi-epsilon" — not a phonetic "sphe" nobody would recognise.
+ */
+const GREEK_LETTER_NAMES: Readonly<Record<string, string>> = {
+  α: "alpha",   β: "beta",    γ: "gamma",   δ: "delta",   ε: "epsilon",
+  ζ: "zeta",    η: "eta",     θ: "theta",   ι: "iota",    κ: "kappa",
+  λ: "lambda",  μ: "mu",      ν: "nu",      ξ: "xi",      ο: "omicron",
+  π: "pi",      ρ: "rho",     σ: "sigma",   ς: "sigma",   τ: "tau",
+  υ: "upsilon", φ: "phi",     χ: "chi",     ψ: "psi",     ω: "omega",
+};
+
+/**
+ * Greek letter → its SOUND. Used inside a mixed word, where the letters are
+ * being spelled with rather than named: "Σigma" is someone typing sigma with a
+ * Greek sigma, so it must come out "sigma" and not "sigmaigma".
+ */
+const GREEK_PHONETIC: Readonly<Record<string, string>> = {
+  α: "a",  β: "b",  γ: "g",  δ: "d",  ε: "e",
+  ζ: "z",  η: "e",  θ: "th", ι: "i",  κ: "k",
+  λ: "l",  μ: "m",  ν: "n",  ξ: "x",  ο: "o",
+  π: "p",  ρ: "r",  σ: "s",  ς: "s",  τ: "t",
+  υ: "y",  φ: "ph", χ: "ch", ψ: "ps", ω: "o",
+};
+
+const ALL_GREEK_WORD = /^\p{Script=Greek}+$/u;
+const GREEK_CHAR = /\p{Script=Greek}/gu;
+
+/**
+ * Romanize the Greek in a name so it can survive the [a-z0-9] filter below.
+ * Without this every all-Greek name slugs to "" — a founder typing their own
+ * letters got no URL at all, which for a Greek-letter org is most of them.
+ *
+ * Whole-word Greek is spelled out by letter name; Greek mixed into a Latin word
+ * is transliterated phonetically. See the two tables above for why the same
+ * character resolves two ways.
+ *
+ *   "ΣΦΕ"       → "sigma phi epsilon"
+ *   "Σigma Φi"  → "sigma phi"
+ */
+export function transliterateGreek(name: string): string {
+  return name
+    .split(/\s+/)
+    .map(word => {
+      // Decompose and drop the accents first. Greek tonos and dialytika are
+      // orthography, not identity — "Ωμέγας" is the same six letters as
+      // "Ωμεγας" — and an accented vowel that missed the tables below would
+      // fall through to the [a-z0-9] filter and vanish from the slug entirely.
+      const lower = word
+        .normalize("NFD")
+        .replace(/[̀-ͯ]/g, "")
+        .toLowerCase();
+      if (ALL_GREEK_WORD.test(lower)) {
+        return [...lower].map(ch => GREEK_LETTER_NAMES[ch] ?? ch).join(" ");
+      }
+      return lower.replace(GREEK_CHAR, ch => GREEK_PHONETIC[ch] ?? ch);
+    })
+    .join(" ");
+}
+
+/**
+ * Derive a slug candidate from an org name. Romanizes Greek, lowercases,
+ * replaces non-alphanum with hyphens, collapses runs, trims, truncates. Does not
+ * check reserved or uniqueness — the form should run validateSlugFormat()
+ * afterwards and the service should check the DB.
  *
  *   "Lambda Phi Epsilon" → "lambda-phi-epsilon"
  *   "  Foo!! Bar  "      → "foo-bar"
+ *   "ΣΦΕ"                → "sigma-phi-epsilon"
  *   "AB"                 → "ab" (caller still needs to handle too-short)
+ *
+ * Deliberately still returns "" for a name with nothing romanizable in it at all
+ * (CJK, emoji, "!!! ???"). That empty string is a real answer the UI acts on —
+ * the name step says so and the blueprint's Build button stays disabled until a
+ * URL is typed — and inventing a random slug here would hand someone a web
+ * address they never chose and can't read.
  */
 export function suggestSlug(name: string): string {
-  return name
-    .toLowerCase()
-    .normalize("NFKD")
-    .replace(/[̀-ͯ]/g, "")     // strip diacritics
-    .replace(/[^a-z0-9]+/g, "-")         // anything else → hyphen
-    .replace(/^-+|-+$/g, "")             // trim leading/trailing
-    .replace(/-{2,}/g, "-")              // collapse runs
-    .slice(0, MAX_SLUG_LEN);
+  return (
+    transliterateGreek(name)
+      .toLowerCase()
+      .normalize("NFKD")
+      .replace(/[̀-ͯ]/g, "")   // strip diacritics
+      .replace(/[^a-z0-9]+/g, "-")       // anything else → hyphen
+      .replace(/-{2,}/g, "-")            // collapse runs
+      .replace(/^-+|-+$/g, "")           // trim leading/trailing
+      .slice(0, MAX_SLUG_LEN)
+      // Re-trim AFTER the cut: truncating mid-word can land on a hyphen, and a
+      // trailing hyphen fails SLUG_FORMAT — the suggestion would have been
+      // rejected by the very validator it exists to satisfy.
+      .replace(/-+$/, "")
+  );
 }
 
 // ---------------------------------------------------------------------------

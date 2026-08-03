@@ -148,4 +148,61 @@ describe("slug-rules: suggestSlug", () => {
   it("strips diacritics", () => {
     expect(suggestSlug("Café")).toBe("cafe");
   });
+
+  /**
+   * Greek names are this product's core demographic, and every one of them used
+   * to slug to "" — the founder reached the Build step, signed in with Google,
+   * and only then got a 400 with a Retry that could never succeed.
+   */
+  describe("Greek names", () => {
+    it("spells out a name written entirely in Greek letters", () => {
+      expect(suggestSlug("ΣΦΕ")).toBe("sigma-phi-epsilon");
+      expect(suggestSlug("ΔΔΔ")).toBe("delta-delta-delta");
+      expect(suggestSlug("ΑΕΠ")).toBe("alpha-epsilon-pi");
+    });
+
+    it("transliterates Greek letters used INSIDE a Latin word", () => {
+      // Someone typing "sigma" with a Greek sigma means the sound, not the
+      // letter's name — "sigmaigma" would be nonsense.
+      expect(suggestSlug("Σigma Φi")).toBe("sigma-phi");
+      expect(suggestSlug("Θeta Χi")).toBe("theta-chi");
+    });
+
+    it("handles accents and final sigma", () => {
+      // Tonos is orthography, not identity — an accented vowel that fell through
+      // the tables would be filtered out and silently vanish from the slug.
+      expect(suggestSlug("Ψυχή")).toBe("psi-upsilon-chi-eta");
+      expect(suggestSlug("Άλφας")).toBe("alpha-lambda-phi-alpha-sigma");
+    });
+
+    it("truncates a long spelled-out name on a word boundary", () => {
+      // Six letter-names easily pass 32 chars; the cut must still leave a valid
+      // slug rather than a trailing hyphen.
+      const slug = suggestSlug("Ωμέγας");
+      expect(slug.length).toBeLessThanOrEqual(MAX_SLUG_LEN);
+      expect(validateSlugFormat(slug).ok).toBe(true);
+    });
+
+    it("produces a slug that passes the validator it feeds", () => {
+      for (const name of ["ΣΦΕ", "ΔΔΔ", "Σigma Φi", "Lambda Phi Epsilon"]) {
+        expect(validateSlugFormat(suggestSlug(name)).ok, name).toBe(true);
+      }
+    });
+  });
+
+  it("never leaves a trailing hyphen after truncating", () => {
+    // A cut that lands on a word boundary used to emit "…-" — bad-format under
+    // the very rules this function exists to satisfy.
+    const name = "a".repeat(MAX_SLUG_LEN - 1) + " bravo";
+    const slug = suggestSlug(name);
+    expect(slug.endsWith("-")).toBe(false);
+    expect(validateSlugFormat(slug).ok).toBe(true);
+  });
+
+  it("returns empty for a name with nothing romanizable in it", () => {
+    // Honest rather than inventive: the UI turns this into "pick a web address",
+    // instead of handing someone an address they never chose.
+    expect(suggestSlug("北大社")).toBe("");
+    expect(suggestSlug("!!! ???")).toBe("");
+  });
 });

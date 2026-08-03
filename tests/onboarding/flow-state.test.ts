@@ -11,7 +11,7 @@
 
 import { describe, expect, it } from "vitest";
 import { draftEventTypes, flowReducer, grad, gradIvory, slugify } from "@/app/create/_components/flow-state";
-import { MAX_SLUG_LEN } from "@/lib/slug-rules";
+import { MAX_SLUG_LEN, suggestSlug } from "@/lib/slug-rules";
 import { createOrgInput } from "@/lib/validation/org";
 import { emptyDraft, type Draft } from "@/lib/onboarding/draft";
 import { starterEventTypes } from "@/lib/onboarding/event-types";
@@ -224,5 +224,32 @@ describe("flow-state: grad / gradIvory", () => {
 
   it("emits a two-stop 135deg linear-gradient", () => {
     expect(gradIvory("Oozma Kappa")).toMatch(/^linear-gradient\(135deg, #[0-9a-f]{6}, #[0-9a-f]{6}\)$/);
+  });
+});
+
+/* ─── The slug the sheet shows IS the slug that gets submitted ──────────────
+   slugify() backs the name step's slugline and the blueprint's URL field;
+   suggestSlug() is what draftToCreateOrgInput falls back to when the founder
+   never edits that field. They used to be separate implementations, so a name
+   with a diacritic previewed as chaptos.app/caf while the payload asked for
+   "cafe" — a URL preview that isn't the URL. */
+
+describe("flow-state: slugify agrees with suggestSlug", () => {
+  const NAMES = [
+    "Lambda Phi Epsilon",
+    "  Foo!! Bar  ",
+    "Café",
+    "ΣΦΕ",
+    "Σigma Φi",
+    "北大社",
+    "x".repeat(MAX_SLUG_LEN + 40),
+  ];
+
+  it("derives the same slug from every name", () => {
+    for (const name of NAMES) expect(slugify(name), name).toBe(suggestSlug(name));
+  });
+
+  it("romanizes Greek, so a Greek-letter org gets a usable URL", () => {
+    expect(slugify("ΣΦΕ")).toBe("sigma-phi-epsilon");
   });
 });

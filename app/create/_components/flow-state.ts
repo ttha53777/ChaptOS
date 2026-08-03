@@ -49,7 +49,7 @@ import { getBuiltinEventType } from "@/lib/event-types";
 import type { Permission } from "@/lib/permissions";
 import { resolveLabel, type VocabKey } from "@/lib/vocab";
 import { ROOT_DOMAIN } from "@/lib/domains";
-import { MAX_SLUG_LEN } from "@/lib/slug-rules";
+import { suggestSlug } from "@/lib/slug-rules";
 
 /** The structured picks an AI interpretation may apply — nothing the founder
     couldn't also do by hand (workflow toggles + vocab chips). */
@@ -512,12 +512,18 @@ export function useCreateTheme(): { theme: CrfTheme | null; toggle: () => void }
 
 /* ─── Display helpers (ported from the mock) ─────────────────────────────── */
 
+/**
+ * The flow's one slug derivation, for the name step's slugline, the blueprint's
+ * URL field, and (via draftSlug → draftToCreateOrgInput) the submitted payload.
+ *
+ * Delegates to suggestSlug rather than reimplementing it. The two used to differ
+ * — this one had no NFKD pass, so "Café" showed as chaptos.app/caf on the sheet
+ * while the payload sent "cafe" — and a founder can't act on a URL preview that
+ * isn't the URL. One implementation also means the Greek romanization reaches
+ * every surface at once.
+ */
 export function slugify(s: string): string {
-  return s
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "")
-    .slice(0, MAX_SLUG_LEN);
+  return suggestSlug(s);
 }
 
 /** The slug shown/submitted: an explicit edit wins, else derived from the name. */
