@@ -22,6 +22,7 @@ import {
   defaultEventTypes,
   defaultMetrics,
   emptyDraft,
+  isLiveDraft,
   parseDraft,
   type AiPicks,
   type CreateStep,
@@ -380,48 +381,78 @@ function editEventType(
   };
 }
 
+/** Where the draft on screen came from. Drives the resume bar (and whether the
+    interview reopens as a continuation or a first conversation). */
+export type DraftOrigin = "fresh" | "resumed" | "oauth";
+
+export interface DraftStore {
+  draft: Draft;
+  dispatch: React.Dispatch<FlowAction>;
+  /** The restore decision has run; before this the draft on screen is a
+      placeholder and nothing should be persisted over storage. */
+  ready: boolean;
+  origin: DraftOrigin;
+  /** Throw away a restored draft and begin again from an empty one. */
+  startOver: () => void;
+}
+
 /**
  * The flow's Draft store: writes through to localStorage on every change
  * (client-only, after hydration, so the server render never touches window).
  * QuotaExceeded (a 2 MB logo on a full origin) keeps the in-memory draft
  * working — persistence is best-effort.
  *
- * A stored draft is restored ONLY on the post-OAuth resume leg (?resume=1).
- * Every other visit to /create starts a fresh, empty draft and discards any
- * leftover — so a founder who reopens /create to "start again" never lands on
- * top of a half-finished draft from days ago.
+ * WHAT GETS RESTORED. Two legs restore, one clears:
+ *   - ?resume=1 — the post-OAuth leg. Restores anything inside the schema's
+ *     7-day DRAFT_MAX_AGE_MS, since the founder was mid-build when we sent them
+ *     to Google.
+ *   - an ordinary visit with a draft touched inside DRAFT_RESUME_WINDOW_MS —
+ *     the same sitting, interrupted. Restores, and CreateFlow says so with a
+ *     Start over beside it.
+ *   - anything else — cleared, so reopening /create days later never lands on
+ *     top of a half-finished draft from a different frame of mind.
+ *
+ * The old rule was "restore only on ?resume=1", which read the same intent off
+ * the wrong signal: an accidental refresh, a crash, or a link followed and
+ * backed out of destroyed every answer with no warning and no undo. A clock
+ * separates "interrupted" from "stale"; the query param never could.
  */
-export function useDraft(): [Draft, React.Dispatch<FlowAction>, boolean] {
+export function useDraft(): DraftStore {
   const [draft, dispatch] = useReducer(flowReducer, undefined, emptyDraft);
-  const restored = useRef(false);
-  const [, forceRender] = useReducer((n: number) => n + 1, 0);
+  const [ready, setReady] = useState(false);
+  const [origin, setOrigin] = useState<DraftOrigin>("fresh");
+  const didInit = useRef(false);
   const isResume = useSearchParams().get("resume") === "1";
 
   useEffect(() => {
-    if (restored.current) return;
-    restored.current = true;
+    if (didInit.current) return;
+    didInit.current = true;
     try {
       // A pre-redesign v1 draft can never parse under the v2 schema — drop the
       // old key on sight so it doesn't linger in storage forever.
       window.localStorage.removeItem(LEGACY_DRAFT_STORAGE_KEY);
-      if (!isResume) {
-        // Fresh visit: never resume a leftover draft — clear it so the write-
-        // through effect below can't re-persist the stale one either.
-        window.localStorage.removeItem(DRAFT_STORAGE_KEY);
-        forceRender();
-        return;
-      }
       const saved = parseDraft(window.localStorage.getItem(DRAFT_STORAGE_KEY));
-      if (saved) dispatch({ type: "hydrate", draft: saved });
-      else forceRender();
+      if (saved && (isResume || isLiveDraft(saved))) {
+        dispatch({ type: "hydrate", draft: saved });
+        setOrigin(isResume ? "oauth" : "resumed");
+      } else {
+        // Clear it here, not just in memory, so the write-through below can't
+        // re-persist a draft we've decided is stale.
+        window.localStorage.removeItem(DRAFT_STORAGE_KEY);
+      }
     } catch {
-      forceRender();
+      // Storage unavailable — carry on with the in-memory empty draft.
     }
+    // Batched with the hydrate above, so the write-through effect below first
+    // runs on the RESTORED draft. Flipping this before the dispatch landed used
+    // to persist the empty placeholder over the stored draft for one commit —
+    // a tab closed in that window lost everything it was about to restore.
+    setReady(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
-    if (!restored.current) return;
+    if (!ready) return;
     try {
       window.localStorage.setItem(
         DRAFT_STORAGE_KEY,
@@ -430,9 +461,15 @@ export function useDraft(): [Draft, React.Dispatch<FlowAction>, boolean] {
     } catch {
       // Best-effort — an oversized logo or a full origin must not break the flow.
     }
-  }, [draft]);
+  }, [draft, ready]);
 
-  return [draft, dispatch, restored.current];
+  const startOver = useCallback(() => {
+    clearStoredDraft();
+    dispatch({ type: "hydrate", draft: emptyDraft() });
+    setOrigin("fresh");
+  }, []);
+
+  return { draft, dispatch, ready, origin, startOver };
 }
 
 export function clearStoredDraft(): void {

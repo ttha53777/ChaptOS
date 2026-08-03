@@ -120,6 +120,28 @@ html[data-crf-theme="ivory"] body { background: #faf9f6; }
 .crf .chrome-right { display: flex; align-items: center; gap: 22px; }
 .crf .chrome-tag { font-family: var(--mono); font-size: 10.5px; letter-spacing: .16em; color: var(--ink-28); }
 
+/* Resume notice. Shown only when a draft was restored on an ordinary visit
+   (see useDraft) — the founder should never have to WONDER why the sheet is
+   already full, and should never be stuck with an old draft they meant to
+   abandon. Sits under the chrome as a quiet strip, not a modal: it is
+   information plus an escape hatch, and the flow underneath is already correct. */
+.crf .resume-bar {
+  flex: none; display: flex; align-items: center; gap: 12px;
+  margin: 0 28px 6px; padding: 8px 14px;
+  border: 1px solid var(--line); border-radius: 9px;
+  background: var(--paper-2);
+  font-size: 12.5px; color: var(--ink-72);
+}
+.crf .resume-bar b { color: var(--ink); font-weight: 600; }
+.crf .resume-restart {
+  margin-left: auto; padding: 3px 10px; border-radius: 6px;
+  border: 1px solid var(--line); color: var(--ink);
+  font-size: 12px; transition: background 160ms var(--ease);
+}
+.crf .resume-restart:hover { background: var(--paper-3); }
+.crf .resume-x { color: var(--ink-40); font-size: 16px; line-height: 1; padding: 0 2px; }
+.crf .resume-x:hover { color: var(--ink); }
+
 /* Theme switch. Sized to read as a sibling of .chrome-tag rather than a
    button-shaped intrusion into the chrome. */
 .crf .theme-btn {

@@ -35,6 +35,24 @@ export const LEGACY_DRAFT_STORAGE_KEY = "figurints:create-draft:v1";
 export const DRAFT_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
 /**
+ * How recently a draft must have been touched to count as the SAME sitting, and
+ * so be restored on an ordinary /create visit (see useDraft).
+ *
+ * The old rule — clear the draft on every visit without ?resume=1 — meant an
+ * accidental refresh, a crash, or a link followed and backed out of destroyed
+ * every answer with no warning and no undo. The rule it was protecting (don't
+ * silently reopen a half-finished draft from days ago) only ever needed a clock:
+ * savedAt is re-stamped on every change, so this is "an hour since your last
+ * keystroke", and the restore says so with a Start over next to it.
+ */
+export const DRAFT_RESUME_WINDOW_MS = 60 * 60 * 1000;
+
+/** Whether a restored draft belongs to the founder's current sitting. */
+export function isLiveDraft(draft: Draft): boolean {
+  return Date.now() - draft.savedAt <= DRAFT_RESUME_WINDOW_MS;
+}
+
+/**
  * The structured picks an interview answer may apply to the draft — nothing the
  * founder couldn't also do by hand (workflow toggles + vocab chips). Lives here
  * rather than in the flow's client module so the pure pickers in

@@ -7,10 +7,11 @@
  *
  *   1. Both localStorage keys are seeded via addInitScript, so they exist BEFORE
  *      the theme boot script and the draft restore run.
- *   2. It navigates to /create?resume=1. useDraft() deliberately DELETES a
- *      stored draft on any non-resume visit (so reopening /create never lands on
- *      a stale half-finished draft), which would otherwise park every shot on an
- *      empty step 1.
+ *   2. It navigates to /create?resume=1 — the leg that restores a stored draft
+ *      unconditionally (within the schema's 7-day expiry). An ordinary visit
+ *      restores only a draft touched inside DRAFT_RESUME_WINDOW_MS and clears
+ *      anything older, so a seed with a backdated savedAt would park every shot
+ *      on an empty step 1. ?resume=1 sidesteps the question entirely.
  *   3. The seeded draft's own `step` is NOT how we choose the screen. ?resume=1
  *      is the post-OAuth leg, so CreateFlow force-jumps a named draft straight to
  *      `build`. We let it, then click the step rail back to the target — which

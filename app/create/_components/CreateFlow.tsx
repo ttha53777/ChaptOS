@@ -28,12 +28,13 @@ import { StepRail } from "./StepRail";
 const PAST_INTERVIEW: CreateStep[] = ["roles", "timeline", "blueprint", "build"];
 
 export function CreateFlow() {
-  const [draft, dispatch, restored] = useDraft();
+  const { draft, dispatch, ready, origin, startOver } = useDraft();
   const { theme, toggle: toggleTheme } = useCreateTheme();
   const searchParams = useSearchParams();
   const [flash, setFlash] = useState<SheetFlash>(null);
   const [slugNotice, setSlugNotice] = useState<string | null>(null);
   const [resume, setResume] = useState(false);
+  const [resumeBarClosed, setResumeBarClosed] = useState(false);
   // The event type a blueprint chip deep-linked to — the Timeline step opens
   // its color strip so the founder lands on the row they tapped.
   const [focusType, setFocusType] = useState<string | null>(null);
@@ -73,13 +74,13 @@ export function CreateFlow() {
   // Post-OAuth resume: jump straight to Build and let it auto-fire. Only once
   // the localStorage restore has run — before that the draft is empty.
   useEffect(() => {
-    if (!restored) return;
+    if (!ready) return;
     if (searchParams.get("resume") !== "1") return;
     setResume(true);
     if (draft.name.trim()) dispatch({ type: "goto", step: "build" });
     // A missing/expired draft falls through to step 1 — nothing to build.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [restored]);
+  }, [ready]);
 
   const onFlash = useCallback((section: NonNullable<SheetFlash>["section"]) => {
     setFlash(f => ({ section, key: (f?.key ?? 0) + 1 }));
@@ -110,6 +111,12 @@ export function CreateFlow() {
 
   const world = step === "build" ? "dark" : "paper";
 
+  // A restored mid-sitting draft is announced rather than assumed: the founder
+  // sees that this is where they left off, and gets a one-tap way out if they
+  // came back to start again. (The post-OAuth leg needs no bar — it's a resume
+  // they asked for by signing in.)
+  const showResumeBar = origin === "resumed" && !resumeBarClosed;
+
   return (
     <div className="crf" data-world={world} data-step={step}>
       <header className="chrome">
@@ -122,6 +129,31 @@ export function CreateFlow() {
           <ThemeToggle theme={theme} onToggle={toggleTheme} />
         </div>
       </header>
+
+      {showResumeBar && (
+        <div className="resume-bar" role="status">
+          <span>
+            Picked up where you left off
+            {draft.name.trim() ? <> — <b>{draft.name.trim()}</b></> : null}.
+          </span>
+          <button
+            className="resume-restart"
+            onClick={() => {
+              setResumeBarClosed(true);
+              startOver();
+            }}
+          >
+            Start over
+          </button>
+          <button
+            className="resume-x"
+            aria-label="Dismiss"
+            onClick={() => setResumeBarClosed(true)}
+          >
+            ×
+          </button>
+        </div>
+      )}
 
       <main className="screens">
         {step === "name" && (
@@ -143,6 +175,9 @@ export function CreateFlow() {
               <InterviewStep
                 draft={draft}
                 dispatch={dispatch}
+                // A restored draft that already answered something re-enters the
+                // conversation rather than replaying it from "who am I meeting?".
+                resumed={origin !== "fresh" && draft.kind !== null}
                 onFlash={onFlash}
                 onDone={() => goto("roles")}
               />

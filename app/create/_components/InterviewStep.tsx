@@ -150,11 +150,15 @@ function extractFounderName(text: string): string {
 export function InterviewStep({
   draft,
   dispatch,
+  resumed,
   onFlash,
   onDone,
 }: {
   draft: Draft;
   dispatch: React.Dispatch<FlowAction>;
+  /** This draft was restored mid-interview (a reload, or the OAuth leg) and
+      already carries answers — open as a continuation, not a first hello. */
+  resumed: boolean;
   onFlash: (section: NonNullable<SheetFlash>["section"]) => void;
   onDone: () => void;
 }) {
@@ -499,7 +503,8 @@ export function InterviewStep({
   }
 
   /** The first stage still unresolved, in canonical order — where the scripted
-      machine should pick up when the concierge hands off. */
+      machine should pick up when the concierge hands off, and where a resumed
+      draft re-enters the conversation. */
   function resumeStage(): Stage {
     const missing = new Set<string>(missingFields(draftRef.current));
     // kind is a hard gate. If it's missing we still need the kind question —
@@ -773,6 +778,29 @@ export function InterviewStep({
     }
   }
 
+  /**
+   * The internal beat that opens the concierge's transcript.
+   *
+   * On a fresh draft it's simply "say hello and get their name". On a RESTORED
+   * one the model is meeting a conversation already in progress with none of it
+   * in its transcript, so the brief hands it what the draft holds and tells it
+   * not to re-ask. (The per-turn `answers` + `missingFields` priors go with every
+   * request already — this is only about how turn one reads.)
+   */
+  function resumedConciergeBrief(): string {
+    if (!resumed) {
+      return "Warmly greet the founder and invite them to introduce themselves (capture their name into founderName), then get the setup going.";
+    }
+    const d = draftRef.current;
+    const known = [
+      d.founderName.trim() && `the founder is ${d.founderName.trim()}`,
+      d.name.trim() && `the org is ${d.name.trim()}`,
+      d.kind && `it is a ${d.kind}`,
+      `pages so far: ${d.enabledWorkflows.join(", ") || "none decided"}`,
+    ].filter(Boolean);
+    return `The founder stepped away and has just come back — you already spoke, but you cannot see that part of the conversation. Already settled: ${known.join("; ")}. Welcome them back in ONE short line, do NOT re-ask anything already settled above, and continue with the first thing in STILL NEEDED.`;
+  }
+
   /* ─── Boot ────────────────────────────────────────────────────────────── */
 
   // Idempotent (it REPLACES the transcript) so React StrictMode's dev
@@ -786,10 +814,25 @@ export function InterviewStep({
       setShowCta(true);
       return;
     }
+    // A RESTORED draft mid-interview is a continuation, not a first meeting.
+    // The chat transcript isn't persisted (only the answers are), so without
+    // this a reload replayed "who do I have the pleasure of meeting?" over a
+    // blueprint already listing their org, their words and half their pages —
+    // and re-asked beats the sheet visibly shows as answered.
     setStage("intro");
     setChips(null);
     setShowCta(false);
-    setMessages([{ id: nextId.current++, kind: "bot", body: <>A few quick questions. Everything you say goes onto the blueprint on the right — you&rsquo;ll review the whole sheet before anything is built.</> }]);
+    setMessages([
+      {
+        id: nextId.current++,
+        kind: "bot",
+        body: resumed ? (
+          <>Welcome back — I still have everything you told me, on the right. Let&rsquo;s pick up where we left off.</>
+        ) : (
+          <>A few quick questions. Everything you say goes onto the blueprint on the right — you&rsquo;ll review the whole sheet before anything is built.</>
+        ),
+      },
+    ]);
 
     // Await the probe so we can branch the very first question: an AI-led
     // concierge opener when configured, else the deterministic scripted spine
@@ -802,12 +845,14 @@ export function InterviewStep({
       aiOn.current = enabled;
       if (enabled) {
         setMode("ai");
-        convoTranscript.current = [{ role: "q", text: "Warmly greet the founder and invite them to introduce themselves (capture their name into founderName), then get the setup going." }];
+        convoTranscript.current = [{ role: "q", text: resumedConciergeBrief() }];
         convoTurns.current = 0;
         void runConcierge(null);
       } else {
+        // Scripted: resumeStage() is already the "first thing still owed", so a
+        // resumed draft re-enters at the right beat instead of the intro.
+        later(() => ask(resumed ? resumeStage() : "intro"), 900);
         setMode("scripted");
-        later(() => ask("intro"), 900);
       }
     });
     return () => { cancelled = true; };
