@@ -35,6 +35,17 @@ export const LEGACY_DRAFT_STORAGE_KEY = "figurints:create-draft:v1";
 export const DRAFT_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
 /**
+ * How many custom per-member measures a founder can add in the interview.
+ *
+ * Single-sourced because THREE places have to agree: this schema, the reducer's
+ * addCustomMetric guard, and the interview copy that tells the founder what
+ * happened. When the reducer silently no-oped past the cap but the interview
+ * counted the add anyway, the bot cheerfully reported "Added X — every member
+ * gets a column for it" over a draft that hadn't changed.
+ */
+export const MAX_CUSTOM_METRICS = 5;
+
+/**
  * How recently a draft must have been touched to count as the SAME sitting, and
  * so be restored on an ordinary /create visit (see useDraft).
  *
@@ -125,7 +136,7 @@ export const draftSchema = z.object({
           unit: z.string().trim().max(10).nullable(),
         }),
       )
-      .max(5),
+      .max(MAX_CUSTOM_METRICS),
   }),
   seats: z.array(seatSchema).max(16),
   /**

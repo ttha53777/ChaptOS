@@ -23,6 +23,7 @@ import {
   defaultMetrics,
   emptyDraft,
   isLiveDraft,
+  MAX_CUSTOM_METRICS,
   parseDraft,
   type AiPicks,
   type CreateStep,
@@ -236,7 +237,7 @@ export function flowReducer(draft: Draft, action: FlowAction): Draft {
       const name = action.name.trim().slice(0, 40);
       // Cap matches the draft schema (and the API's) so write-through and the
       // eventual payload can never carry more than provisioning accepts.
-      if (!name || draft.metrics.custom.length >= 5) return draft;
+      if (!name || draft.metrics.custom.length >= MAX_CUSTOM_METRICS) return draft;
       const unit = action.unit?.trim().slice(0, 10) || null;
       return { ...draft, metrics: { ...draft.metrics, custom: [...draft.metrics.custom, { name, unit }] } };
     }

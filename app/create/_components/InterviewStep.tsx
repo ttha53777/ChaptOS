@@ -29,14 +29,18 @@
  */
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import type { Draft } from "@/lib/onboarding/draft";
+import { MAX_CUSTOM_METRICS, type Draft } from "@/lib/onboarding/draft";
 import {
   BUILTIN_METRIC_IDS,
   BUILTIN_METRIC_LABEL,
+  getVariant,
   matchKind,
-  matchYesNo,
+  matchMetricText,
+  matchVariantExact,
+  matchYesNoAnswer,
   type BuiltinMetricId,
   type KindId,
+  type YesNoAnswer,
 } from "@/lib/onboarding/kinds";
 import {
   ACTIVITY_OPTIONS,
@@ -77,13 +81,6 @@ type Chip = { label: string; pick: () => void };
     asking the model and drain any still-missing fields through the scripted
     machine, so the interview always terminates regardless of model behavior. */
 const MAX_CONCIERGE_TURNS = 12;
-
-/** Canonical order the scripted machine collects fields in — used to pick the
-    resume stage when the concierge hands off (mid-conversation fallback or the
-    early-exit/loop-cap backstop). First still-missing stage wins. */
-const STAGE_ORDER: Stage[] = [
-  "intro", "kind", "activities", "docs", "payments", "door", "metrics",
-];
 
 /** How long the "typing…" indicator shows before an AI reply lands — scaled to
     the reply length so a longer message "takes longer to type" (reads far more
@@ -235,6 +232,10 @@ export function InterviewStep({
   // its "activities" stage. Submitting ("Done →") clears it and moves on.
   const [activityPicks, setActivityPicks] = useState<Set<string> | null>(null);
 
+  // How many times each yes/no beat has been answered with a non-answer. Caps
+  // the re-ask at one, so "I'd rather not say" twice moves on instead of looping.
+  const yesNoRetries = useRef<Partial<Record<Stage, number>>>({});
+
   // Refs mirror the latest draft/stage for use inside timeouts/async handlers.
   const draftRef = useRef(draft);
   draftRef.current = draft;
@@ -296,17 +297,17 @@ export function InterviewStep({
       case "docs": {
         push("q", <>Do you keep shared documents or links {vocab("Member", true).toLowerCase()} need access to — a handbook, drive folder, bylaws?</>);
         setChips([
-          { label: "Yes", pick: once(() => answerDocs(true, "Yes")) },
-          { label: "Not really", pick: once(() => answerDocs(false, "Not really")) },
+          { label: "Yes", pick: once(() => answerDocs("yes", "Yes")) },
+          { label: "Not really", pick: once(() => answerDocs("no", "Not really")) },
         ]);
         break;
       }
       case "payments": {
         push("q", <>Does <em>{orgName()}</em> handle any payments — {vocab("Dues").toLowerCase()}, event fees, anything like that?</>);
         setChips([
-          { label: "Yes — dues", pick: once(() => answerPayments(true, "Yes — dues")) },
-          { label: "Event fees", pick: once(() => answerPayments(true, "Event fees")) },
-          { label: "No money", pick: once(() => answerPayments(false, "No money")) },
+          { label: "Yes — dues", pick: once(() => answerPayments("yes", "Yes — dues")) },
+          { label: "Event fees", pick: once(() => answerPayments("yes", "Event fees")) },
+          { label: "No money", pick: once(() => answerPayments("no", "No money")) },
         ]);
         break;
       }
@@ -319,8 +320,8 @@ export function InterviewStep({
         if (!draftRef.current.enabledWorkflows.includes("parties")) return ask("metrics");
         push("q", <>Do parties or events at <em>{orgName()}</em> typically bring in door money or ticket sales?</>);
         setChips([
-          { label: "Yes", pick: once(() => answerDoor(true, "Yes")) },
-          { label: "No", pick: once(() => answerDoor(false, "No")) },
+          { label: "Yes", pick: once(() => answerDoor("yes", "Yes")) },
+          { label: "No", pick: once(() => answerDoor("no", "No")) },
         ]);
         break;
       }
@@ -350,17 +351,83 @@ export function InterviewStep({
 
   /* ─── Answers — every beat below is deterministic (no model calls) ─────── */
 
-  function answerKind(kind: KindId, label: string) {
+  /**
+   * The kind beat. `typed` is the founder's own words when they wrote the answer
+   * rather than tapping a chip — the only place a variant can come from.
+   *
+   * The concierge resolves a variant whenever the founder's phrasing makes one
+   * obvious ("we're a pre-med frat"), and a variant is not cosmetic: it rebuilds
+   * the seat list and flips metric defaults. The scripted spine used to resolve
+   * none, so the SAME sentence built a different org depending on whether the
+   * model happened to be up — "we're a professional fraternity" got VP
+   * Professional Development and no service-hours column with AI on, and Social
+   * and PR chairs with a service-hours column with AI off.
+   *
+   * matchVariantExact only answers when the words actually name one, so a chip
+   * tap (which carries no such signal) still resolves nothing.
+   */
+  function answerKind(kind: KindId, label: string, typed?: string) {
     push("user", label);
     dispatch({ type: "setKind", kind });
+    // setKind is a reset that clears variant, so this must follow it. Same
+    // sequencing as applyConciergePicks.
+    const variant = typed ? matchVariantExact(kind, typed) : null;
+    if (variant) dispatch({ type: "setVariant", variant });
+    const variantLabel = variant ? getVariant(kind, variant)?.label : null;
     // The kind sets the WORDS and the seats. It deliberately does not light up
     // pages — those come from the activities beat next — so flash "words", not
     // "pages" (the Pages section is genuinely still nearly empty here).
-    respond(KIND_REPLIES[kind], "activities", "words");
+    respond(
+      variantLabel ? (
+        <>
+          {KIND_REPLIES[kind]} <em>{variantLabel}</em>, so I&rsquo;ve set the officer seats to match.
+        </>
+      ) : (
+        KIND_REPLIES[kind]
+      ),
+      "activities",
+      "words",
+    );
+    // The seats visibly changed — say where to look, after the words flash.
+    if (variant) later(() => onFlash("seats"), 900);
   }
 
-  function answerDocs(yes: boolean, label: string) {
+  /**
+   * A founder who won't commit at a yes/no beat.
+   *
+   * "not sure" and "I'd rather not say" used to read as YES, so the bot answered
+   * a question the founder had just declined to answer ("Money gets tracked,
+   * then — Treasury is on the sheet"). Re-ask once, because the chips are right
+   * there and the first hedge is usually just thinking out loud. If they still
+   * won't pick, take that at face value: change NOTHING and say so. Leaving the
+   * page off is both the draft's current state and the reversible choice, and
+   * the blueprint is one tap away. Two attempts, so this always terminates.
+   */
+  function hedgedYesNo(stage: Stage, deferReply: ReactNode, next: Stage) {
+    const n = (yesNoRetries.current[stage] ?? 0) + 1;
+    yesNoRetries.current[stage] = n;
+    if (n === 1) {
+      setTyping(true);
+      later(() => {
+        setTyping(false);
+        push("bot", <>No rush — a yes or a no is all I need here.</>);
+        later(() => ask(stage), 400);
+      }, 700);
+      return;
+    }
+    respond(deferReply, next);
+  }
+
+  function answerDocs(answer: YesNoAnswer, label: string) {
     push("user", label);
+    if (answer === "unclear") {
+      return hedgedYesNo(
+        "docs",
+        <>No problem — I&rsquo;ll leave <b>Docs</b> off for now. It&rsquo;s one tap on the blueprint whenever you want it.</>,
+        "payments",
+      );
+    }
+    const yes = answer === "yes";
     dispatch({
       type: "applyAiPicks",
       picks: { addWorkflows: yes ? ["docs"] : [], removeWorkflows: yes ? [] : ["docs"], vocab: {} },
@@ -374,8 +441,16 @@ export function InterviewStep({
     );
   }
 
-  function answerPayments(yes: boolean, label: string) {
+  function answerPayments(answer: YesNoAnswer, label: string) {
     push("user", label);
+    if (answer === "unclear") {
+      return hedgedYesNo(
+        "payments",
+        <>That&rsquo;s fine — I&rsquo;ll leave <b>{vocab("Treasury")}</b> off rather than guess. You can add it on the blueprint.</>,
+        "door",
+      );
+    }
+    const yes = answer === "yes";
     dispatch({
       type: "applyAiPicks",
       picks: { addWorkflows: yes ? ["finance"] : [], removeWorkflows: yes ? [] : ["finance"], vocab: {} },
@@ -389,12 +464,21 @@ export function InterviewStep({
     );
   }
 
-  function answerDoor(yes: boolean, label: string) {
+  function answerDoor(answer: YesNoAnswer, label: string) {
     push("user", label);
     // Parties is already on — this beat only runs when it is (see ask("door")).
     // So "yes" adds nothing new; it decides what the Parties page is FOR. The
     // add is kept for idempotence and to mirror the concierge, which can reach
-    // this beat by a path where parties isn't on yet.
+    // this beat by a path where parties isn't on yet. "no" is already a no-op,
+    // which is why an unresolved hedge costs nothing here.
+    if (answer === "unclear") {
+      return hedgedYesNo(
+        "door",
+        <>No matter — <b>Parties</b> keeps the guest list and the budget either way.</>,
+        "metrics",
+      );
+    }
+    const yes = answer === "yes";
     if (yes) {
       dispatch({ type: "applyAiPicks", picks: { addWorkflows: ["parties"], removeWorkflows: [], vocab: {} } });
     }
@@ -422,23 +506,60 @@ export function InterviewStep({
   function addCustomMetrics(metrics: { name: string; unit: string | null }[]) {
     const existing = new Set(draftRef.current.metrics.custom.map(c => c.name.trim().toLowerCase()));
     const added: typeof metrics = [];
+    // Count as we go. The reducer silently no-ops past the cap, so counting only
+    // the dispatches we ACTUALLY made is what keeps the reply honest — reporting
+    // an add the draft rejected is how the bot ended up saying "Added Chapter
+    // Points — every member gets a column for it" over an unchanged sheet.
+    let count = draftRef.current.metrics.custom.length;
+    let droppedFull = false;
     for (const m of metrics) {
       const key = m.name.trim().toLowerCase();
       if (!key || existing.has(key)) continue;
+      if (count >= MAX_CUSTOM_METRICS) {
+        droppedFull = true;
+        break;
+      }
       existing.add(key);
       added.push(m);
+      count += 1;
       dispatch({ type: "addCustomMetric", name: m.name, unit: m.unit });
     }
-    return added;
+    return { added, droppedFull };
   }
 
-  /** Free-text at the metrics stage — an extra thing to track per member. */
+  /**
+   * Free-text at the metrics stage.
+   *
+   * Whatever was typed used to become a column name verbatim, so "no" created a
+   * per-member column called "No" and "we track chapter points" created one
+   * called "We Track Chapter Points". There was no way to decline by typing at
+   * all. These become real OrgMetricDefinition rows at provisioning — durable
+   * furniture in the founder's workspace — so the reader is three-valued and
+   * never guesses: a decline ends the beat, an unreadable answer is re-asked.
+   */
   async function answerMetricText(text: string) {
+    const read = matchMetricText(text);
+
+    if (read.kind === "done") {
+      // They answered the question — with "nothing else". Their own words.
+      return answerMetricsDone(text);
+    }
+    if (read.kind === "unreadable") {
+      push("user", text);
+      setTyping(true);
+      later(() => {
+        setTyping(false);
+        push("bot", <>Sorry — what should I call that column? A word or two is plenty, like &ldquo;chapter points&rdquo;.</>);
+        unlockTurn(); // the metrics grid is still on screen; their turn again
+      }, 700);
+      return;
+    }
+
     push("user", text);
     setTyping(true);
-    // The one model call left in the scripted spine: it only PARSES the typed
-    // words into {name, unit} and can't ask a question or change a page — the
-    // titleCase fallback below covers it whenever AI is unavailable.
+    // The one model call left in the scripted spine. It only refines the parse
+    // into {name, unit} — it can't ask a question or move a page — and the
+    // deterministic read above is a complete answer on its own.
     const result = aiOn.current
       ? await askInterviewAi("metrics", draftRef.current, [
           { role: "q", text: "What else should be tracked per member?" },
@@ -449,12 +570,14 @@ export function InterviewStep({
 
     const metrics = result?.picks.customMetrics.length
       ? result.picks.customMetrics
-      : [{ name: titleCase(text).slice(0, 40), unit: null }];
-    const added = addCustomMetrics(metrics);
+      : [{ name: read.name, unit: read.unit }];
+    const { added, droppedFull } = addCustomMetrics(metrics);
     if (added.length) onFlash("metrics");
     push(
       "bot",
-      added.length === 0 ? (
+      droppedFull && !added.length ? (
+        <>That&rsquo;s {MAX_CUSTOM_METRICS} of your own already — the sheet&rsquo;s full. You can swap one out above, or add more from Settings once you&rsquo;re in.</>
+      ) : added.length === 0 ? (
         <>Already on the sheet — every {vocab("Member").toLowerCase()} has that column.</>
       ) : result?.reply ? (
         <>{result.reply}</>
@@ -465,11 +588,11 @@ export function InterviewStep({
     unlockTurn(); // the metrics grid stays open for another measure
   }
 
-  function answerMetricsDone() {
+  function answerMetricsDone(userLabel = "That's the list") {
     const m = draftRef.current.metrics;
     const tracked = BUILTIN_METRIC_IDS.filter(id => m[id]).map(id => BUILTIN_METRIC_LABEL[id].toLowerCase());
     const all = [...tracked, ...m.custom.map(c => c.name.toLowerCase())];
-    push("user", "That's the list");
+    push("user", userLabel);
     respond(
       all.length ? (
         <>Tracking <b>{all.join(", ")}</b> per {vocab("Member").toLowerCase()} — that&rsquo;s the whole blueprint. Let&rsquo;s set up the rest of your roles.</>
@@ -527,7 +650,7 @@ export function InterviewStep({
     if (p.addWorkflows.length || p.removeWorkflows.length || Object.keys(p.vocab).length) {
       dispatch({ type: "applyAiPicks", picks: { addWorkflows: p.addWorkflows, removeWorkflows: p.removeWorkflows, vocab: p.vocab } });
     }
-    const addedMetrics = addCustomMetrics(p.customMetrics);
+    const { added: addedMetrics } = addCustomMetrics(p.customMetrics);
     if (p.founderName) dispatch({ type: "setFounderName", name: p.founderName });
 
     // Flash the sheet sections that actually changed (kind/variant reshuffle
@@ -790,7 +913,10 @@ export function InterviewStep({
     if (s === "intro") {
       answerIntro(text, text);
     } else if (s === "kind") {
-      answerKind(matchKind(text), text);
+      // Their own words go to BOTH readers: the kind, and any variant the
+      // sentence actually names. This is what keeps "we're a professional
+      // fraternity" building the same org here as it does under the concierge.
+      answerKind(matchKind(text), text, text);
     } else if (s === "activities") {
       // Typed instead of tapped — read the sentence onto the checklist and run
       // the SAME authoritative submit, so typing and tapping agree. Their own
@@ -814,11 +940,11 @@ export function InterviewStep({
         );
       }
     } else if (s === "docs") {
-      answerDocs(matchYesNo(text), text);
+      answerDocs(matchYesNoAnswer(text), text);
     } else if (s === "payments") {
-      answerPayments(matchYesNo(text), text);
+      answerPayments(matchYesNoAnswer(text), text);
     } else if (s === "door") {
-      answerDoor(matchYesNo(text), text);
+      answerDoor(matchYesNoAnswer(text), text);
     } else if (s === "metrics") {
       void answerMetricText(text);
     }
