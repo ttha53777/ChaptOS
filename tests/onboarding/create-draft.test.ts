@@ -17,7 +17,16 @@ import {
   parseDraft,
   type Draft,
 } from "@/lib/onboarding/draft";
-import { KIND_IDS, KIND_TO_TYPE, KIND_VARIANTS, matchKind, matchVariant } from "@/lib/onboarding/kinds";
+import {
+  KIND_IDS,
+  KIND_TO_TYPE,
+  KIND_VARIANTS,
+  matchKind,
+  matchMetricText,
+  matchVariant,
+  matchVariantExact,
+  matchYesNoAnswer,
+} from "@/lib/onboarding/kinds";
 import { matchTermModel } from "@/lib/onboarding/terms";
 import { seatsFromTemplate } from "@/lib/onboarding/seats";
 import { createOrgInput } from "@/lib/validation/org";
@@ -308,6 +317,72 @@ describe("interview keyword matchers", () => {
     expect(matchVariant("fraternity", "hmm not sure")).toBe("social");
     // Kinds without variants return null.
     expect(matchVariant("honor", "whatever")).toBeNull();
+  });
+
+  it("matchVariantExact resolves only what the words actually name", () => {
+    // Same hits as matchVariant…
+    expect(matchVariantExact("fraternity", "we're a pre-med professional frat")).toBe("professional");
+    expect(matchVariantExact("club", "cultural heritage club")).toBe("cultural");
+    expect(matchVariantExact("arts", "an a cappella ensemble")).toBe("ensemble");
+    // …but silence instead of a guess. This is the difference that matters:
+    // applying a variant rebuilds the seat list and flips metric defaults, so a
+    // bare chip tap must not be handed one on no evidence.
+    expect(matchVariantExact("fraternity", "A fraternity")).toBeNull();
+    expect(matchVariantExact("fraternity", "hmm not sure")).toBeNull();
+    expect(matchVariantExact("honor", "whatever")).toBeNull();
+  });
+
+  // The scripted spine and the AI concierge must build the SAME org from the
+  // same words. The concierge resolves a variant from the founder's phrasing;
+  // before matchVariantExact existed, the scripted path resolved none, so
+  // "we're a professional fraternity" produced Social/PR chairs and a service-
+  // hours column when the model happened to be down.
+  it("matchVariantExact agrees with what the concierge would pick", () => {
+    expect(matchVariantExact("fraternity", "we're a professional fraternity")).toBe("professional");
+    expect(matchVariantExact("sorority", "a service sorority")).toBe("service");
+    expect(matchVariantExact("team", "we're a competitive club team")).toBe("competitive");
+  });
+
+  it("matchYesNoAnswer separates a decision from a non-answer", () => {
+    for (const yes of ["yes", "yeah, a drive folder and the bylaws", "dues and event fees", "sometimes"]) {
+      expect(matchYesNoAnswer(yes)).toBe("yes");
+    }
+    for (const no of ["no", "nope", "not really", "we don't", "neither", "none"]) {
+      expect(matchYesNoAnswer(no)).toBe("no");
+    }
+    // The bug: every one of these used to read as YES, so the bot asserted a
+    // decision the founder had just declined to make.
+    for (const unclear of ["not sure", "I'd rather not say", "haven't decided", "maybe", "not yet", "idk", "tbd"]) {
+      expect(matchYesNoAnswer(unclear)).toBe("unclear");
+    }
+  });
+
+  it("matchMetricText declines, names, or asks again — but never invents", () => {
+    // Declining by typing. "no" used to create a column literally named "No".
+    for (const done of ["no", "nothing else", "that's it", "we don't track anything else", "nope"]) {
+      expect(matchMetricText(done)).toEqual({ kind: "done" });
+    }
+    // The lead-in is not part of the column name.
+    expect(matchMetricText("we track chapter points")).toEqual({ kind: "metric", name: "Chapter Points", unit: null });
+    expect(matchMetricText("can you add community service hours")).toEqual({ kind: "metric", name: "Community Service Hours", unit: null });
+    expect(matchMetricText("chapter points")).toEqual({ kind: "metric", name: "Chapter Points", unit: null });
+    // Existing capitalization survives — "GPA" must not become "Gpa".
+    expect(matchMetricText("GPA")).toEqual({ kind: "metric", name: "GPA", unit: null });
+    // A unit only when stated outright, so the chip never renders "Service Hours (hours)".
+    expect(matchMetricText("study time in hours")).toEqual({ kind: "metric", name: "Study Time", unit: "hours" });
+    expect(matchMetricText("chapter points (pts)")).toEqual({ kind: "metric", name: "Chapter Points", unit: "pts" });
+    expect(matchMetricText("service hours")).toEqual({ kind: "metric", name: "Service Hours", unit: null });
+    // Unreadable is a question to re-ask, not a column. These become real
+    // OrgMetricDefinition rows at provisioning — a guess is durable furniture.
+    for (const junk of ["", "!!!", "i'd rather not say", "hmm i guess maybe the number of events they show up to each semester"]) {
+      expect(matchMetricText(junk)).toEqual({ kind: "unreadable" });
+    }
+  });
+
+  it("matchMetricText respects the 40-char column cap", () => {
+    const long = matchMetricText("x".repeat(80));
+    expect(long.kind).toBe("metric");
+    if (long.kind === "metric") expect(long.name.length).toBeLessThanOrEqual(40);
   });
 
   it("matchTermModel resolves calendar text and defaults to semester", () => {

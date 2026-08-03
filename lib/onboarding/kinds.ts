@@ -10,9 +10,10 @@
  * the words an ensemble uses, the metrics an honor society tracks. It no longer
  * decides pages: the interview asks what the org actually does in a normal month
  * and the answers own the page set (see BEAT_WORKFLOWS in lib/org-types.ts), so
- * nothing is inferred from the kind word alone. The scripted interview no longer
- * asks for a variant at all; the AI concierge may still resolve one when the
- * founder's own words make it obvious ("we're a pre-med frat").
+ * nothing is inferred from the kind word alone. Neither driver ASKS for a variant
+ * as its own beat; both resolve one only when the founder's own words make it
+ * obvious ("we're a pre-med frat") — the concierge via the model, the scripted
+ * spine via matchVariantExact. Same words, same org, either way.
  *
  * Pure data + matchers, no React, no DB — shared by the interview UI and the
  * draft→createOrgInput mapper, and unit-tested directly.
@@ -272,7 +273,19 @@ export function matchKind(text: string): KindId {
   return "other";
 }
 
-export function matchVariant(kind: KindId, text: string): string | null {
+/**
+ * The variant keyword chains WITHOUT a default — null means "these words name no
+ * variant", as distinct from matchVariant's "…so use the kind's default".
+ *
+ * That distinction is the whole reason this exists. The scripted spine resolves a
+ * variant from the founder's TYPED kind answer so "we're a professional
+ * fraternity" builds the same org whether or not the model was up. Applying a
+ * variant is not free — applyVariant() rebuilds the seat list from the template
+ * and flips metric defaults — so it must happen only on evidence. matchVariant's
+ * fallback would hand a bare chip tap ("A fraternity") the `social` variant on no
+ * evidence at all, which is a guess the concierge would never make.
+ */
+export function matchVariantExact(kind: KindId, text: string): string | null {
   const variants = KIND_VARIANTS[kind];
   if (!variants?.length) return null;
   const lower = text.toLowerCase();
@@ -293,24 +306,143 @@ export function matchVariant(kind: KindId, text: string): string | null {
     if (lower.includes("cappella") || lower.includes("band") || lower.includes("ensemble") || lower.includes("choir") || lower.includes("dance")) return "ensemble";
     if (lower.includes("production") || lower.includes("theat") || lower.includes("play") || lower.includes("show")) return "production";
   }
-  return variants[0]!.id;
+  return null;
+}
+
+/** matchVariantExact, but unmatched text falls back to the kind's default (first)
+    variant. For callers that must land on SOME variant; prefer the exact matcher
+    anywhere a wrong guess would reshape the org. */
+export function matchVariant(kind: KindId, text: string): string | null {
+  const variants = KIND_VARIANTS[kind];
+  if (!variants?.length) return null;
+  return matchVariantExact(kind, text) ?? variants[0]!.id;
 }
 
 export function isKindId(id: string): id is KindId {
   return (KIND_IDS as readonly string[]).includes(id);
 }
 
+export type YesNoAnswer = "yes" | "no" | "unclear";
+
+/** Stated non-answers. Tested BEFORE the negation list, because half of them
+    ("don't know", "not sure") contain a negation token and would otherwise read
+    as a firm no. */
+const HEDGE_RE =
+  /\b(not sure|unsure|no idea|don'?t know|dunno|idk|no clue|maybe|might|possibly|perhaps|rather not|prefer not|tbd|to be determined|we'?ll see|haven'?t (decided|figured|thought)|not yet|undecided|either way|no comment|can i skip|skip (this|that|it))\b/i;
+
+const NEGATION_RE =
+  /\b(no|nope|nah|never|none|nothing|not really|don'?t|doesn'?t|do not|neither)\b/i;
+
 /**
  * Read a typed answer to one of the interview's yes/no beats ("do you keep
  * shared docs?", "does the org handle payments?").
  *
- * Defaults to YES on anything that isn't a recognizable negation: a founder who
- * bothers to TYPE at a "do you …?" prompt is nearly always elaborating on a yes
- * ("yeah, a drive folder and the bylaws") rather than negating — the ones who
- * mean no reach for the "No" chip. Erring toward yes also errs toward the safer
- * mistake: an extra page they can toggle off on the blueprint, rather than a
- * missing one they never think to look for.
+ * Three-valued on purpose. Unrecognized text still reads as YES: a founder who
+ * bothers to TYPE at a "do you …?" prompt is nearly always elaborating on one
+ * ("yeah, a drive folder and the bylaws") rather than negating, and an extra page
+ * they can toggle off on the blueprint is a kinder mistake than a missing one they
+ * never think to look for.
+ *
+ * But that argument only covers answers that CARRY something. It never covered
+ * "not sure" or "I'd rather not say" — folding those into yes made the bot assert
+ * a decision the founder had just explicitly declined to make ("Money gets tracked,
+ * then"). A stated non-answer is not an answer; the caller re-asks, and if the
+ * founder still won't pick, it leaves the page alone rather than deciding for them.
+ */
+export function matchYesNoAnswer(text: string): YesNoAnswer {
+  if (HEDGE_RE.test(text)) return "unclear";
+  if (NEGATION_RE.test(text)) return "no";
+  return "yes";
+}
+
+/**
+ * @deprecated Two-valued reading of a yes/no beat — every hedge lands on `true`.
+ * Use matchYesNoAnswer and handle "unclear" by re-asking. Kept only until the
+ * interview's callers move over; deliberately NOT re-expressed in terms of the
+ * tri-state, because the two disagree on hedges that contain a negation token
+ * ("don't know" is `false` here, "unclear" there) and quietly flipping those
+ * would be a behavior change smuggled in under a refactor.
  */
 export function matchYesNo(text: string): boolean {
-  return !/\b(no|nope|nah|never|none|nothing|not really|don'?t|doesn'?t|do not|neither)\b/i.test(text);
+  return !NEGATION_RE.test(text);
+}
+
+// ─── Metrics beat ────────────────────────────────────────────────────────────
+
+export type MetricAnswer =
+  | { kind: "done" }
+  | { kind: "metric"; name: string; unit: string | null }
+  | { kind: "unreadable" };
+
+/** Answers that close the metrics beat rather than naming a column. */
+const METRIC_DONE_RE =
+  /^(no|nope|nah|none|nothing|no thanks|nothing else|that'?s it|that'?s all|that'?s everything|that'?s the list|we'?re good|i'?m good|all good|all set|skip|pass|done|finished|n\/?a|nil)\.?!?$/i;
+
+/** A negation aimed at "anything more" — "we don't track anything else", "no
+    others", "nothing further". Also a decline, just phrased as a sentence. */
+const METRIC_DONE_PHRASE_RE =
+  /\b(no|not|nothing|none|don'?t|doesn'?t|can'?t think of)\b.*\b(else|more|other|others|another|additional|further|beyond)\b/i;
+
+/** Lead-ins a founder puts in front of the thing they want tracked. Stripped so
+    "we track chapter points" becomes the column "Chapter Points" and not
+    "We Track Chapter Points". Applied repeatedly — "also can you add points"
+    stacks two of them. */
+const METRIC_LEADIN_RE =
+  /^(and |also |um+ |uh+ |well |ok(ay)? |please |maybe |i (would |'?d )?(like|want|wanna) (to )?|we (would |'?d )?(like|want|wanna) (to )?|can (you|we) |could (you|we) |how about |what about |let'?s |add |include |track(ing)? |keep track of |a (record|count|tally) of |record |count |log |measure |monitor |we (also )?(track|record|log|count|measure|monitor|keep|have|do|use) |our |their |each (member|person)'?s? |per (member|person) )/i;
+
+/** Trailing politeness / filler that isn't part of the column name. */
+const METRIC_TAIL_RE = /\s*\b(please|too|as well|also|thanks|thank you|i think|i guess|for each (member|person)|per (member|person))\b[.!]*$/i;
+
+/**
+ * Read a typed answer at the metrics beat.
+ *
+ * The scripted spine used to titleCase() whatever was typed straight into a
+ * per-member column, so "no" created a column named "No" and there was no way to
+ * decline by typing. These become real OrgMetricDefinition rows at provisioning,
+ * so a guess here is durable furniture in the founder's workspace.
+ *
+ * Three-valued, mirroring matchActivities: an answer we can't read is a question
+ * to re-ask, never a column to invent.
+ */
+export function matchMetricText(text: string): MetricAnswer {
+  const trimmed = text.trim().replace(/\s+/g, " ");
+  if (METRIC_DONE_RE.test(trimmed) || METRIC_DONE_PHRASE_RE.test(trimmed)) {
+    return { kind: "done" };
+  }
+
+  let s = trimmed;
+  // Strip stacked lead-ins, bounded so a pathological input can't spin.
+  for (let i = 0; i < 4; i++) {
+    const next = s.replace(METRIC_LEADIN_RE, "");
+    if (next === s) break;
+    s = next.trim();
+  }
+  s = s.replace(METRIC_TAIL_RE, "").trim();
+  // Drop surrounding quotes/punctuation a founder might type around the name.
+  s = s.replace(/^["'“”‘’]+|["'“”‘’.,!?]+$/g, "").trim();
+
+  // A column name is a short noun phrase. Anything else — a sentence, a leftover
+  // negation, something with no letters — is unreadable rather than a guess.
+  // Pull an explicitly-stated unit off the end, so the name doesn't carry it
+  // twice. Only these two forms — a bare "service hours" is a fine column name
+  // on its own, and splitting it would render as "Service Hours (hours)".
+  let unit: string | null = null;
+  const stated = /^(.*?)\s*(?:\(([^)]{1,10})\)|\bin ([a-z]{1,10}))$/i.exec(s);
+  if (stated?.[1]?.trim()) {
+    unit = (stated[2] ?? stated[3] ?? "").trim().toLowerCase().slice(0, 10) || null;
+    if (unit) s = stated[1].trim();
+  }
+
+  const words = s.split(" ").filter(Boolean);
+  if (!s || words.length > 5) return { kind: "unreadable" };
+  if (!/\p{L}/u.test(s)) return { kind: "unreadable" };
+  if (NEGATION_RE.test(s) || HEDGE_RE.test(s)) return { kind: "unreadable" };
+
+  return { kind: "metric", name: titleCaseMetric(s), unit };
+}
+
+/** Title-case a metric name, leaving existing capitalization alone (so "GPA" and
+    "1:1s" survive) and capping at the draft schema's 40-char column limit. */
+function titleCaseMetric(text: string): string {
+  return text.replace(/\b[a-z]/g, c => c.toUpperCase()).slice(0, 40);
 }
