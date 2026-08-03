@@ -57,21 +57,35 @@ export interface InterviewAiResult {
 
 /**
  * Which required fields the concierge still needs, derived from the draft each
- * turn. Sent as a prior so the model never ends early, and re-checked
- * client-side before honoring the model's "done" (a guard against early exit).
+ * turn. Sent as a prior so the model never ends early, and — because this is
+ * also what finishInterview() consults — the client-side guard that decides
+ * whether the interview is allowed to end at all.
  *
- * kind is the only hard gate (null in the draft = still missing). workflows /
- * metrics are inherently satisfiable-by-default (workflows are non-empty from
- * the moment a kind is set; metrics always have a sensible default), so they are
- * TOPICS the concierge raises once, never gates — we never block completion on
- * them here. The founder's seat title is no longer asked at all (it keeps the
- * kind default, editable on the Roles step); the current term is no longer
- * collected in the interview either — a fresh org sets it in the workspace via
+ * TWO hard gates:
+ *
+ *   kind      — null in the draft = still missing.
+ *   workflows — the activities beat decides the org's ENTIRE page set (setKind
+ *               resets enabledWorkflows to BASE_WORKFLOWS and nothing else adds
+ *               to it), so an interview that ends without it provisions an org
+ *               with no meetings, parties, service, tasks, docs or dues page and
+ *               a Timeline step of ghosted categories over an empty preview.
+ *               This used to be ungated on the theory that "workflows are
+ *               non-empty from the moment a kind is set" — true, and beside the
+ *               point: base pages are the Dashboard and Timeline every org gets,
+ *               not an answer. A model that resolved the kind and then said
+ *               `done` in the same breath shipped exactly that org.
+ *
+ * metrics is genuinely satisfiable-by-default (there is always a sensible
+ * per-member default), so it stays a TOPIC the concierge raises once, never a
+ * gate. The founder's seat title is no longer asked at all (it keeps the kind
+ * default, editable on the Roles step); the current term is no longer collected
+ * in the interview either — a fresh org sets it in the workspace via
  * SemesterGate.
  */
 export function missingFields(draft: Draft): RequiredField[] {
   const missing: RequiredField[] = [];
   if (draft.kind === null) missing.push("kind");
+  if (!draft.activitiesAnswered) missing.push("workflows");
   return missing;
 }
 

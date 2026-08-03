@@ -181,16 +181,45 @@ describe("validateInterviewResult — concierge fields", () => {
   });
 });
 
+/**
+ * missingFields is both the model's STILL NEEDED prior and the client-side guard
+ * finishInterview() consults, so what it gates on decides what an org can be
+ * created WITHOUT. Two hard gates; metrics/name/title stay optional (the term
+ * moved to the workspace entirely).
+ */
 describe("missingFields", () => {
-  it("gates only on kind; ignores optional metrics/name/title (term moved to the workspace)", async () => {
+  it("gates on kind AND the activities beat", async () => {
     const { missingFields } = await import("@/app/create/_components/interview-ai");
     const { emptyDraft } = await import("@/lib/onboarding/draft");
 
     const empty = emptyDraft();
-    expect(missingFields(empty)).toEqual(["kind"]);
+    expect(missingFields(empty)).toEqual(["kind", "workflows"]);
 
+    // Resolving the kind is NOT enough to finish. It used to be, and the model
+    // signalling done on that turn shipped an org whose entire page set was the
+    // base Dashboard + Timeline — no meetings, parties, service, tasks, docs or
+    // dues — with a Timeline step of ghosted categories over an empty preview.
     const withKind = { ...empty, kind: "club" as const };
-    expect(missingFields(withKind)).toEqual([]);
+    expect(missingFields(withKind)).toEqual(["workflows"]);
+
+    const answered = { ...withKind, activitiesAnswered: true };
+    expect(missingFields(answered)).toEqual([]);
+  });
+
+  it("counts a checklist answer of NOTHING as answered", async () => {
+    const { missingFields } = await import("@/app/create/_components/interview-ai");
+    const { emptyDraft } = await import("@/lib/onboarding/draft");
+
+    // "we don't really do any of those" is a real answer that leaves the page
+    // set at base. Inferring the gate from enabledWorkflows instead would read
+    // this founder as never having been asked, and re-ask forever.
+    const lean = {
+      ...emptyDraft(),
+      kind: "other" as const,
+      activitiesAnswered: true,
+      enabledWorkflows: [],
+    };
+    expect(missingFields(lean)).toEqual([]);
   });
 });
 

@@ -13,7 +13,7 @@ import { describe, expect, it } from "vitest";
 import { draftEventTypes, flowReducer, grad, gradIvory, slugify } from "@/app/create/_components/flow-state";
 import { MAX_SLUG_LEN, suggestSlug } from "@/lib/slug-rules";
 import { createOrgInput } from "@/lib/validation/org";
-import { emptyDraft, type Draft } from "@/lib/onboarding/draft";
+import { emptyDraft, parseDraft, type Draft } from "@/lib/onboarding/draft";
 import { starterEventTypes } from "@/lib/onboarding/event-types";
 import { BUILTIN_EVENT_TYPES } from "@/lib/event-types";
 import { getOrgType } from "@/lib/org-types";
@@ -251,5 +251,42 @@ describe("flow-state: slugify agrees with suggestSlug", () => {
 
   it("romanizes Greek, so a Greek-letter org gets a usable URL", () => {
     expect(slugify("ΣΦΕ")).toBe("sigma-phi-epsilon");
+  });
+});
+
+/* ─── The activities beat's recorded answer ────────────────────────────────
+   The interview may not END until this is set (see missingFields): the beat
+   decides the org's entire page set, and an interview that skipped it built an
+   org with no meetings, parties, service, tasks, docs or dues page. */
+
+describe("flow-state: activitiesAnswered", () => {
+  it("starts false and is set by the beat's own action", () => {
+    const fresh = emptyDraft();
+    expect(fresh.activitiesAnswered).toBe(false);
+    expect(flowReducer(fresh, { type: "activitiesAnswered" }).activitiesAnswered).toBe(true);
+  });
+
+  it("is cleared by setKind, because the page set resets with it", () => {
+    // A late kind change wipes enabledWorkflows back to base, so the founder's
+    // earlier ticks no longer describe this draft — the beat is owed again.
+    const answered = flowReducer(
+      flowReducer(emptyDraft(), { type: "setKind", kind: "fraternity" }),
+      { type: "activitiesAnswered" },
+    );
+    expect(answered.activitiesAnswered).toBe(true);
+    expect(flowReducer(answered, { type: "setKind", kind: "club" }).activitiesAnswered).toBe(false);
+  });
+
+  it("survives a draft round-trip through storage", () => {
+    const answered = flowReducer(emptyDraft(), { type: "activitiesAnswered" });
+    const parsed = parseDraft(JSON.stringify(answered));
+    expect(parsed?.activitiesAnswered).toBe(true);
+  });
+
+  it("reads as unanswered on a draft written before the field existed", () => {
+    // A founder mid-OAuth across the deploy: the field is additive with a
+    // default, so their draft still parses instead of being discarded.
+    const { activitiesAnswered: _omitted, ...legacy } = emptyDraft();
+    expect(parseDraft(JSON.stringify(legacy))?.activitiesAnswered).toBe(false);
   });
 });

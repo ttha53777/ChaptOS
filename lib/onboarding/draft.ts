@@ -19,7 +19,7 @@
 import { z } from "zod";
 import { ALL_WORKFLOWS, getOrgType, normalizeWorkflows, type WorkflowId } from "@/lib/org-types";
 import { PERMISSIONS, type Permission } from "@/lib/permissions";
-import { resolveLabel, sanitizeVocabOverrides } from "@/lib/vocab";
+import { resolveLabel, sanitizeVocabOverrides, type VocabKey } from "@/lib/vocab";
 import { suggestSlug } from "@/lib/slug-rules";
 import type { CreateOrgInput } from "@/lib/validation/org";
 import { BUILTIN_METRIC_DEFAULTS, KIND_IDS, KIND_TO_TYPE, KIND_VOCAB_DELTA, type KindId } from "./kinds";
@@ -33,6 +33,18 @@ export const LEGACY_DRAFT_STORAGE_KEY = "figurints:create-draft:v1";
 
 /** Drafts older than this are discarded on restore (stale slug checks, stale mind). */
 export const DRAFT_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+
+/**
+ * The structured picks an interview answer may apply to the draft — nothing the
+ * founder couldn't also do by hand (workflow toggles + vocab chips). Lives here
+ * rather than in the flow's client module so the pure pickers in
+ * lib/onboarding/activities.ts can speak it without importing app/ code.
+ */
+export interface AiPicks {
+  addWorkflows: WorkflowId[];
+  removeWorkflows: WorkflowId[];
+  vocab: Partial<Record<VocabKey, string>>;
+}
 
 /** 2 MB of image ≈ 2.8 MB of data-URL; anything bigger was never a valid logo. */
 const MAX_LOGO_DATA_URL_CHARS = 3_000_000;
@@ -62,6 +74,21 @@ export const draftSchema = z.object({
   founderName:   z.string().max(120),
   skipped:       z.boolean(),
   interviewDone: z.boolean(),
+  /**
+   * Whether the interview's activities beat ("in a normal month, which of these
+   * happen?") has been ANSWERED — recorded, not inferred.
+   *
+   * That beat is the only authority for which pages an org gets, so something
+   * has to know whether it ran. Reading it off the page set instead ("does
+   * enabledWorkflows hold anything past BASE_WORKFLOWS?") is wrong in both
+   * directions: a founder who ticks nothing has genuinely answered it, and any
+   * later path that adds a page would forge an answer nobody gave.
+   *
+   * `.default()` rather than a schema-version bump, same as eventTypes below: the
+   * field is additive, so a draft written mid-OAuth across the deploy still
+   * parses and simply reads as "beat not answered yet".
+   */
+  activitiesAnswered: z.boolean().default(false),
   enabledWorkflows: z.array(z.enum(ALL_WORKFLOWS as [WorkflowId, ...WorkflowId[]])).max(ALL_WORKFLOWS.length),
   /** Sparse vocab edits from the interview + blueprint's "Your words" chips
       (singular only). Permissive keys, like blueprintInput — unknown keys are
@@ -148,6 +175,7 @@ export function emptyDraft(): Draft {
     founderName: "",
     skipped: false,
     interviewDone: false,
+    activitiesAnswered: false,
     enabledWorkflows: [],
     vocab: {},
     metrics: defaultMetrics(null),

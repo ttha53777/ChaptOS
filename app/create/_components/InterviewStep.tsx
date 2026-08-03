@@ -38,12 +38,16 @@ import {
   type BuiltinMetricId,
   type KindId,
 } from "@/lib/onboarding/kinds";
-import { BASE_WORKFLOWS, type WorkflowId } from "@/lib/org-types";
+import {
+  ACTIVITY_OPTIONS,
+  activityLabels,
+  activityPicksToAiPicks,
+  readActivities,
+} from "@/lib/onboarding/activities";
 import {
   draftVocab,
   workflowsChanged,
   workflowsForKind,
-  type AiPicks,
   type FlowAction,
 } from "./flow-state";
 import {
@@ -55,93 +59,6 @@ import {
   type InterviewAiTurn,
 } from "./interview-ai";
 import type { SheetFlash } from "./BlueprintSheet";
-
-/**
- * The "normal month — which of these actually happen?" checklist. Each option
- * pairs the founder-facing label with the workflow id(s) it turns on. This table
- * MUST mirror the ACTIVITY → PAGE MAPPING block in the concierge prompt
- * (app/api/ai/interview/route.ts) so the tapped-checklist path and the model's
- * free-text path resolve identical pages. Rendered as a multi-select grid (the
- * same accumulate-then-submit pattern the metrics picker uses) because its six
- * options exceed the concierge's 4-chip cap.
- *
- * Attendance rides the meetings tick rather than earning its own beat: taking
- * roll IS what a chapter meeting page is for, and a founder who disagrees has a
- * one-tap toggle on the blueprint. Adding a seventh question to reach the same
- * place would be worse.
- */
-const ACTIVITY_OPTIONS: { id: string; label: string; workflows: WorkflowId[] }[] = [
-  { id: "meetings",  label: "Chapter meetings",             workflows: ["meetings", "attendance"] },
-  { id: "socials",   label: "Social events or parties",     workflows: ["parties"] },
-  { id: "service",   label: "Service or volunteering",      workflows: ["service"] },
-  { id: "fundraise", label: "Fundraisers or programs",      workflows: ["events", "finance"] },
-  { id: "tasks",     label: "Handing out tasks/deadlines",  workflows: ["tasks"] },
-  { id: "online",    label: "Posting content online",       workflows: ["communications"] },
-];
-
-/** Every page the checklist can decide — its REMOVAL domain. A page in here that
-    the founder didn't tick gets turned OFF, which is what makes the checklist
-    authoritative instead of merely additive. (docs and finance can come back at
-    the later docs/payments beats; parties at the door beat. Those are strict
-    refinements that run after, so there's no conflict.) */
-const ACTIVITY_OWNED: WorkflowId[] = [
-  ...new Set(ACTIVITY_OPTIONS.flatMap(o => o.workflows)),
-];
-
-/**
- * Turn a checklist selection into one authoritative pick set: what they ticked
- * goes on, and every OTHER activity-owned page goes off. Pure + shared by both
- * drivers (tap, typed, and the concierge's checklist turn) so a page can never
- * depend on which one asked.
- */
-function activityPicksToAiPicks(ids: ReadonlySet<string>): AiPicks {
-  const on = new Set<WorkflowId>(
-    ACTIVITY_OPTIONS.filter(o => ids.has(o.id)).flatMap(o => o.workflows),
-  );
-  return {
-    addWorkflows: [...on],
-    removeWorkflows: ACTIVITY_OWNED.filter(w => !on.has(w)),
-    vocab: {},
-  };
-}
-
-/**
- * Keyword-match a typed "normal month" answer onto the checklist options, so a
- * founder who types their answer lands in exactly the same place as one who taps
- * it. Deliberately naive (same posture as matchKind) — the checklist is the
- * primary input.
- *
- * Returns `null` for an answer it CANNOT read. That distinction is the whole
- * point: submitActivities is authoritative, so an empty set means "none of these
- * happen" and turns all six pages OFF. Every natural affirmative — "yes",
- * "yeah, all of those", "we do all of them" — names no keyword, so folding
- * unparseable into empty made the founder's "we do those things" strip the exact
- * pages they were confirming. An unreadable answer is a question to re-ask, not
- * an answer of "none".
- */
-function matchActivities(text: string): Set<string> | null {
-  const l = text.toLowerCase();
-  const ids = new Set<string>();
-  if (/\bmeet|chapter|assembly|weekly|general body\b/.test(l)) ids.add("meetings");
-  if (/part(y|ies)|social|mixer|formal|tailgate|date night/.test(l)) ids.add("socials");
-  if (/service|volunteer|philanthrop|charity|community/.test(l)) ids.add("service");
-  if (/fundrais|program|workshop|speaker|rush|recruit/.test(l)) ids.add("fundraise");
-  if (/task|deadline|assign|committee|to-?do/.test(l)) ids.add("tasks");
-  if (/instagram|social media|\bpost|announce|newsletter|online/.test(l)) ids.add("online");
-  if (ids.size) return ids;
-
-  // Nothing named. A blanket yes ("all of the above", "we do everything") is a
-  // real answer meaning every option; a blanket no is a real answer meaning none.
-  // Anything else is unreadable — and "yes" on its own is unreadable too, since
-  // it could be agreeing to all six or to whichever one they had in mind.
-  if (/\b(all|everything|every one|the lot)\b/.test(l) && !/\bnot? \b/.test(l)) {
-    return new Set(ACTIVITY_OPTIONS.map(o => o.id));
-  }
-  if (/\b(none|nothing|neither|no(ne)? of (them|those|these)|not really)\b/.test(l)) {
-    return new Set();
-  }
-  return null;
-}
 
 type Stage =
   | "intro"
@@ -303,6 +220,9 @@ export function InterviewStep({
   /* ─── The question script ─────────────────────────────────────────────── */
 
   function ask(stage: Stage) {
+    // "done" is not a question — it's the exit, and finishInterview owns the
+    // state from there (it may refuse and hand off rather than end).
+    if (stage === "done") return finishInterview();
     setStage(stage);
     switch (stage) {
       case "intro": {
@@ -364,11 +284,6 @@ export function InterviewStep({
       case "metrics": {
         push("q", <>What should I track for each {vocab("Member").toLowerCase()}? Tap everything you want on the sheet — or type your own.</>);
         setChips(null); // metrics chips render live from the draft, below
-        break;
-      }
-      case "done": {
-        dispatch({ type: "interviewDone" });
-        later(() => setShowCta(true), 500);
         break;
       }
     }
@@ -587,27 +502,22 @@ export function InterviewStep({
       machine should pick up when the concierge hands off. */
   function resumeStage(): Stage {
     const missing = new Set<string>(missingFields(draftRef.current));
-    // kind is the only hard gate. If it's missing we still need the kind
-    // question — but only route through "intro" when the founder's NAME is also
-    // still unknown, because that beat's whole job is asking for it. The
-    // concierge captures the name on its very first turn, so a handoff right
-    // after that would otherwise re-ask it ("what's your name?" twice in a row).
+    // kind is a hard gate. If it's missing we still need the kind question —
+    // but only route through "intro" when the founder's NAME is also still
+    // unknown, because that beat's whole job is asking for it. The concierge
+    // captures the name on its very first turn, so a handoff right after that
+    // would otherwise re-ask it ("what's your name?" twice in a row).
     if (missing.has("kind")) {
       return draftRef.current.founderName.trim() ? "kind" : "intro";
     }
-    // The activities beat is owed whenever the page set is still untouched.
-    // It is the ONLY authority for which pages an org gets (see the WORKFLOW
-    // AUTHORITY block in lib/org-types.ts): setKind resets enabledWorkflows to
-    // BASE_WORKFLOWS, and nothing else adds to it. So a handoff that skipped it
-    // — the concierge resolving `kind` and then failing, hitting the turn cap, or
-    // signalling done early — would provision an org with no meetings, parties,
-    // service or events page, and leave the Timeline step with no active type to
-    // show over an empty preview. "Nothing is strictly owed once kind is known"
-    // was true only while the org-type template still seeded pages.
-    const decidedPages = draftRef.current.enabledWorkflows.some(
-      w => !BASE_WORKFLOWS.includes(w),
-    );
-    if (!decidedPages) return "activities";
+    // So is the activities beat — it is the ONLY authority for which pages an
+    // org gets (see the WORKFLOW AUTHORITY block in lib/org-types.ts), so a
+    // handoff that skipped it (the concierge resolving `kind` and then failing,
+    // hitting the turn cap, or signalling done early) would provision an org
+    // with no meetings, parties, service or events page. missingFields owns that
+    // judgement now, off the draft's recorded answer rather than a guess at the
+    // page set — a founder who ticks nothing has still answered it.
+    if (missing.has("workflows")) return "activities";
 
     // Pages settled → nothing else is strictly owed (name falls back to the
     // Google name, metrics/roles are optional). Land on metrics so the founder
@@ -672,17 +582,19 @@ export function InterviewStep({
       setTyping(false);
       push("bot", <>{result.reply || "Got it — the sheet's updated."}</>);
 
-      const stillMissing = missingFields(draftRef.current);
       const hitCap = convoTurns.current >= MAX_CONCIERGE_TURNS;
 
-      // Completion: honor the model's "done" only when nothing is actually left.
-      if (result.done && stillMissing.length === 0) {
+      // Completion: hand the model's "done" to finishInterview, which honors it
+      // only when nothing is actually left and otherwise drains the remaining
+      // beats through the scripted machine. The check lives THERE, not here, so
+      // no exit can route around it.
+      if (result.done) {
         later(() => finishInterview(), 650);
         return;
       }
-      // Early-exit or loop-cap guard: fields remain but the model quit (or we're
-      // out of turns) → drain the rest through the scripted machine.
-      if ((result.done && stillMissing.length > 0) || hitCap || !result.next) {
+      // Loop-cap / no-next-question guard: the model didn't say done but has
+      // nowhere to go → drain the rest through the scripted machine.
+      if (hitCap || !result.next) {
         handoffToScripted(<>Let me just confirm a couple of things.</>);
         return;
       }
@@ -717,24 +629,34 @@ export function InterviewStep({
     });
   }
 
-  /** Re-ask the activities beat after an answer we couldn't read. Stays on the
-      stage and re-opens the checklist, so the founder can tap their way out of a
-      phrasing the keyword matcher doesn't cover. */
-  function reopenActivities() {
+  /**
+   * Re-ask the activities beat rather than act on an answer we can't fully read.
+   * Stays on the stage and re-opens the checklist, so the founder taps their way
+   * out of a phrasing the keyword reader doesn't cover.
+   *
+   * `seed` pre-ticks the grid with what we DID understand — an answer that only
+   * ruled things out ("no parties") tells us five of the six, so the founder
+   * confirms with one tap instead of retyping. `line` names what we caught, so
+   * the pre-ticked boxes don't look like a guess out of nowhere.
+   */
+  function reopenActivities(seed?: ReadonlySet<string>, line?: ReactNode) {
     setChips(null);
     setTyping(true);
     later(() => {
       setTyping(false);
-      push("bot", <>Sorry — I didn&rsquo;t catch which ones. Tap the ones that happen and I&rsquo;ll set those pages up.</>);
-      setActivityPicks(new Set());
+      push(
+        "bot",
+        line ?? <>Sorry — I didn&rsquo;t catch which ones. Tap the ones that happen and I&rsquo;ll set those pages up.</>,
+      );
+      setActivityPicks(new Set(seed ?? []));
     }, 700);
   }
 
-  function activitiesReply(picked: typeof ACTIVITY_OPTIONS): ReactNode {
+  function activitiesReply(picked: string[]): ReactNode {
     if (!picked.length) {
       return <>Kept lean, then — just the roster and the dashboard. You can add any page you want on the blueprint.</>;
     }
-    return <>Good — <b>{picked.map(o => o.label.toLowerCase()).join(", ")}</b>. Those are your pages.</>;
+    return <>Good — <b>{picked.map(l => l.toLowerCase()).join(", ")}</b>. Those are your pages.</>;
   }
 
   /**
@@ -753,7 +675,7 @@ export function InterviewStep({
    * only the tap path needs us to voice the selection.
    */
   function submitActivities(ids: ReadonlySet<string>, echo: boolean) {
-    const picked = ACTIVITY_OPTIONS.filter(o => ids.has(o.id));
+    const picked = activityLabels(ids);
     setActivityPicks(null);
     const picks = activityPicksToAiPicks(ids);
     // Only pulse the sheet if the ticks actually move a page. The checklist always
@@ -762,10 +684,15 @@ export function InterviewStep({
     // it was refreshing without ever updating.
     const moved = workflowsChanged(draftRef.current, picks);
     dispatch({ type: "applyAiPicks", picks });
+    // The beat is now ANSWERED — including when nothing was ticked, which is a
+    // real answer ("we don't do any of that") and not the same as never asking.
+    // missingFields reads this, and it is what stops the interview ending before
+    // the org has any pages at all.
+    dispatch({ type: "activitiesAnswered" });
     if (moved) onFlash("pages");
 
     const summary = picked.length
-      ? picked.map(o => o.label.toLowerCase()).join(", ")
+      ? picked.map(l => l.toLowerCase()).join(", ")
       : "none of those, really";
 
     if (modeRef.current === "ai") {
@@ -777,8 +704,24 @@ export function InterviewStep({
     respond(activitiesReply(picked), "docs");
   }
 
-  /** Wrap up the interview (from either driver): mark done + reveal the CTA. */
+  /**
+   * The interview's ONE exit, from either driver: mark done + reveal the CTA.
+   *
+   * Guarded, because ending is not the caller's call to make. Both drivers can
+   * reach here with beats still owed — the concierge by signalling `done` early
+   * (structured output will happily set it the turn after the kind resolves),
+   * the scripted spine only via a hand-edited state — and an interview that ends
+   * before the activities beat provisions an org with no pages at all. So a
+   * still-missing field turns "finish" into a handoff that asks for it instead.
+   * The handoff always routes through the owed beat, which records its answer,
+   * so this can't loop.
+   */
   function finishInterview() {
+    const missing = missingFields(draftRef.current);
+    if (missing.length > 0) {
+      handoffToScripted(<>Let me just confirm a couple of things.</>);
+      return;
+    }
     dispatch({ type: "interviewDone" });
     setStage("done");
     setChips(null);
@@ -798,16 +741,27 @@ export function InterviewStep({
     } else if (s === "kind") {
       answerKind(matchKind(text), text);
     } else if (s === "activities") {
-      // Typed instead of tapped — keyword-match the sentence onto the checklist
-      // and run the SAME authoritative submit, so typing and tapping agree. Their
-      // own words are the user bubble, so don't echo a synthesized summary too.
+      // Typed instead of tapped — read the sentence onto the checklist and run
+      // the SAME authoritative submit, so typing and tapping agree. Their own
+      // words are the user bubble, so don't echo a synthesized summary too.
       push("user", text);
-      const ids = matchActivities(text);
-      // Unreadable answer → re-open the checklist rather than submitting. The
-      // submit is authoritative, so guessing an empty set here would turn every
-      // activity page off on the strength of a sentence we admit we can't parse.
-      if (ids === null) reopenActivities();
-      else submitActivities(ids, false);
+      const read = readActivities(text);
+      if (read === null) {
+        // Unreadable → re-open the checklist rather than submitting. The submit
+        // is authoritative, so guessing an empty set here would turn every
+        // activity page off on the strength of a sentence we can't parse.
+        reopenActivities();
+      } else if (read.confident) {
+        submitActivities(read.ids, false);
+      } else {
+        // Negatives only ("no parties") — we know what to rule out but never
+        // heard what they DO. Confirm the rest instead of inventing it.
+        const ruledOut = activityLabels(read.off).map(l => l.toLowerCase()).join(", ");
+        reopenActivities(
+          read.ids,
+          <>Got it — no {ruledOut}. I&rsquo;ve ticked the rest; drop anything else that doesn&rsquo;t happen.</>,
+        );
+      }
     } else if (s === "docs") {
       answerDocs(matchYesNo(text), text);
     } else if (s === "payments") {

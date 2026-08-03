@@ -23,6 +23,7 @@ import {
   defaultMetrics,
   emptyDraft,
   parseDraft,
+  type AiPicks,
   type CreateStep,
   type Draft,
 } from "@/lib/onboarding/draft";
@@ -51,13 +52,9 @@ import { resolveLabel, type VocabKey } from "@/lib/vocab";
 import { ROOT_DOMAIN } from "@/lib/domains";
 import { suggestSlug } from "@/lib/slug-rules";
 
-/** The structured picks an AI interpretation may apply — nothing the founder
-    couldn't also do by hand (workflow toggles + vocab chips). */
-export interface AiPicks {
-  addWorkflows: WorkflowId[];
-  removeWorkflows: WorkflowId[];
-  vocab: Partial<Record<VocabKey, string>>;
-}
+/** Re-exported from lib/onboarding/draft (its new home, so the pure activity
+    pickers can speak it too) — every existing importer reads it from here. */
+export type { AiPicks };
 
 export type FlowAction =
   | { type: "hydrate"; draft: Draft }
@@ -70,6 +67,7 @@ export type FlowAction =
   | { type: "addCustomMetric"; name: string; unit: string | null }
   | { type: "removeCustomMetric"; index: number }
   | { type: "applyAiPicks"; picks: AiPicks }
+  | { type: "activitiesAnswered" }
   | { type: "interviewDone" }
   | { type: "goto"; step: CreateStep }
   | { type: "setSlug"; slug: string | null }
@@ -100,12 +98,21 @@ export type FlowAction =
 function kindDefaults(
   draft: Draft,
   kind: KindId,
-): Pick<Draft, "kind" | "variant" | "enabledWorkflows" | "seats" | "vocab" | "metrics" | "eventTypes"> {
+): Pick<
+  Draft,
+  | "kind" | "variant" | "enabledWorkflows" | "seats" | "vocab" | "metrics"
+  | "eventTypes" | "activitiesAnswered"
+> {
   const template = getOrgType(KIND_TO_TYPE[kind])!;
   return {
     kind,
     variant: null,
     enabledWorkflows: template.enabledWorkflows.filter(w => BASE_WORKFLOWS.includes(w)),
+    // The page set just reset to base, so whatever the founder ticked on the
+    // activities checklist no longer describes this draft — the beat is owed
+    // again. Without this, changing the kind late in the interview would leave
+    // an org with base pages and a flag saying its pages were decided.
+    activitiesAnswered: false,
     seats: seatsFromTemplate(KIND_TO_TYPE[kind]),
     vocab: {},
     metrics: { ...BUILTIN_METRIC_DEFAULTS[kind], custom: draft.metrics.custom },
@@ -244,6 +251,8 @@ export function flowReducer(draft: Draft, action: FlowAction): Draft {
       }
       return { ...draft, enabledWorkflows: nextWorkflows(draft, action.picks), vocab };
     }
+    case "activitiesAnswered":
+      return { ...draft, activitiesAnswered: true };
     case "interviewDone":
       return { ...draft, interviewDone: true, skipped: false };
     case "goto": {
