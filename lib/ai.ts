@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import { logError } from "@/lib/observability";
 
 // Server-only. Never import this from a client component — it reads OPENAI_API_KEY
 // and must never reach the browser. All AI calls go through API routes behind auth,
@@ -90,7 +91,7 @@ export async function narrate(system: string, user: string): Promise<string | nu
     const text = completion.choices[0]?.message?.content?.trim();
     return text || null;
   } catch (e) {
-    console.error("narrate() failed:", e);
+    logError(e, { route: "lib/ai:narrate" });
     return null;
   }
 }
@@ -300,7 +301,9 @@ export async function interpretInterview(
       done:             parsed.done === true,
     };
   } catch (e) {
-    console.error("interpretInterview() failed:", e);
+    // Structured + forwarded to Sentry: this is the failure that silently drops
+    // a founder from the concierge onto the degraded scripted interview.
+    logError(e, { route: "lib/ai:interpretInterview" });
     return null;
   }
 }
@@ -459,7 +462,7 @@ export async function recommendSetup(system: string, user: string): Promise<RawS
       rationale: typeof parsed.rationale === "string" ? parsed.rationale : "",
     };
   } catch (e) {
-    console.error("recommendSetup() failed:", e);
+    logError(e, { route: "lib/ai:recommendSetup" });
     return null;
   }
 }

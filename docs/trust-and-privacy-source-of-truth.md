@@ -178,11 +178,20 @@ destination**) · `InstagramTask` · `ChapterAnnouncement` · `PartyEvent` (`the
 | Assistant feedback | **The member's verbatim question text**, stored in `OperationalEvent.metadata` on thumbs-up/down ([assistant-feedback-service.ts](lib/services/assistant-feedback-service.ts)) | Indefinite |
 | Server logs | JSON lines: `requestId`, `route`, `method`, `userId`, error message, **stack trace**; plus AI timing with `orgId` | Per Vercel/Sentry retention |
 | Rate-limit buckets | Brother id, or **client IP** for pre-auth routes | In-memory only, per instance, evaporates on cold start ([rate-limit.ts](lib/rate-limit.ts)) |
+| Interview fallback beacon | Pre-auth. **Reason codes and counters only** — why the `/create` interview dropped from the AI concierge to the scripted path (`reason`, `stage`, `turn`, `elapsedMs`) plus a random per-page-load `sessionId`. **No typed answers, no org name, no transcript, no IP, no user** — the Zod schema drops unknown keys, so nothing else can ride along ([event/route.ts](app/api/ai/interview/event/route.ts)) | Server logs only; no database row. Per Vercel/Sentry retention |
 
 **No product analytics exist.** No Google Analytics, no PostHog, Mixpanel, Segment, Plausible, or
 Vercel Analytics — verified by grep across `app/` and `lib/`. **No advertising or tracking pixels. No
 data sold or shared for cross-context behavioral advertising** (that exact CCPA phrasing matters: it
 lets you state you have no §1798.120 opt-out obligation). This is your strongest privacy claim.
+
+The interview fallback beacon above is deliberately **not** an exception to that. It is operational
+error reporting — the same category as the server logs on the line above it, and written to the same
+place — measuring whether our own AI call failed, not what the visitor did. It records no identity,
+no behavior, and nothing the visitor typed; its `sessionId` is a random value generated per page load
+that is never stored and correlates nothing beyond a single interview. It exists because a founder
+silently getting a degraded interview was previously unobservable. **If it ever grows a field
+describing the person rather than the failure, this claim has to be revisited.**
 
 ---
 

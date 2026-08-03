@@ -295,11 +295,54 @@ describe("POST /api/ai/interview", () => {
   it("429s past the per-minute IP limit", async () => {
     const ip = "10.99.99.99";
     let status = 200;
-    for (let i = 0; i < 20; i++) {
+    // The limit is deliberately building-sized (a campus NAT is one IP), so this
+    // has to run well past it. Loop generously rather than pinning the constant.
+    for (let i = 0; i < 200; i++) {
       status = (await POST(buildPost(VALID_BODY, ip))).status;
       if (status === 429) break;
     }
     expect(status).toBe(429);
+  });
+
+  // A full concierge interview is ~10 POSTs. Two founders behind one campus NAT
+  // starting in the same minute used to collide, and the second silently got the
+  // degraded scripted interview — the exact failure this budget exists to avoid.
+  it("lets several concurrent interviews share one IP", async () => {
+    const ip = "10.99.98.1";
+    for (let i = 0; i < 40; i++) {
+      expect((await POST(buildPost(VALID_BODY, ip))).status).toBe(200);
+    }
+  });
+
+  it("429s a single runaway session even when the IP has budget left", async () => {
+    const session = "sess-runaway-0001";
+    let status = 200;
+    for (let i = 0; i < 60; i++) {
+      // Fresh IP each call, so only the session bucket can trip.
+      const req = buildPost(VALID_BODY);
+      req.headers.set("x-interview-session", session);
+      status = (await POST(req)).status;
+      if (status === 429) break;
+    }
+    expect(status).toBe(429);
+    // A different session on the same (rotating) IPs is unaffected.
+    const other = buildPost(VALID_BODY);
+    other.headers.set("x-interview-session", "sess-innocent-0002");
+    expect((await POST(other)).status).toBe(200);
+  });
+
+  // With no proxy header there is no way to tell visitors apart. The old code
+  // put them all in one 15/min bucket, so a deployment without a proxy walled
+  // every founder at once; the fallback bucket is a runaway backstop instead.
+  it("does not wall unidentifiable clients at the per-IP limit", async () => {
+    for (let i = 0; i < 40; i++) {
+      const req = new NextRequest("http://localhost/api/ai/interview", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(VALID_BODY),
+      });
+      expect((await POST(req)).status).toBe(200);
+    }
   });
 });
 

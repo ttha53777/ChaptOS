@@ -9,6 +9,12 @@
  * timeout) collapses to `null`, and the caller falls back to its deterministic
  * path (keyword matcher + canned reply). The founder never sees an error
  * state, just a slightly less clever interviewer.
+ *
+ * TODO: that collapse is also why no one can tell a rate-limit from a model
+ * timeout, or count how often founders land on the degraded interview. The
+ * server half of the fix is in place — POST /api/ai/interview/event accepts a
+ * reason code and logs it. This wrapper still needs to return reasons instead
+ * of `null` and beacon them.
  */
 
 import type { Draft } from "@/lib/onboarding/draft";

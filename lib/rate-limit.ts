@@ -78,14 +78,33 @@ export function rateLimit(key: string, limit: number, windowMs: number): RateLim
 }
 
 /**
+ * Best-effort client IP from proxy headers, or null when no proxy set one.
+ *
+ * Callers that need to TELL THE DIFFERENCE want this. Collapsing an absent
+ * header into a shared bucket means every visitor of a deployment without a
+ * proxy contends for one budget — fine as a coarse abuse guard on a cheap route,
+ * but on a route with a real per-request budget it walls everyone at once, and
+ * silently. On Vercel the edge always sets x-forwarded-for, so a null here is a
+ * misconfiguration worth surfacing rather than absorbing.
+ *
+ * NOTE: the header is taken at face value — no hop trimming, no trust-proxy
+ * config. Vercel's edge overwrites it, so it's trustworthy in this deployment;
+ * a self-hosted one would need to validate the hop count.
+ */
+export function clientIpOrNull(req: NextRequest): string | null {
+  const fwd = req.headers.get("x-forwarded-for");
+  if (fwd) return fwd.split(",")[0].trim() || null;
+  return req.headers.get("x-real-ip") ?? null;
+}
+
+/**
  * Best-effort client IP from proxy headers. Falls back to "unknown" so the
  * limiter still buckets (all unknowns share one bucket — acceptable for a
- * coarse abuse guard).
+ * coarse abuse guard). Use clientIpOrNull when that shared bucket would be a
+ * problem.
  */
 export function clientIp(req: NextRequest): string {
-  const fwd = req.headers.get("x-forwarded-for");
-  if (fwd) return fwd.split(",")[0].trim();
-  return req.headers.get("x-real-ip") ?? "unknown";
+  return clientIpOrNull(req) ?? "unknown";
 }
 
 /**

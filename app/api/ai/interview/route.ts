@@ -1,12 +1,12 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
-import { rateLimit, clientIp, tooManyRequests } from "@/lib/rate-limit";
+import { rateLimit, clientIp, clientIpOrNull, tooManyRequests } from "@/lib/rate-limit";
 import { aiEnabled, interpretInterview, type RawInterviewResult } from "@/lib/ai";
 import { ALL_WORKFLOWS, ALWAYS_ON_WORKFLOWS, type WorkflowId } from "@/lib/org-types";
 import { VOCAB_KEYS, DEFAULT_LABELS, type VocabKey } from "@/lib/vocab";
 import { KIND_IDS, KIND_VARIANTS, isKindId, type KindId } from "@/lib/onboarding/kinds";
 import { KIND_DISCOVERY_ANGLES } from "@/lib/onboarding/discovery";
-import { logError } from "@/lib/observability";
+import { logError, logTiming } from "@/lib/observability";
 
 // POST /api/ai/interview — the /create interview's free-text interpreter.
 //
@@ -31,9 +31,45 @@ import { logError } from "@/lib/observability";
 // every id/key against the real registries (ALL_WORKFLOWS / VOCAB_KEYS /
 // KIND_VARIANTS) before anything leaves this route.
 
-const MINUTE_LIMIT = 15;
-const DAY_LIMIT    = 80;
-const PROBE_LIMIT  = 30;
+// Budgets are per IP, and an IP is not a founder: a campus NAT puts a whole
+// building behind one. A full concierge interview is ~10 POSTs, so the old
+// 15/min + 80/day meant two founders starting in the same minute pushed the
+// second onto the degraded scripted spine, and one shared address ran out of
+// interviews after eight. These are sized for a building, not a person — the
+// per-request cost is small (reasoning_effort "none", 700 max output tokens) and
+// the real backstops are the transcript cap and the session bucket below.
+const MINUTE_LIMIT = 60;
+const DAY_LIMIT    = 600;
+const PROBE_LIMIT  = 120;
+
+/** Per-interview budget, keyed on a client-generated id. Forgeable by design —
+    it is NOT an abuse control (rotating it is trivial; the IP buckets are the
+    real ceiling). It exists so one stuck or looping client can't drain the
+    budget its whole building is sharing. */
+const SESSION_LIMIT = 40;
+const SESSION_WINDOW_MS = 60 * 60 * 1000;
+
+/** Bucket for requests arriving with no proxy header at all. Deliberately loose:
+    when we can't tell visitors apart, a tight shared budget doesn't stop an
+    abuser (they're indistinguishable from everyone else anyway) but does wall
+    every legitimate founder at once. Sized as a runaway backstop only — the
+    misconfiguration itself is what gets fixed, and warnUnknownIpOnce() makes
+    sure someone finds out about it. */
+const UNKNOWN_IP_MINUTE_LIMIT = 300;
+
+/** The no-proxy-header case is a deployment bug, not a user event: on Vercel the
+    edge always sets x-forwarded-for. Log it once per process — every request
+    would be noise, and silence is how it went unnoticed. */
+let warnedUnknownIp = false;
+function warnUnknownIpOnce(route: string) {
+  if (warnedUnknownIp) return;
+  warnedUnknownIp = true;
+  logError(new Error("No x-forwarded-for/x-real-ip on a pre-auth request — rate limiting is falling back to one shared bucket"), {
+    route,
+    method: "POST",
+    extra: { bucket: "interview-ai-unknown", limitPerMin: UNKNOWN_IP_MINUTE_LIMIT },
+  });
+}
 
 /** Hard server-side transcript bound. The legacy per-stage clarify loops top
     out well under this; the concierge stage runs the WHOLE interview through
@@ -334,11 +370,37 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const ip = clientIp(req);
-  const minute = rateLimit(`interview-ai:${ip}`, MINUTE_LIMIT, 60_000);
-  if (!minute.ok) return tooManyRequests(minute);
-  const day = rateLimit(`interview-ai-day:${ip}`, DAY_LIMIT, 24 * 60 * 60 * 1000);
-  if (!day.ok) return tooManyRequests(day);
+  const ip = clientIpOrNull(req);
+  if (ip === null) {
+    warnUnknownIpOnce("/api/ai/interview");
+    const unknown = rateLimit("interview-ai-unknown", UNKNOWN_IP_MINUTE_LIMIT, 60_000);
+    if (!unknown.ok) {
+      logTiming({ route: "/api/ai/interview", method: "POST", message: "interview rate-limited", extra: { bucket: "unknown-ip" } });
+      return tooManyRequests(unknown);
+    }
+  } else {
+    const minute = rateLimit(`interview-ai:${ip}`, MINUTE_LIMIT, 60_000);
+    if (!minute.ok) {
+      logTiming({ route: "/api/ai/interview", method: "POST", message: "interview rate-limited", extra: { bucket: "ip-minute", limit: MINUTE_LIMIT } });
+      return tooManyRequests(minute);
+    }
+    const day = rateLimit(`interview-ai-day:${ip}`, DAY_LIMIT, 24 * 60 * 60 * 1000);
+    if (!day.ok) {
+      logTiming({ route: "/api/ai/interview", method: "POST", message: "interview rate-limited", extra: { bucket: "ip-day", limit: DAY_LIMIT } });
+      return tooManyRequests(day);
+    }
+  }
+
+  // Per-interview budget. Absent header = an older client or a direct call; the
+  // IP buckets above already covered it, so don't fail the request over it.
+  const session = req.headers.get("x-interview-session")?.slice(0, 64);
+  if (session) {
+    const sess = rateLimit(`interview-ai-sess:${session}`, SESSION_LIMIT, SESSION_WINDOW_MS);
+    if (!sess.ok) {
+      logTiming({ route: "/api/ai/interview", method: "POST", message: "interview rate-limited", extra: { bucket: "session", limit: SESSION_LIMIT } });
+      return tooManyRequests(sess);
+    }
+  }
 
   if (!aiEnabled()) return Response.json({ enabled: false, result: null });
 
@@ -358,7 +420,18 @@ export async function POST(req: NextRequest) {
     const raw = await interpretInterview(buildSystemPrompt(input), messages);
     // Model/parse failure → null result; the client falls back to its keyword
     // matcher. enabled stays true so the client keeps trying on later turns.
-    if (!raw) return Response.json({ enabled: true, result: null });
+    // Logged because the degraded interview this produces is materially worse
+    // than the concierge, and it used to return silently — nobody could tell how
+    // often founders were getting it.
+    if (!raw) {
+      logTiming({
+        route: "/api/ai/interview",
+        method: "POST",
+        message: "interpretInterview returned null",
+        extra: { stage: input.stage, turns: input.transcript.length },
+      });
+      return Response.json({ enabled: true, result: null });
+    }
     return Response.json({ enabled: true, result: validateInterviewResult(raw, input) });
   } catch (e) {
     logError(e, { route: "/api/ai/interview", method: "POST" });
