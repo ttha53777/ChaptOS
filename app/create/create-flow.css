@@ -423,6 +423,13 @@ html[data-crf-theme="ivory"] .crf .theme-btn .i-moon { display: flex; }
 .crf .typing i:nth-child(2) { animation-delay: .15s; }
 .crf .typing i:nth-child(3) { animation-delay: .3s; }
 @keyframes crf-tp { 0%, 60%, 100% { transform: none; opacity: .5; } 30% { transform: translateY(-4px); opacity: 1; } }
+/* Shown only once a turn has run long (SLOW_TURN_MS), so a slow model reads as
+   thinking rather than a hang. Fades in so it doesn't snap into place. */
+.crf .typing-slow {
+  align-self: center; font-size: 12.5px; color: var(--ink-40);
+  font-style: italic; animation: crf-fade .4s ease both;
+}
+@keyframes crf-fade { from { opacity: 0; } to { opacity: 1; } }
 
 .crf .chips { display: flex; flex-wrap: wrap; gap: 9px; padding: 2px 0 0 38px; }
 .crf .chip {

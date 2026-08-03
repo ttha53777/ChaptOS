@@ -56,9 +56,13 @@ import {
 } from "./flow-state";
 import {
   askInterviewAi,
+  newInterviewSessionId,
   probeInterviewAi,
   missingFields,
+  reportInterviewFallback,
   ACTIVITIES_CHIP,
+  SLOW_TURN_MS,
+  type FallbackReason,
   type InterviewAiResult,
   type InterviewAiTurn,
 } from "./interview-ai";
@@ -161,6 +165,9 @@ export function InterviewStep({
 }) {
   const [messages, setMessages] = useState<Msg[]>([]);
   const [typing, setTyping] = useState(false);
+  /** A concierge turn has been in flight past SLOW_TURN_MS — show it, so a long
+      wait reads as thinking rather than a hang. */
+  const [slowTurn, setSlowTurn] = useState(false);
   const [chips, setChips] = useState<Chip[] | null>(null);
   const [stage, setStage] = useState<Stage>("kind");
   const [showCta, setShowCta] = useState(false);
@@ -170,10 +177,28 @@ export function InterviewStep({
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const nextId = useRef(0);
 
-  // Whether AI is configured at all (probed once on mount). Decides which driver
-  // opens the interview, and gates the one remaining model call in the scripted
-  // path (answerMetricText's metric parse, which has its own local fallback).
+  // Whether AI is configured at all — the probe's answer, and NOTHING ELSE
+  // writes to it. It used to double as "has the concierge given up", which
+  // conflated two different facts: handing the CONVERSATION to the scripted
+  // spine (right, after a failure) also permanently disabled the one bounded
+  // model call the spine itself uses (wrong — that call has an instant local
+  // fallback and can't ask a question or move a page). Every founder who hit a
+  // single blip got the dumber metric parser for the rest of the interview.
   const aiOn = useRef(false);
+  // Stop asking altogether. Only set for failures that WILL repeat: the budget
+  // is gone (429) or the server says AI is off. A timeout or a junk response is
+  // worth one more try later.
+  const aiHardOff = useRef(false);
+  const aiFailures = useRef(0);
+  /** Is the one model call in the scripted spine still worth making? */
+  const aiUsable = () => aiOn.current && !aiHardOff.current && aiFailures.current < 2;
+
+  // Groups this interview's telemetry and gives the route a per-interview rate
+  // limit bucket. Random per mount; see the privacy note in interview-ai.ts.
+  const sessionId = useRef(newInterviewSessionId());
+  // Cancels an in-flight turn when the founder leaves. Without it, a concierge
+  // call outliving the component resolves into setState on a dead tree.
+  const liveTurn = useRef<AbortController | null>(null);
 
   /**
    * Synchronous turn latch.
@@ -245,7 +270,18 @@ export function InterviewStep({
   function later(fn: () => void, ms: number) {
     timers.current.push(setTimeout(fn, ms));
   }
-  useEffect(() => () => timers.current.forEach(clearTimeout), []);
+  useEffect(() => {
+    const controller = new AbortController();
+    liveTurn.current = controller;
+    const pending = timers.current;
+    return () => {
+      pending.forEach(clearTimeout);
+      // Cancel any turn still in flight. askInterviewAi reports this as
+      // "aborted", which its callers treat as "stop, don't render, don't
+      // report" — otherwise a slow turn resolves into a component that's gone.
+      controller.abort();
+    };
+  }, []);
 
   useEffect(() => {
     chatRef.current?.scrollTo({ top: chatRef.current.scrollHeight });
@@ -277,6 +313,8 @@ export function InterviewStep({
       case "kind": {
         push("q", <>Tell me about <em>{draftRef.current.name.trim() || "your organization"}</em> — what kind of organization is it?</>);
         setChips([
+          // No typed text behind a chip, so no variant can be read from one —
+          // see answerKind. A tap says "fraternity", not "social fraternity".
           { label: "A fraternity", pick: once(() => answerKind("fraternity", "A fraternity")) },
           { label: "A sorority", pick: once(() => answerKind("sorority", "A sorority")) },
           { label: "A club or student org", pick: once(() => answerKind("club", "A club or student org")) },
@@ -559,13 +597,32 @@ export function InterviewStep({
     setTyping(true);
     // The one model call left in the scripted spine. It only refines the parse
     // into {name, unit} — it can't ask a question or move a page — and the
-    // deterministic read above is a complete answer on its own.
-    const result = aiOn.current
-      ? await askInterviewAi("metrics", draftRef.current, [
-          { role: "q", text: "What else should be tracked per member?" },
-          { role: "user", text },
-        ])
+    // deterministic read above is a complete answer on its own, so this is
+    // skipped the moment the model looks unreliable (see aiUsable).
+    const outcome = aiUsable()
+      ? await askInterviewAi(
+          "metrics",
+          draftRef.current,
+          [
+            { role: "q", text: "What else should be tracked per member?" },
+            { role: "user", text },
+          ],
+          undefined,
+          { sessionId: sessionId.current, signal: liveTurn.current?.signal },
+        )
       : null;
+
+    if (outcome && !outcome.ok) {
+      if (outcome.reason === "aborted") return; // component is gone
+      noteAiFailure(outcome.reason);
+      reportInterviewFallback(outcome.reason, {
+        stage: "metrics",
+        turn: convoTurns.current,
+        sessionId: sessionId.current,
+        elapsedMs: outcome.elapsedMs,
+      });
+    }
+    const result = outcome?.ok ? outcome.result : null;
     setTyping(false);
 
     const metrics = result?.picks.customMetrics.length
@@ -705,11 +762,42 @@ export function InterviewStep({
       the founder has said nothing yet and the spine simply opens the interview). */
   function handoffToScripted(bridge: ReactNode | null) {
     setMode("scripted");
-    aiOn.current = false; // don't thrash a failing/exhausted model for the rest
+    // NOTE: aiOn is deliberately NOT cleared here. Handing the CONVERSATION to
+    // the scripted spine is the right call after a failure, but it says nothing
+    // about the one bounded, locally-backstopped parse the spine itself makes.
+    // aiHardOff/aiFailures decide that, so a single blip no longer downgrades
+    // the rest of the interview. See noteAiFailure.
     setActivityPicks(null); // close the activities checklist if it was open
     if (bridge) push("bot", bridge);
     const next = resumeStage();
     later(() => ask(next), 650);
+  }
+
+  /** Record a failed model call. Only failures that will certainly repeat stop
+      us asking again; a timeout or one junk response is worth another try. */
+  function noteAiFailure(reason: FallbackReason) {
+    aiFailures.current += 1;
+    if (reason === "http-429" || reason === "disabled") aiHardOff.current = true;
+  }
+
+  /** Beacon a degradation, then hand off with copy that names WHICH path fired.
+      All four used to emit the same line, so a fallback caught in a screen
+      recording was unattributable — which is half of why one seen in the wild
+      could never be reproduced. */
+  function degrade(
+    reason: FallbackReason,
+    bridge: ReactNode | null,
+    opts?: { elapsedMs?: number; stage?: "boot" | "concierge" },
+  ) {
+    reportInterviewFallback(reason, {
+      // "boot" = the opening turn, where the founder has said nothing yet. Worth
+      // separating: it means the interview was broken before it started.
+      stage: opts?.stage ?? "concierge",
+      turn: convoTurns.current,
+      sessionId: sessionId.current,
+      ...(opts?.elapsedMs === undefined ? {} : { elapsedMs: opts.elapsedMs }),
+    });
+    handoffToScripted(bridge);
   }
 
   /**
@@ -728,23 +816,36 @@ export function InterviewStep({
     setTyping(true);
     convoTurns.current += 1;
 
-    const result = await askInterviewAi(
+    // Past ~6s the typing dots alone read as a hang. Say something instead of
+    // nothing — the deadline is 18s now, which is long enough to need cover.
+    const slowTimer = setTimeout(() => setSlowTurn(true), SLOW_TURN_MS);
+    const outcome = await askInterviewAi(
       "concierge",
       draftRef.current,
       convoTranscript.current,
       missingFields(draftRef.current),
+      { sessionId: sessionId.current, signal: liveTurn.current?.signal },
     );
+    clearTimeout(slowTimer);
+    setSlowTurn(false);
 
-    if (!result) {
-      // AI turn failed → fall back to the scripted spine at the right stage.
-      // (setTyping is cleared here because we bypass respond().) On the OPENING
-      // turn nothing has been said yet, so a "let me confirm a couple of things"
-      // bridge would be nonsense — the scripted spine just opens the interview
-      // itself. Only a mid-conversation failure gets the bridge line.
+    if (!outcome.ok) {
+      // We cancelled because the founder left — there is no UI left to update
+      // and nothing worth reporting.
+      if (outcome.reason === "aborted") return;
+      noteAiFailure(outcome.reason);
+      // Fall back to the scripted spine at the right stage. (setTyping is
+      // cleared here because we bypass respond().) On the OPENING turn nothing
+      // has been said yet, so a "let me confirm a couple of things" bridge would
+      // be nonsense — the spine just opens the interview itself.
       setTyping(false);
-      handoffToScripted(userText === null ? null : <>Let me just confirm a couple of things.</>);
+      degrade(outcome.reason, userText === null ? null : <>Let me just confirm a couple of things.</>, {
+        elapsedMs: outcome.elapsedMs,
+        stage: userText === null ? "boot" : "concierge",
+      });
       return;
     }
+    const result = outcome.result;
 
     applyConciergePicks(result.picks);
     // Draft mutations above are async (reducer) — read freshness from the draft
@@ -766,8 +867,12 @@ export function InterviewStep({
       }
       // Loop-cap / no-next-question guard: the model didn't say done but has
       // nowhere to go → drain the rest through the scripted machine.
-      if (hitCap || !result.next) {
-        handoffToScripted(<>Let me just confirm a couple of things.</>);
+      if (hitCap) {
+        degrade("turn-cap", <>We&rsquo;ve covered a lot — let me lock in the last couple.</>);
+        return;
+      }
+      if (!result.next) {
+        degrade("no-next", <>Let me just confirm a couple of things.</>);
         return;
       }
 
@@ -893,7 +998,10 @@ export function InterviewStep({
   function finishInterview() {
     const missing = missingFields(draftRef.current);
     if (missing.length > 0) {
-      handoffToScripted(<>Let me just confirm a couple of things.</>);
+      // The model called it done with beats still owed — its own judgement,
+      // overruled. Worth counting separately from a failed call: it means the
+      // prompt let go early, not that the service was down.
+      degrade("model-done-early", <>Almost there — a couple of quick ones.</>);
       return;
     }
     dispatch({ type: "interviewDone" });
@@ -1097,6 +1205,7 @@ export function InterviewStep({
           <div className="msg">
             <span className="m-glyph">C</span>
             <div className="typing"><i /><i /><i /></div>
+            {slowTurn && <span className="typing-slow">still thinking…</span>}
           </div>
         )}
         {chips && (
