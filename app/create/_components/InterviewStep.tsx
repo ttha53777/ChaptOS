@@ -178,6 +178,45 @@ export function InterviewStep({
   // path (answerMetricText's metric parse, which has its own local fallback).
   const aiOn = useRef(false);
 
+  /**
+   * Synchronous turn latch.
+   *
+   * React state cannot guard a turn. `composerBusy` was just `typing`, which is
+   * set INSIDE the async handler, so two clicks dispatched before React
+   * committed both sailed through: triple-clicking Send produced the reply twice
+   * and the next question three times, and every chip and "Done →" was wide open
+   * because they had no busy check at all. A ref flips synchronously on the
+   * first click, so the second has something to hit.
+   *
+   * It also closes a second, slower hole. `respond()` clears `typing` 650ms
+   * before it asks the next question, and runConcierge ~400ms before — windows
+   * where the composer was live but `stageRef` still pointed at the PREVIOUS
+   * beat, so a typed answer was routed to the question already answered. The
+   * latch is held until a question is actually on screen awaiting an answer,
+   * which is the honest definition of "your turn".
+   */
+  const busyRef = useRef(false);
+  const [busy, setBusy] = useState(false);
+
+  /** Take the turn. False means someone else already has it — bail. */
+  function lockTurn(): boolean {
+    if (busyRef.current) return false;
+    busyRef.current = true;
+    setBusy(true);
+    return true;
+  }
+  /** Hand the turn back to the founder. Called where a question is on screen. */
+  function unlockTurn() {
+    busyRef.current = false;
+    setBusy(false);
+  }
+  /** Wrap a chip / button handler so a double-tap can only fire it once. */
+  function once(fn: () => void): () => void {
+    return () => {
+      if (lockTurn()) fn();
+    };
+  }
+
   // Concierge (AI-led) plumbing. `mode` decides which driver owns the
   // conversation: "ai" = the concierge asks its own questions; "scripted" = the
   // deterministic spine (also the mid-conversation fallback target). The whole
@@ -231,20 +270,20 @@ export function InterviewStep({
     switch (stage) {
       case "intro": {
         push("q", <>Hi! I&rsquo;ll help you set up <em>{draftRef.current.name.trim() || "your organization"}</em> in a few minutes. First though — who do I have the pleasure of meeting?</>);
-        setChips([{ label: "I'll use my Google name", pick: () => answerIntro("", "I'll use my Google name") }]);
+        setChips([{ label: "I'll use my Google name", pick: once(() => answerIntro("", "I'll use my Google name")) }]);
         break;
       }
       case "kind": {
         push("q", <>Tell me about <em>{draftRef.current.name.trim() || "your organization"}</em> — what kind of organization is it?</>);
         setChips([
-          { label: "A fraternity", pick: () => answerKind("fraternity", "A fraternity") },
-          { label: "A sorority", pick: () => answerKind("sorority", "A sorority") },
-          { label: "A club or student org", pick: () => answerKind("club", "A club or student org") },
-          { label: "A sports team", pick: () => answerKind("team", "A sports team") },
-          { label: "A service org", pick: () => answerKind("service", "A service org") },
-          { label: "An honor society", pick: () => answerKind("honor", "An honor society") },
-          { label: "A performing-arts group", pick: () => answerKind("arts", "A performing-arts group") },
-          { label: "Something else", pick: () => answerKind("other", "Something else") },
+          { label: "A fraternity", pick: once(() => answerKind("fraternity", "A fraternity")) },
+          { label: "A sorority", pick: once(() => answerKind("sorority", "A sorority")) },
+          { label: "A club or student org", pick: once(() => answerKind("club", "A club or student org")) },
+          { label: "A sports team", pick: once(() => answerKind("team", "A sports team")) },
+          { label: "A service org", pick: once(() => answerKind("service", "A service org")) },
+          { label: "An honor society", pick: once(() => answerKind("honor", "An honor society")) },
+          { label: "A performing-arts group", pick: once(() => answerKind("arts", "A performing-arts group")) },
+          { label: "Something else", pick: once(() => answerKind("other", "Something else")) },
         ]);
         break;
       }
@@ -257,17 +296,17 @@ export function InterviewStep({
       case "docs": {
         push("q", <>Do you keep shared documents or links {vocab("Member", true).toLowerCase()} need access to — a handbook, drive folder, bylaws?</>);
         setChips([
-          { label: "Yes", pick: () => answerDocs(true, "Yes") },
-          { label: "Not really", pick: () => answerDocs(false, "Not really") },
+          { label: "Yes", pick: once(() => answerDocs(true, "Yes")) },
+          { label: "Not really", pick: once(() => answerDocs(false, "Not really")) },
         ]);
         break;
       }
       case "payments": {
         push("q", <>Does <em>{orgName()}</em> handle any payments — {vocab("Dues").toLowerCase()}, event fees, anything like that?</>);
         setChips([
-          { label: "Yes — dues", pick: () => answerPayments(true, "Yes — dues") },
-          { label: "Event fees", pick: () => answerPayments(true, "Event fees") },
-          { label: "No money", pick: () => answerPayments(false, "No money") },
+          { label: "Yes — dues", pick: once(() => answerPayments(true, "Yes — dues")) },
+          { label: "Event fees", pick: once(() => answerPayments(true, "Event fees")) },
+          { label: "No money", pick: once(() => answerPayments(false, "No money")) },
         ]);
         break;
       }
@@ -280,8 +319,8 @@ export function InterviewStep({
         if (!draftRef.current.enabledWorkflows.includes("parties")) return ask("metrics");
         push("q", <>Do parties or events at <em>{orgName()}</em> typically bring in door money or ticket sales?</>);
         setChips([
-          { label: "Yes", pick: () => answerDoor(true, "Yes") },
-          { label: "No", pick: () => answerDoor(false, "No") },
+          { label: "Yes", pick: once(() => answerDoor(true, "Yes")) },
+          { label: "No", pick: once(() => answerDoor(false, "No")) },
         ]);
         break;
       }
@@ -291,6 +330,10 @@ export function InterviewStep({
         break;
       }
     }
+    // A question is now on screen with its chips — the founder's turn. Every
+    // path that ends a beat lands here, which is why this is the one release
+    // point for the latch. ("done" returned above; finishInterview keeps it.)
+    unlockTurn();
   }
 
   /** Scripted beat: clear chips, type, reply, then ask the next question. */
@@ -419,6 +462,7 @@ export function InterviewStep({
         <>Added <b>{added.map(m => m.name).join(", ")}</b> — every {vocab("Member").toLowerCase()} gets a column for it.</>
       ),
     );
+    unlockTurn(); // the metrics grid stays open for another measure
   }
 
   function answerMetricsDone() {
@@ -616,8 +660,9 @@ export function InterviewStep({
           setChips(null);
           setActivityPicks(new Set());
         } else {
-          setChips(result.next!.chips.map(c => ({ label: c, pick: () => void runConcierge(c) })));
+          setChips(result.next!.chips.map(c => ({ label: c, pick: once(() => void runConcierge(c)) })));
         }
+        unlockTurn(); // question is up — the founder's turn
       }, 400);
     }, typingDelay(result.reply));
   }
@@ -654,6 +699,7 @@ export function InterviewStep({
         line ?? <>Sorry — I didn&rsquo;t catch which ones. Tap the ones that happen and I&rsquo;ll set those pages up.</>,
       );
       setActivityPicks(new Set(seed ?? []));
+      unlockTurn(); // checklist is back up — the founder's turn
     }, 700);
   }
 
@@ -839,6 +885,9 @@ export function InterviewStep({
     // (starting with the intro). The concierge's opening turn seeds its
     // transcript with an internal system beat and lets the model phrase
     // question #1 itself.
+    // Held from boot until the first question is on screen, so a founder who
+    // clicks into the composer during the probe can't start a turn early.
+    lockTurn();
     let cancelled = false;
     void probeInterviewAi().then(enabled => {
       if (cancelled) return;
@@ -859,9 +908,11 @@ export function InterviewStep({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // The composer disables while a message is in flight (typing) or the
-  // interview is over — otherwise a keystroke would be silently swallowed.
-  const composerBusy = typing;
+  // The composer disables while a turn is in flight or the interview is over.
+  // This tracks the LATCH, not `typing`: typing clears up to 650ms before the
+  // next question exists, and answers sent into that gap were routed against the
+  // beat that had already been answered.
+  const composerBusy = busy;
   const composerDone = stage === "done";
   const placeholder = composerDone
     ? "That's everything — your blueprint is on the right."
@@ -889,7 +940,10 @@ export function InterviewStep({
 
   function submitDraft() {
     const value = draftText.trim();
-    if (!value || composerBusy || composerDone) return;
+    if (!value || composerDone) return;
+    // Take the latch AFTER the empty check, so an empty send never strands it.
+    // Synchronous, so a double-click or a click racing an Enter can't both pass.
+    if (!lockTurn()) return;
     setDraftText("");
     if (inputRef.current) inputRef.current.style.height = "auto";
     // In AI mode every answer (typed or tapped) is just a concierge turn; the
@@ -922,7 +976,10 @@ export function InterviewStep({
         {chips && (
           <div className="chips">
             {chips.map(c => (
-              <button key={c.label} className="chip" onClick={c.pick}>
+              // disabled mirrors the latch so a taken turn LOOKS taken; the ref
+              // inside `once` is what actually stops a double-tap, since this
+              // prop only lands after React commits.
+              <button key={c.label} className="chip" onClick={c.pick} disabled={busy}>
                 {c.label}
               </button>
             ))}
@@ -940,7 +997,11 @@ export function InterviewStep({
                 {o.label}
               </button>
             ))}
-            <button className="chip go" onClick={() => submitActivities(activityPicks, true)}>
+            <button
+              className="chip go"
+              onClick={once(() => submitActivities(activityPicks, true))}
+              disabled={busy}
+            >
               Done →
             </button>
           </div>
@@ -972,7 +1033,7 @@ export function InterviewStep({
             <button className="chip" onClick={() => inputRef.current?.focus()}>
               Something else…
             </button>
-            <button className="chip go" onClick={answerMetricsDone}>
+            <button className="chip go" onClick={once(() => answerMetricsDone())} disabled={busy}>
               Done →
             </button>
           </div>
