@@ -19,6 +19,8 @@ import { VocabSection } from "./sections/VocabSection";
 import { MemberFieldsSection } from "./sections/MemberFieldsSection";
 import { CustomMetricsSection } from "./sections/CustomMetricsSection";
 import { EventTypesSection } from "./sections/EventTypesSection";
+import { ConfirmDialog } from "../../components/dashboard/primitives";
+import { SettingsDirtyProvider, useSettingsDirty } from "./SettingsDirtyContext";
 import { useChapter } from "../../context/ChapterContext";
 import "../../components/dashboard/dashboard-ledger.css";
 import "./settings-ledger.css";
@@ -188,15 +190,29 @@ function Chevron() {
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
+// The page body reads the dirty-tracking context, so the provider has to sit
+// above it.
 export default function SettingsPage() {
+  return (
+    <SettingsDirtyProvider>
+      <SettingsPageBody />
+    </SettingsDirtyProvider>
+  );
+}
+
+function SettingsPageBody() {
   const { can, currentUser, brotherList, taskList, partyList } = useChapter();
   const orgPath = useOrgPath();
   const router = useRouter();
   const isOrgAdmin = useIsOrgAdmin();
+  const dirtyState = useSettingsDirty();
+  const anyDirty = dirtyState?.anyDirty ?? false;
   const [sidebarOpen, setSidebarOpen] = useState(false);
   // Settings section nav (.set-nav) drawer — static column at lg+, slide-in drawer
   // on mobile (mirrors the main app Sidebar's open/close behaviour).
   const [navOpen, setNavOpen] = useState(false);
+  // Navigation held back by an unsaved draft, replayed if the user confirms.
+  const [pendingNav, setPendingNav] = useState<(() => void) | null>(null);
   const [dest, setDest] = useState<Destination>("index");
   const [pendingAnchor, setPendingAnchor] = useState<string | null>(null);
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
@@ -253,11 +269,28 @@ export default function SettingsPage() {
     return () => clearTimeout(t);
   }, [pageError]);
 
-  function selectDest(d: Destination) {
+
+  // Every in-page navigation runs through this. When a section is holding an
+  // unsaved draft we park the action and raise a confirm instead of silently
+  // discarding it; `beforeunload` in SettingsDirtyContext covers leaving the tab.
+  function guard(run: () => void) {
+    if (anyDirty) {
+      // Stored in a state setter, so wrap it — React would otherwise call a bare
+      // function argument as a reducer.
+      setPendingNav(() => run);
+      return;
+    }
+    run();
+  }
+
+  function doSelectDest(d: Destination) {
     setDest(d);
     setSidebarOpen(false);
     setNavOpen(false);
     setFilter("");
+  }
+  function selectDest(d: Destination) {
+    guard(() => doSelectDest(d));
   }
 
   // From the "find a setting" results: open the section's group page, then scroll
@@ -265,7 +298,7 @@ export default function SettingsPage() {
   //
   // An item carrying an href leaves Settings entirely instead — there is no
   // in-page section to scroll to.
-  function selectSection(id: NavItem["id"]) {
+  function doSelectSection(id: NavItem["id"]) {
     const item = BY_ID[id];
     if (item.href) {
       router.push(orgPath(item.href));
@@ -276,6 +309,9 @@ export default function SettingsPage() {
     setSidebarOpen(false);
     setNavOpen(false);
     setFilter("");
+  }
+  function selectSection(id: NavItem["id"]) {
+    guard(() => doSelectSection(id));
   }
 
   // After a group page renders, scroll any pending anchor into view.
@@ -389,12 +425,19 @@ export default function SettingsPage() {
           className={`set-nav set-nav-drawer ${navOpen ? "is-open" : ""}`}
         >
           <div className="set-nav-head">
-            <Link href={orgPath("/")} className="set-back-app">
+            {/* A button rather than a Link: leaving Settings has to run through
+                the unsaved-changes guard, and a client-side Link fires neither
+                that nor `beforeunload`. */}
+            <button
+              type="button"
+              onClick={() => guard(() => router.push(orgPath("/")))}
+              className="set-back-app"
+            >
               <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
               </svg>
               Back to app
-            </Link>
+            </button>
             <div className="kicker">{orgName}</div>
             <h1>Settings</h1>
           </div>
@@ -625,6 +668,22 @@ export default function SettingsPage() {
           </main>
         </div>
       </div>
+
+      {/* Unsaved draft in the way of a navigation. */}
+      {pendingNav && (
+        <ConfirmDialog
+          title="Discard unsaved changes?"
+          message="You have changes on this page that haven't been saved. Leaving now loses them."
+          confirmLabel="Discard & continue"
+          tone="dusk"
+          onConfirm={() => {
+            const run = pendingNav;
+            setPendingNav(null);
+            run();
+          }}
+          onCancel={() => setPendingNav(null)}
+        />
+      )}
     </div>
   );
 }

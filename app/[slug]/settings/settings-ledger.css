@@ -77,10 +77,13 @@
   }
 }
 .set-nav .set-nav-head { padding: 18px 20px 14px; }
+/* A <button>, not a link — leaving Settings runs through the unsaved-changes
+   guard. Reset the UA button chrome so it still reads as the quiet back link. */
 .set-nav .set-back-app {
   display: inline-flex; align-items: center; gap: 6px; margin-bottom: 14px;
   font-family: var(--mono); font-size: 9.5px; letter-spacing: .12em; text-transform: uppercase;
   color: var(--faint); text-decoration: none; transition: color .12s;
+  background: none; border: 0; padding: 0; cursor: pointer;
 }
 .set-nav .set-back-app svg { width: 12px; height: 12px; }
 .set-nav .set-back-app:hover { color: var(--vio); }

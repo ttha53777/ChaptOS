@@ -8,6 +8,7 @@ import { ALWAYS_ON_WORKFLOWS, type WorkflowId } from "@/lib/org-types";
 import { WORKFLOW_FEATURES, type DisabledFeatures } from "@/lib/workflow-features";
 import { NAV_GROUPS, applyNavOrder } from "@/lib/nav-order";
 import { isNavVisible } from "../../../components/Sidebar";
+import { useDirtyGuard } from "../SettingsDirtyContext";
 
 // Settings → Workflows. Lets an org admin choose which optional pages the org
 // exposes, AND which sections within a page are shown, at any time after
@@ -212,6 +213,7 @@ export function WorkflowsSection({
     if (navDirty) return true;
     return false;
   }, [selected, persisted, disabled, persistedDisabledKey, navDirty]);
+  useDirtyGuard("workflows", dirty);
 
   // A feature is ON when it's NOT in the workflow's disabled set.
   function featureOn(workflow: WorkflowId, id: string): boolean {

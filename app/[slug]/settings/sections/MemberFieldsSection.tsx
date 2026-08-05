@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useChapter } from "../../../context/ChapterContext";
 import { requestJson } from "../../../lib/api";
+import { useDirtyGuard } from "../SettingsDirtyContext";
 import {
   type CustomMemberFieldDef,
   type FieldType,
@@ -73,6 +74,7 @@ export function MemberFieldsSection({
     const draftClean = draft.filter(f => !f._new).map(({ _new: _n, _editingLabel: _el, ...rest }) => rest);
     return JSON.stringify(draftClean) !== JSON.stringify(persisted) || draft.some(f => f._new);
   }, [draft, persisted]);
+  useDirtyGuard("member-fields", dirty);
 
   function addField() {
     if (draft.length >= MAX_FIELDS) return;

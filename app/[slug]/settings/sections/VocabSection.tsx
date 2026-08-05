@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useChapter } from "../../../context/ChapterContext";
 import { requestJson } from "../../../lib/api";
 import { VOCAB_KEYS, DEFAULT_LABELS, type VocabKey, type VocabOverrides } from "@/lib/vocab";
+import { useDirtyGuard } from "../SettingsDirtyContext";
 
 // Settings → Vocabulary. Lets an org admin rename canonical terms throughout
 // the UI — nav labels, page headings, and other surfaces that call useVocab().
@@ -60,6 +61,7 @@ export function VocabSection({
     }
     return false;
   }, [draft, persisted]);
+  useDirtyGuard("vocabulary", dirty);
 
   function setField(key: VocabKey, value: string) {
     setDraft(prev => ({ ...prev, [key]: value }));

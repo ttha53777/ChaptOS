@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useChapter } from "../../../context/ChapterContext";
 import { requestJson } from "../../../lib/api";
 import { DEFAULT_THRESHOLDS, THRESHOLD_KEYS, type Thresholds } from "@/lib/thresholds";
+import { useDirtyGuard } from "../SettingsDirtyContext";
 
 // Settings → Thresholds. Org-wide member-status cutoffs that drive every
 // At-Risk/Watch badge and the health score. Persisted to OrganizationConfig
@@ -110,6 +111,7 @@ export function ThresholdsSection({
     () => THRESHOLD_KEYS.some(k => draft[k] !== persisted[k]),
     [draft, persisted],
   );
+  useDirtyGuard("thresholds", dirty);
 
   function update(field: keyof Thresholds, value: number) {
     setDraft(prev => ({ ...prev, [field]: value }));
