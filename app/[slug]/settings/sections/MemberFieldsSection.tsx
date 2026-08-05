@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useChapter } from "../../../context/ChapterContext";
 import { requestJson } from "../../../lib/api";
+import { ConfirmDialog } from "../../../components/dashboard/primitives";
 import { useDirtyGuard } from "../SettingsDirtyContext";
 import {
   type CustomMemberFieldDef,
@@ -342,6 +343,24 @@ export function MemberFieldsSection({
         </button>
         {dirty && <span className="sc-dirty">Unsaved</span>}
       </div>
+      {deleteConfirmIdx !== null && (() => {
+        const field = draft[deleteConfirmIdx];
+        const persistedField = field?.id && persisted.some(p => p.id === field.id);
+        return (
+          <ConfirmDialog
+            title={persistedField ? "Remove this field?" : "Remove this field?"}
+            message={
+              persistedField
+                ? "Existing member data for this field will be hidden but not deleted."
+                : "This field will be removed from your draft."
+            }
+            confirmLabel="Remove"
+            tone="dusk"
+            onConfirm={() => removeField(deleteConfirmIdx)}
+            onCancel={() => setDeleteConfirmIdx(null)}
+          />
+        );
+      })()}
     </div>
   );
 }
