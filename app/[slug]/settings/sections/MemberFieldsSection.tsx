@@ -323,11 +323,11 @@ export function MemberFieldsSection({
         const persistedField = field?.id && persisted.some(p => p.id === field.id);
         return (
           <ConfirmDialog
-            title={persistedField ? "Remove this field?" : "Remove this field?"}
+            title={`Remove "${field?.label?.trim() || "Untitled field"}"?`}
             message={
               persistedField
-                ? "Existing member data for this field will be hidden but not deleted."
-                : "This field will be removed from your draft."
+                ? "Existing member data for this field is hidden, not deleted — it comes back if you add the field again. Takes effect when you save."
+                : "This field hasn't been saved yet, so nothing is lost."
             }
             confirmLabel="Remove"
             tone="dusk"

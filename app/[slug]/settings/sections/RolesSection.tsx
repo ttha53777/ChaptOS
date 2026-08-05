@@ -77,6 +77,10 @@ export function RolesSection({
   const [creating, setCreating] = useState(false);
   const [savingId, setSavingId] = useState<number | "new" | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<RoleRow | null>(null);
+  // Set when save() paused on the "no permissions selected" warning. Holding it
+  // in state (rather than a blocking window.confirm) is what lets that warning
+  // use the same dusk dialog as every other confirmation on the page.
+  const [confirmNoPerms, setConfirmNoPerms] = useState(false);
 
   // Local form state — mirrors the selected role for editing, or a fresh blank
   // for creation. We don't write back to `roles` until the server confirms.
@@ -174,22 +178,22 @@ export function RolesSection({
     setDraft(d => ({ ...d, permissions: d.permissions ^ bit }));
   }
 
-  async function save() {
+  // Entry point for the Save button. A role with zero permissions is technically
+  // valid (you can still pin people to it for visual grouping) but is almost
+  // always a mistake — the server accepts it, so the UI warns first. The warning
+  // has to interrupt the save and resume it, which is why this is split from
+  // performSave() rather than being an inline blocking prompt.
+  function save() {
+    // Validate before warning, so an unnamed role reports the thing that
+    // actually blocks it rather than asking about permissions first.
+    if (!draft.name.trim()) { onError("Name is required."); return; }
+    if (draft.rank >= myMaxRank) { onError("Rank must be below your own."); return; }
+    if (draft.permissions === 0) { setConfirmNoPerms(true); return; }
+    void performSave();
+  }
+
+  async function performSave() {
     const name = draft.name.trim();
-    if (!name) { onError("Name is required."); return; }
-    if (draft.rank >= myMaxRank) {
-      onError("Rank must be below your own.");
-      return;
-    }
-    // A role with zero permissions is technically valid (you can still pin
-    // people to it for visual grouping) but is almost always a mistake.
-    // The server accepts it; the UI warns here so the admin notices before
-    // shipping a no-op role and wondering why officers lack access.
-    if (draft.permissions === 0 && !window.confirm(
-      "This role has no permissions selected — members will get no extra access. Save anyway?",
-    )) {
-      return;
-    }
 
     // Snapshot the intent at function entry so a state change mid-await
     // (e.g. user clicks a different row) doesn't re-route the response into
@@ -463,6 +467,23 @@ export function RolesSection({
             )}
           </div>
         </div>
+      )}
+
+      {confirmNoPerms && (
+        <ConfirmDialog
+          title="Save a role with no permissions?"
+          message={
+            <>
+              <span className="font-semibold" style={{ color: "var(--ink)" }}>{draft.name.trim()}</span> has
+              nothing selected, so holding it grants no extra access. That&apos;s fine if you want the role
+              purely as a label — otherwise pick some permissions first.
+            </>
+          }
+          confirmLabel="Save anyway"
+          tone="dusk"
+          onConfirm={() => { setConfirmNoPerms(false); void performSave(); }}
+          onCancel={() => setConfirmNoPerms(false)}
+        />
       )}
 
       {deleteTarget && (

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ConfirmDialog } from "../../../components/dashboard/primitives";
 import { requestJson } from "../../../lib/api";
 import { useChapter } from "../../../context/ChapterContext";
 import type { CalEventType } from "@/app/data";
@@ -79,6 +80,7 @@ function TypeRow({
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [label, setLabel] = useState(type.label);
   const [color, setColor] = useState({ color: type.color, colorDark: type.colorDark ?? type.color });
 
@@ -108,7 +110,7 @@ function TypeRow({
   }
 
   async function handleDelete() {
-    if (!confirm(`Delete "${type.label}"? Events already using it must be reassigned first.`)) return;
+    setConfirmDelete(false);
     setDeleting(true);
     try {
       await requestJson(`/api/calendar/event-types/${type.id}`, { method: "DELETE" });
@@ -148,11 +150,21 @@ function TypeRow({
             Edit
           </button>
           {!type.builtin && (
-            <button className="sc-btn sc-btn-danger sc-btn-sm" onClick={handleDelete} disabled={deleting}>
+            <button className="sc-btn sc-btn-danger sc-btn-sm" onClick={() => setConfirmDelete(true)} disabled={deleting}>
               {deleting ? "Removing…" : "Delete"}
             </button>
           )}
         </div>
+        {confirmDelete && (
+          <ConfirmDialog
+            title={`Delete "${type.label}"?`}
+            message="Any events already tagged with this type have to be reassigned first — if some still use it, the delete will be refused and nothing changes."
+            confirmLabel="Delete"
+            tone="dusk"
+            onConfirm={handleDelete}
+            onCancel={() => setConfirmDelete(false)}
+          />
+        )}
       </div>
     );
   }

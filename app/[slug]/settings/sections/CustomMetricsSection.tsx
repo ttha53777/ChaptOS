@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import { ConfirmDialog } from "../../../components/dashboard/primitives";
 import { requestJson } from "../../../lib/api";
 import type { CustomMetricDefinition } from "@/lib/metrics";
 
@@ -57,6 +58,7 @@ function MetricRow({
   const [editing, setEditing] = useState(false);
   const [saving,  setSaving]  = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [form, setForm] = useState<EditState>(() => toEditState(def));
 
   function field(k: keyof EditState, v: string) {
@@ -95,7 +97,7 @@ function MetricRow({
   }
 
   async function handleDelete() {
-    if (!window.confirm(`Delete "${def.name}"? Existing member values will be preserved but the metric will no longer appear.`)) return;
+    setConfirmDelete(false);
     setDeleting(true);
     try {
       await requestJson(`/api/metrics/definitions/${def.id}`, { method: "DELETE" });
@@ -124,9 +126,19 @@ function MetricRow({
         >
           Edit
         </button>
-        <button onClick={handleDelete} disabled={deleting} className="sc-btn sc-btn-danger sc-btn-sm shrink-0">
+        <button onClick={() => setConfirmDelete(true)} disabled={deleting} className="sc-btn sc-btn-danger sc-btn-sm shrink-0">
           {deleting ? "Removing…" : "Remove"}
         </button>
+        {confirmDelete && (
+          <ConfirmDialog
+            title={`Remove "${def.name}"?`}
+            message="Values already recorded against this metric are kept, but the metric stops appearing on the dashboard and in member profiles."
+            confirmLabel="Remove"
+            tone="dusk"
+            onConfirm={handleDelete}
+            onCancel={() => setConfirmDelete(false)}
+          />
+        )}
       </div>
     );
   }
