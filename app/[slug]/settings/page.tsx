@@ -188,6 +188,30 @@ function Chevron() {
   );
 }
 
+
+/** One status/error band. Errors interrupt (`alert`); confirmations don't. */
+function StatusBand({
+  tone, message, onDismiss,
+}: {
+  tone: "ok" | "err";
+  message: string;
+  onDismiss: () => void;
+}) {
+  return (
+    <div className={`set-toast ${tone}`} role={tone === "err" ? "alert" : "status"}>
+      <span className="msg">{message}</span>
+      {/* The band auto-clears, but a message you're mid-way through reading
+          shouldn't be the only copy of what went wrong — let it be closed on
+          purpose rather than only on a timer. */}
+      <button type="button" className="x" onClick={onDismiss} aria-label="Dismiss message">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
+    </div>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 // The page body reads the dirty-tracking context, so the provider has to sit
@@ -554,10 +578,15 @@ function SettingsPageBody() {
             <div className="dash dash-settings" data-dashboard-theme="dusk">
 
               {/* Toast */}
-              {(pageError || statusMsg) && (
-                <div className={`set-toast ${pageError ? "err" : "ok"}`} role="status">
-                  {pageError ?? statusMsg}
-                </div>
+              {/* Status band. Sticky (see settings-ledger.css) so a save made
+                  three screens down a group page is still confirmed in view, and
+                  rendered as two independent slots so a success from one section
+                  can't quietly replace a pending error from another. */}
+              {pageError && (
+                <StatusBand tone="err" message={pageError} onDismiss={() => setPageError(null)} />
+              )}
+              {statusMsg && (
+                <StatusBand tone="ok" message={statusMsg} onDismiss={() => setStatusMsg(null)} />
               )}
 
               {/* ── Index landing ── */}

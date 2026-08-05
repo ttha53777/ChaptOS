@@ -270,13 +270,32 @@ header.dash-toolbar .set-crumb-cur {
 }
 header.dash-toolbar .set-crumb svg { color: var(--tb-faint, #6b6354); }
 
-/* ── Toast (status / error) ──────────────────────────────────────────────────── */
+/* ── Toast (status / error) ────────────────────────────────────────────────────
+   Sticky, not in-flow. A group page stacks every section in an intent on one
+   scroll, so saving Workflows happens ~3 screens below the top — an in-flow band
+   put the confirmation off-screen above the person who triggered it. (That's why
+   Invitations had been special-cased onto the global toast; with this it no
+   longer needs to be.) Sticks to the top of `main`'s scroll box. */
 .dash .set-toast {
+  position: sticky; top: 0; z-index: 15;
+  display: flex; align-items: flex-start; gap: 10px;
   margin-bottom: 18px; border-radius: 10px; padding: 11px 15px; font-size: 12.5px;
   border: 1px solid var(--line); background: var(--card);
+  box-shadow: var(--shadow);
 }
+.dash .set-toast .msg { flex: 1; min-width: 0; }
+.dash .set-toast .x {
+  flex-shrink: 0; display: grid; place-items: center; width: 18px; height: 18px;
+  margin: -1px -4px 0 0; border: 0; border-radius: 5px; padding: 0;
+  background: none; color: inherit; opacity: .65; cursor: pointer; transition: opacity .12s;
+}
+.dash .set-toast .x:hover { opacity: 1; }
+.dash .set-toast .x svg { width: 11px; height: 11px; }
 .dash .set-toast.ok { color: var(--ok); border-color: var(--ok-bg); background: var(--ok-bg); }
 .dash .set-toast.err { color: var(--rose); border-color: var(--rose-bg); background: var(--rose-bg); }
+/* Stacked band: an error and a success can be live at once (a save in one
+   section shouldn't silently eat a pending error from another). */
+.dash .set-toast + .set-toast { top: 52px; }
 
 /* ── Empty / permission states ───────────────────────────────────────────────── */
 .dash .set-empty {
