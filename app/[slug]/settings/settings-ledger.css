@@ -68,6 +68,16 @@
   margin: 0;
   padding: 34px 44px 80px;
 }
+/* The contrast-corrected --muted/--faint declared on .set-page above only reach
+   the nav column: dashboard-ledger.css re-declares the whole dusk palette on
+   `.dash[data-dashboard-theme="dusk"]`, which sits INSIDE .set-page and so wins
+   for all page content. Re-assert the two text tokens here, at a specificity the
+   dashboard's rule can't beat, scoped to Settings — the dashboard and timeline
+   keep their own values until they get the same treatment. */
+.dash.dash-settings[data-dashboard-theme="dusk"] {
+  --muted: #a49b88;
+  --faint: #8a8271;
+}
 /* Fluid ultrawide */
 @media (min-width: 1280px) {
   .dash.dash-settings { max-width: min(calc(1080px + 22vw), 1680px); }
