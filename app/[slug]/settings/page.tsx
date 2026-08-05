@@ -20,6 +20,7 @@ import { MemberFieldsSection } from "./sections/MemberFieldsSection";
 import { CustomMetricsSection } from "./sections/CustomMetricsSection";
 import { EventTypesSection } from "./sections/EventTypesSection";
 import { ConfirmDialog } from "../../components/dashboard/primitives";
+import { scrollIntoViewSafe } from "../../lib/scroll";
 import { SettingsDirtyProvider, useSettingsDirty } from "./SettingsDirtyContext";
 import { useChapter } from "../../context/ChapterContext";
 import "../../components/dashboard/dashboard-ledger.css";
@@ -281,6 +282,41 @@ function SettingsPageBody() {
     if (dest !== "index" && !visibleGroups.includes(dest)) setDest("index");
   }, [dest, visibleGroups]);
 
+  // ── Settings nav: drawer semantics below lg ────────────────────────────────
+  // The same <nav> is a static column at lg+ and a slide-in drawer below it. A
+  // closed drawer is only translated off-screen, so without this it stayed in
+  // the tab order and in the a11y tree — keyboard users tabbed into an invisible
+  // menu. The desktop column must NOT get those attributes, and CSS can't tell
+  // us which mode we're in, so we track the breakpoint. Defaulting to `true`
+  // means the first paint never hides a nav that turns out to be the column.
+  const navRef = useRef<HTMLElement>(null);
+  const navTriggerRef = useRef<HTMLButtonElement>(null);
+  const [isDesktopNav, setIsDesktopNav] = useState(true);
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 1024px)");
+    const sync = () => setIsDesktopNav(mq.matches);
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
+  const navDismissed = !isDesktopNav && !navOpen;
+
+  // Open drawer: Escape closes it, focus moves in, and focus returns to the
+  // toolbar trigger on close — matching what the Modal primitive already does.
+  useEffect(() => {
+    if (!navOpen) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setNavOpen(false);
+    }
+    document.addEventListener("keydown", onKey);
+    navRef.current?.querySelector<HTMLElement>("a, button, input")?.focus();
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      const trigger = navTriggerRef.current;
+      if (trigger?.isConnected) trigger.focus();
+    };
+  }, [navOpen]);
+
   useEffect(() => {
     if (!statusMsg) return;
     const t = setTimeout(() => setStatusMsg(null), 4000);
@@ -341,8 +377,7 @@ function SettingsPageBody() {
   // After a group page renders, scroll any pending anchor into view.
   useEffect(() => {
     if (!pendingAnchor) return;
-    const el = document.getElementById(pendingAnchor);
-    el?.scrollIntoView({ behavior: "smooth", block: "start" });
+    scrollIntoViewSafe(document.getElementById(pendingAnchor));
     setPendingAnchor(null);
   }, [pendingAnchor, dest]);
 
@@ -445,7 +480,10 @@ function SettingsPageBody() {
           />
         )}
         <nav
+          ref={navRef}
           aria-label="Settings navigation"
+          aria-hidden={navDismissed || undefined}
+          inert={navDismissed || undefined}
           className={`set-nav set-nav-drawer ${navOpen ? "is-open" : ""}`}
         >
           <div className="set-nav-head">
@@ -542,8 +580,10 @@ function SettingsPageBody() {
               </svg>
             </button>
 
-            {/* Open the settings section nav (drawer below lg). */}
+            {/* Open the settings section nav (drawer below lg). Focus returns
+                here when the drawer closes. */}
             <button
+              ref={navTriggerRef}
               onClick={() => setNavOpen(true)}
               className="tb-icon-btn flex h-8 w-8 items-center justify-center rounded-lg text-[#958d7c] hover:bg-white/[0.07] lg:hidden"
               aria-label="Open settings sections"
