@@ -2,9 +2,9 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ConfirmDialog } from "../../../components/dashboard/primitives";
-import { useToast } from "../../../components/dashboard/Toast";
 import { useChapter } from "../../../context/ChapterContext";
 import { useVocab } from "../../../hooks/useVocab";
+import { scrollIntoViewSafe } from "../../../lib/scroll";
 import { INVITE_EXPIRY_PRESETS, INVITE_LABEL_MAX, type InviteExpiry } from "@/lib/validation/invite";
 import type { InviteMode, InviteStatus } from "@/lib/state";
 import { requestJson } from "../../../lib/api";
@@ -77,9 +77,26 @@ function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, { dateStyle: "medium" });
 }
 
-export function InvitationsSection() {
+/** The tick inside `.sc-box`. Matches the one WorkflowsSection draws. */
+function CheckGlyph() {
+  return (
+    <svg viewBox="0 0 16 16" fill="currentColor">
+      <path d="M13.78 4.22a.75.75 0 0 1 0 1.06l-6.5 6.5a.75.75 0 0 1-1.06 0l-3-3a.75.75 0 1 1 1.06-1.06L6.75 10.19l5.97-5.97a.75.75 0 0 1 1.06 0Z" />
+    </svg>
+  );
+}
+
+// This section used to report through the global useToast() because the page's
+// status band was in normal flow and its confirmations fire while the admin is
+// scrolled down to the links list. The band is sticky now, so it reports the
+// same way as every other section — one feedback channel instead of two.
+export function InvitationsSection({
+  onStatus, onError,
+}: {
+  onStatus: (msg: string) => void;
+  onError: (msg: string) => void;
+}) {
   const { can } = useChapter();
-  const toast = useToast();
   const v = useVocab();
   const canManage = can("MANAGE_SETTINGS");
   const memberWord = v("Member", true).toLowerCase();
@@ -116,11 +133,11 @@ export function InvitationsSection() {
       const qs = opts.includeInactive ? "?include=all" : "";
       setInvites(await requestJson<InviteRow[]>(`/api/invites${qs}`));
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to load invites");
+      onError(e instanceof Error ? e.message : "Failed to load invites");
     } finally {
       setLoading(false);
     }
-  }, [toast]);
+  }, [onError]);
 
   useEffect(() => { void refresh({ includeInactive: showInactive }); }, [refresh, showInactive]);
 
@@ -131,7 +148,7 @@ export function InvitationsSection() {
   async function handleCreate() {
     const cap = capOn ? Number(maxUses) : undefined;
     if (capOn && (!Number.isInteger(cap) || (cap ?? 0) < 1)) {
-      toast.error("Max uses must be a whole number of 1 or more");
+      onError("Max uses must be a whole number of 1 or more");
       return;
     }
     setCreating(true);
@@ -141,17 +158,17 @@ export function InvitationsSection() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ mode, expiry, label: label.trim() || undefined, maxUses: cap }),
       });
-      toast.success("Invite link created");
+      onStatus("Invite link created");
       setLabel("");
       await refresh({ includeInactive: showInactive });
       setFlashId(created.id);
       // After the list re-renders with the new row.
       requestAnimationFrame(() => {
-        rowRefs.current.get(created.id)?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+        scrollIntoViewSafe(rowRefs.current.get(created.id), { block: "nearest", behavior: "smooth" });
       });
       setTimeout(() => setFlashId(f => (f === created.id ? null : f)), 2200);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to create invite");
+      onError(e instanceof Error ? e.message : "Failed to create invite");
     } finally {
       setCreating(false);
     }
@@ -163,7 +180,7 @@ export function InvitationsSection() {
       setCopiedId(row.id);
       setTimeout(() => setCopiedId(c => (c === row.id ? null : c)), 2000);
     } catch {
-      toast.error("Couldn't copy to clipboard");
+      onError("Couldn't copy to clipboard");
     }
   }
 
@@ -171,10 +188,10 @@ export function InvitationsSection() {
     setRevokeTarget(null);
     try {
       await requestJson(`/api/invites/${row.id}`, { method: "DELETE" });
-      toast.success("Invite link revoked");
+      onStatus("Invite link revoked");
       await refresh({ includeInactive: showInactive });
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to revoke invite");
+      onError(e instanceof Error ? e.message : "Failed to revoke invite");
     }
   }
 
@@ -252,9 +269,12 @@ export function InvitationsSection() {
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
-          <label className="flex items-center gap-2 text-[12px]" style={{ color: "var(--ink-soft)" }}>
+          <label className="sc-check" style={{ alignItems: "center" }}>
             <input type="checkbox" checked={capOn} onChange={(e) => setCapOn(e.target.checked)} />
-            Limit how many people can use it
+            <span aria-hidden className="sc-box" style={{ marginTop: 0 }}><CheckGlyph /></span>
+            <span className="text-[12px]" style={{ color: "var(--ink-soft)" }}>
+              Limit how many people can use it
+            </span>
           </label>
           {capOn && (
             <input
@@ -289,13 +309,14 @@ export function InvitationsSection() {
           <h3 className="sc-grp-label" style={{ margin: 0 }}>
             {showInactive ? "All links" : "Active links"}
           </h3>
-          <label className="flex items-center gap-2 sc-note" style={{ cursor: "pointer" }}>
+          <label className="sc-check" style={{ alignItems: "center" }}>
             <input
               type="checkbox"
               checked={showInactive}
               onChange={(e) => { setShowInactive(e.target.checked); setOpenJoins(null); }}
             />
-            Show expired &amp; revoked
+            <span aria-hidden className="sc-box" style={{ marginTop: 0 }}><CheckGlyph /></span>
+            <span className="sc-note">Show expired &amp; revoked</span>
           </label>
         </div>
 

@@ -437,10 +437,7 @@ function SettingsPageBody() {
       case "thresholds":     return <ThresholdsSection {...props} />;
       case "semesters":      return <SemestersSection {...props} />;
       case "accounts":       return <AccountsSection {...props} />;
-      // No onStatus/onError: this section reports through the global useToast()
-      // instead. Its confirmations fire while the admin is scrolled down to the
-      // links list, where the page-top status band is off-screen.
-      case "invitations":    return <InvitationsSection />;
+      case "invitations":    return <InvitationsSection {...props} />;
       case "workflows":      return <WorkflowsSection {...props} />;
       case "vocabulary":     return <VocabSection {...props} />;
       case "member-fields":  return <MemberFieldsSection {...props} />;
