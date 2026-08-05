@@ -19,10 +19,10 @@ import { VocabSection } from "./sections/VocabSection";
 import { MemberFieldsSection } from "./sections/MemberFieldsSection";
 import { CustomMetricsSection } from "./sections/CustomMetricsSection";
 import { EventTypesSection } from "./sections/EventTypesSection";
+import { useChapter } from "../../context/ChapterContext";
 import { ConfirmDialog } from "../../components/dashboard/primitives";
 import { scrollIntoViewSafe } from "../../lib/scroll";
 import { SettingsDirtyProvider, useSettingsDirty } from "./SettingsDirtyContext";
-import { useChapter } from "../../context/ChapterContext";
 import "../../components/dashboard/dashboard-ledger.css";
 import "./settings-ledger.css";
 
@@ -189,7 +189,6 @@ function Chevron() {
   );
 }
 
-
 /** One status/error band. Errors interrupt (`alert`); confirmations don't. */
 function StatusBand({
   tone, message, onDismiss,
@@ -328,7 +327,6 @@ function SettingsPageBody() {
     const t = setTimeout(() => setPageError(null), 6000);
     return () => clearTimeout(t);
   }, [pageError]);
-
 
   // Every in-page navigation runs through this. When a section is holding an
   // unsaved draft we park the action and raise a confirm instead of silently
@@ -540,6 +538,7 @@ function SettingsPageBody() {
               <>
                 <button
                   className={`set-nav-item${dest === "index" ? " active" : ""}`}
+                  aria-current={dest === "index" ? "page" : undefined}
                   onClick={() => selectDest("index")}
                 >
                   <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
@@ -553,6 +552,7 @@ function SettingsPageBody() {
                   <button
                     key={group}
                     className={`set-nav-item${dest === group ? " active" : ""}`}
+                    aria-current={dest === group ? "page" : undefined}
                     onClick={() => selectDest(group)}
                   >
                     <PathIcon d={GROUP_ICON[group]} />
@@ -585,6 +585,7 @@ function SettingsPageBody() {
             <button
               ref={navTriggerRef}
               onClick={() => setNavOpen(true)}
+              aria-expanded={navOpen}
               className="tb-icon-btn flex h-8 w-8 items-center justify-center rounded-lg text-[#958d7c] hover:bg-white/[0.07] lg:hidden"
               aria-label="Open settings sections"
             >
@@ -617,7 +618,6 @@ function SettingsPageBody() {
           <main className="page-ambient flex-1 overflow-y-auto">
             <div className="dash dash-settings" data-dashboard-theme="dusk">
 
-              {/* Toast */}
               {/* Status band. Sticky (see settings-ledger.css) so a save made
                   three screens down a group page is still confirmed in view, and
                   rendered as two independent slots so a success from one section

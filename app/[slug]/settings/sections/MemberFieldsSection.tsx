@@ -3,14 +3,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useChapter } from "../../../context/ChapterContext";
 import { requestJson } from "../../../lib/api";
-import { ConfirmDialog } from "../../../components/dashboard/primitives";
-import { useDirtyGuard } from "../SettingsDirtyContext";
 import {
   type CustomMemberFieldDef,
   type FieldType,
   MAX_LABEL,
   MAX_FIELDS,
 } from "@/lib/custom-member-fields";
+import { ConfirmDialog } from "../../../components/dashboard/primitives";
+import { useDirtyGuard } from "../SettingsDirtyContext";
 
 // Settings → Member Fields. Lets an org admin define extra fields that appear
 // on the member roster and in the BrotherDrawer profile tab (e.g. jersey number,
@@ -218,32 +218,6 @@ export function MemberFieldsSection({
               </button>
             </div>
 
-            {/* Delete confirm */}
-            {deleteConfirmIdx === idx && (
-              <div className="px-4 py-3 text-[12px]" style={{ borderTop: "1px solid var(--line-soft)", color: "var(--ink-soft)" }}>
-                {field.id && persisted.some(p => p.id === field.id)
-                  ? <>
-                      Existing member data for this field will be hidden but not deleted. Are you sure?{" "}
-                    </>
-                  : "Remove this field? "}
-                <button
-                  onClick={() => removeField(idx)}
-                  className="ml-1 underline"
-                  style={{ color: "var(--rose)" }}
-                >
-                  Yes, remove
-                </button>
-                {" · "}
-                <button
-                  onClick={() => setDeleteConfirmIdx(null)}
-                  className="underline"
-                  style={{ color: "var(--muted)" }}
-                >
-                  Cancel
-                </button>
-              </div>
-            )}
-
             {/* Edit form */}
             {editingIdx === idx && (
               <div className="px-4 py-4 space-y-4" style={{ borderTop: "1px solid var(--line-soft)" }}>
@@ -343,6 +317,7 @@ export function MemberFieldsSection({
         </button>
         {dirty && <span className="sc-dirty">Unsaved</span>}
       </div>
+
       {deleteConfirmIdx !== null && (() => {
         const field = draft[deleteConfirmIdx];
         const persistedField = field?.id && persisted.some(p => p.id === field.id);

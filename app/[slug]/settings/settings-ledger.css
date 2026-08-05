@@ -24,8 +24,14 @@
   --card-2:   #1b1813;
   --ink:      #ece7dd;
   --ink-soft: #c9c2b4;
-  --muted:    #958d7c;
-  --faint:    #6b6354;
+  /* --muted / --faint carry nearly all the secondary copy on this page:
+     .sc-note, .sc-row-sub, .ix-row .h, input placeholders, .sc-locked and every
+     timestamp, at 8.5–12px. The original --faint (#6b6354) measured ~3.1:1 on
+     --card (#161310) — below the 4.5:1 AA floor for body text. Raised to ~4.8:1,
+     with --muted lifted to match so the two-step ramp doesn't collapse into one
+     tone. Don't darken either of these without re-checking the ratio. */
+  --muted:    #a49b88;
+  --faint:    #8a8271;
   --line:     rgba(236,231,221,.09);
   --line-soft:rgba(236,231,221,.05);
   --vio:      #a78bfa;
@@ -39,6 +45,22 @@
   --ok-bg:    rgba(127,176,138,.10);
   --shadow:   0 1px 0 rgba(0,0,0,.4), 0 16px 40px -24px rgba(0,0,0,.7);
 }
+
+/* ── Focus ────────────────────────────────────────────────────────────────────
+   Settings had designed focus rings in exactly two places (.ix-row, .sc-check),
+   so every button, nav item, swatch and link fell back to the UA default. This
+   mirrors the treatment the auth surface already defines in globals.css. Scoped
+   to .set-page, so it covers the nav column as well as the .dash content. */
+.set-page :is(a, button, [role="button"], summary):focus-visible {
+  outline: 2px solid var(--vio);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+/* Controls that already draw their own ring keep it — no double outline. */
+.set-page .dash .ix-row:focus-visible,
+.set-page .dash .set-section .sc-input:focus-visible,
+.set-page .dash .set-section .sc-select:focus-visible,
+.set-page .dash .set-section .sc-textarea:focus-visible { outline: none; }
 
 /* ── Content wrapper — fills the pane (sidebar already eats the left margin) ──── */
 .dash.dash-settings {
@@ -214,6 +236,13 @@
   border-top: 1px solid var(--line-soft);
   scroll-margin-top: 18px;
 }
+/* A section component that decides it has nothing to render (the permission
+   guards in RolesSection / InvitationsSection `return null`) would otherwise
+   leave its icon, title and lede standing above empty space. The page's own
+   `isVisible` gate agrees with those guards today, so this only bites when a
+   permission changes mid-session — but the block should collapse rather than
+   depend on two gates staying in sync. */
+.dash .set-block:has(> .set-section:empty) { display: none; }
 /* First block sits right under the page header — no top divider. */
 .dash .set-group-page > .set-block:first-of-type {
   margin-top: 30px; padding-top: 0; border-top: none;
