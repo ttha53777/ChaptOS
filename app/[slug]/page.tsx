@@ -56,7 +56,6 @@ import { SocialsRail } from "../components/dashboard/ledger/SocialsRail";
 import { InstagramRail } from "../components/dashboard/ledger/InstagramRail";
 import { ActivityRail } from "../components/dashboard/ledger/ActivityRail";
 import { DashHideButton } from "../components/dashboard/ledger/DashHideButton";
-import { SetupChecklist, useSetupChecklist } from "../components/dashboard/SetupChecklist";
 import { BillingAlert } from "../components/dashboard/BillingAlert";
 import { apiErrorMessage, orgFetch, requestJson } from "../lib/api";
 import { todayStr } from "../lib/dates";
@@ -1157,12 +1156,9 @@ export default function Home() {
     () => calcHealthScore(brotherList, taskList, THRESHOLDS, todayISO, tracked),
     [brotherList, taskList, THRESHOLDS, todayISO, tracked],
   );
-  // Hold the health widget back until the founder finishes setup — a brand-new
-  // org has no real data, so the dial would only show a noise score.
-  const { setupComplete } = useSetupChecklist();
-  // …and hold it back for orgs with too few tracked measures to composite. With
-  // one per-member metric the "score" is that metric plus a deadline count,
-  // which says less than the KPI tile already does.
+  // Hold the health widget back for orgs with too few tracked measures to
+  // composite. With one per-member metric the "score" is that metric plus a
+  // deadline count, which says less than the KPI tile already does.
   const healthMeaningful = trackedCount(tracked) >= 2;
 
   // ── Announcement (pinned single record) ───────────────────────────────────
@@ -1914,7 +1910,7 @@ export default function Home() {
                   enabledWorkflows={currentUser?.org?.enabledWorkflows}
                 />
               }
-              health={feature("operations", "health") && setupComplete && healthMeaningful ? (
+              health={feature("operations", "health") && healthMeaningful ? (
                 <div className="dash-group">
                   <HealthDial
                     score={health.score}
@@ -1931,11 +1927,6 @@ export default function Home() {
             {/* Self-gating and admin-only: org.billingAlert is null for anyone
                 who can't act on it (computed server-side in /api/auth/me). */}
             <BillingAlert />
-
-            {/* ── Post-onboarding setup checklist ─────────────────────────── */}
-            {/* Self-gating: renders only when onboarding is complete, items
-                remain, and it hasn't been dismissed. */}
-            <SetupChecklist />
 
             {/* ── Pinned announcement ─────────────────────────────────────── */}
             {feature("operations", "announcement") && (

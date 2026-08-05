@@ -86,8 +86,8 @@ export function BillingAlert() {
           boxShadow: "0 0 0 1px rgba(224,122,122,.06), 0 8px 28px -16px rgba(224,122,122,.5)",
         }}
       >
-        {/* Accent rail, same idiom as SetupChecklist — rose rather than purple,
-            because this one is a problem rather than an invitation. */}
+        {/* Accent rail — rose rather than purple, because this one is a
+            problem rather than an invitation. */}
         <span
           aria-hidden
           style={{

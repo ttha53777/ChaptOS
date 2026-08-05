@@ -187,9 +187,9 @@ const ALL_DATA_SECTIONS: readonly DataSection[] = [
  * Sections loaded on EVERY dashboard route, regardless of the manifest below.
  *
  * `brothers` is here deliberately. It's the one list read from shared chrome
- * rather than from a single page (SetupChecklist, and the roster lookups several
- * pages do on mount), and it is cheap relative to the risk of a page rendering an
- * empty roster. Keeping it always-on is the conservative choice.
+ * rather than from a single page (the roster lookups several pages do on
+ * mount), and it is cheap relative to the risk of a page rendering an empty
+ * roster. Keeping it always-on is the conservative choice.
  */
 const ALWAYS_SECTIONS: readonly DataSection[] = ["brothers"];
 
