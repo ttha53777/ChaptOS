@@ -24,15 +24,22 @@ Tiers 1–3 were implemented on 2026-08-04. Tiers 4–6 are recorded but deferre
 
 | Tier | Theme | Status |
 |---|---|---|
-| 1 | Broken or dead affordances | **Fixed** — A1, A3, A4, A8 |
+| 1 | Broken or dead affordances | **Fixed** — A1, A3, A4, A8; A2 partly (stopped advertising it) |
 | 2 | Feedback, state & data safety | **Fixed** — C1, C2, C3, C4, C5, C6, C8 |
-| 3 | Accessibility floor | **Fixed** — E2, E3, E4, E6, E7, E9 |
+| 3 | Accessibility floor | **Fixed** — E2, E3, E4, E6, E7, E9; D5 and D4 partly |
 | 4 | Findability / IA | Deferred — B1–B8 |
-| 5 | Missing capability | Deferred — A2, A5, A6, A7 |
-| 6 | Copy & consistency | Deferred — C7, C9, C10, C11, D1–D9, E5, E10, E11, F1–F6 |
+| 5 | Missing capability | Deferred — A5, A6, A7 (+ the A2 rename itself) |
+| 6 | Copy & consistency | Deferred — C7, C9, C10, C11, D1–D3, D6–D9, E5, E8, E10, E11, F1–F6 |
+
+Verified in a headless browser against the running app (20/20 checks): measured contrast, focus
+order and focus-visible outlines, `aria-current`, drawer `aria-hidden`/focus/Escape at 390px and the
+absence of those attributes at 1440px, the sticky band, the discard guard, the threshold validation,
+absence of native `window.confirm`, and zero horizontal overflow at 390/1024/1920.
 
 The highest-value deferred item is **B1** (put navigation state in the URL): it fixes browser Back,
 refresh, and link-sharing in a single change, and every other findability fix is easier afterwards.
+The most urgent one outside this page's scope is the **E4 cascade consequence** — the dashboard and
+timeline still ship the 3.1:1 body text (see E4).
 
 ---
 
@@ -51,7 +58,7 @@ There was no keyboard path to the control at all, on the most-used setting on th
 ref; the input is a `sr-only`-style trigger. The error message is wired through `aria-describedby`
 and announces via `role="alert"`.
 
-### A2 — "Chapter name" is advertised and does not exist · `deferred`
+### A2 — "Chapter name" is advertised and does not exist · `partly fixed`
 
 The nav blurb and lede for General both lead with *"Chapter name, icon, data controls…"*
 ([page.tsx](../app/[slug]/settings/page.tsx)). The section renders the org name as static text.
@@ -59,9 +66,11 @@ The nav blurb and lede for General both lead with *"Chapter name, icon, data con
 `disabledFeatures`, `customMemberFields`, `navOrder` — **no `name`**. There is no way to rename an
 organization anywhere in the product.
 
-Fixing this needs a new service function, a `name` field on `updateOrgConfigInput`, and a decision
-about whether the slug follows the name (it shouldn't — slugs are load-bearing in URLs and
-`RESERVED_SEGMENTS`).
+**Half done:** the rename itself is deferred (it needs a new service function, a `name` field on
+`updateOrgConfigInput`, and a decision about whether the slug follows the name — it shouldn't, slugs
+are load-bearing in URLs and `RESERVED_SEGMENTS`). But the page no longer *advertises* it: the
+General blurb and lede were rewritten so nothing points at a control that doesn't exist. Restore the
+mention when rename ships — there's a comment on the nav item saying so.
 
 ### A3 — "Export report" printed the settings page · `fixed`
 
@@ -278,10 +287,14 @@ user to author a **slug**, marked required with an asterisk.
 Event types derive the slug from the label and preview it as permanent; Custom metrics make you type
 one by hand.
 
-### D4 — Implementation vocabulary in user-facing copy
+### D4 — Implementation vocabulary in user-facing copy · `partly fixed`
 
 "Refresh from database", "Changes save to the database — refresh to sync the local view", and an
 activity-log entry reading "Data refreshed from database" — written for a *read* operation.
+
+**Half done:** the General section's instances were rewritten while fixing A3 (the button is now
+"Refresh", and the surrounding copy talks about pulling the latest from the server rather than about
+the database). The same register survives elsewhere in the app and is still worth a sweep.
 
 ### D5 — "Log attendance" navigated to `/timeline` · `fixed`
 
@@ -331,14 +344,26 @@ applying them on `!navOpen` alone would hide the desktop nav from assistive tech
 No `aria-current` on the active group or Index; the "active dot" is decorative CSS. **Fixed:**
 `aria-current="page"` on the active item.
 
-### E4 — The explanatory text color failed WCAG AA · `fixed`
+### E4 — The explanatory text color failed WCAG AA · `fixed (Settings only)`
 
 `--faint` (#6b6354) on `--card` (#161310) measured **≈3.1:1** against a 4.5:1 requirement. It is the
 color for `.sc-note`, `.sc-row-sub`, `.ix-row .h`, input placeholders, `.sc-locked`, and every
 timestamp — essentially all secondary copy on the page, at 8.5–12px.
 
-**Fixed:** `--faint` → #8a8271 (≈4.8:1), with `--muted` → #a49b88 so the two-step ramp doesn't
-collapse.
+**Fixed:** `--faint` → #8a8271, `--muted` → #a49b88 (measured 4.86:1 in the browser, up from 3.12:1),
+with `--muted` lifted too so the two-step ramp doesn't collapse into one tone.
+
+**Cascade trap — read this before touching the tokens again.** Declaring them on `.set-page` is not
+enough. [dashboard-ledger.css](../app/components/dashboard/dashboard-ledger.css) re-declares the
+whole dusk palette on `.dash[data-dashboard-theme="dusk"]`, which sits *inside* `.set-page`, so it
+wins for every piece of page content — only the nav column picked up the new values. Settings
+therefore re-asserts both tokens on `.dash.dash-settings[data-dashboard-theme="dusk"]`, at a
+specificity the dashboard rule can't beat.
+
+**Consequence, newly recorded:** the dashboard and the timeline share that palette and still carry
+the failing #6b6354. This audit's scope was Settings, so they were deliberately left alone — but the
+same 3.1:1 body text is live on those pages and should be fixed at the source in
+`dashboard-ledger.css`, after which the Settings override can be deleted.
 
 ### E5 — The type scale runs small throughout · `deferred`
 
