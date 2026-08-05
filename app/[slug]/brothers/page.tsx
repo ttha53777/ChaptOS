@@ -231,7 +231,16 @@ export default function BrothersPage() {
       .catch(() => {});
   }, [canBrothers]);
 
-  const offRosterByInvite = useMemo(() => offRoster.filter(m => m.reason === "invite"), [offRoster]);
+  // The viewing admin themself, when THEY are the one off-roster: they founded
+  // (or were made admin of) this org while their Brother row stayed home in a
+  // different one (AGENTS.md's Membership-vs-home-org gap). Pulled out of the
+  // general "joined by invite" bucket below so they can be pinned as the first
+  // roster row instead of named in a callout about someone else's account.
+  const selfOffRoster = useMemo(
+    () => (isOrgAdmin ? offRoster.find(m => m.reason === "invite" && m.brotherId === selfId) ?? null : null),
+    [offRoster, selfId, isOrgAdmin],
+  );
+  const offRosterByInvite = useMemo(() => offRoster.filter(m => m.reason === "invite" && m.brotherId !== selfId), [offRoster, selfId]);
   const offRosterHidden   = useMemo(() => offRoster.filter(m => m.reason === "hidden"), [offRoster]);
 
   // After a drawer approve/reject, drop the acted-on member's chip (floor 0) and
@@ -756,6 +765,38 @@ export default function BrothersPage() {
                     </tr>
                   </thead>
                   <tbody>
+                    {/* Pinned admin row — not a real roster entry (no Brother row in
+                        this org means no attendance/dues/GPA to show), so it's
+                        rendered outside the search/status filters and the "N shown"
+                        count rather than folded into `filtered`. */}
+                    {!isLoading && selfOffRoster && (
+                      <tr className="pinned-self">
+                        <td>
+                          <div className="b-name">
+                            <BrotherAvatar
+                              brother={{ id: selfOffRoster.brotherId, name: currentUser?.name ?? selfOffRoster.name, avatarUrl: currentUser?.avatarUrl ?? null }}
+                              selfId={selfId}
+                              selfAvatarUrl={currentUser?.avatarUrl}
+                              avatarRevision={avatarRevision}
+                              size="xs"
+                              ringClassName="bg-[var(--vio-bg)] text-[var(--vio)] text-[10px]"
+                            />
+                            <div style={{ minWidth: 0 }}>
+                              <div className="nm">{currentUser?.name ?? selfOffRoster.name}</div>
+                              <div className="rl">Admin · roster lives in another org</div>
+                            </div>
+                          </div>
+                        </td>
+                        <td><span className="mono muted">—</span></td>
+                        <td className="num"><span className="mono muted">—</span></td>
+                        <td className="num"><span className="mono muted">—</span></td>
+                        <td className="num"><span className="mono muted">—</span></td>
+                        <td className="num"><span className="status-tag" style={{ opacity: .7 }}>ADMIN</span></td>
+                        {customFieldDefs.map(f => (
+                          <td key={f.id} className="num"><span className="mono muted">—</span></td>
+                        ))}
+                      </tr>
+                    )}
                     {isLoading ? (
                       [...Array(6)].map((_, i) => (
                         <tr key={i}><td colSpan={6 + customFieldDefs.length} style={{ padding: 0 }}><div className="row-skel" /></td></tr>

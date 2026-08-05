@@ -81,6 +81,12 @@
 /* selected row — violet left edge mirrors the open drawer */
 .dash tbody tr.sel { background: var(--vio-bg); }
 .dash tbody tr.sel td:first-child { box-shadow: inset 3px 0 0 var(--vio); }
+/* pinned "you" row for an admin whose home Brother lives in another org — real
+   roster row is impossible (see AGENTS.md Phase 1), so this is a stand-in, not
+   a normal member: faint tint instead of the solid selected-row treatment, and
+   no hover/click affordance since there's nothing here to open. */
+.dash tbody tr.pinned-self { background: var(--vio-bg); opacity: .85; cursor: default; }
+.dash tbody tr.pinned-self td:first-child { box-shadow: inset 3px 0 0 var(--faint); }
 /* dues "Pay" reveals on row hover (dashboard's .row-act is always visible) */
 .dash .roster .pay-act { opacity: 0; transition: opacity .12s; }
 .dash .roster tbody tr:hover .pay-act { opacity: 1; }

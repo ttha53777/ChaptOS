@@ -286,6 +286,12 @@
 .dash tbody tr:last-child td { border-bottom: none; }
 .dash tbody tr { cursor: pointer; }
 .dash tbody tr:hover { background: var(--card-2); }
+/* Pinned "you" row — an admin whose home Brother lives in another org (see
+   AGENTS.md Phase 1). Not a real roster row (nothing to open, no figures to
+   show), so it opts out of the pointer cursor and hover highlight every other
+   row gets, and gets a faint tint instead. */
+.dash tbody tr.pinned-self { cursor: default; background: var(--vio-bg); opacity: .85; }
+.dash tbody tr.pinned-self:hover { background: var(--vio-bg); }
 .dash .b-name { display: flex; align-items: center; gap: 10px; }
 .dash .b-name .avatar { width: 26px; height: 26px; border-radius: 50%; background: var(--vio-bg); color: var(--vio);
   display: grid; place-items: center; font-family: var(--mono); font-size: 9px; font-weight: 600; flex-shrink: 0; }

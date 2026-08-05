@@ -69,6 +69,9 @@ let _nextId = Date.now();
 // Mirrors the fields the service page selects from /api/service-events.
 type DashServiceEvent = { id: number; title: string; date: string };
 
+/** Shape of GET /api/brothers/off-roster (lib/services/brother-service). */
+type OffRosterMember = { brotherId: number; name: string; email: string | null; joinedAt: string; reason: "invite" | "hidden" };
+
 // ─── KPI Drawer ───────────────────────────────────────────────────────────────
 
 type KPIDrawerKey = "attendance" | "dues" | "gpa" | "service" | "treasury" | "door";
@@ -978,6 +981,7 @@ export default function Home() {
   const [announcement, setAnnouncement] = useState<Announcement | null>(null);
   const [announcementEditorOpen, setAnnouncementEditorOpen] = useState(false);
   const [customMetricSnapshots, setCustomMetricSnapshots] = useState<MetricSnapshot[]>([]);
+  const [offRoster, setOffRoster] = useState<OffRosterMember[]>([]);
   const [activeCustomMetricId, setActiveCustomMetricId] = useState<number | null>(null);
   const [activeSection,  setActiveSection]  = useState("Dashboard");
   const [confirmDelete, setConfirmDelete] = useState<{ kind: "deadline" | "ig"; id: number; label: string } | null>(null);
@@ -1177,6 +1181,19 @@ export default function Home() {
       .catch(() => { /* non-fatal — dashboard renders without custom metrics */ });
     return () => { cancelled = true; };
   }, []);
+
+  // Who has access to this org but no roster row (see lib/services/brother-service.ts's
+  // listOffRosterMembers). Fetched here only so the founder/admin can be pinned as
+  // the roster widget's first row below — silent on failure, same as everywhere
+  // else this list is treated as an explanatory extra rather than roster data.
+  useEffect(() => {
+    let cancelled = false;
+    if (!canBrothers) { setOffRoster([]); return; }
+    requestJson<OffRosterMember[]>("/api/brothers/off-roster")
+      .then(data => { if (!cancelled) setOffRoster(data); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [canBrothers]);
 
   // ── Scroll spy ────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -1439,6 +1456,16 @@ export default function Home() {
     }
     return result;
   }, [brotherList, search, statusFilter, sortKey, sortDir, THRESHOLDS]);
+
+  // The viewing admin themself, when THEY are the one off-roster: they founded
+  // (or were made admin of) this org while their Brother row stayed home in a
+  // different one (AGENTS.md's Membership-vs-home-org gap). RosterTable pins
+  // them as its first row instead of leaving them absent from their own
+  // organization's roster widget.
+  const selfOffRoster = useMemo(
+    () => (isActiveOrgAdmin ? offRoster.find(m => m.reason === "invite" && m.brotherId === selfId) ?? null : null),
+    [offRoster, selfId, isActiveOrgAdmin],
+  );
 
   function toggleSort(key: keyof Brother) {
     if (sortKey === key) setSortDir(d => d === "asc" ? "desc" : "asc");
@@ -2060,9 +2087,11 @@ export default function Home() {
                     onRowClick={(id) => setSelectedBrotherId(id)}
                     thresholds={THRESHOLDS}
                     selfId={selfId}
+                    selfName={currentUser?.name}
                     selfAvatarUrl={currentUser?.avatarUrl}
                     avatarRevision={avatarRevision}
                     tracked={tracked}
+                    selfOffRoster={selfOffRoster}
                     hideButton={isActiveOrgAdmin ? <DashHideButton label="Member tracking" onHide={() => setWidgetHidden("brother-tracking", true)} /> : undefined}
                   />
                   </div>
