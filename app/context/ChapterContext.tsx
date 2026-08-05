@@ -474,7 +474,13 @@ export function ChapterProvider({ children }: { children: React.ReactNode }) {
       }
 
       if (!meResult.ok) {
-        console.error("[ChapterContext] /api/auth/me failed:", meResult.error);
+        // Same transient/real distinction as the section loaders below: a slow
+        // first compile or HMR abort shouldn't read as a code regression.
+        if (isTransientFetchError(meResult.error)) {
+          console.warn("[ChapterContext] /api/auth/me timed out (transient):", meResult.error);
+        } else {
+          console.error("[ChapterContext] /api/auth/me failed:", meResult.error);
+        }
         setLoadError("Could not load your account. Please refresh.");
         setIsLoading(false);
         setHasLoaded(true);
