@@ -29,43 +29,71 @@ function ThresholdRow({
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(String(value));
+  const [invalid, setInvalid] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   function startEdit() {
     setDraft(String(value));
+    setInvalid(null);
     setEditing(true);
     setTimeout(() => inputRef.current?.select(), 0);
   }
 
+  // Commit fires on blur as well as Enter, so a rejected value used to be thrown
+  // away in silence: type a number, click elsewhere, watch the old one come
+  // back. Now an out-of-range value keeps the editor open and says why. Escape
+  // is still the way to abandon an edit.
   function commit() {
     const num = parseFloat(draft);
-    if (!isNaN(num) && num >= min && num <= max) onChange(field, num);
+    if (isNaN(num)) {
+      setInvalid("Enter a number.");
+      return;
+    }
+    if (num < min || num > max) {
+      setInvalid(`Must be between ${min} and ${max}${unit}.`);
+      return;
+    }
+    onChange(field, num);
+    setInvalid(null);
+    setEditing(false);
+  }
+
+  function cancel() {
+    setInvalid(null);
     setEditing(false);
   }
 
   function onKey(e: React.KeyboardEvent) {
     if (e.key === "Enter") commit();
-    if (e.key === "Escape") setEditing(false);
+    if (e.key === "Escape") cancel();
   }
 
   return (
     <div className="sc-row sc-row-between">
       <span className="sc-row-key">{label}</span>
       {editing ? (
-        <div className="flex items-center gap-1.5">
-          <input
-            ref={inputRef}
-            type="number"
-            step={step}
-            min={min}
-            max={max}
-            value={draft}
-            onChange={e => setDraft(e.target.value)}
-            onBlur={commit}
-            onKeyDown={onKey}
-            className="sc-input sc-input-num sc-input-sm w-20"
-          />
-          {unit && <span className="sc-unit">{unit}</span>}
+        <div>
+          <div className="flex items-center gap-1.5">
+            <input
+              ref={inputRef}
+              type="number"
+              step={step}
+              min={min}
+              max={max}
+              value={draft}
+              onChange={e => { setDraft(e.target.value); setInvalid(null); }}
+              onBlur={commit}
+              onKeyDown={onKey}
+              aria-invalid={invalid != null}
+              aria-describedby={invalid ? `${field}-err` : undefined}
+              className="sc-input sc-input-num sc-input-sm w-20"
+              style={invalid ? { borderColor: "rgba(217,139,163,.6)" } : undefined}
+            />
+            {unit && <span className="sc-unit">{unit}</span>}
+          </div>
+          {invalid && (
+            <p className="sc-err mt-1 text-right" id={`${field}-err`} role="alert">{invalid}</p>
+          )}
         </div>
       ) : (
         <button onClick={startEdit} className="sc-edit-btn">
