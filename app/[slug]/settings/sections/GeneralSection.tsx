@@ -1,15 +1,13 @@
 "use client";
 
-import React, { useMemo, useCallback, useRef, useState } from "react";
+import React, { useCallback, useRef } from "react";
 import Link from "next/link";
 import { useChapter } from "../../../context/ChapterContext";
 import { Modal } from "../../../components/dashboard/primitives";
 import { isNavVisible } from "../../../components/Sidebar";
 import { AddIGTaskForm, AddRevenueForm } from "../../../components/dashboard/forms";
-import { InstagramType, ActivityEntry, InstagramTask, PartyEvent, fmt$ } from "../../../data";
+import { InstagramType, ActivityEntry, InstagramTask, PartyEvent } from "../../../data";
 import { useOrgPath } from "../../../hooks/useOrgPath";
-import { useActiveSemester } from "../../../hooks/useActiveSemester";
-import { useSemesterErrorHandler } from "../../../hooks/useSemesterErrorHandler";
 import { orgFetch, requestJson } from "../../../lib/api";
 import { orgInitials } from "@/lib/org-initials";
 import { DangerZone } from "./DangerZone";
@@ -35,7 +33,6 @@ export function GeneralSection({
     currentUser,
     brotherList,
     taskList,
-    igTaskList,
     setIgTaskList,
     partyList,
     setPartyList,
@@ -44,12 +41,13 @@ export function GeneralSection({
     refreshChapterData,
   } = useChapter();
 
-  const activeSemester = useActiveSemester();
-  const handleSemesterError = useSemesterErrorHandler();
-  const brotherNames = useMemo(() => brotherList.map(b => b.name), [brotherList]);
-  // Matches the dashboard/timeline deadline modal: when the org's Instagram page
-  // is visible, the form offers to log the deadline as an Instagram post instead.
-  const igEnabled = isNavVisible("Instagram", currentUser?.org?.enabledWorkflows ?? []);
+  // Quick actions are shortcuts INTO other pages, so they have to respect the
+  // same workflow gating the sidebar uses — otherwise Settings offers to file an
+  // Instagram task for an org that turned Instagram off two sections away, and
+  // the entry lands on a page nobody in that org can reach.
+  const enabledWorkflows = currentUser?.org?.enabledWorkflows ?? [];
+  const igEnabled      = isNavVisible("Instagram", enabledWorkflows);
+  const partiesEnabled = isNavVisible("Parties", enabledWorkflows);
 
   // Logo is now persisted on the org (Organization.logoUrl), surfaced via
   // /api/auth/me → ChapterContext. Upload/remove go through /api/orgs/logo and
@@ -131,8 +129,8 @@ export function GeneralSection({
 
   function handleRefresh() {
     refreshChapterData()
-      .then(() => { setMutationError(null); onStatus("Data refreshed from database"); addActivity("Data refreshed from database", "info"); })
-      .catch(err => { console.error(err); onError("Could not refresh data from the database."); });
+      .then(() => { setMutationError(null); onStatus("Refreshed."); addActivity("Data refreshed", "info"); })
+      .catch(err => { console.error(err); onError("Couldn't refresh. Check your connection and try again."); });
   }
 
 
@@ -186,29 +184,36 @@ export function GeneralSection({
                 </div>
               )}
             </div>
-            {/* Controls */}
+            {/* Controls.
+                The file input is a hidden TRIGGER, not the control: a
+                `display:none` input is not focusable, and the old <label
+                htmlFor> that stood in for it isn't either — which left no
+                keyboard path at all to the most-used setting on the page. The
+                visible control is now a real button that forwards the click. */}
             <div className="sc-btn-row">
               <input
                 ref={fileInputRef}
                 type="file"
                 accept="image/*"
                 onChange={handleLogoFile}
-                disabled={logoBusy}
+                tabIndex={-1}
+                aria-hidden="true"
                 className="hidden"
                 id="org-logo-upload"
               />
-              <label
-                htmlFor="org-logo-upload"
-                aria-disabled={logoBusy}
-                className={`sc-btn sc-btn-accent${logoBusy ? " opacity-60" : ""}`}
-                style={logoBusy ? { cursor: "not-allowed" } : { cursor: "pointer" }}
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={logoBusy}
+                aria-describedby={logoError ? "org-logo-error" : undefined}
+                className="sc-btn sc-btn-accent"
               >
                 <svg viewBox="0 0 16 16" fill="currentColor">
                   <path d="M8.5 1.75a.75.75 0 0 0-1.5 0v5.19L5.03 4.97a.75.75 0 0 0-1.06 1.06l3.5 3.5a.75.75 0 0 0 1.06 0l3.5-3.5a.75.75 0 0 0-1.06-1.06L8.5 6.94V1.75Z" />
                   <path d="M2.5 9.75a.75.75 0 0 0-1.5 0v1.5A2.75 2.75 0 0 0 3.75 14h8.5A2.75 2.75 0 0 0 15 11.25v-1.5a.75.75 0 0 0-1.5 0v1.5c0 .69-.56 1.25-1.25 1.25h-8.5c-.69 0-1.25-.56-1.25-1.25v-1.5Z" />
                 </svg>
                 {logoBusy ? "Working…" : logoUrl ? "Replace image" : "Upload image"}
-              </label>
+              </button>
               {logoUrl && (
                 <button onClick={handleClearLogo} disabled={logoBusy} className="sc-btn sc-btn-danger">
                   Remove
@@ -216,7 +221,7 @@ export function GeneralSection({
               )}
             </div>
           </div>
-          {logoError && <p className="sc-err mt-2">{logoError}</p>}
+          {logoError && <p className="sc-err mt-2" id="org-logo-error" role="alert">{logoError}</p>}
         </div>
 
         <hr className="sc-divider" />
@@ -226,16 +231,24 @@ export function GeneralSection({
           <h3 className="sc-h">Quick actions</h3>
           <p className="sc-note">Jump straight to a common entry without leaving Settings.</p>
           <div className="sc-btn-row mt-3">
-            {([["revenue", "Log revenue"], ["ig", "Add IG task"]] as const).map(([key, label]) => (
-              <button key={key} onClick={() => setActiveModal(key)} className="sc-btn sc-btn-ghost">
-                {label}
-              </button>
-            ))}
+            {([
+              ["revenue", "Log revenue", partiesEnabled],
+              ["ig",      "Add IG task", igEnabled],
+            ] as const)
+              .filter(([, , enabled]) => enabled)
+              .map(([key, label]) => (
+                <button key={key} onClick={() => setActiveModal(key)} className="sc-btn sc-btn-ghost">
+                  {label}
+                </button>
+              ))}
             <Link href={orgPath("/tasks?new=1")} className="sc-btn sc-btn-ghost">
               Add task
             </Link>
+            {/* Named for where it goes. It used to say "Log attendance" and land
+                on the timeline, which is a planning surface, not an attendance
+                one. */}
             <Link href={orgPath("/timeline")} className="sc-btn sc-btn-ghost">
-              Log attendance
+              Open timeline
             </Link>
           </div>
         </div>
@@ -246,20 +259,26 @@ export function GeneralSection({
         <div>
           <h3 className="sc-h">Data</h3>
           <p className="sc-note">
-            Changes are saved through the database. Refresh to sync the local view, or export a printable report.
+            Your changes are saved as you make them. Refresh to pull the latest from the server if
+            someone else has been editing.
           </p>
           <div className="sc-btn-row mt-3">
             <button onClick={handleRefresh} className="sc-btn sc-btn-ghost">
               <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
               </svg>
-              Refresh from database
+              Refresh
             </button>
+            {/* This is window.print() and nothing more. It was labelled "Export
+                report" under a Data heading, which read as a data export it has
+                never been — the real exports are the treasury CSV
+                (/api/transactions/export) and the roster CSV, both on their own
+                pages. Named for what it does until an org-wide report exists. */}
             <button onClick={() => window.print()} className="sc-btn sc-btn-ghost">
-              <svg viewBox="0 0 16 16" fill="currentColor">
-                <path fillRule="evenodd" d="M11.5 4.5a3.5 3.5 0 1 1-7 0 3.5 3.5 0 0 1 7 0ZM4.25 8.5a3.25 3.25 0 0 0-3.25 3.25v.5A1.75 1.75 0 0 0 2.75 14h10.5A1.75 1.75 0 0 0 15 12.25v-.5A3.25 3.25 0 0 0 11.75 8.5h-7.5Z" clipRule="evenodd" />
+              <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
               </svg>
-              Export report
+              Print this page
             </button>
           </div>
         </div>
