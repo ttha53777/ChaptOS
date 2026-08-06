@@ -128,24 +128,29 @@ export async function refreshSystemRolePermissions(
 }
 
 /**
- * Walk every brother's `role` title, tokenize on " · ", and assign matching
+ * Walk every roster row's `role` title, tokenize on " · ", and assign matching
  * system roles. Idempotent: BrotherRole has a composite PK so re-runs no-op.
  * Brothers with `isAdmin = true` are skipped — they already bypass everything
  * via super-admin and shouldn't be auto-rolled.
+ *
+ * Iterates Memberships, not Brothers: the office title is per-org now, so one
+ * person can be Treasurer in one chapter and a plain member in another, and each
+ * membership's own title decides that membership's role grants. BrotherRole
+ * already carried organizationId, so the grants themselves needed no change.
  */
 export async function assignSystemRolesByTitle(
   prisma: PrismaClient,
   roleIdByName: Map<string, number>,
 ): Promise<{ assigned: number; brothersTouched: number }> {
-  const brothers = await prisma.brother.findMany({
-    where: { isAdmin: false, isGhost: false },
-    select: { id: true, role: true, organizationId: true },
+  const memberships = await prisma.membership.findMany({
+    where:  { brother: { is: { isAdmin: false, isGhost: false } } },
+    select: { brotherId: true, role: true, organizationId: true },
   });
 
   let assigned = 0;
   let brothersTouched = 0;
 
-  for (const b of brothers) {
+  for (const b of memberships) {
     const tokens = b.role
       .split("·")
       .map(t => t.trim().toLowerCase())
@@ -168,7 +173,7 @@ export async function assignSystemRolesByTitle(
     for (const roleId of matchedRoleIds) {
       try {
         await prisma.brotherRole.create({
-          data: { brotherId: b.id, roleId, organizationId: b.organizationId },
+          data: { brotherId: b.brotherId, roleId, organizationId: b.organizationId },
         });
         assigned++;
       } catch {

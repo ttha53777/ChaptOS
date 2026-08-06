@@ -97,15 +97,30 @@ async function main() {
     })),
   });
 
-  // Strip `id` so Prisma autoincrement generates its own IDs — avoids sequence conflicts
+  // A member is two rows: the Brother (shared identity) and the Membership (this
+  // org's roster spot, carrying the numbers). The mock shape in app/data.ts is a
+  // flattened roster row, so it splits across both here.
+  //
+  // Strip `id` so Prisma autoincrement generates its own IDs — avoids sequence conflicts.
+  const createdBrothers = await prisma.brother.createManyAndReturn({
+    data: brothers.map(b => ({ name: b.name, organizationId: ORG_ID })),
+  });
+  console.log(`Seeded ${createdBrothers.length} brothers.`);
 
-  const brotherData = brothers.map(({ id: _id, ...rest }) => ({ ...rest, organizationId: ORG_ID }));
-  const createdBrothers = await prisma.brother.createManyAndReturn({ data: brotherData });
-  console.log(`Seeded ${brotherData.length} brothers.`);
-
-  // Seed Membership rows for each brother
+  // The roster rows. Index-aligned with `brothers` because createManyAndReturn
+  // preserves input order.
   await prisma.membership.createMany({
-    data: createdBrothers.map(b => ({ brotherId: b.id, organizationId: ORG_ID, isOrgAdmin: b.isAdmin })),
+    data: createdBrothers.map((b, i) => ({
+      brotherId:      b.id,
+      organizationId: ORG_ID,
+      isOrgAdmin:     b.isAdmin,
+      name:           brothers[i].name,
+      role:           brothers[i].role,
+      attendance:     brothers[i].attendance,
+      duesOwed:       brothers[i].duesOwed,
+      gpa:            brothers[i].gpa,
+      serviceHours:   brothers[i].serviceHours,
+    })),
   });
 
   // Seed tasks (all dated = deadlines), each assigned to a rotating brother so
@@ -223,12 +238,12 @@ async function main() {
   await prisma.attendanceRecord.createMany({ data: recordsToCreate });
   console.log(`Seeded ${recordsToCreate.length} attendance records.`);
 
-  // Recalculate and write ratios back to Brother.attendance
+  // Recalculate and write ratios back to each member's roster row
   for (const brother of createdBrothers) {
     const ratio = await recalcBrotherAttendance(db(ORG_ID), brother.id, semester.id);
     console.log(`  ${brother.name}: ${ratio}%`);
   }
-  console.log("Attendance ratios written back to brothers.");
+  console.log("Attendance ratios written back to roster rows.");
 
   // ── System roles + assignment by title ────────────────────────────────────
   // Roles are seeded last so the assignment pass sees the just-created brothers.

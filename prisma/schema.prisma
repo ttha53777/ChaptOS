@@ -120,23 +120,69 @@ model OrganizationConfig {
   @@index([organizationId])
 }
 
-// Links a Brother (Supabase identity + profile) to an Organization.
-// isOrgAdmin replaces Brother.isAdmin for per-org admin authority.
+// THE ROSTER ROW. One Google account is one Brother (authUserId is globally
+// unique) but many Memberships — one per org — and this is the row that says
+// "this person occupies a spot on THIS org's roster, and here are their numbers
+// in it". Everything an org assesses about a member lives here, not on Brother:
+// their office label, GPA, dues balance, attendance %, service hours, custom
+// field values and whether this org has archived them.
+//
+// That split is the point. Brother is the *identity* (one per human, shared
+// across every org they belong to); Membership is the *membership* (one per
+// human per org, private to that org). A member's dues in one chapter are not
+// readable or writable by another, because they are different rows.
+//
+// Keyed by (brotherId, organizationId). `brotherId` — never `Membership.id` —
+// stays the roster identity in every DTO and every child FK (AttendanceRecord,
+// DuesPayment, BrotherRole, PollVote, …), which is why none of those tables
+// needed to change when the roster moved here.
+//
+// Roster-only members — typed in by an admin, no auth account — are a Brother
+// with authUserId: null PLUS a Membership. Every roster row is a Membership,
+// with no exceptions: createBrother writes both in one transaction.
 model Membership {
   id             Int      @id @default(autoincrement())
   brotherId      Int
   organizationId Int
   isOrgAdmin     Boolean  @default(false)
-  // This person's display name *in this org*. One Google account is one Brother
-  // but many Memberships, and a name is an org-local identity — the same person
-  // can be "Rob" in one chapter and "Robert Chen" in another. Null means "no
-  // org-specific name set", in which case every read falls back to Brother.name
-  // (still the account-level canonical name). Set from the /create interview's
-  // founderName, the /join redeem form, and the BrotherDrawer name edit.
-  // Roster-only members (added by an admin, no auth account) have no Membership
-  // row at all, so they always fall back.
+  // This person's display name *in this org*. A name is an org-local identity —
+  // the same person can be "Rob" in one chapter and "Robert Chen" in another.
+  // Null means "no org-specific name set", in which case reads fall back to
+  // Brother.name (the account-level canonical name).
+  //
+  // Nullable on purpose, even though every write path now populates it and the
+  // Phase 2 migration backfilled every existing row. NOT NULL here would turn
+  // app/api/auth/claim's Membership upsert — a bootstrap path — into a 500 the
+  // moment anything creates a membership without a name. The backfill buys the
+  // benefit; the constraint would only buy a way to break account claiming.
   name           String?
   joinedAt       DateTime @default(now())
+
+  // ── Roster fields (moved off Brother by 20260806000000_phase2_membership_roster) ──
+  // Free-text office / committee label. Only shown when this member holds no
+  // relational Role rows — see roleTitle() in app/data.ts.
+  role           String   @default("Member")
+  // Attendance %, or the ATTENDANCE_EXEMPT sentinel (-1). A recomputed cache,
+  // derived from this org's AttendanceRecords for the active semester; never
+  // written directly. lib/attendance.ts owns it.
+  attendance     Float    @default(0)
+  // Money this member owes THIS org. Mirrored by the Transaction ledger, so it
+  // moves only through dues-service / transaction-service — never a raw write.
+  duesOwed       Float    @default(0)
+  gpa            Float    @default(0)
+  // Recomputed cache of this org's ServiceParticipation rows. lib/service-hours.ts.
+  serviceHours   Float    @default(0)
+  // When THIS org archived them, or null. Archiving is not deletion: every
+  // attendance record, dues payment and metric value survives, but the member
+  // drops out of the default roster read and out of the billable headcount
+  // (lib/billing/seats.ts). Per-org, so graduating out of one chapter leaves a
+  // member active in another.
+  archivedAt     DateTime?
+  // Values for this org's custom member fields (Major, Pledge Class, …). Sparse
+  // map { fieldId → value }; definitions live in OrganizationConfig.customMemberFields,
+  // which is already per-org — the values had to follow or two orgs' field sets
+  // would collide on one JSON blob.
+  customFields   Json     @default("{}")
 
   brother      Brother      @relation(fields: [brotherId], references: [id], onDelete: Cascade)
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -153,15 +199,25 @@ model PlatformAdmin {
   brother   Brother @relation(fields: [brotherId], references: [id])
 }
 
+// THE IDENTITY ROW. One per human, shared across every org they belong to.
+// Deliberately holds nothing an org assesses — no role, GPA, dues, attendance,
+// service hours, archived flag or custom fields. Those are per-org and live on
+// Membership, which is the roster row. If you are adding a column here, ask
+// whether a second org should see it; if not, it belongs on Membership.
 model Brother {
   id                    Int                    @id @default(autoincrement())
+  // The ORIGIN org — where this account first appeared. A hint, not a
+  // membership: it grants nothing, and no roster / attendance / dues /
+  // reporting read may scope by it (they scope by Membership). Its only two
+  // readers are resolveActiveOrg's last-resort default (lib/auth/require-user.ts)
+  // and deleteOrg's re-homing loop. Kept required and populated so those keep
+  // working; making it nullable or dropping it is a separate follow-up.
   organizationId        Int
+  // The account-level canonical name. NOT what any org renders — every roster,
+  // feed and chip resolves Membership.name for the active org and only falls
+  // back here when it is null. This name's remaining jobs are to seed a new
+  // org's Membership.name, and to be the string /api/auth/claim matches against.
   name                  String
-  role                  String
-  attendance            Float
-  duesOwed              Float
-  gpa                   Float
-  serviceHours          Float
   authUserId            String?                @unique @map("auth_user_id")
   avatarUrl             String?                @map("avatar_url")
   email                 String?
@@ -169,18 +225,6 @@ model Brother {
   // "Ghost" members provisioned via the Atomic Samurai backdoor: full app access
   // but hidden from every brother listing, count, and attendance enrollment.
   isGhost               Boolean                @default(false)
-  // When this member was archived (graduated, went inactive, left), or null for
-  // an active member. Archiving is deliberately NOT deletion: every attendance
-  // record, dues payment, and metric value survives, so historical reports stay
-  // correct. An archived member drops out of the default roster read and out of
-  // the billable headcount (lib/billing/seats.ts) — the latter is why the column
-  // exists at all, since orgs need a way to stop paying for graduated seniors
-  // without destroying their history. Un-archiving re-adds a billable seat and
-  // is therefore gated by the same seat guard as adding a new member.
-  archivedAt            DateTime?
-  // Per-member values for org-defined custom fields. Sparse map { fieldId → value }.
-  // Unknown field ids (from deleted definitions) are stripped on read by sanitizeCustomFields().
-  customFields          Json                   @default("{}")
   attendanceRecords     AttendanceRecord[]
   attendanceExcuses     AttendanceExcuse[]
   attendanceExemptions  AttendanceExemption[]
