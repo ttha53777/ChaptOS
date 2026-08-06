@@ -71,38 +71,35 @@ function assertCanManageDues(ctx: RequestContext): void {
 export async function adjustDues(ctx: RequestContext, input: AdjustDuesInput) {
   assertCanManageDues(ctx);
 
-  const brother = await ctx.db.brother.findUnique({
-    where:  { id: input.brotherId },
-    select: { id: true, name: true, duesOwed: true },
-  });
-  if (!brother) throw new NotFoundError("Brother");
+  // The roster row for THIS org. A balance is owed to one chapter, so this is
+  // the membership, not the account — a member of two chapters carries two
+  // independent balances and this may only ever move one of them.
+  const member = await ctx.db.member.findRosterRow(input.brotherId);
+  if (!member) throw new NotFoundError("Brother");
 
   const { delta } = input;
 
   // A waiver can't push the balance below zero — the same compare-and-set guard as a
   // payment, for the same reason (and it's race-safe against a concurrent payment).
-  // ctx.db.brother.updateMany is org-scoped, so the org filter is injected for us.
+  // compareAndSetDues is org-scoped, so the org filter is injected for us.
   //
   // Half-a-cent tolerance, same as recordDuesPayment: waiving a member's full
   // $200 balance must not be refused because repeated float arithmetic left the
   // row holding 199.99999999999997. See atLeast in lib/money.ts.
   const guard = delta < 0 ? { duesOwed: { gte: atLeast(-delta) } } : {};
 
-  const claimed = await ctx.db.brother.updateMany({
-    where: { id: brother.id, ...guard },
-    data:  { duesOwed: { increment: delta } },
+  const claimed = await ctx.db.member.compareAndSetDues(member.id, {
+    guard,
+    data: { duesOwed: { increment: delta } },
   });
   if (claimed.count === 0) {
     throw new ConflictError(
-      `Cannot reduce ${brother.name}'s dues by $${money(-delta).toFixed(2)} — they owe `
-      + `$${money(brother.duesOwed).toFixed(2)}.`,
+      `Cannot reduce ${member.name}'s dues by $${money(-delta).toFixed(2)} — they owe `
+      + `$${money(member.duesOwed).toFixed(2)}.`,
     );
   }
 
-  const updated = await ctx.db.brother.findUnique({
-    where:  { id: brother.id },
-    select: { duesOwed: true },
-  });
+  const updated = await ctx.db.member.findRosterRow(member.id);
 
   // Snap a sub-cent remainder to exactly zero — same reason as recordDuesPayment
   // in transaction-service.ts. Waiving someone's full balance subtracts two
@@ -111,20 +108,17 @@ export async function adjustDues(ctx: RequestContext, input: AdjustDuesInput) {
   // outstanding list showing "$0.00".
   const newOwed = money(updated?.duesOwed ?? 0);
   if (newOwed === 0 && (updated?.duesOwed ?? 0) !== 0) {
-    await ctx.db.brother.updateMany({
-      where: { id: brother.id },
-      data:  { duesOwed: 0 },
-    });
+    await ctx.db.member.updateManyByBrotherIds([member.id], { duesOwed: 0 });
   }
 
-  await emit(ctx, "dues.adjusted", { type: "Brother", id: brother.id }, {
-    brotherId: brother.id,
+  await emit(ctx, "dues.adjusted", { type: "Brother", id: member.id }, {
+    brotherId: member.id,
     delta,
     reason:    input.reason ?? null,
     newOwed,
   });
 
-  return { brotherId: brother.id, duesOwed: newOwed };
+  return { brotherId: member.id, duesOwed: newOwed };
 }
 
 /**
@@ -138,11 +132,8 @@ export async function adjustDues(ctx: RequestContext, input: AdjustDuesInput) {
 export async function attributeDuesPayment(ctx: RequestContext, input: AttributeDuesPaymentInput) {
   assertCanManageDues(ctx);
 
-  const brother = await ctx.db.brother.findUnique({
-    where:  { id: input.brotherId },
-    select: { id: true },
-  });
-  if (!brother) throw new NotFoundError("Brother");
+  const member = await ctx.db.member.findByBrotherId(input.brotherId);
+  if (!member) throw new NotFoundError("Brother");
 
   const row = await ctx.db.transaction.findUnique({
     where:  { id: input.transactionId },
@@ -158,11 +149,11 @@ export async function attributeDuesPayment(ctx: RequestContext, input: Attribute
 
   await ctx.db.transaction.update({
     where: { id: row.id },
-    data:  { brotherId: brother.id },
+    data:  { brotherId: member.brotherId },
   });
 
   await emit(ctx, "dues.payment_attributed", { type: "Transaction", id: row.id }, {
-    brotherId:     brother.id,
+    brotherId:     member.brotherId,
     transactionId: row.id,
   });
 }
@@ -173,15 +164,12 @@ export async function attributeDuesPayment(ctx: RequestContext, input: Attribute
  * claim to be the truth.
  */
 export async function getDuesReconciliation(ctx: RequestContext) {
-  const brothers = await ctx.db.brother.findMany({
-    where:  { isGhost: false },
-    select: { id: true, name: true, duesOwed: true },
-    orderBy: { id: "asc" },
-  });
+  // listRoster already resolves each member's org-local name, so there is no
+  // second name-resolution pass here any more.
+  const roster = await ctx.db.member.listRoster();
 
-  const [paidByBrotherId, nameByBrotherId, unattributed] = await Promise.all([
-    sumDuesPaidByBrother(ctx.db, brothers.map(b => b.id)),
-    ctx.db.membership.resolveNames(brothers),
+  const [paidByBrotherId, unattributed] = await Promise.all([
+    sumDuesPaidByBrother(ctx.db, roster.map(b => b.id)),
     // Pre-migration payments: real money, no idea who paid it. Shown, not guessed at.
     ctx.db.transaction.findMany({
       where:   { ...duesPaymentWhere, brotherId: null },
@@ -190,9 +178,9 @@ export async function getDuesReconciliation(ctx: RequestContext) {
     }),
   ]);
 
-  const members = brothers.map(b => ({
+  const members = roster.map(b => ({
     id:       b.id,
-    name:     nameByBrotherId.get(b.id) ?? b.name,
+    name:     b.name,
     owed:     money(b.duesOwed),
     paid:     money(paidByBrotherId.get(b.id) ?? 0),
   }));

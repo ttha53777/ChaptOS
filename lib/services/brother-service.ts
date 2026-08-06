@@ -3,6 +3,7 @@ import { assertSeatAvailable } from "@/lib/billing/guard";
 import type { RequestContext } from "@/lib/context";
 import { emit } from "@/lib/events";
 import { ConflictError, NotFoundError, PaymentRequiredError, type PaymentRequiredDetails } from "@/lib/errors";
+import { prismaPrivileged } from "@/lib/prisma-privileged"; // lint-direct-prisma:ignore cross-org membership count, see countMemberships
 import type { CreateBrotherInput, UpdateBrotherInput } from "@/lib/validation/brother";
 import {
   sanitizeCustomFields,
@@ -48,31 +49,26 @@ async function getFieldDefs(ctx: RequestContext): Promise<CustomMemberFieldDef[]
 }
 
 export async function listVisibleBrothers(ctx: RequestContext) {
-  // Excludes legacy `isGhost` rows. Nothing can create one any more (the claim-
-  // flow backdoor that minted them is gone), but pre-existing rows keep read
-  // access and must stay out of the roster and every figure derived from it —
-  // they have no attendance/dues/GPA history to contribute. listOffRosterMembers
-  // is where an admin sees that such an account exists at all.
+  // THE roster read, and it comes off Membership: one row per person per org.
+  // It used to come off Brother, scoped by Brother.organizationId — which meant
+  // anyone whose account had originated in another chapter was simply absent
+  // here, however long they had been a member. listRoster resolves each member's
+  // org-local name and returns brotherId as `id`, so every consumer downstream
+  // (and every child FK) is unchanged.
   //
-  // Explicit select, not a bare findMany: this endpoint is fetched on EVERY page
-  // for EVERY user (ChapterContext's ALWAYS_SECTIONS), so anything selected here
-  // is shipped to every member. `email`, `isAdmin`, `organizationId`, `archivedAt`
-  // and `isGhost` used to ride along despite appearing nowhere in the client's
-  // `Brother` type (app/data.ts) — pure over-fetch of member PII. Add a field here
-  // only if the client actually reads it.
+  // Excludes legacy `isGhost` rows, which listRoster does by default. Nothing can
+  // create one any more (the claim-flow backdoor that minted them is gone), but
+  // pre-existing rows keep read access and must stay out of the roster and every
+  // figure derived from it. listGhostAccounts is where an admin sees that such an
+  // account exists at all.
   //
-  // `authUserId` is deliberately kept: hydrateBrotherAvatars() keys on it, and
-  // publicBrother() strips it before the response is serialized.
-  const brothers = await ctx.db.brother.findMany({
-    where:   { isGhost: false },
-    orderBy: { id: "asc" },
-    select: {
-      id: true, name: true, role: true, attendance: true, duesOwed: true,
-      gpa: true, serviceHours: true, avatarUrl: true, customFields: true,
-      authUserId: true,
-    },
-  });
-  const brotherIds = brothers.map(b => b.id);
+  // On over-fetch: `email` is deliberately NOT in the roster shape (see
+  // ListRosterOptions). This endpoint is fetched on EVERY page for EVERY user
+  // via ChapterContext's ALWAYS_SECTIONS, so anything returned here is shipped to
+  // every member. Ask for `fields: "contact"` only where email is actually read.
+  const roster = await ctx.db.member.listRoster();
+  const brotherIds = roster.map(b => b.id);
+
   // Scope role assignments to the active org. A multi-org member has BrotherRole
   // rows in several orgs; without the org-scoped wrapper's filter another org's
   // roles leak into this org's UI as chips that can't be revoked here (the revoke
@@ -89,88 +85,63 @@ export async function listVisibleBrothers(ctx: RequestContext) {
   // Fetch field definitions once for the whole list — avoids N+1.
   const defs = await getFieldDefs(ctx);
 
-  // Per-org display names. A person is one Brother but many Memberships, so the
-  // name shown on THIS org's roster is their Membership.name here, falling back
-  // to the account-level Brother.name when they never set one. Roster-only
-  // members (added by an admin, no auth account) have no Membership row and so
-  // always fall back. One org-scoped query for the whole list — no N+1.
-  const overrides = await ctx.db.membership.findMany({
-    where:  { brotherId: { in: brotherIds }, name: { not: null } },
-    select: { brotherId: true, name: true },
-  });
-  const nameByBrotherId = new Map(overrides.map(m => [m.brotherId, m.name!]));
-
-  return brothers.map(b => ({
-    ...b,
-    name: nameByBrotherId.get(b.id) ?? b.name,
+  return roster.map(b => ({
+    id:           b.id,
+    name:         b.name,
+    role:         b.role,
+    attendance:   b.attendance,
+    duesOwed:     b.duesOwed,
+    gpa:          b.gpa,
+    serviceHours: b.serviceHours,
+    avatarUrl:    b.avatarUrl,
+    // `authUserId` is deliberately kept: hydrateBrotherAvatars() keys on it, and
+    // publicBrother() strips it before the response is serialized.
+    authUserId:   b.authUserId,
     // Strip unknown / deleted field ids on read so the client never sees orphan values.
     customFields: sanitizeCustomFields(b.customFields, defs),
     roles: (rolesByBrotherId.get(b.id) ?? []).sort((a, z) => z.rank - a.rank),
   }));
 }
 
-/**
- * Why someone has access to this org without appearing on its roster.
- *
- *   "invite" — their home org is elsewhere, so Phase 1 roster reads miss them.
- *   "hidden" — a legacy `isGhost` account (see listOffRosterMembers).
- */
-export type OffRosterReason = "invite" | "hidden";
-
-/** Someone with access to this org who will never appear on its roster. */
-export interface OffRosterMember {
+/** A legacy ghost account: full read access to this org, absent from its roster. */
+export interface GhostAccount {
   brotherId: number;
   name:      string;
   email:     string | null;
   joinedAt:  string;
-  reason:    OffRosterReason;
 }
 
 /**
- * Everyone who can read this org but is absent from its roster. Two disjoint
- * groups, each invisible to listVisibleBrothers for a different reason.
+ * Legacy `isGhost` accounts — people who can read this org but will never appear
+ * on its roster.
  *
- * **"invite"** — members whose home org is elsewhere (Brother.organizationId ≠
- * ctx.orgId). This is the visible half of a real gap: a Google account maps to
- * ONE Brother globally, so when someone who already belongs to another org
- * redeems an open invite here, redeem-invite gives them a Membership and reuses
- * their existing Brother row. They get access, they can sign in, they show up in
- * chat and tasks — but listVisibleBrothers scopes by Brother.organizationId, so
- * the admin who sent the link sees nothing happen. Silent. The real fix is
- * Phase 2 (roster reads move to Membership) — see AGENTS.md.
+ * These were provisioned by a claim-flow backdoor (typing the name "Atomic
+ * Samurai") that granted full member-level read access while being filtered out
+ * of every listing, count, attendance roll and billing seat. The backdoor is
+ * GONE — nothing can mint one of these any more — but rows created before its
+ * removal still carry access, and until this query existed there was no surface
+ * anywhere in the product that revealed them to the admins whose data they can
+ * read. Reporting them is what makes the removal complete: an admin can see the
+ * account and revoke it.
  *
- * **"hidden"** — legacy `isGhost` accounts. These were provisioned by a claim-
- * flow backdoor (typing the name "Atomic Samurai") that granted full member-level
- * read access while being filtered out of every listing, count, attendance roll
- * and billing seat. The backdoor is GONE — nothing can mint one of these any
- * more — but rows created before its removal still carry access, and until this
- * query included them there was no surface anywhere in the product that revealed
- * their existence to the admins whose data they can read. Reporting them here is
- * what makes the removal complete: an admin can now see the account and revoke it.
+ * This function used to have a second, larger job: reporting members whose home
+ * org was elsewhere, who had access here but no roster row. That group no longer
+ * exists — the roster reads from Membership, so joining an org gives you a real
+ * roster spot in it. Ghosts are the only remaining case.
  *
  * Kept deliberately SEPARATE from listVisibleBrothers rather than unioned in:
- * these people have no roster row, so they have no attendance, dues, GPA, or
- * service figures, and folding them into brotherList would corrupt every KPI
- * and every roster-driven recalc that assumes those columns exist. The roster
- * page renders this as an explanatory callout instead.
+ * these accounts have no roster row, so they have no attendance, dues, GPA or
+ * service figures, and folding them into brotherList would corrupt every KPI and
+ * every roster-driven recalc that assumes those values exist.
  */
-export async function listOffRosterMembers(ctx: RequestContext): Promise<OffRosterMember[]> {
-  const memberships = await ctx.db.membership.findMany({
-    where: {
-      brother: {
-        is: {
-          OR: [
-            { organizationId: { not: ctx.orgId }, isGhost: false },
-            { isGhost: true },
-          ],
-        },
-      },
-    },
-    select: {
+export async function listGhostAccounts(ctx: RequestContext): Promise<GhostAccount[]> {
+  const memberships = await ctx.db.member.findMany({
+    where:   { brother: { is: { isGhost: true } } },
+    select:  {
       brotherId: true,
       name:      true,
       joinedAt:  true,
-      brother:   { select: { name: true, email: true, isGhost: true } },
+      brother:   { select: { name: true, email: true } },
     },
     orderBy: { joinedAt: "desc" },
   });
@@ -180,7 +151,6 @@ export async function listOffRosterMembers(ctx: RequestContext): Promise<OffRost
     name:      m.name ?? m.brother.name,
     email:     m.brother.email,
     joinedAt:  m.joinedAt.toISOString(),
-    reason:    m.brother.isGhost ? "hidden" : "invite",
   }));
 }
 
@@ -197,23 +167,51 @@ export async function createBrother(ctx: RequestContext, input: CreateBrotherInp
     customFields = sanitizeCustomFields(input.customFields, defs);
   }
 
-  const brother = await ctx.db.brother.create({
-    data: {
-      name:         input.name,
-      role:         input.role,
-      attendance:   0,
-      duesOwed:     input.duesOwed,
-      gpa:          input.gpa,
-      serviceHours: input.serviceHours,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      customFields: customFields as any,
-    },
+  // Two rows, one transaction. A roster spot is now a Membership, and an
+  // identity is a Brother — this member has no auth account yet, so both are
+  // created here and the pair must be atomic: a Brother without a Membership is
+  // an orphan nobody can see or clean up, and there is no path that would ever
+  // create the missing half later.
+  //
+  // Brother.organizationId is set to this org because for an admin-typed member
+  // it genuinely IS their origin org. It grants nothing — the Membership does
+  // that — and no roster read scopes by it.
+  const brother = await ctx.db.$transaction(async (tx) => {
+    const created = await tx.brother.create({
+      data: {
+        organizationId: ctx.orgId,
+        // The account-level canonical name. Seeded to the same string as the
+        // Membership name below; from here on the two drift independently, and
+        // only the Membership one is ever rendered.
+        name:      input.name,
+        authUserId: null,
+        isAdmin:   false,
+        isGhost:   false,
+      },
+    });
+    await tx.membership.create({
+      data: {
+        brotherId:      created.id,
+        organizationId: ctx.orgId,
+        isOrgAdmin:     false,
+        name:           input.name,
+        role:           input.role,
+        attendance:     0,
+        duesOwed:       input.duesOwed,
+        gpa:            input.gpa,
+        serviceHours:   input.serviceHours,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        customFields:   customFields as any,
+      },
+    });
+    return created;
   });
+
   await emit(ctx, "brother.added", { type: "Brother", id: brother.id }, {
-    name: brother.name,
-    role: brother.role,
+    name: input.name,
+    role: input.role,
   });
-  return brother;
+  return { ...brother, role: input.role };
 }
 
 export async function updateBrother(
@@ -221,18 +219,20 @@ export async function updateBrother(
   brotherId: number,
   input: UpdateBrotherInput,
 ) {
+  // Every field here lands on the ROSTER ROW — this org's Membership — so an
+  // edit made in one chapter never touches what another chapter records about
+  // the same person. That includes the name: someone can be "Rob" here and
+  // "Robert Chen" there, and both are correct.
+  //
   // `duesOwed` is deliberately absent, for everyone including admins. It is a money
   // balance mirrored by the Transaction ledger, so it cannot be a field you overwrite:
   // a raw write moves one book and not the other, which is exactly how the roster came
   // to say members were square while the ledger said the chapter had collected nothing.
   // It moves only via lib/services/dues-service.ts — recordDuesPayment (which mints the
   // matching income row atomically) or adjustDues (a reasoned, audited charge/waiver).
-  //
-  // `name` is handled separately below — it lands on Membership.name (the per-org
-  // display name), not on the Brother row.
-  const allowed = ["role", "gpa", "serviceHours"] as const;
+  const allowed = ["name", "role", "gpa", "serviceHours"] as const;
 
-  const data: Prisma.BrotherUpdateInput = {};
+  const data: Prisma.MembershipUpdateInput = {};
   const changedFields: string[] = [];
   for (const key of allowed) {
     if (!(key in input)) continue;
@@ -245,7 +245,8 @@ export async function updateBrother(
 
   // Custom fields: allowed for both admins and self-edit.
   // Definitions are always fetched server-side — the client never influences
-  // which fields are valid, only the values.
+  // which fields are valid, only the values. Both the definitions and the values
+  // are per-org, so two chapters can each define a "Major" without colliding.
   if (input.customFields !== undefined) {
     const defs = await getFieldDefs(ctx);
     const sanitized = sanitizeCustomFields(input.customFields, defs);
@@ -259,6 +260,9 @@ export async function updateBrother(
   // record attached to it survive untouched, but the member stops counting
   // toward the billable headcount (lib/billing/seats.ts).
   //
+  // Per-org, like everything else here — graduating out of one chapter leaves
+  // the same person active in another.
+  //
   // "archivedAt" in changedFields is what the seat-sync event handler keys on to
   // trigger a recount — see lib/events/handlers/sync-seats.ts.
   if (input.archived !== undefined) {
@@ -266,78 +270,69 @@ export async function updateBrother(
       // Restoring adds a billable seat back, so it goes through the same gate as
       // adding a new member. Guarded on the member actually being archived today:
       // a no-op restore of an active member must not be able to 402.
-      const current = await ctx.db.brother.findUnique({
-        where:  { id: brotherId },
-        select: { archivedAt: true },
-      });
+      const current = await ctx.db.member.findByBrotherId(brotherId);
       if (current?.archivedAt) await gateSeat(ctx);
     }
     data.archivedAt = input.archived ? new Date() : null;
     changedFields.push("archivedAt");
   }
 
-  // The name is an ORG-LOCAL identity: it lands on this org's Membership row, so
-  // renaming yourself here never touches what another org calls you. setName is
-  // an updateMany, so a target with no Membership in this org — a roster-only
-  // member an admin added, who has no auth account and so never joined — reports
-  // count 0, and we fall back to the account-level Brother.name. That's the same
-  // row listVisibleBrothers falls back to for them, so the roster stays correct.
-  let namedViaMembership = false;
-  if (input.name !== undefined) {
-    const { count } = await ctx.db.membership.setName(brotherId, input.name);
-    namedViaMembership = count > 0;
-    if (!namedViaMembership) data.name = input.name;
-    changedFields.push("name");
-  }
+  // One write, org-scoped. Raises P2025 → 404 when this person is not on THIS
+  // org's roster, which is now a real "they aren't a member here" rather than
+  // the old "their account happens to have originated elsewhere".
+  const updated = await ctx.db.member.updateByBrotherId(brotherId, data);
+  if (!updated) throw new NotFoundError("Brother");
 
-  // ctx.db.brother is scoped by Brother.organizationId — the legacy HOME org (see
-  // AGENTS.md, Phase 1). A multi-org member's Brother row lives in their home org,
-  // so this update throws P2025 in any of their OTHER orgs. That's correct for the
-  // Brother-owned columns (an org may only edit the dues/GPA of its own members —
-  // the pre-existing Phase 1 rule), but a per-org rename is legitimately this org's
-  // business: it already landed on the Membership above and needs nothing from the
-  // Brother row. So when the name was the only change, skip the home-org-scoped
-  // write rather than 404 a rename that already succeeded.
-  //
-  // The read-back still goes through an org-scoped delegate: the membership we just
-  // wrote proves this brother belongs to THIS org, so it's the tenancy-safe way to
-  // resolve the row without loosening scopedBrother's home-org filter.
-  let brother;
-  if (Object.keys(data).length > 0) {
-    brother = await ctx.db.brother.update({ where: { id: brotherId }, data });
-  } else {
-    const m = await ctx.db.membership.findFirst({
-      where:  { brotherId },
-      select: { brother: true },
-    });
-    if (!m) throw new NotFoundError("Brother");
-    brother = m.brother;
-  }
+  const displayName = await resolveMemberName(ctx, brotherId, updated.name);
 
-  // brother.name is the ACCOUNT-level name, which a per-org rename leaves
-  // untouched — returning it raw would hand the client the stale name it just
-  // renamed away from, and report the stale one in the feed even for an edit
-  // that never touched the name (e.g. "Admin updated Thalha's duesOwed" for
-  // someone this org calls "Rob"). Resolve the org-local name instead, so the
-  // PATCH response matches what GET /api/brothers serves for the same row.
-  const nameByBrotherId = await ctx.db.membership.resolveNames([{ id: brother.id, name: brother.name }]);
-  const displayName = nameByBrotherId.get(brother.id) ?? brother.name;
-
-  await emit(ctx, "brother.updated", { type: "Brother", id: brother.id }, {
+  await emit(ctx, "brother.updated", { type: "Brother", id: brotherId }, {
     name: displayName,
     changedFields,
   });
-  return { ...brother, name: displayName };
+
+  return {
+    id:           brotherId,
+    name:         displayName,
+    role:         updated.role,
+    attendance:   updated.attendance,
+    duesOwed:     updated.duesOwed,
+    gpa:          updated.gpa,
+    serviceHours: updated.serviceHours,
+    customFields: updated.customFields,
+    archivedAt:   updated.archivedAt,
+  };
 }
 
 /**
- * Hard-delete a member and everything the schema says belongs to them.
+ * This org's name for a member: their Membership.name, or the account-level
+ * Brother.name when this org never set one. Only needed on the write paths,
+ * where the row we just wrote may carry a null name; the read paths get it
+ * resolved for free from listRoster.
+ */
+async function resolveMemberName(
+  ctx: RequestContext,
+  brotherId: number,
+  membershipName: string | null,
+): Promise<string> {
+  if (membershipName !== null) return membershipName;
+  const identity = await ctx.db.identity.findByBrotherId(brotherId);
+  return identity?.name ?? "";
+}
+
+/**
+ * Remove a member from THIS org's roster, erasing everything this org holds
+ * about them.
  *
- * This is a real erasure, not an archive. The dependent rows go with the member
- * by referential action rather than by application code, because `ctx.db` has no
- * transaction primitive (see doc-folder-service.ts) and a multi-statement cleanup
- * could half-fail — leaving someone whose attendance had been wiped but who still
- * exists. One DELETE, one transaction, enforced by Postgres:
+ * This is a real erasure, not an archive. Callers who want the member off the
+ * roster while KEEPING their history should archive instead (`updateBrother`
+ * with `archived: true`), which also releases the billing seat. Deletion is for
+ * erasure requests and mistaken entries.
+ *
+ * Two shapes, decided by whether this person belongs anywhere else:
+ *
+ * **Their only org** — delete the Brother row and let the FK cascades from
+ * 20260801000000_member_erasure_fks do the rest, in one statement, one
+ * transaction, enforced by Postgres:
  *
  *   erased    attendance records + excuses + exemptions, dues payments,
  *             reimbursements, poll votes/assignments, task assignments, service
@@ -347,22 +342,25 @@ export async function updateBrother(
  *             a member leaving
  *   preserved OrgInvite links they created, creator anonymised (SET NULL)
  *
- * Callers who want the member off the roster while KEEPING their history should
- * archive instead (`updateBrother` with `archived: true`), which also releases the
- * billing seat. Deletion is for erasure requests and mistaken entries.
+ * **A member elsewhere too** — the cascades above are keyed on brotherId and
+ * carry NO org filter, so deleting the shared identity row to tidy this roster
+ * would silently erase the same person's attendance and dues in every other
+ * chapter they belong to. So this path deletes only what belongs to THIS org and
+ * leaves the Brother row standing. Their other rosters are untouched; here, they
+ * are gone.
  *
  * Two refusals, both raised up front with a reason rather than surfacing as an
  * opaque FK violation from the database:
  */
 export async function deleteBrother(ctx: RequestContext, brotherId: number) {
-  const target = await ctx.db.brother.findUnique({
-    where: { id: brotherId },
-    select: { name: true, isAdmin: true },
-  });
+  const target = await ctx.db.member.findRosterRow(brotherId, { fields: "contact" });
   if (!target) throw new NotFoundError("Brother");
 
-  if (target.isAdmin) {
-    const adminCount = await ctx.db.brother.count({ where: { isAdmin: true } });
+  // The org's own admins, counted on this roster. isOrgAdmin is per-org, so a
+  // multi-org member being an admin somewhere else does not keep this chapter
+  // from being left without one.
+  if (target.isOrgAdmin) {
+    const adminCount = await ctx.db.member.count({ where: { isOrgAdmin: true } });
     if (adminCount <= 1) {
       throw new ConflictError("Cannot delete the last admin. Promote another brother first.");
     }
@@ -383,6 +381,80 @@ export async function deleteBrother(ctx: RequestContext, brotherId: number) {
     );
   }
 
-  await ctx.db.brother.delete({ where: { id: brotherId } });
+  // Do they belong to any org other than this one? Asked through the privileged
+  // client on purpose: the whole question is about orgs the caller cannot see,
+  // and an org-scoped count would always answer 1. Only the count crosses the
+  // boundary — no other org's data is read.
+  const orgCount = await countMemberships(brotherId);
+
+  if (orgCount <= 1) {
+    await ctx.db.identity.deleteAccount(brotherId);
+  } else {
+    await eraseOrgScopedRecords(ctx, brotherId);
+    await ctx.db.member.deleteByBrotherId(brotherId);
+  }
+
   await emit(ctx, "brother.removed", { type: "Brother", id: brotherId }, { name: target.name });
+}
+
+/**
+ * How many orgs this person belongs to, in total.
+ *
+ * Deliberately privileged and deliberately cross-org: the question deleteBrother
+ * needs answered is "does this member exist outside my chapter?", and an
+ * org-scoped count structurally cannot answer it — it would return 1 for
+ * everyone, which is the answer that erases other chapters' data. Membership is
+ * an RLS-enforced table, so the plain app-role client would return 0 here rather
+ * than error, which is worse still.
+ *
+ * Only a COUNT crosses the boundary. No other org's rows are read, and the
+ * caller has already proven this person is on their own roster.
+ */
+async function countMemberships(brotherId: number): Promise<number> {
+  return prismaPrivileged.membership.count({ where: { brotherId } }); // lint-direct-prisma:ignore cross-org by design; a count of one member's own memberships
+}
+
+/**
+ * Erase every row THIS org holds about a member, for the multi-org case where
+ * the Brother row (and its cross-org cascades) must survive.
+ *
+ * Written out rather than delegated to the FKs precisely because the FKs do not
+ * know about orgs. Each delete is org-filtered — directly where the table has an
+ * organizationId, and through the parent CalendarEvent where it does not
+ * (AttendanceRecord and AttendanceExcuse have no org column of their own).
+ *
+ * Transactions are NOT deleted: the ledger survives a member leaving, exactly as
+ * in the single-org path. Their brotherId is nulled so the money stays on the
+ * books without still naming someone this org has erased.
+ */
+async function eraseOrgScopedRecords(ctx: RequestContext, brotherId: number): Promise<void> {
+  const orgId = ctx.orgId;
+  await ctx.db.$transaction(async (tx) => {
+    const inThisOrg = { brotherId, calendarEvent: { organizationId: orgId } };
+    await tx.attendanceRecord.deleteMany({ where: inThisOrg });
+    await tx.attendanceExcuse.deleteMany({ where: inThisOrg });
+
+    const scoped = { brotherId, organizationId: orgId };
+    await tx.attendanceExemption.deleteMany({ where: scoped });
+    await tx.duesPayment.deleteMany({ where: scoped });
+    await tx.reimbursement.deleteMany({ where: scoped });
+    await tx.brotherMetricValue.deleteMany({ where: scoped });
+    await tx.serviceParticipation.deleteMany({ where: scoped });
+    await tx.pollVote.deleteMany({ where: scoped });
+    await tx.pollAssignment.deleteMany({ where: scoped });
+    await tx.taskAssignment.deleteMany({ where: scoped });
+    await tx.brotherRole.deleteMany({ where: scoped });
+    // ChatApproval names the approver, not a member: its FK is approvedById.
+    await tx.chatApproval.deleteMany({ where: { approvedById: brotherId, organizationId: orgId } });
+
+    // InviteRedemption has no organizationId of its own — reach the org through
+    // the invite it redeemed.
+    await tx.inviteRedemption.deleteMany({ where: { brotherId, invite: { organizationId: orgId } } });
+
+    // The books stay; the name comes off them.
+    await tx.transaction.updateMany({
+      where: { brotherId, organizationId: orgId },
+      data:  { brotherId: null },
+    });
+  });
 }

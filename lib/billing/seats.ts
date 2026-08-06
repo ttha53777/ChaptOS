@@ -38,32 +38,19 @@ type ScopedDb = ReturnType<typeof db>;
 /**
  * Billable headcount for the org `scoped` is bound to.
  *
- * Two queries in parallel, unioned in memory. Deliberately not a clever single
- * SQL statement: org rosters top out in the low hundreds (past 120 an org is
- * talking to sales anyway), and both reads have to go through the org-scoped
- * wrappers so RLS sees `app.org_id`.
+ * One count, because a seat IS a roster row and a roster row IS a Membership.
+ * This used to be two queries unioned in memory — everyone whose home org was
+ * this one, plus everyone holding a membership here — precisely because "member
+ * of this org" had two competing definitions and billing had to charge for the
+ * union of both. Phase 2 collapsed them, and this collapsed with them.
+ *
+ * The two exclusions survive: legacy ghost accounts were never billable, and an
+ * archived member is how an org stops paying for graduated seniors without
+ * destroying their history. Both live on the roster row's relations, so they
+ * stay a single WHERE.
  */
 export async function countBillableMembers(scoped: ScopedDb): Promise<number> {
-  const [homed, memberships] = await Promise.all([
-    scoped.brother.findMany({
-      where:  { isGhost: false, archivedAt: null },
-      select: { id: true },
-    }),
-    scoped.membership.findMany({
-      select: { brotherId: true, brother: { select: { isGhost: true, archivedAt: true } } },
-    }),
-  ]);
-
-  const ids = new Set<number>(homed.map(b => b.id));
-
-  // A membership whose Brother is homed elsewhere still means a person using
-  // this org, so it counts here — but the ghost/archived exclusions have to be
-  // re-applied, because the Brother row wasn't filtered by the query above.
-  for (const m of memberships) {
-    if (m.brother.isGhost) continue;
-    if (m.brother.archivedAt !== null) continue;
-    ids.add(m.brotherId);
-  }
-
-  return ids.size;
+  return scoped.member.count({
+    where: { archivedAt: null, brother: { is: { isGhost: false } } },
+  });
 }

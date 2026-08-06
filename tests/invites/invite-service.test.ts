@@ -10,10 +10,10 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { testPrisma, resetDb } from "../setup/prisma";
-import { createOrg, createBrother } from "../setup/factories";
+import { createOrg, createBrother, joinOrg } from "../setup/factories";
 import { db } from "@/lib/db";
 import { createInvite, listInvites, listInviteRedemptions, revokeInvite } from "@/lib/services/invite-service";
-import { listOffRosterMembers } from "@/lib/services/brother-service";
+import { listGhostAccounts } from "@/lib/services/brother-service";
 import { expiryToDate } from "@/lib/validation/invite";
 import { deriveInviteStatus } from "@/lib/state";
 import { NotFoundError } from "@/lib/errors";
@@ -220,27 +220,26 @@ describe("listInviteRedemptions", () => {
 
     const rows = await listInviteRedemptions(ctx, invite.id);
     expect(rows.map(r => r.name)).toEqual(["Sam P.", "Jordan Lee"]);
-    expect(rows.every(r => r.onRoster)).toBe(true);
   });
 
-  it("flags a redeemer whose home org is elsewhere as off-roster", async () => {
+  it("lists a redeemer whose account originated in another org, under this org's name for them", async () => {
+    // This used to carry an `onRoster: false` flag: the redeemer got access but
+    // no roster row, and the admin who sent the link needed telling. They are an
+    // ordinary member here now, so the only thing left to assert is that the
+    // org-local name wins.
     const orgA = await createOrg("Alpha", "alpha");
     const orgB = await createOrg("Beta", "beta");
     const admin = await createBrother({ orgId: orgA.id, isOrgAdmin: true });
     const ctx = makeCtx(orgA.id, admin.id);
     const invite = await createInvite(ctx, { mode: "open", expiry: "7d" });
 
-    // Lives in org B, joined org A by invite — the multi-org reuse path.
     const visitor = await createBrother({ orgId: orgB.id, name: "Casey Wu" });
-    await testPrisma.membership.create({
-      data: { brotherId: visitor.id, organizationId: orgA.id, isOrgAdmin: false, name: "Casey" },
-    });
+    await joinOrg({ brotherId: visitor.id, orgId: orgA.id, membershipName: "Casey" });
     await testPrisma.inviteRedemption.create({ data: { inviteId: invite.id, brotherId: visitor.id } });
 
     const rows = await listInviteRedemptions(ctx, invite.id);
     expect(rows).toHaveLength(1);
     expect(rows[0].name).toBe("Casey");
-    expect(rows[0].onRoster).toBe(false);
   });
 
   it("refuses another org's invite", async () => {
@@ -255,24 +254,7 @@ describe("listInviteRedemptions", () => {
   });
 });
 
-describe("listOffRosterMembers", () => {
-  it("returns members whose home org is elsewhere, and nobody who is on the roster", async () => {
-    const orgA = await createOrg("Alpha", "alpha");
-    const orgB = await createOrg("Beta", "beta");
-    const admin = await createBrother({ orgId: orgA.id, isOrgAdmin: true });
-    await createBrother({ orgId: orgA.id, name: "Local Member" });
-
-    const visitor = await createBrother({ orgId: orgB.id, name: "Casey Wu" });
-    await testPrisma.membership.create({
-      data: { brotherId: visitor.id, organizationId: orgA.id, isOrgAdmin: false, name: "Casey" },
-    });
-
-    const rows = await listOffRosterMembers(makeCtx(orgA.id, admin.id));
-    expect(rows).toHaveLength(1);
-    expect(rows[0].brotherId).toBe(visitor.id);
-    expect(rows[0].name).toBe("Casey"); // per-org name wins
-  });
-
+describe("listGhostAccounts", () => {
   it("REPORTS ghosts — they hold access to this org and the roster cannot show them", async () => {
     // This assertion used to be `toHaveLength(0)`: ghosts were filtered out here
     // as well as from the roster, so an account with member-level read on this
@@ -280,27 +262,31 @@ describe("listOffRosterMembers", () => {
     // the bug, not the contract. Surfacing them is what makes removing the
     // claim-flow backdoor meaningful — the mint path is gone, but rows created
     // before it was removed still carry access and an admin has to be able to
-    // see one in order to revoke it. See tests/brothers/off-roster-members.test.ts.
+    // see one in order to revoke it. See tests/brothers/ghost-accounts.test.ts.
     const orgA = await createOrg("Alpha", "alpha");
     const orgB = await createOrg("Beta", "beta");
     const admin = await createBrother({ orgId: orgA.id, isOrgAdmin: true });
 
     const ghost = await createBrother({ orgId: orgB.id, name: "Atomic Samurai", isGhost: true });
-    await testPrisma.membership.create({
-      data: { brotherId: ghost.id, organizationId: orgA.id, isOrgAdmin: false },
-    });
+    await joinOrg({ brotherId: ghost.id, orgId: orgA.id });
 
-    const rows = await listOffRosterMembers(makeCtx(orgA.id, admin.id));
+    const rows = await listGhostAccounts(makeCtx(orgA.id, admin.id));
     expect(rows).toHaveLength(1);
-    expect(rows[0]).toMatchObject({ brotherId: ghost.id, reason: "hidden" });
+    expect(rows[0]).toMatchObject({ brotherId: ghost.id });
   });
 
-  it("is empty when every member is on the roster", async () => {
+  it("is empty when every member is an ordinary one — including a multi-org member", async () => {
     const orgA = await createOrg("Alpha", "alpha");
+    const orgB = await createOrg("Beta", "beta");
     const admin = await createBrother({ orgId: orgA.id, isOrgAdmin: true });
     await createBrother({ orgId: orgA.id, name: "Local Member" });
 
-    expect(await listOffRosterMembers(makeCtx(orgA.id, admin.id))).toHaveLength(0);
+    // Their account originated in orgB. Before Phase 2 this person would have
+    // been reported here as off-roster; now they are simply a member of both.
+    const visitor = await createBrother({ orgId: orgB.id, name: "Casey Wu" });
+    await joinOrg({ brotherId: visitor.id, orgId: orgA.id, membershipName: "Casey" });
+
+    expect(await listGhostAccounts(makeCtx(orgA.id, admin.id))).toHaveLength(0);
   });
 });
 

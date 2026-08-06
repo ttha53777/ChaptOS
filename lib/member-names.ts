@@ -23,11 +23,8 @@ type Scoped = ReturnType<typeof db>;
  * callers can use that as a tenancy check.
  */
 export async function resolveMemberName(scoped: Scoped, brotherId: number): Promise<string | null> {
-  const brother = await scoped.brother.findUnique({
-    where:  { id: brotherId },
-    select: { id: true, name: true },
-  });
-  if (!brother) return null;
-  const nameByBrotherId = await scoped.membership.resolveNames([brother]);
-  return nameByBrotherId.get(brother.id) ?? brother.name;
+  // findRosterRow is org-scoped and already resolves the org-local name, so
+  // this is one query and the null is a real "not a member here".
+  const member = await scoped.member.findRosterRow(brotherId);
+  return member?.name ?? null;
 }

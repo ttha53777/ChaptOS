@@ -12,7 +12,7 @@
 
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { testPrisma, resetDb } from "../setup/prisma";
-import { createOrg, createBrother, createServiceEvent, createServiceParticipation } from "../setup/factories";
+import { createOrg, createBrother, createServiceEvent, createServiceParticipation, rosterOf } from "../setup/factories";
 import { db } from "@/lib/db";
 import {
   recalcBrotherServiceHours,
@@ -29,8 +29,8 @@ afterAll(async () => {
 });
 
 async function hoursOf(brotherId: number): Promise<number> {
-  const b = await testPrisma.brother.findUniqueOrThrow({ where: { id: brotherId } });
-  return b.serviceHours;
+  const m = await rosterOf(brotherId);
+  return m!.serviceHours;
 }
 
 describe("service-hours rollup", () => {

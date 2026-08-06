@@ -8,6 +8,7 @@
 
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { testPrisma, resetDb } from "../setup/prisma";
+import { rosterOf, accountOf } from "../setup/factories";
 import { provisionOrg } from "@/lib/services/org-service";
 import { ConflictError, ValidationError } from "@/lib/errors";
 import { DEFAULT_EVENT_TYPE_SEEDS, getOrgType } from "@/lib/org-types";
@@ -534,7 +535,7 @@ describe("provisionOrg: blueprint (atomic pre-creation setup)", () => {
     expect(founderLinks[0]!.role.rank).toBe(100);
     expect(founderLinks[0]!.role.permissions).toBe(ALL_PERMISSIONS);
     // Legacy Brother.role string reflects the renamed founder role.
-    const brother = await testPrisma.brother.findUnique({ where: { id: out.brotherId } });
+    const brother = await rosterOf(out.brotherId);
     expect(brother!.role).toBe("Grand Poobah");
   });
 
@@ -747,10 +748,7 @@ describe("provisionOrg: founder name is per-org", () => {
     expect(m1?.name).toBe("Jordan Lee");
 
     // And the account-level name is untouched by the second org's interview.
-    const brother = await testPrisma.brother.findUnique({
-      where:  { id: first.brotherId },
-      select: { name: true },
-    });
+    const brother = await accountOf(first.brotherId);
     expect(brother?.name).toBe("Jordan Lee");
   });
 });

@@ -37,7 +37,7 @@ function mapReimbursement<T extends { amountCents: bigint | null }>(raw: T): Omi
 async function withResolvedBrother(ctx: RequestContext, rows: ReimbursementRow[]): Promise<ReimbursementRow[]> {
   const brothers = rows.map(r => r.brother).filter((b): b is NonNullable<ReimbursementRow["brother"]> => b != null);
   if (brothers.length === 0) return rows;
-  const nameByBrotherId = await ctx.db.membership.resolveNames(brothers);
+  const nameByBrotherId = await ctx.db.member.resolveNames(brothers);
   return rows.map(r => r.brother
     ? { ...r, brother: { ...r.brother, name: nameByBrotherId.get(r.brother.id) ?? r.brother.name } }
     : r);
@@ -59,10 +59,10 @@ export async function createReimbursement(ctx: RequestContext, input: CreateReim
   const isSelf    = input.brotherId === ctx.actorId;
   if (!isSelf && !canManage) throw new ForbiddenError("Cannot file a reimbursement for another member");
 
-  // Guard against a cross-tenant brotherId: the tenant wrapper scopes by org, so a
-  // brother from another org resolves to null here.
-  const brother = await ctx.db.brother.findUnique({ where: { id: input.brotherId } });
-  if (!brother) throw new NotFoundError("Brother");
+  // Guard against a cross-tenant brotherId: the roster read is org-scoped, so
+  // someone who is not a member here resolves to null.
+  const member = await ctx.db.member.findByBrotherId(input.brotherId);
+  if (!member) throw new NotFoundError("Brother");
 
   const r = await ctx.db.reimbursement.create({
     data: {

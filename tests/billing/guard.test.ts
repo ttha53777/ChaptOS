@@ -12,7 +12,7 @@ import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/lib/db";
 import { assertSeatAvailable, checkSeatAvailable, AT_CAPACITY_PUBLIC_MESSAGE } from "@/lib/billing/guard";
 import { PaymentRequiredError } from "@/lib/errors";
-import { createOrg } from "../setup/factories";
+import { createOrg, createBrother } from "../setup/factories";
 import { resetDb, testPrisma } from "../setup/prisma";
 
 beforeEach(async () => {
@@ -26,14 +26,9 @@ afterAll(async () => {
 /** Seed `n` billable members into an org, cheaply. */
 async function seedMembers(orgId: number, n: number) {
   if (n === 0) return;
-  await testPrisma.brother.createMany({
-    data: Array.from({ length: n }, (_, i) => ({
-      organizationId: orgId,
-      name:           `Member ${i}`,
-      role:           "Brother",
-      attendance:     0, duesOwed: 0, gpa: 0, serviceHours: 0,
-    })),
-  });
+  for (let i = 0; i < n; i++) {
+    await createBrother({ orgId, name: `Member ${i}` });
+  }
 }
 
 async function setStatus(orgId: number, status: string) {

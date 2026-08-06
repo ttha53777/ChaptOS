@@ -70,13 +70,15 @@ async function getSnapshotLine(scoped: Scoped, orgId: number): Promise<string> {
   let line = "";
   try {
     const [agg, owing, doorAgg, txByType] = await Promise.all([
-      scoped.brother.aggregate({
-        where: { isGhost: false },
+      // Over this org's roster rows (Membership), so a member of two chapters
+      // contributes their numbers for THIS one and nothing from the other.
+      scoped.member.aggregate({
+        where: { brother: { is: { isGhost: false } } },
         _count: { _all: true },
         _sum: { duesOwed: true },
         _avg: { attendance: true, gpa: true },
       }),
-      scoped.brother.count({ where: { isGhost: false, duesOwed: { gt: 0 } } }),
+      scoped.member.count({ where: { brother: { is: { isGhost: false } }, duesOwed: { gt: 0 } } }),
       scoped.partyEvent.aggregate({ _sum: { doorRevenue: true } }),
       scoped.transaction.groupBy({ by: ["type"], where: { deletedAt: null }, _sum: { amount: true } }),
     ]);

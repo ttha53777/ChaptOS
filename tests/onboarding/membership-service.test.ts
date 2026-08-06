@@ -11,7 +11,7 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { randomUUID } from "node:crypto";
 import { testPrisma, resetDb } from "../setup/prisma";
-import { createOrg, createBrother } from "../setup/factories";
+import { createOrg, createBrother, rosterOf, accountOf } from "../setup/factories";
 import { db } from "@/lib/db";
 import { leaveOrg } from "@/lib/services/membership-service";
 import { ConflictError, ValidationError } from "@/lib/errors";
@@ -92,7 +92,7 @@ describe("leaveOrg: happy path", () => {
 
     await leaveOrg(ctxFor(org.id, me.id), "keep-brother");
 
-    const brother = await testPrisma.brother.findUnique({ where: { id: me.id } });
+    const brother = await accountOf(me.id);
     expect(brother).not.toBeNull();
     // Home org pointer is left as-is (not re-homed) per the product decision.
     expect(brother?.organizationId).toBe(org.id);

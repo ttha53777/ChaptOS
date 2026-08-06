@@ -74,8 +74,8 @@ async function actorRoleTitle(ctx: RequestContext): Promise<string> {
       select: { name: true },
     });
     if (roles.length > 0) return roles[0].name;
-    const b = await ctx.db.brother.findFirst({ where: { id: ctx.actorId }, select: { role: true } });
-    return b?.role?.trim() || "Member";
+    const m = await ctx.db.member.findByBrotherId(ctx.actorId);
+    return m?.role?.trim() || "Member";
   } catch {
     return "Member";
   }

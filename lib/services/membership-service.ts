@@ -51,7 +51,7 @@ export async function leaveOrg(
   // Last-admin guard. ctx.db.membership is org-scoped (organizationId injected),
   // so this counts only admins in the active org.
   if (ctx.isOrgAdmin) {
-    const otherAdmins = await ctx.db.membership.count({
+    const otherAdmins = await ctx.db.member.count({
       where: { isOrgAdmin: true, brotherId: { not: ctx.actorId } },
     });
     if (otherAdmins === 0) {

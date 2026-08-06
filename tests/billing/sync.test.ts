@@ -25,7 +25,7 @@ import { db } from "@/lib/db";
 import { findLiveSubscription, reconcileSeats, refreshFromStripe, refreshIfStale } from "@/lib/billing/sync";
 import { SubscriptionStatus } from "@/lib/state/subscription-status";
 import { BillingTier } from "@/lib/state/billing-tier";
-import { createOrg } from "../setup/factories";
+import { createOrg, createBrother } from "../setup/factories";
 import { resetDb, testPrisma } from "../setup/prisma";
 
 beforeEach(async () => {
@@ -41,12 +41,9 @@ const sub = (orgId: number) => testPrisma.subscription.findUnique({ where: { org
 
 async function seedMembers(orgId: number, n: number) {
   if (n === 0) return;
-  await testPrisma.brother.createMany({
-    data: Array.from({ length: n }, (_, i) => ({
-      organizationId: orgId, name: `Member ${i}`, role: "Brother",
-      attendance: 0, duesOwed: 0, gpa: 0, serviceHours: 0,
-    })),
-  });
+  for (let i = 0; i < n; i++) {
+    await createBrother({ orgId, name: `Member ${i}` });
+  }
 }
 
 /** An org with a live subscription, as applySubscription would have left it. */

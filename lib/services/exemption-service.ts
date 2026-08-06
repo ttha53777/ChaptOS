@@ -38,7 +38,7 @@ export async function listExemptions(
     include: { brother: { select: { id: true, name: true } } },
   });
   // Org-local display name (Membership.name), same fallback rule as the roster.
-  const nameByBrotherId = await ctx.db.membership.resolveNames(
+  const nameByBrotherId = await ctx.db.member.resolveNames(
     rows.map(e => ({ id: e.brotherId, name: e.brother.name })),
   );
   return rows.map(e => ({
@@ -65,7 +65,7 @@ export async function setExemption(
     input.semesterId
       ? ctx.db.semester.findUnique({ where: { id: input.semesterId }, select: { id: true } })
       : getActiveSemester(ctx.db),
-    ctx.db.brother.findUnique({ where: { id: input.brotherId }, select: { id: true } }),
+    ctx.db.member.findByBrotherId(input.brotherId),
   ]);
   if (!semester) throw new ValidationError(input.semesterId ? "Semester not found" : "No active semester");
   if (!brother)  throw new NotFoundError("Brother");
@@ -89,10 +89,7 @@ export async function setExemption(
     { brotherId: input.brotherId, semesterId: semester.id },
   );
 
-  const refreshed = await ctx.db.brother.findUnique({
-    where: { id: input.brotherId },
-    select: { attendance: true },
-  });
+  const refreshed = await ctx.db.member.findByBrotherId(input.brotherId);
   return { brotherId: input.brotherId, semesterId: semester.id, attendance: refreshed?.attendance ?? null };
 }
 
@@ -124,9 +121,6 @@ export async function clearExemption(
     { brotherId, semesterId: semester.id },
   );
 
-  const refreshed = await ctx.db.brother.findUnique({
-    where: { id: brotherId },
-    select: { attendance: true },
-  });
+  const refreshed = await ctx.db.member.findByBrotherId(brotherId);
   return { brotherId, semesterId: semester.id, attendance: refreshed?.attendance ?? null };
 }

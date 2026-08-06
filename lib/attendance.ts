@@ -45,7 +45,7 @@ export async function recalcBrotherAttendance(
 
   // Exempt this semester → park at the sentinel, skip the ratio math entirely.
   if (exemption) {
-    await scoped.brother.updateMany({ where: { id: brotherId }, data: { attendance: ATTENDANCE_EXEMPT } });
+    await scoped.member.updateManyByBrotherIds([brotherId], { attendance: ATTENDANCE_EXEMPT });
     return ATTENDANCE_EXEMPT;
   }
 
@@ -56,12 +56,11 @@ export async function recalcBrotherAttendance(
   const denominator = eligible.length;
   const ratio       = denominator === 0 ? 0 : Math.round((numerator / denominator) * 100);
 
-  // The scoped wrapper injects organizationId, so a brother from another org
-  // matches zero rows rather than being updated.
-  await scoped.brother.updateMany({
-    where: { id: brotherId },
-    data: { attendance: ratio },
-  });
+  // Writes the ratio onto this org's roster row (Membership), not onto the
+  // shared account — the same person can carry a different attendance % in
+  // every chapter they belong to. The scoped delegate injects organizationId,
+  // so a brother who is not on THIS roster matches zero rows.
+  await scoped.member.updateManyByBrotherIds([brotherId], { attendance: ratio });
 
   return ratio;
 }
@@ -81,11 +80,9 @@ export async function recalcAllBrothersInSemester(
   scoped: Scoped,
   semesterId: number,
 ): Promise<void> {
-  const [brothers, allRecords, allExcuses, allExemptions, mandatory] = await Promise.all([
-    scoped.brother.findMany({
-      where: { isGhost: false },
-      select: { id: true },
-    }),
+  const [brotherIds, allRecords, allExcuses, allExemptions, mandatory] = await Promise.all([
+    // Everyone on THIS org's roster — ghosts excluded, as before.
+    scoped.member.listIds(),
     scoped.attendanceRecord.findMany({ where: { semesterId } }),
     scoped.attendanceExcuse.findMany({ where: { semesterId, status: "approved" } }),
     scoped.attendanceExemption.findMany({ where: { semesterId }, select: { brotherId: true } }),
@@ -110,38 +107,37 @@ export async function recalcAllBrothersInSemester(
 
   // Group brother IDs by computed ratio so we can batch updateMany per ratio value.
   const byRatio = new Map<number, number[]>();
-  for (const b of brothers) {
+  for (const brotherId of brotherIds) {
     // Exempt this semester → the sentinel bucket, no ratio math.
-    if (exemptBrotherIds.has(b.id)) {
+    if (exemptBrotherIds.has(brotherId)) {
       const ids = byRatio.get(ATTENDANCE_EXEMPT) ?? [];
-      ids.push(b.id);
+      ids.push(brotherId);
       byRatio.set(ATTENDANCE_EXEMPT, ids);
       continue;
     }
-    const records  = recordsByBrother.get(b.id) ?? [];
-    const excused  = excusedByBrother.get(b.id) ?? new Set<number>();
+    const records  = recordsByBrother.get(brotherId) ?? [];
+    const excused  = excusedByBrother.get(brotherId) ?? new Set<number>();
     const eligible = records.filter(r => mandatory.has(r.calendarEventId) && !excused.has(r.calendarEventId));
     const num      = eligible.filter(r => r.attended).length;
     const den      = eligible.length;
     const ratio    = den === 0 ? 0 : Math.round((num / den) * 100);
     const ids      = byRatio.get(ratio) ?? [];
-    ids.push(b.id);
+    ids.push(brotherId);
     byRatio.set(ratio, ids);
   }
 
   // One updateMany per distinct ratio. In a transaction so partial commits
   // cannot happen, and via scoped.$transaction so app.org_id is set for the
-  // batch. The tx client is raw, so the `organizationId` guard stays explicit —
-  // it ensures we never update brothers from a different org even if the
-  // semesterId were reused.
+  // batch. The tx client is raw, so the roster writes go through
+  // member.onTx(tx) rather than a hand-written WHERE: on Membership, an
+  // updateMany that forgot organizationId would rewrite this person's
+  // attendance in every chapter they belong to.
   const entries = Array.from(byRatio.entries());
   if (entries.length > 0) {
     await scoped.$transaction(async tx => {
+      const member = scoped.member.onTx(tx);
       for (const [ratio, ids] of entries) {
-        await tx.brother.updateMany({
-          where: { id: { in: ids }, organizationId: scoped.orgId },
-          data: { attendance: ratio },
-        });
+        await member.updateManyByBrotherIds(ids, { attendance: ratio });
       }
     });
   }

@@ -19,7 +19,7 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { randomUUID } from "node:crypto";
 import { testPrisma, resetDb } from "../setup/prisma";
-import { createOrg, createBrother, createSemester } from "../setup/factories";
+import { createOrg, createBrother, createSemester, rosterOf, setRoster } from "../setup/factories";
 import { db } from "@/lib/db";
 import {
   adjustDues,
@@ -102,7 +102,7 @@ describe("recordPayment (createTransaction, dues) — moves both books at once",
     expect(tx.brotherId).toBe(member.id);
 
     // Roster side.
-    const after = await testPrisma.brother.findUnique({ where: { id: member.id } });
+    const after = await rosterOf(member.id);
     expect(after?.duesOwed).toBe(0);
 
     // Ledger side — the half that never used to happen.
@@ -137,7 +137,7 @@ describe("recordPayment (createTransaction, dues) — moves both books at once",
     const { org, member, ctx } = await chapterWithDebtor(75);
     await recordPayment(ctx, { brotherId: member.id, amount: 25, date: "2026-07-14" });
 
-    const after = await testPrisma.brother.findUnique({ where: { id: member.id } });
+    const after = await rosterOf(member.id);
     expect(after?.duesOwed).toBe(50);
 
     const rows = await duesRows(org.id);
@@ -155,7 +155,7 @@ describe("recordPayment (createTransaction, dues) — moves both books at once",
     // The refusal must be total: no income booked, no balance moved — both writes share
     // one DB transaction, so the income row rolls back with the decrement.
     expect(await duesRows(org.id)).toHaveLength(0);
-    const after = await testPrisma.brother.findUnique({ where: { id: member.id } });
+    const after = await rosterOf(member.id);
     expect(after?.duesOwed).toBe(75);
   });
 
@@ -166,10 +166,7 @@ describe("recordPayment (createTransaction, dues) — moves both books at once",
     // the self-contradicting "Payment of $200.00 exceeds their balance of
     // $200.00". The guard carries a half-cent tolerance now (atLeast, lib/money).
     const { org, member, ctx } = await chapterWithDebtor(200);
-    await testPrisma.brother.update({
-      where: { id: member.id },
-      data:  { duesOwed: 199.99999999999997 },
-    });
+    await setRoster(member.id, { duesOwed: 199.99999999999997 });
 
     await recordPayment(ctx, { brotherId: member.id, amount: 200, date: "2026-07-14" });
 
@@ -177,7 +174,7 @@ describe("recordPayment (createTransaction, dues) — moves both books at once",
     // And the residue is snapped away rather than left behind: "owes money" is
     // `duesOwed > 0` all over the app, so a leftover +3e-14 would keep a member
     // who has paid in full on the outstanding list, displaying "$0.00".
-    const after = await testPrisma.brother.findUnique({ where: { id: member.id } });
+    const after = await rosterOf(member.id);
     expect(after?.duesOwed).toBe(0);
   });
 
@@ -219,7 +216,7 @@ describe("recordPayment (createTransaction, dues) — moves both books at once",
     // The invariant that matters is unchanged: one row of income, and the balance
     // moved exactly once — zero, not negative, and not double-decremented.
     expect(await duesRows(org.id)).toHaveLength(1);
-    const after = await testPrisma.brother.findUnique({ where: { id: member.id } });
+    const after = await rosterOf(member.id);
     expect(after?.duesOwed).toBe(0);
   });
 
@@ -241,7 +238,7 @@ describe("recordPayment (createTransaction, dues) — moves both books at once",
 
     // Exactly one row of income, and the balance is zero — not negative.
     expect(await duesRows(org.id)).toHaveLength(1);
-    const after = await testPrisma.brother.findUnique({ where: { id: member.id } });
+    const after = await rosterOf(member.id);
     expect(after?.duesOwed).toBe(0);
   });
 
@@ -255,7 +252,7 @@ describe("recordPayment (createTransaction, dues) — moves both books at once",
       description: "Bulk dues deposit", status: "posted", calendarEventIds: [],
     });
 
-    const after = await testPrisma.brother.findUnique({ where: { id: member.id } });
+    const after = await rosterOf(member.id);
     expect(after?.duesOwed).toBe(75);
     const [row] = await duesRows(org.id);
     expect(row.brotherId).toBeNull();
@@ -271,7 +268,7 @@ describe("recordPayment (createTransaction, dues) — moves both books at once",
       recordPayment(ctx, { brotherId: outsider.id, amount: 75, date: "2026-07-14" }),
     ).rejects.toBeInstanceOf(NotFoundError);
 
-    const after = await testPrisma.brother.findUnique({ where: { id: outsider.id } });
+    const after = await rosterOf(outsider.id);
     expect(after?.duesOwed).toBe(75);
     expect(await duesRows(alpha.id)).toHaveLength(0);
     expect(await duesRows(beta.id)).toHaveLength(0);
@@ -305,7 +302,7 @@ describe("adjustDues — a receivable, not cash", () => {
       adjustDues(ctx, { brotherId: member.id, delta: -100, reason: "oops" }),
     ).rejects.toBeInstanceOf(ConflictError);
 
-    const after = await testPrisma.brother.findUnique({ where: { id: member.id } });
+    const after = await rosterOf(member.id);
     expect(after?.duesOwed).toBe(50);
   });
 
@@ -313,15 +310,12 @@ describe("adjustDues — a receivable, not cash", () => {
     // Same tolerance, same reason as recordDuesPayment: waiving someone's whole
     // $200 must not be refused because the row is holding 199.99999999999997.
     const { member, ctx } = await chapterWithDebtor(200);
-    await testPrisma.brother.update({
-      where: { id: member.id },
-      data:  { duesOwed: 199.99999999999997 },
-    });
+    await setRoster(member.id, { duesOwed: 199.99999999999997 });
 
     const res = await adjustDues(ctx, { brotherId: member.id, delta: -200, reason: "Full waiver" });
 
     expect(res.duesOwed).toBe(0);
-    const after = await testPrisma.brother.findUnique({ where: { id: member.id } });
+    const after = await rosterOf(member.id);
     expect(after?.duesOwed).toBe(0);
   });
 
@@ -349,7 +343,7 @@ describe("the back doors in transaction-service", () => {
     // through the delete button.
     await softDeleteTransaction(ctx, row.id);
 
-    const after = await testPrisma.brother.findUnique({ where: { id: member.id } });
+    const after = await rosterOf(member.id);
     expect(after?.duesOwed).toBe(75);
     expect(await duesRows(org.id)).toHaveLength(0);
   });
@@ -380,7 +374,7 @@ describe("the back doors in transaction-service", () => {
 
     await softDeleteTransaction(ctx, tx.id);
 
-    const after = await testPrisma.brother.findUnique({ where: { id: member.id } });
+    const after = await rosterOf(member.id);
     expect(after?.duesOwed).toBe(75);
     const row = await testPrisma.transaction.findUnique({ where: { id: tx.id } });
     expect(row?.deletedAt).not.toBeNull();
@@ -423,7 +417,7 @@ describe("reconciliation", () => {
 
     // The balance was already hand-adjusted back when the row was written (that was the
     // old workflow) — decrementing it again here would double-count the payment.
-    const after = await testPrisma.brother.findUnique({ where: { id: member.id } });
+    const after = await rosterOf(member.id);
     expect(after?.duesOwed).toBe(75);
 
     const rec = await getDuesReconciliation(ctx);

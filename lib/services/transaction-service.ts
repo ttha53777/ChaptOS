@@ -218,14 +218,12 @@ async function recordDuesPayment(
   brotherId: number,
   eventIds: number[],
 ) {
-  // Org-scoped read: the tenancy guard for brotherId (a cross-tenant id resolves to null
-  // through the wrapper) AND the current balance the decrement is checked against. The
-  // raw tx client used inside $transaction below is NOT org-scoped and can do neither.
-  const brother = await ctx.db.brother.findUnique({
-    where:  { id: brotherId },
-    select: { id: true, name: true, duesOwed: true },
-  });
-  if (!brother) throw new NotFoundError("Brother");
+  // Org-scoped read: the tenancy guard for brotherId (someone who is not on THIS
+  // org's roster resolves to null through the wrapper) AND the current balance the
+  // decrement is checked against. The raw tx client used inside $transaction below
+  // is NOT org-scoped and can do neither.
+  const member = await ctx.db.member.findRosterRow(brotherId);
+  if (!member) throw new NotFoundError("Brother");
 
   // Budget spend matches expenses on the semester *label*, not semesterId, so carry both
   // — a row without a label is invisible to the budget page even with the right category.
@@ -242,13 +240,14 @@ async function recordDuesPayment(
     // duplicate dues payment that slipped through would decrement the member's
     // balance twice. The compare-and-set below only catches that when the balance
     // can't cover both payments, so it fails open on anyone owing 2x or more.
+    const memberTx = ctx.db.member.onTx(tx);
     await lockNaturalKey(tx, orgId, input, brotherId);
     const existing = await tx.transaction.findFirst({
       where:   duplicateWhere(orgId, input, brotherId),
       include: EVENT_INCLUDE,
       orderBy: { createdAt: "desc" },
     });
-    if (existing) return { raw: existing, remainingOwed: money(brother.duesOwed), deduped: true };
+    if (existing) return { raw: existing, remainingOwed: money(member.duesOwed), deduped: true };
 
     // Compare-and-set: atomic decrement, refusal of overpayment, and safety against a
     // concurrent second payment against the same balance, all in the WHERE clause — the
@@ -260,15 +259,21 @@ async function recordDuesPayment(
     // contradicting "Payment of $200.00 exceeds their balance of $200.00".
     // The tolerance is smaller than any amount the validator will accept, so a
     // genuine overpayment of a cent or more is still refused.
-    const claimed = await tx.brother.updateMany({
-      where: { id: brotherId, organizationId: orgId, duesOwed: { gte: atLeast(amount) } },
+    //
+    // Routed through member.onTx(tx) rather than a hand-written WHERE. The
+    // balance now lives on the roster row (Membership), one per member PER ORG,
+    // so an updateMany that forgot organizationId here would decrement this
+    // person's dues in every chapter they belong to — one payment, two books.
+    // The delegate injects the org filter; it cannot be left off.
+    const claimed = await memberTx.compareAndSetDues(brotherId, {
+      guard: { duesOwed: { gte: atLeast(amount) } },
       data:  { duesOwed: { decrement: amount } },
     });
     if (claimed.count === 0) {
       throw new ConflictError(
-        `Payment of $${money(amount).toFixed(2)} is more than ${brother.name} owes `
-        + `($${money(brother.duesOwed).toFixed(2)}), and a payment can't leave a credit. `
-        + `Charge the difference first, or record $${money(brother.duesOwed).toFixed(2)} here `
+        `Payment of $${money(amount).toFixed(2)} is more than ${member.name} owes `
+        + `($${money(member.duesOwed).toFixed(2)}), and a payment can't leave a credit. `
+        + `Charge the difference first, or record $${money(member.duesOwed).toFixed(2)} here `
         + `and the rest as a separate income row.`,
       );
     }
@@ -297,10 +302,7 @@ async function recordDuesPayment(
     });
 
     // Read back inside the tx: the row we just decremented is the authority.
-    const updated = await tx.brother.findUnique({
-      where:  { id: brotherId },
-      select: { duesOwed: true },
-    });
+    const updated = await memberTx.findByBrotherId(brotherId);
 
     // Snap a sub-cent remainder to exactly zero. Float subtraction rarely lands
     // on 0.0 — paying off $200.00 can leave +0.00000000000003 — and "owes money"
@@ -309,10 +311,7 @@ async function recordDuesPayment(
     // only in that case, and inside the same transaction as the decrement.
     let remainingOwed = money(updated?.duesOwed ?? 0);
     if (remainingOwed === 0 && (updated?.duesOwed ?? 0) !== 0) {
-      await tx.brother.updateMany({
-        where: { id: brotherId, organizationId: orgId },
-        data:  { duesOwed: 0 },
-      });
+      await memberTx.updateManyByBrotherIds([brotherId], { duesOwed: 0 });
       remainingOwed = 0;
     }
 
@@ -436,17 +435,14 @@ export async function softDeleteTransaction(ctx: RequestContext, id: number) {
       });
       if (claimed.count === 0) throw new ConflictError("This transaction was already voided.");
 
-      // The raw tx client is not org-scoped — carry organizationId explicitly.
-      await tx.brother.updateMany({
-        where: { id: brotherId, organizationId: orgId },
-        data:  { duesOwed: { increment: existing.amount } },
-      });
+      // The raw tx client is not org-scoped, so the balance restore goes through
+      // the roster delegate — voiding a payment must give the money back to the
+      // chapter it was paid to, and nobody else's books.
+      const memberTx = ctx.db.member.onTx(tx);
+      await memberTx.updateManyByBrotherIds([brotherId], { duesOwed: { increment: existing.amount } });
 
-      const brother = await tx.brother.findUnique({
-        where:  { id: brotherId },
-        select: { duesOwed: true },
-      });
-      return money(brother?.duesOwed ?? 0);
+      const member = await memberTx.findByBrotherId(brotherId);
+      return money(member?.duesOwed ?? 0);
     });
 
     await emit(ctx, "dues.payment_voided", { type: "Transaction", id }, {

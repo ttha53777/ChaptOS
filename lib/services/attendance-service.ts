@@ -100,7 +100,7 @@ export async function recordAttendance(ctx: RequestContext, input: RecordAttenda
   if (!event.mandatory)  throw new ValidationError("Only mandatory events track attendance");
   if (!semester)         throw new ValidationError("No active semester");
 
-  const [excuses, exemptions, brothers] = await Promise.all([
+  const [excuses, exemptions, brotherIds] = await Promise.all([
     ctx.db.attendanceExcuse.findMany({
       where: { calendarEventId: input.calendarEventId, semesterId: semester.id, status: ExcuseStatus.Approved },
     }),
@@ -108,13 +108,13 @@ export async function recordAttendance(ctx: RequestContext, input: RecordAttenda
       where: { semesterId: semester.id },
       select: { brotherId: true },
     }),
-    ctx.db.brother.findMany({ where: { isGhost: false }, select: { id: true } }),
+    ctx.db.member.listIds(),
   ]);
   const excusedBrotherIds = new Set(excuses.map(e => e.brotherId));
   const exemptBrotherIds  = new Set(exemptions.map(e => e.brotherId));
-  // Eligible = non-ghost members, minus per-event excused, minus semester-exempt.
-  const eligible = brothers.filter(b => !excusedBrotherIds.has(b.id) && !exemptBrotherIds.has(b.id));
-  const eligibleIds = eligible.map(b => b.id);
+  // Eligible = this org's roster, minus per-event excused, minus semester-exempt.
+  const eligible = brotherIds.filter(id => !excusedBrotherIds.has(id) && !exemptBrotherIds.has(id));
+  const eligibleIds = eligible;
   const attendedSet = new Set(input.attendedIds);
 
   // Set-based writes: two statements regardless of roster size. A per-member
@@ -130,11 +130,11 @@ export async function recordAttendance(ctx: RequestContext, input: RecordAttenda
     });
     if (eligibleIds.length > 0) {
       await tx.attendanceRecord.createMany({
-        data: eligible.map(b => ({
+        data: eligible.map(brotherId => ({
           calendarEventId: input.calendarEventId,
-          brotherId:       b.id,
+          brotherId,
           semesterId:      semester.id,
-          attended:        attendedSet.has(b.id),
+          attended:        attendedSet.has(brotherId),
         })),
       });
     }
@@ -148,6 +148,6 @@ export async function recordAttendance(ctx: RequestContext, input: RecordAttenda
     eligibleCount:   eligible.length,
   });
 
-  // Handler ran the recalc; reload visible brothers for response.
-  return ctx.db.brother.findMany({ where: { isGhost: false } });
+  // Handler ran the recalc; reload the roster for the response.
+  return ctx.db.member.listRoster();
 }

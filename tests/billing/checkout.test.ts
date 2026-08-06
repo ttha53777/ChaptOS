@@ -32,7 +32,7 @@ import { ForbiddenError, ValidationError } from "@/lib/errors";
 import { PERMISSIONS } from "@/lib/permissions";
 import { SubscriptionStatus } from "@/lib/state/subscription-status";
 import { openPortal, startCheckout } from "@/lib/services/billing-service";
-import { createOrg } from "../setup/factories";
+import { createOrg, createBrother } from "../setup/factories";
 import { resetDb, testPrisma } from "../setup/prisma";
 
 beforeEach(async () => {
@@ -62,12 +62,10 @@ function ctxFor(orgId: number, opts?: { permissions?: number; isOrgAdmin?: boole
 }
 
 async function seedMembers(orgId: number, n: number) {
-  await testPrisma.brother.createMany({
-    data: Array.from({ length: n }, (_, i) => ({
-      organizationId: orgId, name: `Member ${i}`, role: "Brother",
-      attendance: 0, duesOwed: 0, gpa: 0, serviceHours: 0,
-    })),
-  });
+  if (n === 0) return;
+  for (let i = 0; i < n; i++) {
+    await createBrother({ orgId, name: `Member ${i}` });
+  }
 }
 
 const sub = (orgId: number) => testPrisma.subscription.findUnique({ where: { organizationId: orgId } });

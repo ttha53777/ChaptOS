@@ -130,7 +130,7 @@ export async function deleteRole(ctx: RequestContext, roleId: number) {
 
 export async function grantRole(ctx: RequestContext, brotherId: number, roleId: number) {
   const [brother, role] = await Promise.all([
-    ctx.db.brother.findUnique({ where: { id: brotherId }, select: { id: true, name: true } }),
+    ctx.db.member.findRosterRow(brotherId),
     ctx.db.role.findUnique({ where: { id: roleId }, select: { id: true, name: true, rank: true } }),
   ]);
   if (!brother) throw new NotFoundError("Brother");
@@ -149,7 +149,7 @@ export async function grantRole(ctx: RequestContext, brotherId: number, roleId: 
     throw e;
   }
 
-  const nameByBrotherId = await ctx.db.membership.resolveNames([{ id: brother.id, name: brother.name }]);
+  const nameByBrotherId = await ctx.db.member.resolveNames([{ id: brother.id, name: brother.name }]);
   await emit(ctx, "role.granted", { type: "BrotherRole", id: roleId }, {
     roleName:    role.name,
     brotherName: nameByBrotherId.get(brother.id) ?? brother.name,
@@ -161,7 +161,7 @@ export async function grantRole(ctx: RequestContext, brotherId: number, roleId: 
 
 export async function revokeRole(ctx: RequestContext, brotherId: number, roleId: number) {
   const [brother, role] = await Promise.all([
-    ctx.db.brother.findUnique({ where: { id: brotherId }, select: { id: true, name: true } }),
+    ctx.db.member.findRosterRow(brotherId),
     ctx.db.role.findUnique({ where: { id: roleId }, select: { id: true, name: true, rank: true } }),
   ]);
   if (!brother) throw new NotFoundError("Brother");
@@ -190,7 +190,7 @@ export async function revokeRole(ctx: RequestContext, brotherId: number, roleId:
     throw e;
   }
 
-  const nameByBrotherId = await ctx.db.membership.resolveNames([{ id: brother.id, name: brother.name }]);
+  const nameByBrotherId = await ctx.db.member.resolveNames([{ id: brother.id, name: brother.name }]);
   await emit(ctx, "role.revoked", { type: "BrotherRole", id: roleId }, {
     roleName:    role.name,
     brotherName: nameByBrotherId.get(brother.id) ?? brother.name,

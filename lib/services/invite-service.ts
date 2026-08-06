@@ -24,14 +24,6 @@ export interface InviteRedemptionDto {
   brotherId:  number;
   name:       string;
   redeemedAt: string;
-  /**
-   * False when the redeemer belongs to a different home org (Brother.organizationId
-   * ≠ this org). They hold a Membership here and their access works, but Phase 1
-   * roster reads scope by Brother.organizationId, so they never show on the
-   * roster. Surfacing the flag is what stops that from looking like a silent
-   * failure to the admin who sent the link. See AGENTS.md on Membership vs home org.
-   */
-  onRoster:   boolean;
 }
 
 type InviteRow = {
@@ -120,7 +112,7 @@ export async function listInvites(
   const [countByInvite, creators] = await Promise.all([
     ctx.db.orgInvite.redemptionCountByInvite(invites.map(i => i.id)),
     creatorIds.length > 0
-      ? ctx.db.brother.findMany({ where: { id: { in: creatorIds } }, select: { id: true, name: true } })
+      ? ctx.db.member.listRoster({ where: { brotherId: { in: creatorIds } } })
       : Promise.resolve([]),
   ]);
   const nameById = new Map(creators.map(b => [b.id, b.name]));
@@ -138,8 +130,7 @@ export async function listInvites(
 
 /**
  * Who actually joined through a link, newest-first. The settings list has always
- * shown a count; this is the drill-down behind it, and the only place an admin
- * can see that a redeemer landed off-roster (see InviteRedemptionDto.onRoster).
+ * shown a count; this is the drill-down behind it.
  *
  * Verifies the invite belongs to this org first — InviteRedemption carries no
  * organizationId of its own, so the parent lookup IS the tenancy check.
@@ -157,29 +148,22 @@ export async function listInviteRedemptions(
   if (rows.length === 0) return [];
 
   const brotherIds = rows.map(r => r.brotherId);
-  // Resolved through Membership, not ctx.db.brother, and that choice is the
-  // whole trick: a redeemer whose home org is elsewhere has NO row in
-  // ctx.db.brother (scoped by Brother.organizationId), so a roster-style read
-  // would silently drop exactly the people this list exists to reveal. Every
-  // redeemer does hold a Membership here — redeem-invite upserts one — and
-  // Membership is org-scoped, so this stays tenancy-safe while reaching the
-  // Brother row through the relation. One query for names + home org.
-  const memberships = await ctx.db.membership.findMany({
-    where:  { brotherId: { in: brotherIds } },
-    select: { brotherId: true, name: true, brother: { select: { name: true, organizationId: true } } },
+  // Every redeemer holds a roster row here — redeeming a link is what creates
+  // one — so this is a plain roster read with the org-local name already
+  // resolved. It used to carry an `onRoster` flag as well, because a redeemer
+  // whose account originated elsewhere got access without a roster spot and the
+  // admin who sent the link needed to be told. That case no longer exists.
+  const members = await ctx.db.member.listRoster({
+    where: { brotherId: { in: brotherIds } },
+    includeGhosts: true,
   });
-  const byBrotherId = new Map(memberships.map(m => [m.brotherId, m]));
+  const byBrotherId = new Map(members.map(m => [m.id, m]));
 
-  return rows.map(r => {
-    const m = byBrotherId.get(r.brotherId);
-    return {
-      brotherId:  r.brotherId,
-      // Per-org display name wins, same rule as the roster (brother-service).
-      name:       m?.name ?? m?.brother.name ?? "Unknown member",
-      redeemedAt: r.redeemedAt.toISOString(),
-      onRoster:   m?.brother.organizationId === ctx.orgId,
-    };
-  });
+  return rows.map(r => ({
+    brotherId:  r.brotherId,
+    name:       byBrotherId.get(r.brotherId)?.name ?? "Unknown member",
+    redeemedAt: r.redeemedAt.toISOString(),
+  }));
 }
 
 /** Revoke an invite (idempotent). Throws NotFoundError if it isn't this org's. */

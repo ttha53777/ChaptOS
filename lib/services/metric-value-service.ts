@@ -97,17 +97,17 @@ export async function upsertBrotherMetrics(
 
   // Both guard reads are independent — fetch together. Check `activeDefs` first so
   // the defs-not-found error still wins over member-not-found (unchanged precedence).
-  const [activeDefs, brother] = await Promise.all([
+  const [activeDefs, member] = await Promise.all([
     ctx.db.orgMetricDefinition.findMany({
       where: { id: { in: requestedIds }, deletedAt: null },
     }),
-    ctx.db.brother.findFirst({ where: { id: brotherId } }),
+    ctx.db.member.findRosterRow(brotherId),
   ]);
   if (activeDefs.length !== requestedIds.length) {
     throw new NotFoundError("One or more metric definitions not found or have been removed");
   }
-  // Brother must belong to this org
-  if (!brother) throw new NotFoundError("Member not found");
+  // The member must be on this org's roster
+  if (!member) throw new NotFoundError("Member not found");
 
   // Upsert each value
   const updatedSlugs: string[] = [];
@@ -121,10 +121,10 @@ export async function upsertBrotherMetrics(
     updatedSlugs.push(def.slug);
   }
 
-  const nameByBrotherId = await ctx.db.membership.resolveNames([{ id: brother.id, name: brother.name }]);
+  // findRosterRow already resolved the org-local name.
   await emit(ctx, "metric_value.updated", { type: "BrotherMetricValue", id: brotherId }, {
     brotherId,
-    brotherName: nameByBrotherId.get(brother.id) ?? brother.name,
+    brotherName: member.name,
     updatedSlugs,
   });
 

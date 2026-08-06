@@ -52,7 +52,7 @@ export async function listExcuses(
     },
   });
   // Org-local display name (Membership.name), same fallback rule as the roster.
-  const nameByBrotherId = await ctx.db.membership.resolveNames(
+  const nameByBrotherId = await ctx.db.member.resolveNames(
     excuses.map(e => ({ id: e.brotherId, name: e.brother.name })),
   );
   return excuses.map(e => ({
@@ -107,7 +107,7 @@ export async function submitExcuse(
 
   const [semester, brother, calendarEvent, existingRecord] = await Promise.all([
     getActiveSemester(ctx.db),
-    ctx.db.brother.findUnique({ where: { id: brotherId }, select: { id: true, name: true } }),
+    ctx.db.member.findRosterRow(brotherId),
     ctx.db.calendarEvent.findUnique({ where: { id: input.calendarEventId }, select: { id: true, title: true } }),
     ctx.db.attendanceRecord.findUnique({
       where: { calendarEventId_brotherId: { calendarEventId: input.calendarEventId, brotherId } },
@@ -182,10 +182,7 @@ export async function submitExcuse(
   // attendance ratio back from the brother row to return it.
   let attendance: number | null = null;
   if (autoApproved) {
-    const refreshed = await ctx.db.brother.findUnique({
-      where: { id: brotherId },
-      select: { attendance: true },
-    });
+    const refreshed = await ctx.db.member.findByBrotherId(brotherId);
     attendance = refreshed?.attendance ?? null;
   }
 
@@ -237,7 +234,7 @@ export async function decideExcuse(
   });
   if (!updated) throw new NotFoundError("Excuse");
 
-  const nameByBrotherId = await ctx.db.membership.resolveNames([{ id: updated.brotherId, name: updated.brother.name }]);
+  const nameByBrotherId = await ctx.db.member.resolveNames([{ id: updated.brotherId, name: updated.brother.name }]);
   const brotherName = nameByBrotherId.get(updated.brotherId) ?? updated.brother.name;
 
   if (input.action === "approve") {
@@ -259,10 +256,7 @@ export async function decideExcuse(
   // Approval handler recalculated this brother; pull the fresh ratio.
   let attendance: number | null = null;
   if (input.action === "approve") {
-    const refreshed = await ctx.db.brother.findUnique({
-      where: { id: updated.brotherId },
-      select: { attendance: true },
-    });
+    const refreshed = await ctx.db.member.findByBrotherId(updated.brotherId);
     attendance = refreshed?.attendance ?? null;
   }
 

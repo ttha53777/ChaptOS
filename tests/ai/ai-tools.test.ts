@@ -41,16 +41,26 @@ const MOCK_EVENT_TYPES = [
 function mockScoped(duesBefore: number | null = 135): { scoped: Scoped; findFirst: ReturnType<typeof vi.fn> } {
   // `name` serves proposeAddDeadline's assignee resolution (a missing name now
   // BLOCKS the draft); `duesOwed` serves proposeRecordDuesPayment's balance read.
-  const findFirst = vi.fn(async () => (duesBefore === null ? null : { duesOwed: duesBefore, name: "Mock Owner" }));
+  // `isGhost` is on the shape because roster reads return a flattened row that
+  // carries it (RosterRow), and the dues proposal checks it.
+  const findFirst = vi.fn(async () =>
+    (duesBefore === null ? null : { duesOwed: duesBefore, name: "Mock Owner", isGhost: false }));
   const findMany = vi.fn(async () => MOCK_EVENT_TYPES);
   const explode = (op: string) => () => { throw new Error(`unexpected DB write: ${op}`); };
   // A Proxy so any model.method access resolves: reads return findFirst/findMany
   // where expected; every mutating verb throws.
+  //
+  // findRosterRow / findByBrotherId are the roster delegate's single-row reads
+  // (ctx.db.member), which replaced the brother findFirst/findUnique these tools
+  // used to make — same shape, same one-row-or-null contract, so they map onto
+  // the same spy and the call-count assertions below still mean what they did.
   const model = new Proxy({} as Record<string, unknown>, {
     get(_t, prop: string) {
-      if (prop === "findFirst" || prop === "findUnique") return findFirst;
-      if (prop === "findMany") return findMany;
-      if (["create", "update", "delete", "upsert", "updateMany", "deleteMany", "createMany"].includes(prop)) {
+      if (["findFirst", "findUnique", "findRosterRow", "findByBrotherId"].includes(prop)) return findFirst;
+      if (["findMany", "listRoster", "search"].includes(prop)) return findMany;
+      if (["create", "update", "delete", "upsert", "updateMany", "deleteMany", "createMany",
+           "updateByBrotherId", "updateManyByBrotherIds", "compareAndSetDues", "deleteByBrotherId",
+           "setName"].includes(prop)) {
         return explode(prop);
       }
       return undefined;

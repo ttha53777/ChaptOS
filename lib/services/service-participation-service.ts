@@ -28,7 +28,7 @@ export async function listParticipationForEvent(ctx: RequestContext, serviceEven
   // Org-local display name (Membership.name), same fallback rule as the roster.
   // Without this, a member who renamed themselves in this org would still show
   // their stale name on the service-hours roster.
-  const nameByBrotherId = await ctx.db.membership.resolveNames(
+  const nameByBrotherId = await ctx.db.member.resolveNames(
     rows.map(r => ({ id: r.brother.id, name: r.brother.name })),
   );
   return rows.map(r => ({

@@ -17,7 +17,7 @@
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { randomUUID } from "node:crypto";
 import { testPrisma, resetDb } from "../setup/prisma";
-import { createOrg, createBrother } from "../setup/factories";
+import { createOrg, createBrother, rosterOf, accountOf } from "../setup/factories";
 import { db } from "@/lib/db";
 import { createBrother as createBrotherSvc, updateBrother, deleteBrother, listVisibleBrothers } from "@/lib/services/brother-service";
 import { ConflictError, NotFoundError } from "@/lib/errors";
@@ -83,7 +83,7 @@ describe("deleteBrother last-admin guard", () => {
     const { org, admin, adminCtx } = await seedOrg();
     // admin is the only isAdmin brother in the org.
     await expect(deleteBrother(adminCtx, admin.id)).rejects.toThrow(ConflictError);
-    expect(await testPrisma.brother.findUnique({ where: { id: admin.id } })).not.toBeNull();
+    expect(await rosterOf(admin.id)).not.toBeNull();
   });
 
   it("allows deleting an admin when another admin remains", async () => {
@@ -91,16 +91,16 @@ describe("deleteBrother last-admin guard", () => {
     const second = await createBrother({ orgId: org.id, isAdmin: true, isOrgAdmin: true });
 
     await deleteBrother(adminCtx, second.id);
-    expect(await testPrisma.brother.findUnique({ where: { id: second.id } })).toBeNull();
+    expect(await rosterOf(second.id)).toBeNull();
     // The original admin survives.
-    expect(await testPrisma.brother.findUnique({ where: { id: admin.id } })).not.toBeNull();
+    expect(await rosterOf(admin.id)).not.toBeNull();
   });
 
   it("allows deleting a non-admin member regardless of admin count", async () => {
     const { org, adminCtx } = await seedOrg();
     const member = await createBrother({ orgId: org.id });
     await deleteBrother(adminCtx, member.id);
-    expect(await testPrisma.brother.findUnique({ where: { id: member.id } })).toBeNull();
+    expect(await rosterOf(member.id)).toBeNull();
   });
 
   it("deleting a missing / foreign-org brother throws NotFound", async () => {
@@ -111,7 +111,7 @@ describe("deleteBrother last-admin guard", () => {
     await expect(deleteBrother(adminCtx, 999999)).rejects.toThrow(NotFoundError);
     await expect(deleteBrother(adminCtx, foreign.id)).rejects.toThrow(NotFoundError);
     // The foreign brother is untouched.
-    expect(await testPrisma.brother.findUnique({ where: { id: foreign.id } })).not.toBeNull();
+    expect(await rosterOf(foreign.id)).not.toBeNull();
   });
 });
 
@@ -178,7 +178,7 @@ describe("custom-field sanitization", () => {
       },
     });
 
-    const stored = (await testPrisma.brother.findUnique({ where: { id: created.id } }))!.customFields as Record<string, unknown>;
+    const stored = (await rosterOf(created.id))!.customFields as Record<string, unknown>;
     expect(stored.pledge_class).toBe("Alpha");
     expect(stored.jersey_num).toBe(23);
     expect(stored).not.toHaveProperty("ghost_field");
@@ -229,10 +229,7 @@ describe("brother-service: per-org display names", () => {
     expect(membership?.name).toBe("Rob");
 
     // The account-level name is untouched — it's not this org's to rewrite.
-    const brother = await testPrisma.brother.findUnique({
-      where: { id: member.id },
-      select: { name: true },
-    });
+    const brother = await accountOf(member.id);
     expect(brother?.name).toBe("Robert Chen");
   });
 
@@ -248,10 +245,7 @@ describe("brother-service: per-org display names", () => {
 
     await updateBrother(adminCtx, rosterOnly.id, { name: "Renamed" });
 
-    const brother = await testPrisma.brother.findUnique({
-      where: { id: rosterOnly.id },
-      select: { name: true },
-    });
+    const brother = await rosterOf(rosterOnly.id);
     expect(brother?.name).toBe("Renamed");
 
     const roster = await listVisibleBrothers(adminCtx);
@@ -304,10 +298,7 @@ describe("brother-service: per-org display names", () => {
     });
     expect(membershipA?.name).toBe("Rob");
 
-    const brother = await testPrisma.brother.findUnique({
-      where: { id: person.id },
-      select: { name: true },
-    });
+    const brother = await accountOf(person.id);
     expect(brother?.name).toBe("Robert Chen");
 
     expect((await listVisibleBrothers(ctxA)).find(b => b.id === person.id)?.name).toBe("Rob");

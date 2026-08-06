@@ -12,6 +12,7 @@
  */
 import type OpenAI from "openai";
 import { db } from "@/lib/db";
+import type { RosterRow } from "@/lib/db/tenant";
 import { isoWeekBounds, todayISO, DATE_RE } from "@/lib/dates";
 import { getBrotherStatus, type Brother as BrotherType } from "@/app/data";
 import { fmtUsd as fmtMoney, money } from "@/lib/money";
@@ -888,16 +889,10 @@ async function listBrothers(args: ToolArgs, scoped: Scoped, orgId: number): Prom
 
   // Rows + thresholds are independent — fetch together instead of serially.
   const [rows, thresholds] = await Promise.all([
-    scoped.brother.findMany({
-      where: { isGhost: false },
-      orderBy: { [orderByField]: orderDir },
-      // Only the fields the mapped output + getBrotherStatus + aggregates read —
-      // skips the customFields JSON blob, email, and authUserId on every chat turn.
-      select: {
-        id: true, name: true, role: true, attendance: true,
-        gpa: true, duesOwed: true, serviceHours: true, isAdmin: true,
-      },
-    }),
+    // This org's roster rows, with each member's org-local name already
+    // resolved — so a member of two chapters reports THIS chapter's dues, GPA
+    // and attendance here, and the other chapter's numbers stay invisible.
+    scoped.member.listRoster({ orderBy: { [orderByField]: orderDir } }),
     orgThresholds(scoped, orgId),
   ]);
   const owesOnly = args.owes_dues_only === true;
@@ -913,7 +908,10 @@ async function listBrothers(args: ToolArgs, scoped: Scoped, orgId: number): Prom
       duesOwed: r2(b.duesOwed),
       serviceHours: r2(b.serviceHours),
       status: getBrotherStatus(b as BrotherType, thresholds),
-      isAdmin: b.isAdmin,
+      // Per-org admin authority (Membership.isOrgAdmin), not the legacy
+      // platform-superuser flag that used to sit on the account row — being an
+      // admin is something you are in a particular chapter.
+      isAdmin: b.isOrgAdmin,
     }))
     .filter(b => (statusFilter === "Any" ? true : b.status === statusFilter))
     .filter(b => (owesOnly ? b.duesOwed > 0 : true));
@@ -950,7 +948,7 @@ async function getBrother(args: ToolArgs, scoped: Scoped, orgId: number): Promis
   if (id != null) {
     const [thresholds, b] = await Promise.all([
       orgThresholds(scoped, orgId),
-      scoped.brother.findFirst({ where: { id } }),
+      scoped.member.findRosterRow(id, { fields: "contact" }),
     ]);
     if (!b || b.isGhost) return { error: "Brother not found." };
     return formatBrotherDetail(b, thresholds, scoped);
@@ -963,14 +961,11 @@ async function getBrother(args: ToolArgs, scoped: Scoped, orgId: number): Promis
   // matches if found so the model can disambiguate.
   const [thresholds, exact, fuzzy] = await Promise.all([
     orgThresholds(scoped, orgId),
-    scoped.brother.findMany({
-      where: { name: { equals: name!, mode: "insensitive" }, isGhost: false },
-    }),
-    scoped.brother.findMany({
-      where: { name: { contains: name!, mode: "insensitive" }, isGhost: false },
-      orderBy: { name: "asc" },
-      take: 10,
-    }),
+    // Through member.search, which matches BOTH the org-local name and the
+    // account name it falls back to. Matching only one of them silently misses
+    // people — someone this chapter renamed, or someone it never renamed at all.
+    scoped.member.search(name!, { exact: true, fields: "contact" }),
+    scoped.member.search(name!, { fields: "contact" }),
   ]);
   const matches = exact.length > 0 ? exact : fuzzy;
 
@@ -986,7 +981,7 @@ async function getBrother(args: ToolArgs, scoped: Scoped, orgId: number): Promis
 }
 
 async function formatBrotherDetail(
-  b: { id: number; name: string; role: string; attendance: number; gpa: number; duesOwed: number; serviceHours: number; isAdmin: boolean; email: string | null; isGhost: boolean },
+  b: RosterRow,
   thresholds: Thresholds,
   scoped: Scoped,
 ) {
@@ -1003,8 +998,8 @@ async function formatBrotherDetail(
     duesOwed: r2(b.duesOwed),
     serviceHours: r2(b.serviceHours),
     status: getBrotherStatus(b as BrotherType, thresholds),
-    isAdmin: b.isAdmin,
-    email: b.email,
+    isAdmin: b.isOrgAdmin,
+    email: b.email ?? null,
     eventsAttended: attendanceCount,
   };
 }
@@ -1305,7 +1300,7 @@ async function weeklyDigest(scoped: Scoped, orgId: number, now: Date = new Date(
     scoped.instagramTask.findMany({ where: { dueDate: week } }),
     scoped.calendarEvent.findMany({ where: { mandatory: true, date: week } }),
     scoped.partyEvent.findMany({ where: { date: week } }),
-    scoped.brother.findMany({ where: { isGhost: false } }),
+    scoped.member.listRoster(),
     orgThresholds(scoped, orgId),
   ]);
   const atRiskCount = brothers.filter(b => getBrotherStatus(b as BrotherType, thresholds) === "At Risk").length;
@@ -1394,19 +1389,13 @@ async function getBrotherAttendance(args: ToolArgs, scoped: Scoped): Promise<Too
   // Reuse the same fuzzy resolution as get_brother so name handling can't drift.
   let brother: { id: number; name: string } | null = null;
   if (id != null) {
-    const b = await scoped.brother.findFirst({ where: { id, isGhost: false }, select: { id: true, name: true } });
-    brother = b ?? null;
+    const b = await scoped.member.findRosterRow(id);
+    brother = b && !b.isGhost ? { id: b.id, name: b.name } : null;
   } else {
     // Same parallel exact+contains as get_brother — one round trip, not two.
     const [exact, fuzzy] = await Promise.all([
-      scoped.brother.findMany({
-        where: { name: { equals: name!, mode: "insensitive" }, isGhost: false },
-        select: { id: true, name: true },
-      }),
-      scoped.brother.findMany({
-        where: { name: { contains: name!, mode: "insensitive" }, isGhost: false },
-        orderBy: { name: "asc" }, take: 10, select: { id: true, name: true },
-      }),
+      scoped.member.search(name!, { exact: true }),
+      scoped.member.search(name!),
     ]);
     const matches = exact.length > 0 ? exact : fuzzy;
     if (matches.length === 0) return { error: `No brother matched "${name}".` };
@@ -1594,7 +1583,7 @@ async function proposeAddDeadline(args: ToolArgs, scoped: Scoped): Promise<Propo
   let owner = "";
   try {
     if (assigneeBrotherId) {
-      owner = (await scoped.brother.findFirst({ where: { id: assigneeBrotherId }, select: { name: true } }))?.name ?? "";
+      owner = (await scoped.member.findRosterRow(assigneeBrotherId))?.name ?? "";
       if (!owner) return badProposal(`No member with id ${assigneeBrotherId} in this chapter — resolve the owner with list_brothers first.`);
     } else if (assigneeRoleId) {
       owner = (await scoped.role.findFirst({ where: { id: assigneeRoleId }, select: { name: true } }))?.name ?? "";
@@ -1734,11 +1723,8 @@ async function proposeRecordDuesPayment(args: ToolArgs, scoped: Scoped): Promise
 
   let currentOwed: number;
   try {
-    const b = await scoped.brother.findFirst({
-      where: { id, isGhost: false },
-      select: { duesOwed: true },
-    });
-    if (!b) return badProposal(`No brother with id ${id} in this chapter.`);
+    const b = await scoped.member.findRosterRow(id);
+    if (!b || b.isGhost) return badProposal(`No brother with id ${id} in this chapter.`);
     currentOwed = r2(b.duesOwed);
   } catch {
     return badProposal(`Could not read ${name}'s dues balance, so there is no amount to record.`);

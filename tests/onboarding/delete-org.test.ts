@@ -10,11 +10,7 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { randomUUID } from "node:crypto";
 import { testPrisma, resetDb } from "../setup/prisma";
-import {
-  createBrother, createSemester, createCalendarEvent, createTransaction,
-  createServiceEvent, createPartyEvent, createTask, createInstagramTask,
-  createDoc, createBudget, createActivityLog, createAnnouncement,
-} from "../setup/factories";
+import { createBrother, createSemester, createCalendarEvent, createTransaction, createServiceEvent, createPartyEvent, createTask, createInstagramTask, createDoc, createBudget, createActivityLog, createAnnouncement, rosterOf } from "../setup/factories";
 import { provisionOrg, deleteOrg, summarizeOrgForDeletion } from "@/lib/services/org-service";
 import { db } from "@/lib/db";
 import { ForbiddenError, NotFoundError, ValidationError } from "@/lib/errors";
@@ -142,7 +138,7 @@ describe("deleteOrg: full cascade", () => {
     const { organizationId, brotherId } = await seedFullOrg("solo-org");
     const ctx = ctxFor(organizationId, brotherId, { isOrgAdmin: true });
     await deleteOrg(ctx, "solo-org");
-    expect(await testPrisma.brother.findUnique({ where: { id: brotherId } })).toBeNull();
+    expect(await rosterOf(brotherId)).toBeNull();
   });
 
   it("deletes a home-only founder who is ALSO a platform admin (PlatformAdmin FK is RESTRICT)", async () => {
@@ -156,7 +152,7 @@ describe("deleteOrg: full cascade", () => {
     await deleteOrg(ctx, "plat-founder"); // must not throw an FK violation
 
     expect(await testPrisma.organization.findUnique({ where: { id: organizationId } })).toBeNull();
-    expect(await testPrisma.brother.findUnique({ where: { id: brotherId } })).toBeNull();
+    expect(await rosterOf(brotherId)).toBeNull();
     expect(await testPrisma.platformAdmin.findUnique({ where: { brotherId } })).toBeNull();
   });
 
@@ -175,7 +171,7 @@ describe("deleteOrg: full cascade", () => {
     const ctx = ctxFor(a.organizationId, founder.id, { isOrgAdmin: true, isPlatformAdmin: true });
     await deleteOrg(ctx, "plat-home");
 
-    expect(await testPrisma.brother.findUnique({ where: { id: founder.id } })).not.toBeNull();
+    expect(await rosterOf(founder.id)).not.toBeNull();
     expect(await testPrisma.platformAdmin.findUnique({ where: { brotherId: founder.id } })).not.toBeNull();
   });
 });
@@ -196,7 +192,7 @@ describe("deleteOrg: multi-org member re-homing", () => {
     await deleteOrg(ctx, "home-org");
 
     // Brother survives and is re-homed to org B.
-    const survivor = await testPrisma.brother.findUnique({ where: { id: founder.id } });
+    const survivor = await rosterOf(founder.id);
     expect(survivor).not.toBeNull();
     expect(survivor!.organizationId).toBe(b.organizationId);
 
@@ -272,12 +268,7 @@ describe("summarizeOrgForDeletion", () => {
   it("excludes ghost brothers from the member count", async () => {
     const { organizationId, brotherId } = await seedFullOrg("ghost-count");
     const realBefore = await summarizeOrgForDeletion(ctxFor(organizationId, brotherId, { isOrgAdmin: true }));
-    await testPrisma.brother.create({
-      data: {
-        organizationId, name: "Ghost", role: "Brother",
-        attendance: 0, duesOwed: 0, gpa: 0, serviceHours: 0, isAdmin: false, isGhost: true,
-      },
-    });
+    await createBrother({ orgId: organizationId, name: "Ghost", isGhost: true });
     const realAfter = await summarizeOrgForDeletion(ctxFor(organizationId, brotherId, { isOrgAdmin: true }));
     expect(realAfter.members).toBe(realBefore.members); // ghost didn't change the count
   });

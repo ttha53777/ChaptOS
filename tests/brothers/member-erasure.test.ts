@@ -25,7 +25,7 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { randomUUID } from "node:crypto";
 import { testPrisma, resetDb } from "../setup/prisma";
-import { createOrg, createBrother, createSemester, createCalendarEvent } from "../setup/factories";
+import { createOrg, createBrother, createSemester, createCalendarEvent, rosterOf } from "../setup/factories";
 import { db } from "@/lib/db";
 import { deleteBrother } from "@/lib/services/brother-service";
 import { ConflictError } from "@/lib/errors";
@@ -130,7 +130,7 @@ describe("deleteBrother: a member with history can actually be erased", () => {
     // Before the migration this threw a foreign-key violation.
     await expect(deleteBrother(ctx, target.id)).resolves.toBeUndefined();
 
-    const gone = await testPrisma.brother.findUnique({ where: { id: target.id } });
+    const gone = await rosterOf(target.id);
     expect(gone).toBeNull();
   });
 
@@ -185,6 +185,6 @@ describe("deleteBrother: PlatformAdmin stays RESTRICT, with a reason", () => {
     await expect(deleteBrother(ctx, target.id)).rejects.toThrow(/platform-admin grant/i);
 
     // And the refusal is real — the member is still there.
-    expect(await testPrisma.brother.findUnique({ where: { id: target.id } })).not.toBeNull();
+    expect(await rosterOf(target.id)).not.toBeNull();
   });
 });

@@ -70,7 +70,7 @@ export interface PollDTO {
 async function withResolvedAssignees(ctx: RequestContext, dtos: PollDTO[]): Promise<PollDTO[]> {
   const brothers = dtos.flatMap(d => d.assignments.map(a => a.brother)).filter((b): b is NonNullable<PollAssignmentDTO["brother"]> => b != null);
   if (brothers.length === 0) return dtos;
-  const nameByBrotherId = await ctx.db.membership.resolveNames(brothers);
+  const nameByBrotherId = await ctx.db.member.resolveNames(brothers);
   return dtos.map(d => ({
     ...d,
     assignments: d.assignments.map(a => a.brother
@@ -132,12 +132,11 @@ async function buildDTOs(ctx: RequestContext, rows: PollRow[]): Promise<PollDTO[
       for (const id of pending) allPendingIds.add(id);
     }
     if (allPendingIds.size) {
-      const brothers = await ctx.db.brother.findMany({
-        where: { id: { in: [...allPendingIds] }, isGhost: false },
-        select: { id: true, name: true, avatarUrl: true },
-      });
+      // listRoster already resolves each member's org-local name, so the
+      // separate resolveNames pass is gone.
+      const brothers = await ctx.db.member.listRoster({ where: { brotherId: { in: [...allPendingIds] } } });
       brotherById = new Map(brothers.map(b => [b.id, b]));
-      nameById = await ctx.db.membership.resolveNames(brothers.map(b => ({ id: b.id, name: b.name })));
+      nameById = new Map(brothers.map(b => [b.id, b.name]));
     }
   }
 
@@ -221,7 +220,7 @@ async function resolveAssignees(ctx: RequestContext, brotherIds: number[], roleI
   const uniqRoles    = [...new Set(roleIds)];
 
   if (uniqBrothers.length) {
-    const found = await ctx.db.brother.findMany({ where: { id: { in: uniqBrothers }, isGhost: false }, select: { id: true } });
+    const found = await ctx.db.member.listIds({ brotherId: { in: uniqBrothers } });
     if (found.length !== uniqBrothers.length) throw new ValidationError("One or more assigned members are not in this organization");
   }
   if (uniqRoles.length) {

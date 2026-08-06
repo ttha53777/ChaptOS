@@ -94,11 +94,12 @@ async function memberPeek(ctx: RequestContext, id: number): Promise<PeekCard> {
   // Everything the card needs, in one round of queries. Each scoped call is its
   // own BEGIN/SET LOCAL/COMMIT under RLS (lib/db/tenant), so serial awaits here
   // would stack real latency on a path whose whole point is being instant.
-  const [brother, thresholds, roleRows, nameOverride, records] = await Promise.all([
-    ctx.db.brother.findFirst({ where: { id, isGhost: false } }),
+  const [brother, thresholds, roleRows, records] = await Promise.all([
+    // The roster row for THIS org, org-local name already resolved — so the
+    // separate Membership name lookup this used to need is gone.
+    ctx.db.member.findRosterRow(id),
     orgThresholds(ctx),
     ctx.db.brotherRole.listWithRole([id]),
-    ctx.db.membership.findFirst({ where: { brotherId: id, name: { not: null } }, select: { name: true } }),
     // Relation-scoped: the wrapper ANDs calendarEvent.organizationId, so this
     // bare brotherId filter can't reach another org's attendance.
     ctx.db.attendanceRecord.findMany({
@@ -112,7 +113,7 @@ async function memberPeek(ctx: RequestContext, id: number): Promise<PeekCard> {
   const status = getBrotherStatus(brother as BrotherType, thresholds);
   const exempt = isAttendanceExempt(brother.attendance);
 
-  // Relational roles are the truth; Brother.role is stale free text on older rows.
+  // Relational roles are the truth; the roster row's `role` is stale free text on older rows.
   const roles = roleRows.map(r => r.role).sort((a, z) => z.rank - a.rank);
   const title = roles.length > 0 ? roles.map(r => r.name).join(" · ") : brother.role;
 
@@ -138,7 +139,7 @@ async function memberPeek(ctx: RequestContext, id: number): Promise<PeekCard> {
   return {
     type: "member",
     id: brother.id,
-    title: nameOverride?.name ?? brother.name,
+    title: brother.name,
     subtitle: title,
     badge: { label: status, tone: statusTone(status) },
     facts,

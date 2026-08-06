@@ -1,16 +1,16 @@
 /**
- * Service-hours rollup. Brother.serviceHours is a derived aggregate —
- * SUM(ServiceParticipation.hours) for that member — recomputed by the
- * recalc-service-hours event handler whenever participation rows change.
+ * Service-hours rollup. Membership.serviceHours is a derived aggregate —
+ * SUM(ServiceParticipation.hours) for that member IN THIS ORG — recomputed by
+ * the recalc-service-hours event handler whenever participation rows change.
  *
- * This mirrors lib/attendance.ts (Brother.attendance ← AttendanceRecord rows):
- * services never write serviceHours directly; they emit a participation event
- * and these functions reconcile the aggregate. Eventually-consistent — a failed
- * recalc is corrected by the next participation write.
+ * This mirrors lib/attendance.ts (Membership.attendance ← AttendanceRecord
+ * rows): services never write serviceHours directly; they emit a participation
+ * event and these functions reconcile the aggregate. Eventually-consistent — a
+ * failed recalc is corrected by the next participation write.
  *
  * Service hours are org-scoped, not semester-scoped: serviceHours is a single
- * Float on Brother and the goal is "per semester" only by convention. Keep it
- * that way to match the dashboard math and the existing column.
+ * Float on the roster row and the goal is "per semester" only by convention.
+ * Keep it that way to match the dashboard math and the existing column.
  */
 import { db } from "@/lib/db";
 
@@ -32,10 +32,7 @@ export async function recalcBrotherServiceHours(
   });
   const total = rows.reduce((sum, r) => sum + r.hours, 0);
 
-  await scoped.brother.updateMany({
-    where: { id: brotherId },
-    data: { serviceHours: total },
-  });
+  await scoped.member.updateManyByBrotherIds([brotherId], { serviceHours: total });
 
   return total;
 }
@@ -80,13 +77,13 @@ export async function recalcBrothersServiceHours(
  * members' totals may drop). Same batch-by-total strategy as above.
  */
 export async function recalcAllBrothersServiceHours(scoped: Scoped): Promise<void> {
-  const [brothers, allRows] = await Promise.all([
-    scoped.brother.findMany({ where: { isGhost: false }, select: { id: true } }),
+  const [brotherIds, allRows] = await Promise.all([
+    scoped.member.listIds(),
     scoped.serviceParticipation.findMany({ select: { brotherId: true, hours: true } }),
   ]);
 
   const totalByBrother = new Map<number, number>();
-  for (const b of brothers) totalByBrother.set(b.id, 0);
+  for (const id of brotherIds) totalByBrother.set(id, 0);
   for (const r of allRows) {
     if (!totalByBrother.has(r.brotherId)) continue; // ignore rows for ghosts/removed members
     totalByBrother.set(r.brotherId, (totalByBrother.get(r.brotherId) ?? 0) + r.hours);
@@ -105,17 +102,17 @@ export async function recalcAllBrothersServiceHours(scoped: Scoped): Promise<voi
 /**
  * One updateMany per distinct total, inside scoped.$transaction so the batch is
  * atomic AND app.org_id is set for the writes. The tx client is raw, so the
- * organizationId guard stays explicit.
+ * roster writes go through member.onTx(tx) — a hand-written updateMany that
+ * dropped organizationId would rewrite these members' hours in every org they
+ * belong to.
  */
 async function writeTotals(scoped: Scoped, byTotal: Map<number, number[]>): Promise<void> {
   const entries = Array.from(byTotal.entries());
   if (entries.length === 0) return;
   await scoped.$transaction(async tx => {
+    const member = scoped.member.onTx(tx);
     for (const [total, ids] of entries) {
-      await tx.brother.updateMany({
-        where: { id: { in: ids }, organizationId: scoped.orgId },
-        data: { serviceHours: total },
-      });
+      await member.updateManyByBrotherIds(ids, { serviceHours: total });
     }
   });
 }

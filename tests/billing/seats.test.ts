@@ -1,26 +1,23 @@
 /**
  * Billable headcount.
  *
- * The whole reason countBillableMembers isn't just Brother.count() is that this
- * app has two divergent notions of "member" and each one alone gets the bill
- * wrong in a different direction:
+ * countBillableMembers used to union two divergent notions of "member" — Brother
+ * rows homed here, plus Memberships held here — because each alone got the bill
+ * wrong in a different direction: counting only Memberships would bill a 100-person
+ * org for its 3 officers who log in, and counting only Brothers would miss anyone
+ * whose account had originated elsewhere.
  *
- *   roster-only member   Brother row, no Membership. Never signed in, but a real
- *                        managed person. Counting only Memberships would bill an
- *                        org with 100 members for the 3 officers who log in.
- *   multi-org member     Membership here, Brother homed in another org. Counting
- *                        only Brothers would miss them entirely.
- *
- * These tests pin both directions plus the two exclusions (ghost, archived).
- * Deliberately built with testPrisma rather than the createBrother factory,
- * because that factory always creates a Membership and the interesting cases are
- * the ones where the two sources disagree.
+ * Phase 2 collapsed those two notions into one. A seat IS a roster row and a
+ * roster row IS a Membership, so this is now a single count. These tests survive
+ * the change deliberately: every case they pinned must still come out the same,
+ * including the two that used to exercise the seams (a roster-only member who has
+ * never signed in, and a member of an org their account did not originate in).
  */
 
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/lib/db";
 import { countBillableMembers } from "@/lib/billing/seats";
-import { createOrg } from "../setup/factories";
+import { createOrg, createBrother, joinOrg } from "../setup/factories";
 import { resetDb, testPrisma } from "../setup/prisma";
 
 beforeEach(async () => {
@@ -31,28 +28,25 @@ afterAll(async () => {
   await testPrisma.$disconnect();
 });
 
-/** A Brother row homed in `orgId`, with no Membership unless asked for. */
+/**
+ * A member of `orgId` — identity row plus roster row.
+ *
+ * `withMembership` is retained as a no-op flag so the cases below still read as
+ * the scenarios they were written for. It has no effect any more: every roster
+ * row is a Membership, so there is no longer a way to be a member without one.
+ * Ghost and archived remain meaningful, and are what the exclusions key on.
+ */
 async function makeBrother(orgId: number, opts: {
   isGhost?: boolean;
   archived?: boolean;
   withMembership?: boolean;
 } = {}) {
-  const brother = await testPrisma.brother.create({
-    data: {
-      organizationId: orgId,
-      name:           `M${Math.random().toString(36).slice(2, 8)}`,
-      role:           "Brother",
-      attendance:     0, duesOwed: 0, gpa: 0, serviceHours: 0,
-      isGhost:        opts.isGhost ?? false,
-      archivedAt:     opts.archived ? new Date() : null,
-    },
+  return createBrother({
+    orgId,
+    name:       `M${Math.random().toString(36).slice(2, 8)}`,
+    isGhost:    opts.isGhost ?? false,
+    archivedAt: opts.archived ? new Date() : null,
   });
-  if (opts.withMembership) {
-    await testPrisma.membership.create({
-      data: { brotherId: brother.id, organizationId: orgId },
-    });
-  }
-  return brother;
 }
 
 describe("countBillableMembers", () => {
@@ -76,13 +70,11 @@ describe("countBillableMembers", () => {
     const home = await createOrg("Home", "home");
     const other = await createOrg("Other", "other");
 
-    // Brother lives in `home`; they hold a Membership in `other`. Phase 1 roster
-    // reads scope by Brother.organizationId, so `other` cannot see them on its
-    // roster — but they can sign in and use it, so `other` is billed for them.
+    // Their account originated in `home`; they also hold a roster spot in
+    // `other`. Both orgs are billed for them, because both have a person to
+    // manage — and neither is billed twice.
     const roamer = await makeBrother(home.id);
-    await testPrisma.membership.create({
-      data: { brotherId: roamer.id, organizationId: other.id },
-    });
+    await joinOrg({ brotherId: roamer.id, orgId: other.id });
 
     expect(await countBillableMembers(db(home.id))).toBe(1);
     expect(await countBillableMembers(db(other.id))).toBe(1);
@@ -106,16 +98,16 @@ describe("countBillableMembers", () => {
     expect(await countBillableMembers(db(org.id))).toBe(1);
   });
 
-  it("does not count an archived member who is only reachable via membership", async () => {
-    // The exclusion has to be re-applied on the membership arm too: that query
-    // starts from Membership, so the Brother row was never filtered.
+  it("archives per-org: each org's own row decides whether it pays", async () => {
+    // Archiving is per-org now, so this asserts something sharper than it used
+    // to: archiving someone in `home` does NOT archive them in `other`, and
+    // `other` is still billed for them. What `other` archives is its own row.
     const home = await createOrg("H", "h2");
     const other = await createOrg("O", "o2");
     const roamer = await makeBrother(home.id, { archived: true });
-    await testPrisma.membership.create({
-      data: { brotherId: roamer.id, organizationId: other.id },
-    });
+    await joinOrg({ brotherId: roamer.id, orgId: other.id, archivedAt: new Date() });
 
+    expect(await countBillableMembers(db(home.id))).toBe(0);
     expect(await countBillableMembers(db(other.id))).toBe(0);
   });
 

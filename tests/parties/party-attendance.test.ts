@@ -9,7 +9,7 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { randomUUID } from "node:crypto";
 import { testPrisma, resetDb } from "../setup/prisma";
-import { createOrg, createBrother, createSemester, createPartyEvent } from "../setup/factories";
+import { createOrg, createBrother, createSemester, createPartyEvent, rosterOf } from "../setup/factories";
 import { db } from "@/lib/db";
 import { wrapUpParty, summarizePartyAttendance } from "@/lib/services/party-service";
 import { recalcAllBrothersInSemester } from "@/lib/attendance";
@@ -120,14 +120,14 @@ describe("chapter attendance % counts mandatory party roll only", () => {
     const mand = await createPartyEvent({ orgId: org.id, name: "Mandatory Party" });
     await wrapUpParty(ctx, mand.id, { doorRevenue: 0, expenses: 0, mandatory: true, attendedIds: [admin.id] });
     await recalcAllBrothersInSemester(db(org.id), sem.id);
-    let fresh = await testPrisma.brother.findUnique({ where: { id: admin.id }, select: { attendance: true } });
+    let fresh = await rosterOf(admin.id);
     expect(fresh?.attendance).toBe(100); // 1/1 mandatory present
 
     // Non-mandatory party: admin ABSENT. Should NOT drag the % down.
     const opt = await createPartyEvent({ orgId: org.id, name: "Optional Party" });
     await wrapUpParty(ctx, opt.id, { doorRevenue: 0, expenses: 0, mandatory: false, attendedIds: [] });
     await recalcAllBrothersInSemester(db(org.id), sem.id);
-    fresh = await testPrisma.brother.findUnique({ where: { id: admin.id }, select: { attendance: true } });
+    fresh = await rosterOf(admin.id);
     expect(fresh?.attendance).toBe(100); // optional roll excluded → still 100
   });
 });

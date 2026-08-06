@@ -413,10 +413,7 @@ export async function provisionOrg(
       // 3. Founder Brother. For a brand-new account we create the Brother row;
       // for an already-linked account founding an additional org we REUSE their
       // existing Brother (authUserId is globally unique, and a multi-org founder
-      // is one identity). The legacy `role` string on a new Brother is set to
-      // the founder role's name so existing UI bits that read it (sidebar
-      // header, brother table) show something meaningful. The real authority
-      // lives in BrotherRole below.
+      // is one identity).
       //
       // `input.founderName` sets the account-level Brother.name only for a NEW
       // account — a reused Brother keeps the name their first org gave them.
@@ -430,11 +427,6 @@ export async function provisionOrg(
           data: {
             organizationId: org.id,
             name:           input.founderName,
-            role:           founderRoleName,
-            attendance:     0,
-            duesOwed:       0,
-            gpa:            0,
-            serviceHours:   0,
             authUserId,
             email,
           },
@@ -463,12 +455,25 @@ export async function provisionOrg(
       // founder's answer used to be dropped and they inherited their first org's
       // Brother.name. Now the new org gets the name they actually gave for it,
       // while the Brother row — and every other org — is left untouched.
+      //
+      // This Membership is also the founder's ROSTER SPOT in the new org — the
+      // thing that used to be missing. A founder whose account originated in
+      // another chapter got admin access here and no place on the roster they
+      // were administering; now they have a real one, starting empty. The legacy
+      // `role` string is set to the founder role's name so UI that reads it
+      // (sidebar header, roster table) shows something meaningful before any
+      // relational role resolves; the real authority lives in BrotherRole below.
       await tx.membership.create({
         data: {
           brotherId,
           organizationId: org.id,
           isOrgAdmin:     true,
           name:           input.founderName,
+          role:           founderRoleName,
+          attendance:     0,
+          duesOwed:       0,
+          gpa:            0,
+          serviceHours:   0,
         },
       });
 
@@ -724,10 +729,11 @@ export async function summarizeOrgForDeletion(ctx: RequestContext): Promise<OrgD
   // Exclude ghosts from the member count — they're roster placeholders the admin
   // never sees elsewhere, so counting them would inflate the "what gets deleted"
   // figure. Multi-org members are still counted here (they're real members of
-  // this org); deleteOrg re-homes rather than deletes them, which the UI copy
-  // calls out so the number isn't read as "accounts destroyed".
+  // this org); deleteOrg drops their roster spot here and leaves their other
+  // chapters untouched, which the UI copy calls out so the number isn't read as
+  // "accounts destroyed".
   const [members, events, transactions, docs, parties] = await Promise.all([
-    ctx.db.brother.count({ where: { isGhost: false } }),
+    ctx.db.member.count({ where: { brother: { is: { isGhost: false } } } }),
     ctx.db.calendarEvent.count(),
     ctx.db.transaction.count(),
     ctx.db.doc.count(),

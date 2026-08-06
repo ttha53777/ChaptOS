@@ -211,16 +211,16 @@ export async function wrapUpParty(ctx: RequestContext, id: number, input: WrapUp
  * this purpose, and a party's mandatory flag is intentionally allowed to be false.
  */
 async function recordPartyRoll(ctx: RequestContext, calendarEventId: number, semesterId: number, attendedIds: number[]) {
-  const [excuses, brothers] = await Promise.all([
+  const [excuses, brotherIds] = await Promise.all([
     ctx.db.attendanceExcuse.findMany({
       where: { calendarEventId, semesterId, status: ExcuseStatus.Approved },
       select: { brotherId: true },
     }),
-    ctx.db.brother.findMany({ where: { isGhost: false }, select: { id: true } }),
+    ctx.db.member.listIds(),
   ]);
   const excused = new Set(excuses.map(e => e.brotherId));
-  const eligible = brothers.filter(b => !excused.has(b.id));
-  const eligibleIds = eligible.map(b => b.id);
+  const eligible = brotherIds.filter(id => !excused.has(id));
+  const eligibleIds = eligible;
   const attended = new Set(attendedIds);
 
   // Set-based writes: two statements regardless of roster size. A per-member upsert
@@ -234,11 +234,11 @@ async function recordPartyRoll(ctx: RequestContext, calendarEventId: number, sem
     });
     if (eligibleIds.length > 0) {
       await tx.attendanceRecord.createMany({
-        data: eligible.map(b => ({
+        data: eligible.map(brotherId => ({
           calendarEventId,
-          brotherId:  b.id,
+          brotherId,
           semesterId,
-          attended:   attended.has(b.id),
+          attended:   attended.has(brotherId),
         })),
       });
     }

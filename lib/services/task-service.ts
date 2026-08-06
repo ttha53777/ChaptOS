@@ -44,7 +44,7 @@ async function loadTasks(ctx: RequestContext, where?: { status?: string; ids?: n
 async function withResolvedAssignees(ctx: RequestContext, rows: TaskRow[]): Promise<TaskRow[]> {
   const brothers = rows.flatMap(r => r.assignments.map(a => a.brother)).filter((b): b is NonNullable<typeof b> => b != null);
   if (brothers.length === 0) return rows;
-  const nameByBrotherId = await ctx.db.membership.resolveNames(brothers);
+  const nameByBrotherId = await ctx.db.member.resolveNames(brothers);
   return rows.map(r => ({
     ...r,
     assignments: r.assignments.map(a => a.brother
@@ -102,9 +102,9 @@ async function resolveAssignees(ctx: RequestContext, brotherIds: number[], roleI
   const uniqRoles    = [...new Set(roleIds)];
 
   if (uniqBrothers.length) {
-    // isGhost: false excludes placeholder/merged members — a ghost id then fails
-    // this count check and is rejected like any non-member id.
-    const found = await ctx.db.brother.findMany({ where: { id: { in: uniqBrothers }, isGhost: false }, select: { id: true } });
+    // listIds excludes ghosts, so a ghost id fails this count check and is
+    // rejected like any non-member id.
+    const found = await ctx.db.member.listIds({ brotherId: { in: uniqBrothers } });
     if (found.length !== uniqBrothers.length) throw new ValidationError("One or more assigned members are not in this organization");
   }
   if (uniqRoles.length) {

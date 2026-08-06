@@ -21,8 +21,8 @@ export async function listDocs(ctx: RequestContext) {
     // Doc/DocFolder pre-migration window, not the brother table).
     const names = creatorIds.length
       ? new Map(
-          (await ctx.db.brother
-            .findMany({ where: { id: { in: creatorIds } }, select: { id: true, name: true } })
+          (await ctx.db.member
+            .listRoster({ where: { brotherId: { in: creatorIds } } })
             .catch(() => []))
             .map(b => [b.id, b.name]),
         )
