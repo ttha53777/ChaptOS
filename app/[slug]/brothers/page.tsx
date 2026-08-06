@@ -38,8 +38,8 @@ function clamp(n: number, lo: number, hi: number) {
 
 // Minimal service-event shape for the Brother-drawer "Log service hours" picker.
 type ServiceEventOption = { id: number; title: string; date: string };
-/** Shape of GET /api/brothers/off-roster (lib/services/brother-service). */
-type OffRosterMember = { brotherId: number; name: string; email: string | null; joinedAt: string; reason: "invite" | "hidden" };
+/** Shape of GET /api/brothers/ghost-accounts (lib/services/brother-service). */
+type GhostAccount = { brotherId: number; name: string; email: string | null; joinedAt: string };
 
 // Warm "Chapter Ledger" KPI cell — non-interactive (no per-KPI drawer on this page).
 // `note` carries the optional gold "needs attention" subline.
@@ -188,7 +188,7 @@ export default function BrothersPage() {
   const [logHoursBusy,    setLogHoursBusy]    = useState(false);
   // Members with access to this org who can't appear on its roster — see the
   // effect below.
-  const [offRoster,       setOffRoster]       = useState<OffRosterMember[]>([]);
+  const [ghostAccounts,   setGhostAccounts]   = useState<GhostAccount[]>([]);
 
   // ?section=invitations is read on mount by the settings page, which opens the
   // Membership group and scrolls to the invitations block.
@@ -217,31 +217,19 @@ export default function BrothersPage() {
       .catch(() => {});
   }, [canAttendance]);
 
-  // People who can read this org but can never show up in the table below (see
-  // listOffRosterMembers). Two disjoint groups with very different stories, so
-  // they render as separate callouts: invite joiners whose home org is elsewhere
-  // (otherwise the admin sees an invite's join count climb while the roster sits
-  // still, with nothing explaining the gap), and legacy hidden `isGhost`
-  // accounts, which are a thing an admin needs to know exists at all.
+  // Legacy `isGhost` accounts: people who can read this org but never appear in
+  // the table below. An admin needs to know these exist at all.
+  //
+  // This used to fetch a second group as well — members who had joined by invite
+  // and held only a Membership, with no roster row. That group is gone: a
+  // Membership IS the roster row now, so joining puts you on the roster.
   // Silent on failure: it's an explanatory callout, not roster data.
   useEffect(() => {
-    if (!canBrothers) { setOffRoster([]); return; }
-    requestJson<OffRosterMember[]>("/api/brothers/off-roster")
-      .then(setOffRoster)
+    if (!canBrothers) { setGhostAccounts([]); return; }
+    requestJson<GhostAccount[]>("/api/brothers/ghost-accounts")
+      .then(setGhostAccounts)
       .catch(() => {});
   }, [canBrothers]);
-
-  // The viewing admin themself, when THEY are the one off-roster: they founded
-  // (or were made admin of) this org while their Brother row stayed home in a
-  // different one (AGENTS.md's Membership-vs-home-org gap). Pulled out of the
-  // general "joined by invite" bucket below so they can be pinned as the first
-  // roster row instead of named in a callout about someone else's account.
-  const selfOffRoster = useMemo(
-    () => (isOrgAdmin ? offRoster.find(m => m.reason === "invite" && m.brotherId === selfId) ?? null : null),
-    [offRoster, selfId, isOrgAdmin],
-  );
-  const offRosterByInvite = useMemo(() => offRoster.filter(m => m.reason === "invite" && m.brotherId !== selfId), [offRoster, selfId]);
-  const offRosterHidden   = useMemo(() => offRoster.filter(m => m.reason === "hidden"), [offRoster]);
 
   // After a drawer approve/reject, drop the acted-on member's chip (floor 0) and
   // patch attendance on approval (mirrors the Timeline review queue).
@@ -679,28 +667,6 @@ export default function BrothersPage() {
               </section>
             )}
 
-            {/* ── Off-roster members ──
-                People who joined this org through an invite link but hold only a
-                Membership here: their Brother row's home org is elsewhere, and a
-                Google account maps to exactly one Brother globally, so no roster
-                row can exist for them until Phase 2 moves these reads to
-                Membership. Explaining that beats leaving the admin to wonder why
-                an invite's join count moved and the roster didn't. */}
-            {offRosterByInvite.length > 0 && (
-              <div className="page-note" style={{ marginTop: 14 }}>
-                <p>
-                  <b>
-                    {offRosterByInvite.length} {offRosterByInvite.length === 1 ? "person" : "people"} joined by invite link
-                  </b>{" "}
-                  but {offRosterByInvite.length === 1 ? "isn’t" : "aren’t"}{" "}
-                  on this roster — they already belong to another organization on
-                  ChaptOS. Their access works; the figures above and the table
-                  below don&rsquo;t count them.
-                </p>
-                <p className="who">{offRosterByInvite.map(m => m.name).join(", ")}</p>
-              </div>
-            )}
-
             {/* ── Hidden legacy accounts ──
                 `isGhost` rows: full member-level read access, filtered out of every
                 listing, count and attendance roll. They were provisioned by a claim-
@@ -709,11 +675,11 @@ export default function BrothersPage() {
                 callout nothing in the product said so. Surfaced with the email
                 attached because revoking one is a support request, not a button:
                 they have no roster row for the table's remove action to target. */}
-            {offRosterHidden.length > 0 && (
+            {ghostAccounts.length > 0 && (
               <div className="page-note" style={{ marginTop: 14 }}>
                 <p>
                   <b>
-                    {offRosterHidden.length} hidden {offRosterHidden.length === 1 ? "account has" : "accounts have"} read access
+                    {ghostAccounts.length} hidden {ghostAccounts.length === 1 ? "account has" : "accounts have"} read access
                   </b>{" "}
                   to this organization without appearing on the roster. These are
                   legacy observer accounts; nothing can create new ones. They can
@@ -721,7 +687,7 @@ export default function BrothersPage() {
                   don&rsquo;t recognise one, contact support to have it removed.
                 </p>
                 <p className="who">
-                  {offRosterHidden.map(m => m.email ?? m.name).join(", ")}
+                  {ghostAccounts.map(m => m.email ?? m.name).join(", ")}
                 </p>
               </div>
             )}
@@ -765,38 +731,6 @@ export default function BrothersPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {/* Pinned admin row — not a real roster entry (no Brother row in
-                        this org means no attendance/dues/GPA to show), so it's
-                        rendered outside the search/status filters and the "N shown"
-                        count rather than folded into `filtered`. */}
-                    {!isLoading && selfOffRoster && (
-                      <tr className="pinned-self">
-                        <td>
-                          <div className="b-name">
-                            <BrotherAvatar
-                              brother={{ id: selfOffRoster.brotherId, name: currentUser?.name ?? selfOffRoster.name, avatarUrl: currentUser?.avatarUrl ?? null }}
-                              selfId={selfId}
-                              selfAvatarUrl={currentUser?.avatarUrl}
-                              avatarRevision={avatarRevision}
-                              size="xs"
-                              ringClassName="bg-[var(--vio-bg)] text-[var(--vio)] text-[10px]"
-                            />
-                            <div style={{ minWidth: 0 }}>
-                              <div className="nm">{currentUser?.name ?? selfOffRoster.name}</div>
-                              <div className="rl">Admin · roster lives in another org</div>
-                            </div>
-                          </div>
-                        </td>
-                        <td><span className="mono muted">—</span></td>
-                        <td className="num"><span className="mono muted">—</span></td>
-                        <td className="num"><span className="mono muted">—</span></td>
-                        <td className="num"><span className="mono muted">—</span></td>
-                        <td className="num"><span className="status-tag" style={{ opacity: .7 }}>ADMIN</span></td>
-                        {customFieldDefs.map(f => (
-                          <td key={f.id} className="num"><span className="mono muted">—</span></td>
-                        ))}
-                      </tr>
-                    )}
                     {isLoading ? (
                       [...Array(6)].map((_, i) => (
                         <tr key={i}><td colSpan={6 + customFieldDefs.length} style={{ padding: 0 }}><div className="row-skel" /></td></tr>

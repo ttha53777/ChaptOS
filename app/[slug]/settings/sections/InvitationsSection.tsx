@@ -27,7 +27,6 @@ interface RedemptionRow {
   brotherId: number;
   name: string;
   redeemedAt: string;
-  onRoster: boolean;
 }
 
 const EXPIRY_LABELS: Record<InviteExpiry, string> = {
@@ -405,7 +404,7 @@ export function InvitationsSection({
                         {openJoins === row.id ? "Hide joins" : "View joins"}
                       </button>
                       {openJoins === row.id && (
-                        <JoinList state={joins[row.id]} memberWord={memberWord} />
+                        <JoinList state={joins[row.id]} />
                       )}
                     </div>
                   )}
@@ -435,14 +434,16 @@ export function InvitationsSection({
 }
 
 /**
- * Who used a link. The "not on roster" chip is the important part: someone who
- * already belonged to another org joins by Membership and never lands on this
- * org's roster, so without this the admin sees the count go up and the roster
- * stay still, with nothing connecting the two.
+ * Who used a link.
+ *
+ * This list used to carry a "not on roster" chip beside anyone who had joined
+ * from another org: they got access but no roster row, so the admin would watch
+ * the join count climb while the roster sat still. Redeeming a link now creates
+ * a real roster spot, so there is nothing left to explain.
  */
 function JoinList({
-  state, memberWord,
-}: { state: RedemptionRow[] | "loading" | "error" | undefined; memberWord: string }) {
+  state,
+}: { state: RedemptionRow[] | "loading" | "error" | undefined }) {
   if (state === "loading" || state === undefined) return <p className="sc-note" style={{ marginTop: 8 }}>Loading…</p>;
   if (state === "error") return <p className="sc-note" style={{ marginTop: 8, color: "var(--rose)" }}>Couldn&rsquo;t load joins.</p>;
   if (state.length === 0) return <p className="sc-note" style={{ marginTop: 8 }}>No joins yet.</p>;
@@ -452,11 +453,6 @@ function JoinList({
       {state.map(r => (
         <li key={r.brotherId}>
           <span className="n">{r.name}</span>
-          {!r.onRoster && (
-            <span className="sc-pill sc-pill-muted" title={`Joined from another org, so they don’t appear on this ${memberWord} roster`}>
-              not on roster
-            </span>
-          )}
           <span className="d">{formatDate(r.redeemedAt)}</span>
         </li>
       ))}

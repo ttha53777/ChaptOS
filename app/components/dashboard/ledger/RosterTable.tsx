@@ -15,7 +15,6 @@ const STATUS_TAG: Record<BrotherStatus, { cls: string; label: string }> = {
 /** Someone with access to this org whose Brother row lives elsewhere — see
  *  lib/services/brother-service.ts's listOffRosterMembers. Only the "invite"
  *  shape is relevant here (matches app/[slug]/brothers/page.tsx's local type). */
-type SelfOffRoster = { brotherId: number; name: string } | null;
 
 /**
  * Metric columns, in display order. `metric` ties each to the org's tracked set
@@ -70,7 +69,6 @@ export function RosterTable({
   avatarRevision,
   hideButton,
   tracked = ALL_TRACKED,
-  selfOffRoster = null,
 }: {
   brothers: Brother[];
   statusCounts: { Good: number; Watch: number; "At Risk": number };
@@ -87,9 +85,6 @@ export function RosterTable({
   avatarRevision: number;
   hideButton?: React.ReactNode;
   tracked?: TrackedMetrics;
-  /** The viewer, when their own Brother row is off-roster (see SelfOffRoster
-   *  above) — pinned as the table's first row instead of missing entirely. */
-  selfOffRoster?: SelfOffRoster;
 }) {
   const v = useVocab();
   const total = statusCounts.Good + statusCounts.Watch + statusCounts["At Risk"];
@@ -142,31 +137,6 @@ export function RosterTable({
           </tr>
         </thead>
         <tbody>
-          {/* Pinned admin row — not a real roster entry (no Brother row in this
-              org means no attendance/dues/GPA to show), so it renders outside
-              the filtered/sorted `brothers` list and its counts. */}
-          {selfOffRoster && (
-            <tr className="pinned-self">
-              <td>
-                <div className="b-name">
-                  <BrotherAvatar
-                    brother={{ id: selfOffRoster.brotherId, name: selfName ?? selfOffRoster.name, avatarUrl: selfAvatarUrl ?? null }}
-                    selfId={selfId}
-                    selfAvatarUrl={selfAvatarUrl}
-                    avatarRevision={avatarRevision}
-                    size="xs"
-                    ringClassName="bg-[var(--vio-bg)] text-[var(--vio)] text-[9px]"
-                  />
-                  <p>{selfName ?? selfOffRoster.name}</p>
-                </div>
-              </td>
-              <td className="role">Admin · roster lives in another org</td>
-              {columns.map(({ key }) => (
-                <td key={key}><span className="mono muted">—</span></td>
-              ))}
-              <td className="num"><span className="status-tag" style={{ opacity: .7 }}>ADMIN</span></td>
-            </tr>
-          )}
           {brothers.length === 0 ? (
             <tr><td colSpan={colCount} className="muted" style={{ padding: "24px 18px", textAlign: "center" }}>No {v("Member", true).toLowerCase()} match your filters.</td></tr>
           ) : (

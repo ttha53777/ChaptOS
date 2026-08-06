@@ -191,8 +191,8 @@ export function JoinClient({
                       {state === "existing_account" && (
                         <div className="auth-notice">
                           You already have a {APP_NAME} account, so we&rsquo;ll add you to{" "}
-                          {orgName} directly. If you&rsquo;re on their roster under a different
-                          name, an officer can link that entry to your account.
+                          {orgName} directly — with your own place on their roster, separate
+                          from the {APP_NAME} organizations you already belong to.
                         </div>
                       )}
 

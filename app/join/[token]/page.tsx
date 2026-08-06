@@ -21,8 +21,15 @@ export default async function JoinPage({ params }: { params: Promise<{ token: st
 
   // Headcount is a trust signal ("this is a real chapter"), so it's only worth
   // the query when there's a live invite to show it on.
+  //
+  // Counted over Memberships — the roster rows — not over Brothers homed here.
+  // The old form scoped by Brother.organizationId, so it silently omitted every
+  // member whose account had originated in another chapter, and disagreed with
+  // the billable headcount (lib/billing/seats.ts) for the same org.
   const memberCount = lookup.ok
-    ? await prisma.brother.count({ where: { organizationId: lookup.invite.orgId, isGhost: false } })
+    ? await prisma.membership.count({
+        where: { organizationId: lookup.invite.orgId, brother: { is: { isGhost: false } } },
+      })
     : null;
 
   return (
