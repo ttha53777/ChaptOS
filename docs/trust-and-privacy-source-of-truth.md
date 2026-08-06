@@ -115,6 +115,7 @@ Derived from [schema.prisma](prisma/schema.prisma) (36 models). Grouped by what 
 | Google auth user id | `Brother.authUserId` | Google OAuth | Opaque UUID; the join key to Supabase Auth |
 | Legal/display name | `Brother.name` | Self-entered at claim, or admin-seeded | |
 | Per-org display name | `Membership.name` | Self-entered | Same person can be "Rob" in one org, "Robert Chen" in another |
+| Per-org roster record | `Membership.role` / `.gpa` / `.duesOwed` / `.attendance` / `.serviceHours` / `.archivedAt` / `.customFields` | Admin-entered, or derived from this org's own records | One row per person **per org**. An org can read and write only its own row, so a member of two chapters has two independent records and neither chapter can see the other's |
 | Email address | `Brother.email` | Google OAuth; backfilled on first `/api/auth/me` hit | [me/route.ts](app/api/auth/me/route.ts) — note the silent backfill write |
 | Profile photo | `Brother.avatarUrl` | Google, or user upload | **Publicly readable URL** — see §12 |
 | Free-text role/title | `Brother.role` | Admin | |

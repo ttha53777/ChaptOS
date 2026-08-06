@@ -844,11 +844,11 @@ export const ARTICLES: Article[] = [
         "isolation between them is enforced at the database, not just hidden in the interface. " +
         "Your permissions are per-org too: you can be president of one and an ordinary member of " +
         "another, and neither leaks into the other." },
-      { k: "note", tone: "info", h: "The wrinkle", t:
-        "Your **home org** — the one you first joined — is still what the member roster, attendance " +
-        "and dues pages scope by today. So if you belong to two orgs, you can open, use and " +
-        "administer both, but you'll appear on the roster of your home org only. It surprises " +
-        "people, so: it's known, it's a migration in progress, and nothing is lost by it." },
+      { k: "p", t:
+        "Your roster place is per-org as well. You hold a separate entry in each organization you " +
+        "belong to, with its own dues balance, attendance, GPA, service hours and office — and its " +
+        "own name, so you can be *Rob* in one chapter and *Robert Chen* in another. Nothing an " +
+        "officer records about you in one org is visible to, or editable from, another." },
     ],
   },
   {
