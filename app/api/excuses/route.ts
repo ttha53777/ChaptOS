@@ -29,12 +29,12 @@ export async function POST(req: NextRequest) {
     const input = submitExcuseInput.parse(body);
     const result = await submitExcuse(ctx, input);
 
-    // Preserve legacy response shape: full Brother row + excuseStatus.
-    const brother = await ctx.db.brother.findUnique({ where: { id: result.brotherId } });
-    if (!brother) return toResponse(new NotFoundError("Brother"));
+    // Preserve legacy response shape: the member's roster row + excuseStatus.
+    const member = await ctx.db.member.findRosterRow(result.brotherId);
+    if (!member) return toResponse(new NotFoundError("Brother"));
     return Response.json({
-      ...brother,
-      attendance: result.attendance ?? brother.attendance,
+      ...member,
+      attendance: result.attendance ?? member.attendance,
       excuseStatus: result.status,
     });
   } catch (e) {

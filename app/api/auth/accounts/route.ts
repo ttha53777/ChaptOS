@@ -28,25 +28,33 @@ export async function GET() {
       roles?: { role: { id: number; name: string; color: string | null; rank: number } }[];
     }>;
     try {
-      brothers = await db(user.orgId).brother.findMany({
-        where: { isGhost: false },
-        select: {
-          id: true, name: true, role: true, authUserId: true, isAdmin: true, email: true,
-          roles: {
-            select: {
-              role: { select: { id: true, name: true, color: true, rank: true } },
-            },
-          },
-        },
-        orderBy: { name: "asc" },
-      });
+      const [roster, roleRows] = await Promise.all([
+        // The one caller that genuinely needs email — this is the account-admin
+        // surface — so it opts in explicitly.
+        db(user.orgId).member.listRoster({ fields: "contact" }),
+        db(user.orgId).brotherRole.listWithRole([]),
+      ]);
+      const rolesByBrotherId = new Map<number, { role: { id: number; name: string; color: string | null; rank: number } }[]>();
+      for (const br of roleRows) {
+        const list = rolesByBrotherId.get(br.brotherId) ?? [];
+        list.push({ role: br.role });
+        rolesByBrotherId.set(br.brotherId, list);
+      }
+      brothers = roster.map(b => ({
+        id: b.id, name: b.name, role: b.role, authUserId: b.authUserId,
+        isAdmin: b.isOrgAdmin, email: b.email ?? null,
+        roles: rolesByBrotherId.get(b.id) ?? [],
+      }));
     } catch {
-      brothers = await db(user.orgId).brother.findMany({
-        where: { isGhost: false },
-        select: { id: true, name: true, role: true, authUserId: true, isAdmin: true, email: true },
-        orderBy: { name: "asc" },
-      });
+      const roster = await db(user.orgId).member.listRoster({ fields: "contact" });
+      brothers = roster.map(b => ({
+        id: b.id, name: b.name, role: b.role, authUserId: b.authUserId,
+        isAdmin: b.isOrgAdmin, email: b.email ?? null,
+      }));
     }
+    // Membership.name is nullable with a fallback, so the ordering that used to
+    // be a SQL `orderBy: { name: "asc" }` happens here, on the resolved name.
+    brothers.sort((a, b) => a.name.localeCompare(b.name));
 
     return Response.json(
       brothers.map(b => ({

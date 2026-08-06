@@ -38,7 +38,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ eve
     // else the account-level Brother.name — same fallback as the roster. Without
     // this, a member who renamed themselves in this org would still show their
     // stale name on the attendance rail / timeline detail popover.
-    const nameByBrotherId = await ctx.db.membership.resolveNames(
+    const nameByBrotherId = await ctx.db.member.resolveNames(
       [...records, ...excuses].map(r => ({ id: r.brotherId, name: r.brother.name })),
     );
 

@@ -22,17 +22,17 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       throw new ConflictError("You cannot remove your own admin status. Ask another admin to demote you.");
     }
 
-    const updated = await ctx.db.brother.update({
-      where: { id: numId },
-      data: { isAdmin: body.isAdmin },
-      select: { id: true, isAdmin: true, name: true },
+    // Org admin is per-org (Membership.isOrgAdmin): promoting someone here makes
+    // them an admin of THIS chapter and nowhere else.
+    const target = await ctx.db.member.findRosterRow(numId);
+    if (!target) throw new NotFoundError("Brother");
+    await ctx.db.member.updateByBrotherId(numId, { isOrgAdmin: body.isAdmin });
+
+    await emit(ctx, "brother.admin_changed", { type: "Brother", id: numId }, {
+      name: target.name, isAdmin: body.isAdmin,
     });
 
-    await emit(ctx, "brother.admin_changed", { type: "Brother", id: updated.id }, {
-      name: updated.name, isAdmin: updated.isAdmin,
-    });
-
-    return Response.json({ id: updated.id, isAdmin: updated.isAdmin });
+    return Response.json({ id: numId, isAdmin: body.isAdmin });
   } catch (e) {
     if (e && typeof e === "object" && "code" in e && (e as { code: string }).code === "P2025") {
       return toResponse(new NotFoundError("Brother"));
@@ -53,16 +53,13 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     const numId = Number(id);
     if (!Number.isInteger(numId) || numId <= 0) throw new ValidationError("Invalid ID");
 
-    const target = await ctx.db.brother.findUnique({
-      where: { id: numId },
-      select: { authUserId: true, name: true },
-    });
+    const target = await ctx.db.member.findRosterRow(numId);
     if (!target) throw new NotFoundError("Brother");
     if (target.authUserId === ctx.authUserId) {
       throw new ConflictError("You cannot unlink your own account");
     }
 
-    await ctx.db.brother.update({ where: { id: numId }, data: { authUserId: null } });
+    await ctx.db.identity.unlinkAuth(numId);
     await emit(ctx, "brother.account_unlinked", { type: "Brother", id: numId }, {
       name: target.name, bySelf: false,
     });

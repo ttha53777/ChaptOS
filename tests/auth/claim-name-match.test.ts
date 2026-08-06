@@ -30,15 +30,7 @@ afterAll(async () => {
 
 /** The claim route's name-match query, verbatim (app/api/auth/claim/route.ts). */
 function claimMatches(orgId: number, name: string) {
-  return db(orgId).brother.findMany({
-    where: {
-      OR: [
-        { name: { equals: name, mode: "insensitive" } },
-        { memberships: { some: { organizationId: orgId, name: { equals: name, mode: "insensitive" } } } },
-      ],
-    },
-    select: { id: true, authUserId: true },
-  });
+  return db(orgId).member.search(name, { exact: true });
 }
 
 describe("claim: name match is org-local", () => {
@@ -61,8 +53,8 @@ describe("claim: name match is org-local", () => {
   });
 
   it("matching on both names still yields ONE row, not a false ambiguity 409", async () => {
-    // The OR is over Brother rows, so someone whose Membership.name equals their
-    // Brother.name satisfies both arms — and must still be a single match.
+    // The OR is over roster rows, so someone whose Membership.name equals their
+    // account name satisfies both arms — and must still be a single match.
     const org = await createOrg("Claim Org", "claim-org");
     const b = await createBrother({ orgId: org.id, name: "Same Name", membershipName: "Same Name" });
 

@@ -28,10 +28,7 @@ export async function GET() {
     const elevated = user.isPlatformAdmin || isOrgAdmin;
 
     const [brother, org, perms, metricDefinitionCount, pendingReimbursementCount, subscription] = await Promise.all([
-      db(user.orgId).brother.findUnique({
-        where: { id: user.id },
-        select: { name: true, email: true, avatarUrl: true },
-      }),
+      db(user.orgId).identity.findByBrotherId(user.id),
       db(user.orgId).organization.findUnique({
         where: { id: user.orgId },
         select: {
@@ -98,10 +95,8 @@ export async function GET() {
     // First time they hit /me after this ships, persist the session email so it
     // shows up in Settings without forcing a relink.
     if (brother && !brother.email && user.email) {
-      db(user.orgId).brother.update({
-        where: { id: user.id },
-        data: { email: user.email },
-      }).catch(e => logError(e, { route: "/api/auth/me", method: "GET", userId: user.id, extra: { stage: "email_backfill" } }));
+      db(user.orgId).identity.setEmail(user.id, user.email)
+        .catch(e => logError(e, { route: "/api/auth/me", method: "GET", userId: user.id, extra: { stage: "email_backfill" } }));
     }
 
     // What, if anything, needs an admin's attention about billing.

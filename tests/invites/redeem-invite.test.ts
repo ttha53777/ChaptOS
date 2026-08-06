@@ -35,7 +35,8 @@ vi.mock("@/lib/rate-limit", () => ({
 
 import { NextRequest } from "next/server";
 import { testPrisma, resetDb } from "../setup/prisma";
-import { createOrg, createBrother } from "../setup/factories";
+import { db } from "@/lib/db";
+import { createOrg, createBrother, rosterOf, setRoster, accountOf } from "../setup/factories";
 import { POST } from "@/app/api/auth/redeem-invite/route";
 
 beforeEach(async () => {
@@ -149,7 +150,10 @@ describe("redeem-invite — open mode", () => {
     expect(await testPrisma.inviteRedemption.count({ where: { inviteId: inv.id } })).toBe(1);
   });
 
-  it("reuses an existing Brother from another org and adds only a Membership", async () => {
+  it("reuses the existing account and gives them a REAL roster spot in the new org", async () => {
+    // The heart of Phase 2. This person's account originated in org B. Joining
+    // org A must not mint a second account — and must not leave them with access
+    // and no roster row, which is what it used to do.
     const orgA = await createOrg("Alpha", "alpha");
     const orgB = await createOrg("Beta", "beta");
     const adminA = await createBrother({ orgId: orgA.id, isOrgAdmin: true });
@@ -164,16 +168,79 @@ describe("redeem-invite — open mode", () => {
     );
     expect(status).toBe(200);
 
-    // No second Brother row — authUserId is unique globally.
+    // One identity, shared. authUserId is unique globally.
     expect(await testPrisma.brother.count({ where: { authUserId: "auth-visitor" } })).toBe(1);
-    // Home org untouched; they're reachable in org A only via Membership.
-    const after = await testPrisma.brother.findUnique({ where: { id: visitor.id } });
-    expect(after!.organizationId).toBe(orgB.id);
+    // The origin-org pointer is untouched — it is a hint, not a membership.
+    expect((await accountOf(visitor.id))!.organizationId).toBe(orgB.id);
 
-    const membership = await testPrisma.membership.findUnique({
-      where: { brotherId_organizationId: { brotherId: visitor.id, organizationId: orgA.id } },
-    });
-    expect(membership!.name).toBe("Casey");
+    // Two roster spots, one per org, each with its own starting values and name.
+    const inA = await rosterOf(visitor.id, orgA.id);
+    const inB = await rosterOf(visitor.id, orgB.id);
+    expect(inA!.name).toBe("Casey");
+    expect(inA!.role).toBe("Brother");
+    expect(inA!.duesOwed).toBe(0);
+    expect(inB).not.toBeNull();
+
+    // And org A's roster actually lists them.
+    expect((await db(orgA.id).member.listRoster()).map(m => m.id)).toContain(visitor.id);
+  });
+});
+
+describe("redeem-invite — a roster row an officer already prepared", () => {
+  it("refuses rather than minting a second, blank roster row for the same person", async () => {
+    // An officer typed this person onto org A's roster before they ever signed
+    // in — an unclaimed Brother (authUserId null) plus a Membership carrying
+    // their dues. That row cannot be handed to them: Brother.authUserId is
+    // globally unique and they already own an account in org B, so the claim
+    // flow turns them away.
+    //
+    // Letting the join proceed would leave org A showing this human twice — once
+    // with their $150 balance, once with zeros — so it is refused instead, with
+    // the officer named as the way out. Folding the two together is the merge
+    // flow, which is deliberately not built yet.
+    const orgA = await createOrg("Alpha", "alpha");
+    const orgB = await createOrg("Beta", "beta");
+    const adminA = await createBrother({ orgId: orgA.id, isOrgAdmin: true });
+    const inv = await seedInvite({ orgId: orgA.id, createdBy: adminA.id });
+
+    await createBrother({ orgId: orgA.id, name: "Casey Wu", duesOwed: 150 });
+
+    const visitor = await createBrother({ orgId: orgB.id, name: "Casey Wu" });
+    await testPrisma.brother.update({ where: { id: visitor.id }, data: { authUserId: "auth-visitor" } });
+
+    const { status, json } = await redeem(
+      { token: inv.token, name: "Casey Wu" },
+      { id: "auth-visitor", email: "casey@x.com" },
+    );
+
+    expect(status).toBe(409);
+    expect(String(json.error)).toMatch(/already added you/i);
+
+    // No membership was created for them in org A, and the prepared row is intact.
+    expect(await rosterOf(visitor.id, orgA.id)).toBeNull();
+    const prepared = await db(orgA.id).member.search("Casey Wu", { exact: true });
+    expect(prepared).toHaveLength(1);
+    expect(prepared[0].duesOwed).toBe(150);
+  });
+
+  it("still lets them join when no prepared row matches their name", async () => {
+    const orgA = await createOrg("Alpha", "alpha");
+    const orgB = await createOrg("Beta", "beta");
+    const adminA = await createBrother({ orgId: orgA.id, isOrgAdmin: true });
+    const inv = await seedInvite({ orgId: orgA.id, createdBy: adminA.id });
+
+    await createBrother({ orgId: orgA.id, name: "Someone Else" });
+
+    const visitor = await createBrother({ orgId: orgB.id, name: "Casey Wu" });
+    await testPrisma.brother.update({ where: { id: visitor.id }, data: { authUserId: "auth-visitor" } });
+
+    const { status } = await redeem(
+      { token: inv.token, name: "Casey Wu" },
+      { id: "auth-visitor", email: "casey@x.com" },
+    );
+
+    expect(status).toBe(200);
+    expect(await rosterOf(visitor.id, orgA.id)).not.toBeNull();
   });
 });
 

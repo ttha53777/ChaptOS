@@ -112,21 +112,18 @@ export async function POST(req: NextRequest) {
   // path cannot introduce a new person. Gating it would block roster
   // reconciliation for no revenue.
   //
-  // Match EITHER name: the account-level Brother.name, or the display name this
-  // org gave them (Membership.name). Names are org-local now, so the roster may
-  // list someone under a name that isn't on their Brother row — matching only the
-  // latter would 404 a legitimate claim. This stays a findMany over Brother, so
-  // someone matching on both arms is still one row: no false "multiple brothers
+  // Match EITHER name: the display name this org gave them (Membership.name) or
+  // the account-level Brother.name it falls back to. Names are org-local, so the
+  // roster may list someone under a name that isn't on their account row —
+  // matching only one arm would 404 a legitimate claim. member.search owns that
+  // rule for the whole codebase; it returns one row per roster spot, so someone
+  // matching on both arms is still one match, not a false "multiple brothers
   // share that name" 409.
-  const matches = await db(orgId).brother.findMany({
-    where: {
-      OR: [
-        { name: { equals: name, mode: "insensitive" } },
-        { memberships: { some: { organizationId: orgId, name: { equals: name, mode: "insensitive" } } } },
-      ],
-    },
-    select: { id: true, authUserId: true },
-  });
+  //
+  // Ghosts are included: a ghost's roster row is exactly the kind of stale entry
+  // an officer would ask someone to claim, and excluding them here would 404 a
+  // claim that the pre-Phase-2 Brother-based search would have found.
+  const matches = await db(orgId).member.search(name, { exact: true });
 
   if (matches.length === 0) {
     return Response.json({ error: "No brother found with that name" }, { status: 404 });
@@ -147,7 +144,11 @@ export async function POST(req: NextRequest) {
   // updateMany with authUserId: null in WHERE guards the TOCTOU window — two
   // concurrent claims for the same name cannot both succeed.
   try {
-    const claimed = await db(orgId).brother.updateMany({
+    // Still a raw updateMany rather than ctx.db.identity: the whole point of the
+    // authUserId: null guard is the TOCTOU window, and identity's write helpers
+    // verify-then-update, which reopens it. Scoped by id, which step 5 already
+    // proved belongs to this org's roster.
+    const claimed = await prisma.brother.updateMany({ // lint-direct-prisma:ignore atomic claim guard, pre-membership bootstrap
       where: { id: brother.id, authUserId: null },
       data:  { authUserId: user.id, avatarUrl: metaAvatarUrl, email: user.email ?? null },
     });
@@ -162,17 +163,20 @@ export async function POST(req: NextRequest) {
     return Response.json({ error: "Failed to link account. Please try again." }, { status: 500 });
   }
 
-  // Ensure a Membership row exists so requireUser() resolves this org. This is
-  // FATAL on failure: a claim that links the Brother but leaves zero memberships
-  // would let the [slug] guard see a linked user with no membership for this
-  // org — access denied despite a "successful" claim. The claimed brother's
-  // home org may also differ from the org they're joining, so "fall back to
-  // Brother.organizationId" is not safe. Better to fail the claim and let them
-  // retry than to leave them half-linked.
+  // The roster row this claim just attached to an account already exists — the
+  // search above found it, and after Phase 2 every roster row IS a Membership.
+  // The upsert is kept as a belt-and-braces guarantee that requireUser() will
+  // resolve this org, and stays FATAL on failure: a claim that links the Brother
+  // but leaves zero memberships would let the [slug] guard see a linked user
+  // with no membership here — access denied despite a "successful" claim.
+  //
+  // `name` is seeded on create so the row is never left with a null org-local
+  // name; on the (normal) update path it is deliberately left alone, since the
+  // roster's existing name for this person is the one the officer chose.
   try {
     await prisma.membership.upsert({
       where:  { brotherId_organizationId: { brotherId: brother.id, organizationId: orgId } },
-      create: { brotherId: brother.id, organizationId: orgId, isOrgAdmin: false },
+      create: { brotherId: brother.id, organizationId: orgId, isOrgAdmin: false, name, role: "Member" },
       update: {},
     });
   } catch (e) {

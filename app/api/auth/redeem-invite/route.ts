@@ -172,16 +172,42 @@ export async function POST(req: NextRequest) {
 
   // ── 7. Join by membership ─────────────────────────────────────────────────
   // A Google account maps to one Brother globally (authUserId @unique). If one
-  // already exists, REUSE it and just add a Membership to this org (the
-  // multi-org pattern from org-service). Otherwise create a fresh Brother.
+  // already exists, REUSE it — the identity is shared, and the roster spot this
+  // person is about to get in this org is a separate row (step 8). Otherwise
+  // create a fresh identity.
+  //
+  // Before Phase 2 the reuse branch was a dead end for the roster: the person got
+  // access and a Membership, but the roster read scoped by Brother.organizationId,
+  // so they never appeared on it. Now the Membership created below IS the roster
+  // spot, which is what makes "one account, a roster place in several chapters"
+  // actually work.
   //
   // The name is parsed HERE, before the reuse branch — the join form asks every
-  // redeemer for one, and it's the name they want *in this org*. It used to be
-  // read only inside the create branch, so an existing member joining a second
-  // org had what they typed silently discarded. It now always lands on their
-  // Membership for this org (below), which is what makes per-org names work.
+  // redeemer for one, and it's the name they want *in this org*.
   const name = String(body.name ?? "").trim();
   if (!name) return Response.json({ error: "Name is required" }, { status: 400 });
+
+  // Guard against duplicating a roster row an officer already prepared.
+  //
+  // Officers can type someone onto the roster before that person ever signs in
+  // (a Brother with authUserId: null plus a Membership). If the redeemer already
+  // owns an account, they cannot be linked to that prepared row — Brother.authUserId
+  // is globally unique and /api/auth/claim turns them away at step 4 — so joining
+  // here would mint a SECOND roster spot and the chapter would show the same human
+  // twice: once with their dues and GPA, once with zeros.
+  //
+  // Refusing is the honest outcome until the merge flow exists. The officer can
+  // still let them in by deleting the prepared row first.
+  if (existing) {
+    const prepared = await db(orgId).member.search(name, { exact: true });
+    const unclaimed = prepared.find(m => m.authUserId === null);
+    if (unclaimed) {
+      return Response.json({
+        error: "Someone has already added you to this chapter's roster. Ask an officer to "
+             + "link that entry to your account, or to remove it so you can join fresh.",
+      }, { status: 409 });
+    }
+  }
 
   let brotherId: number;
   let reused: boolean;
@@ -192,14 +218,9 @@ export async function POST(req: NextRequest) {
   } else {
     const { avatarUrl } = parseAvatarFromMetadata(user.user_metadata);
     try {
-      const created = await db(orgId).brother.create({
+      const created = await db(orgId).identity.create({
         data: {
           name,
-          role:         "Brother",
-          attendance:   0,
-          duesOwed:     0,
-          gpa:          0,
-          serviceHours: 0,
           isAdmin:      false,
           isGhost:      false,
           authUserId:   user.id,
@@ -227,10 +248,12 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // ── 8. Membership — plain member, no admin ────────────────────────────────
-  // `name` lands here, not on the Brother row: it's this person's identity in
-  // THIS org, so a member reusing an existing account keeps whatever their other
-  // orgs call them.
+  // ── 8. The roster spot ────────────────────────────────────────────────────
+  // The Membership IS this person's place on this org's roster, so it is created
+  // with a full set of starting values — a fresh member owes nothing, has logged
+  // nothing, and carries no custom field values yet. `name` lands here rather
+  // than on the shared account row, so a member reusing an existing account keeps
+  // whatever their other chapters call them.
   //
   // `update: { name }` is now unreachable for an existing member — step 4
   // returns before this — so it only ever fires on a genuine race where the
@@ -239,7 +262,10 @@ export async function POST(req: NextRequest) {
   try {
     await prisma.membership.upsert({
       where:  { brotherId_organizationId: { brotherId, organizationId: orgId } },
-      create: { brotherId, organizationId: orgId, isOrgAdmin: false, name },
+      create: {
+        brotherId, organizationId: orgId, isOrgAdmin: false, name,
+        role: "Brother", attendance: 0, duesOwed: 0, gpa: 0, serviceHours: 0,
+      },
       update: { name },
     });
   } catch (e) {

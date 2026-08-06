@@ -20,10 +20,7 @@ export async function DELETE() {
   }
 
   try {
-    await ctx.db.brother.update({
-      where: { id: ctx.actorId },
-      data: { authUserId: null },
-    });
+    await ctx.db.identity.unlinkAuth(ctx.actorId);
 
     await emit(ctx, "brother.account_unlinked", { type: "Brother", id: ctx.actorId }, {
       name: ctx.actorName,
