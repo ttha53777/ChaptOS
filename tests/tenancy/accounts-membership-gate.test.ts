@@ -17,7 +17,7 @@
 
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { testPrisma, resetDb } from "../setup/prisma";
-import { createOrg, createBrother } from "../setup/factories";
+import { createOrg, createBrother, rosterOf, accountOf } from "../setup/factories";
 
 beforeEach(async () => {
   await resetDb();
@@ -61,10 +61,7 @@ describe("GET /api/auth/accounts membership gate", () => {
     const bro = await createBrother({ orgId: org.id, name: "Removed Member" });
     await testPrisma.membership.deleteMany({ where: { brotherId: bro.id } });
 
-    const refreshed = await testPrisma.brother.findUnique({
-      where: { id: bro.id },
-      select: { organizationId: true },
-    });
+    const refreshed = await accountOf(bro.id);
     // Home org is unchanged — this is exactly the stale-pointer condition.
     expect(refreshed?.organizationId).toBe(org.id);
 

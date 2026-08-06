@@ -47,7 +47,11 @@
  *
  * Usage:
  *   import { db } from "@/lib/db";
- *   const brothers = await db(orgId).brother.findMany({ where: { isGhost: false } });
+ *   const roster = await db(orgId).member.listRoster();
+ *
+ * Note there is no `brother` delegate. The roster lives on Membership (one row
+ * per person per org) and is reached through `.member`; `.identity` is the
+ * narrow surface for the shared per-account Brother row. See scopedMember.
  */
 
 import { Prisma } from "@/app/generated/prisma/client";
@@ -135,35 +139,363 @@ function notInOrg(): never {
 // Per-model scoped delegates
 // ---------------------------------------------------------------------------
 
-function scopedBrother(orgId: number, run: Run) {
-  type W = Prisma.BrotherWhereInput;
+// ---------------------------------------------------------------------------
+// The roster: ctx.db.member
+// ---------------------------------------------------------------------------
+
+/**
+ * One person's roster spot, flattened for reading.
+ *
+ * `id` is the **brotherId**, never Membership.id. Every child table
+ * (AttendanceRecord, DuesPayment, BrotherRole, PollVote, BrotherMetricValue, …)
+ * is keyed by brotherId, and so is every client-facing DTO in app/data.ts, so
+ * keeping brotherId as the roster identity is what let the roster move to
+ * Membership without touching a single foreign key. `membershipId` is exposed
+ * for the rare caller that needs the row itself.
+ *
+ * `name` is already resolved: this org's Membership.name, falling back to the
+ * account-level Brother.name when it is null.
+ */
+export interface RosterRow {
+  id:           number;
+  membershipId: number;
+  name:         string;
+  role:         string;
+  attendance:   number;
+  duesOwed:     number;
+  gpa:          number;
+  serviceHours: number;
+  customFields: Prisma.JsonValue;
+  archivedAt:   Date | null;
+  isOrgAdmin:   boolean;
+  avatarUrl:    string | null;
+  authUserId:   string | null;
+  isGhost:      boolean;
+  /** Only present when the caller asked for `fields: "contact"`. */
+  email?:       string | null;
+}
+
+export interface ListRosterOptions {
+  where?:         Prisma.MembershipWhereInput;
+  orderBy?:       Prisma.MembershipOrderByWithRelationInput;
+  /** Legacy `isGhost` accounts are excluded by default — see listGhostAccounts. */
+  includeGhosts?: boolean;
+  /**
+   * "contact" adds `email` to every row. Off by default on purpose: the roster
+   * read is fetched on every page for every user, and email is member PII that
+   * almost no caller needs. See lib/services/brother-service.ts.
+   */
+  fields?:        "roster" | "contact";
+}
+
+/**
+ * The roster delegate — org-scoped Membership, keyed by brotherId.
+ *
+ * This replaced `ctx.db.brother`, which scoped by Brother.organizationId (the
+ * legacy home org) and therefore returned null — a 404 — for anyone whose
+ * account was first created somewhere else. There is deliberately no `brother`
+ * delegate any more: every "is this person on my roster, and what are their
+ * numbers?" question goes through here, and the narrow identity surface below
+ * handles the few writes that genuinely span orgs.
+ */
+function scopedMember(orgId: number, run: Run) {
+  type W = Prisma.MembershipWhereInput;
   const org = (w?: W): W => ({ ...w, organizationId: orgId });
 
-  async function verify(where: Prisma.BrotherWhereUniqueInput): Promise<number> {
-    const row = await run(p => p.brother.findFirst({ where: org(where as W), select: { id: true } }));
-    if (!row) notInOrg();
-    return row.id;
+  /** Shared select for the flattened reads. */
+  const rosterSelect = (contact: boolean) => ({
+    id:           true,
+    brotherId:    true,
+    name:         true,
+    isOrgAdmin:   true,
+    role:         true,
+    attendance:   true,
+    duesOwed:     true,
+    gpa:          true,
+    serviceHours: true,
+    archivedAt:   true,
+    customFields: true,
+    brother: {
+      select: {
+        name:       true,
+        avatarUrl:  true,
+        authUserId: true,
+        isGhost:    true,
+        ...(contact ? { email: true } : {}),
+      },
+    },
+  }) satisfies Prisma.MembershipSelect;
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const flatten = (m: any, contact: boolean): RosterRow => ({
+    id:           m.brotherId,
+    membershipId: m.id,
+    name:         m.name ?? m.brother.name,
+    role:         m.role,
+    attendance:   m.attendance,
+    duesOwed:     m.duesOwed,
+    gpa:          m.gpa,
+    serviceHours: m.serviceHours,
+    customFields: m.customFields,
+    archivedAt:   m.archivedAt,
+    isOrgAdmin:   m.isOrgAdmin,
+    avatarUrl:    m.brother.avatarUrl,
+    authUserId:   m.brother.authUserId,
+    isGhost:      m.brother.isGhost,
+    ...(contact ? { email: m.brother.email } : {}),
+  });
+
+  const self = {
+    // ── Reads ───────────────────────────────────────────────────────────────
+
+    findMany: <T extends Prisma.MembershipFindManyArgs>(args?: Prisma.SelectSubset<T, Prisma.MembershipFindManyArgs>) =>
+      run(p => p.membership.findMany<T>({ ...(args as object), where: org((args as T | undefined)?.where) } as Prisma.SelectSubset<T, Prisma.MembershipFindManyArgs>)),
+    findFirst: <T extends Prisma.MembershipFindFirstArgs>(args?: Prisma.SelectSubset<T, Prisma.MembershipFindFirstArgs>) =>
+      run(p => p.membership.findFirst<T>({ ...(args as object), where: org((args as T | undefined)?.where) } as Prisma.SelectSubset<T, Prisma.MembershipFindFirstArgs>)),
+    count:     (args?: Prisma.MembershipCountArgs) => run(p => p.membership.count({ ...args, where: org(args?.where) })),
+    aggregate: (args: Omit<Prisma.MembershipAggregateArgs, "where"> & { where?: W }) =>
+      run(p => p.membership.aggregate({ ...args, where: org(args?.where) })),
+
+    /**
+     * This person's raw roster row in this org, or null if they have none.
+     *
+     * The tenancy check. Replaces the ~30 `brother.findUnique({ where: { id } })`
+     * calls that services used to make purely to prove "this id belongs to my
+     * org" — each of which silently 404'd multi-org members.
+     */
+    findByBrotherId: (brotherId: number) =>
+      run(p => p.membership.findFirst({ where: org({ brotherId }) })),
+
+    /** As findByBrotherId, but flattened and name-resolved. */
+    findRosterRow: async (brotherId: number, opts?: { fields?: "roster" | "contact" }): Promise<RosterRow | null> => {
+      const contact = opts?.fields === "contact";
+      const m = await run(p => p.membership.findFirst({ where: org({ brotherId }), select: rosterSelect(contact) }));
+      return m ? flatten(m, contact) : null;
+    },
+
+    /** The roster. Ghosts excluded by default; archived members included, as before. */
+    listRoster: async (opts?: ListRosterOptions): Promise<RosterRow[]> => {
+      const contact = opts?.fields === "contact";
+      const where = org({
+        ...opts?.where,
+        ...(opts?.includeGhosts ? {} : { brother: { is: { isGhost: false } } }),
+      });
+      const rows = await run(p => p.membership.findMany({
+        where,
+        orderBy: opts?.orderBy ?? { brotherId: "asc" },
+        select:  rosterSelect(contact),
+      }));
+      return rows.map(m => flatten(m, contact));
+    },
+
+    /**
+     * Just the brotherIds on this org's roster. For the many callers that only
+     * need the eligible set (attendance rolls, recalc loops, metric sweeps).
+     */
+    listIds: async (where?: W): Promise<number[]> => {
+      const rows = await run(p => p.membership.findMany({
+        where:  org({ brother: { is: { isGhost: false } }, ...where }),
+        select: { brotherId: true },
+      }));
+      return rows.map(r => r.brotherId);
+    },
+
+    /**
+     * A WHERE fragment matching a name in this org, across BOTH name columns.
+     *
+     * Membership.name is nullable with a fallback to Brother.name, so matching
+     * only one of them silently misses people. Every name lookup — the claim
+     * flow's roster match, the AI's fuzzy member resolution — must go through
+     * here or it will half-work.
+     */
+    nameFilter: (fragment: string, opts?: { exact?: boolean }): W => {
+      const match = opts?.exact
+        ? { equals:   fragment, mode: "insensitive" as const }
+        : { contains: fragment, mode: "insensitive" as const };
+      return {
+        OR: [
+          { name: match },
+          // Only fall through to the account name when this org set none, so a
+          // deliberate org-local rename can't be matched by the old name.
+          { name: null, brother: { is: { name: match } } },
+        ],
+      };
+    },
+
+    /** nameFilter + listRoster, the combination every name search wants. */
+    search: (fragment: string, opts?: { exact?: boolean; fields?: "roster" | "contact" }): Promise<RosterRow[]> =>
+      self.listRoster({ where: self.nameFilter(fragment, opts), fields: opts?.fields }),
+
+    // ── Writes ──────────────────────────────────────────────────────────────
+
+    /**
+     * Add a roster spot. organizationId is injected, never taken from the
+     * caller. The Brother row must already exist — see createBrother, which
+     * writes both inside one $transaction.
+     */
+    create: (args: { data: Omit<Prisma.MembershipUncheckedCreateInput, "organizationId"> }) =>
+      run(p => p.membership.create({ data: { ...args.data, organizationId: orgId } })),
+
+    /**
+     * Update this person's roster values in this org. Built on updateMany so the
+     * org filter is a WHERE rather than a pre-verified id, then raises the same
+     * P2025 every caller's error handling already maps to a 404 when the person
+     * is not on this roster.
+     */
+    updateByBrotherId: async (brotherId: number, data: Prisma.MembershipUpdateInput) => {
+      const { count } = await run(p => p.membership.updateMany({ where: org({ brotherId }), data }));
+      if (count === 0) notInOrg();
+      return run(p => p.membership.findFirst({ where: org({ brotherId }) }));
+    },
+
+    /** Batch form, for the recalc sweeps. Returns { count }; no P2025. */
+    updateManyByBrotherIds: (brotherIds: number[], data: Prisma.MembershipUpdateInput) =>
+      run(p => p.membership.updateMany({ where: org({ brotherId: { in: brotherIds } }), data })),
+
+    /**
+     * Conditional dues write: applies `data` only if `guard` still holds.
+     *
+     * The compare-and-set the ledger paths use to keep a balance from going
+     * negative under concurrent payments. Exists as a named method because the
+     * hand-written form is one dropped `organizationId` away from decrementing
+     * the same person's balance in EVERY org they belong to — see the header on
+     * onTx below.
+     */
+    compareAndSetDues: (brotherId: number, args: { guard?: W; data: Prisma.MembershipUpdateInput }) =>
+      run(p => p.membership.updateMany({ where: org({ brotherId, ...args.guard }), data: args.data })),
+
+    /** Remove this person's roster spot. Does NOT touch the Brother row. */
+    deleteByBrotherId: async (brotherId: number) => {
+      const { count } = await run(p => p.membership.deleteMany({ where: org({ brotherId }) }));
+      if (count === 0) notInOrg();
+      return count;
+    },
+
+    /**
+     * Set this brother's display name *in this org*.
+     *
+     * Kept as an updateMany returning { count } for signature compatibility with
+     * its existing call sites, though after Phase 2 every roster row has a
+     * Membership, so count is 0 only when the person genuinely is not a member.
+     */
+    setName: (brotherId: number, name: string | null) =>
+      run(p => p.membership.updateMany({ where: org({ brotherId }), data: { name } })),
+
+    /**
+     * Batch-resolve display names for the active org: each brother's
+     * Membership.name here if set, else the account-level Brother.name passed
+     * in as `name`. Companion to setName — same fallback rule, but for the many
+     * read paths (attendance, excuses, roles, tasks, polls, ...) that join a
+     * Brother and show their name without going through the roster read.
+     * One query regardless of list size; a caller passing zero brothers (e.g.
+     * an empty attendance bucket) skips the round trip entirely.
+     */
+    resolveNames: async (brothers: { id: number; name: string }[]): Promise<Map<number, string>> => {
+      if (brothers.length === 0) return new Map();
+      const overrides = await run(p => p.membership.findMany({
+        where:  org({ brotherId: { in: brothers.map(b => b.id) }, name: { not: null } }),
+        select: { brotherId: true, name: true },
+      }));
+      const overrideByBrotherId = new Map(overrides.map(m => [m.brotherId, m.name as string]));
+      return new Map(brothers.map(b => [b.id, overrideByBrotherId.get(b.id) ?? b.name]));
+    },
+
+    /**
+     * The same delegate, bound to a raw transaction client.
+     *
+     * Load-bearing, not a convenience. Roster writes inside `$transaction` used
+     * to be hand-written against the raw client with a manual
+     * `organizationId: ctx.orgId` in the WHERE. On the old Brother-backed model
+     * forgetting it was survivable — a brother had exactly one row. On
+     * Membership it is a money bug: `updateMany({ where: { brotherId } })`
+     * without the org filter decrements that person's dues in EVERY chapter
+     * they belong to. Going through the delegate makes the filter impossible to
+     * omit.
+     */
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    onTx: (tx: any) => scopedMember(orgId, fn => fn(tx as P)),
+  };
+
+  return self;
+}
+
+// ---------------------------------------------------------------------------
+// The account: ctx.db.identity
+// ---------------------------------------------------------------------------
+
+/**
+ * The narrow Brother surface — identity, not roster.
+ *
+ * Brother is now one row per human, SHARED across every org they belong to, so
+ * every write here crosses org boundaries by definition. That is legitimate for
+ * exactly four things (an email backfill, an avatar refresh, unlinking an auth
+ * account, the platform-admin flag) and illegitimate for everything else, so
+ * this delegate exposes those four by name and offers no generic `update()`.
+ * If you find yourself wanting one, the field you are reaching for almost
+ * certainly belongs on Membership.
+ *
+ * Reads are membership-gated: you may only look up someone who is on your
+ * roster. Writes then apply globally — which is the point, and why each is
+ * named after what it does rather than hidden behind a data bag.
+ */
+function scopedIdentity(orgId: number, run: Run) {
+  /** Proves the caller's org contains this person before touching the shared row. */
+  async function requireMember(brotherId: number): Promise<number> {
+    const m = await run(p => p.membership.findFirst({
+      where:  { brotherId, organizationId: orgId },
+      select: { brotherId: true },
+    }));
+    if (!m) notInOrg();
+    return m.brotherId;
   }
 
   return {
-    findMany:   (args?: Prisma.BrotherFindManyArgs)  => run(p => p.brother.findMany({ ...args, where: org(args?.where) })),
-    findFirst:  (args?: Prisma.BrotherFindFirstArgs) => run(p => p.brother.findFirst({ ...args, where: org(args?.where) })),
-    findUnique: (args: Prisma.BrotherFindUniqueArgs) => run(p => p.brother.findFirst({ ...args, where: org(args.where as W) })),
-    create:     (args: Omit<Prisma.BrotherCreateArgs, "data"> & { data: Omit<Prisma.BrotherUncheckedCreateInput, "organizationId"> }) =>
-      run(p => p.brother.create({ ...args, data: { ...args.data, organizationId: orgId } })),
-    update:     async (args: Prisma.BrotherUpdateArgs) => {
-      const id = await verify(args.where);
-      return run(p => p.brother.update({ ...args, where: { id } }));
+    /** The shared identity row for someone on this roster, or null. */
+    findByBrotherId: async (brotherId: number) => {
+      const m = await run(p => p.membership.findFirst({
+        where:  { brotherId, organizationId: orgId },
+        select: { brother: true },
+      }));
+      return m?.brother ?? null;
     },
-    updateMany: (args: Omit<Prisma.BrotherUpdateManyArgs, "where"> & { where?: W }) =>
-      run(p => p.brother.updateMany({ ...args, where: org(args.where) })),
-    delete:     async (args: Prisma.BrotherDeleteArgs) => {
-      const id = await verify(args.where);
+
+    /** Create the identity row. Call inside createBrother's transaction. */
+    create: (args: { data: Omit<Prisma.BrotherUncheckedCreateInput, "organizationId"> }) =>
+      run(p => p.brother.create({ data: { ...args.data, organizationId: orgId } })),
+
+    setEmail: async (brotherId: number, email: string | null) => {
+      const id = await requireMember(brotherId);
+      return run(p => p.brother.update({ where: { id }, data: { email } }));
+    },
+
+    setAvatarUrl: async (brotherId: number, avatarUrl: string | null) => {
+      const id = await requireMember(brotherId);
+      return run(p => p.brother.update({ where: { id }, data: { avatarUrl } }));
+    },
+
+    /** Severs the Google account link, leaving the roster row claimable again. */
+    unlinkAuth: async (brotherId: number) => {
+      const id = await requireMember(brotherId);
+      return run(p => p.brother.update({ where: { id }, data: { authUserId: null } }));
+    },
+
+    setPlatformAdminFlag: async (brotherId: number, isAdmin: boolean) => {
+      const id = await requireMember(brotherId);
+      return run(p => p.brother.update({ where: { id }, data: { isAdmin } }));
+    },
+
+    /**
+     * Hard-delete the identity row, cascading every child record.
+     *
+     * Only correct when this org is the person's LAST — the FK cascades from
+     * 20260801000000_member_erasure_fks reach across orgs, so calling this on a
+     * multi-org member erases their history everywhere. deleteBrother checks
+     * that and calls member.deleteByBrotherId instead when they belong elsewhere.
+     */
+    deleteAccount: async (brotherId: number) => {
+      const id = await requireMember(brotherId);
       return run(p => p.brother.delete({ where: { id } }));
     },
-    count:      (args?: Prisma.BrotherCountArgs)     => run(p => p.brother.count({ ...args, where: org(args?.where) })),
-    aggregate:  (args: Omit<Prisma.BrotherAggregateArgs, "where"> & { where?: W }) =>
-      run(p => p.brother.aggregate({ ...args, where: org(args?.where) })),
   };
 }
 
@@ -1248,10 +1580,14 @@ function scopedAttendanceRecord(orgId: number, run: Run) {
 
 function scopedAttendanceExcuse(orgId: number, run: Run) {
   type W = Prisma.AttendanceExcuseWhereInput;
-  // Scope through the Brother parent (org-bound) — the same relation excuse-service
-  // already used to close this IDOR by hand. Equivalent to calendarEvent scoping
-  // since an excuse's brother and event are always in the same org.
-  const org = (w?: W): W => ({ ...w, brother: { is: { organizationId: orgId } } });
+  // Scope through the CalendarEvent parent, exactly like scopedAttendanceRecord
+  // above. This used to scope through Brother instead, on the reasoning that an
+  // excuse's brother and event are always in the same org — true only while a
+  // person belonged to one org. Phase 2 broke it: a member whose account
+  // originated in org A can now legitimately file an excuse for an org B event,
+  // and the Brother filter would drop it from org B's reads — computing their
+  // attendance denominator without their excuses and reporting them too low.
+  const org = (w?: W): W => ({ ...w, calendarEvent: { is: { organizationId: orgId } } });
   return {
     findMany: <T extends Prisma.AttendanceExcuseFindManyArgs>(args?: Prisma.SelectSubset<T, Prisma.AttendanceExcuseFindManyArgs>) =>
       run(p => p.attendanceExcuse.findMany<T>({ ...(args as object), where: org((args as T | undefined)?.where) } as Prisma.SelectSubset<T, Prisma.AttendanceExcuseFindManyArgs>)),
@@ -1297,53 +1633,6 @@ function scopedInviteRedemption(orgId: number, run: Run) {
   };
 }
 
-function scopedMembership(orgId: number, run: Run) {
-  type W = Prisma.MembershipWhereInput;
-  // Membership HAS an organizationId column, so it's scoped directly like the
-  // first-class delegates. Reads are limited to this org's memberships; the
-  // last-admin guard (membership-service) and any roster-by-membership read are
-  // now org-safe by default instead of relying on a manual organizationId filter.
-  const org = (w?: W): W => ({ ...w, organizationId: orgId });
-  return {
-    findMany: <T extends Prisma.MembershipFindManyArgs>(args?: Prisma.SelectSubset<T, Prisma.MembershipFindManyArgs>) =>
-      run(p => p.membership.findMany<T>({ ...(args as object), where: org((args as T | undefined)?.where) } as Prisma.SelectSubset<T, Prisma.MembershipFindManyArgs>)),
-    findFirst: <T extends Prisma.MembershipFindFirstArgs>(args?: Prisma.SelectSubset<T, Prisma.MembershipFindFirstArgs>) =>
-      run(p => p.membership.findFirst<T>({ ...(args as object), where: org((args as T | undefined)?.where) } as Prisma.SelectSubset<T, Prisma.MembershipFindFirstArgs>)),
-    count: (args?: Prisma.MembershipCountArgs) => run(p => p.membership.count({ ...args, where: org(args?.where) })),
-    /**
-     * Set this brother's display name *in this org*. Deliberately built on
-     * updateMany, not update: a Brother with no Membership in this org (a
-     * roster-only member added by an admin, who has no auth account) must be a
-     * no-op returning { count: 0 } rather than a P2025 throw. Callers use that
-     * count to decide whether to fall back to writing Brother.name — see
-     * updateBrother in lib/services/brother-service.ts.
-     *
-     * organizationId is injected by org(), never taken from the caller, so this
-     * can only ever touch the active org's membership row.
-     */
-    setName: (brotherId: number, name: string | null) =>
-      run(p => p.membership.updateMany({ where: org({ brotherId }), data: { name } })),
-    /**
-     * Batch-resolve display names for the active org: each brother's
-     * Membership.name here if set, else the account-level Brother.name passed
-     * in as `name`. Companion to setName — same fallback rule, but for the many
-     * read paths (attendance, excuses, roles, tasks, polls, ...) that join a
-     * Brother and show their name without going through listVisibleBrothers.
-     * One query regardless of list size; a caller passing zero brothers (e.g.
-     * an empty attendance bucket) skips the round trip entirely.
-     */
-    resolveNames: async (brothers: { id: number; name: string }[]): Promise<Map<number, string>> => {
-      if (brothers.length === 0) return new Map();
-      const overrides = await run(p => p.membership.findMany({
-        where:  org({ brotherId: { in: brothers.map(b => b.id) }, name: { not: null } }),
-        select: { brotherId: true, name: true },
-      }));
-      const overrideByBrotherId = new Map(overrides.map(m => [m.brotherId, m.name as string]));
-      return new Map(brothers.map(b => [b.id, overrideByBrotherId.get(b.id) ?? b.name]));
-    },
-  };
-}
-
 function scopedOrganization(orgId: number, run: Run) {
   // Organization is the tenant ROOT, not an org-scoped child: there is no
   // organizationId column — the row IS the org. "Scoping" means the only row a
@@ -1386,7 +1675,12 @@ export function db(orgId: number) {
     // without threading a separate orgId param alongside the scoped accessor.
     orgId,
 
-    brother:             scopedBrother(orgId, run),
+    // The roster (Membership-backed, keyed by brotherId) and the shared
+    // identity row. There is deliberately no `brother` delegate: scoping a
+    // roster read by Brother.organizationId is what made a multi-org member
+    // invisible outside their first org.
+    member:              scopedMember(orgId, run),
+    identity:            scopedIdentity(orgId, run),
     role:                scopedRole(orgId, run),
     semester:            scopedSemester(orgId, run),
     calendarEvent:       scopedCalendarEvent(orgId, run),
@@ -1423,15 +1717,14 @@ export function db(orgId: number) {
     calendarEventType:    scopedCalendarEventType(orgId, run),
 
     // Org-column-less join tables: scoped via a required relation to an org-bound
-    // parent (CalendarEvent / Brother / Budget / OrgInvite). Membership and the
-    // Organization root are scoped directly. These were raw pass-throughs before
-    // the F2 hardening — a bare id/brotherId WHERE used to return cross-org rows.
+    // parent (CalendarEvent / Budget / OrgInvite); the Organization root is
+    // scoped directly. These were raw pass-throughs before the F2 hardening — a
+    // bare id/brotherId WHERE used to return cross-org rows.
     attendanceRecord:    scopedAttendanceRecord(orgId, run),
     attendanceExcuse:    scopedAttendanceExcuse(orgId, run),
     attendanceExemption: scopedAttendanceExemption(orgId, run),
     budgetAllocation:    scopedBudgetAllocation(orgId, run),
     inviteRedemption:    scopedInviteRedemption(orgId, run),
-    membership:          scopedMembership(orgId, run),
     organization:        scopedOrganization(orgId, run),
 
     // PlatformAdmin is intentionally GLOBAL (not org-scoped): it records
@@ -1488,7 +1781,12 @@ export function _dbWithClient(orgId: number, client: P) {
   const run = _makeRunForTest(orgId, client);
   return {
     orgId,
-    brother:             scopedBrother(orgId, run),
+    // The roster (Membership-backed, keyed by brotherId) and the shared
+    // identity row. There is deliberately no `brother` delegate: scoping a
+    // roster read by Brother.organizationId is what made a multi-org member
+    // invisible outside their first org.
+    member:              scopedMember(orgId, run),
+    identity:            scopedIdentity(orgId, run),
     role:                scopedRole(orgId, run),
     semester:            scopedSemester(orgId, run),
     calendarEvent:       scopedCalendarEvent(orgId, run),
@@ -1527,7 +1825,6 @@ export function _dbWithClient(orgId: number, client: P) {
     attendanceExemption: scopedAttendanceExemption(orgId, run),
     budgetAllocation:    scopedBudgetAllocation(orgId, run),
     inviteRedemption:    scopedInviteRedemption(orgId, run),
-    membership:          scopedMembership(orgId, run),
     organization:        scopedOrganization(orgId, run),
     platformAdmin:       (client as typeof prisma).platformAdmin,
   };

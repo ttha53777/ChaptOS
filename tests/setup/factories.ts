@@ -29,40 +29,77 @@ export async function createOrg(name: string, slug: string) {
   return org;
 }
 
+/**
+ * A person plus their roster spot in one org.
+ *
+ * Two rows, because that is what a member is: a Brother (the shared identity —
+ * one per human, whatever orgs they belong to) and a Membership (the roster row
+ * — one per human per org, carrying everything that org assesses about them).
+ * Use joinOrg below to give the same person a roster spot in a second org.
+ */
 export async function createBrother(opts: {
   orgId: number;
   name?: string;
   /** Per-org display name (Membership.name). Omit to fall back to Brother.name. */
   membershipName?: string;
+  /** The legacy PLATFORM superuser flag on the shared account row. */
   isAdmin?: boolean;
   isOrgAdmin?: boolean;
+  role?: string;
+  gpa?: number;
+  attendance?: number;
   serviceHours?: number;
   /** Opening dues balance. Seeded raw — the service layer no longer lets you set this. */
   duesOwed?: number;
   isGhost?: boolean;
+  archivedAt?: Date | null;
 }) {
   const brother = await testPrisma.brother.create({
     data: {
       organizationId: opts.orgId,
       name:           opts.name ?? `Tester ${Math.random().toString(36).slice(2, 7)}`,
-      role:           "Brother",
-      attendance:     0,
-      duesOwed:       opts.duesOwed ?? 0,
-      gpa:            0,
-      serviceHours:   opts.serviceHours ?? 0,
       isAdmin:        opts.isAdmin ?? false,
       isGhost:        opts.isGhost ?? false,
     },
   });
-  await testPrisma.membership.create({
+  await joinOrg({ brotherId: brother.id, ...opts });
+  return brother;
+}
+
+/**
+ * Give an EXISTING person a roster spot in another org — the multi-org case.
+ *
+ * The identity row is untouched and shared; everything passed here lands on the
+ * new Membership, so the same brotherId can carry entirely different numbers in
+ * each org. This is the factory most Phase 2 tests are actually about.
+ */
+export async function joinOrg(opts: {
+  brotherId: number;
+  orgId: number;
+  membershipName?: string;
+  isAdmin?: boolean;
+  isOrgAdmin?: boolean;
+  role?: string;
+  gpa?: number;
+  attendance?: number;
+  serviceHours?: number;
+  duesOwed?: number;
+  archivedAt?: Date | null;
+}) {
+  return testPrisma.membership.create({
     data: {
-      brotherId:      brother.id,
+      brotherId:      opts.brotherId,
       organizationId: opts.orgId,
       isOrgAdmin:     opts.isOrgAdmin ?? opts.isAdmin ?? false,
       name:           opts.membershipName ?? null,
+      role:           opts.role ?? "Brother",
+      attendance:     opts.attendance ?? 0,
+      duesOwed:       opts.duesOwed ?? 0,
+      gpa:            opts.gpa ?? 0,
+      serviceHours:   opts.serviceHours ?? 0,
+      archivedAt:     opts.archivedAt ?? null,
     },
   });
-  return brother;
 }
 
 export async function createSemester(opts: {
@@ -291,4 +328,46 @@ export async function createAnnouncement(opts: {
       body:           "Test body",
     },
   });
+}
+
+/**
+ * A member's roster row — the Membership carrying their numbers in one org.
+ *
+ * Most assertions want this rather than the Brother row: after Phase 2, `Brother`
+ * holds only identity (name, email, avatar, authUserId) and every value a test
+ * asserts on — dues, attendance, GPA, service hours, role, archived — lives here,
+ * once per org.
+ *
+ * `orgId` is optional because most fixtures give a person exactly one org. Pass
+ * it in multi-org tests, where the whole point is that the same brotherId has a
+ * different row in each.
+ */
+export async function rosterOf(brotherId: number, orgId?: number) {
+  return testPrisma.membership.findFirst({
+    where: { brotherId, ...(orgId === undefined ? {} : { organizationId: orgId }) },
+  });
+}
+
+/** Write roster values straight onto a member's row, bypassing the services. */
+export async function setRoster(
+  brotherId: number,
+  data: Record<string, unknown>,
+  orgId?: number,
+) {
+  return testPrisma.membership.updateMany({
+    where: { brotherId, ...(orgId === undefined ? {} : { organizationId: orgId }) },
+    data,
+  });
+}
+
+/**
+ * A person's shared identity row — name, email, avatar, authUserId, origin org.
+ *
+ * Use this only when the assertion is genuinely about the ACCOUNT: that it
+ * survived, that another org's rename left it alone, that the origin-org pointer
+ * is stale. Anything an org assesses (dues, GPA, attendance, role, archived)
+ * lives on the roster row — use rosterOf.
+ */
+export async function accountOf(brotherId: number) {
+  return testPrisma.brother.findUnique({ where: { id: brotherId } });
 }

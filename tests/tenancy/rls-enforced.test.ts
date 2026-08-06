@@ -179,12 +179,12 @@ describe("Phase 2: db() wrapper with SET LOCAL (RLS_SET_ORG_ID=1 path)", () => {
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const dbA = _dbWithClient(a.id, appPrisma as any);
-    const fromA = await dbA.brother.findMany();
+    const fromA = await dbA.member.listRoster();
     expect(fromA.map((r: { name: string }) => r.name).sort()).toEqual(["A1", "A2"]);
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const dbB = _dbWithClient(b.id, appPrisma as any);
-    const fromB = await dbB.brother.findMany();
+    const fromB = await dbB.member.listRoster();
     expect(fromB.map((r: { name: string }) => r.name)).toEqual(["B1"]);
   });
 
@@ -196,9 +196,9 @@ describe("Phase 2: db() wrapper with SET LOCAL (RLS_SET_ORG_ID=1 path)", () => {
     await createBrother({ orgId: b.id });
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    expect(await _dbWithClient(a.id, appPrisma as any).brother.count()).toBe(2);
+    expect(await _dbWithClient(a.id, appPrisma as any).member.count()).toBe(2);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    expect(await _dbWithClient(b.id, appPrisma as any).brother.count()).toBe(1);
+    expect(await _dbWithClient(b.id, appPrisma as any).member.count()).toBe(1);
   });
 
   it("db() cross-org read returns zero rows when app.org_id is not set", async () => {

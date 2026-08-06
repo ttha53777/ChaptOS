@@ -37,18 +37,18 @@ afterAll(async () => {
 });
 
 // ---------------------------------------------------------------------------
-// Brother
+// The roster (ctx.db.member — Membership-backed, keyed by brotherId)
 // ---------------------------------------------------------------------------
-describe("tenancy: Brother", () => {
-  it("findMany only returns the active org's rows", async () => {
+describe("tenancy: roster (ctx.db.member)", () => {
+  it("listRoster only returns the active org's members", async () => {
     const orgA = await createOrg("Alpha", "alpha");
     const orgB = await createOrg("Beta", "beta");
     await createBrother({ orgId: orgA.id, name: "A1" });
     await createBrother({ orgId: orgA.id, name: "A2" });
     await createBrother({ orgId: orgB.id, name: "B1" });
 
-    const fromA = await db(orgA.id).brother.findMany();
-    const fromB = await db(orgB.id).brother.findMany();
+    const fromA = await db(orgA.id).member.listRoster();
+    const fromB = await db(orgB.id).member.listRoster();
 
     expect(fromA.map(b => b.name).sort()).toEqual(["A1", "A2"]);
     expect(fromB.map(b => b.name)).toEqual(["B1"]);
@@ -56,10 +56,12 @@ describe("tenancy: Brother", () => {
 
   it("create injects organizationId automatically", async () => {
     const orgA = await createOrg("Alpha", "alpha");
-    const created = await db(orgA.id).brother.create({
-      data: { name: "Injected", role: "Brother", attendance: 0, duesOwed: 0, gpa: 0, serviceHours: 0 },
+    const person = await createBrother({ orgId: orgA.id, name: "Injected" });
+    const orgB = await createOrg("Beta", "beta");
+    const created = await db(orgB.id).member.create({
+      data: { brotherId: person.id, name: "Injected", role: "Brother" },
     });
-    expect(created.organizationId).toBe(orgA.id);
+    expect(created.organizationId).toBe(orgB.id);
   });
 
   it("count is org-scoped", async () => {
@@ -68,26 +70,26 @@ describe("tenancy: Brother", () => {
     await createBrother({ orgId: orgA.id });
     await createBrother({ orgId: orgB.id });
     await createBrother({ orgId: orgB.id });
-    expect(await db(orgA.id).brother.count()).toBe(1);
-    expect(await db(orgB.id).brother.count()).toBe(2);
+    expect(await db(orgA.id).member.count()).toBe(1);
+    expect(await db(orgB.id).member.count()).toBe(2);
   });
 
-  it("findFirst with cross-org id returns null", async () => {
+  it("findByBrotherId with a cross-org id returns null", async () => {
     const orgA = await createOrg("Alpha", "alpha");
     const orgB = await createOrg("Beta", "beta");
     const b = await createBrother({ orgId: orgB.id, name: "Across-org" });
-    const leak = await db(orgA.id).brother.findFirst({ where: { id: b.id } });
+    const leak = await db(orgA.id).member.findByBrotherId(b.id);
     expect(leak).toBeNull();
   });
 
-  it("updateMany only updates rows in the active org", async () => {
+  it("updateManyByBrotherIds only updates rows in the active org", async () => {
     const orgA = await createOrg("Alpha", "alpha");
     const orgB = await createOrg("Beta", "beta");
-    await createBrother({ orgId: orgA.id });
-    await createBrother({ orgId: orgB.id });
-    await db(orgA.id).brother.updateMany({ where: {}, data: { duesOwed: 99 } });
-    const bBrothers = await db(orgB.id).brother.findMany();
-    expect(bBrothers.every(b => b.duesOwed === 0)).toBe(true);
+    const a = await createBrother({ orgId: orgA.id });
+    const b = await createBrother({ orgId: orgB.id });
+    await db(orgA.id).member.updateManyByBrotherIds([a.id, b.id], { duesOwed: 99 });
+    const bRoster = await db(orgB.id).member.listRoster();
+    expect(bRoster.every(m => m.duesOwed === 0)).toBe(true);
   });
 });
 
@@ -716,15 +718,15 @@ describe("tenancy: Membership", () => {
     expect(m?.isOrgAdmin).toBe(true);
   });
 
-  it("ctx.db.membership.count and findMany are org-scoped", async () => {
+  it("ctx.db.member.count and findMany are org-scoped", async () => {
     const orgA = await createOrg("Alpha", "alpha");
     const orgB = await createOrg("Beta", "beta");
     await createBrother({ orgId: orgA.id });
     await createBrother({ orgId: orgB.id });
     await createBrother({ orgId: orgB.id });
-    expect(await db(orgA.id).membership.count()).toBe(1);
-    expect(await db(orgB.id).membership.count()).toBe(2);
-    const fromA = await db(orgA.id).membership.findMany();
+    expect(await db(orgA.id).member.count()).toBe(1);
+    expect(await db(orgB.id).member.count()).toBe(2);
+    const fromA = await db(orgA.id).member.findMany();
     expect(fromA.every(m => m.organizationId === orgA.id)).toBe(true);
   });
 });
@@ -838,7 +840,7 @@ describe("tenancy: aggregations", () => {
     await createBrother({ orgId: orgA.id, serviceHours: 15 });
     await createBrother({ orgId: orgB.id, serviceHours: 999 });
 
-    const agg = await db(orgA.id).brother.aggregate({ _avg: { serviceHours: true } });
+    const agg = await db(orgA.id).member.aggregate({ _avg: { serviceHours: true } });
     expect(agg._avg?.serviceHours).toBe(10); // (5+15)/2, B excluded
   });
 });

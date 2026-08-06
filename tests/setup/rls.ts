@@ -53,7 +53,10 @@ const ORG_COLUMN_TABLES = [
 // Mirrors the relation scoping in lib/db/tenant.ts's join-table wrappers.
 const RELATION_SCOPED: { table: string; parent: string; fk: string }[] = [
   { table: "AttendanceRecord",        parent: "CalendarEvent", fk: "calendarEventId" },
-  { table: "AttendanceExcuse",        parent: "Brother",       fk: "brotherId" },
+  // Through CalendarEvent, not Brother. Brother carries only an ORIGIN org now,
+  // so scoping an excuse by it would hide the excuses a multi-org member files
+  // in any org but their first — and reject the inserts outright.
+  { table: "AttendanceExcuse",        parent: "CalendarEvent", fk: "calendarEventId" },
   { table: "BudgetAllocation",        parent: "Budget",        fk: "budgetId" },
   { table: "InviteRedemption",        parent: "OrgInvite",     fk: "inviteId" },
   { table: "TransactionCalendarEvent", parent: "Transaction",  fk: "transactionId" },

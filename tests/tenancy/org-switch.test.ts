@@ -11,7 +11,7 @@
 
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { testPrisma, resetDb } from "../setup/prisma";
-import { createOrg, createBrother, createSemester } from "../setup/factories";
+import { createOrg, createBrother, createSemester, rosterOf, setRoster } from "../setup/factories";
 import { getActiveSemester, recalcAllBrothersInSemester } from "@/lib/attendance";
 import { db } from "@/lib/db";
 
@@ -68,21 +68,15 @@ describe("recalcAllBrothersInSemester: org-scoped", () => {
 
     // Set a known attendance value on the Beta brother; recalc for Alpha
     // should leave it completely unchanged.
-    await testPrisma.brother.update({ where: { id: bB.id }, data: { attendance: 42 } });
+    await setRoster(bB.id, { attendance: 42 });
 
     await recalcAllBrothersInSemester(db(orgA.id), semA.id);
 
-    const refreshedB = await testPrisma.brother.findUnique({
-      where: { id: bB.id },
-      select: { attendance: true },
-    });
+    const refreshedB = await rosterOf(bB.id);
     expect(refreshedB?.attendance).toBe(42);
 
     // Alpha member should have been recalculated (to 0 — no records exist)
-    const refreshedA = await testPrisma.brother.findUnique({
-      where: { id: bA.id },
-      select: { attendance: true },
-    });
+    const refreshedA = await rosterOf(bA.id);
     expect(refreshedA?.attendance).toBe(0);
   });
 
@@ -91,26 +85,14 @@ describe("recalcAllBrothersInSemester: org-scoped", () => {
     const sem    = await createSemester({ orgId: org.id, label: "SPR26" });
 
     // Create a ghost brother — should be excluded from recalc
-    const ghost = await testPrisma.brother.create({
-      data: {
-        organizationId: org.id,
-        name: "Ghost",
-        role: "Brother",
-        attendance: 77,
-        duesOwed: 0,
-        gpa: 0,
-        serviceHours: 0,
-        isGhost: true,
-      },
+    const ghost = await createBrother({
+      orgId: org.id, name: "Ghost", attendance: 77, isGhost: true,
     });
 
     await recalcAllBrothersInSemester(db(org.id), sem.id);
 
     // Ghost attendance must not be touched by recalc
-    const refreshed = await testPrisma.brother.findUnique({
-      where: { id: ghost.id },
-      select: { attendance: true },
-    });
+    const refreshed = await rosterOf(ghost.id);
     expect(refreshed?.attendance).toBe(77);
   });
 });
@@ -146,7 +128,7 @@ describe("org switching: Membership-based active org resolution", () => {
     await createBrother({ orgId: orgB.id, name: "Beta-only" });
 
     // Querying orgB through orgA context returns nothing
-    const fromOrgA = await db(orgA.id).brother.findMany();
+    const fromOrgA = await db(orgA.id).member.listRoster();
     const names    = fromOrgA.map(b => b.name);
     expect(names).not.toContain("Beta-only");
   });
