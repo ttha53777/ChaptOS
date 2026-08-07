@@ -1,0 +1,1060 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ChaptOS — Dashboard Concept</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;1,9..144,400;1,9..144,500&family=Geist:wght@400;500;550;600&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ─────────────────────────────────────────────────────────────────────────────
+   ChaptOS — Dashboard Concept (dusk)
+
+   A landing dashboard that answers two questions in three seconds:
+   what needs me right now, and how are we doing. Everything else is one click.
+
+   Not an iteration of any existing mock. One column, no card grid, no rails.
+   Tokens copied verbatim from app/components/dashboard/dashboard-ledger.css.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+:root {
+  --serif: "Fraunces", Georgia, serif;
+  --sans:  "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --mono:  "Geist Mono", ui-monospace, Menlo, monospace;
+
+  --paper:    #0f0d0a;
+  --paper-2:  #14120e;
+  --card:     #161310;
+  --card-2:   #1b1813;
+  --ink:      #ece7dd;
+  --ink-soft: #c9c2b4;
+  --muted:    #958d7c;
+  --faint:    #6b6354;
+  --line:     rgba(236,231,221,.09);
+  --line-soft:rgba(236,231,221,.05);
+  --vio:      #a78bfa;
+  --vio-deep: #7c3aed;
+  --vio-bg:   rgba(167,139,250,.10);
+  --gold:     #ddb36a;
+  --gold-bg:  rgba(221,179,106,.10);
+  --rose:     #d98ba3;
+  --rose-bg:  rgba(217,139,163,.10);
+  --ok:       #7fb08a;
+  --ok-bg:    rgba(127,176,138,.10);
+  --shadow:   0 1px 0 rgba(0,0,0,.4), 0 16px 40px -24px rgba(0,0,0,.7);
+
+  /* Narrower than the shipped 1230px ledger. Narrow reads calm. */
+  --measure: 860px;
+  --gutter:  clamp(20px, 5vw, 40px);
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 13.5px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+button { font: inherit; color: inherit; background: none; border: none; cursor: pointer; }
+[hidden] { display: none !important; }
+
+.page {
+  max-width: var(--measure);
+  margin: 0 auto;
+  padding: clamp(34px, 6vw, 62px) var(--gutter) 90px;
+}
+
+/* Sections are separated by air and hairlines — not by card chrome. */
+.band { padding-top: 30px; margin-top: 30px; border-top: 1px solid var(--line); }
+
+.band-label {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: var(--faint);
+  margin: 0 0 16px;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+.band-label .count {
+  color: var(--muted);
+  letter-spacing: .06em;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── 1. Masthead ──────────────────────────────────────────────────────────── */
+
+.kicker {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: var(--faint);
+  margin: 0 0 18px;
+}
+.kicker .today { color: var(--muted); }
+
+.greeting {
+  font-family: var(--serif);
+  font-weight: 400;
+  font-size: clamp(24px, 3.4vw, 31px);
+  letter-spacing: -.01em;
+  line-height: 1.15;
+  margin: 0 0 14px;
+  color: var(--ink);
+}
+.greeting em { font-style: italic; font-weight: 500; }
+
+/* The Sentence: sits where the AI digest sits today, upgraded into the
+   page's primary navigation. It is also the org-health answer, in language. */
+.sentence {
+  font-family: var(--serif);
+  font-weight: 400;
+  font-size: clamp(21px, 2.9vw, 26px);
+  line-height: 1.42;
+  letter-spacing: -.005em;
+  color: var(--ink-soft);
+  margin: 0;
+  max-width: 21em;
+  text-wrap: pretty;
+}
+.sentence .state { font-style: italic; font-weight: 500; }
+.sentence .state.ok      { color: var(--ok); }
+.sentence .state.watch   { color: var(--gold); }
+.sentence .state.risk    { color: var(--rose); }
+
+/* display:inline (not the button default inline-block) so a phrase flows as
+   real running text — wraps mid-clause and adds no stray side gaps. */
+.phrase {
+  display: inline;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  line-height: inherit;
+  color: var(--ink);
+  border-bottom: 1px solid var(--line);
+  cursor: pointer;
+  transition: border-color .14s ease, color .14s ease;
+}
+.phrase:hover { border-bottom-color: var(--vio); color: #fff; }
+.phrase[aria-expanded="true"] { border-bottom-color: var(--vio); color: var(--vio); }
+
+.hint {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--faint);
+  margin: 16px 0 0;
+  transition: opacity .3s ease;
+}
+.hint.gone { opacity: 0; pointer-events: none; }
+
+/* Inline unfold — the sentence never moves, the detail opens beneath it. */
+.unfold {
+  margin-top: 18px;
+  border: 1px solid var(--line);
+  background: var(--card);
+  border-radius: 12px;
+  padding: 16px 18px;
+  box-shadow: var(--shadow);
+  animation: unfold .18s ease;
+}
+@keyframes unfold { from { opacity: 0; transform: translateY(-4px); } }
+
+.unfold-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 12px;
+}
+.unfold-head h3 {
+  font-family: var(--serif);
+  font-weight: 400;
+  font-size: 16.5px;
+  margin: 0;
+  color: var(--ink);
+}
+.unfold-head .figure {
+  font-family: var(--mono);
+  font-size: 15px;
+  font-weight: 500;
+  letter-spacing: -.02em;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+.unfold-note { color: var(--muted); font-size: 12.5px; margin: 0 0 12px; }
+.unfold-list { list-style: none; margin: 0; padding: 0; }
+.unfold-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 7px 0;
+  border-top: 1px solid var(--line-soft);
+  color: var(--ink-soft);
+  font-size: 12.5px;
+}
+.unfold-list li span:last-child {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+.unfold-more {
+  margin-top: 12px;
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--vio);
+}
+
+/* Action bar — the .ba-chip idiom from BriefingActions.tsx */
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 22px;
+}
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 11px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--card);
+  color: var(--ink-soft);
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  transition: border-color .14s ease, background .14s ease, color .14s ease;
+}
+.chip:hover { border-color: rgba(236,231,221,.2); background: var(--card-2); color: var(--ink); }
+.chip svg { width: 13px; height: 13px; flex: none; }
+.chip.primary {
+  background: var(--vio-deep);
+  border-color: var(--vio-deep);
+  color: #fff;
+}
+.chip.primary:hover { background: #8b46f0; border-color: #8b46f0; color: #fff; }
+
+.menu-wrap { position: relative; }
+.menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 30;
+  min-width: 178px;
+  padding: 5px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--card-2);
+  box-shadow: var(--shadow);
+  animation: unfold .13s ease;
+}
+.menu button {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 7px 9px;
+  border-radius: 6px;
+  color: var(--ink-soft);
+  font-size: 12.5px;
+  text-align: left;
+  transition: background .14s ease, color .14s ease;
+}
+.menu button:hover { background: var(--vio-bg); color: var(--ink); }
+.menu button svg { width: 13px; height: 13px; flex: none; color: var(--muted); }
+.menu button:hover svg { color: var(--vio); }
+.menu .menu-sep { height: 1px; margin: 5px 4px; background: var(--line-soft); }
+
+/* ── 2. The Docket ────────────────────────────────────────────────────────── */
+
+.docket { list-style: none; margin: 0; padding: 0; }
+
+.item {
+  display: grid;
+  grid-template-columns: 30px 1fr auto;
+  align-items: start;
+  gap: 0 14px;
+  padding: 15px 0 15px 12px;
+  border-top: 1px solid var(--line-soft);
+  position: relative;
+  transition: opacity .28s ease, transform .28s ease;
+}
+.item:first-child { border-top: none; }
+
+/* Ownership is the hierarchy: yours is bright and has an edge tick. */
+.item.mine::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 16px;
+  bottom: 16px;
+  width: 2px;
+  border-radius: 2px;
+  background: var(--vio);
+}
+.item.theirs { opacity: .68; }
+.item.theirs:hover { opacity: .9; }
+
+.idx {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: .04em;
+  color: var(--faint);
+  font-variant-numeric: tabular-nums;
+  padding-top: 4px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.dot { width: 6px; height: 6px; border-radius: 50%; flex: none; }
+.dot.late  { background: var(--rose); }
+.dot.today { background: var(--gold); }
+.dot.soon  { background: var(--vio); }
+
+.item-title {
+  font-family: var(--serif);
+  font-weight: 400;
+  font-size: 16.5px;
+  line-height: 1.3;
+  color: var(--ink);
+  margin: 0 0 6px;
+}
+.item.theirs .item-title { color: var(--ink-soft); font-size: 15px; }
+.item-title .amt {
+  font-family: var(--mono);
+  font-size: 14px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -.01em;
+}
+
+.owner {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.item.theirs .owner { color: var(--faint); }
+.avatar {
+  width: 19px; height: 19px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: .02em;
+  background: var(--card-2);
+  border: 1px solid var(--line);
+  color: var(--muted);
+  flex: none;
+}
+.item.mine .avatar { background: var(--vio-bg); border-color: rgba(167,139,250,.35); color: var(--vio); }
+.avatar.open { border-style: dashed; border-color: rgba(221,179,106,.45); color: var(--gold); background: transparent; }
+.owner .you { color: var(--vio); font-weight: 600; }
+.owner .sep { color: var(--faint); }
+.owner .age.late { color: var(--rose); }
+
+.act {
+  align-self: center;
+  height: 28px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--card);
+  color: var(--ink-soft);
+  font-family: var(--mono);
+  font-size: 9.5px;
+  font-weight: 500;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  transition: border-color .14s ease, background .14s ease, color .14s ease;
+}
+.act:hover { border-color: var(--vio); background: var(--vio-bg); color: var(--vio); }
+.act.take { border-style: dashed; border-color: rgba(221,179,106,.4); color: var(--gold); }
+.act.take:hover { background: var(--gold-bg); border-color: var(--gold); color: var(--gold); }
+.act.quiet {
+  border-color: transparent;
+  background: none;
+  color: var(--faint);
+  padding: 0 4px;
+  letter-spacing: .14em;
+}
+.act.quiet:hover { color: var(--muted); background: none; border-color: transparent; }
+
+.item.resolving { opacity: 0; transform: translateY(-6px); }
+.item.resolved {
+  grid-template-columns: 30px 1fr;
+  padding-top: 11px;
+  padding-bottom: 11px;
+}
+.item.resolved::before { background: var(--ok); }
+.resolved-line {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.resolved-line .tick { color: var(--ok); font-size: 12px; }
+.resolved-line .struck { text-decoration: line-through; text-decoration-color: var(--faint); }
+
+.more-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 16px;
+  padding: 4px 0;
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--faint);
+  transition: color .14s ease;
+}
+.more-toggle:hover { color: var(--muted); }
+.more-toggle .caret { transition: transform .16s ease; display: inline-block; }
+.more-toggle[aria-expanded="true"] .caret { transform: rotate(180deg); }
+
+/* The quiet tail: smaller, dimmer, no actions. */
+.tail { list-style: none; margin: 12px 0 0; padding: 0; }
+.tail li {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 8px 0 8px 12px;
+  border-top: 1px solid var(--line-soft);
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.tail li .who {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--faint);
+  white-space: nowrap;
+}
+
+/* ── 3. What's Next ───────────────────────────────────────────────────────── */
+
+.week {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 0;
+  border-top: 1px solid var(--line);
+}
+.day { padding: 11px 9px 4px 0; min-width: 0; position: relative; }
+.day.is-today::before {
+  content: "";
+  position: absolute;
+  top: -1px; left: 0;
+  width: 26px; height: 2px;
+  background: var(--vio);
+  border-radius: 2px;
+}
+.day-name {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--faint);
+  margin: 0 0 9px;
+  font-variant-numeric: tabular-nums;
+}
+.day.is-today .day-name { color: var(--vio); }
+.entry {
+  font-family: var(--serif);
+  font-size: 13px;
+  line-height: 1.3;
+  color: var(--ink-soft);
+  margin: 0 0 9px;
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+  transition: color .14s ease;
+}
+.entry:hover { color: var(--ink); }
+.entry .pip {
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  flex: none;
+  margin-top: 5px;
+  border: 1px solid var(--muted);
+}
+.entry .pip.req { background: var(--ink-soft); border-color: var(--ink-soft); }
+.entry .pip.due { background: var(--rose); border-color: var(--rose); }
+.entry .t {
+  display: block;
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: .08em;
+  color: var(--faint);
+  margin-top: 2px;
+}
+.day.empty .day-name { opacity: .5; }
+
+/* ── 4. Money ─────────────────────────────────────────────────────────────── */
+
+.money {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: clamp(20px, 4vw, 46px);
+  align-items: end;
+}
+.fact-label {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: var(--faint);
+  margin: 0 0 10px;
+}
+.fact-value {
+  font-family: var(--mono);
+  font-size: clamp(23px, 3.4vw, 29px);
+  font-weight: 500;
+  letter-spacing: -.05em;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+  line-height: 1;
+  margin: 0;
+}
+.fact-note { font-size: 12px; color: var(--muted); margin: 9px 0 0; }
+.fact-note .up { color: var(--ok); }
+.spark { display: block; width: 100%; height: 34px; margin-top: 12px; overflow: visible; }
+
+.rule {
+  height: 3px;
+  border-radius: 2px;
+  background: rgba(236,231,221,.08);
+  overflow: hidden;
+  margin-top: 16px;
+}
+.rule i { display: block; height: 100%; border-radius: 2px; background: var(--gold); }
+
+/* ── 5. The Record ────────────────────────────────────────────────────────── */
+
+.tabs { display: flex; gap: 18px; margin-left: auto; }
+.tab {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: var(--faint);
+  padding-bottom: 3px;
+  border-bottom: 1px solid transparent;
+  transition: color .14s ease, border-color .14s ease;
+}
+.tab:hover { color: var(--muted); }
+.tab[aria-selected="true"] { color: var(--ink-soft); border-bottom-color: var(--vio); }
+
+.record { transition: opacity .16s ease; }
+.record.fading { opacity: 0; }
+
+.decisions { list-style: none; margin: 0; padding: 0; }
+.decisions li {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 10px 0;
+  border-top: 1px solid var(--line-soft);
+  font-size: 12.5px;
+  color: var(--ink-soft);
+}
+.decisions li:first-child { border-top: none; }
+.decisions .actor { color: var(--ink); }
+.decisions .outcome { color: var(--muted); }
+.decisions .when {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--faint);
+  white-space: nowrap;
+}
+
+.feed { list-style: none; margin: 0; padding: 0; }
+.feed .divider {
+  font-family: var(--mono);
+  font-size: 8.5px;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: var(--faint);
+  padding: 14px 0 7px;
+  border-top: 1px solid var(--line-soft);
+}
+.feed .divider:first-child { border-top: none; padding-top: 0; }
+.feed .ev {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 5px 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+.feed .ev .avatar { width: 18px; height: 18px; font-size: 7.5px; }
+.feed .ev b { font-weight: 500; color: var(--ink-soft); }
+.feed .ev .obj { color: var(--faint); }
+.feed .ev .when {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: .1em;
+  color: var(--faint);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.viewall {
+  display: inline-block;
+  margin-top: 16px;
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--faint);
+  transition: color .14s ease;
+}
+.viewall:hover { color: var(--vio); }
+
+/* ── Responsive ───────────────────────────────────────────────────────────── */
+
+@media (max-width: 720px) {
+  .week { grid-template-columns: repeat(4, minmax(0, 1fr)); row-gap: 12px; }
+  .money { grid-template-columns: minmax(0, 1fr); gap: 30px; }
+}
+@media (max-width: 560px) {
+  .week { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .item { grid-template-columns: 26px 1fr; gap: 0 10px; }
+  .item .act { grid-column: 2; justify-self: start; margin-top: 10px; }
+  /* The "···" affordance on other people's rows isn't worth a whole row here. */
+  .item .act.quiet, .item.resolved .act { display: none; }
+  .sentence { max-width: none; }
+  .actions { gap: 6px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .001ms !important;
+  }
+}
+</style>
+</head>
+<body>
+
+<main class="page">
+
+  <!-- ══ 1. Masthead ══════════════════════════════════════════════════════ -->
+  <header>
+    <p class="kicker"><span class="today">Thursday, October 30, 2026</span> &ensp;·&ensp; Week 6 of Fall Term</p>
+
+    <h1 class="greeting">Good afternoon, <em>Jordan</em>.</h1>
+
+    <p class="sentence" id="sentence">
+      Meridian Club is <span class="state ok">steady</span>, but
+      <button type="button" class="phrase" data-unfold="dues" aria-expanded="false"><span id="s-dues">14 members still owe dues</span></button>
+      and
+      <button type="button" class="phrase" data-unfold="late" aria-expanded="false"><span id="s-late">3 things are late</span></button>.
+      <button type="button" class="phrase" data-unfold="week" aria-expanded="false">Six people</button>
+      are waiting on the board.
+    </p>
+
+    <p class="hint" id="hint">▸ Tap a phrase</p>
+
+    <div id="unfold-slot"></div>
+
+    <div class="actions">
+      <button type="button" class="chip" id="btn-standing">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+        My Standing
+      </button>
+
+      <button type="button" class="chip primary">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+        Log Attendance
+      </button>
+
+      <div class="menu-wrap" id="qa-wrap">
+        <button type="button" class="chip" id="qa-btn" aria-expanded="false" aria-haspopup="true">
+          Quick Actions
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <div class="menu" id="qa-menu" hidden>
+          <button type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M19 12H5"/></svg>Log Expense</button>
+          <button type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>Log Revenue</button>
+          <div class="menu-sep"></div>
+          <button type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16M4 12h16M4 19h9"/></svg>Log Excuse</button>
+          <button type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/></svg>Add Deadline</button>
+          <button type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>New Event</button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- ══ 2. The Docket ════════════════════════════════════════════════════ -->
+  <section class="band" aria-labelledby="lbl-docket">
+    <p class="band-label" id="lbl-docket">Needs the board <span class="count" id="docket-count">6 open</span></p>
+    <ul class="docket" id="docket"></ul>
+    <button type="button" class="more-toggle" id="tail-toggle" aria-expanded="false">
+      <span class="caret">⌄</span> <span id="tail-label">4 more, quieter</span>
+    </button>
+    <ul class="tail" id="tail" hidden></ul>
+  </section>
+
+  <!-- ══ 3. What's Next ═══════════════════════════════════════════════════ -->
+  <section class="band" aria-labelledby="lbl-week">
+    <p class="band-label" id="lbl-week">What's next <span class="count">Oct 30 – Nov 5</span></p>
+    <div class="week" id="week"></div>
+  </section>
+
+  <!-- ══ 4. Money ═════════════════════════════════════════════════════════ -->
+  <section class="band" aria-labelledby="lbl-money">
+    <p class="band-label" id="lbl-money">Money</p>
+    <div class="money">
+      <div>
+        <p class="fact-label">Treasury</p>
+        <p class="fact-value">$12,480</p>
+        <p class="fact-note"><span class="up">▲ $1,240</span> since June</p>
+        <svg class="spark" viewBox="0 0 240 34" preserveAspectRatio="none" aria-hidden="true">
+          <polyline points="0,26 48,22 96,27 144,16 192,13 240,8"
+                    fill="none" stroke="#a78bfa" stroke-width="1.5"
+                    stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>
+          <circle cx="240" cy="8" r="2.5" fill="#a78bfa"/>
+        </svg>
+      </div>
+      <div>
+        <p class="fact-label">Dues collected</p>
+        <p class="fact-value">78%</p>
+        <p class="fact-note">$4,150 outstanding · 14 of 42 members</p>
+        <div class="rule"><i style="width:78%"></i></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ 5. The Record ════════════════════════════════════════════════════ -->
+  <section class="band" aria-labelledby="lbl-record">
+    <p class="band-label" id="lbl-record">
+      The record
+      <span class="tabs" role="tablist">
+        <button type="button" class="tab" role="tab" data-tab="decisions" aria-selected="true">Decisions</button>
+        <button type="button" class="tab" role="tab" data-tab="activity" aria-selected="false">Activity</button>
+      </span>
+    </p>
+    <div class="record" id="record"></div>
+    <a class="viewall" href="#">View all →</a>
+  </section>
+
+</main>
+
+<script>
+/* ─────────────────────────────────────────────────────────────────────────────
+   Mock data. Single source of truth so the sentence and the docket agree —
+   resolving an item decrements the count rendered inside the sentence.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+const ME = { initials: "JL", role: "Treasurer" };
+
+const DOCKET = [
+  { id: "reimb",  urgency: "late",  title: "Reimburse Marcus Webb", amount: "$180",
+    owner: "me",   role: "Treasurer", age: "waiting 4 days", late: true,
+    action: "Approve", resolved: "Approved · $180 to Marcus" },
+  { id: "roll",   urgency: "today", title: "Roll call closes tonight",
+    owner: { initials: "AR", name: "Amara" }, role: "Secretary", age: "6h left" },
+  { id: "dues",   urgency: "late",  title: "14 members owe dues", amount: "$4,150",
+    owner: "me",   role: "Treasurer", age: "oldest 31 days", late: true,
+    action: "Remind all", resolved: "Reminder sent to 14 members" },
+  { id: "venue",  urgency: "today", title: "Rowan Hall deposit unconfirmed", amount: "$400",
+    owner: "open", role: "Unclaimed", age: "holds through Friday",
+    action: "Take it", take: true, resolved: "You claimed the Rowan Hall deposit" },
+  { id: "risk",   urgency: "soon",  title: "5 members slipped to At Risk",
+    owner: { initials: "PK", name: "Priya" }, role: "President", age: "since last meeting" },
+  { id: "poll",   urgency: "today", title: "Spring formal venue poll closes Friday",
+    owner: { initials: "AR", name: "Amara" }, role: "Secretary", age: "31 of 42 voted" },
+];
+
+const TAIL = [
+  { title: "2 new members unassigned to a committee", who: "Priya · President" },
+  { title: "Fall term budget still in draft",         who: "You · Treasurer" },
+  { title: "Meeting notes from Oct 21 not posted",    who: "Amara · Secretary" },
+  { title: "Service hours log 3 weeks behind",        who: "Unclaimed" },
+];
+
+const WEEK = [
+  { day: "Thu 30", today: true, entries: [
+      { text: "Exec sync", time: "5:00 PM", kind: "req" },
+      { text: "Roll call closes", time: "11:59 PM", kind: "due" } ] },
+  { day: "Fri 31", entries: [
+      { text: "Venue poll closes", time: "5:00 PM", kind: "due" } ] },
+  { day: "Sat 01", entries: [] },
+  { day: "Sun 02", entries: [] },
+  { day: "Mon 03", entries: [
+      { text: "General meeting", time: "7:00 PM", kind: "req" } ] },
+  { day: "Tue 04", entries: [
+      { text: "Dues deadline", time: "All day", kind: "due" } ] },
+  { day: "Wed 05", entries: [
+      { text: "Volunteer night", time: "6:30 PM", kind: "" } ] },
+];
+
+const UNFOLDS = {
+  dues: {
+    title: "Dues outstanding", figure: "$4,150",
+    note: "14 of 42 members · oldest unpaid 31 days · 78% collected this term",
+    rows: [ ["Devon Ellis", "$450"], ["Nora Whitfield", "$450"], ["Sam Okonkwo", "$450"], ["Ivy Chen", "$300"] ],
+    more: "See all 14 →"
+  },
+  late: {
+    title: "Past due", figure: "3",
+    note: "Two carry money. Nothing here is more than a week old.",
+    rows: [ ["Marcus Webb reimbursement", "4d"], ["Rowan Hall deposit", "2d"], ["Oct 21 meeting notes", "9d"] ],
+    more: "Open the docket →"
+  },
+  week: {
+    title: "Waiting on the board", figure: "6",
+    note: "Split across four seats. One item has nobody's name on it.",
+    rows: [ ["You · Treasurer", "2"], ["Amara · Secretary", "2"], ["Priya · President", "1"], ["Unclaimed", "1"] ],
+    more: "Balance the load →"
+  }
+};
+
+const DECISIONS = [
+  { actor: "Amara", act: "closed the venue poll", outcome: "Rowan Hall won, 19–12", when: "Tue" },
+  { actor: "You",   act: "approved a $312 reimbursement", outcome: "Priya · printing", when: "Tue" },
+  { actor: "Priya", act: "moved the general meeting", outcome: "Mon 7:00 PM", when: "Mon" },
+  { actor: "Board", act: "set the dues deadline", outcome: "Nov 4, no extensions", when: "Oct 24" },
+  { actor: "Theo",  act: "approved the fall merch order", outcome: "$860, 60 units", when: "Oct 22" },
+];
+
+const ACTIVITY = [
+  { day: "Today", items: [
+      { who: "AR", name: "Amara", verb: "opened roll call",     obj: "Exec sync", when: "1h" },
+      { who: "JL", name: "You",   verb: "logged an expense",     obj: "$64 · supplies", when: "3h" },
+      { who: "TM", name: "Theo",  verb: "added a deadline",      obj: "Budget draft", when: "4h" },
+      { who: "PK", name: "Priya", verb: "flagged 5 members",     obj: "At Risk", when: "6h" } ] },
+  { day: "Yesterday", items: [
+      { who: "AR", name: "Amara", verb: "posted an announcement", obj: "Formal details", when: "Wed" },
+      { who: "JL", name: "You",   verb: "recorded a payment",     obj: "$450 · Devon", when: "Wed" },
+      { who: "SO", name: "Sam",   verb: "submitted an excuse",    obj: "Oct 28 meeting", when: "Wed" },
+      { who: "PK", name: "Priya", verb: "created an event",       obj: "Volunteer night", when: "Wed" } ] },
+  { day: "Earlier", items: [
+      { who: "TM", name: "Theo",  verb: "closed 3 tasks",        obj: "Merch order", when: "Tue" },
+      { who: "AR", name: "Amara", verb: "invited 2 members",     obj: "via link", when: "Tue" } ] },
+];
+
+/* ── Rendering ────────────────────────────────────────────────────────────── */
+
+const $ = (s, r = document) => r.querySelector(s);
+const esc = s => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+function ownerMarkup(item) {
+  if (item.owner === "me") {
+    return `<span class="avatar">${ME.initials}</span>
+            <span class="you">You</span><span class="sep">·</span><span>${esc(item.role)}</span>
+            <span class="sep">·</span><span class="age${item.late ? " late" : ""}">${esc(item.age)}</span>`;
+  }
+  if (item.owner === "open") {
+    return `<span class="avatar open">?</span>
+            <span>Unclaimed</span><span class="sep">·</span><span>${esc(item.age)}</span>`;
+  }
+  return `<span class="avatar">${item.owner.initials}</span>
+          <span>${esc(item.owner.name)}</span><span class="sep">·</span><span>${esc(item.role)}</span>
+          <span class="sep">·</span><span>${esc(item.age)}</span>`;
+}
+
+function renderDocket() {
+  $("#docket").innerHTML = DOCKET.map((it, i) => {
+    const mine = it.owner === "me" || it.owner === "open";
+    const amt = it.amount ? ` <span class="amt">${esc(it.amount)}</span>` : "";
+    const act = it.action
+      ? `<button type="button" class="act${it.take ? " take" : ""}" data-resolve="${it.id}">${esc(it.action)}</button>`
+      : `<button type="button" class="act quiet" data-noop="1">···</button>`;
+    return `<li class="item ${mine ? "mine" : "theirs"}" data-id="${it.id}">
+      <span class="idx"><span class="dot ${it.urgency}"></span>${String(i + 1).padStart(2, "0")}</span>
+      <div>
+        <p class="item-title">${esc(it.title)}${amt}</p>
+        <div class="owner">${ownerMarkup(it)}</div>
+      </div>
+      ${act}
+    </li>`;
+  }).join("");
+}
+
+function renderTail() {
+  $("#tail").innerHTML = TAIL.map(t =>
+    `<li><span>${esc(t.title)}</span><span class="who">${esc(t.who)}</span></li>`).join("");
+}
+
+function renderWeek() {
+  $("#week").innerHTML = WEEK.map(d => {
+    const entries = d.entries.map(e =>
+      `<p class="entry"><span class="pip ${e.kind}"></span><span>${esc(e.text)}<span class="t">${esc(e.time)}</span></span></p>`
+    ).join("");
+    return `<div class="day${d.today ? " is-today" : ""}${d.entries.length ? "" : " empty"}">
+      <p class="day-name">${esc(d.day)}</p>${entries}</div>`;
+  }).join("");
+}
+
+function renderRecord(tab) {
+  if (tab === "decisions") {
+    return `<ul class="decisions">${DECISIONS.map(d =>
+      `<li><span class="actor">${esc(d.actor)}</span>
+           <span>${esc(d.act)}</span>
+           <span class="outcome">· ${esc(d.outcome)}</span>
+           <span class="when">${esc(d.when)}</span></li>`).join("")}</ul>`;
+  }
+  return `<ul class="feed">${ACTIVITY.map(g =>
+    `<li class="divider">${esc(g.day)}</li>` + g.items.map(e =>
+      `<li class="ev"><span class="avatar">${esc(e.who)}</span>
+         <span><b>${esc(e.name)}</b> ${esc(e.verb)} <span class="obj">· ${esc(e.obj)}</span></span>
+         <span class="when">${esc(e.when)}</span></li>`).join("")
+  ).join("")}</ul>`;
+}
+
+/* ── The Sentence: live phrases unfold in place ───────────────────────────── */
+
+function closeUnfold() {
+  $("#unfold-slot").innerHTML = "";
+  document.querySelectorAll(".phrase").forEach(p => p.setAttribute("aria-expanded", "false"));
+}
+
+function openUnfold(key, btn) {
+  const d = UNFOLDS[key];
+  closeUnfold();
+  btn.setAttribute("aria-expanded", "true");
+  $("#unfold-slot").innerHTML = `
+    <div class="unfold">
+      <div class="unfold-head">
+        <h3>${esc(d.title)}</h3><span class="figure">${esc(d.figure)}</span>
+      </div>
+      <p class="unfold-note">${esc(d.note)}</p>
+      <ul class="unfold-list">${d.rows.map(r =>
+        `<li><span>${esc(r[0])}</span><span>${esc(r[1])}</span></li>`).join("")}</ul>
+      <p class="unfold-more">${esc(d.more)}</p>
+    </div>`;
+}
+
+document.querySelectorAll(".phrase").forEach(btn => {
+  btn.addEventListener("click", () => {
+    $("#hint").classList.add("gone");
+    if (btn.getAttribute("aria-expanded") === "true") closeUnfold();
+    else openUnfold(btn.dataset.unfold, btn);
+  });
+});
+
+/* ── Resolve in place: the docket row collapses, the sentence updates ─────── */
+
+let openCount = DOCKET.length;
+let lateCount = 3;
+let duesCount = 14;
+
+function syncSentence() {
+  $("#s-dues").textContent = duesCount === 0
+    ? "everyone has paid dues"
+    : `${duesCount} members still owe dues`;
+  $("#s-late").textContent = lateCount === 1 ? "1 thing is late" : `${lateCount} things are late`;
+  $("#docket-count").textContent = `${openCount} open`;
+}
+
+$("#docket").addEventListener("click", e => {
+  const btn = e.target.closest("[data-resolve]");
+  if (!btn) return;
+  const id = btn.dataset.resolve;
+  const item = DOCKET.find(d => d.id === id);
+  const row = $(`.item[data-id="${id}"]`);
+
+  row.classList.add("resolved");
+  row.innerHTML = `<span class="idx">✓</span>
+    <div class="resolved-line"><span class="tick">●</span>
+      <span class="struck">${esc(item.title)}</span>
+      <span>— ${esc(item.resolved)}</span></div>`;
+
+  openCount--;
+  if (item.late) lateCount--;
+  if (id === "dues") duesCount = 0;
+  syncSentence();
+
+  setTimeout(() => {
+    row.classList.add("resolving");
+    setTimeout(() => row.remove(), 300);
+  }, 1400);
+});
+
+/* ── Tail, tabs, quick actions ────────────────────────────────────────────── */
+
+$("#tail-toggle").addEventListener("click", () => {
+  const btn = $("#tail-toggle");
+  const open = btn.getAttribute("aria-expanded") === "true";
+  btn.setAttribute("aria-expanded", String(!open));
+  $("#tail").hidden = open;
+  $("#tail-label").textContent = open ? "4 more, quieter" : "Hide the quiet four";
+});
+
+document.querySelectorAll(".tab").forEach(tab => {
+  tab.addEventListener("click", () => {
+    if (tab.getAttribute("aria-selected") === "true") return;
+    document.querySelectorAll(".tab").forEach(t =>
+      t.setAttribute("aria-selected", String(t === tab)));
+    const rec = $("#record");
+    rec.classList.add("fading");
+    setTimeout(() => {
+      rec.innerHTML = renderRecord(tab.dataset.tab);
+      rec.classList.remove("fading");
+    }, 160);
+  });
+});
+
+const qaBtn = $("#qa-btn"), qaMenu = $("#qa-menu");
+function setMenu(open) {
+  qaMenu.hidden = !open;
+  qaBtn.setAttribute("aria-expanded", String(open));
+}
+qaBtn.addEventListener("click", e => { e.stopPropagation(); setMenu(qaMenu.hidden); });
+qaMenu.addEventListener("click", () => setMenu(false));
+document.addEventListener("click", e => {
+  if (!$("#qa-wrap").contains(e.target)) setMenu(false);
+});
+document.addEventListener("keydown", e => {
+  if (e.key !== "Escape") return;
+  setMenu(false);
+  closeUnfold();
+});
+
+/* ── Boot ─────────────────────────────────────────────────────────────────── */
+
+renderDocket();
+renderTail();
+renderWeek();
+$("#record").innerHTML = renderRecord("decisions");
+syncSentence();
+</script>
+</body>
+</html>

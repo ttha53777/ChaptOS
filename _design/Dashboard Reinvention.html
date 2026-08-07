@@ -1,0 +1,1333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dashboard Reinvention — Cascade Outdoors Club</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..700;1,9..144,300..600&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ═══════════════════════════════════════════════════════════════════════════
+   DASHBOARD REINVENTION — a ground-up rethink of the org dashboard.
+
+   Premise: the old dashboard was a report card (here are your numbers).
+   This one is a control surface answering the five questions an exec board
+   actually opens a dashboard to answer:
+
+     1. What is next, and are we ready for it?          → ON DECK
+     2. What is blocked on us right now?                → THE DESK
+     3. Where does the money stand?                     → THE BOOKS
+     4. Who is still here, and who is slipping away?    → THE ROOM / DRIFT
+     5. What did last year's board know that we don't?  → PRECEDENT
+
+   Palette is the app's existing dusk theme (dashboard-ledger.css) so this can
+   land without a theme migration. Everything else is new.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --serif: "Fraunces", Georgia, serif;
+  --sans:  "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --mono:  "JetBrains Mono", ui-monospace, Menlo, monospace;
+
+  /* dusk tokens — lifted verbatim from app/components/dashboard/dashboard-ledger.css */
+  --paper:    #0f0d0a;
+  --paper-2:  #14120e;
+  --card:     #161310;
+  --card-2:   #1b1813;
+  --ink:      #ece7dd;
+  --ink-soft: #c9c2b4;
+  --muted:    #958d7c;
+  --faint:    #6b6354;
+  --line:     rgba(236,231,221,.09);
+  --line-soft:rgba(236,231,221,.05);
+  --vio:      #a78bfa;
+  --vio-deep: #7c3aed;
+  --vio-bg:   rgba(167,139,250,.10);
+  --gold:     #ddb36a;
+  --gold-bg:  rgba(221,179,106,.10);
+  --rose:     #d98ba3;
+  --rose-bg:  rgba(217,139,163,.10);
+  --ok:       #7fb08a;
+  --ok-bg:    rgba(127,176,138,.10);
+  --shadow:   0 1px 0 rgba(0,0,0,.4), 0 16px 40px -24px rgba(0,0,0,.7);
+
+  --gutter: clamp(18px, 3.2vw, 44px);
+  --maxw: 1320px;
+  --r: 12px;
+}
+
+html { background: var(--paper); }
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 13.5px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* the one warm light source in the room */
+body::before {
+  content: "";
+  position: fixed; inset: 0; pointer-events: none; z-index: 0;
+  background:
+    radial-gradient(1100px 460px at 22% -8%, rgba(167,139,250,.11), transparent 62%),
+    radial-gradient(760px 380px at 96% 2%, rgba(221,179,106,.055), transparent 60%);
+}
+
+.shell { position: relative; z-index: 1; max-width: var(--maxw); margin: 0 auto; padding: 0 var(--gutter) 72px; }
+
+/* ── shared atoms ─────────────────────────────────────────────────────────── */
+.mono { font-family: var(--mono); }
+.kicker {
+  font-family: var(--mono); font-size: 10px; font-weight: 500;
+  letter-spacing: .18em; text-transform: uppercase; color: var(--muted);
+}
+.num { font-family: var(--serif); font-weight: 500; letter-spacing: -.015em; font-variant-numeric: tabular-nums; }
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  box-shadow: var(--shadow);
+}
+
+.pill {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-family: var(--mono); font-size: 9.5px; font-weight: 500;
+  letter-spacing: .1em; text-transform: uppercase;
+  padding: 3px 7px; border-radius: 5px;
+  border: 1px solid transparent; white-space: nowrap;
+}
+.pill.vio  { color: var(--vio);  background: var(--vio-bg);  border-color: rgba(167,139,250,.2); }
+.pill.gold { color: var(--gold); background: var(--gold-bg); border-color: rgba(221,179,106,.2); }
+.pill.rose { color: var(--rose); background: var(--rose-bg); border-color: rgba(217,139,163,.22); }
+.pill.ok   { color: var(--ok);   background: var(--ok-bg);   border-color: rgba(127,176,138,.2); }
+.pill.dim  { color: var(--faint); background: rgba(236,231,221,.03); border-color: var(--line); }
+
+.btn {
+  font-family: var(--mono); font-size: 10px; font-weight: 500;
+  letter-spacing: .09em; text-transform: uppercase;
+  padding: 6px 11px; border-radius: 7px; cursor: pointer;
+  border: 1px solid var(--line); background: transparent; color: var(--ink-soft);
+  transition: border-color .15s, color .15s, background .15s, transform .12s;
+  white-space: nowrap;
+}
+.btn:hover { color: var(--ink); border-color: rgba(236,231,221,.22); background: var(--card-2); }
+.btn:active { transform: translateY(1px); }
+.btn.pri { color: var(--vio); border-color: rgba(167,139,250,.28); background: var(--vio-bg); }
+.btn.pri:hover { color: #14100a; background: var(--vio); border-color: var(--vio); }
+.btn.tiny { padding: 4px 8px; font-size: 9px; }
+.btn:focus-visible { outline: 2px solid var(--vio); outline-offset: 2px; }
+
+/* ── section headers: mono kicker, serif title, hairline that runs to the edge ── */
+.sec { margin-top: 34px; }
+.sec-head { display: flex; align-items: baseline; gap: 14px; margin-bottom: 14px; }
+.sec-head h2 { font-family: var(--serif); font-weight: 400; font-size: 19px; letter-spacing: -.01em; color: var(--ink); white-space: nowrap; }
+.sec-head h2 em { font-style: italic; color: var(--vio); }
+.sec-head .rule { flex: 1; height: 1px; background: linear-gradient(90deg, var(--line), transparent); }
+.sec-head .note { font-family: var(--mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); white-space: nowrap; }
+
+/* ═══ TOP BAR ═════════════════════════════════════════════════════════════ */
+.topbar {
+  position: sticky; top: 0; z-index: 60;
+  background: rgba(15,13,10,.82); backdrop-filter: blur(14px) saturate(140%);
+  border-bottom: 1px solid var(--line);
+}
+.topbar-in {
+  max-width: var(--maxw); margin: 0 auto; padding: 11px var(--gutter);
+  display: flex; align-items: center; gap: 16px;
+}
+.brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.brand .mark {
+  width: 26px; height: 26px; border-radius: 8px; flex-shrink: 0;
+  background: linear-gradient(140deg, var(--vio-deep), var(--vio));
+  display: grid; place-items: center;
+  font-family: var(--serif); font-size: 13px; font-weight: 600; color: #14100a;
+}
+.brand .nm { font-family: var(--serif); font-size: 14.5px; color: var(--ink); white-space: nowrap; }
+.brand .term { font-family: var(--mono); font-size: 9.5px; letter-spacing: .13em; text-transform: uppercase; color: var(--faint); }
+.topbar .spacer { flex: 1; }
+
+.mockswitch { display: flex; align-items: center; gap: 9px; }
+.mockswitch .lbl { font-family: var(--mono); font-size: 8.5px; letter-spacing: .16em; text-transform: uppercase; color: var(--faint); }
+.seg { display: flex; background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 2px; }
+.seg button {
+  font-family: var(--mono); font-size: 9.5px; font-weight: 500; letter-spacing: .1em; text-transform: uppercase;
+  padding: 5px 11px; border-radius: 6px; border: 0; background: transparent; color: var(--muted); cursor: pointer;
+  transition: color .15s, background .15s;
+}
+.seg button[aria-pressed="true"] { background: var(--vio-bg); color: var(--vio); }
+.seg button:hover { color: var(--ink); }
+
+/* ═══ MASTHEAD ════════════════════════════════════════════════════════════ */
+.masthead {
+  padding-top: 34px;
+  display: grid; grid-template-columns: minmax(0,1fr) 470px; gap: 34px; align-items: start;
+}
+.mh-kick { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.mh-kick .dot { width: 4px; height: 4px; border-radius: 50%; background: var(--vio); }
+.greeting {
+  font-family: var(--serif); font-weight: 300; font-size: clamp(28px, 4vw, 40px);
+  letter-spacing: -.022em; line-height: 1.1; margin-top: 12px; color: var(--ink);
+}
+.greeting em { font-style: italic; color: var(--vio); font-weight: 400; }
+
+.briefline { margin-top: 15px; display: flex; gap: 10px; align-items: flex-start; max-width: 620px; }
+.briefline .ai {
+  flex-shrink: 0; margin-top: 3px;
+  font-family: var(--mono); font-size: 8px; font-weight: 600; letter-spacing: .14em;
+  color: var(--vio); background: var(--vio-bg); border: 1px solid rgba(167,139,250,.2);
+  border-radius: 4px; padding: 2px 5px;
+}
+.briefline p { font-family: var(--serif); font-weight: 300; font-style: italic; font-size: 15.5px; line-height: 1.5; color: var(--ink-soft); }
+.briefline p b { font-style: normal; font-weight: 500; color: var(--ink); }
+
+/* the briefing's findings are buttons, not prose — each one jumps to the widget that owns it */
+.findings { margin-top: 18px; display: flex; flex-wrap: wrap; gap: 7px; }
+.finding {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 7px 11px 7px 9px; border-radius: 9px; cursor: pointer;
+  background: var(--card); border: 1px solid var(--line); color: var(--ink-soft);
+  font-size: 11.5px; transition: border-color .15s, background .15s, transform .12s;
+}
+.finding:hover { border-color: rgba(167,139,250,.35); background: var(--card-2); transform: translateY(-1px); }
+.finding .fdot { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; }
+.finding .fnum { font-family: var(--mono); font-size: 11px; font-weight: 600; color: var(--ink); }
+.finding .farrow { color: var(--faint); font-size: 10px; }
+
+/* day-one only: the left column has no findings to carry, so it carries the
+   single next action plus a plain-language map of what fills the page below */
+.primer { margin-top: 22px; max-width: 560px; }
+.primer .acts { display: flex; gap: 8px; flex-wrap: wrap; }
+.primer .btn { padding: 9px 15px; font-size: 10.5px; }
+.primer-map { margin-top: 20px; border-top: 1px solid var(--line-soft); padding-top: 15px;
+  display: flex; flex-direction: column; gap: 10px; }
+.pm { display: grid; grid-template-columns: 74px minmax(0,1fr); gap: 13px; align-items: baseline; }
+.pm .w { font-family: var(--mono); font-size: 9px; letter-spacing: .12em; text-transform: uppercase; color: var(--vio); }
+.pm .t { font-size: 12.5px; color: var(--muted); line-height: 1.5; }
+.pm .t b { color: var(--ink-soft); font-weight: 500; }
+
+/* ── THE ROOM — one tile per member, colored by how recently they showed up ── */
+.room { padding: 17px 19px 15px; }
+.room-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.room-head .h { font-family: var(--serif); font-size: 15px; color: var(--ink); }
+.room-head .s { font-family: var(--mono); font-size: 9.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--faint); margin-top: 3px; }
+.room-count { text-align: right; }
+.room-count .big { font-family: var(--serif); font-size: 30px; font-weight: 400; color: var(--ink); line-height: 1; font-variant-numeric: tabular-nums; }
+.room-count .of { font-size: 16px; color: var(--faint); }
+.room-count .cap { font-family: var(--mono); font-size: 8.5px; letter-spacing: .13em; text-transform: uppercase; color: var(--muted); margin-top: 5px; }
+
+.tiles { margin-top: 15px; display: grid; grid-template-columns: repeat(14, 1fr); gap: 4px; }
+.tile {
+  aspect-ratio: 1; border-radius: 3px; cursor: pointer;
+  transition: transform .13s cubic-bezier(.2,.8,.3,1), box-shadow .13s, opacity .13s;
+  border: 1px solid transparent;
+}
+.tile:hover { transform: scale(1.42); z-index: 5; box-shadow: 0 4px 12px rgba(0,0,0,.55); }
+.tile.active { background: var(--vio); opacity: .92; }
+.tile.fading { background: var(--gold); opacity: .72; }
+.tile.quiet  { background: transparent; border-color: rgba(217,139,163,.5); }
+.tile.newbie { background: var(--ok); opacity: .85; }
+.tile.ghost  { background: rgba(236,231,221,.045); cursor: default; }
+.tile.ghost:hover { transform: none; box-shadow: none; }
+
+.room-legend { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line-soft); display: flex; gap: 16px; flex-wrap: wrap; }
+.lg { display: flex; align-items: center; gap: 6px; font-family: var(--mono); font-size: 9px; letter-spacing: .09em; text-transform: uppercase; color: var(--muted); }
+.lg i { width: 8px; height: 8px; border-radius: 2px; display: block; }
+.lg b { color: var(--ink-soft); font-weight: 500; }
+
+#roomtip {
+  position: fixed; z-index: 200; pointer-events: none; opacity: 0;
+  transition: opacity .12s;
+  background: var(--card-2); border: 1px solid var(--line);
+  border-radius: 8px; padding: 8px 11px; box-shadow: 0 10px 30px -8px rgba(0,0,0,.8);
+  max-width: 230px;
+}
+#roomtip .n { font-size: 12.5px; color: var(--ink); font-weight: 500; }
+#roomtip .r { font-family: var(--mono); font-size: 9px; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); margin-top: 2px; }
+#roomtip .l { font-size: 11px; color: var(--ink-soft); margin-top: 5px; }
+
+/* ═══ ON DECK ═════════════════════════════════════════════════════════════ */
+/* align-items:start so each card hugs its content — the lead card standing
+   taller than the rest is the hierarchy, not an accident of equal-height cells */
+.deck { display: grid; grid-template-columns: 1.55fr repeat(3, 1fr); gap: 12px; align-items: start; }
+.deck > * { min-width: 0; }
+
+.ev { padding: 16px 17px; display: flex; flex-direction: column; gap: 13px; position: relative; overflow: hidden;
+      transition: border-color .16s, transform .16s; cursor: pointer; }
+.ev:hover { border-color: rgba(236,231,221,.18); transform: translateY(-2px); }
+.ev.lead { background: linear-gradient(168deg, rgba(167,139,250,.075), transparent 46%), var(--card); border-color: rgba(167,139,250,.24); }
+
+.ev-top { display: flex; align-items: flex-start; gap: 13px; }
+.datechip {
+  flex-shrink: 0; width: 46px; text-align: center; padding: 6px 0 7px;
+  border: 1px solid var(--line); border-radius: 9px; background: rgba(236,231,221,.025);
+}
+.datechip .m { font-family: var(--mono); font-size: 8.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--gold); }
+.datechip .d { font-family: var(--serif); font-size: 20px; line-height: 1.05; color: var(--ink); font-variant-numeric: tabular-nums; }
+.datechip .w { font-family: var(--mono); font-size: 8px; letter-spacing: .12em; text-transform: uppercase; color: var(--faint); }
+
+.ev-id { min-width: 0; flex: 1; }
+.ev-id h3 { font-family: var(--serif); font-weight: 400; font-size: 16px; letter-spacing: -.005em; color: var(--ink); line-height: 1.25; }
+.ev.lead .ev-id h3 { font-size: 20px; }
+.ev-meta { margin-top: 6px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+           font-family: var(--mono); font-size: 9.5px; letter-spacing: .07em; text-transform: uppercase; color: var(--muted); }
+.ev-meta .sep { width: 3px; height: 3px; border-radius: 50%; background: var(--faint); }
+
+/* readiness: four arcs = Space, Money, Promo, People */
+.ready { display: flex; align-items: center; gap: 12px; }
+.ready-ring { position: relative; width: 46px; height: 46px; flex-shrink: 0; }
+.ready-ring svg { transform: rotate(-90deg); display: block; }
+.ready-ring .ctr { position: absolute; inset: 0; display: grid; place-items: center; }
+.ready-ring .ctr b { font-family: var(--serif); font-size: 14px; font-weight: 500; color: var(--ink); }
+.ready-ring .ctr b i { font-style: normal; font-size: 10px; color: var(--faint); }
+.ready-keys { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.rk { display: flex; align-items: center; gap: 6px; font-family: var(--mono); font-size: 9px; letter-spacing: .09em; text-transform: uppercase; }
+.rk i { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; }
+.rk.on  { color: var(--muted); }
+.rk.on i { background: var(--ok); }
+.rk.off { color: var(--rose); }
+.rk.off i { background: var(--rose); box-shadow: 0 0 0 3px rgba(217,139,163,.14); }
+
+/* turnout expectation bar */
+.turnout .tl { display: flex; justify-content: space-between; align-items: baseline; font-family: var(--mono); font-size: 9px; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); }
+.turnout .tl b { color: var(--ink-soft); font-weight: 500; font-size: 10px; }
+.turnout .track { margin-top: 5px; height: 4px; border-radius: 3px; background: rgba(236,231,221,.07); overflow: hidden; position: relative; }
+.turnout .track i { display: block; height: 100%; border-radius: 3px; background: linear-gradient(90deg, var(--vio-deep), var(--vio)); }
+.turnout .track .goal { position: absolute; top: -2px; bottom: -2px; width: 1px; background: var(--gold); opacity: .8; }
+
+.ev-foot { margin-top: auto; padding-top: 11px; border-top: 1px solid var(--line-soft); display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.owner { display: flex; align-items: center; gap: 7px; min-width: 0; }
+.av {
+  width: 21px; height: 21px; border-radius: 50%; flex-shrink: 0; display: grid; place-items: center;
+  font-family: var(--mono); font-size: 8.5px; font-weight: 600; color: #14100a;
+  background: linear-gradient(140deg, var(--vio), #cbb2ff);
+}
+.av.g2 { background: linear-gradient(140deg, var(--gold), #f0d6a4); }
+.av.g3 { background: linear-gradient(140deg, var(--ok), #a9d1b1); }
+.av.g4 { background: linear-gradient(140deg, var(--rose), #f0b7c8); }
+.av.none { background: transparent; border: 1px dashed rgba(217,139,163,.55); color: var(--rose); }
+.owner span { font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* the blocker call-out inside the lead card */
+.blocker {
+  border: 1px solid rgba(217,139,163,.26); background: rgba(217,139,163,.06);
+  border-radius: 9px; padding: 11px 12px;
+}
+.blocker .bh { display: flex; align-items: center; gap: 7px; }
+.blocker .bh .k { font-family: var(--mono); font-size: 9px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--rose); }
+.blocker p { margin-top: 5px; font-size: 12.5px; color: var(--ink-soft); line-height: 1.45; }
+.blocker .acts { margin-top: 10px; display: flex; gap: 6px; }
+
+/* precedent whisper — last year's wrap-up note surfacing exactly where it helps */
+.whisper {
+  margin-top: 9px; padding-top: 9px; border-top: 1px dashed rgba(221,179,106,.22);
+  display: flex; gap: 8px; align-items: flex-start;
+}
+.whisper .wk { font-family: var(--mono); font-size: 8.5px; font-weight: 600; letter-spacing: .13em; text-transform: uppercase; color: var(--gold); flex-shrink: 0; margin-top: 2px; }
+.whisper p { font-family: var(--serif); font-style: italic; font-weight: 300; font-size: 12.5px; color: var(--muted); line-height: 1.45; }
+
+/* ═══ TWO-UP BANDS ════════════════════════════════════════════════════════ */
+.band { display: grid; grid-template-columns: 1.32fr 1fr; gap: 12px; align-items: start; }
+.band > * { min-width: 0; }
+
+/* ── THE DESK ── */
+.desk { padding: 4px 0 6px; }
+.desk-row {
+  display: grid; grid-template-columns: 30px minmax(0,1fr) auto auto; gap: 12px; align-items: center;
+  padding: 12px 18px; border-bottom: 1px solid var(--line-soft);
+  transition: background .14s;
+}
+.desk-row:last-child { border-bottom: 0; }
+.desk-row:hover { background: rgba(236,231,221,.022); }
+.desk-ico { width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; border: 1px solid var(--line); }
+.desk-ico svg { width: 14px; height: 14px; stroke-width: 1.6; fill: none; }
+.desk-ico.money { color: var(--gold); background: var(--gold-bg); border-color: rgba(221,179,106,.18); }
+.desk-ico.vote  { color: var(--vio);  background: var(--vio-bg);  border-color: rgba(167,139,250,.18); }
+.desk-ico.late  { color: var(--rose); background: var(--rose-bg); border-color: rgba(217,139,163,.2); }
+.desk-ico.people{ color: var(--ok);   background: var(--ok-bg);   border-color: rgba(127,176,138,.18); }
+.desk-what { min-width: 0; }
+.desk-what .t { font-size: 13px; color: var(--ink); line-height: 1.35; }
+.desk-what .t b { font-weight: 600; }
+.desk-what .s { font-family: var(--mono); font-size: 9.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--faint); margin-top: 3px; }
+.age { font-family: var(--mono); font-size: 10px; font-weight: 500; color: var(--faint); white-space: nowrap; }
+.age.warm { color: var(--gold); }
+.age.hot  { color: var(--rose); }
+.desk-acts { display: flex; gap: 5px; }
+
+.desk-foot { padding: 11px 18px; border-top: 1px solid var(--line); display: flex; align-items: center; justify-content: space-between; }
+.desk-foot .l { font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); }
+
+/* ── THE BOOKS ── */
+.books { padding: 17px 19px 15px; }
+.books-hero { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; }
+.books-hero .amt { font-family: var(--serif); font-size: 34px; font-weight: 400; letter-spacing: -.02em; color: var(--ink); line-height: 1; font-variant-numeric: tabular-nums; }
+.books-hero .amt sup { font-size: 17px; top: -.75em; color: var(--muted); }
+.books-hero .cap { font-family: var(--mono); font-size: 9px; letter-spacing: .13em; text-transform: uppercase; color: var(--muted); margin-top: 6px; }
+
+.runway {
+  margin-top: 14px; padding: 10px 12px; border-radius: 9px;
+  background: rgba(127,176,138,.055); border: 1px solid rgba(127,176,138,.16);
+  font-family: var(--serif); font-style: italic; font-weight: 300; font-size: 13px; color: var(--ink-soft);
+}
+.runway b { font-style: normal; font-weight: 500; color: var(--ok); }
+
+.duesblock { margin-top: 16px; }
+.duesblock .dh { display: flex; align-items: baseline; justify-content: space-between; }
+.duesblock .dh .l { font-family: var(--mono); font-size: 9.5px; letter-spacing: .13em; text-transform: uppercase; color: var(--muted); }
+.duesblock .dh .r { font-family: var(--mono); font-size: 11px; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+.duesblock .dh .r b { color: var(--ink); font-weight: 600; }
+
+/* same tile language as The Room, one block per member — the roster and the
+   ledger drawn in the same alphabet so they can be compared by eye */
+.duesbar { margin-top: 9px; display: flex; gap: 2px; height: 22px; }
+.duesbar i { flex: 1; border-radius: 2px; transition: transform .12s; }
+.duesbar i:hover { transform: scaleY(1.2); }
+.duesbar i.paid { background: var(--ok); opacity: .8; }
+.duesbar i.part { background: var(--gold); opacity: .8; }
+.duesbar i.none { background: rgba(217,139,163,.28); border: 1px solid rgba(217,139,163,.4); }
+.duesbar-key { margin-top: 8px; display: flex; gap: 14px; }
+
+.owing { margin-top: 15px; border-top: 1px solid var(--line-soft); padding-top: 12px; }
+.owing-row { display: flex; align-items: center; gap: 10px; padding: 6px 0; }
+.owing-row .nm { flex: 1; font-size: 12px; color: var(--ink-soft); }
+.owing-row .amt { font-family: var(--mono); font-size: 11px; color: var(--ink); font-variant-numeric: tabular-nums; }
+.owing-row .dys { font-family: var(--mono); font-size: 9.5px; color: var(--rose); width: 46px; text-align: right; }
+
+/* ── MOMENTUM ── */
+.mo { padding: 17px 19px 16px; }
+.mo-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; }
+.mo-head .big { font-family: var(--serif); font-size: 30px; font-weight: 400; color: var(--ink); line-height: 1; font-variant-numeric: tabular-nums; }
+.mo-head .cap { font-family: var(--mono); font-size: 9px; letter-spacing: .13em; text-transform: uppercase; color: var(--muted); margin-top: 5px; }
+.mo-chart { margin-top: 14px; position: relative; }
+.mo-chart svg { display: block; width: 100%; height: 108px; overflow: visible; }
+.mo-axis { margin-top: 6px; display: flex; justify-content: space-between; font-family: var(--mono); font-size: 8.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); }
+
+/* ── DRIFT — the humane at-risk list: measured against a person's own baseline ── */
+.drift { margin-top: 4px; }
+.drift-row { display: grid; grid-template-columns: 24px minmax(0,1fr) 70px auto; gap: 11px; align-items: center; padding: 11px 19px; border-top: 1px solid var(--line-soft); }
+.drift-row .nm { font-size: 12.5px; color: var(--ink); }
+.drift-row .sb { font-family: var(--mono); font-size: 9px; letter-spacing: .07em; text-transform: uppercase; color: var(--faint); margin-top: 2px; }
+.strip { display: flex; align-items: flex-end; gap: 2px; height: 20px; }
+.strip i { flex: 1; border-radius: 1px; background: var(--vio); opacity: .55; min-height: 2px; }
+.strip i.gone { background: rgba(217,139,163,.42); }
+
+/* ── BOARD LOAD ── */
+.load { padding: 6px 0 8px; }
+.load-row { display: grid; grid-template-columns: 24px 96px minmax(0,1fr) 52px; gap: 11px; align-items: center; padding: 9px 19px; }
+.load-row .who .n { font-size: 12px; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.load-row .who .r { font-family: var(--mono); font-size: 8.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); }
+.loadbar { display: flex; gap: 2px; height: 9px; }
+.loadbar i { border-radius: 2px; }
+.loadbar i.od { background: var(--rose); }
+.loadbar i.soon { background: var(--gold); opacity: .85; }
+.loadbar i.later { background: var(--vio); opacity: .38; }
+.load-row .cnt { font-family: var(--mono); font-size: 10px; color: var(--muted); text-align: right; font-variant-numeric: tabular-nums; }
+.load-note { margin: 8px 19px 0; padding-top: 11px; border-top: 1px solid var(--line-soft);
+  font-family: var(--serif); font-style: italic; font-weight: 300; font-size: 12.5px; color: var(--muted); line-height: 1.5; }
+.load-note b { font-style: normal; font-weight: 500; color: var(--ink-soft); }
+
+/* ═══ PRECEDENT ═══════════════════════════════════════════════════════════ */
+.prec { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: start; }
+.prec > * { min-width: 0; }
+.prec-card { padding: 18px 20px 17px; }
+.prec-lede { font-family: var(--mono); font-size: 9.5px; letter-spacing: .15em; text-transform: uppercase; color: var(--gold); }
+.prec-card h3 { font-family: var(--serif); font-weight: 400; font-size: 17px; margin-top: 9px; color: var(--ink); }
+.prec-stats { margin-top: 13px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.pst { border-left: 1px solid var(--line); padding-left: 11px; }
+.pst .v { font-family: var(--serif); font-size: 21px; color: var(--ink); line-height: 1.1; font-variant-numeric: tabular-nums; }
+.pst .k { font-family: var(--mono); font-size: 8.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--faint); margin-top: 3px; }
+.quote {
+  margin-top: 15px; padding: 13px 15px; border-radius: 10px;
+  background: rgba(221,179,106,.05); border: 1px solid rgba(221,179,106,.16);
+}
+.quote p { font-family: var(--serif); font-style: italic; font-weight: 300; font-size: 14px; line-height: 1.55; color: var(--ink-soft); }
+.quote .by { margin-top: 8px; font-family: var(--mono); font-size: 9px; letter-spacing: .11em; text-transform: uppercase; color: var(--faint); }
+
+.dec-row { display: flex; gap: 13px; padding: 11px 0; border-bottom: 1px solid var(--line-soft); }
+.dec-row:last-child { border-bottom: 0; }
+.dec-when { font-family: var(--mono); font-size: 9.5px; letter-spacing: .07em; text-transform: uppercase; color: var(--faint); width: 46px; flex-shrink: 0; padding-top: 2px; }
+.dec-body .t { font-size: 12.5px; color: var(--ink-soft); line-height: 1.45; }
+.dec-body .t b { color: var(--ink); font-weight: 500; }
+.dec-body .m { font-family: var(--mono); font-size: 9px; letter-spacing: .09em; text-transform: uppercase; color: var(--faint); margin-top: 3px; }
+
+/* ═══ DAY-ONE STATES ══════════════════════════════════════════════════════ */
+/* Empty is not an error message. Every widget keeps its frame and shows the one
+   move that fills it, over a ghosted sketch of what it will become. */
+.empty { position: relative; padding: 30px 22px 28px; text-align: center; overflow: hidden; }
+/* a dashed inner frame reads unambiguously as "reserved, not broken" — a
+   ghosted sketch of the real widget only ever read as a rendering smudge */
+.empty::before {
+  content: ""; position: absolute; inset: 9px; border-radius: 9px;
+  border: 1px dashed var(--line); pointer-events: none;
+}
+.empty-in { position: relative; }
+.empty h4 { font-family: var(--serif); font-weight: 400; font-size: 16px; color: var(--ink); }
+.empty p { margin-top: 7px; font-size: 12.5px; color: var(--muted); max-width: 330px; margin-left: auto; margin-right: auto; line-height: 1.55; }
+.empty .acts { margin-top: 14px; display: flex; gap: 7px; justify-content: center; flex-wrap: wrap; }
+
+/* day-one On Deck: instead of "no events", offer the three every org starts with */
+.starters { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 16px; text-align: left; }
+.starter { padding: 13px 14px; border: 1px dashed var(--line); border-radius: 10px; cursor: pointer; transition: border-color .15s, background .15s, transform .12s; }
+.starter:hover { border-color: rgba(167,139,250,.4); border-style: solid; background: var(--card-2); transform: translateY(-2px); }
+.starter .st { font-family: var(--serif); font-size: 14px; color: var(--ink); }
+.starter .sd { font-size: 11.5px; color: var(--muted); margin-top: 4px; line-height: 1.45; }
+.starter .sw { font-family: var(--mono); font-size: 8.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--vio); margin-top: 9px; }
+
+/* setup progress meter — day-one masthead only */
+.setup { padding: 15px 18px; }
+.setup-top { display: flex; align-items: baseline; justify-content: space-between; }
+.setup-top .l { font-family: var(--mono); font-size: 9.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+.setup-top .r { font-family: var(--serif); font-size: 15px; color: var(--ink); }
+.setup-track { margin-top: 11px; display: flex; gap: 4px; }
+.setup-track i { flex: 1; height: 4px; border-radius: 3px; background: rgba(236,231,221,.07); }
+.setup-track i.done { background: var(--ok); }
+.setup-track i.now { background: var(--vio); box-shadow: 0 0 0 3px var(--vio-bg); }
+.setup-steps { margin-top: 14px; display: flex; flex-direction: column; gap: 1px; }
+.sstep { display: grid; grid-template-columns: 18px minmax(0,1fr) auto; gap: 10px; align-items: center; padding: 9px 0; border-bottom: 1px solid var(--line-soft); }
+.sstep:last-child { border-bottom: 0; }
+.sstep .box { width: 16px; height: 16px; border-radius: 5px; border: 1px solid var(--line); display: grid; place-items: center; }
+.sstep .box svg { width: 9px; height: 9px; stroke-width: 2.4; fill: none; }
+.sstep.done .box { background: var(--ok-bg); border-color: rgba(127,176,138,.3); color: var(--ok); }
+.sstep.now .box { border-color: var(--vio); background: var(--vio-bg); }
+.sstep .t { font-size: 12.5px; color: var(--ink-soft); }
+.sstep.done .t { color: var(--faint); text-decoration: line-through; text-decoration-color: var(--line); }
+.sstep.now .t { color: var(--ink); font-weight: 500; }
+.sstep .mins { font-family: var(--mono); font-size: 9px; letter-spacing: .09em; text-transform: uppercase; color: var(--faint); }
+
+/* ── entrance ── */
+@keyframes rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+.anim { animation: rise .5s cubic-bezier(.2,.8,.3,1) both; }
+@media (prefers-reduced-motion: reduce) { .anim { animation: none; } * { transition: none !important; } }
+
+/* ── responsive ─────────────────────────────────────────────────────────── */
+@media (max-width: 1180px) {
+  .masthead { grid-template-columns: 1fr; gap: 26px; }
+  /* full-width single column: 14 tracks would blow the tiles up to 60px each,
+     so re-flow 56 members into two long rows instead */
+  .tiles { grid-template-columns: repeat(28, 1fr); }
+  .deck { grid-template-columns: 1fr 1fr; }
+  .ev.lead { grid-column: 1 / -1; }
+}
+@media (max-width: 1000px) {
+  .band { grid-template-columns: 1fr; }
+  .prec { grid-template-columns: 1fr; }
+}
+@media (max-width: 720px) {
+  .deck { grid-template-columns: 1fr; }
+  .ev.lead { grid-column: auto; }
+  .starters { grid-template-columns: 1fr; }
+  .tiles { grid-template-columns: repeat(10, 1fr); }
+  .desk-row { grid-template-columns: 30px minmax(0,1fr); row-gap: 9px; }
+  .desk-row .age { grid-column: 2; justify-self: start; }
+  .desk-row .desk-acts { grid-column: 2; }
+  .topbar-in { flex-wrap: wrap; }
+  /* the nowrap note is what forces min-content past the viewport — let the
+     header wrap before it drags the whole grid track wide */
+  .sec-head { flex-wrap: wrap; row-gap: 5px; }
+  .sec-head .note { white-space: normal; }
+  .sec-head .rule { min-width: 20px; }
+  .pm { grid-template-columns: 1fr; gap: 2px; }
+  .load-row { grid-template-columns: 24px 84px minmax(0,1fr) 44px; gap: 8px; padding-left: 14px; padding-right: 14px; }
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-in">
+    <div class="brand">
+      <div class="mark">C</div>
+      <div>
+        <div class="nm">Cascade Outdoors Club</div>
+        <div class="term" id="brandTerm">Fall Term 2026 · Week 7</div>
+      </div>
+    </div>
+    <div class="spacer"></div>
+    <div class="mockswitch">
+      <span class="lbl">Mock state</span>
+      <div class="seg" role="group" aria-label="Mock state">
+        <button id="btnDayOne" aria-pressed="false">Day one</button>
+        <button id="btnLive" aria-pressed="true">Live org</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="shell">
+  <!-- ══ MASTHEAD ═══════════════════════════════════════════════════════ -->
+  <header class="masthead anim">
+    <div>
+      <div class="mh-kick">
+        <span class="dot"></span>
+        <span class="kicker" id="mhDate">Thursday, October 8</span>
+        <span class="kicker" style="color:var(--faint)" id="mhSub">· 3 days to Ridge Hike</span>
+      </div>
+      <h1 class="greeting" id="mhGreet">Morning, <em>Priya</em>.</h1>
+      <div class="briefline">
+        <span class="ai">AI</span>
+        <p id="mhBrief"></p>
+      </div>
+      <div class="findings" id="mhFindings"></div>
+      <div id="mhPrimer"></div>
+    </div>
+    <div id="mhRight"></div>
+  </header>
+
+  <!-- ══ ON DECK ════════════════════════════════════════════════════════ -->
+  <section class="sec anim" id="sec-deck" style="animation-delay:.06s">
+    <div class="sec-head">
+      <h2>On <em>deck</em></h2>
+      <span class="rule"></span>
+      <span class="note" id="deckNote"></span>
+    </div>
+    <div id="deckBody"></div>
+  </section>
+
+  <!-- ══ DESK + BOOKS ═══════════════════════════════════════════════════ -->
+  <section class="sec anim" style="animation-delay:.12s">
+    <div class="band">
+      <div>
+        <div class="sec-head">
+          <h2 id="deskTitle">Waiting on the <em>board</em></h2>
+          <span class="rule"></span>
+          <span class="note" id="deskNote"></span>
+        </div>
+        <div class="card" id="deskBody"></div>
+      </div>
+      <div>
+        <div class="sec-head">
+          <h2>The <em>books</em></h2>
+          <span class="rule"></span>
+          <span class="note" id="booksNote"></span>
+        </div>
+        <div class="card" id="booksBody"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ MOMENTUM + LOAD ════════════════════════════════════════════════ -->
+  <section class="sec anim" id="sec-people" style="animation-delay:.18s">
+    <div class="band">
+      <div>
+        <div class="sec-head">
+          <h2>Who's still <em>showing up</em></h2>
+          <span class="rule"></span>
+          <span class="note" id="moNote"></span>
+        </div>
+        <div class="card" id="moBody"></div>
+      </div>
+      <div>
+        <div class="sec-head">
+          <h2>Board <em>load</em></h2>
+          <span class="rule"></span>
+          <span class="note" id="loadNote"></span>
+        </div>
+        <div class="card" id="loadBody"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ PRECEDENT ══════════════════════════════════════════════════════ -->
+  <section class="sec anim" style="animation-delay:.24s">
+    <div class="sec-head">
+      <h2><em>Precedent</em></h2>
+      <span class="rule"></span>
+      <span class="note">What the last board knew</span>
+    </div>
+    <div id="precBody"></div>
+  </section>
+</div>
+
+<div id="roomtip" aria-hidden="true"></div>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════════════════
+   DATA — two complete states. Everything renders from here so the day-one and
+   live views share one set of components rather than being two mock screens.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+const ICONS = {
+  money: '<path d="M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" stroke="currentColor" stroke-linecap="round"/>',
+  vote:  '<path d="M9 11l3 3L22 4M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>',
+  late:  '<circle cx="12" cy="12" r="9" stroke="currentColor"/><path d="M12 7v5l3 2" stroke="currentColor" stroke-linecap="round"/>',
+  people:'<path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 7a4 4 0 100 8 4 4 0 000-8zM23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>',
+  check: '<path d="M20 6L9 17l-5-5" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>'
+};
+
+const NAMES = ["Priya Nair","Marcus Ochoa","Dana Reyes","Jordan Kim","Tess Abara","Leo Brandt","Sofia Mendez","Ryan Pike","Amara Osei","Ellis Vance","Noor Haddad","Cody Lang","Iris Okafor","Ben Trask","Maya Solberg","Owen Pryce","Lena Vogt","Sam Whitford","Rosa Cabrera","Theo Nakamura","Jae Sung","Nina Coles","Felix Duarte","Zoe Amherst","Kai Lindqvist","Hana Farrow","Gus Ellery","Mira Tanaka","Dev Patel","Claire Beaumont","Otto Rinaldi","Suki Larsen","Milo Fenwick","Talia Grant","Rex Underwood","June Castellan","Arjun Rao","Pia Norrland","Cyrus Bell","Wren Halloway","Nico Ferrante","Lucia Moreau","Tobias Reinhart","Esme Caldwell","Rafe Donnelly","Ada Kowalski","Simon Vlahos","Bea Thornton","Hugo Marchetti","Ines Delgado","Casper Wu","Marlowe Judd","Yuki Sorensen","Gabe Ruiz","Thea Lindgren","Emil Novak"];
+
+const ROLES = ["President","Events Chair","Service Chair","Operations","Treasurer","Comms Chair"];
+
+/* member engagement states, fixed pattern so the mock is deterministic */
+function buildRoom() {
+  const out = [];
+  const quietIdx  = new Set([6,7,8,31,44,50]);
+  const fadingIdx = new Set([12,17,23,28,34,38,41,47,53]);
+  const newIdx    = new Set([49,51,52,54,55]);
+  NAMES.forEach((name, i) => {
+    let state = "active", last = "This week";
+    if (quietIdx.has(i))       { state = "quiet";  last = "Last seen 6 weeks ago"; }
+    else if (fadingIdx.has(i)) { state = "fading"; last = "Last seen 3 weeks ago"; }
+    else if (newIdx.has(i))    { state = "newbie"; last = "Joined 2 weeks ago"; }
+    out.push({ name, state, last, role: i < 6 ? ROLES[i] : "Member" });
+  });
+  return out;
+}
+
+const DATA = {
+  live: {
+    term: "Fall Term 2026 · Week 7",
+    date: "Thursday, October 8",
+    sub:  "· 3 days to Ridge Hike",
+    greet: 'Morning, <em>Priya</em>.',
+    brief: 'Two things moved since Tuesday: dues crossed <b>74%</b> for the first time this term, and the <b>Ridge Hike</b> van reservation lapsed.',
+    findings: [
+      { c: "var(--rose)", n: "6",       t: "waiting on the board", to: "deskBody" },
+      { c: "var(--gold)", n: "$1,240",  t: "outstanding · 17 members", to: "booksBody" },
+      { c: "var(--rose)", n: "3",       t: "members drifting", to: "sec-people" },
+      { c: "var(--vio)",  n: "3 of 4",  t: "Ridge Hike ready", to: "sec-deck" }
+    ],
+    room: buildRoom(),
+
+    deckNote: "Next 4 weeks · readiness scored on space, money, promo, people",
+    events: [
+      {
+        lead: true, m: "Oct", d: "11", w: "Sat", title: "Ridge Hike Day Trip",
+        meta: ["Trip", "7:00 AM", "Trailhead lot"], away: "In 3 days",
+        ready: [["Space",false],["Money",true],["Promo",true],["People",true]],
+        rsvp: 34, goal: 45, cap: 60,
+        owner: { i: "MO", g: "g2", n: "Marcus Ochoa" },
+        blocker: {
+          title: "Van reservation lapsed",
+          text: "Motor pool released both 12-seat vans on Oct 4 when the hold went unconfirmed. 34 people are RSVP'd for 24 seats.",
+          acts: [["Rebook now", true], ["Reassign", false]]
+        },
+        whisper: "Last October's board wrote: “Two vans wasn't enough — book three, and confirm the hold a week out.”"
+      },
+      {
+        m: "Oct", d: "14", w: "Tue", title: "General Meeting #7",
+        meta: ["Meeting", "7:30 PM"], away: "In 6 days",
+        ready: [["Space",true],["Money",true],["Promo",true],["People",true]],
+        rsvp: 48, goal: 48, cap: 56,
+        owner: { i: "PN", g: "", n: "Priya Nair" }
+      },
+      {
+        m: "Oct", d: "18", w: "Sat", title: "Riverbank Trail Cleanup",
+        meta: ["Service", "9:00 AM"], away: "In 10 days",
+        ready: [["Space",true],["Money",true],["Promo",false],["People",false]],
+        rsvp: 12, goal: 30, cap: 40,
+        owner: { i: "DR", g: "g3", n: "Dana Reyes" }
+      },
+      {
+        m: "Oct", d: "24", w: "Fri", title: "Fall Social",
+        meta: ["Social", "8:00 PM"], away: "In 16 days",
+        ready: [["Space",true],["Money",false],["Promo",false],["People",false]],
+        rsvp: 0, goal: 50, cap: 70,
+        owner: null
+      }
+    ],
+
+    deskNote: "6 items · oldest waiting 5 days",
+    desk: [
+      { k:"money",  t:'<b>Alex Reyes</b> submitted a $60 dues payment', s:"Venmo · screenshot attached", age:"5d", tone:"hot",  acts:[["Approve",true],["Open",false]] },
+      { k:"money",  t:'<b>Marcus Ochoa</b> requested $84.20 reimbursement', s:"Trail permits · receipt attached", age:"3d", tone:"warm", acts:[["Approve",true],["Open",false]] },
+      { k:"vote",   t:'Poll closed: <b>Spring trip destination</b>', s:"47 of 56 voted · Olympic Peninsula leads", age:"2d", tone:"warm", acts:[["Publish",true]] },
+      { k:"late",   t:'<b>Room request for Fall Social</b> is 4 days overdue', s:"Jordan Kim · blocks the Money check", age:"4d", tone:"hot",  acts:[["Nudge",false],["Reassign",false]] },
+      { k:"people", t:'5 invitations still unaccepted', s:"Sent 9 days ago · 3 have never opened", age:"9d", tone:"warm", acts:[["Resend",false]] },
+      { k:"money",  t:'<b>Socials</b> is at 112% of its allocation', s:"$672 spent of $600 · 6 weeks left in term", age:"1d", tone:"",     acts:[["Review",false]] }
+    ],
+
+    booksNote: "Fall term to date",
+    books: {
+      balance: "4,182", cents: ".60",
+      runway: 'At this term\'s burn rate you are <b>funded through February</b> — about 4 months of cushion.',
+      duesPct: 74, duesGot: "3,520", duesTotal: "4,760",
+      paid: 39, part: 4, unpaid: 13,
+      owing: [
+        ["Ellis Vance", "$85", "31d"],
+        ["Cody Lang", "$85", "24d"],
+        ["Nina Coles", "$45", "17d"]
+      ],
+      owingMore: "14 more"
+    },
+
+    moNote: "Participation breadth · 12 weeks",
+    momentum: {
+      big: "41", cap: "of 56 active this fortnight",
+      delta: "-6 vs. peak", deltaTone: "gold",
+      series: [22,31,47,44,45,42,40,43,39,41,38,41],
+      avg: 39,
+      axis: ["Wk 1", "Wk 6", "Wk 12"],
+      drift: [
+        { n:"Sofia Mendez",  s:"Was at every meeting through Week 4", av:"g4", bars:[7,8,7,8,3,1,0,0] },
+        { n:"Ryan Pike",     s:"Attendance halved since the dues notice", av:"g2", bars:[8,7,6,7,4,3,2,1] },
+        { n:"Amara Osei",    s:"Stopped after the leadership vote", av:"g4", bars:[6,7,8,6,5,0,0,0] }
+      ]
+    },
+
+    loadNote: "Open items per officer",
+    load: [
+      { n:"Marcus Ochoa", r:"Events Chair", av:"g2", od:3, soon:4, later:4 },
+      { n:"Priya Nair",   r:"President",    av:"",   od:1, soon:2, later:4 },
+      { n:"Jordan Kim",   r:"Operations",   av:"g4", od:2, soon:2, later:2 },
+      { n:"Dana Reyes",   r:"Service Chair",av:"g3", od:0, soon:1, later:3 },
+      { n:"Tess Abara",   r:"Treasurer",    av:"g2", od:0, soon:2, later:1 },
+      { n:"Leo Brandt",   r:"Comms Chair",  av:"g3", od:0, soon:0, later:1 }
+    ],
+    loadNoteText: '<b>Marcus is carrying 34% of the board\'s open work</b> and owns the only blocked event. Leo has one item all term — the Trail Cleanup promo he\'s missing is a two-hour job.',
+
+    prec: {
+      lede: "Week 7, one year ago",
+      title: "Ridge Hike Day Trip · October 12, 2025",
+      stats: [["51","Turned out"],["$312","Spent"],["4 / 5","Rated"]],
+      quote: "Two vans wasn't enough — book three, and confirm the hold a week out. Also: the trailhead lot fills by 7:30, so leave campus at 6:45 not 7:15.",
+      by: "Wrap-up note · Harper Liu, Events Chair 2025",
+      decisions: [
+        { w:"Sep 9",  t:'Raised term dues from <b>$70 to $85</b> to cover transport', m:"Poll · 41 for, 6 against · 84% turnout" },
+        { w:"Sep 23", t:'Moved general meetings to <b>Tuesdays at 7:30</b>', m:"Poll · 38 for, 12 against · 89% turnout" },
+        { w:"Oct 1",  t:'Approved <b>$600 socials budget</b> for the term', m:"Board vote · 5 for, 1 abstain" }
+      ]
+    }
+  },
+
+  /* ═══ DAY ONE — the org is four minutes old ═══════════════════════════ */
+  dayone: {
+    term: "Fall Term 2026 · Not started",
+    date: "Monday, August 24",
+    sub:  "· Cascade Outdoors is 4 minutes old",
+    greet: 'Welcome, <em>Priya</em>.',
+    brief: 'Nothing here is broken — it is <b>empty</b>. Three moves below and your first meeting is live; everything else on this page fills itself in as the term runs.',
+    findings: [],
+    primer: {
+      acts: [["Invite your board · 2 min", true], ["Take the 90-second tour", false]],
+      map: [
+        { w: "Day 1",  t: '<b>On deck</b> starts working the moment you add one event — it scores every event on space, money, promo and turnout so nothing gets to Friday half-built.' },
+        { w: "Week 2", t: '<b>The books</b> and <b>the room</b> turn on once dues are set and two meetings are logged.' },
+        { w: "Week 6", t: '<b>Drift</b> starts flagging members who are slipping — while you can still text them.' },
+        { w: "Next year", t: '<b>Precedent</b> hands all of it to the board that replaces you.' }
+      ]
+    },
+    setup: {
+      doneCount: 2, total: 6,
+      steps: [
+        { s:"done", t:"Name your org and pick a term", m:"Done" },
+        { s:"done", t:"Choose the workflows you'll use", m:"Done" },
+        { s:"now",  t:"Invite your board", m:"2 min" },
+        { s:"",     t:"Set your dues amount", m:"1 min" },
+        { s:"",     t:"Add your first meeting", m:"1 min" },
+        { s:"",     t:"Import or invite your members", m:"5 min" }
+      ]
+    },
+    room: (() => {
+      const seed = [
+        { name:"Priya Nair", state:"newbie", last:"Founder · joined today", role:"President" },
+        { name:"Marcus Ochoa", state:"newbie", last:"Invited · not yet accepted", role:"Events Chair" },
+        { name:"Dana Reyes", state:"newbie", last:"Invited · not yet accepted", role:"Service Chair" }
+      ];
+      return seed.concat(Array.from({length: 53}, () => ({ ghost: true })));
+    })(),
+
+    deckNote: "Nothing scheduled yet",
+    events: [],
+    starters: [
+      { t:"Interest meeting", d:"An open session for people deciding whether to join. Pulls double duty as your first roster import.", w:"Most orgs start here" },
+      { t:"First general meeting", d:"Sets the weekly cadence. We'll repeat it on your term calendar automatically.", w:"Creates 12 events" },
+      { t:"Kickoff social", d:"Low-stakes, high-turnout. The strongest single predictor of who stays through November.", w:"Takes 40 seconds" }
+    ],
+
+    deskTitle: 'First <em>moves</em>',
+    deskNote: "4 setup items · about 9 minutes",
+    desk: [
+      { k:"people", t:'<b>Invite your board</b> — 4 officer seats are empty', s:"They can start setting up their own areas immediately", age:"", tone:"", acts:[["Invite",true]] },
+      { k:"money",  t:'<b>Set your dues amount</b>', s:"Unlocks collection tracking, reminders, and the books below", age:"", tone:"", acts:[["Set dues",true]] },
+      { k:"late",   t:'<b>Confirm your term dates</b>', s:"Aug 24 – Dec 12 detected from the academic calendar", age:"", tone:"", acts:[["Confirm",true],["Edit",false]] },
+      { k:"vote",   t:'<b>Import your roster</b>', s:"Paste a spreadsheet, or send one join link to everyone", age:"", tone:"", acts:[["Import",false],["Copy link",false]] }
+    ],
+
+    booksNote: "Not set up",
+    booksEmpty: {
+      h: "No ledger yet",
+      p: "Set a dues amount and this becomes a live collection board — who has paid, who hasn't, and how many weeks of runway you have.",
+      acts: [["Set dues", true], ["Skip for now", false]]
+    },
+
+    moNote: "Fills in after your second meeting",
+    moEmpty: {
+      h: "Not enough history to trend",
+      p: "Once two meetings have attendance logged, this chart shows how much of your roster is actually participating — and flags anyone slipping before they disappear.",
+      acts: [["Add first meeting", true]]
+    },
+    loadNote: "1 of 6 seats filled",
+    load: [
+      { n:"Priya Nair", r:"President", av:"", od:0, soon:0, later:2 }
+    ],
+    loadNoteText: 'Five officer seats are open. Work assigned to an empty seat has nowhere to go — <b>filling these is the highest-leverage thing you can do today</b>.',
+
+    prec: {
+      lede: "Nothing here yet",
+      title: "This is where your history will live",
+      empty: true,
+      quote: "Every event you run, every vote you take, and every wrap-up note you write this term gets filed here — and resurfaces on the exact week next year's board needs it. The board after you inherits a playbook instead of a group chat.",
+      by: "Why this page exists"
+    }
+  }
+};
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   RENDER
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+
+function svgIco(k, cls) {
+  return `<div class="desk-ico ${cls}"><svg viewBox="0 0 24 24">${ICONS[k]}</svg></div>`;
+}
+
+/* ── The Room ── */
+function renderRoom(d) {
+  const counts = { active:0, fading:0, quiet:0, newbie:0 };
+  d.room.forEach(m => { if (!m.ghost) counts[m.state]++; });
+  const total = d.room.length;
+  const live = counts.active + counts.newbie;
+
+  const tiles = d.room.map((m, i) => m.ghost
+    ? `<div class="tile ghost"></div>`
+    : `<div class="tile ${m.state}" data-i="${i}" tabindex="0"></div>`).join("");
+
+  const legend = [
+    ["active", "var(--vio)", counts.active, "here"],
+    ["fading", "var(--gold)", counts.fading, "fading"],
+    ["quiet",  "transparent", counts.quiet, "gone quiet"],
+    ["newbie", "var(--ok)", counts.newbie, "new"]
+  ].filter(l => l[2] > 0).map(([k, c, n, lbl]) =>
+    `<span class="lg"><i style="background:${c};${k==='quiet'?'border:1px solid rgba(217,139,163,.5)':''}"></i><b>${n}</b> ${lbl}</span>`
+  ).join("");
+
+  return `<div class="card room">
+    <div class="room-top">
+      <div class="room-head">
+        <div class="h">The room</div>
+        <div class="s">One tile per member · shaded by last activity</div>
+      </div>
+      <div class="room-count">
+        <div class="big">${live}<span class="of"> / ${total}</span></div>
+        <div class="cap">${d.room.some(m=>m.ghost) ? "Seats claimed" : "Active this fortnight"}</div>
+      </div>
+    </div>
+    <div class="tiles" id="tilesWrap">${tiles}</div>
+    <div class="room-legend">${legend}${d.room.some(m=>m.ghost) ? `<span class="lg" style="color:var(--faint)"><i style="background:rgba(236,231,221,.045)"></i>${d.room.filter(m=>m.ghost).length} empty</span>` : ""}</div>
+  </div>`;
+}
+
+/* ── setup meter (day one) ── */
+function renderSetup(d) {
+  const s = d.setup;
+  const track = s.steps.map(st =>
+    `<i class="${st.s === 'done' ? 'done' : st.s === 'now' ? 'now' : ''}"></i>`).join("");
+  const steps = s.steps.map(st => `
+    <div class="sstep ${st.s}">
+      <div class="box">${st.s === 'done' ? `<svg viewBox="0 0 24 24">${ICONS.check}</svg>` : ''}</div>
+      <div class="t">${esc(st.t)}</div>
+      <div class="mins">${esc(st.m)}</div>
+    </div>`).join("");
+  return `<div class="card setup" style="margin-bottom:12px">
+      <div class="setup-top"><span class="l">Getting set up</span><span class="r">${s.doneCount} <span style="color:var(--faint);font-size:12px">of ${s.total}</span></span></div>
+      <div class="setup-track">${track}</div>
+      <div class="setup-steps">${steps}</div>
+    </div>` + renderRoom(d);
+}
+
+/* ── readiness ring ── */
+function readyRing(ready) {
+  const r = 19, C = 2 * Math.PI * r, seg = C / 4 - 5, done = ready.filter(x => x[1]).length;
+  const arcs = ready.map(([, ok], i) =>
+    `<circle cx="23" cy="23" r="${r}" fill="none" stroke="${ok ? 'var(--ok)' : 'rgba(236,231,221,.11)'}"
+      stroke-width="3" stroke-linecap="round"
+      stroke-dasharray="${seg} ${C - seg}" stroke-dashoffset="${-i * C / 4}"/>`).join("");
+  return `<div class="ready-ring">
+    <svg viewBox="0 0 46 46" width="46" height="46">${arcs}</svg>
+    <div class="ctr"><b>${done}<i>/4</i></b></div>
+  </div>`;
+}
+
+/* ── On Deck ── */
+function renderDeck(d) {
+  if (!d.events.length) {
+    const cards = d.starters.map(s => `
+      <div class="starter">
+        <div class="st">${esc(s.t)}</div>
+        <div class="sd">${esc(s.d)}</div>
+        <div class="sw">${esc(s.w)} →</div>
+      </div>`).join("");
+    return `<div class="card empty">
+      <div class="empty-in">
+        <h4>Your term has no events yet</h4>
+        <p>This rail is the first thing your board will look at every morning. Start it with one of these — each one pre-fills a full readiness checklist.</p>
+        <div class="starters">${cards}</div>
+      </div>
+    </div>`;
+  }
+
+  const cards = d.events.map(e => {
+    const pct = Math.min(100, Math.round(e.rsvp / e.cap * 100));
+    const goalPct = Math.min(100, Math.round(e.goal / e.cap * 100));
+    const keys = e.ready.map(([k, ok]) => `<span class="rk ${ok ? 'on' : 'off'}"><i></i>${k}</span>`).join("");
+    const owner = e.owner
+      ? `<div class="owner"><div class="av ${e.owner.g}">${e.owner.i}</div><span>${esc(e.owner.n)}</span></div>`
+      : `<div class="owner"><div class="av none">?</div><span style="color:var(--rose)">No owner</span></div>`;
+    const away = e.ready.filter(x => x[1]).length === 4
+      ? `<span class="pill ok">Ready</span>`
+      : `<span class="pill ${e.lead ? 'rose' : 'dim'}">${esc(e.away)}</span>`;
+
+    return `<article class="card ev ${e.lead ? 'lead' : ''}">
+      <div class="ev-top">
+        <div class="datechip"><div class="m">${e.m}</div><div class="d">${e.d}</div><div class="w">${e.w}</div></div>
+        <div class="ev-id">
+          <h3>${esc(e.title)}</h3>
+          <div class="ev-meta">${e.meta.map(m => esc(m)).join('<span class="sep"></span>')}</div>
+        </div>
+        ${away}
+      </div>
+
+      <div class="ready">${readyRing(e.ready)}<div class="ready-keys">${keys}</div></div>
+
+      <div class="turnout">
+        <div class="tl"><span>Turnout</span><span><b>${e.rsvp}</b> of ${e.goal} expected</span></div>
+        <div class="track"><i style="width:${pct}%"></i><span class="goal" style="left:${goalPct}%"></span></div>
+      </div>
+
+      ${e.blocker ? `<div class="blocker">
+        <div class="bh"><span class="k">Blocking</span><span class="pill rose">${esc(e.blocker.title)}</span></div>
+        <p>${esc(e.blocker.text)}</p>
+        <div class="acts">${e.blocker.acts.map(([l, p]) => `<button class="btn ${p ? 'pri' : ''} tiny">${esc(l)}</button>`).join("")}</div>
+        ${e.whisper ? `<div class="whisper"><span class="wk">Precedent</span><p>${esc(e.whisper)}</p></div>` : ""}
+      </div>` : ""}
+
+      <div class="ev-foot">${owner}<button class="btn tiny">Open</button></div>
+    </article>`;
+  }).join("");
+
+  return `<div class="deck">${cards}</div>`;
+}
+
+/* ── The Desk ── */
+function renderDesk(d) {
+  const rows = d.desk.map(it => `
+    <div class="desk-row">
+      ${svgIco(it.k, it.k)}
+      <div class="desk-what"><div class="t">${it.t}</div><div class="s">${esc(it.s)}</div></div>
+      <div class="age ${it.tone}">${esc(it.age)}</div>
+      <div class="desk-acts">${it.acts.map(([l, p]) => `<button class="btn ${p ? 'pri' : ''} tiny">${esc(l)}</button>`).join("")}</div>
+    </div>`).join("");
+  const foot = d.setup
+    ? `<div class="desk-foot"><span class="l">Finish these and the page above turns on</span><button class="btn tiny">Skip setup</button></div>`
+    : `<div class="desk-foot"><span class="l">Cleared items move to the activity log</span><button class="btn tiny">Approve all safe</button></div>`;
+  return `<div class="desk">${rows}</div>${foot}`;
+}
+
+/* ── The Books ── */
+function renderBooks(d) {
+  if (d.booksEmpty) {
+    const e = d.booksEmpty;
+    return `<div class="empty">
+      <div class="empty-in">
+        <h4>${esc(e.h)}</h4><p>${esc(e.p)}</p>
+        <div class="acts">${e.acts.map(([l, p]) => `<button class="btn ${p ? 'pri' : ''}">${esc(l)}</button>`).join("")}</div>
+      </div>
+    </div>`;
+  }
+  const b = d.books;
+  const blocks = [
+    ...Array(b.paid).fill('paid'),
+    ...Array(b.part).fill('part'),
+    ...Array(b.unpaid).fill('none')
+  ].map(c => `<i class="${c}"></i>`).join("");
+
+  const owing = b.owing.map(([n, a, dd]) => `
+    <div class="owing-row"><span class="nm">${esc(n)}</span><span class="amt">${esc(a)}</span><span class="dys">${esc(dd)}</span></div>`).join("");
+
+  return `<div class="books">
+    <div class="books-hero">
+      <div>
+        <div class="amt">$${b.balance}<sup>${b.cents}</sup></div>
+        <div class="cap">Balance on hand</div>
+      </div>
+      <button class="btn tiny">Ledger</button>
+    </div>
+    <div class="runway">${b.runway}</div>
+
+    <div class="duesblock">
+      <div class="dh"><span class="l">Dues collected</span><span class="r"><b>$${b.duesGot}</b> of $${b.duesTotal} · ${b.duesPct}%</span></div>
+      <div class="duesbar">${blocks}</div>
+      <div class="duesbar-key">
+        <span class="lg"><i style="background:var(--ok);opacity:.8"></i><b>${b.paid}</b> paid</span>
+        <span class="lg"><i style="background:var(--gold);opacity:.8"></i><b>${b.part}</b> partial</span>
+        <span class="lg"><i style="background:rgba(217,139,163,.28);border:1px solid rgba(217,139,163,.4)"></i><b>${b.unpaid}</b> unpaid</span>
+      </div>
+    </div>
+
+    <div class="owing">
+      <div class="dh" style="display:flex;align-items:baseline;justify-content:space-between">
+        <span class="l" style="font-family:var(--mono);font-size:9.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--muted)">Longest outstanding</span>
+        <button class="btn tiny">Remind all</button>
+      </div>
+      ${owing}
+      <div style="margin-top:8px"><span class="pill dim">+ ${esc(b.owingMore)}</span></div>
+    </div>
+  </div>`;
+}
+
+
+/* ── Momentum ── */
+function areaPath(series, w, h, pad) {
+  const max = Math.max(...series) * 1.12, min = 0;
+  const step = (w - pad * 2) / (series.length - 1);
+  const pts = series.map((v, i) => [pad + i * step, h - pad - (v - min) / (max - min) * (h - pad * 2)]);
+  let line = `M ${pts[0][0]} ${pts[0][1]}`;
+  for (let i = 1; i < pts.length; i++) {
+    const [x0, y0] = pts[i - 1], [x1, y1] = pts[i], cx = (x0 + x1) / 2;
+    line += ` C ${cx} ${y0} ${cx} ${y1} ${x1} ${y1}`;
+  }
+  const area = line + ` L ${pts[pts.length - 1][0]} ${h} L ${pts[0][0]} ${h} Z`;
+  return { line, area, pts, max, min };
+}
+
+function renderMomentum(d) {
+  if (d.moEmpty) {
+    const e = d.moEmpty;
+    return `<div class="empty">
+      <div class="empty-in">
+        <h4>${esc(e.h)}</h4><p>${esc(e.p)}</p>
+        <div class="acts">${e.acts.map(([l, p]) => `<button class="btn ${p ? 'pri' : ''}">${esc(l)}</button>`).join("")}</div>
+      </div>
+    </div>`;
+  }
+  const m = d.momentum;
+  const W = 600, H = 108, P = 6;
+  const { line, area, pts, max } = areaPath(m.series, W, H, P);
+  const avgY = H - P - (m.avg / (max)) * (H - P * 2);
+  const last = pts[pts.length - 1];
+
+  const drift = m.drift.map(p => {
+    const mx = Math.max(...p.bars);
+    const bars = p.bars.map(v => `<i class="${v === 0 ? 'gone' : ''}" style="height:${Math.max(8, v / mx * 100)}%"></i>`).join("");
+    return `<div class="drift-row">
+      <div class="av ${p.av}">${p.n.split(" ").map(x => x[0]).join("")}</div>
+      <div><div class="nm">${esc(p.n)}</div><div class="sb">${esc(p.s)}</div></div>
+      <div class="strip">${bars}</div>
+      <button class="btn tiny">Check in</button>
+    </div>`;
+  }).join("");
+
+  return `<div class="mo">
+    <div class="mo-head">
+      <div>
+        <div class="big">${m.big}</div>
+        <div class="cap">${esc(m.cap)}</div>
+      </div>
+      <span class="pill ${m.deltaTone}">${esc(m.delta)}</span>
+    </div>
+    <div class="mo-chart">
+      <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
+        <defs>
+          <linearGradient id="mg" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#a78bfa" stop-opacity=".34"/>
+            <stop offset="100%" stop-color="#a78bfa" stop-opacity="0"/>
+          </linearGradient>
+        </defs>
+        <line x1="0" y1="${avgY}" x2="${W}" y2="${avgY}" stroke="#ddb36a" stroke-width="1" stroke-dasharray="3 4" opacity=".55"/>
+        <path d="${area}" fill="url(#mg)"/>
+        <path d="${line}" fill="none" stroke="#a78bfa" stroke-width="2" stroke-linecap="round" vector-effect="non-scaling-stroke"/>
+        <circle cx="${last[0]}" cy="${last[1]}" r="3.5" fill="#a78bfa" stroke="#0f0d0a" stroke-width="2"/>
+      </svg>
+    </div>
+    <div class="mo-axis">${m.axis.map(a => `<span>${esc(a)}</span>`).join("")}</div>
+  </div>
+  <div class="drift">
+    <div style="padding:12px 19px 2px;font-family:var(--mono);font-size:9.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--rose)">Drifting · measured against their own baseline</div>
+    ${drift}
+  </div>`;
+}
+
+
+/* ── Board Load ── */
+function renderLoad(d) {
+  // floor the denominator so a lone officer with two tasks doesn't render a
+  // maxed-out bar on day one
+  const maxTotal = Math.max(...d.load.map(o => o.od + o.soon + o.later), 8);
+  const rows = d.load.map(o => {
+    const tot = o.od + o.soon + o.later;
+    const seg = (n, c) => n ? `<i class="${c}" style="flex:${n}"></i>` : "";
+    return `<div class="load-row">
+      <div class="av ${o.av}">${o.n.split(" ").map(x => x[0]).join("")}</div>
+      <div class="who"><div class="n">${esc(o.n)}</div><div class="r">${esc(o.r)}</div></div>
+      <div class="loadbar" style="width:${Math.max(12, tot / maxTotal * 100)}%">${seg(o.od, 'od')}${seg(o.soon, 'soon')}${seg(o.later, 'later')}</div>
+      <div class="cnt">${tot || "—"}</div>
+    </div>`;
+  }).join("");
+  const empties = d.setup
+    ? `<div class="load-row" style="opacity:.5"><div class="av none">+</div><div class="who"><div class="n" style="color:var(--muted)">5 seats open</div><div class="r">Invite officers</div></div><div></div><div></div></div>`
+    : "";
+  return `<div class="load">
+    <div style="padding:12px 19px 6px;display:flex;gap:14px">
+      <span class="lg"><i style="background:var(--rose)"></i>overdue</span>
+      <span class="lg"><i style="background:var(--gold);opacity:.85"></i>due soon</span>
+      <span class="lg"><i style="background:var(--vio);opacity:.38"></i>later</span>
+    </div>
+    ${rows}${empties}
+    <div class="load-note">${d.loadNoteText}</div>
+  </div>`;
+}
+
+/* ── Precedent ── */
+function renderPrec(d) {
+  const p = d.prec;
+  const left = p.empty
+    ? `<div class="card prec-card">
+        <div class="prec-lede">${esc(p.lede)}</div>
+        <h3>${esc(p.title)}</h3>
+        <div class="quote"><p>${esc(p.quote)}</p><div class="by">${esc(p.by)}</div></div>
+      </div>`
+    : `<div class="card prec-card">
+        <div class="prec-lede">${esc(p.lede)}</div>
+        <h3>${esc(p.title)}</h3>
+        <div class="prec-stats">${p.stats.map(([v, k]) => `<div class="pst"><div class="v">${esc(v)}</div><div class="k">${esc(k)}</div></div>`).join("")}</div>
+        <div class="quote"><p>“${esc(p.quote)}”</p><div class="by">${esc(p.by)}</div></div>
+      </div>`;
+
+  const right = p.decisions
+    ? `<div class="card prec-card">
+        <div class="prec-lede" style="color:var(--vio)">Decisions this term</div>
+        <h3>The record, in the order it happened</h3>
+        <div style="margin-top:12px">${p.decisions.map(x => `
+          <div class="dec-row"><div class="dec-when">${esc(x.w)}</div>
+            <div class="dec-body"><div class="t">${x.t}</div><div class="m">${esc(x.m)}</div></div></div>`).join("")}</div>
+        <div style="margin-top:13px"><button class="btn tiny">Export term report</button></div>
+      </div>`
+    : `<div class="card prec-card" style="display:grid;place-items:center;text-align:center">
+        <div>
+          <div class="prec-lede" style="color:var(--vio)">Coming automatically</div>
+          <h3 style="margin-top:9px">Your first decision gets logged the moment a poll closes</h3>
+          <p style="margin-top:9px;font-size:12.5px;color:var(--muted);max-width:340px;line-height:1.55">No one has to remember to write it down. That is the whole point.</p>
+        </div>
+      </div>`;
+
+  return `<div class="prec">${left}${right}</div>`;
+}
+
+/* ── day-one primer ── */
+function renderPrimer(p) {
+  return `<div class="primer">
+    <div class="acts">${p.acts.map(([l, pri]) => `<button class="btn ${pri ? 'pri' : ''}">${esc(l)}</button>`).join("")}</div>
+    <div class="primer-map">
+      ${p.map.map(m => `<div class="pm"><div class="w">${esc(m.w)}</div><div class="t">${m.t}</div></div>`).join("")}
+    </div>
+  </div>`;
+}
+
+/* ── findings ── */
+function renderFindings(d) {
+  return d.findings.map(f => `
+    <button class="finding" data-to="${f.to}">
+      <span class="fdot" style="background:${f.c}"></span>
+      <span class="fnum">${esc(f.n)}</span>
+      <span>${esc(f.t)}</span>
+      <span class="farrow">→</span>
+    </button>`).join("");
+}
+
+/* ═══ mount ═══ */
+let CURRENT = "live";
+
+function render(key) {
+  CURRENT = key;
+  const d = DATA[key];
+
+  $("brandTerm").textContent = d.term;
+  $("mhDate").textContent = d.date;
+  $("mhSub").textContent = d.sub;
+  $("mhGreet").innerHTML = d.greet;
+  $("mhBrief").innerHTML = d.brief;
+  $("mhFindings").innerHTML = renderFindings(d);
+  $("mhPrimer").innerHTML = d.primer ? renderPrimer(d.primer) : "";
+  $("mhRight").innerHTML = d.setup ? renderSetup(d) : renderRoom(d);
+
+  $("deckNote").textContent = d.deckNote;
+  $("deckBody").innerHTML = renderDeck(d);
+
+  $("deskTitle").innerHTML = d.deskTitle || 'Waiting on the <em>board</em>';
+  $("deskNote").textContent = d.deskNote;
+  $("deskBody").innerHTML = renderDesk(d);
+
+  $("booksNote").textContent = d.booksNote;
+  $("booksBody").innerHTML = renderBooks(d);
+
+  $("moNote").textContent = d.moNote;
+  $("moBody").innerHTML = renderMomentum(d);
+
+  $("loadNote").textContent = d.loadNote;
+  $("loadBody").innerHTML = renderLoad(d);
+
+  $("precBody").innerHTML = renderPrec(d);
+
+  wireRoom(d);
+  wireFindings();
+
+  $("btnLive").setAttribute("aria-pressed", String(key === "live"));
+  $("btnDayOne").setAttribute("aria-pressed", String(key === "dayone"));
+}
+
+/* room tooltip */
+function wireRoom(d) {
+  const tip = $("roomtip");
+  const wrap = $("tilesWrap");
+  if (!wrap) return;
+  const show = (el) => {
+    const i = +el.dataset.i;
+    const m = d.room[i];
+    if (!m || m.ghost) return;
+    tip.innerHTML = `<div class="n">${esc(m.name)}</div><div class="r">${esc(m.role)}</div><div class="l">${esc(m.last)}</div>`;
+    const r = el.getBoundingClientRect();
+    tip.style.opacity = "1";
+    const tw = tip.offsetWidth;
+    tip.style.left = Math.min(window.innerWidth - tw - 10, Math.max(10, r.left + r.width / 2 - tw / 2)) + "px";
+    tip.style.top = (r.top - tip.offsetHeight - 9) + "px";
+  };
+  wrap.addEventListener("mouseover", e => { const t = e.target.closest(".tile:not(.ghost)"); if (t) show(t); });
+  wrap.addEventListener("focusin",  e => { const t = e.target.closest(".tile:not(.ghost)"); if (t) show(t); });
+  wrap.addEventListener("mouseleave", () => { tip.style.opacity = "0"; });
+  wrap.addEventListener("focusout",   () => { tip.style.opacity = "0"; });
+}
+
+function wireFindings() {
+  document.querySelectorAll(".finding").forEach(b => {
+    b.addEventListener("click", () => {
+      const el = $(b.dataset.to);
+      if (!el) return;
+      const y = el.getBoundingClientRect().top + window.scrollY - 90;
+      window.scrollTo({ top: y, behavior: "smooth" });
+      el.animate(
+        [{ boxShadow: "0 0 0 0 rgba(167,139,250,0)" },
+         { boxShadow: "0 0 0 3px rgba(167,139,250,.45)" },
+         { boxShadow: "0 0 0 0 rgba(167,139,250,0)" }],
+        { duration: 1100, easing: "ease-out" }
+      );
+    });
+  });
+}
+
+$("btnLive").addEventListener("click", () => render("live"));
+$("btnDayOne").addEventListener("click", () => render("dayone"));
+
+render("live");
+</script>
+</body>
+</html>
