@@ -50,14 +50,13 @@ describe("expiryToDate", () => {
 });
 
 describe("createInvite", () => {
-  it("creates an invite with token, mode, expiry, and creator; emits invite.created", async () => {
+  it("creates an invite with token, expiry, and creator; emits invite.created", async () => {
     const org = await createOrg("Alpha", "alpha");
     const admin = await createBrother({ orgId: org.id, isOrgAdmin: true });
     const ctx = makeCtx(org.id, admin.id);
 
-    const dto = await createInvite(ctx, { mode: "open", expiry: "7d" });
+    const dto = await createInvite(ctx, { expiry: "7d" });
 
-    expect(dto.mode).toBe("open");
     expect(dto.token).toBeTruthy();
     expect(dto.redemptionCount).toBe(0);
     expect(dto.expiresAt).not.toBeNull();
@@ -65,7 +64,6 @@ describe("createInvite", () => {
     const row = await testPrisma.orgInvite.findUnique({ where: { id: dto.id } });
     expect(row!.organizationId).toBe(org.id);
     expect(row!.createdByBrotherId).toBe(admin.id);
-    expect(row!.mode).toBe("open");
 
     const ev = await testPrisma.operationalEvent.findFirst({
       where: { organizationId: org.id, action: "invite.created" },
@@ -76,7 +74,7 @@ describe("createInvite", () => {
   it("never expiry stores null expiresAt", async () => {
     const org = await createOrg("Alpha", "alpha");
     const admin = await createBrother({ orgId: org.id, isOrgAdmin: true });
-    const dto = await createInvite(makeCtx(org.id, admin.id), { mode: "claim", expiry: "never" });
+    const dto = await createInvite(makeCtx(org.id, admin.id), { expiry: "never" });
     expect(dto.expiresAt).toBeNull();
   });
 
@@ -85,12 +83,12 @@ describe("createInvite", () => {
     const admin = await createBrother({ orgId: org.id, isOrgAdmin: true });
     const ctx = makeCtx(org.id, admin.id);
 
-    const labelled = await createInvite(ctx, { mode: "open", expiry: "7d", label: "Fall rush", maxUses: 25 });
+    const labelled = await createInvite(ctx, { expiry: "7d", label: "Fall rush", maxUses: 25 });
     expect(labelled.label).toBe("Fall rush");
     expect(labelled.maxUses).toBe(25);
     expect(labelled.status).toBe("active");
 
-    const bare = await createInvite(ctx, { mode: "open", expiry: "7d" });
+    const bare = await createInvite(ctx, { expiry: "7d" });
     expect(bare.label).toBeNull();
     expect(bare.maxUses).toBeNull();
 
@@ -130,15 +128,15 @@ describe("listInvites", () => {
     const admin = await createBrother({ orgId: org.id, isOrgAdmin: true });
     const ctx = makeCtx(org.id, admin.id);
 
-    const active = await createInvite(ctx, { mode: "open", expiry: "7d" });
-    await createInvite(ctx, { mode: "claim", expiry: "never" });
+    const active = await createInvite(ctx, { expiry: "7d" });
+    await createInvite(ctx, { expiry: "never" });
 
     // Manually craft an expired + a revoked invite.
     await testPrisma.orgInvite.create({
-      data: { organizationId: org.id, token: "expired-tok", mode: "open", createdByBrotherId: admin.id, expiresAt: new Date(Date.now() - 1000) },
+      data: { organizationId: org.id, token: "expired-tok", createdByBrotherId: admin.id, expiresAt: new Date(Date.now() - 1000) },
     });
     await testPrisma.orgInvite.create({
-      data: { organizationId: org.id, token: "revoked-tok", mode: "open", createdByBrotherId: admin.id, revokedAt: new Date() },
+      data: { organizationId: org.id, token: "revoked-tok", createdByBrotherId: admin.id, revokedAt: new Date() },
     });
 
     // Add a redemption to the active invite.
@@ -156,7 +154,7 @@ describe("listInvites", () => {
     const orgB = await createOrg("Beta", "beta");
     const adminA = await createBrother({ orgId: orgA.id, isOrgAdmin: true });
     const adminB = await createBrother({ orgId: orgB.id, isOrgAdmin: true });
-    await createInvite(makeCtx(orgA.id, adminA.id), { mode: "open", expiry: "7d" });
+    await createInvite(makeCtx(orgA.id, adminA.id), { expiry: "7d" });
 
     const fromB = await listInvites(makeCtx(orgB.id, adminB.id));
     expect(fromB).toHaveLength(0);
@@ -167,7 +165,7 @@ describe("listInvites", () => {
     const admin = await createBrother({ orgId: org.id, isOrgAdmin: true });
     const ctx = makeCtx(org.id, admin.id);
 
-    const capped = await createInvite(ctx, { mode: "open", expiry: "7d", maxUses: 2 });
+    const capped = await createInvite(ctx, { expiry: "7d", maxUses: 2 });
     for (const _ of [0, 1]) {
       const joiner = await createBrother({ orgId: org.id });
       await testPrisma.inviteRedemption.create({ data: { inviteId: capped.id, brotherId: joiner.id } });
@@ -186,12 +184,12 @@ describe("listInvites", () => {
     const admin = await createBrother({ orgId: org.id, isOrgAdmin: true });
     const ctx = makeCtx(org.id, admin.id);
 
-    await createInvite(ctx, { mode: "open", expiry: "7d" });
+    await createInvite(ctx, { expiry: "7d" });
     await testPrisma.orgInvite.create({
-      data: { organizationId: org.id, token: "expired-tok", mode: "open", createdByBrotherId: admin.id, expiresAt: new Date(Date.now() - 1000) },
+      data: { organizationId: org.id, token: "expired-tok", createdByBrotherId: admin.id, expiresAt: new Date(Date.now() - 1000) },
     });
     await testPrisma.orgInvite.create({
-      data: { organizationId: org.id, token: "revoked-tok", mode: "open", createdByBrotherId: admin.id, revokedAt: new Date() },
+      data: { organizationId: org.id, token: "revoked-tok", createdByBrotherId: admin.id, revokedAt: new Date() },
     });
 
     expect(await listInvites(ctx)).toHaveLength(1);
@@ -209,7 +207,7 @@ describe("listInviteRedemptions", () => {
     const org = await createOrg("Alpha", "alpha");
     const admin = await createBrother({ orgId: org.id, isOrgAdmin: true });
     const ctx = makeCtx(org.id, admin.id);
-    const invite = await createInvite(ctx, { mode: "open", expiry: "7d" });
+    const invite = await createInvite(ctx, { expiry: "7d" });
 
     const plain = await createBrother({ orgId: org.id, name: "Jordan Lee" });
     const renamed = await createBrother({ orgId: org.id, name: "Samir Patel", membershipName: "Sam P." });
@@ -231,7 +229,7 @@ describe("listInviteRedemptions", () => {
     const orgB = await createOrg("Beta", "beta");
     const admin = await createBrother({ orgId: orgA.id, isOrgAdmin: true });
     const ctx = makeCtx(orgA.id, admin.id);
-    const invite = await createInvite(ctx, { mode: "open", expiry: "7d" });
+    const invite = await createInvite(ctx, { expiry: "7d" });
 
     const visitor = await createBrother({ orgId: orgB.id, name: "Casey Wu" });
     await joinOrg({ brotherId: visitor.id, orgId: orgA.id, membershipName: "Casey" });
@@ -247,7 +245,7 @@ describe("listInviteRedemptions", () => {
     const orgB = await createOrg("Beta", "beta");
     const adminA = await createBrother({ orgId: orgA.id, isOrgAdmin: true });
     const adminB = await createBrother({ orgId: orgB.id, isOrgAdmin: true });
-    const invite = await createInvite(makeCtx(orgA.id, adminA.id), { mode: "open", expiry: "7d" });
+    const invite = await createInvite(makeCtx(orgA.id, adminA.id), { expiry: "7d" });
 
     await expect(listInviteRedemptions(makeCtx(orgB.id, adminB.id), invite.id))
       .rejects.toBeInstanceOf(NotFoundError);
@@ -295,7 +293,7 @@ describe("revokeInvite", () => {
     const org = await createOrg("Alpha", "alpha");
     const admin = await createBrother({ orgId: org.id, isOrgAdmin: true });
     const ctx = makeCtx(org.id, admin.id);
-    const dto = await createInvite(ctx, { mode: "open", expiry: "7d" });
+    const dto = await createInvite(ctx, { expiry: "7d" });
 
     await revokeInvite(ctx, dto.id);
     const row = await testPrisma.orgInvite.findUnique({ where: { id: dto.id } });
@@ -318,7 +316,7 @@ describe("revokeInvite", () => {
     const orgB = await createOrg("Beta", "beta");
     const adminA = await createBrother({ orgId: orgA.id, isOrgAdmin: true });
     const adminB = await createBrother({ orgId: orgB.id, isOrgAdmin: true });
-    const dto = await createInvite(makeCtx(orgA.id, adminA.id), { mode: "open", expiry: "7d" });
+    const dto = await createInvite(makeCtx(orgA.id, adminA.id), { expiry: "7d" });
 
     await expect(revokeInvite(makeCtx(orgB.id, adminB.id), dto.id)).rejects.toBeInstanceOf(NotFoundError);
   });

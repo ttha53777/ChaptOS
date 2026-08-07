@@ -19,7 +19,7 @@ import { randomUUID } from "node:crypto";
 import { testPrisma, resetDb } from "../setup/prisma";
 import { createOrg, createBrother, rosterOf, accountOf } from "../setup/factories";
 import { db } from "@/lib/db";
-import { createBrother as createBrotherSvc, updateBrother, deleteBrother, listVisibleBrothers } from "@/lib/services/brother-service";
+import { updateBrother, deleteBrother, listVisibleBrothers } from "@/lib/services/brother-service";
 import { ConflictError, NotFoundError } from "@/lib/errors";
 import { PERMISSIONS } from "@/lib/permissions";
 import type { CustomMemberFieldDef } from "@/lib/custom-member-fields";
@@ -165,12 +165,15 @@ describe("custom-field sanitization", () => {
     { id: "jersey_num",   label: "Jersey #",     type: "number", required: false, showOnRoster: false, rosterOrder: 1 },
   ];
 
-  it("createBrother strips unknown ids and coerces values to the field type", async () => {
+  // This used to run against createBrother, which is gone — officers can no
+  // longer type a person onto the roster. The sanitizer it exercised is the same
+  // one updateBrother uses, so the assertion moved rather than disappeared.
+  it("strips unknown ids and coerces values to the field type", async () => {
     const { org, adminCtx } = await seedOrg();
     await seedFieldDefs(org.id, defs);
+    const member = await createBrother({ orgId: org.id, name: "Custom" });
 
-    const created = await createBrotherSvc(adminCtx, {
-      name: "Custom", role: "Brother", duesOwed: 0, gpa: 0, serviceHours: 0,
+    await updateBrother(adminCtx, member.id, {
       customFields: {
         pledge_class: "Alpha",
         jersey_num:   "23",        // string → coerced to number
@@ -178,7 +181,7 @@ describe("custom-field sanitization", () => {
       },
     });
 
-    const stored = (await rosterOf(created.id))!.customFields as Record<string, unknown>;
+    const stored = (await rosterOf(member.id))!.customFields as Record<string, unknown>;
     expect(stored.pledge_class).toBe("Alpha");
     expect(stored.jersey_num).toBe(23);
     expect(stored).not.toHaveProperty("ghost_field");
@@ -233,23 +236,25 @@ describe("brother-service: per-org display names", () => {
     expect(brother?.name).toBe("Robert Chen");
   });
 
-  it("falls back to writing Brother.name when the target has no Membership", async () => {
-    // A roster-only member: an admin added them, they have no auth account and so
-    // never joined — no Membership row exists. setName is an updateMany, so it
-    // reports count 0 and the write falls back to the Brother row, which is the
-    // same row listVisibleBrothers falls back to reading for them.
-    const { org, adminCtx } = await seedOrg();
-    const rosterOnly = await createBrotherSvc(adminCtx, {
-      name: "Paper Member", role: "Brother", duesOwed: 0, gpa: 0, serviceHours: 0,
-    });
+  it("refuses to rename someone who has no roster row in this org", async () => {
+    // This replaces a test titled "falls back to writing Brother.name when the
+    // target has no Membership". That fallback is gone, and the scenario was
+    // never real: the createBrother it used wrote a Membership too, so the
+    // assertion was a plain rename in disguise.
+    //
+    // Every roster row IS a Membership now — approving a join request writes both
+    // — so the honest behaviour is a refusal. updateByBrotherId is an updateMany
+    // with the org in the WHERE, which raises P2025 on a zero-row match. That is
+    // also what stops a rename crossing an org boundary.
+    const { adminCtx } = await seedOrg();
+    const other = await createOrg("Other", "other");
+    const foreigner = await createBrother({ orgId: other.id, name: "Not Ours", membershipName: "Not Ours" });
 
-    await updateBrother(adminCtx, rosterOnly.id, { name: "Renamed" });
+    await expect(updateBrother(adminCtx, foreigner.id, { name: "Renamed" }))
+      .rejects.toMatchObject({ code: "P2025" });
 
-    const brother = await rosterOf(rosterOnly.id);
-    expect(brother?.name).toBe("Renamed");
-
-    const roster = await listVisibleBrothers(adminCtx);
-    expect(roster.find(b => b.id === rosterOnly.id)?.name).toBe("Renamed");
+    // Untouched in their own org.
+    expect((await rosterOf(foreigner.id, other.id))!.name).toBe("Not Ours");
   });
 
   it("listVisibleBrothers prefers Membership.name and falls back on null", async () => {

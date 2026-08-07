@@ -4,7 +4,7 @@ import type { RequestContext } from "@/lib/context";
 import { emit } from "@/lib/events";
 import { ConflictError, NotFoundError, PaymentRequiredError, type PaymentRequiredDetails } from "@/lib/errors";
 import { prismaPrivileged } from "@/lib/prisma-privileged"; // lint-direct-prisma:ignore cross-org membership count, see countMemberships
-import type { CreateBrotherInput, UpdateBrotherInput } from "@/lib/validation/brother";
+import type { UpdateBrotherInput } from "@/lib/validation/brother";
 import {
   sanitizeCustomFields,
   type CustomMemberFieldDef,
@@ -154,65 +154,15 @@ export async function listGhostAccounts(ctx: RequestContext): Promise<GhostAccou
   }));
 }
 
-export async function createBrother(ctx: RequestContext, input: CreateBrotherInput) {
-  // Seat gate. Throws PaymentRequiredError (402) when this member would push the
-  // org into a price band it isn't covering — the one place platform billing
-  // touches a domain write, and deliberately the only kind of restriction there
-  // is: nothing the org already has is ever taken away.
-  await gateSeat(ctx);
-
-  let customFields: CustomFieldValues = {};
-  if (input.customFields) {
-    const defs = await getFieldDefs(ctx);
-    customFields = sanitizeCustomFields(input.customFields, defs);
-  }
-
-  // Two rows, one transaction. A roster spot is now a Membership, and an
-  // identity is a Brother — this member has no auth account yet, so both are
-  // created here and the pair must be atomic: a Brother without a Membership is
-  // an orphan nobody can see or clean up, and there is no path that would ever
-  // create the missing half later.
-  //
-  // Brother.organizationId is set to this org because for an admin-typed member
-  // it genuinely IS their origin org. It grants nothing — the Membership does
-  // that — and no roster read scopes by it.
-  const brother = await ctx.db.$transaction(async (tx) => {
-    const created = await tx.brother.create({
-      data: {
-        organizationId: ctx.orgId,
-        // The account-level canonical name. Seeded to the same string as the
-        // Membership name below; from here on the two drift independently, and
-        // only the Membership one is ever rendered.
-        name:      input.name,
-        authUserId: null,
-        isAdmin:   false,
-        isGhost:   false,
-      },
-    });
-    await tx.membership.create({
-      data: {
-        brotherId:      created.id,
-        organizationId: ctx.orgId,
-        isOrgAdmin:     false,
-        name:           input.name,
-        role:           input.role,
-        attendance:     0,
-        duesOwed:       input.duesOwed,
-        gpa:            input.gpa,
-        serviceHours:   input.serviceHours,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        customFields:   customFields as any,
-      },
-    });
-    return created;
-  });
-
-  await emit(ctx, "brother.added", { type: "Brother", id: brother.id }, {
-    name: input.name,
-    role: input.role,
-  });
-  return { ...brother, role: input.role };
-}
+// createBrother is gone. Officers can no longer type a person onto the roster:
+// the only way a Membership is created is approving a JoinRequest, in
+// lib/services/join-request-service.ts, which is where the Brother + Membership
+// transaction that used to live here now runs.
+//
+// That capability was the root of three separate defects — the name-match claim
+// flow, OrgInvite's claim mode, and the duplicate-human 409 in redeem-invite —
+// all of which were removed with it. See
+// prisma/migrations/20260807000001_drop_accountless_members.
 
 export async function updateBrother(
   ctx: RequestContext,

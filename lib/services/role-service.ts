@@ -2,7 +2,7 @@ import type { Prisma } from "@/app/generated/prisma/client";
 import type { RequestContext } from "@/lib/context";
 import { emit } from "@/lib/events";
 import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from "@/lib/errors";
-import { can } from "@/lib/permissions";
+import { can, canGrantRank } from "@/lib/permissions";
 import type { CreateRoleInput, UpdateRoleInput } from "@/lib/validation/role";
 
 export async function listRoles(ctx: RequestContext) {
@@ -135,7 +135,7 @@ export async function grantRole(ctx: RequestContext, brotherId: number, roleId: 
   ]);
   if (!brother) throw new NotFoundError("Brother");
   if (!role)    throw new NotFoundError("Role");
-  if (role.rank >= ctx.maxRank) {
+  if (!canGrantRank(ctx.maxRank, role.rank)) {
     throw new ForbiddenError("Cannot grant a role at or above your own rank");
   }
 

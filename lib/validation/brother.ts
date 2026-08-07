@@ -4,21 +4,10 @@ import { z } from "zod";
 // in the service layer. We accept a loose record here and sanitize tightly there.
 const customFieldsSchema = z.record(z.string(), z.union([z.string(), z.number(), z.null()])).optional();
 
-export const createBrotherInput = z.object({
-  name:         z.string().min(1).max(200),
-  role:         z.string().min(1),
-  // The opening balance a member joins the roster owing. Legitimate here — it's an
-  // assessment at the moment of creation, and no money has moved, so there is nothing
-  // to reconcile against yet. AFTER creation the balance is not a field you can write:
-  // see updateBrotherInput below.
-  duesOwed:     z.coerce.number().nonnegative(),
-  gpa:          z.coerce.number().nonnegative(),
-  serviceHours: z.coerce.number().nonnegative(),
-  // Custom field initial values are optional at creation — fields can be
-  // filled in from the drawer immediately after the brother is added.
-  customFields: customFieldsSchema,
-});
-export type CreateBrotherInput = z.infer<typeof createBrotherInput>;
+// There is no createBrotherInput. Officers can no longer type a person onto the
+// roster: a roster spot is created by approving a JoinRequest, which is the only
+// path that produces one (lib/services/join-request-service.ts). See
+// lib/validation/join-request.ts for the approval input.
 
 // `duesOwed` is deliberately not here. It is a money balance mirrored by the Transaction
 // ledger, and overwriting it moves one book without the other — the drift this codebase

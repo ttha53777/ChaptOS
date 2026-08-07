@@ -93,7 +93,6 @@ async function seedMemberWithHistory() {
     data: {
       organizationId:     org.id,
       token:              randomUUID(),
-      mode:               "open",
       createdByBrotherId: target.id,
     },
   });

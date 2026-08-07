@@ -1,12 +1,12 @@
 /**
- * Shared invite-token resolution for the two pre-auth invite routes:
+ * Shared invite-token resolution for the two pre-auth invite paths:
  * GET /api/auth/invite-status (read-only pre-flight) and
- * POST /api/auth/redeem-invite (the write).
+ * POST /api/auth/request-join (the write, via lib/auth/join-request-submit).
  *
  * Both need the exact same question answered — "is this token usable, and for
  * which org?" — and they MUST answer it identically, or the join screen tells
- * someone they can join and the redeem call then refuses. Keeping the rule in
- * one place is the point of this module.
+ * someone they can ask to join and the submit call then refuses. Keeping the
+ * rule in one place is the point of this module.
  *
  * The lookup is global (unscoped `prisma`, not `db(orgId)`) on purpose: the
  * redeemer has no membership anywhere yet, so the token IS the org resolution.
@@ -21,7 +21,6 @@ export type InviteDeadReason = Exclude<InviteStatus, "active"> | "not_found";
 
 export interface ResolvedInvite {
   id:             number;
-  mode:           "open" | "claim";
   orgId:          number;
   orgSlug:        string;
   orgName:        string;
@@ -47,7 +46,7 @@ export async function resolveInviteToken(token: string): Promise<InviteLookup> {
   const row = await prisma.orgInvite.findUnique({
     where: { token },
     select: {
-      id: true, mode: true, expiresAt: true, revokedAt: true, maxUses: true,
+      id: true, expiresAt: true, revokedAt: true, maxUses: true,
       _count:       { select: { redemptions: true } },
       organization: { select: { id: true, slug: true, name: true, logoUrl: true } },
     },
@@ -56,7 +55,6 @@ export async function resolveInviteToken(token: string): Promise<InviteLookup> {
 
   const invite: ResolvedInvite = {
     id:              row.id,
-    mode:            row.mode === "claim" ? "claim" : "open",
     orgId:           row.organization.id,
     orgSlug:         row.organization.slug,
     orgName:         row.organization.name,

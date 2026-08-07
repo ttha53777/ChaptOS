@@ -3,12 +3,11 @@ import type { RequestContext } from "@/lib/context";
 import { emit } from "@/lib/events";
 import { NotFoundError } from "@/lib/errors";
 import { expiryToDate, type CreateInviteInput } from "@/lib/validation/invite";
-import { deriveInviteStatus, InviteStatus, type InviteMode } from "@/lib/state";
+import { deriveInviteStatus, InviteStatus } from "@/lib/state";
 
 export interface InviteDto {
   id:              number;
   token:           string;
-  mode:            InviteMode;
   label:           string | null;
   maxUses:         number | null;
   status:          InviteStatus;
@@ -27,7 +26,7 @@ export interface InviteRedemptionDto {
 }
 
 type InviteRow = {
-  id: number; token: string; mode: string; label: string | null; maxUses: number | null;
+  id: number; token: string; label: string | null; maxUses: number | null;
   expiresAt: Date | null; revokedAt: Date | null; createdAt: Date;
 };
 
@@ -44,7 +43,6 @@ function toDto(
   return {
     id:              invite.id,
     token:           invite.token,
-    mode:            invite.mode as InviteMode,
     label:           invite.label,
     maxUses:         invite.maxUses,
     status:          deriveInviteStatus(invite, redemptionCount),
@@ -60,7 +58,6 @@ export async function createInvite(ctx: RequestContext, input: CreateInviteInput
   const invite = await ctx.db.orgInvite.create({
     data: {
       token:              mintToken(),
-      mode:               input.mode,
       label:              input.label ?? null,
       maxUses:            input.maxUses ?? null,
       expiresAt:          expiryToDate(input.expiry),
@@ -69,7 +66,6 @@ export async function createInvite(ctx: RequestContext, input: CreateInviteInput
   });
 
   await emit(ctx, "invite.created", { type: "OrgInvite", id: invite.id }, {
-    mode:   input.mode as InviteMode,
     expiry: input.expiry,
   });
 
@@ -173,7 +169,5 @@ export async function revokeInvite(ctx: RequestContext, id: number): Promise<voi
   if (existing.revokedAt) return; // already revoked — idempotent
 
   await ctx.db.orgInvite.update({ where: { id }, data: { revokedAt: new Date() } });
-  await emit(ctx, "invite.revoked", { type: "OrgInvite", id }, {
-    mode: existing.mode as InviteMode,
-  });
+  await emit(ctx, "invite.revoked", { type: "OrgInvite", id }, {});
 }
