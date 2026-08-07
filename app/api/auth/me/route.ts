@@ -7,7 +7,8 @@ import { BillingTier } from "@/lib/state/billing-tier";
 import { tierForCount } from "@/lib/billing/tiers";
 import { ALL_WORKFLOWS } from "@/lib/org-types";
 import { SubscriptionStatus } from "@/lib/state/subscription-status";
-import { ReimbursementStatus } from "@/lib/state";
+import { ReimbursementStatus, JoinRequestStatus } from "@/lib/state";
+import { computePermissions, hasPermission } from "@/lib/permissions";
 import { resolveThresholds } from "@/lib/thresholds";
 import { sanitizeFieldDefs, type CustomMemberFieldDef } from "@/lib/custom-member-fields";
 import { toResponse } from "@/lib/errors";
@@ -27,7 +28,15 @@ export async function GET() {
       user.memberships.find(m => m.organizationId === user.orgId)?.isOrgAdmin ?? false;
     const elevated = user.isPlatformAdmin || isOrgAdmin;
 
-    const [brother, org, perms, metricDefinitionCount, pendingReimbursementCount, subscription] = await Promise.all([
+    // Same shape, for the join-request queue. Gated on MANAGE_BROTHERS rather
+    // than admin authority, because that's what GET /api/join-requests enforces
+    // — a badge counting rows the viewer would get a 403 for is worse than no
+    // badge. Resolved from roleRows here rather than from `perms` below because
+    // it decides whether to add a query to that same fan-out.
+    const roles = user.roleRows.filter(r => r.organizationId === user.orgId);
+    const canManageBrothers = elevated || hasPermission(computePermissions(roles), "MANAGE_BROTHERS");
+
+    const [brother, org, perms, metricDefinitionCount, pendingReimbursementCount, pendingJoinRequestCount, subscription] = await Promise.all([
       db(user.orgId).identity.findByBrotherId(user.id),
       db(user.orgId).organization.findUnique({
         where: { id: user.orgId },
@@ -54,6 +63,13 @@ export async function GET() {
       // only the treasury page reads the list itself. One count in this
       // already-parallel batch is far cheaper than a whole extra request.
       db(user.orgId).reimbursement.count({ where: { status: ReimbursementStatus.Pending } }),
+      // People waiting on an officer to let them in — drives the Brotherhood
+      // count badge in the sidebar. Same argument as the reimbursement count: it
+      // renders on every page, so it rides along here instead of costing a
+      // separate request. Zero for anyone who couldn't act on it anyway.
+      canManageBrothers
+        ? db(user.orgId).joinRequest.count({ where: { status: JoinRequestStatus.Pending } })
+        : 0,
       // Billing state, for admins only, so a failed card can be surfaced where
       // people actually look. Until now it rendered on exactly one screen —
       // Settings → Billing — with no sidebar entry and nothing on the dashboard,
@@ -162,6 +178,9 @@ export async function GET() {
             // Pending reimbursement tickets — drives the Sidebar's Treasury count
             // badge without pulling the whole list into every page load.
             pendingReimbursementCount,
+            // Join requests awaiting review. Always 0 for viewers without
+            // MANAGE_BROTHERS, so the badge never advertises work they can't do.
+            pendingJoinRequestCount,
             // Whether the founder has finished the setup wizard. Drives the
             // dashboard "finish setting up" checklist (shown only once setup is
             // complete) and is the same signal the server onboarding guard gates

@@ -17,6 +17,8 @@ export const RESERVED_SEGMENTS = new Set([
   "login",
   "welcome",
   "create",
+  // Retired route, deliberately still reserved: an org must never be able to
+  // claim the slug "pending-access" and resurrect a URL people have bookmarked.
   "pending-access",
   "join",
   "auth",

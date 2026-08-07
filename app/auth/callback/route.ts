@@ -7,7 +7,7 @@ export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url);
   const code    = searchParams.get("code");
   // Org slug forwarded from the login page via redirectTo.
-  // Passed through to /pending-access so the claim form can target the right org.
+  // Preserved through OAuth so an unlinked user lands back on the org they named.
   const orgSlug = searchParams.get("org");
   // Onboarding intent forwarded from the login page's "Start a new chapter"
   // card (which has no org slug). When an unlinked, org-less user signed in to
@@ -127,17 +127,22 @@ export async function GET(request: NextRequest) {
   // Must come BEFORE the orgSlug branch — otherwise an invite redeemer (who
   // carries next= but no org=) would never hit it; and an org= deep-linker who
   // turns out unlinked is correctly routed by the destination's own guard
-  // (the [slug] layout sends them to /pending-access). safeNext is the
-  // open-redirect-guarded local path from the proxy.
+  // (the [slug] layout shows them the waiting wall or the needs-an-invite page).
+  // safeNext is the open-redirect-guarded local path from the proxy.
   if (safeNext) {
     return redirectTo(`${origin}${safeNext}`);
   }
 
   if (orgSlug) {
     // Unlinked but the org context was preserved through OAuth (e.g. they
-    // started at /login?org=lpe). Skip the choice screen — they already know
-    // which org they're joining.
-    return redirectTo(buildUrl(origin, "/pending-access", orgSlug));
+    // started at /login?org=lpe). Send them to the org itself and let its guard
+    // decide what they see: the waiting wall if they have a request pending, the
+    // needs-an-invite page otherwise.
+    //
+    // This used to point at /pending-access, a name-match form that let anyone
+    // matching an officer-typed roster row in with no review. Both the form and
+    // the rows it matched are gone — every way in now goes through the queue.
+    return redirectTo(buildUrl(origin, `/${encodeURIComponent(orgSlug)}`, null));
   }
 
   // Unlinked and no org hint. If they came to create an org, return to the

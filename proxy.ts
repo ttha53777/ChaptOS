@@ -18,7 +18,7 @@ const UNSAFE_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
  * It deliberately does NOT route by link status. Whether an authenticated user
  * has claimed a Brother row is the DB's truth, resolved by requireUser() in the
  * pages/layouts that need it ([slug]/layout.tsx, app/page.tsx). The old
- * brother_linked cookie + /pending-access bounce here duplicated that state and
+ * brother_linked cookie + claim-flow bounce here duplicated that state and
  * has been removed — an authenticated-but-unlinked user is routed by
  * /auth/callback (to claim/create) and gated by the [slug] guard if they reach
  * a protected route directly.
@@ -154,7 +154,7 @@ export const config = {
   // /welcome and /create stay BEHIND the proxy so their session cookies are
   // refreshed (/create's Build step and post-OAuth resume leg read the session
   // in the browser); /create is then allowed through anonymously in the body.
-  // login/auth/join/pending-access are excluded — they must be reachable while
+  // login/auth/join are excluded — they must be reachable while
   // signed out (/join lets an invited, signed-out user land and trigger OAuth
   // themselves).
   //
@@ -163,6 +163,6 @@ export const config = {
   // /api/* to a CSRF-only check and skips the session-refresh/login-bounce
   // logic, so including it here is purely additive for security.
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|login|auth|join|pending-access|images|fonts).*)",
+    "/((?!_next/static|_next/image|favicon.ico|login|auth|join|images|fonts).*)",
   ],
 };
