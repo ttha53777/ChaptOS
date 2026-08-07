@@ -275,9 +275,13 @@
    horizontal-scroll guard, which hid the Status column rather than fitting it).
    The roster is the only widget with no natural ceiling — a 120-member chapter
    used to render a ~5,000px card. Cap it and let the header stay put instead.
-   The 560px table min-width is gone on purpose: it is what forced the h-scroll. */
-.dash .rt-scroll { max-height: clamp(320px, 44vh, 540px); overflow-y: auto; overflow-x: hidden;
+   The 560px table min-width is gone on purpose: it is what forced the h-scroll.
+   Uncapped by default (fits its content); `.rt-capped` clips the starter state
+   to exactly ROW_LIMIT rows (RosterTable.tsx) and makes the rest reachable by
+   scroll, on top of the "Show all" toggle that removes the cap outright. */
+.dash .rt-scroll { overflow-y: auto; overflow-x: hidden;
   scrollbar-width: thin; scrollbar-color: var(--line) transparent; }
+.dash .rt-scroll.rt-capped { max-height: calc(var(--rt-head-h) + var(--rt-row-h) * 10); }
 .dash .rt-scroll::-webkit-scrollbar { width: 8px; }
 .dash .rt-scroll::-webkit-scrollbar-thumb { background: var(--line); border-radius: 4px; }
 .dash .rt thead th { position: sticky; top: 0; z-index: 2; background: var(--card);
@@ -333,7 +337,11 @@
    clamps, the ≤1279 reflow hands width back), which is why Status still fell
    off at 1280 and 1440 while surviving 1024. Ask the only question that
    matters: is there room? */
-.dash .rt { container-type: inline-size; }
+/* Row/header heights the `.rt-capped` max-height above is built from — keep in
+   sync with the actual row metrics (tbody td padding + line-height, thead th
+   padding + line-height) if either changes. --rt-row-h matches .row-skel's
+   height on purpose, so the loading skeleton doesn't jump once data lands. */
+.dash .rt { container-type: inline-size; --rt-row-h: 48px; --rt-head-h: 34px; }
 @container (max-width: 640px) {
   .dash .rt .col-secondary { display: none; }
 }

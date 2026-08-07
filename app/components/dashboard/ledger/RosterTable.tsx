@@ -12,10 +12,16 @@ const STATUS_TAG: Record<BrotherStatus, { cls: string; label: string }> = {
   "At Risk": { cls: "st-risk",  label: "AT RISK" },
 };
 
-/** Rows shown on phone before the list collapses behind "Show all". Desktop is
- *  bounded by the `.rt-scroll` max-height instead — a scroll region nested in a
- *  scrolling page is fine with a mouse and miserable on touch. */
+/** Rows shown on phone before the list collapses behind "Show all". Touch
+ *  dislikes a scroll region nested in a scrolling page, so phone hides the
+ *  rest outright rather than making it scrollable. */
 const PHONE_LIMIT = 8;
+
+/** Rows shown (uncapped height) on desktop before `.rt-scroll` clips to a
+ *  fixed 10-row window — full data stays mounted underneath, so scrolling
+ *  reaches the rest with a mouse. "Show all" removes the cap entirely.
+ *  Keep in sync with `--rt-row-h`/`--rt-head-h` in dashboard-ledger.css. */
+const ROW_LIMIT = 10;
 
 /** Skeleton rows drawn while the roster section is still loading. */
 const SKELETON_ROWS = 6;
@@ -142,7 +148,11 @@ export function RosterTable({
   const sortedLabel = sortKey ? METRIC_COLUMNS.find(c => c.key === sortKey) : null;
 
   const visible = isPhone && !expanded ? brothers.slice(0, PHONE_LIMIT) : brothers;
-  const hidden = brothers.length - visible.length;
+  // Desktop keeps the full list mounted (so scroll can reach past the cap)
+  // and clips it visually instead — `hidden` here just drives the footer copy.
+  const desktopCapped = !isPhone && !expanded && brothers.length > ROW_LIMIT;
+  const hidden = isPhone ? brothers.length - visible.length : (desktopCapped ? brothers.length - ROW_LIMIT : 0);
+  const shownCount = desktopCapped ? ROW_LIMIT : visible.length;
 
   return (
     <section id="sec-brothers" className="card rt dash-group" aria-label="Roster">
@@ -188,7 +198,7 @@ export function RosterTable({
           </p>
         </div>
       ) : (
-        <div className="rt-scroll">
+        <div className={desktopCapped ? "rt-scroll rt-capped" : "rt-scroll"}>
           <table>
             <thead>
               <tr>
@@ -292,7 +302,7 @@ export function RosterTable({
           {loading
             ? "Loading the roster…"
             : <>
-                Showing {visible.length} of {total}
+                Showing {shownCount} of {total}
                 {sortedLabel ? <> · sorted by {(sortedLabel.vocabKey ? v(sortedLabel.vocabKey) : sortedLabel.label).toLowerCase()}</> : null}
                 &ensp;·&ensp;{" "}click a row for the full profile
               </>}
