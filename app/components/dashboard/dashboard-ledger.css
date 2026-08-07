@@ -422,23 +422,6 @@
 .dash .tchart .months { display: flex; justify-content: space-between; margin-top: 4px;
   font-family: var(--mono); font-size: 8.5px; letter-spacing: .1em; color: var(--faint); }
 
-.dash .rev-row { display: flex; align-items: center; gap: 11px; padding: 7px 18px; }
-.dash .rev-row .n { width: 104px; flex-shrink: 0; font-size: 12px; color: var(--ink-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.dash .rev-row.top .n { color: var(--vio); font-weight: 550; }
-.dash .rev-row .track { flex: 1; height: 4px; border-radius: 2px; background: var(--line); overflow: hidden; }
-.dash .rev-row .track i { display: block; height: 100%; border-radius: 2px; background: var(--line); }
-.dash .rev-row.top .track i { background: var(--vio); }
-.dash .rev-row:not(.top) .track i { background: var(--muted); opacity: .45; }
-.dash .rev-row .v { font-family: var(--mono); font-size: 11.5px; width: 42px; text-align: right; flex-shrink: 0; }
-.dash .rev-up { padding: 10px 18px 13px; border-top: 1px solid var(--line-soft); font-size: 11.5px; color: var(--faint); }
-.dash .rev-up b { color: var(--ink-soft); font-weight: 550; }
-
-.dash .ig-row { display: flex; align-items: baseline; gap: 10px; padding: 9px 18px; border-bottom: 1px solid var(--line-soft); }
-.dash .ig-row:last-child { border-bottom: none; }
-.dash .ig-type { font-family: var(--mono); font-size: 8.5px; letter-spacing: .1em; color: var(--faint); width: 78px; flex-shrink: 0; text-transform: uppercase; }
-.dash .ig-row .t { flex: 1; font-size: 12.5px; font-weight: 500; color: var(--ink); }
-.dash .ig-row .d { font-family: var(--mono); font-size: 10px; }
-
 .dash .act-row { display: flex; gap: 10px; padding: 8px 18px; align-items: baseline; border-bottom: 1px solid var(--line-soft); }
 .dash .act-row:last-child { border-bottom: none; }
 .dash .act-row .dot { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; transform: translateY(-1px); }

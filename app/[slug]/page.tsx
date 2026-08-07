@@ -8,7 +8,7 @@ const DrawerTrendChart = dynamic(() => import("../components/dashboard/DrawerTre
   loading: () => <div className="h-[110px] w-full rounded-lg bg-white/[0.04] animate-pulse" />,
 });
 import {
-  Brother, CalendarEvent, CalEventType, InstagramStatus, InstagramType, ActivityEntry, PartyEvent, Task, InstagramTask, Transaction,
+  Brother, CalendarEvent, CalEventType, InstagramType, ActivityEntry, PartyEvent, Task, InstagramTask, Transaction,
   taskAssigneeLabel,
   getBrotherStatus, roleTitle, calcHealthScore, deriveNeedsAttention, avg, fmt$, fmtDate, fmtRange, isoWeekBounds,
 } from "../data";
@@ -25,7 +25,7 @@ import { trackedCount } from "@/lib/tracked-metrics";
 import type { BuiltinMetricId } from "@/lib/onboarding/kinds";
 import { WORKFLOW_FEATURES, type DisabledFeatures } from "@/lib/workflow-features";
 import { isAttendanceExempt } from "@/lib/thresholds";
-import { taskUrgency, URGENCY_ORDER, type TaskUrgency } from "@/lib/tasks/urgency";
+import { taskUrgency, type TaskUrgency } from "@/lib/tasks/urgency";
 import { Sidebar, SvgIcon, NAV_ICONS, isNavVisible } from "../components/Sidebar";
 import { BrotherAvatar } from "../components/BrotherAvatar";
 import { useChapter } from "../context/ChapterContext";
@@ -52,8 +52,6 @@ import { NeedsAttention } from "../components/dashboard/ledger/NeedsAttention";
 import { RosterTable } from "../components/dashboard/ledger/RosterTable";
 import { ThisWeek } from "../components/dashboard/ledger/ThisWeek";
 import { TreasuryRail } from "../components/dashboard/ledger/TreasuryRail";
-import { SocialsRail } from "../components/dashboard/ledger/SocialsRail";
-import { InstagramRail } from "../components/dashboard/ledger/InstagramRail";
 import { ActivityRail } from "../components/dashboard/ledger/ActivityRail";
 import { DashHideButton } from "../components/dashboard/ledger/DashHideButton";
 import { BillingAlert } from "../components/dashboard/BillingAlert";
@@ -445,17 +443,15 @@ function KPIDetailDrawer({
 
 // ─── Widget Drawer ────────────────────────────────────────────────────────────
 
-type WidgetDrawerKey = "health" | "digest" | "deadlines" | "instagram" | "activity" | "parties";
+type WidgetDrawerKey = "health" | "digest" | "deadlines" | "activity";
 
 function WidgetDetailDrawer({
   activeKey, onClose,
   weeklyDigest, weekRange, digestNarration,
-  deadlineList, igTaskList, activityFeed, partyList,
+  deadlineList, activityFeed,
   health,
-  maxRevenue, bestEvent, totalDoorRev,
   onOpenModal, onAddTask,
   onCompleteDeadline, onDeleteDeadline, onEditDeadline,
-  onCompleteIG, onDeleteIG, onEditIG,
 }: {
   activeKey: WidgetDrawerKey | null;
   onClose: () => void;
@@ -470,21 +466,13 @@ function WidgetDetailDrawer({
   weekRange: { start: string; end: string };
   digestNarration: string | null;
   deadlineList: Task[];
-  igTaskList: { id: number; title: string; dueDate: string; status: InstagramStatus; type: InstagramType }[];
   activityFeed: ActivityEntry[];
-  partyList: PartyEvent[];
   health: { score: number; label: "Healthy" | "Needs Attention" | "Critical"; breakdown: Record<string, number> };
-  maxRevenue: number;
-  bestEvent: PartyEvent | null;
-  totalDoorRev: number;
-  onOpenModal: (key: "deadline" | "revenue" | "ig" | "attendance") => void;
+  onOpenModal: (key: "deadline" | "attendance") => void;
   onAddTask:          () => void;
   onCompleteDeadline: (id: number) => void;
   onDeleteDeadline:   (id: number) => void;
   onEditDeadline:     (id: number) => void;
-  onCompleteIG:       (id: number) => void;
-  onDeleteIG:         (id: number) => void;
-  onEditIG:           (id: number) => void;
 }) {
   const v = useVocab();
   const isOpen = activeKey !== null;
@@ -501,9 +489,7 @@ function WidgetDetailDrawer({
     health:     { title: `${v("Meetings")} Health Score`, tone: ""     },
     digest:     { title: "Weekly Digest",          tone: ""     },
     deadlines:  { title: "Deadlines",             tone: ""     },
-    instagram:  { title: "Instagram",             tone: "rose" },
     activity:   { title: "Activity Feed",         tone: "ok"   },
-    parties:    { title: "Party Events",          tone: ""     },
   };
 
   const cfg = activeKey ? WIDGET_CONFIGS[activeKey] : null;
@@ -692,73 +678,6 @@ function WidgetDetailDrawer({
         );
       }
 
-      case "instagram": {
-        // Status is binary open | posted; urgency is COMPUTED from dueDate
-        // (lib/tasks/urgency), mirroring the deadlines drawer. Open posts sort
-        // by how close they are; posted ones sit at the end.
-        const open = igTaskList.filter(t => t.status !== "posted");
-        const posted = igTaskList.filter(t => t.status === "posted");
-        const overdue  = open.filter(t => taskUrgency(t.dueDate) === "overdue").length;
-        const dueSoon  = open.filter(t => ["urgent", "due-soon"].includes(taskUrgency(t.dueDate))).length;
-        // Chip tone per computed urgency (matches the deadlines drawer palette).
-        const urgencyTone = (t: { dueDate: string }): string => {
-          const u = taskUrgency(t.dueDate);
-          return u === "overdue" || u === "urgent" ? "rose" : u === "due-soon" ? "gold" : "";
-        };
-        const ordered = [...igTaskList].sort((a, b) => {
-          const rank = (t: typeof a) => t.status === "posted" ? 99 : URGENCY_ORDER.indexOf(taskUrgency(t.dueDate));
-          return rank(a) - rank(b);
-        });
-        return (
-          <>
-            <div className="dd-stats c4">
-              {([["Overdue", overdue, "rose"], ["Due soon", dueSoon, "gold"], ["Queued", open.length, ""], ["Posted", posted.length, "ok"]] as const).map(([label, count, tone]) => (
-                <div key={label} className="dd-stat"><p className={`n ${tone}`}>{count}</p><p className="l">{label}</p></div>
-              ))}
-            </div>
-            {igTaskList.length === 0 ? (
-              <p className="dd-empty">No IG tasks scheduled</p>
-            ) : (
-              <div className="dd-feed">
-                {ordered.map(t => {
-                  const isPosted = t.status === "posted";
-                  return (
-                  <div key={t.id} className="dd-feed-card">
-                    <div className="flex items-start justify-between gap-2" style={{ marginBottom: 6 }}>
-                      <p className={`flex-1 t ${isPosted ? "done" : ""}`} style={{ fontSize: 12.5, fontWeight: 600, whiteSpace: "normal" }}>{t.title}</p>
-                      <div className="flex items-center gap-1 shrink-0">
-                        <div className="dd-acts hover-reveal">
-                          {!isPosted && (
-                            <button onClick={() => onCompleteIG(t.id)} title="Mark posted" className="dd-act ok">
-                              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
-                            </button>
-                          )}
-                          <button onClick={() => onEditIG(t.id)} title="Edit" className="dd-act">
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
-                          </button>
-                          <button onClick={() => onDeleteIG(t.id)} title="Delete" className="dd-act danger">
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                          </button>
-                        </div>
-                        <span className={`dd-chip ${isPosted ? "ok" : urgencyTone(t)}`}>{isPosted ? "posted" : "open"}</span>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="dd-chip">{t.type}</span>
-                      <span className="dd-meta" style={{ fontSize: 10 }}>{fmtDate(t.dueDate)}</span>
-                    </div>
-                  </div>
-                  );
-                })}
-              </div>
-            )}
-            <button onClick={() => { onOpenModal("ig"); onClose(); }} className="dd-btn-ghost">
-              + Add IG Task
-            </button>
-          </>
-        );
-      }
-
       case "activity": {
         return (
           <>
@@ -787,48 +706,6 @@ function WidgetDetailDrawer({
                 </div>
               )}
             </div>
-          </>
-        );
-      }
-
-      case "parties": {
-        const sorted = [...partyList].sort((a, b) => b.doorRevenue - a.doorRevenue);
-        const avgRevenue = partyList.length > 0 ? Math.round(totalDoorRev / partyList.length) : 0;
-        const totalAttendees = partyList.reduce((s, e) => s + e.attendance, 0);
-        return (
-          <>
-            <div className="dd-stats c3">
-              <div className="dd-stat"><p className="n vio">{fmt$(totalDoorRev)}</p><p className="l">Total revenue</p></div>
-              <div className="dd-stat"><p className="n">{partyList.length}</p><p className="l">Events</p></div>
-              <div className="dd-stat"><p className="n">{totalAttendees}</p><p className="l">Attendees</p></div>
-            </div>
-            <div>
-              <p className="dd-label">Events — Best First</p>
-              <div className="dd-feed">
-                {sorted.map(e => {
-                  const barPct = maxRevenue > 0 ? Math.round((e.doorRevenue / maxRevenue) * 100) : 0;
-                  const isTop = bestEvent ? e.id === bestEvent.id : false;
-                  return (
-                    <div key={e.id} className={`dd-event ${isTop ? "top" : ""}`}>
-                      <div className="eh">
-                        <p className="t">{isTop && <span className="best">Best</span>}{e.name}</p>
-                        <span className="m">{fmt$(e.doorRevenue)}</span>
-                      </div>
-                      <div className="dd-track"><i className={isTop ? "" : "muted"} style={{ width: `${barPct}%` }} /></div>
-                      <div className="meta">
-                        <span>{e.date}</span>
-                        <span>{e.attendance} attendees</span>
-                        <span>{fmt$(Math.round(e.doorRevenue / Math.max(1, e.attendance)))} / head</span>
-                        {e.notes && <span className="note">{e.notes}</span>}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-            <button onClick={() => { onOpenModal("revenue"); onClose(); }} className="dd-btn-ghost">
-              + Log Revenue
-            </button>
           </>
         );
       }
@@ -962,14 +839,13 @@ export default function Home() {
   const [sortKey,        setSortKey]        = useState<keyof Brother | null>(null);
   const [sortDir,        setSortDir]        = useState<"asc" | "desc">("asc");
   const [sidebarOpen,    setSidebarOpen]    = useState(false);
-  const [activeModal,    setActiveModal]    = useState<"deadline" | "revenue" | "ig" | "attendance" | "pick-event" | "edit-deadline" | "edit-ig" | "expense" | "excuse" | "event" | "pick-event-for-excuse" | null>(null);
+  const [activeModal,    setActiveModal]    = useState<"deadline" | "revenue" | "ig" | "attendance" | "pick-event" | "edit-deadline" | "expense" | "excuse" | "event" | "pick-event-for-excuse" | null>(null);
   const [selectedEventForAttendance, setSelectedEventForAttendance] = useState<CalendarEvent | null>(null);
   const [calendarList,   setCalendarList]   = useState<CalendarEvent[]>([]);
   const [calendarLoaded, setCalendarLoaded] = useState(false);
   const [eventTypes,     setEventTypes]     = useState<CalEventType[]>([]);
   // Org roles for the "New task" modal's assignee picker (mirrors the tasks page).
   const [roles,          setRoles]          = useState<RoleOption[]>([]);
-  const [editingIgId,       setEditingIgId]       = useState<number | null>(null);
   const [activeDrawer,   setActiveDrawer]   = useState<KPIDrawerKey | null>(null);
   const [widgetDrawer,   setWidgetDrawer]   = useState<WidgetDrawerKey | null>(null);
   const [editingAttId,      setEditingAttId]      = useState<number | null>(null);
@@ -980,7 +856,7 @@ export default function Home() {
   const [customMetricSnapshots, setCustomMetricSnapshots] = useState<MetricSnapshot[]>([]);
   const [activeCustomMetricId, setActiveCustomMetricId] = useState<number | null>(null);
   const [activeSection,  setActiveSection]  = useState("Dashboard");
-  const [confirmDelete, setConfirmDelete] = useState<{ kind: "deadline" | "ig"; id: number; label: string } | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<{ id: number; label: string } | null>(null);
   const [payTarget,    setPayTarget]    = useState<Brother | null>(null);
   const [payAmountStr, setPayAmountStr] = useState("");
   const [duesTx,       setDuesTx]       = useState<{ brother: Brother; amount: number } | null>(null);
@@ -1076,7 +952,6 @@ export default function Home() {
   // strip" (see WORKFLOW_FEATURES), so it gates the tile only — hiding a strip
   // tile must not also remove the full Treasury rail card.
   const treasuryMeasureVisible = financeEnabled && feature("operations", "kpi-treasury");
-  const partiesEnabled = isNavVisible("Parties",   currentUser?.org?.enabledWorkflows ?? []);
   // "New Event" picker options — creatable, workflow-enabled, non-hidden types.
   const eventCategoryOptions = useMemo<CategoryOption[]>(
     () => eventTypes
@@ -1605,7 +1480,7 @@ export default function Home() {
   function deleteDeadline(id: number) {
     const d = taskList.find(x => x.id === id);
     if (!d) return;
-    setConfirmDelete({ kind: "deadline", id, label: d.title });
+    setConfirmDelete({ id, label: d.title });
   }
 
   function confirmDeleteDeadline(id: number) {
@@ -1623,64 +1498,6 @@ export default function Home() {
   function openEditDeadline(id: number) {
     // Editing a task (title/date/assignees) happens on the Tasks page.
     router.push(orgPath(`/tasks?task=${id}`));
-  }
-
-  // ── IG Task CRUD ──────────────────────────────────────────────────────────
-  function completeIG(id: number) {
-    const t = igTaskList.find(x => x.id === id);
-    if (!t || t.status === "posted") return;
-    setIgTaskList(prev => prev.map(x => x.id === id ? { ...x, status: "posted" } : x));
-    addActivity(`IG task "${t.title}" marked posted`, "success");
-    persistMutation(
-      requestJson<InstagramTask>(`/api/instagram/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: "posted" }),
-      }),
-      "Instagram task update failed. Local changes were reverted.",
-      () => setIgTaskList(prev => prev.map(x => x.id === id ? t : x)),
-    );
-  }
-
-  function deleteIG(id: number) {
-    const t = igTaskList.find(x => x.id === id);
-    if (!t) return;
-    setConfirmDelete({ kind: "ig", id, label: t.title });
-  }
-
-  function confirmDeleteIG(id: number) {
-    const t = igTaskList.find(x => x.id === id);
-    if (!t) return;
-    setIgTaskList(prev => prev.filter(x => x.id !== id));
-    addActivity(`IG task removed: "${t.title}"`, "info");
-    persistMutation(
-      requestJson<void>(`/api/instagram/${id}`, { method: "DELETE" }),
-      "Instagram task delete failed. Local changes were reverted.",
-      () => setIgTaskList(prev => [...prev, t].sort((a, b) => a.id - b.id)),
-    );
-  }
-
-  function openEditIG(id: number) {
-    setEditingIgId(id);
-    setActiveModal("edit-ig");
-  }
-
-  function saveEditIG(data: { title: string; dueDate: string; type: InstagramType }) {
-    if (!editingIgId) return;
-    const previous = igTaskList.find(x => x.id === editingIgId);
-    setIgTaskList(prev => prev.map(x => x.id === editingIgId ? { ...x, ...data } : x));
-    addActivity(`IG task updated: "${data.title}"`, "info");
-    persistMutation(
-      requestJson<InstagramTask>(`/api/instagram/${editingIgId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-      }),
-      "Instagram task update failed. Local changes were reverted.",
-      previous ? () => setIgTaskList(prev => prev.map(x => x.id === previous.id ? previous : x)) : undefined,
-    );
-    setEditingIgId(null);
-    setActiveModal(null);
   }
 
   async function handleLogAttendance(attendedIds: number[], eventId: number) {
@@ -2098,27 +1915,8 @@ export default function Home() {
                   )}
                 </div>
 
-                {/* Remaining rail — Socials / Instagram / Activity */}
+                {/* Remaining rail — Activity */}
                 <div className="area-rail">
-                {partiesEnabled && (
-                  <SocialsRail
-                    parties={partyList}
-                    totalDoorRev={totalDoorRev}
-                    maxRevenue={maxRevenue}
-                    bestEvent={bestEvent}
-                    today={todayISO}
-                    onAdd={() => setActiveModal("revenue")}
-                    onAll={() => setWidgetDrawer("parties")}
-                  />
-                )}
-                {igEnabled && (
-                  <InstagramRail
-                    tasks={igTaskList.filter(t => t.status !== "posted")}
-                    today={todayISO}
-                    onAdd={() => setActiveModal("ig")}
-                    onAll={() => setWidgetDrawer("instagram")}
-                  />
-                )}
                 <ActivityRail entries={activityFeed} onAll={() => setWidgetDrawer("activity")} />
                 </div>
               </div>
@@ -2237,16 +2035,6 @@ export default function Home() {
           </div>
         </Modal>
       )}
-      {activeModal === "edit-ig" && editingIgId !== null && (() => {
-        const t = igTaskList.find(x => x.id === editingIgId);
-        if (!t) return null;
-        return (
-          <Modal title="Edit Instagram Task" tone="dusk" onClose={closeModal}>
-            <AddIGTaskForm initial={t} onSubmit={saveEditIG} />
-          </Modal>
-        );
-      })()}
-
       {/* ── Pay Dues Modal ──────────────────────────────────────────────────── */}
       {payTarget && (
         <Modal title="Record Payment" tone="dusk" onClose={() => setPayTarget(null)}>
@@ -2393,21 +2181,13 @@ export default function Home() {
         weekRange={weekRange}
         digestNarration={digestNarration}
         deadlineList={taskList}
-        igTaskList={igTaskList}
         activityFeed={activityFeed}
-        partyList={partyList}
         health={health}
-        maxRevenue={maxRevenue}
-        bestEvent={bestEvent}
-        totalDoorRev={totalDoorRev}
         onOpenModal={setActiveModal}
         onAddTask={canTasks ? () => setActiveModal("deadline") : () => router.push(orgPath("/tasks?new=1"))}
         onCompleteDeadline={completeDeadline}
         onDeleteDeadline={deleteDeadline}
         onEditDeadline={openEditDeadline}
-        onCompleteIG={completeIG}
-        onDeleteIG={deleteIG}
-        onEditIG={openEditIG}
       />
 
       {/* ── Brother Detail Drawer ───────────────────────────────────────────── */}
@@ -2427,12 +2207,11 @@ export default function Home() {
       {confirmDelete && (
         <ConfirmDialog
           tone="dusk"
-          title={confirmDelete.kind === "deadline" ? "Delete Deadline" : "Delete IG Task"}
+          title="Delete Deadline"
           message={<>Delete <span className="font-semibold text-[#ece7dd]">{confirmDelete.label}</span>? This cannot be undone.</>}
           onCancel={() => setConfirmDelete(null)}
           onConfirm={() => {
-            if (confirmDelete.kind === "deadline") confirmDeleteDeadline(confirmDelete.id);
-            else confirmDeleteIG(confirmDelete.id);
+            confirmDeleteDeadline(confirmDelete.id);
             setConfirmDelete(null);
           }}
         />
