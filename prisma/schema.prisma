@@ -64,6 +64,7 @@ model Organization {
   brotherRoles              BrotherRole[]
   config                    OrganizationConfig?
   invites                   OrgInvite[]
+  joinRequests              JoinRequest[]
   metricDefinitions         OrgMetricDefinition[]
   calendarEventTypes        CalendarEventType[]
   subscription              Subscription?
@@ -234,6 +235,11 @@ model Brother {
   platformAdmin         PlatformAdmin?
   createdInvites        OrgInvite[]            @relation("InviteCreator")
   inviteRedemptions     InviteRedemption[]
+  // Join requests this person DECIDED (as an officer), and the one they were
+  // the SUBJECT of. Both nullable on the JoinRequest side, so neither keeps a
+  // member from being erased.
+  decidedJoinRequests   JoinRequest[]          @relation("JoinRequestDecider")
+  joinRequest           JoinRequest[]          @relation("JoinRequestSubject")
   metricValues          BrotherMetricValue[]
   serviceParticipations ServiceParticipation[]
   reimbursements        Reimbursement[]
@@ -251,11 +257,15 @@ model Brother {
   @@index([organizationId])
 }
 
-// An admin-generated invite link for an org. Anyone with the link can join until
-// it expires or is revoked (reusable, multi-use).
+// An admin-generated invite link for an org. Anyone with the link can REQUEST to
+// join until it expires or is revoked (reusable, multi-use).
 //
-//   mode      "open"  → redeeming creates a fresh Brother + Membership.
-//             "claim" → redeeming routes the user into the name-match claim flow.
+// Holding the link is not access. Opening one files a JoinRequest, which an
+// officer approves or rejects; only approval mints the Brother + Membership.
+// There is deliberately no `mode` column any more: it used to choose between
+// "create a new member" and "match an existing roster name", and the second
+// branch existed only to serve officer-typed roster rows, which no longer exist.
+//
 //   expiresAt null    → never expires.
 //   revokedAt null    → still active.
 //   label     null    → unnamed; otherwise the admin's own name for the link
@@ -263,10 +273,11 @@ model Brother {
 //                       readable at a glance.
 //   maxUses   null    → unlimited. Otherwise the redemption cap.
 //
-// The cap is deliberately SOFT: redeem-invite counts redemptions and then
-// writes, so simultaneous joins can exceed it by a small margin. Making it hard
-// would need a serializable transaction or a counter column, and over-admitting
-// two people on a rush link is not worth either.
+// The cap is deliberately SOFT: the request path counts redemptions + pending
+// requests and then writes, so simultaneous submissions can exceed it by a small
+// margin. Making it hard would need a serializable transaction or a counter
+// column, and over-admitting two people on a rush link is not worth either — the
+// officer reviewing the queue is the real gate now anyway.
 //
 // `token` is stored in plaintext: it's a bearer credential that already lives in
 // the URL/clipboard/chat, so hashing it (vs a password) buys little here. If a
@@ -276,7 +287,6 @@ model OrgInvite {
   id                 Int       @id @default(autoincrement())
   organizationId     Int
   token              String    @unique
-  mode               String // InviteMode union in @/lib/state
   label              String?
   maxUses            Int?
   expiresAt          DateTime?
@@ -291,6 +301,7 @@ model OrgInvite {
   organization Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   createdBy    Brother?           @relation("InviteCreator", fields: [createdByBrotherId], references: [id], onDelete: SetNull)
   redemptions  InviteRedemption[]
+  joinRequests JoinRequest[]
 
   @@index([organizationId])
 }
@@ -307,6 +318,60 @@ model InviteRedemption {
   brother Brother   @relation(fields: [brotherId], references: [id], onDelete: Cascade)
 
   @@unique([inviteId, brotherId])
+  @@index([inviteId])
+}
+
+// Someone who opened an invite link and asked to join. THE WAITING ROOM.
+//
+// Deliberately not a Brother and not a Membership: identity is minted at
+// APPROVAL, so nothing about an unreviewed person exists in any org-scoped
+// table. That is the whole point — a person in this table has no roster row to
+// read, no attendance to enroll in, and nothing for a scoped query to return.
+// `authUserId` is the Supabase account that asked; it is the only thing tying
+// the row to a human until an officer signs off.
+//
+// ONE ROW PER PERSON PER ORG (@@unique), reused across links rather than
+// appended to. That is what makes rejection mean something without a second
+// table: a rejected row stays put, so re-clicking the SAME link is refused,
+// while opening a DIFFERENT link an officer sent resets the row to pending.
+// Rejection is therefore per-person-per-link — "you need a new link to try
+// again" — and the queue can't be spammed by reloading.
+//
+// Approval fills decidedById / decidedAt / brotherId and writes the matching
+// InviteRedemption, so "who actually got in through this link" stays answerable
+// from the invite side exactly as before.
+model JoinRequest {
+  id             Int       @id @default(autoincrement())
+  organizationId Int
+  inviteId       Int
+  authUserId     String
+  email          String?
+  avatarUrl      String?
+  // The name they typed on the join form: what the officer reads, and what
+  // becomes Membership.name on approval. An org-local name from the start —
+  // never written to Brother.name for a reused identity, since another chapter
+  // may call this person something else (see the Membership header).
+  name           String
+  // JoinRequestStatus (@/lib/state) — CHECK-constrained in the DB.
+  status         String    @default("pending")
+  createdAt      DateTime  @default(now())
+  decidedAt      DateTime?
+  // Nullable for the same reason OrgInvite.createdByBrotherId is: a decision is
+  // org property that outlives the officer who made it, so erasing that member
+  // anonymises the reviewer rather than deleting the record.
+  decidedById    Int?
+  // The identity this became. Null unless approved. SetNull rather than Cascade
+  // so removing an approved member from the roster leaves the audit trail of how
+  // they got in.
+  brotherId      Int?
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  invite       OrgInvite    @relation(fields: [inviteId], references: [id], onDelete: Cascade)
+  decidedBy    Brother?     @relation("JoinRequestDecider", fields: [decidedById], references: [id], onDelete: SetNull)
+  subject      Brother?     @relation("JoinRequestSubject", fields: [brotherId], references: [id], onDelete: SetNull)
+
+  @@unique([organizationId, authUserId])
+  @@index([organizationId, status, createdAt])
   @@index([inviteId])
 }
 
