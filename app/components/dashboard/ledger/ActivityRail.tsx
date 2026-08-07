@@ -27,7 +27,10 @@ export function ActivityRail({
         </div>
       </div>
       {entries.length === 0 ? (
-        <div className="rail-empty">No recent activity.</div>
+        // "No recent activity" reads as a lull to an org that has one; on day
+        // one the feed has never had anything in it, and saying so is the more
+        // useful sentence for both.
+        <div className="rail-empty">Nothing yet — activity appears here as your chapter uses the app.</div>
       ) : (
         entries.slice(0, 6).map((e) => (
           <div key={e.id} className="act-row">

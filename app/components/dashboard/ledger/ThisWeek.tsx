@@ -33,6 +33,8 @@ export function ThisWeek({
   weekEnd,
   today,
   onAll,
+  calendarEmpty = false,
+  onAddEvent,
 }: {
   events: CalendarEvent[];
   deadlines: Task[];
@@ -40,6 +42,13 @@ export function ThisWeek({
   weekEnd: string;
   today: string;
   onAll?: () => void;
+  /** True when the calendar has no events at all, not merely none this week.
+   *  "Nothing on the agenda this week" is the right answer for a quiet week and
+   *  the wrong one for a calendar nobody has opened yet. */
+  calendarEmpty?: boolean;
+  /** Adds the first event. Undefined without MANAGE_EVENTS (or when the org
+   *  doesn't run the events workflow) — the copy stands, the button doesn't. */
+  onAddEvent?: () => void;
 }) {
   const items: WeekItem[] = [
     ...events.map((e): WeekItem => ({
@@ -69,7 +78,18 @@ export function ThisWeek({
         </div>
       </div>
       {items.length === 0 ? (
-        <div className="rail-empty">Nothing on the agenda this week.</div>
+        <div className="rail-empty">
+          {calendarEmpty ? "No events on the calendar yet." : "Nothing on the agenda this week."}
+          {calendarEmpty && onAddEvent && (
+            <button
+              type="button"
+              className="a"
+              onClick={(e) => { e.stopPropagation(); onAddEvent(); }}
+            >
+              Add your first event →
+            </button>
+          )}
+        </div>
       ) : (
         items.map((it, i) => (
           <div key={`${it.kind}-${i}`} className={it.today ? "week-item today" : "week-item"}>

@@ -24,6 +24,7 @@ export function NeedsAttention({
   onSendReminder,
   onOpenReimbursements,
   hideButton,
+  hasData = true,
   tracked = ALL_TRACKED,
 }: {
   items: AttentionItem[];
@@ -32,6 +33,10 @@ export function NeedsAttention({
   onSendReminder: () => void;
   onOpenReimbursements: () => void;
   hideButton?: React.ReactNode;
+  /** False when no tracked measure has a single record behind it. An empty queue
+   *  then means "nothing has been measured", not "nothing is wrong" — and praise
+   *  requires evidence. */
+  hasData?: boolean;
   tracked?: TrackedMetrics;
 }) {
   const v = useVocab();
@@ -51,7 +56,11 @@ export function NeedsAttention({
       </div>
 
       {items.length === 0 ? (
-        <div className="rail-empty">Nothing needs attention — nice work.</div>
+        <div className="rail-empty">
+          {hasData
+            ? "Nothing needs attention — nice work."
+            : `Nothing to watch yet — items appear here once you're tracking ${v("Dues").toLowerCase()}, attendance or grades.`}
+        </div>
       ) : (
         visible.map((it) => {
           if (it.kind === "deadline-overdue") {

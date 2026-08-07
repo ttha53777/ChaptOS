@@ -36,7 +36,10 @@ export function BriefingHeader({
   health,
   actions,
 }: {
-  firstName: string;
+  /** Null when the viewer's name hasn't resolved. Renders "Good morning." rather
+   *  than the old "Good morning, there." — a placeholder name is worse than no
+   *  name, and this is the first line of a new founder's first frame. */
+  firstName: string | null;
   weekStart: string;
   weekEnd: string;
   digest: string | null;
@@ -79,7 +82,7 @@ export function BriefingHeader({
           &ensp;·&ensp;Week of {fmtRange(weekStart, weekEnd)}
         </p>
         <h1 className="greeting">
-          {clock.greeting}, <em>{firstName}</em>.
+          {firstName ? <>{clock.greeting}, <em>{firstName}</em>.</> : <>{clock.greeting}.</>}
         </h1>
         {(digest || digestLoading || digestQuiet) && (
           <div

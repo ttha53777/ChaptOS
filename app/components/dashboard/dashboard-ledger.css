@@ -191,6 +191,12 @@
 .dash .pinned .pin-edit { font-family: var(--mono); font-size: 10px; letter-spacing: .1em; color: var(--faint);
   text-decoration: none; text-transform: uppercase; background: none; border: 0; cursor: pointer; }
 .dash .pinned .pin-edit:hover { color: var(--vio); }
+/* Placeholder bar — nothing has ever been posted. It drops the card fill and
+   the gold PINNED chip, because a bar that wears a real announcement's
+   furniture reads as a real announcement. Dashed border says "slot", not
+   "notice". */
+.dash .pinned.pin-empty { background: transparent; box-shadow: none; border-style: dashed; }
+.dash .pinned .pin-tag.quiet { color: var(--faint); font-weight: 500; }
 
 /* ── Ledger strip ────────────────────────────────────────── */
 .dash .ledger { margin-top: 14px; display: grid; grid-auto-flow: column; grid-auto-columns: 1fr;
@@ -202,8 +208,19 @@
 .dash .measure .k { font-family: var(--mono); font-size: 9px; letter-spacing: .16em; text-transform: uppercase; color: var(--muted); }
 .dash .measure .v { font-family: var(--mono); font-size: 23px; font-weight: 500; letter-spacing: -.02em; color: var(--ink); margin-top: 7px; font-variant-numeric: tabular-nums; }
 .dash .measure .v small { font-size: 13px; color: var(--muted); font-weight: 400; }
-.dash .measure .note { font-size: 11px; color: var(--faint); margin-top: 3px; }
+/* The unset value. Same face, size and baseline as a real reading so the strip
+   doesn't jump when data lands — only the colour changes, so an em-dash reads
+   as an absence rather than as a measurement. */
+.dash .measure .v.unset { color: var(--faint); }
+/* `overflow-wrap` because the note may now carry an inline action, and the
+   strip's tracks are 1fr: an unbreakable action phrase would widen its column
+   and push the whole strip past the viewport. */
+.dash .measure .note { font-size: 11px; color: var(--faint); margin-top: 3px; overflow-wrap: anywhere; }
 .dash .measure .note.warn { color: var(--gold); }
+.dash .measure .note-act { font: inherit; color: var(--vio); background: none; border: 0; padding: 0;
+  cursor: pointer; white-space: nowrap; }
+.dash .measure .note-act:hover { text-decoration: underline; }
+.dash .measure .note-act:focus-visible { outline: 2px solid var(--vio); outline-offset: 2px; border-radius: 3px; }
 .dash .measure svg { position: absolute; right: 14px; bottom: 14px; opacity: .8; }
 .dash .measure svg polyline { fill: none; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
 
@@ -405,7 +422,16 @@
 .dash .rt-foot button:hover { color: var(--vio); border-color: var(--vio); }
 .dash .rt-empty { padding: 26px 18px 28px; text-align: center; }
 .dash .rt-empty .t { font-family: var(--serif); font-style: italic; font-size: 15px; color: var(--ink-soft); }
-.dash .rt-empty .h { font-size: 12px; color: var(--faint); margin-top: 5px; }
+.dash .rt-empty .h { font-size: 12px; color: var(--faint); margin-top: 5px;
+  max-width: 380px; margin-left: auto; margin-right: auto; line-height: 1.55; }
+/* The action slot the roster empty state never had. Day one is the one moment
+   the whole product depends on a single button being obvious. */
+.dash .rt-empty .a { margin-top: 15px; display: inline-flex; align-items: center; gap: 8px;
+  font-family: var(--mono); font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--vio); border: 1px solid var(--vio-bg); background: var(--vio-bg);
+  border-radius: 8px; padding: 8px 14px; cursor: pointer; transition: background .14s, color .14s, border-color .14s; }
+.dash .rt-empty .a:hover { color: #fff; background: var(--vio-deep); border-color: var(--vio-deep); }
+.dash .rt-empty .a:disabled { opacity: .5; cursor: default; }
 
 /* rail cards */
 .dash .week-item { display: flex; gap: 13px; padding: 10px 18px; border-bottom: 1px solid var(--line-soft); align-items: baseline; }
@@ -419,7 +445,23 @@
   background: var(--vio-bg); border-radius: 4px; padding: 2px 5px; margin-left: 6px; vertical-align: 1px; }
 .dash .ddl-pill { font-family: var(--mono); font-size: 8px; font-weight: 600; letter-spacing: .14em; color: var(--gold);
   background: var(--gold-bg); border-radius: 4px; padding: 2px 5px; margin-left: 6px; vertical-align: 1px; }
-.dash .rail-empty { padding: 14px 18px; font-size: 12px; color: var(--faint); }
+.dash .rail-empty { padding: 14px 18px; font-size: 12px; color: var(--faint); line-height: 1.55; }
+/* An empty rail card may name its one next move. Block-level so the action sits
+   under the sentence rather than stretching the card's minimum width. */
+.dash .rail-empty .a { display: block; width: fit-content; margin-top: 9px; font-family: var(--mono);
+  font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--vio);
+  border: 1px solid var(--line); background: transparent; border-radius: 7px;
+  padding: 5px 11px; cursor: pointer; }
+.dash .rail-empty .a:hover { border-color: var(--vio); }
+
+/* Loading is not empty. A rail card mid-fetch has a pending answer, not a
+   negative one, and must not claim "nothing here yet". */
+.dash .rail-skel { padding: 16px 18px 18px; }
+.dash .rail-skel i { display: block; border-radius: 4px;
+  background: linear-gradient(90deg, var(--card-2), var(--card) 60%);
+  animation: rt-skel-pulse 1.4s ease-in-out infinite; }
+.dash .rail-skel i.big { height: 26px; width: 42%; }
+.dash .rail-skel i.sm  { height: 10px; width: 62%; margin-top: 9px; }
 
 .dash .treasury-body { padding: 14px 18px 16px; }
 .dash .treasury-num { display: flex; align-items: baseline; gap: 10px; }

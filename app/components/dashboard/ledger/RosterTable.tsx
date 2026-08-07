@@ -26,6 +26,8 @@ const ROW_LIMIT = 10;
 /** Skeleton rows drawn while the roster section is still loading. */
 const SKELETON_ROWS = 6;
 
+const ALL_TRACKED_KEYS = Object.keys(ALL_TRACKED) as BuiltinMetricId[];
+
 /**
  * Metric columns, in display order. `metric` ties each to the org's tracked set
  * so a measure the org switched off doesn't render a column of zeros; `label`
@@ -97,7 +99,10 @@ export function RosterTable({
   hideButton,
   loading = false,
   onOpenAll,
+  onInvite,
+  inviteLabel,
   tracked = ALL_TRACKED,
+  measured,
 }: {
   brothers: Brother[];
   /** Roster size before search/status filtering — distinguishes "no members at
@@ -120,7 +125,20 @@ export function RosterTable({
   hideButton?: React.ReactNode;
   loading?: boolean;
   onOpenAll: () => void;
+  /** The one next move from the founder-only state. Undefined for a viewer who
+   *  can't hand out invites — the copy swaps to "ask an officer" rather than the
+   *  block disappearing, matching the events/docs precedent. */
+  onInvite?: () => void;
+  /** Label for that button. It differs by whether an invite link already exists
+   *  ("Copy invite link" vs "Create an invite link"), which only the page knows. */
+  inviteLabel?: string;
+  /** Which metrics get a COLUMN — the org's tracked set. */
   tracked?: TrackedMetrics;
+  /** Which metrics may decide a member's STANDING — the tracked set narrowed to
+   *  those with at least one record org-wide. The two differ only before an org
+   *  has recorded anything, where a column of "—" is right but a status chip
+   *  derived from those blanks is a fabrication. Defaults to `tracked`. */
+  measured?: TrackedMetrics;
 }) {
   const v = useVocab();
   const [expanded, setExpanded] = React.useState(false);
@@ -143,9 +161,28 @@ export function RosterTable({
     ["Watch", statusCounts.Watch],
     ["At Risk", statusCounts["At Risk"]],
   ];
+  const standing = measured ?? tracked;
+  // With nothing measured anywhere, no member has a standing to show. "Good" and
+  // "At Risk" are equally invented at that point, so the cell gets an em-dash —
+  // the same answer the ledger strip gives above it.
+  const statusKnown = ALL_TRACKED_KEYS.some(k => standing[k]);
   const columns = METRIC_COLUMNS.filter(c => tracked[c.metric]);
   const memberLabel = v("Member");
   const sortedLabel = sortKey ? METRIC_COLUMNS.find(c => c.key === sortKey) : null;
+
+  // Day one. The founder is pinned to the roster at org creation, so a brand-new
+  // org has exactly one member — which is why the `brothers.length === 0` branch
+  // below almost never fires and the roster's careful "no one is here yet" copy
+  // was effectively dead. `<= 1` is the state that actually exists, and it's the
+  // single most important thing on a new org's screen: the invite.
+  //
+  // Guarded on `!loading` so a cold fetch (brotherList still []) can't flash the
+  // invite pitch at a 60-member chapter.
+  const founderOnly = !loading && totalCount <= 1;
+  // Chrome is two separate questions, not one. There is nothing to search when
+  // the only name is your own; and the status pills filter nothing when no
+  // member has a status yet, which is a different (and longer-lived) condition.
+  const showSearch = !founderOnly;
 
   const visible = isPhone && !expanded ? brothers.slice(0, PHONE_LIMIT) : brothers;
   // Desktop keeps the full list mounted (so scroll can reach past the cap)
@@ -159,7 +196,9 @@ export function RosterTable({
       {hideButton}
       <div className="card-h">
         <h2>Roster</h2>
+        {(showSearch || statusKnown) && (
         <div className="right">
+          {showSearch && (
           <div className="ba-search">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
               <path d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
@@ -172,6 +211,8 @@ export function RosterTable({
               aria-label="Search the roster"
             />
           </div>
+          )}
+          {statusKnown && (
           <div className="filters">
             {filters.map(([f, n]) => (
               <button key={f} className={statusFilter === f ? "on" : undefined} onClick={() => { onFilter(f); setExpanded(false); }}>
@@ -179,23 +220,38 @@ export function RosterTable({
               </button>
             ))}
           </div>
+          )}
         </div>
+        )}
       </div>
 
       {loading ? (
         Array.from({ length: SKELETON_ROWS }, (_, i) => <div key={i} className="row-skel" />)
-      ) : brothers.length === 0 ? (
+      ) : founderOnly ? (
         <div className="rt-empty">
           <p className="t">
             {totalCount === 0
               ? `No one is on the roster yet.`
-              : `No ${v("Member", true).toLowerCase()} match your filters.`}
+              : `It's just you so far.`}
           </p>
           <p className="h">
-            {totalCount === 0
-              ? "Send an invite link and approve the first join request."
-              : "Pick another filter, or clear the search."}
+            {/* Phrased so it holds whether or not a link exists yet — the button
+                below is what differs ("Copy" vs "Create"), and a hint that
+                presumes a link would be wrong on the org's very first load. */}
+            {onInvite
+              ? "Everyone who opens your invite link lands in your approval queue."
+              : "Ask an officer to share the invite link."}
           </p>
+          {onInvite && (
+            <button type="button" className="a" onClick={onInvite}>
+              {inviteLabel ?? "Copy invite link"}
+            </button>
+          )}
+        </div>
+      ) : brothers.length === 0 ? (
+        <div className="rt-empty">
+          <p className="t">No {v("Member", true).toLowerCase()} match your filters.</p>
+          <p className="h">Pick another filter, or clear the search.</p>
         </div>
       ) : (
         <div className={desktopCapped ? "rt-scroll rt-capped" : "rt-scroll"}>
@@ -220,7 +276,7 @@ export function RosterTable({
             </thead>
             <tbody>
               {visible.map((b) => {
-                const status = getBrotherStatus(b, thresholds, tracked);
+                const status = getBrotherStatus(b, thresholds, standing);
                 const exempt = isAttendanceExempt(b.attendance);
                 const attCls = b.attendance >= thresholds.attendanceWatch ? "sage" : b.attendance >= thresholds.attendanceAtRisk ? "gold" : "rose";
                 const attBar = b.attendance >= thresholds.attendanceWatch ? "bg-sage" : b.attendance >= thresholds.attendanceAtRisk ? "bg-gold" : "bg-rose";
@@ -288,7 +344,11 @@ export function RosterTable({
                         <span className={`mono ${svcCls}`}>{b.serviceHours}h</span>
                       </td>
                     )}
-                    <td className="num c-status"><span className={`status-tag ${tag.cls}`}>{tag.label}</span></td>
+                    <td className="num c-status">
+                      {statusKnown
+                        ? <span className={`status-tag ${tag.cls}`}>{tag.label}</span>
+                        : <span className="mono muted">—</span>}
+                    </td>
                   </tr>
                 );
               })}
@@ -301,6 +361,10 @@ export function RosterTable({
         <span>
           {loading
             ? "Loading the roster…"
+            : founderOnly
+            /* "Showing 1 of 1 · click a row for the full profile" over a card
+               with no rows is furniture describing nothing. */
+            ? null
             : <>
                 Showing {shownCount} of {total}
                 {sortedLabel ? <> · sorted by {(sortedLabel.vocabKey ? v(sortedLabel.vocabKey) : sortedLabel.label).toLowerCase()}</> : null}

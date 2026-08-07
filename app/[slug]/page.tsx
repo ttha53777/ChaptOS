@@ -20,6 +20,7 @@ import { useThresholds } from "../hooks/useThresholds";
 import { useVocab } from "../hooks/useVocab";
 import { useFeature } from "../hooks/useFeature";
 import { useTrackedMetrics } from "../hooks/useTrackedMetrics";
+import type { TrackedMetrics } from "@/lib/tracked-metrics";
 import { useRollingToday } from "../hooks/useRollingToday";
 import { trackedCount } from "@/lib/tracked-metrics";
 import type { BuiltinMetricId } from "@/lib/onboarding/kinds";
@@ -67,6 +68,11 @@ let _nextId = Date.now();
 // Mirrors the fields the service page selects from /api/service-events.
 type DashServiceEvent = { id: number; title: string; date: string };
 
+/** The two fields of GET /api/invites the founder-only roster state needs.
+ *  Declared structurally rather than importing InviteDto, which lives in a
+ *  service module that pulls Prisma into the client bundle. */
+type InviteSummary = { token: string; status: string };
+
 // ─── KPI Drawer ───────────────────────────────────────────────────────────────
 
 type KPIDrawerKey = "attendance" | "dues" | "gpa" | "service" | "treasury" | "door";
@@ -93,6 +99,7 @@ function KPIDetailDrawer({
   onOpenModal, onOpenAttendance,
   isAdmin = true,
   canTreasury = false,
+  hasDuesData = true,
 }: {
   activeKey: KPIDrawerKey | null;
   onClose: () => void;
@@ -115,6 +122,9 @@ function KPIDetailDrawer({
   onOpenAttendance: () => void;
   isAdmin?: boolean;
   canTreasury?: boolean;
+  /** False when no member carries a balance and the books are empty — i.e. dues
+   *  were never assigned, so there is nothing to be "paid up" on. */
+  hasDuesData?: boolean;
 }) {
   const THRESHOLDS = useThresholds();
   const v = useVocab();
@@ -185,6 +195,16 @@ function KPIDetailDrawer({
       case "dues": {
         const oweList = brotherList.filter(b => b.duesOwed > 0);
         const paidList = brotherList.filter(b => b.duesOwed === 0);
+        // An org that has never assigned dues also has $0 outstanding, and used
+        // to be congratulated for it. "Paid up" is a claim about dues that
+        // exist; without any it's the drawer's version of the fabricated zero.
+        if (!hasDuesData) {
+          return (
+            <div className="dd-empty">
+              No {v("Dues").toLowerCase()} set yet — assign an amount on the {v("Treasury").toLowerCase()} page and balances appear here.
+            </div>
+          );
+        }
         return (
           <>
             <div className="dd-stats c3">
@@ -885,6 +905,13 @@ export default function Home() {
   const canBrothers    = can("MANAGE_BROTHERS");
   const canAttendance  = can("MANAGE_ATTENDANCE");
   const canTasks       = can("MANAGE_TASKS");
+  const canEvents      = can("MANAGE_EVENTS");
+  // Invite links are credentials, gated on MANAGE_SETTINGS rather than
+  // MANAGE_BROTHERS — the same split the roster page makes.
+  const canSettings    = can("MANAGE_SETTINGS");
+  // The announcement bar's Edit button was rendered unconditionally, so every
+  // ordinary member saw a control that 403'd on save.
+  const canAnnounce    = can("MANAGE_ANNOUNCEMENTS");
   const selfId  = currentUser?.id ?? null;
 
   const router  = useRouter();
@@ -948,6 +975,9 @@ export default function Home() {
   // page at all — the dashboard must not show them a treasury either. This gates
   // both treasury surfaces.
   const financeEnabled = isNavVisible("Treasury",  currentUser?.org?.enabledWorkflows ?? []);
+  // Gates the "Add your first event" move on the empty This Week card — an org
+  // that doesn't run the events workflow has no calendar to add to.
+  const eventsEnabled  = isNavVisible("Programming", currentUser?.org?.enabledWorkflows ?? []);
   // The `kpi-treasury` toggle narrowly means "the balance measure in the ledger
   // strip" (see WORKFLOW_FEATURES), so it gates the tile only — hiding a strip
   // tile must not also remove the full Treasury rail card.
@@ -1175,20 +1205,117 @@ export default function Home() {
   const totalServiceHrs = useMemo(() => brotherList.reduce((s, b) => s + b.serviceHours, 0), [brotherList]);
   const totalDoorRev    = useMemo(() => partyList.reduce((s, e) => s + e.doorRevenue, 0), [partyList]);
   const onTrackSvc      = useMemo(() => brotherList.filter(b => b.serviceHours >= THRESHOLDS.serviceHoursGoal).length, [brotherList, THRESHOLDS]);
+
+  // ── Three kinds of nothing ────────────────────────────────────────────────
+  // A brand-new org's dashboard used to be a wall of confident zeros: 0.0%
+  // attendance, $0 dues, 0.00 GPA, 0h service — four numbers nobody measured,
+  // printed in the same face and size as real data, under a health dial reading
+  // "0 · Critical". None of it computed wrong; the page just had one vocabulary
+  // for emptiness. These flags separate "no records exist" from "records exist
+  // and are fine", so a measure with nothing behind it renders an em-dash and a
+  // reason instead of a fabricated reading.
+  //
+  // Derived entirely client-side from data the page already holds — no new
+  // server coverage signal. `rosterLoaded` guards the lot: an in-flight roster
+  // is an empty array, and unset-until-proven would flash the invite copy at a
+  // 60-member chapter on every cold load.
+  const rosterLoaded   = loadedSections.has("brothers");
+  const treasuryLoaded = loadedSections.has("treasury");
+  // `trend` is bucketed from transaction + party months, so an empty trend means
+  // the books have literally no entries. `treasuryData != null` does NOT mean
+  // that — a successful fetch on a new org returns {balance: 0, trend: []}, which
+  // is why the Treasury tile printed $0 on day one despite already having an
+  // em-dash branch.
+  const hasTreasuryData   = liveTrend.length > 0;
+  const hasAttendanceData = useMemo(() => attendees.some(b => b.attendance > 0), [attendees]);
+  const hasGpaData        = useMemo(() => brotherList.some(b => b.gpa > 0), [brotherList]);
+  const hasServiceData    = useMemo(() => brotherList.some(b => b.serviceHours > 0), [brotherList]);
+  // A mature org where everyone has paid shows all-zero duesOwed, which alone is
+  // indistinguishable from "dues were never assigned". Live books are the
+  // tiebreak. Accepted limit: an org with dues assigned, everyone paid, and zero
+  // transactions reads as unset — rare, self-correcting on the first entry, and
+  // the failure is a soft invitation rather than a false number.
+  const hasDuesData       = useMemo(() => brotherList.some(b => b.duesOwed !== 0), [brotherList]) || hasTreasuryData;
+  // Because dues leans on the books for its tiebreak, it isn't decidable until
+  // BOTH fetches land — otherwise a paid-up org flashes "No dues set yet" for
+  // the moment the treasury request is still open.
+  const duesKnown = rosterLoaded && treasuryLoaded;
+  const hasAnyData = rosterLoaded &&
+    (hasAttendanceData || hasGpaData || hasServiceData || hasDuesData);
+
+  // `tracked` says which metrics the org opted into; `measured` narrows that to
+  // the ones with at least one record behind them anywhere in the org. Anything
+  // reading a member's *standing* uses `measured`, for the reason already stated
+  // in tracked-metrics.ts: a stored 0 is not a measurement and must not flag
+  // anyone. Without this, day one flags the founder AT RISK off their own 0%
+  // attendance and 0.00 GPA — the same fabrication as the zeros in the strip,
+  // wearing a rose chip — and the "nothing to watch yet" copy below can never
+  // fire, because there is always exactly one phantom item in the queue.
+  //
+  // On any org that has recorded something this is identity: every flag is true,
+  // so `measured` equals `tracked` and nothing downstream changes.
+  const measured = useMemo<TrackedMetrics>(() => ({
+    attendance:   tracked.attendance   && hasAttendanceData,
+    gpa:          tracked.gpa          && hasGpaData,
+    duesOwed:     tracked.duesOwed     && hasDuesData,
+    serviceHours: tracked.serviceHours && hasServiceData,
+  }), [tracked, hasAttendanceData, hasGpaData, hasDuesData, hasServiceData]);
+
   const maxRevenue      = useMemo(() => partyList.length ? Math.max(...partyList.map(e => e.doorRevenue)) : 0, [partyList]);
   const bestEvent       = useMemo(() => partyList.length ? partyList.reduce((a, b) => b.doorRevenue > a.doorRevenue ? b : a) : null, [partyList]);
 
+  // ── Day-one invite link ───────────────────────────────────────────────────
+  // The founder is pinned to the roster at org creation, so "day one" is a
+  // one-row table of your own name — not the zero-row state the roster's empty
+  // copy was written for. `founderOnlyRoster` is that real state, and the invite
+  // is the one move the entire product depends on at this moment.
+  //
+  // The link is FETCHED, never minted here: pressing a button must not silently
+  // create a credential. An existing active link is copied; with none, the
+  // button hands off to the settings section that creates one, and says so.
+  // Listing invites requires MANAGE_SETTINGS, so the request is gated on both
+  // the permission and the state that would show the button.
+  const founderOnlyRoster = rosterLoaded && brotherList.length <= 1;
+  const [inviteLink, setInviteLink] = useState<string | null>(null);
+  useEffect(() => {
+    if (!canSettings || !founderOnlyRoster) return;
+    let cancelled = false;
+    requestJson<InviteSummary[]>("/api/invites")
+      .then(rows => {
+        if (cancelled) return;
+        const active = rows.find(r => r.status === "active");
+        setInviteLink(active ? `${window.location.origin}/join/${active.token}` : null);
+      })
+      .catch(() => { /* non-fatal — the button falls back to the settings route */ });
+    return () => { cancelled = true; };
+  }, [canSettings, founderOnlyRoster]);
+
+  const goToInvites = useCallback(() => {
+    router.push(`${orgPath("/settings")}?section=invitations`);
+  }, [router, orgPath]);
+
+  const handleInvite = useCallback(() => {
+    if (!inviteLink) { goToInvites(); return; }
+    navigator.clipboard.writeText(inviteLink)
+      .then(() => toast.success("Invite link copied"))
+      // Clipboard access can be denied (insecure context, permissions policy).
+      // Falling through to the settings list still gets the founder to a link.
+      .catch(() => goToInvites());
+  }, [inviteLink, goToInvites, toast]);
+
+  // `measured`, not `tracked` — see its definition. An unmeasured metric can't
+  // put anyone in a bucket.
   const statusCounts = useMemo(() => ({
-    Good:      brotherList.filter(b => getBrotherStatus(b, THRESHOLDS, tracked) === "Good").length,
-    Watch:     brotherList.filter(b => getBrotherStatus(b, THRESHOLDS, tracked) === "Watch").length,
-    "At Risk": brotherList.filter(b => getBrotherStatus(b, THRESHOLDS, tracked) === "At Risk").length,
-  }), [brotherList, THRESHOLDS, tracked]);
+    Good:      brotherList.filter(b => getBrotherStatus(b, THRESHOLDS, measured) === "Good").length,
+    Watch:     brotherList.filter(b => getBrotherStatus(b, THRESHOLDS, measured) === "Watch").length,
+    "At Risk": brotherList.filter(b => getBrotherStatus(b, THRESHOLDS, measured) === "At Risk").length,
+  }), [brotherList, THRESHOLDS, measured]);
 
   // ── Needs-attention queue ───────────────────────────────────────────────────
   // Overdue deadlines, outstanding dues (aggregated), and at-risk members.
   const needsAttention = useMemo(
-    () => deriveNeedsAttention(brotherList, taskList, THRESHOLDS, todayISO, reimbursementList, tracked),
-    [brotherList, taskList, THRESHOLDS, todayISO, reimbursementList, tracked],
+    () => deriveNeedsAttention(brotherList, taskList, THRESHOLDS, todayISO, reimbursementList, measured),
+    [brotherList, taskList, THRESHOLDS, todayISO, reimbursementList, measured],
   );
 
   // ── Weekly Digest ──────────────────────────────────────────────────────────
@@ -1307,7 +1434,7 @@ export default function Home() {
       // not just the free-text `role` — searching "Treasurer" should find the
       // treasurer even when their free-text label says something else.
       return (q === "" || b.name.toLowerCase().includes(q) || roleTitle(b).toLowerCase().includes(q)) &&
-             (statusFilter === "All" || getBrotherStatus(b, THRESHOLDS, tracked) === statusFilter);
+             (statusFilter === "All" || getBrotherStatus(b, THRESHOLDS, measured) === statusFilter);
     });
     if (sortKey) {
       result = [...result].sort((a, b) => {
@@ -1316,7 +1443,7 @@ export default function Home() {
       });
     }
     return result;
-  }, [brotherList, search, statusFilter, sortKey, sortDir, THRESHOLDS, tracked]);
+  }, [brotherList, search, statusFilter, sortKey, sortDir, THRESHOLDS, measured]);
 
   function toggleSort(key: keyof Brother) {
     // A new column opens DESCENDING: every sortable column here is a metric,
@@ -1712,7 +1839,7 @@ export default function Home() {
 
             {/* ── Briefing + health dial ──────────────────────────────────── */}
             <BriefingHeader
-              firstName={currentUser?.name?.split(" ")[0] ?? "there"}
+              firstName={currentUser?.name?.split(" ")[0] ?? null}
               weekStart={weekRange.start}
               weekEnd={weekRange.end}
               digest={digestNarration}
@@ -1733,7 +1860,12 @@ export default function Home() {
                   enabledWorkflows={currentUser?.org?.enabledWorkflows}
                 />
               }
-              health={feature("operations", "health") && healthMeaningful ? (
+              // `hasAnyData` on top of `healthMeaningful`: the latter tests
+              // CONFIG (≥2 tracked measures), never DATA, so a brand-new org
+              // scored 0 out of nothing and got "Critical" in rose as the first
+              // thing on its first screen. Hiding beats scoring an absence; the
+              // dial returns on its own once any tracked measure has a record.
+              health={feature("operations", "health") && healthMeaningful && hasAnyData ? (
                 <div className="dash-group">
                   <HealthDial
                     score={health.score}
@@ -1756,6 +1888,7 @@ export default function Home() {
               <PinnedAnnouncement
                 announcement={announcement}
                 onEdit={() => setAnnouncementEditorOpen(true)}
+                canEdit={canAnnounce}
                 hideButton={isActiveOrgAdmin ? <DashHideButton label="Announcement" onHide={() => setWidgetHidden("announcement", true)} /> : undefined}
               />
             )}
@@ -1768,13 +1901,24 @@ export default function Home() {
               feature("operations", "kpi-gpa") || feature("operations", "kpi-service") ||
               treasuryMeasureVisible || customMetricSnapshots.length > 0) && (
               <LedgerStrip>
+                {/* Each measure below asks the same question first: is there a
+                    single record behind this number? With none, it prints an
+                    em-dash and a reason rather than a 0 that was never measured,
+                    and — where the viewer can act — the one next move. The
+                    em-dash keeps the value's size and baseline so the strip
+                    doesn't jump when real data lands. While the roster fetch is
+                    still in flight nothing is known either way, so the note is
+                    omitted instead of guessing. */}
                 {feature("operations", "kpi-attendance") && (
                   <Measure
                     label="Attendance"
-                    value={avgAttendance.toFixed(1)}
+                    unset={!hasAttendanceData}
+                    value={hasAttendanceData ? avgAttendance.toFixed(1) : "—"}
                     unit="%"
-                    note={`${belowAttCount} below ${THRESHOLDS.attendanceWatch}%`}
-                    noteWarn={belowAttCount > 0}
+                    note={hasAttendanceData
+                      ? `${belowAttCount} below ${THRESHOLDS.attendanceWatch}%`
+                      : rosterLoaded ? "No meetings recorded yet." : undefined}
+                    noteWarn={hasAttendanceData && belowAttCount > 0}
                     onClick={() => setActiveDrawer("attendance")}
                     hideButton={isActiveOrgAdmin ? <DashHideButton label="Attendance KPI" onHide={() => setWidgetHidden("kpi-attendance", true)} /> : undefined}
                   />
@@ -1782,10 +1926,16 @@ export default function Home() {
                 {feature("operations", "kpi-dues") && (
                   <Measure
                     label={`${v("Dues")} outstanding`}
+                    unset={!duesKnown || !hasDuesData}
                     unitLeading="$"
-                    value={outstandingDues.toLocaleString()}
-                    note={`${owingCount} ${v("Member", owingCount !== 1).toLowerCase()} owe`}
-                    noteWarn={owingCount > 0}
+                    value={duesKnown && hasDuesData ? outstandingDues.toLocaleString() : "—"}
+                    note={duesKnown && hasDuesData
+                      ? `${owingCount} ${v("Member", owingCount !== 1).toLowerCase()} owe`
+                      : duesKnown ? `No ${v("Dues").toLowerCase()} set yet.` : undefined}
+                    noteWarn={duesKnown && hasDuesData && owingCount > 0}
+                    noteAction={duesKnown && !hasDuesData && canTreasury && financeEnabled
+                      ? { label: "Set an amount", onClick: () => router.push(orgPath("/treasury")) }
+                      : undefined}
                     onClick={() => setActiveDrawer("dues")}
                     hideButton={isActiveOrgAdmin ? <DashHideButton label="Dues KPI" onHide={() => setWidgetHidden("kpi-dues", true)} /> : undefined}
                   />
@@ -1793,8 +1943,11 @@ export default function Home() {
                 {feature("operations", "kpi-gpa") && (
                   <Measure
                     label="Average GPA"
-                    value={chapterGPA.toFixed(2)}
-                    note={`${belowGpaCount} below ${THRESHOLDS.gpaWatch.toFixed(1)}`}
+                    unset={!hasGpaData}
+                    value={hasGpaData ? chapterGPA.toFixed(2) : "—"}
+                    note={hasGpaData
+                      ? `${belowGpaCount} below ${THRESHOLDS.gpaWatch.toFixed(1)}`
+                      : rosterLoaded ? "No grades on file yet." : undefined}
                     onClick={() => setActiveDrawer("gpa")}
                     hideButton={isActiveOrgAdmin ? <DashHideButton label="GPA KPI" onHide={() => setWidgetHidden("kpi-gpa", true)} /> : undefined}
                   />
@@ -1802,19 +1955,33 @@ export default function Home() {
                 {feature("operations", "kpi-service") && (
                   <Measure
                     label={v("Service")}
-                    value={`${totalServiceHrs}`}
+                    unset={!hasServiceData}
+                    value={hasServiceData ? `${totalServiceHrs}` : "—"}
                     unit="h"
-                    note={`${onTrackSvc} of ${brotherList.length} on track`}
+                    note={hasServiceData
+                      ? `${onTrackSvc} of ${brotherList.length} on track`
+                      : rosterLoaded ? "Nothing logged this term." : undefined}
                     onClick={() => setActiveDrawer("service")}
                     hideButton={isActiveOrgAdmin ? <DashHideButton label="Service Hours KPI" onHide={() => setWidgetHidden("kpi-service", true)} /> : undefined}
                   />
                 )}
                 {treasuryMeasureVisible && (
+                  /* `hasTreasury` only means the fetch succeeded — on a new org
+                     it returns {balance: 0, trend: []}, which is why this tile
+                     printed $0 on day one despite already having an em-dash
+                     branch. An empty trend means the books have no entries. */
                   <Measure
                     label={v("Treasury")}
-                    unitLeading={hasTreasury ? "$" : undefined}
-                    value={hasTreasury ? liveBalance!.toLocaleString() : "—"}
-                    note={hasTreasury ? `proj. ${fmt$(liveProjected!)}` : "No transactions yet"}
+                    unset={!hasTreasuryData}
+                    unitLeading="$"
+                    value={hasTreasuryData ? liveBalance!.toLocaleString() : "—"}
+                    note={hasTreasuryData
+                      ? `proj. ${fmt$(liveProjected!)}`
+                      : treasuryLoaded ? "No transactions yet." : undefined}
+                    /* No action here on purpose: the Treasury rail card sits
+                       directly below with the same move, and one measure per
+                       screen carrying a duplicate CTA both wraps this 1fr track
+                       onto a second line and splits the founder's attention. */
                     onClick={() => setActiveDrawer("treasury")}
                     hideButton={isActiveOrgAdmin ? <DashHideButton label="Treasury KPI" onHide={() => setWidgetHidden("kpi-treasury", true)} /> : undefined}
                   />
@@ -1865,7 +2032,8 @@ export default function Home() {
                     onOpenProfile={(id) => setSelectedBrotherId(id)}
                     onSendReminder={() => setActiveDrawer("dues")}
                     onOpenReimbursements={() => router.push(orgPath("/treasury?tab=Reimbursements"))}
-                    tracked={tracked}
+                    hasData={hasAnyData}
+                    tracked={measured}
                     hideButton={isActiveOrgAdmin ? <DashHideButton label="Needs attention" onHide={() => setWidgetHidden("needs-attention", true)} /> : undefined}
                   />
                   </div>
@@ -1886,12 +2054,15 @@ export default function Home() {
                     onRowClick={(id) => setSelectedBrotherId(id)}
                     selectedId={selectedBrotherId}
                     onOpenAll={() => router.push(orgPath("/brothers"))}
-                    loading={!loadedSections.has("brothers")}
+                    onInvite={canSettings ? handleInvite : undefined}
+                    inviteLabel={inviteLink ? "Copy invite link" : "Create an invite link"}
+                    loading={!rosterLoaded}
                     thresholds={THRESHOLDS}
                     selfId={selfId}
                     selfAvatarUrl={currentUser?.avatarUrl}
                     avatarRevision={avatarRevision}
                     tracked={tracked}
+                    measured={measured}
                     hideButton={isActiveOrgAdmin ? <DashHideButton label="Member tracking" onHide={() => setWidgetHidden("brother-tracking", true)} /> : undefined}
                   />
                   </div>
@@ -1909,9 +2080,17 @@ export default function Home() {
                     weekEnd={weekRange.end}
                     today={todayISO}
                     onAll={() => setWidgetDrawer("deadlines")}
+                    calendarEmpty={calendarLoaded && calendarList.length === 0}
+                    onAddEvent={canEvents && eventsEnabled ? () => setActiveModal("event") : undefined}
                   />
                   {financeEnabled && (
-                    <TreasuryRail balance={liveBalance} projected={liveProjected} trend={liveTrend} />
+                    <TreasuryRail
+                      balance={liveBalance}
+                      projected={liveProjected}
+                      trend={liveTrend}
+                      loading={!treasuryLoaded}
+                      onLogTransaction={canTreasury ? () => router.push(orgPath("/treasury?tab=Transactions")) : undefined}
+                    />
                   )}
                 </div>
 
@@ -2240,6 +2419,7 @@ export default function Home() {
         onOpenAttendance={openAttendanceLog}
         isAdmin={isAdmin}
         canTreasury={canTreasury}
+        hasDuesData={duesKnown && hasDuesData}
       />
       <CustomMetricDetailDrawer
         snap={customMetricSnapshots.find(s => s.definitionId === activeCustomMetricId) ?? null}
