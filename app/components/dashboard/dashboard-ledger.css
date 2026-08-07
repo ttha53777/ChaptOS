@@ -271,11 +271,18 @@
   color: var(--muted); border: 1px solid transparent; background: transparent; border-radius: 6px; padding: 3px 9px; cursor: pointer; }
 .dash .filters button.on { color: var(--ink); background: var(--card-2); border-color: var(--line); }
 .dash .filters button:hover { color: var(--ink-soft); }
-/* Horizontal-scroll guard for the roster: at narrow widths the 7-column table
-   can exceed its card; scroll it inside the card rather than clipping or pushing
-   the page wide. min-width keeps columns from crushing before they scroll. */
-.dash .roster-scroll { overflow-x: auto; }
-.dash .roster-scroll table { min-width: 560px; }
+/* Bounded scroll region + sticky header (replaces the old .roster-scroll
+   horizontal-scroll guard, which hid the Status column rather than fitting it).
+   The roster is the only widget with no natural ceiling — a 120-member chapter
+   used to render a ~5,000px card. Cap it and let the header stay put instead.
+   The 560px table min-width is gone on purpose: it is what forced the h-scroll. */
+.dash .rt-scroll { max-height: clamp(320px, 44vh, 540px); overflow-y: auto; overflow-x: hidden;
+  scrollbar-width: thin; scrollbar-color: var(--line) transparent; }
+.dash .rt-scroll::-webkit-scrollbar { width: 8px; }
+.dash .rt-scroll::-webkit-scrollbar-thumb { background: var(--line); border-radius: 4px; }
+.dash .rt thead th { position: sticky; top: 0; z-index: 2; background: var(--card);
+  box-shadow: inset 0 -1px 0 var(--line-soft); }
+.dash .rt thead th:last-child, .dash .rt tbody td:last-child { padding-right: 18px; }
 .dash table { width: 100%; border-collapse: collapse; }
 .dash thead th { font-family: var(--mono); font-size: 8.5px; font-weight: 500; letter-spacing: .16em; text-transform: uppercase;
   color: var(--faint); text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line-soft); }
@@ -315,6 +322,82 @@
 .dash .row-act:hover { color: var(--vio); border-color: var(--vio); }
 .dash .table-foot { padding: 10px 18px; border-top: 1px solid var(--line-soft); background: var(--card-2);
   font-family: var(--mono); font-size: 10px; letter-spacing: .06em; color: var(--faint); }
+
+/* ── Roster table (`.rt`), ported from _design/Roster Table Fixed.html ───────
+   Scoped to `.rt` so none of it reaches the standalone roster page, which
+   imports this file too but styles its own table via brotherhood-ledger.css. */
+
+/* Drop the low-priority columns on the CARD's width, not the viewport's. The
+   old rule hid GPA + Svc below 1023px *viewport* — but the roster's available
+   width is not a function of viewport width (the rail grows, the page cap
+   clamps, the ≤1279 reflow hands width back), which is why Status still fell
+   off at 1280 and 1440 while surviving 1024. Ask the only question that
+   matters: is there room? */
+.dash .rt { container-type: inline-size; }
+@container (max-width: 640px) {
+  .dash .rt .col-secondary { display: none; }
+}
+
+.dash .rt .card-h { flex-wrap: wrap; row-gap: 10px; }
+.dash .rt .card-h .right { flex-wrap: wrap; justify-content: flex-end; }
+
+/* Sortable headers get a real affordance. The old version was an inline
+   cursor:pointer plus a raw ↑ glyph appended after sorting — no hover feedback,
+   and the label text highlight-selected on double click. */
+.dash .rt th.sortable { cursor: pointer; user-select: none; white-space: nowrap; }
+.dash .rt th.sortable:hover { color: var(--ink-soft); }
+.dash .rt th.sortable .arrow { display: inline-block; width: 8px; margin-left: 4px; opacity: 0; transition: opacity .14s; }
+.dash .rt th.sortable:hover .arrow { opacity: .45; }
+.dash .rt th.sortable[aria-sort]:not([aria-sort="none"]) { color: var(--ink-soft); }
+.dash .rt th.sortable[aria-sort]:not([aria-sort="none"]) .arrow { opacity: 1; color: var(--vio); }
+.dash .rt th.sortable:focus-visible { outline: 2px solid var(--vio); outline-offset: -2px; }
+
+/* Member cell: name over role. Reclaims the ~150px the Role column ate — which
+   is what un-clips Status — and lets "Treasurer · Banquet · Social" render whole
+   instead of truncating to "Treasurer · Banquet · S…" with no tooltip. */
+.dash .rt .b-name { align-items: center; gap: 11px; }
+.dash .rt .b-name .who { min-width: 0; }
+.dash .rt .b-name .nm { font-size: 13px; font-weight: 550; color: var(--ink);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dash .rt .b-name .rl { display: flex; align-items: center; gap: 6px; font-size: 10.5px;
+  color: var(--faint); margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dash .rt .b-name .rl i { width: 5px; height: 5px; border-radius: 2px; flex-shrink: 0;
+  background: var(--dot, var(--line)); }
+/* Seat Google's default letter-avatars (full-saturation remote PNGs) in the warm
+   palette instead of letting them be the brightest pixels in a quiet card. */
+.dash .rt .b-name .av-seat { filter: saturate(.68) brightness(.92);
+  box-shadow: 0 0 0 1px var(--line) inset, 0 0 0 1px rgba(0,0,0,.35); }
+
+/* Attendance meter: 132px of track instead of ~76px, 4px tall instead of 3px.
+   A 73%→93% spread is now ~26px of travel rather than ~15px of identical bar. */
+.dash .rt .attb { gap: 10px; width: 132px; min-width: 132px; }
+.dash .rt .attb .track { height: 4px; }
+
+/* Selected row mirrors the open drawer — previously nothing marked which row
+   you had opened. Matches brotherhood-ledger.css's `tr.sel`. */
+.dash .rt tbody tr.sel { background: var(--vio-bg); }
+.dash .rt tbody tr.sel td:first-child { box-shadow: inset 3px 0 0 var(--vio); }
+.dash .rt tbody tr:focus-visible { outline: 2px solid var(--vio); outline-offset: -2px; }
+
+/* Loading skeleton. Without it the widget renders "No members match your
+   filters" during every cold load — a wrong answer where a pending one belongs.
+   The keyframe is deliberately NOT named `dash-pulse`: brotherhood-ledger.css
+   already owns that name, and the roster page imports both files. */
+.dash .rt .row-skel { height: 48px; border-bottom: 1px solid var(--line-soft);
+  background: linear-gradient(90deg, var(--card-2), var(--card) 60%);
+  animation: rt-skel-pulse 1.4s ease-in-out infinite; }
+@keyframes rt-skel-pulse { 0%, 100% { opacity: 1 } 50% { opacity: .5 } }
+
+.dash .rt-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 10px 18px; border-top: 1px solid var(--line-soft); background: var(--card-2);
+  font-family: var(--mono); font-size: 10px; letter-spacing: .06em; color: var(--faint); }
+.dash .rt-foot button { font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--muted); background: transparent;
+  border: 1px solid var(--line); border-radius: 6px; padding: 4px 10px; cursor: pointer; white-space: nowrap; }
+.dash .rt-foot button:hover { color: var(--vio); border-color: var(--vio); }
+.dash .rt-empty { padding: 26px 18px 28px; text-align: center; }
+.dash .rt-empty .t { font-family: var(--serif); font-style: italic; font-size: 15px; color: var(--ink-soft); }
+.dash .rt-empty .h { font-size: 12px; color: var(--faint); margin-top: 5px; }
 
 /* rail cards */
 .dash .week-item { display: flex; gap: 13px; padding: 10px 18px; border-bottom: 1px solid var(--line-soft); align-items: baseline; }
@@ -449,10 +532,9 @@
      wraps into a narrow grid it overlaps the value/note text. It's decorative —
      drop it at tablet widths and let the number stand on its own. */
   .dash .measure svg { display: none; }
-  /* Drop the lowest-priority roster columns (GPA, Service) so the table reads
-     cleanly on tablet without leaning on the .roster-scroll horizontal scroll.
-     The data stays one tap away in the BrotherDrawer. */
-  .dash .col-secondary { display: none; }
+  /* GPA/Service used to be dropped here, keyed to viewport width. They are now
+     dropped on the roster card's OWN width via a @container query up in the
+     `.rt` block — viewport width was never the right question. */
 }
 
 /* Phone (Phase 2 reflow): the ledger now renders below 768px too (the bespoke
@@ -482,6 +564,34 @@
     grid-template-columns: repeat(2, 1fr);
   }
   .dash .measure .v { font-size: 19px; }
+  /* Roster: the table restacks into blocks. Previously five of its seven
+     columns — every metric AND the status tag — sat behind an undiscoverable
+     256px horizontal scroll, so a 390px roster was a list of names and
+     truncated roles and nothing else. Touch also dislikes a scroll region
+     nested in a scrolling page, so the card is bounded here by a row cap +
+     "Show all" instead of by max-height. */
+  .dash .rt-scroll { max-height: none; overflow: visible; }
+  .dash .rt thead { display: none; }
+  .dash .rt table, .dash .rt tbody, .dash .rt tr, .dash .rt td { display: block; }
+  .dash .rt tbody tr { display: flex; flex-wrap: wrap; align-items: center; gap: 0 12px;
+    padding: 11px 16px; border-bottom: 1px solid var(--line-soft); }
+  .dash .rt tbody tr.sel { box-shadow: inset 3px 0 0 var(--vio); }
+  .dash .rt tbody td { padding: 0; border: 0; }
+  .dash .rt td.c-member { flex: 1 1 auto; min-width: 0; }
+  .dash .rt td.c-status { flex: 0 0 auto; margin-left: auto; text-align: right; }
+  .dash .rt td.c-att { flex: 1 1 100%; margin-top: 9px; }
+  .dash .rt .attb { width: auto; min-width: 0; }
+  .dash .rt td.c-num { flex: 0 0 auto; margin-top: 8px; display: inline-flex;
+    align-items: baseline; gap: 6px; text-align: left; }
+  .dash .rt td.c-num::before { content: attr(data-k); font-family: var(--mono); font-size: 8.5px;
+    letter-spacing: .16em; text-transform: uppercase; color: var(--faint); }
+  /* GPA/Svc come BACK on phone — they fit once the row stacks, and dropping
+     them was only ever a horizontal-width workaround. */
+  .dash .rt td.col-secondary { display: inline-flex; }
+  .dash .rt .card-h, .dash .rt-foot { padding-left: 16px; padding-right: 16px; }
+  .dash .rt .ba-search { flex: 1 1 100%; }
+  .dash .rt .ba-search input { width: 100%; }
+
   /* The briefing action chips wrap; give them room and a touch-friendly tap. */
   .dash .brief-actions { gap: 7px; }
   .dash footer { margin-top: 22px; }
@@ -493,11 +603,18 @@
 }
 
 /* Fluid ultrawide: column grows with the viewport above 1280px, capped at
-   1800px so it never goes full-bleed. Rail scales proportionally. */
+   1800px so it never goes full-bleed.
+
+   The rail deliberately does NOT grow here. It used to (`338px + 4vw`), on a
+   page whose max-width is already clamped by the viewport at these sizes — so
+   the rail took width the page never gained and the main column got NARROWER as
+   the screen got WIDER: 739px at 1024, 714px at 1440. That inversion is what
+   pushed the roster's Status column off the card. The rail only grows once
+   there is genuinely surplus width to hand it (≥1600px, below). Keep the main
+   column monotonic across 1024 → 1280 → 1440 → 1800 when touching this. */
 @media (min-width: 1280px) {
   .dash {
     --dash-max-width: min(calc(1230px + 22vw), 1800px);
-    --dash-rail-width: min(calc(338px + 4vw), 420px);
   }
 
   /* Scale up the Chapter Health dial on desktop — it shares the briefing header
@@ -513,6 +630,11 @@
   .dash .bk .v { font-size: 10px; }
 }
 
+/* Only now is there surplus width to widen the rail with — see the note above. */
+@media (min-width: 1600px) {
+  .dash { --dash-rail-width: min(calc(338px + 3vw), 420px); }
+}
+
 /* ── Touch devices (Phase 2) ─────────────────────────────────────────────────
    On a coarse pointer (iPad/tablet showing the ledger at 768–1279px) the small
    chip/action controls are 24–30px tall — fine for a mouse, below the 44px touch
@@ -524,11 +646,16 @@
   .dash .row-act,
   .dash .att-row .act,
   .dash .card-act,
+  .dash .rt-foot button,
   .dash .filters button {
     min-height: 44px;
     display: inline-flex;
     align-items: center;
   }
+  /* Sortable headers are the roster's only other tap target; give them height
+     and show the sort arrow, since touch never hovers. */
+  .dash .rt th.sortable { padding-top: 14px; padding-bottom: 14px; }
+  .dash .rt th.sortable .arrow { opacity: .45; }
   .dash .widget-hide { opacity: .55; }
 }
 

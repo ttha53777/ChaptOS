@@ -1,0 +1,633 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Roster — Signal (Mock A)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..700;1,9..144,300..600&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+<!-- ═════════════════════════════════════════════════════════════════════════
+     MOCK A — "Roster Signal"
+
+     The dashboard Roster stops being a second copy of /[slug]/brothers and
+     becomes a dashboard widget: a proportional standing band as the masthead
+     (summary AND filter in one object), rows ranked by who needs you, each
+     flagged row stating its reason in words, capped at 8 with SHOW ALL.
+
+     Everything is drawn with the shipped dusk tokens copied verbatim from
+     app/components/dashboard/dashboard-ledger.css:36-57, and the shipped type
+     roles (Fraunces = voice, Geist Mono = machinery/numbers, Geist = prose).
+
+     The surrounding chrome (sidebar, KPI strip, Needs attention, rail) is
+     included at its REAL width math so the column widths in this mock equal
+     the column widths in the app. Toggle BEFORE to see the shipped widget in
+     the same slot.
+     ════════════════════════════════════════════════════════════════════════ -->
+<style>
+/* ── mock harness (not part of the design) ───────────────────────────────── */
+*{box-sizing:border-box;margin:0;padding:0}
+html{color-scheme:dark;scroll-behavior:auto!important}
+body{background:#0f0d0a;min-height:100vh}
+.mockbar{position:sticky;top:0;z-index:60;display:flex;flex-wrap:wrap;align-items:center;gap:14px;
+  padding:9px 16px;background:rgba(7,9,15,.9);backdrop-filter:saturate(140%) blur(12px);
+  border-bottom:1px solid rgba(255,255,255,.08);font:500 10px/1 "Geist Mono",ui-monospace,Menlo,monospace;
+  letter-spacing:.12em;text-transform:uppercase;color:#958d7c}
+.mockbar b{color:#ece7dd;font-weight:500;letter-spacing:.16em}
+.mockbar .grp{display:flex;gap:4px}
+.mockbar button{font:inherit;letter-spacing:.1em;text-transform:uppercase;color:#958d7c;
+  background:transparent;border:1px solid rgba(236,231,221,.12);border-radius:6px;padding:5px 10px;cursor:pointer}
+.mockbar button.on{color:#0f0d0a;background:#a78bfa;border-color:#a78bfa}
+.mockbar .ro{margin-left:auto;color:#6b6354;letter-spacing:.06em;text-transform:none;font-size:10.5px}
+.mockbar .ro b{color:#ddb36a}
+.shell{display:flex;min-height:calc(100vh - 34px)}
+.sidebar{width:240px;flex-shrink:0;border-right:1px solid rgba(255,255,255,.08);background:#0b0e14;padding:20px 16px}
+.sidebar .brand{font:500 14px/1.2 Fraunces,Georgia,serif;color:#f1f5f9}
+.sidebar .brand small{display:block;margin-top:3px;font:500 8.5px/1 "Geist Mono",monospace;letter-spacing:.16em;color:#6b6354}
+.sidebar .grp{margin-top:22px}
+.sidebar .k{font:500 8.5px/1 "Geist Mono",monospace;letter-spacing:.18em;text-transform:uppercase;color:#4b5563;margin-bottom:8px}
+.sidebar a{display:block;padding:7px 10px;border-radius:7px;font:400 12.5px/1 Geist,sans-serif;color:#94a3b8;text-decoration:none}
+.sidebar a.on{background:rgba(255,255,255,.05);color:#f1f5f9}
+.mobilebar{display:none;align-items:center;gap:12px;padding:14px 16px;border-bottom:1px solid rgba(236,231,221,.1)}
+.mobilebar .h{width:16px;height:11px;border-top:1.5px solid #c9c2b4;border-bottom:1.5px solid #c9c2b4;position:relative}
+.mobilebar .h::after{content:"";position:absolute;inset:auto 0 4px 0;height:1.5px;background:#c9c2b4}
+.mobilebar span{font:500 13px/1 Geist,sans-serif;color:#ece7dd}
+@media(max-width:1279px){.sidebar{width:224px}}
+@media(max-width:767px){.sidebar{display:none}.mobilebar{display:flex}}
+
+/* ═════════════════════════════════════════════════════════════════════════
+   SHIPPED DUSK TOKENS — verbatim from dashboard-ledger.css:22-57
+   ═══════════════════════════════════════════════════════════════════════ */
+.dash{
+  --serif:Fraunces,Georgia,serif;
+  --sans:Geist,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  --mono:"Geist Mono",ui-monospace,Menlo,monospace;
+
+  --dash-max-width:1230px;
+  --dash-gutter:clamp(18px,3vw,38px);
+  --dash-rail-width:338px;
+  --dash-section-gap:14px;
+
+  --paper:#0f0d0a;   --paper-2:#14120e;
+  --card:#161310;    --card-2:#1b1813;
+  --ink:#ece7dd;     --ink-soft:#c9c2b4;
+  --muted:#958d7c;   --faint:#6b6354;
+  --line:rgba(236,231,221,.09);
+  --line-soft:rgba(236,231,221,.05);
+  --vio:#a78bfa;     --vio-deep:#7c3aed;  --vio-bg:rgba(167,139,250,.10);
+  --gold:#ddb36a;    --gold-bg:rgba(221,179,106,.10);
+  --rose:#d98ba3;    --rose-bg:rgba(217,139,163,.10);
+  --ok:#7fb08a;      --ok-bg:rgba(127,176,138,.10);
+  --shadow:0 1px 0 rgba(0,0,0,.4),0 16px 40px -24px rgba(0,0,0,.7);
+
+  flex:1;min-width:0;background:var(--paper);color:var(--ink);
+  font-family:var(--sans);font-size:13.5px;line-height:1.45;
+  font-variant-numeric:normal;font-feature-settings:normal;
+  padding:26px 0 40px;
+}
+/* ── the width fix this mock proposes (see plan §Defects) ────────────────
+   SHIPPED: --dash-rail-width grows +4vw above 1280 while --dash-max-width is
+   already clamped by the viewport, so the main column gets NARROWER as the
+   screen gets WIDER (714px @1440 vs 739px @1024) and the Status column falls
+   off the card. FIXED: the rail only grows once there is genuinely surplus
+   width to give it (≥1600px), so the main column is monotonic. */
+@media(min-width:1280px){
+  .dash{--dash-max-width:min(calc(1230px + 22vw),1800px);}
+}
+@media(min-width:1600px){
+  .dash{--dash-rail-width:min(calc(338px + 3vw),420px);}
+}
+.dash.legacy-rail{--dash-rail-width:338px}
+@media(min-width:1280px){.dash.legacy-rail{--dash-rail-width:min(calc(338px + 4vw),420px)}}
+
+.wrap{max-width:var(--dash-max-width);margin:0 auto;padding:0 var(--dash-gutter)}
+
+/* ── shipped chrome: KPI strip, grid, card, card-h ───────────────────────── */
+.dash .ledger{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;border:1px solid var(--line);
+  border-radius:12px;background:var(--card);box-shadow:var(--shadow);overflow:hidden}
+.dash .measure{padding:16px 18px 14px;border-right:1px solid var(--line-soft)}
+.dash .measure:last-child{border-right:none}
+.dash .measure .k{font-family:var(--mono);font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted)}
+.dash .measure .v{font-family:var(--mono);font-size:23px;font-weight:500;letter-spacing:-.02em;color:var(--ink);margin-top:7px;font-variant-numeric:tabular-nums}
+.dash .measure .v small{font-size:13px;color:var(--muted);font-weight:400}
+.dash .measure .note{font-size:11px;color:var(--faint);margin-top:3px}
+.dash .measure .note.warn{color:var(--gold)}
+
+.dash .grid{margin-top:14px;display:grid;grid-template-columns:1fr var(--dash-rail-width);
+  gap:var(--dash-section-gap);align-items:start}
+.dash .col{display:flex;flex-direction:column;gap:var(--dash-section-gap);min-width:0}
+/* Shipped tablet reflow (dashboard-ledger.css:~415): below 1280 the two columns
+   become `display: contents` and the regions restack in one full-width column,
+   with the This Week + Treasury priority pair lifted ABOVE the roster. This is
+   why the main column is WIDER at 1024 than at 1440 in the shipped build. */
+@media(max-width:1279px){
+  .dash .grid{display:flex;flex-direction:column;align-items:stretch}
+  .dash .col{display:contents}
+  .dash .grid > *{min-width:0}   /* shipped `.col { min-width: 0 }`, kept through the reflow */
+  .dash .col-main > .card{order:1}
+  .dash .col-rail > .card:nth-child(1){order:2}
+  .dash .col-rail > .card:nth-child(2){order:3}
+  .dash #slot{order:4}
+  .dash .col-rail > .card:nth-child(3){order:5}
+}
+.dash .card{border:1px solid var(--line);border-radius:12px;background:var(--card);box-shadow:var(--shadow);overflow:hidden}
+.dash .card-h{display:flex;align-items:baseline;justify-content:space-between;gap:14px;
+  padding:15px 18px 12px;border-bottom:1px solid var(--line-soft)}
+.dash .card-h h2{font-family:var(--serif);font-weight:500;font-size:16.5px;color:var(--ink)}
+.dash .card-h .sub{font-family:var(--mono);font-size:9.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--faint)}
+.dash .card-h .right{display:flex;align-items:center;gap:9px}
+.dash .count-chip{font-family:var(--mono);font-size:10px;color:var(--rose);background:var(--rose-bg);
+  border-radius:999px;padding:2px 8px;margin-left:8px;vertical-align:2px}
+.dash .card-act{font-family:var(--mono);font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--muted);border:1px solid var(--line);background:transparent;border-radius:6px;padding:3px 9px;cursor:pointer}
+.dash .card-act:hover{color:var(--vio);border-color:var(--vio)}
+
+.dash .att-row{display:flex;align-items:center;gap:13px;padding:12px 18px;border-bottom:1px solid var(--line-soft)}
+.dash .att-row:last-child{border-bottom:none}
+.dash .att-row .dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.dash .att-row .tag{font-family:var(--mono);font-size:8.5px;font-weight:600;letter-spacing:.15em;width:64px;flex-shrink:0}
+.dash .att-row .body{flex:1;min-width:0}
+.dash .att-row .body .t{font-size:13px;font-weight:550;color:var(--ink)}
+.dash .att-row .body .m{font-size:11.5px;color:var(--faint);margin-top:1px;font-variant-numeric:tabular-nums}
+.dash .att-row .act{flex-shrink:0;font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--muted);border:1px solid var(--line);background:transparent;border-radius:7px;padding:5px 11px;cursor:pointer}
+.dash .rose{color:var(--rose)}   .dash .bg-rose{background:var(--rose)}
+.dash .gold{color:var(--gold)}   .dash .bg-gold{background:var(--gold)}
+.dash .sage{color:var(--ok)}     .dash .bg-sage{background:var(--ok)}
+.dash .rail-empty{padding:14px 18px;font-size:12px;color:var(--faint)}
+.dash .treasury-body{padding:14px 18px 16px}
+.dash .treasury-num{display:flex;align-items:baseline;gap:10px}
+.dash .treasury-num .big{font-family:var(--mono);font-size:26px;font-weight:500;letter-spacing:-.02em}
+.dash .treasury-num .delta{font-family:var(--mono);font-size:11px;color:var(--ok)}
+.dash .treasury-note{font-size:11.5px;color:var(--faint);margin-top:2px}
+
+/* ═════════════════════════════════════════════════════════════════════════
+   BEFORE — the shipped roster table, so the two can be judged in one slot
+   ═══════════════════════════════════════════════════════════════════════ */
+.dash .filters{display:flex;gap:5px}
+.dash .filters button{font-family:var(--mono);font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--muted);border:1px solid transparent;background:transparent;border-radius:6px;padding:3px 9px;cursor:pointer}
+.dash .filters button.on{color:var(--ink);background:var(--card-2);border-color:var(--line)}
+.dash .roster-scroll{overflow-x:auto}
+.dash .roster-scroll table{min-width:560px}
+.dash table{width:100%;border-collapse:collapse}
+.dash thead th{font-family:var(--mono);font-size:8.5px;font-weight:500;letter-spacing:.16em;text-transform:uppercase;
+  color:var(--faint);text-align:left;padding:9px 12px;border-bottom:1px solid var(--line-soft)}
+.dash thead th:first-child{padding-left:18px}
+.dash thead th.num,.dash td.num{text-align:right}
+.dash tbody td{padding:10px 12px;border-bottom:1px solid var(--line-soft);font-variant-numeric:tabular-nums}
+.dash tbody td:first-child{padding-left:18px}
+.dash tbody tr:last-child td{border-bottom:none}
+.dash tbody tr{cursor:pointer}
+.dash tbody tr:hover{background:var(--card-2)}
+.dash .b-name{display:flex;align-items:center;gap:10px}
+.dash .b-name p{font-size:13px;font-weight:550;color:var(--ink);white-space:nowrap}
+.dash td.role{font-size:11.5px;color:var(--faint);max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dash .attb{display:flex;align-items:center;gap:9px;min-width:120px}
+.dash .attb .track{flex:1;height:3px;border-radius:2px;background:var(--line);overflow:hidden}
+.dash .attb .track i{display:block;height:100%;border-radius:2px}
+.dash .attb span{font-family:var(--mono);font-size:11.5px;width:34px;text-align:right}
+.dash td .mono{font-family:var(--mono);font-size:12px}
+.dash .muted{color:var(--faint)}
+.dash .status-tag{font-family:var(--mono);font-size:8.5px;font-weight:600;letter-spacing:.13em;
+  border-radius:5px;padding:3px 7px;white-space:nowrap}
+.dash .st-good{color:var(--ok);background:var(--ok-bg)}
+.dash .st-watch{color:var(--gold);background:var(--gold-bg)}
+.dash .st-risk{color:var(--rose);background:var(--rose-bg)}
+.dash .table-foot{padding:10px 18px;border-top:1px solid var(--line-soft);background:var(--card-2);
+  font-family:var(--mono);font-size:10px;letter-spacing:.06em;color:var(--faint)}
+/* the shipped avatar: a raw Google default letter-PNG at full saturation */
+.av{width:28px;height:28px;border-radius:50%;flex-shrink:0;display:grid;place-items:center;
+  font:600 10px/1 "Geist Mono",monospace;color:#fff}
+.av.photo{background-image:var(--ph);background-size:cover;color:transparent}
+@media(max-width:1023px){.dash .col-secondary{display:none}}
+
+/* ═════════════════════════════════════════════════════════════════════════
+   AFTER — Mock A
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* Search moves into the card header — the shipped .ba-search markup + styles,
+   which today are wired to nothing (page.tsx never passes onSearchChange). */
+.dash .ba-search{position:relative}
+.dash .ba-search svg{position:absolute;left:9px;top:50%;transform:translateY(-50%);
+  width:13px;height:13px;color:var(--faint);pointer-events:none}
+.dash .ba-search input{font-family:var(--mono);font-size:11px;letter-spacing:.03em;color:var(--ink);
+  background:var(--card);border:1px solid var(--line);border-radius:8px;
+  padding:7px 12px 7px 28px;width:158px;outline:none;transition:border-color .14s,width .14s}
+.dash .ba-search input::placeholder{color:var(--faint)}
+.dash .ba-search input:focus{border-color:var(--vio);width:188px}
+
+/* ── Masthead: the standing band. Summary and filter in ONE object, which is
+      what lets the four filter chips AND the duplicated footer counts go. The
+      segment widths ARE the distribution — you read the chapter's shape before
+      you read a single row. Idiom lifted from brotherhood-ledger.css .dist. */
+.dash .standing{padding:13px 18px 14px;border-bottom:1px solid var(--line-soft)}
+.dash .dist{display:flex;gap:3px;height:14px}
+.dash .dist button{flex:1;min-width:0;border:0;border-radius:4px;cursor:pointer;padding:0;
+  transition:opacity .14s,filter .14s}
+.dash .dist button:hover{filter:brightness(1.12)}
+.dash .dist button.dim{opacity:.28}
+.dash .dist button:focus-visible{outline:2px solid var(--vio);outline-offset:3px}
+.dash .dist .s-ok{background:var(--ok)}
+.dash .dist .s-watch{background:var(--gold)}
+.dash .dist .s-risk{background:var(--rose)}
+.dash .dist .s-empty{background:var(--line);flex:0 0 4px;cursor:default}
+.dash .seg-legend{display:flex;align-items:center;gap:16px;margin-top:10px}
+.dash .seg-legend button{display:flex;align-items:center;gap:6px;background:none;border:0;padding:0;
+  cursor:pointer;font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.dash .seg-legend button.dim{color:var(--faint)}
+.dash .seg-legend button b{font-weight:600;color:var(--ink-soft);letter-spacing:.04em}
+.dash .seg-legend button.dim b{color:var(--faint)}
+.dash .seg-legend i{width:8px;height:8px;border-radius:2px;flex-shrink:0}
+.dash .seg-legend .hint{margin-left:auto;font-family:var(--mono);font-size:9px;letter-spacing:.13em;
+  text-transform:uppercase;color:var(--faint)}
+
+/* ── Rows. Ranked At Risk → Watch → Good. Two lines always, so the rhythm is
+      even; the hierarchy comes from the left edge tick and from whether the
+      subline is a coloured REASON or just a quiet role. */
+.dash .r-row{position:relative;display:grid;align-items:center;gap:0 13px;
+  grid-template-columns:28px minmax(0,1fr) 126px auto;
+  grid-template-areas:"av name meter status"
+                      "av why  meter status";
+  padding:9px 18px;border-bottom:1px solid var(--line-soft);cursor:pointer;
+  background:none;border-left:0;border-right:0;border-top:0;width:100%;text-align:left;font:inherit;color:inherit}
+.dash .r-row:last-of-type{border-bottom:none}
+.dash .r-row:hover{background:var(--card-2)}
+.dash .r-row:focus-visible{outline:2px solid var(--vio);outline-offset:-2px}
+.dash .r-row.sel{background:var(--vio-bg)}
+/* severity tick — the scan line down the left margin */
+.dash .r-row::before{content:"";position:absolute;left:0;top:6px;bottom:6px;width:2px;border-radius:0 2px 2px 0;background:transparent}
+.dash .r-row.f-watch::before{background:var(--gold)}
+.dash .r-row.f-risk::before{background:var(--rose)}
+
+.dash .r-row .av{grid-area:av;
+  /* seat the loud Google default letter-PNGs in the warm palette instead of
+     letting them be the brightest pixels in a deliberately quiet card */
+  filter:saturate(.68) brightness(.92);
+  box-shadow:0 0 0 1px var(--line) inset,0 0 0 1px rgba(0,0,0,.35)}
+.dash .r-row .nm{grid-area:name;font-size:13px;font-weight:550;color:var(--ink);white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis}
+.dash .r-row .why{grid-area:why;font-size:11.5px;color:var(--faint);margin-top:1px;font-variant-numeric:tabular-nums;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dash .r-row .why b{font-weight:550}
+.dash .r-row .why .w-gold{color:var(--gold)}
+.dash .r-row .why .w-rose{color:var(--rose)}
+.dash .r-row .why .sep{color:var(--line);margin:0 6px}
+.dash .r-row .why .rl{color:var(--faint)}
+
+/* One meter, wide enough that 73% and 93% are visibly different — the shipped
+   3px×76px track makes a 20-point spread look like nothing. */
+.dash .r-meter{grid-area:meter;display:flex;align-items:center;gap:9px}
+.dash .r-meter .track{flex:1;height:4px;border-radius:2px;background:var(--line);overflow:hidden}
+.dash .r-meter .track i{display:block;height:100%;border-radius:2px}
+.dash .r-meter span{font-family:var(--mono);font-size:11.5px;width:34px;text-align:right;font-variant-numeric:tabular-nums}
+.dash .r-meter .exempt-chip{width:auto;flex:1;text-align:center}
+.dash .r-row .status-tag{grid-area:status;justify-self:end}
+
+/* ── Footer. Says what the legend doesn't (ordering + affordance) instead of
+      repeating the four counts a second time 300px lower. */
+.dash .r-foot{display:flex;align-items:center;justify-content:space-between;gap:12px;
+  padding:10px 18px;border-top:1px solid var(--line-soft);background:var(--card-2);
+  font-family:var(--mono);font-size:10px;letter-spacing:.06em;color:var(--faint)}
+.dash .r-foot button{font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--muted);background:transparent;border:1px solid var(--line);border-radius:6px;
+  padding:4px 10px;cursor:pointer;white-space:nowrap}
+.dash .r-foot button:hover{color:var(--vio);border-color:var(--vio)}
+.dash .r-empty{padding:26px 18px 28px;text-align:center}
+.dash .r-empty .t{font-family:var(--serif);font-style:italic;font-size:15px;color:var(--ink-soft)}
+.dash .r-empty .h{font-size:12px;color:var(--faint);margin-top:5px}
+
+/* ── Phone: the row grid restacks instead of hiding five columns behind an
+      undiscoverable horizontal scroll (the shipped failure at 390px). */
+@media(max-width:767px){
+  .dash{--dash-gutter:16px;--dash-section-gap:12px;font-size:13px;padding:18px 0 32px}
+  .dash .ledger{grid-auto-flow:row;grid-template-columns:repeat(2,1fr)}
+  .dash .measure{border-bottom:1px solid var(--line-soft);border-right:none}
+  .dash .measure .v{font-size:19px}
+  .dash .grid{grid-template-columns:1fr}
+  /* Phone: the row restacks — name + status on line 1, reason on line 2, the
+     meter spans full width on line 3. Nothing hides behind a scroll. */
+  .dash .r-row{grid-template-columns:28px minmax(0,1fr) auto;gap:0 11px;padding:10px 16px;
+    grid-template-areas:"av    name  status"
+                        "av    why   why"
+                        "meter meter meter"}
+  .dash .r-meter{margin:8px 0 1px}
+  .dash .r-row .status-tag{align-self:center}
+  .dash .standing,.dash .r-foot{padding-left:16px;padding-right:16px}
+  .dash .seg-legend{gap:12px;flex-wrap:wrap}
+  .dash .seg-legend .hint{display:none}
+  .dash .card-h{flex-wrap:wrap}
+  .dash .ba-search input{width:100%}
+  .dash .ba-search{flex:1}
+}
+@media(pointer:coarse){
+  .dash .seg-legend button,.dash .r-foot button,.dash .card-act,.dash .filters button{min-height:44px;display:inline-flex;align-items:center}
+  .dash .dist{height:20px}
+}
+@media(prefers-reduced-motion:reduce){.dash *{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+
+<div class="mockbar">
+  <b>Mock A · Roster Signal</b>
+  <span class="grp">
+    <button id="b-after" class="on">After</button>
+    <button id="b-before">Before (shipped)</button>
+  </span>
+  <span class="grp">
+    <button id="b-9" class="on">9 members</button>
+    <button id="b-60">60 members</button>
+  </span>
+  <span class="grp">
+    <button id="b-railfix" class="on">Rail fix</button>
+    <button id="b-railold">Shipped rail</button>
+  </span>
+  <span class="ro" id="readout"></span>
+</div>
+
+<div class="shell">
+  <aside class="sidebar">
+    <div class="brand">Lambda Phi Epsilon<small>SPR26</small></div>
+    <div class="grp"><div class="k">Overview</div><a class="on">Dashboard</a><a>Timeline</a></div>
+    <div class="grp"><div class="k">Members</div><a>Brothers</a><a>Tasks</a><a>Meetings</a></div>
+    <div class="grp"><div class="k">Operations</div><a>Docs</a><a>Instagram</a><a>Programming</a><a>Parties</a><a>Service</a><a>Treasury</a></div>
+  </aside>
+
+  <main class="dash" id="dash" data-dashboard-theme="dusk">
+    <div class="mobilebar"><span class="h"></span><span>Dashboard</span></div>
+    <div class="wrap">
+
+      <!-- KPI strip — the widget that ALREADY reports all four roster measures -->
+      <div class="ledger">
+        <div class="measure"><div class="k">Attendance</div><div class="v">85.9<small>%</small></div><div class="note warn">1 below 80%</div></div>
+        <div class="measure"><div class="k">Dues outstanding</div><div class="v"><small>$</small>125</div><div class="note warn">2 brothers owe</div></div>
+        <div class="measure"><div class="k">Average GPA</div><div class="v">3.49</div><div class="note">0 below 3.0</div></div>
+        <div class="measure"><div class="k">Service</div><div class="v">87.5<small>h</small></div><div class="note">5 of 9 on track</div></div>
+      </div>
+
+      <div class="grid">
+        <div class="col col-main">
+
+          <section class="card">
+            <div class="card-h">
+              <h2>Needs attention<span class="count-chip">4</span></h2>
+              <span class="sub">Resolved items drop off</span>
+            </div>
+            <div class="att-row"><span class="dot bg-rose"></span><span class="tag rose">OVERDUE</span>
+              <div class="body"><p class="t">Spring Roster Update</p><p class="m">Due May 25 · Unassigned · 74 days late</p></div>
+              <button class="act">Mark done</button></div>
+            <div class="att-row"><span class="dot bg-rose"></span><span class="tag rose">OVERDUE</span>
+              <div class="body"><p class="t">Submit IFC chapter report</p><p class="m">Due Jun 22 · President · 46 days late</p></div>
+              <button class="act">Mark done</button></div>
+            <div class="att-row"><span class="dot bg-gold"></span><span class="tag gold">DUES</span>
+              <div class="body"><p class="t">$125 outstanding across 2 brothers</p><p class="m">Arijit $118 · Nathaniel $7</p></div>
+              <button class="act">Send reminder</button></div>
+          </section>
+
+          <!-- ══ the slot under test ══ -->
+          <div id="slot"></div>
+
+        </div>
+
+        <div class="col col-rail">
+          <section class="card">
+            <div class="card-h"><h2>This week</h2><span class="sub">Aug 3–9</span></div>
+            <div class="rail-empty">Nothing on the agenda this week.</div>
+          </section>
+          <section class="card">
+            <div class="card-h"><h2>Treasury</h2><span class="sub">Net balance</span></div>
+            <div class="treasury-body">
+              <div class="treasury-num"><span class="big">$4,850</span><span class="delta">▲ $3,595</span></div>
+              <div class="treasury-note">Projected $6,305 by end of period</div>
+            </div>
+          </section>
+          <section class="card">
+            <div class="card-h"><h2>Activity</h2><span class="sub">Recent</span></div>
+            <div class="rail-empty">Rob Shorthand performed invite.created · 9d</div>
+          </section>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+/* ── seed: the live `lpe` org, exactly as it renders in _screenshots ──────── */
+const BASE = [
+  {n:"Arijit Das",         r:"President",                    a:80, d:118, g:3.4, s:12,   ph:"radial-gradient(circle at 35% 30%,#8a6b52,#3b2c22)"},
+  {n:"Bryan Lee",          r:"President",                    a:87, d:0,   g:3.7, s:16,   gl:"#159588"},
+  {n:"Rob Shorthand",      r:"Treasurer · Banquet · Social", a:93, d:0,   g:3.5, s:12,   gl:"#0f9d8f"},
+  {n:"Noah Kim",           r:"VP Internal · Social",         a:87, d:0,   g:3.2, s:13.5, gl:"#3c4043"},
+  {n:"Nathaniel Baccaray", r:"Stroll · Rush",                a:73, d:7,   g:3.5, s:3,    ph:"radial-gradient(circle at 40% 28%,#a08064,#4a3628)"},
+  {n:"Dariel Milfort",     r:"PR",                           a:93, d:0,   g:3.6, s:20,   gl:"#1a73e8"},
+  {n:"Rinchen Sherpalama", r:"Academic · Programming",       a:87, d:0,   g:3.9, s:2,    ph:"radial-gradient(circle at 30% 35%,#6f8a5e,#2c3a24)"},
+  {n:"Elvin De La Cruz",   r:"Brotherhood · Fundraising",    a:80, d:0,   g:3.1, s:7,    ph:"radial-gradient(circle at 45% 30%,#a89070,#4b3d2c)"},
+  {n:"Thalha Thabish",     r:"President · Social",           a:93, d:0,   g:3.5, s:2,    ph:"radial-gradient(circle at 38% 32%,#8f7360,#3a2d24)"},
+];
+/* thresholds mirror lib/thresholds defaults as used by the live org */
+const T = {attWatch:80, attRisk:70, gpaWatch:3.0, gpaRisk:2.5, svcGoal:10};
+
+const FIRST=["Marcus","Devin","Andre","Kyle","Omar","Sean","Trevor","Ravi","Diego","Luis","Ethan","Jared","Malik","Chris","Nolan","Priya","Wei","Sam","Tobias","Felix","Hugo","Isaac","Jonah","Kenji","Leo","Mateo","Nikhil","Owen","Pablo","Quinn","Rafael","Silas","Theo","Umar","Vikram","Wesley","Xavier","Yusuf","Zane","Aaron","Bennett","Caleb","Dmitri","Emeka","Franco","Gideon","Hassan","Ibrahim","Jasper","Kai","Lucas"];
+const LAST =["Alvarez","Boateng","Chen","Duarte","Ellis","Ferrara","Gupta","Halloran","Ibarra","Jain","Kowalski","Lindqvist","Mbeki","Nakamura","Okafor","Petrov","Quinones","Ramirez","Suzuki","Tanaka","Ueda","Vasquez","Whitfield","Xiong","Yamada","Zhao","Osei","Rahman","Silva","Novak","Costa","Dubois"];
+const ROLES=["Member","Member","Member","Member","Rush","Social","Brotherhood","Academic","Member","Member","Philanthropy","Member","Member","Alumni Relations","Member"];
+const GOOGLE=["#159588","#0f9d8f","#3c4043","#1a73e8","#7b1fa2","#c5221f"];
+
+function makeBig(){
+  const out = BASE.slice();
+  let seed = 7;
+  const rnd = () => (seed = (seed*1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
+  for (let i=0; i<51; i++){
+    const a = Math.round(58 + rnd()*44); // 58–100
+    out.push({
+      n: FIRST[i % FIRST.length] + " " + LAST[(i*7) % LAST.length],
+      r: ROLES[i % ROLES.length],
+      a: Math.min(a, 100),
+      d: rnd() < .22 ? Math.round(rnd()*180/5)*5 : 0,
+      g: +(2.2 + rnd()*1.8).toFixed(1),
+      s: Math.round(rnd()*24*2)/2,
+      gl: rnd() < .45 ? GOOGLE[Math.floor(rnd()*GOOGLE.length)] : null,
+      ph: null,
+    });
+  }
+  return out.map(m => m.gl || m.ph ? m : {...m, gl:GOOGLE[m.n.length % GOOGLE.length]});
+}
+
+/* status — mirrors getBrotherStatus (app/data.ts:517-542) exactly */
+function status(m){
+  if (m.a < T.attRisk || m.g < T.gpaRisk) return "risk";
+  if (m.a < T.attWatch || m.g < T.gpaWatch || m.d > 0 || m.s < T.svcGoal) return "watch";
+  return "good";
+}
+/* the reason line — this is the whole point of Mock A: say WHY in words
+   rather than making the reader diff four columns of near-identical numbers */
+function reason(m){
+  const bits = [];
+  /* the meter to the right already states the number — the reason line says
+     what the number MEANS, it doesn't repeat it */
+  if (m.a < T.attRisk)       bits.push(`<b class="w-rose">far below</b> the ${T.attWatch}% line`);
+  else if (m.a < T.attWatch) bits.push(`<b class="w-gold">below</b> the ${T.attWatch}% line`);
+  if (m.g < T.gpaRisk)       bits.push(`<b class="w-rose">${m.g.toFixed(1)}</b> GPA`);
+  else if (m.g < T.gpaWatch) bits.push(`<b class="w-gold">${m.g.toFixed(1)}</b> GPA`);
+  if (m.d > 0)               bits.push(`owes <b class="w-gold">$${m.d.toLocaleString()}</b>`);
+  if (m.s < T.svcGoal)       bits.push(`<b class="w-gold">${m.s}h</b> service of ${T.svcGoal}h`);
+  return bits.slice(0,2).join('<span class="sep">·</span>');
+}
+const RANK = {risk:0, watch:1, good:2};
+const initials = n => n.trim().split(/\s+/).map(p=>p[0]).join("").slice(0,2).toUpperCase();
+const avatar = m => m.ph
+  ? `<span class="av photo" style="--ph:${m.ph}"></span>`
+  : `<span class="av" style="background:${m.gl}">${initials(m.n)}</span>`;
+const meterCls = a => a >= T.attWatch ? "sage" : a >= T.attRisk ? "gold" : "rose";
+
+/* ── state ───────────────────────────────────────────────────────────────── */
+let MEMBERS = BASE, view = "after", filter = "all", expanded = false, selected = null;
+const CAP = 8;
+
+function render(){
+  const counts = {good:0, watch:0, risk:0};
+  MEMBERS.forEach(m => counts[status(m)]++);
+  const total = MEMBERS.length;
+  document.getElementById("slot").innerHTML = view === "before" ? before(counts,total) : after(counts,total);
+  wire();
+  readout();
+}
+
+/* ══ BEFORE — the shipped widget, markup-for-markup ═══════════════════════ */
+function before(c,total){
+  const rows = MEMBERS.map(m => {
+    const st = status(m), cls = meterCls(m.a);
+    return `<tr>
+      <td><div class="b-name">${avatar(m)}<p>${m.n}</p></div></td>
+      <td class="role">${m.r}</td>
+      <td><div class="attb"><span class="track"><i class="bg-${cls==="sage"?"sage":cls}" style="width:${m.a}%"></i></span><span class="${cls}">${m.a}%</span></div></td>
+      <td class="num">${m.d>0?`<span class="mono gold">$${m.d.toLocaleString()}</span>`:`<span class="mono muted">—</span>`}</td>
+      <td class="num col-secondary"><span class="mono ${m.g<T.gpaRisk?"rose":m.g<T.gpaWatch?"gold":""}">${m.g.toFixed(1)}</span></td>
+      <td class="num col-secondary"><span class="mono ${m.s<T.svcGoal?"muted":""}">${m.s}h</span></td>
+      <td class="num"><span class="status-tag st-${st==="risk"?"risk":st==="watch"?"watch":"good"}">${st==="risk"?"AT RISK":st.toUpperCase()}</span></td>
+    </tr>`;
+  }).join("");
+  return `<section class="card" aria-label="Roster">
+    <div class="card-h"><h2>Roster</h2>
+      <div class="filters">
+        <button class="on">All ${total}</button><button>Good ${c.good}</button>
+        <button>Watch ${c.watch}</button><button>At Risk ${c.risk}</button>
+      </div>
+    </div>
+    <div class="roster-scroll"><table>
+      <thead><tr><th>Brothers</th><th>Role</th><th>Attendance</th><th class="num">Dues</th>
+        <th class="num col-secondary">GPA</th><th class="num col-secondary">Svc</th><th class="num">Status</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div>
+    <div class="table-foot">${total} brothers · ${c.good} good · ${c.watch} watch · ${c.risk}at risk &ensp;—&ensp; click a row for the full profile</div>
+  </section>`;
+}
+
+/* ══ AFTER — Mock A ═══════════════════════════════════════════════════════ */
+function after(c,total){
+  const shown = MEMBERS
+    .filter(m => filter === "all" || status(m) === filter)
+    .sort((x,y) => RANK[status(x)] - RANK[status(y)] || x.a - y.a || y.d - x.d);
+  const visible = expanded ? shown : shown.slice(0, CAP);
+  const hidden  = shown.length - visible.length;
+
+  const seg = (key, n, cls) => n === 0
+    ? `<button class="s-empty" tabindex="-1" aria-hidden="true"></button>`
+    : `<button class="${cls}${filter!=="all"&&filter!==key?" dim":""}" style="flex:${n}"
+         data-f="${key}" aria-label="${n} ${key}"></button>`;
+  const leg = (key, label, n, cls) =>
+    `<button data-f="${key}" class="${filter!=="all"&&filter!==key?"dim":""}">
+       <i class="${cls}" style="background:var(--${cls==="s-ok"?"ok":cls==="s-watch"?"gold":"rose"})"></i>${label} <b>${n}</b></button>`;
+
+  const rows = visible.map((m,i) => {
+    const st = status(m), why = st === "good" ? "" : reason(m), cls = meterCls(m.a);
+    return `<button class="r-row ${st==="risk"?"f-risk":st==="watch"?"f-watch":""}${selected===m.n?" sel":""}" data-n="${m.n}">
+      ${avatar(m)}
+      <p class="nm">${m.n}</p>
+      <div class="r-meter"><span class="track"><i class="bg-${cls}" style="width:${m.a}%"></i></span><span class="${cls}">${m.a}%</span></div>
+      <span class="status-tag st-${st==="risk"?"risk":st==="watch"?"watch":"good"}">${st==="risk"?"AT RISK":st.toUpperCase()}</span>
+      <p class="why">${why ? why + `<span class="sep">·</span><span class="rl">${m.r}</span>` : `<span class="rl">${m.r}</span>`}</p>
+    </button>`;
+  }).join("");
+
+  const empty = `<div class="r-empty"><p class="t">${filter==="all"
+      ? "No one is on the roster yet."
+      : `Nobody is ${filter==="risk"?"at risk":filter}.`}</p>
+    <p class="h">${filter==="all"
+      ? "Send an invite link and approve the first join request."
+      : "Pick another band, or use All to see everyone."}</p></div>`;
+
+  return `<section class="card" aria-label="Roster" id="sec-brothers">
+    <div class="card-h">
+      <h2>Roster</h2>
+      <div class="right">
+        <div class="ba-search">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z"/></svg>
+          <input type="text" placeholder="Search name or role…">
+        </div>
+        <button class="card-act">All ${total} →</button>
+      </div>
+    </div>
+
+    <div class="standing">
+      <div class="dist" role="group" aria-label="Filter by standing">
+        ${seg("good", c.good, "s-ok")}${seg("watch", c.watch, "s-watch")}${seg("risk", c.risk, "s-risk")}
+      </div>
+      <div class="seg-legend">
+        ${leg("good","Good",c.good,"s-ok")}${leg("watch","Watch",c.watch,"s-watch")}${leg("risk","At risk",c.risk,"s-risk")}
+        <span class="hint">${filter==="all"?"Click a band to filter":"Showing "+(filter==="risk"?"at risk":filter)+" — click again to clear"}</span>
+      </div>
+    </div>
+
+    ${shown.length ? rows : empty}
+
+    <div class="r-foot">
+      <span>Ranked by who needs you &ensp;·&ensp; click a row for the full profile</span>
+      ${hidden > 0 || expanded
+        ? `<button id="more">${expanded ? "Show less" : `Show all ${shown.length} →`}</button>`
+        : ``}
+    </div>
+  </section>`;
+}
+
+function wire(){
+  document.querySelectorAll("[data-f]").forEach(el => el.onclick = () => {
+    filter = filter === el.dataset.f ? "all" : el.dataset.f; expanded = false; render();
+  });
+  const more = document.getElementById("more");
+  if (more) more.onclick = () => { expanded = !expanded; render(); };
+  document.querySelectorAll(".r-row").forEach(el => el.onclick = () => {
+    selected = selected === el.dataset.n ? null : el.dataset.n; render();
+  });
+}
+
+function readout(){
+  const main = document.querySelector(".col-main");
+  const card = document.querySelector("#slot .card");
+  const tag  = document.querySelector("#slot .status-tag");
+  let clip = "";
+  if (tag && card){
+    const over = Math.round(tag.getBoundingClientRect().right - card.getBoundingClientRect().right);
+    clip = over > -4 ? ` · <b>STATUS CLIPPED by ${over + 4}px</b>` : " · status clear";
+  }
+  document.getElementById("readout").innerHTML =
+    `viewport ${window.innerWidth} · main column ${main ? Math.round(main.getBoundingClientRect().width) : "?"}px` +
+    ` · card ${card ? Math.round(card.getBoundingClientRect().height) : "?"}px tall${clip}`;
+}
+
+const on = (id, fn) => document.getElementById(id).onclick = e => {
+  [...e.target.parentElement.children].forEach(b => b.classList.remove("on"));
+  e.target.classList.add("on"); fn(); render();
+};
+on("b-after",  () => view = "after");
+on("b-before", () => view = "before");
+on("b-9",      () => { MEMBERS = BASE; expanded = false; });
+on("b-60",     () => { MEMBERS = makeBig(); expanded = false; });
+on("b-railfix",() => document.getElementById("dash").classList.remove("legacy-rail"));
+on("b-railold",() => document.getElementById("dash").classList.add("legacy-rail"));
+addEventListener("resize", readout);
+render();
+</script>
+</body>
+</html>

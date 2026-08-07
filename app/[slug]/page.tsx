@@ -10,7 +10,7 @@ const DrawerTrendChart = dynamic(() => import("../components/dashboard/DrawerTre
 import {
   Brother, CalendarEvent, CalEventType, InstagramStatus, InstagramType, ActivityEntry, PartyEvent, Task, InstagramTask, Transaction,
   taskAssigneeLabel,
-  getBrotherStatus, calcHealthScore, deriveNeedsAttention, avg, fmt$, fmtDate, fmtRange, isoWeekBounds,
+  getBrotherStatus, roleTitle, calcHealthScore, deriveNeedsAttention, avg, fmt$, fmtDate, fmtRange, isoWeekBounds,
 } from "../data";
 import { useRouter } from "next/navigation";
 import { useOrgPath } from "../hooks/useOrgPath";
@@ -1427,8 +1427,11 @@ export default function Home() {
   // ── Filtered/sorted brothers ───────────────────────────────────────────────
   const filteredBrothers = useMemo((): Brother[] => {
     let result = brotherList.filter(b => {
-      const q = search.toLowerCase();
-      return (b.name.toLowerCase().includes(q) || b.role.toLowerCase().includes(q)) &&
+      const q = search.trim().toLowerCase();
+      // Match the title the roster actually SHOWS (relational roles, joined),
+      // not just the free-text `role` — searching "Treasurer" should find the
+      // treasurer even when their free-text label says something else.
+      return (q === "" || b.name.toLowerCase().includes(q) || roleTitle(b).toLowerCase().includes(q)) &&
              (statusFilter === "All" || getBrotherStatus(b, THRESHOLDS, tracked) === statusFilter);
     });
     if (sortKey) {
@@ -1438,11 +1441,14 @@ export default function Home() {
       });
     }
     return result;
-  }, [brotherList, search, statusFilter, sortKey, sortDir, THRESHOLDS]);
+  }, [brotherList, search, statusFilter, sortKey, sortDir, THRESHOLDS, tracked]);
 
   function toggleSort(key: keyof Brother) {
+    // A new column opens DESCENDING: every sortable column here is a metric,
+    // and "worst first" is the question being asked. Opening ascending meant
+    // the first click on Dues showed the people who owe nothing.
     if (sortKey === key) setSortDir(d => d === "asc" ? "desc" : "asc");
-    else { setSortKey(key); setSortDir("asc"); }
+    else { setSortKey(key); setSortDir("desc"); }
   }
 
   const brotherNames = useMemo(() => brotherList.map(b => b.name), [brotherList]);
@@ -2051,16 +2057,21 @@ export default function Home() {
                   <div className="area-roster">
                   <RosterTable
                     brothers={filteredBrothers}
+                    totalCount={brotherList.length}
                     statusCounts={statusCounts}
                     statusFilter={statusFilter}
                     onFilter={setStatusFilter}
+                    search={search}
+                    onSearch={setSearch}
                     sortKey={sortKey}
                     sortDir={sortDir}
                     onSort={toggleSort}
                     onRowClick={(id) => setSelectedBrotherId(id)}
+                    selectedId={selectedBrotherId}
+                    onOpenAll={() => router.push(orgPath("/brothers"))}
+                    loading={!loadedSections.has("brothers")}
                     thresholds={THRESHOLDS}
                     selfId={selfId}
-                    selfName={currentUser?.name}
                     selfAvatarUrl={currentUser?.avatarUrl}
                     avatarRevision={avatarRevision}
                     tracked={tracked}
