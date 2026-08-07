@@ -236,6 +236,14 @@ export function formatActivityMessage(ctx: RequestContext, action: Action, m: an
       return `${who} updated organization settings`;
     case "membership.left":
       return `${who} left ${m.orgName}`;
+    // Approving a join request is what "a new member appeared" means now — the
+    // old brother.added phrasing above only fires for pre-existing rows.
+    case "join_request.approved":
+      return m.roleName
+        ? `${who} approved ${m.name} to join as ${m.roleName}`
+        : `${who} approved ${m.name} to join`;
+    case "join_request.rejected":
+      return `${who} declined ${m.name}'s request to join`;
     // Platform billing. Only the two member-visible actions need phrasing here —
     // the rest are emitted with { activity: false } and never reach the feed.
     case "billing.seats_blocked":

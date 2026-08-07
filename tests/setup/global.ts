@@ -36,6 +36,13 @@ const ENV = {
 
 export default async function setup() {
   process.env.DATABASE_URL = TEST_DATABASE_URL;
+  // DIRECT_URL too, and not as a formality: lib/prisma-privileged.ts resolves
+  // `DIRECT_URL ?? DATABASE_URL`, and the pre-auth join path (and the org guard)
+  // go through that client because JoinRequest is RLS-enforcing. Leaving this
+  // unset happened to work only because nothing exports DIRECT_URL — but anyone
+  // running vitest with .env.local loaded would have pointed those writes at the
+  // real Supabase instead of the container.
+  process.env.DIRECT_URL = TEST_DATABASE_URL;
   // Tests do not use Supabase auth — stub creds so any indirect import of
   // require-user.ts / supabase client doesn't choke at module load time.
   process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://localhost:54321";

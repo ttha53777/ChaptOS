@@ -33,6 +33,7 @@ export type SubjectType =
   | "Semester"
   | "Organization"
   | "OrgInvite"
+  | "JoinRequest"
   | "OrgMetricDefinition"
   | "BrotherMetricValue"
   | "Reimbursement"
@@ -132,9 +133,16 @@ export interface EventMetadata {
   "membership.left": { brotherId: number; name: string; orgName: string };
 
   // Invite links
-  "invite.created":  { mode: "open" | "claim"; expiry: string };
-  "invite.revoked":  { mode: "open" | "claim" };
-  "invite.redeemed": { mode: "open" | "claim"; orgId: number; brotherId: number; reused: boolean };
+  "invite.created":  { expiry: string };
+  "invite.revoked":  Record<string, never>;
+
+  // Join requests. Holding a link no longer grants anything, so there is no
+  // "redeemed" event: opening a link SUBMITS, and an officer's APPROVAL is what
+  // creates the roster spot. `submitted` is written directly as an
+  // OperationalEvent by the pre-auth path (no ctx there, so no emit()).
+  "join_request.submitted": { name: string; inviteId: number; orgId: number };
+  "join_request.approved":  { name: string; brotherId: number; roleId: number | null; roleName: string | null; reused: boolean };
+  "join_request.rejected":  { name: string };
 
   // Custom metrics
   "metric_definition.created": { slug: string; name: string };
@@ -228,7 +236,8 @@ const KNOWN_ACTIONS = new Set<Action>([
   "announcement.updated", "semester.created", "semester.activated",
   "org.created", "org.config.updated", "org.onboarding.completed", "org.logo.updated",
   "membership.left",
-  "invite.created", "invite.revoked", "invite.redeemed",
+  "invite.created", "invite.revoked",
+  "join_request.submitted", "join_request.approved", "join_request.rejected",
   "metric_definition.created", "metric_definition.updated", "metric_definition.deleted",
   "metric_value.updated",
   "reimbursement.created", "reimbursement.updated", "reimbursement.approved",
@@ -252,6 +261,8 @@ export function isKnownAction(action: string): action is Action {
  */
 export function defaultActivityType(action: Action): "success" | "warning" | "info" {
   if (action.endsWith(".deleted") || action.endsWith(".soft_deleted") || action.endsWith(".rejected") || action === "brother.removed") return "warning";
-  if (action.endsWith(".approved") || action.endsWith(".completed") || action.endsWith(".granted") || action.endsWith(".activated") || action === "brother.added" || action === "invite.redeemed") return "success";
+  // join_request.approved / .rejected fall out of the suffix rules already —
+  // an approval reads as success, a rejection as a warning.
+  if (action.endsWith(".approved") || action.endsWith(".completed") || action.endsWith(".granted") || action.endsWith(".activated") || action === "brother.added") return "success";
   return "info";
 }

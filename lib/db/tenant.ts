@@ -330,8 +330,8 @@ function scopedMember(orgId: number, run: Run) {
 
     /**
      * Add a roster spot. organizationId is injected, never taken from the
-     * caller. The Brother row must already exist — see createBrother, which
-     * writes both inside one $transaction.
+     * caller. The Brother row must already exist — see approveJoinRequest, the
+     * only path that creates one, which writes both inside one $transaction.
      */
     create: (args: { data: Omit<Prisma.MembershipUncheckedCreateInput, "organizationId"> }) =>
       run(p => p.membership.create({ data: { ...args.data, organizationId: orgId } })),
@@ -459,7 +459,11 @@ function scopedIdentity(orgId: number, run: Run) {
       return m?.brother ?? null;
     },
 
-    /** Create the identity row. Call inside createBrother's transaction. */
+    /**
+     * Create the identity row. Call inside approveJoinRequest's transaction,
+     * paired with member.create — a Brother without a Membership is an orphan
+     * nobody can see or clean up, and nothing would ever create the other half.
+     */
     create: (args: { data: Omit<Prisma.BrotherUncheckedCreateInput, "organizationId"> }) =>
       run(p => p.brother.create({ data: { ...args.data, organizationId: orgId } })),
 
@@ -496,6 +500,10 @@ function scopedIdentity(orgId: number, run: Run) {
       const id = await requireMember(brotherId);
       return run(p => p.brother.delete({ where: { id } }));
     },
+
+    /** The same delegate bound to a transaction client — see member.onTx. */
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    onTx: (tx: any) => scopedIdentity(orgId, fn => fn(tx as P)),
   };
 }
 
@@ -1157,6 +1165,10 @@ function scopedBrotherRole(orgId: number, run: Run) {
       await verifyComposite(brotherId, roleId);
       return run(p => p.brotherRole.delete(args));
     },
+
+    /** The same delegate bound to a transaction client — see member.onTx. */
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    onTx: (tx: any) => scopedBrotherRole(orgId, fn => fn(tx as P)),
   };
 }
 
@@ -1487,6 +1499,54 @@ function scopedChatApproval(orgId: number, run: Run) {
   };
 }
 
+/**
+ * The join-request queue: people who opened an invite link and are waiting on an
+ * officer.
+ *
+ * Deliberately offers no `create`. A request is only ever filed by someone with
+ * no membership anywhere, so there is no org context to scope by and no ctx to
+ * build — that path lives in lib/auth/join-request-submit.ts and goes through
+ * prismaPrivileged, the same posture as the other pre-auth bootstrap routes.
+ * Everything an OFFICER does (list, approve, reject) is org-scoped and belongs
+ * here.
+ */
+function scopedJoinRequest(orgId: number, run: Run) {
+  type W = Prisma.JoinRequestWhereInput;
+  const org = (w?: W): W => ({ ...w, organizationId: orgId });
+
+  async function verify(where: Prisma.JoinRequestWhereUniqueInput): Promise<number> {
+    const row = await run(p => p.joinRequest.findFirst({ where: org(where as W), select: { id: true } }));
+    if (!row) notInOrg();
+    return row.id;
+  }
+
+  return {
+    findMany:   (args?: Prisma.JoinRequestFindManyArgs)  => run(p => p.joinRequest.findMany({ ...args, where: org(args?.where) })),
+    findFirst:  (args?: Prisma.JoinRequestFindFirstArgs) => run(p => p.joinRequest.findFirst({ ...args, where: org(args?.where) })),
+    /**
+     * The queue, with each request's source link label joined in. A named method
+     * because the wrapper's findMany signature is not generic, so an `include`
+     * passed through it wouldn't narrow the return type — same reason
+     * brotherRole.listWithRole exists. Oldest first: this is a queue, not a feed.
+     */
+    listPending: (status: string) =>
+      run(p => p.joinRequest.findMany({
+        where:   org({ status }),
+        orderBy: { createdAt: "asc" },
+        include: { invite: { select: { label: true } } },
+      })),
+    findUnique: (args: Prisma.JoinRequestFindUniqueArgs) => run(p => p.joinRequest.findFirst({ ...args, where: org(args.where as W) })),
+    update:     async (args: Prisma.JoinRequestUpdateArgs) => {
+      const id = await verify(args.where);
+      return run(p => p.joinRequest.update({ ...args, where: { id } }));
+    },
+    count:      (args?: Prisma.JoinRequestCountArgs)     => run(p => p.joinRequest.count({ ...args, where: org(args?.where) })),
+    /** The same delegate bound to a transaction client — see member.onTx. */
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    onTx: (tx: any) => scopedJoinRequest(orgId, fn => fn(tx as P)),
+  };
+}
+
 function scopedDuesPayment(orgId: number, run: Run) {
   type W = Prisma.DuesPaymentWhereInput;
   const org = (w?: W): W => ({ ...w, organizationId: orgId });
@@ -1703,6 +1763,7 @@ export function db(orgId: number) {
     reimbursement:       scopedReimbursement(orgId, run),
     duesPayment:         scopedDuesPayment(orgId, run),
     chatApproval:        scopedChatApproval(orgId, run),
+    joinRequest:         scopedJoinRequest(orgId, run),
     subscription:        scopedSubscription(orgId, run),
     salesLead:           scopedSalesLead(orgId, run),
     budget:              scopedBudget(orgId, run),
@@ -1809,6 +1870,7 @@ export function _dbWithClient(orgId: number, client: P) {
     reimbursement:       scopedReimbursement(orgId, run),
     duesPayment:         scopedDuesPayment(orgId, run),
     chatApproval:        scopedChatApproval(orgId, run),
+    joinRequest:         scopedJoinRequest(orgId, run),
     subscription:        scopedSubscription(orgId, run),
     salesLead:           scopedSalesLead(orgId, run),
     budget:              scopedBudget(orgId, run),

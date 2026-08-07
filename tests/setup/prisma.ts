@@ -60,6 +60,11 @@ export async function resetDb(): Promise<void> {
       "Role",
       "Semester",
       "InviteRedemption",
+      -- Before OrgInvite: JoinRequest FKs the invite it came through. Leaving it
+      -- out leaks pending requests between test files, and the
+      -- @@unique(organizationId, authUserId) then turns the next submit into a
+      -- surprise "already pending".
+      "JoinRequest",
       "OrgInvite",
       "Membership",
       "PlatformAdmin",

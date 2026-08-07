@@ -73,6 +73,22 @@ export function can(actor: PermissionActor, perm: Permission): boolean {
   return actor.isPlatformAdmin || actor.isOrgAdmin || hasPermission(actor.permissions, perm);
 }
 
+/**
+ * May an actor with this `maxRank` hand out a role of rank `roleRank`?
+ *
+ * Strictly below, never equal: a Treasurer must not be able to mint another
+ * Treasurer, or the hierarchy is decorative. Shared between granting a role on
+ * the roster (role-service.grantRole) and granting one while approving a join
+ * request (join-request-service.approveJoinRequest), which are two doors onto
+ * the same authority and must not disagree.
+ *
+ * A predicate rather than an assert so this module keeps its no-imports posture
+ * (see PermissionActor above) — callers throw their own ForbiddenError.
+ */
+export function canGrantRank(maxRank: number, roleRank: number): boolean {
+  return roleRank < maxRank;
+}
+
 /** Convenience: the OR of every flag — used by the seeded "President" role. */
 export const ALL_PERMISSIONS = Object.values(PERMISSIONS).reduce((a, b) => a | b, 0);
 

@@ -55,6 +55,17 @@ on("brother.added", async (ctx) => {
   await sync(ctx);
 });
 
+// Approving a join request is the only way a roster GAINS a member now, so this
+// is the seat-relevant event. Worth noting what it replaces: /api/auth/redeem-invite
+// ran pre-auth with no ctx, so it got no handler dispatch and had to call
+// reconcileSeats itself — awaited, with a long comment about serverless
+// instances freezing after the response and losing the seatSyncPendingAt flag
+// the whole self-healing design hangs off. Approval runs with a real ctx, so
+// that hazard is gone with the route.
+on("join_request.approved", async (ctx) => {
+  await sync(ctx);
+});
+
 on("brother.removed", async (ctx) => {
   await sync(ctx);
 });

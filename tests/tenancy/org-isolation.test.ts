@@ -684,7 +684,7 @@ describe("tenancy: InviteRedemption (relation-scoped via OrgInvite)", () => {
     const orgB = await createOrg("Beta", "beta");
     const broB = await createBrother({ orgId: orgB.id });
     const inviteB = await testPrisma.orgInvite.create({
-      data: { organizationId: orgB.id, token: "tok-beta", mode: "open", createdByBrotherId: broB.id },
+      data: { organizationId: orgB.id, token: "tok-beta", createdByBrotherId: broB.id },
     });
     await testPrisma.inviteRedemption.create({ data: { inviteId: inviteB.id, brotherId: broB.id } });
 
@@ -889,10 +889,10 @@ describe("tenancy: OrgInvite", () => {
     const aBro = await createBrother({ orgId: orgA.id });
     const bBro = await createBrother({ orgId: orgB.id });
     await testPrisma.orgInvite.create({
-      data: { organizationId: orgA.id, token: "tok-a", mode: "single_use", createdByBrotherId: aBro.id },
+      data: { organizationId: orgA.id, token: "tok-a", createdByBrotherId: aBro.id },
     });
     await testPrisma.orgInvite.create({
-      data: { organizationId: orgB.id, token: "tok-b", mode: "single_use", createdByBrotherId: bBro.id },
+      data: { organizationId: orgB.id, token: "tok-b", createdByBrotherId: bBro.id },
     });
 
     // Looking up org B's token from org A's scope returns nothing.

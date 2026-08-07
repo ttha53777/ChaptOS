@@ -104,6 +104,32 @@ export async function hasSession(): Promise<boolean> {
   return !!user;
 }
 
+/**
+ * The Supabase auth user id for the current session, or null.
+ *
+ * hasSession() collapses "who" into a boolean, which is enough to decide
+ * /login vs. somewhere-else but not enough to answer "has this person asked to
+ * join?" — a JoinRequest is keyed by authUserId precisely because the asker has
+ * no Brother row yet. The org guard needs that id to tell a waiting requester
+ * from a stranger.
+ *
+ * Returns null under dev impersonation: that bypass names a brotherId, so the
+ * caller already resolves through requireUser and never reaches this.
+ */
+export async function sessionAuthUserId(): Promise<string | null> {
+  const cookieStore = await cookies();
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: { getAll: () => cookieStore.getAll(), setAll: () => {} },
+      global: { fetch: withTimeout(5_000) },
+    }
+  );
+  const { data: { user } } = await supabase.auth.getUser();
+  return user?.id ?? null;
+}
+
 export async function requireUser(opts?: { orgSlug?: string }) {
   const cookieStore = await cookies();
 

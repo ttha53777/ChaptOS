@@ -37,6 +37,7 @@ export const appPrisma = new PrismaClient({ adapter: new PrismaPg({ connectionSt
 const ORG_COLUMN_TABLES = [
   "ActivityLog", "Brother", "BrotherMetricValue", "BrotherRole", "Budget",
   "CalendarEvent", "CalendarEventType", "ChapterAnnouncement", "Doc", "InstagramTask", "Membership",
+  "JoinRequest",
   "OperationalEvent", "OrgInvite", "OrgMetricDefinition", "OrganizationConfig",
   "PartyEvent", "ProgrammingChecklistItem", "ProgrammingEvent",
   "ProgrammingEventDoc", "Reimbursement", "Role", "Semester", "ServiceEvent",
