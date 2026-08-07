@@ -1,0 +1,1242 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chapter Sync v2 — the loading state, with a sense of humor</title>
+
+<!--
+  CHAPTER SYNC v2 — the funny cut.
+
+  v1 (Chapter Sync Loading Mock.html) proved the structural idea: don't put a
+  spinner over a dimmed page, let the ledger write itself. It is correct and it
+  is completely humorless. This file keeps the structure and adds the voice.
+
+  THE ONE RULE THAT KEEPS THIS FROM AGING BADLY:
+
+      Every joke must be about data we actually just read.
+
+  A punchline attached to a real fetched value ("58 members — four of them are
+  named Jake") is a product that noticed something. A punchline floating free
+  of the data ("brewing coffee… reticulating splines…") is a product killing
+  time and admitting it. The first kind gets funnier the more you see it,
+  because the specifics change per chapter. The second kind is dead on the
+  second view and insulting on the tenth. Nothing in this file is in the second
+  category, and nothing added later should be.
+
+  Corollary: the humor is DRY, and it is never at the expense of the user's
+  time or their data. We tease the *records* (the seventh "final" copy of the
+  bylaws, the task from March, the pizza-emoji Venmo memo). We never tease the
+  person waiting, and we never joke about something being broken when it is
+  actually broken — see the treasury beat, which is played straight in all four.
+
+    A · DEADPAN LEDGER   v1's direction A with a second line per row. The
+                         instrumentation is unchanged and still true; the aside
+                         is the chapter's own records being quietly roasted.
+                         The safest to ship — turn the asides off and you are
+                         back to v1 exactly.
+
+    B · GROUP CHAT       the six subsystems as coworkers in a thread. Who is
+                         talking IS the progress indicator, and waiting for
+                         Documents to stop typing is the wait itself. Biggest
+                         swing, most personality, least dignified.
+
+    C · RECORDS OFFICE   bureaucratic deadpan. Each source is a numbered form
+                         being stamped by an unseen clerk. Officious voice,
+                         real counts. Reads as a bit, not a gag — the joke is
+                         the register, so it survives repetition better than
+                         written punchlines do.
+
+    D · HONEST BAR       the joke is loading bars themselves. The percentage
+                         behaves like every progress bar you have ever hated
+                         (instant 87%, long stall, an outright reversal) while
+                         the line beneath it narrates the unglamorous truth.
+                         This is the one that best answers "show me what's
+                         loading", because the honesty is the punchline.
+
+  ASSUMPTIONS (flagged, not smuggled):
+   - Counts are plausible-not-real. 58 members echoes the ~59-member stress
+     test; the rest are invented. Swap for live values before this ships.
+   - The asides are WRITTEN here. Shipping them means a small library of
+     templates that only fire when their condition is actually met (>=3 shared
+     first names, a doc matching /final|FINAL/ more than twice, an open task
+     older than 90 days). A template that fires when its condition is false is
+     the whole thing collapsing into category two above. If we can't detect the
+     condition, the row renders plain — that is the fallback, not a generic joke.
+   - Treasury's duplicate-payment finding assumes reconciliation state is known
+     at sync time. Same caveat as v1: if it isn't, that beat is cut, not faked.
+
+  ON RUN LENGTH — read this before tuning the timings again. Each scene runs
+  9-12s here, which is the WORST case in the fiction: a member who has been
+  away fourteen days and has all six sources to pull. That is deliberately the
+  long cut, because it is the only version where you can see every beat. It is
+  not a target. Six jokes cannot be read in three seconds, so the beat count
+  must be driven by actual completion, not by this script — a two-second sync
+  shows two rows and no aside at all and that is the correct behaviour, not a
+  degraded one. If you find yourself padding a fast sync out to fit the whole
+  script, the humor has started costing the user time, which is the one thing
+  the corollary above forbids.
+
+  Palette is the shipped warm dusk (create-flow.css === dashboard-ledger dusk).
+  No new colors were invented for this mock.
+-->
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,400;1,9..144,500&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+<style>
+/* ═══ Tokens — shipped warm dusk ═══════════════════════════════════════ */
+:root {
+  --paper:    #0f0d0a;
+  --paper-2:  #14120e;
+  --paper-3:  #1b1813;
+  --card:     #161310;
+  --card-2:   #1b1813;
+  --ink:      #ece7dd;
+  --ink-72:   rgba(236,231,221,.72);
+  --ink-55:   rgba(236,231,221,.55);
+  --ink-40:   rgba(236,231,221,.40);
+  --ink-28:   rgba(236,231,221,.28);
+  --ink-14:   rgba(236,231,221,.14);
+  --ink-07:   rgba(236,231,221,.07);
+  --muted:    #958d7c;
+  --faint:    #6b6354;
+  --line:     rgba(236,231,221,.11);
+  --line-soft:rgba(236,231,221,.06);
+  --vio:      #a78bfa;
+  --vio-deep: #7c3aed;
+  --vio-soft: rgba(167,139,250,.12);
+  --vio-line: rgba(167,139,250,.32);
+  --gold:     #ddb36a;
+  --gold-soft:rgba(221,179,106,.11);
+  --rose:     #d98ba3;
+  --ok:       #7fb08a;
+  --serif: "Fraunces", Georgia, serif;
+  --sans:  "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --mono:  "Geist Mono", ui-monospace, Menlo, monospace;
+  --ease:  cubic-bezier(.16,1,.3,1);
+  --ease-io: cubic-bezier(.4,0,.2,1);
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0; background: var(--paper); color: var(--ink);
+  font-family: var(--sans); overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+body::before {
+  content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 60;
+  opacity: .5;
+  background-image: radial-gradient(rgba(236,231,221,.025) 1px, transparent 1px);
+  background-size: 4px 4px;
+}
+h1,h2,h3,h4,p { margin: 0; padding: 0; font-weight: inherit; }
+ul { margin: 0; padding: 0; list-style: none; }
+button { font: inherit; color: inherit; background: none; border: none; cursor: pointer; }
+::selection { background: var(--vio-deep); color: #fff; }
+.tnum { font-variant-numeric: tabular-nums; }
+
+/* ═══ Scene plumbing ═══════════════════════════════════════════════════ */
+.scene { position: fixed; inset: 0; display: none; z-index: 1; }
+.scene.on { display: block; }
+
+.topline {
+  position: absolute; top: 0; left: 0; height: 1.5px; width: 0%;
+  background: linear-gradient(90deg, var(--vio-deep), var(--vio));
+  box-shadow: 0 0 12px rgba(167,139,250,.45);
+  transition: width 700ms var(--ease-io);
+  z-index: 40;
+}
+.scene.done .topline { opacity: 0; transition: width 600ms var(--ease-io), opacity 700ms 500ms linear; }
+
+/* shared org sidebar (A and B) ─────────────────────────────────────────── */
+.side {
+  flex: none; width: 216px; border-right: 1px solid var(--line);
+  background: var(--paper-2); padding: 20px 12px;
+  display: flex; flex-direction: column;
+}
+.side-org { display: flex; align-items: center; gap: 10px; padding: 0 8px 22px; }
+.mark {
+  height: 28px; width: 28px; border-radius: 8px; flex: none;
+  display: grid; place-items: center;
+  font-family: var(--serif); font-weight: 600; font-size: 12px; color: #fff;
+  background: linear-gradient(140deg, #8b6fd4, #5b3fa8);
+  border: 1px solid rgba(255,255,255,.14);
+}
+.side-org b { font-size: 13.5px; letter-spacing: -.01em; font-weight: 500; }
+.side-org .term { display: block; font-size: 10.5px; color: var(--faint); }
+.side-grp {
+  font-family: var(--mono); font-size: 9px; letter-spacing: .18em;
+  text-transform: uppercase; color: var(--faint); padding: 14px 10px 7px;
+}
+.side-nav li {
+  display: flex; align-items: center; gap: 10px;
+  padding: 7px 10px; border-radius: 8px;
+  font-size: 13px; color: var(--ink-28);
+  transition: color 500ms var(--ease);
+}
+.side-nav li .dot {
+  height: 5px; width: 5px; border-radius: 50%; flex: none;
+  background: var(--ink-14);
+  transition: background 500ms var(--ease), box-shadow 500ms var(--ease);
+}
+.side-nav li.lit { color: var(--ink-72); }
+.side-nav li.lit .dot { background: var(--vio); box-shadow: 0 0 8px rgba(167,139,250,.55); }
+.side .foot {
+  margin-top: auto; padding: 8px 10px;
+  font-family: var(--mono); font-size: 10px; letter-spacing: .04em; color: var(--faint);
+}
+.pulse {
+  height: 6px; width: 6px; border-radius: 50%; background: var(--vio); flex: none;
+  animation: pulse 1.8s var(--ease-io) infinite;
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1;  box-shadow: 0 0 0 0 rgba(167,139,250,.5); }
+  60%      { opacity: .5; box-shadow: 0 0 0 7px rgba(167,139,250,0); }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   A · DEADPAN LEDGER
+   Row one is the instrumentation (unchanged from v1, still literally true).
+   Row two is the aside. The aside is set in italic serif so it reads as
+   marginalia — an annotation on the record, not a status message. That
+   typographic separation is what keeps the joke from muddying the data.
+   ═══════════════════════════════════════════════════════════════════════ */
+.a-wrap { height: 100%; display: flex; }
+.a-main {
+  flex: 1; min-width: 0; position: relative;
+  display: flex; flex-direction: column;
+  padding: clamp(32px, 5vh, 60px) clamp(28px, 6vw, 84px) 74px; /* 74 clears the mock chrome */
+  overflow: hidden;
+}
+.a-head { max-width: 640px; margin-top: auto; }
+.a-eyebrow {
+  font-family: var(--mono); font-size: 10px; letter-spacing: .2em;
+  text-transform: uppercase; color: var(--vio);
+  display: flex; align-items: center; gap: 9px; margin-bottom: 16px;
+}
+.a-title {
+  font-family: var(--serif); font-size: clamp(27px, 3.4vw, 37px);
+  line-height: 1.14; letter-spacing: -.02em; font-weight: 400;
+}
+.a-sub {
+  margin-top: 12px; font-size: 14px; line-height: 1.62; color: var(--muted);
+  max-width: 50ch;
+}
+.a-sub b { color: var(--ink-72); font-weight: 500; }
+
+.a-ledger { position: relative; margin: 26px 0 auto; max-width: 760px; }
+/* the playhead: a hairline that sits on the row currently being read */
+.a-play {
+  position: absolute; left: -14px; right: -14px; height: 1px; top: 0;
+  background: linear-gradient(90deg, transparent, var(--vio-line) 12%, var(--vio-line) 88%, transparent);
+  opacity: 0; transform: translateY(0);
+  transition: transform 620ms var(--ease), opacity 400ms linear;
+}
+.a-row {
+  display: grid;
+  grid-template-columns: 104px minmax(0,1fr) 132px;
+  gap: 0 20px; align-items: baseline;
+  padding: 13px 0; border-bottom: 1px solid var(--line-soft);
+  opacity: .26; transition: opacity 500ms var(--ease);
+}
+.a-row.active, .a-row.done { opacity: 1; }
+.a-src {
+  font-family: var(--mono); font-size: 9.5px; letter-spacing: .16em;
+  text-transform: uppercase; color: var(--faint);
+}
+.a-row.active .a-src { color: var(--vio); }
+.a-task { font-size: 14.5px; color: var(--ink-72); letter-spacing: -.01em; }
+.a-val {
+  font-family: var(--mono); font-size: 14px; text-align: right;
+  color: var(--ink-28); font-variant-numeric: tabular-nums;
+}
+.a-row.done .a-val { color: var(--ink); }
+.a-row.flag .a-val { color: var(--gold); }
+/* the aside — grid row 2, indented under the task column */
+.a-aside {
+  grid-column: 2 / 4; margin-top: 6px;
+  font-family: var(--serif); font-style: italic; font-size: 13.5px;
+  line-height: 1.5; color: var(--muted);
+  opacity: 0; transform: translateY(3px);
+  transition: opacity 520ms var(--ease), transform 520ms var(--ease);
+}
+.a-row.said .a-aside { opacity: 1; transform: none; }
+.a-aside em { font-style: normal; color: var(--ink-72); }
+.a-row.flag .a-aside { color: var(--gold); }
+.a-row.flag .a-aside em { color: var(--gold); }
+/* the working indicator — three dots that fill left to right */
+.a-dots { display: inline-flex; gap: 3px; vertical-align: middle; }
+.a-dots i {
+  height: 3px; width: 3px; border-radius: 50%; background: var(--vio);
+  opacity: .25; animation: dots 1.25s var(--ease-io) infinite;
+}
+.a-dots i:nth-child(2) { animation-delay: .16s; }
+.a-dots i:nth-child(3) { animation-delay: .32s; }
+@keyframes dots { 0%,70%,100% { opacity: .22; } 35% { opacity: 1; } }
+
+.a-foot {
+  display: flex; align-items: center; justify-content: space-between;
+  border-top: 1px solid var(--line); padding-top: 15px; margin-top: 22px;
+  font-family: var(--mono); font-size: 11px; color: var(--faint);
+}
+.a-foot .right { display: flex; align-items: center; gap: 16px; }
+.a-enter {
+  font-family: var(--sans); font-size: 13px; color: var(--ink);
+  background: var(--vio-deep); padding: 8px 15px; border-radius: 9px;
+  opacity: 0; transform: translateY(4px); pointer-events: none;
+  transition: opacity 500ms var(--ease), transform 500ms var(--ease);
+}
+.scene.done .a-enter { opacity: 1; transform: none; pointer-events: auto; }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   B · GROUP CHAT
+   The subsystems talk to each other while you wait. Progress is legible as
+   "who has checked in", so the thread is doing the same job the ledger does,
+   just socially. Documents typing for four seconds is the load time made
+   into a character trait.
+   ═══════════════════════════════════════════════════════════════════════ */
+.b-wrap { height: 100%; display: flex; }
+.b-main {
+  flex: 1; min-width: 0; display: flex; flex-direction: column;
+  padding: 0 clamp(20px, 5vw, 64px);
+  overflow: hidden;
+}
+.b-top {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 22px 2px 16px; border-bottom: 1px solid var(--line); flex: none;
+}
+.b-top h2 { font-family: var(--serif); font-size: 19px; font-weight: 400; letter-spacing: -.01em; }
+.b-top .sub { font-family: var(--mono); font-size: 10.5px; color: var(--faint); margin-top: 4px; }
+.b-count {
+  display: flex; align-items: center; gap: 8px;
+  font-family: var(--mono); font-size: 10px; letter-spacing: .14em;
+  text-transform: uppercase; color: var(--muted);
+}
+/* Optically centred, not bottom-anchored. A real chat pins to the bottom, but
+   this thread is nine messages long and never scrolls — pinning it left 400px
+   of dead room above the first message, which reads as a broken layout rather
+   than as a conversation. Centring keeps the block in the eye's path the whole
+   way through and it stops moving entirely once the trim window fills. */
+.b-thread {
+  flex: 1; min-height: 0; overflow: hidden;
+  display: flex; flex-direction: column; justify-content: center;
+  gap: 3px; padding: 18px 0 10px; max-width: 720px; width: 100%;
+}
+.b-msg {
+  display: grid; grid-template-columns: 26px minmax(0,1fr); gap: 10px;
+  align-items: start; padding: 4px 0;
+  animation: msgIn 420ms var(--ease) both;
+}
+@keyframes msgIn { from { opacity: 0; transform: translateY(7px); } to { opacity: 1; transform: none; } }
+.b-msg.tight { padding-top: 0; }
+.b-msg.tight .b-av { visibility: hidden; height: 0; }
+.b-av {
+  height: 26px; width: 26px; border-radius: 7px; display: grid; place-items: center;
+  font-family: var(--mono); font-size: 9.5px; font-weight: 500; color: var(--paper);
+  letter-spacing: .02em;
+}
+.b-body { min-width: 0; }
+.b-who {
+  font-family: var(--mono); font-size: 9.5px; letter-spacing: .13em;
+  text-transform: uppercase; color: var(--faint); margin-bottom: 4px;
+}
+.b-bub {
+  display: inline-block; max-width: 46ch;
+  background: var(--card); border: 1px solid var(--line-soft);
+  border-radius: 3px 12px 12px 12px; padding: 8px 13px;
+  font-size: 14px; line-height: 1.5; color: var(--ink-72);
+}
+.b-bub b { color: var(--ink); font-weight: 500; }
+.b-bub .num { font-family: var(--mono); font-variant-numeric: tabular-nums; color: var(--ink); }
+.b-msg.flagged .b-bub { border-color: rgba(221,179,106,.34); background: var(--gold-soft); color: var(--gold); }
+.b-msg.flagged .b-bub b { color: var(--gold); }
+.b-sys {
+  font-family: var(--mono); font-size: 10px; letter-spacing: .13em;
+  text-transform: uppercase; color: var(--faint);
+  text-align: center; padding: 12px 0 6px;
+  animation: msgIn 420ms var(--ease) both;
+}
+.b-sys.ok { color: var(--ok); }
+/* typing indicator, same bubble geometry so nothing jumps on swap */
+.b-typing { display: inline-flex; gap: 4px; align-items: center; padding: 12px 14px; }
+.b-typing i {
+  height: 4px; width: 4px; border-radius: 50%; background: var(--ink-40);
+  animation: typing 1.15s var(--ease-io) infinite;
+}
+.b-typing i:nth-child(2) { animation-delay: .14s; }
+.b-typing i:nth-child(3) { animation-delay: .28s; }
+@keyframes typing { 0%,70%,100% { opacity: .3; transform: translateY(0); } 35% { opacity: 1; transform: translateY(-2px); } }
+.b-foot {
+  flex: none; border-top: 1px solid var(--line);
+  padding: 13px 2px 60px; display: flex; align-items: center; justify-content: space-between;
+  font-family: var(--mono); font-size: 11px; color: var(--faint);
+}
+.b-enter {
+  font-family: var(--sans); font-size: 13px; color: var(--ink);
+  background: var(--vio-deep); padding: 8px 15px; border-radius: 9px;
+  opacity: 0; transform: translateY(4px); pointer-events: none;
+  transition: opacity 500ms var(--ease), transform 500ms var(--ease);
+}
+.scene.done .b-enter { opacity: 1; transform: none; pointer-events: auto; }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   C · RECORDS OFFICE
+   Numbered forms, an unseen clerk, a rubber stamp. The comedy is register,
+   not punchlines — which is why it survives the fiftieth viewing better than
+   written jokes do. The counts underneath are still the real instrumentation.
+   ═══════════════════════════════════════════════════════════════════════ */
+.c-wrap {
+  height: 100%; display: grid; place-items: center;
+  padding: 26px clamp(20px, 5vw, 56px) 86px;
+}
+.c-inner {
+  display: grid; grid-template-columns: minmax(0, 1fr) 244px;
+  gap: clamp(24px, 4vw, 52px); align-items: center;
+  width: 100%; max-width: 940px;
+}
+.c-desk { min-width: 0; }
+.c-office {
+  font-family: var(--mono); font-size: 9.5px; letter-spacing: .2em;
+  text-transform: uppercase; color: var(--faint); margin-bottom: 16px;
+  display: flex; align-items: center; gap: 9px;
+}
+/* the form itself — warmer card so it reads as paper on the desk */
+.c-form {
+  position: relative; background: var(--card-2);
+  border: 1px solid rgba(236,231,221,.13); border-radius: 4px;
+  padding: 26px 28px 24px; min-height: 232px;
+  box-shadow: 0 1px 0 rgba(0,0,0,.4), 0 26px 50px -34px rgba(0,0,0,.9);
+}
+/* the stack underneath — how many forms are left, visible as depth */
+.c-form::after {
+  content: ""; position: absolute; inset: 8px -7px -7px 8px; z-index: -1;
+  background: var(--card); border: 1px solid var(--line-soft); border-radius: 4px;
+}
+.c-no {
+  font-family: var(--mono); font-size: 10px; letter-spacing: .17em;
+  color: var(--gold); text-transform: uppercase;
+}
+.c-name {
+  font-family: var(--serif); font-size: clamp(20px, 2.5vw, 26px); line-height: 1.2;
+  letter-spacing: -.01em; margin-top: 11px; text-transform: uppercase;
+  font-weight: 400;
+}
+.c-rule { height: 1px; background: var(--line); margin: 18px 0 15px; }
+.c-fields { display: grid; gap: 11px; }
+.c-field {
+  display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 16px;
+  align-items: baseline;
+  font-family: var(--mono); font-size: 11px; letter-spacing: .04em; color: var(--faint);
+}
+.c-field .fill {
+  color: var(--ink); font-variant-numeric: tabular-nums;
+  border-bottom: 1px solid var(--line); min-width: 88px; text-align: right; padding-bottom: 2px;
+}
+.c-field.flag .fill { color: var(--gold); border-bottom-color: rgba(221,179,106,.4); }
+/* padding-right reserves the stamp's corner. Without it the stamp lands on top
+   of the last line of the note and neither is readable. */
+.c-note {
+  margin-top: 16px; padding-right: 150px;
+  font-family: var(--serif); font-style: italic;
+  font-size: 13.5px; line-height: 1.5; color: var(--muted);
+  min-height: 40px;
+  opacity: 0; transform: translateY(3px);
+  transition: opacity 460ms var(--ease), transform 460ms var(--ease);
+}
+.c-form.noted .c-note { opacity: 1; transform: none; }
+.c-form.flagged .c-note { color: var(--gold); }
+/* the stamp — lands hard, sits crooked, never straightens */
+.c-stamp {
+  position: absolute; right: 20px; bottom: 18px;
+  font-family: var(--mono); font-size: 13px; font-weight: 500;
+  letter-spacing: .22em; text-transform: uppercase;
+  color: var(--ok); border: 2px solid var(--ok); border-radius: 3px;
+  padding: 6px 12px 5px; opacity: 0;
+  /* 1.7, not 2.2: the stamp descends from its own bounding box, and at 768px a
+     2.2x start reaches past the right edge and lands half-clipped. */
+  transform: rotate(-9deg) scale(1.7);
+}
+.c-stamp.hit { animation: stamp 460ms cubic-bezier(.2,1.4,.4,1) both; }
+@keyframes stamp {
+  0%   { opacity: 0; transform: rotate(-16deg) scale(1.7); }
+  55%  { opacity: .95; transform: rotate(-7deg) scale(.94); }
+  100% { opacity: .82; transform: rotate(-7deg) scale(1); }
+}
+.c-stamp.flag { color: var(--gold); border-color: var(--gold); }
+/* the queue */
+.c-queue-t {
+  font-family: var(--mono); font-size: 9px; letter-spacing: .2em;
+  text-transform: uppercase; color: var(--faint); padding-bottom: 12px;
+  border-bottom: 1px solid var(--line-soft); margin-bottom: 4px;
+}
+.c-queue li {
+  display: grid; grid-template-columns: 16px minmax(0,1fr); gap: 9px;
+  align-items: baseline; padding: 9px 0;
+  font-size: 12.5px; color: var(--ink-28);
+  transition: color 400ms var(--ease);
+}
+.c-queue li .tick { font-family: var(--mono); font-size: 11px; color: var(--ink-14); }
+.c-queue li.now { color: var(--ink); }
+.c-queue li.now .tick { color: var(--vio); }
+.c-queue li.done { color: var(--ink-40); }
+.c-queue li.done .tick { color: var(--ok); }
+.c-queue li.done.flag .tick { color: var(--gold); }
+.c-please {
+  margin-top: 22px; padding-top: 14px; border-top: 1px solid var(--line-soft);
+  font-size: 12px; line-height: 1.55; color: var(--faint); font-style: italic;
+  font-family: var(--serif);
+}
+.c-enter {
+  margin-top: 16px; font-size: 13px; color: var(--ink);
+  background: var(--vio-deep); padding: 8px 15px; border-radius: 9px;
+  opacity: 0; pointer-events: none; transition: opacity 500ms var(--ease);
+}
+.scene.done .c-enter { opacity: 1; pointer-events: auto; }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   D · HONEST BAR
+   The percentage misbehaves exactly like the bars everyone resents — a free
+   87%, a long stall, and one genuine reversal. The caption underneath is the
+   product refusing to play along. The bar is the setup; the caption is the
+   punchline; the reversal is the only place a loading UI has ever been
+   allowed to be honest.
+   ═══════════════════════════════════════════════════════════════════════ */
+.d-wrap { height: 100%; display: grid; place-items: center; padding: 30px clamp(20px, 5vw, 40px) 86px; }
+.d-inner { width: 100%; max-width: 620px; }
+.d-org {
+  font-family: var(--mono); font-size: 9.5px; letter-spacing: .2em;
+  text-transform: uppercase; color: var(--faint);
+  display: flex; align-items: center; gap: 9px; margin-bottom: 30px;
+}
+.d-pctline { display: flex; align-items: baseline; gap: 14px; }
+.d-pct {
+  font-family: var(--serif); font-size: clamp(56px, 9vw, 88px); line-height: .9;
+  letter-spacing: -.035em; font-variant-numeric: tabular-nums; font-weight: 400;
+}
+.d-pct .sign { font-size: .42em; letter-spacing: 0; color: var(--muted); margin-left: 5px; }
+.d-quip {
+  font-family: var(--mono); font-size: 10.5px; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--gold);
+  opacity: 0; transform: translateY(3px);
+  transition: opacity 380ms var(--ease), transform 380ms var(--ease);
+}
+.d-quip.on { opacity: 1; transform: none; }
+.d-bar {
+  margin: 26px 0 0; height: 3px; background: var(--ink-07); border-radius: 2px;
+  position: relative; overflow: hidden;
+}
+.d-bar i {
+  position: absolute; inset: 0 auto 0 0; width: 0%; border-radius: 2px;
+  background: linear-gradient(90deg, var(--vio-deep), var(--vio));
+  transition: width 900ms var(--ease-io);
+}
+.d-bar.rev i { background: linear-gradient(90deg, var(--gold), #b98f4d); }
+.d-truth {
+  margin-top: 26px; display: grid; grid-template-columns: 132px minmax(0,1fr);
+  gap: 18px; align-items: start;
+}
+.d-truth-l {
+  font-family: var(--mono); font-size: 9px; letter-spacing: .17em;
+  text-transform: uppercase; color: var(--faint); padding-top: 5px;
+}
+.d-truth-r { min-height: 76px; }
+.d-say {
+  font-family: var(--serif); font-size: clamp(16px, 2.1vw, 19.5px);
+  line-height: 1.48; letter-spacing: -.01em; color: var(--ink);
+}
+.d-say.fade { opacity: 0; transform: translateY(4px); }
+.d-say { transition: opacity 340ms var(--ease), transform 340ms var(--ease); }
+.d-say em { font-style: italic; color: var(--muted); }
+.d-say b { font-weight: 400; color: var(--gold); }
+.d-sub {
+  margin-top: 9px; font-size: 12.5px; color: var(--faint); font-family: var(--mono);
+  transition: opacity 340ms var(--ease);
+}
+.d-foot {
+  margin-top: 34px; padding-top: 15px; border-top: 1px solid var(--line);
+  display: flex; align-items: center; justify-content: space-between;
+  font-family: var(--mono); font-size: 11px; color: var(--faint);
+}
+.d-enter {
+  font-family: var(--sans); font-size: 13px; color: var(--ink);
+  background: var(--vio-deep); padding: 8px 15px; border-radius: 9px;
+  opacity: 0; transform: translateY(4px); pointer-events: none;
+  transition: opacity 500ms var(--ease), transform 500ms var(--ease);
+}
+.scene.done .d-enter { opacity: 1; transform: none; pointer-events: auto; }
+
+/* ═══ Mock chrome ══════════════════════════════════════════════════════ */
+.chrome {
+  position: fixed; z-index: 80; left: 50%; bottom: 18px; transform: translateX(-50%);
+  display: flex; align-items: center; gap: 3px;
+  background: rgba(20,18,14,.92); border: 1px solid var(--line);
+  border-radius: 999px; padding: 5px 6px;
+  backdrop-filter: blur(12px);
+  box-shadow: 0 18px 40px -22px rgba(0,0,0,.9);
+}
+.chrome button {
+  font-family: var(--mono); font-size: 10.5px; letter-spacing: .04em;
+  color: var(--muted); padding: 7px 12px; border-radius: 999px;
+  transition: color 200ms, background 200ms; white-space: nowrap;
+}
+.chrome button:hover { color: var(--ink); }
+.chrome button.on { background: var(--vio-soft); color: var(--vio); }
+.chrome .sep { width: 1px; height: 16px; background: var(--line); margin: 0 4px; }
+.chrome .replay { color: var(--vio); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+}
+@media (max-width: 900px) {
+  .side { display: none; }
+  .c-inner { grid-template-columns: minmax(0,1fr); gap: 26px; }
+  .c-queue-wrap { display: none; }
+  .d-truth { grid-template-columns: minmax(0,1fr); gap: 8px; }
+  .a-row { grid-template-columns: 84px minmax(0,1fr) 96px; gap: 0 12px; }
+}
+@media (max-height: 660px) {
+  .a-head .a-sub { display: none; }
+  .c-form { min-height: 200px; }
+}
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════ A · DEADPAN LEDGER ═══════════════ -->
+<section class="scene on" id="scene-a">
+  <div class="topline" data-topline></div>
+  <div class="a-wrap">
+
+    <aside class="side">
+      <div class="side-org">
+        <div class="mark">AK</div>
+        <div><b>Alpha Kappa</b><span class="term">Fall 2026</span></div>
+      </div>
+      <div class="side-grp">Chapter</div>
+      <ul class="side-nav" id="a-nav">
+        <li data-nav="roster"><span class="dot"></span>Members</li>
+        <li data-nav="attendance"><span class="dot"></span>Attendance</li>
+        <li data-nav="treasury"><span class="dot"></span>Treasury</li>
+        <li data-nav="events"><span class="dot"></span>Events</li>
+        <li data-nav="docs"><span class="dot"></span>Documents</li>
+        <li data-nav="tasks"><span class="dot"></span>Tasks</li>
+      </ul>
+      <div class="foot">SYNCING</div>
+    </aside>
+
+    <main class="a-main">
+      <header class="a-head">
+        <div class="a-eyebrow"><span class="pulse"></span><span id="a-phase">Syncing chapter data</span></div>
+        <h1 class="a-title" id="a-title">Bringing Alpha Kappa up to date.</h1>
+        <p class="a-sub" id="a-sub">
+          Last synced <b>14 days ago</b>. Pulling everything that changed since —
+          the roster, the books, and the meetings you missed.
+        </p>
+      </header>
+
+      <div class="a-ledger" id="a-ledger">
+        <div class="a-play" id="a-play"></div>
+        <!-- rows injected -->
+      </div>
+
+      <footer class="a-foot">
+        <span id="a-status">Connected · reading from 6 sources</span>
+        <span class="right">
+          <span class="tnum" id="a-elapsed">0.0s</span>
+          <button class="a-enter">Enter chapter →</button>
+        </span>
+      </footer>
+    </main>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════ B · GROUP CHAT ═══════════════════ -->
+<section class="scene" id="scene-b">
+  <div class="topline" data-topline></div>
+  <div class="b-wrap">
+
+    <aside class="side">
+      <div class="side-org">
+        <div class="mark">AK</div>
+        <div><b>Alpha Kappa</b><span class="term">Fall 2026</span></div>
+      </div>
+      <div class="side-grp">Chapter</div>
+      <ul class="side-nav" id="b-nav">
+        <li data-nav="roster"><span class="dot"></span>Members</li>
+        <li data-nav="attendance"><span class="dot"></span>Attendance</li>
+        <li data-nav="treasury"><span class="dot"></span>Treasury</li>
+        <li data-nav="events"><span class="dot"></span>Events</li>
+        <li data-nav="docs"><span class="dot"></span>Documents</li>
+        <li data-nav="tasks"><span class="dot"></span>Tasks</li>
+      </ul>
+      <div class="foot">SYNCING</div>
+    </aside>
+
+    <main class="b-main">
+      <div class="b-top">
+        <div>
+          <h2>Getting your chapter together</h2>
+          <div class="sub">6 sources · they are talking amongst themselves</div>
+        </div>
+        <div class="b-count"><span class="pulse"></span><span id="b-checked">0 of 6 checked in</span></div>
+      </div>
+
+      <div class="b-thread" id="b-thread"><!-- messages injected --></div>
+
+      <footer class="b-foot">
+        <span id="b-status">Alpha Kappa · Fall 2026</span>
+        <button class="b-enter">Enter chapter →</button>
+      </footer>
+    </main>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════ C · RECORDS OFFICE ═══════════════ -->
+<section class="scene" id="scene-c">
+  <div class="topline" data-topline></div>
+  <div class="c-wrap">
+    <div class="c-inner">
+
+      <div class="c-desk">
+        <div class="c-office"><span class="pulse"></span><span>Office of Chapter Records · window 3</span></div>
+
+        <div class="c-form" id="c-form">
+          <div class="c-no" id="c-no">FORM 4-A</div>
+          <h2 class="c-name" id="c-name">Request for a current headcount</h2>
+          <div class="c-rule"></div>
+          <div class="c-fields" id="c-fields"><!-- injected --></div>
+          <p class="c-note" id="c-note"></p>
+          <div class="c-stamp" id="c-stamp">Received</div>
+        </div>
+      </div>
+
+      <div class="c-queue-wrap">
+        <div class="c-queue-t">In the tray</div>
+        <ul class="c-queue" id="c-queue"><!-- injected --></ul>
+        <p class="c-please" id="c-please">Please do not refresh. The clerk will start over, and he will remember.</p>
+        <button class="c-enter">Enter chapter →</button>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════ D · HONEST BAR ═══════════════════ -->
+<section class="scene" id="scene-d">
+  <div class="topline" data-topline></div>
+  <div class="d-wrap">
+    <div class="d-inner">
+      <div class="d-org"><span class="pulse"></span><span id="d-org-t">Alpha Kappa · syncing chapter data</span></div>
+
+      <div class="d-pctline">
+        <div class="d-pct tnum"><span id="d-pct">0</span><span class="sign">%</span></div>
+        <div class="d-quip" id="d-quip"></div>
+      </div>
+
+      <div class="d-bar" id="d-bar"><i id="d-fill"></i></div>
+
+      <div class="d-truth">
+        <div class="d-truth-l">What that<br>actually means</div>
+        <div class="d-truth-r">
+          <p class="d-say" id="d-say">Opening a connection to your chapter.</p>
+          <p class="d-sub" id="d-sub">0 of 6 sources</p>
+        </div>
+      </div>
+
+      <footer class="d-foot">
+        <span class="tnum" id="d-elapsed">0.0s</span>
+        <button class="d-enter">Enter chapter →</button>
+      </footer>
+    </div>
+  </div>
+</section>
+
+<!-- mock chrome -->
+<nav class="chrome">
+  <button class="on" data-go="a">A · Deadpan ledger</button>
+  <button data-go="b">B · Group chat</button>
+  <button data-go="c">C · Records office</button>
+  <button data-go="d">D · Honest bar</button>
+  <span class="sep"></span>
+  <button class="replay" data-replay>↻ Replay</button>
+</nav>
+
+<script>
+(() => {
+  const $  = (s, r=document) => r.querySelector(s);
+  const $$ = (s, r=document) => [...r.querySelectorAll(s)];
+
+  /* ── timeline engine with a cancel token ──────────────────────────── */
+  let token = 0;
+  const wait  = (ms, my) => new Promise(res => setTimeout(() => { if (my === token) res(); }, ms));
+  const alive = my => my === token;
+  const easeOut = t => 1 - Math.pow(1 - t, 3);
+
+  function countTo(node, to, dur, fmt, my) {
+    const t0 = performance.now();
+    return new Promise(res => {
+      const step = now => {
+        if (!alive(my)) return;
+        const p = Math.min(1, (now - t0) / dur);
+        node.textContent = fmt(Math.round(easeOut(p) * to));
+        if (p < 1) requestAnimationFrame(step); else res();
+      };
+      requestAnimationFrame(step);
+    });
+  }
+
+  function clock(node, my) {
+    const t0 = performance.now();
+    const tick = () => {
+      if (!alive(my) || !node) return;
+      node.textContent = ((performance.now() - t0) / 1000).toFixed(1) + 's';
+      requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  }
+
+  const money = n => '$' + n.toLocaleString('en-US');
+  const plain = n => String(n);
+
+  /* ══════════════════════════════════════════════════════════════════
+     THE SHARED SCRIPT
+     One list of six sources drives all four scenes, because they are four
+     presentations of the same sync, not four different products. Change a
+     count here and every direction moves together.
+     ══════════════════════════════════════════════════════════════════ */
+  const SOURCES = [
+    {
+      key: 'roster', src: 'Roster', nav: 'roster',
+      task: 'Counting members', val: 58, fmt: plain, unit: '', dur: 600,
+      aside: 'Four of them are named <em>Jake</em>. We have marked this unsolvable and moved on.',
+      form: { no: 'FORM 4-A', name: 'Request for a current headcount',
+              fields: [['Members in good standing','58'],['Named Jake','4'],['Clerical remedy available','None']],
+              stamp: 'Received',
+              note: 'The office does not assign names and cannot be held responsible for them.' },
+      chat: [
+        { text: '<span class="num">58</span> members. Same as last time.' },
+        { text: 'four of them are named Jake though' }
+      ]
+    },
+    {
+      key: 'attendance', src: 'Attendance', nav: 'attendance',
+      task: 'Reading attendance', val: 41, fmt: plain, unit: ' meetings', dur: 550,
+      aside: 'Marcus has been <em>excused</em> eleven times. Eleven. We are loading, not judging.',
+      form: { no: 'FORM 11-B', name: 'Register of presence and absence',
+              fields: [['Meetings on record','41'],['Excusals filed','63'],['Excusals by one member','11']],
+              stamp: 'Received',
+              note: 'One member accounts for a notable share of the excusals. This is noted, not adjudicated.' },
+      chat: [
+        { text: 'got <span class="num">41</span> meetings' },
+        { text: 'do you want the excuse notes too' },
+        { who: 'roster', text: 'no' },
+        { text: 'sending them anyway' }
+      ]
+    },
+    {
+      key: 'treasury', src: 'Treasury', nav: 'treasury',
+      task: 'Reconciling dues', val: 14280, fmt: money, unit: '', dur: 1000, slow: true, flag: true,
+      aside: 'Six payments came back <em>twice</em> — recorded double during the September move. Nothing is lost. Somebody should look at it.',
+      form: { no: 'FORM 27-C', name: 'Ledger of monies owed and monies actually paid',
+              fields: [['Assessed this term','$18,400'],['Collected','$14,280'],['Entries requiring a human','6', true]],
+              stamp: 'Flagged', flag: true,
+              note: 'Six entries appear twice, dated to the September migration. Referred upward. Nobody is in trouble yet.' },
+      chat: [
+        { text: 'uh' },
+        { text: 'ok so <span class="num">$14,280</span> collected of <span class="num">$18,400</span>' },
+        { text: '<b>six payments got recorded twice</b> back in September. not lost, just doubled. someone should look at that.', flag: true }
+      ]
+    },
+    {
+      key: 'events', src: 'Events', nav: 'events',
+      task: 'Loading the calendar', val: 22, fmt: plain, unit: ' events', dur: 500,
+      aside: 'Three are titled <em>Chapter Meeting (MANDATORY!!!)</em>. The exclamation marks do not appear to have worked.',
+      form: { no: 'FORM 9-E', name: 'Schedule of gatherings, obligatory and otherwise',
+              fields: [['Events this term','22'],['Marked mandatory','3'],['Attendance thereby improved','0']],
+              stamp: 'Received',
+              note: 'Capitalisation was applied to three entries. The office finds no measurable effect.' },
+      chat: [
+        { text: '<span class="num">22</span> events this term' },
+        { text: "one of them is just called 'idk yet' and it's on friday" }
+      ]
+    },
+    {
+      key: 'docs', src: 'Documents', nav: 'docs',
+      task: 'Indexing documents', val: 148, fmt: plain, unit: ' files', dur: 750, slow: true,
+      aside: 'Including <em>bylaws_FINAL_v7_actuallyfinal_USETHIS.pdf</em>. We are using that one. It seemed insistent.',
+      form: { no: 'FORM 16-D', name: 'Inventory of documents held on file',
+              fields: [['Files indexed','148'],['Copies of the bylaws','7'],['Copies marked final','7']],
+              stamp: 'Received',
+              note: 'Seven copies of the bylaws are described as final. The most insistent filename was adopted.' },
+      chat: [
+        { text: '<span class="num">148</span> files. seven of them are the bylaws.' },
+        { text: "all seven are called final. going with bylaws_FINAL_v7_actuallyfinal_USETHIS.pdf — it seemed sure of itself." }
+      ]
+    },
+    {
+      key: 'tasks', src: 'Tasks', nav: 'tasks',
+      task: 'Checking open tasks', val: 9, fmt: plain, unit: ' open', dur: 450,
+      aside: 'The oldest is <em>“ask Dev about the thing.”</em> It was due in March. We have not asked Dev about the thing.',
+      form: { no: 'FORM 2-F', name: 'Schedule of outstanding obligations',
+              fields: [['Tasks open','9'],['Overdue','4'],['Oldest, in days','147']],
+              stamp: 'Received',
+              note: 'The oldest item reads, in full: “ask Dev about the thing.” The office declines to interpret it.' },
+      chat: [
+        { text: '<span class="num">9</span> open tasks, 4 overdue' },
+        { text: "oldest one says 'ask Dev about the thing'. it's from march. i have no notes." }
+      ]
+    }
+  ];
+
+  const PEOPLE = {
+    roster:     { name: 'Roster',     ini: 'RO', bg: '#a78bfa' },
+    attendance: { name: 'Attendance', ini: 'AT', bg: '#7fb08a' },
+    treasury:   { name: 'Treasury',   ini: 'TR', bg: '#ddb36a' },
+    events:     { name: 'Events',     ini: 'EV', bg: '#d98ba3' },
+    docs:       { name: 'Documents',  ini: 'DO', bg: '#8fb4d9' },
+    tasks:      { name: 'Tasks',      ini: 'TA', bg: '#c9a3d9' }
+  };
+
+  const setTop = (scene, pct) => { const t = $('.topline', scene); if (t) t.style.width = pct + '%'; };
+  /* the sidebar caption is part of the same claim as the headline — leaving it
+     on SYNCING after the run finishes contradicts the page it sits on */
+  const setFoot = (scene, text) => { const f = $('.side .foot', scene); if (f) f.textContent = text; };
+  const litNav = (scene, key) => {
+    const li = $(`[data-nav="${key}"]`, scene);
+    if (li) li.classList.add('lit');
+  };
+
+  /* ══════════════════════════════════════════════════════════════════
+     A · DEADPAN LEDGER
+     ══════════════════════════════════════════════════════════════════ */
+  async function runA(my) {
+    const scene = $('#scene-a'), ledger = $('#a-ledger'), play = $('#a-play');
+    scene.classList.remove('done');
+    $$('.side-nav li', scene).forEach(li => li.classList.remove('lit'));
+    $$('.a-row', ledger).forEach(n => n.remove());
+    setTop(scene, 0);
+    $('#a-phase').textContent = 'Syncing chapter data';
+    $('#a-status').textContent = 'Connected · reading from 6 sources';
+    setFoot(scene, 'SYNCING');
+    $('#a-title').textContent = 'Bringing Alpha Kappa up to date.';
+    $('#a-sub').innerHTML = 'Last synced <b>14 days ago</b>. Pulling everything that changed since — ' +
+                            'the roster, the books, and the meetings you missed.';
+    clock($('#a-elapsed'), my);
+
+    SOURCES.forEach(s => {
+      const row = document.createElement('div');
+      row.className = 'a-row' + (s.flag ? ' flag' : '');
+      row.dataset.key = s.key;
+      row.innerHTML =
+        `<span class="a-src">${s.src}</span>` +
+        `<span class="a-task">${s.task}</span>` +
+        `<span class="a-val" data-val>—</span>` +
+        `<span class="a-aside">${s.aside}</span>`;
+      ledger.appendChild(row);
+    });
+
+    await wait(420, my); if (!alive(my)) return;
+
+    const rows = $$('.a-row', ledger);
+    for (let i = 0; i < SOURCES.length; i++) {
+      const s = SOURCES[i], row = rows[i], val = $('[data-val]', row);
+      if (!alive(my)) return;
+
+      /* park the playhead on this row */
+      play.style.opacity = '1';
+      play.style.transform = `translateY(${row.offsetTop}px)`;
+      row.classList.add('active');
+      val.innerHTML = '<span class="a-dots"><i></i><i></i><i></i></span>';
+      $('#a-phase').textContent = s.task;
+
+      await wait(s.slow ? 550 : 260, my); if (!alive(my)) return;
+
+      /* Treasury takes visibly longer and says why — a slow row that
+         explains itself reads as work, a slow row that doesn't reads as a bug. */
+      if (s.key === 'treasury') {
+        $('#a-status').textContent = 'Treasury · reconciling 214 payments against 58 members';
+        await wait(400, my); if (!alive(my)) return;
+      }
+
+      val.textContent = '';
+      await countTo(val, s.val, s.dur, s.fmt, my); if (!alive(my)) return;
+      val.textContent = s.fmt(s.val) + s.unit;
+      row.classList.remove('active'); row.classList.add('done');
+      litNav(scene, s.nav);
+      setTop(scene, Math.round(((i + 1) / SOURCES.length) * 100));
+
+      /* the beat before the aside is the whole joke — it has to land as an
+         afterthought, not as part of the same line */
+      await wait(210, my); if (!alive(my)) return;
+      row.classList.add('said');
+      await wait(s.flag ? 750 : 330, my); if (!alive(my)) return;
+    }
+
+    play.style.opacity = '0';
+    $('#a-phase').textContent = 'Up to date';
+    $('#a-status').textContent = 'Synced · 6 sources · 1 thing worth a look';
+    /* the head has to stop describing work that has finished */
+    setFoot(scene, 'UP TO DATE');
+    $('#a-title').textContent = 'Alpha Kappa is up to date.';
+    $('#a-sub').innerHTML = 'Fourteen days of changes are in. One thing — those ' +
+                            '<b>six doubled dues payments</b> — is waiting on a human.';
+    scene.classList.add('done');
+  }
+
+  /* ══════════════════════════════════════════════════════════════════
+     B · GROUP CHAT
+     ══════════════════════════════════════════════════════════════════ */
+  function bMsg(thread, who, html, opts = {}) {
+    const p = PEOPLE[who];
+    const el = document.createElement('div');
+    el.className = 'b-msg' + (opts.tight ? ' tight' : '') + (opts.flag ? ' flagged' : '');
+    el.innerHTML =
+      `<div class="b-av" style="background:${p.bg}">${p.ini}</div>` +
+      `<div class="b-body">${opts.tight ? '' : `<div class="b-who">${p.name}</div>`}` +
+      `<div class="b-bub">${html}</div></div>`;
+    thread.appendChild(el);
+    return el;
+  }
+  function bTyping(thread, who) {
+    const el = bMsg(thread, who, '<span class="b-typing"><i></i><i></i><i></i></span>');
+    $('.b-bub', el).style.padding = '0';
+    return el;
+  }
+  function bTrim(thread) {
+    /* the thread is bottom-anchored; drop off the top so it never scrolls */
+    while (thread.children.length > 9) thread.removeChild(thread.firstChild);
+  }
+
+  async function runB(my) {
+    const scene = $('#scene-b'), thread = $('#b-thread');
+    scene.classList.remove('done');
+    $$('.side-nav li', scene).forEach(li => li.classList.remove('lit'));
+    thread.innerHTML = '';
+    setTop(scene, 0);
+    $('#b-checked').textContent = '0 of 6 checked in';
+    setFoot(scene, 'SYNCING');
+    $('#b-status').textContent = 'Alpha Kappa · Fall 2026';   /* else the replay opens on "Synced" */
+
+    const sys = html => {
+      const el = document.createElement('div');
+      el.className = 'b-sys'; el.innerHTML = html;
+      thread.appendChild(el); bTrim(thread); return el;
+    };
+
+    await wait(300, my); if (!alive(my)) return;
+    sys('Roster, Attendance, Treasury, Events, Documents and Tasks were added');
+
+    let checked = 0;
+    for (let i = 0; i < SOURCES.length; i++) {
+      const s = SOURCES[i]; if (!alive(my)) return;
+
+      /* typing time is the actual fetch time — Documents typing for four
+         seconds IS the four-second index, not a fake delay */
+      const typing = bTyping(thread, s.key); bTrim(thread);
+      await wait(s.slow ? 1150 : 560, my);
+      if (!alive(my)) return;
+      typing.remove();
+
+      let lastWho = null;
+      for (const line of s.chat) {
+        if (!alive(my)) return;
+        const who = line.who || s.key;
+        bMsg(thread, who, line.text, { tight: who === lastWho, flag: line.flag });
+        bTrim(thread);
+        lastWho = who;
+        await wait(line.flag ? 1000 : 450, my); if (!alive(my)) return;
+      }
+
+      checked++;
+      litNav(scene, s.nav);
+      $('#b-checked').textContent = `${checked} of 6 checked in`;
+      setTop(scene, Math.round((checked / SOURCES.length) * 100));
+      await wait(240, my); if (!alive(my)) return;
+    }
+
+    sys('<span class="ok">✓ All six checked in. Opening Alpha Kappa.</span>');
+    setFoot(scene, 'UP TO DATE');
+    $('#b-status').textContent = 'Synced · 6 sources · 1 thing worth a look';
+    scene.classList.add('done');
+  }
+
+  /* ══════════════════════════════════════════════════════════════════
+     C · RECORDS OFFICE
+     ══════════════════════════════════════════════════════════════════ */
+  async function runC(my) {
+    const scene = $('#scene-c'), queue = $('#c-queue'), form = $('#c-form');
+    const stamp = $('#c-stamp'), fields = $('#c-fields');
+    scene.classList.remove('done');
+    setTop(scene, 0);
+    $('#c-please').textContent = 'Please do not refresh. The clerk will start over, and he will remember.';
+
+    queue.innerHTML = SOURCES.map(s =>
+      `<li data-q="${s.key}"><span class="tick">·</span><span>${s.form.no} — ${s.src}</span></li>`
+    ).join('');
+
+    for (let i = 0; i < SOURCES.length; i++) {
+      const s = SOURCES[i], f = s.form; if (!alive(my)) return;
+      const qli = $(`[data-q="${s.key}"]`, queue);
+
+      $$('li', queue).forEach(li => li.classList.remove('now'));
+      qli.classList.add('now');
+
+      /* swap the sheet: fade the old one out, fade the new one in */
+      form.style.transition = 'opacity 220ms linear';
+      form.style.opacity = i === 0 ? '1' : '0';
+      await wait(i === 0 ? 0 : 180, my); if (!alive(my)) return;
+
+      form.classList.remove('noted', 'flagged');
+      stamp.classList.remove('hit', 'flag');
+      $('#c-no').textContent = f.no;
+      $('#c-name').textContent = f.name;
+      fields.innerHTML = f.fields.map(([k, v, flag]) =>
+        `<div class="c-field${flag ? ' flag' : ''}"><span>${k}</span><span class="fill" data-fill>—</span></div>`
+      ).join('');
+      $('#c-note').textContent = f.note;
+      stamp.textContent = f.stamp;
+      form.style.opacity = '1';
+
+      await wait(320, my); if (!alive(my)) return;
+
+      /* fill the fields one at a time — a clerk writing, not a page rendering */
+      const fills = $$('[data-fill]', fields);
+      for (let j = 0; j < fills.length; j++) {
+        if (!alive(my)) return;
+        fills[j].textContent = f.fields[j][1];
+        await wait(s.slow ? 250 : 175, my); if (!alive(my)) return;
+      }
+
+      await wait(240, my); if (!alive(my)) return;
+      if (f.flag) { stamp.classList.add('flag'); form.classList.add('flagged'); }
+      stamp.classList.add('hit');
+      form.classList.add('noted');
+
+      qli.classList.remove('now');
+      qli.classList.add('done');
+      if (f.flag) qli.classList.add('flag');
+      $('.tick', qli).textContent = f.flag ? '!' : '✓';
+      setTop(scene, Math.round(((i + 1) / SOURCES.length) * 100));
+
+      await wait(f.flag ? 1050 : 680, my); if (!alive(my)) return;
+    }
+
+    $('#c-please').textContent = 'Your chapter is in order. One entry has been referred upward.';
+    scene.classList.add('done');
+  }
+
+  /* ══════════════════════════════════════════════════════════════════
+     D · HONEST BAR
+     The beats are hand-authored because the comedy is entirely in the
+     timing — a free 87%, a stall long enough to be uncomfortable, one
+     reversal, and a 99% that we then actually honour.
+     ══════════════════════════════════════════════════════════════════ */
+  const D_BEATS = [
+    { pct: 87, hold: 1000, quip: '',
+      say: 'We read the roster. <em>58 members.</em> That was the easy one, and it is most of this bar.',
+      sub: '1 of 6 sources' },
+    { pct: 87, hold: 1450, quip: 'still 87%',
+      say: 'Now it is doing the books. This is the part that takes a while and it always will.',
+      sub: '2 of 6 sources · 214 payments' },
+    { pct: 61, hold: 1650, quip: '↓ we found more work', rev: true,
+      say: '<b>That went backwards, and it should have.</b> Attendance had 41 meetings on file, not the 12 we planned for.',
+      sub: '3 of 6 sources · recount in progress' },
+    { pct: 94, hold: 1200, quip: '',
+      say: 'Six dues payments look like duplicates from the September move. Flagged for a human — nothing is lost.',
+      sub: '5 of 6 sources · 1 thing worth a look' },
+    { pct: 99, hold: 1750, quip: 'the honest part',
+      say: '99%. This is the number every loading bar in the world lies to you at. We are genuinely at 99.',
+      sub: '6 of 6 sources · indexing 148 files' },
+    /* no elapsed figure here — the live clock is six inches away in the footer
+       and a hardcoded one contradicts it on screen */
+    { pct: 100, hold: 0, quip: '',
+      say: 'Done. Alpha Kappa is up to date.',
+      sub: '6 of 6 sources · 1 thing worth a look' }
+  ];
+
+  async function runD(my) {
+    const scene = $('#scene-d'), fill = $('#d-fill'), bar = $('#d-bar');
+    const pctN = $('#d-pct'), say = $('#d-say'), sub = $('#d-sub'), quip = $('#d-quip');
+    scene.classList.remove('done');
+    setTop(scene, 0);
+    bar.classList.remove('rev'); quip.classList.remove('on');
+    pctN.textContent = '0'; fill.style.width = '0%';
+    $('#d-org-t').textContent = 'Alpha Kappa · syncing chapter data';
+    say.innerHTML = 'Opening a connection to your chapter.';
+    sub.textContent = '0 of 6 sources';
+    clock($('#d-elapsed'), my);
+
+    await wait(500, my); if (!alive(my)) return;
+
+    let cur = 0;
+    for (const b of D_BEATS) {
+      if (!alive(my)) return;
+
+      bar.classList.toggle('rev', !!b.rev);
+      fill.style.width = b.pct + '%';
+      setTop(scene, b.pct);
+
+      /* the number counts to the new value in both directions — a reversal
+         that snaps is a bug, a reversal that counts down is a confession */
+      const from = cur, to = b.pct, t0 = performance.now(), dur = b.rev ? 900 : 620;
+      await new Promise(res => {
+        const step = now => {
+          if (!alive(my)) return;
+          const p = Math.min(1, (now - t0) / dur);
+          pctN.textContent = Math.round(from + (to - from) * easeOut(p));
+          if (p < 1) requestAnimationFrame(step); else res();
+        };
+        requestAnimationFrame(step);
+      });
+      if (!alive(my)) return;
+      cur = b.pct;
+
+      say.classList.add('fade');
+      await wait(200, my); if (!alive(my)) return;
+      say.innerHTML = b.say;
+      sub.textContent = b.sub;
+      say.classList.remove('fade');
+      quip.textContent = b.quip;
+      quip.classList.toggle('on', !!b.quip);
+
+      await wait(b.hold, my); if (!alive(my)) return;
+    }
+
+    bar.classList.remove('rev');
+    $('#d-org-t').textContent = 'Alpha Kappa · up to date';
+    scene.classList.add('done');
+  }
+
+  /* ══════════════════════════════════════════════════════════════════
+     Chrome
+     ══════════════════════════════════════════════════════════════════ */
+  const RUN = { a: runA, b: runB, c: runC, d: runD };
+  let current = 'a';
+
+  function go(id) {
+    current = id;
+    token++;
+    $$('.scene').forEach(s => s.classList.remove('on'));
+    $('#scene-' + id).classList.add('on');
+    $$('.chrome [data-go]').forEach(b => b.classList.toggle('on', b.dataset.go === id));
+    RUN[id](token);
+  }
+
+  $$('.chrome [data-go]').forEach(b => b.addEventListener('click', () => go(b.dataset.go)));
+  $('[data-replay]').addEventListener('click', () => go(current));
+
+  /* keyboard: a–d to switch, r to replay */
+  document.addEventListener('keydown', e => {
+    const k = e.key.toLowerCase();
+    if (RUN[k]) go(k);
+    if (k === 'r') go(current);
+  });
+
+  go('a');
+})();
+</script>
+</body>
+</html>

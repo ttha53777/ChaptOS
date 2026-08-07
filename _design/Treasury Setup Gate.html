@@ -1,0 +1,984 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ChaptOS — Treasury (not set up yet)</title>
+<!--
+  ChaptOS — TREASURY, UNCONFIGURED STATE (concept mock)
+  ────────────────────────────────────────────────────────────────────────────
+  WHAT THIS IS
+  · Not a new page. This is what /[slug]/treasury RENDERS when the org hasn't
+    picked its income and expense streams yet, in place of the ledger — the
+    app's real Sidebar/toolbar frame it drops into isn't redrawn here so the
+    mock stays focused on the content region that actually changes. The
+    ledger takes over this spot the moment setup is filled in, and this state
+    is never seen again.
+  · It replaces the hardcoded vocabulary in app/data.ts (INCOME_CATEGORIES /
+    EXPENSE_CATEGORIES — "Door", "Party Supplies", "Brotherhood"…), which
+    currently makes every org on the platform file its money under one
+    fraternity's words.
+
+  DECISIONS BAKED IN (from the brief)
+  · SCOPE — name + type only, plus the one number the ledger can't exist
+    without: the opening balance. No per-stream budget targets.
+  · START — a preset pack for the org type is PRE-LOADED and editable, the same
+    posture as the /create Timeline step (OrgTypeTemplate.eventTypeSeeds).
+  · GATE — hard wall for EVERYONE. Officers with MANAGE_FINANCES get the setup;
+    everyone else gets the locked state (mock switch, bottom right).
+  · RINGS — one per column, re-flowing live as streams are added and removed.
+
+  THREE THINGS CHANGED IN THE SECOND PASS (per feedback)
+  1. NO GRADIENTS. The violet page bloom, the card wash, the frosted commit bar
+     and the hairline under the balance are gone. app/globals.css sets
+     `.page-ambient { background: var(--background) }` and comments it "Flat page
+     background — matches Treasury", so flat is what production actually is.
+     Every surface here is a flat fill + a hairline border.
+  2. NO SIDEBAR. An earlier pass drew the app's sidebar/nav here to argue this
+     is the treasury page, not a standalone screen — removed on request, since
+     that chrome already exists in the real app shell and re-drawing it here
+     was redundant, not load-bearing for the argument.
+  3. SIMPLER. Three numbered steps instead of a hero instrument plus a separate
+     editor plus an explainer row. Each ring now lives INSIDE the column it
+     describes — one chart, one list, no lookup between them. The headline says
+     what the page is instead of being clever, and the three "what happens next"
+     cards collapsed to a single line.
+
+  THE ONE HONESTY NOTE: with no amounts captured, the arcs are necessarily
+  EQUAL — one arc per stream. That's stated under the columns so the ring is
+  never misread as a spend breakdown; it becomes the real donut on Overview once
+  transactions land.
+
+  Dues is pinned (renameable, not removable) — DUES_CATEGORY in lib/dues.ts is
+  special-cased server-side and member payments post to it by name.
+  Colours: DONUT_COLORS (app/components/treasury/chart-colors.ts) + the dark
+  hexes of EVENT_TYPE_PALETTE (lib/event-types.ts).
+
+  DELIVERY: one file, vanilla JS/CSS, double-click to open. Dusk only — the
+  treasury page has no theme toggle.
+  Hooks: window.__mock = { setRole, setPack, add, remove, rename, setBalance,
+  hover, state }.
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,400;1,9..144,500&family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ═══ 0 · Tokens — verbatim from .dash.dash-treasury in treasury-ledger.css ══ */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+button { font: inherit; color: inherit; background: none; border: none; cursor: pointer; }
+input { font: inherit; color: inherit; }
+ul { list-style: none; }
+
+:root {
+  --paper:    #0f0d0a;
+  --paper-2:  #14120e;
+  --card:     #161310;
+  --card-2:   #1b1813;
+  --ink:      #ece7dd;
+  --ink-soft: #c9c2b4;
+  --muted:    #958d7c;
+  --faint:    #6b6354;
+  --line:     rgba(236,231,221,.09);
+  --line-soft:rgba(236,231,221,.05);
+  --vio:      #a78bfa;
+  --vio-deep: #7c3aed;
+  --vio-bg:   rgba(167,139,250,.10);
+  --gold:     #ddb36a;
+  --gold-bg:  rgba(221,179,106,.10);
+  --rose:     #d98ba3;
+  --rose-bg:  rgba(217,139,163,.10);
+  --ok:       #7fb08a;
+  --ok-bg:    rgba(127,176,138,.10);
+  --shadow:   0 1px 0 rgba(0,0,0,.4), 0 16px 40px -24px rgba(0,0,0,.7);
+
+  --serif: "Fraunces", Georgia, serif;
+  --sans:  "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --mono:  "Geist Mono", ui-monospace, Menlo, monospace;
+  --ease:  cubic-bezier(.16,1,.3,1);
+}
+
+html, body { background: var(--paper); color: var(--ink); font-family: var(--sans); }
+body { font-size: 13.5px; line-height: 1.45; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+::selection { background: var(--vio-bg); }
+:focus-visible { outline: 2px solid var(--vio); outline-offset: 2px; border-radius: 4px; }
+
+/* ═══ 1 · Shell ═══════════════════════════════════════════════════════════
+   No sidebar: this mock now shows only the treasury content region, the way
+   it drops into the app's existing page frame (Sidebar.tsx) rather than
+   re-drawing chrome that already exists elsewhere. */
+.shell { min-height: 100vh; }
+.main { padding: 34px clamp(20px, 3.4vw, 44px) 60px; max-width: 1180px; margin: 0 auto; }
+
+/* ═══ 2 · Briefing — says what the page IS ═════════════════════════════════ */
+.kicker { font-family: var(--mono); font-size: 10.5px; letter-spacing: .18em; text-transform: uppercase; color: var(--muted); }
+.kicker .hot { color: var(--vio); }
+h1.greeting { font-family: var(--serif); font-weight: 400; font-size: clamp(27px, 3.4vw, 34px); letter-spacing: -.015em; margin-top: 9px; }
+h1.greeting em { font-style: italic; color: var(--vio); }
+.lead { margin-top: 11px; max-width: 60ch; font-size: 13.5px; line-height: 1.65; color: var(--ink-soft); }
+
+/* ═══ 3 · Steps ════════════════════════════════════════════════════════════ */
+.card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+}
+.step-n {
+  font-family: var(--mono); font-size: 9.5px; letter-spacing: .16em; color: var(--faint);
+  border: 1px solid var(--line); border-radius: 4px; padding: 2px 5px; flex: none;
+}
+.step-h { display: flex; align-items: center; gap: 10px; }
+.step-t { font-family: var(--serif); font-weight: 400; font-size: 17px; letter-spacing: -.01em; }
+
+/* ── Step 1 · opening balance ─────────────────────────────────────────────── */
+.opening {
+  margin-top: 26px; padding: 18px 22px;
+  display: flex; align-items: center; justify-content: space-between; gap: 24px; flex-wrap: wrap;
+}
+.opening .why { font-size: 12px; color: var(--faint); margin-top: 6px; max-width: 46ch; line-height: 1.55; }
+.bal-side { display: flex; align-items: center; gap: 14px; flex: none; }
+.bal-field { display: inline-flex; align-items: baseline; gap: 4px; padding: 5px 14px 7px;
+  border: 1px solid var(--line); border-radius: 10px; background: var(--paper);
+  transition: border-color .16s; }
+.bal-field:focus-within { border-color: var(--vio); }
+.bal-cur { font-family: var(--mono); font-size: 17px; color: var(--muted); }
+#balInput {
+  font-family: var(--mono); font-size: 30px; font-weight: 500;
+  letter-spacing: -.03em; font-variant-numeric: tabular-nums;
+  background: none; border: none; outline: none;
+  /* Re-measured from the content on every keystroke (sizeBal) — a fixed ch
+     width clipped the last digit of "4,820.00". */
+  width: 5ch; max-width: 40vw; text-align: right; color: var(--ink);
+  transition: width .18s var(--ease);
+}
+#balInput.unset { color: var(--faint); }
+.bal-zero { font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--muted); border-bottom: 1px solid var(--line); padding-bottom: 2px;
+  transition: color .16s, border-color .16s; }
+.bal-zero:hover { color: var(--vio); border-color: var(--vio); }
+.bal-zero[hidden] { display: none; }
+
+/* ── Steps 2 & 3 · the two columns ────────────────────────────────────────── */
+.packbar { margin-top: 30px; display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.packbar .pb-t { font-family: var(--mono); font-size: 10px; letter-spacing: .16em; text-transform: uppercase; color: var(--muted); }
+.pack-pick { position: relative; flex: none; }
+.pack-btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-family: var(--mono); font-size: 10px; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 7px 12px;
+  transition: color .16s, border-color .16s, background .16s;
+}
+.pack-btn:hover, .pack-btn[aria-expanded="true"] { color: var(--ink); border-color: var(--vio); background: var(--vio-bg); }
+.pack-btn .cur { color: var(--vio); }
+.pack-btn svg { width: 11px; height: 11px; transition: transform .2s var(--ease); }
+.pack-btn[aria-expanded="true"] svg { transform: rotate(180deg); }
+.pack-menu {
+  position: absolute; right: 0; top: calc(100% + 7px); z-index: 30; min-width: 226px;
+  background: var(--card-2); border: 1px solid var(--line); border-radius: 12px;
+  box-shadow: 0 24px 60px -24px rgba(0,0,0,.85); padding: 6px;
+  opacity: 0; transform: translateY(-5px); pointer-events: none;
+  transition: opacity .16s ease, transform .16s var(--ease);
+}
+.pack-menu.open { opacity: 1; transform: none; pointer-events: auto; }
+.pack-menu button { display: block; width: 100%; text-align: left; padding: 9px 11px; border-radius: 8px;
+  font-size: 13px; color: var(--ink-soft); transition: background .14s, color .14s; }
+.pack-menu button:hover { background: rgba(236,231,221,.05); color: var(--ink); }
+.pack-menu button .pm-sub { display: block; font-size: 11px; color: var(--faint); margin-top: 2px; }
+.pack-menu button[aria-current="true"] { color: var(--vio); }
+.pack-menu .pm-rule { height: 1px; background: var(--line-soft); margin: 5px 8px; }
+
+.books { margin-top: 12px; display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 16px; align-items: start; }
+.book { display: flex; flex-direction: column; overflow: hidden; }
+.book-h { padding: 16px 20px 14px; border-bottom: 1px solid var(--line-soft); }
+.book-h .step-t em { font-style: normal; }
+.book.in  .book-h .step-t em { color: var(--ok); }
+.book.out .book-h .step-t em { color: var(--gold); }
+.book-h .sub { font-size: 12px; color: var(--faint); margin-top: 5px; }
+
+/* The ring lives INSIDE the column it describes — one chart, one list, no
+   looking back and forth between a hero panel and an editor. */
+.ring-band { display: flex; align-items: center; justify-content: center; padding: 20px 0 14px; }
+.ring { position: relative; width: 136px; height: 136px; }
+.ring svg { width: 100%; height: 100%; display: block; overflow: visible; }
+.ring svg circle { fill: none; stroke-linecap: butt;
+  transition: stroke-dasharray .5s var(--ease), stroke-dashoffset .5s var(--ease),
+              stroke-width .2s var(--ease), opacity .26s ease; }
+.ring .track { stroke: rgba(236,231,221,.05); stroke-width: 8; }
+.ring .empty-track { stroke: rgba(236,231,221,.15); stroke-width: 8; stroke-dasharray: 2 7; stroke-linecap: round; }
+.ring .seg-arc { cursor: pointer; }
+.ring[data-hovering="1"] .seg-arc { opacity: .2; }
+.ring[data-hovering="1"] .seg-arc.lit { opacity: 1; stroke-width: 12; }
+.ring-core { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; pointer-events: none; padding: 0 15%; }
+.core-count { font-family: var(--mono); font-size: 26px; font-weight: 500; letter-spacing: -.03em;
+  font-variant-numeric: tabular-nums; line-height: 1; }
+.core-sub { font-family: var(--mono); font-size: 8.5px; letter-spacing: .16em; text-transform: uppercase; color: var(--faint); margin-top: 7px; }
+.core-name { font-family: var(--serif); font-size: 15px; line-height: 1.25; letter-spacing: -.01em; }
+.core-rest, .core-hover { transition: opacity .16s ease; }
+.core-hover { position: absolute; inset: 0; display: grid; place-content: center; padding: 0 12%; opacity: 0; }
+.ring[data-hovering="1"] .core-rest { opacity: 0; }
+.ring[data-hovering="1"] .core-hover { opacity: 1; }
+
+.rows { padding: 2px 12px 4px; display: flex; flex-direction: column; }
+.row { display: flex; align-items: center; gap: 10px; padding: 4px 8px; border-radius: 8px; transition: background .16s ease; }
+.row:hover, .row.lit { background: rgba(236,231,221,.045); }
+.row.leaving { opacity: 0; transform: translateX(-8px); transition: opacity .2s, transform .2s var(--ease); }
+.row.entering { animation: rowIn .34s var(--ease) both; }
+@keyframes rowIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+
+.dot { flex: none; width: 11px; height: 11px; border-radius: 50%; cursor: pointer;
+  transition: transform .16s var(--ease), box-shadow .16s; }
+.dot:hover { transform: scale(1.28); }
+.dot.picking { box-shadow: 0 0 0 3px rgba(236,231,221,.14); }
+
+.row input.nm { flex: 1 1 auto; min-width: 0; background: none; border: none; outline: none;
+  padding: 7px 4px; font-size: 13.5px; border-radius: 6px; transition: background .14s; }
+.row input.nm:hover { background: rgba(236,231,221,.04); }
+.row input.nm:focus { background: rgba(167,139,250,.10); }
+
+.lock { flex: none; color: var(--faint); display: grid; place-items: center; }
+.lock svg { width: 12px; height: 12px; }
+.kill { flex: none; width: 24px; height: 24px; border-radius: 6px; display: grid; place-items: center;
+  color: var(--faint); opacity: 0; transition: opacity .16s, color .16s, background .16s; }
+.kill svg { width: 13px; height: 13px; }
+.row:hover .kill, .kill:focus-visible { opacity: 1; }
+.kill:hover { color: var(--rose); background: var(--rose-bg); }
+
+.swatches { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .26s var(--ease); }
+.swatches.open { grid-template-rows: 1fr; }
+.swatches > div { overflow: hidden; }
+.swatch-inner { display: flex; gap: 7px; flex-wrap: wrap; padding: 6px 8px 10px 29px; }
+.swatch { width: 15px; height: 15px; border-radius: 50%; cursor: pointer;
+  transition: transform .14s var(--ease), box-shadow .14s; }
+.swatch:hover { transform: scale(1.2); }
+.swatch[aria-current="true"] { box-shadow: 0 0 0 2px var(--card), 0 0 0 3.5px currentColor; }
+
+.adder { padding: 2px 20px 0; }
+.add-field { display: flex; align-items: center; gap: 10px; }
+.add-plus { flex: none; width: 11px; height: 11px; display: grid; place-items: center; color: var(--faint); }
+.add-plus svg { width: 11px; height: 11px; }
+.add-field input { flex: 1 1 auto; min-width: 0; background: none; border: none; outline: none;
+  padding: 8px 4px; font-size: 13.5px; border-bottom: 1px solid var(--line-soft); transition: border-color .16s; }
+.add-field input::placeholder { color: var(--faint); }
+.add-field input:focus { border-color: var(--vio); }
+
+.sugg { padding: 12px 20px 18px; display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.sugg .sl { font-family: var(--mono); font-size: 8.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--faint); margin-right: 2px; }
+.chip { font-size: 12px; color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 4px 10px;
+  transition: color .14s, border-color .14s, background .14s; }
+.chip:hover { color: var(--ink); border-color: var(--vio); background: var(--vio-bg); }
+.chip::before { content: "+ "; color: var(--faint); }
+
+.book-empty { padding: 4px 20px 2px; font-size: 12.5px; color: var(--faint); font-style: italic; font-family: var(--serif); }
+.book-empty[hidden] { display: none; }
+
+/* ── Footnote ─────────────────────────────────────────────────────────────── */
+.arcnote { margin-top: 14px; display: flex; align-items: center; gap: 9px; flex-wrap: wrap;
+  font-size: 11.5px; color: var(--faint); }
+.arcnote .mk { font-family: var(--mono); font-size: 9px; letter-spacing: .14em; text-transform: uppercase;
+  color: var(--muted); border: 1px solid var(--line); border-radius: 4px; padding: 2px 6px; }
+
+/* ═══ 4 · Finish row — in flow, no floating bar ════════════════════════════ */
+.finish {
+  margin-top: 26px; padding: 14px 14px 14px 20px;
+  display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+}
+.tally { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; min-width: 0; }
+.tally .t { font-family: var(--mono); font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--muted); display: inline-flex; align-items: center; gap: 6px; font-variant-numeric: tabular-nums; }
+.tally .t b { color: var(--ink); font-weight: 500; }
+.tally .t .sw { width: 6px; height: 6px; border-radius: 50%; }
+.tally .warn { color: var(--gold); font-family: var(--sans); font-size: 12.5px; letter-spacing: 0; text-transform: none; }
+.tally .warn[hidden] { display: none; }
+.cta { flex: none; display: inline-flex; align-items: center; gap: 9px;
+  background: var(--vio-deep); color: #fff; border-radius: 9px; padding: 11px 18px;
+  font-size: 13px; font-weight: 500; transition: background .16s, opacity .16s; }
+.cta:hover:not(:disabled) { background: #8b46ee; }
+.cta:disabled { background: rgba(236,231,221,.06); color: var(--faint); cursor: not-allowed; }
+.cta svg { width: 14px; height: 14px; }
+
+/* ═══ 5 · Locked (non-officer) state ═══════════════════════════════════════ */
+.locked { display: none; }
+body[data-role="member"] .officer-only { display: none; }
+body[data-role="member"] .locked { display: block; }
+
+.lockwrap { min-height: calc(100vh - 160px); display: flex; flex-direction: column;
+  align-items: center; justify-content: center; text-align: center; }
+.lock-rings { display: flex; align-items: center; gap: 34px; }
+.lock-ring { width: 92px; height: 92px; border-radius: 50%; border: 8px solid rgba(236,231,221,.07); }
+.lock-badge { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--card); border: 1px solid var(--line); color: var(--gold); }
+.lock-badge svg { width: 18px; height: 18px; }
+h2.lock-h { font-family: var(--serif); font-weight: 400; font-size: clamp(23px, 3vw, 29px); letter-spacing: -.015em; margin-top: 30px; }
+h2.lock-h em { font-style: italic; color: var(--gold); }
+.lock-p { margin-top: 12px; max-width: 48ch; font-size: 13.5px; line-height: 1.65; color: var(--ink-soft); }
+.lock-who { margin-top: 24px; display: inline-flex; align-items: center; gap: 12px;
+  border: 1px solid var(--line); border-radius: 12px; padding: 11px 15px; background: var(--card); }
+.lock-who .av { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center;
+  font-family: var(--mono); font-size: 10px; font-weight: 600;
+  background: var(--vio-bg); color: var(--vio); flex: none; }
+.lock-who .who-n { font-size: 13px; text-align: left; }
+.lock-who .who-r { font-family: var(--mono); font-size: 9px; letter-spacing: .14em; text-transform: uppercase; color: var(--faint); margin-top: 2px; }
+.lock-who .nudge { margin-left: 6px; font-size: 12px; color: var(--vio);
+  border: 1px solid var(--vio-bg); background: var(--vio-bg); border-radius: 8px; padding: 7px 11px; transition: background .16s; }
+.lock-who .nudge:hover { background: rgba(167,139,250,.18); }
+.lock-fine { margin-top: 20px; font-size: 11.5px; color: var(--faint); }
+
+/* ═══ 6 · Mock-only role switch ════════════════════════════════════════════
+   Dashed + mono so it never reads as a shipped control. In the app the role
+   comes from MANAGE_FINANCES. */
+/* In flow at the top of the page, not fixed: as an overlay it sat on the expense
+   column's chips at the bottom and on the balance figure at the top. */
+.viewas { margin: 0 0 20px auto; width: fit-content;
+  display: flex; align-items: center; gap: 8px;
+  background: var(--paper-2); border: 1px dashed rgba(236,231,221,.2);
+  border-radius: 999px; padding: 5px 6px 5px 12px; }
+.viewas-lbl { font-family: var(--mono); font-size: 8.5px; letter-spacing: .14em; color: var(--faint); text-transform: uppercase; }
+.seg { display: flex; gap: 2px; }
+.seg button { font-family: var(--mono); font-size: 9px; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--muted); padding: 5px 10px; border-radius: 999px; transition: color .16s, background .16s; }
+.seg button:hover { color: var(--ink-soft); }
+.seg button[aria-pressed="true"] { color: var(--vio); background: var(--vio-bg); }
+
+/* ═══ 7 · Responsive ═══════════════════════════════════════════════════════ */
+@media (max-width: 1000px) {
+  .books { grid-template-columns: minmax(0,1fr); }
+}
+@media (max-width: 620px) {
+  .main { padding: 26px 18px 96px; }
+  .opening { align-items: flex-start; }
+  .bal-side { width: 100%; justify-content: space-between; }
+  .finish { align-items: stretch; }
+  .cta { width: 100%; justify-content: center; }
+  .viewas-lbl { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  * { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+}
+</style>
+</head>
+<body data-role="officer">
+
+<div class="shell">
+
+  <main class="main">
+
+    <!-- Mock-only role switch. In the app the role comes from MANAGE_FINANCES. -->
+    <div class="viewas">
+      <span class="viewas-lbl">mock · view as</span>
+      <div class="seg" role="group" aria-label="Viewing as">
+        <button id="asOfficer" aria-pressed="true">Treasurer</button>
+        <button id="asMember" aria-pressed="false">Member</button>
+      </div>
+    </div>
+
+    <!-- ═══ OFFICER ═══════════════════════════════════════════════════════ -->
+    <div class="officer-only">
+
+      <p class="kicker">Treasury &ensp;·&ensp; Spring 2026 &ensp;·&ensp; <span class="hot">Not set up</span></p>
+      <h1 class="greeting">Your treasury isn't <em>set up</em> yet.</h1>
+      <p class="lead">
+        Tell us what money comes in, what goes out, and what's in the account today — then the books open.
+        We've filled in a starter set for a fraternity. Change anything; you can edit it later from Settings.
+      </p>
+
+      <!-- ── Step 1 ─────────────────────────────────────────────────────── -->
+      <section class="card opening">
+        <div>
+          <div class="step-h">
+            <span class="step-n">01</span>
+            <h2 class="step-t">What's in the account today</h2>
+          </div>
+          <p class="why">Every balance the treasury shows is measured from this number. A rough figure is fine — you can correct it.</p>
+        </div>
+        <div class="bal-side">
+          <button class="bal-zero" id="balZero">Starting from zero</button>
+          <div class="bal-field">
+            <span class="bal-cur">$</span>
+            <input id="balInput" class="unset" inputmode="decimal" placeholder="0.00"
+                   aria-label="Opening balance" autocomplete="off">
+          </div>
+        </div>
+      </section>
+
+      <!-- ── Starter set ────────────────────────────────────────────────── -->
+      <div class="packbar">
+        <p class="pb-t">Your streams</p>
+        <div class="pack-pick">
+          <button class="pack-btn" id="packBtn" aria-expanded="false" aria-haspopup="true">
+            Starter set · <span class="cur" id="packCur">Fraternity</span>
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6l4 4 4-4"/></svg>
+          </button>
+          <div class="pack-menu" id="packMenu" role="menu"></div>
+        </div>
+      </div>
+
+      <!-- ── Steps 2 & 3 ────────────────────────────────────────────────── -->
+      <div class="books">
+
+        <section class="card book in" data-side="in">
+          <div class="book-h">
+            <div class="step-h">
+              <span class="step-n">02</span>
+              <h2 class="step-t">Money <em>in</em></h2>
+            </div>
+            <p class="sub">Where the chapter's money comes from.</p>
+          </div>
+
+          <div class="ring-band">
+            <div class="ring" data-ring>
+              <svg viewBox="0 0 100 100" aria-hidden="true">
+                <circle class="track" cx="50" cy="50" r="38"></circle>
+                <g class="arcs" transform="rotate(-90 50 50)"></g>
+              </svg>
+              <div class="ring-core">
+                <div class="core-rest">
+                  <div class="core-count" data-count>0</div>
+                  <div class="core-sub" data-sub>streams</div>
+                </div>
+                <div class="core-hover"><div class="core-name" data-name></div></div>
+              </div>
+            </div>
+          </div>
+
+          <p class="book-empty" data-empty hidden>Nothing yet — add the first way money reaches the chapter.</p>
+          <div class="rows" data-rows></div>
+          <div class="adder">
+            <div class="add-field">
+              <span class="add-plus"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M8 3v10M3 8h10"/></svg></span>
+              <input data-add placeholder="Add an income stream…" autocomplete="off" aria-label="Add an income stream">
+            </div>
+          </div>
+          <div class="sugg" data-sugg><span class="sl">Others add</span></div>
+        </section>
+
+        <section class="card book out" data-side="out">
+          <div class="book-h">
+            <div class="step-h">
+              <span class="step-n">03</span>
+              <h2 class="step-t">Money <em>out</em></h2>
+            </div>
+            <p class="sub">What the chapter spends it on.</p>
+          </div>
+
+          <div class="ring-band">
+            <div class="ring" data-ring>
+              <svg viewBox="0 0 100 100" aria-hidden="true">
+                <circle class="track" cx="50" cy="50" r="38"></circle>
+                <g class="arcs" transform="rotate(-90 50 50)"></g>
+              </svg>
+              <div class="ring-core">
+                <div class="core-rest">
+                  <div class="core-count" data-count>0</div>
+                  <div class="core-sub" data-sub>streams</div>
+                </div>
+                <div class="core-hover"><div class="core-name" data-name></div></div>
+              </div>
+            </div>
+          </div>
+
+          <p class="book-empty" data-empty hidden>Nothing yet — add the first thing the chapter pays for.</p>
+          <div class="rows" data-rows></div>
+          <div class="adder">
+            <div class="add-field">
+              <span class="add-plus"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M8 3v10M3 8h10"/></svg></span>
+              <input data-add placeholder="Add an expense stream…" autocomplete="off" aria-label="Add an expense stream">
+            </div>
+          </div>
+          <div class="sugg" data-sugg><span class="sl">Others add</span></div>
+        </section>
+      </div>
+
+      <p class="arcnote">
+        <span class="mk">one arc = one stream</span>
+        The rings are even because there are no amounts yet. They fill in for real once you start recording transactions.
+      </p>
+
+      <!-- ── Finish ─────────────────────────────────────────────────────── -->
+      <div class="card finish">
+        <div class="tally">
+          <span class="t"><span class="sw" style="background:#7fb08a"></span><b id="tIn">0</b> in</span>
+          <span class="t"><span class="sw" style="background:#ddb36a"></span><b id="tOut">0</b> out</span>
+          <span class="t">opening <b id="tBal">—</b></span>
+          <span class="warn" id="tWarn"></span>
+        </div>
+        <button class="cta" id="cta" disabled>
+          Open the treasury
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h10M9 4l4 4-4 4"/></svg>
+        </button>
+      </div>
+    </div><!-- /officer-only -->
+
+    <!-- ═══ MEMBER — the wall ═════════════════════════════════════════════ -->
+    <div class="locked">
+      <div class="lockwrap">
+        <div class="lock-rings" aria-hidden="true">
+          <div class="lock-ring"></div>
+          <div class="lock-badge">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="4" y="10.5" width="16" height="10" rx="2.2"/><path d="M8 10.5V7a4 4 0 0 1 8 0v3.5"/>
+            </svg>
+          </div>
+          <div class="lock-ring"></div>
+        </div>
+
+        <h2 class="lock-h">The treasury isn't <em>open</em> yet.</h2>
+        <p class="lock-p">
+          Kappa Sigma hasn't set up which income and expenses it tracks, so there's nothing here to show —
+          not an empty ledger, not a zero balance. Your treasurer does that once, and the treasury opens
+          for everyone.
+        </p>
+
+        <div class="lock-who">
+          <div class="av">MR</div>
+          <div>
+            <div class="who-n">Marcus Reyes</div>
+            <div class="who-r">Treasurer</div>
+          </div>
+          <button class="nudge">Send a nudge</button>
+        </div>
+
+        <p class="lock-fine">You'll get a notification the moment it's open.</p>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+(() => {
+  "use strict";
+
+  /* ── Palette ────────────────────────────────────────────────────────────
+     DONUT_COLORS (app/components/treasury/chart-colors.ts) plus the dark hexes
+     of EVENT_TYPE_PALETTE (lib/event-types.ts), so the rings, the picker and
+     the timeline all speak one palette.
+
+     The two sides draw from DIFFERENT ENDS of it on purpose: money-in runs cool
+     (sage → blue → teal), money-out runs warm (gold → rose → clay). A single
+     sequential ramp handed the expense book the darker twin of every income
+     colour, so the rings read as mirrored copies and "Dues" and "Formal" both
+     showed a violet dot. Each family also INTERLEAVES hue rather than running
+     down a ramp, so the first few arcs are told apart at a glance. The full set
+     is still offered in the swatch strip — this only decides what a NEW stream
+     pre-selects. */
+  const FAMILY = {
+    in:  ["#7fb08a", "#8fb0d6", "#5fbdb0", "#a78bfa", "#5f8a6a", "#7fb3d9", "#86b988", "#c98bd9"],
+    // Violet sits LAST on the expense side: the income ring reaches for it at 4
+    // streams (cool hues run out after sage/blue/teal), so letting the expense
+    // ring use it at 6 put a violet arc in both and blurred the warm/cool split.
+    out: ["#ddb36a", "#d98ba3", "#e0796b", "#c9a24a", "#b86b85", "#c98bd9", "#7c3aed", "#a78bfa"],
+  };
+  const PALETTE = [
+    "#7fb08a", "#5fbdb0", "#86b988", "#8fb0d6", "#7fb3d9", "#5f8a6a", "#a78bfa",
+    "#c98bd9", "#7c3aed", "#d98ba3", "#b86b85", "#e0796b", "#ddb36a", "#c9a24a",
+  ];
+
+  /* ── Starter packs ──────────────────────────────────────────────────────
+     Mirrors how OrgTypeTemplate.eventTypeSeeds pre-fills the /create Timeline
+     step: loaded, not imposed. `true` marks the pinned Dues row. */
+  const PACKS = {
+    fraternity: {
+      label: "Fraternity", sub: "Dues, formal, house, rush",
+      in:  [["Dues", true], ["Door"], ["Alumni giving"], ["Fundraiser"]],
+      out: [["Formal"], ["House"], ["Brotherhood"], ["Rush"], ["Philanthropy"], ["Operations"]],
+    },
+    sorority: {
+      label: "Sorority", sub: "Dues, recruitment, sisterhood",
+      in:  [["Dues", true], ["Fundraiser"], ["Alumni giving"], ["Parents' club"]],
+      out: [["Formal"], ["Recruitment"], ["Sisterhood"], ["Philanthropy"], ["Chapter room"], ["Operations"]],
+    },
+    club: {
+      label: "Club", sub: "Member dues, tickets, sponsors",
+      in:  [["Dues", true], ["Ticket sales"], ["Sponsorships"], ["Grants"]],
+      out: [["Events"], ["Equipment"], ["Travel"], ["Marketing"], ["Operations"]],
+    },
+    team: {
+      label: "Sports team", sub: "Player dues, league fees, gear",
+      in:  [["Dues", true], ["Sponsorships"], ["Fundraiser"], ["Concessions"]],
+      out: [["League fees"], ["Equipment"], ["Travel"], ["Uniforms"], ["Officials"], ["Facility rental"]],
+    },
+    empty: {
+      label: "Start empty", sub: "Just Dues — name the rest yourself",
+      in:  [["Dues", true]],
+      out: [],
+    },
+  };
+
+  const SUGGESTIONS = {
+    in:  ["Merch sales", "Raffle", "Parents' weekend", "National rebate", "Fines", "Interest", "Alumni giving", "Door"],
+    out: ["Merch", "Nationals dues", "Insurance", "Socials", "Food", "Composite", "Awards", "Cleaning"],
+  };
+
+  /* ── State — the whole model this screen writes ─────────────────────── */
+  let uid = 0;
+  const state = { pack: "fraternity", in: [], out: [], balance: null };
+
+  const $  = (s, r = document) => r.querySelector(s);
+  const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
+
+  const bookEl = { in: $('.book[data-side="in"]'), out: $('.book[data-side="out"]') };
+  const ringEl = { in: $("[data-ring]", bookEl.in), out: $("[data-ring]", bookEl.out) };
+
+  /** First unused colour from this side's family, then anything unused
+      anywhere, then cycle. Mirrors nextPaletteColor() in lib/event-types.ts but
+      checks BOTH books, so a new expense never lands an existing income's dot. */
+  function nextColor(side) {
+    const used = new Set([...state.in, ...state.out].map(s => s.color));
+    return FAMILY[side].find(c => !used.has(c))
+        ?? PALETTE.find(c => !used.has(c))
+        ?? FAMILY[side][state[side].length % FAMILY[side].length];
+  }
+
+  function loadPack(key) {
+    state.pack = key;
+    uid = 0;
+    const p = PACKS[key];
+    const mk = side => ([name, pinned], i) =>
+      ({ id: ++uid, name, color: FAMILY[side][i % FAMILY[side].length], pinned: !!pinned });
+    state.in  = p.in.map(mk("in"));
+    state.out = p.out.map(mk("out"));
+    renderAll();
+  }
+
+  /* ── Rings ──────────────────────────────────────────────────────────────
+     Segments are reconciled by id (never innerHTML-wiped) so the CSS
+     transitions on dasharray/dashoffset actually run when the list changes. */
+  const R = 38, C = 2 * Math.PI * R;
+
+  function renderRing(side) {
+    const g = $(".arcs", ringEl[side]);
+    const list = state[side];
+    const n = list.length;
+
+    let ghost = $(".empty-track", ringEl[side]);
+    if (n === 0 && !ghost) {
+      ghost = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+      ghost.setAttribute("class", "empty-track");
+      ghost.setAttribute("cx", "50"); ghost.setAttribute("cy", "50"); ghost.setAttribute("r", String(R));
+      g.appendChild(ghost);
+    } else if (n > 0 && ghost) {
+      ghost.remove();
+    }
+
+    const slice = n ? C / n : 0;
+    // Gap shrinks as slices multiply, so 10 streams still read as 10 arcs.
+    const gap = n ? Math.min(3.6, slice * 0.16) : 0;
+    const arc = Math.max(slice - gap, 1.2);
+
+    const seen = new Set();
+    list.forEach((s, i) => {
+      seen.add(String(s.id));
+      let c = g.querySelector(`circle[data-id="${s.id}"]`);
+      let fresh = false;
+      if (!c) {
+        c = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+        c.setAttribute("class", "seg-arc");
+        c.setAttribute("cx", "50"); c.setAttribute("cy", "50"); c.setAttribute("r", String(R));
+        c.setAttribute("stroke-width", "8");
+        c.dataset.id = String(s.id);
+        c.style.opacity = "0";
+        g.appendChild(c);
+        fresh = true;
+      }
+      c.setAttribute("stroke", s.color);
+      c.setAttribute("stroke-dasharray", `${arc} ${C - arc}`);
+      c.setAttribute("stroke-dashoffset", String(-i * slice));
+      if (fresh) requestAnimationFrame(() => { c.style.opacity = ""; });
+
+      c.onmouseenter = () => hover(side, s.id, true);
+      c.onmouseleave = () => hover(side, s.id, false);
+    });
+
+    $$("circle.seg-arc", g).forEach(c => { if (!seen.has(c.dataset.id)) c.remove(); });
+
+    $("[data-count]", ringEl[side]).textContent = String(n);
+    $("[data-sub]", ringEl[side]).textContent = n === 1 ? "stream" : "streams";
+  }
+
+  /* A row and its arc are the same object: lighting one lights the other, and
+     the ring's centre says which. This is the whole teaching device. */
+  function hover(side, id, on) {
+    const ring = ringEl[side];
+    if (on) {
+      const s = state[side].find(x => x.id === id);
+      if (!s) return;
+      const nameEl = $("[data-name]", ring);
+      nameEl.textContent = s.name || "Untitled";
+      nameEl.style.color = s.color;
+      ring.dataset.hovering = "1";
+    } else {
+      delete ring.dataset.hovering;
+    }
+    const arc = ring.querySelector(`circle[data-id="${id}"]`);
+    if (arc) arc.classList.toggle("lit", on);
+    const row = bookEl[side].querySelector(`.row[data-id="${id}"]`);
+    if (row) row.classList.toggle("lit", on);
+  }
+
+  /* ── Rows ───────────────────────────────────────────────────────────── */
+  const ICON_LOCK = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10.5" width="16" height="10" rx="2.2"/><path d="M8 10.5V7a4 4 0 0 1 8 0v3.5"/></svg>`;
+  const ICON_X    = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M4 4l8 8M12 4l-8 8"/></svg>`;
+
+  function renderRows(side) {
+    const host = $("[data-rows]", bookEl[side]);
+    host.innerHTML = "";
+
+    state[side].forEach(s => {
+      const wrap = document.createElement("div");
+
+      const row = document.createElement("div");
+      row.className = "row";
+      row.dataset.id = String(s.id);
+
+      const dot = document.createElement("button");
+      dot.className = "dot";
+      dot.style.background = s.color;
+      dot.setAttribute("aria-label", `Colour for ${s.name}`);
+
+      const nm = document.createElement("input");
+      nm.className = "nm";
+      nm.value = s.name;
+      nm.setAttribute("aria-label", "Stream name");
+      nm.addEventListener("input", () => { s.name = nm.value; });
+      nm.addEventListener("blur", () => {
+        s.name = nm.value.trim();
+        if (!s.name) { s.name = "Untitled"; nm.value = s.name; }
+        renderRing(side);
+      });
+      nm.addEventListener("keydown", e => { if (e.key === "Enter") nm.blur(); });
+
+      row.append(dot, nm);
+
+      if (s.pinned) {
+        const lk = document.createElement("span");
+        lk.className = "lock";
+        lk.innerHTML = ICON_LOCK;
+        lk.title = "Member dues post here — rename it freely, but it can't be removed.";
+        row.append(lk);
+      } else {
+        const kill = document.createElement("button");
+        kill.className = "kill";
+        kill.innerHTML = ICON_X;
+        kill.setAttribute("aria-label", `Remove ${s.name}`);
+        kill.addEventListener("click", () => removeStream(side, s.id));
+        row.append(kill);
+      }
+
+      row.addEventListener("mouseenter", () => hover(side, s.id, true));
+      row.addEventListener("mouseleave", () => hover(side, s.id, false));
+
+      // Colour strip, unfurled by the dot.
+      const sw = document.createElement("div");
+      sw.className = "swatches";
+      const inner = document.createElement("div");
+      const strip = document.createElement("div");
+      strip.className = "swatch-inner";
+      PALETTE.forEach(c => {
+        const b = document.createElement("button");
+        b.className = "swatch";
+        b.style.background = c;
+        b.style.color = c;
+        b.setAttribute("aria-label", c);
+        if (c === s.color) b.setAttribute("aria-current", "true");
+        b.addEventListener("click", () => {
+          s.color = c;
+          dot.style.background = c;
+          $$(".swatch", strip).forEach(x => x.removeAttribute("aria-current"));
+          b.setAttribute("aria-current", "true");
+          renderRing(side);
+        });
+        strip.appendChild(b);
+      });
+      inner.appendChild(strip);
+      sw.appendChild(inner);
+
+      dot.addEventListener("click", () => {
+        const open = sw.classList.toggle("open");
+        dot.classList.toggle("picking", open);
+      });
+
+      wrap.append(row, sw);
+      host.appendChild(wrap);
+    });
+
+    $("[data-empty]", bookEl[side]).hidden = state[side].length > 0;
+  }
+
+  function renderSugg(side) {
+    const host = $("[data-sugg]", bookEl[side]);
+    host.innerHTML = `<span class="sl">Others add</span>`;
+    const taken = new Set(state[side].map(s => s.name.toLowerCase()));
+    const offer = SUGGESTIONS[side].filter(n => !taken.has(n.toLowerCase())).slice(0, 4);
+    offer.forEach(n => {
+      const b = document.createElement("button");
+      b.className = "chip";
+      b.textContent = n;
+      b.addEventListener("click", () => addStream(side, n));
+      host.appendChild(b);
+    });
+    host.style.display = offer.length ? "" : "none";
+  }
+
+  function addStream(side, name) {
+    const clean = String(name || "").trim().slice(0, 40);
+    if (!clean) return;
+    if (state[side].some(s => s.name.toLowerCase() === clean.toLowerCase())) return;
+    state[side].push({ id: ++uid, name: clean, color: nextColor(side), pinned: false });
+    renderRows(side); renderRing(side); renderSugg(side); renderCommit();
+    const row = $(`[data-rows] .row[data-id="${uid}"]`, bookEl[side]);
+    if (row) row.classList.add("entering");
+  }
+
+  function removeStream(side, id) {
+    const row = bookEl[side].querySelector(`.row[data-id="${id}"]`);
+    if (row) row.classList.add("leaving");
+    state[side] = state[side].filter(s => s.id !== id);
+    renderRing(side);                 // ring re-flows immediately …
+    renderCommit();
+    setTimeout(() => {                // … the row waits out its fade.
+      renderRows(side); renderSugg(side);
+    }, 190);
+  }
+
+  /* ── Opening balance ────────────────────────────────────────────────── */
+  const balInput = $("#balInput"), balZero = $("#balZero");
+  const fmt = n => n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  /** Grow the field to fit the figure. Commas and the decimal point are
+      narrower than a digit in Geist Mono's tabular set, so they're discounted
+      rather than counted as full characters. */
+  function sizeBal() {
+    const v = balInput.value || balInput.placeholder;
+    const ch = [...v].reduce((n, c) => n + (c === "," || c === "." ? 0.55 : 1), 0);
+    balInput.style.width = `${Math.max(5, ch + 0.4)}ch`;
+  }
+
+  balInput.addEventListener("input", () => {
+    const raw = balInput.value.replace(/[^0-9.]/g, "");
+    state.balance = raw === "" ? null : (Number.isFinite(parseFloat(raw)) ? parseFloat(raw) : null);
+    balInput.classList.toggle("unset", state.balance === null);
+    sizeBal(); renderCommit();
+  });
+  balInput.addEventListener("blur", () => {
+    if (state.balance !== null) balInput.value = fmt(state.balance);
+    sizeBal();
+  });
+  balInput.addEventListener("focus", () => {
+    if (state.balance !== null) balInput.value = String(state.balance);
+    sizeBal();
+  });
+  balZero.addEventListener("click", () => {
+    state.balance = 0;
+    balInput.value = fmt(0);
+    balInput.classList.remove("unset");
+    sizeBal(); renderCommit();
+  });
+
+  /* ── Finish row ─────────────────────────────────────────────────────── */
+  function renderCommit() {
+    const nIn = state.in.length, nOut = state.out.length;
+    $("#tIn").textContent = String(nIn);
+    $("#tOut").textContent = String(nOut);
+    $("#tBal").textContent = state.balance === null ? "—" : `$${fmt(state.balance)}`;
+
+    // One blocker at a time, in the order someone would hit them.
+    let warn = "";
+    if (!nIn)                        warn = "Add at least one way money comes in.";
+    else if (!nOut)                  warn = "Add at least one thing the chapter spends on.";
+    else if (state.balance === null) warn = "Set what's in the account today.";
+
+    const w = $("#tWarn");
+    w.textContent = warn;
+    w.hidden = !warn;
+    balZero.hidden = state.balance !== null;
+    $("#cta").disabled = !!warn;
+  }
+
+  $("#cta").addEventListener("click", () => {
+    const btn = $("#cta");
+    btn.textContent = "Opening…";
+    setTimeout(() => {
+      btn.innerHTML = `Open the treasury <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h10M9 4l4 4-4 4"/></svg>`;
+    }, 1100);
+  });
+
+  /* ── Pack menu ──────────────────────────────────────────────────────── */
+  const packBtn = $("#packBtn"), packMenu = $("#packMenu");
+  Object.entries(PACKS).forEach(([key, p]) => {
+    if (key === "empty") {
+      const r = document.createElement("div"); r.className = "pm-rule"; packMenu.appendChild(r);
+    }
+    const b = document.createElement("button");
+    b.setAttribute("role", "menuitem");
+    b.dataset.pack = key;
+    b.innerHTML = `${p.label}<span class="pm-sub">${p.sub}</span>`;
+    b.addEventListener("click", () => { loadPack(key); closePack(); });
+    packMenu.appendChild(b);
+  });
+
+  function markPack() {
+    $$("button[data-pack]", packMenu).forEach(b =>
+      b.setAttribute("aria-current", String(b.dataset.pack === state.pack)));
+    $("#packCur").textContent = PACKS[state.pack].label;
+  }
+  function openPack()  { packMenu.classList.add("open");  packBtn.setAttribute("aria-expanded", "true"); }
+  function closePack() { packMenu.classList.remove("open"); packBtn.setAttribute("aria-expanded", "false"); }
+
+  packBtn.addEventListener("click", e => {
+    e.stopPropagation();
+    packMenu.classList.contains("open") ? closePack() : openPack();
+  });
+  document.addEventListener("click", closePack);
+  document.addEventListener("keydown", e => { if (e.key === "Escape") closePack(); });
+
+  /* ── Adders ─────────────────────────────────────────────────────────── */
+  ["in", "out"].forEach(side => {
+    const input = $("[data-add]", bookEl[side]);
+    input.addEventListener("keydown", e => {
+      if (e.key !== "Enter") return;
+      addStream(side, input.value);
+      input.value = "";
+    });
+  });
+
+  /* ── Role switch (mock only) ────────────────────────────────────────── */
+  function setRole(role) {
+    document.body.dataset.role = role;
+    $("#asOfficer").setAttribute("aria-pressed", String(role === "officer"));
+    $("#asMember").setAttribute("aria-pressed", String(role === "member"));
+    window.scrollTo(0, 0);
+  }
+  $("#asOfficer").addEventListener("click", () => setRole("officer"));
+  $("#asMember").addEventListener("click", () => setRole("member"));
+
+  /* ── Boot ───────────────────────────────────────────────────────────── */
+  function renderAll() {
+    ["in", "out"].forEach(side => { renderRows(side); renderRing(side); renderSugg(side); });
+    markPack();
+    renderCommit();
+  }
+  loadPack("fraternity");
+  sizeBal();
+
+  /* Screenshot / probe hooks. */
+  window.__mock = {
+    setRole,
+    setPack: k => { if (PACKS[k]) loadPack(k); },
+    add: addStream,
+    remove: removeStream,
+    rename: (side, id, name) => {
+      const s = state[side].find(x => x.id === id);
+      if (s) { s.name = name; renderRows(side); renderRing(side); renderSugg(side); }
+    },
+    setBalance: v => {
+      state.balance = v;
+      balInput.value = v === null ? "" : fmt(v);
+      balInput.classList.toggle("unset", v === null);
+      sizeBal(); renderCommit();
+    },
+    hover,
+    state: () => JSON.parse(JSON.stringify(state)),
+  };
+})();
+</script>
+</body>
+</html>

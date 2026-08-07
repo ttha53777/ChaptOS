@@ -1,0 +1,1167 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dashboard Empty States — three kinds of nothing</title>
+
+<!--
+  DASHBOARD EMPTY STATES.
+
+  The gap: a brand-new org's first frame is a dashboard of confident-looking
+  zeros. 0.0% attendance, $0 dues, 0.00 GPA, 0h service — four numbers that were
+  never measured, set in the same mono face at the same size as real data. The
+  health dial reads 0 labeled "Critical" in rose. "Nothing needs attention —
+  nice work." congratulates a founder who has done nothing yet, and the dues
+  drawer says "All members are paid up" to an org that never assigned dues.
+
+  Nothing here is a computation bug. Every widget is correct. The problem is
+  that the dashboard has ONE VOCABULARY FOR EMPTINESS and three different
+  situations to express:
+
+      UNSET      never configured, no records exist   -> invite
+      UNSTARTED  configured, period hasn't filled it  -> orient
+      ALL CLEAR  real data, genuinely nothing wrong   -> affirm
+
+  ALL CLEAR is the only one that has earned praise. Today all three render the
+  same, or as a zero.
+
+  "Positive" does not mean cheerful copy. It means the state carries momentum:
+  it names what is missing, why, and the single next move — and it never invents
+  a number.
+
+  Two findings shaped the scenes:
+
+  1. The roster's good empty state almost never fires. RosterTable.tsx:187
+     branches on brothers.length === 0, but the founder is pinned to the roster
+     at creation, so a new org has exactly 1. Day one renders a one-row table of
+     your own name with a search field and "All 1 / Good 1 / Watch 0" pills. The
+     "No one is on the roster yet" copy is effectively dead code. Scene 1 adds
+     the founder-only state that is what day one actually looks like.
+
+  2. Half of this lands on mature orgs too. Every measure's note is a negative
+     count — "0 below 80%", "0 of 0 on track". Restated as "All above 80%" /
+     "All 24 on track" it is the same fact, positive. Scene 3 is not a
+     first-run scene; it is every healthy chapter, every day.
+
+  Palette: the dusk tokens copied verbatim from dashboard-ledger.css:36-57, and
+  the component classes ported from the same file so the mock measures what the
+  app would actually render. Mock-only chrome (scene rail, annotations, gallery)
+  lives outside `.dash` and is prefixed `mk-`.
+
+  DATA-DRIVEN ON PURPOSE: every string lives once in SCENES below, and both the
+  scenes and the copy gallery render from it. The gallery cannot drift from what
+  the frames show.
+-->
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,400;1,9..144,500;1,9..144,600&family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+<style>
+/* ══════════════════════════════════════════════════════════════════════════
+   TOKENS — dusk, verbatim from dashboard-ledger.css:36-57
+   ══════════════════════════════════════════════════════════════════════════ */
+.dash {
+  --serif: "Fraunces", Georgia, serif;
+  --sans:  "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --mono:  "Geist Mono", ui-monospace, Menlo, monospace;
+  --dash-max-width:   1230px;
+  --dash-gutter:      clamp(18px, 3vw, 38px);
+  --dash-rail-width:  338px;
+  --dash-section-gap: 14px;
+  --dash-greeting:    clamp(26px, 4.4vw, 33px);
+}
+.dash[data-dashboard-theme="dusk"] {
+  --paper:    #0f0d0a;  --paper-2:  #14120e;
+  --card:     #161310;  --card-2:   #1b1813;
+  --ink:      #ece7dd;  --ink-soft: #c9c2b4;
+  --muted:    #958d7c;  --faint:    #6b6354;
+  --line:     rgba(236,231,221,.09);
+  --line-soft:rgba(236,231,221,.05);
+  --vio:      #a78bfa;  --vio-deep: #7c3aed;  --vio-bg: rgba(167,139,250,.10);
+  --gold:     #ddb36a;  --gold-bg:  rgba(221,179,106,.10);
+  --rose:     #d98ba3;  --rose-bg:  rgba(217,139,163,.10);
+  --ok:       #7fb08a;  --ok-bg:    rgba(127,176,138,.10);
+  --shadow:   0 1px 0 rgba(0,0,0,.4), 0 16px 40px -24px rgba(0,0,0,.7);
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body {
+  background: #0b0907; color: #ece7dd;
+  font-family: "Geist", -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   MOCK CHROME (mk-) — everything outside the dashboard pane
+   ══════════════════════════════════════════════════════════════════════════ */
+.mk-wrap { max-width: 1560px; margin: 0 auto; padding: 0 clamp(16px, 4vw, 64px) 120px; }
+/* Reserve the rail's gutter rather than letting a fixed element sit on top of
+   the frame — the mock must never obscure the thing it is showing. */
+@media (min-width: 1101px) { .mk-wrap { padding-right: 172px; } }
+
+.mk-mast { padding: 84px 0 20px; border-bottom: 1px solid rgba(236,231,221,.09); }
+.mk-mast .eyebrow { font-family: "Geist Mono", monospace; font-size: 10px; letter-spacing: .22em;
+  text-transform: uppercase; color: #a78bfa; }
+.mk-mast h1 { font-family: "Fraunces", serif; font-weight: 400; font-size: clamp(34px, 5.4vw, 54px);
+  letter-spacing: -.02em; margin-top: 14px; line-height: 1.06; }
+.mk-mast h1 em { font-style: italic; color: #a78bfa; }
+.mk-mast .lede { max-width: 640px; margin-top: 18px; font-size: 15px; line-height: 1.62; color: #c9c2b4; }
+.mk-mast .lede b { color: #ece7dd; font-weight: 550; }
+
+/* the three kinds — the thesis, stated once */
+.mk-kinds { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px;
+  margin-top: 40px; }
+.mk-kind { border: 1px solid rgba(236,231,221,.09); border-radius: 12px; background: #161310;
+  padding: 18px 20px 20px; position: relative; overflow: hidden; }
+.mk-kind::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 2px; background: var(--accent); }
+.mk-kind .n { font-family: "Geist Mono", monospace; font-size: 9px; letter-spacing: .18em;
+  text-transform: uppercase; color: var(--accent); }
+.mk-kind h3 { font-family: "Fraunces", serif; font-weight: 500; font-size: 19px; margin-top: 9px; }
+.mk-kind p { font-size: 12.5px; line-height: 1.55; color: #958d7c; margin-top: 7px; }
+.mk-kind .ex { margin-top: 12px; padding-top: 11px; border-top: 1px solid rgba(236,231,221,.05);
+  font-family: "Fraunces", serif; font-style: italic; font-size: 13px; color: #c9c2b4; }
+
+/* rules list */
+.mk-rules { margin-top: 44px; display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 0 34px; }
+.mk-rule { display: flex; gap: 13px; padding: 13px 0; border-bottom: 1px solid rgba(236,231,221,.05); }
+.mk-rule .num { font-family: "Geist Mono", monospace; font-size: 10px; color: #6b6354; flex: none;
+  width: 18px; padding-top: 2px; }
+.mk-rule b { display: block; font-size: 13.5px; font-weight: 550; color: #ece7dd; }
+.mk-rule span { display: block; font-size: 12px; line-height: 1.5; color: #958d7c; margin-top: 3px; }
+
+/* scene header */
+.mk-scene { padding-top: 96px; scroll-margin-top: 20px; }
+.mk-scene-h { display: flex; align-items: flex-end; justify-content: space-between; gap: 28px;
+  flex-wrap: wrap; padding-bottom: 22px; }
+.mk-scene-h .l { min-width: 0; }
+.mk-scene-h .idx { font-family: "Geist Mono", monospace; font-size: 10px; letter-spacing: .2em;
+  text-transform: uppercase; color: #6b6354; }
+.mk-scene-h h2 { font-family: "Fraunces", serif; font-weight: 400; font-size: clamp(26px, 3.6vw, 38px);
+  letter-spacing: -.015em; margin-top: 10px; }
+.mk-scene-h h2 em { font-style: italic; color: #a78bfa; }
+.mk-scene-h .desc { max-width: 620px; margin-top: 12px; font-size: 13.5px; line-height: 1.6; color: #958d7c; }
+.mk-scene-h .desc b { color: #c9c2b4; font-weight: 550; }
+.mk-badge { flex: none; font-family: "Geist Mono", monospace; font-size: 9.5px; font-weight: 600;
+  letter-spacing: .16em; text-transform: uppercase; border-radius: 6px; padding: 6px 11px;
+  border: 1px solid; }
+.mk-badge.bad   { color: #d98ba3; border-color: rgba(217,139,163,.28); background: rgba(217,139,163,.10); }
+.mk-badge.unset { color: #a78bfa; border-color: rgba(167,139,250,.28); background: rgba(167,139,250,.10); }
+.mk-badge.unstr { color: #ddb36a; border-color: rgba(221,179,106,.28); background: rgba(221,179,106,.10); }
+.mk-badge.clear { color: #7fb08a; border-color: rgba(127,176,138,.28); background: rgba(127,176,138,.10); }
+
+/* the framed dashboard viewport */
+.mk-frame { border: 1px solid rgba(236,231,221,.11); border-radius: 16px; overflow: hidden;
+  background: #0f0d0a; box-shadow: 0 40px 90px -50px rgba(0,0,0,.9); }
+.mk-frame .bar { display: flex; align-items: center; gap: 8px; padding: 11px 16px;
+  border-bottom: 1px solid rgba(236,231,221,.07); background: #14120e; }
+.mk-frame .bar i { width: 9px; height: 9px; border-radius: 50%; background: rgba(236,231,221,.13); }
+.mk-frame .bar .url { margin-left: 10px; font-family: "Geist Mono", monospace; font-size: 10px;
+  letter-spacing: .05em; color: #6b6354; }
+
+/* annotation callouts under a frame */
+.mk-notes { margin-top: 16px; display: grid; grid-template-columns: repeat(auto-fit, minmax(258px, 1fr)); gap: 12px; }
+.mk-note { border: 1px solid rgba(236,231,221,.07); border-left: 2px solid var(--accent);
+  border-radius: 0 9px 9px 0; background: #131110; padding: 12px 15px; }
+.mk-note .k { font-family: "Geist Mono", monospace; font-size: 8.5px; letter-spacing: .16em;
+  text-transform: uppercase; color: var(--accent); }
+.mk-note p { font-size: 12.5px; line-height: 1.55; color: #958d7c; margin-top: 6px; }
+.mk-note p b { color: #c9c2b4; font-weight: 550; }
+.mk-note code { font-family: "Geist Mono", monospace; font-size: 11px; color: #c9c2b4;
+  background: rgba(236,231,221,.05); border-radius: 3px; padding: 1px 4px; }
+
+/* copy gallery */
+.mk-gallery { margin-top: 30px; border: 1px solid rgba(236,231,221,.09); border-radius: 14px;
+  overflow: hidden; background: #161310; }
+.mk-gallery .gh { display: flex; align-items: baseline; justify-content: space-between; gap: 16px;
+  flex-wrap: wrap; padding: 17px 20px; border-bottom: 1px solid rgba(236,231,221,.06); background: #1b1813; }
+.mk-gallery .gh h3 { font-family: "Fraunces", serif; font-weight: 500; font-size: 18px; }
+.mk-gallery .gh span { font-family: "Geist Mono", monospace; font-size: 9.5px; letter-spacing: .14em;
+  text-transform: uppercase; color: #6b6354; }
+.mk-scroll { overflow-x: auto; }
+.mk-gallery table { width: 100%; border-collapse: collapse; min-width: 880px; }
+.mk-gallery th { font-family: "Geist Mono", monospace; font-size: 8.5px; font-weight: 500;
+  letter-spacing: .16em; text-transform: uppercase; color: #6b6354; text-align: left;
+  padding: 11px 14px; border-bottom: 1px solid rgba(236,231,221,.06); white-space: nowrap; }
+.mk-gallery td { padding: 11px 14px; border-bottom: 1px solid rgba(236,231,221,.045);
+  font-size: 12.5px; color: #c9c2b4; vertical-align: top; }
+.mk-gallery tr:last-child td { border-bottom: none; }
+.mk-gallery td.w { font-weight: 550; color: #ece7dd; white-space: nowrap; }
+.mk-gallery td.kind { white-space: nowrap; }
+.mk-gallery .kpill { font-family: "Geist Mono", monospace; font-size: 8px; font-weight: 600;
+  letter-spacing: .14em; text-transform: uppercase; border-radius: 4px; padding: 3px 6px; }
+.mk-gallery .kpill.unset { color: #a78bfa; background: rgba(167,139,250,.11); }
+.mk-gallery .kpill.unstr { color: #ddb36a; background: rgba(221,179,106,.11); }
+.mk-gallery .kpill.clear { color: #7fb08a; background: rgba(127,176,138,.11); }
+.mk-gallery td.gate { font-family: "Geist Mono", monospace; font-size: 10px; color: #6b6354; white-space: nowrap; }
+.mk-gallery td .act { color: #a78bfa; }
+.mk-gallery td .was { display: block; margin-top: 4px; font-size: 11px; color: #6b6354;
+  text-decoration: line-through; text-decoration-color: rgba(217,139,163,.5); }
+
+/* scene rail */
+.mk-rail { position: fixed; right: 18px; top: 50%; transform: translateY(-50%); z-index: 90;
+  display: flex; flex-direction: column; gap: 3px; padding: 7px;
+  border: 1px solid rgba(236,231,221,.09); border-radius: 12px;
+  background: rgba(15,13,10,.86); backdrop-filter: blur(12px); }
+.mk-rail a { display: flex; align-items: center; gap: 9px; padding: 7px 11px 7px 9px; border-radius: 8px;
+  text-decoration: none; color: #6b6354; transition: background .15s, color .15s; }
+.mk-rail a:hover { background: rgba(236,231,221,.05); color: #c9c2b4; }
+.mk-rail a.on { background: rgba(167,139,250,.11); color: #ece7dd; }
+.mk-rail .n { font-family: "Geist Mono", monospace; font-size: 9px; letter-spacing: .1em; opacity: .75; }
+.mk-rail .lbl { font-size: 11.5px; font-weight: 500; white-space: nowrap; }
+@media (max-width: 1100px) { .mk-rail { display: none; } }
+
+.mk-foot { margin-top: 96px; padding-top: 26px; border-top: 1px solid rgba(236,231,221,.06);
+  text-align: center; font-family: "Geist Mono", monospace; font-size: 9.5px;
+  letter-spacing: .16em; text-transform: uppercase; color: #6b6354; }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   THE DASHBOARD PANE — ported from dashboard-ledger.css, `.dash`-scoped.
+   Only the marked ADDITIONS are new; everything else reproduces the shipped
+   file so the mock measures what the app would actually render.
+   ══════════════════════════════════════════════════════════════════════════ */
+.dash {
+  background: var(--paper); color: var(--ink); font-family: var(--sans);
+  font-size: 13.5px; line-height: 1.45;
+  max-width: var(--dash-max-width); margin: 0 auto;
+  padding: 30px var(--dash-gutter) 34px;
+}
+
+/* briefing */
+.dash .briefing { display: flex; justify-content: space-between; gap: 36px; align-items: flex-start; }
+.dash .kicker { font-family: var(--mono); font-size: 10.5px; letter-spacing: .18em; text-transform: uppercase; color: var(--muted); }
+.dash .kicker .today { color: var(--vio); }
+.dash h1.greeting { font-family: var(--serif); font-weight: 400; font-size: var(--dash-greeting);
+  letter-spacing: -.01em; margin-top: 8px; color: var(--ink); }
+.dash h1.greeting em { font-style: italic; color: var(--vio); }
+.dash .digest { margin-top: 12px; display: flex; gap: 9px; align-items: baseline; max-width: 560px; }
+.dash .ai-chip { flex-shrink: 0; font-family: var(--mono); font-size: 8.5px; font-weight: 600; letter-spacing: .14em;
+  color: var(--vio); border: 1px solid var(--vio-bg); background: var(--vio-bg); border-radius: 4px;
+  padding: 2px 5px; transform: translateY(-1px); }
+.dash .digest p { font-size: 13.5px; color: var(--ink-soft); font-style: italic; font-family: var(--serif); font-weight: 350; }
+.dash .digest .digest-quiet { color: var(--faint); }
+
+.dash .brief-actions { margin-top: 16px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.dash .ba-chip { display: inline-flex; align-items: center; gap: 7px;
+  font-family: var(--mono); font-size: 10.5px; letter-spacing: .07em; text-transform: uppercase;
+  color: var(--ink-soft); background: var(--card); border: 1px solid var(--line); border-radius: 8px;
+  padding: 7px 12px; cursor: pointer; transition: border-color .14s, color .14s, background .14s; }
+.dash .ba-chip:hover { color: var(--ink); border-color: var(--vio); background: var(--card-2); }
+.dash .ba-chip.primary { color: var(--vio); border-color: var(--vio-bg); background: var(--vio-bg); }
+.dash .ba-chip.primary:hover { color: #fff; background: var(--vio-deep); border-color: var(--vio-deep); }
+
+/* health dial */
+.dash .health { display: flex; gap: 18px; align-items: center; flex-shrink: 0; cursor: pointer; }
+.dash .dial { position: relative; width: 92px; height: 92px; }
+.dash .dial svg { transform: rotate(-90deg); }
+.dash .dial .num { position: absolute; inset: 0; display: grid; place-items: center; }
+.dash .dial .num span { font-family: var(--serif); font-size: 27px; font-weight: 500; color: var(--ink); }
+.dash .health .meta .label { font-family: var(--mono); font-size: 9.5px; letter-spacing: .16em; text-transform: uppercase; color: var(--muted); }
+.dash .health .meta .state { font-family: var(--serif); font-style: italic; font-size: 15px; color: var(--gold); margin: 2px 0 8px; }
+.dash .bk { display: grid; grid-template-columns: 30px 50px 22px; gap: 3px 8px; align-items: center; }
+.dash .bk .k { font-family: var(--mono); font-size: 8.5px; letter-spacing: .1em; color: var(--faint); }
+.dash .bk .bar { height: 3px; border-radius: 2px; background: var(--line); overflow: hidden; }
+.dash .bk .bar i { display: block; height: 100%; border-radius: 2px; background: var(--vio); opacity: .85; }
+.dash .bk .v { font-family: var(--mono); font-size: 9px; color: var(--muted); text-align: right; }
+
+/* announcement */
+.dash .pinned { margin-top: 24px; display: flex; align-items: baseline; gap: 12px;
+  border: 1px solid var(--line); border-radius: 10px; background: var(--card); box-shadow: var(--shadow);
+  padding: 14px 20px; }
+.dash .pin-tag { font-family: var(--mono); font-size: 10px; font-weight: 600; letter-spacing: .16em; color: var(--gold); flex: none; }
+.dash .pinned p { font-size: 14px; color: var(--ink-soft); flex: 1; }
+.dash .pinned .pin-title { color: var(--ink); font-weight: 600; }
+.dash .pinned .pin-text { color: var(--muted); }
+.dash .pinned .pin-title + .pin-text::before { content: "·"; margin: 0 9px; color: var(--faint); }
+.dash .pinned .pin-edit { font-family: var(--mono); font-size: 10px; letter-spacing: .1em; color: var(--faint);
+  text-transform: uppercase; background: none; border: 0; cursor: pointer; flex: none; }
+.dash .pinned .pin-edit:hover { color: var(--vio); }
+/* ADDITION — placeholder announcement drops the gold PINNED chip for a quiet
+   mono label. A never-used bar must not wear the furniture of a real one. */
+.dash .pinned.pin-empty { background: transparent; box-shadow: none; border-style: dashed; }
+.dash .pinned .pin-tag.quiet { color: var(--faint); font-weight: 500; letter-spacing: .16em; }
+
+/* ledger strip */
+.dash .ledger { margin-top: 14px; display: grid; grid-auto-flow: column; grid-auto-columns: 1fr;
+  border: 1px solid var(--line); border-radius: 12px; background: var(--card); box-shadow: var(--shadow); overflow: hidden; }
+.dash .measure { padding: 16px 18px 14px; border-right: 1px solid var(--line-soft); position: relative;
+  cursor: pointer; text-align: left; min-width: 0; }
+.dash .measure:last-child { border-right: none; }
+.dash .measure:hover { background: var(--card-2); }
+.dash .measure .k { font-family: var(--mono); font-size: 9px; letter-spacing: .16em; text-transform: uppercase; color: var(--muted); }
+.dash .measure .v { font-family: var(--mono); font-size: 23px; font-weight: 500; letter-spacing: -.02em;
+  color: var(--ink); margin-top: 7px; font-variant-numeric: tabular-nums; }
+.dash .measure .v small { font-size: 13px; color: var(--muted); font-weight: 400; }
+.dash .measure .note { font-size: 11px; color: var(--faint); margin-top: 3px; }
+.dash .measure .note.warn { color: var(--gold); }
+/* ADDITION — the unset value. Same size, same baseline, so the strip does not
+   jump when a real number lands; --faint so it reads as an absence rather than
+   a reading. RULE 1: never print a number you did not measure. */
+.dash .measure .v.unset { color: var(--faint); }
+/* ADDITION — the note becomes a reason, and may carry one inline action.
+   Wraps freely: an action word must never widen a 1fr track. */
+.dash .measure .note { overflow-wrap: anywhere; }
+.dash .measure .note-act { color: var(--vio); cursor: pointer; white-space: nowrap; }
+.dash .measure .note-act:hover { text-decoration: underline; }
+/* ADDITION — the affirming note. Same weight as any other, tinted so "all
+   clear" is legible at a glance without shouting. RULE 3. */
+.dash .measure .note.ok { color: var(--ok); }
+
+/* grid */
+.dash .grid { margin-top: 14px; display: grid; grid-template-columns: 1fr var(--dash-rail-width);
+  gap: var(--dash-section-gap); align-items: start; }
+.dash .col { display: flex; flex-direction: column; gap: var(--dash-section-gap); min-width: 0; }
+.dash .col > div { display: flex; flex-direction: column; gap: var(--dash-section-gap); min-width: 0; }
+
+.dash .card { border: 1px solid var(--line); border-radius: 12px; background: var(--card);
+  box-shadow: var(--shadow); overflow: hidden; }
+.dash .card-h { display: flex; align-items: baseline; justify-content: space-between;
+  padding: 15px 18px 12px; border-bottom: 1px solid var(--line-soft); gap: 12px; flex-wrap: wrap; row-gap: 10px; }
+.dash .card-h h2 { font-family: var(--serif); font-weight: 500; font-size: 16.5px; color: var(--ink); }
+.dash .card-h .sub { font-family: var(--mono); font-size: 9.5px; letter-spacing: .13em; text-transform: uppercase; color: var(--faint); }
+.dash .card-h .right { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; justify-content: flex-end; }
+.dash .count-chip { font-family: var(--mono); font-size: 10px; color: var(--rose); background: var(--rose-bg);
+  border-radius: 999px; padding: 2px 8px; margin-left: 8px; vertical-align: 2px; }
+
+/* attention queue */
+.dash .att-row { display: flex; align-items: center; gap: 13px; padding: 12px 18px; border-bottom: 1px solid var(--line-soft); }
+.dash .att-row:last-child { border-bottom: none; }
+.dash .att-row .tag { font-family: var(--mono); font-size: 8.5px; font-weight: 600; letter-spacing: .15em; width: 64px; flex: none; }
+.dash .att-row .body { flex: 1; min-width: 0; }
+.dash .att-row .body .t { font-size: 13px; font-weight: 550; color: var(--ink); }
+.dash .att-row .body .m { font-size: 11.5px; color: var(--faint); margin-top: 1px; font-variant-numeric: tabular-nums; }
+.dash .att-row .act { flex: none; font-family: var(--mono); font-size: 10px; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--muted); border: 1px solid var(--line); background: transparent; border-radius: 7px; padding: 5px 11px; cursor: pointer; }
+.dash .att-row .act:hover { color: var(--vio); border-color: var(--vio); }
+.dash .rose { color: var(--rose); } .dash .gold { color: var(--gold); } .dash .sage { color: var(--ok); }
+
+/* roster */
+.dash .filters { display: flex; gap: 5px; }
+.dash .filters button { font-family: var(--mono); font-size: 9.5px; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--muted); border: 1px solid transparent; background: transparent; border-radius: 6px; padding: 3px 9px; cursor: pointer; }
+.dash .filters button.on { color: var(--ink); background: var(--card-2); border-color: var(--line); }
+.dash .rt-search { position: relative; }
+.dash .rt-search input { font-family: var(--mono); font-size: 10.5px; color: var(--ink); background: var(--card-2);
+  border: 1px solid var(--line); border-radius: 7px; padding: 5px 10px; width: 132px; outline: none; }
+.dash .rt-search input::placeholder { color: var(--faint); }
+.dash .rt { container-type: inline-size; }
+.dash .rt table { width: 100%; border-collapse: collapse; }
+.dash .rt thead th { font-family: var(--mono); font-size: 8.5px; font-weight: 500; letter-spacing: .16em;
+  text-transform: uppercase; color: var(--faint); text-align: left; padding: 9px 12px;
+  border-bottom: 1px solid var(--line-soft); white-space: nowrap; }
+.dash .rt thead th:first-child { padding-left: 18px; }
+.dash .rt thead th:last-child, .dash .rt tbody td:last-child { padding-right: 18px; }
+.dash .rt th.num, .dash .rt td.num { text-align: right; }
+.dash .rt tbody td { padding: 10px 12px; border-bottom: 1px solid var(--line-soft); font-variant-numeric: tabular-nums; }
+.dash .rt tbody td:first-child { padding-left: 18px; }
+.dash .rt tbody tr:last-child td { border-bottom: none; }
+.dash .rt tbody tr { cursor: pointer; }
+.dash .rt tbody tr:hover { background: var(--card-2); }
+.dash .rt .b-name { display: flex; align-items: center; gap: 11px; }
+.dash .rt .b-name .avatar { width: 26px; height: 26px; border-radius: 50%; background: var(--vio-bg); color: var(--vio);
+  display: grid; place-items: center; font-family: var(--mono); font-size: 9px; font-weight: 600; flex: none; }
+.dash .rt .b-name .who { min-width: 0; }
+.dash .rt .b-name .who { display: block; }
+.dash .rt .b-name .nm { display: block; font-size: 13px; font-weight: 550; color: var(--ink); white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; }
+.dash .rt .b-name .rl { display: block; font-size: 10.5px; color: var(--faint); margin-top: 1px; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; }
+.dash .rt .attb { display: flex; align-items: center; gap: 10px; width: 132px; min-width: 132px; }
+.dash .rt .attb .track { flex: 1; height: 4px; border-radius: 2px; background: var(--line); overflow: hidden; }
+.dash .rt .attb .track i { display: block; height: 100%; border-radius: 2px; }
+.dash .rt .attb span { font-family: var(--mono); font-size: 11.5px; width: 34px; text-align: right; }
+.dash .rt td .mono { font-family: var(--mono); font-size: 12px; }
+.dash .rt .muted { color: var(--faint); }
+.dash .status-tag { font-family: var(--mono); font-size: 8.5px; font-weight: 600; letter-spacing: .13em;
+  border-radius: 5px; padding: 3px 7px; white-space: nowrap; }
+.dash .st-good { color: var(--ok); background: var(--ok-bg); }
+.dash .st-watch { color: var(--gold); background: var(--gold-bg); }
+.dash .st-risk { color: var(--rose); background: var(--rose-bg); }
+.dash .rt-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 10px 18px; border-top: 1px solid var(--line-soft); background: var(--card-2);
+  font-family: var(--mono); font-size: 10px; letter-spacing: .06em; color: var(--faint); }
+.dash .rt-foot button { font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--muted); background: transparent; border: 1px solid var(--line); border-radius: 6px;
+  padding: 4px 10px; cursor: pointer; white-space: nowrap; }
+.dash .rt-foot button:hover { color: var(--vio); border-color: var(--vio); }
+.dash .rt-empty { padding: 26px 18px 28px; text-align: center; }
+.dash .rt-empty .t { font-family: var(--serif); font-style: italic; font-size: 15px; color: var(--ink-soft); }
+.dash .rt-empty .h { font-size: 12px; color: var(--faint); margin-top: 5px; max-width: 380px;
+  margin-left: auto; margin-right: auto; line-height: 1.55; }
+/* ADDITION — the action slot the roster empty state never had. Day one is the
+   one moment the whole product depends on a single button being obvious. */
+.dash .rt-empty .a { margin-top: 15px; display: inline-flex; align-items: center; gap: 8px;
+  font-family: var(--mono); font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--vio); border: 1px solid var(--vio-bg); background: var(--vio-bg);
+  border-radius: 8px; padding: 8px 14px; cursor: pointer; transition: background .14s, color .14s; }
+.dash .rt-empty .a:hover { color: #fff; background: var(--vio-deep); border-color: var(--vio-deep); }
+
+/* rail cards */
+.dash .week-item { display: flex; gap: 13px; padding: 10px 18px; border-bottom: 1px solid var(--line-soft); align-items: baseline; }
+.dash .week-item:last-child { border-bottom: none; }
+.dash .day { font-family: var(--mono); font-size: 9px; letter-spacing: .1em; color: var(--faint);
+  width: 44px; flex: none; line-height: 1.3; }
+.dash .day b { display: block; font-size: 15px; font-weight: 500; color: var(--ink-soft); }
+.dash .week-item.today .day b, .dash .week-item.today .day { color: var(--vio); }
+.dash .week-item .what .t { font-size: 12.5px; font-weight: 550; color: var(--ink); }
+.dash .week-item .what .m { font-size: 11px; color: var(--faint); margin-top: 1px; }
+.dash .today-pill { font-family: var(--mono); font-size: 8px; font-weight: 600; letter-spacing: .14em;
+  color: var(--vio); background: var(--vio-bg); border-radius: 4px; padding: 2px 5px; margin-left: 6px; vertical-align: 1px; }
+.dash .ddl-pill { font-family: var(--mono); font-size: 8px; font-weight: 600; letter-spacing: .14em;
+  color: var(--gold); background: var(--gold-bg); border-radius: 4px; padding: 2px 5px; margin-left: 6px; vertical-align: 1px; }
+.dash .rail-empty { padding: 14px 18px; font-size: 12px; color: var(--faint); line-height: 1.55; }
+/* ADDITION — an empty rail card may name its one next move, and may point past
+   the empty window to the next thing beyond it. RULE 2 + RULE 4. */
+.dash .rail-empty .a { display: block; width: fit-content; margin-top: 9px; font-family: var(--mono); font-size: 10px;
+  letter-spacing: .08em; text-transform: uppercase; color: var(--vio); border: 1px solid var(--line);
+  background: transparent; border-radius: 7px; padding: 5px 11px; cursor: pointer; }
+.dash .rail-empty .a:hover { border-color: var(--vio); }
+.dash .rail-empty .next { display: block; margin-top: 7px; color: var(--muted); }
+.dash .rail-empty .next b { color: var(--ink-soft); font-weight: 550; }
+/* ADDITION — loading is not empty. TreasuryRail conflates them today. RULE 6. */
+.dash .rail-skel { padding: 16px 18px 18px; }
+.dash .rail-skel i { display: block; border-radius: 4px;
+  background: linear-gradient(90deg, var(--card-2), var(--card) 60%);
+  animation: mk-skel 1.4s ease-in-out infinite; }
+.dash .rail-skel i.big { height: 26px; width: 42%; }
+.dash .rail-skel i.sm  { height: 10px; width: 62%; margin-top: 9px; }
+@keyframes mk-skel { 0%, 100% { opacity: 1 } 50% { opacity: .45 } }
+
+.dash .treasury-body { padding: 14px 18px 16px; }
+.dash .treasury-num { display: flex; align-items: baseline; gap: 10px; }
+.dash .treasury-num .big { font-family: var(--mono); font-size: 26px; font-weight: 500; letter-spacing: -.02em; }
+.dash .treasury-num .delta { font-family: var(--mono); font-size: 11px; color: var(--ok); }
+.dash .treasury-note { font-size: 11.5px; color: var(--faint); margin-top: 2px; }
+.dash .tchart { margin-top: 12px; }
+.dash .tchart .months { display: flex; justify-content: space-between; margin-top: 4px;
+  font-family: var(--mono); font-size: 8.5px; letter-spacing: .1em; color: var(--faint); }
+
+.dash .act-row { display: flex; gap: 10px; padding: 8px 18px; align-items: baseline; border-bottom: 1px solid var(--line-soft); }
+.dash .act-row:last-child { border-bottom: none; }
+.dash .act-row .dot { width: 5px; height: 5px; border-radius: 50%; flex: none; transform: translateY(-1px); }
+.dash .act-row p { flex: 1; font-size: 12px; color: var(--ink-soft); }
+.dash .act-row time { font-family: var(--mono); font-size: 9.5px; color: var(--faint); flex: none; }
+
+.dash footer { margin-top: 28px; padding-top: 16px; border-top: 1px solid var(--line-soft); text-align: center;
+  font-family: var(--mono); font-size: 9.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--faint); }
+
+/* ── Responsive, mirroring dashboard-ledger.css's breakpoints ─────────────── */
+@media (max-width: 1279px) {
+  .dash .grid { grid-template-columns: 1fr; grid-template-areas: "needs" "priority" "roster" "rail"; }
+  .dash .grid > .col-main, .dash .grid > .col-rail { display: contents; }
+  .dash .grid > .col-main > .area-needs    { grid-area: needs; }
+  .dash .grid > .col-main > .area-roster   { grid-area: roster; }
+  .dash .grid > .col-rail > .area-priority { grid-area: priority; }
+  .dash .grid > .col-rail > .area-rail     { grid-area: rail; }
+  .dash .grid > .col-rail > .area-priority,
+  .dash .grid > .col-rail > .area-rail {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+    gap: var(--dash-section-gap); align-content: start; }
+  .dash .ledger { grid-auto-flow: row; grid-auto-columns: auto;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+  .dash .measure { border-bottom: 1px solid var(--line-soft); }
+}
+@media (max-width: 1023px) {
+  .dash { --dash-max-width: none; --dash-greeting: clamp(24px, 5vw, 30px); }
+  .dash .briefing { flex-wrap: wrap; gap: 20px; }
+  .dash .digest { max-width: none; }
+  .dash .measure .v { font-size: 20px; }
+}
+@container (max-width: 640px) { .dash .rt .col-secondary { display: none; } }
+@media (max-width: 767px) {
+  .dash { --dash-gutter: 16px; --dash-section-gap: 12px; --dash-greeting: clamp(22px, 7vw, 27px);
+    padding: 18px var(--dash-gutter) 28px; font-size: 13px; }
+  .dash .grid > .col-rail > .area-priority,
+  .dash .grid > .col-rail > .area-rail { grid-template-columns: 1fr; }
+  .dash .ledger { grid-template-columns: repeat(2, 1fr); }
+  .dash .measure .v { font-size: 19px; }
+  .dash .rt thead { display: none; }
+  .dash .rt table, .dash .rt tbody, .dash .rt tr, .dash .rt td { display: block; }
+  .dash .rt tbody tr { display: flex; flex-wrap: wrap; align-items: center; gap: 0 12px;
+    padding: 11px 16px; border-bottom: 1px solid var(--line-soft); }
+  .dash .rt tbody td { padding: 0; border: 0; }
+  .dash .rt td.c-member { flex: 1 1 auto; min-width: 0; }
+  .dash .rt td.c-status { flex: 0 0 auto; margin-left: auto; text-align: right; }
+  .dash .rt td.c-att { flex: 1 1 100%; margin-top: 9px; }
+  .dash .rt .attb { width: auto; min-width: 0; }
+  .dash .rt td.c-num { flex: 0 0 auto; margin-top: 8px; display: inline-flex; align-items: baseline;
+    gap: 6px; text-align: left; }
+  .dash .rt td.c-num::before { content: attr(data-k); font-family: var(--mono); font-size: 8.5px;
+    letter-spacing: .16em; text-transform: uppercase; color: var(--faint); }
+}
+</style>
+</head>
+<body>
+
+<nav class="mk-rail" id="rail">
+  <a href="#s0" data-s="s0"><span class="n">00</span><span class="lbl">Today</span></a>
+  <a href="#s1" data-s="s1"><span class="n">01</span><span class="lbl">Day one</span></a>
+  <a href="#s2" data-s="s2"><span class="n">02</span><span class="lbl">Week one</span></a>
+  <a href="#s3" data-s="s3"><span class="n">03</span><span class="lbl">Steady</span></a>
+  <a href="#gal" data-s="gal"><span class="n">04</span><span class="lbl">Copy</span></a>
+</nav>
+
+<div class="mk-wrap">
+
+  <header class="mk-mast">
+    <p class="eyebrow">Dashboard · empty states</p>
+    <h1>Three kinds of <em>nothing</em>.</h1>
+    <p class="lede">
+      A new org's first frame is a wall of confident zeros — <b>0.0%</b> attendance,
+      <b>$0</b> dues, <b>0.00</b> GPA — four numbers nobody measured, set in the same face
+      and size as real data. Meanwhile <b>“Nothing needs attention — nice work.”</b>
+      congratulates a founder who has done nothing yet.
+      Nothing here computes wrong. The dashboard just has one vocabulary for
+      emptiness and three different situations to express.
+    </p>
+
+    <div class="mk-kinds">
+      <div class="mk-kind" style="--accent:#a78bfa">
+        <p class="n">Kind 01</p>
+        <h3>Unset</h3>
+        <p>Never configured. No records exist and none are coming until someone acts.</p>
+        <p class="ex">Invite — name the one next move.</p>
+      </div>
+      <div class="mk-kind" style="--accent:#ddb36a">
+        <p class="n">Kind 02</p>
+        <h3>Unstarted</h3>
+        <p>Set up correctly, but the period hasn't produced data yet. Waiting is the right answer.</p>
+        <p class="ex">Orient — say when it fills.</p>
+      </div>
+      <div class="mk-kind" style="--accent:#7fb08a">
+        <p class="n">Kind 03</p>
+        <h3>All clear</h3>
+        <p>Real data behind it, and genuinely nothing wrong. The <em>only</em> kind that has earned praise.</p>
+        <p class="ex">Affirm — and mean it.</p>
+      </div>
+    </div>
+
+    <div class="mk-rules">
+      <div class="mk-rule"><span class="num">01</span><div><b>Never print a number you didn't measure.</b><span>An empty record set is an em-dash, not <code>0.0%</code>. The Treasury tile already does this — it becomes the standard, not the exception.</span></div></div>
+      <div class="mk-rule"><span class="num">02</span><div><b>The note carries the reason, not the statistic.</b><span>“0 below 80%” is noise at zero. Replace it with a why, plus at most one action.</span></div></div>
+      <div class="mk-rule"><span class="num">03</span><div><b>Praise requires evidence.</b><span>Every affirming string gates behind “there was data to be fine about.”</span></div></div>
+      <div class="mk-rule"><span class="num">04</span><div><b>Empty chrome recedes.</b><span>No search box over nothing, no gold <code>PINNED</code> chip on a placeholder, no “Showing 0 of 0”, no inert click target.</span></div></div>
+      <div class="mk-rule"><span class="num">05</span><div><b>Offer an action only to someone who can do it.</b><span>Swap the copy, don't hide the block — the pattern already set by the events and docs pages.</span></div></div>
+      <div class="mk-rule"><span class="num">06</span><div><b>Empty is not loading.</b><span>The Treasury rail presents a slow fetch as “No transactions yet.” A pending answer is not a wrong one.</span></div></div>
+    </div>
+  </header>
+
+  <section class="mk-scene" id="s0"></section>
+  <section class="mk-scene" id="s1"></section>
+  <section class="mk-scene" id="s2"></section>
+  <section class="mk-scene" id="s3"></section>
+
+  <section class="mk-scene" id="gal">
+    <div class="mk-scene-h">
+      <div class="l">
+        <p class="idx">04 · Copy gallery</p>
+        <h2>Every string, <em>in one place</em>.</h2>
+        <p class="desc">
+          Rendered from the same object the four scenes above are built from, so this table
+          cannot drift from what the frames show. This is the artifact to review line by
+          line — and then implement.
+        </p>
+      </div>
+    </div>
+    <div class="mk-gallery">
+      <div class="gh">
+        <h3>Widget × kind × copy</h3>
+        <span id="gal-count"></span>
+      </div>
+      <div class="mk-scroll">
+        <table>
+          <thead>
+            <tr><th>Widget</th><th>Kind</th><th>Copy</th><th>Permission gate</th></tr>
+          </thead>
+          <tbody id="gal-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <p class="mk-foot">Design exploration · not wired to the app</p>
+</div>
+
+<script>
+"use strict";
+const h = (s) => s;
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   THE COPY. One object, two consumers: the scenes and the gallery.
+   `gate` is the client permission the action requires — null means the whole
+   line is safe for any member to see.
+   ═══════════════════════════════════════════════════════════════════════════ */
+const COPY = {
+  /* ── Ledger strip ──────────────────────────────────────────────────────── */
+  attendance: {
+    widget: "Attendance measure",
+    today:  { v: "0.0", unit: "%", note: "0 below 80%" },
+    unset:  { v: "—", note: "No meetings recorded yet.", was: "0.0%  ·  0 below 80%" },
+    unstarted: { v: "—", note: "First meeting is Monday." },
+    clear:  { v: "94.2", unit: "%", note: "All above 80%", ok: true, was: "0 below 80%" },
+    gate: null,
+  },
+  dues: {
+    widget: "Dues measure",
+    today:  { v: "0", lead: "$", note: "0 members owe" },
+    unset:  { v: "—", note: "No dues set yet.", act: "Set an amount", was: "$0  ·  0 members owe" },
+    unstarted: { v: "—", note: "No dues set yet.", act: "Set an amount" },
+    clear:  { v: "0", lead: "$", note: "Everyone is paid up.", ok: true, was: "0 members owe" },
+    gate: "MANAGE_TREASURY",
+  },
+  gpa: {
+    widget: "Average GPA measure",
+    today:  { v: "0.00", note: "0 below 3.0" },
+    unset:  { v: "—", note: "No grades on file yet.", was: "0.00  ·  0 below 3.0" },
+    unstarted: { v: "—", note: "No grades on file yet." },
+    clear:  { v: "3.41", note: "All above 3.0", ok: true, was: "0 below 3.0" },
+    gate: null,
+  },
+  service: {
+    widget: "Service measure",
+    today:  { v: "0", unit: "h", note: "0 of 1 on track" },
+    unset:  { v: "—", note: "Nothing logged this term.", was: "0h  ·  0 of 1 on track" },
+    unstarted: { v: "—", note: "Nothing logged this term." },
+    clear:  { v: "142", unit: "h", note: "All 24 on track", ok: true, was: "0 of 0 on track" },
+    gate: null,
+  },
+  treasury: {
+    widget: "Treasury measure",
+    today:  { v: "—", note: "No transactions yet" },
+    unset:  { v: "—", note: "No transactions yet." },
+    unstarted: { v: "—", note: "No transactions yet." },
+    clear:  { v: "4,280", lead: "$", note: "proj. $3,910" },
+    gate: null,
+  },
+
+  /* ── Cards ─────────────────────────────────────────────────────────────── */
+  needs: {
+    widget: "Needs attention",
+    today: "Nothing needs attention — nice work.",
+    unset: "Nothing to watch yet — items appear here once you're tracking dues, attendance or grades.",
+    unstarted: "Nothing to watch yet — the first numbers land after Monday's meeting.",
+    clear: "Nothing needs attention — nice work.",
+    gate: null,
+  },
+  roster: {
+    widget: "Roster",
+    today: { t: "", h: "" },
+    unset: {
+      t: "It's just you so far.",
+      h: "Share your invite link — everyone who opens it lands in your approval queue.",
+      act: "Copy invite link",
+    },
+    gate: "MANAGE_SETTINGS",
+  },
+  rosterNoPerm: {
+    widget: "Roster · no permission",
+    unset: { t: "It's just you so far.", h: "Ask an officer to share the invite link." },
+    gate: "— (fallback copy)",
+  },
+  week: {
+    widget: "This week",
+    today: "Nothing on the agenda this week.",
+    unset: { text: "No events on the calendar yet.", act: "Add your first event" },
+    unstarted: null,
+    quiet: { text: "Nothing scheduled this week.", next: "Next up: Chapter Meeting, Sep 2." },
+    gate: "MANAGE_EVENTS",
+  },
+  treasuryRail: {
+    widget: "Treasury rail",
+    today: "No transactions yet — log an expense or revenue to start the books.",
+    unset: { text: "No transactions yet. The books start with your first entry.", act: "Log a transaction" },
+    gate: "MANAGE_TREASURY",
+  },
+  activity: {
+    widget: "Activity",
+    today: "No recent activity.",
+    unset: "Nothing yet — activity appears here as your chapter uses the app.",
+    gate: null,
+  },
+  announcement: {
+    widget: "Pinned announcement",
+    today: { tag: "PINNED", text: "Officers can post an org-wide announcement here.", edit: true },
+    unset: { tag: "ANNOUNCEMENT", text: "Post something for the chapter — it's the first thing everyone sees.", edit: true },
+    gate: "MANAGE_ANNOUNCEMENTS",
+  },
+  health: {
+    widget: "Health dial",
+    today: "Renders 0 · Critical in rose",
+    unset: "Absent — hidden until a tracked metric has data",
+    gate: null,
+  },
+};
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   RENDER HELPERS
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+function measure(m, cfg) {
+  const lead = cfg.lead ? `<small>${cfg.lead}</small>` : "";
+  const unit = cfg.unit ? `<small>${cfg.unit}</small>` : "";
+  const isUnset = cfg.v === "—";
+  const act = cfg.act ? ` <span class="note-act">${cfg.act}</span>` : "";
+  const noteCls = "note" + (cfg.ok ? " ok" : "");
+  return `<div class="measure">
+    <p class="k">${m}</p>
+    <p class="v${isUnset ? " unset" : ""}">${lead}${cfg.v}${unit}</p>
+    <p class="${noteCls}">${cfg.note}${act}</p>
+  </div>`;
+}
+
+function dial(score, label, bars, tone) {
+  const C = 2 * Math.PI * 40, off = C * (1 - score / 100);
+  return `<div class="health">
+    <div class="dial">
+      <svg width="92" height="92" viewBox="0 0 92 92">
+        <circle cx="46" cy="46" r="40" fill="none" stroke="rgba(236,231,221,.09)" stroke-width="6"/>
+        <circle cx="46" cy="46" r="40" fill="none" stroke="${tone}" stroke-width="6"
+                stroke-linecap="round" stroke-dasharray="${C}" stroke-dashoffset="${off}"/>
+      </svg>
+      <div class="num"><span>${score}</span></div>
+    </div>
+    <div class="meta">
+      <p class="label">Chapter health</p>
+      <p class="state" style="color:${tone}">${label}</p>
+      <div class="bk">${bars.map(b => `
+        <span class="k">${b[0]}</span>
+        <span class="bar"><i style="width:${b[1]}%"></i></span>
+        <span class="v">${b[2]}</span>`).join("")}</div>
+    </div>
+  </div>`;
+}
+
+function rosterRow(r) {
+  const dash = '<span class="muted">—</span>';
+  const att = r.att === null
+    ? `<div class="attb"><span class="track"></span><span class="muted">—</span></div>`
+    : `<div class="attb"><span class="track"><i style="width:${r.att}%;background:${r.att >= 80 ? "var(--ok)" : r.att >= 70 ? "var(--gold)" : "var(--rose)"}"></i></span><span>${r.att}%</span></div>`;
+  return `<tr>
+    <td class="c-member"><div class="b-name"><span class="avatar">${r.ini}</span>
+      <span class="who"><span class="nm">${r.name}</span><span class="rl">${r.role}</span></span></div></td>
+    <td class="c-att">${att}</td>
+    <td class="c-num num col-secondary" data-k="GPA"><span class="mono">${r.gpa === null ? dash : r.gpa}</span></td>
+    <td class="c-num num col-secondary" data-k="Dues"><span class="mono">${r.dues === null ? dash : "$" + r.dues}</span></td>
+    <td class="c-status num">${r.st === "none"
+      /* RULE 1 reaches the status column too. A member with nothing recorded is
+         not "GOOD" — that is the same fabrication as 0.0%, wearing a green
+         chip. Today the app computes AT RISK instead, which is worse. */
+      ? '<span class="muted">—</span>'
+      : `<span class="status-tag st-${r.st}">${r.st === "good" ? "GOOD" : r.st === "watch" ? "WATCH" : "AT RISK"}</span>`}</td>
+  </tr>`;
+}
+
+/* Chrome is opt-in per scene, because RULE 4 makes it two separate questions:
+   is there anything to SEARCH, and is there anything to FILTER BY. Day one is
+   no to both; week one is yes to search but no to filters, because not one
+   member has a status yet. */
+function rosterHead({ search = false, filters = false, counts } = {}) {
+  if (!search && !filters) return `<div class="card-h"><h2>Roster</h2></div>`;
+  return `<div class="card-h"><h2>Roster</h2><div class="right">
+      ${search ? `<div class="rt-search"><input placeholder="Search…" readonly></div>` : ""}
+      ${filters ? `<div class="filters">
+        <button class="on">All ${counts.all}</button>
+        <button>Good ${counts.good}</button>
+        <button>Watch ${counts.watch}</button>
+        <button>At Risk ${counts.risk}</button>
+      </div>` : ""}
+    </div></div>`;
+}
+
+function rosterTable(rows) {
+  return `<table>
+    <thead><tr>
+      <th>Member</th><th>Attendance</th>
+      <th class="num col-secondary">GPA</th><th class="num col-secondary">Dues</th>
+      <th class="num">Status</th>
+    </tr></thead>
+    <tbody>${rows.map(rosterRow).join("")}</tbody>
+  </table>`;
+}
+
+function weekItems(items) {
+  return items.map(i => `<div class="week-item${i.today ? " today" : ""}">
+    <span class="day">${i.dow}<b>${i.dd}</b></span>
+    <span class="what"><span class="t">${i.t}${i.today ? '<span class="today-pill">TODAY</span>' : ""}${i.ddl ? '<span class="ddl-pill">DUE</span>' : ""}</span>
+    <span class="m">${i.m}</span></span>
+  </div>`).join("");
+}
+
+function actRows(items) {
+  return items.map(a => `<div class="act-row">
+    <span class="dot" style="background:${a.c}"></span><p>${a.t}</p><time>${a.at}</time>
+  </div>`).join("");
+}
+
+function sparkPath() {
+  const pts = [8, 14, 11, 19, 23, 21, 28, 34];
+  const w = 274, hgt = 44, max = 36;
+  return pts.map((p, i) => `${(i / (pts.length - 1)) * w},${hgt - (p / max) * hgt}`).join(" ");
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   THE DASHBOARD PANE
+   ═══════════════════════════════════════════════════════════════════════════ */
+function dashPane(s) {
+  return `<div class="dash" data-dashboard-theme="dusk">
+
+    <div class="briefing">
+      <div style="min-width:0">
+        <p class="kicker">${s.kicker}</p>
+        <h1 class="greeting">${s.greeting}</h1>
+        <div class="digest">
+          ${s.digestQuiet ? "" : '<span class="ai-chip">AI</span>'}
+          <p class="${s.digestQuiet ? "digest-quiet" : ""}">${s.digest}</p>
+        </div>
+        <div class="brief-actions">
+          <span class="ba-chip primary">Quick actions</span>
+          ${s.actions.map(a => `<span class="ba-chip">${a}</span>`).join("")}
+        </div>
+      </div>
+      ${s.health || ""}
+    </div>
+
+    ${s.pinned}
+
+    <div class="ledger">
+      ${measure("Attendance", COPY.attendance[s.k.attendance])}
+      ${measure("Dues outstanding", COPY.dues[s.k.dues])}
+      ${measure("Average GPA", COPY.gpa[s.k.gpa])}
+      ${measure("Service", COPY.service[s.k.service])}
+      ${measure("Treasury", COPY.treasury[s.k.treasury])}
+    </div>
+
+    <div class="grid">
+      <div class="col col-main">
+        <div class="area-needs">
+          <section class="card">
+            <div class="card-h"><h2>Needs attention${s.needsCount ? `<span class="count-chip">${s.needsCount}</span>` : ""}</h2></div>
+            ${s.needs}
+          </section>
+        </div>
+        <div class="area-roster">
+          <section class="card rt">
+            ${s.roster}
+          </section>
+        </div>
+      </div>
+
+      <div class="col col-rail">
+        <div class="area-priority">
+          <section class="card">
+            <div class="card-h"><h2>This week</h2><span class="sub">${s.weekSub}</span></div>
+            ${s.week}
+          </section>
+          <section class="card">
+            <div class="card-h"><h2>Treasury</h2></div>
+            ${s.treasury}
+          </section>
+        </div>
+        <div class="area-rail">
+          <section class="card">
+            <div class="card-h"><h2>Activity</h2><span class="sub">Recent</span></div>
+            ${s.activity}
+          </section>
+        </div>
+      </div>
+    </div>
+
+    <footer>Beta Theta Pi</footer>
+  </div>`;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SCENES
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Scene 0 · TODAY — the shipped reality on day one ───────────────────── */
+const S0 = {
+  kicker: 'Monday, August 24 · <span class="today">Week 1</span>',
+  greeting: "Good morning, Marcus.",
+  digest: "Nothing scheduled this week.", digestQuiet: true,
+  actions: ["My standing", "Log attendance"],
+  k: { attendance: "today", dues: "today", gpa: "today", service: "today", treasury: "today" },
+  health: dial(0, "Critical", [["Att", 0, "0%"], ["Dues", 0, "0%"], ["GPA", 0, "0%"], ["Svc", 0, "0%"]], "#d98ba3"),
+  pinned: `<div class="pinned">
+    <span class="pin-tag">${COPY.announcement.today.tag}</span>
+    <p><span class="pin-text">${COPY.announcement.today.text}</span></p>
+    <button class="pin-edit">Edit</button>
+  </div>`,
+  needs: `<div class="rail-empty">${COPY.needs.today}</div>`,
+  roster: rosterHead({ search: true, filters: true, counts: { all: 1, good: 0, watch: 0, risk: 1 } })
+    + rosterTable([{ ini: "MW", name: "Marcus Webb", role: "President", att: 0, gpa: "0.00", dues: "0", st: "risk" }])
+    + `<div class="rt-foot"><span>Showing 1 of 1 · click a row for the full profile</span><button>Open full roster →</button></div>`,
+  weekSub: "Aug 24 – Aug 30",
+  week: `<div class="rail-empty">${COPY.week.today}</div>`,
+  treasury: `<div class="rail-empty">${COPY.treasuryRail.today}</div>`,
+  activity: `<div class="rail-empty">${COPY.activity.today}</div>`,
+};
+
+/* ── Scene 1 · DAY ONE — kind 01, unset ─────────────────────────────────── */
+const S1 = {
+  kicker: 'Monday, August 24 · <span class="today">Week 1</span>',
+  greeting: "Good morning, Marcus.",
+  digest: "Nothing scheduled this week.", digestQuiet: true,
+  actions: ["My standing", "Log attendance"],
+  k: { attendance: "unset", dues: "unset", gpa: "unset", service: "unset", treasury: "unset" },
+  health: "", /* RULE 1 — the dial is absent, not zeroed */
+  pinned: `<div class="pinned pin-empty">
+    <span class="pin-tag quiet">${COPY.announcement.unset.tag}</span>
+    <p><span class="pin-text">${COPY.announcement.unset.text}</span></p>
+    <button class="pin-edit">Write one</button>
+  </div>`,
+  needs: `<div class="rail-empty">${COPY.needs.unset}</div>`,
+  roster: rosterHead()
+    + `<div class="rt-empty">
+        <p class="t">${COPY.roster.unset.t}</p>
+        <p class="h">${COPY.roster.unset.h}</p>
+        <button class="a">${COPY.roster.unset.act}</button>
+      </div>`
+    + `<div class="rt-foot"><span></span><button>Open full roster →</button></div>`,
+  weekSub: "Aug 24 – Aug 30",
+  week: `<div class="rail-empty">${COPY.week.unset.text}<button class="a">${COPY.week.unset.act} →</button></div>`,
+  treasury: `<div class="rail-empty">${COPY.treasuryRail.unset.text}<button class="a">${COPY.treasuryRail.unset.act} →</button></div>`,
+  activity: `<div class="rail-empty">${COPY.activity.unset}</div>`,
+};
+
+/* ── Scene 2 · WEEK ONE — kind 02, unstarted ────────────────────────────── */
+const S2_ROWS = [
+  { ini: "MW", name: "Marcus Webb",  role: "President",   att: null, gpa: null, dues: null, st: "none" },
+  { ini: "TR", name: "Theo Rivas",   role: "No role yet", att: null, gpa: null, dues: null, st: "none" },
+  { ini: "JD", name: "Jonah Diaz",   role: "No role yet", att: null, gpa: null, dues: null, st: "none" },
+  { ini: "AC", name: "Andre Cole",   role: "Treasurer",   att: null, gpa: null, dues: null, st: "none" },
+  { ini: "SP", name: "Sam Petrov",   role: "No role yet", att: null, gpa: null, dues: null, st: "none" },
+];
+const S2 = {
+  kicker: 'Sunday, August 30 · <span class="today">Week 2</span>',
+  greeting: "Good evening, Marcus.",
+  digest: "Chapter Meeting Monday at 7:00 PM — your first of the term.", digestQuiet: false,
+  actions: ["My standing", "Log attendance"],
+  k: { attendance: "unstarted", dues: "unstarted", gpa: "unstarted", service: "unstarted", treasury: "unstarted" },
+  health: "",
+  pinned: `<div class="pinned">
+    <span class="pin-tag">PINNED</span>
+    <p><span class="pin-title">We're on one system now</span><span class="pin-text">Dues, attendance and the calendar all live here. First Chapter Meeting is Monday at 7.</span></p>
+    <button class="pin-edit">Edit</button>
+  </div>`,
+  needs: `<div class="rail-empty">${COPY.needs.unstarted}</div>`,
+  roster: rosterHead({ search: true, filters: false })
+    + rosterTable(S2_ROWS)
+    + `<div class="rt-foot"><span>Showing 5 of 5 · click a row for the full profile</span><button>Open full roster →</button></div>`,
+  weekSub: "Aug 30 – Sep 5",
+  week: weekItems([
+    { dow: "MON", dd: "31", t: "Chapter Meeting", m: "7:00 PM · mandatory", today: false },
+  ]),
+  treasury: `<div class="rail-empty">${COPY.treasuryRail.unset.text}<button class="a">${COPY.treasuryRail.unset.act} →</button></div>`,
+  activity: actRows([
+    { c: "var(--ok)",  t: "<b>Sam Petrov</b> joined via invite link", at: "12m" },
+    { c: "var(--ok)",  t: "<b>Andre Cole</b> joined via invite link", at: "1h" },
+    { c: "var(--vio)", t: "<b>Marcus Webb</b> scheduled Chapter Meeting", at: "2h" },
+    { c: "var(--ok)",  t: "<b>Jonah Diaz</b> joined via invite link", at: "4h" },
+    { c: "var(--vio)", t: "<b>Marcus Webb</b> posted an announcement", at: "1d" },
+  ]),
+};
+
+/* ── Scene 3 · STEADY STATE — kind 03, all clear ────────────────────────── */
+const S3_ROWS = [
+  { ini: "MW", name: "Marcus Webb",   role: "President",  att: 96, gpa: "3.61", dues: "0", st: "good" },
+  { ini: "AC", name: "Andre Cole",    role: "Treasurer",  att: 94, gpa: "3.48", dues: "0", st: "good" },
+  { ini: "TR", name: "Theo Rivas",    role: "Secretary",  att: 91, gpa: "3.30", dues: "0", st: "good" },
+  { ini: "JD", name: "Jonah Diaz",    role: "Recruitment", att: 89, gpa: "3.52", dues: "0", st: "good" },
+  { ini: "SP", name: "Sam Petrov",    role: "Social",     att: 97, gpa: "3.19", dues: "0", st: "good" },
+  { ini: "LN", name: "Luis Navarro",  role: "Philanthropy", att: 92, gpa: "3.44", dues: "0", st: "good" },
+];
+const S3 = {
+  kicker: 'Tuesday, November 4 · <span class="today">Week 11</span>',
+  greeting: "Good morning, Marcus.",
+  digest: "Two events this week and every member is current on dues.", digestQuiet: false,
+  actions: ["My standing", "Log attendance"],
+  k: { attendance: "clear", dues: "clear", gpa: "clear", service: "clear", treasury: "clear" },
+  health: dial(87, "Strong", [["Att", 94, "94%"], ["Dues", 100, "100%"], ["GPA", 85, "85%"], ["Svc", 100, "100%"]], "#7fb08a"),
+  pinned: `<div class="pinned">
+    <span class="pin-tag">PINNED</span>
+    <p><span class="pin-title">Formal tickets close Friday</span><span class="pin-text">Pay through the Treasury tab — no cash this year.</span></p>
+    <button class="pin-edit">Edit</button>
+  </div>`,
+  needs: `<div class="rail-empty">${COPY.needs.clear}</div>`,
+  roster: rosterHead({ search: true, filters: true, counts: { all: 24, good: 24, watch: 0, risk: 0 } })
+    + rosterTable(S3_ROWS)
+    + `<div class="rt-foot"><span>Showing 6 of 24 · click a row for the full profile</span><button>Open full roster →</button></div>`,
+  weekSub: "Nov 3 – Nov 9",
+  week: weekItems([
+    { dow: "TUE", dd: "04", t: "Chapter Meeting", m: "7:00 PM · mandatory", today: true },
+    { dow: "THU", dd: "06", t: "Formal headcount", m: "Due to nationals", ddl: true },
+    { dow: "SAT", dd: "08", t: "Highway cleanup", m: "9:00 AM · 12 signed up" },
+  ]),
+  treasury: `<div class="treasury-body">
+    <div class="treasury-num"><span class="big">$4,280</span><span class="delta">+$620</span></div>
+    <p class="treasury-note">proj. $3,910 by term end</p>
+    <div class="tchart">
+      <svg width="100%" height="44" viewBox="0 0 274 44" preserveAspectRatio="none">
+        <polyline points="${sparkPath()}" fill="none" stroke="var(--ok)" stroke-width="1.5"
+                  stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <div class="months"><span>AUG</span><span>SEP</span><span>OCT</span><span>NOV</span></div>
+    </div>
+  </div>`,
+  activity: actRows([
+    { c: "var(--ok)",   t: "<b>Andre Cole</b> logged $340 revenue", at: "2h" },
+    { c: "var(--vio)",  t: "<b>Theo Rivas</b> took attendance", at: "1d" },
+    { c: "var(--gold)", t: "<b>Sam Petrov</b> filed an excuse", at: "1d" },
+    { c: "var(--ok)",   t: "<b>Luis Navarro</b> logged 4 service hours", at: "2d" },
+    { c: "var(--vio)",  t: "<b>Marcus Webb</b> posted an announcement", at: "3d" },
+  ]),
+};
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SCENE SHELLS
+   ═══════════════════════════════════════════════════════════════════════════ */
+const SCENES = [
+  {
+    id: "s0", idx: "00 · Today", badge: ["bad", "Shipped"],
+    title: 'A wall of numbers <em>nobody measured</em>.',
+    desc: "The dashboard exactly as a founder sees it on the day they create an org. Every widget is computing correctly. That is the problem.",
+    data: S0,
+    notes: [
+      ["#d98ba3", "Four fabricated readings", "<code>0.0%</code>, <code>$0</code>, <code>0.00</code>, <code>0h</code> — set in the same mono face, same size, same colour as a real measurement. A founder cannot tell these from data."],
+      ["#d98ba3", "0 · Critical, in rose", "The health dial gates on <b>config</b> (≥2 tracked metrics), never on <b>data</b>. So it scores an org that has recorded nothing, and calls it critical."],
+      ["#d98ba3", "Praise nobody earned", "<b>“Nothing needs attention — nice work.”</b> fires identically for a healthy chapter and for an org with no data at all."],
+      ["#d98ba3", "The dead empty state", "The roster's good copy branches on <code>length === 0</code>, but the founder is pinned at creation — so day one is <b>one row of your own name</b>, with a search box and <code>All 1</code> pills over it."],
+    ],
+  },
+  {
+    id: "s1", idx: "01 · Day one", badge: ["unset", "Kind 01 · Unset"],
+    title: 'Nothing yet — and <em>here is the door</em>.',
+    desc: "Same org, same second. Every measure that has no records says so, and the one card that matters on day one — the roster — finally asks for the invite.",
+    data: S1,
+    notes: [
+      ["#a78bfa", "Em-dash, not zero", "RULE 1. Same size and baseline as a real number so the strip does not jump when data lands, in <code>--faint</code> so it reads as an absence."],
+      ["#a78bfa", "The note became a reason", "RULE 2. “0 members owe” carried no information; <b>“No dues set yet · Set an amount”</b> carries both the why and the move. One action per measure, permission-gated."],
+      ["#a78bfa", "The dial is gone, not zeroed", "Hiding beats scoring nothing. It returns the moment any tracked metric has a record — see scene 03."],
+      ["#a78bfa", "Chrome receded", "RULE 4. No search field over one row, no <code>All 1 / Good 1</code> pills, no “Showing 1 of 1”. The placeholder announcement drops the gold <code>PINNED</code> chip that made an empty bar read as real."],
+    ],
+  },
+  {
+    id: "s2", idx: "02 · Week one", badge: ["unstr", "Kind 02 · Unstarted"],
+    title: 'Set up correctly. <em>Just early.</em>',
+    desc: "Five days later. The invite worked, the meeting is on the calendar, and still not one number exists. This must not read the same as day one — and it doesn't.",
+    data: S2,
+    notes: [
+      ["#ddb36a", "Same em-dash, different reason", "Attendance moved from <b>“No meetings recorded yet.”</b> to <b>“First meeting is Monday.”</b> Nothing to do, and the copy says so — waiting is the correct answer here."],
+      ["#ddb36a", "Unset survives inside unstarted", "Dues never got configured, so it keeps its <b>Set an amount</b> action while its neighbours simply orient. The kinds are per-measure, not per-page."],
+      ["#ddb36a", "Rule 1 reaches into the table", "Roster cells show <code>—</code> for metrics with no record, and the <b>Status</b> column with them. A member nobody has measured is not <code>GOOD</code> — that is a green chip doing the same fabrication the zeros do. Today the app computes <code>AT RISK</code> for them instead, which is worse."],
+      ["#ddb36a", "Search returns; filters don't", "Two separate questions. There are five names to <b>search</b>, so the field comes back — but not one member has a status yet, so <code>Good 0 / Watch 0 / At Risk 0</code> would be four buttons that filter nothing."],
+      ["#ddb36a", "The gold chip is earned", "A real announcement exists, so <code>PINNED</code> returns. The chip means something again precisely because the placeholder gave it up."],
+    ],
+  },
+  {
+    id: "s3", idx: "03 · Steady state", badge: ["clear", "Kind 03 · All clear"],
+    title: 'The only place praise <em>belongs</em>.',
+    desc: "Week 11, twenty-four members, real numbers behind every tile. Half of this scene is the part that lands on every healthy chapter every day — not just new orgs.",
+    data: S3,
+    notes: [
+      ["#7fb08a", "The double negative is gone", "<b>“0 below 80%”</b> → <b>“All above 80%”</b>. Identical fact, stated forward. This one change touches every org on every load, not just the empty ones."],
+      ["#7fb08a", "$0 finally means something", "The same <code>$0</code> that was meaningless on day one now reads <b>“Everyone is paid up.”</b> — because there are dues to be paid up on. Same number, opposite message."],
+      ["#7fb08a", "Praise, with evidence behind it", "<b>“Nothing needs attention — nice work.”</b> is unchanged from today's copy. It just no longer fires at someone who has done nothing."],
+      ["#7fb08a", "The dial returns", "87 · Strong. It came back on its own when the metrics had records — no setting, no dismissal, nothing for the founder to manage."],
+    ],
+  },
+];
+
+/* Render scenes */
+for (const s of SCENES) {
+  const el = document.getElementById(s.id);
+  el.innerHTML = `
+    <div class="mk-scene-h">
+      <div class="l">
+        <p class="idx">${s.idx}</p>
+        <h2>${s.title}</h2>
+        <p class="desc">${s.desc}</p>
+      </div>
+      <span class="mk-badge ${s.badge[0]}">${s.badge[1]}</span>
+    </div>
+    <div class="mk-frame">
+      <div class="bar"><i></i><i></i><i></i><span class="url">betathetapi.chaptos.app</span></div>
+      ${dashPane(s.data)}
+    </div>
+    <div class="mk-notes">
+      ${s.notes.map(n => `<div class="mk-note" style="--accent:${n[0]}">
+        <p class="k">${n[1]}</p><p>${n[2]}</p></div>`).join("")}
+    </div>`;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   COPY GALLERY — same source object as the scenes
+   ═══════════════════════════════════════════════════════════════════════════ */
+const pill = (k) => {
+  const map = { unset: ["unset", "Unset"], unstarted: ["unstr", "Unstarted"], clear: ["clear", "All clear"] };
+  const [c, l] = map[k];
+  return `<span class="kpill ${c}">${l}</span>`;
+};
+const wasLine = (w) => w ? `<span class="was">was: ${w}</span>` : "";
+const gate = (g) => g ? g : "—";
+
+const ROWS = [];
+/* measures */
+for (const key of ["attendance", "dues", "gpa", "service"]) {
+  const c = COPY[key];
+  for (const k of ["unset", "unstarted", "clear"]) {
+    const cfg = c[k]; if (!cfg) continue;
+    const lead = cfg.lead || "", unit = cfg.unit || "";
+    const act = cfg.act ? ` <span class="act">${cfg.act}</span>` : "";
+    /* `·`, not an em-dash: half these values ARE an em-dash, and two in a row
+       reads as a typo rather than a separator. */
+    ROWS.push([c.widget, k, `<b>${lead}${cfg.v}${unit}</b> · ${cfg.note}${act}${wasLine(cfg.was)}`, cfg.act ? c.gate : null]);
+  }
+}
+/* cards */
+ROWS.push([COPY.needs.widget, "unset", COPY.needs.unset, null]);
+ROWS.push([COPY.needs.widget, "unstarted", COPY.needs.unstarted, null]);
+ROWS.push([COPY.needs.widget, "clear", COPY.needs.clear + wasLine("fired even with zero data"), null]);
+ROWS.push([COPY.roster.widget, "unset",
+  `<b>${COPY.roster.unset.t}</b> ${COPY.roster.unset.h} <span class="act">[${COPY.roster.unset.act}]</span>${wasLine("No one is on the roster yet. (never fired — founder is row 1)")}`,
+  COPY.roster.gate]);
+ROWS.push([COPY.rosterNoPerm.widget, "unset",
+  `<b>${COPY.rosterNoPerm.unset.t}</b> ${COPY.rosterNoPerm.unset.h}`, COPY.rosterNoPerm.gate]);
+ROWS.push(["Roster · metric cells", "unstarted",
+  `<b>—</b> in place of the value${wasLine("0% / 0.00 / $0")}`, null]);
+ROWS.push(["Roster · status column", "unstarted",
+  `<b>—</b> · no chip until a tracked metric has a record${wasLine("AT RISK (computed from zeros)")}`, null]);
+ROWS.push(["Roster · header chrome", "unstarted",
+  `Search field yes; status filter pills no, until at least one member has a status${wasLine("All 1 / Good 1 / Watch 0 / At Risk 0")}`, null]);
+ROWS.push([COPY.week.widget, "unset",
+  `${COPY.week.unset.text} <span class="act">[${COPY.week.unset.act} →]</span>${wasLine(COPY.week.today)}`, COPY.week.gate]);
+ROWS.push([COPY.week.widget, "unstarted",
+  `${COPY.week.quiet.text} <b>${COPY.week.quiet.next}</b>${wasLine("stopped at the week boundary")}`, null]);
+ROWS.push([COPY.treasuryRail.widget, "unset",
+  `${COPY.treasuryRail.unset.text} <span class="act">[${COPY.treasuryRail.unset.act} →]</span>${wasLine(COPY.treasuryRail.today + " (also shown during a slow fetch)")}`,
+  COPY.treasuryRail.gate]);
+ROWS.push([COPY.activity.widget, "unset", COPY.activity.unset + wasLine(COPY.activity.today), null]);
+ROWS.push([COPY.announcement.widget, "unset",
+  `<b>${COPY.announcement.unset.tag}</b> — ${COPY.announcement.unset.text}${wasLine("gold PINNED chip + ungated Edit button")}`,
+  COPY.announcement.gate]);
+ROWS.push([COPY.health.widget, "unset", COPY.health.unset + wasLine(COPY.health.today), null]);
+
+document.getElementById("gal-body").innerHTML = ROWS.map(r => `<tr>
+  <td class="w">${r[0]}</td>
+  <td class="kind">${pill(r[1])}</td>
+  <td>${r[2]}</td>
+  <td class="gate">${gate(r[3])}</td>
+</tr>`).join("");
+document.getElementById("gal-count").textContent = ROWS.length + " strings";
+
+/* ── Scene rail active state ─────────────────────────────────────────────── */
+const links = [...document.querySelectorAll("#rail a")];
+const obs = new IntersectionObserver((entries) => {
+  for (const e of entries) {
+    if (!e.isIntersecting) continue;
+    links.forEach(l => l.classList.toggle("on", l.dataset.s === e.target.id));
+  }
+}, { rootMargin: "-45% 0px -45% 0px" });
+document.querySelectorAll(".mk-scene").forEach(s => obs.observe(s));
+</script>
+</body>
+</html>

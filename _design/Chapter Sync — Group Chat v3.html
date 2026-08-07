@@ -1,0 +1,749 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chapter Sync v3 — the group chat, full page</title>
+
+<!--
+  CHAPTER SYNC v3 — GROUP CHAT.
+  Builds on direction B of "Chapter Sync Loading Mock v2 — Funny.html", which
+  was one of four cramped side-by-side scenes. This is that idea given the
+  whole viewport and rewritten so it reads like a thread you'd actually
+  scroll past, not six services announcing themselves.
+
+  WHO IS TALKING — read this before renaming the cast.
+
+  The speakers are the six data sources. They are NOT named chapter members,
+  and this is a deliberate line, not an oversight. The moment a loading screen
+  renders "Marcus: yo who double-paid dues", the product is putting words in a
+  real person's mouth on a surface that looks exactly like the app's real
+  messaging. Half the chapter will believe they missed a conversation; the
+  other half will ask Marcus about a thing he never said. So the cast stays
+  synthetic and the *voice* does all the work: lowercase, no terminal periods,
+  four messages where one would do, someone answering a question asked ninety
+  seconds ago, one person who will not let the excusal thing go. That is what
+  makes a thread feel like people. Nameplates aren't.
+
+  Corollary that survives from v2, unchanged and non-negotiable:
+
+      Every joke must be about data we actually just read.
+
+  "58 members — four of them are named Jake" is a product that noticed
+  something. "brewing coffee… reticulating splines…" is a product killing time
+  and admitting it. Every line below hangs off a number in the rail on the
+  right. If we can't detect the condition (>=3 shared first names, >2 docs
+  matching /final/i, an open task older than 90 days), the source says its
+  count and shuts up — that's the fallback, not a generic gag.
+
+  WHAT'S NEW VS v2's DIRECTION B
+   - Full-page three-column chat: nav, thread, and a right rail that is the
+     actual ledger. The rail carries the counts, so the thread never has to
+     stop being a conversation to report progress. In v2 the bubbles had to be
+     both, which is why they read half-robotic.
+   - Real chat furniture: grouped runs under one nameplate, timestamps, an
+     unread divider for the fourteen days away, quote-replies, emoji reactions
+     that land a beat late, a typing indicator that is the actual fetch, and a
+     composer you cannot type in yet.
+   - Bottom-anchored stream that grows upward and scrolls, instead of v2's
+     nine-message trim window. A thread that deletes its own history to avoid
+     scrolling is not a thread.
+
+  ASSUMPTIONS (flagged, not smuggled):
+   - Counts are plausible-not-real. 58 members echoes the ~59-member stress
+     test; the rest are invented. Swap for live values before this ships.
+   - Typing duration is meant to BE the fetch duration. Documents typing for
+     four seconds is the four-second index, not a fake delay. If a source
+     returns in 200ms it should post instantly and the thread ends up three
+     messages long — that is correct behaviour, not a degraded one.
+   - Treasury's duplicate-payment beat assumes reconciliation state is known
+     at sync time. If it isn't, that beat is cut, not faked. Note it is also
+     the one source played completely straight: we tease the records, never
+     the person waiting, and never joke about something that is actually
+     broken.
+
+  Palette is the shipped warm dusk (create-flow.css === dashboard-ledger dusk).
+  No new colors were invented for this mock.
+-->
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,400&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+<style>
+/* ═══ Tokens — shipped warm dusk ═══════════════════════════════════════ */
+:root {
+  --paper:    #0f0d0a;
+  --paper-2:  #14120e;
+  --paper-3:  #1b1813;
+  --card:     #191612;
+  --card-2:   #1e1a15;
+  --ink:      #ece7dd;
+  --ink-72:   rgba(236,231,221,.72);
+  --ink-55:   rgba(236,231,221,.55);
+  --ink-40:   rgba(236,231,221,.40);
+  --ink-28:   rgba(236,231,221,.28);
+  --ink-14:   rgba(236,231,221,.14);
+  --ink-07:   rgba(236,231,221,.07);
+  --muted:    #958d7c;
+  --faint:    #6b6354;
+  --line:     rgba(236,231,221,.11);
+  --line-soft:rgba(236,231,221,.06);
+  --vio:      #a78bfa;
+  --vio-deep: #7c3aed;
+  --vio-soft: rgba(167,139,250,.12);
+  --vio-line: rgba(167,139,250,.32);
+  --gold:     #ddb36a;
+  --gold-soft:rgba(221,179,106,.10);
+  --gold-line:rgba(221,179,106,.30);
+  --rose:     #d98ba3;
+  --ok:       #7fb08a;
+  --serif: "Fraunces", Georgia, serif;
+  --sans:  "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --mono:  "Geist Mono", ui-monospace, Menlo, monospace;
+  --ease:  cubic-bezier(.16,1,.3,1);
+  --ease-io: cubic-bezier(.4,0,.2,1);
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0; background: var(--paper); color: var(--ink);
+  font-family: var(--sans); overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+/* the paper grain that every other surface in the app carries */
+body::before {
+  content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 60;
+  opacity: .5;
+  background-image: radial-gradient(rgba(236,231,221,.025) 1px, transparent 1px);
+  background-size: 4px 4px;
+}
+h1,h2,h3,h4,p { margin: 0; padding: 0; font-weight: inherit; }
+ul { margin: 0; padding: 0; list-style: none; }
+button { font: inherit; color: inherit; background: none; border: none; cursor: pointer; }
+::selection { background: var(--vio-deep); color: #fff; }
+.tnum { font-variant-numeric: tabular-nums; }
+
+/* ═══ Page frame ═══════════════════════════════════════════════════════
+   Three columns, all full-height, none of them centred in a sea of dead
+   space. The thread is the only scroller on the page.
+   ═══════════════════════════════════════════════════════════════════════ */
+.app {
+  height: 100%;
+  display: grid;
+  grid-template-columns: 216px minmax(0, 1fr) 300px;
+}
+.topline {
+  position: fixed; top: 0; left: 0; height: 1.5px; width: 0%;
+  background: linear-gradient(90deg, var(--vio-deep), var(--vio));
+  box-shadow: 0 0 12px rgba(167,139,250,.45);
+  transition: width 700ms var(--ease-io);
+  z-index: 90;
+}
+body.done .topline { opacity: 0; transition: width 600ms var(--ease-io), opacity 700ms 500ms linear; }
+
+/* ─── left: org nav ──────────────────────────────────────────────────── */
+.side {
+  border-right: 1px solid var(--line); background: var(--paper-2);
+  padding: 20px 12px; display: flex; flex-direction: column; min-height: 0;
+}
+.side-org { display: flex; align-items: center; gap: 10px; padding: 0 8px 22px; }
+.mark {
+  height: 28px; width: 28px; border-radius: 8px; flex: none;
+  display: grid; place-items: center;
+  font-family: var(--serif); font-weight: 600; font-size: 12px; color: #fff;
+  background: linear-gradient(140deg, #8b6fd4, #5b3fa8);
+  border: 1px solid rgba(255,255,255,.14);
+}
+.side-org b { font-size: 13.5px; letter-spacing: -.01em; font-weight: 500; }
+.side-org .term { display: block; font-size: 10.5px; color: var(--faint); }
+.side-grp {
+  font-family: var(--mono); font-size: 9px; letter-spacing: .18em;
+  text-transform: uppercase; color: var(--faint); padding: 14px 10px 7px;
+}
+.side-nav li {
+  display: flex; align-items: center; gap: 10px;
+  padding: 7px 10px; border-radius: 8px;
+  font-size: 13px; color: var(--ink-28);
+  transition: color 500ms var(--ease);
+}
+.side-nav li .dot {
+  height: 5px; width: 5px; border-radius: 50%; flex: none;
+  background: var(--ink-14);
+  transition: background 500ms var(--ease), box-shadow 500ms var(--ease);
+}
+.side-nav li.lit { color: var(--ink-72); }
+.side-nav li.lit .dot { background: var(--vio); box-shadow: 0 0 8px rgba(167,139,250,.55); }
+.side .foot {
+  margin-top: auto; padding: 8px 10px;
+  font-family: var(--mono); font-size: 10px; letter-spacing: .04em; color: var(--faint);
+}
+.pulse {
+  height: 6px; width: 6px; border-radius: 50%; background: var(--vio); flex: none;
+  animation: pulse 1.8s var(--ease-io) infinite;
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1;  box-shadow: 0 0 0 0 rgba(167,139,250,.5); }
+  60%      { opacity: .5; box-shadow: 0 0 0 7px rgba(167,139,250,0); }
+}
+
+/* ─── centre: the thread ─────────────────────────────────────────────── */
+.chat { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+
+.chat-head {
+  flex: none; display: flex; align-items: center; justify-content: space-between;
+  gap: 20px; padding: 17px clamp(20px, 4vw, 44px) 15px;
+  border-bottom: 1px solid var(--line);
+  background: linear-gradient(180deg, var(--paper) 60%, rgba(15,13,10,0));
+}
+.chat-head h1 {
+  font-family: var(--serif); font-size: 18px; font-weight: 400; letter-spacing: -.01em;
+}
+.chat-head .sub {
+  margin-top: 3px; font-family: var(--mono); font-size: 10.5px;
+  letter-spacing: .04em; color: var(--faint);
+}
+/* stacked avatars, the way every chat app shows a group's membership */
+.faces { display: flex; align-items: center; }
+.faces .b-av { margin-left: -7px; border: 2px solid var(--paper); }
+.faces .b-av:first-child { margin-left: 0; }
+
+.stream-wrap {
+  flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
+  scrollbar-width: none; padding: 0 clamp(20px, 4vw, 44px);
+}
+.stream-wrap::-webkit-scrollbar { display: none; }
+/* justify-end pins the first few messages to the bottom, so an empty thread
+   looks like a quiet chat rather than a broken layout with 500px of void */
+.stream {
+  min-height: 100%; max-width: 820px;
+  display: flex; flex-direction: column; justify-content: flex-end;
+  padding: 28px 0 22px;
+}
+
+.b-msg {
+  display: grid; grid-template-columns: 30px minmax(0,1fr); gap: 11px;
+  align-items: start; padding: 7px 0 0;
+  animation: msgIn 400ms var(--ease) both;
+}
+@keyframes msgIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+/* a run of messages from one speaker collapses under a single nameplate */
+.b-msg.tight { padding-top: 3px; }
+.b-msg.tight .b-av { visibility: hidden; height: 0; }
+.b-av {
+  height: 30px; width: 30px; border-radius: 9px; display: grid; place-items: center;
+  font-family: var(--mono); font-size: 10px; font-weight: 500; color: #141210;
+  letter-spacing: .02em; flex: none;
+}
+.b-body { min-width: 0; }
+.b-who {
+  display: flex; align-items: baseline; gap: 8px; margin-bottom: 5px;
+  font-size: 12.5px; font-weight: 500; color: var(--ink-72); letter-spacing: -.005em;
+}
+.b-who time { font-family: var(--mono); font-size: 9.5px; color: var(--faint); letter-spacing: .04em; }
+.b-bub {
+  display: inline-block; max-width: 52ch;
+  background: var(--card); border-radius: 4px 13px 13px 13px;
+  padding: 9px 14px; font-size: 14px; line-height: 1.52; color: var(--ink-72);
+}
+.b-msg.tight .b-bub { border-radius: 13px; }
+.b-bub b { color: var(--ink); font-weight: 500; }
+.b-bub .num { font-family: var(--mono); font-variant-numeric: tabular-nums; color: var(--ink); }
+.b-bub .file { font-family: var(--mono); font-size: 12.5px; color: var(--ink); word-break: break-all; }
+/* the one bubble that is not joking */
+.b-msg.flagged .b-bub {
+  background: var(--gold-soft); box-shadow: inset 0 0 0 1px var(--gold-line);
+  color: var(--gold);
+}
+.b-msg.flagged .b-bub b { color: var(--gold); }
+
+/* quote-reply — the strip that proves someone read what came before */
+.b-quote {
+  display: flex; align-items: baseline; gap: 7px; margin-bottom: 5px;
+  padding-left: 9px; border-left: 2px solid var(--ink-14);
+  font-size: 12px; color: var(--faint); max-width: 46ch;
+}
+.b-quote b { color: var(--ink-40); font-weight: 500; }
+.b-quote span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* reactions — land a beat after the message, which is when they'd really land */
+.b-react { display: flex; gap: 5px; margin-top: 6px; }
+.b-react span {
+  display: inline-flex; align-items: center; gap: 4px;
+  background: var(--paper-3); border: 1px solid var(--line-soft);
+  border-radius: 999px; padding: 2px 8px 3px; font-size: 11.5px; line-height: 1.4;
+  color: var(--ink-40);
+  animation: pop 320ms cubic-bezier(.2,1.4,.4,1) both;
+}
+.b-react span i { font-family: var(--mono); font-size: 9.5px; font-style: normal; }
+@keyframes pop { from { opacity: 0; transform: scale(.6) translateY(3px); } to { opacity: 1; transform: none; } }
+
+/* system lines and the unread divider */
+.b-sys {
+  font-family: var(--mono); font-size: 10px; letter-spacing: .13em;
+  text-transform: uppercase; color: var(--faint);
+  padding: 16px 0 8px; animation: msgIn 400ms var(--ease) both;
+}
+.b-sys.ok { color: var(--ok); }
+.b-rule {
+  display: flex; align-items: center; gap: 12px; padding: 14px 0 4px;
+  font-family: var(--mono); font-size: 9.5px; letter-spacing: .16em;
+  text-transform: uppercase; color: var(--rose);
+  animation: msgIn 400ms var(--ease) both;
+}
+.b-rule::before, .b-rule::after {
+  content: ""; height: 1px; flex: 1; background: rgba(217,139,163,.22);
+}
+.b-rule::before { flex: 0 0 0; }
+
+/* typing — same bubble geometry so nothing jumps when it swaps for text */
+.b-typing { display: inline-flex; gap: 4px; align-items: center; }
+.b-typing i {
+  height: 4px; width: 4px; border-radius: 50%; background: var(--ink-40);
+  animation: typing 1.15s var(--ease-io) infinite;
+}
+.b-typing i:nth-child(2) { animation-delay: .14s; }
+.b-typing i:nth-child(3) { animation-delay: .28s; }
+@keyframes typing { 0%,70%,100% { opacity: .3; transform: translateY(0); } 35% { opacity: 1; transform: translateY(-2px); } }
+
+/* seen-by, at the very end */
+.b-seen {
+  font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em;
+  color: var(--faint); padding: 10px 0 0 41px;
+  animation: msgIn 400ms var(--ease) both;
+}
+
+/* ─── the composer you cannot use yet ────────────────────────────────── */
+/* the 62px bottom gutter is not a design choice — it clears the mock chrome,
+   which is fixed to the bottom centre and would otherwise sit on the composer.
+   Shipping this, that number goes back to 20px. */
+.composer {
+  flex: none; padding: 12px clamp(20px, 4vw, 44px) 62px;
+  border-top: 1px solid var(--line);
+}
+.composer-in {
+  display: flex; align-items: center; gap: 12px; max-width: 820px;
+  background: var(--paper-2); border: 1px solid var(--line);
+  border-radius: 12px; padding: 9px 9px 9px 15px;
+  transition: border-color 500ms var(--ease), background 500ms var(--ease);
+}
+body.done .composer-in { border-color: var(--vio-line); background: var(--card); }
+.composer-in .ph {
+  flex: 1; min-width: 0; font-size: 13.5px; color: var(--ink-28);
+  transition: color 400ms var(--ease);
+}
+body.done .composer-in .ph { color: var(--ink-55); }
+.enter {
+  flex: none; font-size: 13px; color: var(--ink-28);
+  background: var(--ink-07); padding: 8px 15px; border-radius: 9px;
+  pointer-events: none;
+  transition: opacity 500ms var(--ease), background 500ms var(--ease), color 500ms var(--ease);
+}
+body.done .enter { color: var(--ink); background: var(--vio-deep); pointer-events: auto; }
+
+/* ─── right: the rail, which is the actual ledger ────────────────────── */
+.rail {
+  border-left: 1px solid var(--line); background: var(--paper-2);
+  padding: 20px 18px; display: flex; flex-direction: column; min-height: 0;
+}
+.rail-t {
+  display: flex; align-items: baseline; justify-content: space-between;
+  font-family: var(--mono); font-size: 9px; letter-spacing: .18em;
+  text-transform: uppercase; color: var(--faint);
+}
+.rail-t .n { color: var(--muted); letter-spacing: .08em; }
+.rail-bar {
+  height: 2px; background: var(--ink-07); border-radius: 2px; margin: 11px 0 6px;
+  overflow: hidden;
+}
+.rail-bar i {
+  display: block; height: 100%; width: 0%; border-radius: 2px;
+  background: linear-gradient(90deg, var(--vio-deep), var(--vio));
+  transition: width 600ms var(--ease-io);
+}
+.rail-list { margin-top: 8px; }
+.rail-list li {
+  display: grid; grid-template-columns: 22px minmax(0,1fr); gap: 10px;
+  align-items: center; padding: 11px 0; border-bottom: 1px solid var(--line-soft);
+}
+.rail-av {
+  height: 22px; width: 22px; border-radius: 7px; display: grid; place-items: center;
+  font-family: var(--mono); font-size: 8.5px; font-weight: 500; color: #141210;
+  opacity: .3; transition: opacity 500ms var(--ease);
+}
+.rail-list li.now .rail-av, .rail-list li.in .rail-av { opacity: 1; }
+.rail-name {
+  font-size: 12.5px; color: var(--ink-28); letter-spacing: -.005em;
+  display: flex; align-items: baseline; justify-content: space-between; gap: 10px;
+  transition: color 400ms var(--ease);
+}
+.rail-list li.now .rail-name, .rail-list li.in .rail-name { color: var(--ink-72); }
+.rail-val {
+  font-family: var(--mono); font-size: 11px; color: var(--ink-28);
+  font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap;
+  transition: color 400ms var(--ease);
+}
+.rail-list li.in .rail-val { color: var(--ink); }
+.rail-list li.now .rail-val { color: var(--vio); }
+.rail-list li.flag .rail-val { color: var(--gold); }
+.rail-note {
+  margin-top: auto; padding-top: 16px;
+  font-family: var(--serif); font-style: italic; font-size: 13px;
+  line-height: 1.5; color: var(--faint);
+  border-top: 1px solid var(--line-soft);
+}
+.rail-note.flag { color: var(--gold); }
+
+/* ═══ Mock chrome ══════════════════════════════════════════════════════ */
+.chrome {
+  position: fixed; z-index: 80; left: 50%; bottom: 16px; transform: translateX(-50%);
+  display: flex; align-items: center; gap: 3px;
+  background: rgba(20,18,14,.92); border: 1px solid var(--line);
+  border-radius: 999px; padding: 5px 6px;
+  backdrop-filter: blur(12px);
+  box-shadow: 0 18px 40px -22px rgba(0,0,0,.9);
+}
+.chrome button {
+  font-family: var(--mono); font-size: 10.5px; letter-spacing: .04em;
+  color: var(--muted); padding: 7px 12px; border-radius: 999px;
+  transition: color 200ms, background 200ms; white-space: nowrap;
+}
+.chrome button:hover { color: var(--ink); }
+.chrome button.on { background: var(--vio-soft); color: var(--vio); }
+.chrome .replay { color: var(--vio); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+}
+@media (max-width: 1180px) {
+  .app { grid-template-columns: 216px minmax(0,1fr); }
+  .rail { display: none; }
+}
+@media (max-width: 880px) {
+  .app { grid-template-columns: minmax(0,1fr); }
+  .side { display: none; }
+  .b-bub { max-width: none; }
+}
+@media (max-height: 620px) {
+  .chat-head { padding-top: 12px; padding-bottom: 11px; }
+  .stream { padding-top: 16px; }
+}
+</style>
+</head>
+<body>
+
+<div class="topline" id="topline"></div>
+
+<div class="app">
+
+  <!-- ─── left ────────────────────────────────────────────────────────── -->
+  <aside class="side">
+    <div class="side-org">
+      <div class="mark">AK</div>
+      <div><b>Alpha Kappa</b><span class="term">Fall 2026</span></div>
+    </div>
+    <div class="side-grp">Chapter</div>
+    <ul class="side-nav" id="nav">
+      <li data-nav="roster"><span class="dot"></span>Members</li>
+      <li data-nav="attendance"><span class="dot"></span>Attendance</li>
+      <li data-nav="treasury"><span class="dot"></span>Treasury</li>
+      <li data-nav="events"><span class="dot"></span>Events</li>
+      <li data-nav="docs"><span class="dot"></span>Documents</li>
+      <li data-nav="tasks"><span class="dot"></span>Tasks</li>
+    </ul>
+    <div class="foot" id="side-foot">SYNCING</div>
+  </aside>
+
+  <!-- ─── centre ──────────────────────────────────────────────────────── -->
+  <main class="chat">
+    <header class="chat-head">
+      <div>
+        <h1>Catching you up</h1>
+        <div class="sub" id="head-sub">6 sources · away 14 days · Fall 2026</div>
+      </div>
+      <div class="faces" id="faces"></div>
+    </header>
+
+    <div class="stream-wrap" id="stream-wrap">
+      <div class="stream" id="stream"><!-- messages injected --></div>
+    </div>
+
+    <div class="composer">
+      <div class="composer-in">
+        <span class="ph" id="composer-ph">They're still going — hang on.</span>
+        <button class="enter">Enter chapter →</button>
+      </div>
+    </div>
+  </main>
+
+  <!-- ─── right ───────────────────────────────────────────────────────── -->
+  <aside class="rail">
+    <div class="rail-t"><span>Checked in</span><span class="n tnum" id="rail-n">0 / 6</span></div>
+    <div class="rail-bar"><i id="rail-fill"></i></div>
+    <ul class="rail-list" id="rail-list"><!-- injected --></ul>
+    <p class="rail-note" id="rail-note">Nothing needs you yet.</p>
+  </aside>
+
+</div>
+
+<nav class="chrome">
+  <button class="replay" data-replay>↻ Replay</button>
+  <button data-speed="1" class="on">1×</button>
+  <button data-speed="2">2×</button>
+</nav>
+
+<script>
+(() => {
+  const $  = (s, r=document) => r.querySelector(s);
+  const $$ = (s, r=document) => [...r.querySelectorAll(s)];
+
+  /* ── timeline engine with a cancel token ──────────────────────────── */
+  let token = 0, speed = 1;
+  const wait  = (ms, my) => new Promise(res => setTimeout(() => { if (my === token) res(); }, ms / speed));
+  const alive = my => my === token;
+  /* reactions fire on their own clock so they don't block the thread */
+  const later = (ms, my, fn) => setTimeout(() => { if (my === token) fn(); }, ms / speed);
+
+  const PEOPLE = {
+    roster:     { name: 'Roster',     ini: 'RO', bg: '#a78bfa' },
+    attendance: { name: 'Attendance', ini: 'AT', bg: '#7fb08a' },
+    treasury:   { name: 'Treasury',   ini: 'TR', bg: '#ddb36a' },
+    events:     { name: 'Events',     ini: 'EV', bg: '#d98ba3' },
+    docs:       { name: 'Documents',  ini: 'DO', bg: '#8fb4d9' },
+    tasks:      { name: 'Tasks',      ini: 'TA', bg: '#c9a3d9' }
+  };
+
+  /* ══════════════════════════════════════════════════════════════════
+     THE THREAD
+
+     Every line hangs off a number that also appears in the rail. `think`
+     is the fetch time — it is what the typing indicator is showing, so
+     it is the one timing that should come from the real request, not
+     from this file. `hold` is reading time for the line just posted:
+     long enough to read, short enough that nobody feels handled.
+     ══════════════════════════════════════════════════════════════════ */
+  const SOURCES = [
+    {
+      key: 'roster', nav: 'roster', think: 900,
+      rail: '58 members',
+      lines: [
+        { text: "ok headcount's done. <span class=\"num\">58</span>" },
+        { text: 'same 58 as two weeks ago, nobody left' },
+        { text: "four of them are named jake. i've stopped trying to fix this",
+          react: [['😭', 2]], hold: 900 }
+      ]
+    },
+    {
+      key: 'attendance', nav: 'attendance', think: 1000,
+      rail: '41 meetings',
+      lines: [
+        { text: "<span class=\"num\">41</span> meetings on file since you left" },
+        { text: 'do you want the excuse notes' },
+        { who: 'roster', text: 'no', hold: 520 },
+        { text: 'sending them anyway' },
+        { text: 'marcus has been <b>excused</b> eleven times. eleven', hold: 700 },
+        { who: 'roster', text: "he's still on my list so", reply: { who: 'attendance', text: 'marcus has been excused eleven times' }, hold: 620 },
+        { text: "i'm not judging. i'm reading", react: [['👀', 1]], hold: 900 }
+      ]
+    },
+    {
+      /* played straight. this is the beat that is actually about something
+         being wrong, and it does not get a punchline. */
+      key: 'treasury', nav: 'treasury', think: 2100,
+      rail: 'needs a look', flag: true,
+      note: 'Six dues payments look doubled. Nothing is lost — somebody just has to look.',
+      lines: [
+        { text: 'hey', hold: 700 },
+        { text: 'dues first: <span class="num">$14,280</span> collected of <span class="num">$18,400</span>' },
+        { text: '<b>six payments are in here twice.</b> all dated to the september move. nothing is missing — it is doubled. someone should look before you close the books.',
+          flag: true, react: [['👀', 3]], hold: 1500 },
+        { text: "not tonight. just not never", hold: 800 }
+      ]
+    },
+    {
+      key: 'events', nav: 'events', think: 850,
+      rail: '22 events',
+      lines: [
+        { text: '<span class="num">22</span> events this term' },
+        { text: 'three of them are called CHAPTER MEETING (MANDATORY!!!)' },
+        { who: 'attendance', text: 'can confirm the caps did nothing',
+          reply: { who: 'events', text: 'CHAPTER MEETING (MANDATORY!!!)' }, react: [['💀', 2]], hold: 800 },
+        { text: "there's also one on friday just called 'idk yet'" },
+        { text: 'no location, no time. a date and a feeling', hold: 900 }
+      ]
+    },
+    {
+      /* the slow one. four seconds of typing IS the index — that is the
+         whole gag and it only works if the duration is real. */
+      key: 'docs', nav: 'docs', think: 4000,
+      rail: '148 files',
+      lines: [
+        { text: 'sorry. <span class="num">148</span> files' },
+        { text: 'seven of them are the bylaws' },
+        { text: 'all seven say final', hold: 700 },
+        { text: 'going with <span class="file">bylaws_FINAL_v7_actuallyfinal_USETHIS.pdf</span> — it seemed the most sure of itself' },
+        { who: 'tasks', text: 'brave', react: [['🔥', 1]], hold: 900 }
+      ]
+    },
+    {
+      key: 'tasks', nav: 'tasks', think: 800,
+      rail: '9 open · 4 late',
+      lines: [
+        { text: '<span class="num">9</span> open, 4 overdue' },
+        { text: "oldest one is from march and it just says 'ask dev about the thing'" },
+        { text: 'nobody has asked dev about the thing', hold: 700 },
+        { who: 'roster', text: 'which dev' },
+        { text: "that's the other problem", react: [['😭', 2]], hold: 1000 }
+      ]
+    }
+  ];
+
+  /* ── DOM helpers ──────────────────────────────────────────────────── */
+  const stream = $('#stream'), wrap = $('#stream-wrap');
+  /* assignment, not scrollTo({behavior:'smooth'}) — a smooth scroll racing a
+     420ms message animation lands mid-flight and reads as a stutter */
+  const toBottom = () => { wrap.scrollTop = wrap.scrollHeight; };
+
+  const stamp = () => {
+    const d = new Date();
+    let h = d.getHours(), m = String(d.getMinutes()).padStart(2, '0');
+    const ap = h >= 12 ? 'PM' : 'AM'; h = h % 12 || 12;
+    return `${h}:${m} ${ap}`;
+  };
+
+  function msg(who, html, opts = {}) {
+    const p = PEOPLE[who];
+    const el = document.createElement('div');
+    el.className = 'b-msg' + (opts.tight ? ' tight' : '') + (opts.flag ? ' flagged' : '');
+    const quote = opts.reply
+      ? `<div class="b-quote"><b>${PEOPLE[opts.reply.who].name}</b><span>${opts.reply.text}</span></div>`
+      : '';
+    const head = opts.tight ? '' : `<div class="b-who">${p.name}<time>${stamp()}</time></div>`;
+    el.innerHTML =
+      `<div class="b-av" style="background:${p.bg}">${p.ini}</div>` +
+      `<div class="b-body">${head}${quote}<div class="b-bub">${html}</div></div>`;
+    stream.appendChild(el);
+    toBottom();
+    return el;
+  }
+
+  function typing(who) {
+    const el = msg(who, '<span class="b-typing"><i></i><i></i><i></i></span>');
+    return el;
+  }
+
+  function react(el, list, my) {
+    later(620, my, () => {
+      const row = document.createElement('div');
+      row.className = 'b-react';
+      row.innerHTML = list.map(([e, n]) => `<span>${e}<i>${n}</i></span>`).join('');
+      $('.b-body', el).appendChild(row);
+      toBottom();
+    });
+  }
+
+  function sys(html, cls = '') {
+    const el = document.createElement('div');
+    el.className = 'b-sys ' + cls; el.innerHTML = html;
+    stream.appendChild(el); toBottom(); return el;
+  }
+  function rule(text) {
+    const el = document.createElement('div');
+    el.className = 'b-rule'; el.textContent = text;
+    stream.appendChild(el); toBottom(); return el;
+  }
+
+  /* ── run ──────────────────────────────────────────────────────────── */
+  async function run(my) {
+    document.body.classList.remove('done');
+    stream.innerHTML = '';
+    $$('.side-nav li').forEach(li => li.classList.remove('lit'));
+    $('#topline').style.width = '0%';
+    $('#rail-fill').style.width = '0%';
+    $('#rail-n').textContent = '0 / 6';
+    $('#side-foot').textContent = 'SYNCING';
+    $('#head-sub').textContent = '6 sources · away 14 days · Fall 2026';
+    $('#composer-ph').textContent = "They're still going — hang on.";
+    const railNote = $('#rail-note');
+    railNote.className = 'rail-note';
+    railNote.textContent = 'Nothing needs you yet.';
+
+    $('#faces').innerHTML = Object.values(PEOPLE).map(p =>
+      `<div class="b-av" style="background:${p.bg}">${p.ini}</div>`).join('');
+
+    $('#rail-list').innerHTML = SOURCES.map(s => {
+      const p = PEOPLE[s.key];
+      return `<li data-rail="${s.key}"${s.flag ? ' class="pending"' : ''}>` +
+        `<span class="rail-av" style="background:${p.bg}">${p.ini}</span>` +
+        `<span class="rail-name">${p.name}<span class="rail-val">waiting</span></span></li>`;
+    }).join('');
+
+    await wait(400, my); if (!alive(my)) return;
+    rule('You were away 14 days');
+    await wait(700, my); if (!alive(my)) return;
+
+    let checked = 0;
+    for (const s of SOURCES) {
+      if (!alive(my)) return;
+      const li = $(`[data-rail="${s.key}"]`);
+      li.classList.add('now');
+      $('.rail-val', li).textContent = 'typing…';
+
+      const t = typing(s.key);
+      await wait(s.think, my); if (!alive(my)) return;
+      t.remove();
+
+      let lastWho = null;
+      for (const line of s.lines) {
+        if (!alive(my)) return;
+        const who = line.who || s.key;
+        const el = msg(who, line.text, { tight: who === lastWho, flag: line.flag, reply: line.reply });
+        if (line.react) react(el, line.react, my);
+        lastWho = who;
+        await wait(line.hold || 620, my); if (!alive(my)) return;
+      }
+
+      checked++;
+      li.classList.remove('now');
+      li.classList.add('in');
+      if (s.flag) li.classList.add('flag');
+      $('.rail-val', li).textContent = s.rail;
+      if (s.note) { railNote.textContent = s.note; railNote.className = 'rail-note flag'; }
+
+      $(`[data-nav="${s.nav}"]`).classList.add('lit');
+      $('#rail-n').textContent = `${checked} / 6`;
+      const pct = Math.round((checked / SOURCES.length) * 100);
+      $('#rail-fill').style.width = pct + '%';
+      $('#topline').style.width = pct + '%';
+
+      await wait(360, my); if (!alive(my)) return;
+    }
+
+    sys('✓ &nbsp;All six checked in — Alpha Kappa is up to date', 'ok');
+    await wait(260, my); if (!alive(my)) return;
+    const seen = document.createElement('div');
+    seen.className = 'b-seen'; seen.textContent = 'Seen by everyone';
+    stream.appendChild(seen); toBottom();
+
+    $('#side-foot').textContent = 'UP TO DATE';
+    $('#head-sub').textContent = '6 of 6 checked in · 1 thing worth a look';
+    $('#composer-ph').textContent = "That's everything. One thing needs a human.";
+    document.body.classList.add('done');
+  }
+
+  /* ── chrome ───────────────────────────────────────────────────────── */
+  const go = () => { token++; run(token); };
+  $('[data-replay]').addEventListener('click', go);
+  $$('[data-speed]').forEach(b => b.addEventListener('click', () => {
+    speed = Number(b.dataset.speed);
+    $$('[data-speed]').forEach(x => x.classList.toggle('on', x === b));
+    go();
+  }));
+  document.addEventListener('keydown', e => { if (e.key.toLowerCase() === 'r') go(); });
+
+  go();
+})();
+</script>
+</body>
+</html>
