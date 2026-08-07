@@ -147,3 +147,60 @@
 .dash .row-skel { height: 48px; border-bottom: 1px solid var(--line-soft); background: var(--card);
   animation: dash-pulse 1.4s ease-in-out infinite; }
 @keyframes dash-pulse { 0%,100% { opacity: 1; } 50% { opacity: .5; } }
+
+/* ── Join-request queue ───────────────────────────────────────────────────────
+   People who opened an invite link and are waiting on an officer. Gold rather
+   than rose or violet: this is not a fault and not a billing wall — it's work
+   sitting in someone's lap, the same register as an unreviewed excuse. It also
+   disappears completely when the queue is empty, so a chapter with nobody
+   waiting sees the roster exactly as before. */
+.dash .jr-band {
+  border: 1px solid var(--gold); border-left-width: 3px; border-radius: 10px;
+  background: var(--gold-bg); padding: 13px 16px 8px; margin-bottom: 14px;
+}
+.dash .jr-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: 8px; }
+.dash .jr-dot {
+  width: 7px; height: 7px; border-radius: 50%; background: var(--gold);
+  align-self: center; flex: 0 0 auto;
+}
+.dash .jr-title { font-size: 13px; font-weight: 650; color: var(--ink); margin: 0; }
+.dash .jr-sub { font-size: 12px; color: var(--muted); }
+
+.dash .jr-list { list-style: none; margin: 10px 0 0; padding: 0; }
+.dash .jr-row {
+  display: flex; align-items: center; gap: 11px;
+  padding: 9px 0; border-top: 1px solid var(--line-soft);
+}
+.dash .jr-av {
+  width: 30px; height: 30px; border-radius: 50%; object-fit: cover;
+  flex: 0 0 auto; border: 1px solid var(--line);
+}
+.dash .jr-av-fb {
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--paper-2); color: var(--ink-soft);
+  font-family: var(--mono); font-size: 12px; font-weight: 600;
+}
+.dash .jr-who { display: flex; flex-direction: column; min-width: 0; flex: 1 1 auto; }
+.dash .jr-name { font-size: 13.5px; font-weight: 600; color: var(--ink); }
+.dash .jr-mail {
+  font-size: 11.5px; color: var(--muted);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.dash .jr-meta { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
+.dash .jr-chip {
+  font-family: var(--mono); font-size: 9.5px; letter-spacing: .05em; text-transform: uppercase;
+  color: var(--ink-soft); border: 1px solid var(--line); border-radius: 999px;
+  padding: 2px 7px; background: var(--paper);
+  max-width: 16ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.dash .jr-when { font-family: var(--mono); font-size: 10.5px; color: var(--faint); }
+.dash .jr-review { flex: 0 0 auto; }
+
+.dash .jr-modal-id { display: flex; align-items: center; gap: 11px; }
+
+/* The row is four things fighting for one line. Below 640 the metadata column
+   is the first to go — the name and the action are what the officer needs. */
+@media (max-width: 640px) {
+  .dash .jr-meta { display: none; }
+  .dash .jr-row { gap: 9px; }
+}

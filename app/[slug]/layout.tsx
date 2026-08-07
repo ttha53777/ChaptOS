@@ -1,7 +1,30 @@
 import { redirect } from "next/navigation";
-import { requireUser, hasSession } from "@/lib/auth/require-user";
-import { AccessDenied } from "./AccessDenied";
+import { requireUser, hasSession, sessionAuthUserId } from "@/lib/auth/require-user";
+import { prismaPrivileged } from "@/lib/prisma-privileged";
+import { JoinRequestStatus } from "@/lib/state";
+import { AwaitingApproval } from "./AwaitingApproval";
+import { NeedsInvite } from "./NeedsInvite";
 import { ActiveOrgSync } from "./ActiveOrgSync";
+
+/**
+ * Is this Google account waiting on <slug> to let them in?
+ *
+ * Privileged and unscoped by necessity: the asker has no membership here (that
+ * is the whole point), so there is no app.org_id to SET LOCAL and the enforcing
+ * org_isolation policy on JoinRequest would silently return null for the plain
+ * app role — showing a waiting person the needs-an-invite page.
+ *
+ * Leaks nothing about which slugs exist. A row can only be found by someone who
+ * already used a link for that org, and every miss — real org, fake slug, no
+ * request — renders the identical NeedsInvite page.
+ */
+async function hasPendingRequest(authUserId: string, slug: string): Promise<boolean> {
+  const row = await prismaPrivileged.joinRequest.findFirst({
+    where:  { authUserId, status: JoinRequestStatus.Pending, organization: { slug } },
+    select: { id: true },
+  });
+  return row !== null;
+}
 
 /**
  * OrgGuard — wraps every /[slug]/* route.
@@ -11,8 +34,8 @@ import { ActiveOrgSync } from "./ActiveOrgSync";
  *
  *   - Not signed in                  → /login?org=<slug>  (org-first sign-in)
  *   - Signed in, member of <slug>    → render (sync cookie ← slug if stale)
- *   - Signed in, has memberships but
- *       not this slug                 → access-denied page (request access)
+ *   - Signed in, request pending      → the waiting wall
+ *   - Signed in, no way in            → "you need an invite"
  *   - Signed in, zero memberships     → /welcome (onboarding)
  *   - Platform admin (non-member)     → render chrome only (see caveat below)
  *
@@ -40,11 +63,18 @@ export default async function OrgLayout({
   if (!user) {
     // requireUser returns null for BOTH "no session" and "session but no
     // Brother". Distinguish them so an authenticated-but-unlinked user isn't
-    // bounced to /login (where they'd sit signed-in and stuck): send them to
-    // the claim flow for this org instead. (The proxy no longer gates link
-    // status — this layout owns it now.)
+    // bounced to /login (where they'd sit signed-in and stuck).
+    //
+    // "Session but no Brother" is now the NORMAL state for someone mid-join:
+    // filing a request creates no identity, so a person waiting on an officer
+    // has a session and nothing else. Show them the wall rather than the
+    // needs-an-invite page, which would read as if their request had vanished.
     if (await hasSession()) {
-      redirect(`/pending-access?org=${encodeURIComponent(slug)}`);
+      const authUserId = await sessionAuthUserId();
+      if (authUserId && await hasPendingRequest(authUserId, slug)) {
+        return <AwaitingApproval slug={slug} />;
+      }
+      return <NeedsInvite slug={slug} homeSlug={null} />;
     }
     redirect(`/login?org=${encodeURIComponent(slug)}`);
   }
@@ -72,14 +102,20 @@ export default async function OrgLayout({
     if (user.memberships.length === 0) {
       redirect("/welcome");
     }
-    // Member of some org, but not this slug. We deliberately do NOT check
-    // whether <slug> is a real org here: requireUser only knows the user's own
-    // memberships, and a DB existence probe would leak which slugs exist. So
-    // both "real org you're not in" and "nonexistent slug" land on the same
-    // access-denied page — non-enumerable by design. If the slug is bogus, the
-    // "Request access" link's claim call fails gracefully with "Organization
-    // not found".
-    return <AccessDenied slug={slug} homeSlug={homeSlug} />;
+    // Belongs somewhere, but not here. They may still be waiting on this org —
+    // someone in one chapter asking to join a second one gets the same review as
+    // anyone else, deliberately, so their identity being known elsewhere buys
+    // them nothing here.
+    const authUserId = await sessionAuthUserId();
+    if (authUserId && await hasPendingRequest(authUserId, slug)) {
+      return <AwaitingApproval slug={slug} />;
+    }
+
+    // We deliberately do NOT check whether <slug> is a real org: requireUser
+    // only knows the user's own memberships, and a DB existence probe would leak
+    // which slugs exist. So "real org you're not in" and "nonexistent slug" land
+    // on the same page — non-enumerable by design.
+    return <NeedsInvite slug={slug} homeSlug={homeSlug} />;
   }
 
   // The post-create onboarding wizard is RETIRED. Setup now happens

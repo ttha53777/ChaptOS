@@ -1,16 +1,21 @@
 import Link from "next/link";
 
 /**
- * Shown when a signed-in user lands on /<slug> for an org that exists but they
- * are not a member of. Offers the claim flow (request access) and a way back to
- * their own org. Server component — pure links, no interactivity.
+ * Shown when a signed-in user lands on /<slug> and has no business there yet.
  *
- * Note: reaching this page confirms the slug names a real org. That's an
- * acceptable disclosure — it leaks no org data (name, roster, anything), only
- * that the typed string is a registered slug. Nonexistent slugs never reach
- * here; the layout redirects them away before render.
+ * This replaces AccessDenied, which offered a "Request access to <slug>" button
+ * that requested nothing: it linked to /pending-access, a name-match form that
+ * let anyone matching an officer-typed roster row straight in with no review.
+ * Both that form and the rows it matched against are gone, so the honest answer
+ * is now the only one — you need a link, and a person has to give it to you.
+ *
+ * Reaching this page does NOT confirm the slug names a real org: a real org the
+ * viewer isn't in and a slug that doesn't exist render exactly the same thing,
+ * which is the non-enumerability property the old page documented and kept.
+ *
+ * Server component — pure links, no interactivity.
  */
-export function AccessDenied({
+export function NeedsInvite({
   slug,
   homeSlug,
 }: {
@@ -54,28 +59,17 @@ export function AccessDenied({
               </svg>
             </div>
             <h1 className="text-[22px] font-semibold leading-tight tracking-tight text-white">
-              You don&rsquo;t have access
+              You need an invite
             </h1>
             <p className="text-[13px] leading-relaxed text-white/40">
               You&rsquo;re signed in, but you&rsquo;re not a member of{" "}
-              <span className="font-medium text-white/70">{slug}</span>. If this is
-              your chapter, you can request access by linking your account.
+              <span className="font-medium text-white/70">{slug}</span>. Joining
+              starts with an invite link from one of their officers — ask whoever
+              runs the group to send you one.
             </p>
           </header>
 
           <div className="flex flex-col gap-3">
-            <Link
-              href={`/pending-access?org=${encodeURIComponent(slug)}`}
-              className="group relative overflow-hidden rounded-xl border border-indigo-400/30 bg-gradient-to-br from-indigo-500/15 to-indigo-600/5 px-5 py-4 text-left transition-all hover:border-indigo-400/50 hover:from-indigo-500/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
-            >
-              <span className="block text-[14px] font-semibold text-white">
-                Request access to {slug}
-              </span>
-              <span className="mt-1 block text-[12px] leading-relaxed text-white/50">
-                Match your name to a roster entry to join this chapter.
-              </span>
-            </Link>
-
             {homeSlug ? (
               <Link
                 href={`/${homeSlug}`}

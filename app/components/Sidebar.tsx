@@ -154,6 +154,13 @@ export function Sidebar({ open, onClose, activeSection, onNavClick }: {
     ? reimbursementList.filter(r => r.status === "pending").length
     : currentUser?.org?.pendingReimbursementCount ?? 0;
 
+  // People waiting on an officer to let them in, badged on Brotherhood (where
+  // the review queue lives). Rides along on /api/auth/me like the reimbursement
+  // count rather than costing a fetch on every page, and the server already
+  // zeroes it for anyone without MANAGE_BROTHERS — so the badge never advertises
+  // work the viewer would get a 403 for.
+  const pendingJoinRequests = currentUser?.org?.pendingJoinRequestCount ?? 0;
+
   // Pending excuses drive a review badge on Timeline (where the review queue lives).
   // Only MANAGE_ATTENDANCE holders can read the endpoint (members get 403), so gate
   // the fetch on the perm and treat any failure as zero. Refetch on navigation so
@@ -346,6 +353,9 @@ export function Sidebar({ open, onClose, activeSection, onNavClick }: {
         )}
         {isTimeline && pendingExcuses > 0 && (
           <NavCountBadge count={pendingExcuses} label="excuses awaiting review" />
+        )}
+        {isBrotherhood && pendingJoinRequests > 0 && (
+          <NavCountBadge count={pendingJoinRequests} label="people waiting to join" />
         )}
       </Link>
     ) : (

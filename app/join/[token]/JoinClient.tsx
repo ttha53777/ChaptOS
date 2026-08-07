@@ -2,29 +2,34 @@
 
 import { createClient } from "@/lib/supabase/client";
 import { APP_NAME } from "@/lib/domains";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { InviteDeadReason } from "@/lib/auth/invite-lookup";
 
-type Mode = "open" | "claim";
-type JoinState = "guest" | "ready" | "already_member" | "existing_account";
+type JoinState = "guest" | "ready" | "pending" | "rejected" | "already_member";
 
 interface Account { email: string | null; name: string | null; avatarUrl: string | null }
+
+/** How often the waiting screen re-asks whether an officer has decided. */
+const POLL_MS = 10_000;
 
 // Drives the invite flow once the server has resolved the token.
 //
 // The screen is a function of ONE value — `state`, decided server-side by
-// GET /api/auth/invite-status — rather than the old "is there a session?"
+// GET /api/auth/invite-status — rather than a client-side "is there a session?"
 // boolean. That boolean couldn't tell an invited stranger from the wrong Google
-// account from someone who already belonged to the org, so all three got the
-// same "Join <Org>" form, and two of them got a bad outcome from submitting it.
+// account from someone who already belonged, so all of them got the same form,
+// and most of them got a bad outcome from submitting it.
 //
-//   guest            → Continue with Google (OAuth returns here via ?next=)
-//   ready            → confirm the account, name yourself, join
-//   already_member   → you're in already; here's the door (no form, no rename)
-//   existing_account → claim link + an account that can't be claim-linked;
-//                      join by membership instead of dead-ending at 409
+//   guest          → Continue with Google (OAuth returns here via ?next=)
+//   ready          → confirm the account, name yourself, ask to join
+//   pending        → the locked waiting screen; polls until an officer decides
+//   rejected       → declined; needs a fresh link from an officer to ask again
+//   already_member → you're in; here's the door (no form, no rename)
+//
+// Holding this link is not access. Submitting files a request that an officer
+// approves or rejects — nothing is created in the org until they do.
 export function JoinClient({
-  token, valid, reason, orgName, orgLogoUrl, memberCount, mode,
+  token, valid, reason, orgName, orgLogoUrl, memberCount,
 }: {
   token: string;
   valid: boolean;
@@ -32,7 +37,6 @@ export function JoinClient({
   orgName: string | null;
   orgLogoUrl: string | null;
   memberCount: number | null;
-  mode: Mode;
 }) {
   // null = still checking the session on mount; avoids a flash of the wrong CTA.
   const [state, setState]     = useState<JoinState | null>(null);
@@ -41,43 +45,85 @@ export function JoinClient({
   const [name, setName]       = useState("");
   const [busy, setBusy]       = useState(false);
   const [error, setError]     = useState<string | null>(null);
+  // Starts from the server's verdict and can be overruled by invite-status —
+  // see the note in page.tsx. A dead link must not hide a live decision.
+  const [dead, setDead]       = useState<{ reason: InviteDeadReason | null } | null>(
+    valid ? null : { reason },
+  );
+
+  /**
+   * Ask the server where this viewer stands. Returns true when the answer was
+   * conclusive, so the poll below knows whether to keep going.
+   *
+   * Runs even when the server called the link dead: someone waiting on an
+   * officer, or already declined, still gets their real state back.
+   */
+  const refresh = useCallback(async (): Promise<JoinState | null> => {
+    try {
+      const res  = await fetch(`/api/auth/invite-status?token=${encodeURIComponent(token)}`);
+      const data = await res.json().catch(() => null);
+      if (data?.valid) {
+        setDead(null);
+        setState(data.state as JoinState);
+        setAccount(data.account ?? null);
+        setOrgSlug(data.org?.slug ?? null);
+        if (data.account?.name) setName(n => n || data.account.name);
+        return data.state as JoinState;
+      }
+      if (data && data.valid === false) {
+        setDead({ reason: (data.reason ?? null) as InviteDeadReason | null });
+        return null;
+      }
+    } catch {
+      // Fall through to the session-only path below.
+    }
+    // Pre-flight unavailable (offline, 500). Degrade to what we can still
+    // determine locally rather than blocking a legitimate request: a session
+    // means "ready", none means "guest". The submit call re-checks everything
+    // server-side anyway, so the worst case is a form we'd have skipped.
+    const { data: userData } = await createClient().auth.getUser();
+    const fallback: JoinState = userData.user ? "ready" : "guest";
+    setState(fallback);
+    return fallback;
+  }, [token]);
 
   useEffect(() => {
-    if (!valid) return;
     let cancelled = false;
-    (async () => {
-      try {
-        const res  = await fetch(`/api/auth/invite-status?token=${encodeURIComponent(token)}`);
-        const data = await res.json().catch(() => null);
-        if (cancelled) return;
-        if (res.ok && data?.valid) {
-          setState(data.state as JoinState);
-          setAccount(data.account ?? null);
-          setOrgSlug(data.org?.slug ?? null);
-          if (data.account?.name) setName(n => n || data.account.name);
-          return;
-        }
-      } catch {
-        // Fall through to the session-only path below.
-      }
+    void (async () => {
+      const s = await refresh();
       if (cancelled) return;
-      // Pre-flight unavailable (offline, 500). Degrade to what we can still
-      // determine locally rather than blocking a legitimate join: a session
-      // means "ready", none means "guest". The redeem call re-checks everything
-      // server-side anyway, so the worst case is a form we'd have skipped.
-      const { data: userData } = await createClient().auth.getUser();
-      if (!cancelled) setState(userData.user ? "ready" : "guest");
+      void s;
     })();
     return () => { cancelled = true; };
-  }, [token, valid]);
+  }, [refresh]);
+
+  // ── The waiting screen's heartbeat ────────────────────────────────────────
+  // While `pending`, re-ask every POLL_MS until an officer decides. Approval
+  // flips the state to already_member (the Membership now exists), which is what
+  // turns this screen into the dashboard without the person touching anything.
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  useEffect(() => {
+    if (state !== "pending") return;
+    pollRef.current = setInterval(() => { void refresh(); }, POLL_MS);
+    return () => { if (pollRef.current) clearInterval(pollRef.current); };
+  }, [state, refresh]);
+
+  // Approved while waiting → walk them in. ?toast=welcome greets them on arrival
+  // instead of dropping them onto a cold dashboard.
+  const wasPending = useRef(false);
+  useEffect(() => {
+    if (state === "pending") wasPending.current = true;
+    if (state === "already_member" && wasPending.current && orgSlug) {
+      window.location.assign(`/${orgSlug}?toast=welcome`);
+    }
+  }, [state, orgSlug]);
 
   const signIn = useCallback(async () => {
     setBusy(true);
     setError(null);
     try {
       // Return through the callback so the PKCE code is exchanged, then back to
-      // THIS page (token in the path). Pass only next= — never org= (that would
-      // divert an unlinked user to /pending-access).
+      // THIS page (token in the path). Pass only next= — never org=.
       const next = `/join/${encodeURIComponent(token)}`;
       const callbackUrl = `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`;
       const { error } = await createClient().auth.signInWithOAuth({
@@ -99,38 +145,142 @@ export function JoinClient({
     window.location.assign(`/join/${encodeURIComponent(token)}`);
   }, [token]);
 
-  async function redeem() {
+  async function submit() {
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch("/api/auth/redeem-invite", {
+      const res = await fetch("/api/auth/request-join", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token, name: name.trim() || undefined }),
+        body: JSON.stringify({ token, name: name.trim() }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
+        // A 403 here means this person was declined — that's a state, not an
+        // error to retry, so render the dead-end screen rather than a red bar.
+        if (data?.state === "rejected") { setState("rejected"); setBusy(false); return; }
         setError(messageFor(res.status, data?.error));
         setBusy(false);
         return;
       }
-      // claim mode → hand off to the existing name-match claim form. Only new
-      // accounts get here; the server routes existing ones through membership.
-      if (data?.mode === "claim") {
-        window.location.assign(`/pending-access?org=${encodeURIComponent(data.orgSlug)}`);
+      if (data?.orgSlug) setOrgSlug(data.orgSlug);
+      if (data?.state === "already_member") {
+        window.location.assign(`/${data.orgSlug}?toast=welcome`);
         return;
       }
-      // Joined. The server set the active_org cookie; ?toast=welcome greets them
-      // on arrival instead of dropping them onto a cold dashboard.
-      window.location.assign(`/${data.orgSlug}?toast=welcome`);
+      setState("pending");
+      setBusy(false);
     } catch {
       setError("Couldn't reach the server. Check your connection.");
       setBusy(false);
     }
   }
 
-  const isClaimHandoff = mode === "claim" && state === "ready";
+  if (dead) {
+    return (
+      <Shell>
+        <DeadLink reason={dead.reason} orgName={orgName} />
+      </Shell>
+    );
+  }
 
+  if (state === "rejected") {
+    return (
+      <Shell>
+        <Declined orgName={orgName} />
+      </Shell>
+    );
+  }
+
+  if (state === "pending") {
+    return (
+      <Shell>
+        <AwaitingReview
+          orgName={orgName}
+          orgLogoUrl={orgLogoUrl}
+          submittedName={name.trim() || account?.name || null}
+          account={account}
+          onSwitch={switchAccount}
+          busy={busy}
+        />
+      </Shell>
+    );
+  }
+
+  return (
+    <Shell>
+      <OrgMark name={orgName} logoUrl={orgLogoUrl} />
+      <div className="auth-index">
+        {state === "already_member" ? "Already a member" : "You’re invited"}
+      </div>
+      <h1 className="auth-h1">
+        {state === "already_member"
+          ? <>You&rsquo;re in <em>{orgName}.</em></>
+          : <>Join <em>{orgName}.</em></>}
+      </h1>
+      <p className="auth-lede">{lede(state, orgName)}</p>
+      {memberCount != null && memberCount > 0 && state !== "already_member" && (
+        <p className="auth-orgmeta">
+          {memberCount} {memberCount === 1 ? "member" : "members"} already here
+        </p>
+      )}
+
+      <div className="auth-body auth-stack">
+        {error && (
+          <div className="auth-alert" role="alert">
+            <AlertIcon />
+            {error}
+          </div>
+        )}
+
+        {state === null ? (
+          <div className="auth-btn-skel" aria-hidden />
+        ) : state === "guest" ? (
+          <GoogleButton loading={busy} onClick={signIn} />
+        ) : state === "already_member" ? (
+          <button
+            onClick={() => window.location.assign(`/${orgSlug ?? ""}`)}
+            disabled={!orgSlug}
+            className="auth-btn-vio"
+          >
+            Go to {orgName}
+          </button>
+        ) : (
+          <>
+            {account && <AccountRow account={account} onSwitch={switchAccount} busy={busy} />}
+
+            <div>
+              <label className="auth-label" htmlFor="join-name">Your full name</label>
+              <input
+                id="join-name"
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="e.g. Jordan Lee"
+                autoFocus
+                className="auth-input"
+              />
+              <p className="auth-footnote" style={{ marginTop: 8 }}>
+                This is the name {orgName ?? "this organization"} will see on their roster.
+              </p>
+            </div>
+
+            <button
+              onClick={submit}
+              disabled={busy || !name.trim()}
+              className="auth-btn-vio"
+            >
+              {busy ? "Sending…" : "Ask to join"}
+            </button>
+          </>
+        )}
+      </div>
+    </Shell>
+  );
+}
+
+/** The page chrome every state shares. */
+function Shell({ children }: { children: React.ReactNode }) {
   return (
     <div className="auth-scope">
       <div className="auth-page">
@@ -141,89 +291,8 @@ export function JoinClient({
           </div>
           <div className="auth-meta">02 / Invite</div>
         </div>
-
         <div className="auth-main">
-          <div className="auth-col">
-            {!valid ? (
-              <DeadLink reason={reason} orgName={orgName} />
-            ) : (
-              <>
-                <OrgMark name={orgName} logoUrl={orgLogoUrl} />
-                <div className="auth-index">
-                  {state === "already_member" ? "Already a member" : "You’re invited"}
-                </div>
-                <h1 className="auth-h1">
-                  {state === "already_member"
-                    ? <>You&rsquo;re in <em>{orgName}.</em></>
-                    : <>Join <em>{orgName}.</em></>}
-                </h1>
-                <p className="auth-lede">{lede(state, mode, orgName)}</p>
-                {memberCount != null && memberCount > 0 && state !== "already_member" && (
-                  <p className="auth-orgmeta">
-                    {memberCount} {memberCount === 1 ? "member" : "members"} already here
-                  </p>
-                )}
-
-                <div className="auth-body auth-stack">
-                  {error && (
-                    <div className="auth-alert" role="alert">
-                      <AlertIcon />
-                      {error}
-                    </div>
-                  )}
-
-                  {state === null ? (
-                    <div className="auth-btn-skel" aria-hidden />
-                  ) : state === "guest" ? (
-                    <GoogleButton loading={busy} onClick={signIn} />
-                  ) : state === "already_member" ? (
-                    <button
-                      onClick={() => window.location.assign(`/${orgSlug ?? ""}`)}
-                      disabled={!orgSlug}
-                      className="auth-btn-vio"
-                    >
-                      Go to {orgName}
-                    </button>
-                  ) : (
-                    <>
-                      {account && <AccountRow account={account} onSwitch={switchAccount} busy={busy} />}
-
-                      {state === "existing_account" && (
-                        <div className="auth-notice">
-                          You already have a {APP_NAME} account, so we&rsquo;ll add you to{" "}
-                          {orgName} directly — with your own place on their roster, separate
-                          from the {APP_NAME} organizations you already belong to.
-                        </div>
-                      )}
-
-                      {!isClaimHandoff && (
-                        <div>
-                          <label className="auth-label" htmlFor="join-name">Your full name</label>
-                          <input
-                            id="join-name"
-                            type="text"
-                            value={name}
-                            onChange={(e) => setName(e.target.value)}
-                            placeholder="e.g. Jordan Lee"
-                            autoFocus
-                            className="auth-input"
-                          />
-                        </div>
-                      )}
-
-                      <button
-                        onClick={redeem}
-                        disabled={busy || (!isClaimHandoff && !name.trim())}
-                        className="auth-btn-vio"
-                      >
-                        {busy ? "Joining…" : isClaimHandoff ? "Continue" : `Join ${orgName}`}
-                      </button>
-                    </>
-                  )}
-                </div>
-              </>
-            )}
-          </div>
+          <div className="auth-col">{children}</div>
         </div>
       </div>
     </div>
@@ -231,15 +300,90 @@ export function JoinClient({
 }
 
 /** Copy under the headline, per state. */
-function lede(state: JoinState | null, mode: Mode, orgName: string | null): string {
+function lede(state: JoinState | null, orgName: string | null): string {
   if (state === "already_member") return `You already have access to ${orgName ?? "this org"}.`;
-  if (state === "existing_account") return "One step to finish joining.";
-  if (state === "ready") {
-    return mode === "open"
-      ? "Tell us your name to finish joining."
-      : "Continue to link your roster profile.";
-  }
-  return `Sign in with Google to join on ${APP_NAME}.`;
+  if (state === "ready") return "Tell us your name and we’ll send your request to their officers.";
+  return `Sign in with Google to ask to join on ${APP_NAME}.`;
+}
+
+/**
+ * The locked waiting screen.
+ *
+ * Deliberately contains NO org data — not the roster, not the headcount, not a
+ * single link inward. Nothing about this org has been created for this person
+ * yet: no Brother, no Membership, nothing an org-scoped query would return. The
+ * screen says who they asked, as whom, and that it's someone else's move.
+ *
+ * It polls in the background (see the effect above), so approval walks them in
+ * without a refresh. The only control is a way back out of the wrong account.
+ */
+function AwaitingReview({
+  orgName, orgLogoUrl, submittedName, account, onSwitch, busy,
+}: {
+  orgName: string | null;
+  orgLogoUrl: string | null;
+  submittedName: string | null;
+  account: Account | null;
+  onSwitch: () => void;
+  busy: boolean;
+}) {
+  return (
+    <>
+      <OrgMark name={orgName} logoUrl={orgLogoUrl} />
+      <div className="auth-index">Request sent</div>
+      <h1 className="auth-h1">
+        Waiting on <em>{orgName}.</em>
+      </h1>
+      <p className="auth-lede">
+        An officer needs to approve you before you can get in. You&rsquo;ll land on
+        your dashboard the moment they do — you can leave this page open, or come
+        back to this link later.
+      </p>
+
+      <div className="auth-body auth-stack">
+        <div className="auth-notice" role="status" aria-live="polite">
+          <span className="auth-spinner" aria-hidden="true" style={{ marginRight: 8 }} />
+          Pending review{submittedName ? <> — you asked to join as <b>{submittedName}</b>.</> : "."}
+        </div>
+
+        {account && <AccountRow account={account} onSwitch={onSwitch} busy={busy} />}
+
+        <p className="auth-footnote">
+          Nothing has been shared with you yet. If this is taking a while, the
+          fastest fix is usually asking whoever sent you the link.
+        </p>
+      </div>
+    </>
+  );
+}
+
+/**
+ * Declined.
+ *
+ * Says so plainly, and names the one thing that actually unblocks them: a new
+ * link. Re-opening THIS one will keep landing here — the rejection is recorded
+ * against this person and this link, which is what stops a reload from putting
+ * them back in the officer's queue.
+ */
+function Declined({ orgName }: { orgName: string | null }) {
+  const org = orgName ?? "This organization";
+  return (
+    <div className="auth-body" style={{ marginTop: 0 }}>
+      <div className="auth-badmark" aria-hidden="true">
+        <svg width="22" height="22" viewBox="0 0 20 20" fill="currentColor">
+          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z" clipRule="evenodd" />
+        </svg>
+      </div>
+      <h1 className="auth-h1" style={{ textAlign: "center", fontSize: 24, marginTop: 20 }}>
+        Your request wasn&rsquo;t approved
+      </h1>
+      <p className="auth-lede" style={{ textAlign: "center", margin: "12px auto 0" }}>
+        {org} didn&rsquo;t accept this request. This link won&rsquo;t work for you
+        again — if you think that&rsquo;s a mistake, ask an organizer to send you a
+        fresh one.
+      </p>
+    </div>
+  );
 }
 
 /**
@@ -298,7 +442,7 @@ function OrgMark({ name, logoUrl }: { name: string | null; logoUrl: string | nul
   );
 }
 
-/** Which Google account is about to join, and a one-click way out of the wrong one. */
+/** Which Google account is asking, and a one-click way out of the wrong one. */
 function AccountRow({ account, onSwitch, busy }: { account: Account; onSwitch: () => void; busy: boolean }) {
   const label = account.email ?? account.name ?? "your Google account";
   return (
@@ -307,7 +451,7 @@ function AccountRow({ account, onSwitch, busy }: { account: Account; onSwitch: (
         ? <img src={account.avatarUrl} alt="" />
         : <span className="avatar-fallback" aria-hidden>{label.charAt(0).toUpperCase()}</span>}
       <span className="who">
-        <span className="k">Joining as</span>
+        <span className="k">Signed in as</span>
         <span className="v" title={label}>{label}</span>
       </span>
       <button onClick={onSwitch} disabled={busy} className="auth-link vio" style={{ flex: "0 0 auto" }}>
@@ -318,7 +462,7 @@ function AccountRow({ account, onSwitch, busy }: { account: Account; onSwitch: (
 }
 
 /**
- * Map a redeem failure to copy the invitee can act on. The server's strings are
+ * Map a submit failure to copy the invitee can act on. The server's strings are
  * already user-safe and stay as the fallback, but the common cases get phrasing
  * written for this screen rather than for an API consumer.
  */
@@ -326,13 +470,8 @@ function messageFor(status: number, serverError?: string): string {
   if (status === 410) return serverError ?? "This invite link is no longer active.";
   if (status === 429) return "Too many attempts. Wait a minute and try again.";
   if (status === 401) return "Your sign-in expired. Refresh the page and try again.";
-  // 402 — the org is at its member limit. Stays deliberately vague: the server
-  // sends AT_CAPACITY_PUBLIC_MESSAGE here rather than the detailed admin copy
-  // precisely so someone who isn't a member can't read an org's billing state
-  // out of a failed join. Don't add a price, a count, or a billing link.
-  if (status === 402) return serverError ?? "This organization can’t take new members right now. Ask whoever sent you the link.";
   if (status >= 500)  return "Something went wrong on our end. Try again in a moment.";
-  return serverError ?? "Couldn’t join. Please try again.";
+  return serverError ?? "Couldn’t send your request. Please try again.";
 }
 
 function AlertIcon() {

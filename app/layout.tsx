@@ -17,7 +17,7 @@ const geistMono = Geist_Mono({
 });
 
 // Editorial serif used only by the pre-auth pages (login / join / welcome /
-// create / pending-access) via --font-fraunces. The dashboard never references
+// create) via --font-fraunces. The dashboard never references
 // it, so loading it here costs the authed app nothing at runtime.
 const fraunces = Fraunces({
   variable: "--font-fraunces",

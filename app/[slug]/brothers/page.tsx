@@ -7,6 +7,7 @@ import { BrotherAvatar } from "../../components/BrotherAvatar";
 import { Modal, FieldLabel } from "../../components/dashboard/primitives";
 import { inputDuskCls, btnDuskGhostCls, btnDuskActionCls } from "../../components/dashboard/styles";
 import { BrotherDrawer } from "../../components/dashboard/drawers/BrotherDrawer";
+import { JoinRequestsPanel } from "../../components/dashboard/JoinRequestsPanel";
 import { TxForm } from "../../components/treasury/TxForm";
 import { useToast } from "../../components/dashboard/Toast";
 import { useChapter } from "../../context/ChapterContext";
@@ -82,61 +83,11 @@ function SortHead({ label, sortKey, activeKey, dir, onClick, numeric }: {
   );
 }
 
-// Add Brother form
-function AddBrotherForm({ onSubmit, onCancel }: {
-  onSubmit: (data: Omit<Brother, "id" | "attendance">) => void;
-  onCancel: () => void;
-}) {
-  const [name,         setName]         = useState("");
-  const [role,         setRole]         = useState("");
-  const [gpa,          setGpa]          = useState("0.00");
-  const [duesOwed,     setDuesOwed]     = useState("0");
-  const [serviceHours, setServiceHours] = useState("0");
-
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    onSubmit({
-      name:         name.trim(),
-      role:         role.trim(),
-      gpa:          Math.min(4.0, Math.max(0, parseFloat(gpa) || 0)),
-      duesOwed:     Math.max(0, parseFloat(duesOwed) || 0),
-      serviceHours: Math.max(0, parseFloat(serviceHours) || 0),
-    });
-  }
-
-  return (
-    <form onSubmit={handleSubmit} className="space-y-3">
-      <div>
-        <FieldLabel tone="dusk">Name</FieldLabel>
-        <input required className={inputDuskCls} value={name} onChange={e => setName(e.target.value)} placeholder="Full name" />
-      </div>
-      <div>
-        <FieldLabel tone="dusk">Role / Committees</FieldLabel>
-        <input required className={inputDuskCls} value={role} onChange={e => setRole(e.target.value)} placeholder="e.g. President · Rush" />
-      </div>
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <div>
-          <FieldLabel tone="dusk">GPA</FieldLabel>
-          <input type="number" min="0" max="4" step="0.01" className={inputDuskCls} value={gpa} onChange={e => setGpa(e.target.value)} />
-        </div>
-        <div>
-          <FieldLabel tone="dusk">Dues ($)</FieldLabel>
-          <input type="number" min="0" className={inputDuskCls} value={duesOwed} onChange={e => setDuesOwed(e.target.value)} />
-        </div>
-        <div>
-          <FieldLabel tone="dusk">Service (h)</FieldLabel>
-          <input type="number" min="0" className={inputDuskCls} value={serviceHours} onChange={e => setServiceHours(e.target.value)} />
-        </div>
-      </div>
-      <div className="flex justify-end gap-2 pt-1">
-        <button type="button" onClick={onCancel} className="rounded-lg border border-[rgba(236,231,221,0.12)] bg-[#161310] px-4 py-1.5 text-[13px] text-[#c9c2b4] transition-colors hover:border-[rgba(236,231,221,0.22)] hover:text-[#ece7dd]">Cancel</button>
-        <button type="submit" className="rounded-lg bg-[#a78bfa] px-4 py-1.5 text-[13px] font-semibold text-[#1a1206] transition-colors hover:bg-[#b9a0fb]">Add Brother</button>
-      </div>
-    </form>
-  );
-}
-
-// ─── Page ─────────────────────────────────────────────────────────────────────
+// There is no AddBrotherForm. Officers can no longer type a person onto the
+// roster — a roster spot is created by approving a join request, which is what
+// JoinRequestsPanel below does. The form that used to live here asked for a
+// name, GPA and an opening dues balance, and produced a Brother with no account
+// that nobody could ever sign in to.
 
 export default function BrothersPage() {
   const { currentUser, brotherList, setBrotherList, isLoading, avatarRevision, can, setSelfNameLocal } = useChapter();
@@ -165,7 +116,6 @@ export default function BrothersPage() {
   const [sortKey,          setSortKey]          = useState<SortKey | null>(null);
   const [sortDir,          setSortDir]          = useState<"asc" | "desc">("asc");
   const [selectedId,       setSelectedId]       = useState<number | null>(null);
-  const [showAddModal,     setShowAddModal]     = useState(false);
   // "Record Payment" modal — opened from the Pay button on a roster row or the
   // Brother drawer. Holds the target brother; the amount entered is deducted
   // from their outstanding dues.
@@ -195,6 +145,19 @@ export default function BrothersPage() {
   const goToInvites = useCallback(() => {
     router.push(`${orgPath("/settings")}?section=invitations`);
   }, [router, orgPath]);
+
+  // Pull the roster again after an approval. A full refetch rather than pushing
+  // the returned row in by hand: approval creates a Membership plus (optionally)
+  // a BrotherRole, and roleTitle() renders the relational roles — so a locally
+  // synthesized row would show the right name under the wrong title until the
+  // next navigation.
+  const reloadRoster = useCallback(async () => {
+    try {
+      setBrotherList(await requestJson<Brother[]>("/api/brothers"));
+    } catch {
+      // The approval itself succeeded; a stale list corrects on next load.
+    }
+  }, [setBrotherList]);
 
   function openLogServiceHours(b: Brother) {
     setLogHoursFor(b);
@@ -320,31 +283,6 @@ export default function BrothersPage() {
   }, [brotherList, search, statusFilter, sortKey, sortDir, THRESHOLDS]);
 
   // ── Mutations ─────────────────────────────────────────────────────────────
-
-  const handleAddBrother = useCallback(async (data: Omit<Brother, "id" | "attendance">) => {
-    const optimisticId = -Date.now();
-    const optimistic: Brother = { ...data, id: optimisticId, attendance: 0 };
-    setBrotherList(prev => [...prev, optimistic]);
-    setShowAddModal(false);
-    setPageError(null);
-    setSeatWall(null);
-    try {
-      const saved = await requestJson<Brother>("/api/brothers", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...data, attendance: 0 }),
-      });
-      setBrotherList(prev => prev.map(b => b.id === optimisticId ? saved : b));
-    } catch (err) {
-      setBrotherList(prev => prev.filter(b => b.id !== optimisticId));
-      // A 402 is the seat guard, not a fault: the org has grown past what it's
-      // paying for. Telling someone to "try again" there is both wrong and a
-      // dead end, so it gets its own band with the way out.
-      const wall = seatWallFrom(err);
-      if (wall) setSeatWall(wall);
-      else setPageError(apiErrorMessage(err, "Failed to add brother. Please try again."));
-    }
-  }, [setBrotherList]);
 
   const updateBrother = useCallback((id: number, updates: Omit<Brother, "id" | "duesOwed">) => {
     const prev = brotherList.find(b => b.id === id);
@@ -503,15 +441,16 @@ export default function BrothersPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
               </svg>
             </button>
-            {canBrothers && (
+            {canSettings && (
               <button
-                onClick={() => setShowAddModal(true)}
+                onClick={goToInvites}
+                title="Create an invite link"
                 className="tb-btn flex h-8 items-center gap-1.5 rounded-full border border-indigo-500/20 bg-white/[0.04] px-3.5 text-[12px] font-semibold text-indigo-200 transition-all hover:border-indigo-400/35 hover:bg-indigo-500/[0.08] hover:text-white"
               >
                 <svg className="h-3.5 w-3.5 text-indigo-300" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
                 </svg>
-                <span className="hidden sm:inline">New</span>
+                <span className="hidden sm:inline">Invite</span>
               </button>
             )}
           </div>
@@ -561,6 +500,21 @@ export default function BrothersPage() {
               </div>
             )}
 
+            {/* ── People waiting to be let in ──
+                Above the header on purpose: it is the only thing on this page
+                that someone outside the org is blocked on, and it renders
+                nothing at all when the queue is empty. */}
+            {canBrothers && (
+              <JoinRequestsPanel
+                memberWord={v("Member").toLowerCase()}
+                maxRank={currentUser?.maxRank ?? 0}
+                onApproved={() => { void reloadRoster(); }}
+                onSeatWall={setSeatWall}
+                onError={setPageError}
+                onStatus={(m) => toast.success(m)}
+              />
+            )}
+
             {/* ── Editorial header ── */}
             <div className="pagehead">
               <div>
@@ -587,15 +541,9 @@ export default function BrothersPage() {
                     but inviting used to live only in Settings → Membership with
                     nothing here pointing at it. */}
                 {canSettings && (
-                  <button className="btn" onClick={goToInvites} title="Create an invite link">
+                  <button className="btn primary" onClick={goToInvites} title="Create an invite link">
                     <svg viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M13.5 10.5L21 3m0 0h-5.25M21 3v5.25M10 5H6a3 3 0 00-3 3v10a3 3 0 003 3h10a3 3 0 003-3v-4" /></svg>
-                    Invite
-                  </button>
-                )}
-                {canBrothers && (
-                  <button className="btn primary" onClick={() => setShowAddModal(true)}>
-                    <svg viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 5v14m7-7H5" /></svg>
-                    New {v("Member")}
+                    Invite {v("Member", true)}
                   </button>
                 )}
               </div>
@@ -744,18 +692,13 @@ export default function BrothersPage() {
                           <div className="roster-empty">
                             <div className="t">No one&rsquo;s on the roster yet</div>
                             <div className="h">
-                              Share an invite link and {v("Member", true).toLowerCase()} can sign in
-                              themselves, or add them by hand.
+                              Share an invite link. {v("Member", true)} sign in with Google,
+                              ask to join, and you approve them from here.
                             </div>
                             <div className="a">
                               {canSettings && (
                                 <button className="btn primary" onClick={goToInvites}>
                                   Invite your {v("Member", true).toLowerCase()}
-                                </button>
-                              )}
-                              {canBrothers && (
-                                <button className="btn" onClick={() => setShowAddModal(true)}>
-                                  Add manually
                                 </button>
                               )}
                             </div>
@@ -843,16 +786,6 @@ export default function BrothersPage() {
           </div>
         </main>
       </div>
-
-      {/* ── Add Brother Modal ── */}
-      {showAddModal && (
-        <Modal title={`New ${v("Member")}`} tone="dusk" onClose={() => setShowAddModal(false)}>
-          <AddBrotherForm
-            onSubmit={handleAddBrother}
-            onCancel={() => setShowAddModal(false)}
-          />
-        </Modal>
-      )}
 
       {/* ── Brother Drawer (already Ledger-styled) ── */}
       <BrotherDrawer

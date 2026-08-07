@@ -3,10 +3,10 @@
 // Tiny client gate for the "Ask the Chapter" AI chat widget.
 //
 // The widget is a DASHBOARD-only feature: it must never appear on the auth /
-// platform routes (/login, /welcome, /create, /pending-access,
+// platform routes (/login, /welcome, /create,
 // /join/[token], the root redirect, /admin). Those pages still mount the global
 // ChapterProvider, and a signed-in user sitting on one of them (e.g. an
-// org-less user on /welcome, or someone mid-claim on /pending-access) can have
+// org-less user on /welcome) can have
 // currentUser.org populated from /api/auth/me — so gating on org alone would
 // leak the widget onto auth screens.
 //

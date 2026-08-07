@@ -6,13 +6,12 @@ import { useChapter } from "../../../context/ChapterContext";
 import { useVocab } from "../../../hooks/useVocab";
 import { scrollIntoViewSafe } from "../../../lib/scroll";
 import { INVITE_EXPIRY_PRESETS, INVITE_LABEL_MAX, type InviteExpiry } from "@/lib/validation/invite";
-import type { InviteMode, InviteStatus } from "@/lib/state";
+import type { InviteStatus } from "@/lib/state";
 import { requestJson } from "../../../lib/api";
 
 interface InviteRow {
   id: number;
   token: string;
-  mode: InviteMode;
   label: string | null;
   maxUses: number | null;
   status: InviteStatus;
@@ -36,22 +35,6 @@ const EXPIRY_LABELS: Record<InviteExpiry, string> = {
   "14d":   "14 days",
   "never": "Never",
 };
-
-// The mode question, asked the way an admin actually thinks about it. The old
-// labels ("Open join" / "Claim roster name") named the implementation; what the
-// admin knows is whether these people are already written down.
-const MODE_CARDS: { mode: InviteMode; title: string; body: string }[] = [
-  {
-    mode:  "open",
-    title: "They’re new",
-    body:  "Anyone who opens the link signs in and joins as a new member.",
-  },
-  {
-    mode:  "claim",
-    title: "They’re already on the roster",
-    body:  "Invitees sign in, then link to their existing name on the roster.",
-  },
-];
 
 const STATUS_PILL: Record<InviteStatus, { label: string; cls: string }> = {
   active:    { label: "Active",    cls: "sc-pill-ok" },
@@ -104,7 +87,6 @@ export function InvitationsSection({
   const [loading, setLoading] = useState(true);
   const [showInactive, setShowInactive] = useState(false);
 
-  const [mode, setMode]       = useState<InviteMode>("open");
   const [expiry, setExpiry]   = useState<InviteExpiry>("7d");
   const [label, setLabel]     = useState("");
   const [capOn, setCapOn]     = useState(false);
@@ -155,7 +137,7 @@ export function InvitationsSection({
       const created = await requestJson<InviteRow>("/api/invites", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode, expiry, label: label.trim() || undefined, maxUses: cap }),
+        body: JSON.stringify({ expiry, label: label.trim() || undefined, maxUses: cap }),
       });
       onStatus("Invite link created");
       setLabel("");
@@ -212,33 +194,14 @@ export function InvitationsSection({
   return (
     <div className="sc-stack">
       <p className="sc-lede" style={{ margin: 0 }}>
-        Generate a link to invite people to your organization. Links stay active
-        until they expire, fill up, or you revoke them.
+        Generate a link to invite people to your organization. Opening it lets
+        someone <b>ask</b> to join — they can’t see anything until an officer
+        approves them on the {memberWord} page. Links stay active until they
+        expire, fill up, or you revoke them.
       </p>
 
       {/* ── Generate form ── */}
       <div className="sc-card" style={{ padding: 16, display: "flex", flexDirection: "column", gap: 14 }}>
-        <fieldset style={{ border: 0, padding: 0, margin: 0 }}>
-          <legend className="sc-grp-label" style={{ marginBottom: 8 }}>
-            Who is this link for?
-          </legend>
-          <div className="sc-choice-grid">
-            {MODE_CARDS.map(card => (
-              <label key={card.mode} className={`sc-choice${mode === card.mode ? " on" : ""}`}>
-                <input
-                  type="radio"
-                  name="invite-mode"
-                  value={card.mode}
-                  checked={mode === card.mode}
-                  onChange={() => setMode(card.mode)}
-                />
-                <span className="t">{card.title}</span>
-                <span className="h">{card.body}</span>
-              </label>
-            ))}
-          </div>
-        </fieldset>
-
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="flex flex-col gap-1.5">
             <span className="text-[12px] font-medium" style={{ color: "var(--ink-soft)" }}>
@@ -338,10 +301,9 @@ export function InvitationsSection({
                   className={`sc-card sc-invite-row${flashId === row.id ? " flash" : ""}${dead ? " dead" : ""}`}
                 >
                   <div className="flex items-center gap-2">
-                    <span className={`sc-pill ${row.mode === "open" ? "sc-pill-vio" : "sc-pill-gold"}`}>
-                      {row.mode === "open" ? "New members" : "Roster claim"}
-                    </span>
-                    {dead && <span className={`sc-pill ${pill.cls}`}>{pill.label}</span>}
+                    {dead
+                      ? <span className={`sc-pill ${pill.cls}`}>{pill.label}</span>
+                      : <span className="sc-pill sc-pill-vio">Active</span>}
                     <span className="ml-auto sc-note">
                       {row.maxUses != null
                         ? `${row.redemptionCount} / ${row.maxUses} used`

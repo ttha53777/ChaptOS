@@ -8,7 +8,8 @@ import { APP_NAME } from "@/lib/domains";
 //
 // The Join-an-org flow used to live here, but the org-first login page (/login)
 // absorbs it: a user picks their org there, signs in, and /auth/callback routes
-// them straight to /pending-access. So this page is only reached in the residual
+// them straight to that org (whose guard shows them the waiting wall or the
+// needs-an-invite page). So this page is only reached in the residual
 // case where someone completes OAuth with NO org hint (an old bookmark, a stale
 // link, or a direct visit). For them the only sensible action is to create a new
 // organization — or sign out and start over from /login.

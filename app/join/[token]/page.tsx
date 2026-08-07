@@ -8,11 +8,17 @@ import { JoinClient } from "./JoinClient";
 //
 // The client child then calls GET /api/auth/invite-status to layer on the parts
 // that depend on the browser's session (which Google account is signed in,
-// whether they're already a member) and drives OAuth + redemption from there.
-// The token never leaves the URL; redemption is POST /api/auth/redeem-invite.
+// whether they already belong, whether they're already waiting on an officer)
+// and drives OAuth + submission from there. The token never leaves the URL;
+// asking to join is POST /api/auth/request-join.
 //
 // Token resolution is shared with both API routes via resolveInviteToken, so a
-// link this page calls dead can't be one redeem-invite would have accepted.
+// link this page calls dead can't be one request-join would have accepted.
+//
+// Note the dead-link verdict below is only the FIRST PAINT. invite-status can
+// overrule it, because a link expiring must not hide a live decision from
+// someone who already asked — they still need to see that they're waiting, or
+// that they were declined. See that route's header.
 
 export default async function JoinPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
@@ -40,7 +46,6 @@ export default async function JoinPage({ params }: { params: Promise<{ token: st
       orgName={lookup.invite?.orgName ?? null}
       orgLogoUrl={lookup.invite?.orgLogoUrl ?? null}
       memberCount={memberCount}
-      mode={lookup.invite?.mode ?? "open"}
     />
   );
 }
