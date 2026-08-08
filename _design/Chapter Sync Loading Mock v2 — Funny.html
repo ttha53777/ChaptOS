@@ -41,11 +41,16 @@
                          Documents to stop typing is the wait itself. Biggest
                          swing, most personality, least dignified.
 
-    C · RECORDS OFFICE   bureaucratic deadpan. Each source is a numbered form
-                         being stamped by an unseen clerk. Officious voice,
-                         real counts. Reads as a bit, not a gag — the joke is
-                         the register, so it survives repetition better than
-                         written punchlines do.
+    C · RECORDS OFFICE   bureaucratic slapstick, played dry. Each source is a
+                         numbered form on real paper, filled in by hand by an
+                         unseen clerk who crosses things out, circles things,
+                         stamps AGAIN twice, files a complaint against his own
+                         office, and eventually puts on a coat. Officious
+                         voice, real counts. The joke is the register and the
+                         mess, not written punchlines, so it survives
+                         repetition better than the others.
+                         (Rebuilt — see the block above the C styles for why
+                         the tidy card version was the wrong medium.)
 
     D · HONEST BAR       the joke is loading bars themselves. The percentage
                          behaves like every progress bar you have ever hated
@@ -83,7 +88,7 @@
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,400;1,9..144,500&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,400;1,9..144,500&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&family=Special+Elite&family=Caveat:wght@400;500;600;700&display=swap" rel="stylesheet">
 
 <style>
 /* ═══ Tokens — shipped warm dusk ═══════════════════════════════════════ */
@@ -383,111 +388,332 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 .scene.done .b-enter { opacity: 1; transform: none; pointer-events: auto; }
 
 /* ═══════════════════════════════════════════════════════════════════════
-   C · RECORDS OFFICE
-   Numbered forms, an unseen clerk, a rubber stamp. The comedy is register,
-   not punchlines — which is why it survives the fiftieth viewing better than
-   written jokes do. The counts underneath are still the real instrumentation.
+   C · RECORDS OFFICE  (rebuilt — the messy cut)
+
+   The v2 version had the right VOICE and the wrong MEDIUM. Officious prose
+   set in a tidy dark card reads as a well-made dashboard that happens to be
+   witty; you admire it, you don't laugh. The register only lands if the thing
+   it is printed on is also in character. So the form is now actual paper on
+   an actual desk, set in a beat-up typewriter face, and the values are not
+   rendered — they are WRITTEN, in ballpoint, by someone who crosses things
+   out, circles things, and gets visibly worse at hiding his opinion.
+
+   Three mechanisms do the comedic work, in ascending order of importance:
+
+     1. MESS AS TRUTH. The strikethroughs are not decoration — each one is a
+        correction the sync actually made (61 members on file, 58 once the
+        archived ones drop out). A crossed-out number is the most honest
+        loading state there is: it shows the work being wrong first.
+     2. THE STAMP PILE. One stamp is procedure. Three overlapping stamps on
+        the bylaws form, two of which say AGAIN, is a joke told entirely in
+        rubber. No copy required, so it never gets stale.
+     3. THE CLERK DEGRADES. He is never drawn and never speaks in the first
+        person. He exists only as handwriting that gets larger and less neat,
+        marginalia that stops pretending to be neutral, and a status line by
+        the tray that ends with him putting on a coat. The arc — composed at
+        form 1, done with all of us by form 6 — is the funniest thing here
+        and it costs zero additional wait.
+
+   The one rule still holds: every joke hangs off a value we just read. Strip
+   the paper away and the same six real counts are underneath.
+
+   COLOR NOTE: v2 claimed "no new colors were invented for this mock." This
+   direction breaks that, deliberately and in exactly three places — paper
+   stock, stamp red, ballpoint blue. They are physical-object colors, not UI
+   colors; nothing here proposes a new token for the app. The dusk palette
+   still owns everything around the sheet.
    ═══════════════════════════════════════════════════════════════════════ */
+#scene-c {
+  --stock:     #e6dcc6;
+  --stock-lo:  #d8cdb4;
+  --stock-hi:  #efe7d5;
+  --graphite:  #2c2822;
+  --graphite-60: rgba(44,40,34,.6);
+  --graphite-38: rgba(44,40,34,.38);
+  --pen:       #2a3f7d;   /* the clerk's ballpoint */
+  --ink-red:   #a8433a;   /* the office has exactly one stamp pad */
+  --hand: "Caveat", "Bradley Hand", cursive;
+  --type: "Special Elite", "Courier New", monospace;
+  /* patchy alpha, for ink that didn't take evenly */
+  --grit: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="240" height="90"><filter id="g"><feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="3"/><feColorMatrix type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 -0.85 1.02"/></filter><rect width="240" height="90" filter="url(%23g)"/></svg>');
+}
 .c-wrap {
-  height: 100%; display: grid; place-items: center;
+  position: relative; height: 100%; display: grid; place-items: center;
   padding: 26px clamp(20px, 5vw, 56px) 86px;
 }
+/* the desk lamp. Without a light source the sheet is a rectangle; with one
+   it is an object sitting on a surface at 4pm in a room nobody redecorated. */
+.c-wrap::before {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(58% 62% at 40% 30%, rgba(221,179,106,.11), transparent 72%);
+}
 .c-inner {
-  display: grid; grid-template-columns: minmax(0, 1fr) 244px;
-  gap: clamp(24px, 4vw, 52px); align-items: center;
-  width: 100%; max-width: 940px;
+  position: relative;
+  display: grid; grid-template-columns: minmax(0, 1fr) 250px;
+  gap: clamp(24px, 4vw, 54px); align-items: center;
+  width: 100%; max-width: 980px;
 }
 .c-desk { min-width: 0; }
-.c-office {
-  font-family: var(--mono); font-size: 9.5px; letter-spacing: .2em;
-  text-transform: uppercase; color: var(--faint); margin-bottom: 16px;
-  display: flex; align-items: center; gap: 9px;
+
+/* ── the window sign ─────────────────────────────────────────────────── */
+.c-sign {
+  display: inline-flex; align-items: stretch; margin-bottom: 18px;
+  border: 1px solid rgba(236,231,221,.13); border-radius: 3px;
+  background: linear-gradient(#221e18, #191612);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.05), 0 6px 16px -12px #000;
+  font-family: var(--mono); font-size: 9px; letter-spacing: .19em;
+  text-transform: uppercase; overflow: hidden;
 }
-/* the form itself — warmer card so it reads as paper on the desk */
-.c-form {
-  position: relative; background: var(--card-2);
-  border: 1px solid rgba(236,231,221,.13); border-radius: 4px;
-  padding: 26px 28px 24px; min-height: 232px;
-  box-shadow: 0 1px 0 rgba(0,0,0,.4), 0 26px 50px -34px rgba(0,0,0,.9);
+.c-sign span { padding: 7px 11px; display: flex; align-items: center; gap: 8px; }
+.c-sign .l { color: var(--muted); }
+.c-sign .w { color: var(--faint); border-left: 1px solid var(--line-soft); }
+.c-sign .n {
+  color: var(--gold); border-left: 1px solid var(--line-soft);
+  background: rgba(221,179,106,.05);
 }
-/* the stack underneath — how many forms are left, visible as depth */
-.c-form::after {
-  content: ""; position: absolute; inset: 8px -7px -7px 8px; z-index: -1;
-  background: var(--card); border: 1px solid var(--line-soft); border-radius: 4px;
+.c-sign .n b { font-weight: 500; }
+.c-sign .n b.flip { animation: flip 320ms var(--ease-io); }
+@keyframes flip {
+  0%   { transform: translateY(-7px) scaleY(.4); opacity: 0; }
+  100% { transform: none; opacity: 1; }
 }
+
+/* ── the desk stack ──────────────────────────────────────────────────── */
+/* capped, and not because of overflow: at full column width the sheet is a
+   landscape card with 400px of dotted leader between every label and its
+   answer. Paper has to be paper-shaped or the bit doesn't read. */
+.c-stack { position: relative; max-width: 552px; margin: 0 auto; }
+/* two sheets nobody squared up, purely so the current form has something to
+   sit on. They never move; the mess has to look accumulated, not animated. */
+.c-stack::before, .c-stack::after {
+  content: ""; position: absolute; inset: 14px -12px -14px 6px;
+  background: var(--stock-lo); border-radius: 1px;
+  box-shadow: 0 10px 24px -18px #000;
+}
+.c-stack::before { transform: rotate(1.6deg); opacity: .34; }
+.c-stack::after  { transform: rotate(-2.4deg); inset: 9px 8px -9px -14px; opacity: .5; }
+
+.c-sheet {
+  position: relative; z-index: 2;
+  background:
+    linear-gradient(103deg, rgba(0,0,0,.05), transparent 22%),
+    linear-gradient(#eee6d4, var(--stock) 42%, var(--stock-lo));
+  color: var(--graphite);
+  /* right padding is 44, not 30, because the pen circles overhang the value by
+     13px on each side and overflow:hidden will happily amputate one. Bottom
+     height is generous on purpose: the stamps need a landing zone under the
+     note, or the big diagonal ones come down on the punchline. */
+  padding: 28px 44px 36px 48px; min-height: 428px; border-radius: 1px;
+  overflow: hidden;             /* so the mug ring gets cut by the paper edge */
+  transform: rotate(-1.2deg);
+  box-shadow:
+    0 1px 0 rgba(255,255,255,.35) inset,
+    0 26px 44px -26px rgba(0,0,0,.9),
+    0 2px 6px -2px rgba(0,0,0,.5);
+}
+/* paper fiber + the ring left by a mug that was there before the form was */
+.c-sheet::before {
+  content: ""; position: absolute; inset: 0; pointer-events: none; border-radius: 1px;
+  background-image: var(--grit); background-size: 240px 90px;
+  opacity: .085; mix-blend-mode: multiply;
+}
+/* the ring a mug left before the form got here. Bottom-left and mostly off
+   the page — a full centred donut reads as a rendering artifact, a clipped
+   arc under the note reads as furniture. */
+.c-sheet::after {
+  content: ""; position: absolute; left: 30px; bottom: -44px;
+  height: 88px; width: 88px; border-radius: 50%; pointer-events: none;
+  border: 8px solid rgba(122,84,44,.13);
+  transform: rotate(-12deg) scaleY(.94); filter: blur(.5px);
+}
+/* two punched holes down the gutter — filed, not printed */
+.c-holes { position: absolute; left: 17px; top: 0; bottom: 0; width: 12px; }
+.c-holes i {
+  position: absolute; left: 0; height: 12px; width: 12px; border-radius: 50%;
+  background: var(--paper); box-shadow: inset 0 1px 2px rgba(0,0,0,.8);
+}
+.c-holes i:first-child { top: 28%; }
+.c-holes i:last-child  { top: 66%; }
+
+.c-sheet.thunk { animation: thunk 300ms var(--ease-io); }
+@keyframes thunk {
+  0%   { transform: rotate(-1.2deg) translateY(0); }
+  22%  { transform: rotate(-1.05deg) translateY(3px) scale(.997); }
+  100% { transform: rotate(-1.2deg) translateY(0); }
+}
+/* the finished sheet is not dismissed, it is swept off the desk */
+.c-sheet.away { animation: away 300ms cubic-bezier(.5,0,.85,.3) both; }
+@keyframes away {
+  to { transform: rotate(-13deg) translate(-46%, 16%); opacity: 0; }
+}
+.c-sheet.drop { animation: drop 360ms cubic-bezier(.22,1.3,.4,1) both; }
+@keyframes drop {
+  0%   { transform: rotate(3.2deg) translateY(-26px); opacity: 0; }
+  70%  { transform: rotate(-1.9deg) translateY(2px); opacity: 1; }
+  100% { transform: rotate(-1.2deg) translateY(0); opacity: 1; }
+}
+
+/* ── what's printed on it ────────────────────────────────────────────── */
 .c-no {
-  font-family: var(--mono); font-size: 10px; letter-spacing: .17em;
-  color: var(--gold); text-transform: uppercase;
+  font-family: var(--type); font-size: 11px; letter-spacing: .13em;
+  color: var(--graphite-60); text-transform: uppercase;
 }
 .c-name {
-  font-family: var(--serif); font-size: clamp(20px, 2.5vw, 26px); line-height: 1.2;
-  letter-spacing: -.01em; margin-top: 11px; text-transform: uppercase;
-  font-weight: 400;
+  font-family: var(--type); font-size: clamp(16px, 2vw, 20px); line-height: 1.28;
+  letter-spacing: .005em; margin-top: 9px; text-transform: uppercase;
+  font-weight: 400; max-width: 30ch;
 }
-.c-rule { height: 1px; background: var(--line); margin: 18px 0 15px; }
-.c-fields { display: grid; gap: 11px; }
-.c-field {
-  display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 16px;
+.c-rule { height: 2px; background: var(--graphite); opacity: .5; margin: 15px 0 16px; }
+.c-fields { display: grid; gap: 13px; }
+.c-f {
+  position: relative;
+  display: grid; grid-template-columns: auto minmax(14px,1fr) auto; gap: 8px;
   align-items: baseline;
-  font-family: var(--mono); font-size: 11px; letter-spacing: .04em; color: var(--faint);
+  font-family: var(--type); font-size: 10.5px; letter-spacing: .03em;
+  color: var(--graphite-60); text-transform: uppercase;
 }
-.c-field .fill {
-  color: var(--ink); font-variant-numeric: tabular-nums;
-  border-bottom: 1px solid var(--line); min-width: 88px; text-align: right; padding-bottom: 2px;
+.c-f .dots {
+  border-bottom: 1px dotted rgba(44,40,34,.35); transform: translateY(-3px);
 }
-.c-field.flag .fill { color: var(--gold); border-bottom-color: rgba(221,179,106,.4); }
-/* padding-right reserves the stamp's corner. Without it the stamp lands on top
-   of the last line of the note and neither is readable. */
+/* the answer is handwritten, so it is bigger than the label, sits a hair off
+   the baseline, and is not in the form's font. That mismatch is the point. */
+.c-f .v {
+  position: relative; font-family: var(--hand); font-weight: 600;
+  font-size: 21px; line-height: 1; color: var(--pen); letter-spacing: .01em;
+  white-space: nowrap; text-transform: none;
+  display: inline-flex; align-items: baseline; gap: 9px;
+  transform: rotate(-.7deg) translateY(1px);
+}
+.c-f:nth-child(even) .v { transform: rotate(.9deg) translateY(2px); }
+.c-f .v .part { opacity: 0; transition: opacity 160ms linear; }
+.c-f .v .part.in { opacity: 1; }
+/* the correction: a pen line dragged across, not a text-decoration */
+.c-f .was { position: relative; color: rgba(42,63,125,.5); }
+.c-f .was::after {
+  content: ""; position: absolute; left: -4px; right: 100%; top: 52%;
+  height: 2px; background: var(--pen); opacity: .85;
+  transform: rotate(-3.5deg); border-radius: 2px;
+  transition: right 200ms cubic-bezier(.4,0,.2,1);
+}
+.c-f .was.struck::after { right: -5px; }
+.c-f.flag .v { color: var(--ink-red); }
+/* the clerk circling something he wants seen. Stretched to whatever the value
+   is wide (preserveAspectRatio="none" on the path), so "4" and "$14,280" both
+   get a circle that fits rather than a fixed oval that misses. */
+.c-circ {
+  position: absolute; left: -13px; right: -13px; top: 50%; height: 42px;
+  transform: translateY(-54%); pointer-events: none; overflow: visible;
+}
+.c-circ path {
+  fill: none; stroke: var(--ink-red); stroke-width: 2.1; stroke-linecap: round;
+  opacity: .8; stroke-dasharray: 1; stroke-dashoffset: 1;
+  transition: stroke-dashoffset 620ms cubic-bezier(.4,0,.3,1);
+}
+.c-circ.drawn path { stroke-dashoffset: 0; }
+
+/* the typed office note, and the version the clerk writes himself once he
+   stops bothering to type them */
 .c-note {
-  margin-top: 16px; padding-right: 150px;
-  font-family: var(--serif); font-style: italic;
-  font-size: 13.5px; line-height: 1.5; color: var(--muted);
-  min-height: 40px;
+  margin-top: 18px; padding-right: 152px;
+  font-family: var(--type); font-size: 11.5px; line-height: 1.62;
+  color: var(--graphite-60); min-height: 44px;
   opacity: 0; transform: translateY(3px);
-  transition: opacity 460ms var(--ease), transform 460ms var(--ease);
+  transition: opacity 420ms var(--ease), transform 420ms var(--ease);
 }
-.c-form.noted .c-note { opacity: 1; transform: none; }
-.c-form.flagged .c-note { color: var(--gold); }
-/* the stamp — lands hard, sits crooked, never straightens */
-.c-stamp {
-  position: absolute; right: 20px; bottom: 18px;
-  font-family: var(--mono); font-size: 13px; font-weight: 500;
-  letter-spacing: .22em; text-transform: uppercase;
-  color: var(--ok); border: 2px solid var(--ok); border-radius: 3px;
-  padding: 6px 12px 5px; opacity: 0;
-  /* 1.7, not 2.2: the stamp descends from its own bounding box, and at 768px a
-     2.2x start reaches past the right edge and lands half-clipped. */
-  transform: rotate(-9deg) scale(1.7);
+.c-sheet.noted .c-note { opacity: 1; transform: none; }
+.c-note.hand {
+  font-family: var(--hand); font-size: 19px; line-height: 1.24;
+  color: var(--pen); text-transform: none; letter-spacing: .01em;
+  transform: rotate(-.8deg);
 }
-.c-stamp.hit { animation: stamp 460ms cubic-bezier(.2,1.4,.4,1) both; }
+.c-sheet.noted .c-note.hand { transform: rotate(-.8deg); }
+/* marginalia — up the right edge, sideways, for nobody's benefit */
+.c-scrawl {
+  position: absolute; right: 14px; top: 22px; max-width: 108px;
+  font-family: var(--hand); font-size: 22px; line-height: 1.05; font-weight: 600;
+  color: var(--ink-red); transform: rotate(-7deg); text-align: right;
+  opacity: 0; transition: opacity 300ms var(--ease);
+}
+.c-scrawl.in { opacity: .92; }
+
+/* ── the stamps ──────────────────────────────────────────────────────── */
+/* overflow:hidden is the whole trick on the stamps that hang off the edge —
+   the ink gets cut by the paper, which is the one thing that stops them from
+   reading as floating badges. */
+.c-stamps { position: absolute; inset: 0; pointer-events: none; overflow: hidden; border-radius: 1px; }
+.c-st {
+  position: absolute;
+  font-family: var(--type); font-size: 13px; letter-spacing: .16em;
+  text-transform: uppercase; white-space: nowrap;
+  color: var(--ink-red); border: 2.5px solid var(--ink-red); border-radius: 2px;
+  padding: 5px 10px 4px; opacity: 0;
+  mix-blend-mode: multiply;
+  -webkit-mask-image: var(--grit); mask-image: var(--grit);
+  -webkit-mask-size: 240px 90px; mask-size: 240px 90px; mask-mode: alpha;
+}
+.c-st.hit { animation: stamp 380ms cubic-bezier(.2,1.5,.4,1) both; }
 @keyframes stamp {
-  0%   { opacity: 0; transform: rotate(-16deg) scale(1.7); }
-  55%  { opacity: .95; transform: rotate(-7deg) scale(.94); }
-  100% { opacity: .82; transform: rotate(-7deg) scale(1); }
+  0%   { opacity: 0; transform: rotate(var(--r)) scale(1.55); }
+  52%  { opacity: .95; transform: rotate(var(--r)) scale(.95); }
+  100% { opacity: .84; transform: rotate(var(--r)) scale(1); }
 }
-.c-stamp.flag { color: var(--gold); border-color: var(--gold); }
-/* the queue */
-.c-queue-t {
+/* the big diagonal one, for when the office is done with you */
+.c-st.big { font-size: 17px; letter-spacing: .18em; padding: 7px 14px 6px; border-width: 3px; }
+.c-st.blue { color: #33507e; border-color: #33507e; }
+
+/* ── the tray ────────────────────────────────────────────────────────── */
+.c-tray-t {
   font-family: var(--mono); font-size: 9px; letter-spacing: .2em;
-  text-transform: uppercase; color: var(--faint); padding-bottom: 12px;
-  border-bottom: 1px solid var(--line-soft); margin-bottom: 4px;
+  text-transform: uppercase; color: var(--faint); padding-bottom: 11px;
+  border-bottom: 1px solid var(--line-soft); margin-bottom: 12px;
+  display: flex; justify-content: space-between;
 }
+.c-tray-t .n { color: var(--muted); }
+/* each item is a paper tab, not a list row — the tray has to look like a
+   physical pile you could knock over */
 .c-queue li {
-  display: grid; grid-template-columns: 16px minmax(0,1fr); gap: 9px;
-  align-items: baseline; padding: 9px 0;
-  font-size: 12.5px; color: var(--ink-28);
-  transition: color 400ms var(--ease);
+  position: relative;
+  font-family: var(--type); font-size: 9.5px; letter-spacing: .05em;
+  text-transform: uppercase; line-height: 1.35;
+  background: linear-gradient(var(--stock-lo), #cfc4aa);
+  color: rgba(44,40,34,.72);
+  padding: 8px 24px 8px 10px; margin-bottom: 6px; border-radius: 1px;
+  transform: rotate(var(--r, 0deg));
+  box-shadow: 0 2px 5px -2px rgba(0,0,0,.8);
+  transition: opacity 400ms var(--ease), filter 400ms var(--ease),
+              transform 400ms var(--ease);
+  opacity: .5; filter: saturate(.55);
 }
-.c-queue li .tick { font-family: var(--mono); font-size: 11px; color: var(--ink-14); }
-.c-queue li.now { color: var(--ink); }
-.c-queue li.now .tick { color: var(--vio); }
-.c-queue li.done { color: var(--ink-40); }
-.c-queue li.done .tick { color: var(--ok); }
-.c-queue li.done.flag .tick { color: var(--gold); }
+.c-queue li.now {
+  opacity: 1; filter: none;
+  transform: rotate(var(--r, 0deg)) translateX(-9px);
+  box-shadow: 0 4px 10px -3px rgba(0,0,0,.85);
+}
+.c-queue li.done { opacity: .3; filter: saturate(.3) brightness(.85); }
+.c-queue li .tick {
+  position: absolute; right: 7px; top: 6px;
+  font-family: var(--hand); font-size: 19px; font-weight: 700;
+  color: var(--ink-red); opacity: 0; transform: rotate(-8deg);
+  transition: opacity 260ms var(--ease);
+}
+.c-queue li.done .tick { opacity: 1; }
+/* the amendment the office files against itself, mid-run */
+.c-queue li.added { animation: slam 380ms cubic-bezier(.2,1.4,.4,1) both; }
+@keyframes slam {
+  0%   { opacity: 0; transform: rotate(var(--r)) translate(26px, -12px) scale(1.06); }
+  100% { opacity: .5; transform: rotate(var(--r)) translate(0,0) scale(1); }
+}
+/* the clerk, who is never drawn */
+.c-clerk {
+  margin-top: 16px; font-family: var(--hand); font-size: 19px; line-height: 1.2;
+  color: var(--muted); transform: rotate(-1.2deg);
+  transition: opacity 240ms linear;
+}
+.c-clerk.out { opacity: 0; }
 .c-please {
-  margin-top: 22px; padding-top: 14px; border-top: 1px solid var(--line-soft);
-  font-size: 12px; line-height: 1.55; color: var(--faint); font-style: italic;
-  font-family: var(--serif);
+  margin-top: 18px; padding-top: 13px; border-top: 1px solid var(--line-soft);
+  font-family: var(--mono); font-size: 10px; line-height: 1.6;
+  letter-spacing: .04em; color: var(--faint); text-transform: uppercase;
 }
 .c-enter {
   margin-top: 16px; font-size: 13px; color: var(--ink);
@@ -593,13 +819,23 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 @media (max-width: 900px) {
   .side { display: none; }
   .c-inner { grid-template-columns: minmax(0,1fr); gap: 26px; }
-  .c-queue-wrap { display: none; }
+  .c-tray { display: none; }
   .d-truth { grid-template-columns: minmax(0,1fr); gap: 8px; }
   .a-row { grid-template-columns: 84px minmax(0,1fr) 96px; gap: 0 12px; }
 }
 @media (max-height: 660px) {
   .a-head .a-sub { display: none; }
-  .c-form { min-height: 200px; }
+  .c-sheet { min-height: 306px; padding-bottom: 26px; }
+  .c-scrawl { font-size: 19px; }
+}
+/* the sheet's right margin holds the scrawl and the stamp corner; below this
+   width they start landing on the note instead of beside it. The circles get
+   pulled in too — 13px of overhang on a 300px sheet is a clipped circle. */
+@media (max-width: 620px) {
+  .c-sheet { padding: 22px 30px 30px 38px; min-height: 340px; }
+  .c-note { padding-right: 0; }
+  .c-scrawl { display: none; }
+  .c-circ { left: -8px; right: -8px; }
 }
 </style>
 </head>
@@ -701,22 +937,31 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
     <div class="c-inner">
 
       <div class="c-desk">
-        <div class="c-office"><span class="pulse"></span><span>Office of Chapter Records · window 3</span></div>
+        <div class="c-sign">
+          <span class="l"><span class="pulse"></span>Office of Chapter Records</span>
+          <span class="w">Window 3</span>
+          <span class="n">Now serving <b id="c-serving">1</b> of 6</span>
+        </div>
 
-        <div class="c-form" id="c-form">
-          <div class="c-no" id="c-no">FORM 4-A</div>
-          <h2 class="c-name" id="c-name">Request for a current headcount</h2>
-          <div class="c-rule"></div>
-          <div class="c-fields" id="c-fields"><!-- injected --></div>
-          <p class="c-note" id="c-note"></p>
-          <div class="c-stamp" id="c-stamp">Received</div>
+        <div class="c-stack">
+          <article class="c-sheet" id="c-sheet">
+            <div class="c-holes"><i></i><i></i></div>
+            <div class="c-no" id="c-no">FORM 4-A</div>
+            <h2 class="c-name" id="c-name">Request for a current headcount</h2>
+            <div class="c-rule"></div>
+            <div class="c-fields" id="c-fields"><!-- injected --></div>
+            <p class="c-note" id="c-note"></p>
+            <div class="c-scrawl" id="c-scrawl"></div>
+            <div class="c-stamps" id="c-stamps"><!-- injected --></div>
+          </article>
         </div>
       </div>
 
-      <div class="c-queue-wrap">
-        <div class="c-queue-t">In the tray</div>
+      <div class="c-tray">
+        <div class="c-tray-t"><span>In the tray</span><span class="n" id="c-tray-n">6</span></div>
         <ul class="c-queue" id="c-queue"><!-- injected --></ul>
-        <p class="c-please" id="c-please">Please do not refresh. The clerk will start over, and he will remember.</p>
+        <p class="c-clerk" id="c-clerk">the clerk is at the window</p>
+        <p class="c-please" id="c-please">Do not refresh. He will start over, and he will remember.</p>
         <button class="c-enter">Enter chapter →</button>
       </div>
 
@@ -812,10 +1057,21 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
       key: 'roster', src: 'Roster', nav: 'roster',
       task: 'Counting members', val: 58, fmt: plain, unit: '', dur: 600,
       aside: 'Four of them are named <em>Jake</em>. We have marked this unsolvable and moved on.',
-      form: { no: 'FORM 4-A', name: 'Request for a current headcount',
-              fields: [['Members in good standing','58'],['Named Jake','4'],['Clerical remedy available','None']],
-              stamp: 'Received',
-              note: 'The office does not assign names and cannot be held responsible for them.' },
+      /* Form 1 sets the baseline the other five deviate from: composed, one
+         stamp, a typed note, a correction that is purely procedural. Nothing
+         here is funny on its own — it is the straight man. */
+      office: {
+        no: 'FORM 4-A', name: 'Request for a current headcount',
+        fields: [
+          { k: 'Members on file', was: '61', v: '58' },
+          { k: 'Of whom named Jake', v: '4', circle: true },
+          { k: 'Clerical remedy available', v: 'none' }
+        ],
+        note: 'Three entries were struck as archived. The office does not assign the remaining names and cannot be held responsible for them.',
+        scrawl: 'four.',
+        stamps: [{ t: 'Received', x: '26px', y: '24px', r: '-7deg' }],
+        clerk: 'the clerk has found a pen'
+      },
       chat: [
         { text: '<span class="num">58</span> members. Same as last time.' },
         { text: 'four of them are named Jake though' }
@@ -825,10 +1081,23 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
       key: 'attendance', src: 'Attendance', nav: 'attendance',
       task: 'Reading attendance', val: 41, fmt: plain, unit: ' meetings', dur: 550,
       aside: 'Marcus has been <em>excused</em> eleven times. Eleven. We are loading, not judging.',
-      form: { no: 'FORM 11-B', name: 'Register of presence and absence',
-              fields: [['Meetings on record','41'],['Excusals filed','63'],['Excusals by one member','11']],
-              stamp: 'Received',
-              note: 'One member accounts for a notable share of the excusals. This is noted, not adjudicated.' },
+      /* First crack: a second stamp nobody asked for. SEEN is not a thing an
+         office needs to record, which is why stamping it is the tell. */
+      office: {
+        no: 'FORM 11-B', name: 'Register of presence and absence',
+        fields: [
+          { k: 'Meetings on record', v: '41' },
+          { k: 'Excusals filed', v: '63' },
+          { k: 'Filed by one member', v: '11', circle: true, flag: true }
+        ],
+        note: 'One member accounts for eleven of the sixty-three. The office records this. The office does not adjudicate it.',
+        scrawl: 'eleven',
+        stamps: [
+          { t: 'Received', x: '30px', y: '26px', r: '-6deg' },
+          { t: 'Seen', x: '18px', y: '58px', r: '11deg' }
+        ],
+        clerk: 'the clerk read that one twice'
+      },
       chat: [
         { text: 'got <span class="num">41</span> meetings' },
         { text: 'do you want the excuse notes too' },
@@ -840,10 +1109,27 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
       key: 'treasury', src: 'Treasury', nav: 'treasury',
       task: 'Reconciling dues', val: 14280, fmt: money, unit: '', dur: 1000, slow: true, flag: true,
       aside: 'Six payments came back <em>twice</em> — recorded double during the September move. Nothing is lost. Somebody should look at it.',
-      form: { no: 'FORM 27-C', name: 'Ledger of monies owed and monies actually paid',
-              fields: [['Assessed this term','$18,400'],['Collected','$14,280'],['Entries requiring a human','6', true]],
-              stamp: 'Flagged', flag: true,
-              note: 'Six entries appear twice, dated to the September migration. Referred upward. Nobody is in trouble yet.' },
+      /* The real finding, played straight — the numbers, the note and the
+         referral are all sincere. The bit is placed strictly AROUND it: the
+         office responds to a problem by generating a seventh form, addressed
+         to itself. That tray row never gets ticked, which is honest, because
+         a duplicate-payment flag genuinely is not resolved by this screen. */
+      office: {
+        no: 'FORM 27-C', name: 'Ledger of monies owed and monies actually paid',
+        fields: [
+          { k: 'Assessed this term', v: '$18,400' },
+          { k: 'Payments recorded', was: '220', v: '214' },
+          { k: 'Entries requiring a human', v: '6', circle: true, flag: true }
+        ],
+        note: 'Six entries appear twice, dated to the September migration. Nothing is lost. Referred upward. Nobody is in trouble yet.',
+        scrawl: 'not mine',
+        stamps: [
+          { t: 'Refer upward', x: '22px', y: '26px', r: '-9deg', big: true },
+          { t: 'Not my window', x: '176px', y: '54px', r: '7deg', blue: true }
+        ],
+        insert: { no: 'FORM 27-C(ii)', name: 'Amendment to Form 27-C, filed by this office against this office' },
+        clerk: 'the clerk has stopped'
+      },
       chat: [
         { text: 'uh' },
         { text: 'ok so <span class="num">$14,280</span> collected of <span class="num">$18,400</span>' },
@@ -854,10 +1140,20 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
       key: 'events', src: 'Events', nav: 'events',
       task: 'Loading the calendar', val: 22, fmt: plain, unit: ' events', dur: 500,
       aside: 'Three are titled <em>Chapter Meeting (MANDATORY!!!)</em>. The exclamation marks do not appear to have worked.',
-      form: { no: 'FORM 9-E', name: 'Schedule of gatherings, obligatory and otherwise',
-              fields: [['Events this term','22'],['Marked mandatory','3'],['Attendance thereby improved','0']],
-              stamp: 'Received',
-              note: 'Capitalisation was applied to three entries. The office finds no measurable effect.' },
+      /* The stamp is now landing crooked and half off the page. Nobody says
+         the clerk is rushing; the ink says it. */
+      office: {
+        no: 'FORM 9-E', name: 'Schedule of gatherings, obligatory and otherwise',
+        fields: [
+          { k: 'Events this term', v: '22' },
+          { k: 'Marked MANDATORY!!!', v: '3' },
+          { k: 'Attendance thereby improved', v: '0', circle: true }
+        ],
+        note: 'Three entries were capitalised and given exclamation marks. The office has compared them against the register and finds no measurable effect.',
+        scrawl: '!!!',
+        stamps: [{ t: 'Received', x: '-18px', y: '16px', r: '-17deg' }],
+        clerk: 'the clerk is writing faster now'
+      },
       chat: [
         { text: '<span class="num">22</span> events this term' },
         { text: "one of them is just called 'idk yet' and it's on friday" }
@@ -867,10 +1163,29 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
       key: 'docs', src: 'Documents', nav: 'docs',
       task: 'Indexing documents', val: 148, fmt: plain, unit: ' files', dur: 750, slow: true,
       aside: 'Including <em>bylaws_FINAL_v7_actuallyfinal_USETHIS.pdf</em>. We are using that one. It seemed insistent.',
-      form: { no: 'FORM 16-D', name: 'Inventory of documents held on file',
-              fields: [['Files indexed','148'],['Copies of the bylaws','7'],['Copies marked final','7']],
-              stamp: 'Received',
-              note: 'Seven copies of the bylaws are described as final. The most insistent filename was adopted.' },
+      /* The peak. Three stamps, two of which say AGAIN, and the first note the
+         clerk does not bother to type. The correction (1 → 7 "described as
+         final") is the whole bylaws joke told in two numbers and a pen line —
+         it needs no sentence at all, which is why it survives rewatching. */
+      office: {
+        no: 'FORM 16-D', name: 'Inventory of documents held on file',
+        fields: [
+          { k: 'Files indexed', v: '148' },
+          { k: 'Copies of the bylaws', v: '7' },
+          { k: 'Described as final', was: '1', v: '7', circle: true }
+        ],
+        note: 'Adopted bylaws_FINAL_v7_actuallyfinal_USETHIS.pdf. It was the most certain of the seven.',
+        hand: true,
+        scrawl: 'seven',
+        /* spread up the right margin, not piled on one spot — three stamps are
+           only a joke if you can read all three of them */
+        stamps: [
+          { t: 'Received', x: '40px', y: '26px', r: '-8deg' },
+          { t: 'Again', x: '20px', y: '76px', r: '13deg' },
+          { t: 'Again', x: '-12px', y: '124px', r: '-5deg' }
+        ],
+        clerk: 'the clerk said “seven” out loud'
+      },
       chat: [
         { text: '<span class="num">148</span> files. seven of them are the bylaws.' },
         { text: "all seven are called final. going with bylaws_FINAL_v7_actuallyfinal_USETHIS.pdf — it seemed sure of itself." }
@@ -880,10 +1195,24 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
       key: 'tasks', src: 'Tasks', nav: 'tasks',
       task: 'Checking open tasks', val: 9, fmt: plain, unit: ' open', dur: 450,
       aside: 'The oldest is <em>“ask Dev about the thing.”</em> It was due in March. We have not asked Dev about the thing.',
-      form: { no: 'FORM 2-F', name: 'Schedule of outstanding obligations',
-              fields: [['Tasks open','9'],['Overdue','4'],['Oldest, in days','147']],
-              stamp: 'Received',
-              note: 'The oldest item reads, in full: “ask Dev about the thing.” The office declines to interpret it.' },
+      /* Curtain. The office stops pretending to be neutral, in handwriting,
+         and closes its own window on you. */
+      office: {
+        no: 'FORM 2-F', name: 'Schedule of outstanding obligations',
+        fields: [
+          { k: 'Tasks open', v: '9' },
+          { k: 'Overdue', v: '4' },
+          { k: 'Oldest, in days', v: '147', circle: true }
+        ],
+        note: 'Oldest item reads, in full: “ask Dev about the thing.” The office declines to interpret this and is going to lunch.',
+        hand: true,
+        scrawl: 'who is Dev',
+        stamps: [
+          { t: 'Filed', x: '190px', y: '44px', r: '8deg' },
+          { t: 'Window closed', x: '18px', y: '26px', r: '-11deg', big: true, blue: true }
+        ],
+        clerk: 'the clerk is putting on a coat'
+      },
       chat: [
         { text: '<span class="num">9</span> open tasks, 4 overdue' },
         { text: "oldest one says 'ask Dev about the thing'. it's from march. i have no notes." }
@@ -1065,66 +1394,162 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 
   /* ══════════════════════════════════════════════════════════════════
      C · RECORDS OFFICE
+
+     The beat inside one form is: sheet lands → clerk writes each answer →
+     where the sync corrected itself, he writes the wrong number FIRST and
+     drags a line through it → he circles the one that matters → the stamps
+     come down, each one shaking the desk → he writes his note → he says
+     something to nobody. Then the sheet is swept off, not faded out.
+
+     Everything with a rotation is jittered from data, never from Math.random,
+     so a replay is identical. Comic timing you cannot reproduce is not timing
+     you can tune.
      ══════════════════════════════════════════════════════════════════ */
+
+  /* deliberately imperfect — the overshoot at the end is what makes it read as
+     a pen going round twice rather than an SVG ellipse */
+  const CIRC = '<svg class="c-circ" viewBox="0 0 96 42" preserveAspectRatio="none" aria-hidden="true">'
+             + '<path pathLength="1" d="M84 10C74 3 28 -1 12 9 -2 18 2 33 20 38c22 6 66 3 73-7 4-6 1-13-6-18"/></svg>';
+
+  const TAB_ROT = ['-1.4deg', '.9deg', '-.5deg', '1.7deg', '-1.1deg', '.4deg', '-1.9deg'];
+
   async function runC(my) {
-    const scene = $('#scene-c'), queue = $('#c-queue'), form = $('#c-form');
-    const stamp = $('#c-stamp'), fields = $('#c-fields');
+    const scene = $('#scene-c'), queue = $('#c-queue'), sheet = $('#c-sheet');
+    const fields = $('#c-fields'), stamps = $('#c-stamps'), scrawl = $('#c-scrawl');
+    const note = $('#c-note'), clerk = $('#c-clerk'), serving = $('#c-serving');
+
     scene.classList.remove('done');
     setTop(scene, 0);
-    $('#c-please').textContent = 'Please do not refresh. The clerk will start over, and he will remember.';
+    $('#c-please').textContent = 'Do not refresh. He will start over, and he will remember.';
+    clerk.textContent = 'the clerk is at the window';
+    clerk.classList.remove('out');
+    serving.textContent = '1';
 
-    queue.innerHTML = SOURCES.map(s =>
-      `<li data-q="${s.key}"><span class="tick">·</span><span>${s.form.no} — ${s.src}</span></li>`
+    queue.innerHTML = SOURCES.map((s, i) =>
+      `<li data-q="${s.key}" style="--r:${TAB_ROT[i]}"><span class="tick">✓</span>${s.office.no} — ${s.src}</li>`
     ).join('');
+    $('#c-tray-n').textContent = String(SOURCES.length);
 
     for (let i = 0; i < SOURCES.length; i++) {
-      const s = SOURCES[i], f = s.form; if (!alive(my)) return;
+      const s = SOURCES[i], f = s.office; if (!alive(my)) return;
       const qli = $(`[data-q="${s.key}"]`, queue);
+
+      /* sweep the finished sheet off the desk before touching its contents */
+      if (i > 0) {
+        sheet.classList.add('away');
+        await wait(300, my); if (!alive(my)) return;
+      }
 
       $$('li', queue).forEach(li => li.classList.remove('now'));
       qli.classList.add('now');
 
-      /* swap the sheet: fade the old one out, fade the new one in */
-      form.style.transition = 'opacity 220ms linear';
-      form.style.opacity = i === 0 ? '1' : '0';
-      await wait(i === 0 ? 0 : 180, my); if (!alive(my)) return;
-
-      form.classList.remove('noted', 'flagged');
-      stamp.classList.remove('hit', 'flag');
+      /* Rebuild the sheet while it is off-screen (still .away, still opacity 0).
+         The transition kill matters: the note and the scrawl fade over 420/300ms
+         but .away only runs 300, so without this you watch the PREVIOUS form's
+         note finish fading out on top of the new sheet's paper. */
+      note.style.transition = 'none';
+      scrawl.style.transition = 'none';
+      sheet.classList.remove('noted', 'thunk');
+      scrawl.classList.remove('in');
+      scrawl.textContent = f.scrawl;
+      stamps.innerHTML = '';
       $('#c-no').textContent = f.no;
       $('#c-name').textContent = f.name;
-      fields.innerHTML = f.fields.map(([k, v, flag]) =>
-        `<div class="c-field${flag ? ' flag' : ''}"><span>${k}</span><span class="fill" data-fill>—</span></div>`
+      note.textContent = f.note;
+      note.classList.toggle('hand', !!f.hand);
+      fields.innerHTML = f.fields.map(fd =>
+        `<div class="c-f${fd.flag ? ' flag' : ''}">`
+        + `<span class="k">${fd.k}</span><span class="dots"></span>`
+        + `<span class="v">${fd.was ? `<span class="part was">${fd.was}</span>` : ''}`
+        + `<span class="part is">${fd.v}</span>${fd.circle ? CIRC : ''}</span></div>`
       ).join('');
-      $('#c-note').textContent = f.note;
-      stamp.textContent = f.stamp;
-      form.style.opacity = '1';
 
-      await wait(320, my); if (!alive(my)) return;
+      /* .drop is declared after .away in the stylesheet, so swapping the two in
+         one synchronous block hands the transform straight over with no frame
+         where the base rotation shows through */
+      void note.offsetWidth;                     /* commit the opacity-0 state */
+      note.style.transition = '';
+      scrawl.style.transition = '';
 
-      /* fill the fields one at a time — a clerk writing, not a page rendering */
-      const fills = $$('[data-fill]', fields);
-      for (let j = 0; j < fills.length; j++) {
+      sheet.classList.remove('away');
+      sheet.classList.add('drop');
+      serving.textContent = String(i + 1);
+      serving.classList.remove('flip'); void serving.offsetWidth; serving.classList.add('flip');
+      await wait(370, my); if (!alive(my)) return;
+      sheet.classList.remove('drop');
+
+      /* the clerk writes. One answer at a time, and where the sync corrected
+         itself he writes the wrong one first — the strike IS the honesty. */
+      const rows = $$('.c-f', fields);
+      for (let j = 0; j < rows.length; j++) {
         if (!alive(my)) return;
-        fills[j].textContent = f.fields[j][1];
-        await wait(s.slow ? 250 : 175, my); if (!alive(my)) return;
+        const fd = f.fields[j], row = rows[j];
+        if (fd.was) {
+          $('.was', row).classList.add('in');
+          await wait(430, my); if (!alive(my)) return;
+          $('.was', row).classList.add('struck');
+          await wait(280, my); if (!alive(my)) return;
+        }
+        $('.is', row).classList.add('in');
+        if (fd.circle) {
+          await wait(210, my); if (!alive(my)) return;
+          $('.c-circ', row).classList.add('drawn');
+          await wait(300, my); if (!alive(my)) return;
+        }
+        await wait(s.slow ? 230 : 165, my); if (!alive(my)) return;
       }
 
-      await wait(240, my); if (!alive(my)) return;
-      if (f.flag) { stamp.classList.add('flag'); form.classList.add('flagged'); }
-      stamp.classList.add('hit');
-      form.classList.add('noted');
+      await wait(200, my); if (!alive(my)) return;
+
+      /* the stamps, one at a time, each one landing hard enough to move the
+         desk. A pile of three is only funny if you watch it become a pile. */
+      for (let k = 0; k < f.stamps.length; k++) {
+        if (!alive(my)) return;
+        const st = f.stamps[k];
+        const el = document.createElement('div');
+        el.className = 'c-st' + (st.big ? ' big' : '') + (st.blue ? ' blue' : '');
+        el.style.right = st.x; el.style.bottom = st.y;
+        el.style.setProperty('--r', st.r);
+        el.textContent = st.t;
+        stamps.appendChild(el);
+        requestAnimationFrame(() => el.classList.add('hit'));
+        sheet.classList.add('thunk');
+        setTimeout(() => sheet.classList.remove('thunk'), 310);
+        await wait(k === f.stamps.length - 1 ? 220 : 330, my); if (!alive(my)) return;
+      }
+
+      sheet.classList.add('noted');
+      await wait(260, my); if (!alive(my)) return;
+      scrawl.classList.add('in');
 
       qli.classList.remove('now');
       qli.classList.add('done');
-      if (f.flag) qli.classList.add('flag');
-      $('.tick', qli).textContent = f.flag ? '!' : '✓';
       setTop(scene, Math.round(((i + 1) / SOURCES.length) * 100));
 
-      await wait(f.flag ? 1050 : 680, my); if (!alive(my)) return;
+      /* the office filing paperwork against itself, in reaction to a real
+         flag. It goes in the tray and it never comes out — which is accurate:
+         six duplicate payments are not something this screen resolves. */
+      if (f.insert) {
+        await wait(420, my); if (!alive(my)) return;
+        const li = document.createElement('li');
+        li.className = 'added';
+        li.style.setProperty('--r', TAB_ROT[SOURCES.length]);
+        li.textContent = `${f.insert.no} — ${f.insert.name}`;
+        queue.appendChild(li);
+        $('#c-tray-n').textContent = String(SOURCES.length + 1);
+      }
+
+      /* he reacts last, and only in the margin of the tray */
+      clerk.classList.add('out');
+      await wait(200, my); if (!alive(my)) return;
+      clerk.textContent = f.clerk;
+      clerk.classList.remove('out');
+
+      await wait(f.insert ? 900 : 620, my); if (!alive(my)) return;
     }
 
-    $('#c-please').textContent = 'Your chapter is in order. One entry has been referred upward.';
+    clerk.textContent = 'window 3 is closed';
+    $('#c-please').textContent = 'Your chapter is in order. One entry was referred upward — to us.';
     scene.classList.add('done');
   }
 
