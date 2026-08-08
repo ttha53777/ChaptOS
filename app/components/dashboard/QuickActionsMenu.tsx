@@ -89,7 +89,7 @@ const QUICK_ACTIONS: QuickAction[] = [
   { key: "deadline", label: "Add Deadline", icon: DeadlineIcon, adminOnly: false, requiresManageTasks: true },
   { key: "task",     label: "Add Task",     icon: TaskIcon,     adminOnly: false, requiresManageTasks: true },
   { key: "event",    label: "New Event",    icon: EventIcon,    adminOnly: false, workflow: "events" },
-  { key: "ig",       label: "Add IG Task",  icon: IgIcon,       adminOnly: false },
+  { key: "ig",       label: "Add IG Task",  icon: IgIcon,       adminOnly: false, workflow: "communications" },
 ];
 
 export function QuickActionsMenu({
