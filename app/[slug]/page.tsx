@@ -859,7 +859,7 @@ export default function Home() {
   const [sortKey,        setSortKey]        = useState<keyof Brother | null>(null);
   const [sortDir,        setSortDir]        = useState<"asc" | "desc">("asc");
   const [sidebarOpen,    setSidebarOpen]    = useState(false);
-  const [activeModal,    setActiveModal]    = useState<"deadline" | "revenue" | "ig" | "attendance" | "pick-event" | "edit-deadline" | "expense" | "excuse" | "event" | "pick-event-for-excuse" | null>(null);
+  const [activeModal,    setActiveModal]    = useState<"deadline" | "task" | "revenue" | "ig" | "attendance" | "pick-event" | "edit-deadline" | "expense" | "excuse" | "event" | "pick-event-for-excuse" | null>(null);
   const [selectedEventForAttendance, setSelectedEventForAttendance] = useState<CalendarEvent | null>(null);
   const [calendarList,   setCalendarList]   = useState<CalendarEvent[]>([]);
   const [calendarLoaded, setCalendarLoaded] = useState(false);
@@ -2139,6 +2139,18 @@ export default function Home() {
             minDate={activeSemester?.startDate}
             maxDate={activeSemester?.endDate}
             submitLabel="Create deadline"
+            onSubmit={handleAddDeadline}
+          />
+        </Modal>
+      )}
+      {activeModal === "task" && canTasks && (
+        <Modal title="New task" tone="dusk" onClose={closeModal}>
+          <TaskForm
+            brothers={brotherList}
+            roles={roles}
+            minDate={activeSemester?.startDate}
+            maxDate={activeSemester?.endDate}
+            submitLabel="Create task"
             onSubmit={handleAddDeadline}
           />
         </Modal>

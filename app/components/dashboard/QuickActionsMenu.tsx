@@ -8,6 +8,7 @@ export type QuickActionKey =
   | "revenue"
   | "excuse"
   | "deadline"
+  | "task"
   | "event"
   | "ig";
 
@@ -57,6 +58,15 @@ const DeadlineIcon = (
   </svg>
 );
 
+const TaskIcon = (
+  <svg className={ICON_CLS} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+    <path d="M9 6h11M9 12h11M9 18h11" />
+    <path d="M3.5 6l1 1 2-2" />
+    <path d="M3.5 12l1 1 2-2" />
+    <path d="M3.5 18l1 1 2-2" />
+  </svg>
+);
+
 const EventIcon = (
   <svg className={ICON_CLS} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
     <rect x="3" y="4" width="18" height="18" rx="2" />
@@ -77,6 +87,7 @@ const QUICK_ACTIONS: QuickAction[] = [
   { key: "revenue",  label: "Log Revenue",  icon: RevenueIcon,  adminOnly: true,  workflow: "finance" },
   { key: "excuse",   label: "Log Excuse",   icon: ExcuseIcon,   adminOnly: false },
   { key: "deadline", label: "Add Deadline", icon: DeadlineIcon, adminOnly: false, requiresManageTasks: true },
+  { key: "task",     label: "Add Task",     icon: TaskIcon,     adminOnly: false, requiresManageTasks: true },
   { key: "event",    label: "New Event",    icon: EventIcon,    adminOnly: false, workflow: "events" },
   { key: "ig",       label: "Add IG Task",  icon: IgIcon,       adminOnly: false },
 ];
