@@ -21,6 +21,7 @@
 
 import type { Permission } from "@/lib/permissions";
 import { EVENT_TYPE_PALETTE, type EventTypeColorId } from "@/lib/event-types";
+import { categoryPalette, type CategoryKind, type CategorySeed } from "@/lib/transaction-categories";
 
 export type WorkflowId =
   | "members"
@@ -165,6 +166,22 @@ const evt = (slug: string, label: string, c: { color: string; colorDark: string 
   ({ slug, label, color: c.color, colorDark: c.colorDark });
 
 /**
+ * Starter money streams for one side of the ledger, colored by position from that
+ * book's palette (income cool, expense warm — see lib/transaction-categories.ts).
+ * The slug IS the label here: these are the strings the ledger will store, and a
+ * founder-facing word like "League fees" reads better in a CSV export than
+ * "league-fees" would. Only categories added later through the API get a derived
+ * kebab slug.
+ */
+const cats = (kind: CategoryKind, ...slugs: string[]): CategorySeed[] => {
+  const palette = categoryPalette(kind);
+  return slugs.map((slug, i) => {
+    const c = palette[i % palette.length]!;
+    return { kind, slug, label: slug, color: c.color, colorDark: c.colorDark };
+  });
+};
+
+/**
  * Fallback starter set for a template that declares no `eventTypeSeeds` of its
  * own (and the generic-org default). Intentionally minimal.
  */
@@ -196,6 +213,18 @@ export interface OrgTypeTemplate {
    * DEFAULT_EVENT_TYPE_SEEDS.
    */
   eventTypeSeeds?: readonly EventTypeSeed[];
+  /**
+   * Starter income/expense categories seeded as editable TransactionCategory rows
+   * at creation. Omit to fall back to DEFAULT_CATEGORY_SEEDS.
+   *
+   * This is the whole point of per-org categories: a sorority has no "Party
+   * Supplies" and a club team has league fees and uniforms. Reserved slugs (Dues,
+   * Reimbursement) are appended automatically by resolveCategorySeeds, so a pack
+   * never has to remember them — and colors come from the per-book palettes in
+   * lib/transaction-categories.ts, so a seeded color is always one an officer
+   * could have picked.
+   */
+  categorySeeds?: readonly CategorySeed[];
 }
 
 // ---------------------------------------------------------------------------
@@ -239,6 +268,10 @@ const FRATERNITY: OrgTypeTemplate = {
     evt("fundraiser",  "Fundraiser",  EVT.green),
     evt("programming", "Programming", EVT.purple),
   ],
+  categorySeeds: [
+    ...cats("income",  "Dues", "Door", "Fundraiser", "Alumni giving", "Fines"),
+    ...cats("expense", "Formal", "House", "Brotherhood", "Rush", "Philanthropy", "Operations"),
+  ],
 };
 
 const GENERIC_CLUB: OrgTypeTemplate = {
@@ -270,6 +303,10 @@ const GENERIC_CLUB: OrgTypeTemplate = {
     evt("social",     "Social",     EVT.gold),
     evt("fundraiser", "Fundraiser", EVT.green),
     evt("workshop",   "Workshop",   EVT.blue),
+  ],
+  categorySeeds: [
+    ...cats("income",  "Dues", "Ticket sales", "Sponsorships", "Grants"),
+    ...cats("expense", "Events", "Equipment", "Travel", "Marketing", "Operations"),
   ],
 };
 
@@ -306,6 +343,10 @@ const SPORTS_TEAM: OrgTypeTemplate = {
     evt("game",       "Game",       EVT.clay),
     evt("practice",   "Practice",   EVT.blue),
     evt("tournament", "Tournament", EVT.purple),
+  ],
+  categorySeeds: [
+    ...cats("income",  "Dues", "Sponsorships", "Fundraiser", "Concessions"),
+    ...cats("expense", "League fees", "Equipment", "Travel", "Uniforms", "Officials", "Facility rental"),
   ],
 };
 
@@ -344,6 +385,10 @@ const SERVICE_ORG: OrgTypeTemplate = {
     evt("fundraiser",      "Fundraiser",      EVT.green),
     evt("outreach",        "Outreach",        EVT.gold),
   ],
+  categorySeeds: [
+    ...cats("income",  "Dues", "Donations", "Grants", "Fundraiser"),
+    ...cats("expense", "Project supplies", "Transportation", "Outreach", "Operations"),
+  ],
 };
 
 const HONOR_SOCIETY: OrgTypeTemplate = {
@@ -375,6 +420,10 @@ const HONOR_SOCIETY: OrgTypeTemplate = {
     evt("induction",  "Induction",  EVT.purple),
     evt("fundraiser", "Fundraiser", EVT.green),
     evt("workshop",   "Workshop",   EVT.blue),
+  ],
+  categorySeeds: [
+    ...cats("income",  "Dues", "Induction fees", "Donations", "Fundraiser"),
+    ...cats("expense", "Induction", "Regalia", "Nationals dues", "Speakers", "Operations"),
   ],
 };
 
@@ -411,6 +460,10 @@ const PERFORMING_ARTS: OrgTypeTemplate = {
     evt("performance", "Performance", EVT.rose),
     evt("auditions",   "Auditions",   EVT.blue),
     evt("social",      "Social",      EVT.gold),
+  ],
+  categorySeeds: [
+    ...cats("income",  "Dues", "Ticket sales", "Sponsorships", "Donations"),
+    ...cats("expense", "Production", "Costumes", "Venue", "Rights & royalties", "Marketing"),
   ],
 };
 

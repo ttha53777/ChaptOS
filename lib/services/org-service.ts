@@ -33,6 +33,7 @@ import { emit } from "@/lib/events";
 import { validateSlugFormat } from "@/lib/slug-rules";
 import { DEFAULT_EVENT_TYPE_SEEDS, getOrgType, normalizeWorkflows, type RoleSeed } from "@/lib/org-types";
 import { BUILTIN_EVENT_TYPES } from "@/lib/event-types";
+import { isReservedCategory, resolveCategorySeeds } from "@/lib/transaction-categories";
 import { normalizeDisabledFeatures, type DisabledFeatures } from "@/lib/workflow-features";
 import { BUILTIN_METRIC_KPI } from "@/lib/tracked-metrics";
 import { BUILTIN_METRIC_IDS } from "@/lib/onboarding/kinds";
@@ -267,6 +268,7 @@ function resolveBlueprint(
  *      2b. Insert the first ACTIVE Semester when the blueprint carries a term.
  *      2c. Seed custom OrgMetricDefinition rows from the metrics answer.
  *      2d. Seed CalendarEventType rows from the event-types answer.
+ *      2e. Seed TransactionCategory rows from the org type's starter pack.
  *   3. Insert Brother for the founder with authUserId set.
  *   4. Backfill Organization.createdByBrotherId now that we have the id.
  *   5. Insert Membership(isOrgAdmin=true).
@@ -408,6 +410,29 @@ export async function provisionOrg(
       // resolves the color/label of any event that references it.
       await tx.calendarEventType.createMany({
         data: eventTypes.map(t => ({ ...t, organizationId: org.id })),
+      });
+
+      // 2e. Treasury vocabulary — the org type's starter income/expense streams
+      // (a sorority has no "Party Supplies"; a club team has league fees), plus the
+      // reserved slugs the server posts to itself, appended by resolveCategorySeeds.
+      // displayOrder is the index WITHIN the kind, matching the backfill migration.
+      //
+      // openingBalance is deliberately left null: nobody has been asked yet what was
+      // in the account, and null is the signal that distinguishes "unanswered" from
+      // an org that genuinely started at zero.
+      const categoryOrder: Record<string, number> = { income: 0, expense: 0 };
+      await tx.transactionCategory.createMany({
+        data: resolveCategorySeeds(template.categorySeeds).map(c => ({
+          organizationId: org.id,
+          kind:           c.kind,
+          slug:           c.slug,
+          label:          c.label,
+          color:          c.color,
+          colorDark:      c.colorDark,
+          builtin:        isReservedCategory(c.kind, c.slug),
+          hidden:         false,
+          displayOrder:   categoryOrder[c.kind]!++,
+        })),
       });
 
       // 3. Founder Brother. For a brand-new account we create the Brother row;

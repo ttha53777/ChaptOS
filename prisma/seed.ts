@@ -97,6 +97,47 @@ async function main() {
     })),
   });
 
+  // LPE's income/expense vocabulary. This is a LEGACY-shaped org: the seeded
+  // transactions below (seedTransactions in app/data.ts) are filed under the 14
+  // categories that used to be hardcoded platform-wide, so the seed mirrors what
+  // 20260808000000_add_transaction_categories backfills onto every existing org
+  // rather than the fraternity starter pack a NEW org would get from provisionOrg.
+  //
+  // The slug IS the stored string, verbatim. Only the two reserved slugs are
+  // builtin (undeletable) — the other 13 are ordinary editable rows.
+  const LPE_TRANSACTION_CATEGORIES = [
+    { kind: "income",  slug: "Dues",            color: "#4a7d4c", colorDark: "#86b988", builtin: true  },
+    { kind: "income",  slug: "Door",            color: "#2f8579", colorDark: "#5fbdb0", builtin: false },
+    { kind: "income",  slug: "Fundraiser",      color: "#2f5d7c", colorDark: "#7fb3d9", builtin: false },
+    { kind: "income",  slug: "Event",           color: "#3f6ea3", colorDark: "#8fb0d6", builtin: false },
+    { kind: "income",  slug: "Alumni donation", color: "#6d28d9", colorDark: "#a78bfa", builtin: false },
+    { kind: "income",  slug: "Fines",           color: "#8b3fa3", colorDark: "#c98bd9", builtin: false },
+    { kind: "income",  slug: "External / misc", color: "#9a7224", colorDark: "#ddb36a", builtin: false },
+    { kind: "expense", slug: "Party Supplies",  color: "#c14a37", colorDark: "#e0796b", builtin: false },
+    { kind: "expense", slug: "Operations",      color: "#9a7224", colorDark: "#ddb36a", builtin: false },
+    { kind: "expense", slug: "Brotherhood",     color: "#b34f72", colorDark: "#d98ba3", builtin: false },
+    { kind: "expense", slug: "Events",          color: "#8b3fa3", colorDark: "#c98bd9", builtin: false },
+    { kind: "expense", slug: "House",           color: "#6d28d9", colorDark: "#a78bfa", builtin: false },
+    { kind: "expense", slug: "Travel",          color: "#3f6ea3", colorDark: "#8fb0d6", builtin: false },
+    { kind: "expense", slug: "Misc",            color: "#2f8579", colorDark: "#5fbdb0", builtin: false },
+    { kind: "expense", slug: "Reimbursement",   color: "#2f5d7c", colorDark: "#7fb3d9", builtin: true  },
+  ];
+  const catOrder: Record<string, number> = { income: 0, expense: 0 };
+  await prisma.transactionCategory.createMany({
+    skipDuplicates: true,
+    data: LPE_TRANSACTION_CATEGORIES.map(c => ({
+      organizationId: ORG_ID,
+      kind:           c.kind,
+      slug:           c.slug,
+      label:          c.slug,
+      color:          c.color,
+      colorDark:      c.colorDark,
+      builtin:        c.builtin,
+      hidden:         false,
+      displayOrder:   catOrder[c.kind]!++,
+    })),
+  });
+
   // A member is two rows: the Brother (shared identity) and the Membership (this
   // org's roster spot, carrying the numbers). The mock shape in app/data.ts is a
   // flattened roster row, so it splits across both here.
