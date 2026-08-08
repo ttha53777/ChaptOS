@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { isoWeekBounds } from "@/lib/dates";
+import { netBalance } from "@/lib/treasury-balance";
 
 /** Org-scoped data accessor (same shape as ctx.db). See lib/ai-tools.ts. */
 type Scoped = ReturnType<typeof db>;
@@ -69,7 +70,7 @@ async function getSnapshotLine(scoped: Scoped, orgId: number): Promise<string> {
   if (cached && cached.expires > now) return cached.line;
   let line = "";
   try {
-    const [agg, owing, doorAgg, txByType] = await Promise.all([
+    const [agg, owing, doorAgg, txByType, config] = await Promise.all([
       // Over this org's roster rows (Membership), so a member of two chapters
       // contributes their numbers for THIS one and nothing from the other.
       scoped.member.aggregate({
@@ -81,6 +82,7 @@ async function getSnapshotLine(scoped: Scoped, orgId: number): Promise<string> {
       scoped.member.count({ where: { brother: { is: { isGhost: false } }, duesOwed: { gt: 0 } } }),
       scoped.partyEvent.aggregate({ _sum: { doorRevenue: true } }),
       scoped.transaction.groupBy({ by: ["type"], where: { deletedAt: null }, _sum: { amount: true } }),
+      scoped.organizationConfig.find(),
     ]);
     // We requested _count: { _all: true }, so _count is the object form at
     // runtime; the wrapper's widened return type doesn't express that, hence the
@@ -92,7 +94,12 @@ async function getSnapshotLine(scoped: Scoped, orgId: number): Promise<string> {
       const avgGpa = roundTo(agg._avg?.gpa ?? 0, 0.05).toFixed(2);
       const income = txByType.find(g => g.type === "income")?._sum.amount ?? 0;
       const expense = txByType.find(g => g.type === "expense")?._sum.amount ?? 0;
-      const balance = roundTo((doorAgg._sum?.doorRevenue ?? 0) + income - expense, 10);
+      const balance = roundTo(netBalance({
+        openingBalance: config?.openingBalance ?? null,
+        doorRevenue:    doorAgg._sum?.doorRevenue ?? 0,
+        income,
+        expense,
+      }), 10);
       line =
         `Chapter snapshot (cached ≤5 min, approximate — call tools for exact/current figures or any list of names): ` +
         `${count} active brothers; ${owing} owe dues (~$${totalDues.toLocaleString("en-US")} total); ` +

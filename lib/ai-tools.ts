@@ -17,6 +17,7 @@ import { isoWeekBounds, todayISO, DATE_RE } from "@/lib/dates";
 import { getBrotherStatus, type Brother as BrotherType } from "@/app/data";
 import { fmtUsd as fmtMoney, money } from "@/lib/money";
 import { resolveThresholds, type Thresholds } from "@/lib/thresholds";
+import { netBalance } from "@/lib/treasury-balance";
 import { isProgrammingManagedType } from "@/lib/programming";
 import { INSTAGRAM_TYPES } from "@/lib/validation/instagram";
 import { hasPermission, type Permission } from "@/lib/permissions";
@@ -1189,7 +1190,7 @@ async function sumTransactions(args: ToolArgs, scoped: Scoped): Promise<ToolResu
 async function getTreasury(scoped: Scoped): Promise<ToolResult> {
   // All three queries are independent — run them together, and sum in the DB
   // instead of fetching every party/transaction row to add up here.
-  const [doorAgg, txByType, transactions] = await Promise.all([
+  const [doorAgg, txByType, transactions, config] = await Promise.all([
     scoped.partyEvent.aggregate({ _sum: { doorRevenue: true } }),
     scoped.transaction.groupBy({
       by: ["type"],
@@ -1200,15 +1201,17 @@ async function getTreasury(scoped: Scoped): Promise<ToolResult> {
       where: { deletedAt: null }, orderBy: { date: "desc" }, take: 10,
       select: { date: true, type: true, amount: true, category: true, description: true },
     }),
+    scoped.organizationConfig.find(),
   ]);
   const doorRevenue = doorAgg._sum?.doorRevenue ?? 0;
   const income  = txByType.find(g => g.type === "income")?._sum.amount ?? 0;
   const expense = txByType.find(g => g.type === "expense")?._sum.amount ?? 0;
-  const balance = doorRevenue + income - expense;
+  const openingBalance = config?.openingBalance ?? null;
+  const balance = netBalance({ openingBalance, doorRevenue, income, expense });
   return {
     balance: r2(balance),
     projected: r2(balance * 1.3),
-    breakdown: { doorRevenue: r2(doorRevenue), income: r2(income), expense: r2(expense) },
+    breakdown: { openingBalance: openingBalance == null ? null : r2(openingBalance), doorRevenue: r2(doorRevenue), income: r2(income), expense: r2(expense) },
     recentTransactions: transactions.map(t => ({ ...t, amount: r2(t.amount) })),
   };
 }

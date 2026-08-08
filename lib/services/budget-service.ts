@@ -1,11 +1,9 @@
 import type { RequestContext } from "@/lib/context";
 import { emit } from "@/lib/events";
 import { ValidationError } from "@/lib/errors";
-import { EXPENSE_CATEGORIES } from "@/app/data";
+import { assertCategoriesExist } from "@/lib/transaction-categories-db";
 import type { UpsertBudgetInput } from "@/lib/validation/budget";
 import { toCents } from "@/lib/money";
-
-const VALID_CATEGORIES = new Set<string>(EXPENSE_CATEGORIES);
 
 export async function getBudget(ctx: RequestContext, semester: string) {
   return ctx.db.budget.findUniqueWithAllocations(semester);
@@ -14,10 +12,13 @@ export async function getBudget(ctx: RequestContext, semester: string) {
 export async function upsertBudget(ctx: RequestContext, input: UpsertBudgetInput) {
   const seen = new Set<string>();
   for (const a of input.allocations) {
-    if (!VALID_CATEGORIES.has(a.category)) throw new ValidationError(`Invalid category: ${a.category}`);
     if (seen.has(a.category)) throw new ValidationError(`Duplicate category: ${a.category}`);
     seen.add(a.category);
   }
+  // Allocations are always expense-side — BudgetAllocation has no kind column.
+  // Batched into one query rather than one per line. Runs before the $transaction
+  // below opens, so the tx holds for as little time as possible.
+  await assertCategoriesExist(ctx.db, "expense", input.allocations.map(a => a.category));
   const total = input.allocations.reduce((s, a) => s + a.percent, 0);
   if (Math.abs(total - 100) > 0.01 && total !== 0) {
     throw new ValidationError(`Allocation percents must sum to 100 (got ${total.toFixed(2)})`);

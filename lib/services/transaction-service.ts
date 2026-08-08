@@ -6,6 +6,8 @@ import { ConflictError, NotFoundError } from "@/lib/errors";
 import { atLeast, money, toCents } from "@/lib/money";
 import { logTiming } from "@/lib/observability";
 import { TransactionStatus, TransactionType } from "@/lib/state";
+import type { CategoryKind } from "@/lib/transaction-categories";
+import { assertCategoryExists } from "@/lib/transaction-categories-db";
 import type { CreateTransactionInput, UpdateTransactionInput } from "@/lib/validation/transaction";
 
 export interface TxFilter {
@@ -128,6 +130,11 @@ export async function listTransactions(ctx: RequestContext, filter: TxFilter = {
 export async function createTransaction(ctx: RequestContext, input: CreateTransactionInput) {
   const ids = input.calendarEventIds ?? [];
   await validateEventIds(ctx, ids);
+
+  // Before the dues branch and before any $transaction opens, so the advisory lock
+  // below holds for no longer than it did. "Dues" is seeded and undeletable in every
+  // org, so this costs the dues path one indexed lookup and can't reject it.
+  await assertCategoryExists(ctx.db, input.type as CategoryKind, input.category);
 
   const brotherId = input.brotherId ?? null;
 
@@ -373,6 +380,21 @@ export async function updateTransaction(ctx: RequestContext, id: number, input: 
         + `depends on it. Void this payment and record it again instead.`,
       );
     }
+  }
+
+  // Re-validate whenever EITHER half of the (type, category) pair moves: flipping an
+  // expense row to income can invalidate a category that was fine a moment ago, even
+  // though the category string itself never changed.
+  //
+  // Deliberately AFTER the dues guard above. A dues row being re-bucketed to a
+  // category the org doesn't have should report the specific reason it can't move
+  // (its member's balance depends on it), not the generic one.
+  if (scalarInput.category !== undefined || scalarInput.type !== undefined) {
+    await assertCategoryExists(
+      ctx.db,
+      (scalarInput.type ?? existing.type) as CategoryKind,
+      scalarInput.category ?? existing.category,
+    );
   }
 
   const scalarData: Record<string, unknown> = {};

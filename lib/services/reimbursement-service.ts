@@ -5,13 +5,16 @@ import { ConflictError, ForbiddenError, NotFoundError } from "@/lib/errors";
 import { resolveMemberName } from "@/lib/member-names";
 import { hasPermission } from "@/lib/permissions";
 import { ReimbursementStatus, TransactionStatus, TransactionType } from "@/lib/state";
+import { FALLBACK_EXPENSE_CATEGORY } from "@/lib/transaction-categories";
+import { assertCategoryExists } from "@/lib/transaction-categories-db";
 import type { CreateReimbursementInput, UpdateReimbursementInput } from "@/lib/validation/reimbursement";
 import { toCents } from "@/lib/money";
 
 // Fallback bucket when neither the requester nor the approving treasurer named one.
-// Budget allocations are user-named per org, so this may match no allocation — the
-// spend still hits the treasury balance, it just won't land on a budget line.
-const UNCATEGORIZED = "Reimbursement";
+// A reserved slug seeded into every org (and backfilled onto every legacy one), so
+// it is always a real category — but it may still match no *budget allocation*, in
+// which case the spend hits the treasury balance without landing on a budget line.
+const UNCATEGORIZED = FALLBACK_EXPENSE_CATEGORY;
 
 // The include shape used everywhere we return a reimbursement to the client.
 // The org-scoped delegate's create/update/findMany signatures aren't generic
@@ -63,6 +66,8 @@ export async function createReimbursement(ctx: RequestContext, input: CreateReim
   // someone who is not a member here resolves to null.
   const member = await ctx.db.member.findByBrotherId(input.brotherId);
   if (!member) throw new NotFoundError("Brother");
+
+  if (input.category != null) await assertCategoryExists(ctx.db, "expense", input.category);
 
   const r = await ctx.db.reimbursement.create({
     data: {
@@ -127,6 +132,13 @@ export async function updateReimbursement(ctx: RequestContext, id: number, input
   const payee = approving ? await resolveMemberName(ctx.db, existing.brotherId) : null;
 
   const category = input.category ?? existing.category ?? UNCATEGORIZED;
+
+  // Validate what the CALLER named, not the resolved value. `existing.category` was
+  // already validated when the request was filed, and UNCATEGORIZED is reserved — so
+  // an org that deleted a category after a request was filed can still approve that
+  // request, rather than the reimbursement becoming permanently un-approvable.
+  // Runs before the transaction opens, which is why no onTx variant is needed.
+  if (input.category != null) await assertCategoryExists(ctx.db, "expense", input.category);
 
   // The tx client is raw and NOT org-scoped, so every write inside carries
   // organizationId explicitly (the house pattern — see task-service.ts).

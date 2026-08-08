@@ -11,6 +11,7 @@
  */
 import { db } from "@/lib/db";
 import { TransactionStatus, TransactionType } from "@/lib/state";
+import { RESERVED_CATEGORY_SLUGS } from "@/lib/transaction-categories";
 
 /** Org-scoped data accessor (same shape as ctx.db). */
 type Scoped = ReturnType<typeof db>;
@@ -24,8 +25,12 @@ type Scoped = ReturnType<typeof db>;
  * new label would orphan its own history, and every existing dues aggregation
  * (lib/ai-prompt.ts, the budget page, the reconciliation below) would silently
  * stop matching the rows it is supposed to sum. Display uses vocab; storage uses this.
+ *
+ * Typed against RESERVED_CATEGORY_SLUGS so this literal and the one the category
+ * registry protects from deletion cannot drift apart: change either and this line
+ * stops compiling.
  */
-export const DUES_CATEGORY = "Dues";
+export const DUES_CATEGORY: (typeof RESERVED_CATEGORY_SLUGS)["income"][number] = "Dues";
 
 /** The `where` that defines "money a member actually paid in dues". */
 export const duesPaymentWhere = {
