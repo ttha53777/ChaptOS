@@ -6,8 +6,31 @@
 
 import { testPrisma } from "./prisma";
 import { BUILTIN_EVENT_TYPES } from "@/lib/event-types";
+import { isReservedCategory, resolveCategorySeeds, type CategorySeed } from "@/lib/transaction-categories";
 
-export async function createOrg(name: string, slug: string) {
+/**
+ * The income/expense vocabulary a test org is seeded with.
+ *
+ * The default starter pack plus the legacy fraternity categories the existing
+ * treasury tests are written against ("Brotherhood", "House", "Misc", …). Seeding
+ * both keeps those tests honest — they exercise a real org's categories rather
+ * than strings the service would now reject — without pinning every test to the
+ * generic pack's vocabulary.
+ *
+ * Pass `categories` to createOrg to seed a different set (e.g. to test that a
+ * category one org defined is invisible to another).
+ */
+const TEST_EXTRA_CATEGORIES: readonly CategorySeed[] = [
+  // Expense side. Kept strictly one-sided so kind-mismatch tests have something
+  // real to file on the wrong book — seeding every name under both kinds would
+  // make the kind check untestable.
+  ...["Brotherhood", "House", "Misc", "Events", "Party Supplies", "Travel"]
+    .map((slug): CategorySeed => ({ kind: "expense", slug, label: slug, color: "#7a7266", colorDark: null })),
+  ...["Door", "Fines"]
+    .map((slug): CategorySeed => ({ kind: "income", slug, label: slug, color: "#7a7266", colorDark: null })),
+];
+
+export async function createOrg(name: string, slug: string, opts?: { categories?: readonly CategorySeed[] }) {
   const org = await testPrisma.organization.create({ data: { name, slug } });
   // Seed the built-in event types, mirroring provisionOrg, so service-layer
   // category validation (calendar-service) resolves like it does for a real org.
@@ -24,6 +47,29 @@ export async function createOrg(name: string, slug: string) {
       hidden:           false,
       mandatoryDefault: t.mandatoryDefault,
       displayOrder:     i,
+    })),
+  });
+
+  // Same for the treasury vocabulary: every financial write now validates its
+  // category against these rows (assertCategoryExists), so an org without them
+  // can't record a transaction at all.
+  const seeds = opts?.categories
+    ? resolveCategorySeeds(opts.categories)
+    : [...resolveCategorySeeds(), ...TEST_EXTRA_CATEGORIES];
+
+  const order: Record<string, number> = { income: 0, expense: 0 };
+  await testPrisma.transactionCategory.createMany({
+    skipDuplicates: true,
+    data: seeds.map(c => ({
+      organizationId: org.id,
+      kind:           c.kind,
+      slug:           c.slug,
+      label:          c.label,
+      color:          c.color,
+      colorDark:      c.colorDark,
+      builtin:        isReservedCategory(c.kind, c.slug),
+      hidden:         false,
+      displayOrder:   order[c.kind]!++,
     })),
   });
   return org;
