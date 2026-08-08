@@ -1228,6 +1228,44 @@ function scopedCalendarEventType(orgId: number, run: Run) {
   };
 }
 
+// The org's income/expense vocabulary. No onTx: every financial write resolves and
+// validates its category BEFORE opening its $transaction (reimbursement-service
+// resolves at :129 and opens at :134; budget-service loops before :27), so the
+// assertion never needs to run on a transaction client. Add one if a mint ever
+// moves inside a tx.
+function scopedTransactionCategory(orgId: number, run: Run) {
+  type W = Prisma.TransactionCategoryWhereInput;
+  const org = (w?: W): W => ({ ...w, organizationId: orgId });
+
+  async function verify(where: Prisma.TransactionCategoryWhereUniqueInput): Promise<number> {
+    const row = await run(p => p.transactionCategory.findFirst({ where: org(where as W), select: { id: true } }));
+    if (!row) notInOrg();
+    return row.id;
+  }
+
+  return {
+    findMany:   (args?: Prisma.TransactionCategoryFindManyArgs)  => run(p => p.transactionCategory.findMany({ ...args, where: org(args?.where) })),
+    findFirst:  (args?: Prisma.TransactionCategoryFindFirstArgs) => run(p => p.transactionCategory.findFirst({ ...args, where: org(args?.where) })),
+    findUnique: (args: Prisma.TransactionCategoryFindUniqueArgs) => run(p => p.transactionCategory.findFirst({ ...args, where: org(args.where as W) })),
+    create:     (args: Omit<Prisma.TransactionCategoryCreateArgs, "data"> & { data: Omit<Prisma.TransactionCategoryUncheckedCreateInput, "organizationId"> }) =>
+      run(p => p.transactionCategory.create({ ...args, data: { ...args.data, organizationId: orgId } })),
+    createMany: (args: { data: Omit<Prisma.TransactionCategoryUncheckedCreateInput, "organizationId">[]; skipDuplicates?: boolean }) =>
+      run(p => p.transactionCategory.createMany({
+        ...args,
+        data: args.data.map(d => ({ ...d, organizationId: orgId })),
+      })),
+    update:     async (args: Prisma.TransactionCategoryUpdateArgs) => {
+      const id = await verify(args.where);
+      return run(p => p.transactionCategory.update({ ...args, where: { id } }));
+    },
+    delete:     async (args: Prisma.TransactionCategoryDeleteArgs) => {
+      const id = await verify(args.where);
+      return run(p => p.transactionCategory.delete({ where: { id } }));
+    },
+    count:      (args?: Prisma.TransactionCategoryCountArgs) => run(p => p.transactionCategory.count({ ...args, where: org(args?.where) })),
+  };
+}
+
 function scopedBrotherMetricValue(orgId: number, run: Run) {
   type W = Prisma.BrotherMetricValueWhereInput;
   const org = (w?: W): W => ({ ...w, organizationId: orgId });
@@ -1383,7 +1421,7 @@ function scopedOrganizationConfig(orgId: number, run: Run) {
      * throwing P2025 on update. organizationId is injected, never taken from the
      * caller, so it can't be spoofed across tenants.
      */
-    upsert: (data: { enabledWorkflows?: string[]; vocabularyOverrides?: Record<string, string>; thresholds?: Prisma.InputJsonValue; disabledFeatures?: Prisma.InputJsonValue; customMemberFields?: Prisma.InputJsonValue; navOrder?: string[]; onboardingCompletedAt?: Date }) =>
+    upsert: (data: { enabledWorkflows?: string[]; vocabularyOverrides?: Record<string, string>; thresholds?: Prisma.InputJsonValue; disabledFeatures?: Prisma.InputJsonValue; customMemberFields?: Prisma.InputJsonValue; navOrder?: string[]; onboardingCompletedAt?: Date; openingBalance?: number; openingBalanceCents?: bigint }) =>
       run(p => p.organizationConfig.upsert({
         where:  { organizationId: orgId },
         update: data,
@@ -1776,6 +1814,7 @@ export function db(orgId: number) {
     orgMetricDefinition:  scopedOrgMetricDefinition(orgId, run),
     brotherMetricValue:   scopedBrotherMetricValue(orgId, run),
     calendarEventType:    scopedCalendarEventType(orgId, run),
+    transactionCategory:  scopedTransactionCategory(orgId, run),
 
     // Org-column-less join tables: scoped via a required relation to an org-bound
     // parent (CalendarEvent / Budget / OrgInvite); the Organization root is
@@ -1882,6 +1921,7 @@ export function _dbWithClient(orgId: number, client: P) {
     orgMetricDefinition:  scopedOrgMetricDefinition(orgId, run),
     brotherMetricValue:   scopedBrotherMetricValue(orgId, run),
     calendarEventType:    scopedCalendarEventType(orgId, run),
+    transactionCategory:  scopedTransactionCategory(orgId, run),
     attendanceRecord:    scopedAttendanceRecord(orgId, run),
     attendanceExcuse:    scopedAttendanceExcuse(orgId, run),
     attendanceExemption: scopedAttendanceExemption(orgId, run),

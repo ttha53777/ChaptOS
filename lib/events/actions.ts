@@ -14,6 +14,7 @@ export type SubjectType =
   | "AttendanceExcuse"
   | "AttendanceRecord"
   | "Transaction"
+  | "TransactionCategory"
   | "Budget"
   | "Role"
   | "BrotherRole"
@@ -58,6 +59,11 @@ export interface EventMetadata {
   "transaction.updated":      { description: string; changedFields: string[] };
   "transaction.soft_deleted": { description: string; amount: number };
   "budget.upserted":          { semester: string; allocationCount: number };
+  "transaction_category.created": { kind: string; slug: string; label: string };
+  "transaction_category.updated": { kind: string; slug: string; label: string; changedFields: string[] };
+  "transaction_category.hidden":  { kind: string; slug: string; label: string; hidden: boolean };
+  "transaction_category.deleted": { kind: string; slug: string; label: string };
+  "treasury.opening_balance.set": { openingBalance: number };
 
   // Roles / Brothers
   "role.created":  { name: string; rank: number };
@@ -220,6 +226,8 @@ export type Action = keyof EventMetadata;
 const KNOWN_ACTIONS = new Set<Action>([
   "excuse.submitted", "excuse.approved", "excuse.rejected", "attendance.recorded", "exemption.changed",
   "transaction.created", "transaction.updated", "transaction.soft_deleted", "budget.upserted",
+  "transaction_category.created", "transaction_category.updated", "transaction_category.hidden", "transaction_category.deleted",
+  "treasury.opening_balance.set",
   "role.created", "role.updated", "role.deleted", "role.granted", "role.revoked",
   "brother.claimed", "brother.added", "brother.updated", "brother.removed", "brother.admin_changed", "brother.account_unlinked",
   "calendar.created", "calendar.updated", "calendar.deleted",

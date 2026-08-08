@@ -54,6 +54,7 @@ model Organization {
   programmingEventDocs      ProgrammingEventDoc[]
   programmingChecklistItems ProgrammingChecklistItem[]
   transactions              Transaction[]
+  transactionCategories     TransactionCategory[]
   reimbursements            Reimbursement[]
   duesPayments              DuesPayment[]
   chatApprovals             ChatApproval[]
@@ -113,6 +114,20 @@ model OrganizationConfig {
   // rows; backfilled to createdAt in this column's migration so existing orgs
   // aren't bounced back into onboarding.
   onboardingCompletedAt DateTime?
+  // What was in the account the day the org started keeping books here, or null
+  // if nobody has said. Every balance the treasury shows is measured FROM this
+  // number (see lib/treasury-balance.ts) — without it an org that joins mid-year
+  // with $4,200 in the bank reads $0 until it back-fills its whole history.
+  //
+  // null is meaningfully different from 0: 0 is "we started from nothing", null
+  // is "unanswered", which is the signal a setup surface gates on. All balance
+  // math coerces null to 0, so an unanswered org simply behaves the way the whole
+  // platform did before this column existed. Legacy orgs were backfilled to 0 so
+  // no displayed number moved.
+  //
+  // Float + BigInt cents mirror, matching Transaction.amount / Budget.carryoverBalance.
+  openingBalance        Float?
+  openingBalanceCents   BigInt?
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
 
@@ -968,6 +983,64 @@ model OperationalEvent {
   @@index([organizationId, action, occurredAt])
   @@index([subjectType, subjectId])
   @@index([requestId])
+}
+
+// The org's own income and expense vocabulary. Replaces the platform-wide
+// INCOME_CATEGORIES / EXPENSE_CATEGORIES constants that made every chapter on
+// the platform file its money under one fraternity's words ("Party Supplies",
+// "Brotherhood"). See lib/transaction-categories.ts for the seeded starter set.
+//
+// `slug` is the string stored VERBATIM in Transaction.category /
+// Reimbursement.category / BudgetAllocation.category, and is immutable. It is
+// NOT kebab-case for rows that predate this table — a legacy slug is literally
+// "Party Supplies", spaces and capitals and all — which is exactly the point:
+// no financial row ever had to be rewritten, and DUES_CATEGORY ("Dues", see
+// lib/dues.ts) stays valid unchanged as a reserved slug. Slugs derived for
+// NEW categories are kebab-case; validity of the format is therefore checked
+// only at derivation time, never as a column constraint.
+//
+// `label` is the display name and is freely renameable, so renaming a category
+// is a one-row update rather than a migration over live money data.
+//
+// `kind` is part of the unique key so an org can run "Merch" as both an income
+// and an expense stream. A Transaction resolves its category by (type, category);
+// Reimbursement and BudgetAllocation are always kind="expense".
+//
+// `builtin` marks the two RESERVED slugs the server itself writes and matches on
+// (income/"Dues", expense/"Reimbursement" — see lib/transaction-categories.ts).
+// They can't be deleted or hidden, but their LABEL is renameable: an org that
+// calls dues "Contributions" renames the label and the stored slug stays "Dues",
+// so every existing aggregation keeps matching. Every other seeded category is
+// builtin=false and freely deletable — an org that never throws a party must be
+// able to delete "Party Supplies".
+//
+// `hidden` is a picker hint only. Write validation deliberately ignores it, so a
+// client holding a slightly stale list never 400s.
+//
+// There is intentionally NO FK from Transaction.category to this table —
+// integrity is enforced in the service layer (assertCategoryExists), matching
+// CalendarEventType's posture: a composite FK breaks the test factories and
+// diverges between prod (NO FORCE RLS) and the test harness (FORCE RLS). Reads
+// never validate, so a hidden or deleted category still renders on the rows
+// that reference it.
+model TransactionCategory {
+  id             Int      @id @default(autoincrement())
+  organizationId Int
+  kind           String // "income" | "expense" — see lib/state/transaction-type.ts
+  slug           String // matches Transaction.category verbatim; immutable after create
+  label          String // display name; freely renameable
+  color          String // hex used for the donut slice / dot
+  colorDark      String? // optional dark "dusk" override; falls back to color
+  builtin        Boolean  @default(false) // reserved: undeletable + unhideable, label still renameable
+  hidden         Boolean  @default(false) // archived: off the picker, still resolves for history
+  displayOrder   Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, kind, slug])
+  @@index([organizationId])
 }
 
 model Transaction {
