@@ -3,9 +3,10 @@
 import React, { useState } from "react";
 import { FieldLabel } from "../dashboard/primitives";
 import { inputCls, inputDuskCls, btnDuskGhostCls, btnDuskActionCls } from "../dashboard/styles";
-import { Transaction, INCOME_CATEGORIES, EXPENSE_CATEGORIES, PAYMENT_METHODS } from "../../data";
+import { Transaction, PAYMENT_METHODS } from "../../data";
 import { todayStr } from "../../lib/dates";
 import { useVocab } from "../../hooks/useVocab";
+import { useTransactionCategories } from "../../hooks/useTransactionCategories";
 
 const CURRENT_SEMESTER = "SPR26";
 
@@ -83,6 +84,7 @@ export function TxForm({
   const [saving, setSaving] = useState(false);
 
   const v = useVocab();
+  const catalog = useTransactionCategories();
   const isFutureDate = date > todayStr();
 
   // Filter events to the transaction's semester year.
@@ -91,7 +93,10 @@ export function TxForm({
   // Events available to add (not yet selected).
   const addableEvents = semesterEvents.filter(e => !selectedEventIds.includes(e.id));
 
-  const categories = type === "income" ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
+  // The org's own vocabulary, not a platform-wide list. `initial?.category` is kept
+  // selectable even if it has since been hidden or deleted, so editing an old row
+  // can't silently re-bucket it.
+  const categories = catalog.options(type, initial?.category ?? null);
 
   function handleDateChange(newDate: string) {
     setDate(newDate);
@@ -155,7 +160,7 @@ export function TxForm({
             <FieldLabel tone={tone}>Category</FieldLabel>
             <select value={category} onChange={e => setCategory(e.target.value)} required className={inCls}>
               <option value="">Select…</option>
-              {categories.map(c => <option key={c} value={c}>{c}</option>)}
+              {categories.map(c => <option key={c.slug} value={c.slug}>{c.label}</option>)}
             </select>
           </div>
         </div>

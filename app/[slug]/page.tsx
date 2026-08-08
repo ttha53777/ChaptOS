@@ -1226,7 +1226,11 @@ export default function Home() {
   // that — a successful fetch on a new org returns {balance: 0, trend: []}, which
   // is why the Treasury tile printed $0 on day one despite already having an
   // em-dash branch.
-  const hasTreasuryData   = liveTrend.length > 0;
+  //
+  // An org that stated an opening balance has a real number to show even with no
+  // transactions yet — that is the point of asking. So a set opening balance counts
+  // as data; only an org that has answered nothing and recorded nothing is unset.
+  const hasTreasuryData   = liveTrend.length > 0 || treasuryData?.openingBalance != null;
   const hasAttendanceData = useMemo(() => attendees.some(b => b.attendance > 0), [attendees]);
   const hasGpaData        = useMemo(() => brotherList.some(b => b.gpa > 0), [brotherList]);
   const hasServiceData    = useMemo(() => brotherList.some(b => b.serviceHours > 0), [brotherList]);
@@ -2088,6 +2092,7 @@ export default function Home() {
                       balance={liveBalance}
                       projected={liveProjected}
                       trend={liveTrend}
+                      openingBalance={treasuryData?.openingBalance ?? null}
                       loading={!treasuryLoaded}
                       onLogTransaction={canTreasury ? () => router.push(orgPath("/treasury?tab=Transactions")) : undefined}
                     />

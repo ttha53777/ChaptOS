@@ -2,7 +2,8 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
-import { EXPENSE_CATEGORIES, Transaction, fmt$ } from "../../data";
+import { Transaction, fmt$ } from "../../data";
+import { useTransactionCategories, type TransactionCategory } from "../../hooks/useTransactionCategories";
 import { Modal, FieldLabel } from "../dashboard/primitives";
 import { inputDuskCls, btnDuskGhostCls, btnDuskActionCls } from "../dashboard/styles";
 import { requestJson } from "../../lib/api";
@@ -16,6 +17,29 @@ const TreasuryDonutChart = dynamic(
   () => import("./TreasuryCharts").then(m => m.TreasuryDonutChart),
   { ssr: false, loading: () => <div className="tr-skel h-[220px] rounded-full mx-auto max-w-[220px]" /> },
 );
+
+/**
+ * The rows the budget grid shows: the org's live expense categories, plus any
+ * category that already has an allocation but is no longer offered.
+ *
+ * The second half is not cosmetic. This grid used to iterate a fixed constant and
+ * rebuild the whole allocation list from it on save, so any allocation outside that
+ * list was silently deleted the next time anyone touched the budget. Following the
+ * data as well as the config is what makes saving non-destructive.
+ */
+function budgetCategories(
+  offered: TransactionCategory[],
+  allocations: { category: string }[],
+): TransactionCategory[] {
+  const seen = new Set(offered.map(c => c.slug));
+  const orphans = allocations
+    .filter(a => !seen.has(a.category))
+    .map((a, i): TransactionCategory => ({
+      id: -1 - i, kind: "expense", slug: a.category, label: a.category,
+      color: "#7a7266", colorDark: null, builtin: false, hidden: true, displayOrder: 9999 + i,
+    }));
+  return [...offered, ...orphans];
+}
 
 type BudgetData = {
   semester: string;
@@ -40,6 +64,8 @@ export function BudgetView({
   const [budget,    setBudget]    = useState<BudgetData | null>(null);
   const [loading,   setLoading]   = useState(true);
   const [editOpen,  setEditOpen]  = useState(false);
+  // Called above the early returns below — hooks can't live behind a condition.
+  const offeredCategories = useTransactionCategories().options("expense");
 
   useEffect(() => {
     let cancelled = false;
@@ -106,9 +132,11 @@ export function BudgetView({
   const projectedEnd   = totalFunds - actualExpenses;
   const reserveOnTrack = projectedEnd >= reserveTarget;
 
-  const allocationPieData = EXPENSE_CATEGORIES.map(cat => {
-    const percent = budget.allocations.find(a => a.category === cat)?.percent ?? 0;
-    return { name: cat, value: pool * (percent / 100) };
+  const categories = budgetCategories(offeredCategories, budget.allocations);
+
+  const allocationPieData = categories.map(cat => {
+    const percent = budget.allocations.find(a => a.category === cat.slug)?.percent ?? 0;
+    return { name: cat.label, value: pool * (percent / 100), color: cat.color };
   });
   const hasAllocations = allocationPieData.some(d => d.value > 0);
 
@@ -195,25 +223,25 @@ export function BudgetView({
 
       {/* ── Category cards grid ────────────────────────────────────────── */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {EXPENSE_CATEGORIES.map((cat, idx) => {
-          const alloc       = budget.allocations.find(a => a.category === cat);
+        {categories.map((cat, idx) => {
+          const alloc       = budget.allocations.find(a => a.category === cat.slug);
           const percent     = alloc?.percent ?? 0;
           const fundedPool  = pool * (percent / 100);
-          const spent       = spentByCategory.get(cat) ?? 0;
+          const spent       = spentByCategory.get(cat.slug) ?? 0;
           const pctUsed     = fundedPool > 0 ? (spent / fundedPool) * 100 : (spent > 0 ? 100 : 0);
           const isOver      = spent > fundedPool && fundedPool > 0;
           const isUnfunded  = percent === 0;
-          const color       = catColor(cat, idx);
+          const color       = catColor(cat.color, idx);
 
           return (
             <div
-              key={cat}
+              key={cat.slug}
               className="rounded-2xl border border-white/[0.07] p-4"
               style={{ background: "linear-gradient(to bottom, rgba(255,255,255,0.025) 0%, #10121a 60%)" }}
             >
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
-                  <p className="truncate text-[13px] font-semibold text-[#ece7dd]">{cat}</p>
+                  <p className="truncate text-[13px] font-semibold text-[#ece7dd]">{cat.label}</p>
                   <p className="text-[10px] text-[#958d7c]">{percent.toFixed(0)}% share</p>
                 </div>
                 {isOver && (
@@ -341,11 +369,17 @@ function EditBudgetModal({
     String(initial?.carryoverBalance ?? Math.max(0, Math.round(currentBalance)))
   );
   const [reserveStr, setReserveStr] = useState(String(initial?.reserveAmount ?? 0));
+  // Includes any already-allocated category the org no longer offers, so saving
+  // can't quietly delete a budget line the editor never showed.
+  const categories = budgetCategories(
+    useTransactionCategories().options("expense"),
+    initial?.allocations ?? [],
+  );
   const [percents, setPercents] = useState<Record<string, number>>(() => {
     const initialAlloc = new Map<string, number>();
     initial?.allocations.forEach(a => initialAlloc.set(a.category, a.percent));
     const map: Record<string, number> = {};
-    EXPENSE_CATEGORIES.forEach(c => { map[c] = initialAlloc.get(c) ?? 0; });
+    categories.forEach(c => { map[c.slug] = initialAlloc.get(c.slug) ?? 0; });
     return map;
   });
   const [saving, setSaving] = useState(false);
@@ -372,8 +406,8 @@ function EditBudgetModal({
           semester,
           carryoverBalance: carryover,
           reserveAmount: reserve,
-          allocations: EXPENSE_CATEGORIES
-            .map(c => ({ category: c, percent: percents[c] ?? 0 }))
+          allocations: categories
+            .map(c => ({ category: c.slug, percent: percents[c.slug] ?? 0 }))
             .filter(a => a.percent > 0),
         }),
       });
@@ -430,16 +464,16 @@ function EditBudgetModal({
         </div>
 
         <div className="max-h-[320px] overflow-y-auto rounded-lg border border-[rgba(236,231,221,0.12)] bg-[#0f0d0a]">
-          {EXPENSE_CATEGORIES.map((cat, idx) => {
-            const value = percents[cat] ?? 0;
+          {categories.map((cat, idx) => {
+            const value = percents[cat.slug] ?? 0;
             const dollar = pool * value / 100;
             return (
               <div
-                key={cat}
+                key={cat.slug}
                 className={`flex items-center gap-3 px-3 py-2.5 ${idx > 0 ? "border-t border-white/[0.04]" : ""}`}
               >
                 <div className="min-w-0 flex-1">
-                  <p className="text-[12px] font-medium text-[#c9c2b4]">{cat}</p>
+                  <p className="text-[12px] font-medium text-[#c9c2b4]">{cat.label}</p>
                   <p className="text-[10px] tabular-nums text-[#958d7c]">
                     {fmt$(Math.round(dollar))} from pool
                   </p>
@@ -450,7 +484,7 @@ function EditBudgetModal({
                   max={100}
                   step={1}
                   value={value}
-                  onChange={e => setPct(cat, Number(e.target.value))}
+                  onChange={e => setPct(cat.slug, Number(e.target.value))}
                   className="h-1 w-[120px] accent-[#a78bfa]"
                 />
                 <input
@@ -459,7 +493,7 @@ function EditBudgetModal({
                   max={100}
                   step={1}
                   value={value}
-                  onChange={e => setPct(cat, Number(e.target.value))}
+                  onChange={e => setPct(cat.slug, Number(e.target.value))}
                   className="w-14 rounded border border-[rgba(236,231,221,0.12)] bg-[#0f0d0a] px-2 py-1 text-[12px] tabular-nums text-[#ece7dd] focus:border-[#a78bfa]/60 focus:outline-none"
                 />
                 <span className="w-3 text-[11px] text-[#958d7c]">%</span>

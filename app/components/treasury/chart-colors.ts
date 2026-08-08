@@ -8,6 +8,15 @@ export const DONUT_COLORS = [
   "#7c3aed", "#c9a24a", "#b86b85", "#5f8a6a",
 ];
 
-export function catColor(name: string, index: number): string {
-  return DONUT_COLORS[index % DONUT_COLORS.length];
+/**
+ * A slice's color: the category's own stored hex when it has one, else a position
+ * on the ramp.
+ *
+ * The stored color is what keeps a category the same color as slices reorder —
+ * ramp position alone means "Operations" changes color the month it stops being
+ * the biggest expense. The fallback still matters: the synthetic "Other" slice and
+ * any row whose category has since been deleted have no color to resolve.
+ */
+export function catColor(color: string | null | undefined, index: number): string {
+  return color ?? DONUT_COLORS[index % DONUT_COLORS.length];
 }

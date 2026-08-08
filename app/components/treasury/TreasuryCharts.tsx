@@ -130,7 +130,8 @@ export function TreasuryAreaChart({ data, biweeklyData, semester }: {
 
 // ─── Donut / Pie chart ────────────────────────────────────────────────────────
 
-interface DonutEntry { name: string; value: number }
+/** `color` is the category's own stored hex; null falls back to the ramp position. */
+interface DonutEntry { name: string; value: number; color?: string | null }
 
 export function TreasuryDonutChart({ data }: { data: DonutEntry[] }) {
   return (
@@ -152,8 +153,8 @@ export function TreasuryDonutChart({ data }: { data: DonutEntry[] }) {
           {data.map((entry, index) => (
             <Cell
               key={entry.name}
-              fill={catColor(entry.name, index)}
-              stroke={catColor(entry.name, index)}
+              fill={catColor(entry.color, index)}
+              stroke={catColor(entry.color, index)}
               strokeWidth={0}
             />
           ))}

@@ -36,6 +36,32 @@ interface TreasuryData {
   balance: number;
   projected: number;
   trend: { month: string; balance: number }[];
+  /**
+   * What was in the account when the org started keeping books here, or null if
+   * nobody has been asked. Already folded into `balance` and `trend` server-side —
+   * carried here so the treasury page's live client-side recompute can start from
+   * the same number instead of zero.
+   */
+  openingBalance: number | null;
+}
+
+/**
+ * One of the org's own income/expense streams. The full set including hidden ones,
+ * because a transaction filed under an archived category still has to render its
+ * label and color.
+ */
+export interface TransactionCategory {
+  id: number;
+  kind: "income" | "expense";
+  /** The value stored in Transaction.category. What a <select> submits. */
+  slug: string;
+  /** The display name. The only thing a user should ever see. */
+  label: string;
+  color: string;
+  colorDark: string | null;
+  builtin: boolean;
+  hidden: boolean;
+  displayOrder: number;
 }
 
 interface CurrentUserRole {
@@ -119,6 +145,8 @@ interface ChapterContextValue {
   setActivityFeed: React.Dispatch<React.SetStateAction<ActivityEntry[]>>;
   treasuryData: TreasuryData | null;
   setTreasuryData: React.Dispatch<React.SetStateAction<TreasuryData | null>>;
+  transactionCategories: TransactionCategory[];
+  setTransactionCategories: React.Dispatch<React.SetStateAction<TransactionCategory[]>>;
   transactionList: Transaction[];
   setTransactionList: React.Dispatch<React.SetStateAction<Transaction[]>>;
   reimbursementList: Reimbursement[];
@@ -174,6 +202,7 @@ type ChapterSection =
   | "parties"
   | "activity"
   | "treasury"
+  | "transactionCategories"
   | "transactions"
   | "reimbursements"
   | "polls";
@@ -183,7 +212,7 @@ type DataSection = Exclude<ChapterSection, "me">;
 
 const ALL_DATA_SECTIONS: readonly DataSection[] = [
   "brothers", "deadlines", "instagram", "parties",
-  "activity", "treasury", "transactions", "reimbursements", "polls",
+  "activity", "treasury", "transactionCategories", "transactions", "reimbursements", "polls",
 ];
 
 /**
@@ -226,7 +255,7 @@ const SECTIONS_BY_PAGE: Record<string, readonly DataSection[]> = {
   // GeneralSection reads igTaskList alongside the page's own brothers/tasks/parties.
   settings:   ["deadlines", "parties", "instagram"],
   timeline:   ["deadlines", "parties", "instagram"],
-  treasury:   ["parties", "transactions", "treasury", "reimbursements"],
+  treasury:   ["parties", "transactions", "treasury", "transactionCategories", "reimbursements"],
 };
 
 /**
@@ -300,6 +329,7 @@ export function ChapterProvider({ children }: { children: React.ReactNode }) {
   const [partyList,        setPartyList]        = useState<PartyEvent[]>([]);
   const [activityFeed,     setActivityFeed]     = useState<ActivityEntry[]>([]);
   const [treasuryData,     setTreasuryData]     = useState<TreasuryData | null>(null);
+  const [transactionCategories, setTransactionCategories] = useState<TransactionCategory[]>([]);
   const [transactionList,  setTransactionList]  = useState<Transaction[]>([]);
   const [reimbursementList, setReimbursementList] = useState<Reimbursement[]>([]);
   const [currentUser,      setCurrentUser]      = useState<CurrentUser | null>(null);
@@ -427,6 +457,10 @@ export function ChapterProvider({ children }: { children: React.ReactNode }) {
     treasury: async () => {
       const v = await fetchJson<TreasuryData>("/api/treasury");
       return () => setTreasuryData(v);
+    },
+    transactionCategories: async () => {
+      const v = await fetchJson<TransactionCategory[]>("/api/treasury/categories");
+      return () => setTransactionCategories(v ?? []);
     },
     transactions: async () => {
       const v = await fetchJson<Transaction[]>("/api/transactions");
@@ -647,6 +681,7 @@ export function ChapterProvider({ children }: { children: React.ReactNode }) {
     partyList, setPartyList,
     activityFeed, setActivityFeed,
     treasuryData, setTreasuryData,
+    transactionCategories, setTransactionCategories,
     transactionList, setTransactionList,
     reimbursementList, setReimbursementList,
     isLoading, loadError, sectionErrors, loadedSections,
@@ -661,7 +696,7 @@ export function ChapterProvider({ children }: { children: React.ReactNode }) {
     setAvatarUrl,
     can,
     brotherList, taskList, pollList, igTaskList, programmingTaskList, partyList,
-    activityFeed, treasuryData, transactionList, reimbursementList,
+    activityFeed, treasuryData, transactionCategories, transactionList, reimbursementList,
     isLoading, loadError, sectionErrors, loadedSections, mutationError, hasLoaded,
     refreshChapterData,
     setDisabledFeaturesLocal,

@@ -26,12 +26,18 @@ export function TreasuryRail({
   balance,
   projected,
   trend,
+  openingBalance = null,
   loading = false,
   onLogTransaction,
 }: {
   balance: number | null;
   projected: number | null;
   trend: { month: string; balance: number }[];
+  /**
+   * A stated opening balance is itself an entry: the org told us what was in the
+   * account, so the headline is a real number even before the first transaction.
+   */
+  openingBalance?: number | null;
   loading?: boolean;
   /** Undefined without MANAGE_TREASURY — copy stands, button doesn't. */
   onLogTransaction?: () => void;
@@ -52,7 +58,7 @@ export function TreasuryRail({
     );
   }
 
-  if (balance === null || projected === null || trend.length === 0) {
+  if (balance === null || projected === null || (trend.length === 0 && openingBalance === null)) {
     return (
       <section id="sec-treasury" className="card" aria-label={v("Treasury")}>
         <div className="card-h">

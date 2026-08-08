@@ -24,9 +24,10 @@ import { useChapter } from "../../context/ChapterContext";
 import { useVocab } from "../../hooks/useVocab";
 import {
   Transaction, PartyEvent, Brother, Reimbursement,
-  INCOME_CATEGORIES, EXPENSE_CATEGORIES,
   fmt$, fmtDate, round2,
 } from "../../data";
+import { useTransactionCategories } from "../../hooks/useTransactionCategories";
+import { netBalance } from "../../../lib/treasury-balance";
 import { TxForm, type TxFormEvent } from "../../components/treasury/TxForm";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -61,6 +62,8 @@ import { todayStr } from "../../lib/dates";
 function buildRunningBalanceData(
   txns: Transaction[],
   parties: PartyEvent[],
+  /** Where the books started. The line runs FROM this, not from zero. */
+  openingBalance: number,
 ): { date: string; label: string; balance: number; expenses: number }[] {
   type Pt = { date: string; delta: number; expense: number };
   const pts: Pt[] = [];
@@ -76,7 +79,7 @@ function buildRunningBalanceData(
 
   pts.sort((a, b) => a.date.localeCompare(b.date));
 
-  let running = 0;
+  let running = openingBalance;
   let expenses = 0;
   return pts.map(p => {
     running += p.delta;
@@ -130,24 +133,37 @@ function buildBiweeklyData(
   }));
 }
 
+// Groups by the STORED slug but labels and colors each slice from the org's own
+// category row, so a renamed category reads by its new name and keeps its color as
+// slices reorder. `color` is null for a slug whose category was deleted; the chart
+// falls back to its positional ramp for those.
 function topCategoriesWithOther(
   txns: Transaction[],
+  label: (kind: string, slug: string) => string,
+  color: (kind: string, slug: string) => string | null,
   maxSlices = 5,
-): { name: string; value: number }[] {
-  const map = new Map<string, number>();
-  txns.forEach(t => map.set(t.category, (map.get(t.category) ?? 0) + t.amount));
+): { name: string; value: number; color: string | null }[] {
+  const map = new Map<string, { value: number; kind: string }>();
+  txns.forEach(t => {
+    const cur = map.get(t.category);
+    map.set(t.category, { value: (cur?.value ?? 0) + t.amount, kind: cur?.kind ?? t.type });
+  });
   const sorted = Array.from(map.entries())
-    .filter(([, v]) => v > 0)
-    .sort(([, a], [, b]) => b - a);
+    .filter(([, v]) => v.value > 0)
+    .sort(([, a], [, b]) => b.value - a.value);
 
-  if (sorted.length <= maxSlices) {
-    return sorted.map(([name, value]) => ({ name, value: round2(value) }));
-  }
-  const top = sorted.slice(0, maxSlices);
-  const otherVal = sorted.slice(maxSlices).reduce((s, [, v]) => s + v, 0);
+  const slice = ([slug, v]: [string, { value: number; kind: string }]) => ({
+    name:  label(v.kind, slug),
+    value: round2(v.value),
+    color: color(v.kind, slug),
+  });
+
+  if (sorted.length <= maxSlices) return sorted.map(slice);
+
+  const otherVal = sorted.slice(maxSlices).reduce((s, [, v]) => s + v.value, 0);
   return [
-    ...top.map(([name, value]) => ({ name, value: round2(value) })),
-    { name: "Other", value: round2(otherVal) },
+    ...sorted.slice(0, maxSlices).map(slice),
+    { name: "Other", value: round2(otherVal), color: null },
   ];
 }
 
@@ -199,6 +215,8 @@ function ReimbursementsView({
   // two-step shape as declining, and the last chance to fix the budget bucket.
   const [approvingId,   setApprovingId]   = useState<number | null>(null);
   const [approveCat,    setApproveCat]    = useState("");
+  const catalog = useTransactionCategories();
+  const expenseCats = catalog.options("expense");
 
   const pending  = reimbursements.filter(r => r.status === "pending");
   const archived = reimbursements.filter(r => r.status !== "pending");
@@ -213,7 +231,7 @@ function ReimbursementsView({
   function startApprove(r: Reimbursement) {
     setRejectingId(null);
     setApprovingId(r.id);
-    setApproveCat(r.category || EXPENSE_CATEGORIES[0]);
+    setApproveCat(r.category || expenseCats[0]?.slug || "");
   }
 
   function confirmApprove(id: number) {
@@ -311,7 +329,9 @@ function ReimbursementsView({
                 <label className="tr-reimb-approve-cat">
                   <span>Budget category</span>
                   <select value={approveCat} onChange={e => setApproveCat(e.target.value)} className={inputDuskCls}>
-                    {EXPENSE_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                    {catalog.options("expense", approveCat || null).map(c => (
+                      <option key={c.slug} value={c.slug}>{c.label}</option>
+                    ))}
                   </select>
                 </label>
                 <div className="tr-reimb-approve-balance">
@@ -329,7 +349,7 @@ function ReimbursementsView({
           {!showActions && !isRejecting && !isApproving && r.status === "approved" && (
             <span className="tr-reimb-outcome">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><path d={ICON_CHECK} /></svg>
-              Reimbursed{r.category ? ` — posted to ${r.category}` : ""}
+              Reimbursed{r.category ? ` — posted to ${catalog.labelFor("expense", r.category)}` : ""}
             </span>
           )}
 
@@ -399,8 +419,15 @@ function ReimbursementForm({
   // Approving this mints an expense in the ledger, and the budget page groups spend
   // by category — so the bucket is chosen here, at the point someone knows what the
   // money was for. Same list the transaction form uses, so the two books line up.
-  const [category,    setCategory]    = useState<string>(EXPENSE_CATEGORIES[0]);
+  const expenseCats = useTransactionCategories().options("expense");
+  const [category,    setCategory]    = useState<string>("");
   const [file,        setFile]        = useState<File | null>(null);
+
+  // The list arrives with the treasury section, which may resolve after this form
+  // mounts, so default once it's there rather than to a hardcoded first entry.
+  React.useEffect(() => {
+    if (!category && expenseCats.length > 0) setCategory(expenseCats[0]!.slug);
+  }, [category, expenseCats]);
   const fileRef = React.useRef<HTMLInputElement>(null);
 
   function handleSubmit(e: React.FormEvent) {
@@ -427,7 +454,7 @@ function ReimbursementForm({
       <div>
         <FieldLabel tone="dusk">Budget category</FieldLabel>
         <select value={category} onChange={e => setCategory(e.target.value)} required className={inputDuskCls}>
-          {EXPENSE_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+          {expenseCats.map(c => <option key={c.slug} value={c.slug}>{c.label}</option>)}
         </select>
       </div>
       <div>
@@ -593,6 +620,7 @@ const ICON_PARTY  = "M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-
 export default function TreasuryPage() {
   const { currentUser, treasuryData, transactionList, setTransactionList, partyList, setPartyList, brotherList, setBrotherList, reimbursementList: reimbursements, setReimbursementList: setReimbursements, isLoading, avatarRevision, can } = useChapter();
   const v = useVocab();
+  const catalog = useTransactionCategories();
   const selfId = currentUser?.id ?? null;
   const canTreasury = can("MANAGE_TREASURY");
 
@@ -646,11 +674,30 @@ export default function TreasuryPage() {
   const baseVisibleTxns = txTab === "income" ? incomeTxns : txTab === "expense" ? expenseTxns : activeTxns;
   const visibleTxns = txCategory === "all" ? baseVisibleTxns : baseVisibleTxns.filter(t => t.category === txCategory);
 
+  // The filter offers the org's configured categories UNION every category the
+  // visible rows are actually filed under. Without the second half, a transaction
+  // under a since-deleted category would be unreachable from this dropdown — the
+  // filter's whole job is finding rows, so it follows the data, not the config.
   const categoryOptions = useMemo(() => {
-    if (txTab === "income")  return INCOME_CATEGORIES as readonly string[];
-    if (txTab === "expense") return EXPENSE_CATEGORIES as readonly string[];
-    return [...INCOME_CATEGORIES, ...EXPENSE_CATEGORIES] as readonly string[];
-  }, [txTab]);
+    const kinds: ("income" | "expense")[] =
+      txTab === "income" ? ["income"] : txTab === "expense" ? ["expense"] : ["income", "expense"];
+
+    const seen = new Set<string>();
+    const out: { slug: string; label: string }[] = [];
+    for (const kind of kinds) {
+      for (const c of catalog.options(kind)) {
+        if (seen.has(c.slug)) continue;
+        seen.add(c.slug);
+        out.push({ slug: c.slug, label: c.label });
+      }
+    }
+    for (const t of baseVisibleTxns) {
+      if (seen.has(t.category)) continue;
+      seen.add(t.category);
+      out.push({ slug: t.category, label: catalog.labelFor(t.type, t.category) });
+    }
+    return out;
+  }, [txTab, catalog, baseVisibleTxns]);
 
   const txnsWithRunning = useMemo(() => {
     // Build running balance from ALL active txns so filtered views show the real balance at each date
@@ -689,8 +736,8 @@ export default function TreasuryPage() {
 
   // Running cumulative balance chart
   const runningData = useMemo(
-    () => buildRunningBalanceData(activeTxns, filteredParties),
-    [activeTxns, filteredParties]
+    () => buildRunningBalanceData(activeTxns, filteredParties, treasuryData?.openingBalance ?? 0),
+    [activeTxns, filteredParties, treasuryData?.openingBalance]
   );
 
   // Biweekly summary
@@ -720,8 +767,8 @@ export default function TreasuryPage() {
 
   // Donut data
   const donutData = useMemo(
-    () => topCategoriesWithOther(donutMode === "expense" ? expenseTxns : incomeTxns),
-    [donutMode, expenseTxns, incomeTxns]
+    () => topCategoriesWithOther(donutMode === "expense" ? expenseTxns : incomeTxns, catalog.labelFor, catalog.colorFor),
+    [donutMode, expenseTxns, incomeTxns, catalog]
   );
   const donutTotal = donutMode === "expense" ? totalExpenses : totalIncome;
 
@@ -1001,7 +1048,12 @@ export default function TreasuryPage() {
   // Compute balance live from local state so it updates immediately after add/edit/delete
   const postedExpenses  = useMemo(() => expenseTxns.filter(t => t.status !== "scheduled").reduce((s, t) => s + t.amount, 0), [expenseTxns]);
   const scheduledDrain  = useMemo(() => expenseTxns.filter(t => t.status === "scheduled").reduce((s, t) => s + t.amount, 0), [expenseTxns]);
-  const balance   = totalIncome - postedExpenses + totalDoorRev;
+  const balance   = netBalance({
+    openingBalance: treasuryData?.openingBalance ?? null,
+    doorRevenue:    totalDoorRev,
+    income:         totalIncome,
+    expense:        postedExpenses,
+  });
   const projected = Math.round((balance - scheduledDrain) * 1.3);
 
   // Dues outstanding — surfaced in the glance strip and the AI digest.
@@ -1230,7 +1282,7 @@ export default function TreasuryPage() {
                     <div className="tr-cat-list">
                       {donutData.map((entry, index) => {
                         const pct = donutTotal > 0 ? (entry.value / donutTotal) * 100 : 0;
-                        const color = catColor(entry.name, index);
+                        const color = catColor(entry.color, index);
                         return (
                           <div key={entry.name} className="tr-cat">
                             <span className="rank">{index + 1}</span>
@@ -1340,7 +1392,7 @@ export default function TreasuryPage() {
                           {t.category.slice(0, 2).toUpperCase()}
                         </div>
                         <div className="body">
-                          <p className="t">{t.description || t.category}</p>
+                          <p className="t">{t.description || catalog.labelFor(t.type, t.category)}</p>
                           <p className="m">{fmtDate(t.date)}</p>
                         </div>
                         {t.status === "scheduled" && <span className="tag">Scheduled</span>}
@@ -1398,7 +1450,7 @@ export default function TreasuryPage() {
                 </div>
                 <select className="tr-select" value={txCategory} onChange={e => setTxCategory(e.target.value)}>
                   <option value="all">All categories</option>
-                  {categoryOptions.map(c => <option key={c} value={c}>{c}</option>)}
+                  {categoryOptions.map(c => <option key={c.slug} value={c.slug}>{c.label}</option>)}
                 </select>
                 <span className="tr-grow" />
                 <span className="tr-log-search">
@@ -1437,7 +1489,7 @@ export default function TreasuryPage() {
                         <tr key={t.id}>
                           <td className="date">{fmtDate(t.date)}</td>
                           <td>
-                            <span className="tr-pill"><span className={`pdot ${t.type === "income" ? "inc" : "exp"}`} />{t.category}</span>
+                            <span className="tr-pill"><span className={`pdot ${t.type === "income" ? "inc" : "exp"}`} />{catalog.labelFor(t.type, t.category)}</span>
                             {t.status === "scheduled" && <span className="tr-sched-tag">Sched</span>}
                           </td>
                           <td>

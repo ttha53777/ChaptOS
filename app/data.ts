@@ -34,12 +34,16 @@ export interface CalEventType {
   displayOrder: number;
 }
 
-export type IncomeCategory = "Door" | "Dues" | "Fines" | "Fundraiser" | "Event" | "Alumni donation" | "External / misc";
-export type ExpenseCategory = "Party Supplies" | "Operations" | "Brotherhood" | "Events" | "House" | "Travel" | "Misc";
+// Income and expense categories used to live here as two platform-wide constants,
+// which meant every org on the platform filed its money under one fraternity's
+// words ("Party Supplies", "Brotherhood"). They are now per-org TransactionCategory
+// rows — see lib/transaction-categories.ts for the starter sets and
+// app/hooks/useTransactionCategories.ts for the client-side read.
+//
+// Payment methods stay here: they are how money physically moved, not what an org
+// calls its money, so they genuinely are the same everywhere.
 export type PaymentMethod = "venmo" | "cash" | "check" | "invoice";
 
-export const INCOME_CATEGORIES: IncomeCategory[] = ["Door", "Dues", "Fines", "Fundraiser", "Event", "Alumni donation", "External / misc"];
-export const EXPENSE_CATEGORIES: ExpenseCategory[] = ["Party Supplies", "Operations", "Brotherhood", "Events", "House", "Travel", "Misc"];
 export const PAYMENT_METHODS: PaymentMethod[] = ["venmo", "cash", "check", "invoice"];
 
 export interface Reimbursement {
