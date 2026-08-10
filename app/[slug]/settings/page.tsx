@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Sidebar } from "../../components/Sidebar";
+import { Sidebar, isNavVisible } from "../../components/Sidebar";
 import { useIsOrgAdmin } from "../../hooks/useIsOrgAdmin";
 import { useOrgPath } from "../../hooks/useOrgPath";
 import { orgInitials } from "@/lib/org-initials";
@@ -19,6 +19,7 @@ import { VocabSection } from "./sections/VocabSection";
 import { MemberFieldsSection } from "./sections/MemberFieldsSection";
 import { CustomMetricsSection } from "./sections/CustomMetricsSection";
 import { EventTypesSection } from "./sections/EventTypesSection";
+import { TransactionCategoriesSection } from "./sections/TransactionCategoriesSection";
 import { useChapter } from "../../context/ChapterContext";
 import { ConfirmDialog } from "../../components/dashboard/primitives";
 import { scrollIntoViewSafe } from "../../lib/scroll";
@@ -35,7 +36,7 @@ type SectionId =
   | "index"
   | "general" | "vocabulary"
   | "accounts" | "invitations" | "roles" | "member-fields"
-  | "thresholds" | "semesters" | "custom-metrics" | "event-types" | "workflows"
+  | "thresholds" | "semesters" | "custom-metrics" | "event-types" | "money-categories" | "workflows"
   | "activity-log" | "billing";
 
 type Intent = "Identity" | "Membership" | "Operations" | "System";
@@ -122,6 +123,12 @@ const NAV_ITEMS: NavItem[] = [
     blurb: "Rename, recolor and add timeline categories.",
     lede: "The categories your timeline runs on — every event is tagged with one, which sets its color and where it shows up. Built-ins can be renamed and recolored; your own can be added or removed.",
     icon: "M7 7h.01M7 3h5a1.99 1.99 0 011.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.99 1.99 0 013 12V7a4 4 0 014-4z",
+  },
+  {
+    id: "money-categories", label: "Money categories", group: "Operations", tint: "t-gold",
+    blurb: "Name the income and expense streams your books use.",
+    lede: "The income and expense streams your treasury files money under — what the Type picker offers, what the charts are sliced by, and what budget lines are set against. Rename or recolor any of them; the ones the app posts to itself can't be removed.",
+    icon: "M9 7h6m-6 4h6m-3 4h3M7 3h10a2 2 0 012 2v14a2 2 0 01-2 2H7a2 2 0 01-2-2V5a2 2 0 012-2z",
   },
   {
     id: "workflows", label: "Workflows", group: "Operations", tint: "t-gold",
@@ -246,6 +253,9 @@ function SettingsPageBody() {
   // Permission-gated tabs are hidden from callers who can't use them.
   const canManageRoles    = can("MANAGE_ROLES");
   const canManageSettings = can("MANAGE_SETTINGS");
+  const canManageTreasury = can("MANAGE_TREASURY");
+  // Categories only mean something to an org that keeps books here.
+  const hasTreasury = isNavVisible("Treasury", currentUser?.org?.enabledWorkflows ?? []);
   const isVisible = useMemo(() => (id: NavItem["id"]) => {
     // Billing is org-admin authority, not a permission bit — see
     // assertCanManageBilling in lib/services/billing-service.ts. A Treasurer
@@ -260,8 +270,14 @@ function SettingsPageBody() {
     if (id === "member-fields")  return canManageSettings;
     if (id === "custom-metrics") return canManageSettings;
     if (id === "event-types")    return canManageSettings;
+    // Deliberately MANAGE_TREASURY rather than MANAGE_SETTINGS, matching
+    // requireTreasury in transaction-category-service: the person who needs to
+    // add "Rush" at 11pm is the treasurer, who already holds the bit that lets
+    // them post the transaction. Gating on settings would let them file money
+    // but not name the bucket — a round trip to the president for nothing.
+    if (id === "money-categories") return hasTreasury && (isOrgAdmin || canManageTreasury);
     return true;
-  }, [canManageRoles, canManageSettings, isOrgAdmin]);
+  }, [canManageRoles, canManageSettings, canManageTreasury, hasTreasury, isOrgAdmin]);
 
   const visibleNavItems = useMemo(() => NAV_ITEMS.filter(n => isVisible(n.id)), [isVisible]);
 
@@ -443,6 +459,7 @@ function SettingsPageBody() {
       case "member-fields":  return <MemberFieldsSection {...props} />;
       case "custom-metrics": return <CustomMetricsSection {...props} />;
       case "event-types":    return <EventTypesSection {...props} />;
+      case "money-categories": return <TransactionCategoriesSection {...props} />;
       case "roles":          return <RolesSection {...props} />;
       case "activity-log":   return <ActivityLogSection {...props} />;
     }

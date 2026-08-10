@@ -608,10 +608,12 @@ header.dash-toolbar .set-crumb svg { color: var(--tb-faint, #6b6354); }
   .dash .set-section .sc-stack-tight { gap: 14px; }
 }
 
-/* ── Event types ──────────────────────────────────────────────────────────
+/* ── Colored-row lists (event types, money categories) ────────────────────
    The color dot leading each row, its inline tags, and the palette picker.
    Swatches show the DUSK hex (settings renders on dark paper); each pick
-   carries its ivory partner too, so a type stays one coherent pair. */
+   carries its ivory partner too, so a type stays one coherent pair.
+   Shared by EventTypesSection and TransactionCategoriesSection — the `et-`
+   prefix predates the second caller; both draw from EVENT_TYPE_PALETTE. */
 /* .sc-row-lead isn't a flex container on its own, so the dot needs one. */
 .dash .set-section .et-lead { display: flex; align-items: flex-start; gap: 10px; }
 .dash .set-section .et-dot { height: 10px; width: 10px; border-radius: 50%; flex: none; margin-top: 5px; }
