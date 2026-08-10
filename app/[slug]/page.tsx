@@ -871,6 +871,7 @@ export default function Home() {
   const [eventTypes,     setEventTypes]     = useState<CalEventType[]>([]);
   // Org roles for the "New task" modal's assignee picker (mirrors the tasks page).
   const [roles,          setRoles]          = useState<RoleOption[]>([]);
+  const [rolesLoaded,    setRolesLoaded]    = useState(false);
   const [activeDrawer,   setActiveDrawer]   = useState<KPIDrawerKey | null>(null);
   const [widgetDrawer,   setWidgetDrawer]   = useState<WidgetDrawerKey | null>(null);
   const [editingAttId,      setEditingAttId]      = useState<number | null>(null);
@@ -1243,12 +1244,14 @@ export default function Home() {
       .catch(() => {});
   }, []);
 
-  // Roles power the "New task" modal's assignee picker. Only managers can open
-  // that modal, so only fetch for them.
+  // Roles power the "New task" modal's assignee picker. Fetched unconditionally
+  // on mount (mirroring the tasks page) rather than gated on canTasks: that flag
+  // is also what reveals the Quick Actions button that opens the modal, so
+  // gating the fetch behind it meant the request only started once the button
+  // was already clickable, racing the modal open.
   useEffect(() => {
-    if (!canTasks) return;
-    requestJson<RoleOption[]>("/api/roles").then(setRoles).catch(() => setRoles([]));
-  }, [canTasks]);
+    requestJson<RoleOption[]>("/api/roles").then(setRoles).catch(() => setRoles([])).finally(() => setRolesLoaded(true));
+  }, []);
 
   // ── KPIs ──────────────────────────────────────────────────────────────────
   // Attendance-exempt members carry the -1 sentinel rather than a percentage,
@@ -2264,6 +2267,8 @@ export default function Home() {
           <TaskForm
             brothers={brotherList}
             roles={roles}
+            brothersLoading={!rosterLoaded}
+            rolesLoading={!rolesLoaded}
             minDate={activeSemester?.startDate}
             maxDate={activeSemester?.endDate}
             submitLabel="Create deadline"
@@ -2276,6 +2281,8 @@ export default function Home() {
           <TaskForm
             brothers={brotherList}
             roles={roles}
+            brothersLoading={!rosterLoaded}
+            rolesLoading={!rolesLoaded}
             minDate={activeSemester?.startDate}
             maxDate={activeSemester?.endDate}
             submitLabel="Create task"

@@ -4,6 +4,7 @@ import React, { useMemo, useState } from "react";
 import type { Brother } from "../../data";
 import { FieldLabel } from "./primitives";
 import { inputDuskCls, btnDuskPrimaryCls } from "./styles";
+import "./task-form.css";
 
 // A role summary for the assignee picker, from /api/roles (listRoles).
 export type RoleOption = { id: number; name: string; color: string | null };
@@ -49,10 +50,14 @@ function toggleId(list: number[], id: number): number[] {
  * than depending on the `.dash.dash-tasks`-scoped `.tk-seg` rules.
  */
 export function TaskForm({
-  brothers, roles, initial, submitLabel, minDate, maxDate, error, onSubmit,
+  brothers, roles, brothersLoading, rolesLoading, initial, submitLabel, minDate, maxDate, error, onSubmit,
 }: {
   brothers: Brother[];
   roles: RoleOption[];
+  /** True while `brothers` is still in flight — an empty array means "not loaded yet", not "no members". */
+  brothersLoading?: boolean;
+  /** True while `roles` is still in flight — an empty array means "not loaded yet", not "no roles". */
+  rolesLoading?: boolean;
   initial?: TaskFormInitial;
   submitLabel: string;
   minDate?: string;
@@ -134,7 +139,9 @@ export function TaskForm({
 
         {mode === "individuals" && (
           <div className="tk-picker">
-            {brothers.length === 0 && <span className="tk-opt">No members yet.</span>}
+            {brothers.length === 0 && (
+              <span className="tk-opt">{brothersLoading ? "Loading members…" : "No members yet."}</span>
+            )}
             {brothers.map(b => (
               <button key={b.id} type="button"
                 className={`tk-pick-chip${brotherIds.includes(b.id) ? " on" : ""}`}
@@ -148,7 +155,9 @@ export function TaskForm({
         {mode === "roles" && (
           <>
             <div className="tk-picker">
-              {roles.length === 0 && <span className="tk-opt">No roles defined.</span>}
+              {roles.length === 0 && (
+                <span className="tk-opt">{rolesLoading ? "Loading roles…" : "No roles defined."}</span>
+              )}
               {roles.map(r => (
                 <button key={r.id} type="button"
                   className={`tk-pick-chip role${roleIds.includes(r.id) ? " on" : ""}`}
@@ -166,7 +175,7 @@ export function TaskForm({
           <p className="tk-opt" style={{ marginTop: 8 }}>
             {everyoneCount > 0
               ? `All ${everyoneCount} ${everyoneCount === 1 ? "member" : "members"} will be assigned.`
-              : "There are no members to assign yet."}
+              : brothersLoading ? "Loading members…" : "There are no members to assign yet."}
           </p>
         )}
       </div>
