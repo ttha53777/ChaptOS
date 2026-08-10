@@ -1,0 +1,172 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+   SemesterGate — the no-active-semester / semester-ended wall.
+
+   Speaks the same editorial dusk language as the poll composer (.pc-* in
+   tasks-ledger.css) and the dashboard ledger: mono uppercase micro-labels, a
+   serif display line with an italic-violet emphasis, hairline rules, and one
+   solid violet action.
+
+   ISOLATION: every selector begins with `.sg`. The tokens (--vio, --paper-2, …)
+   are NOT defined here — they're inherited from the `.dash[data-dashboard-theme="dusk"]`
+   wrapper the gate renders its body inside (see SemesterGate.tsx). That wrapper
+   also means Tailwind layout utilities are unsafe in here (dashboard-ledger.css
+   has a `.dash .grid` rule that hijacks `.grid`), which is why this file owns the
+   gate's layout outright instead of the component reaching for utility classes.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+.sg { font-family: var(--sans); }
+
+/* ── Head — seal + mono kicker + serif display line ──────────────────────────── */
+
+.sg-head { text-align: center; padding: 2px 4px 0; }
+
+/* Ring-and-dot seal. Reads as a wax stamp / period marker rather than an alert
+   icon: this is a scheduled boundary, not an error. */
+.sg-seal {
+  width: 42px; height: 42px; margin: 0 auto 16px; border-radius: 50%;
+  display: grid; place-items: center;
+  border: 1px solid var(--vio-bg);
+  background: var(--vio-bg);
+  color: var(--vio);
+}
+.sg-seal svg { width: 18px; height: 18px; }
+
+.sg-kicker {
+  font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--faint); margin: 0 0 10px;
+}
+
+.sg-title {
+  font-family: var(--serif); font-weight: 500; font-size: 25px; line-height: 1.18;
+  letter-spacing: -.01em; color: var(--ink); margin: 0;
+  text-wrap: balance;
+}
+.sg-title em { font-style: italic; color: var(--vio); }
+
+.sg-lede {
+  font-size: 13px; line-height: 1.55; color: var(--ink-soft);
+  margin: 12px auto 0; max-width: 40ch;
+}
+
+/* ── The semester being extended — a ledger entry, not a form field ──────────── */
+
+.sg-card {
+  margin-top: 22px; border: 1px solid var(--line); border-radius: 11px;
+  background: var(--card); padding: 13px 15px;
+  display: flex; align-items: baseline; justify-content: space-between; gap: 12px;
+}
+.sg-card-label {
+  font-family: var(--serif); font-size: 15px; font-weight: 500; color: var(--ink);
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.sg-card-span {
+  font-family: var(--mono); font-size: 10.5px; letter-spacing: .02em; color: var(--muted);
+  flex-shrink: 0;
+}
+.sg-card-stat { color: var(--gold); }
+
+/* ── Segmented toggle — mirrors .pc-seg ──────────────────────────────────────── */
+
+.sg-seg {
+  margin-top: 22px; display: flex; overflow: hidden;
+  border-radius: 9px; border: 1px solid var(--line);
+}
+.sg-seg button {
+  flex: 1; padding: 8px 14px; font-family: var(--mono); font-size: 10px;
+  letter-spacing: .06em; text-transform: uppercase; font-weight: 500;
+  color: var(--muted); background: none; border: none; cursor: pointer;
+  transition: background .12s, color .12s;
+}
+.sg-seg button:hover:not(.on) { color: var(--ink-soft); background: rgba(236,231,221,.05); }
+/* Tinted rather than the solid violet .pc-seg uses: that control is small and inline,
+   while this one is full-width — a solid fill here would rival the submit button
+   below it. Choosing a mode is navigation; only the submit gets the loud treatment. */
+.sg-seg button.on { background: var(--vio-bg); color: var(--vio); }
+/* Inset ring: the container is overflow:hidden, so a positive outline-offset clips. */
+.sg-seg button:focus-visible { outline: 1px solid var(--vio); outline-offset: -3px; }
+
+/* ── Fields ──────────────────────────────────────────────────────────────────── */
+
+.sg-section { margin-top: 20px; }
+
+.sg-label {
+  display: block; font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--muted); margin: 0 0 9px;
+}
+
+.sg-input,
+.sg-date {
+  width: 100%; border-radius: 9px; border: 1px solid var(--line);
+  background: var(--paper-2); padding: 10px 12px; font-size: 13.5px;
+  color: var(--ink); font-family: inherit; color-scheme: dark;
+  transition: border-color .14s;
+}
+.sg-input::placeholder { color: var(--faint); }
+.sg-input:focus,
+.sg-date:focus { outline: none; border-color: rgba(167,139,250,.55); }
+
+/* Two-up date row. Explicit grid (not Tailwind's `.grid`, which `.dash .grid`
+   overrides with the dashboard's 1fr/rail template and would collapse to one
+   column). minWidth:0 lets the native date widgets shrink into their tracks. */
+.sg-dates { display: grid; grid-template-columns: 1fr 1fr; gap: 11px; }
+.sg-dates > div { min-width: 0; }
+.sg-dates .sg-date { min-width: 0; }
+
+/* ── Span preview — the original run in bone, the extension in violet ────────── */
+
+.sg-bar { margin-top: 18px; padding: 0 2px; }
+.sg-track { position: relative; height: 3px; border-radius: 2px; background: var(--line); }
+.sg-track-base {
+  position: absolute; left: 0; top: 0; height: 100%; border-radius: 2px;
+  background: rgba(236,231,221,.28);
+}
+.sg-track-add {
+  position: absolute; top: 0; height: 100%; border-radius: 2px;
+  background: var(--vio);
+}
+.sg-pin {
+  position: absolute; top: 50%; width: 7px; height: 7px; border-radius: 50%;
+  transform: translate(-50%, -50%);
+}
+.sg-pin-start { background: var(--paper); border: 1.5px solid var(--faint); }
+/* The old end date — where the extension begins. */
+.sg-pin-mid { background: var(--paper); border: 1.5px solid var(--vio); }
+.sg-pin-end { background: var(--vio); border: 1.5px solid var(--vio); }
+
+.sg-scale {
+  margin-top: 11px; display: flex; align-items: baseline; justify-content: space-between; gap: 8px;
+  font-family: var(--mono); font-size: 10px; color: var(--muted);
+}
+.sg-scale-mid { font-family: var(--serif); font-style: italic; font-size: 13px; color: var(--gold); }
+.sg-scale-mid b { font-style: normal; font-weight: 500; }
+
+/* ── Action ──────────────────────────────────────────────────────────────────── */
+
+.sg-submit {
+  margin-top: 24px; width: 100%; padding: 12px; border-radius: 9px; border: none; cursor: pointer;
+  font-family: var(--mono); font-size: 11px; letter-spacing: .14em; text-transform: uppercase;
+  font-weight: 500; background: var(--vio); color: #0f0d0a; transition: background .14s;
+}
+.sg-submit:hover:not(:disabled) { background: #bda6fc; }
+.sg-submit:disabled { opacity: .5; cursor: not-allowed; }
+.sg-submit:focus-visible { outline: 2px solid var(--vio); outline-offset: 2px; }
+
+.sg-error {
+  margin-top: 18px; border-radius: 9px; border: 1px solid rgba(217,139,163,.25);
+  background: var(--rose-bg); color: var(--rose); padding: 9px 12px; font-size: 12.5px;
+}
+
+/* Serif footnote for the locked-out (non-admin) state — centered to stay part of
+   the head's editorial block, since there's no form below it to anchor to. */
+.sg-note {
+  font-family: var(--serif); font-style: italic; font-size: 13px; line-height: 1.55;
+  color: var(--muted); margin: 18px 0 0; text-align: center;
+}
+
+/* ── Narrow phones — the modal is already max-w-lg, just tighten the type ─────── */
+
+@media (max-width: 420px) {
+  .sg-title { font-size: 22px; }
+  .sg-card { flex-direction: column; align-items: flex-start; gap: 5px; }
+  .sg-dates { grid-template-columns: 1fr; }
+}

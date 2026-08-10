@@ -7,25 +7,37 @@ import { useChapter } from "../context/ChapterContext";
 import { isDashboardRoute } from "../lib/routes";
 import { useSemesters, type SemesterRow } from "../hooks/useActiveSemester";
 import { requestJson } from "../lib/api";
-// The form body styles below use the dusk CSS vars (--vio, --paper-2, …) which are
-// scoped to `.dash[data-dashboard-theme="dusk"]`. The gate mounts at the root (not
-// inside a dashboard page), so import the stylesheet here and wrap the body in a
-// .dash container below so those vars resolve.
+// Local-component today, NOT `new Date().toISOString().slice(0,10)`: the UTC form
+// rolls over in the evening for western timezones, which would wall a chapter out
+// of the app hours before their semester's last day is actually over.
+import { todayISO } from "@/lib/dates";
+// The gate's own styles (.sg-*) use the dusk CSS vars (--vio, --paper-2, …), which
+// are scoped to `.dash[data-dashboard-theme="dusk"]`. The gate mounts at the root
+// (not inside a dashboard page), so import the ledger stylesheet here and wrap the
+// body in a .dash container below so those vars resolve.
 import "./dashboard/dashboard-ledger.css";
+import "./semester-gate.css";
 
 /**
- * SemesterGate — the no-active-semester hard block.
+ * SemesterGate — the no-active-semester / semester-ended hard block.
  *
  * Renders a NON-DISMISSABLE modal over the whole app whenever the current org has
- * no active semester. The active semester drives the dashboard and every
- * period-scoped metric, and dated-item writes are rejected without one
+ * no active semester, OR the active semester's endDate has passed ("semester is
+ * up"). isActive never auto-flips when a semester's end date passes — nothing in
+ * the backend clears it — so this gate compares the active row's endDate against
+ * today itself. The active semester drives the dashboard and every period-scoped
+ * metric, and dated-item writes are rejected without one
  * (lib/services/semester-bounds.ts), so an org in this state is unusable. New orgs
  * land here right after onboarding (org creation doesn't seed a semester).
  *
  * Two ways out, both org-admin only (MANAGE_SEMESTERS):
- *   - Extend current  — push the most-recent semester's end date out + reactivate
- *                       (PATCH /api/semesters/{id} with { endDate }). Hidden when
- *                       the org has no semesters at all (the new-org case).
+ *   - Extend current  — push the relevant semester's end date out + reactivate
+ *                       (PATCH /api/semesters/{id} with { endDate }). Targets the
+ *                       actually-active row when one has expired (it may not be
+ *                       the most-recently-created semester, if an admin manually
+ *                       reactivated an older one from settings); otherwise falls
+ *                       back to the most-recent row. Hidden when the org has no
+ *                       semesters at all (the new-org case).
  *   - Create new      — POST /api/semesters (creates + activates).
  *
  * Non-admins see the same block with an "ask an admin" message and no form.
@@ -37,26 +49,6 @@ import "./dashboard/dashboard-ledger.css";
  * have currentUser.org populated from /api/auth/me). It also skips /[slug]/onboarding
  * so a brand-new org finishes the setup wizard before being asked for a semester.
  */
-
-const inputStyle: React.CSSProperties = {
-  border: "1px solid var(--line)",
-  background: "var(--paper-2)",
-  color: "var(--ink)",
-};
-
-const labelStyle: React.CSSProperties = { color: "var(--muted)" };
-
-// Two-up date row. Inline (not Tailwind `grid grid-cols-2`) to dodge the `.dash .grid`
-// rule in dashboard-ledger.css — see the date-row comment in CreateForm.
-const dateGridStyle: React.CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "1fr 1fr",
-  gap: "0.75rem",
-};
-
-function todayISO(): string {
-  return new Date().toISOString().slice(0, 10);
-}
 
 // Inclusive day span between two YYYY-MM-DD strings (parsed as UTC to dodge DST).
 function dayCount(startDate: string, endDate: string): number {
@@ -72,31 +64,53 @@ function shortDate(iso: string): string {
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
 }
 
+function plural(n: number, word: string): string {
+  return `${n} ${n === 1 ? word : `${word}s`}`;
+}
+
 /**
- * SemesterTimeline — the native span preview, built from the dashboard's own .bk bar
- * primitive (a 3px violet track). Renders nothing until both dates are valid and the
- * range is non-negative, so it stays quiet while the admin is mid-entry.
+ * SemesterTimeline — the span preview.
+ *
+ * With `priorEnd` (the extend case) the bar reads as two runs: the semester's
+ * original span in bone, the days being added in violet, with a pin at the old end
+ * date — so the admin sees the size of the extension, not just the new total. Given
+ * only start/end (the create case) it's a single violet run showing the total.
+ *
+ * Renders nothing until the dates are valid and the range is non-negative, so it
+ * stays quiet while the admin is mid-entry.
  */
-function SemesterTimeline({ startDate, endDate }: { startDate: string; endDate: string }) {
+function SemesterTimeline({
+  startDate,
+  endDate,
+  priorEnd,
+}: {
+  startDate: string;
+  endDate: string;
+  /** The semester's end date before this edit — omit when creating. */
+  priorEnd?: string;
+}) {
   if (!startDate || !endDate || endDate < startDate) return null;
-  const days = dayCount(startDate, endDate);
+
+  // Only an actual push-out splits the bar; shrinking (or an unchanged end) renders
+  // as one run so the "added" segment never reads as negative.
+  const extending = priorEnd !== undefined && priorEnd >= startDate && priorEnd < endDate;
+  const total = dayCount(startDate, endDate);
+  const basePct = extending ? (dayCount(startDate, priorEnd) / total) * 100 : 100;
+  const added = extending ? dayCount(priorEnd, endDate) - 1 : 0;
+
   return (
-    <div className="mt-1 px-0.5">
-      <div className="relative h-[3px] rounded-sm" style={{ background: "var(--line)" }}>
-        <div className="h-full rounded-sm" style={{ background: "var(--vio)", opacity: 0.85 }} />
-        <span
-          className="absolute top-1/2 h-[7px] w-[7px] -translate-x-1/2 -translate-y-1/2 rounded-full"
-          style={{ left: "0%", background: "var(--paper)", border: "1.5px solid var(--vio)" }}
-        />
-        <span
-          className="absolute top-1/2 h-[7px] w-[7px] -translate-x-1/2 -translate-y-1/2 rounded-full"
-          style={{ left: "100%", background: "var(--vio)", border: "1.5px solid var(--vio)" }}
-        />
+    <div className="sg-bar">
+      <div className="sg-track">
+        <div className="sg-track-base" style={{ width: `${basePct}%` }} />
+        {extending && <div className="sg-track-add" style={{ left: `${basePct}%`, right: 0 }} />}
+        <span className="sg-pin sg-pin-start" style={{ left: "0%" }} />
+        {extending && <span className="sg-pin sg-pin-mid" style={{ left: `${basePct}%` }} />}
+        <span className="sg-pin sg-pin-end" style={{ left: "100%" }} />
       </div>
-      <div className="mt-2.5 flex items-baseline justify-between text-[10px]" style={{ fontFamily: "var(--mono)", color: "var(--muted)" }}>
+      <div className="sg-scale">
         <span>{shortDate(startDate)}</span>
-        <span style={{ fontFamily: "var(--serif)", fontStyle: "italic", fontSize: "13px", color: "var(--gold)" }}>
-          <b style={{ fontStyle: "normal", fontWeight: 500 }}>{days}</b> {days === 1 ? "day" : "days"}
+        <span className="sg-scale-mid">
+          {extending ? <><b>+{added}</b> {added === 1 ? "day" : "days"}</> : <><b>{total}</b> {total === 1 ? "day" : "days"}</>}
         </span>
         <span>{shortDate(endDate)}</span>
       </div>
@@ -118,106 +132,158 @@ export function SemesterGate() {
   // Passed to useSemesters so disabled routes don't fire a failing GET /api/semesters.
   const { loaded, active, mostRecent, refresh } = useSemesters(enabled);
 
-  // Only block once we KNOW there's no active semester. While the fetch is in
-  // flight, `loaded` is false and we render nothing — no flash on every page load.
-  if (!enabled || !loaded || active) return null;
+  // Only block once we KNOW where the org stands. While the fetch is in flight,
+  // `loaded` is false and we render nothing — no flash on every page load.
+  if (!enabled || !loaded) return null;
+
+  // isActive never auto-clears when endDate passes, so "the semester is up" has to
+  // be detected here: an active row whose end date is before today.
+  const expired = active !== null && active.endDate < todayISO();
+  if (active && !expired) return null;
 
   const canManage = can("MANAGE_SEMESTERS");
 
   // A brand-new org has no semesters at all — frame it as first-time setup rather
-  // than the "your active semester lapsed" recovery case.
+  // than either recovery case below.
   const isFirstSemester = mostRecent === null;
 
+  // When the active semester expired, extend THAT row — an admin may have manually
+  // reactivated an older semester from settings, so it isn't necessarily `mostRecent`
+  // (the highest-id row). Otherwise (no active row at all) fall back to mostRecent.
+  const extendTarget = expired ? active : mostRecent;
+
+  const head: HeadCopy = isFirstSemester
+    ? {
+        icon: "calendar",
+        kicker: "Welcome",
+        title: <>Set your <em>first semester</em> to unlock the app.</>,
+        lede: "Dues, attendance, events — everything on the dashboard is scoped to a semester. Name the one you're in now.",
+        ariaLabel: "Set your first semester to unlock the app",
+      }
+    : expired
+      ? {
+          icon: "clock",
+          kicker: "Period closed",
+          title: <>Your semester has <em>ended</em>.</>,
+          lede: "The dashboard scopes dues, attendance, and events to a semester, so the app stays locked until one is running.",
+          ariaLabel: "Your semester has ended",
+        }
+      : {
+          icon: "calendar",
+          kicker: "No active period",
+          title: <>No <em>active semester</em>.</>,
+          lede: "The dashboard scopes dues, attendance, and events to a semester, so the app stays locked until one is running.",
+          ariaLabel: "No active semester",
+        };
+
   return (
-    <Modal
-      title={isFirstSemester ? undefined : "No active semester"}
-      tone="dusk"
-      maxWidthClass="max-w-lg"
-      dismissable={false}
-      onClose={() => {}}
-    >
-      {/* .dash[data-dashboard-theme="dusk"] scopes the form's CSS vars (see import). */}
+    // hideHeader: the body owns its own head (seal + mono kicker + serif line), the
+    // way the poll composer does — the default title bar would sit above and compete
+    // with it. Non-dismissable, so no ✕ is lost by dropping the bar.
+    <Modal tone="dusk" maxWidthClass="max-w-lg" dismissable={false} hideHeader ariaLabel={head.ariaLabel} onClose={() => {}}>
+      {/* .dash[data-dashboard-theme="dusk"] scopes the .sg-* CSS vars (see import). */}
       <div className="dash" data-dashboard-theme="dusk">
-        {canManage ? (
-          <SemesterGateForm mostRecent={mostRecent} onResolved={refresh} />
-        ) : (
-          <p className="text-[13px]" style={{ color: "var(--ink-soft)" }}>
-            Your chapter has no active semester, so the app is locked. Ask an org admin to set
-            up a semester to continue.
-          </p>
-        )}
+        <div className="sg">
+          <GateHead {...head} />
+          {canManage ? (
+            <SemesterGateForm extendTarget={extendTarget} onResolved={refresh} />
+          ) : (
+            <p className="sg-note">Ask an org admin to set up a semester to continue.</p>
+          )}
+        </div>
       </div>
     </Modal>
   );
 }
 
-function SemesterGateForm({
-  mostRecent,
-  onResolved,
-}: {
-  mostRecent: SemesterRow | null;
-  onResolved: () => void;
-}) {
-  // "extend" is only offered when there's a semester to extend; new orgs (zero
-  // semesters) go straight to "create".
-  const canExtend = mostRecent !== null;
-  const [mode, setMode] = useState<"extend" | "create">(canExtend ? "extend" : "create");
+interface HeadCopy {
+  icon: "calendar" | "clock";
+  kicker: string;
+  title: React.ReactNode;
+  lede: string;
+  /** Plain-text echo of `title` — the dialog's accessible name, since the rich
+   *  title lives in the body rather than the (hidden) modal header. */
+  ariaLabel: string;
+}
 
+function GateHead({ icon, kicker, title, lede }: HeadCopy) {
   return (
-    <div className="space-y-4">
-      {canExtend ? (
-        <p className="text-[13px]" style={{ color: "var(--ink-soft)" }}>
-          Your chapter has no active semester. Extend the current one or create a new period to
-          unlock the app.
-        </p>
-      ) : (
-        // New org: serif display title with italic-violet emphasis (mirrors h1.greeting em).
-        // Sized up to carry the modal now that the header bar is gone.
-        <h2 className="text-center text-[26px] leading-[1.15] tracking-tight" style={{ fontFamily: "var(--serif)", fontWeight: 500, color: "var(--ink)" }}>
-          Set your <em style={{ fontStyle: "italic", color: "var(--vio)" }}>first semester</em> to unlock the app.
-        </h2>
-      )}
-
-      {canExtend && (
-        <div className="flex gap-2">
-          <ModeTab active={mode === "extend"} onClick={() => setMode("extend")}>Extend current</ModeTab>
-          <ModeTab active={mode === "create"} onClick={() => setMode("create")}>Create new</ModeTab>
-        </div>
-      )}
-
-      {mode === "extend" && mostRecent ? (
-        <ExtendForm semester={mostRecent} onResolved={onResolved} />
-      ) : (
-        <CreateForm onResolved={onResolved} />
-      )}
+    <div className="sg-head">
+      <div className="sg-seal" aria-hidden>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round">
+          {icon === "clock" ? (
+            <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>
+          ) : (
+            <><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M3 10h18M8 3v4M16 3v4" /></>
+          )}
+        </svg>
+      </div>
+      <p className="sg-kicker">{kicker}</p>
+      <h2 className="sg-title">{title}</h2>
+      <p className="sg-lede">{lede}</p>
     </div>
   );
 }
 
-function ModeTab({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+function SemesterGateForm({
+  extendTarget,
+  onResolved,
+}: {
+  extendTarget: ExtendableSemester | null;
+  onResolved: () => void;
+}) {
+  // "extend" is only offered when there's a semester to extend; new orgs (zero
+  // semesters) go straight to "create".
+  const canExtend = extendTarget !== null;
+  const [mode, setMode] = useState<"extend" | "create">(canExtend ? "extend" : "create");
+
+  if (!canExtend) return <CreateForm onResolved={onResolved} />;
+
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="rounded-lg px-3 py-1.5 text-[12px] font-medium transition-colors"
-      style={
-        active
-          ? { background: "var(--vio-bg)", color: "var(--vio)", border: "1px solid var(--vio)" }
-          : { background: "var(--card)", color: "var(--ink-soft)", border: "1px solid var(--line)" }
-      }
-    >
-      {children}
-    </button>
+    <>
+      <div className="sg-seg" role="tablist">
+        <button type="button" role="tab" aria-selected={mode === "extend"}
+          className={mode === "extend" ? "on" : ""} onClick={() => setMode("extend")}>
+          Extend it
+        </button>
+        <button type="button" role="tab" aria-selected={mode === "create"}
+          className={mode === "create" ? "on" : ""} onClick={() => setMode("create")}>
+          Start new
+        </button>
+      </div>
+
+      {mode === "extend"
+        ? <ExtendForm semester={extendTarget} onResolved={onResolved} />
+        : <CreateForm onResolved={onResolved} />}
+    </>
   );
 }
 
-function ExtendForm({ semester, onResolved }: { semester: SemesterRow; onResolved: () => void }) {
+// What ExtendForm/SemesterTimeline actually need — satisfied by both a SemesterRow
+// (the "no active semester" fallback) and an ActiveSemester (the "expired" case,
+// which points at the actually-active row, not necessarily the most-recent one).
+type ExtendableSemester = Pick<SemesterRow, "id" | "label" | "startDate" | "endDate">;
+
+/** "Jan 1 – Jun 30", widened to "Aug 25, 2026 – Jan 10, 2027" when the run crosses a year. */
+function spanLabel(startDate: string, endDate: string): string {
+  if (startDate.slice(0, 4) === endDate.slice(0, 4)) {
+    return `${shortDate(startDate)} – ${shortDate(endDate)}`;
+  }
+  return `${shortDate(startDate)}, ${startDate.slice(0, 4)} – ${shortDate(endDate)}, ${endDate.slice(0, 4)}`;
+}
+
+function ExtendForm({ semester, onResolved }: { semester: ExtendableSemester; onResolved: () => void }) {
   // Default the new end date to today if the semester already ended, otherwise keep
   // its current end date so the admin only has to push it out.
   const today = todayISO();
   const [endDate, setEndDate] = useState(semester.endDate < today ? today : semester.endDate);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Whether it has lapsed is a fact about the semester, not about which gate state
+  // we're in — an inactive-but-also-expired semester deserves the note too.
+  const lapsed = semester.endDate < today;
+  const daysSince = dayCount(semester.endDate, today) - 1;
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -239,24 +305,30 @@ function ExtendForm({ semester, onResolved }: { semester: SemesterRow; onResolve
   }
 
   return (
-    <form onSubmit={submit} className="space-y-4">
-      {error && <FormError message={error} />}
-      <div className="rounded-lg px-3 py-2 text-[12px]" style={{ border: "1px solid var(--line)", background: "var(--card)", color: "var(--ink-soft)" }}>
-        <div className="font-medium" style={{ color: "var(--ink)" }}>{semester.label}</div>
-        <div>{semester.startDate} – {semester.endDate}</div>
+    <form onSubmit={submit}>
+      {error && <p className="sg-error">{error}</p>}
+
+      <div className="sg-card">
+        <span className="sg-card-label">{semester.label}</span>
+        <span className="sg-card-span">
+          {spanLabel(semester.startDate, semester.endDate)}
+          {lapsed && <> · <span className="sg-card-stat">ended {plural(daysSince, "day")} ago</span></>}
+        </span>
       </div>
-      <div>
-        <label className="mb-1.5 block text-[11px] font-medium" style={labelStyle}>New end date</label>
+
+      <div className="sg-section">
+        <label className="sg-label" htmlFor="sg-extend-end">Run it through</label>
         <input
+          id="sg-extend-end"
           type="date"
+          className="sg-date"
           value={endDate}
           min={semester.startDate}
           onChange={e => setEndDate(e.target.value)}
-          className="w-full rounded-lg px-3 py-2 text-[13px] focus:outline-none"
-          style={inputStyle}
         />
       </div>
-      <SemesterTimeline startDate={semester.startDate} endDate={endDate} />
+
+      <SemesterTimeline startDate={semester.startDate} endDate={endDate} priorEnd={semester.endDate} />
       <SubmitButton saving={saving} idle="Extend & reactivate" busy="Extending…" />
     </form>
   );
@@ -289,77 +361,46 @@ function CreateForm({ onResolved }: { onResolved: () => void }) {
   }
 
   return (
-    <form onSubmit={submit} className="space-y-4">
-      {error && <FormError message={error} />}
-      <div>
-        <label className="mb-1.5 block text-[11px] font-medium" style={labelStyle}>Label</label>
+    <form onSubmit={submit}>
+      {error && <p className="sg-error">{error}</p>}
+
+      <div className="sg-section">
+        <label className="sg-label" htmlFor="sg-new-label">What to call it</label>
         <input
+          id="sg-new-label"
+          className="sg-input"
           value={label}
           onChange={e => setLabel(e.target.value)}
           placeholder="e.g. Fall 2026"
-          className="w-full rounded-lg px-3 py-2 text-[13px] focus:outline-none"
-          style={inputStyle}
         />
       </div>
-      {/* Inline-style grid, NOT the `grid grid-cols-2` Tailwind classes: the modal body
-          is wrapped in .dash, and dashboard-ledger.css has a `.dash .grid` rule (the
-          dashboard layout grid) that overrides Tailwind's .grid with a 1fr/rail-width
-          template — collapsing both date cells into one column. Inline styles win on
-          specificity. minWidth:0 still lets the native date widgets shrink to track. */}
-      <div style={dateGridStyle}>
-        <div style={{ minWidth: 0 }}>
-          <label className="mb-1.5 block text-[11px] font-medium" style={labelStyle}>Start date</label>
-          <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)}
-            className="w-full rounded-lg px-3 py-2 text-[13px] focus:outline-none" style={{ ...inputStyle, minWidth: 0 }} />
+
+      <div className="sg-section sg-dates">
+        <div>
+          <label className="sg-label" htmlFor="sg-new-start">Starts</label>
+          <input id="sg-new-start" type="date" className="sg-date"
+            value={startDate} onChange={e => setStartDate(e.target.value)} />
         </div>
-        <div style={{ minWidth: 0 }}>
-          <label className="mb-1.5 block text-[11px] font-medium" style={labelStyle}>End date</label>
-          <input type="date" value={endDate} min={startDate || undefined} onChange={e => setEndDate(e.target.value)}
-            className="w-full rounded-lg px-3 py-2 text-[13px] focus:outline-none" style={{ ...inputStyle, minWidth: 0 }} />
+        <div>
+          <label className="sg-label" htmlFor="sg-new-end">Ends</label>
+          <input id="sg-new-end" type="date" className="sg-date"
+            value={endDate} min={startDate || undefined} onChange={e => setEndDate(e.target.value)} />
         </div>
       </div>
+
       <SemesterTimeline startDate={startDate} endDate={endDate} />
       <SubmitButton saving={saving} idle="Create & activate" busy="Creating…" />
     </form>
   );
 }
 
-function FormError({ message }: { message: string }) {
-  return (
-    <div
-      className="rounded-lg px-3 py-2 text-[12px]"
-      style={{ border: "1px solid rgba(217,139,163,.25)", background: "var(--rose-bg)", color: "var(--rose)" }}
-    >
-      {message}
-    </div>
-  );
-}
-
-// Mirrors the dashboard's .ba-chip.primary: violet-bg tint at rest, solid --vio-deep
-// on hover. Hover is JS-driven since these are inline styles (the dusk vars resolve via
-// the .dash wrapper, not a class the button could carry a :hover rule on).
+// Solid violet mono-uppercase primary, matching the poll composer's .pc-submit —
+// the single way out of the wall, so it carries full weight rather than the tinted
+// treatment used for optional dashboard actions.
 function SubmitButton({ saving, idle, busy }: { saving: boolean; idle: string; busy: string }) {
-  const [hover, setHover] = useState(false);
-  const hot = hover && !saving;
   return (
-    <button
-      type="submit"
-      disabled={saving}
-      onMouseEnter={() => setHover(true)}
-      onMouseLeave={() => setHover(false)}
-      className="flex w-full items-center justify-center gap-2 rounded-lg px-4 py-3 text-[12px] font-semibold transition-colors disabled:opacity-50"
-      style={{
-        background: hot ? "var(--vio-deep)" : "var(--vio-bg)",
-        color: hot ? "#fff" : "var(--vio)",
-        border: `1px solid ${hot ? "var(--vio-deep)" : "var(--vio-bg)"}`,
-      }}
-    >
+    <button type="submit" className="sg-submit" disabled={saving}>
       {saving ? busy : idle}
-      {!saving && (
-        <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14M13 6l6 6-6 6" />
-        </svg>
-      )}
     </button>
   );
 }
