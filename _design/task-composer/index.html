@@ -1,0 +1,945 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dusk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Figurints — New Task, as a Composer</title>
+<!--
+  ════════════════════════════════════════════════════════════════════════════
+  FIGURINTS · ChaptOS — "New task" modal redesign (task composer)
+
+  THESIS (inherited from _design/poll-composer/index.html, which shipped):
+  a create form should be the compositional TWIN of the thing it creates.
+  The poll composer became the ballot. This makes the task composer the ROW.
+
+  WHAT'S WRONG WITH THE FORM TODAY (app/components/dashboard/TaskForm.tsx)
+
+    1. It's a generic stack: boxed Title, boxed <input type=date>, segmented
+       Assign-to, wall of identical text chips, boxed Notes, button. Nothing
+       about it says "task" — the same markup would pass for a support ticket.
+
+    2. THE DATE IS THE BIG ONE. The tasks board groups by *computed urgency*
+       (lib/tasks/urgency.ts: <today overdue · 0–2 urgent · 3–7 due soon ·
+       >7 upcoming · no date), and the row's left spine is colored by that
+       band. The form never says so. You type 2026-08-11 into a bare date
+       field and only find out afterward that you just filed something under
+       a rose "Urgent" header. Here, every date affordance carries its band
+       dot, and the band line under it states the consequence in words.
+
+    3. The assignee picker is a wall of undifferentiated name chips — no
+       faces, no filter, no count, and selected picks stay buried in
+       alphabetical position. A role chip doesn't say how many humans it
+       expands to, though "Roles expand to their current holders" is the
+       whole point of picking one.
+
+    4. Notes is a permanently-open empty textarea, paying rent every time.
+
+    5. No consequence preview at all. What you draft is not what you see.
+
+  WHAT'S HERE
+
+    · Title drafted in the serif it will be read in (same move as .pc-question)
+    · Due date as banded day choices + a live "this lands in ___" line
+    · Assignees with faces, a filter, a live count, selected-first
+    · Roles that state their holder count and the resolved headcount
+    · Notes behind a one-line affordance
+    · A LIVE PREVIEW of the actual .tk-row, spine color and all
+
+  Tokens + row grammar lifted verbatim from app/[slug]/tasks/tasks-ledger.css
+  (.tk-row, .tk-chip, .tk-when, .pc-*). Nothing invented, no new palette.
+
+  THE ONE OPEN DECISION — how the due date is chosen. Both columns are fully
+  interactive; everything except the date control is identical.
+
+    A · Banded quick rail   named choices (Today / Tomorrow / Thu / Next week),
+                            each showing the date it resolves to + its band dot.
+                            Compact; "pick an exact date" is one extra click.
+    B · Two-week strip      the next 14 days laid out and tinted by band, so the
+                            rose→gold→quiet gradient of consequence is the
+                            control itself. Bigger; exact dates are direct.
+
+  Status: EXPLORATION. Nothing here is wired to the app.
+  ════════════════════════════════════════════════════════════════════════════
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,400..500&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --serif: "Fraunces", Georgia, serif;
+    --sans:  "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --mono:  "Geist Mono", ui-monospace, Menlo, monospace;
+
+    --paper:    #0f0d0a;
+    --paper-2:  #14120e;
+    --card:     #161310;
+    --card-2:   #1b1813;
+    --ink:      #ece7dd;
+    --ink-soft: #c9c2b4;
+    --muted:    #958d7c;
+    --faint:    #6b6354;
+    --line:     rgba(236,231,221,.09);
+    --line-soft:rgba(236,231,221,.05);
+    --vio:      #a78bfa;
+    --vio-bg:   rgba(167,139,250,.10);
+    --gold:     #ddb36a;
+    --gold-bg:  rgba(221,179,106,.10);
+    --rose:     #d98ba3;
+    --rose-bg:  rgba(217,139,163,.10);
+    --ok:       #7fb08a;
+    --ok-bg:    rgba(127,176,138,.10);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background:
+      radial-gradient(1200px 600px at 50% -10%, rgba(167,139,250,.06), transparent 60%),
+      var(--paper);
+    color: var(--ink); font-family: var(--sans);
+    -webkit-font-smoothing: antialiased; font-variant-numeric: tabular-nums;
+    min-height: 100vh; padding: 56px 40px 80px;
+  }
+  button, input, textarea { font: inherit; color: inherit; }
+  button { border: none; background: none; cursor: pointer; }
+  ::selection { background: var(--vio-bg); color: var(--ink); }
+
+  /* ── Page chrome ─────────────────────────────────────────────────────────── */
+  .head { max-width: 1100px; margin: 0 auto 42px; }
+  .head .kick { font-family: var(--mono); font-size: 10px; letter-spacing: .18em; text-transform: uppercase; color: var(--faint); margin: 0; }
+  .head h1 { font-family: var(--serif); font-weight: 400; font-size: 27px; margin: 11px 0 8px; color: var(--ink); letter-spacing: -.01em; }
+  .head h1 em { font-style: italic; color: var(--vio); }
+  .head p { font-size: 13.5px; line-height: 1.65; color: var(--muted); max-width: 66ch; margin: 0; }
+
+  .stage { display: flex; gap: 46px; justify-content: center; align-items: flex-start; flex-wrap: wrap; }
+  /* The column, not the panel, owns the width — a percentage width on the panel
+     leaves its max-content contribution indeterminate and the column stretches
+     to the whole stage, wrapping the second variant below the first. */
+  .col { display: flex; flex-direction: column; align-items: center; gap: 13px; width: min(512px, 100%); }
+  .col-tag { font-family: var(--mono); font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); text-align: center; }
+  .col-tag b { color: var(--vio); font-weight: 500; }
+  .col-tag span { color: var(--faint); }
+
+  /* ── Modal chrome — from primitives.tsx (dusk, hideHeader) ───────────────── */
+  .panel {
+    position: relative; border-radius: 16px;
+    border: 1px solid rgba(236,231,221,.1); background: var(--paper);
+    box-shadow: 0 1px 0 rgba(0,0,0,.4), 0 40px 80px -32px rgba(0,0,0,.85);
+  }
+  /* 512px is max-w-lg — the width the real dusk Modal opens at (set on .col). */
+  .panel { width: 100%; }
+  .panel-x {
+    position: absolute; right: 12px; top: 12px; z-index: 10;
+    width: 32px; height: 32px; border-radius: 8px;
+    color: var(--muted); display: grid; place-items: center;
+    transition: background .12s, color .12s;
+  }
+  .panel-x:hover { background: rgba(236,231,221,.08); color: var(--ink); }
+  .panel-x svg { width: 16px; height: 16px; }
+
+  /* ════════════════════════════════════════════════════════════════════════
+     THE COMPOSER (.tc-*)
+     ════════════════════════════════════════════════════════════════════════ */
+  .tc { padding: 26px 26px 24px; }
+
+  /* Head — mono kicker + the title drafted in the row's serif voice. */
+  .tc-kicker { font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); margin: 0; }
+  .tc-titlewrap { margin-top: 12px; border-bottom: 1px solid var(--line); transition: border-color .16s; }
+  .tc-titlewrap:focus-within { border-color: var(--vio); }
+  .tc-title {
+    width: 100%; border: none; outline: none; background: none;
+    font-family: var(--serif); font-style: italic; font-weight: 400;
+    font-size: 22px; line-height: 1.3; color: var(--ink); padding: 0 0 12px;
+  }
+  .tc-title::placeholder { color: var(--faint); font-style: italic; }
+
+  /* Section + mono uppercase micro-label (mirrors .pc-label). */
+  .tc-section { margin-top: 24px; }
+  .tc-label {
+    font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--muted); margin: 0 0 11px; display: flex; align-items: baseline; gap: 8px;
+  }
+  .tc-hint { color: var(--faint); letter-spacing: .08em; }
+  .tc-label .spacer { flex: 1; }
+  .tc-count { font-family: var(--mono); font-size: 9.5px; letter-spacing: .06em; color: var(--vio); }
+  .tc-count.zero { color: var(--faint); }
+
+  /* ── DUE · variant A — banded quick rail ─────────────────────────────────
+     Every choice carries the dot of the urgency band it lands in, so the
+     board's grouping is legible BEFORE the task exists. */
+  .tc-rail { display: flex; flex-wrap: wrap; gap: 6px; }
+  .tc-day {
+    display: flex; flex-direction: column; gap: 3px; align-items: flex-start;
+    padding: 8px 11px 9px; border-radius: 10px;
+    border: 1px solid var(--line); background: var(--card);
+    transition: border-color .13s, background .13s, transform .13s;
+  }
+  .tc-day:hover { border-color: rgba(236,231,221,.24); transform: translateY(-1px); }
+  .tc-day .top { display: flex; align-items: center; gap: 6px; }
+  .tc-day .bdot { width: 5px; height: 5px; border-radius: 50%; background: var(--muted); flex-shrink: 0; }
+  .tc-day .lbl { font-family: var(--mono); font-size: 10px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-soft); font-weight: 500; }
+  .tc-day .sub { font-size: 10.5px; color: var(--faint); padding-left: 11px; }
+  .tc-day.on { border-color: var(--vio); background: var(--vio-bg); }
+  .tc-day.on .lbl { color: var(--ink); }
+  .tc-day.on .sub { color: var(--muted); }
+  .tc-day .bdot.overdue,
+  .tc-day .bdot.urgent    { background: var(--rose); }
+  .tc-day .bdot.due-soon  { background: var(--gold); }
+  .tc-day .bdot.upcoming  { background: var(--muted); }
+  .tc-day .bdot.none      { background: transparent; border: 1px solid var(--faint); }
+
+  /* The escape hatch reads as an affordance, not a sixth day — same shape as
+     "Add a note" and the poll composer's "Add an option". */
+  .tc-pick { display: inline-flex; align-items: center; gap: 8px; margin-top: 11px; font-size: 13px; color: var(--vio); }
+  .tc-pick .glyph {
+    width: 17px; height: 17px; border-radius: 50%; border: 1px dashed rgba(167,139,250,.45);
+    display: grid; place-items: center;
+  }
+  .tc-pick .glyph svg { width: 10px; height: 10px; }
+  .tc-pick:hover .lbl { color: #c4b0fc; }
+  .tc-pick.on .lbl { color: var(--ink); }
+
+  /* ── DUE · variant B — two-week strip ────────────────────────────────────
+     The control IS the gradient of consequence: the rose days are the ones
+     that file the task under "Urgent" the second you hit create. */
+  .tc-strip { border: 1px solid var(--line); border-radius: 11px; background: var(--card); padding: 10px 11px 11px; }
+  .tc-strip-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 8px; }
+  .tc-strip-month { font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); }
+  .tc-legend { display: flex; gap: 10px; }
+  .tc-legend span { display: inline-flex; align-items: center; gap: 4px; font-family: var(--mono); font-size: 8.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--faint); }
+  .tc-legend i { width: 5px; height: 5px; border-radius: 50%; }
+  .tc-legend i.urgent { background: var(--rose); }
+  .tc-legend i.due-soon { background: var(--gold); }
+  .tc-legend i.upcoming { background: var(--muted); }
+
+  .tc-dows { display: grid; grid-template-columns: repeat(7, minmax(0,1fr)); gap: 4px; margin-bottom: 3px; }
+  .tc-dows span { font-family: var(--mono); font-size: 8.5px; letter-spacing: .1em; color: var(--faint); text-align: center; }
+  .tc-grid { display: grid; grid-template-columns: repeat(7, minmax(0,1fr)); gap: 4px; }
+  .tc-cell {
+    position: relative; height: 44px; border-radius: 8px; border: 1px solid transparent;
+    display: grid; place-items: center; padding-top: 8px; /* every cell, so the TODAY caption can't shift one number */
+    font-family: var(--mono); font-size: 12.5px; color: var(--ink-soft);
+    transition: border-color .12s, background .12s, color .12s;
+  }
+  .tc-cell.pad { pointer-events: none; }
+  /* Absolute, so the "TODAY" caption above can't shove the number off-centre. */
+  .tc-cell .tick { position: absolute; bottom: 6px; width: 4px; height: 4px; border-radius: 50%; }
+  .tc-cell.urgent   { background: var(--rose-bg); color: #eab8c8; }
+  .tc-cell.urgent .tick   { background: var(--rose); }
+  .tc-cell.due-soon { background: var(--gold-bg); color: #e9cd9c; }
+  .tc-cell.due-soon .tick { background: var(--gold); }
+  .tc-cell.upcoming { background: var(--card-2); }
+  .tc-cell.upcoming .tick { background: var(--muted); opacity: .6; }
+  .tc-cell:hover:not(.pad) { border-color: rgba(236,231,221,.3); }
+  .tc-cell.on { border-color: var(--vio); background: var(--vio); color: var(--paper); font-weight: 600; }
+  .tc-cell.on .tick { background: rgba(15,13,10,.5); }
+  .tc-cell.today::after {
+    content: "TODAY"; position: absolute; top: 4px; font-size: 6.5px; letter-spacing: .1em; color: var(--faint);
+  }
+  .tc-cell.today.on::after { color: rgba(15,13,10,.6); }
+  .tc-strip-foot { display: flex; gap: 6px; margin-top: 9px; }
+  .tc-mini {
+    flex: 1; padding: 7px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--paper-2);
+    font-family: var(--mono); font-size: 9.5px; letter-spacing: .07em; text-transform: uppercase; color: var(--muted);
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px; transition: border-color .12s, color .12s, background .12s;
+  }
+  .tc-mini:hover { border-color: rgba(236,231,221,.26); color: var(--ink-soft); }
+  .tc-mini.on { border-color: var(--vio); color: var(--ink); background: var(--vio-bg); }
+  .tc-mini svg { width: 12px; height: 12px; }
+
+  /* The exact-date escape hatch, shared by both variants. */
+  .tc-exact { margin-top: 8px; display: none; }
+  .tc-exact.show { display: block; }
+  .tc-date {
+    width: 100%; border-radius: 9px; border: 1px solid var(--line); background: var(--paper-2);
+    padding: 9px 12px; font-size: 13px; color: var(--ink-soft); color-scheme: dark;
+  }
+  .tc-date:focus { outline: none; border-color: rgba(167,139,250,.5); }
+
+  /* The band line — the composer saying out loud where this lands. */
+  .tc-band {
+    margin-top: 12px; display: flex; align-items: baseline; gap: 8px;
+    font-size: 12.5px; line-height: 1.5; color: var(--muted);
+  }
+  .tc-band .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--muted); transform: translateY(-1px); flex-shrink: 0; }
+  .tc-band .grp { font-family: var(--mono); font-size: 10px; letter-spacing: .09em; text-transform: uppercase; color: var(--muted); }
+  .tc-band .say { font-family: var(--serif); font-style: italic; font-size: 13px; color: var(--faint); }
+  .tc-band.overdue .dot, .tc-band.urgent .dot { background: var(--rose); }
+  .tc-band.overdue .grp, .tc-band.urgent .grp { color: var(--rose); }
+  .tc-band.due-soon .dot { background: var(--gold); }
+  .tc-band.due-soon .grp { color: var(--gold); }
+  .tc-band.none .dot { background: transparent; border: 1px solid var(--faint); }
+
+  /* ── WHO — segmented mode (verbatim .pc-seg) ─────────────────────────────── */
+  .tc-seg { display: inline-flex; overflow: hidden; border-radius: 9px; border: 1px solid var(--line); }
+  .tc-seg button {
+    padding: 7px 14px; font-family: var(--mono); font-size: 10px; letter-spacing: .06em; text-transform: uppercase;
+    font-weight: 500; color: var(--muted); transition: background .12s, color .12s;
+  }
+  .tc-seg button:hover:not(.on) { color: var(--ink-soft); background: rgba(236,231,221,.05); }
+  .tc-seg button.on { background: var(--vio); color: var(--paper); }
+
+  .tc-pane { display: none; }
+  .tc-pane.show { display: block; }
+
+  /* Filter — earns its place once a roster passes a screenful. */
+  .tc-searchwrap {
+    margin-top: 12px; display: flex; align-items: center; gap: 8px;
+    border-bottom: 1px solid var(--line); padding-bottom: 7px; transition: border-color .14s;
+  }
+  .tc-searchwrap:focus-within { border-color: rgba(167,139,250,.5); }
+  .tc-searchwrap svg { width: 13px; height: 13px; color: var(--faint); flex-shrink: 0; }
+  .tc-search { flex: 1; min-width: 0; border: none; outline: none; background: none; font-size: 13px; color: var(--ink-soft); }
+  .tc-search::placeholder { color: var(--faint); }
+
+  /* Faces — a name with a face is scannable; a wall of text chips is not. */
+  .tc-people { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 11px; max-height: 148px; overflow-y: auto; padding-right: 2px; }
+  .tc-people::-webkit-scrollbar { width: 6px; }
+  .tc-people::-webkit-scrollbar-thumb { background: rgba(236,231,221,.12); border-radius: 3px; }
+  .tc-person {
+    display: inline-flex; align-items: center; gap: 7px; padding: 4px 11px 4px 4px;
+    border-radius: 999px; border: 1px solid var(--line); background: var(--card);
+    font-size: 12.5px; color: var(--ink-soft); transition: border-color .12s, background .12s, color .12s;
+  }
+  .tc-person:hover { border-color: rgba(236,231,221,.28); }
+  .tc-person .av {
+    width: 21px; height: 21px; border-radius: 50%; flex-shrink: 0; display: grid; place-items: center;
+    font-family: var(--mono); font-size: 8.5px; font-weight: 600; letter-spacing: .02em;
+    background: var(--vio-bg); color: var(--vio); transition: background .12s, color .12s;
+  }
+  .tc-person.on { border-color: rgba(167,139,250,.55); background: var(--vio-bg); color: var(--ink); }
+  .tc-person.on .av { background: var(--vio); color: var(--paper); }
+  .tc-person.hide { display: none; }
+  .tc-noresult { font-family: var(--serif); font-style: italic; font-size: 12.5px; color: var(--faint); margin: 12px 0 0; }
+
+  /* Roles — a role is a headcount, so it says its headcount. */
+  .tc-roles { display: flex; flex-direction: column; margin-top: 8px; }
+  .tc-role {
+    display: flex; align-items: center; gap: 11px; width: 100%; text-align: left;
+    padding: 10px 2px; border-bottom: 1px solid var(--line-soft); color: var(--ink-soft); font-size: 13.5px;
+  }
+  .tc-role .box {
+    width: 17px; height: 17px; border-radius: 5px; border: 1.5px solid var(--faint); flex-shrink: 0;
+    display: grid; place-items: center; transition: border-color .13s, background .13s;
+  }
+  .tc-role .box svg { width: 11px; height: 11px; stroke: transparent; stroke-width: 3; }
+  .tc-role:hover .box { border-color: var(--muted); }
+  .tc-role.on .box { border-color: var(--vio); background: var(--vio-bg); }
+  .tc-role.on .box svg { stroke: var(--vio); }
+  .tc-role .pip { width: 7px; height: 7px; border-radius: 2px; flex-shrink: 0; }
+  .tc-role .nm { flex: 1; min-width: 0; }
+  .tc-role.on .nm { color: var(--ink); }
+  .tc-role .ct { font-family: var(--mono); font-size: 10px; letter-spacing: .05em; color: var(--faint); }
+
+  /* Everyone — the headcount, with faces, so it isn't an abstraction. */
+  .tc-pile { display: flex; align-items: center; margin-top: 14px; }
+  .tc-pile .av {
+    width: 26px; height: 26px; border-radius: 50%; margin-left: -7px; flex-shrink: 0;
+    display: grid; place-items: center; border: 2px solid var(--paper);
+    font-family: var(--mono); font-size: 9px; font-weight: 600;
+    background: var(--vio-bg); color: var(--vio);
+  }
+  .tc-pile .av:first-child { margin-left: 0; }
+  .tc-pile .av.more { background: var(--card-2); color: var(--muted); }
+  .tc-note-line { font-family: var(--serif); font-style: italic; font-size: 13px; line-height: 1.5; color: var(--muted); margin: 10px 0 0; }
+  .tc-note-line b { font-style: normal; font-weight: 500; color: var(--ink-soft); }
+
+  /* Notes — one line until it's wanted. */
+  .tc-note-add {
+    display: inline-flex; align-items: center; gap: 8px; padding: 0;
+    font-size: 13px; color: var(--vio);
+  }
+  .tc-note-add .glyph {
+    width: 17px; height: 17px; border-radius: 50%; border: 1px dashed rgba(167,139,250,.45);
+    display: grid; place-items: center;
+  }
+  .tc-note-add .glyph svg { width: 11px; height: 11px; }
+  .tc-note-add:hover .lbl { color: #c4b0fc; }
+  .tc-note-add.hide { display: none; }
+  .tc-note {
+    display: none; width: 100%; margin-top: 2px; resize: none; overflow: hidden; min-height: 30px;
+    border: none; border-bottom: 1px solid transparent; background: none; outline: none;
+    font-family: var(--serif); font-size: 13.5px; line-height: 1.55; color: var(--ink-soft); padding: 0 0 9px;
+    transition: border-color .14s;
+  }
+  .tc-note.show { display: block; }
+  /* Underlined only while it's being written in — at rest a written note is just
+     prose, and a second hairline this close to the preview divider reads as a bug. */
+  .tc-note:focus { border-color: var(--vio); }
+  .tc-note::placeholder { font-style: italic; color: var(--faint); }
+
+  /* ── PREVIEW — the row this becomes (grammar verbatim from .tk-row) ──────── */
+  .tc-preview { margin-top: 26px; padding-top: 20px; border-top: 1px solid var(--line); }
+  .tk-row {
+    display: flex; align-items: flex-start; gap: 13px;
+    background: var(--card); border: 1px solid var(--line); border-radius: 11px;
+    padding: 13px 15px 13px 0; position: relative; overflow: hidden;
+  }
+  .tk-row::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: transparent; }
+  .tk-row.s-overdue::before { background: var(--rose); }
+  .tk-row.s-urgent::before  { background: var(--rose); opacity: .7; }
+  .tk-row.s-due-soon::before { background: var(--gold); }
+  .tk-circle {
+    margin-left: 15px; margin-top: 1px; flex-shrink: 0; width: 19px; height: 19px;
+    border-radius: 50%; border: 1.6px solid var(--faint); display: grid; place-items: center;
+  }
+  .tk-row-main { flex: 1; min-width: 0; }
+  .tk-row-title { font-size: 14px; font-weight: 500; color: var(--ink); letter-spacing: -.005em; }
+  .tk-row-title.ghost { color: var(--faint); font-style: italic; font-family: var(--serif); font-weight: 400; }
+  .tk-row-meta { margin-top: 6px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .tk-when { font-family: var(--mono); font-size: 10.5px; letter-spacing: .03em; color: var(--muted); display: inline-flex; align-items: center; gap: 5px; }
+  .tk-when.late { color: var(--rose); }
+  .tk-when.soon { color: var(--gold); }
+  .tk-when svg { width: 12px; height: 12px; }
+  .tk-sep { color: var(--faint); }
+  .tk-note-snip {
+    font-size: 11.5px; color: var(--faint); font-style: italic; font-family: var(--serif);
+    min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 30ch;
+  }
+  .tk-chips { display: inline-flex; align-items: center; gap: 5px; flex-wrap: wrap; }
+  .tk-chip {
+    display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 500;
+    color: var(--ink-soft); background: var(--card-2); border: 1px solid var(--line);
+    border-radius: 999px; padding: 3px 9px 3px 7px; line-height: 1;
+  }
+  .tk-chip .av {
+    width: 15px; height: 15px; border-radius: 50%; background: var(--vio-bg); color: var(--vio);
+    display: grid; place-items: center; font-family: var(--mono); font-size: 7.5px; font-weight: 600; flex-shrink: 0;
+  }
+  .tk-chip.role {
+    border-color: color-mix(in srgb, var(--rc, var(--vio)) 38%, transparent);
+    background: color-mix(in srgb, var(--rc, var(--vio)) 12%, transparent); color: var(--ink);
+  }
+  .tk-chip.role .pip { width: 7px; height: 7px; border-radius: 2px; background: var(--rc, var(--vio)); flex-shrink: 0; }
+  .tk-chip.plain { padding: 3px 9px; color: var(--muted); }
+
+  .tc-error { color: var(--rose); font-size: 12.5px; margin: 16px 0 0; min-height: 0; }
+  .tc-error:empty { display: none; }
+
+  .tc-submit {
+    margin-top: 22px; width: 100%; padding: 12px; border-radius: 9px;
+    font-family: var(--mono); font-size: 11px; letter-spacing: .14em; text-transform: uppercase; font-weight: 500;
+    background: var(--vio); color: var(--paper); transition: background .14s, opacity .14s;
+  }
+  .tc-submit:hover { background: #bda6fc; }
+  .tc-submit.blocked { opacity: .45; }
+
+  /* ── Page notes ──────────────────────────────────────────────────────────── */
+  .notes { max-width: 1100px; margin: 56px auto 0; border-top: 1px solid var(--line); padding-top: 30px; }
+  .notes h2 { font-family: var(--serif); font-weight: 400; font-size: 19px; margin: 0 0 18px; color: var(--ink); }
+  .notes .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(300px,100%),1fr)); gap: 26px 40px; }
+  .notes h3 { font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--vio); margin: 0 0 8px; font-weight: 500; }
+  .notes p { font-size: 13px; line-height: 1.65; color: var(--muted); margin: 0; }
+  .notes p b { color: var(--ink-soft); font-weight: 500; }
+  .notes code { font-family: var(--mono); font-size: 11.5px; color: var(--ink-soft); }
+  .foot { max-width: 1100px; margin: 40px auto 0; font-size: 11px; color: var(--faint); font-family: var(--mono); letter-spacing: .04em; text-align: center; line-height: 1.8; }
+
+  @media (max-width: 620px) {
+    body { padding: 36px 16px 56px; }
+    .stage { gap: 36px; }
+    .col { width: 100%; }
+    .tc { padding: 22px 18px 20px; }
+  }
+</style>
+</head>
+<body>
+  <div class="head">
+    <p class="kick">Figurints · ChaptOS — new-task modal redesign</p>
+    <h1>Filing a task should show you <em>where it lands</em>.</h1>
+    <p>
+      The board groups open tasks by computed urgency and paints each row's spine to match — but the form that
+      creates them is a bare date field that never mentions it. This composer is the row, drafted: the title is
+      written in the serif it'll be read in, every date choice carries the band it falls into, assignees have
+      faces and a headcount, and the finished row is visible under your hands the whole time. Both columns are
+      live — type, pick a date, toggle people.
+    </p>
+  </div>
+
+  <div class="stage">
+    <div class="col">
+      <div class="col-tag"><b>A</b> · Banded quick rail <span>— named days, exact date one click away</span></div>
+      <div class="panel" data-date-ui="rail"></div>
+    </div>
+    <div class="col">
+      <div class="col-tag"><b>B</b> · Two-week strip <span>— the gradient of consequence is the control</span></div>
+      <div class="panel" data-date-ui="strip"></div>
+    </div>
+  </div>
+
+  <div class="notes">
+    <h2>What each change is buying</h2>
+    <div class="grid">
+      <div>
+        <h3>The date says its band</h3>
+        <p>
+          <code>lib/tasks/urgency.ts</code> already decides everything: under three days is <b>Urgent</b> (rose
+          spine), inside a week is <b>Due soon</b> (gold), past that is quiet. Today's form hides that behind
+          <code>&lt;input type="date"&gt;</code>. Here the dots and the sentence under the control state it before
+          you commit — and the preview row's spine changes color as you pick.
+        </p>
+      </div>
+      <div>
+        <h3>Faces, a filter, and selected-first</h3>
+        <p>
+          The current picker is a wall of identical text chips in roster order, so at forty members you lose your
+          own selections. Initials give each chip a shape to aim at, the filter handles long rosters, picks
+          float to the front, and the count is always on screen.
+        </p>
+      </div>
+      <div>
+        <h3>A role is a headcount</h3>
+        <p>
+          “Roles expand to their current holders” is a footnote today. Here each role carries its holder count
+          and the pane totals the resolved headcount — assigning <b>Rush Committee</b> tells you you just handed
+          work to six people.
+        </p>
+      </div>
+      <div>
+        <h3>Notes stop paying rent</h3>
+        <p>
+          An always-open empty textarea costs every task author vertical space for a field most skip. One line
+          — <b>Add a note</b> — until it's wanted, matching the poll composer's “Add an option”.
+        </p>
+      </div>
+      <div>
+        <h3>The preview is the row</h3>
+        <p>
+          Markup and tokens are lifted from <code>.tk-row</code>, so the preview isn't an approximation — spine,
+          circle, mono due-chip, avatar chips and the italic note snippet are the same grammar the board uses.
+        </p>
+      </div>
+      <div>
+        <h3>Nothing new was invented</h3>
+        <p>
+          Same five inputs the API takes today (title, optional due date, individuals/roles/everyone, notes) and
+          the same dusk palette. No new fields, no new endpoints — the difference is entirely in what the form
+          tells you while you fill it.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <p class="foot">
+    EXPLORATION · not wired · today is pinned to Sun Aug 9 2026 so the bands are deterministic<br>
+    tokens &amp; row grammar from app/[slug]/tasks/tasks-ledger.css · composer grammar from .pc-* (poll composer)
+  </p>
+
+<script>
+/* ══════════════════════════════════════════════════════════════════════════
+   Mock data + the urgency math, ported verbatim from lib/tasks/urgency.ts.
+   ══════════════════════════════════════════════════════════════════════════ */
+const TODAY = new Date(2026, 7, 9); // Sun Aug 9 2026 — pinned so screenshots are stable
+const DOW  = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+const MON  = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+const MEMBERS = [
+  { id: 1,  name: "Marcus Lee" },   { id: 2,  name: "Devon Ray" },
+  { id: 3,  name: "Aaron Diaz" },   { id: 4,  name: "Sam Okafor" },
+  { id: 5,  name: "Elias Wolf" },   { id: 6,  name: "Theo Vance" },
+  { id: 7,  name: "Nate Brooks" },  { id: 8,  name: "Julian Park" },
+  { id: 9,  name: "Owen Reyes" },   { id: 10, name: "Micah Stone" },
+  { id: 11, name: "Andre Cole" },   { id: 12, name: "Chris Vaughn" },
+  { id: 13, name: "Roman Ellis" },  { id: 14, name: "Kai Dominguez" },
+];
+const ROSTER_TOTAL = 24; // the roster is bigger than the sample above
+
+const ROLES = [
+  { id: 1, name: "Exec Board",     color: "#a78bfa", holders: 4 },
+  { id: 2, name: "Social Chair",   color: "#d98ba3", holders: 1 },
+  { id: 3, name: "Rush Committee", color: "#ddb36a", holders: 6 },
+  { id: 4, name: "New Members",    color: "#7fb08a", holders: 9 },
+];
+
+function addDays(d, n) { const x = new Date(d); x.setDate(x.getDate() + n); return x; }
+function iso(d) { const p = n => String(n).padStart(2, "0"); return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`; }
+function fromISO(s) { const [y,m,dd] = s.split("-").map(Number); return new Date(y, m-1, dd); }
+function deltaDays(d) { return Math.round((Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) - Date.UTC(TODAY.getFullYear(), TODAY.getMonth(), TODAY.getDate())) / 86400000); }
+
+/* lib/tasks/urgency.ts: <0 overdue · 0–2 urgent · 3–7 due soon · >7 upcoming */
+function band(d) {
+  if (!d) return "none";
+  const delta = deltaDays(d);
+  if (delta < 0)  return "overdue";
+  if (delta <= 2) return "urgent";
+  if (delta <= 7) return "due-soon";
+  return "upcoming";
+}
+const BAND_LABEL = { overdue: "Overdue", urgent: "Urgent", "due-soon": "Due soon", upcoming: "Upcoming", none: "No date" };
+
+/* The sentence under the control — the consequence, in plain words. */
+function bandSay(d) {
+  if (!d) return "Sits at the bottom of the board, and never reaches the timeline.";
+  const n = deltaDays(d);
+  if (n < 0)   return `Files in as already ${-n} ${-n === 1 ? "day" : "days"} late.`;
+  if (n === 0) return "Due today — top of the board, rose spine.";
+  if (n === 1) return "Due tomorrow — top of the board, rose spine.";
+  if (n <= 2)  return `${n} days out, so it opens under the rose header.`;
+  if (n <= 7)  return `${n} days out — gold, under “Due soon”.`;
+  return `${n} days out. Quiet until the week it's due.`;
+}
+function shortDate(d) { return `${DOW[d.getDay()]}, ${MON[d.getMonth()]} ${d.getDate()}`; }
+function relWhen(d) {
+  const n = deltaDays(d);
+  if (n < 0)   return `${-n}d late`;
+  if (n === 0) return "today";
+  if (n === 1) return "tomorrow";
+  return `in ${n}d`;
+}
+function initials(name) { return name.split(/\s+/).slice(0, 2).map(w => w[0]).join("").toUpperCase(); }
+
+const ICON = {
+  x:     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" d="M6 18L18 6M6 6l12 12"/></svg>',
+  check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg>',
+  plus:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path stroke-linecap="round" d="M12 5v14M5 12h14"/></svg>',
+  cal:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="5" width="18" height="16" rx="2"/><path stroke-linecap="round" d="M8 3v4M16 3v4M3 10h18"/></svg>',
+  search:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><path stroke-linecap="round" d="M20 20l-3.5-3.5"/></svg>',
+};
+
+/* The strip spans 14 days, which usually crosses a month — say so rather than
+   letting the header quietly mislabel half the grid. */
+function stripMonths() {
+  const last = addDays(TODAY, 13);
+  const head = MON[TODAY.getMonth()] === MON[last.getMonth()]
+    ? MON[TODAY.getMonth()]
+    : `${MON[TODAY.getMonth()]} – ${MON[last.getMonth()]}`;
+  return `${head} ${last.getFullYear()}`;
+}
+
+/* The named choices on variant A. Each resolves against the pinned TODAY. */
+function quickDays() {
+  const daysToThu = (4 - TODAY.getDay() + 7) % 7 || 7;     // the coming Thursday
+  // "Next week" must clear the current one, or on a Sunday it collides with Tomorrow.
+  let daysToMon = (1 - TODAY.getDay() + 7) % 7 || 7;
+  if (daysToMon < 7) daysToMon += 7;                        // the Monday after this week
+  return [
+    { key: "today",    label: "Today",     date: TODAY },
+    { key: "tomorrow", label: "Tomorrow",  date: addDays(TODAY, 1) },
+    { key: "thu",      label: DOW[4],      date: addDays(TODAY, daysToThu) },
+    { key: "nextweek", label: "Next week", date: addDays(TODAY, daysToMon) },
+    // The opt-outs sit at the end: a task usually wants a date.
+    { key: "none",     label: "No date",   date: null },
+  ];
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   The composer. Skeleton is built once; sync() only updates what changed, so
+   typing in the title never loses the caret.
+   ══════════════════════════════════════════════════════════════════════════ */
+function Composer(panel, dateUI) {
+  const state = {
+    title: "",
+    due: null,               // Date | null
+    mode: "individuals",     // individuals | roles | everyone
+    people: new Set(),
+    roles: new Set(),
+    note: "",
+  };
+
+  const quick = quickDays();
+
+  const dateBlock = dateUI === "rail" ? `
+    <div class="tc-rail">
+      ${quick.map(q => `
+        <button class="tc-day" data-quick="${q.key}">
+          <span class="top"><span class="bdot ${band(q.date)}"></span><span class="lbl">${q.label}</span></span>
+          <span class="sub">${q.date ? `${MON[q.date.getMonth()]} ${q.date.getDate()}` : "no deadline"}</span>
+        </button>`).join("")}
+    </div>
+    <button class="tc-pick" data-quick="pick"><span class="glyph">${ICON.cal}</span><span class="lbl">Pick an exact date</span></button>` : `
+    <div class="tc-strip">
+      <div class="tc-strip-head">
+        <span class="tc-strip-month">${stripMonths()}</span>
+        <span class="tc-legend">
+          <span><i class="urgent"></i>Urgent</span>
+          <span><i class="due-soon"></i>Due soon</span>
+          <span><i class="upcoming"></i>Later</span>
+        </span>
+      </div>
+      <div class="tc-dows">${["S","M","T","W","T","F","S"].map(d => `<span>${d}</span>`).join("")}</div>
+      <div class="tc-grid">
+        ${Array.from({ length: TODAY.getDay() }, () => `<span class="tc-cell pad"></span>`).join("")}
+        ${Array.from({ length: 14 }, (_, i) => {
+          const d = addDays(TODAY, i);
+          return `<button class="tc-cell ${band(d)}${i === 0 ? " today" : ""}" data-day="${iso(d)}">
+                    ${d.getDate()}<span class="tick"></span>
+                  </button>`;
+        }).join("")}
+      </div>
+      <div class="tc-strip-foot">
+        <button class="tc-mini" data-quick="none">No date</button>
+        <button class="tc-mini" data-quick="pick">${ICON.cal} Further out</button>
+      </div>
+    </div>`;
+
+  panel.innerHTML = `
+    <button class="panel-x" aria-label="Close">${ICON.x}</button>
+    <div class="tc">
+      <p class="tc-kicker">New task</p>
+      <div class="tc-titlewrap">
+        <input class="tc-title" placeholder="What needs doing?" spellcheck="false" aria-label="Task title">
+      </div>
+
+      <section class="tc-section">
+        <p class="tc-label">Due <span class="tc-hint">optional</span></p>
+        ${dateBlock}
+        <div class="tc-exact"><input type="date" class="tc-date" min="${iso(addDays(TODAY, -60))}" aria-label="Exact due date"></div>
+        <p class="tc-band none"><span class="dot"></span><span class="grp">No date</span><span class="say"></span></p>
+      </section>
+
+      <section class="tc-section">
+        <p class="tc-label">Who's on it <span class="spacer"></span><span class="tc-count zero">nobody yet</span></p>
+        <div class="tc-seg">
+          <button data-mode="individuals" class="on">Individuals</button>
+          <button data-mode="roles">Roles</button>
+          <button data-mode="everyone">Everyone</button>
+        </div>
+
+        <div class="tc-pane show" data-pane="individuals">
+          <div class="tc-searchwrap">${ICON.search}<input class="tc-search" placeholder="Filter ${ROSTER_TOTAL} members…" aria-label="Filter members"></div>
+          <div class="tc-people">
+            ${MEMBERS.map(m => `
+              <button class="tc-person" data-person="${m.id}">
+                <span class="av">${initials(m.name)}</span>${m.name}
+              </button>`).join("")}
+          </div>
+          <p class="tc-noresult" hidden>Nobody by that name on the roster.</p>
+        </div>
+
+        <div class="tc-pane" data-pane="roles">
+          <div class="tc-roles">
+            ${ROLES.map(r => `
+              <button class="tc-role" data-role="${r.id}">
+                <span class="box">${ICON.check}</span>
+                <span class="pip" style="background:${r.color}"></span>
+                <span class="nm">${r.name}</span>
+                <span class="ct">${r.holders} ${r.holders === 1 ? "holder" : "holders"}</span>
+              </button>`).join("")}
+          </div>
+          <p class="tc-note-line" data-role-total>Roles expand to whoever holds them the day it's due.</p>
+        </div>
+
+        <div class="tc-pane" data-pane="everyone">
+          <div class="tc-pile">
+            ${MEMBERS.slice(0, 7).map(m => `<span class="av">${initials(m.name)}</span>`).join("")}
+            <span class="av more">+${ROSTER_TOTAL - 7}</span>
+          </div>
+          <p class="tc-note-line">All <b>${ROSTER_TOTAL} members</b> get it, including anyone approved onto the roster before it's done.</p>
+        </div>
+      </section>
+
+      <section class="tc-section">
+        <button class="tc-note-add"><span class="glyph">${ICON.plus}</span><span class="lbl">Add a note</span></button>
+        <textarea class="tc-note" rows="1" placeholder="Anything they need to know…" aria-label="Notes"></textarea>
+      </section>
+
+      <div class="tc-preview">
+        <p class="tc-label">On the board <span class="tc-hint">live</span></p>
+        <div class="tk-row">
+          <span class="tk-circle"></span>
+          <div class="tk-row-main">
+            <div class="tk-row-title ghost">Untitled task</div>
+            <div class="tk-row-meta"></div>
+          </div>
+        </div>
+      </div>
+
+      <p class="tc-error"></p>
+      <button class="tc-submit blocked">Create task</button>
+    </div>`;
+
+  const $  = sel => panel.querySelector(sel);
+  const $$ = sel => Array.from(panel.querySelectorAll(sel));
+
+  const titleEl   = $(".tc-title");
+  const bandEl    = $(".tc-band");
+  const exactWrap = $(".tc-exact");
+  const dateEl    = $(".tc-date");
+  const countEl   = $(".tc-count");
+  const peopleWrap= $(".tc-people");
+  const noResult  = $(".tc-noresult");
+  const searchEl  = $(".tc-search");
+  const noteAdd   = $(".tc-note-add");
+  const noteEl    = $(".tc-note");
+  const rowEl     = $(".tk-row");
+  const rowTitle  = $(".tk-row-title");
+  const rowMeta   = $(".tk-row-meta");
+  const errEl     = $(".tc-error");
+  const submitEl  = $(".tc-submit");
+  const roleTotal = $("[data-role-total]");
+
+  /* ── how many humans the current selection resolves to ── */
+  function headcount() {
+    if (state.mode === "everyone") return ROSTER_TOTAL;
+    if (state.mode === "roles")    return ROLES.filter(r => state.roles.has(r.id)).reduce((n, r) => n + r.holders, 0);
+    return state.people.size;
+  }
+
+  /* ── the assignee chips the row will carry ── */
+  function assigneeChips() {
+    if (state.mode === "everyone") return [`<span class="tk-chip plain">Everyone · ${ROSTER_TOTAL}</span>`];
+    if (state.mode === "roles") {
+      const picked = ROLES.filter(r => state.roles.has(r.id));
+      return picked.map(r => `<span class="tk-chip role" style="--rc:${r.color}"><span class="pip"></span>${r.name}</span>`);
+    }
+    const picked = MEMBERS.filter(m => state.people.has(m.id));
+    const shown  = picked.slice(0, 3).map(m => `<span class="tk-chip"><span class="av">${initials(m.name)}</span>${m.name.split(" ")[0]}</span>`);
+    if (picked.length > 3) shown.push(`<span class="tk-chip plain">+${picked.length - 3}</span>`);
+    return shown;
+  }
+
+  function sync() {
+    const b = band(state.due);
+
+    /* Date controls */
+    $$("[data-quick]").forEach(el => {
+      const k = el.dataset.quick;
+      const q = quick.find(x => x.key === k);
+      const on = k === "pick"
+        ? exactWrap.classList.contains("show")
+        : q && ((q.date === null && state.due === null && !exactWrap.classList.contains("show")) ||
+                (q.date && state.due && iso(q.date) === iso(state.due)));
+      el.classList.toggle("on", !!on);
+    });
+    $$("[data-day]").forEach(el => el.classList.toggle("on", !!state.due && el.dataset.day === iso(state.due)));
+
+    /* Band line */
+    bandEl.className = `tc-band ${b}`;
+    bandEl.querySelector(".grp").textContent = BAND_LABEL[b];
+    bandEl.querySelector(".say").textContent = bandSay(state.due);
+
+    /* Who — count + panes */
+    const n = headcount();
+    countEl.textContent = n === 0 ? "nobody yet" : `${n} ${n === 1 ? "person" : "people"}`;
+    countEl.classList.toggle("zero", n === 0);
+    $$("[data-mode]").forEach(el => el.classList.toggle("on", el.dataset.mode === state.mode));
+    $$("[data-pane]").forEach(el => el.classList.toggle("show", el.dataset.pane === state.mode));
+    $$("[data-person]").forEach(el => el.classList.toggle("on", state.people.has(+el.dataset.person)));
+    $$("[data-role]").forEach(el => el.classList.toggle("on", state.roles.has(+el.dataset.role)));
+    roleTotal.innerHTML = state.roles.size === 0
+      ? "Roles expand to whoever holds them the day it's due."
+      : `Expands to <b>${n} ${n === 1 ? "person" : "people"}</b> — whoever holds ${state.roles.size === 1 ? "it" : "them"} the day it's due.`;
+
+    /* Selected people float to the front, so a long roster can't bury a pick. */
+    const chips = $$("[data-person]");
+    chips.sort((a, b2) => {
+      const sa = state.people.has(+a.dataset.person), sb = state.people.has(+b2.dataset.person);
+      if (sa !== sb) return sa ? -1 : 1;
+      return +a.dataset.person - +b2.dataset.person;
+    }).forEach(el => peopleWrap.appendChild(el));
+
+    /* Preview row */
+    rowEl.className = `tk-row${b === "none" || b === "upcoming" ? "" : ` s-${b}`}`;
+    rowTitle.textContent = state.title.trim() || "Untitled task";
+    rowTitle.classList.toggle("ghost", !state.title.trim());
+
+    const parts = [];
+    if (state.due) {
+      const tone = b === "overdue" || b === "urgent" ? " late" : b === "due-soon" ? " soon" : "";
+      parts.push(`<span class="tk-when${tone}">${ICON.cal}${shortDate(state.due)} · ${relWhen(state.due)}</span>`);
+    } else {
+      parts.push(`<span class="tk-when">${ICON.cal}No date</span>`);
+    }
+    const chipsHtml = assigneeChips();
+    // The chips and the note each wrap to their own line at this width, so the
+    // app's inline "·" separators would strand themselves at a line end.
+    if (chipsHtml.length) parts.push(`<span class="tk-chips">${chipsHtml.join("")}</span>`);
+    if (state.note.trim()) parts.push(`<span class="tk-note-snip">${state.note.trim().replace(/</g, "&lt;")}</span>`);
+    rowMeta.innerHTML = parts.join("");
+
+    /* Submit gate mirrors TaskForm's validation (title + ≥1 assignee). */
+    const ok = !!state.title.trim() && n > 0;
+    submitEl.classList.toggle("blocked", !ok);
+  }
+
+  /* ── events ── */
+  titleEl.addEventListener("input", e => { state.title = e.target.value; errEl.textContent = ""; sync(); });
+
+  panel.addEventListener("click", e => {
+    const q = e.target.closest("[data-quick]");
+    if (q) {
+      if (q.dataset.quick === "pick") {
+        exactWrap.classList.add("show");
+        dateEl.showPicker ? dateEl.showPicker() : dateEl.focus();
+      } else {
+        exactWrap.classList.remove("show");
+        state.due = quick.find(x => x.key === q.dataset.quick).date;
+        dateEl.value = state.due ? iso(state.due) : "";
+      }
+      errEl.textContent = ""; sync(); return;
+    }
+    const day = e.target.closest("[data-day]");
+    if (day) { exactWrap.classList.remove("show"); state.due = fromISO(day.dataset.day); dateEl.value = day.dataset.day; sync(); return; }
+
+    const mode = e.target.closest("[data-mode]");
+    if (mode) { state.mode = mode.dataset.mode; errEl.textContent = ""; sync(); return; }
+
+    const p = e.target.closest("[data-person]");
+    if (p) { const id = +p.dataset.person; state.people.has(id) ? state.people.delete(id) : state.people.add(id); errEl.textContent = ""; sync(); return; }
+
+    const r = e.target.closest("[data-role]");
+    if (r) { const id = +r.dataset.role; state.roles.has(id) ? state.roles.delete(id) : state.roles.add(id); errEl.textContent = ""; sync(); return; }
+
+    if (e.target.closest(".tc-note-add")) {
+      noteAdd.classList.add("hide"); noteEl.classList.add("show"); noteEl.focus(); return;
+    }
+    if (e.target.closest(".tc-submit")) {
+      if (!state.title.trim())  { errEl.textContent = "A task needs a title."; titleEl.focus(); return; }
+      if (headcount() === 0)    { errEl.textContent = "Assign at least one member or role."; return; }
+      errEl.textContent = "";
+      submitEl.textContent = "Created ✓";
+      setTimeout(() => { submitEl.textContent = "Create task"; }, 1400);
+    }
+  });
+
+  dateEl.addEventListener("change", e => { state.due = e.target.value ? fromISO(e.target.value) : null; sync(); });
+
+  // The note grows with what's written rather than reserving empty rows.
+  function growNote() { noteEl.style.height = "auto"; noteEl.style.height = `${noteEl.scrollHeight}px`; }
+  noteEl.addEventListener("input", e => { state.note = e.target.value; growNote(); sync(); });
+
+  searchEl.addEventListener("input", e => {
+    const q = e.target.value.trim().toLowerCase();
+    let hits = 0;
+    $$("[data-person]").forEach(el => {
+      const m = MEMBERS.find(x => x.id === +el.dataset.person);
+      const show = !q || m.name.toLowerCase().includes(q);
+      el.classList.toggle("hide", !show);
+      if (show) hits++;
+    });
+    noResult.hidden = hits > 0;
+  });
+
+  return {
+    state, sync,
+    seed(patch) {
+      Object.assign(state, patch);
+      if (patch.title) titleEl.value = patch.title;
+      if (patch.note) {
+        noteEl.value = patch.note;
+        noteAdd.classList.add("hide");
+        noteEl.classList.add("show");
+        growNote();
+      }
+      sync();
+    },
+  };
+}
+
+/* ── mount both variants, each seeded mid-draft so the design reads at rest ── */
+const a = Composer(document.querySelector('[data-date-ui="rail"]'),  "rail");
+a.seed({
+  title: "Collect Bid Day deposits",
+  due: addDays(TODAY, 1),                       // Mon Aug 10 → urgent (rose)
+  people: new Set([1, 2, 4]),
+});
+
+const b = Composer(document.querySelector('[data-date-ui="strip"]'), "strip");
+b.seed({
+  title: "Draft the philanthropy budget",
+  due: addDays(TODAY, 5),                       // Fri Aug 14 → due soon (gold)
+  mode: "roles",
+  roles: new Set([1, 3]),
+  note: "Last year's numbers are in Docs → Finance.",
+});
+</script>
+</body>
+</html>
