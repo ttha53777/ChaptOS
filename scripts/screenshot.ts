@@ -137,10 +137,13 @@ async function main() {
       // match your filters"), so matching on text silently stopped working the
       // moment an org renamed its members. Falls back to a fixed settle if the
       // marker never resolves (a genuinely empty org, or a non-dashboard route).
+      // Each widget now owns its own skeleton (there is no page-level "Syncing
+      // chapter data" banner to wait out any more), so the settled signal is the
+      // roster's own: real rows present and no skeleton rows left behind them.
       await page
         .waitForFunction(
           () => document.querySelectorAll("#sec-brothers tbody tr[class], #sec-brothers tbody tr").length > 0
-             && !document.body.innerText.includes("Syncing chapter data"),
+             && document.querySelector("#sec-brothers .row-skel") === null,
           { timeout: 20_000 },
         )
         .catch(() => {});
