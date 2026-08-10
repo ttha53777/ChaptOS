@@ -20,6 +20,12 @@ export function LedgerStrip({ children }: { children: React.ReactNode }) {
  * `noteAction` is the one next move for an unset measure — a real <button>
  * inside the note line, which is legal here precisely because the tile is a div.
  * It stops propagation so it doesn't also open the tile's KPI drawer.
+ *
+ * `loading` means this measure's section hasn't landed yet — distinct from
+ * `unset`, which is a settled answer ("nothing was ever recorded"). The label
+ * stays, the number becomes a skeleton in the value's own box, and the tile stops
+ * being interactive: opening a KPI drawer onto data that hasn't arrived shows a
+ * second, emptier version of the same wait.
  */
 export function Measure({
   label,
@@ -33,6 +39,9 @@ export function Measure({
   spark,
   onClick,
   hideButton,
+  loading = false,
+  error = false,
+  onRetry,
 }: {
   label: string;
   value: string;
@@ -45,7 +54,48 @@ export function Measure({
   spark?: React.ReactNode;
   onClick?: () => void;
   hideButton?: React.ReactNode;
+  loading?: boolean;
+  /** This measure's section failed. Takes precedence over `loading`, which stays
+   *  true for a failed section (it never joins `loadedSections`). Reuses the
+   *  em-dash + note shape rather than a bespoke tile: an unreadable measure and
+   *  an unrecorded one look the same in the strip, and the note says which. */
+  error?: boolean;
+  onRetry?: () => void;
 }) {
+  if (error) {
+    return (
+      <div className="measure">
+        <p className="k">{label}</p>
+        <p className="v unset">—</p>
+        <p className="note warn">
+          Couldn&apos;t load.
+          {onRetry && (
+            <>
+              {" "}
+              <button type="button" className="note-act" onClick={(e) => { e.stopPropagation(); onRetry(); }}>
+                Retry
+              </button>
+            </>
+          )}
+        </p>
+        {hideButton}
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="measure" aria-busy="true" aria-label={`${label}, loading`}>
+        <p className="k">{label}</p>
+        {/* Inside the real `.v` box so the tile keeps its height and the strip
+            doesn't jump a row when the number lands. */}
+        <p className="v"><i className="skel val" /></p>
+        <p className="note"><i className="skel line" /></p>
+        {hideButton}
+      </div>
+    );
+  }
+
   return (
     <div
       className="measure"

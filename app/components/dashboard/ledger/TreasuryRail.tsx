@@ -1,6 +1,7 @@
 import React from "react";
 import { fmt$ } from "../../../data";
 import { useVocab } from "../../../hooks/useVocab";
+import { SectionError } from "./SectionError";
 import { MiniAreaChart } from "./MiniAreaChart";
 
 /**
@@ -28,6 +29,8 @@ export function TreasuryRail({
   trend,
   openingBalance = null,
   loading = false,
+  error = false,
+  onRetry,
   onLogTransaction,
 }: {
   balance: number | null;
@@ -39,10 +42,25 @@ export function TreasuryRail({
    */
   openingBalance?: number | null;
   loading?: boolean;
+  /** The treasury fetch failed. Takes precedence over `loading`, which stays true
+   *  for a failed section (it never joins `loadedSections`). */
+  error?: boolean;
+  onRetry?: () => void;
   /** Undefined without MANAGE_TREASURY — copy stands, button doesn't. */
   onLogTransaction?: () => void;
 }) {
   const v = useVocab();
+
+  if (error) {
+    return (
+      <section id="sec-treasury" className="card" aria-label={v("Treasury")}>
+        <div className="card-h">
+          <h2>{v("Treasury")}</h2>
+        </div>
+        <SectionError what="the books" onRetry={onRetry} />
+      </section>
+    );
+  }
 
   if (loading) {
     return (

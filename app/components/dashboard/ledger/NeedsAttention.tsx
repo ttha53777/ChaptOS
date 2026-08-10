@@ -3,6 +3,7 @@ import { fmt$, fmtDate, type AttentionItem } from "../../../data";
 import { isAttendanceExempt } from "@/lib/thresholds";
 import { ALL_TRACKED, type TrackedMetrics } from "@/lib/tracked-metrics";
 import { useVocab } from "../../../hooks/useVocab";
+import { SectionError } from "./SectionError";
 
 /** Rows shown before the list collapses behind "Show all". */
 const VISIBLE_LIMIT = 6;
@@ -26,6 +27,9 @@ export function NeedsAttention({
   hideButton,
   hasData = true,
   tracked = ALL_TRACKED,
+  loading = false,
+  error = false,
+  onRetry,
 }: {
   items: AttentionItem[];
   onMarkDone: (deadlineId: number) => void;
@@ -38,6 +42,15 @@ export function NeedsAttention({
    *  requires evidence. */
   hasData?: boolean;
   tracked?: TrackedMetrics;
+  /** The queue is derived from three sections (roster, deadlines,
+   *  reimbursements); true until all of them land. "Nothing needs attention" is
+   *  the one sentence on this page a member might act on by NOT acting, so it
+   *  must never be said over a partial fetch. */
+  loading?: boolean;
+  /** One of those three sections failed. Takes precedence over `loading`, which
+   *  stays true for a failed section (it never joins `loadedSections`). */
+  error?: boolean;
+  onRetry?: () => void;
 }) {
   const v = useVocab();
   const [expanded, setExpanded] = useState(false);
@@ -50,12 +63,23 @@ export function NeedsAttention({
       <div className="card-h">
         <h2>
           Needs attention
-          {items.length > 0 && <span className="count-chip">{items.length}</span>}
+          {!loading && !error && items.length > 0 && <span className="count-chip">{items.length}</span>}
         </h2>
         <span className="sub">Resolved items drop off</span>
       </div>
 
-      {items.length === 0 ? (
+      {error ? (
+        <SectionError what="the attention queue" onRetry={onRetry} />
+      ) : loading ? (
+        <div className="rail-skel rows" aria-busy="true" aria-label="Loading needs attention">
+          {[0, 1, 2].map(i => (
+            <div key={i} className="skel-row">
+              <i className="skel tag" />
+              <i className="skel line" />
+            </div>
+          ))}
+        </div>
+      ) : items.length === 0 ? (
         <div className="rail-empty">
           {hasData
             ? "Nothing needs attention — nice work."

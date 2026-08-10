@@ -44,6 +44,10 @@
   --faint:    #6b6354;
   --line:     rgba(236,231,221,.09);
   --line-soft:rgba(236,231,221,.05);
+  /* Skeleton fill. An ink wash, NOT a card-to-card gradient: --card and --card-2
+     are five hex units apart, so the gradient the rail skeleton originally used
+     was invisible on a dusk card — the loading state looked like an empty one. */
+  --skel:     rgba(236,231,221,.085);
   --vio:      #a78bfa;
   --vio-deep: #7c3aed;
   --vio-bg:   rgba(167,139,250,.10);
@@ -67,6 +71,7 @@
   --faint:    #9a917f;
   --line:     rgba(23,20,16,.13);
   --line-soft:rgba(23,20,16,.07);
+  --skel:     rgba(23,20,16,.085);
   --vio:      #6d28d9;
   --vio-deep: #5b21b6;
   --vio-bg:   rgba(109,40,217,.08);
@@ -408,10 +413,19 @@
    filters" during every cold load — a wrong answer where a pending one belongs.
    The keyframe is deliberately NOT named `dash-pulse`: brotherhood-ledger.css
    already owns that name, and the roster page imports both files. */
-.dash .rt .row-skel { height: 48px; border-bottom: 1px solid var(--line-soft);
-  background: linear-gradient(90deg, var(--card-2), var(--card) 60%);
-  animation: rt-skel-pulse 1.4s ease-in-out infinite; }
-@keyframes rt-skel-pulse { 0%, 100% { opacity: 1 } 50% { opacity: .5 } }
+/* Height matches --rt-row-h so the card doesn't resize when real rows replace
+   these. The row itself is transparent — only its contents shimmer. */
+.dash .rt .row-skel { display: flex; align-items: center; gap: 10px;
+  height: 48px; padding: 0 18px; border-bottom: 1px solid var(--line-soft); }
+.dash .rt .row-skel .skel.av  { height: 22px; width: 22px; border-radius: 50%; flex: none; }
+.dash .rt .row-skel .skel.nm  { height: 10px; width: 34%; flex: none; }
+/* Pushed right to sit under the metric columns; the first one takes the slack. */
+.dash .rt .row-skel .skel.col { height: 10px; width: 42px; flex: none; }
+.dash .rt .row-skel .skel.col:first-of-type { margin-left: auto; }
+/* Staggered so the block reads as a list of unlike rows, not a striped block. */
+.dash .rt .row-skel:nth-child(2n) .skel.nm { width: 26%; }
+.dash .rt .row-skel:nth-child(3n) .skel.nm { width: 41%; }
+@keyframes rt-skel-pulse { 0%, 100% { opacity: 1 } 50% { opacity: .45 } }
 
 .dash .rt-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px;
   padding: 10px 18px; border-top: 1px solid var(--line-soft); background: var(--card-2);
@@ -454,14 +468,58 @@
   padding: 5px 11px; cursor: pointer; }
 .dash .rail-empty .a:hover { border-color: var(--vio); }
 
+/* A widget whose section failed. Same shape as .rail-empty — it is still one
+   sentence and one move — but in the warning tone, because "couldn't load" is a
+   fault to fix and "nothing here yet" is a fact to accept. Muted rather than red:
+   one dead endpoint on a page of nine is not an emergency, and six of these
+   stacked in a rail during an outage would be. */
+.dash .rail-error { padding: 14px 18px; font-size: 12px; color: var(--muted); line-height: 1.55; }
+.dash .rail-error .a { display: block; width: fit-content; margin-top: 9px; font-family: var(--mono);
+  font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--gold);
+  border: 1px solid var(--line); background: transparent; border-radius: 7px;
+  padding: 5px 11px; cursor: pointer; }
+.dash .rail-error .a:hover { border-color: var(--gold); }
+
 /* Loading is not empty. A rail card mid-fetch has a pending answer, not a
    negative one, and must not claim "nothing here yet". */
 .dash .rail-skel { padding: 16px 18px 18px; }
-.dash .rail-skel i { display: block; border-radius: 4px;
-  background: linear-gradient(90deg, var(--card-2), var(--card) 60%);
+.dash .rail-skel i { display: block; border-radius: 4px; background: var(--skel);
   animation: rt-skel-pulse 1.4s ease-in-out infinite; }
 .dash .rail-skel i.big { height: 26px; width: 42%; }
 .dash .rail-skel i.sm  { height: 10px; width: 62%; margin-top: 9px; }
+
+/* ── Progressive-hydration skeletons ───────────────────────────────────────
+   Every dashboard widget owns its own wait, because every widget is fed by a
+   different endpoint and they no longer land together (see ChapterContext's
+   loadSections). `.skel` is the one shimmer shared by all of them — reusing
+   `rt-skel-pulse` so the roster's skeleton rows and the rail's stay in phase
+   instead of beating against each other at slightly different periods.
+
+   Row skeletons draw a fixed count of placeholders, NOT a count guessed from
+   stale data: guessing means the card resizes twice (once to the guess, once to
+   the truth). One resize, when the data lands, is the honest cost. */
+.dash .skel { display: block; border-radius: 4px; background: var(--skel);
+  animation: rt-skel-pulse 1.4s ease-in-out infinite; }
+
+.dash .rail-skel.rows { padding: 4px 18px 14px; }
+.dash .rail-skel.rows .skel-row { display: flex; align-items: center; gap: 10px;
+  padding: 11px 0; border-bottom: 1px solid var(--line-soft); }
+.dash .rail-skel.rows .skel-row:last-child { border-bottom: 0; }
+/* Widths taper down the stack so the block reads as a list of unlike rows
+   rather than a solid rectangle. */
+.dash .rail-skel.rows .skel-row:nth-child(2) .skel.line { width: 62%; }
+.dash .rail-skel.rows .skel-row:nth-child(3) .skel.line { width: 74%; }
+.dash .rail-skel.rows .skel-row:nth-child(4) .skel.line { width: 52%; }
+.dash .skel.line { height: 10px; width: 84%; flex: 0 1 auto; }
+.dash .skel.dot  { height: 7px;  width: 7px;  border-radius: 50%; flex: none; }
+.dash .skel.tag  { height: 14px; width: 58px; border-radius: 3px; flex: none; }
+/* Matches the ThisWeek `.day` gutter so rows don't shift sideways on arrival. */
+.dash .skel.day  { height: 26px; width: 26px; flex: none; }
+
+/* The measure value keeps its own box (see Measure's loading branch), so this
+   only has to fill it — the tile height is already reserved. */
+.dash .measure .skel.val  { height: 21px; width: 56%; }
+.dash .measure .note .skel.line { height: 8px; width: 72%; }
 
 .dash .treasury-body { padding: 14px 18px 16px; }
 .dash .treasury-num { display: flex; align-items: baseline; gap: 10px; }

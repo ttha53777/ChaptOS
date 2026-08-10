@@ -287,6 +287,21 @@ function isTransientFetchError(err: unknown): boolean {
   return typeof err === "object" && err !== null && (err as Record<symbol, unknown>)[TRANSIENT_FETCH_ERROR] === true;
 }
 
+/** Set-with, returning the original when the member is already present, so a
+ *  no-op section result doesn't re-render every `sectionErrors` consumer. */
+function setWith<T>(prev: ReadonlySet<T>, member: T): ReadonlySet<T> {
+  if (prev.has(member)) return prev;
+  return new Set(prev).add(member);
+}
+
+/** Set-without, with the same identity-preserving no-op as `setWith`. */
+function setWithout<T>(prev: ReadonlySet<T>, member: T): ReadonlySet<T> {
+  if (!prev.has(member)) return prev;
+  const next = new Set(prev);
+  next.delete(member);
+  return next;
+}
+
 async function fetchJson<T>(url: string): Promise<T | null> {
   // Bootstrap fan-out can run while Turbopack is compiling — allow a generous
   // timeout so a slow first compile doesn't abort with a raw fetch TypeError.
@@ -413,8 +428,8 @@ export function ChapterProvider({ children }: { children: React.ReactNode }) {
 
   /**
    * One fetch+apply pair per section. Each loader resolves to a `commit` thunk so
-   * the network work can all start in parallel and the state writes still happen
-   * together, after the race guard has confirmed this refresh is still the latest.
+   * the state write stays separable from the fetch — `loadSections` runs it only
+   * once the race guard and the auth gate have both cleared.
    *
    * `useState` setters are stable, so this map never needs to be rebuilt.
    */
@@ -475,10 +490,18 @@ export function ChapterProvider({ children }: { children: React.ReactNode }) {
   /**
    * Load `wanted` sections (and optionally /api/auth/me).
    *
-   * Each section loads independently: a failure in one (e.g. treasury) marks that
-   * section as errored but lets the rest of the dashboard render. Auth failure is
-   * the one exception — if /api/auth/me fails we abort the whole refresh, because
-   * the rest of the data is meaningless without a user.
+   * Each section loads AND commits independently: its data lands in state the
+   * moment its own request returns, rather than the whole fan-out waiting on the
+   * slowest endpoint. That is what makes progressive hydration possible — every
+   * dashboard widget reads `loadedSections` for the section it depends on and
+   * draws a skeleton until that one arrives, so the roster paints while treasury
+   * is still open. Before this, all ten commits ran together at the end and the
+   * per-section flags flipped simultaneously, which made the granularity nominal.
+   *
+   * A failure in one section (e.g. treasury) marks that section as errored but
+   * lets the rest of the dashboard render. Auth failure is the one exception — if
+   * /api/auth/me fails we abandon every commit, because the rest of the data is
+   * meaningless without a user.
    */
   const loadSections = useCallback(async (
     wanted: readonly DataSection[],
@@ -490,90 +513,75 @@ export function ChapterProvider({ children }: { children: React.ReactNode }) {
     setIsLoading(true);
     if (opts.includeMe) setLoadError(null);
 
-    // Sections fan out FIRST so they're in flight in parallel with /api/auth/me
-    // rather than waterfalling behind it (saves a full round-trip per load).
-    const sectionsPromise = wanted.length > 0
-      ? Promise.allSettled(wanted.map(s => sectionLoaders[s]()))
-      : null;
+    // /api/auth/me gates the section COMMITS but not the section REQUESTS: the
+    // fan-out below starts first, so every endpoint is in flight in parallel with
+    // it rather than waterfalling behind it (saves a round-trip per load).
+    //
+    // Resolves false when the refresh must be abandoned — no session, or the
+    // account itself failed to load.
+    const mePromise: Promise<boolean> = opts.includeMe
+      ? fetchJson<CurrentUser>("/api/auth/me").then(
+          value => {
+            if (!isLatest()) return false;
+            // null = 401 (no session) — silent no-op, not an error.
+            if (value === null) return false;
+            setCurrentUser(normalizeCurrentUser(value));
+            setAvatarRevision(r => r + 1);
+            return true;
+          },
+          (error: unknown) => {
+            if (!isLatest()) return false;
+            // Same transient/real distinction as the section loaders below: a
+            // slow first compile or HMR abort shouldn't read as a code regression.
+            if (isTransientFetchError(error)) {
+              console.warn("[ChapterContext] /api/auth/me timed out (transient):", error);
+            } else {
+              console.error("[ChapterContext] /api/auth/me failed:", error);
+            }
+            setLoadError("Could not load your account. Please refresh.");
+            return false;
+          },
+        )
+      : Promise.resolve(true);
 
-    if (opts.includeMe) {
-      const meResult = await fetchJson<CurrentUser>("/api/auth/me")
-        .then(value => ({ ok: true as const, value }))
-        .catch((error: unknown) => ({ ok: false as const, error }));
-
-      if (!isLatest()) return;
-
-      // null = 401 (no session) — silent no-op, not an error.
-      if (meResult.ok && meResult.value === null) {
-        setIsLoading(false);
-        setHasLoaded(true);
-        return;
-      }
-
-      if (!meResult.ok) {
-        // Same transient/real distinction as the section loaders below: a slow
-        // first compile or HMR abort shouldn't read as a code regression.
-        if (isTransientFetchError(meResult.error)) {
-          console.warn("[ChapterContext] /api/auth/me timed out (transient):", meResult.error);
+    const sectionTasks = wanted.map(async (section) => {
+      let commit: () => void;
+      try {
+        commit = await sectionLoaders[section]();
+      } catch (reason) {
+        if (!isLatest()) return;
+        // A transient abort/timeout (slow first compile, HMR, brief network drop)
+        // recovers on the next refresh — warn rather than error so it doesn't trip
+        // the dev error overlay or read as a code regression. Real failures still
+        // log at console.error.
+        if (isTransientFetchError(reason)) {
+          console.warn(`[ChapterContext] ${section} fetch timed out (transient):`, reason);
         } else {
-          console.error("[ChapterContext] /api/auth/me failed:", meResult.error);
+          console.error(`[ChapterContext] ${section} fetch failed:`, reason);
         }
-        setLoadError("Could not load your account. Please refresh.");
-        setIsLoading(false);
-        setHasLoaded(true);
+        // Deliberately NOT added to loadedSections — a failed section has to stay
+        // eligible for a retry on the next navigation or refresh.
+        setSectionErrors(prev => setWith(prev, section));
         return;
       }
 
-      setCurrentUser(normalizeCurrentUser(meResult.value as CurrentUser));
-      setAvatarRevision(r => r + 1);
-    }
+      // Never paint section data before the viewer it is gated on. Widget
+      // visibility reads currentUser.org.enabledWorkflows/disabledFeatures, so
+      // committing ahead of /api/auth/me would flash widgets the org switched off.
+      if (!(await mePromise) || !isLatest()) return;
 
-    if (!sectionsPromise) {
-      setIsLoading(false);
-      setHasLoaded(true);
-      return;
-    }
+      commit();
+      loadedSectionsRef.current = new Set(loadedSectionsRef.current).add(section);
+      setLoadedSections(loadedSectionsRef.current);
+      // Cleared per-section on success rather than blanket-cleared up front, so a
+      // section this refresh isn't touching keeps its error, and a still-failing
+      // one never briefly reads as healthy mid-refresh.
+      setSectionErrors(prev => setWithout(prev, section));
+    });
 
-    const results = await sectionsPromise;
+    await Promise.all([mePromise, ...sectionTasks]);
 
     if (!isLatest()) return;
-
-    const failed = new Set<DataSection>();
-    const loaded = new Set<DataSection>();
-
-    results.forEach((result, i) => {
-      const section = wanted[i];
-      if (result.status === "fulfilled") {
-        result.value();
-        loaded.add(section);
-        return;
-      }
-      failed.add(section);
-      // A transient abort/timeout (slow first compile, HMR, brief network drop)
-      // recovers on the next refresh — warn rather than error so it doesn't trip
-      // the dev error overlay or read as a code regression. Real failures still
-      // log at console.error.
-      if (isTransientFetchError(result.reason)) {
-        console.warn(`[ChapterContext] ${section} fetch timed out (transient):`, result.reason);
-      } else {
-        console.error(`[ChapterContext] ${section} fetch failed:`, result.reason);
-      }
-    });
-
-    // Only sections whose data actually landed count as loaded — a failed one
-    // must stay eligible for a retry on the next navigation or refresh.
-    loadedSectionsRef.current = new Set([...loadedSectionsRef.current, ...loaded]);
-    setLoadedSections(loadedSectionsRef.current);
-
-    // Merge rather than replace: a partial load must not clear the error state of
-    // sections it didn't touch. Sections in `wanted` get a clean slate first, so a
-    // recovered section drops out of the set.
-    setSectionErrors(prev => {
-      const next = new Set(prev);
-      for (const s of wanted) next.delete(s);
-      for (const s of failed) next.add(s);
-      return next;
-    });
     setIsLoading(false);
     setHasLoaded(true);
   }, [sectionLoaders]);

@@ -5,6 +5,7 @@ import { ALL_TRACKED, type TrackedMetrics } from "@/lib/tracked-metrics";
 import type { BuiltinMetricId } from "@/lib/onboarding/kinds";
 import { useVocab } from "../../../hooks/useVocab";
 import { BrotherAvatar } from "../../BrotherAvatar";
+import { SectionError } from "./SectionError";
 
 const STATUS_TAG: Record<BrotherStatus, { cls: string; label: string }> = {
   "Good":    { cls: "st-good",  label: "GOOD" },
@@ -98,6 +99,8 @@ export function RosterTable({
   avatarRevision,
   hideButton,
   loading = false,
+  error = false,
+  onRetry,
   onOpenAll,
   onInvite,
   inviteLabel,
@@ -124,6 +127,10 @@ export function RosterTable({
   avatarRevision: number;
   hideButton?: React.ReactNode;
   loading?: boolean;
+  /** The roster fetch failed. Takes precedence over `loading`, which stays true
+   *  for a failed section (it never joins `loadedSections`). */
+  error?: boolean;
+  onRetry?: () => void;
   onOpenAll: () => void;
   /** The one next move from the founder-only state. Undefined for a viewer who
    *  can't hand out invites — the copy swaps to "ask an officer" rather than the
@@ -225,8 +232,23 @@ export function RosterTable({
         )}
       </div>
 
-      {loading ? (
-        Array.from({ length: SKELETON_ROWS }, (_, i) => <div key={i} className="row-skel" />)
+      {error ? (
+        <SectionError what="the roster" onRetry={onRetry} />
+      ) : loading ? (
+        <div aria-busy="true" aria-label="Loading the roster">
+          {/* Shaped like a row (avatar, name, metric columns) rather than a plain
+              48px band. Six solid bands read as one grey slab — an empty card,
+              which is the exact answer the skeleton exists to avoid giving. */}
+          {Array.from({ length: SKELETON_ROWS }, (_, i) => (
+            <div key={i} className="row-skel">
+              <i className="skel av" />
+              <i className="skel nm" />
+              <i className="skel col" />
+              <i className="skel col" />
+              <i className="skel col" />
+            </div>
+          ))}
+        </div>
       ) : founderOnly ? (
         <div className="rt-empty">
           <p className="t">

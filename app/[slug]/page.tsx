@@ -863,6 +863,10 @@ export default function Home() {
   const [selectedEventForAttendance, setSelectedEventForAttendance] = useState<CalendarEvent | null>(null);
   const [calendarList,   setCalendarList]   = useState<CalendarEvent[]>([]);
   const [calendarLoaded, setCalendarLoaded] = useState(false);
+  // The calendar is fetched by this page, not by ChapterContext, so it has no
+  // entry in `sectionErrors` — it needs its own failure flag to feed This Week's
+  // error state alongside the context-owned sections.
+  const [calendarFailed, setCalendarFailed] = useState(false);
   const [eventTypes,     setEventTypes]     = useState<CalEventType[]>([]);
   // Org roles for the "New task" modal's assignee picker (mirrors the tasks page).
   const [roles,          setRoles]          = useState<RoleOption[]>([]);
@@ -894,7 +898,7 @@ export default function Home() {
   const toast = useToast();
 
   // ── Data state ─────────────────────────────────────────────────────────────
-  const { currentUser, brotherList, setBrotherList, taskList, setTaskList, igTaskList, setIgTaskList, partyList, setPartyList, activityFeed, setActivityFeed, treasuryData, setTransactionList, reimbursementList, isLoading, loadError, loadedSections, mutationError, setMutationError, refreshChapterData, setDisabledFeaturesLocal, setSelfNameLocal, avatarRevision, can } = useChapter();
+  const { currentUser, brotherList, setBrotherList, taskList, setTaskList, igTaskList, setIgTaskList, partyList, setPartyList, activityFeed, setActivityFeed, treasuryData, setTransactionList, reimbursementList, loadError, loadedSections, sectionErrors, mutationError, setMutationError, refreshChapterData, setDisabledFeaturesLocal, setSelfNameLocal, avatarRevision, can } = useChapter();
   const isAdmin = currentUser?.isAdmin ?? false;
   // Granular permission gates for new UI checks. Existing `isAdmin` is kept
   // unchanged for prop-chains into QuickActionsMenu / KPIDrawer / Modal title
@@ -1156,26 +1160,40 @@ export default function Home() {
     );
   }
 
-  // ── Fetch calendar events once for attendance event picker ────────────────
-  useEffect(() => {
-    const controller = new AbortController();
-    orgFetch("/api/calendar", { signal: controller.signal })
-      .then(r => {
-        // 401 here means the fetch raced the session cookie on a hard
-        // navigation. ChapterContext's redirect handler covers the real
-        // unauth case; treating this as an error just spams the console.
-        if (r.status === 401) return null;
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        return r.json();
-      })
-      .then((data: CalendarEvent[] | null) => { if (data) setCalendarList(data); })
-      .catch(err => { if (err.name !== "AbortError") console.error("Failed to load calendar", err); })
+  // ── Fetch calendar events (attendance event picker + This Week) ───────────
+  // A callback rather than an inline effect body so This Week's Retry can re-run
+  // exactly this request — the calendar is page-owned, so refreshChapterData()
+  // does not cover it.
+  const loadCalendar = useCallback(async (signal?: AbortSignal) => {
+    try {
+      const r = await orgFetch("/api/calendar", signal ? { signal } : undefined);
+      // 401 here means the fetch raced the session cookie on a hard
+      // navigation. ChapterContext's redirect handler covers the real
+      // unauth case; treating this as an error just spams the console.
+      if (r.status === 401) { setCalendarFailed(false); return; }
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      setCalendarList((await r.json()) as CalendarEvent[]);
+      setCalendarFailed(false);
+    } catch (err) {
+      if (err instanceof Error && err.name === "AbortError") return;
+      console.error("Failed to load calendar", err);
+      // Without this, the calendar is marked settled below and an empty list
+      // reads as "No events on the calendar yet" — a confident answer assembled
+      // from a request that never came back.
+      setCalendarFailed(true);
+    } finally {
       // Settled either way. The digest needs to know the difference between "no
       // events this week" and "events haven't arrived yet" before it will claim
       // the week is quiet.
-      .finally(() => setCalendarLoaded(true));
-    return () => controller.abort();
+      setCalendarLoaded(true);
+    }
   }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void loadCalendar(controller.signal);
+    return () => controller.abort();
+  }, [loadCalendar]);
 
   // Per-org event types feed the "New Event" picker (labels/colors/workflow gating).
   useEffect(() => {
@@ -1221,6 +1239,28 @@ export default function Home() {
   // 60-member chapter on every cold load.
   const rosterLoaded   = loadedSections.has("brothers");
   const treasuryLoaded = loadedSections.has("treasury");
+  // Per-widget readiness. Sections now commit the moment their own request
+  // returns rather than all together at the end of the fan-out (see
+  // ChapterContext's loadSections), so each widget can wait on exactly the data
+  // it reads and no longer. A widget fed by several sections waits for all of
+  // them: a queue assembled from two of its three inputs is not a short queue,
+  // it is a wrong one.
+  const activityLoaded  = loadedSections.has("activity");
+  const attentionLoaded = rosterLoaded && loadedSections.has("deadlines") && loadedSections.has("reimbursements");
+  // …and the failure counterpart. A failed section never joins `loadedSections`,
+  // so without this its widget would pulse a skeleton forever — an animation
+  // that promises arrival, pointing at data that isn't coming. `retrySections`
+  // is the same all-or-nothing refresh the error banner offers.
+  const rosterFailed    = sectionErrors.has("brothers");
+  const treasuryFailed  = sectionErrors.has("treasury");
+  const activityFailed  = sectionErrors.has("activity");
+  const weekFailed      = sectionErrors.has("deadlines") || calendarFailed;
+  // Not `weekFailed` — the attention queue reads deadlines, never the calendar.
+  const attentionFailed = rosterFailed || sectionErrors.has("deadlines") || sectionErrors.has("reimbursements");
+  const retrySections   = useCallback(() => { void refreshChapterData(); }, [refreshChapterData]);
+  // This Week's retry has to cover the calendar too: it's page-owned, so
+  // refreshChapterData() alone would leave the half that actually failed unfetched.
+  const retryWeek       = useCallback(() => { void refreshChapterData(); void loadCalendar(); }, [refreshChapterData, loadCalendar]);
   // `trend` is bucketed from transaction + party months, so an empty trend means
   // the books have literally no entries. `treasuryData != null` does NOT mean
   // that — a successful fetch on a new org returns {balance: 0, trend: []}, which
@@ -1808,26 +1848,27 @@ export default function Home() {
 
         {/* ── Scrollable body ──────────────────────────────────────────────── */}
         <main ref={mainRef} className="page-ambient flex-1 overflow-y-auto">
-          {/* Loading/error banner — shared by desktop and mobile views */}
-          {(isLoading || loadError || mutationError) && (
+          {/* Error banner — shared by desktop and mobile views.
+              There is deliberately no "Syncing chapter data from the database…"
+              state here any more. It was a page-level announcement of a wait the
+              page was already showing: it appeared above a dashboard of confident
+              zeros, said nothing about WHICH data was missing, and pushed every
+              widget down a row when it left. Each widget now reports its own
+              section (see the `loading` props below), so the only thing left worth
+              interrupting the page for is a failure. */}
+          {(loadError || mutationError) && (
             <div className="mx-auto max-w-[1400px] px-4 pt-6 sm:px-6">
-              <div className={`flex flex-wrap items-center justify-between gap-3 rounded-xl border px-4 py-3 text-[12px] ${
-                loadError || mutationError
-                  ? "border-red-500/25 bg-red-500/10 text-red-200"
-                  : "border-indigo-500/20 bg-indigo-500/10 text-indigo-200"
-              }`}>
-                <span>
-                  {loadError ?? mutationError ?? "Syncing chapter data from the database..."}
-                </span>
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-red-500/25 bg-red-500/10 px-4 py-3 text-[12px] text-red-200">
+                <span>{loadError ?? mutationError}</span>
                 {loadError ? (
                   <button onClick={() => void refreshChapterData()} className="rounded-lg border border-red-300/20 px-2.5 py-1 font-semibold text-red-100 hover:bg-red-500/15">
                     Retry
                   </button>
-                ) : mutationError ? (
+                ) : (
                   <button onClick={() => setMutationError(null)} className="rounded-lg border border-red-300/20 px-2.5 py-1 font-semibold text-red-100 hover:bg-red-500/15">
                     Dismiss
                   </button>
-                ) : null}
+                )}
               </div>
             </div>
           )}
@@ -1916,6 +1957,9 @@ export default function Home() {
                 {feature("operations", "kpi-attendance") && (
                   <Measure
                     label="Attendance"
+                    loading={!rosterLoaded}
+                    error={rosterFailed}
+                    onRetry={retrySections}
                     unset={!hasAttendanceData}
                     value={hasAttendanceData ? avgAttendance.toFixed(1) : "—"}
                     unit="%"
@@ -1930,6 +1974,11 @@ export default function Home() {
                 {feature("operations", "kpi-dues") && (
                   <Measure
                     label={`${v("Dues")} outstanding`}
+                    /* Two sections, per duesKnown above — the roster holds the
+                       balances and the books are the tiebreak. */
+                    loading={!duesKnown}
+                    error={rosterFailed || treasuryFailed}
+                    onRetry={retrySections}
                     unset={!duesKnown || !hasDuesData}
                     unitLeading="$"
                     value={duesKnown && hasDuesData ? outstandingDues.toLocaleString() : "—"}
@@ -1947,6 +1996,9 @@ export default function Home() {
                 {feature("operations", "kpi-gpa") && (
                   <Measure
                     label="Average GPA"
+                    loading={!rosterLoaded}
+                    error={rosterFailed}
+                    onRetry={retrySections}
                     unset={!hasGpaData}
                     value={hasGpaData ? chapterGPA.toFixed(2) : "—"}
                     note={hasGpaData
@@ -1959,6 +2011,9 @@ export default function Home() {
                 {feature("operations", "kpi-service") && (
                   <Measure
                     label={v("Service")}
+                    loading={!rosterLoaded}
+                    error={rosterFailed}
+                    onRetry={retrySections}
                     unset={!hasServiceData}
                     value={hasServiceData ? `${totalServiceHrs}` : "—"}
                     unit="h"
@@ -1976,6 +2031,9 @@ export default function Home() {
                      branch. An empty trend means the books have no entries. */
                   <Measure
                     label={v("Treasury")}
+                    loading={!treasuryLoaded}
+                    error={treasuryFailed}
+                    onRetry={retrySections}
                     unset={!hasTreasuryData}
                     unitLeading="$"
                     value={hasTreasuryData ? liveBalance!.toLocaleString() : "—"}
@@ -2037,6 +2095,9 @@ export default function Home() {
                     onSendReminder={() => setActiveDrawer("dues")}
                     onOpenReimbursements={() => router.push(orgPath("/treasury?tab=Reimbursements"))}
                     hasData={hasAnyData}
+                    loading={!attentionLoaded}
+                    error={attentionFailed}
+                    onRetry={retrySections}
                     tracked={measured}
                     hideButton={isActiveOrgAdmin ? <DashHideButton label="Needs attention" onHide={() => setWidgetHidden("needs-attention", true)} /> : undefined}
                   />
@@ -2061,6 +2122,8 @@ export default function Home() {
                     onInvite={canSettings ? handleInvite : undefined}
                     inviteLabel={inviteLink ? "Copy invite link" : "Create an invite link"}
                     loading={!rosterLoaded}
+                    error={rosterFailed}
+                    onRetry={retrySections}
                     thresholds={THRESHOLDS}
                     selfId={selfId}
                     selfAvatarUrl={currentUser?.avatarUrl}
@@ -2085,6 +2148,11 @@ export default function Home() {
                     today={todayISO}
                     onAll={() => setWidgetDrawer("deadlines")}
                     calendarEmpty={calendarLoaded && calendarList.length === 0}
+                    /* Same two sections the digest waits on — the agenda merges
+                       calendar events with deadlines due this week. */
+                    loading={!digestReady}
+                    error={weekFailed}
+                    onRetry={retryWeek}
                     onAddEvent={canEvents && eventsEnabled ? () => setActiveModal("event") : undefined}
                   />
                   {financeEnabled && (
@@ -2094,6 +2162,8 @@ export default function Home() {
                       trend={liveTrend}
                       openingBalance={treasuryData?.openingBalance ?? null}
                       loading={!treasuryLoaded}
+                      error={treasuryFailed}
+                      onRetry={retrySections}
                       onLogTransaction={canTreasury ? () => router.push(orgPath("/treasury?tab=Transactions")) : undefined}
                     />
                   )}
@@ -2101,7 +2171,7 @@ export default function Home() {
 
                 {/* Remaining rail — Activity */}
                 <div className="area-rail">
-                <ActivityRail entries={activityFeed} onAll={() => setWidgetDrawer("activity")} />
+                <ActivityRail entries={activityFeed} loading={!activityLoaded} error={activityFailed} onRetry={retrySections} onAll={() => setWidgetDrawer("activity")} />
                 </div>
               </div>
             </div>

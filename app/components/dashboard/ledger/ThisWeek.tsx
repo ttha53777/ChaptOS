@@ -1,5 +1,6 @@
 import React from "react";
 import { fmtRange, taskAssigneeLabel, type CalendarEvent, type Task } from "../../../data";
+import { SectionError } from "./SectionError";
 
 const WD = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
 function weekday(iso: string): string {
@@ -35,6 +36,9 @@ export function ThisWeek({
   onAll,
   calendarEmpty = false,
   onAddEvent,
+  loading = false,
+  error = false,
+  onRetry,
 }: {
   events: CalendarEvent[];
   deadlines: Task[];
@@ -49,6 +53,14 @@ export function ThisWeek({
   /** Adds the first event. Undefined without MANAGE_EVENTS (or when the org
    *  doesn't run the events workflow) — the copy stands, the button doesn't. */
   onAddEvent?: () => void;
+  /** The week is assembled from two sections (calendar + deadlines); true until
+   *  BOTH land. An empty agenda is a real answer here, so it must not be given
+   *  while either half is still in flight. */
+  loading?: boolean;
+  /** Either half failed. Takes precedence over `loading`, which stays true for a
+   *  failed section (it never joins `loadedSections`). */
+  error?: boolean;
+  onRetry?: () => void;
 }) {
   const items: WeekItem[] = [
     ...events.map((e): WeekItem => ({
@@ -70,14 +82,32 @@ export function ThisWeek({
   ].sort((a, b) => a.date.localeCompare(b.date));
 
   return (
-    <section id="sec-deadlines" className={`card${onAll ? " cursor-pointer" : ""}`} aria-label="This week" onClick={onAll}>
+    <section
+      id="sec-deadlines"
+      className={`card${onAll && !loading && !error ? " cursor-pointer" : ""}`}
+      aria-label="This week"
+      onClick={loading || error ? undefined : onAll}
+    >
       <div className="card-h">
         <h2>This week</h2>
         <div className="right">
+          {/* The week range is computed from the clock, not fetched — it is
+              already true, so it stays put while the agenda loads. */}
           <span className="sub">{fmtRange(weekStart, weekEnd)}</span>
         </div>
       </div>
-      {items.length === 0 ? (
+      {error ? (
+        <SectionError what="this week's agenda" onRetry={onRetry} />
+      ) : loading ? (
+        <div className="rail-skel rows" aria-busy="true" aria-label="Loading this week">
+          {[0, 1, 2].map(i => (
+            <div key={i} className="skel-row">
+              <i className="skel day" />
+              <i className="skel line" />
+            </div>
+          ))}
+        </div>
+      ) : items.length === 0 ? (
         <div className="rail-empty">
           {calendarEmpty ? "No events on the calendar yet." : "Nothing on the agenda this week."}
           {calendarEmpty && onAddEvent && (
