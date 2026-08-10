@@ -29,6 +29,17 @@ import { EVENT_TYPE_PALETTE, type EventTypeColor, type EventTypeColorId } from "
 /** Which book a category belongs to. Mirrors TransactionType without importing it. */
 export type CategoryKind = "income" | "expense";
 
+/**
+ * Ceiling across BOTH books combined. Generous — an org with 60 named money
+ * streams has a bookkeeping problem, not a product problem — but it bounds the
+ * picker payload.
+ *
+ * Lives here rather than in the service so the settings section can disable its
+ * "Add" affordance at the same number the server refuses at, instead of letting
+ * someone type a category and learn the limit from an error.
+ */
+export const MAX_CATEGORIES_PER_ORG = 60;
+
 export interface CategorySeed {
   kind: CategoryKind;
   /** Stable stored key. Matches Transaction.category. Never renamed. */

@@ -4,6 +4,7 @@ import { ForbiddenError, NotFoundError, ValidationError } from "@/lib/errors";
 import { hasPermission } from "@/lib/permissions";
 import {
   isReservedCategory,
+  MAX_CATEGORIES_PER_ORG,
   nextCategoryColor,
   slugifyCategory,
   type CategoryKind,
@@ -12,10 +13,6 @@ import type {
   CreateTransactionCategoryInput,
   UpdateTransactionCategoryInput,
 } from "@/lib/validation/transaction-categories";
-
-// Both books combined. Generous — an org with 60 named money streams has a
-// bookkeeping problem, not a product problem — but it bounds the picker payload.
-const MAX_CATEGORIES_PER_ORG = 60;
 
 export interface TransactionCategoryDTO {
   id: number;
