@@ -447,6 +447,74 @@
 .dash .rt-empty .a:hover { color: #fff; background: var(--vio-deep); border-color: var(--vio-deep); }
 .dash .rt-empty .a:disabled { opacity: .5; cursor: default; }
 
+/* ── Ballot (BallotCard) ─────────────────────────────────────────────────────
+   The one rail card that is usually absent: it renders only while an open poll
+   awaits this viewer's vote, and retires itself a few seconds after they cast.
+   Because it comes and goes under the reader, both transitions are explicit —
+   it fades in rather than popping, and folds its own height away on exit so
+   This Week slides up instead of jumping. Borrows the ballot vocabulary of the
+   /tasks vote modal (.db-poll in tasks-ledger.css) at rail scale: same violet
+   radio, same bar-and-percent tally, tighter type. */
+.dash .ballot { animation: ballot-in .34s ease both; }
+@keyframes ballot-in { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: none; } }
+.dash .ballot.leaving { opacity: 0; transform: translateY(-6px);
+  overflow: hidden; margin-bottom: calc(var(--dash-section-gap) * -1);
+  transition: opacity .3s ease, transform .3s ease, max-height .46s ease, margin-bottom .46s ease; }
+
+.dash .bl-body { padding: 13px 18px 16px; transition: opacity .2s ease; }
+.dash .bl-body.swapping { opacity: 0; }
+.dash .bl-q { font-family: var(--serif); font-style: italic; font-size: 15.5px; line-height: 1.35; color: var(--ink); }
+.dash .bl-sub { font-family: var(--mono); font-size: 9px; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--faint); margin-top: 5px; display: flex; align-items: center; }
+.dash .bl-sub.live { color: var(--vio); }
+.dash .bl-live-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--vio); margin-right: 6px;
+  flex-shrink: 0; animation: bl-pulse 1.6s ease-in-out infinite; }
+@keyframes bl-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
+
+.dash .bl-options { display: flex; flex-direction: column; margin-top: 10px; }
+.dash .bl-line { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
+  padding: 9px 2px; border: none; border-bottom: 1px solid var(--line-soft); background: none;
+  color: inherit; font: inherit; cursor: pointer; }
+.dash .bl-line:last-child { border-bottom: none; }
+.dash .bl-radio { flex-shrink: 0; width: 15px; height: 15px; border-radius: 50%; border: 1.5px solid var(--faint);
+  display: grid; place-items: center; transition: border-color .14s; }
+.dash .bl-line:hover .bl-radio { border-color: var(--vio); }
+.dash .bl-radio-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--vio);
+  transform: scale(0); transition: transform .16s; }
+.dash .bl-line.picked .bl-radio { border-color: var(--vio); }
+.dash .bl-line.picked .bl-radio-dot { transform: scale(1); }
+.dash .bl-label { flex: 1; min-width: 0; font-size: 12.5px; color: var(--ink-soft); }
+.dash .bl-line.picked .bl-label { color: var(--ink); }
+
+.dash .bl-cast { margin-top: 13px; width: 100%; font-family: var(--mono); font-size: 10px; letter-spacing: .12em;
+  text-transform: uppercase; padding: 9px; border-radius: 8px; border: 1px solid var(--vio-bg);
+  background: var(--vio-bg); color: var(--vio); cursor: not-allowed; opacity: .5; transition: opacity .15s, border-color .14s; }
+.dash .bl-cast.ready { cursor: pointer; opacity: 1; }
+.dash .bl-cast.ready:hover { border-color: var(--vio); }
+.dash .bl-error { margin-top: 9px; font-size: 11.5px; color: var(--rose); }
+
+.dash .bl-results { margin-top: 10px; display: flex; flex-direction: column; gap: 10px; }
+.dash .bl-result-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.dash .bl-result.mine .bl-label { color: var(--ink); }
+.dash .bl-you { font-family: var(--mono); font-size: 8px; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--vio); background: var(--vio-bg); border-radius: 3px; padding: 2px 5px; margin-left: 6px; vertical-align: 1px; }
+.dash .bl-pct { font-family: var(--mono); font-size: 10.5px; color: var(--muted); flex-shrink: 0; }
+.dash .bl-bar { display: block; margin-top: 5px; height: 2px; background: var(--line); border-radius: 2px; overflow: hidden; }
+.dash .bl-bar span { display: block; height: 100%; background: var(--faint);
+  transition: width .5s cubic-bezier(.4,0,.2,1); }
+.dash .bl-result.mine .bl-bar span { background: var(--vio); }
+
+/* Depleting hairline — says "this is about to go" before it goes. Deliberately
+   not pausable: clicking Cast leaves the pointer on the card, so a hover-pause
+   would strand the results on screen for every mouse user. */
+/* Full-bleed to the card edges (cancelling .bl-body's padding) so it reads as
+   the card's own progress rather than a fourth result bar. */
+.dash .bl-countdown { display: block; height: 1px; background: var(--line-soft);
+  margin: 16px -18px -16px; }
+.dash .bl-countdown span { display: block; height: 100%; background: var(--vio); opacity: .4;
+  transform-origin: left; animation: bl-countdown linear forwards; }
+@keyframes bl-countdown { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+
 /* rail cards */
 .dash .week-item { display: flex; gap: 13px; padding: 10px 18px; border-bottom: 1px solid var(--line-soft); align-items: baseline; }
 .dash .week-item:last-child { border-bottom: none; }

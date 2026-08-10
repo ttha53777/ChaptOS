@@ -8,7 +8,7 @@ const DrawerTrendChart = dynamic(() => import("../components/dashboard/DrawerTre
   loading: () => <div className="h-[110px] w-full rounded-lg bg-white/[0.04] animate-pulse" />,
 });
 import {
-  Brother, CalendarEvent, CalEventType, InstagramType, ActivityEntry, PartyEvent, Task, InstagramTask, Transaction,
+  Brother, CalendarEvent, CalEventType, InstagramType, ActivityEntry, PartyEvent, Task, InstagramTask, Transaction, Poll,
   taskAssigneeLabel,
   getBrotherStatus, roleTitle, calcHealthScore, deriveNeedsAttention, avg, fmt$, fmtDate, fmtRange, isoWeekBounds,
 } from "../data";
@@ -52,6 +52,7 @@ import { LedgerStrip, Measure } from "../components/dashboard/ledger/LedgerStrip
 import { NeedsAttention } from "../components/dashboard/ledger/NeedsAttention";
 import { RosterTable } from "../components/dashboard/ledger/RosterTable";
 import { ThisWeek } from "../components/dashboard/ledger/ThisWeek";
+import { BallotCard } from "../components/dashboard/ledger/BallotCard";
 import { TreasuryRail } from "../components/dashboard/ledger/TreasuryRail";
 import { ActivityRail } from "../components/dashboard/ledger/ActivityRail";
 import { DashHideButton } from "../components/dashboard/ledger/DashHideButton";
@@ -982,6 +983,10 @@ export default function Home() {
   // Gates the "Add your first event" move on the empty This Week card — an org
   // that doesn't run the events workflow has no calendar to add to.
   const eventsEnabled  = isNavVisible("Programming", currentUser?.org?.enabledWorkflows ?? []);
+  // Polls are part of the tasks workflow, so an org that doesn't run it has no
+  // ballots to answer. Folded together with the widget's own toggle so a hidden
+  // ballot card never even asks the server for polls.
+  const ballotEnabled  = isNavVisible("Tasks", currentUser?.org?.enabledWorkflows ?? []) && feature("operations", "ballot");
   // The `kpi-treasury` toggle narrowly means "the balance measure in the ledger
   // strip" (see WORKFLOW_FEATURES), so it gates the tile only — hiding a strip
   // tile must not also remove the full Treasury rail card.
@@ -1085,6 +1090,42 @@ export default function Home() {
       .then(data => { if (!cancelled) setCustomMetricSnapshots(data); })
       .catch(() => { /* non-fatal — dashboard renders without custom metrics */ });
     return () => { cancelled = true; };
+  }, []);
+
+  // ── Ballot (open polls awaiting my vote) ──────────────────────────────────
+  // Scoped server-side to polls this member may actually vote on, so the answer
+  // is usually an empty array and the card stays absent. Polls they've already
+  // answered are dropped on arrival: the ballot is an errand, and a finished
+  // errand belongs on /tasks, not on the dashboard. Deliberately NOT bootstrapped
+  // through ChapterContext — that would fetch every poll in the org (closed ones,
+  // other people's, manager rosters) to render one question.
+  const [ballotPolls, setBallotPolls] = useState<Poll[]>([]);
+  useEffect(() => {
+    if (!ballotEnabled) { setBallotPolls([]); return; }
+    let cancelled = false;
+    requestJson<Poll[]>("/api/polls?assignee=me&status=open")
+      .then(rows => { if (!cancelled) setBallotPolls(rows.filter(p => p.myVoteOptionId == null)); })
+      .catch(() => { /* non-fatal — the card simply stays hidden */ });
+    return () => { cancelled = true; };
+  }, [ballotEnabled]);
+
+  // Cast from the rail. Returns the unsealed poll so the card can phase straight
+  // into the tally; errors propagate so it can hold the ballot and say so.
+  const castBallotVote = useCallback(async (pollId: number, optionId: number): Promise<Poll> => {
+    const saved = await requestJson<Poll>(`/api/polls/${pollId}/vote`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ optionId }),
+    });
+    setBallotPolls(list => list.map(p => (p.id === saved.id ? saved : p)));
+    return saved;
+  }, []);
+
+  // The card is done with this poll (voted and read). Dropping it here is what
+  // makes the widget disappear; a reload agrees, since a voted poll is filtered
+  // out on arrival.
+  const dismissBallot = useCallback((pollId: number) => {
+    setBallotPolls(list => list.filter(p => p.id !== pollId));
   }, []);
 
   // ── Scroll spy ────────────────────────────────────────────────────────────
@@ -2140,6 +2181,18 @@ export default function Home() {
               <div className="col rail col-rail">
                 {/* Priority pair — lifts above the Roster on tablet */}
                 <div className="area-priority">
+                  {/* Above This Week on purpose: a ballot is the only rail item
+                      that expires and asks for an action, so it outranks the
+                      agenda while it exists — and it renders nothing at all the
+                      rest of the time. */}
+                  {ballotEnabled && (
+                    <BallotCard
+                      polls={ballotPolls}
+                      today={todayISO}
+                      onVote={castBallotVote}
+                      onDismiss={dismissBallot}
+                    />
+                  )}
                   <ThisWeek
                     events={weeklyDigest.eventsThisWeek}
                     deadlines={weeklyDigest.deadlinesDue}
