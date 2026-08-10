@@ -66,7 +66,14 @@ export async function listVisibleBrothers(ctx: RequestContext) {
   // ListRosterOptions). This endpoint is fetched on EVERY page for EVERY user
   // via ChapterContext's ALWAYS_SECTIONS, so anything returned here is shipped to
   // every member. Ask for `fields: "contact"` only where email is actually read.
-  const roster = await ctx.db.member.listRoster();
+  // `defs` reads OrganizationConfig and doesn't depend on the roster at all, so
+  // it runs alongside it rather than after — each ctx.db call is its own
+  // round-trip to a remote pooled Postgres, and this endpoint is on the
+  // ALWAYS_SECTIONS hot path, so shaving a sequential hop here is worth it.
+  const [roster, defs] = await Promise.all([
+    ctx.db.member.listRoster(),
+    getFieldDefs(ctx),
+  ]);
   const brotherIds = roster.map(b => b.id);
 
   // Scope role assignments to the active org. A multi-org member has BrotherRole
@@ -74,6 +81,7 @@ export async function listVisibleBrothers(ctx: RequestContext) {
   // roles leak into this org's UI as chips that can't be revoked here (the revoke
   // path is org-scoped, so deleting a foreign-org role 404s / no-ops and the chip
   // reappears on reload). ctx.db injects organizationId: ctx.orgId automatically.
+  // Depends on brotherIds, so it can't join the Promise.all above.
   const brotherRoles = await ctx.db.brotherRole.listWithRole(brotherIds);
   const rolesByBrotherId = new Map<number, { id: number; name: string; color: string | null; rank: number }[]>();
   for (const br of brotherRoles) {
@@ -81,9 +89,6 @@ export async function listVisibleBrothers(ctx: RequestContext) {
     list.push(br.role);
     rolesByBrotherId.set(br.brotherId, list);
   }
-
-  // Fetch field definitions once for the whole list — avoids N+1.
-  const defs = await getFieldDefs(ctx);
 
   return roster.map(b => ({
     id:           b.id,
