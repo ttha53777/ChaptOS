@@ -48,11 +48,16 @@ export function Card({ children, className = "", id, onClick, style }: {
 /** Selector matching every focusable element inside the modal. */
 const FOCUSABLE = 'a[href], area[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), iframe, [tabindex]:not([tabindex="-1"])';
 
-export function Modal({ title, onClose, children, tone = "slate", dismissable = true, maxWidthClass = "max-w-md", hideHeader = false }: {
+export function Modal({ title, ariaLabel, onClose, children, tone = "slate", dismissable = true, maxWidthClass = "max-w-md", hideHeader = false }: {
   /** Header text. When omitted/empty the header bar is dropped entirely (body-only
    *  modal) — but the ✕ button rides along in the header, so a dismissable modal
    *  with no title still gets a minimal header bar carrying just the close button. */
   title?: string;
+  /** Accessible name for a modal whose body owns its own heading (`hideHeader`, or
+   *  no `title`). Without it such a dialog is announced unnamed — which matters most
+   *  for non-dismissable ones, where the focus trap gives no way out. Ignored when
+   *  a rendered `title` is already providing the name. */
+  ariaLabel?: string;
   onClose: () => void;
   children: React.ReactNode;
   /** Panel palette. "slate" (default) is the operations theme; "dusk" matches the
@@ -75,6 +80,9 @@ export function Modal({ title, onClose, children, tone = "slate", dismissable = 
   const bodyRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
   const dusk = tone === "dusk";
+  // The <h3 id={titleId}> only renders when the header bar does, so pointing
+  // aria-labelledby at it otherwise would dangle. Fall back to aria-label.
+  const titleRendered = !hideHeader && !!title;
 
   // Callers pass an inline arrow for onClose, so its identity changes on every
   // parent render. Read it through a ref: an effect that depended on it would
@@ -148,7 +156,8 @@ export function Modal({ title, onClose, children, tone = "slate", dismissable = 
         ref={panelRef}
         role="dialog"
         aria-modal="true"
-        aria-labelledby={title ? titleId : undefined}
+        aria-labelledby={titleRendered ? titleId : undefined}
+        aria-label={titleRendered ? undefined : (ariaLabel ?? title)}
         tabIndex={-1}
         className={`card-premium-elevated relative w-full ${maxWidthClass} rounded-2xl border outline-none ${
           dusk ? "border-[rgba(236,231,221,0.1)] bg-[#0f0d0a]" : "border-white/[0.08] bg-[#10121a]"
