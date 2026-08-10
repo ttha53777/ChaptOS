@@ -1,0 +1,1671 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chapter Sync — The Late Member</title>
+
+<!--
+  CHAPTER SYNC — "THE LATE MEMBER"
+  A character-animation cut of the loading state. Fourth in the lineage:
+
+    v1  Chapter Sync Loading Mock.html            structural, humorless, correct
+    v2  Chapter Sync Loading Mock v2 — Funny.html four voices, one hard rule
+    v3  Chapter Sync — Group Chat v3.html         the sources as coworkers
+    v4  this file                                 the sources as runners
+
+  ══ THE RULE THIS FILE INHERITS ════════════════════════════════════════
+
+  v2's header states it and it still governs:
+
+      Every element on the loading screen must be about data we are
+      actually reading.
+
+  A cartoon is the most likely thing to break that rule, because a cartoon
+  wants to be about itself. Two runners carrying a generic folder stack and a
+  generic cashbox are decoration — funny once, invisible by view ten,
+  irritating by view forty, because they cost the user the same 3 seconds
+  every time and never tell them anything.
+
+  So the runners are not a METAPHOR for the sync stages. They ARE the
+  requests:
+
+      Runner A  ≡  GET /api/brothers      (roster + attendance)
+      Runner B  ≡  GET /api/treasury      (balance + dues)
+
+  Every visible event has a cause in the network tab:
+
+      B enters late, from above     treasury fires after roster — the
+                                    stairwell IS the request waterfall
+      cargo stamps a number         that response landed; the number is real
+      a runner surges ahead         his promise resolved
+      a runner waits at the door    his source finished first — you can SEE
+                                    which one is slow, which a spinner
+                                    cannot tell you
+      a runner drops the box        that fetch rejected; the error names it
+      door shuts                    last promise resolved
+
+  Nothing on screen is on a timer except the 2.2s intro, and the intro is
+  fixed-length precisely so it can never be mistaken for progress.
+
+  ══ THE HONESTY PROBLEM IN BEAT 4, AND THE FIX ════════════════════════
+
+  The script calls Beat 4 "elastic — loops for however long the sync takes."
+  The trap: if the runner keeps closing distance on a visible door, the
+  courtyard has become a progress bar, and one that lies — it implies a
+  known remaining duration we do not have.
+
+  Fix: DURING BEAT 4 THERE IS NO DOOR ON SCREEN. The camera tracks the
+  runners, the world scrolls past, and the frame makes no claim about how
+  far is left. The door is placed only at the moment the last promise
+  resolves, and scrolls in from the right.
+
+  This is the one place I deviate from the script. Beat 5 is specified at
+  0.4s, which is only achievable if the door is already framed — and a
+  framed door is a distance-remaining claim. I pay ~1.4s instead and keep
+  the frame honest. If someone later wants the 0.4s back, the cost is
+  showing a door at a fixed distance from the start, and it will be read as
+  a progress bar within a week of shipping.
+
+  ══ SUBSTITUTIONS FROM THE ASSET LIST ═════════════════════════════════
+
+  - Sprite sheets → jointed inline SVG. Each figure is a nest of <g> pivots
+    (hip → knee → ankle, shoulder → elbow) with the gait as CSS keyframes on
+    the joints. Reasons: no binary assets in a double-click mock; the cycle
+    stays smooth at any duration, so the fatigue variant is a var() change
+    rather than a second sheet; and cargo recolors per source for free.
+  - Sound is out of scope for a static mock. The door thud is the only cue
+    worth building, and only if it is off by default — see the script.
+  - Alternate skins are noted as v2 work in the script and are not here.
+
+  ══ ASSUMPTIONS, FLAGGED NOT SMUGGLED ═════════════════════════════════
+
+  - Counts are plausible-not-real (58 members echoes the ~59-member stress
+    test; the treasury figures are invented). Swap for live values.
+  - Two runners is the cap because two is the number of blocking fetches on
+    the dashboard's critical path today. If a third ever blocks, the honest
+    move is a third runner, not a faster one — and if a fourth appears, this
+    whole direction is wrong and v3's group chat scales better.
+  - The "which source is slow" readout assumes we time each request
+    separately, which we do.
+
+  ══ WHAT TO LOOK AT ═══════════════════════════════════════════════════
+
+  Use the scenario rail under the stage. The three fallbacks are not
+  described in prose here — they are running builds, because the script
+  calls them required, not optional, and a fallback you cannot click is a
+  fallback nobody has checked.
+
+  Palette is the shipped warm dusk (create-flow.css === dashboard-ledger
+  dusk). No new colors were invented for this mock.
+-->
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,400;1,9..144,500&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+<style>
+/* ═══ Tokens — shipped warm dusk ═══════════════════════════════════════ */
+:root {
+  --paper:    #0f0d0a;
+  --paper-2:  #14120e;
+  --paper-3:  #1b1813;
+  --card:     #161310;
+  --card-2:   #1b1813;
+  --ink:      #ece7dd;
+  --ink-72:   rgba(236,231,221,.72);
+  --ink-55:   rgba(236,231,221,.55);
+  --ink-40:   rgba(236,231,221,.40);
+  --ink-28:   rgba(236,231,221,.28);
+  --ink-14:   rgba(236,231,221,.14);
+  --ink-07:   rgba(236,231,221,.07);
+  --muted:    #958d7c;
+  --faint:    #6b6354;
+  --line:     rgba(236,231,221,.11);
+  --line-soft:rgba(236,231,221,.06);
+  --vio:      #a78bfa;
+  --vio-deep: #7c3aed;
+  --vio-soft: rgba(167,139,250,.12);
+  --vio-line: rgba(167,139,250,.32);
+  --gold:     #ddb36a;
+  --gold-soft:rgba(221,179,106,.11);
+  --rose:     #d98ba3;
+  --ok:       #7fb08a;
+  --bad:      #d98b7a;
+  --serif: "Fraunces", Georgia, serif;
+  --sans:  "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --mono:  "Geist Mono", ui-monospace, Menlo, monospace;
+  --ease:  cubic-bezier(.16,1,.3,1);
+  --ease-io: cubic-bezier(.4,0,.2,1);
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0; background: var(--paper); color: var(--ink);
+  font-family: var(--sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+img, svg { display: block; max-width: 100%; }
+button { font: inherit; background: none; border: 0; color: inherit; cursor: pointer; }
+/* horizontal clipping on body only — root overflow-x would kill position:sticky */
+body { overflow-x: clip; }
+
+/* ═══ Document shell ═══════════════════════════════════════════════════ */
+.wrap { max-width: 1180px; margin: 0 auto; padding: 0 26px 120px; }
+
+.doc { padding: 68px 0 34px; max-width: 760px; }
+.eyebrow {
+  font-family: var(--mono); font-size: 10.5px; letter-spacing: .16em;
+  text-transform: uppercase; color: var(--faint); margin: 0 0 18px;
+}
+.doc h1 {
+  font-family: var(--serif); font-weight: 500;
+  font-size: clamp(30px, 4.2vw, 46px); line-height: 1.06;
+  letter-spacing: -.015em; margin: 0 0 6px;
+}
+.doc h1 em { font-style: italic; color: var(--gold); }
+.dek {
+  font-family: var(--serif); font-style: italic; font-size: 16.5px;
+  line-height: 1.5; color: var(--ink-55); margin: 0 0 26px;
+}
+.doc p { font-size: 14.5px; line-height: 1.68; color: var(--ink-72); margin: 0 0 15px; }
+.doc p strong { color: var(--ink); font-weight: 500; }
+.doc p code {
+  font-family: var(--mono); font-size: 12.5px; color: var(--gold);
+  background: var(--gold-soft); padding: 1px 5px; border-radius: 4px;
+}
+
+/* ═══ Stage ════════════════════════════════════════════════════════════ */
+.stagewrap { margin: 8px 0 0; }
+
+.stage {
+  position: relative; width: 100%; aspect-ratio: 1200 / 620;
+  min-height: 320px;
+  border: 1px solid var(--line); border-radius: 14px;
+  overflow: hidden; background: #0b0a08;
+  box-shadow: 0 40px 90px -50px rgba(0,0,0,.95);
+  contain: paint;
+}
+#scene { position: absolute; inset: 0; width: 100%; height: 100%; }
+
+/* the vignette sells the "we are looking through a window" framing and
+   keeps the HUD legible over a busy foreground */
+.stage::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background:
+    radial-gradient(122% 92% at 50% 42%, transparent 46%, rgba(8,7,5,.5) 100%),
+    linear-gradient(to top, rgba(8,7,5,.58) 0%, transparent 25%);
+  z-index: 3;
+}
+
+/* ── HUD: the only part of the frame that carries literal information ── */
+.hud {
+  position: absolute; left: 22px; bottom: 20px; z-index: 5;
+  font-family: var(--mono); font-size: 11.5px; line-height: 1;
+  pointer-events: none;
+  transition: opacity 320ms var(--ease);
+}
+.hud__title {
+  font-family: var(--sans); font-size: 11px; font-weight: 500;
+  letter-spacing: .13em; text-transform: uppercase;
+  color: var(--ink-40); margin-bottom: 13px;
+}
+.hud__title b { color: var(--ink-72); font-weight: 500; }
+.src {
+  display: grid; grid-template-columns: 9px 74px minmax(0, 1fr);
+  align-items: center; gap: 0 11px; margin-bottom: 9px;
+  color: var(--ink-40);
+  transition: color 300ms var(--ease);
+}
+.src__dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: currentColor; opacity: .5;
+  transition: opacity 300ms, background 300ms, box-shadow 300ms;
+}
+.src__name { letter-spacing: .05em; }
+.src__val { color: var(--ink-28); transition: color 320ms var(--ease); }
+.src[data-state="pending"] .src__dot { animation: pulse 1.15s var(--ease-io) infinite; }
+.src[data-state="done"] { color: var(--ink-72); }
+.src[data-state="done"] .src__dot { background: var(--ok); opacity: 1; box-shadow: 0 0 10px rgba(127,176,138,.5); }
+.src[data-state="done"] .src__val { color: var(--ink); }
+.src[data-state="failed"] { color: var(--bad); }
+.src[data-state="failed"] .src__dot { background: var(--bad); opacity: 1; animation: none; }
+.src[data-state="failed"] .src__val { color: var(--bad); }
+@keyframes pulse { 0%,100% { opacity: .25 } 50% { opacity: 1 } }
+
+/* the "this is taking a bit" tell — text, because at 5s the user has
+   stopped being charmed and wants a reason */
+.hud__slow {
+  margin-top: 14px; font-size: 11px; color: var(--gold);
+  opacity: 0; transform: translateY(4px);
+  transition: opacity 420ms var(--ease), transform 420ms var(--ease);
+}
+.hud__slow.on { opacity: .9; transform: none; }
+
+/* ── Failure card ── */
+.errcard {
+  position: absolute; z-index: 6; left: 50%; top: 40%;
+  transform: translate(-50%, -46%) scale(.97);
+  width: min(430px, 78%);
+  background: rgba(22,19,16,.96); border: 1px solid rgba(217,139,122,.34);
+  border-radius: 12px; padding: 20px 22px 19px;
+  backdrop-filter: blur(14px);
+  box-shadow: 0 30px 70px -30px rgba(0,0,0,.95);
+  opacity: 0; pointer-events: none;
+  transition: opacity 380ms var(--ease), transform 380ms var(--ease);
+}
+.errcard.on { opacity: 1; transform: translate(-50%, -50%) scale(1); pointer-events: auto; }
+.errcard__tag {
+  font-family: var(--mono); font-size: 10px; letter-spacing: .14em;
+  text-transform: uppercase; color: var(--bad); margin-bottom: 9px;
+}
+.errcard__h {
+  font-family: var(--serif); font-size: 18px; font-weight: 500;
+  margin: 0 0 7px; letter-spacing: -.01em;
+}
+.errcard__p { font-size: 13px; line-height: 1.55; color: var(--ink-55); margin: 0 0 15px; }
+.errcard__p code { font-family: var(--mono); font-size: 11.5px; color: var(--ink-72); }
+.errcard__row { display: flex; gap: 8px; }
+.errcard__row button {
+  font-family: var(--mono); font-size: 11px; letter-spacing: .05em;
+  padding: 8px 14px; border-radius: 7px; border: 1px solid var(--line);
+  color: var(--ink-72); transition: background 200ms, color 200ms, border-color 200ms;
+}
+.errcard__row button:hover { background: var(--ink-07); color: var(--ink); }
+.errcard__row button.pri { background: var(--vio-soft); border-color: var(--vio-line); color: var(--vio); }
+
+/* ── The cut: dashboard behind the door ── */
+.handoff {
+  position: absolute; inset: 0; z-index: 7; background: var(--paper);
+  opacity: 0; pointer-events: none;
+  transition: opacity 260ms linear;
+  padding: 26px 28px;
+}
+.handoff.on { opacity: 1; }
+.ho-top { display: flex; align-items: baseline; gap: 12px; margin-bottom: 20px; }
+.ho-h { font-family: var(--serif); font-size: 21px; font-weight: 500; }
+.ho-sub { font-family: var(--mono); font-size: 10.5px; color: var(--faint); letter-spacing: .07em; }
+.ho-grid { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 12px; }
+.ho-card {
+  border: 1px solid var(--line); border-radius: 10px; padding: 15px 16px;
+  background: var(--card);
+}
+.ho-k { font-family: var(--mono); font-size: 9.5px; letter-spacing: .13em; text-transform: uppercase; color: var(--faint); margin-bottom: 10px; }
+.ho-v { font-family: var(--serif); font-size: 26px; font-weight: 500; letter-spacing: -.02em; }
+.ho-v span { font-size: 13px; color: var(--ink-40); margin-left: 5px; font-family: var(--sans); }
+
+/* ═══ Reduced-motion branch ════════════════════════════════════════════
+   Built first, per the script's build notes. This is NOT the animated
+   scene with the animations removed — that leaves a frozen cartoon and a
+   spinner, which is worse than either. It is the same instrument with the
+   theatre taken out: one still frame of the courtyard, dimmed to
+   background, and the two sources as rows that fill in. Every fact the
+   animated version carries is here; only the performance is gone.        */
+.stage.is-still #scene { filter: saturate(.4) brightness(.66) blur(1.1px); }
+.stage.is-still .actors { opacity: .7; }
+/* the courtyard is a photograph here — freeze the gait rather than
+   letting a "reduced motion" frame quietly keep cycling limbs */
+.stage.is-still .fig, .stage.is-still .fig * { animation-play-state: paused !important; }
+.still {
+  position: absolute; inset: 0; z-index: 5; display: none;
+  align-items: center; justify-content: center;
+}
+.stage.is-still .still { display: flex; }
+.stage.is-still .hud { opacity: 0 !important; }
+.stage.is-still::after { background: rgba(9,8,6,.34); }
+.still__inner {
+  width: min(430px, 86%);
+  background: rgba(20,18,14,.93); border: 1px solid var(--line);
+  border-radius: 14px; padding: 26px 28px 24px;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 30px 70px -34px rgba(0,0,0,.95);
+}
+.still__h {
+  font-family: var(--serif); font-size: 19px; font-weight: 500;
+  text-align: center; margin: 0 0 4px;
+}
+.still__sub {
+  font-family: var(--mono); font-size: 10.5px; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--faint); text-align: center; margin-bottom: 22px;
+}
+.still__bar {
+  height: 3px; border-radius: 2px; background: var(--ink-14);
+  overflow: hidden; margin-bottom: 20px;
+}
+.still__fill {
+  height: 100%; width: 0%; background: var(--vio);
+  transition: width 420ms var(--ease-io);
+}
+.still__rows { display: grid; gap: 10px; }
+.still__row {
+  display: grid; grid-template-columns: 9px minmax(0,1fr) auto;
+  align-items: center; gap: 0 11px;
+  font-family: var(--mono); font-size: 11.5px; color: var(--ink-40);
+}
+.still__row[data-state="done"] { color: var(--ink-72); }
+.still__row[data-state="done"] .src__dot { background: var(--ok); opacity: 1; }
+.still__row[data-state="failed"] { color: var(--bad); }
+.still__row[data-state="failed"] .src__dot { background: var(--bad); opacity: 1; }
+.still__row[data-state="pending"] .src__dot { animation: pulse 1.15s var(--ease-io) infinite; }
+.still__row b { font-weight: 400; color: inherit; }
+
+/* ═══ Scenario rail ════════════════════════════════════════════════════ */
+.rail {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
+  margin-top: 16px;
+}
+.rail button {
+  font-family: var(--mono); font-size: 10.5px; letter-spacing: .04em;
+  color: var(--muted); padding: 8px 13px; border-radius: 999px;
+  border: 1px solid transparent;
+  transition: color 200ms, background 200ms, border-color 200ms;
+  white-space: nowrap;
+}
+.rail button:hover { color: var(--ink); background: var(--ink-07); }
+.rail button.on { background: var(--vio-soft); color: var(--vio); border-color: var(--vio-line); }
+.rail .sep { width: 1px; height: 18px; background: var(--line); margin: 0 7px; }
+.rail .ghost { color: var(--faint); }
+.rail .ghost.on { background: var(--gold-soft); color: var(--gold); border-color: rgba(221,179,106,.3); }
+
+/* live state readout — makes it possible to tell what caused what */
+.readout {
+  margin-top: 12px; display: flex; flex-wrap: wrap; gap: 0 26px;
+  font-family: var(--mono); font-size: 10.5px; color: var(--faint);
+  letter-spacing: .04em;
+}
+.readout b { color: var(--ink-55); font-weight: 400; }
+.readout .beatname { color: var(--vio); }
+
+/* ═══ Notes ════════════════════════════════════════════════════════════ */
+.notes { margin-top: 76px; display: grid; grid-template-columns: minmax(0,1fr); gap: 54px; }
+.note h2 {
+  font-family: var(--serif); font-weight: 500; font-size: 22px;
+  letter-spacing: -.01em; margin: 0 0 6px;
+}
+.note > p.lede {
+  font-family: var(--serif); font-style: italic; font-size: 14px;
+  color: var(--ink-40); margin: 0 0 22px; max-width: 620px;
+}
+
+table.beats { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+table.beats th {
+  text-align: left; font-family: var(--mono); font-size: 9.5px;
+  letter-spacing: .14em; text-transform: uppercase; color: var(--faint);
+  font-weight: 400; padding: 0 14px 10px 0; border-bottom: 1px solid var(--line);
+}
+table.beats td {
+  padding: 13px 14px 13px 0; border-bottom: 1px solid var(--line-soft);
+  vertical-align: top; color: var(--ink-72); line-height: 1.55;
+}
+table.beats td:first-child {
+  font-family: var(--mono); font-size: 11.5px; color: var(--ink);
+  white-space: nowrap; width: 1%;
+}
+table.beats td:nth-child(2) {
+  font-family: var(--mono); font-size: 11px; color: var(--gold);
+  white-space: nowrap; width: 1%;
+}
+table.beats code { font-family: var(--mono); font-size: 12px; color: var(--vio); }
+
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(270px,100%), 1fr)); gap: 14px; }
+.card {
+  border: 1px solid var(--line); border-radius: 12px; padding: 20px 21px;
+  background: var(--card);
+}
+.card h3 {
+  font-family: var(--mono); font-size: 10px; letter-spacing: .14em;
+  text-transform: uppercase; color: var(--gold); font-weight: 400; margin: 0 0 11px;
+}
+.card p { font-size: 13.5px; line-height: 1.62; color: var(--ink-72); margin: 0 0 10px; }
+.card p:last-child { margin-bottom: 0; }
+.card p b { color: var(--ink); font-weight: 500; }
+.card.warn { border-color: rgba(221,179,106,.26); background: rgba(221,179,106,.035); }
+
+.kill { list-style: none; padding: 0; margin: 0; display: grid; gap: 13px; }
+.kill li {
+  display: grid; grid-template-columns: 62px minmax(0,1fr); gap: 0 16px;
+  font-size: 13.5px; line-height: 1.6; color: var(--ink-72);
+  padding-bottom: 13px; border-bottom: 1px solid var(--line-soft);
+}
+.kill li span {
+  font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--rose); padding-top: 3px;
+}
+.kill li span.keep { color: var(--ok); }
+.kill li b { color: var(--ink); font-weight: 500; }
+
+/* ═══ RUN CYCLE ════════════════════════════════════════════════════════
+   The gait lives entirely in CSS so the JS only ever owns world position.
+   Each figure is authored around a hip origin at (0,0); every joint is a
+   <g translate> wrapper with the rotating <g> inside it at origin 0 0, so
+   transform-origin is never in question regardless of parent transforms.
+
+   --gait is the cycle duration. Fatigue slows it and shortens the stride
+   via --stride; that is the entire "fatigue variant" — no second sheet.  */
+
+.fig { --gait: .52s; --stride: 1; }
+.fig .limb { transform-box: fill-box; transform-origin: 0 0; }
+
+@keyframes thigh {
+  0%   { transform: rotate(calc(30deg * var(--stride))); }
+  25%  { transform: rotate(calc(4deg  * var(--stride))); }
+  50%  { transform: rotate(calc(-27deg * var(--stride))); }
+  75%  { transform: rotate(calc(-4deg * var(--stride))); }
+  100% { transform: rotate(calc(30deg * var(--stride))); }
+}
+@keyframes knee {
+  0%   { transform: rotate(16deg); }
+  14%  { transform: rotate(3deg); }
+  38%  { transform: rotate(14deg); }
+  56%  { transform: rotate(66deg); }
+  76%  { transform: rotate(82deg); }
+  100% { transform: rotate(16deg); }
+}
+@keyframes shoulder {
+  0%   { transform: rotate(calc(-34deg * var(--stride))); }
+  50%  { transform: rotate(calc(36deg * var(--stride))); }
+  100% { transform: rotate(calc(-34deg * var(--stride))); }
+}
+@keyframes elbow {
+  0%   { transform: rotate(-72deg); }
+  50%  { transform: rotate(-52deg); }
+  100% { transform: rotate(-72deg); }
+}
+/* lowest just after contact (absorption), highest in flight — twice per cycle */
+@keyframes bob {
+  0%   { transform: translateY(0); }
+  12%  { transform: translateY(3.5px); }
+  30%  { transform: translateY(-7px); }
+  50%  { transform: translateY(0); }
+  62%  { transform: translateY(3.5px); }
+  80%  { transform: translateY(-7px); }
+  100% { transform: translateY(0); }
+}
+@keyframes rattle {
+  0%,100% { transform: translate(0,0) rotate(-3deg); }
+  25%     { transform: translate(1px,-1.5px) rotate(1deg); }
+  50%     { transform: translate(-.5px,1px) rotate(-4deg); }
+  75%     { transform: translate(1.5px,.5px) rotate(2deg); }
+}
+
+.fig.run .thigh-r  { animation: thigh    var(--gait) linear infinite; }
+.fig.run .knee-r   { animation: knee     var(--gait) linear infinite; }
+.fig.run .thigh-l  { animation: thigh    var(--gait) linear infinite; animation-delay: calc(var(--gait) * -.5); }
+.fig.run .knee-l   { animation: knee     var(--gait) linear infinite; animation-delay: calc(var(--gait) * -.5); }
+.fig.run .arm-r    { animation: shoulder var(--gait) linear infinite; animation-delay: calc(var(--gait) * -.5); }
+.fig.run .fore-r   { animation: elbow    var(--gait) linear infinite; animation-delay: calc(var(--gait) * -.5); }
+.fig.run .arm-l    { animation: shoulder var(--gait) linear infinite; }
+.fig.run .fore-l   { animation: elbow    var(--gait) linear infinite; }
+.fig.run .bob      { animation: bob      var(--gait) linear infinite; }
+.fig.run .cargo-b  { animation: rattle   calc(var(--gait) * .5) linear infinite; }
+
+/* ── Stopped poses ────────────────────────────────────────────────────
+   Dropping the .run class alone freezes every limb on whatever frame the
+   cycle happened to be on, so a runner who has "arrived" stands there in
+   a mid-air stride. Both stopped states therefore carry an explicit
+   planted stance. The transition on .limb is inert while the gait is
+   running (animations outrank transitions) and only does work here.      */
+.fig .limb { transition: transform 360ms var(--ease); }
+.fig.winded .limb, .fig.dropped .limb { animation: none !important; }
+
+.fig.winded .thigh-r, .fig.dropped .thigh-r { transform: rotate(10deg); }
+.fig.winded .knee-r,  .fig.dropped .knee-r  { transform: rotate(12deg); }
+.fig.winded .thigh-l, .fig.dropped .thigh-l { transform: rotate(-14deg); }
+.fig.winded .knee-l,  .fig.dropped .knee-l  { transform: rotate(24deg); }
+.fig.winded .thigh-r { transform: rotate(23deg); }
+.fig.winded .knee-r  { transform: rotate(7deg); }
+.fig.winded .thigh-l { transform: rotate(-21deg); }
+.fig.winded .knee-l  { transform: rotate(33deg); }
+.fig.winded .arm-r  { transform: rotate(62deg); }   /* hands toward knees */
+.fig.winded .fore-r { transform: rotate(-34deg); }
+.fig.winded .arm-l  { transform: rotate(54deg); }
+.fig.winded .fore-l { transform: rotate(-28deg); }
+/* he let go of it — arms hang, and the cargo is on the floor below */
+.fig.dropped .arm-r, .fig.dropped .arm-l   { transform: rotate(6deg); }
+.fig.dropped .fore-r, .fig.dropped .fore-l { transform: rotate(-8deg); }
+
+.fig.winded .bob { animation: breathe 2.1s var(--ease-io) infinite; }
+@keyframes breathe { 0%,100% { transform: translateY(0) } 50% { transform: translateY(2.5px) } }
+
+.fig .torso {
+  transition: transform 420ms var(--ease);
+  transform-box: fill-box; transform-origin: 50% 100%;
+}
+.fig.run    .torso { transform: rotate(8deg); }   /* running lean */
+.fig.tired  .torso { transform: rotate(15deg); }
+.fig.dropped .torso { transform: rotate(13deg); }
+.fig.winded .torso { transform: rotate(36deg); }
+
+/* the cashbox goes down when the fetch rejects, and stays down */
+.fig .cargo-b { transition: transform 420ms var(--ease); }
+.fig.dropped .cargo-b { animation: none !important; transform: translate(-16px, 58px) rotate(-24deg); }
+
+/* the hop is additive to the gait: it rides on the world-position group */
+@keyframes hop {
+  0%   { transform: translateY(0); }
+  38%  { transform: translateY(-58px); }
+  62%  { transform: translateY(-56px); }
+  100% { transform: translateY(0); }
+}
+.hopping { animation: hop 520ms var(--ease-io); }
+
+/* dust and paper are pooled nodes; JS drives their transform each frame */
+.puff { fill: rgba(236,231,221,.13); }
+.paper { fill: #d9d2c4; }
+
+/* If the OS asks for reduced motion we take the still branch and never
+   start the clock — see boot(). The blanket override below is a floor,
+   not the mechanism. */
+@media (prefers-reduced-motion: reduce) {
+  .fig.run * { animation: none !important; }
+  .hopping { animation: none !important; }
+}
+
+@media (max-width: 860px) {
+  .wrap { padding: 0 18px 90px; }
+  .doc { padding: 46px 0 26px; }
+  .hud { left: 15px; bottom: 14px; font-size: 10.5px; }
+  .hud__title { font-size: 10px; margin-bottom: 10px; }
+  .src { grid-template-columns: 8px 62px minmax(0,1fr); gap: 0 9px; margin-bottom: 7px; }
+  .ho-grid { grid-template-columns: minmax(0,1fr); }
+  table.beats td:nth-child(2) { display: none; }
+  table.beats th:nth-child(2) { display: none; }
+}
+@media (max-width: 560px) {
+  .kill li { grid-template-columns: minmax(0,1fr); gap: 4px; }
+}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+<header class="doc">
+  <p class="eyebrow">Chapter Sync · v4 · loading state</p>
+  <h1>The <em>Late Member</em></h1>
+  <p class="dek">Two runners cross a courtyard to make the meeting. They are not a metaphor for the sync — they are the two requests, and every step is caused by something that actually happened on the wire.</p>
+
+  <p>The lineage rule from <code>v2</code> still governs: <strong>every element on the loading screen must be about data we are actually reading.</strong> A cartoon is the most likely thing to break it, because a cartoon wants to be about itself — and a cartoon that costs three seconds while telling you nothing is charming once and infuriating by view forty.</p>
+
+  <p>So Runner&nbsp;A <em>is</em> <code>GET /api/brothers</code> and Runner&nbsp;B <em>is</em> <code>GET /api/treasury</code>. B enters late and from above because treasury fires second — the stairwell is the request waterfall drawn. The cargo stamps the real count when the response lands. A runner surging ahead means his promise resolved; a runner bent over at the door means his source finished first and he is waiting on the other one, which is a thing a spinner physically cannot tell you.</p>
+
+  <p><strong>There is no door on screen during the run.</strong> That is the one deliberate deviation from the script: a framed door at a fixed distance is a progress bar, and one that lies, since we do not know the remaining duration. The door is placed the moment the last promise resolves. It costs about a second more than the script's 0.4s arrival — the door has to travel — and it keeps the frame from claiming anything it does not know.</p>
+</header>
+
+<section class="stagewrap">
+
+  <div class="stage" id="stage">
+
+    <svg id="scene" viewBox="0 0 1200 620" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+      <defs>
+        <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%"   stop-color="#171420"/>
+          <stop offset="46%"  stop-color="#20180f"/>
+          <stop offset="100%" stop-color="#0f0d0a"/>
+        </linearGradient>
+        <linearGradient id="glow" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="rgba(221,179,106,.20)"/>
+          <stop offset="100%" stop-color="rgba(221,179,106,0)"/>
+        </linearGradient>
+        <linearGradient id="doorlight" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%"   stop-color="rgba(221,179,106,.85)"/>
+          <stop offset="100%" stop-color="rgba(221,179,106,.35)"/>
+        </linearGradient>
+        <linearGradient id="groundg" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%"   stop-color="#191510"/>
+          <stop offset="100%" stop-color="#0d0b08"/>
+        </linearGradient>
+      </defs>
+
+      <!-- sky: fixed, no parallax — it is the one thing that genuinely
+           does not move as you cross a courtyard -->
+      <rect x="0" y="0" width="1200" height="620" fill="url(#sky)"/>
+      <rect x="0" y="210" width="1200" height="250" fill="url(#glow)" opacity=".7"/>
+      <circle cx="988" cy="98" r="24" fill="#e8dfc9" opacity=".085"/>
+      <circle cx="978" cy="92" r="24" fill="#191426" opacity=".85"/>
+
+      <!-- layer 1 · far buildings, parallax .16, tiled 1200 -->
+      <g id="far" opacity=".55"></g>
+      <!-- layer 2 · mid wall, parallax .52, tiled 1200 -->
+      <g id="mid"></g>
+      <!-- layer 2b · untiled props in the mid plane (the stairwell) -->
+      <g id="props"></g>
+      <!-- layer 3 · ground plane, parallax 1.0 -->
+      <g id="ground"></g>
+      <!-- untiled world objects in the runners' plane (the door) -->
+      <g id="lane"></g>
+      <!-- actors -->
+      <g id="actors" class="actors"></g>
+      <!-- layer 4 · foreground, parallax 1.7 -->
+      <g id="fore" opacity=".85"></g>
+    </svg>
+
+    <!-- the only literal information in the frame -->
+    <div class="hud" id="hud">
+      <div class="hud__title">Syncing <b>Lambda Phi Epsilon</b></div>
+      <div class="src" id="src-roster" data-state="pending">
+        <i class="src__dot"></i><span class="src__name">roster</span><span class="src__val">—</span>
+      </div>
+      <div class="src" id="src-treasury" data-state="waiting">
+        <i class="src__dot"></i><span class="src__name">treasury</span><span class="src__val">—</span>
+      </div>
+      <div class="hud__slow" id="slow"></div>
+    </div>
+
+    <!-- reduced-motion branch, built first -->
+    <div class="still" id="still">
+      <div class="still__inner">
+        <div class="still__h">Syncing your chapter</div>
+        <div class="still__sub">Lambda Phi Epsilon</div>
+        <div class="still__bar"><div class="still__fill" id="stillfill"></div></div>
+        <div class="still__rows">
+          <div class="still__row" id="still-roster" data-state="pending">
+            <i class="src__dot"></i><span>Roster &amp; attendance</span><b>—</b>
+          </div>
+          <div class="still__row" id="still-treasury" data-state="waiting">
+            <i class="src__dot"></i><span>Treasury &amp; dues</span><b>—</b>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="errcard" id="err">
+      <div class="errcard__tag">Sync incomplete</div>
+      <h3 class="errcard__h">Treasury didn't answer</h3>
+      <p class="errcard__p">The roster loaded. <code>GET /api/treasury</code> timed out after 8s — balances and dues will be blank until it does. Nothing was written.</p>
+      <div class="errcard__row">
+        <button class="pri" data-retry>Retry treasury</button>
+        <button data-skip>Continue without it</button>
+      </div>
+    </div>
+
+    <div class="handoff" id="handoff">
+      <div class="ho-top">
+        <div class="ho-h">Good evening, Rob</div>
+        <div class="ho-sub">TUESDAY · WEEK 6</div>
+      </div>
+      <div class="ho-grid">
+        <div class="ho-card"><div class="ho-k">Roster</div><div class="ho-v">58<span>members</span></div></div>
+        <div class="ho-card"><div class="ho-k">Balance</div><div class="ho-v">$4,180</div></div>
+        <div class="ho-card"><div class="ho-k">Dues outstanding</div><div class="ho-v">$1,240<span>9 members</span></div></div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="rail" id="rail">
+    <button class="on" data-scn="normal">Normal · ~3.9s</button>
+    <button data-scn="slow">Slow · ~9.4s</button>
+    <button data-scn="instant">Instant · 210ms</button>
+    <button data-scn="fail">Treasury fails</button>
+    <span class="sep"></span>
+    <button class="ghost" data-still>Reduced motion</button>
+    <button data-replay>↻ Replay</button>
+  </div>
+
+  <div class="readout" id="readout">
+    <span>beat <b class="beatname" id="ro-beat">—</b></span>
+    <span>t <b id="ro-t">0.00s</b></span>
+    <span>roster <b id="ro-a">pending</b></span>
+    <span>treasury <b id="ro-b">waiting</b></span>
+    <span>world <b id="ro-w">0</b></span>
+  </div>
+
+</section>
+
+<section class="notes">
+
+  <div class="note">
+    <h2>Beat sheet, and what actually fires each beat</h2>
+    <p class="lede">The middle column is the point. If a beat has no cause in that column, it is decoration and it gets cut.</p>
+    <table class="beats">
+      <thead><tr><th>Beat</th><th>Length</th><th>What you see · what fires it</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>1 · Entry</td><td>0 – 0.8s</td>
+          <td><b>Runner A jogs in from the left, unhurried.</b> Fixed. Establishes the space and the pace so that any later change of pace reads as meaningful. Starts on <code>fetch()</code> dispatch, not on paint.</td>
+        </tr>
+        <tr>
+          <td>2 · Vertical</td><td>0.8 – 1.6s</td>
+          <td><b>Runner B bursts down the exterior stairwell, two at a time.</b> The one non-horizontal beat in the film. He is late and above because treasury is dispatched after roster — the stairwell is the waterfall. Fixed length: the real gap is ~40ms, which is not animatable, so this beat is honest about <em>order</em> and stylised about <em>duration</em>. That is the one stylisation in the file and it is flagged here rather than buried.</td>
+        </tr>
+        <tr>
+          <td>3 · Near miss</td><td>1.6 – 2.2s</td>
+          <td><b>B hops a page A dropped, without breaking stride.</b> One interaction beat, not a pile-up. Fires on collision — when the dropped page's screen x crosses B's — not on a timestamp, so it stays in sync at any scroll speed.</td>
+        </tr>
+        <tr>
+          <td>4 · Approach</td><td>2.2s → resolve</td>
+          <td><b>Elastic.</b> World scrolls, no door in frame, no claim about distance remaining. The only events here are real: a promise resolving stamps that runner's cargo with its count and surges him forward. At +4.5s one fatigue beat fires — a slump and a shortened stride — paired with a line of text naming the slow source, because by then the user wants a reason more than a joke.</td>
+        </tr>
+        <tr>
+          <td>5 · Arrival</td><td>~1.4s</td>
+          <td><b>Door scrolls in, both hit it, it shuts, cut to dashboard.</b> Fires on the last promise settling, never on a timer. Runs long against the script's 0.4s — see the note below.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="note">
+    <h2>The three fallbacks</h2>
+    <p class="lede">Required, not optional — so they are running builds on the rail above, not paragraphs. A fallback you cannot click is a fallback nobody has checked.</p>
+    <div class="cards">
+      <div class="card">
+        <h3>Reduced motion</h3>
+        <p>Not the animated scene with the animations stripped — that leaves a frozen cartoon and a spinner, which reads as a broken page. It is <b>the same instrument with the theatre removed</b>: the courtyard drops to a dimmed still, and the two sources become rows that fill in with the same counts, plus a determinate bar.</p>
+        <p>Every fact the animated cut carries survives here. That is the test for whether the animation was ever carrying information: if the still version has to <em>lose</em> something, the animation was the only place it lived, and that was a bug.</p>
+      </div>
+      <div class="card">
+        <h3>Near-instant (&lt;300ms)</h3>
+        <p>Skips to a short Beat 5 — door already three-quarters shut, ~260ms, cut. The 2.2s intro never plays.</p>
+        <p>Worth saying plainly: <b>under about 150ms the right answer is no loading screen at all.</b> A flash of courtyard on a cached load is a worse artifact than a blank beat. The door-already-closing cut earns its place in the 150–300ms band and nowhere below it.</p>
+      </div>
+      <div class="card">
+        <h3>Failure</h3>
+        <p>The failing runner drops his box and stops where he stands. So does the other one — there is no door to reach any more, and legs still cycling behind an error card is the product pretending it is still working. The card names <b>which</b> source failed and what is consequently blank; a generic "something went wrong" over a frozen cartoon is the worst of both.</p>
+        <p>The runners never loop forever. If a request is still open at the timeout, that is a failure and it is drawn as one.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="note">
+    <h2>What I changed from the script, and why</h2>
+    <p class="lede">Four calls. Three are cuts.</p>
+    <ul class="kill">
+      <li><span>changed</span><div><b>The door is off-screen during Beat 4.</b> The script puts the approach on a visible door and gives Beat 5 0.4s. But a door at a fixed distance is a progress bar, and since we do not know the remaining duration it is a progress bar that lies. Off-screen door costs ~1s more at arrival — it has to travel into frame — and buys a frame that never claims anything false. This is the trade; if it is ever reversed, expect "the loading bar is fake" within a week.</div></li>
+      <li><span class="keep">kept</span><div><b>One fatigue beat, not an escalating series.</b> Exactly as written. But it is paired with text naming the slow source — at five seconds the charm has run out and the user wants a reason, and a slump alone is the product doing a bit while it fails to answer.</div></li>
+      <li><span>changed</span><div><b>Jointed SVG instead of sprite sheets.</b> No binaries in a double-click mock; the cycle interpolates at any duration, so the fatigue variant is a <code>--gait</code>/<code>--stride</code> change rather than a second sheet; cargo recolors per source for free.</div></li>
+      <li><span>cut</span><div><b>Alternate skins, and sound.</b> The script already marks skins as post-v1. Sound is out of scope for a static mock — and if it ships, the door thud is the only cue that earns a channel, off by default.</div></li>
+      <li><span class="keep">kept</span><div><b>Two runners is the cap.</b> Two because two requests block the dashboard's critical path today, not because two is a nice number. If a third ever blocks, the honest move is a third runner. If a fourth appears, this direction is wrong and v3's group chat scales better — worth knowing the exit condition in advance.</div></li>
+    </ul>
+  </div>
+
+  <div class="note">
+    <h2>Before this ships</h2>
+    <div class="cards">
+      <div class="card warn">
+        <h3>The repeat-view problem</h3>
+        <p>This is the risk the whole direction carries. Ninety identical runs of the same 2.2s intro is exactly the "personality tax" the script names, and it is charged every single session.</p>
+        <p>Two mitigations worth testing before committing: <b>decay the intro</b> — full film on first load of a session, straight to Beat 4 after that; and <b>never play it on navigation</b>, only on cold entry. If the answer is that it must play every time to be worth building, it is not worth building.</p>
+      </div>
+      <div class="card">
+        <h3>The counts must be real</h3>
+        <p>The cargo numbers here are plausible-not-real. Stamping a placeholder on the cargo is the failure mode that kills this: a number on screen that is not the chapter's number turns the whole frame into a screensaver.</p>
+        <p>If a count is not available at stamp time, <b>the cargo stays blank</b>. That is the fallback, not a rounded guess.</p>
+      </div>
+      <div class="card">
+        <h3>Frame budget</h3>
+        <p>A loading screen that drops frames is worse than no loading screen, because it is the first thing the user sees and it is stuttering. Everything animating here is <code>transform</code> and <code>opacity</code> only, on a fixed node count with pooled dust and paper — no per-frame DOM churn.</p>
+        <p>Test on the slowest device in the building before this goes near a release, since the load it plays over is exactly when the main thread is busiest.</p>
+      </div>
+    </div>
+  </div>
+
+</section>
+
+</div>
+
+<script>
+(() => {
+  "use strict";
+
+  const $  = (s, r = document) => r.querySelector(s);
+  const NS = "http://www.w3.org/2000/svg";
+  const el = (n, attrs = {}) => {
+    const e = document.createElementNS(NS, n);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    return e;
+  };
+
+  /* ══ Scenarios ══════════════════════════════════════════════════════
+     Each is just "when do the two promises settle". Everything the scene
+     does downstream is derived from these two numbers, which is the whole
+     point — there is no second, cosmetic timeline running alongside.     */
+  const SCN = {
+    normal:  { roster: { at: 2800, ok: true }, treasury: { at: 3900, ok: true } },
+    slow:    { roster: { at: 5200, ok: true }, treasury: { at: 9400, ok: true } },
+    instant: { roster: { at: 140,  ok: true }, treasury: { at: 210,  ok: true } },
+    fail:    { roster: { at: 2600, ok: true }, treasury: { at: 4200, ok: false } }
+  };
+
+  const COUNTS = {
+    roster:   "58 members · 4 pending",
+    treasury: "$4,180 · 9 owing"
+  };
+
+  const GEO = {
+    groundY: 478,       // where feet land — top of the near flagstones
+    ax: 452,            // runner A resting screen x   ) recomputed by fit()
+    bx: 258,            // runner B resting screen x   )
+    entryX: -170,       // where A walks in from        )
+    speed: 265,         // world px/s at a jog
+    doorRest: 946,      // where the door settles during arrival
+    doorMouth: 56       // door-local x of the lit threshold
+  };
+
+  /* The stage is `slice`-cropped, so a narrow viewport shows a centre band
+     of the 1200-unit world rather than all of it. Left alone that puts
+     Runner B half off the left edge and the door half off the right — the
+     two things the whole film is about. fit() measures the visible band and
+     re-lays the action inside it, keeping the desktop proportions exactly.  */
+  function fit() {
+    const r = stage.getBoundingClientRect();
+    const W = 1200 * Math.min(1, (r.width / r.height) / (1200 / 620));
+    const left = 600 - W / 2;
+    GEO.bx       = Math.round(left + W * .215);
+    GEO.ax       = Math.round(left + W * .377);
+    GEO.doorRest = Math.round(left + W * .76);
+    GEO.entryX   = Math.round(left - 170);
+    STAIR.worldX = GEO.bx + 28;
+  }
+
+  /* ══ Scenery ════════════════════════════════════════════════════════ */
+  const far = $("#far"), mid = $("#mid"), props = $("#props"),
+        ground = $("#ground"), lane = $("#lane"), actors = $("#actors"), fore = $("#fore");
+
+  // far skyline — one 1200 tile, drawn three times so the modulo scroll
+  // never runs out of world
+  function farTile(ox) {
+    const g = el("g", { transform: `translate(${ox},0)` });
+    // tops sit between y=110 and y=215 so the skyline clears the courtyard
+    // wall's cornice (226) — otherwise the far layer is drawn and instantly
+    // covered, which is a parallax layer you pay for and never see
+    const blocks = [
+      [ -20, 152, 150, 150], [ 150, 196, 92, 106], [ 258, 118, 118, 184],
+      [ 392, 184, 168, 118], [ 576, 142, 104, 160], [ 696, 208, 140, 94],
+      [ 852, 132, 96, 170],  [ 964, 190, 152, 112], [1132, 160, 120, 142]
+    ];
+    blocks.forEach(([x, y, w, h], i) => {
+      g.appendChild(el("rect", { x, y, width: w, height: h, fill: "#15121b", rx: 2 }));
+      // a few lit windows — the meeting is not the only thing happening tonight
+      for (let r = 0; r < Math.floor(h / 46); r++) {
+        for (let c = 0; c < Math.floor(w / 34); c++) {
+          if ((i + r * 3 + c * 5) % 7 > 4) continue;
+          g.appendChild(el("rect", {
+            x: x + 11 + c * 34, y: y + 16 + r * 46, width: 9, height: 13,
+            fill: "#ddb36a", opacity: ((i + r + c) % 3) * .07 + .1
+          }));
+        }
+      }
+    });
+    return g;
+  }
+  [-1200, 0, 1200].forEach(o => far.appendChild(farTile(o)));
+
+  // mid wall — the courtyard's far side, with pilasters at a regular beat
+  // so the scroll speed is readable without being a metronome
+  function midTile(ox) {
+    const g = el("g", { transform: `translate(${ox},0)` });
+    // wall stops WELL above the floor so the runners are not glued to it —
+    // the gap is the courtyard reading as depth rather than as a backdrop
+    g.appendChild(el("rect", { x: 0, y: 232, width: 1201, height: 188, fill: "#1d1811" }));
+    g.appendChild(el("rect", { x: 0, y: 226, width: 1201, height: 9, fill: "#2b2318" }));   // cornice
+    g.appendChild(el("rect", { x: 0, y: 414, width: 1201, height: 6, fill: "#120f0a" }));   // plinth shadow
+    for (let i = 0; i < 8; i++) {
+      const x = i * 150;
+      g.appendChild(el("rect", { x, y: 228, width: 16, height: 192, fill: "#251d15" }));
+      // arched windows, lit warm on a third of them — the rest of the house
+      // is awake too, which is what makes the one lit door mean something.
+      // The lit pattern is deliberately irregular (2,3,7 of 8) so the tile
+      // does not read as wallpaper on the second scroll past.
+      const lit = i === 2 || i === 3 || i === 7;
+      const arc = `M${x + 56} 330 v-30 a20 20 0 0 1 40 0 v30 z`;
+      g.appendChild(el("path", { d: arc, fill: lit ? "#3a2c17" : "#141009" }));
+      if (lit) g.appendChild(el("path", { d: arc, fill: "#ddb36a", opacity: ".2" }));
+      g.appendChild(el("rect", { x: x + 56, y: 326, width: 40, height: 3, fill: "#2b2318" }));
+    }
+    return g;
+  }
+  [-1200, 0, 1200].forEach(o => mid.appendChild(midTile(o)));
+
+  // ground plane — flagstones with a strong repeat so scroll velocity is
+  // legible even when the runners are treading
+  function groundTile(ox) {
+    const g = el("g", { transform: `translate(${ox},0)` });
+    // receding band between wall base and the runners' lane — this gap is
+    // what stops the runners reading as stickers on a backdrop
+    g.appendChild(el("rect", { x: 0, y: 420, width: 1201, height: 58, fill: "#15110c" }));
+    g.appendChild(el("rect", { x: 0, y: 478, width: 1201, height: 142, fill: "url(#groundg)" }));
+    // the lane edge — this line is how you read scroll velocity, so it is
+    // the brightest thing on the floor
+    g.appendChild(el("rect", { x: 0, y: 476, width: 1201, height: 2.5, fill: "rgba(236,231,221,.16)" }));
+    for (let i = 0; i < 15; i++) {
+      const x = i * 80;
+      g.appendChild(el("path", {
+        d: `M${x} 480 L${x - 34} 620`, stroke: "rgba(236,231,221,.075)", "stroke-width": 2, fill: "none"
+      }));
+      g.appendChild(el("rect", { x: x + 30, y: 466, width: 22, height: 3, fill: "rgba(236,231,221,.05)" }));
+    }
+    [508, 552, 606].forEach(y => {
+      g.appendChild(el("path", {
+        d: `M0 ${y} H1201`, stroke: "rgba(236,231,221,.055)", "stroke-width": 2, fill: "none"
+      }));
+    });
+    return g;
+  }
+  [-1200, 0, 1200].forEach(o => ground.appendChild(groundTile(o)));
+
+  // foreground dust band — fastest layer, sells depth, never occludes a face
+  function foreTile(ox) {
+    const g = el("g", { transform: `translate(${ox},0)` });
+    for (let i = 0; i < 22; i++) {
+      g.appendChild(el("ellipse", {
+        cx: i * 55 + (i * 37) % 41, cy: 566 + (i * 23) % 44,
+        rx: 16 + (i % 5) * 7, ry: 2.4, fill: "rgba(236,231,221,.045)"
+      }));
+    }
+    return g;
+  }
+  [-1200, 0, 1200].forEach(o => fore.appendChild(foreTile(o)));
+
+  /* ── The stairwell: a one-shot world prop, not tiled, and in the runners'
+       plane (parallax 1.0) because B is physically ON it — anything else
+       and his feet drift off the treads as the camera moves. Placed so its
+       foot is well LEFT of Runner A when B lands: the script says B comes
+       down behind A, and a stairwell that dumps him on top of A turns the
+       near miss into a collision.                                         */
+  const STAIR = { worldX: 286, top: { x: 60, y: 154 }, steps: 9, run: 34, rise: 36 };
+  const stairG = el("g");
+  props.appendChild(stairG);
+  (() => {
+    const { top, steps, run, rise } = STAIR;
+    // stringer
+    const pts = [];
+    for (let i = 0; i <= steps; i++) pts.push(`${top.x + i * run},${top.y + i * rise}`);
+    stairG.appendChild(el("path", {
+      d: `M${top.x - 6},${top.y - 4} L${pts.map(p => p).join(" L")} L${top.x + steps * run + 12},${top.y + steps * rise + 30} L${top.x - 6},${top.y + 34} Z`,
+      fill: "#1a150f"
+    }));
+    // treads
+    for (let i = 0; i < steps; i++) {
+      stairG.appendChild(el("rect", {
+        x: top.x + i * run, y: top.y + i * rise, width: run + 12, height: 6,
+        fill: "#2a2218", rx: 1
+      }));
+    }
+    // rail
+    stairG.appendChild(el("path", {
+      d: `M${top.x - 4},${top.y - 56} L${top.x + steps * run + 6},${top.y + steps * rise - 56}`,
+      stroke: "#332a1e", "stroke-width": 5, fill: "none", "stroke-linecap": "round"
+    }));
+    for (let i = 0; i <= steps; i += 2) {
+      stairG.appendChild(el("path", {
+        d: `M${top.x + i * run},${top.y + i * rise} v-56`,
+        stroke: "#2b2319", "stroke-width": 3.5
+      }));
+    }
+    // landing at the top — B comes out of a doorway up there
+    stairG.appendChild(el("rect", { x: top.x - 92, y: top.y - 116, width: 96, height: 122, fill: "#1a150f" }));
+    stairG.appendChild(el("rect", { x: top.x - 70, y: top.y - 92, width: 40, height: 96, fill: "#0e0c09", rx: 2 }));
+    stairG.appendChild(el("rect", { x: top.x - 70, y: top.y - 92, width: 40, height: 96, fill: "#ddb36a", opacity: ".13", rx: 2 }));
+  })();
+
+  /* ── The door. Created on demand, because its very presence is a
+       statement ("we are done") and it must not exist before that is true. */
+  let doorG = null, doorPanel = null, doorShut = false;
+  function placeDoor(screenX) {
+    doorG = el("g", { transform: `translate(${screenX},0)` });
+    doorG.appendChild(el("rect", { x: -20, y: 236, width: 154, height: 242, fill: "#241c14" }));
+    doorG.appendChild(el("rect", { x: -20, y: 230, width: 154, height: 9, fill: "#332a1d", rx: 2 }));
+    // the lit interior — the meeting, already going, which is the whole
+    // reason anybody in this film is running
+    doorG.appendChild(el("rect", { x: 8, y: 268, width: 96, height: 210, fill: "url(#doorlight)" }));
+    doorG.appendChild(el("rect", { x: 8, y: 268, width: 96, height: 210, fill: "#f0dcb0", opacity: ".26" }));
+    // spill on the ground
+    doorG.appendChild(el("path", {
+      d: "M8 478 L104 478 L162 574 L-38 574 Z", fill: "#ddb36a", opacity: ".085"
+    }));
+    // the panel, hinged on the left, drawn open
+    doorPanel = el("g", { style: "transform-box:fill-box;transform-origin:0 0;transition:transform 300ms cubic-bezier(.4,0,.2,1)" });
+    doorPanel.appendChild(el("rect", { x: 8, y: 268, width: 96, height: 210, fill: "#2b2218", rx: 2 }));
+    doorPanel.appendChild(el("rect", { x: 18, y: 284, width: 76, height: 82, fill: "#221a12", rx: 2 }));
+    doorPanel.appendChild(el("rect", { x: 18, y: 380, width: 76, height: 82, fill: "#221a12", rx: 2 }));
+    doorPanel.appendChild(el("circle", { cx: 94, cy: 378, r: 4, fill: "#ddb36a", opacity: ".6" }));
+    doorPanel.setAttribute("transform", "translate(8,0) scale(0.06,1)");
+    doorG.appendChild(doorPanel);
+    lane.appendChild(doorG);
+  }
+  function shutDoor() {
+    if (!doorPanel || doorShut) return;
+    doorShut = true;
+    doorPanel.style.transition = "transform 260ms cubic-bezier(.5,0,.75,0)";
+    doorPanel.setAttribute("transform", "translate(8,0) scale(1,1)");
+  }
+
+  /* ══ Figures ════════════════════════════════════════════════════════
+     Authored around a hip origin at (0,0). Every joint is a translate
+     wrapper containing a rotating <g> whose content starts at 0,0 — so
+     transform-origin is 0 0 everywhere and never depends on where the
+     figure happens to be standing.                                       */
+  function figure(cfg) {
+    const g = el("g", { class: "fig run", id: cfg.id });
+    g.style.setProperty("--gait", cfg.gait);
+    const skin = cfg.skin, cloth = cfg.cloth, cloth2 = cfg.cloth2;
+
+    const seg = (cls, len, w, fill, child) => {
+      // a limb segment: rotating group, capsule drawn downward from 0,0
+      const rot = el("g", { class: `limb ${cls}` });
+      rot.appendChild(el("rect", { x: -w / 2, y: 0, width: w, height: len, rx: w / 2, fill }));
+      if (child) { const j = el("g", { transform: `translate(0,${len})` }); j.appendChild(child); rot.appendChild(j); }
+      return rot;
+    };
+
+    // ── back leg / arm first so they sit behind the torso ──
+    const shin = (cls) => {
+      const s = seg(cls, 27, 8, cloth2);
+      const foot = el("g", { transform: "translate(0,27)" });
+      foot.appendChild(el("rect", { x: -5, y: -3, width: 21, height: 8, rx: 3.5, fill: "#141110" }));
+      s.appendChild(foot);
+      return s;
+    };
+    const leg = (thighCls, kneeCls, fill) => {
+      const t = seg(thighCls, 30, 11, fill, shin(kneeCls));
+      return t;
+    };
+    const hand = () => el("circle", { cx: 0, cy: 3, r: 5.5, fill: skin });
+    const arm = (armCls, foreCls, fill) => seg(armCls, 24, 8.5, fill, seg(foreCls, 22, 7.5, skin, hand()));
+
+    // bob wrapper carries the whole body; lean is baked into the torso
+    const bob = el("g", { class: "bob" });
+
+    // far side limbs (darker, reads as depth)
+    const farHip = el("g", { transform: "translate(0,0)" });
+    farHip.appendChild(leg("thigh-l", "knee-l", cloth));
+    farHip.setAttribute("opacity", ".62");
+    bob.appendChild(farHip);
+
+    const farSh = el("g", { transform: "translate(-2,-40)", opacity: ".62" });
+    farSh.appendChild(arm("arm-l", "fore-l", cloth2));
+    bob.appendChild(farSh);
+
+    // torso + head, leaning forward
+    // origin at the bbox's bottom-centre ≈ the hip, so the lean pivots on
+    // the waist rather than swinging the whole body sideways
+    const torso = el("g", { class: "torso" });
+    torso.appendChild(el("path", {
+      d: "M-11 2 L-13 -34 Q-13 -44 -3 -45 L3 -45 Q13 -44 13 -34 L11 2 Z", fill: cloth
+    }));
+    torso.appendChild(el("rect", { x: -13, y: -30, width: 26, height: 5, fill: cloth2, opacity: ".8" }));
+    // neck + head
+    const head = el("g", { transform: "translate(2,-46)" });
+    head.appendChild(el("rect", { x: -4, y: -6, width: 8, height: 8, fill: skin }));
+    head.appendChild(el("circle", { cx: 1, cy: -13, r: 11.5, fill: skin }));
+    head.appendChild(el("path", { d: "M-10 -18 Q1 -27 12 -18 Q11 -24 1 -25 Q-9 -24 -10 -18 Z", fill: cfg.hair }));
+    if (cfg.cap) {
+      head.appendChild(el("path", { d: "M-11 -18 Q1 -29 13 -18 L13 -16 L-11 -16 Z", fill: cfg.cap }));
+      head.appendChild(el("rect", { x: 11, y: -18, width: 12, height: 3.5, rx: 1.6, fill: cfg.cap }));
+    }
+    torso.appendChild(head);
+    bob.appendChild(torso);
+
+    // cargo, held against the near side of the chest
+    // carried at chest/belly height — any higher and the stack crops the
+    // face, which is where the whole figure's readability lives
+    const cargo = el("g", { class: cfg.cargoClass, transform: `translate(${cfg.cargoX},${cfg.cargoY})` });
+    cfg.cargo(cargo, cfg);
+    bob.appendChild(cargo);
+
+    // near side limbs
+    const nearHip = el("g", { transform: "translate(2,0)" });
+    nearHip.appendChild(leg("thigh-r", "knee-r", cloth2));
+    bob.appendChild(nearHip);
+
+    const nearSh = el("g", { transform: "translate(4,-40)" });
+    nearSh.appendChild(arm("arm-r", "fore-r", cloth));
+    bob.appendChild(nearSh);
+
+    // Scale lives on an inner node so the world-position wrapper stays a
+    // pure translate. B is smaller because he is a plane further back.
+    //
+    // The lift is not cosmetic: the figure is authored around the HIP at
+    // (0,0), so without it a wrapper that translates to the ground line
+    // plants the hips on the floor and buries both legs under it. Lifting
+    // by one leg-length here means every caller — lane, stairwell, door —
+    // can just say "put him on this y" and get feet on that line.
+    const LEG = 57;
+    const scaler = el("g", { transform: `translate(0,${(-LEG * cfg.scale).toFixed(1)}) scale(${cfg.scale})` });
+    scaler.appendChild(bob);
+    g.appendChild(scaler);
+    return g;
+  }
+
+  // ── Cargo A: a folder stack, tilting. The count lands on the top folder. ──
+  function cargoFolders(g) {
+    [0, 1, 2].forEach(i => {
+      const f = el("g", { transform: `translate(${i * -1.4},${i * -5.5}) rotate(${-6 + i * 2})` });
+      f.appendChild(el("rect", { x: -3, y: -5, width: 33, height: 22, rx: 2.5, fill: i === 2 ? "#e6dfd0" : "#c7bda9" }));
+      f.appendChild(el("rect", { x: -3, y: -5, width: 33, height: 4.5, rx: 2, fill: "#8574c4", opacity: i === 2 ? ".9" : ".45" }));
+      g.appendChild(f);
+    });
+    // dark ink on a pale folder — the stamp is the one place the real count
+    // appears in the frame, so it cannot be low-contrast
+    const t = el("text", {
+      x: 11.5, y: -1, "text-anchor": "middle", class: "stamp",
+      "font-family": "Geist Mono, monospace", "font-size": "12", "font-weight": "500",
+      fill: "#26201a", opacity: "0"
+    });
+    t.textContent = "";
+    g.appendChild(t);
+  }
+
+  // ── Cargo B: a cashbox, rattling. The balance lands on its face. ──
+  function cargoBox(g) {
+    g.appendChild(el("rect", { x: -6, y: -12, width: 44, height: 32, rx: 3, fill: "#3e5f4a" }));
+    g.appendChild(el("rect", { x: -6, y: -12, width: 44, height: 8, rx: 3, fill: "#4d7259" }));
+    g.appendChild(el("rect", { x: 12, y: -4, width: 8, height: 7, rx: 1.5, fill: "#ddb36a" }));
+    g.appendChild(el("path", { d: "M4 -12 v-7 a12 12 0 0 1 24 0 v7", fill: "none", stroke: "#4d7259", "stroke-width": 3.5 }));
+    const t = el("text", {
+      x: 16, y: 15, "text-anchor": "middle", class: "stamp",
+      "font-family": "Geist Mono, monospace", "font-size": "11", "font-weight": "500",
+      fill: "#eef3ea", opacity: "0"
+    });
+    t.textContent = "";
+    g.appendChild(t);
+  }
+
+  const runnerA = figure({
+    id: "runA", gait: ".52s", scale: 1.34, skin: "#c99a72", cloth: "#6b5aa8", cloth2: "#8574c4",
+    hair: "#2a2118", cargo: cargoFolders, cargoClass: "cargo-a", cargoX: 13, cargoY: -18
+  });
+  const runnerB = figure({
+    id: "runB", gait: ".44s", scale: 1.2, skin: "#9c7350", cloth: "#3f5f4b", cloth2: "#517a61",
+    hair: "#1e1a14", cap: "#d98b7a", cargo: cargoBox, cargoClass: "cargo-b", cargoX: 11, cargoY: -22
+  });
+
+  // world-position wrappers: JS owns these, CSS never touches them
+  const wrapA = el("g"), wrapB = el("g");
+  // the hop rides on an intermediate node so it composes with the gait
+  const hopB = el("g", { id: "hopB" });
+  hopB.appendChild(runnerB);
+  wrapA.appendChild(runnerA);
+  wrapB.appendChild(hopB);
+  actors.appendChild(wrapB);   // B behind
+  actors.appendChild(wrapA);   // A in front
+
+  const stampA = runnerA.querySelector(".stamp");
+  const stampB = runnerB.querySelector(".stamp");
+
+  /* ── pooled effects: dust puffs and dropped pages. Fixed node count, no
+       per-frame DOM churn — a loading screen that drops frames is worse
+       than no loading screen.                                            */
+  const puffs = [], PUFF_N = 14;
+  for (let i = 0; i < PUFF_N; i++) {
+    const c = el("ellipse", { class: "puff", rx: 8, ry: 4, cx: 0, cy: 0, opacity: 0 });
+    actors.appendChild(c);
+    puffs.push({ node: c, t: -1, x: 0, y: 0 });
+  }
+  let puffI = 0;
+  function puff(x, y) {
+    const p = puffs[puffI = (puffI + 1) % PUFF_N];
+    p.t = 0; p.x = x; p.y = y;
+  }
+
+  const pages = [];
+  function dropPage(worldX) {
+    const n = el("rect", { class: "paper", width: 15, height: 20, rx: 1.5, x: 0, y: 0 });
+    actors.appendChild(n);
+    const p = { node: n, worldX, y: 418, vy: 0, rot: 0, settled: false, hopped: false };
+    pages.push(p);
+    return p;
+  }
+
+  /* ══ State ══════════════════════════════════════════════════════════ */
+  const hud = $("#hud"), slowLine = $("#slow"), errCard = $("#err"),
+        handoff = $("#handoff"), stage = $("#stage"), still = $("#still"),
+        stillFill = $("#stillfill");
+  const srcA = $("#src-roster"), srcB = $("#src-treasury");
+  const stillA = $("#still-roster"), stillB = $("#still-treasury");
+  const roBeat = $("#ro-beat"), roT = $("#ro-t"), roA = $("#ro-a"), roB = $("#ro-b"), roW = $("#ro-w");
+
+  let S = null;         // the run
+  let raf = 0;
+  let stillMode = false;
+  let scenario = "normal";
+
+  const BEATNAME = { 1: "1 entry", 2: "2 stairwell", 3: "3 near miss", 4: "4 approach", 5: "5 arrival", 6: "— done", 0: "— error" };
+
+  function setSrc(node, stillNode, state, val) {
+    node.dataset.state = state;
+    stillNode.dataset.state = state;
+    node.querySelector(".src__val").textContent = val;
+    stillNode.querySelector("b").textContent = val;
+  }
+
+  function reset() {
+    cancelAnimationFrame(raf);
+    // clear one-shot world objects
+    if (doorG) { doorG.remove(); doorG = null; doorPanel = null; }
+    doorShut = false;
+    pages.forEach(p => p.node.remove()); pages.length = 0;
+    puffs.forEach(p => { p.t = -1; p.node.setAttribute("opacity", 0); });
+
+    S = {
+      t0: performance.now(), t: 0, world: 0, beat: 1,
+      a: { state: "pending", settled: false, screenX: GEO.entryX, target: GEO.entryX, surged: false },
+      b: { state: "waiting", settled: false, screenX: GEO.bx, target: GEO.bx, launched: false, landed: false },
+      fatigued: false, doorPlaced: false, arriving: false, arriveT: 0, done: false, frozen: false,
+      scroll: true, speed: GEO.speed, lastPuffA: 0, lastPuffB: 0, pageDropped: false
+    };
+
+    [runnerA, runnerB].forEach(f => {
+      f.classList.remove("winded", "tired", "dropped");
+      f.classList.add("run");
+      f.style.setProperty("--stride", 1);
+      f.style.opacity = 1;
+    });
+    runnerA.style.setProperty("--gait", ".52s");
+    runnerB.style.setProperty("--gait", ".44s");
+    hopB.classList.remove("hopping");
+    wrapB.setAttribute("opacity", "0");
+    stampA.setAttribute("opacity", 0); stampA.textContent = "";
+    stampB.setAttribute("opacity", 0); stampB.textContent = "";
+
+    setSrc(srcA, stillA, "pending", "—");
+    setSrc(srcB, stillB, "waiting", "—");
+    slowLine.classList.remove("on");
+    errCard.classList.remove("on");
+    handoff.classList.remove("on");
+    // the animated HUD and the still rows carry the SAME two facts — showing
+    // both at once is the reduced-motion frame reading as a duplicate
+    hud.style.opacity = stillMode ? 0 : 1;
+    stillFill.style.width = "0%";
+
+    if (stillMode) {
+      // pose the courtyard: two runners caught mid-stride, dimmed back into
+      // the scenery. It is a frame of the film, not a different picture.
+      wrapA.setAttribute("transform", `translate(${GEO.ax},${GEO.groundY})`);
+      wrapB.setAttribute("transform", `translate(${GEO.bx},${GEO.groundY})`);
+      wrapB.setAttribute("opacity", "1");
+      props.setAttribute("transform", `translate(${STAIR.worldX - 120},0)`);
+    }
+  }
+
+  /* ── the two real events, and everything they cause ────────────────── */
+  function settle(who, ok) {
+    const R = S[who], fig = who === "a" ? runnerA : runnerB;
+    R.settled = true; R.state = ok ? "done" : "failed";
+
+    if (who === "a") {
+      setSrc(srcA, stillA, R.state, ok ? COUNTS.roster : "failed");
+      if (ok) { stampA.textContent = "58"; stampA.setAttribute("opacity", 1); }
+    } else {
+      setSrc(srcB, stillB, R.state, ok ? COUNTS.treasury : "timed out");
+      if (ok) { stampB.textContent = "$4,180"; stampB.setAttribute("opacity", 1); }
+    }
+    stillFill.style.width = (S.a.settled ? 50 : 0) + (S.b.settled ? 50 : 0) + "%";
+
+    if (stillMode) { if (bothSettled()) finishStill(); return; }
+
+    if (!ok) {
+      // he stops where he stands and puts the box down. He does not vanish,
+      // and he does not keep looping — a runner looping past a failure is
+      // the product pretending nothing happened.
+      fig.classList.remove("run");
+      fig.classList.add("dropped");
+      R.target = R.screenX;
+      dropPage(S.world + R.screenX + 20);
+      // The other one stops too. He has nowhere left to run — the door is
+      // never getting placed — and a figure cycling his legs in place behind
+      // an error card is the product pretending it is still working.
+      const other = who === "a" ? runnerB : runnerA;
+      other.classList.remove("run", "tired");
+      other.classList.add("winded");
+      S[who === "a" ? "b" : "a"].target = S[who === "a" ? "b" : "a"].screenX;
+
+      S.frozen = true;
+      S.scroll = false;
+      S.beat = 0;
+      errCard.classList.add("on");
+      hud.style.opacity = 1;
+      return;
+    }
+
+    // resolved: a short surge forward. Meaningful, and it claims nothing
+    // about distance, because there is nothing on screen to be closer to.
+    R.surged = true;
+    R.target = (who === "a" ? GEO.ax : GEO.bx) + 74;
+    fig.style.setProperty("--gait", who === "a" ? ".40s" : ".36s");
+    fig.classList.remove("tired");
+    fig.style.setProperty("--stride", 1.12);
+
+    if (bothSettled()) beginArrival();
+  }
+  const bothSettled = () => S.a.settled && S.b.settled;
+
+  function beginArrival() {
+    if (S.doorPlaced) return;
+    S.doorPlaced = true; S.arriving = true; S.arriveT = 0;
+    S.beat = 5;
+    placeDoor(GEO.doorRest + 400);   // off the right edge — never yet in frame
+    slowLine.classList.remove("on");
+    [runnerA, runnerB].forEach(f => { f.classList.remove("tired", "winded"); f.classList.add("run"); });
+  }
+
+  function finishStill() {
+    stillFill.style.width = "100%";
+    setTimeout(() => handoff.classList.add("on"), 420);
+  }
+
+  /* ══ Frame ══════════════════════════════════════════════════════════ */
+  let prev = 0;
+  function frame(now) {
+    raf = requestAnimationFrame(frame);
+    const dt = Math.min(0.05, (now - (prev || now)) / 1000);
+    prev = now;
+    if (!S) return;
+    S.t = now - S.t0;
+    const t = S.t;
+
+    const cfg = SCN[scenario];
+
+    // ── settle the promises ──
+    if (!S.a.settled && t >= cfg.roster.at)  settle("a", cfg.roster.ok);
+    if (!S.b.settled && t >= cfg.treasury.at) settle("b", cfg.treasury.ok);
+    if (!S.b.settled && S.b.state === "waiting" && t > 40) {
+      S.b.state = "pending"; srcB.dataset.state = "pending"; stillB.dataset.state = "pending";
+    }
+
+    if (stillMode) { readout(); return; }
+
+    // ── world scroll ──
+    if (S.scroll) S.world += S.speed * dt;
+
+    // ── beats 1–3, the fixed intro ──
+    if (!S.frozen && !S.arriving) {
+      if (t < 800) {
+        S.beat = 1;
+        const p = 1 - Math.pow(1 - Math.min(1, t / 800), 3);
+        S.a.screenX = GEO.entryX + p * (GEO.ax - GEO.entryX);
+        S.a.target = S.a.screenX;
+      } else {
+        if (!S.a.surged) S.a.target = GEO.ax;
+        if (t < 1600) S.beat = 2; else if (t < 2200) S.beat = 3;
+        else if (S.beat < 4) S.beat = 4;
+      }
+
+      // Runner B down the stairwell. Screen position is derived from the
+      // stairwell's own scrolled position, so he is genuinely ON the steps
+      // rather than animating next to them.
+      if (t >= 800 && !S.b.landed) {
+        wrapB.setAttribute("opacity", "1");
+        S.b.launched = true;
+        const p = Math.min(1, (t - 800) / 760);
+        // two-at-a-time: quantise to 4 landings, with an arc between
+        const stepF = p * 4;
+        const idx = Math.min(3, Math.floor(stepF));
+        const frac = stepF - idx;
+        const sx0 = STAIR.top.x + (idx * 2) * STAIR.run;
+        const sx1 = STAIR.top.x + ((idx + 1) * 2) * STAIR.run;
+        const sy0 = STAIR.top.y + (idx * 2) * STAIR.rise;
+        const sy1 = STAIR.top.y + ((idx + 1) * 2) * STAIR.rise;
+        const stairScreen = STAIR.worldX - S.world;
+        const bxs = stairScreen + sx0 + (sx1 - sx0) * frac + 26;
+        const bys = sy0 + (sy1 - sy0) * frac - Math.sin(frac * Math.PI) * 16;
+        // blend into the lane over the last quarter
+        const blend = p < .72 ? 0 : (p - .72) / .28;
+        S.b.screenX = bxs * (1 - blend) + GEO.bx * blend;
+        wrapB.setAttribute("transform",
+          `translate(${S.b.screenX.toFixed(1)},${(bys * (1 - blend) + GEO.groundY * blend).toFixed(1)})`);
+        if (frac < .12 && idx > 0) puff(S.b.screenX - 8, bys + 6);
+        if (p >= 1) { S.b.landed = true; S.b.target = GEO.bx; puff(GEO.bx - 6, GEO.groundY); }
+      } else if (!S.b.launched) {
+        wrapB.setAttribute("opacity", "0");
+      }
+
+      // A drops a page mid-stride; B hops it when it actually reaches him
+      if (!S.pageDropped && t >= 1480) {
+        S.pageDropped = true;
+        dropPage(S.world + S.a.screenX - 14);
+      }
+
+      // fatigue: one beat, at +4.5s into the elastic approach, paired with
+      // a line of text naming the slow source
+      if (!S.fatigued && S.beat === 4 && t > 2200 + 4500) {
+        S.fatigued = true;
+        const slowOne = !S.a.settled ? "roster" : "treasury";
+        const fig = !S.a.settled ? runnerA : runnerB;
+        fig.classList.add("tired");
+        fig.style.setProperty("--stride", .74);
+        fig.style.setProperty("--gait", "0.62s");
+        slowLine.textContent = `${slowOne} is taking longer than usual`;
+        slowLine.classList.add("on");
+        setTimeout(() => {
+          if (!S || S.done) return;
+          fig.classList.remove("tired");
+          fig.style.setProperty("--stride", .92);
+          fig.style.setProperty("--gait", "0.56s");
+        }, 1400);
+      }
+
+      // a settled runner who is waiting on the other one: he is winded and
+      // he is visibly waiting. This is the frame telling you which source
+      // is slow, which is the whole reason there are two runners.
+      ["a", "b"].forEach(k => {
+        const R = S[k], fig = k === "a" ? runnerA : runnerB;
+        if (R.settled && R.state === "done" && !bothSettled() && t - (SCN[scenario][k === "a" ? "roster" : "treasury"].at) > 900) {
+          if (!fig.classList.contains("winded")) {
+            fig.classList.remove("run"); fig.classList.add("winded");
+          }
+        }
+      });
+    }
+
+    // ── beat 5 ──────────────────────────────────────────────────────
+    // Two curves that have to meet: the door sweeps in from off-frame
+    // while both runners close on its threshold. They are driven
+    // independently and deliberately overlap at the end, because the
+    // failure mode of the first cut was the runners fading out while
+    // still 80px short — which read as "everyone vanished", not "they
+    // made it". Each runner only fades once he is INSIDE the door mouth.
+    if (S.arriving) {
+      S.arriveT += dt * 1000;
+      const q  = Math.min(1, S.arriveT / 1050);
+      const ez = t => 1 - Math.pow(1 - Math.max(0, Math.min(1, t)), 3);
+      const e  = ez(q);
+
+      S.speed = GEO.speed + 620 * e;            // they are sprinting now
+      const doorFrom = GEO.doorRest + 400;
+      const doorX = doorFrom + (GEO.doorRest - doorFrom) * e;
+      doorG.setAttribute("transform", `translate(${doorX.toFixed(1)},0)`);
+      const mouth = doorX + GEO.doorMouth;
+
+      // A leads B through the door by a clear beat. The script says "within
+      // a couple of frames", but at the same x they read as one blurred
+      // shape, so the stagger is widened until you can count two people.
+      // Each runner gets his own endpoint AND his own fade window off it —
+      // sharing one threshold left B stuck at 77% opacity, visible inside a
+      // shut door.
+      const endA = mouth, endB = mouth - 30;
+      S.a.target = GEO.ax + (endA - GEO.ax) * ez((q - .02) / .62);
+      S.b.target = GEO.bx + (endB - GEO.bx) * ez((q - .24) / .62);
+
+      [["a", runnerA, endA], ["b", runnerB, endB]].forEach(([k, fig, end]) => {
+        const over = (S[k].screenX - (end - 44)) / 38;
+        fig.style.opacity = Math.max(0, Math.min(1, 1 - over));
+      });
+
+      if (q > .93) shutDoor();                  // only once both are through
+      if (S.arriveT > 1400 && !S.done) {
+        S.done = true; S.beat = 6;
+        hud.style.opacity = 0;
+        handoff.classList.add("on");
+        S.scroll = false;
+      }
+    }
+
+    // ── ease screen positions ──
+    ["a", "b"].forEach(k => {
+      const R = S[k];
+      R.screenX += (R.target - R.screenX) * Math.min(1, dt * 7);
+    });
+    if (S.b.landed || S.arriving) {
+      wrapB.setAttribute("transform", `translate(${S.b.screenX.toFixed(1)},${GEO.groundY})`);
+    }
+    wrapA.setAttribute("transform", `translate(${S.a.screenX.toFixed(1)},${GEO.groundY})`);
+
+    // ── foot-strike dust, phase-locked to the gait duration ──
+    const gA = parseFloat(getComputedStyle(runnerA).getPropertyValue("--gait")) * 1000 || 520;
+    if (!S.frozen && runnerA.classList.contains("run") && t - S.lastPuffA > gA / 2) {
+      S.lastPuffA = t; puff(S.a.screenX - 10, GEO.groundY + 2);
+    }
+    const gB = parseFloat(getComputedStyle(runnerB).getPropertyValue("--gait")) * 1000 || 440;
+    if (!S.frozen && S.b.landed && runnerB.classList.contains("run") && t - S.lastPuffB > gB / 2) {
+      S.lastPuffB = t; puff(S.b.screenX - 10, GEO.groundY + 2);
+    }
+
+    // ── layer transforms (modulo tiling keeps the world infinite) ──
+    const mod = (v) => -(v % 1200);
+    far.setAttribute("transform", `translate(${mod(S.world * .16).toFixed(1)},0)`);
+    mid.setAttribute("transform", `translate(${mod(S.world * .52).toFixed(1)},0)`);
+    ground.setAttribute("transform", `translate(${mod(S.world).toFixed(1)},0)`);
+    fore.setAttribute("transform", `translate(${mod(S.world * 1.7).toFixed(1)},0)`);
+    props.setAttribute("transform", `translate(${(STAIR.worldX - S.world).toFixed(1)},0)`);
+    // the door is NOT driven off world scroll — see beat 5
+
+    // ── pooled effects ──
+    for (const p of puffs) {
+      if (p.t < 0) continue;
+      p.t += dt;
+      const k = p.t / .62;
+      if (k >= 1) { p.t = -1; p.node.setAttribute("opacity", 0); continue; }
+      p.node.setAttribute("opacity", (1 - k) * .5);
+      p.node.setAttribute("cx", p.x - k * 46);
+      p.node.setAttribute("cy", p.y - k * 9);
+      p.node.setAttribute("rx", 7 + k * 20);
+      p.node.setAttribute("ry", 3 + k * 4);
+    }
+    for (let i = pages.length - 1; i >= 0; i--) {
+      const p = pages[i];
+      if (!p.settled) {
+        p.vy += 190 * dt;
+        p.y += p.vy * dt;
+        p.rot += 210 * dt;
+        p.worldX += 26 * dt;
+        if (p.y >= 464) { p.y = 464; p.settled = true; }
+      }
+      const sx = p.worldX - S.world;
+      if (sx < -80) { p.node.remove(); pages.splice(i, 1); continue; }
+      p.node.setAttribute("transform", `translate(${sx.toFixed(1)},${p.y.toFixed(1)}) rotate(${p.rot.toFixed(0)},7,10)`);
+      // collision, not a timestamp: B hops it when it actually reaches him
+      if (!p.hopped && S.b.landed && !S.frozen && sx <= S.b.screenX + 14 && sx > S.b.screenX - 30) {
+        p.hopped = true;
+        hopB.classList.remove("hopping");
+        void hopB.offsetWidth;
+        hopB.classList.add("hopping");
+      }
+    }
+
+    readout();
+  }
+
+  function readout() {
+    roBeat.textContent = BEATNAME[S.beat] || "—";
+    roT.textContent = (S.t / 1000).toFixed(2) + "s";
+    roA.textContent = S.a.state;
+    roB.textContent = S.b.state;
+    roW.textContent = Math.round(S.world);
+  }
+
+  /* ══ Near-instant path ══════════════════════════════════════════════
+     Under 300ms the intro never plays: door already three-quarters shut,
+     ~260ms, cut. Under ~150ms the right answer is no loading screen at
+     all, which is a routing decision, not a scene.                       */
+  function runInstant() {
+    reset();
+    S.scroll = false;
+    S.beat = 5;
+    // park the world well past the stairwell: the intro never played, so a
+    // flight of stairs nobody came down is just clutter in a 260ms cut
+    S.world = STAIR.worldX + 1500;
+    S.frozen = true;               // the intro is skipped, not fast-forwarded
+    hud.style.transition = "none";
+    wrapA.setAttribute("transform", `translate(${GEO.doorRest + GEO.doorMouth},${GEO.groundY})`);
+    wrapB.setAttribute("transform", `translate(${GEO.doorRest + GEO.doorMouth - 40},${GEO.groundY})`);
+    wrapB.setAttribute("opacity", "1");
+    runnerA.style.opacity = 0; runnerB.style.opacity = 0;
+    placeDoor(GEO.doorRest);
+    doorPanel.setAttribute("transform", "translate(8,0) scale(0.76,1)");
+    hud.style.opacity = 0;
+    setSrc(srcA, stillA, "done", COUNTS.roster);
+    setSrc(srcB, stillB, "done", COUNTS.treasury);
+    stillFill.style.width = "100%";
+    setTimeout(shutDoor, 30);
+    setTimeout(() => handoff.classList.add("on"), 250);
+    raf = requestAnimationFrame(frame);
+    S.done = true; S.beat = 6;
+    S.a.settled = S.b.settled = true;
+    S.a.state = S.b.state = "done";
+  }
+
+  /* ══ Boot / controls ════════════════════════════════════════════════ */
+  function start() {
+    prev = 0;
+    fit();
+    hud.style.transition = "";
+    if (scenario === "instant" && !stillMode) { runInstant(); return; }
+    reset();
+    if (stillMode) {
+      // the still branch runs the same promise timeline and nothing else
+      raf = requestAnimationFrame(frame);
+      return;
+    }
+    raf = requestAnimationFrame(frame);
+  }
+
+  $("#rail").addEventListener("click", (e) => {
+    const b = e.target.closest("button");
+    if (!b) return;
+    if (b.dataset.scn) {
+      scenario = b.dataset.scn;
+      [...e.currentTarget.querySelectorAll("[data-scn]")].forEach(x => x.classList.toggle("on", x === b));
+      start();
+    } else if (b.hasAttribute("data-still")) {
+      stillMode = !stillMode;
+      b.classList.toggle("on", stillMode);
+      stage.classList.toggle("is-still", stillMode);
+      start();
+    } else if (b.hasAttribute("data-replay")) {
+      start();
+    }
+  });
+
+  errCard.addEventListener("click", (e) => {
+    const b = e.target.closest("button");
+    if (!b) return;
+    if (b.hasAttribute("data-retry")) { scenario = "normal"; [...$("#rail").querySelectorAll("[data-scn]")].forEach(x => x.classList.toggle("on", x.dataset.scn === "normal")); start(); }
+    else { errCard.classList.remove("on"); hud.style.opacity = 0; handoff.classList.add("on"); }
+  });
+
+  // The OS preference is the mechanism, not the CSS override at the bottom
+  // of the stylesheet. If it is set we never start the clock at all.
+  const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+  function applyMQ() {
+    if (mq.matches) {
+      stillMode = true;
+      $("[data-still]").classList.add("on");
+      stage.classList.add("is-still");
+    }
+  }
+  applyMQ();
+  mq.addEventListener?.("change", () => { applyMQ(); start(); });
+
+  // the action band is measured, so a resize has to re-lay it
+  let rt = 0;
+  addEventListener("resize", () => { clearTimeout(rt); rt = setTimeout(start, 180); });
+
+  // don't burn frames while the stage is off screen
+  const io = new IntersectionObserver((es) => {
+    es.forEach(en => {
+      if (en.isIntersecting) { if (!raf) { prev = 0; raf = requestAnimationFrame(frame); } }
+      else { cancelAnimationFrame(raf); raf = 0; }
+    });
+  }, { threshold: .15 });
+  io.observe(stage);
+
+  start();
+})();
+</script>
+
+</body>
+</html>
