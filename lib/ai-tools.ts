@@ -604,6 +604,9 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
         "(the natural follow-up question tapping it should send). follows: up to 3 short follow-up suggestions. " +
         "For an ADVISORY answer, each row is one recommendation: title = the change, subtitle = why it matters, `tier` = its impact, and `screen` = where it lives. " +
         "Rows MUST be ordered best-first, and tiers must not improve as you go down the list. " +
+        "When the rows are RIVAL answers to one decision (picking one makes the others unnecessary), commit: name the pick in the verdict, " +
+        "tier it high, and keep at most two real backups instead of listing everything you considered. Rows that are independently true " +
+        "regardless of what else is picked — separate fixes, findings in different areas, ordered steps, or a menu the user asked for — stay a full list. " +
         "If you need something from the user to narrow the advice, put it in `askback` INSTEAD of trailing questions in the verdict. " +
         "Do NOT use this for refusals, one-line clarifying questions, or when there's no data to show — answer those in plain text.",
       parameters: {
@@ -651,6 +654,7 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
                   properties: {
                     question: { type: "string", description: "The question, ≤80 chars." },
                     chips:    { type: "array", items: { type: "string" }, description: "2–5 short likely answers, ≤24 chars each." },
+                    select:   { type: "string", enum: ["one", "many"], description: "\"one\" (default) when the chips are alternatives only one of which can be true (cost vs speed). \"many\" when they are constraints or preferences that stack, so the user can pick several before replying (under $500 AND no Saturdays)." },
                   },
                   required: ["question", "chips"],
                 },
@@ -743,7 +747,18 @@ const TIER_RANK: Record<AnswerTier, number> = { high: 0, medium: 1, later: 2 };
 export interface AskBackQuestion {
   question: string;
   chips: string[];
+  /**
+   * How the chips relate to each other, and so what a tap means. "one" —
+   * alternatives, where picking one rules out the rest, and the tap sends
+   * immediately. "many" — constraints that stack, where the client stages the
+   * selections and sends them as a single reply. Absent means "one": a model
+   * that never sets the field keeps today's tap-to-send behavior exactly.
+   */
+  select?: AskBackSelect;
 }
+
+export const ASKBACK_SELECTS = ["one", "many"] as const;
+export type AskBackSelect = (typeof ASKBACK_SELECTS)[number];
 
 export interface AskBack {
   lead?: string;
@@ -894,7 +909,10 @@ function parseAskBack(raw: unknown): AskBack | undefined {
       .slice(0, 5)
       .map(c => c.trim().slice(0, 24));
     if (chips.length < 2) continue;
-    questions.push({ question: question.slice(0, 80), chips });
+    // Anything but an explicit "many" is the exclusive default — an unrecognized
+    // value must not turn a pick-one question into a staged multi-select.
+    const select: AskBackSelect = qq.select === "many" ? "many" : "one";
+    questions.push({ question: question.slice(0, 80), chips, ...(select === "many" ? { select } : {}) });
   }
   if (questions.length === 0) return undefined;
 

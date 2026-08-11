@@ -243,6 +243,31 @@ describe("parseComposeAnswer", () => {
       expect(a.askback).toBeUndefined();
     });
 
+    it("keeps select: many, and treats anything else as the exclusive default", () => {
+      const out = parseComposeAnswer({
+        verdict: "v",
+        askback: {
+          questions: [
+            { question: "Any constraints?", chips: ["Under $500", "No Saturdays"], select: "many" },
+            { question: "Cost or turnout?", chips: ["Cost", "Turnout"], select: "either" },
+          ],
+        },
+      });
+      const a = out as Exclude<typeof out, { error: string }>;
+      expect(a.askback?.questions[0].select).toBe("many");
+      // An unrecognized value must not stage a pick-one question.
+      expect(a.askback?.questions[1].select).toBeUndefined();
+    });
+
+    it("omits select entirely when the model doesn't set it", () => {
+      const out = parseComposeAnswer({
+        verdict: "v",
+        askback: { questions: [{ question: "Cost or turnout?", chips: ["Cost", "Turnout"] }] },
+      });
+      const a = out as Exclude<typeof out, { error: string }>;
+      expect(a.askback?.questions[0].select).toBeUndefined();
+    });
+
     it("a malformed askback costs the block, not the answer", () => {
       const out = parseComposeAnswer({ verdict: "v", askback: "garbage" });
       expect(out).not.toHaveProperty("error");

@@ -57,9 +57,18 @@ export function rowAction(row: AnswerRow): RowAction | null {
   return null;
 }
 
+/**
+ * How a question's chips relate, and so what tapping one means. "one" (the
+ * default when absent) — alternatives, so a tap sends that reply immediately,
+ * exactly as a typed reply would. "many" — constraints that can all hold at
+ * once, so taps stage a selection and the user sends them as one reply.
+ */
+export type AskBackSelect = "one" | "many";
+
 export interface AskBackQuestion {
   question: string;
   chips: string[];
+  select?: AskBackSelect;
 }
 
 export interface AskBack {
