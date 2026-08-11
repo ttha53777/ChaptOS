@@ -1,0 +1,715 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dusk">
+<!--
+  ChaptOS · Ask Chapt — ADVISORY ANSWERS
+  ══════════════════════════════════════════════════════════════════════════
+  The problem: multi-point advisory answers ("how do we make this app better",
+  "what should we do next", product how-to) currently take the PLAIN-TEXT path
+  in lib/ai-prompt.ts:172 and render through MarkdownLite as one undifferentiated
+  serif column of bullets. Eight recommendations and two trailing questions all
+  land with identical visual weight — nothing is scannable, nothing is tappable,
+  no Sources, no follow-up chips. Meanwhile the structured path (AnswerBlock)
+  already has all of that and never gets used for these.
+
+  THE FIX SHOWN HERE: route advisory answers through the SAME `res` row list the
+  data answers use. No new visual language — the row anatomy (glyph · title ·
+  subtitle · value · chevron) is reused exactly as app/components/chat/
+  AnswerBlock.tsx renders it, so an advisory answer and a dues answer look like
+  siblings.
+
+  Three things this mock works out that the plain row list doesn't cover:
+
+    1. RANK. Recommendations are ordered by impact, and that order is load-
+       bearing (unlike a roster list, where order is incidental). The `val`
+       slot — mono, right-aligned, already in the component — carries an
+       impact tier instead of a number. Scene 2 shows the alternative
+       (ordinal 01/02/03 in the glyph slot) for comparison.
+
+    2. WHERE IT LIVES. Every recommendation names the screen it belongs on
+       ("Dashboard", "Events → Check-in"). That rides in the `s` subtitle
+       slot, which is exactly where a data row puts its qualifier.
+
+    3. THE TRAILING QUESTIONS. The pasted answer ends by asking the user two
+       questions. Kept — but promoted out of prose into a distinct ASK-BACK
+       block below the rows: serif, indented under a violet margin rule,
+       with each question's likely answers as tappable chips that refine the
+       list in place. A question you can answer with a tap beats a question
+       you have to type a paragraph to.
+
+  Scenes 3–4 stress the shape: a LONG list (the full eight points from the real
+  output, showing the "show more" fold) and the PROSE COMPARISON — the actual
+  plain-text rendering the app produces today, side by side with the fix.
+
+  Press T to toggle Dusk / Ivory. Director's rail at the bottom switches scenes.
+  Tokens, fonts, and row CSS mirror app/components/chat-spotlight.css exactly.
+
+  Data is Spotlight canon: Iota Chapter · Spring '26 · viewer is Marcus, VP.
+
+  DESIGN MOCK ONLY — vanilla one-file HTML/CSS/JS, nothing wired to the app.
+  Screenshot hooks: window.__mock = { goto, theme, expand }.
+-->
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ask Chapt — Advisory Answers</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,400;1,9..144,500&family=Geist+Mono:wght@400;500&family=Geist:wght@400;450;500;600&display=swap" rel="stylesheet">
+<style>
+/* ── Tokens: copied from app/components/chat-spotlight.css ──────────────── */
+:root {
+  --serif: "Fraunces", Georgia, serif;
+  --sans:  "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --mono:  "Geist Mono", ui-monospace, Menlo, monospace;
+  --ease:  cubic-bezier(.16,1,.3,1);
+  --spring: cubic-bezier(.34,1.4,.4,1);
+}
+[data-theme="dusk"] {
+  --paper: #0f0d0a; --paper-2: #14120e; --card: #17130f; --card-2: #1c1813;
+  --ink: #ece7dd; --ink-soft: #cbc4b6; --muted: #948c7b; --faint: #6a6253;
+  --line: rgba(236,231,221,.09); --line-soft: rgba(236,231,221,.05); --line-med: rgba(236,231,221,.14);
+  --vio: #a78bfa; --vio-deep: #7c3aed; --vio-bg: rgba(167,139,250,.10);
+  --vio-line: rgba(167,139,250,.30); --vio-glow: rgba(167,139,250,.16);
+  --ok: #7fb08a; --ok-bg: rgba(127,176,138,.13); --scrim: rgba(5,4,2,.62);
+  --warn: #d3a04e; --warn-bg: rgba(211,160,78,.13);
+  --risk: #cf8272; --risk-bg: rgba(207,130,114,.13);
+  --card-shadow: 0 1px 0 rgba(0,0,0,.5), 0 40px 80px -34px rgba(0,0,0,.9), inset 0 1px 0 rgba(236,231,221,.04);
+}
+[data-theme="ivory"] {
+  --paper: #f6f2ea; --paper-2: #efe9de; --card: #fffdf8; --card-2: #f4efe4;
+  --ink: #241f18; --ink-soft: #4a4237; --muted: #7d7565; --faint: #9b9385;
+  --line: rgba(36,31,24,.11); --line-soft: rgba(36,31,24,.06); --line-med: rgba(36,31,24,.17);
+  --vio: #6d4bd1; --vio-deep: #5b34c4; --vio-bg: rgba(109,75,209,.08);
+  --vio-line: rgba(109,75,209,.28); --vio-glow: rgba(109,75,209,.14);
+  --ok: #4a7d57; --ok-bg: rgba(74,125,87,.12); --scrim: rgba(60,50,35,.34);
+  --warn: #9a6b1f; --warn-bg: rgba(154,107,31,.12);
+  --risk: #a8503c; --risk-bg: rgba(168,80,60,.12);
+  --card-shadow: 0 1px 0 rgba(36,31,24,.05), 0 40px 80px -34px rgba(60,50,35,.28), inset 0 1px 0 rgba(255,255,255,.7);
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  background: var(--paper); color: var(--ink);
+  font-family: var(--sans); font-size: 14px; line-height: 1.5;
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+  transition: background .3s var(--ease), color .3s var(--ease);
+}
+button { font: inherit; color: inherit; }
+::selection { background: var(--vio-bg); }
+
+/* ── Stage ───────────────────────────────────────────────────────────────── */
+.stage {
+  max-width: 1180px; margin: 0 auto;
+  padding: 44px 28px 132px;
+}
+.stage-head { margin-bottom: 30px; }
+.stage-head .eyebrow {
+  font-family: var(--mono); font-size: 9.5px; letter-spacing: .16em;
+  text-transform: uppercase; color: var(--faint); margin-bottom: 10px;
+}
+.stage-head h1 {
+  font-family: var(--serif); font-size: 27px; font-weight: 500;
+  letter-spacing: -.018em; margin: 0 0 9px; color: var(--ink);
+}
+.stage-head p {
+  font-family: var(--serif); font-size: 15.5px; line-height: 1.62;
+  color: var(--ink-soft); margin: 0; max-width: 68ch;
+}
+.stage-head p em { font-style: italic; color: var(--vio); }
+
+/* ── The spotlight panel — mirrors the live widget's answer surface ─────── */
+.panel {
+  background: var(--card); border: 1px solid var(--line);
+  border-radius: 18px; box-shadow: var(--card-shadow);
+  padding: 26px 26px 22px; max-width: 660px;
+}
+.panel.wide { max-width: 100%; }
+.asked {
+  display: flex; align-items: flex-start; gap: 9px;
+  padding-bottom: 17px; margin-bottom: 18px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.asked .q {
+  font-family: var(--serif); font-size: 15.5px; letter-spacing: -.008em;
+  color: var(--muted); font-style: italic; margin: 0;
+}
+.asked .caret { color: var(--vio); flex-shrink: 0; margin-top: 1px; }
+
+/* ── Verdict — identical to .chat-root .verdict ─────────────────────────── */
+.verdict {
+  font-family: var(--serif); font-size: 18.5px; line-height: 1.5;
+  letter-spacing: -.01em; color: var(--ink); margin: 0;
+}
+.verdict em { font-style: italic; color: var(--vio); }
+
+/* ── Result rows — copied verbatim from chat-spotlight.css .res ─────────── */
+.reslist { margin-top: 14px; display: flex; flex-direction: column; gap: 1px; }
+.res {
+  display: flex; align-items: center; gap: 11px; width: 100%; text-align: left;
+  background: none; border: 0; border-radius: 11px; padding: 9px 10px;
+  cursor: pointer; transition: background .13s var(--ease), box-shadow .13s var(--ease);
+}
+.res:hover:not(:disabled) { background: var(--card-2); }
+.res.sel { background: var(--vio-bg); box-shadow: inset 0 0 0 1px var(--vio-line); }
+.res .av {
+  width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0;
+  display: grid; place-items: center; background: var(--card-2);
+  font-size: 11px; font-weight: 500; color: var(--muted); letter-spacing: .02em;
+}
+.res .glyph {
+  width: 32px; height: 32px; border-radius: 9px; flex-shrink: 0;
+  display: grid; place-items: center; background: var(--card-2); color: var(--muted);
+  transition: background .13s var(--ease), color .13s var(--ease);
+}
+.res:hover .glyph { background: var(--vio-bg); color: var(--vio); }
+.res.sel .glyph { background: var(--vio-bg); color: var(--vio); }
+/* Ordinal variant (scene 2) — the rank rides in the glyph slot. */
+.res .ord {
+  width: 32px; height: 32px; border-radius: 9px; flex-shrink: 0;
+  display: grid; place-items: center; background: var(--card-2);
+  font-family: var(--mono); font-size: 11px; color: var(--muted);
+  transition: background .13s var(--ease), color .13s var(--ease);
+}
+.res:hover .ord { background: var(--vio-bg); color: var(--vio); }
+.res .rb { min-width: 0; flex: 1; }
+.res .t { display: block; font-size: 14px; color: var(--ink); letter-spacing: -.005em; }
+.res .s { display: block; font-size: 11.5px; color: var(--faint); margin-top: 2px; }
+.res .val { font-family: var(--mono); font-size: 12px; color: var(--ink-soft); flex-shrink: 0; }
+/* Impact tiers — warm siblings, never a traffic-light row. */
+.res .val.high { color: var(--vio); }
+.res .val.med  { color: var(--muted); }
+.res .val.low  { color: var(--faint); }
+.res .chev {
+  width: 15px; flex-shrink: 0; display: grid; place-items: center;
+  color: var(--faint); transition: color .13s var(--ease), transform .13s var(--ease);
+}
+.res:hover:not(:disabled) .chev { color: var(--muted); transform: translateX(2px); }
+.res .chev.ask { color: var(--faint); }
+.res:hover:not(:disabled) .chev.ask { color: var(--vio); transform: none; }
+
+/* Fold — a long advisory list shows its top 5 and folds the rest. */
+.fold {
+  display: none; flex-direction: column; gap: 1px;
+}
+.fold.open { display: flex; }
+.foldbtn {
+  margin-top: 6px; margin-left: 10px;
+  background: none; border: 0; padding: 4px 0; cursor: pointer;
+  font-family: var(--mono); font-size: 9.5px; letter-spacing: .12em;
+  text-transform: uppercase; color: var(--faint);
+  transition: color .13s var(--ease);
+}
+.foldbtn:hover { color: var(--vio); }
+
+/* ── Ask-back block — the trailing questions, promoted out of prose ─────── */
+.askback {
+  margin-top: 20px; padding: 15px 0 3px 16px;
+  border-left: 2px solid var(--vio-line);
+}
+.askback .ab-lead {
+  font-family: var(--serif); font-size: 15px; line-height: 1.55;
+  color: var(--ink-soft); margin: 0 0 12px; letter-spacing: -.005em;
+}
+.askback .ab-q { margin-bottom: 13px; }
+.askback .ab-q:last-child { margin-bottom: 0; }
+.askback .ab-qt {
+  display: block; font-family: var(--serif); font-size: 14px;
+  color: var(--muted); font-style: italic; margin-bottom: 8px;
+}
+.chiprow { display: flex; flex-wrap: wrap; gap: 7px; }
+.chip {
+  font-size: 12.5px; color: var(--ink-soft); background: var(--card-2);
+  border: 1px solid var(--line); border-radius: 999px; padding: 6px 12px;
+  cursor: pointer; transition: border-color .14s var(--ease), color .14s var(--ease), background .14s var(--ease);
+}
+.chip:hover { border-color: var(--vio-line); color: var(--ink); background: var(--vio-bg); }
+.chip.on { border-color: var(--vio-line); color: var(--vio); background: var(--vio-bg); }
+
+/* ── Meta row: sources + feedback ──────────────────────────────────────── */
+.meta-row {
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  margin-top: 20px; padding-top: 14px; border-top: 1px solid var(--line-soft);
+}
+.sources { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; flex: 1 1 auto; }
+.sources .lbl {
+  font-family: var(--mono); font-size: 9px; letter-spacing: .12em;
+  text-transform: uppercase; color: var(--faint);
+}
+.src {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 11.5px; color: var(--muted);
+  background: var(--card-2); border: 1px solid var(--line-soft);
+  border-radius: 999px; padding: 3px 9px 3px 7px;
+}
+.src i { width: 4px; height: 4px; border-radius: 50%; background: var(--vio); flex-shrink: 0; }
+.feedback { display: flex; align-items: center; gap: 6px; }
+.fl { font-family: var(--mono); font-size: 9px; letter-spacing: .12em; text-transform: uppercase; color: var(--faint); }
+.fbtn {
+  background: none; border: 0; padding: 3px; cursor: pointer; color: var(--faint);
+  border-radius: 5px; display: grid; place-items: center;
+  transition: color .13s var(--ease), background .13s var(--ease);
+}
+.fbtn:hover { color: var(--vio); background: var(--vio-bg); }
+
+/* ── Comparison layout (scene 4) ───────────────────────────────────────── */
+.compare {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  gap: 22px; align-items: start;
+}
+.compare-col { min-width: 0; }
+.compare-col > .cap {
+  font-family: var(--mono); font-size: 9.5px; letter-spacing: .14em;
+  text-transform: uppercase; margin-bottom: 11px;
+}
+.cap.before { color: var(--risk); }
+.cap.after  { color: var(--ok); }
+.compare .panel { max-width: 100%; }
+
+/* The CURRENT rendering — MarkdownLite's .note styles, copied verbatim. */
+.note { font-family: var(--serif); font-size: 16px; line-height: 1.6; color: var(--ink-soft); }
+.note em { font-style: italic; color: var(--vio); }
+.note p, .note ul, .note ol { margin: 0 0 .55em; }
+.note :last-child { margin-bottom: 0; }
+.note ul, .note ol { padding-left: 1.2em; }
+.note li { margin: .2em 0; }
+.note h1, .note h2, .note h3 { font-size: 1em; font-weight: 600; margin: .6em 0 .3em; }
+.note strong { color: var(--ink); }
+
+/* ── Annotation callouts ───────────────────────────────────────────────── */
+.notes { margin-top: 24px; max-width: 660px; display: grid; gap: 9px; }
+.notes.wide { max-width: 100%; }
+.anno {
+  display: flex; gap: 10px; align-items: flex-start;
+  font-size: 12.5px; line-height: 1.6; color: var(--muted);
+  padding: 10px 13px; background: var(--paper-2);
+  border: 1px solid var(--line-soft); border-radius: 10px;
+}
+.anno b {
+  font-family: var(--mono); font-size: 9px; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--vio); flex-shrink: 0;
+  padding-top: 3px; min-width: 54px;
+}
+.anno span { min-width: 0; }
+
+/* ── Director's rail ───────────────────────────────────────────────────── */
+.rail {
+  position: fixed; left: 50%; transform: translateX(-50%);
+  bottom: max(18px, env(safe-area-inset-bottom));
+  display: flex; align-items: center; gap: 5px; z-index: 50;
+  background: var(--card); border: 1px solid var(--line);
+  border-radius: 999px; padding: 6px 7px; box-shadow: var(--card-shadow);
+  max-width: calc(100vw - 32px); overflow-x: auto;
+}
+.rail button {
+  background: none; border: 0; border-radius: 999px;
+  padding: 7px 13px; cursor: pointer; white-space: nowrap;
+  font-size: 12.5px; color: var(--muted);
+  transition: background .14s var(--ease), color .14s var(--ease);
+}
+.rail button:hover { color: var(--ink); background: var(--card-2); }
+.rail button.on { background: var(--vio-bg); color: var(--vio); }
+.rail .sep { width: 1px; height: 18px; background: var(--line); flex-shrink: 0; margin: 0 3px; }
+.rail .tkey {
+  font-family: var(--mono); font-size: 9px; letter-spacing: .1em;
+  color: var(--faint); padding: 0 9px 0 4px; white-space: nowrap;
+}
+
+.scene { display: none; animation: fade .34s var(--ease) both; }
+.scene.on { display: block; }
+@keyframes fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+</head>
+<body>
+
+<div class="stage">
+
+  <!-- ══ SCENE 1 — The fix: advisory answer as result rows ══════════════ -->
+  <section class="scene on" id="s1">
+    <div class="stage-head">
+      <div class="eyebrow">Scene 1 · The fix</div>
+      <h1>An advisory answer, built from result rows</h1>
+      <p>Same components as a dues answer — serif verdict, <em>res</em> rows, sources, chips. The rank rides in the mono <em>val</em> slot; the screen it belongs on rides in the subtitle. Nothing new to maintain.</p>
+    </div>
+
+    <div class="panel">
+      <div class="asked">
+        <span class="caret">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l2.2 6.3L20.5 11l-6.3 2.2L12 19.5l-2.2-6.3L3.5 11l6.3-1.7z"/></svg>
+        </span>
+        <p class="q">How could we make this app better?</p>
+      </div>
+
+      <p class="verdict">Five changes would move the needle most, and <em>three</em> of them land on screens you already have.</p>
+
+      <div class="reslist">
+        <button class="res">
+          <span class="glyph">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l3 8 4-16 3 8h4"/></svg>
+          </span>
+          <span class="rb">
+            <span class="t">A home screen that leads with next actions</span>
+            <span class="s">Dashboard · mandatory events, deadlines, overdue items</span>
+          </span>
+          <span class="val high">High</span>
+          <span class="chev"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></span>
+        </button>
+
+        <button class="res">
+          <span class="glyph">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="17" rx="2.5"/><path d="M8 2.5v4M16 2.5v4M9 14l2 2 4-4"/></svg>
+          </span>
+          <span class="rb">
+            <span class="t">QR check-in with a late cutoff</span>
+            <span class="s">Events → Check-in · excused workflow, missed streaks</span>
+          </span>
+          <span class="val high">High</span>
+          <span class="chev"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></span>
+        </button>
+
+        <button class="res">
+          <span class="glyph">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 6H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+          </span>
+          <span class="rb">
+            <span class="t">Split dues into owed, pending, and paid</span>
+            <span class="s">Treasury → Dues · payment requests, approval queue</span>
+          </span>
+          <span class="val high">High</span>
+          <span class="chev"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></span>
+        </button>
+
+        <button class="res">
+          <span class="glyph">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 01-3.4 0"/></svg>
+          </span>
+          <span class="rb">
+            <span class="t">Per-role digests instead of per-event pings</span>
+            <span class="s">Settings → Notifications · escalate only when overdue</span>
+          </span>
+          <span class="val med">Medium</span>
+          <span class="chev"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></span>
+        </button>
+
+        <button class="res">
+          <span class="glyph">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><path d="M7 10l5 5 5-5M12 15V3"/></svg>
+          </span>
+          <span class="rb">
+            <span class="t">CSV and PDF exports for the treasurer</span>
+            <span class="s">Treasury → Books · plus an activity log of changes</span>
+          </span>
+          <span class="val med">Medium</span>
+          <span class="chev"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></span>
+        </button>
+      </div>
+
+      <!-- The trailing questions — kept, but tappable. -->
+      <div class="askback">
+        <p class="ab-lead">Tell me two things and I'll narrow this to your chapter.</p>
+        <div class="ab-q">
+          <span class="ab-qt">What do you run most often?</span>
+          <div class="chiprow">
+            <button class="chip" data-pick>Attendance</button>
+            <button class="chip" data-pick>Dues</button>
+            <button class="chip" data-pick>Events</button>
+            <button class="chip" data-pick>Instagram</button>
+            <button class="chip" data-pick>Budget</button>
+          </div>
+        </div>
+        <div class="ab-q">
+          <span class="ab-qt">What feels slowest today?</span>
+          <div class="chiprow">
+            <button class="chip" data-pick>Chasing people down</button>
+            <button class="chip" data-pick>Finding information</button>
+            <button class="chip" data-pick>Manual data entry</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="meta-row">
+        <div class="sources">
+          <span class="lbl">Sources</span>
+          <span class="src"><i></i>Product</span>
+        </div>
+        <div class="feedback">
+          <span class="fl">Helpful?</span>
+          <button class="fbtn" aria-label="Helpful"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 22V11l5-9a2.5 2.5 0 012.4 3.2L13 10h5.5a2.5 2.5 0 012.4 3.1l-1.7 7A2.5 2.5 0 0116.8 22z"/></svg></button>
+          <button class="fbtn" aria-label="Not helpful"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 2v11l-5 9a2.5 2.5 0 01-2.4-3.2L11 14H5.5a2.5 2.5 0 01-2.4-3.1l1.7-7A2.5 2.5 0 017.2 2z"/></svg></button>
+        </div>
+      </div>
+    </div>
+
+    <div class="notes">
+      <div class="anno"><b>Rank</b><span>Impact tier sits in the existing mono <code>val</code> slot — where a dues row puts <code>$1,240</code>. Violet for High, muted for Medium: a tier, not a traffic light.</span></div>
+      <div class="anno"><b>Place</b><span>Every row names the screen it belongs on, in the <code>s</code> subtitle. That turns advice into a destination — and the chevron can actually navigate there.</span></div>
+      <div class="anno"><b>Ask-back</b><span>The two trailing questions survive, but as chips under a violet margin rule. Tapping refines the list in place instead of costing a typed paragraph.</span></div>
+    </div>
+  </section>
+
+  <!-- ══ SCENE 2 — Ordinal variant ═════════════════════════════════════ -->
+  <section class="scene" id="s2">
+    <div class="stage-head">
+      <div class="eyebrow">Scene 2 · Variant</div>
+      <h1>Ordinals instead of impact tiers</h1>
+      <p>Same row, one swap: the glyph slot carries <em>01 / 02 / 03</em> and the <em>val</em> slot carries the concrete stake. Better when the ordering itself is the argument; worse when the icons were doing navigational work.</p>
+    </div>
+
+    <div class="panel">
+      <div class="asked">
+        <span class="caret">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l2.2 6.3L20.5 11l-6.3 2.2L12 19.5l-2.2-6.3L3.5 11l6.3-1.7z"/></svg>
+        </span>
+        <p class="q">How could we make this app better?</p>
+      </div>
+
+      <p class="verdict">Five changes would move the needle most, and <em>three</em> of them land on screens you already have.</p>
+
+      <div class="reslist">
+        <button class="res">
+          <span class="ord">01</span>
+          <span class="rb"><span class="t">A home screen that leads with next actions</span><span class="s">Dashboard · mandatory events, deadlines, overdue items</span></span>
+          <span class="val">every login</span>
+          <span class="chev"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></span>
+        </button>
+        <button class="res">
+          <span class="ord">02</span>
+          <span class="rb"><span class="t">QR check-in with a late cutoff</span><span class="s">Events → Check-in · excused workflow, missed streaks</span></span>
+          <span class="val">11 events</span>
+          <span class="chev"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></span>
+        </button>
+        <button class="res">
+          <span class="ord">03</span>
+          <span class="rb"><span class="t">Split dues into owed, pending, and paid</span><span class="s">Treasury → Dues · payment requests, approval queue</span></span>
+          <span class="val">34 members</span>
+          <span class="chev"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></span>
+        </button>
+        <button class="res">
+          <span class="ord">04</span>
+          <span class="rb"><span class="t">Per-role digests instead of per-event pings</span><span class="s">Settings → Notifications · escalate only when overdue</span></span>
+          <span class="val">8 roles</span>
+          <span class="chev"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></span>
+        </button>
+        <button class="res">
+          <span class="ord">05</span>
+          <span class="rb"><span class="t">CSV and PDF exports for the treasurer</span><span class="s">Treasury → Books · plus an activity log of changes</span></span>
+          <span class="val">1 officer</span>
+          <span class="chev"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></span>
+        </button>
+      </div>
+
+      <div class="meta-row">
+        <div class="sources"><span class="lbl">Sources</span><span class="src"><i></i>Product</span></div>
+        <div class="feedback">
+          <span class="fl">Helpful?</span>
+          <button class="fbtn" aria-label="Helpful"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 22V11l5-9a2.5 2.5 0 012.4 3.2L13 10h5.5a2.5 2.5 0 012.4 3.1l-1.7 7A2.5 2.5 0 0116.8 22z"/></svg></button>
+          <button class="fbtn" aria-label="Not helpful"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 2v11l-5 9a2.5 2.5 0 01-2.4-3.2L11 14H5.5a2.5 2.5 0 01-2.4-3.1l1.7-7A2.5 2.5 0 017.2 2z"/></svg></button>
+        </div>
+      </div>
+    </div>
+
+    <div class="notes">
+      <div class="anno"><b>Trade</b><span>Ordinals make the ranking explicit and survive a monochrome screenshot. But they cost the icon, which was the fastest way to tell an attendance row from a treasury row at a glance.</span></div>
+      <div class="anno"><b>Pick</b><span>Scene 1 is the recommendation: the verdict already says "five", so numbering the rows restates it — and the icons earn their slot.</span></div>
+    </div>
+  </section>
+
+  <!-- ══ SCENE 3 — The long list ═══════════════════════════════════════ -->
+  <section class="scene" id="s3">
+    <div class="stage-head">
+      <div class="eyebrow">Scene 3 · Stress</div>
+      <h1>All eight points, folded</h1>
+      <p>The real answer had eight. Five rows show; the rest fold behind a quiet mono control — so a long answer never becomes a scroll wall, and the top of the list stays the recommendation.</p>
+    </div>
+
+    <div class="panel">
+      <div class="asked">
+        <span class="caret">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l2.2 6.3L20.5 11l-6.3 2.2L12 19.5l-2.2-6.3L3.5 11l6.3-1.7z"/></svg>
+        </span>
+        <p class="q">How could we make this app better?</p>
+      </div>
+
+      <p class="verdict">Eight changes would move the needle, but the top <em>three</em> carry most of the weight.</p>
+
+      <div class="reslist">
+        <button class="res"><span class="glyph"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l3 8 4-16 3 8h4"/></svg></span><span class="rb"><span class="t">A home screen that leads with next actions</span><span class="s">Dashboard · mandatory events, deadlines, overdue items</span></span><span class="val high">High</span><span class="chev"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></span></button>
+        <button class="res"><span class="glyph"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="17" rx="2.5"/><path d="M8 2.5v4M16 2.5v4M9 14l2 2 4-4"/></svg></span><span class="rb"><span class="t">QR check-in with a late cutoff</span><span class="s">Events → Check-in · excused workflow, missed streaks</span></span><span class="val high">High</span><span class="chev"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></span></button>
+        <button class="res"><span class="glyph"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 6H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg></span><span class="rb"><span class="t">Split dues into owed, pending, and paid</span><span class="s">Treasury → Dues · payment requests, approval queue</span></span><span class="val high">High</span><span class="chev"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></span></button>
+        <button class="res"><span class="glyph"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.6-3.6"/></svg></span><span class="rb"><span class="t">One search bar across every workflow</span><span class="s">Global · "when is car wash?", "who missed last chapter?"</span></span><span class="val med">Medium</span><span class="chev"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></span></button>
+        <button class="res"><span class="glyph"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 01-3.4 0"/></svg></span><span class="rb"><span class="t">Per-role digests instead of per-event pings</span><span class="s">Settings → Notifications · escalate only when overdue</span></span><span class="val med">Medium</span><span class="chev"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></span></button>
+
+        <div class="fold" id="fold3">
+          <button class="res"><span class="glyph"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16M4 12h16M4 19h9"/></svg></span><span class="rb"><span class="t">A programming pipeline with owners</span><span class="s">Programming · idea → planning → confirmed → done</span></span><span class="val med">Medium</span><span class="chev"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></span></button>
+          <button class="res"><span class="glyph"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15a3 3 0 100-6 3 3 0 000 6z"/><path d="M19.4 15a1.7 1.7 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.8-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 11-4 0v-.1A1.7 1.7 0 009 19.4a1.7 1.7 0 00-1.8.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.8 1.7 1.7 0 00-1.5-1H3a2 2 0 110-4h.1A1.7 1.7 0 004.6 9a1.7 1.7 0 00-.3-1.8l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.8.3H9a1.7 1.7 0 001-1.5V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.8-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.8V9a1.7 1.7 0 001.5 1H21a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z"/></svg></span><span class="rb"><span class="t">Custom metrics that drive At Risk / Watch / Good</span><span class="s">Settings → Custom Metrics · thresholds and vocabulary</span></span><span class="val low">Later</span><span class="chev"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></span></button>
+          <button class="res"><span class="glyph"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><path d="M7 10l5 5 5-5M12 15V3"/></svg></span><span class="rb"><span class="t">CSV and PDF exports for the treasurer</span><span class="s">Treasury → Books · plus an activity log of changes</span></span><span class="val low">Later</span><span class="chev"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></span></button>
+        </div>
+        <button class="foldbtn" id="foldbtn3">Show 3 more</button>
+      </div>
+
+      <div class="meta-row">
+        <div class="sources"><span class="lbl">Sources</span><span class="src"><i></i>Product</span></div>
+        <div class="feedback">
+          <span class="fl">Helpful?</span>
+          <button class="fbtn" aria-label="Helpful"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 22V11l5-9a2.5 2.5 0 012.4 3.2L13 10h5.5a2.5 2.5 0 012.4 3.1l-1.7 7A2.5 2.5 0 0116.8 22z"/></svg></button>
+          <button class="fbtn" aria-label="Not helpful"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 2v11l-5 9a2.5 2.5 0 01-2.4-3.2L11 14H5.5a2.5 2.5 0 01-2.4-3.1l1.7-7A2.5 2.5 0 017.2 2z"/></svg></button>
+        </div>
+      </div>
+    </div>
+
+    <div class="notes">
+      <div class="anno"><b>Fold</b><span>Five is the fold point — enough to feel complete, short enough that the ask-back block stays above the scroll on a laptop.</span></div>
+      <div class="anno"><b>Tier</b><span>Folded rows carry the <em>Later</em> tier, so the fold and the ranking agree instead of hiding something marked High.</span></div>
+    </div>
+  </section>
+
+  <!-- ══ SCENE 4 — Before / after ══════════════════════════════════════ -->
+  <section class="scene" id="s4">
+    <div class="stage-head">
+      <div class="eyebrow">Scene 4 · Comparison</div>
+      <h1>What ships today vs. the fix</h1>
+      <p>Left is the live rendering — <em>MarkdownLite</em>'s styles, verbatim, with the exact text from the real answer. Right is the same content as rows.</p>
+    </div>
+
+    <div class="compare">
+      <div class="compare-col">
+        <div class="cap before">Today · plain prose</div>
+        <div class="panel">
+          <div class="note">
+            <p>High-impact ways to make a chapter ops dashboard like ChaptOS better:</p>
+            <ul>
+              <li><strong>Home that's truly "next actions"</strong>: upcoming mandatory events, next deadlines, overdue items, who's at-risk, and one-tap nudges to assignees.</li>
+              <li><strong>Attendance UX</strong>: QR check-in, late cutoff, excused workflow, and "missed streaks" + auto-follow-ups.</li>
+              <li><strong>Dues + treasury flow</strong>: payment requests, approval queue, auto-reconciliation, and clear separation of "owed vs pending vs paid."</li>
+              <li><strong>Better search</strong>: "when is car wash?", "who missed last chapter?", "how much did we spend on socials this semester?" in one bar.</li>
+              <li><strong>Notifications that aren't spammy</strong>: per-role digests, due-soon reminders, and escalation when items go overdue.</li>
+              <li><strong>Programming pipeline</strong>: idea → planning → confirmed → done with owners, dependencies, and calendar sync.</li>
+              <li><strong>Customization</strong>: custom metrics, thresholds, vocabulary, and member fields that drive "At Risk/Watch/Good."</li>
+              <li><strong>Exports + audit trail</strong>: CSV/PDF exports for treasurer, and an activity log that explains changes.</li>
+            </ul>
+            <p>If you tell me:</p>
+            <ul>
+              <li>what you do most often (attendance, dues, events, IG, budget), and</li>
+              <li>what feels slow/annoying today,</li>
+            </ul>
+            <p>I'll propose the top 5 improvements for your chapter and the exact screens they should live on.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="compare-col">
+        <div class="cap after">Fixed · result rows</div>
+        <div class="panel">
+          <p class="verdict">Five changes would move the needle most, and <em>three</em> of them land on screens you already have.</p>
+          <div class="reslist">
+            <button class="res"><span class="glyph"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l3 8 4-16 3 8h4"/></svg></span><span class="rb"><span class="t">A home screen that leads with next actions</span><span class="s">Dashboard · mandatory events, deadlines, overdue</span></span><span class="val high">High</span><span class="chev"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></span></button>
+            <button class="res"><span class="glyph"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="17" rx="2.5"/><path d="M8 2.5v4M16 2.5v4M9 14l2 2 4-4"/></svg></span><span class="rb"><span class="t">QR check-in with a late cutoff</span><span class="s">Events → Check-in · excused, missed streaks</span></span><span class="val high">High</span><span class="chev"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></span></button>
+            <button class="res"><span class="glyph"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 6H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg></span><span class="rb"><span class="t">Split dues into owed, pending, and paid</span><span class="s">Treasury → Dues · requests, approval queue</span></span><span class="val high">High</span><span class="chev"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></span></button>
+            <button class="res"><span class="glyph"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 01-3.4 0"/></svg></span><span class="rb"><span class="t">Per-role digests instead of per-event pings</span><span class="s">Settings → Notifications · escalate when overdue</span></span><span class="val med">Medium</span><span class="chev"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></span></button>
+            <button class="res"><span class="glyph"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><path d="M7 10l5 5 5-5M12 15V3"/></svg></span><span class="rb"><span class="t">CSV and PDF exports for the treasurer</span><span class="s">Treasury → Books · plus an activity log</span></span><span class="val med">Medium</span><span class="chev"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></span></button>
+          </div>
+          <div class="askback">
+            <p class="ab-lead">Tell me two things and I'll narrow this to your chapter.</p>
+            <div class="ab-q">
+              <span class="ab-qt">What do you run most often?</span>
+              <div class="chiprow">
+                <button class="chip" data-pick>Attendance</button>
+                <button class="chip" data-pick>Dues</button>
+                <button class="chip" data-pick>Events</button>
+              </div>
+            </div>
+            <div class="ab-q">
+              <span class="ab-qt">What feels slowest today?</span>
+              <div class="chiprow">
+                <button class="chip" data-pick>Chasing people down</button>
+                <button class="chip" data-pick>Manual entry</button>
+              </div>
+            </div>
+          </div>
+          <div class="meta-row">
+            <div class="sources"><span class="lbl">Sources</span><span class="src"><i></i>Product</span></div>
+            <div class="feedback">
+              <span class="fl">Helpful?</span>
+              <button class="fbtn" aria-label="Helpful"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 22V11l5-9a2.5 2.5 0 012.4 3.2L13 10h5.5a2.5 2.5 0 012.4 3.1l-1.7 7A2.5 2.5 0 0116.8 22z"/></svg></button>
+              <button class="fbtn" aria-label="Not helpful"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 2v11l-5 9a2.5 2.5 0 01-2.4-3.2L11 14H5.5a2.5 2.5 0 01-2.4-3.1l1.7-7A2.5 2.5 0 017.2 2z"/></svg></button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="notes wide">
+      <div class="anno"><b>Scan</b><span>Left, every one of the eight points has identical weight, so nothing is first. Right, the verdict commits to a shortlist and the tier column ranks what's left.</span></div>
+      <div class="anno"><b>Act</b><span>Left, the only affordance is to type a reply. Right, every row is a destination and every question is a tap.</span></div>
+      <div class="anno"><b>Length</b><span>Same information, roughly half the vertical space — and the ask-back lands above the fold instead of after a wall of bullets.</span></div>
+    </div>
+  </section>
+
+</div>
+
+<div class="rail">
+  <button class="on" data-go="s1">1 · The fix</button>
+  <button data-go="s2">2 · Ordinals</button>
+  <button data-go="s3">3 · Long list</button>
+  <button data-go="s4">4 · Before / after</button>
+  <span class="sep"></span>
+  <span class="tkey">T · THEME</span>
+</div>
+
+<script>
+(function () {
+  var scenes = ["s1", "s2", "s3", "s4"];
+
+  function goto(id) {
+    if (scenes.indexOf(id) === -1) return;
+    scenes.forEach(function (s) {
+      var el = document.getElementById(s);
+      if (el) el.classList.toggle("on", s === id);
+    });
+    document.querySelectorAll(".rail [data-go]").forEach(function (b) {
+      b.classList.toggle("on", b.getAttribute("data-go") === id);
+    });
+    window.scrollTo(0, 0);
+  }
+
+  document.querySelectorAll(".rail [data-go]").forEach(function (b) {
+    b.addEventListener("click", function () { goto(b.getAttribute("data-go")); });
+  });
+
+  // Ask-back chips toggle — a pick is a refinement, not a submit.
+  document.querySelectorAll("[data-pick]").forEach(function (c) {
+    c.addEventListener("click", function () { c.classList.toggle("on"); });
+  });
+
+  // Fold control (scene 3).
+  function expand(open) {
+    var fold = document.getElementById("fold3");
+    var btn = document.getElementById("foldbtn3");
+    if (!fold || !btn) return;
+    var next = open === undefined ? !fold.classList.contains("open") : !!open;
+    fold.classList.toggle("open", next);
+    btn.textContent = next ? "Show less" : "Show 3 more";
+  }
+  var fb = document.getElementById("foldbtn3");
+  if (fb) fb.addEventListener("click", function () { expand(); });
+
+  function theme(t) {
+    var root = document.documentElement;
+    var next = t || (root.getAttribute("data-theme") === "dusk" ? "ivory" : "dusk");
+    root.setAttribute("data-theme", next);
+    return next;
+  }
+
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "t" || e.key === "T") theme();
+    var n = parseInt(e.key, 10);
+    if (n >= 1 && n <= scenes.length) goto(scenes[n - 1]);
+  });
+
+  window.__mock = { goto: goto, theme: theme, expand: expand };
+})();
+</script>
+</body>
+</html>
