@@ -226,7 +226,7 @@ export function AnswerBlock({ answer, steps, selectedRow, feedback, onAsk, onPee
           <SourcesRow sources={answer.sources} />
           <FeedbackRow value={feedback} onFeedback={onFeedback} />
         </div>
-        {answer.follows.length > 0 && (
+        {!answer.askback && answer.follows.length > 0 && (
           <div className="follows">
             {answer.follows.map(f => (
               <button key={f.label} type="button" className="chip" onClick={() => onAsk(f.ask)}>{f.label}</button>
