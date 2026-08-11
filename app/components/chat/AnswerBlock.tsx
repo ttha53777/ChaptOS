@@ -6,9 +6,11 @@
 // as escaped text (React text nodes); the only markup honored is the single
 // *emphasis* span in the verdict, parsed here — never injected as HTML.
 
+import { useState } from "react";
+
 import { IcArrow, IcChev, IcSpark, IcThumbDown, IcThumbUp, KindGlyph } from "./icons";
 import { TraceBlock } from "./ReasoningLedger";
-import { initialsOf, rowAction, type AnswerData, type AnswerRow, type AskBack, type LedgerStep } from "./types";
+import { initialsOf, rowAction, type AnswerData, type AnswerRow, type AskBack, type AskBackQuestion, type LedgerStep } from "./types";
 
 function Verdict({ text }: { text: string }) {
   const m = /\*([^*]+)\*/.exec(text);
@@ -78,32 +80,93 @@ function ResultRow({ row, selected, onAsk, onPeek, onNav }: {
   );
 }
 
+/** Selected chips per question, keyed by the question's index in the block. */
+type AskBackPicks = Record<number, string[]>;
+
 /**
- * The answer's questions back to the user, with likely replies as chips. Each
- * chip sends "<question> <chip>" as a normal turn, so a tap costs what a typed
- * reply would have — the point is saving the typing, not a new protocol.
+ * Fold the staged picks into one reply. Questions the user left alone are
+ * omitted entirely rather than sent empty — an unanswered question is not the
+ * same claim as "no constraints", and the model should be free to work without
+ * it. Each answered question carries its own text so a two-question reply can't
+ * arrive as a bare list of chips with nothing saying which asked what.
+ */
+function composeReply(questions: AskBackQuestion[], picks: AskBackPicks): string {
+  return questions
+    .map((q, i) => {
+      const chosen = picks[i] ?? [];
+      return chosen.length > 0 ? `${q.question} ${chosen.join(", ")}` : "";
+    })
+    .filter(Boolean)
+    .join(" ");
+}
+
+/**
+ * The answer's questions back to the user, with likely replies as chips.
+ *
+ * The unit of a reply is the BLOCK, not the question. When the model asks two
+ * things ("optimize for what?" AND "what constraints?") they are one request,
+ * so a tap on the first must not fire a turn that throws the second away
+ * unanswered — the user gets to answer both and send once. Within a question,
+ * `select` decides what a tap means: "one" swaps the choice (they're
+ * alternatives), "many" toggles it (they stack).
+ *
+ * The exception is a lone question, which still sends on the first tap: with
+ * nothing else to answer, a Continue would be pure ceremony, and that single
+ * tap is the common case this surface was built around.
  */
 function AskBackBlock({ askback, onAsk }: { askback: AskBack; onAsk: (q: string) => void }) {
+  const [picks, setPicks] = useState<AskBackPicks>({});
+  const questions = askback.questions;
+  // One question with no second thing to answer stays a single tap.
+  const instant = questions.length === 1 && questions[0].select !== "many";
+  const staged = Object.values(picks).some(v => v.length > 0);
+
+  const tap = (qi: number, q: AskBackQuestion, chip: string) => {
+    if (instant) { onAsk(`${q.question} ${chip}`); return; }
+    setPicks(prev => {
+      const cur = prev[qi] ?? [];
+      if (q.select === "many") {
+        return { ...prev, [qi]: cur.includes(chip) ? cur.filter(c => c !== chip) : [...cur, chip] };
+      }
+      // Exclusive: a second pick replaces the first, and re-tapping the
+      // current one clears it, so a mis-tap is recoverable without a reload.
+      return { ...prev, [qi]: cur[0] === chip ? [] : [chip] };
+    });
+  };
+
   return (
     <div className="askback in in-4">
       {askback.lead && <p className="ab-lead">{askback.lead}</p>}
-      {askback.questions.map((q, i) => (
-        <div className="ab-q" key={`${q.question}-${i}`}>
+      {questions.map((q, qi) => (
+        <div className="ab-q" key={`${q.question}-${qi}`}>
           <span className="ab-qt">{q.question}</span>
           <div className="chiprow">
-            {q.chips.map(c => (
-              <button
-                key={c}
-                type="button"
-                className="chip"
-                onClick={() => onAsk(`${q.question} ${c}`)}
-              >
-                {c}
-              </button>
-            ))}
+            {q.chips.map(c => {
+              const on = !instant && (picks[qi] ?? []).includes(c);
+              return (
+                <button
+                  key={c}
+                  type="button"
+                  className={`chip${on ? " on" : ""}`}
+                  aria-pressed={instant ? undefined : on}
+                  onClick={() => tap(qi, q, c)}
+                >
+                  {c}
+                </button>
+              );
+            })}
           </div>
         </div>
       ))}
+      {/* One send for the whole block, and only once there's something to send —
+          so an untouched ask-back still reads as chips, not as a form. */}
+      {!instant && staged && (
+        <div className="ab-send">
+          <button type="button" className="chip send" onClick={() => onAsk(composeReply(questions, picks))}>
+            Continue<IcArrow />
+          </button>
+        </div>
+      )}
     </div>
   );
 }
