@@ -214,6 +214,41 @@ describe("parseComposeAnswer", () => {
       expect(a.rows[0].tier).toBeUndefined();
     });
   });
+
+  describe("askback", () => {
+    it("parses questions and caps at 2, chips at 5", () => {
+      const out = parseComposeAnswer({
+        verdict: "Start with the *dashboard*.",
+        askback: {
+          lead: "Tell me two things.",
+          questions: [
+            { question: "What do you run most?", chips: ["Dues", "Events", "A", "B", "C", "D"] },
+            { question: "What's slowest?", chips: ["Chasing", "Entry"] },
+            { question: "Third?", chips: ["x", "y"] },
+          ],
+        },
+      });
+      const a = out as Exclude<typeof out, { error: string }>;
+      expect(a.askback?.lead).toBe("Tell me two things.");
+      expect(a.askback?.questions.length).toBe(2);
+      expect(a.askback?.questions[0].chips.length).toBe(5);
+    });
+
+    it("drops a question with fewer than 2 chips — one chip isn't a choice", () => {
+      const out = parseComposeAnswer({
+        verdict: "v",
+        askback: { questions: [{ question: "Only one?", chips: ["Yes"] }] },
+      });
+      const a = out as Exclude<typeof out, { error: string }>;
+      expect(a.askback).toBeUndefined();
+    });
+
+    it("a malformed askback costs the block, not the answer", () => {
+      const out = parseComposeAnswer({ verdict: "v", askback: "garbage" });
+      expect(out).not.toHaveProperty("error");
+      expect((out as Exclude<typeof out, { error: string }>).askback).toBeUndefined();
+    });
+  });
 });
 
 // ── Permission gate ──────────────────────────────────────────────────────────

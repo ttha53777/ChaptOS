@@ -8,7 +8,7 @@
 
 import { IcArrow, IcChev, IcSpark, IcThumbDown, IcThumbUp, KindGlyph } from "./icons";
 import { TraceBlock } from "./ReasoningLedger";
-import { initialsOf, rowAction, type AnswerData, type AnswerRow, type LedgerStep } from "./types";
+import { initialsOf, rowAction, type AnswerData, type AnswerRow, type AskBack, type LedgerStep } from "./types";
 
 function Verdict({ text }: { text: string }) {
   const m = /\*([^*]+)\*/.exec(text);
@@ -78,6 +78,36 @@ function ResultRow({ row, selected, onAsk, onPeek, onNav }: {
   );
 }
 
+/**
+ * The answer's questions back to the user, with likely replies as chips. Each
+ * chip sends "<question> <chip>" as a normal turn, so a tap costs what a typed
+ * reply would have — the point is saving the typing, not a new protocol.
+ */
+function AskBackBlock({ askback, onAsk }: { askback: AskBack; onAsk: (q: string) => void }) {
+  return (
+    <div className="askback in in-4">
+      {askback.lead && <p className="ab-lead">{askback.lead}</p>}
+      {askback.questions.map((q, i) => (
+        <div className="ab-q" key={`${q.question}-${i}`}>
+          <span className="ab-qt">{q.question}</span>
+          <div className="chiprow">
+            {q.chips.map(c => (
+              <button
+                key={c}
+                type="button"
+                className="chip"
+                onClick={() => onAsk(`${q.question} ${c}`)}
+              >
+                {c}
+              </button>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function SourcesRow({ sources }: { sources: string[] }) {
   if (sources.length === 0) return null;
   return (
@@ -127,6 +157,7 @@ export function AnswerBlock({ answer, steps, selectedRow, feedback, onAsk, onPee
           ))}
         </div>
       )}
+      {answer.askback && <AskBackBlock askback={answer.askback} onAsk={onAsk} />}
       <div className="in in-4">
         <div className="meta-row">
           <SourcesRow sources={answer.sources} />

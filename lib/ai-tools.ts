@@ -604,11 +604,12 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
         "(the natural follow-up question tapping it should send). follows: up to 3 short follow-up suggestions. " +
         "For an ADVISORY answer, each row is one recommendation: title = the change, subtitle = why it matters, `tier` = its impact, and `screen` = where it lives. " +
         "Rows MUST be ordered best-first, and tiers must not improve as you go down the list. " +
+        "If you need something from the user to narrow the advice, put it in `askback` INSTEAD of trailing questions in the verdict. " +
         "Do NOT use this for refusals, one-line clarifying questions, or when there's no data to show — answer those in plain text.",
       parameters: {
         type: "object",
         properties: {
-          verdict: { type: "string", description: "One sentence, ≤160 chars, exactly one *emphasis*." },
+          verdict: { type: "string", description: "One sentence, ≤160 chars, exactly one *emphasis*. Never end with a question — use askback." },
           rows: {
             type: "array",
             items: {
@@ -635,6 +636,27 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
               },
               required: ["label", "ask"],
             },
+          },
+          askback: {
+            type: "object",
+            description:
+              "Up to 2 questions back to the user, each with the likely answers as tappable chips. Use ONLY when the answer would genuinely " +
+              "change based on the reply — never as a conversational sign-off.",
+            properties: {
+              lead: { type: "string", description: "One short serif line introducing the questions, ≤120 chars." },
+              questions: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    question: { type: "string", description: "The question, ≤80 chars." },
+                    chips:    { type: "array", items: { type: "string" }, description: "2–5 short likely answers, ≤24 chars each." },
+                  },
+                  required: ["question", "chips"],
+                },
+              },
+            },
+            required: ["questions"],
           },
         },
         required: ["verdict"],
@@ -717,10 +739,23 @@ export type AnswerTier = (typeof ANSWER_TIERS)[number];
 /** Rank order for tier-vs-row-order agreement. Lower sorts first. */
 const TIER_RANK: Record<AnswerTier, number> = { high: 0, medium: 1, later: 2 };
 
+/** A question the answer asks back, with its plausible replies as tappable chips. */
+export interface AskBackQuestion {
+  question: string;
+  chips: string[];
+}
+
+export interface AskBack {
+  lead?: string;
+  questions: AskBackQuestion[];
+}
+
 export interface AnswerPayload {
   verdict: string;   // may contain ONE *emphasis* span; client renders it, escaping everything else
   rows: AnswerRow[];
   follows: Array<{ label: string; ask: string }>;
+  /** Present only when the answer genuinely needs input to narrow further. */
+  askback?: AskBack;
 }
 
 const ANSWER_ROW_KINDS = new Set(["person", "money", "event", "task", "generic"]);
@@ -832,7 +867,39 @@ export function parseComposeAnswer(args: ToolArgs): AnswerPayload | { error: str
     }
   }
 
-  return { verdict: verdict.slice(0, 240), rows, follows };
+  const askback = parseAskBack(args.askback);
+
+  return { verdict: verdict.slice(0, 240), rows, follows, ...(askback ? { askback } : {}) };
+}
+
+/**
+ * Sanitize the optional ask-back block: at most 2 questions, each needing at
+ * least 2 chips to be worth rendering (a single chip isn't a choice). Returns
+ * undefined rather than an error — a malformed ask-back should cost the block,
+ * not the whole answer.
+ */
+function parseAskBack(raw: unknown): AskBack | undefined {
+  if (typeof raw !== "object" || raw === null) return undefined;
+  const ab = raw as Record<string, unknown>;
+  if (!Array.isArray(ab.questions)) return undefined;
+
+  const questions: AskBackQuestion[] = [];
+  for (const q of ab.questions.slice(0, 2)) {
+    if (typeof q !== "object" || q === null) continue;
+    const qq = q as Record<string, unknown>;
+    const question = typeof qq.question === "string" ? qq.question.trim() : "";
+    if (!question || !Array.isArray(qq.chips)) continue;
+    const chips = qq.chips
+      .filter((c): c is string => typeof c === "string" && c.trim().length > 0)
+      .slice(0, 5)
+      .map(c => c.trim().slice(0, 24));
+    if (chips.length < 2) continue;
+    questions.push({ question: question.slice(0, 80), chips });
+  }
+  if (questions.length === 0) return undefined;
+
+  const lead = typeof ab.lead === "string" && ab.lead.trim() ? ab.lead.trim().slice(0, 120) : undefined;
+  return { ...(lead ? { lead } : {}), questions };
 }
 
 // ────────────────────────────────────────────────────────────────────────────

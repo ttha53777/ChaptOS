@@ -57,6 +57,16 @@ export function rowAction(row: AnswerRow): RowAction | null {
   return null;
 }
 
+export interface AskBackQuestion {
+  question: string;
+  chips: string[];
+}
+
+export interface AskBack {
+  lead?: string;
+  questions: AskBackQuestion[];
+}
+
 /**
  * Next row the arrows should land on, skipping any the server could resolve to
  * neither a record nor a follow-up. Selection paints a row as actionable, so
@@ -76,6 +86,8 @@ export interface AnswerData {
   rows: AnswerRow[];
   follows: Array<{ label: string; ask: string }>;
   sources: string[];
+  /** Questions the answer asks back, each with tappable likely replies. */
+  askback?: AskBack;
 }
 
 export interface ProposalPermInfo {

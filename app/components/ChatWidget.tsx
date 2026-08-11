@@ -412,6 +412,9 @@ export function ChatWidget() {
               rows: Array.isArray(a.rows) ? a.rows : [],
               follows: Array.isArray(a.follows) ? a.follows : [],
               sources: Array.isArray(a.sources) ? a.sources : [],
+              ...(a.askback && Array.isArray(a.askback.questions) && a.askback.questions.length > 0
+                ? { askback: a.askback }
+                : {}),
             };
             patchMessage(aid, m => ({ ...m, answer, steps: settleLedger(m.steps) }));
           }

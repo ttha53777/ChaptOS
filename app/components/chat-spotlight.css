@@ -197,6 +197,27 @@
    ties it back to the assistant mark on the launcher. */
 .chat-root .res:hover:not(:disabled) .chev.ask { color: var(--vio); }
 
+/* ── Ask-back: the answer's questions back to the user ───────────────────────
+   Set off by the same violet margin rule the reasoning ledger uses, so "the
+   assistant is speaking structurally" reads consistently. Chips are the SAME
+   component as follows/sources — a tap costs exactly what typing the reply
+   would have, which is the entire point of promoting these out of prose. */
+.chat-root .askback {
+  margin-top: 18px; padding: 2px 0 2px 15px;
+  border-left: 2px solid var(--vio-line);
+}
+.chat-root .askback .ab-lead {
+  font-family: var(--serif); font-size: 15px; line-height: 1.55; letter-spacing: -.005em;
+  color: var(--ink-soft); margin: 0 0 12px;
+}
+.chat-root .askback .ab-q { margin-bottom: 13px; }
+.chat-root .askback .ab-q:last-child { margin-bottom: 0; }
+.chat-root .askback .ab-qt {
+  display: block; font-family: var(--serif); font-size: 14px; font-style: italic;
+  color: var(--muted); margin-bottom: 8px;
+}
+.chat-root .askback .chiprow { display: flex; flex-wrap: wrap; gap: 7px; }
+
 /* Sources / Consulted chips (the SAME chip component). */
 .chat-root .sources, .chat-root .consulted { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; }
 .chat-root .consulted { margin-top: 15px; }

@@ -36,7 +36,7 @@ interface ClientMessage {
 //                                             the client removes them rather than spinning forever
 // composing  {}                             — the model is writing the answer, not calling tools
 // proposal   Proposal                       — writ card (see lib/ai-tools.ts)
-// answer     { verdict, rows, follows, sources } — structured final answer; sources are
+// answer     { verdict, rows, follows, sources, askback? } — structured final answer; sources are
 //                                             server-derived from the read tools actually run.
 //                                             Advisory rows additionally carry a `tier` and a
 //                                             `screen` resolved from a closed enum (see resolveScreen).
