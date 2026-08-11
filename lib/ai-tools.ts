@@ -596,12 +596,15 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
     function: {
       name: "compose_answer",
       description:
-        "Present your FINAL answer to a data question as a structured verdict plus result rows. Call this exactly once, ALONE in its own turn " +
+        "Present your FINAL answer as a structured verdict plus result rows. Call this exactly once, ALONE in its own turn " +
         "(never alongside read tools — finish your reads first), INSTEAD of writing a prose answer. " +
+        "Use it for BOTH data answers and ADVISORY answers (recommendations, 'how do we improve X', product how-to that lists several steps or features). " +
         "verdict: ONE short sentence carrying the judgment AND the headline number, with the single most important figure or phrase wrapped in *asterisks* — never a count of the rows below ('here are 3 ideas'). " +
         "rows: up to 6 records backing the verdict (the people/events/transactions the question is about) — put each row's figure in value, and give each row an `ask` " +
         "(the natural follow-up question tapping it should send). follows: up to 3 short follow-up suggestions. " +
-        "Do NOT use this for refusals, clarifying questions, product how-to, or when there's no data to show — answer those in plain text.",
+        "For an ADVISORY answer, each row is one recommendation: title = the change, subtitle = why it matters, `tier` = its impact, and `screen` = where it lives. " +
+        "Rows MUST be ordered best-first, and tiers must not improve as you go down the list. " +
+        "Do NOT use this for refusals, one-line clarifying questions, or when there's no data to show — answer those in plain text.",
       parameters: {
         type: "object",
         properties: {
@@ -612,10 +615,12 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
               type: "object",
               properties: {
                 kind:     { type: "string", enum: ["person", "money", "event", "task", "generic"], description: "Row glyph: person = a member (avatar from title initials)." },
-                title:    { type: "string", description: "Primary label — a name or event title." },
-                subtitle: { type: "string", description: "One quiet detail line, e.g. 'Secretary · on a payment plan'." },
-                value:    { type: "string", description: "Right-aligned figure, e.g. '$250' or '2' or 'Thu'." },
+                title:    { type: "string", description: "Primary label — a name, event title, or (advisory) the recommended change." },
+                subtitle: { type: "string", description: "One quiet detail line, e.g. 'Secretary · on a payment plan', or (advisory) why it matters." },
+                value:    { type: "string", description: "Right-aligned figure, e.g. '$250' or '2' or 'Thu'. Omit on advisory rows — `tier` fills this slot." },
                 ask:      { type: "string", description: "Follow-up question to send if the user taps this row." },
+                tier:     { type: "string", enum: ["high", "medium", "later"], description: "ADVISORY ONLY: impact. Rows are ranked, so tiers must never improve further down the list." },
+                screen:   { type: "string", enum: ["dashboard", "roster", "events", "attendance", "tasks", "treasury", "dues", "service", "instagram", "parties", "docs", "settings"], description: "ADVISORY ONLY: which screen this change lives on. Tapping the row navigates there." },
               },
               required: ["kind", "title"],
             },
@@ -662,7 +667,55 @@ export interface AnswerRow {
    * results. See lib/ai-refs.
    */
   ref?: { type: "member" | "event" | "task"; id: number };
+  /**
+   * Impact tier for an advisory row, rendered in the same mono slot a data row
+   * uses for its figure. Advisory rows are RANKED — that order is the argument —
+   * so the tier and the row order must agree; parseComposeAnswer enforces it.
+   */
+  tier?: AnswerTier;
+  /**
+   * Screen this row is about, as a key from SCREEN_PATHS — never a raw href.
+   * The model picks a screen by name and the server resolves the path, so a
+   * model-authored string can never become an arbitrary navigation target.
+   * Resolved to a {label, path} by the chat route before it reaches the wire;
+   * see WireAnswerRow.
+   */
+  screen?: ScreenKey;
 }
+
+/** An AnswerRow as it goes over the SSE wire — `screen` resolved to its target. */
+export type WireAnswerRow = Omit<AnswerRow, "screen"> & {
+  screen?: { label: string; path: string };
+};
+
+/**
+ * Where an advisory row points. A closed enum rather than a free href: the
+ * values are model-supplied, and mapping them server-side is what keeps a
+ * hallucinated (or injected) path from becoming a live link. Unknown keys are
+ * dropped, leaving the row to fall back to its `ask`.
+ */
+export const SCREEN_PATHS = {
+  dashboard:   { label: "Dashboard",   path: "" },
+  roster:      { label: "Roster",      path: "/brothers" },
+  events:      { label: "Events",      path: "/events" },
+  attendance:  { label: "Attendance",  path: "/attendance" },
+  tasks:       { label: "Timeline",    path: "/tasks" },
+  treasury:    { label: "Treasury",    path: "/treasury" },
+  dues:        { label: "Dues",        path: "/treasury/dues" },
+  service:     { label: "Service",     path: "/service" },
+  instagram:   { label: "Instagram",   path: "/instagram" },
+  parties:     { label: "Parties",     path: "/parties" },
+  docs:        { label: "Docs",        path: "/docs" },
+  settings:    { label: "Settings",    path: "/settings" },
+} as const;
+
+export type ScreenKey = keyof typeof SCREEN_PATHS;
+
+export const ANSWER_TIERS = ["high", "medium", "later"] as const;
+export type AnswerTier = (typeof ANSWER_TIERS)[number];
+
+/** Rank order for tier-vs-row-order agreement. Lower sorts first. */
+const TIER_RANK: Record<AnswerTier, number> = { high: 0, medium: 1, later: 2 };
 
 export interface AnswerPayload {
   verdict: string;   // may contain ONE *emphasis* span; client renders it, escaping everything else
@@ -717,12 +770,23 @@ export function parseComposeAnswer(args: ToolArgs): AnswerPayload | { error: str
       const kind = typeof r.kind === "string" && ANSWER_ROW_KINDS.has(r.kind)
         ? (r.kind as AnswerRow["kind"])
         : "generic";
+      const tier = typeof r.tier === "string" && (ANSWER_TIERS as readonly string[]).includes(r.tier)
+        ? (r.tier as AnswerTier)
+        : undefined;
+      // An unknown screen key is dropped rather than fatal: the row still works,
+      // it just falls back to its `ask`. This is the check that keeps a
+      // model-authored string from ever reaching the client as a link target.
+      const screen = typeof r.screen === "string" && r.screen in SCREEN_PATHS
+        ? (r.screen as ScreenKey)
+        : undefined;
       rows.push({
         kind,
         title: title.slice(0, 80),
         ...(typeof r.subtitle === "string" && r.subtitle.trim() ? { subtitle: r.subtitle.trim().slice(0, 120) } : {}),
         ...(typeof r.value === "string" && r.value.trim() ? { value: r.value.trim().slice(0, 24) } : {}),
         ...(typeof r.ask === "string" && r.ask.trim() ? { ask: r.ask.trim().slice(0, 200) } : {}),
+        ...(tier ? { tier } : {}),
+        ...(screen ? { screen } : {}),
       });
     }
   }
@@ -746,6 +810,26 @@ export function parseComposeAnswer(args: ToolArgs): AnswerPayload | { error: str
         `Don't count the rows in the verdict — the list is right there. Re-send with a verdict that leads on what the data shows, ` +
         `and make sure every row is the same kind of thing you're claiming.`,
     };
+  }
+
+  // Advisory rows are RANKED, and the tier column is that ranking made visible.
+  // A "high" sitting below a "medium" makes the list argue with itself on
+  // screen, so it's a hard error the model retries rather than a silent re-sort
+  // (only the model knows which of the two it actually meant).
+  const tiered = rows.filter(r => r.tier);
+  if (tiered.length > 1) {
+    for (let i = 1; i < tiered.length; i++) {
+      const prev = TIER_RANK[tiered[i - 1].tier!];
+      const cur = TIER_RANK[tiered[i].tier!];
+      if (cur < prev) {
+        return {
+          error:
+            `compose_answer: your rows are ranked best-first, but "${tiered[i].title}" is tier ${tiered[i].tier} ` +
+            `below a ${tiered[i - 1].tier} row — the order and the tiers disagree, and the user sees both. ` +
+            `Re-send with rows sorted best-first, or fix the tiers so they never improve going down the list.`,
+        };
+      }
+    }
   }
 
   return { verdict: verdict.slice(0, 240), rows, follows };

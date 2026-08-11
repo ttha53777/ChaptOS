@@ -6,7 +6,7 @@
 // as escaped text (React text nodes); the only markup honored is the single
 // *emphasis* span in the verdict, parsed here — never injected as HTML.
 
-import { IcChev, IcSpark, IcThumbDown, IcThumbUp, KindGlyph } from "./icons";
+import { IcArrow, IcChev, IcSpark, IcThumbDown, IcThumbUp, KindGlyph } from "./icons";
 import { TraceBlock } from "./ReasoningLedger";
 import { initialsOf, rowAction, type AnswerData, type AnswerRow, type LedgerStep } from "./types";
 
@@ -22,17 +22,29 @@ function Verdict({ text }: { text: string }) {
   );
 }
 
-function ResultRow({ row, selected, onAsk, onPeek }: {
+/**
+ * The glyph key for a row: its screen label when it has one (advisory rows
+ * carry a destination but no meaningful `kind`), else its kind. Lowercased
+ * because KindGlyph's cases are the lowercase screen names.
+ */
+function glyphKind(row: AnswerRow): string {
+  if (row.screen && row.kind === "generic") return row.screen.label.toLowerCase();
+  return row.kind;
+}
+
+function ResultRow({ row, selected, onAsk, onPeek, onNav }: {
   row: AnswerRow;
   selected: boolean;
   onAsk: (q: string) => void;
   onPeek: (row: AnswerRow) => void;
+  onNav: (row: AnswerRow) => void;
 }) {
-  // A row the server could identify opens its record; one it couldn't falls back
-  // to the model's follow-up question. The affordance says which — a chevron
-  // opens a record on the spot, the spark spends a turn asking — and a row that
-  // resolved to neither (an ambiguous name, say) renders inert rather than
-  // looking identical to its neighbours and then swallowing the tap.
+  // A row the server could identify opens its record; one that names a screen
+  // navigates there; one that's neither falls back to the model's follow-up
+  // question. The affordance says which — a chevron opens a record on the spot,
+  // an arrow leaves for a screen, the spark spends a turn asking — and a row
+  // that resolved to none of the three (an ambiguous name, say) renders inert
+  // rather than looking identical to its neighbours and then swallowing the tap.
   const action = rowAction(row);
   return (
     <button
@@ -41,12 +53,17 @@ function ResultRow({ row, selected, onAsk, onPeek }: {
       disabled={!action}
       onClick={() => {
         if (action === "peek") onPeek(row);
+        else if (action === "nav") onNav(row);
         else if (action === "ask") onAsk(row.ask!);
       }}
     >
       {row.kind === "person"
         ? <span className="av">{initialsOf(row.title)}</span>
-        : <span className="glyph"><KindGlyph kind={row.kind} /></span>}
+        // An advisory row's glyph comes from the screen it points at, not its
+        // kind — the model has no reason to pick a kind for a recommendation,
+        // so keying off it leaves a column of identical dots. KindGlyph already
+        // understands screen-ish names (treasury, roster, timeline).
+        : <span className="glyph"><KindGlyph kind={glyphKind(row)} /></span>}
       <span className="rb">
         <span className="t">{row.title}</span>
         {row.subtitle && <span className="s">{row.subtitle}</span>}
@@ -54,6 +71,7 @@ function ResultRow({ row, selected, onAsk, onPeek }: {
       {row.value && <span className="val">{row.value}</span>}
       <span className={`chev${action === "ask" ? " ask" : ""}`}>
         {action === "peek" && <IcChev />}
+        {action === "nav" && <IcArrow />}
         {action === "ask" && <IcSpark size={14} />}
       </span>
     </button>
@@ -87,7 +105,7 @@ export function FeedbackRow({ value, onFeedback }: {
   );
 }
 
-export function AnswerBlock({ answer, steps, selectedRow, feedback, onAsk, onPeek, onFeedback }: {
+export function AnswerBlock({ answer, steps, selectedRow, feedback, onAsk, onPeek, onNav, onFeedback }: {
   answer: AnswerData;
   steps: LedgerStep[];
   /** Index of the keyboard-selected row, or -1. */
@@ -95,6 +113,7 @@ export function AnswerBlock({ answer, steps, selectedRow, feedback, onAsk, onPee
   feedback?: "up" | "down";
   onAsk: (q: string) => void;
   onPeek: (row: AnswerRow) => void;
+  onNav: (row: AnswerRow) => void;
   onFeedback: (v: "up" | "down") => void;
 }) {
   return (
@@ -104,7 +123,7 @@ export function AnswerBlock({ answer, steps, selectedRow, feedback, onAsk, onPee
       {answer.rows.length > 0 && (
         <div className="reslist in in-3">
           {answer.rows.map((r, i) => (
-            <ResultRow key={`${r.title}-${i}`} row={r} selected={i === selectedRow} onAsk={onAsk} onPeek={onPeek} />
+            <ResultRow key={`${r.title}-${i}`} row={r} selected={i === selectedRow} onAsk={onAsk} onPeek={onPeek} onNav={onNav} />
           ))}
         </div>
       )}

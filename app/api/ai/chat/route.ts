@@ -3,7 +3,7 @@ import OpenAI from "openai";
 import { buildContext } from "@/lib/context";
 import { checkMutationRate } from "@/lib/rate-limit";
 import { aiEnabled, getOpenAI, CHAT_MODEL, MAX_COMPLETION_TOKENS, CHAT_REASONING_EFFORT } from "@/lib/ai";
-import { TOOLS, TOOL_UI, runTool, isReadTool, runProposal, isProposalTool, isAnswerTool, parseComposeAnswer, type Proposal } from "@/lib/ai-tools";
+import { TOOLS, TOOL_UI, runTool, isReadTool, runProposal, isProposalTool, isAnswerTool, parseComposeAnswer, SCREEN_PATHS, type Proposal, type AnswerRow, type WireAnswerRow } from "@/lib/ai-tools";
 import { createRefIndex, attachRefs } from "@/lib/ai-refs";
 import { buildSystemPrompt } from "@/lib/ai-prompt";
 import { tryFastPath } from "@/lib/ai-fastpath";
@@ -37,7 +37,9 @@ interface ClientMessage {
 // composing  {}                             — the model is writing the answer, not calling tools
 // proposal   Proposal                       — writ card (see lib/ai-tools.ts)
 // answer     { verdict, rows, follows, sources } — structured final answer; sources are
-//                                             server-derived from the read tools actually run
+//                                             server-derived from the read tools actually run.
+//                                             Advisory rows additionally carry a `tier` and a
+//                                             `screen` resolved from a closed enum (see resolveScreen).
 // text       { delta }                      — plain-prose fallback (refusals, how-to, fast-path, errors)
 // done       {}
 // The client renders steps as the reasoning ledger (pending → active → done on a
@@ -49,6 +51,23 @@ interface ClientMessage {
 
 function sseEvent(event: string, data: unknown): string {
   return `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
+}
+
+/**
+ * Swap an advisory row's model-supplied screen KEY for the label+path the
+ * client can navigate to. The lookup is the whole point: the key is model
+ * output, so mapping it through a closed table here is what guarantees the
+ * client never receives a link target the model authored. Paths are relative to
+ * the org — the client prefixes its own `/[slug]`, which it already knows, so
+ * the answer payload never carries a tenant identifier it could get wrong.
+ * A key that isn't in the table was already dropped by parseComposeAnswer.
+ */
+function resolveScreen(row: AnswerRow): WireAnswerRow {
+  const { screen, ...rest } = row;
+  if (!screen) return rest;
+  const hit = SCREEN_PATHS[screen];
+  if (!hit) return rest;
+  return { ...rest, screen: { label: hit.label, path: hit.path } };
 }
 
 export async function POST(req: NextRequest) {
@@ -390,7 +409,11 @@ export async function POST(req: NextRequest) {
             if ("error" in parsed) {
               messages.push({ role: "tool", tool_call_id: answerCall.tc.id, content: JSON.stringify(parsed) });
             } else {
-              send("answer", { ...parsed, rows: attachRefs(parsed.rows, refIndex), sources: consulted });
+              send("answer", {
+                ...parsed,
+                rows: attachRefs(parsed.rows, refIndex).map(resolveScreen),
+                sources: consulted,
+              });
               answeredStructured = true;
               break;
             }

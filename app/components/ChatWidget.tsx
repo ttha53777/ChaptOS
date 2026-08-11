@@ -15,6 +15,7 @@
 // Styling in chat-spotlight.css; fonts come from next/font vars on <html>.
 
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent } from "react";
+import { useRouter } from "next/navigation";
 import { orgFetch } from "../lib/api";
 import { iterSSE } from "../lib/sse";
 import { useChapter } from "../context/ChapterContext";
@@ -28,6 +29,7 @@ import { ApprovalsView } from "./chat/ApprovalsView";
 import { dropProvisional, intentFor, planFor, reconcileStep, settleLedger } from "./chat/intent";
 import {
   newId,
+  rowAction,
   stepRow,
   timeStamp,
   type AnswerData,
@@ -131,6 +133,7 @@ function SparkleIcon({ className = "" }: { className?: string }) {
 
 export function ChatWidget() {
   const { currentUser } = useChapter();
+  const router = useRouter();
   const [enabled, setEnabled] = useState<boolean | null>(null); // null = unknown
   const [open, setOpen] = useState(false);
   const [scene, setScene] = useState<Scene>("briefing");
@@ -196,6 +199,18 @@ export function ChatWidget() {
       seed: { title: row.title, subtitle: row.subtitle, kind: row.kind, ask: row.ask },
     });
   }, []);
+
+  // Advisory rows leave for a screen. The path arrives relative to the org (the
+  // server resolved it from a closed enum, so it's never model-authored text)
+  // and the slug is prefixed here, where the active org is already known — the
+  // answer payload stays tenant-free. Closing first means returning by Back
+  // lands on the page, not on a stale open spotlight.
+  const navRow = useCallback((row: AnswerRow) => {
+    const slug = currentUser?.org?.slug;
+    if (!row.screen || !slug) return;
+    closeSpotlight();
+    router.push(`/${slug}${row.screen.path}`);
+  }, [currentUser?.org?.slug, closeSpotlight, router]);
 
   // ⌘K / Ctrl-K toggles; Esc closes. This is the app's one global Cmd+K owner.
   useEffect(() => {
@@ -565,12 +580,14 @@ export function ChatWidget() {
       } else if (e.key === "ArrowUp" && rows.length > 0) {
         e.preventDefault();
         setSelRow(i => stepRow(rows, i, -1));
-      } else if (e.key === "Enter" && selRow >= 0 && rows[selRow]?.ref) {
+      } else if (e.key === "Enter" && selRow >= 0 && rowAction(rows[selRow])) {
+        // Dispatch through rowAction so Enter and the click handler can't drift
+        // apart — the row's affordance already promised one of these three.
         e.preventDefault();
-        openPeek(rows[selRow]);
-      } else if (e.key === "Enter" && selRow >= 0 && rows[selRow]?.ask) {
-        e.preventDefault();
-        void sendMessage(rows[selRow].ask!);
+        const act = rowAction(rows[selRow]);
+        if (act === "peek") openPeek(rows[selRow]);
+        else if (act === "nav") navRow(rows[selRow]);
+        else if (act === "ask") void sendMessage(rows[selRow].ask!);
       } else if (e.key === "Enter" && pendingWrit && pendingWrit.card.perm.canApprove) {
         e.preventDefault();
         void approveProposal(pendingWrit.msgId, pendingWrit.card);
@@ -582,7 +599,7 @@ export function ChatWidget() {
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, scene, peek, lastAnswer, pendingWrit, selRow, sendMessage, openPeek]);
+  }, [open, scene, peek, lastAnswer, pendingWrit, selRow, sendMessage, openPeek, navRow]);
 
   // ── Composer plumbing ──────────────────────────────────────────────────────
 
@@ -710,6 +727,7 @@ export function ChatWidget() {
                                   feedback={m.feedback}
                                   onAsk={q => void sendMessage(q)}
                                   onPeek={openPeek}
+                                  onNav={navRow}
                                   onFeedback={v => giveFeedback(m, v)}
                                 />
                               )}

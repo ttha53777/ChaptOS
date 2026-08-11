@@ -29,6 +29,12 @@ export function IcChev({ size = 13, className }: IconProps) {
   return <svg {...base(size)} className={className} strokeWidth={2}><path d="M9 6l6 6-6 6" /></svg>;
 }
 
+/** Leaving-for-a-screen affordance on an advisory row — distinct from IcChev,
+ *  which means "opens a record here". */
+export function IcArrow({ size = 13, className }: IconProps) {
+  return <svg {...base(size)} className={className} strokeWidth={2}><path d="M5 12h13M13 6l6 6-6 6" /></svg>;
+}
+
 export function IcTick({ size = 14, className }: IconProps) {
   return <svg {...base(size)} className={className} strokeWidth={2.4}><path d="M5 13l4 4L19 7" /></svg>;
 }
@@ -117,12 +123,22 @@ export function KindGlyph({ kind, size = 15 }: { kind: string; size?: number }) 
     case "treasury":    return <IcCoin size={size} />;
     case "event":
     case "events":
+    case "parties":
     case "programming": return <IcFlag size={size} />;
     case "task":
-    case "timeline":    return <IcCal size={size} />;
+    case "tasks":
+    case "timeline":
+    case "attendance":  return <IcCal size={size} />;
     case "instagram":   return <IcClock size={size} />;
     case "person":
-    case "roster":      return <IcUsers size={size} />;
+    case "roster":
+    case "service":     return <IcUsers size={size} />;
+    // Advisory rows resolve their glyph from a screen label (see glyphKind in
+    // AnswerBlock), so the screens with no natural icon land on the tick — a
+    // settled/configured mark — rather than an anonymous dot.
+    case "dashboard":
+    case "settings":
+    case "docs":        return <IcTick size={size} />;
     default:            return <IcDot size={size} />;
   }
 }

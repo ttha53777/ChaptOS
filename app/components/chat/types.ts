@@ -24,6 +24,8 @@ export interface EntityRef {
   id: number;
 }
 
+export type AnswerTier = "high" | "medium" | "later";
+
 export interface AnswerRow {
   kind: "person" | "money" | "event" | "task" | "generic";
   title: string;
@@ -32,6 +34,10 @@ export interface AnswerRow {
   ask?: string;
   /** Server-attached record id — present when the row can open a peek. */
   ref?: EntityRef;
+  /** Impact tier on an advisory row; fills the same slot as `value`. */
+  tier?: AnswerTier;
+  /** Server-resolved screen path, relative to the org (e.g. "/treasury/dues"). */
+  screen?: { label: string; path: string };
 }
 
 /**
@@ -39,12 +45,14 @@ export interface AnswerRow {
  * row's affordance, its click handler and keyboard selection — so the three
  * can't drift into showing an affordance for an interaction that isn't there.
  * Precedence matters: a row the server could identify opens its record rather
- * than spending a model turn re-deriving it.
+ * than spending a model turn re-deriving it, and a row that names a screen
+ * navigates rather than asking the model to describe that screen back.
  */
-export type RowAction = "peek" | "ask";
+export type RowAction = "peek" | "nav" | "ask";
 
 export function rowAction(row: AnswerRow): RowAction | null {
   if (row.ref) return "peek";
+  if (row.screen) return "nav";
   if (row.ask) return "ask";
   return null;
 }

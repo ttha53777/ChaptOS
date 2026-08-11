@@ -162,6 +162,58 @@ describe("parseComposeAnswer", () => {
       })).not.toHaveProperty("error");
     });
   });
+
+  // Advisory rows are ranked and the tier column is that ranking made visible,
+  // so the two must agree on screen.
+  describe("advisory rows", () => {
+    const advisory = (tiers: Array<string | undefined>) => ({
+      verdict: "Start with the *dashboard*.",
+      rows: tiers.map((tier, i) => ({
+        kind: "generic", title: `Fix ${i}`, ...(tier ? { tier } : {}),
+      })),
+    });
+
+    it("rejects a tier that improves further down the list", () => {
+      const out = parseComposeAnswer(advisory(["high", "later", "high"]));
+      expect(out).toHaveProperty("error");
+      expect((out as { error: string }).error).toMatch(/ranked best-first/);
+    });
+
+    it("accepts non-increasing tiers, including repeats", () => {
+      expect(parseComposeAnswer(advisory(["high", "high", "medium", "later"])))
+        .not.toHaveProperty("error");
+    });
+
+    it("ignores untiered rows when checking order", () => {
+      // A mixed list still only constrains the rows that actually claim a tier.
+      expect(parseComposeAnswer(advisory(["high", undefined, "medium"])))
+        .not.toHaveProperty("error");
+    });
+
+    it("keeps a known screen key and drops an unknown one", () => {
+      const out = parseComposeAnswer({
+        verdict: "Start with the *dashboard*.",
+        rows: [
+          { kind: "generic", title: "A", screen: "dues" },
+          { kind: "generic", title: "B", screen: "https://evil.example/steal" },
+          { kind: "generic", title: "C", screen: "../../etc/passwd" },
+        ],
+      });
+      const a = out as Exclude<typeof out, { error: string }>;
+      expect(a.rows[0].screen).toBe("dues");
+      // Anything not in SCREEN_PATHS never reaches the client as a link target.
+      expect(a.rows[1].screen).toBeUndefined();
+      expect(a.rows[2].screen).toBeUndefined();
+    });
+
+    it("drops an unknown tier rather than failing the answer", () => {
+      const out = parseComposeAnswer({
+        verdict: "v", rows: [{ kind: "generic", title: "A", tier: "critical" }],
+      });
+      const a = out as Exclude<typeof out, { error: string }>;
+      expect(a.rows[0].tier).toBeUndefined();
+    });
+  });
 });
 
 // ── Permission gate ──────────────────────────────────────────────────────────
