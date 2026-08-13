@@ -201,7 +201,7 @@ export function EventIdeaPanel({ seed, onBack, onCreated }: {
           ) : data ? null : failed ? null : (
             // The row's own clause holds the space until the prose lands, so the
             // panel opens with something true rather than a spinner.
-            <p className="iwait">Thinking this one through…</p>
+            <p className="iwait"><span className="pulse"><i /></span>Thinking this one through…</p>
           )}
         </div>
 

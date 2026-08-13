@@ -539,7 +539,10 @@
   margin: 0 0 9px; letter-spacing: -.004em;
 }
 .chat-root .idea-why .iwhy:last-child { margin-bottom: 0; }
-.chat-root .idea-why .iwait { font-family: var(--serif); font-style: italic; font-size: 15px; color: var(--muted); margin: 0; }
+.chat-root .idea-why .iwait { display: flex; align-items: center; gap: 11px; font-family: var(--serif); font-style: italic; font-size: 15px; color: var(--muted); margin: 0; }
+.chat-root .idea-why .iwait .pulse { position: relative; width: 7px; height: 7px; flex-shrink: 0; }
+.chat-root .idea-why .iwait .pulse i { position: absolute; inset: 0; border-radius: 50%; background: var(--vio); }
+.chat-root .idea-why .iwait .pulse::after { content: ''; position: absolute; inset: 0; border-radius: 50%; background: var(--vio); animation: cs-halo 1.7s var(--ease) infinite; }
 .chat-root .imore {
   margin-top: 2px; padding: 0; background: transparent; border: 0; cursor: pointer;
   font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase;
