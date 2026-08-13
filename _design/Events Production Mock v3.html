@@ -317,16 +317,20 @@
   .chip .cdot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: .85; }
   .chip.on { color: var(--ink); background: var(--card-2); }
   .chip:hover:not(.on) { color: var(--ink-soft); border-color: var(--vio); }
-  .toolbar .grow { flex: 1; min-width: 0; }
+  .toolbar .grow { flex: 1 1 0; min-width: 0; }
   .searchbox { display: flex; align-items: center; gap: 7px; border: 1px solid var(--line); border-radius: 8px;
-    padding: 6px 11px; background: var(--card); color: var(--faint); font-family: var(--mono); font-size: 10px; letter-spacing: .05em; }
+    padding: 6px 11px; background: var(--card); color: var(--faint); font-family: var(--mono); font-size: 10px; letter-spacing: .05em;
+    flex-shrink: 0; }
   .searchbox svg { width: 13px; height: 13px; flex-shrink: 0; }
   .searchbox input { background: transparent; border: none; outline: none; color: var(--ink); font-family: var(--mono);
-    font-size: 10px; letter-spacing: .05em; width: 120px; }
+    font-size: 10px; letter-spacing: .05em; width: 120px; min-width: 0; }
   .searchbox input::placeholder { color: var(--faint); }
 
   /* ── The board. Lanes declare their entry rule. ───────────────────────── */
-  .board { margin-top: 14px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; align-items: start; }
+  /* stretch, not start: four lanes of wildly different heights read as four
+     separate objects rather than one board. */
+  .board { margin-top: 14px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; align-items: stretch; }
+  .lane { display: flex; flex-direction: column; }
   .lane { border: 1px solid var(--line); border-radius: 12px; background: var(--card);
     box-shadow: var(--shadow); overflow: hidden; min-width: 0; transition: border-color .14s, background .14s; }
   .lane.drop-ok  { border-color: var(--ok);  background: color-mix(in srgb, var(--ok) 5%, var(--card)); }
@@ -351,9 +355,10 @@
   .lane-head .rule-line .gate { color: var(--gold); }
   .lane-head .rule-line .pub { color: var(--vio); }
   .lane-head .meaning { margin-top: 5px; font-size: 10.5px; color: var(--muted); font-style: italic; line-height: 1.4; }
-  .lane-head .visibility { margin-top: 7px; display: inline-flex; align-items: center; gap: 5px;
+  .visibility { display: inline-flex; align-items: center; gap: 6px;
     font-family: var(--mono); font-size: 8.5px; letter-spacing: .1em; text-transform: uppercase;
-    border-radius: 999px; padding: 2px 8px 2px 6px; border: 1px solid var(--line-soft); }
+    border-radius: 999px; padding: 4px 10px 4px 8px; border: 1px solid var(--line-soft); }
+  .lane-head .visibility { margin-top: 7px; }
   .visibility svg { width: 10px; height: 10px; flex-shrink: 0; }
   .visibility.private { color: var(--faint); background: var(--paper); }
   .visibility.public  { color: var(--vio); background: var(--vio-bg); border-color: var(--vio-bg); }
@@ -361,7 +366,7 @@
   /* Capped so one busy lane doesn't leave a dead column beside it. The board
      stays a comparison of four lanes, not a single tall list. */
   .lane-body { padding: 10px; display: flex; flex-direction: column; gap: 9px;
-    min-height: 96px; max-height: 78vh; overflow-y: auto; overscroll-behavior: contain;
+    flex: 1; min-height: 96px; max-height: 78vh; overflow-y: auto; overscroll-behavior: contain;
     /* A soft bottom edge so a clipped card reads as "more below", not as broken. */
     mask-image: linear-gradient(to bottom, #000 calc(100% - 22px), transparent 100%);
     -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 22px), transparent 100%); }
@@ -383,13 +388,20 @@
   .ev-card:active { cursor: grabbing; }
   .ev-card.sel { border-color: var(--vio); box-shadow: 0 0 0 1px var(--vio-bg); }
   .ev-card.dragging { opacity: .4; transform: scale(.97); }
-  .ev-card.private { border-left: 1px dashed var(--faint); border-top-left-radius: 4px; border-bottom-left-radius: 4px; }
   .ev-card.landed { animation: land .5s cubic-bezier(.2,.8,.2,1); }
   @keyframes land { 0% { transform: scale(.94); box-shadow: 0 0 0 4px var(--vio-bg); } 100% { transform: none; box-shadow: none; } }
 
   /* Type is the left edge, not a glyph + a repeated word. */
   .ev-card { border-left: 2px solid var(--tc); }
-  .ev-card.private { border-left: 2px dashed var(--tc); border-top-left-radius: 4px; border-bottom-left-radius: 4px; }
+  /* A 2px dashed border draws long, uneven ticks that read as a rendering
+     fault. An overlaid gradient rail gives even dashes at a controlled rhythm
+     while keeping the same 2px type-colored edge as a public card. */
+  .ev-card.private { position: relative; border-left-color: transparent; }
+  .ev-card.private::before {
+    content: ""; position: absolute; top: -1px; bottom: -1px; left: -2px; width: 2px;
+    background: repeating-linear-gradient(to bottom, var(--tc) 0 5px, transparent 5px 9px);
+    border-radius: 2px; pointer-events: none;
+  }
 
   .ev-card .ec-t { font-size: 13px; font-weight: 550; color: var(--ink); line-height: 1.3;
     display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
@@ -408,7 +420,9 @@
     color: var(--rose); background: var(--rose-bg); border-radius: 999px; padding: 2px 6px;
     flex-shrink: 0; margin-left: 2px; }
   .ev-card .stars { margin-left: auto; color: var(--gold); font-size: 10px; letter-spacing: .5px; flex-shrink: 0; }
-  .ev-card .stars .off { color: var(--line); }
+  /* --line is a hairline color; on a card an "empty" star drawn in it simply
+     vanishes, so 4/5 and 5/5 look identical. */
+  .ev-card .stars .off { color: var(--faint); opacity: .45; }
   .ev-card.ghost { opacity: .66; }
   .ev-card.ghost:hover { opacity: 1; }
 
@@ -503,25 +517,35 @@
   .fs-field { border: 1px solid var(--rose-bg); background: var(--rose-bg); border-radius: 10px;
     padding: 11px 13px; margin-bottom: 9px; }
   .fs-field.filled { border-color: var(--ok-bg); background: var(--ok-bg); }
-  .fs-field .ff-top { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  /* Label left, control right, on a shared grid so a date input and a text
+     input in stacked rows share one right edge instead of each sizing itself. */
+  .fs-field .ff-top { display: grid; grid-template-columns: minmax(0, auto) minmax(180px, 260px);
+    align-items: center; gap: 10px; }
   .fs-field .ff-l { font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--rose); }
   .fs-field.filled .ff-l { color: var(--ok); }
   .fs-field .ff-hint { font-size: 11px; color: var(--faint); margin-top: 6px; }
   .fs-field input, .fs-field select {
-    margin-left: auto; background: var(--paper); border: 1px solid var(--line); border-radius: 7px;
+    width: 100%; background: var(--paper); border: 1px solid var(--line); border-radius: 7px;
     color: var(--ink); font-family: var(--mono); font-size: 11px; padding: 7px 10px; min-height: 34px; min-width: 0; }
   .fs-field input:focus, .fs-field select:focus { outline: none; border-color: var(--vio); }
-  .fs-field input[type="text"] { flex: 1; min-width: 140px; }
 
-  /* Owner picker — the Idea→Planning gate. */
-  .owner-grid { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 10px; }
+  /* The owner row has no input, so it shouldn't hold an empty control column. */
+  .fs-field .ff-top:not(:has(input)):not(:has(select)) { display: flex; }
+
+  /* Owner picker — the Idea→Planning gate. Two even columns, so six people
+     don't wrap into a ragged shape with a hole at the end. */
+  .owner-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+    gap: 7px; margin-top: 10px; }
   .owner-opt { display: inline-flex; align-items: center; gap: 7px; border: 1px solid var(--line);
     background: var(--paper); border-radius: 999px; padding: 5px 12px 5px 6px; cursor: pointer;
-    font-size: 12px; color: var(--ink-soft); transition: border-color .12s, background .12s; }
+    font-size: 12px; color: var(--ink-soft); transition: border-color .12s, background .12s;
+    min-width: 0; text-align: left; }
+  .owner-opt > span:not(.lead-av):not(.oo-role) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .owner-opt .lead-av { flex-shrink: 0; }
   .owner-opt:hover { border-color: var(--vio); }
   .owner-opt.on { border-color: var(--vio); background: var(--vio-bg); color: var(--ink); }
-  .owner-opt .oo-role { font-family: var(--mono); font-size: 8.5px; letter-spacing: .08em;
-    text-transform: uppercase; color: var(--faint); }
+  .owner-opt .oo-role { margin-left: auto; padding-left: 4px; font-family: var(--mono); font-size: 8.5px;
+    letter-spacing: .08em; text-transform: uppercase; color: var(--faint); flex-shrink: 0; }
 
   .fs-foot { padding: 14px 22px 18px; border-top: 1px solid var(--line-soft); display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
   .fs-foot .remain { font-family: var(--mono); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--gold); }
@@ -573,16 +597,19 @@
   /* A field row — label left, value right. The value IS the checkmark. */
   .fld { display: flex; align-items: flex-start; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--line-soft); }
   .fld:last-child { border-bottom: none; }
+  /* Sits against the value line, not the small label above it. */
   .fld-mark { width: 17px; height: 17px; border-radius: 50%; border: 1.5px solid var(--faint); flex-shrink: 0;
-    display: grid; place-items: center; color: transparent; margin-top: 1px; }
+    display: grid; place-items: center; color: transparent; margin-top: 12px; }
   .fld.set .fld-mark { border-color: var(--ok); background: var(--ok); color: var(--paper); }
   .fld.miss .fld-mark { border-color: var(--gold); border-style: dashed; }
   .fld-mark svg { width: 10px; height: 10px; }
   .fld-main { min-width: 0; flex: 1; }
-  .fld-k { font-family: var(--mono); font-size: 9px; letter-spacing: .12em; text-transform: uppercase; color: var(--faint); }
+  /* Both are spans, so they must be told to stack — inline they collide into
+     one run of "TITLE Spring Banquet". */
+  .fld-k { display: block; font-family: var(--mono); font-size: 9px; letter-spacing: .12em; text-transform: uppercase; color: var(--faint); }
   /* Inline, not flex — an avatar or a money run sits in the text line rather
      than becoming its own flex item that can break onto a second row. */
-  .fld-v { font-size: 12.5px; color: var(--ink); margin-top: 2px; overflow-wrap: anywhere; line-height: 1.5; }
+  .fld-v { display: block; font-size: 12.5px; color: var(--ink); margin-top: 2px; overflow-wrap: anywhere; line-height: 1.5; }
   .fld-v .lead-av { display: inline-grid; vertical-align: -4px; margin-right: 4px; }
   .fld.miss .fld-v { color: var(--gold); font-style: italic; }
   .fld-v.empty { color: var(--faint); font-style: italic; }
@@ -617,6 +644,10 @@
 
   /* ── Responsive ───────────────────────────────────────────────────────── */
   @media (max-width: 1180px) {
+    /* Once the bar wraps, a flex:1 spacer just becomes an empty row. */
+    .toolbar .grow { display: none; }
+    .searchbox { flex: 0 1 280px; }
+    .searchbox input { width: 100%; }
     .board  { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .glance { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .measure:nth-child(2) { border-right: none; }
@@ -625,9 +656,18 @@
   @media (max-width: 900px) {
     .shell { grid-template-columns: 1fr; }
     .side { position: static; height: auto; flex-direction: row; align-items: center; gap: 16px;
-      padding: 14px 18px; border-right: none; border-bottom: 1px solid var(--line); overflow-x: auto; }
-    .side .nav { flex-direction: row; padding: 0; }
-    .side .wordmark .org, .side .user { display: none; }
+      padding: 14px 18px; border-right: none; border-bottom: 1px solid var(--line);
+      overflow-x: auto; scrollbar-width: none;
+      /* The bar scrolls; a hard cut mid-word reads as a clipping bug, so the
+         last item fades to say "there's more this way". */
+      mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent 100%);
+      -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent 100%); }
+    .side::-webkit-scrollbar { display: none; }
+    .side .nav { flex-direction: row; padding: 0; flex-wrap: nowrap; }
+    .side .nav a { white-space: nowrap; }
+    .side .wordmark { flex-shrink: 0; }
+    /* flex:1 in a horizontal bar pushed the row 300px past the viewport. */
+    .side .wordmark .org, .side .user, .side .spacer { display: none; }
     .main { padding: 22px 20px 36px; }
     h1.greeting { font-size: 28px; }
   }
@@ -1484,7 +1524,7 @@ function openPanel(id) {
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
             ${pub ? '<circle cx="12" cy="12" r="3.2"/><path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z"/>'
                   : '<rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/>'}
-          </svg>${pub ? "On the chapter Timeline" : "Not visible to the chapter yet"}
+          </svg>${pub ? "On the chapter Timeline" : "Not visible to the Timeline yet"}
         </span>
       </div>
     </div>
