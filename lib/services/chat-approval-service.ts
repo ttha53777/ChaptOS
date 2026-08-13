@@ -151,6 +151,74 @@ export async function recordChatApproval(ctx: RequestContext, input: RecordAppro
   return shape(row);
 }
 
+/**
+ * Record the approval of an event booked from the event-idea panel.
+ *
+ * The panel is the one proposal surface where the CONFIRMED values are not the
+ * signed ones. Every other card is drafted complete and ratified as-is, so the
+ * client can echo the signed blob back and recordChatApproval verifies it
+ * verbatim. Here the whole point is that the card opens with a blank date the
+ * user fills in, so the signed payload (drafted against a placeholder) and the
+ * payload that actually got booked necessarily differ — echoing the former would
+ * file an audit row that misstates what happened, and echoing the latter would
+ * fail the HMAC and file nothing.
+ *
+ * So this path doesn't trust a blob at all. The client sends only the id of the
+ * row its POST created; the audit line is then built by READING THAT ROW BACK
+ * through ctx.db, which is org-scoped — a caller can only ever record an event
+ * that exists, in their own org, and the recorded values are the committed ones
+ * by construction rather than by attestation. That is strictly stronger than a
+ * signature over client-held values, which is why no sig is required here.
+ */
+export async function recordEventIdeaApproval(ctx: RequestContext, eventId: number) {
+  const meta = PROPOSAL_META.propose_add_calendar_event;
+  if (!(ctx.isPlatformAdmin || ctx.isOrgAdmin || hasPermission(ctx.permissions, meta.perm))) {
+    throw new ForbiddenError(`Recording this approval requires ${meta.label}.`);
+  }
+
+  const event = await ctx.db.calendarEvent.findUnique({ where: { id: eventId } });
+  if (!event) throw new ValidationError("No such event.");
+
+  const rows = [
+    { k: "Title", v: event.title },
+    { k: "Date", v: event.date, em: true },
+    { k: "Category", v: event.category },
+    ...(event.time ? [{ k: "Time", v: event.time }] : []),
+    ...(event.location ? [{ k: "Location", v: event.location }] : []),
+    ...(event.mandatory ? [{ k: "Mandatory", v: "Yes" }] : []),
+  ];
+  const display = { kind: meta.kind, title: meta.title, rows };
+  const approvedByRole = await actorRoleTitle(ctx);
+
+  const row = await ctx.db.chatApproval.create({
+    data: {
+      kind: meta.kind,
+      action: "propose_add_calendar_event",
+      title: meta.title,
+      summary: deriveSummary(display),
+      rows,
+      permission: meta.perm,
+      permLabel: meta.label,
+      approvedById: ctx.actorId,
+      approvedByName: ctx.actorName,
+      approvedByRole,
+      subjectType: SUBJECT_BY_ACTION.propose_add_calendar_event,
+      subjectId: event.id,
+      requestId: ctx.requestId,
+    },
+  });
+
+  await emit(ctx, "assistant.proposal_approved", { type: "ChatApproval", id: row.id }, {
+    action: "propose_add_calendar_event",
+    kind: meta.kind,
+    permission: meta.perm,
+    subjectType: SUBJECT_BY_ACTION.propose_add_calendar_event,
+    subjectId: event.id,
+  }, { activity: false });
+
+  return shape(row);
+}
+
 export async function listChatApprovals(ctx: RequestContext, opts: { kind?: string } = {}) {
   const rows = await ctx.db.chatApproval.findMany({
     where: opts.kind ? { kind: opts.kind } : {},

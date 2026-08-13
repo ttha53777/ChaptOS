@@ -115,6 +115,24 @@ export function IcSend({ size = 17, className }: IconProps) {
   return <svg {...base(size)} className={className} strokeWidth={2}><path d="M12 19V5M12 5l-6 6M12 5l6 6" /></svg>;
 }
 
+/** "Draft this here" affordance on a suggested-event row — a plus, not an arrow:
+ *  the row adds something rather than going somewhere. */
+export function IcPlus({ size = 13, className }: IconProps) {
+  return <svg {...base(size)} className={className} strokeWidth={2}><path d="M12 5v14M5 12h14" /></svg>;
+}
+
+export function IcPin({ size = 15, className }: IconProps) {
+  return (
+    <svg {...base(size)} className={className} strokeWidth={1.7}>
+      <path d="M12 21s6.5-6.2 6.5-11a6.5 6.5 0 10-13 0C5.5 14.8 12 21 12 21z" /><circle cx="12" cy="10" r="2.4" />
+    </svg>
+  );
+}
+
+export function IcText({ size = 15, className }: IconProps) {
+  return <svg {...base(size)} className={className} strokeWidth={1.7}><path d="M5 7h14M5 12h14M5 17h9" /></svg>;
+}
+
 /** Glyph for a result/approval row by its kind. */
 export function KindGlyph({ kind, size = 15 }: { kind: string; size?: number }) {
   switch (kind) {

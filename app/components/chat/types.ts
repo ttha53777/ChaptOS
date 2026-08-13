@@ -48,10 +48,29 @@ export interface AnswerRow {
  * than spending a model turn re-deriving it, and a row that names a screen
  * navigates rather than asking the model to describe that screen back.
  */
-export type RowAction = "peek" | "nav" | "ask";
+export type RowAction = "peek" | "nav" | "idea" | "ask";
+
+/**
+ * An advisory row that is a PROPOSED EVENT rather than a change to an existing
+ * screen: "Weekly Brotherhood Dinner", "Intramural Sports Night". These rows
+ * point at the Events screen the way every advisory row points somewhere, but
+ * navigating there is the wrong ending — it lands the officer on an empty
+ * calendar holding a remembered phrase, with the idea itself left behind in the
+ * chat. They open the idea panel instead, which carries the suggestion into a
+ * prefilled proposal.
+ *
+ * The test is deliberately narrow. `ref` still wins (a row the server matched to
+ * an event that ALREADY EXISTS is a record to peek at, not an idea to schedule),
+ * and only an events-screen row with no record behind it can be an idea, so an
+ * ordinary "clean up the events page" advisory row still navigates.
+ */
+export function isEventIdea(row: AnswerRow): boolean {
+  return !row.ref && row.screen?.label.toLowerCase() === "events" && !!row.tier;
+}
 
 export function rowAction(row: AnswerRow): RowAction | null {
   if (row.ref) return "peek";
+  if (isEventIdea(row)) return "idea";
   if (row.screen) return "nav";
   if (row.ask) return "ask";
   return null;

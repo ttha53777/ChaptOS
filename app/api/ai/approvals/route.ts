@@ -1,8 +1,8 @@
 import { NextRequest } from "next/server";
 import { buildContext } from "@/lib/context";
 import { toResponse } from "@/lib/errors";
-import { recordApprovalInput, listApprovalsQuery } from "@/lib/validation/ai";
-import { recordChatApproval, listChatApprovals } from "@/lib/services/chat-approval-service";
+import { recordApprovalInput, recordEventIdeaApprovalInput, listApprovalsQuery } from "@/lib/validation/ai";
+import { recordChatApproval, recordEventIdeaApproval, listChatApprovals } from "@/lib/services/chat-approval-service";
 import { logError } from "@/lib/observability";
 
 // The Ask Chapt approval record. GET is the history any active member can read
@@ -29,6 +29,13 @@ export async function POST(req: NextRequest) {
   if (error) return error;
   try {
     const body = await req.json().catch(() => ({}));
+    // Two ways in. The ordinary one echoes the signed proposal blob back. The
+    // event-idea panel can't — its card is completed by the user after signing —
+    // so it names the row it created and the service re-reads it org-scoped.
+    if ((body as { source?: unknown })?.source === "event_idea") {
+      const input = recordEventIdeaApprovalInput.parse(body);
+      return Response.json(await recordEventIdeaApproval(ctx, input.eventId), { status: 201 });
+    }
     const input = recordApprovalInput.parse(body);
     return Response.json(await recordChatApproval(ctx, input), { status: 201 });
   } catch (e) {

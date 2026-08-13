@@ -503,6 +503,178 @@
 .chat-root .peek-link:hover { color: var(--vio); border-bottom-color: var(--vio-line); }
 .peek-ft .chip { margin-left: auto; }
 
+/* ── Event idea panel ─────────────────────────────────────────────────────────
+   The drill-down behind a tapped programming suggestion: the reasoning, then a
+   proposal card you fill in. Shares the peek's chrome (.peek-hd/.peek-body/
+   .peek-back) so the two panels are the same object arriving from two kinds of
+   row — only the interior differs, because this one is a form. */
+.cs-idea {
+  position: absolute; inset: 0; z-index: 2; display: flex; flex-direction: column;
+  background: var(--card); animation: cs-peek-in .26s var(--ease) both;
+}
+.idea-body { padding-bottom: 24px; }
+
+/* The suggested-event affordance: a plus, because the row ADDS something rather
+   than going somewhere. Violet at rest — this is the one row action that opens
+   the assistant's own drafting surface. */
+.chat-root .res .chev.plus { color: var(--vio-line); }
+.chat-root .res:hover:not(:disabled) .chev.plus,
+.chat-root .res.sel .chev.plus { color: var(--vio); }
+.chat-root .res.idea:hover:not(:disabled) { background: var(--vio-bg); }
+
+.chat-root .idea-id { display: flex; align-items: flex-start; gap: 12px; }
+.chat-root .idea-id .ispark {
+  width: 38px; height: 38px; border-radius: 11px; flex-shrink: 0; display: grid; place-items: center;
+  background: var(--vio-bg); color: var(--vio); box-shadow: inset 0 0 0 1px var(--vio-line);
+}
+.chat-root .idea-id .peek-name .t { font-size: 19px; line-height: 1.25; }
+.chat-root .idea-body { padding-top: 16px; }
+
+/* The explanation — serif, because this is the assistant reasoning aloud, the
+   same voice the verdict uses. Prose, never fields.
+   Sized down from the verdict's 15px: three paragraphs at full counsel size
+   pushed the proposal card entirely below the fold, which inverted the panel's
+   purpose — the reasoning is the argument, but the card is the point, and a
+   panel that opens on prose alone looks like an article rather than a thing you
+   can act on. */
+.chat-root .idea-why { margin-top: 14px; }
+.chat-root .idea-why .iwhy {
+  font-family: var(--serif); font-size: 14px; line-height: 1.55; color: var(--ink-soft);
+  margin: 0 0 9px; letter-spacing: -.004em;
+}
+.chat-root .idea-why .iwhy:last-child { margin-bottom: 0; }
+.chat-root .idea-why .iwait { font-family: var(--serif); font-style: italic; font-size: 15px; color: var(--muted); margin: 0; }
+.chat-root .imore {
+  margin-top: 2px; padding: 0; background: transparent; border: 0; cursor: pointer;
+  font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--muted); border-bottom: 1px solid var(--line-med); transition: color .15s, border-color .15s;
+}
+.chat-root .imore:hover { color: var(--vio); border-bottom-color: var(--vio-line); }
+
+.chat-root .idea-draft { margin-top: 22px; }
+/* The card is the panel's subject, not a footnote to the prose — it gets the
+   paper the thread's cards get, one step lighter than the panel behind it. */
+.chat-root .idea-draft .writ.edraft { margin-top: 0; background: var(--card-2); border-color: var(--line-med); }
+
+/* ── The editable writ ──────────────────────────────────────────────────────
+   Same skeleton as the read-only card (mono key column, violet Proposal tag,
+   permission line, Approve/Discard foot); the value column is typed into. */
+.chat-root .edraft .ebody { padding: 4px 15px 6px; }
+/* Label ABOVE the value, not beside it. The read-only writ card can afford a
+   fixed key column because its values are short server-rendered strings; here
+   they are live inputs in the mono face, and an 84px column plus a "Needed"
+   badge left a title field too narrow to show its own prefilled text. Stacking
+   gives every field the card's full width. */
+.chat-root .efield {
+  display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 2px 10px;
+  padding: 9px 0; border-bottom: 1px solid var(--line-soft);
+}
+.chat-root .efield:last-child { border-bottom: 0; }
+.chat-root .efield .ek {
+  grid-column: 1; display: inline-flex; align-items: center; gap: 7px;
+  font-family: var(--mono); font-size: 9.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--faint);
+}
+.chat-root .efield .eg { display: inline-flex; color: var(--faint); flex-shrink: 0; }
+.chat-root .efield.filled .ek, .chat-root .efield.filled .eg { color: var(--muted); }
+/* min-width:0 is load-bearing: without it the mono input refuses to shrink below
+   its content width and a long title is clipped by the card edge instead of
+   scrolling inside its own field. */
+.chat-root .efield .ev { grid-column: 1; min-width: 0; display: flex; align-items: center; gap: 9px; }
+/* The badge spans both rows in the second column, so it sits beside the field
+   rather than stealing width from it. */
+.chat-root .efield .eneed { grid-column: 2; grid-row: 1 / span 2; align-self: center; }
+
+/* A field that is required and still blank says so, quietly. This is the whole
+   contract of the card made visible: the model refused to guess, so the blank
+   is deliberate and the lock on the foot has a named cause. */
+.chat-root .efield .eneed {
+  flex-shrink: 0; font-family: var(--mono); font-size: 8.5px; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--vio); background: var(--vio-bg); border: 1px solid var(--vio-line); border-radius: 999px; padding: 3px 8px;
+}
+.chat-root .efield.needed .ek, .chat-root .efield.needed .eg { color: var(--muted); }
+
+.chat-root .einput {
+  width: 100%; min-width: 0; background: transparent; border: 0; outline: none; padding: 3px 0;
+  font-family: var(--mono); font-size: 12.5px; color: var(--ink); caret-color: var(--vio);
+  border-bottom: 1px solid transparent; transition: border-color .15s;
+  text-overflow: ellipsis;
+}
+.chat-root .einput::placeholder { color: var(--faint); font-family: var(--sans); font-size: 12.5px; }
+.chat-root .einput:focus { border-bottom-color: var(--vio-line); }
+/* The native date/time controls size to their own content — letting them stretch
+   leaves a wide dead zone between the text and the picker glyph. */
+.chat-root .einput.date, .chat-root .einput.time { width: auto; min-width: 0; flex: 0 1 auto; }
+/* The native picker's own glyph is the affordance; tint it to the warm palette
+   instead of leaving a stock blue-white icon on dusk paper. */
+.chat-root .einput::-webkit-calendar-picker-indicator {
+  filter: invert(.62) sepia(.18) saturate(.4) hue-rotate(2deg); cursor: pointer; opacity: .7;
+}
+.chat-root .einput::-webkit-calendar-picker-indicator:hover { opacity: 1; }
+.chat-root .edate { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1; }
+/* The date read back the way a person would say it — the ISO field states the
+   value, this states the day, which is what actually gets sanity-checked. */
+.chat-root .eread { font-family: var(--sans); font-size: 12px; color: var(--vio); white-space: nowrap; }
+.chat-root .einput.area {
+  font-family: var(--sans); font-size: 13.5px; line-height: 1.55; resize: vertical; min-height: 62px;
+  border: 1px solid var(--line); border-radius: 10px; padding: 9px 11px; background: var(--card);
+}
+.chat-root .einput.area:focus { border-color: var(--vio-line); }
+
+/* Category — chips, not a select. The org's real types are few and worth seeing
+   at once, and the prefilled guess reads as a pick that can be overruled. */
+.chat-root .ecats { padding: 10px 15px 2px; border-top: 1px solid var(--line-soft); }
+.chat-root .ecats .ek {
+  display: flex; align-items: center; gap: 7px; margin-bottom: 9px;
+  font-family: var(--mono); font-size: 10px; letter-spacing: .06em; text-transform: uppercase; color: var(--faint);
+}
+.chat-root .ecats .eg { width: 13px; flex-shrink: 0; }
+.chat-root .ecatrow { display: flex; flex-wrap: wrap; gap: 6px; }
+.chat-root .ecatrow .chip { padding: 5px 11px; font-size: 12px; }
+
+.chat-root .emand { display: flex; align-items: center; gap: 10px; padding: 12px 15px 2px; }
+.chat-root .etoggle {
+  width: 34px; height: 19px; border-radius: 999px; flex-shrink: 0; cursor: pointer; padding: 0;
+  background: var(--card); border: 1px solid var(--line-med); position: relative; transition: background .16s, border-color .16s;
+}
+.chat-root .etoggle .knob {
+  position: absolute; top: 2px; left: 2px; width: 13px; height: 13px; border-radius: 50%;
+  background: var(--muted); transition: transform .18s var(--ease), background .16s;
+}
+.chat-root .etoggle.on { background: var(--vio-bg); border-color: var(--vio-line); }
+.chat-root .etoggle.on .knob { transform: translateX(15px); background: var(--vio); }
+.chat-root .etoggle:disabled { opacity: .55; cursor: not-allowed; }
+.chat-root .emand .elbl { font-size: 12.5px; color: var(--ink-soft); }
+.chat-root .emand .elbl em { font-style: normal; color: var(--faint); font-size: 11.5px; }
+
+/* An outlined pill, not a bare label — the flat mono text it replaced read as a
+   section heading and never got clicked. */
+.chat-root .eadd {
+  display: inline-flex; align-items: center; gap: 6px; margin: 12px 15px 0; cursor: pointer;
+  background: transparent; border: 1px dashed var(--line-med); border-radius: 999px; padding: 5px 12px;
+  font-family: var(--sans); font-size: 12px; color: var(--muted);
+  transition: color .15s, border-color .15s, background .15s;
+}
+.chat-root .eadd::before { content: "+"; font-family: var(--mono); font-size: 13px; line-height: 1; color: var(--faint); }
+.chat-root .eadd:hover { color: var(--ink); border-color: var(--vio-line); background: var(--vio-bg); }
+.chat-root .eadd:hover::before { color: var(--vio); }
+.chat-root .enotes { padding: 10px 15px 0; }
+
+.chat-root .edraft .efoot { margin-top: 12px; }
+/* This card spends most of its life with Confirm disabled — that IS the opening
+   state, unlike the read-only writ where disabled is the rare blocked case. A
+   45%-opacity violet fill still reads as the primary action and invites the tap
+   it will refuse, so an unfillable Confirm drops to paper and only earns its
+   colour once the event can actually be booked. */
+.chat-root .edraft .wbtn.primary:disabled {
+  background: var(--card); border-color: var(--line); color: var(--faint); opacity: 1;
+}
+/* A disabled button with no stated reason reads as broken — and the blank field
+   causing it may be scrolled out of view by the time the foot is reached. */
+.chat-root .eneedline {
+  padding: 0 15px 13px; margin-top: -4px;
+  font-family: var(--serif); font-style: italic; font-size: 12.5px; color: var(--muted);
+}
+
 /* ── Entrance choreography ───────────────────────────────────────────────── */
 .chat-root .in { animation: cs-rise .34s var(--spring) both; }
 @keyframes cs-rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }

@@ -8,7 +8,7 @@
 
 import { useState } from "react";
 
-import { IcArrow, IcChev, IcSpark, IcThumbDown, IcThumbUp, KindGlyph } from "./icons";
+import { IcArrow, IcChev, IcPlus, IcSpark, IcThumbDown, IcThumbUp, KindGlyph } from "./icons";
 import { TraceBlock } from "./ReasoningLedger";
 import { initialsOf, rowAction, type AnswerData, type AnswerRow, type AskBack, type AskBackQuestion, type LedgerStep } from "./types";
 
@@ -34,27 +34,31 @@ function glyphKind(row: AnswerRow): string {
   return row.kind;
 }
 
-function ResultRow({ row, selected, onAsk, onPeek, onNav }: {
+function ResultRow({ row, selected, onAsk, onPeek, onNav, onIdea }: {
   row: AnswerRow;
   selected: boolean;
   onAsk: (q: string) => void;
   onPeek: (row: AnswerRow) => void;
   onNav: (row: AnswerRow) => void;
+  onIdea: (row: AnswerRow) => void;
 }) {
-  // A row the server could identify opens its record; one that names a screen
-  // navigates there; one that's neither falls back to the model's follow-up
+  // A row the server could identify opens its record; a suggested event opens
+  // the idea panel that can schedule it; one that names a screen navigates
+  // there; one that's none of those falls back to the model's follow-up
   // question. The affordance says which — a chevron opens a record on the spot,
-  // an arrow leaves for a screen, the spark spends a turn asking — and a row
-  // that resolved to none of the three (an ambiguous name, say) renders inert
-  // rather than looking identical to its neighbours and then swallowing the tap.
+  // a plus drafts the event here, an arrow leaves for a screen, the spark spends
+  // a turn asking — and a row that resolved to none of them (an ambiguous name,
+  // say) renders inert rather than looking identical to its neighbours and then
+  // swallowing the tap.
   const action = rowAction(row);
   return (
     <button
       type="button"
-      className={`res${selected ? " sel" : ""}${action ? "" : " inert"}`}
+      className={`res${selected ? " sel" : ""}${action ? "" : " inert"}${action === "idea" ? " idea" : ""}`}
       disabled={!action}
       onClick={() => {
         if (action === "peek") onPeek(row);
+        else if (action === "idea") onIdea(row);
         else if (action === "nav") onNav(row);
         else if (action === "ask") onAsk(row.ask!);
       }}
@@ -71,8 +75,9 @@ function ResultRow({ row, selected, onAsk, onPeek, onNav }: {
         {row.subtitle && <span className="s">{row.subtitle}</span>}
       </span>
       {row.value && <span className="val">{row.value}</span>}
-      <span className={`chev${action === "ask" ? " ask" : ""}`}>
+      <span className={`chev${action === "ask" ? " ask" : ""}${action === "idea" ? " plus" : ""}`}>
         {action === "peek" && <IcChev />}
+        {action === "idea" && <IcPlus />}
         {action === "nav" && <IcArrow />}
         {action === "ask" && <IcSpark size={14} />}
       </span>
@@ -198,7 +203,7 @@ export function FeedbackRow({ value, onFeedback }: {
   );
 }
 
-export function AnswerBlock({ answer, steps, selectedRow, feedback, onAsk, onPeek, onNav, onFeedback }: {
+export function AnswerBlock({ answer, steps, selectedRow, feedback, onAsk, onPeek, onNav, onIdea, onFeedback }: {
   answer: AnswerData;
   steps: LedgerStep[];
   /** Index of the keyboard-selected row, or -1. */
@@ -207,6 +212,7 @@ export function AnswerBlock({ answer, steps, selectedRow, feedback, onAsk, onPee
   onAsk: (q: string) => void;
   onPeek: (row: AnswerRow) => void;
   onNav: (row: AnswerRow) => void;
+  onIdea: (row: AnswerRow) => void;
   onFeedback: (v: "up" | "down") => void;
 }) {
   return (
@@ -216,7 +222,7 @@ export function AnswerBlock({ answer, steps, selectedRow, feedback, onAsk, onPee
       {answer.rows.length > 0 && (
         <div className="reslist in in-3">
           {answer.rows.map((r, i) => (
-            <ResultRow key={`${r.title}-${i}`} row={r} selected={i === selectedRow} onAsk={onAsk} onPeek={onPeek} onNav={onNav} />
+            <ResultRow key={`${r.title}-${i}`} row={r} selected={i === selectedRow} onAsk={onAsk} onPeek={onPeek} onNav={onNav} onIdea={onIdea} />
           ))}
         </div>
       )}

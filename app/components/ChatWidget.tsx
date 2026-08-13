@@ -24,6 +24,7 @@ import { MarkdownLite } from "./chat/MarkdownLite";
 import { LedgerHandoff, ReasoningLedger, TraceBlock } from "./chat/ReasoningLedger";
 import { AnswerBlock } from "./chat/AnswerBlock";
 import { PeekSheet, type PeekSeed } from "./chat/PeekSheet";
+import { EventIdeaPanel, type EventIdeaSeed } from "./chat/EventIdeaPanel";
 import { WritCard } from "./chat/WritCard";
 import { ApprovalsView } from "./chat/ApprovalsView";
 import { dropProvisional, intentFor, planFor, reconcileStep, settleLedger } from "./chat/intent";
@@ -145,6 +146,10 @@ export function ChatWidget() {
   // The open peek, if any — a tapped answer row's record. Layered OVER the
   // thread, which keeps its scroll position underneath.
   const [peek, setPeek] = useState<{ refr: EntityRef; seed: PeekSeed } | null>(null);
+  // The open event-idea panel, if any — a tapped programming suggestion, opened
+  // into an explanation plus a prefilled proposal. Rides over the thread the
+  // same way the peek does, and is mutually exclusive with it.
+  const [idea, setIdea] = useState<EventIdeaSeed | null>(null);
   // Mirror of `messages` for synchronous reads in sendMessage — building the
   // request body inside a setMessages updater isn't reliable under React 18
   // batching (could read stale/empty state and POST {messages: []} → 400).
@@ -200,6 +205,20 @@ export function ChatWidget() {
     });
   }, []);
 
+  // A suggested event opens the idea panel instead of navigating: the row IS
+  // the idea, and the Events screen is where it would otherwise be forgotten.
+  // The question that produced the answer rides along so the explanation can be
+  // about this chapter's problem rather than the event in the abstract.
+  const openIdea = useCallback((row: AnswerRow) => {
+    const all = messagesRef.current;
+    let question = "";
+    for (let i = all.length - 1; i >= 0; i--) {
+      if (all[i].role === "user" && all[i].content.trim()) { question = all[i].content.trim(); break; }
+    }
+    setPeek(null);
+    setIdea({ title: row.title, subtitle: row.subtitle, ...(question ? { question } : {}) });
+  }, []);
+
   // Advisory rows leave for a screen. The path arrives relative to the org (the
   // server resolved it from a closed enum, so it's never model-authored text)
   // and the slug is prefixed here, where the active org is already known — the
@@ -212,10 +231,28 @@ export function ChatWidget() {
     router.push(`/${slug}${row.screen.path}`);
   }, [currentUser?.org?.slug, closeSpotlight, router]);
 
+  /**
+   * A confirmed idea became a real event. Close the spotlight and land on the
+   * screen the event now lives on, so the officer sees the thing they just
+   * created rather than being returned to the chat that described it.
+   *
+   * That screen is /events. The feature brief calls this "the Timeline", but in
+   * this app Timeline is /tasks (deadlines) — a CalendarEvent renders on the
+   * Events page (SCREEN_PATHS.events), so that is where a newly booked event is
+   * actually visible.
+   */
+  const onIdeaCreated = useCallback((_eventId: number | null, _payload: Record<string, unknown>) => {
+    const slug = currentUser?.org?.slug;
+    setIdea(null);
+    closeSpotlight();
+    if (slug) router.push(`/${slug}/events`);
+  }, [currentUser?.org?.slug, closeSpotlight, router]);
+
   // ⌘K / Ctrl-K toggles; Esc closes. This is the app's one global Cmd+K owner.
   useEffect(() => {
     const onKey = (e: globalThis.KeyboardEvent) => {
-      // Esc unwinds one layer at a time — the peek before the spotlight itself.
+      // Esc unwinds one layer at a time — an open panel before the spotlight.
+      if (e.key === "Escape" && open && idea) { setIdea(null); return; }
       if (e.key === "Escape" && open && peek) { setPeek(null); return; }
       if (e.key === "Escape" && open) { closeSpotlight(); return; }
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
@@ -225,7 +262,7 @@ export function ChatWidget() {
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [open, peek, openSpotlight, closeSpotlight]);
+  }, [open, peek, idea, openSpotlight, closeSpotlight]);
 
   // On open: dismiss the pulse for good; focus the composer.
   useEffect(() => {
@@ -575,8 +612,10 @@ export function ChatWidget() {
       const typing = document.activeElement === textareaRef.current;
       if (typing || scene !== "thread") return;
       const rows = lastAnswer?.answer?.rows ?? [];
-      // Row navigation belongs to the thread; the open peek owns the keyboard.
-      if (peek) return;
+      // Row navigation belongs to the thread; an open panel owns the keyboard.
+      // The idea panel especially — it is a form, so Enter and the arrows must
+      // reach its inputs rather than moving the selection in the thread behind.
+      if (peek || idea) return;
       if (e.key === "ArrowDown" && rows.length > 0) {
         e.preventDefault();
         setSelRow(i => stepRow(rows, i, 1));
@@ -589,6 +628,7 @@ export function ChatWidget() {
         e.preventDefault();
         const act = rowAction(rows[selRow]);
         if (act === "peek") openPeek(rows[selRow]);
+        else if (act === "idea") openIdea(rows[selRow]);
         else if (act === "nav") navRow(rows[selRow]);
         else if (act === "ask") void sendMessage(rows[selRow].ask!);
       } else if (e.key === "Enter" && pendingWrit && pendingWrit.card.perm.canApprove) {
@@ -602,7 +642,7 @@ export function ChatWidget() {
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, scene, peek, lastAnswer, pendingWrit, selRow, sendMessage, openPeek, navRow]);
+  }, [open, scene, peek, idea, lastAnswer, pendingWrit, selRow, sendMessage, openPeek, navRow, openIdea]);
 
   // ── Composer plumbing ──────────────────────────────────────────────────────
 
@@ -630,6 +670,7 @@ export function ChatWidget() {
     setInput("");
     setSelRow(-1);
     setPeek(null);
+    setIdea(null);
     setScene("briefing");
     textareaRef.current?.focus();
   }
@@ -667,6 +708,7 @@ export function ChatWidget() {
                 className="apprchip"
                 onClick={() => {
                   setPeek(null);
+                  setIdea(null);
                   setScene(s => (s === "approvals" ? (messages.length ? "thread" : "briefing") : "approvals"));
                 }}
               >
@@ -731,6 +773,7 @@ export function ChatWidget() {
                                   onAsk={q => void sendMessage(q)}
                                   onPeek={openPeek}
                                   onNav={navRow}
+                                  onIdea={openIdea}
                                   onFeedback={v => giveFeedback(m, v)}
                                 />
                               )}
@@ -780,6 +823,16 @@ export function ChatWidget() {
                   slug={currentUser?.org?.slug}
                   onBack={() => setPeek(null)}
                   onAsk={q => void sendMessage(q)}
+                />
+              )}
+
+              {/* The idea panel rides over the body on the same terms as the
+                  peek — the thread stays mounted, so Back is a return. */}
+              {idea && (
+                <EventIdeaPanel
+                  seed={idea}
+                  onBack={() => setIdea(null)}
+                  onCreated={onIdeaCreated}
                 />
               )}
             </div>
