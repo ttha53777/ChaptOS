@@ -85,6 +85,30 @@ type Run = <T>(fn: (p: P) => Promise<T>) => Promise<T>;
 
 const RLS_WRAP = process.env.RLS_SET_ORG_ID === "1";
 
+/**
+ * Timeouts for the RLS wrapper transaction.
+ *
+ * Prisma's defaults are timeout: 5s / maxWait: 2s, which are sized for a
+ * multi-statement interactive transaction doing real work. What runs in here is
+ * a `SET LOCAL` plus a single delegate call — but against a *remote pooled*
+ * Postgres, where BEGIN + SET LOCAL + query + COMMIT is four wire round-trips
+ * instead of one. Measured steady-state on a warm pool: ~400ms wrapped vs
+ * ~100ms bare. That is comfortably under 5s until the link degrades, and then
+ * the commit is refused with "A commit cannot be executed on an expired
+ * transaction" — a 500 on a read that would otherwise merely have been slow.
+ * /api/brothers is on ChapterContext's ALWAYS_SECTIONS hot path, so it is where
+ * this surfaced first (observed at 7s, 10.8s and 16.1s).
+ *
+ * Raising the ceiling is safe *because* of what's inside: one read, no user
+ * code, no external I/O awaited mid-transaction, so a longer limit can't hold
+ * row locks or pin a pooler connection behind something unbounded. It converts
+ * a hard failure back into the slow response it always was. This is a ceiling,
+ * not a target — it changes nothing about the happy path.
+ */
+const RLS_TX_TIMEOUT_MS = 15_000;
+/** Queue wait for a pooler connection; distinct from the execution budget above. */
+const RLS_TX_MAX_WAIT_MS = 10_000;
+
 function makeRun(orgId: number, client: P = prisma as P): Run {
   if (!RLS_WRAP) return fn => fn(client);
   // orgId is already validated as a positive integer by the db() guard before
@@ -95,7 +119,7 @@ function makeRun(orgId: number, client: P = prisma as P): Run {
     (client as any).$transaction(async (tx: any) => {
       await tx.$executeRawUnsafe(setLocal);
       return fn(tx as P);
-    });
+    }, { timeout: RLS_TX_TIMEOUT_MS, maxWait: RLS_TX_MAX_WAIT_MS });
 }
 
 /**
@@ -114,7 +138,7 @@ export function _makeRunForTest(orgId: number, client: P): Run {
     (client as any).$transaction(async (tx: any) => {
       await tx.$executeRawUnsafe(setLocal);
       return fn(tx as P);
-    });
+    }, { timeout: RLS_TX_TIMEOUT_MS, maxWait: RLS_TX_MAX_WAIT_MS });
 }
 
 // ---------------------------------------------------------------------------
@@ -1427,6 +1451,10 @@ function scopedOrganizationConfig(orgId: number, run: Run) {
         update: data,
         create: { organizationId: orgId, ...data },
       })),
+
+    /** The same delegate bound to a transaction client — see member.onTx. */
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    onTx: (tx: any) => scopedOrganizationConfig(orgId, fn => fn(tx as P)),
   };
 }
 

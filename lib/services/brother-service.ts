@@ -43,8 +43,11 @@ async function gateSeat(ctx: RequestContext): Promise<void> {
 /** Fetch the org's current custom field definitions from config (server-side only). */
 async function getFieldDefs(ctx: RequestContext): Promise<CustomMemberFieldDef[]> {
   const config = await ctx.db.organizationConfig.find();
-  if (!config) return [];
-  const raw = config.customMemberFields;
+  return toFieldDefs(config?.customMemberFields);
+}
+
+/** Shared shape-check for the `customMemberFields` JSON column. */
+function toFieldDefs(raw: unknown): CustomMemberFieldDef[] {
   return Array.isArray(raw) ? (raw as unknown as CustomMemberFieldDef[]) : [];
 }
 
@@ -66,23 +69,39 @@ export async function listVisibleBrothers(ctx: RequestContext) {
   // ListRosterOptions). This endpoint is fetched on EVERY page for EVERY user
   // via ChapterContext's ALWAYS_SECTIONS, so anything returned here is shipped to
   // every member. Ask for `fields: "contact"` only where email is actually read.
-  // `defs` reads OrganizationConfig and doesn't depend on the roster at all, so
-  // it runs alongside it rather than after — each ctx.db call is its own
-  // round-trip to a remote pooled Postgres, and this endpoint is on the
-  // ALWAYS_SECTIONS hot path, so shaving a sequential hop here is worth it.
-  const [roster, defs] = await Promise.all([
-    ctx.db.member.listRoster(),
-    getFieldDefs(ctx),
-  ]);
-  const brotherIds = roster.map(b => b.id);
+  //
+  // On the single transaction: under RLS_SET_ORG_ID=1 every ctx.db call is its
+  // own implicit transaction — BEGIN + SET LOCAL + query + COMMIT, four wire
+  // round-trips to a remote pooled Postgres for one read (~400ms vs ~100ms bare).
+  // This function makes three such calls, so it paid that overhead three times
+  // on the hottest endpoint in the app, and each one independently raced the
+  // transaction timeout: a slow link expired the commit and turned a merely slow
+  // roster read into a 500. Sharing one transaction pays the overhead once and
+  // gives all three reads a single budget. `.onTx(tx)` keeps them going through
+  // the scoped delegates, so organizationId injection is unchanged — a raw `tx`
+  // client here would make the org filter something a caller could forget.
+  const { roster, defs, brotherRoles } = await ctx.db.$transaction(async tx => {
+    const member = ctx.db.member.onTx(tx);
+    const config = ctx.db.organizationConfig.onTx(tx);
 
-  // Scope role assignments to the active org. A multi-org member has BrotherRole
-  // rows in several orgs; without the org-scoped wrapper's filter another org's
-  // roles leak into this org's UI as chips that can't be revoked here (the revoke
-  // path is org-scoped, so deleting a foreign-org role 404s / no-ops and the chip
-  // reappears on reload). ctx.db injects organizationId: ctx.orgId automatically.
-  // Depends on brotherIds, so it can't join the Promise.all above.
-  const brotherRoles = await ctx.db.brotherRole.listWithRole(brotherIds);
+    // `defs` reads OrganizationConfig and doesn't depend on the roster at all,
+    // so it still runs alongside it rather than after.
+    const [roster, configRow] = await Promise.all([
+      member.listRoster(),
+      config.find(),
+    ]);
+
+    // Scope role assignments to the active org. A multi-org member has BrotherRole
+    // rows in several orgs; without the org-scoped wrapper's filter another org's
+    // roles leak into this org's UI as chips that can't be revoked here (the revoke
+    // path is org-scoped, so deleting a foreign-org role 404s / no-ops and the chip
+    // reappears on reload). The delegate injects organizationId: ctx.orgId
+    // automatically. Depends on brotherIds, so it can't join the Promise.all above.
+    const brotherRoles = await ctx.db.brotherRole.onTx(tx).listWithRole(roster.map(b => b.id));
+
+    return { roster, defs: toFieldDefs(configRow?.customMemberFields), brotherRoles };
+  });
+
   const rolesByBrotherId = new Map<number, { id: number; name: string; color: string | null; rank: number }[]>();
   for (const br of brotherRoles) {
     const list = rolesByBrotherId.get(br.brotherId) ?? [];
