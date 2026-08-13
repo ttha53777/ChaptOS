@@ -59,10 +59,13 @@ export interface EventIdeaCard {
  * handler would then reject — the panel must not offer a choice that fails on
  * Confirm.
  */
-async function usableCategories(ctx: RequestContext): Promise<EventIdeaCategory[]> {
-  const rows = await ctx.db.calendarEventType.findMany({
+async function orgEventTypeRows(ctx: RequestContext) {
+  return ctx.db.calendarEventType.findMany({
     orderBy: [{ displayOrder: "asc" }, { createdAt: "asc" }],
   });
+}
+
+function usableCategories(rows: Awaited<ReturnType<typeof orgEventTypeRows>>): EventIdeaCategory[] {
   return rows
     .filter(t => t.creatable && !t.hidden)
     .map(t => ({ slug: t.slug, label: t.label, mandatoryDefault: t.mandatoryDefault }));
@@ -172,10 +175,14 @@ async function buildEventIdeaProposal(
   ctx: RequestContext,
   title: string,
   category: string,
+  types: Awaited<ReturnType<typeof orgEventTypeRows>>,
 ): Promise<Proposal | { error: string }> {
   return runProposal(
     "propose_add_calendar_event",
-    { title, date: PLACEHOLDER_DATE, category },
+    // _prefetchedTypes rides along unvalidated (ToolArgs is a lenient bag) so
+    // proposeAddCalendarEvent can skip the calendarEventType query we already
+    // ran above instead of re-fetching the same org's rows a second time.
+    { title, date: PLACEHOLDER_DATE, category, _prefetchedTypes: types },
     ctx.db,
     {
       orgId:           ctx.orgId,
@@ -209,7 +216,12 @@ export function isPlaceholderDate(date: unknown): boolean {
  * because there is no officer-approval queue for this path yet.
  */
 export async function getEventIdea(ctx: RequestContext, input: EventIdeaInput): Promise<EventIdeaCard> {
-  const categories = await usableCategories(ctx);
+  // guessCategory below needs these rows before the draft can be built, so
+  // this fetch still precedes the Promise.all — but it's now the ONLY
+  // calendarEventType query for the whole request; buildEventIdeaProposal
+  // forwards these same rows instead of re-fetching them.
+  const types = await orgEventTypeRows(ctx);
+  const categories = usableCategories(types);
   if (categories.length === 0) {
     throw new ValidationError("This chapter has no event types that new events can be created under.");
   }
@@ -223,8 +235,9 @@ export async function getEventIdea(ctx: RequestContext, input: EventIdeaInput): 
     // With no confident category we still need a signed card, so the draft is
     // built against the first usable type and the panel starts with no chip
     // selected — the user's pick rewrites `category` in the payload before
-    // Confirm unlocks, exactly as it rewrites the date.
-    buildEventIdeaProposal(ctx, input.title, category ?? categories[0].slug),
+    // Confirm unlocks, exactly as it rewrites the date. `types` is passed
+    // through so the proposal handler doesn't re-query the same rows.
+    buildEventIdeaProposal(ctx, input.title, category ?? categories[0].slug, types),
   ]);
 
   if ("error" in drafted) {

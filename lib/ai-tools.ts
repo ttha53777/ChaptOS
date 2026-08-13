@@ -1815,7 +1815,10 @@ async function proposeAddCalendarEvent(args: ToolArgs, scoped: Scoped): Promise<
   if (!DATE_RE.test(date)) return badProposal("date must be YYYY-MM-DD.");
   // Categories are the org's CalendarEventType rows; mirror assertCategoryUsable
   // (create mode): the type must exist, be timeline-creatable, and not hidden.
-  const types = await orgEventTypes(scoped);
+  // A caller that already fetched this org's rows (event-idea-service) can
+  // stash them on args._prefetchedTypes to skip a redundant round-trip.
+  const prefetched = args._prefetchedTypes as OrgEventType[] | undefined;
+  const types = prefetched ?? await orgEventTypes(scoped);
   const type = resolveEventType(types, rawCategory);
   if (!type) return badProposal(`Unknown event type "${rawCategory}" — this chapter's types are: ${describeTypes(types)}.`);
   if (!type.creatable || type.hidden) return badProposal(`The "${type.label}" event type isn't available for new events.`);
