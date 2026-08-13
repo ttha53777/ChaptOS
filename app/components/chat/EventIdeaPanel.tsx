@@ -23,7 +23,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { orgFetch } from "../../lib/api";
-import { IcChev, IcSpark } from "./icons";
+import { IcChev } from "./icons";
 import { EventDraftCard, draftMissing, type DraftCategory, type EventDraft } from "./EventDraftCard";
 import type { ProposalCard } from "./types";
 
@@ -175,7 +175,6 @@ export function EventIdeaPanel({ seed, onBack, onCreated }: {
 
       <div className="peek-body idea-body">
         <div className="idea-id">
-          <span className="ispark"><IcSpark size={15} /></span>
           <span className="peek-name">
             <span className="t">{data?.title ?? seed.title}</span>
             {seed.subtitle && <span className="s">{seed.subtitle}</span>}

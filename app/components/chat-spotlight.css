@@ -523,10 +523,6 @@
 .chat-root .res.idea:hover:not(:disabled) { background: var(--vio-bg); }
 
 .chat-root .idea-id { display: flex; align-items: flex-start; gap: 12px; }
-.chat-root .idea-id .ispark {
-  width: 38px; height: 38px; border-radius: 11px; flex-shrink: 0; display: grid; place-items: center;
-  background: var(--vio-bg); color: var(--vio); box-shadow: inset 0 0 0 1px var(--vio-line);
-}
 .chat-root .idea-id .peek-name .t { font-size: 19px; line-height: 1.25; }
 .chat-root .idea-body { padding-top: 16px; }
 
