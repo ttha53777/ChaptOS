@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { APP_NAME } from "@/lib/domains";
 
 /**
  * Shown when a signed-in user lands on /<slug> and has no business there yet.
@@ -12,6 +13,13 @@ import Link from "next/link";
  * Reaching this page does NOT confirm the slug names a real org: a real org the
  * viewer isn't in and a slug that doesn't exist render exactly the same thing,
  * which is the non-enumerability property the old page documented and kept.
+ * That is also why there's no org badge or name here the way /join has one — we
+ * hold nothing but the slug already in the viewer's address bar, so it's set as
+ * a mono token rather than dressed up as an identity we can't vouch for.
+ *
+ * Styled in the pre-auth "Dark Editorial" scope (app/globals.css .auth-scope),
+ * the same one /login, /welcome and /join/<token> use — this is the tail of that
+ * flow, and it used to be the one screen in it wearing a different skin.
  *
  * Server component — pure links, no interactivity.
  */
@@ -23,71 +31,83 @@ export function NeedsInvite({
   homeSlug: string | null;
 }) {
   return (
-    <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#07090f] px-4">
-      {/* Ambient background — matches /login and /welcome. */}
-      <div className="pointer-events-none absolute inset-0">
-        <div className="absolute left-1/2 top-0 -translate-x-1/2 h-[600px] w-[800px] rounded-full bg-indigo-600/10 blur-[140px]" />
-        <div className="absolute right-0 bottom-0 h-[400px] w-[500px] rounded-full bg-purple-700/8 blur-[120px]" />
-        <div className="absolute left-0 top-1/3 h-[300px] w-[300px] rounded-full bg-indigo-500/5 blur-[100px]" />
-      </div>
-      <div
-        className="pointer-events-none absolute inset-0 opacity-[0.015]"
-        style={{
-          backgroundImage:
-            "linear-gradient(rgba(255,255,255,0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.5) 1px, transparent 1px)",
-          backgroundSize: "64px 64px",
-        }}
-      />
+    <div className="auth-scope">
+      <div className="auth-page">
+        <div className="auth-topbar">
+          <div className="auth-wordmark">
+            <div className="auth-glyph">C</div>
+            <div className="auth-wm-txt">{APP_NAME}</div>
+          </div>
+          <div className="auth-meta">Invite required</div>
+        </div>
 
-      <div className="relative z-10 w-full max-w-[440px]">
-        <div className="absolute -inset-px rounded-2xl bg-gradient-to-b from-indigo-500/20 via-indigo-500/5 to-transparent blur-sm" />
-        <div
-          className="relative flex flex-col gap-8 rounded-2xl border border-white/[0.08] bg-[#10121a]/90 px-8 py-10 backdrop-blur-xl"
-          style={{
-            boxShadow:
-              "0 4px 6px rgba(0,0,0,0.4), 0 24px 60px -20px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.05)",
-          }}
-        >
-          <header className="flex flex-col items-center gap-2 text-center">
-            <div className="mb-1 flex h-11 w-11 items-center justify-center rounded-xl bg-amber-500/15 text-amber-300">
-              <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
-                <path
-                  fillRule="evenodd"
-                  d="M10 1a4.5 4.5 0 00-4.5 4.5V9H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-.5V5.5A4.5 4.5 0 0010 1zm3 8V5.5a3 3 0 10-6 0V9h6z"
-                  clipRule="evenodd"
-                />
-              </svg>
-            </div>
-            <h1 className="text-[22px] font-semibold leading-tight tracking-tight text-white">
-              You need an invite
+        <div className="auth-main">
+          <div className="auth-col">
+            <div className="auth-index">No access</div>
+            <h1 className="auth-h1">
+              You need an <em>invite.</em>
             </h1>
-            <p className="text-[13px] leading-relaxed text-white/40">
+            <p className="auth-lede">
               You&rsquo;re signed in, but you&rsquo;re not a member of{" "}
-              <span className="font-medium text-white/70">{slug}</span>. Joining
-              starts with an invite link from one of their officers — ask whoever
-              runs the group to send you one.
+              <span className="auth-slug">{slug}</span>. Joining starts with an
+              invite link from one of their officers — ask whoever runs the group
+              to send you one.
             </p>
-          </header>
 
-          <div className="flex flex-col gap-3">
-            {homeSlug ? (
-              <Link
-                href={`/${homeSlug}`}
-                className="rounded-xl border border-white/[0.08] bg-white/[0.03] px-5 py-3 text-center text-[13px] font-medium text-white/70 transition-all hover:border-white/[0.16] hover:bg-white/[0.06] hover:text-white"
-              >
-                Back to your organization
-              </Link>
-            ) : (
-              <Link
-                href="/welcome"
-                className="rounded-xl border border-white/[0.08] bg-white/[0.03] px-5 py-3 text-center text-[13px] font-medium text-white/70 transition-all hover:border-white/[0.16] hover:bg-white/[0.06] hover:text-white"
-              >
-                Go to your account
-              </Link>
-            )}
+            <div className="auth-body auth-stack">
+              <p className="auth-footnote">
+                Already opened a link? Open it again to pick up where you left
+                off — asking to join is a request an officer reviews, not
+                something this page can do for you.
+              </p>
+
+              {homeSlug ? (
+                <Link href={`/${homeSlug}`} className="auth-tile">
+                  <div className="auth-tile-row">
+                    <span className="auth-tile-num">←</span>
+                    <div>
+                      <div className="auth-tile-title">
+                        Back to your organization
+                      </div>
+                      <div className="auth-tile-desc">
+                        Return to <span className="auth-slug">{homeSlug}</span>,
+                        where you&rsquo;re already a member.
+                      </div>
+                    </div>
+                    <span className="auth-tile-arrow" aria-hidden>
+                      <Arrow />
+                    </span>
+                  </div>
+                </Link>
+              ) : (
+                <Link href="/welcome" className="auth-tile">
+                  <div className="auth-tile-row">
+                    <span className="auth-tile-num">←</span>
+                    <div>
+                      <div className="auth-tile-title">Go to your account</div>
+                      <div className="auth-tile-desc">
+                        Start an organization of your own, or sign in as someone
+                        else.
+                      </div>
+                    </div>
+                    <span className="auth-tile-arrow" aria-hidden>
+                      <Arrow />
+                    </span>
+                  </div>
+                </Link>
+              )}
+            </div>
           </div>
         </div>
       </div>
-    </main>
+    </div>
+  );
+}
+
+function Arrow() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6">
+      <path d="M5 10h10M11 6l4 4-4 4" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
   );
 }

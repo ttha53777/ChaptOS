@@ -334,6 +334,19 @@ table {
 .auth-scope .auth-link.vio:hover { color: #c4b5fd; }
 .auth-scope a:focus-visible, .auth-scope button:focus-visible, .auth-scope input:focus-visible { outline: 2px solid var(--vio); outline-offset: 2px; }
 
+/* An org slug quoted inline in prose. Used by the /[slug] access walls, which —
+   for non-enumerability — hold nothing but the slug from the address bar. Mono
+   because that's what it is: the URL segment they typed, not a display name we
+   looked up and can vouch for.
+
+   A slug is one identifier, so it must never break across lines the way
+   "sigma-" / "chi" did — the hyphen is part of the name, not a wrap point. The
+   negative right margin cancels the trailing padding's optical gap so following
+   punctuation ("…not a member of <slug>.") sits tight against the token. */
+.auth-scope .auth-slug { font-family: var(--mono); font-size: .92em; color: var(--ink-80);
+  background: var(--surface); border: 1px solid var(--line-soft); border-radius: 5px;
+  padding: 1px 6px; white-space: nowrap; word-break: keep-all; margin-right: -2px; }
+
 .auth-scope .auth-divider { display: flex; align-items: center; gap: 14px; color: var(--ink-32); font-size: 11px;
   letter-spacing: .16em; text-transform: uppercase; }
 .auth-scope .auth-divider::before, .auth-scope .auth-divider::after { content: ""; height: 1px; flex: 1; background: var(--line); }
